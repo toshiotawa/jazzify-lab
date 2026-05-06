@@ -21,8 +21,9 @@ struct SurvivalDescentView: View {
     @State private var scrollAnimated: Bool = false
     @State private var didInitialScroll: Bool = false
 
-    private let layout: SurvivalDescentLayout = SurvivalDescentLayoutBuilder.build()
-    private let blocks: [SurvivalBlockMeta] = SurvivalStageCatalog.blocks
+    /// `SurvivalStageCatalog.load(rows:)` 完了後の最新値を反映できるよう computed property にする。
+    private var layout: SurvivalDescentLayout { SurvivalDescentLayoutBuilder.build() }
+    private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks }
 
     private var locale: AppLocale { appState.locale }
 
@@ -58,6 +59,10 @@ struct SurvivalDescentView: View {
 
     private func isMixed(_ stageNumber: Int) -> Bool {
         SurvivalStageCatalog.stage(byNumber: stageNumber)?.isMixedStage ?? false
+    }
+
+    private func isProgression(_ stageNumber: Int) -> Bool {
+        SurvivalStageCatalog.stage(byNumber: stageNumber)?.stageType == .progression
     }
 
     private func blockAllCleared(_ meta: SurvivalBlockMeta) -> Bool {
@@ -338,6 +343,7 @@ struct SurvivalDescentView: View {
                 isSelected: selectedStageNumber == stage.stageNumber,
                 requiresPremium: requiresPremium,
                 isMixed: isMixed(stage.stageNumber),
+                isProgression: isProgression(stage.stageNumber),
                 dim: locked,
                 onTap: {
                     if let def = SurvivalStageCatalog.stage(byNumber: stage.stageNumber) {

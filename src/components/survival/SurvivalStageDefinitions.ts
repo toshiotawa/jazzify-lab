@@ -1,12 +1,19 @@
 /**
  * サバイバル ステージモード ステージ定義
- * 21ブロック構成（コードタイプ単位、各5ステージ。ミックスを含むブロックのみ6ステージ）
- * 合計 110 ステージ = 21 × 5 + 5 Mixed
+ * - メタ情報は Supabase の survival_stages テーブルが正となる。
+ * - ランダムタイプの allowedChords は実行時に生成（buildAllowedChords / buildMixedAllowedChords）。
+ * - Progression（コード進行）タイプは `chord_progression` JSONB カラムに保存された
+ *   `[{ name, voicing }]` 配列をそのままコード列として使う。MusicXML は使用しない。
  */
 
 import { SurvivalDifficulty } from './SurvivalTypes';
+import { getSupabaseClient } from '@/platform/supabaseClient';
 
 export type RootPattern = 'cde' | 'fgab' | 'sharp' | 'flat' | 'all';
+
+export type StageType = 'random' | 'progression';
+
+export type MixedGroupKey = 'easy' | 'normalA' | 'normalB' | 'hard' | 'extreme';
 
 /** 21ブロックのコードタイプID（UI用・順序はステージ番号順） */
 export type BlockKey =
@@ -37,17 +44,35 @@ export interface StageDefinition {
   name: string;
   nameEn: string;
   difficulty: SurvivalDifficulty;
+  /** ステージ種別: 'random' = 既存の出題, 'progression' = コード進行 */
+  stageType: StageType;
   chordSuffix: string;
   chordDisplayName: string;
   chordDisplayNameEn: string;
-  rootPattern: RootPattern;
+  rootPattern: RootPattern | null;
   rootPatternName: string;
   rootPatternNameEn: string;
+  /** ランダム出題用コード集合（progression時は空配列でも可） */
   allowedChords: string[];
   /** 所属ブロック */
   blockKey: BlockKey;
-  /** ブロック末尾の Mixed ステージ（そのブロックのコードタイプ群のミックス） */
+  /** ブロック末尾の Mixed ステージ */
   isMixedStage?: boolean;
+  /** Mixed の対象難易度グループ（DB由来） */
+  mixedGroupKey?: MixedGroupKey;
+  /** Progressionタイプ用コード進行（DB `chord_progression` の値）。Random時は undefined。 */
+  chordProgression?: SurvivalChordProgressionEntry[];
+}
+
+/**
+ * Progression ステージ用 1 コード分のエントリ。
+ * - `name`: 表示用コード名（例: "FM7", "G7"）
+ * - `voicing`: 演奏する MIDI ノート番号（実音域。練習モードの鍵盤ハイライト用）
+ *   正解判定はオクターブ無視（mod 12）で行う。
+ */
+export interface SurvivalChordProgressionEntry {
+  name: string;
+  voicing: number[];
 }
 
 const ROOT_CDE = ['C', 'D', 'E'];
@@ -64,62 +89,13 @@ const ROOTS_BY_PATTERN: Record<RootPattern, string[]> = {
   all: ROOT_ALL,
 };
 
-const PATTERN_NAMES: Record<RootPattern, { ja: string; en: string }> = {
-  cde: { ja: 'CDE', en: 'CDE' },
-  fgab: { ja: 'FGAB', en: 'FGAB' },
-  sharp: { ja: '#系のみ', en: 'Sharps' },
-  flat: { ja: '♭系のみ', en: 'Flats' },
-  all: { ja: '白鍵黒鍵全て', en: 'All Keys' },
-};
-
-const PATTERNS: RootPattern[] = ['cde', 'fgab', 'sharp', 'flat', 'all'];
-
-interface ChordTypeDef {
-  blockKey: BlockKey;
-  suffix: string;
-  displayJa: string;
-  displayEn: string;
-  difficulty: SurvivalDifficulty;
-  /** true のときこのブロック末尾に難易度グループ用 Mixed ステージを挿入 */
-  trailingMixedGroup?: 'easy' | 'normalA' | 'normalB' | 'hard' | 'extreme';
-}
-
-const CHORD_TYPES: ChordTypeDef[] = [
-  // Easy (2 blocks)
-  { blockKey: 'major', suffix: '', displayJa: 'メジャー', displayEn: 'Major', difficulty: 'easy' },
-  { blockKey: 'minor', suffix: 'm', displayJa: 'マイナー', displayEn: 'Minor', difficulty: 'easy', trailingMixedGroup: 'easy' },
-  // Normal 前半 (4 blocks)
-  { blockKey: 'M7', suffix: 'M7', displayJa: 'M7', displayEn: 'M7', difficulty: 'normal' },
-  { blockKey: 'm7', suffix: 'm7', displayJa: 'm7', displayEn: 'm7', difficulty: 'normal' },
-  { blockKey: '7', suffix: '7', displayJa: '7', displayEn: '7', difficulty: 'normal' },
-  { blockKey: 'm7b5', suffix: 'm7b5', displayJa: 'm7b5', displayEn: 'm7b5', difficulty: 'normal', trailingMixedGroup: 'normalA' },
-  // Normal 後半 (5 blocks)
-  { blockKey: 'mM7', suffix: 'mM7', displayJa: 'mM7', displayEn: 'mM7', difficulty: 'normal' },
-  { blockKey: 'dim7', suffix: 'dim7', displayJa: 'dim7', displayEn: 'dim7', difficulty: 'normal' },
-  { blockKey: 'aug7', suffix: 'aug7', displayJa: 'aug7', displayEn: 'aug7', difficulty: 'normal' },
-  { blockKey: '6', suffix: '6', displayJa: '6', displayEn: '6', difficulty: 'normal' },
-  { blockKey: 'm6', suffix: 'm6', displayJa: 'm6', displayEn: 'm6', difficulty: 'normal', trailingMixedGroup: 'normalB' },
-  // Hard (6 blocks)
-  { blockKey: 'M7_9', suffix: 'M7(9)', displayJa: 'M7(9)', displayEn: 'M7(9)', difficulty: 'hard' },
-  { blockKey: 'm7_9', suffix: 'm7(9)', displayJa: 'm7(9)', displayEn: 'm7(9)', difficulty: 'hard' },
-  { blockKey: '7_9_13', suffix: '7(9.6th)', displayJa: '7(9.13)', displayEn: '7(9.13)', difficulty: 'hard' },
-  { blockKey: '7_b9_b13', suffix: '7(b9.b6th)', displayJa: '7(b9.b13)', displayEn: '7(b9.b13)', difficulty: 'hard' },
-  { blockKey: '6_9', suffix: '6(9)', displayJa: '6(9)', displayEn: '6(9)', difficulty: 'hard' },
-  { blockKey: 'm6_9', suffix: 'm6(9)', displayJa: 'm6(9)', displayEn: 'm6(9)', difficulty: 'hard', trailingMixedGroup: 'hard' },
-  // Extreme (4 blocks)
-  { blockKey: '7_b9_13', suffix: '7(b9.6th)', displayJa: '7(b9.13)', displayEn: '7(b9.13)', difficulty: 'extreme' },
-  { blockKey: '7_sharp9_b13', suffix: '7(#9.b6th)', displayJa: '7(#9.b13)', displayEn: '7(#9.b13)', difficulty: 'extreme' },
-  { blockKey: 'm7b5_11', suffix: 'm7(b5)(11)', displayJa: 'm7(b5)(11)', displayEn: 'm7(b5)(11)', difficulty: 'extreme' },
-  { blockKey: 'dimM7', suffix: 'dim(M7)', displayJa: 'dim(M7)', displayEn: 'dim(M7)', difficulty: 'extreme', trailingMixedGroup: 'extreme' },
-];
-
 /** 難易度グループ別 Mixed の対象コードタイプ suffix 群 */
-const MIXED_GROUPS: Record<Exclude<ChordTypeDef['trailingMixedGroup'], undefined>, { suffixes: string[]; difficulty: SurvivalDifficulty; blockKey: BlockKey }> = {
-  easy: { suffixes: ['', 'm'], difficulty: 'easy', blockKey: 'minor' },
-  normalA: { suffixes: ['M7', 'm7', '7', 'm7b5'], difficulty: 'normal', blockKey: 'm7b5' },
-  normalB: { suffixes: ['mM7', 'dim7', 'aug7', '6', 'm6'], difficulty: 'normal', blockKey: 'm6' },
-  hard: { suffixes: ['M7(9)', 'm7(9)', '7(9.6th)', '7(b9.b6th)', '6(9)', 'm6(9)'], difficulty: 'hard', blockKey: 'm6_9' },
-  extreme: { suffixes: ['7(b9.6th)', '7(#9.b6th)', 'm7(b5)(11)', 'dim(M7)'], difficulty: 'extreme', blockKey: 'dimM7' },
+const MIXED_GROUP_SUFFIXES: Record<MixedGroupKey, string[]> = {
+  easy: ['', 'm'],
+  normalA: ['M7', 'm7', '7', 'm7b5'],
+  normalB: ['mM7', 'dim7', 'aug7', '6', 'm6'],
+  hard: ['M7(9)', 'm7(9)', '7(9.6th)', '7(b9.b6th)', '6(9)', 'm6(9)'],
+  extreme: ['7(b9.6th)', '7(#9.b6th)', 'm7(b5)(11)', 'dim(M7)'],
 };
 
 function buildAllowedChords(roots: string[], suffix: string): string[] {
@@ -134,60 +110,152 @@ function buildMixedAllowedChords(suffixes: string[]): string[] {
   return combined;
 }
 
-function generateAllStages(): StageDefinition[] {
-  const stages: StageDefinition[] = [];
-  let stageNum = 1;
-
-  for (const chordType of CHORD_TYPES) {
-    for (const pattern of PATTERNS) {
-      const roots = ROOTS_BY_PATTERN[pattern];
-      const patternName = PATTERN_NAMES[pattern];
-      stages.push({
-        stageNumber: stageNum,
-        name: `${stageNum}. ${chordType.displayJa} ${patternName.ja}`,
-        nameEn: `${stageNum}. ${chordType.displayEn} ${patternName.en}`,
-        difficulty: chordType.difficulty,
-        chordSuffix: chordType.suffix,
-        chordDisplayName: chordType.displayJa,
-        chordDisplayNameEn: chordType.displayEn,
-        rootPattern: pattern,
-        rootPatternName: patternName.ja,
-        rootPatternNameEn: patternName.en,
-        allowedChords: buildAllowedChords(roots, chordType.suffix),
-        blockKey: chordType.blockKey,
-      });
-      stageNum++;
+/** chord_progression JSONB の正規化（不正値はスキップ） */
+function parseChordProgression(raw: unknown): SurvivalChordProgressionEntry[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const entries: SurvivalChordProgressionEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    const voicingRaw = record.voicing;
+    if (!name || !Array.isArray(voicingRaw)) continue;
+    const voicing: number[] = [];
+    for (const v of voicingRaw) {
+      const num = typeof v === 'number' ? v : Number(v);
+      if (Number.isFinite(num)) voicing.push(Math.round(num));
     }
+    if (voicing.length === 0) continue;
+    entries.push({ name, voicing });
+  }
+  return entries.length > 0 ? entries : undefined;
+}
 
-    if (chordType.trailingMixedGroup) {
-      const group = MIXED_GROUPS[chordType.trailingMixedGroup];
-      const patternAll = PATTERN_NAMES.all;
-      stages.push({
-        stageNumber: stageNum,
-        name: `${stageNum}. ミックス ${patternAll.ja}`,
-        nameEn: `${stageNum}. Mixed ${patternAll.en}`,
-        difficulty: group.difficulty,
-        chordSuffix: 'mixed',
-        chordDisplayName: 'ミックス',
-        chordDisplayNameEn: 'Mixed',
-        rootPattern: 'all',
-        rootPatternName: patternAll.ja,
-        rootPatternNameEn: patternAll.en,
-        allowedChords: buildMixedAllowedChords(group.suffixes),
-        blockKey: group.blockKey,
-        isMixedStage: true,
-      });
-      stageNum++;
+/** survival_stages 行 → StageDefinition への変換（ランダムタイプの allowedChords を実行時生成） */
+function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
+  const stageType: StageType = (row.stage_type as StageType) || 'random';
+  const isMixedStage = Boolean(row.is_mixed_stage);
+  const mixedGroupKey = (row.mixed_group_key as MixedGroupKey | null) ?? undefined;
+  const chordSuffix = (row.chord_suffix as string) ?? '';
+  const rootPattern = (row.root_pattern as RootPattern | null) ?? null;
+
+  let allowedChords: string[] = [];
+  if (stageType === 'random') {
+    if (isMixedStage && mixedGroupKey && MIXED_GROUP_SUFFIXES[mixedGroupKey]) {
+      allowedChords = buildMixedAllowedChords(MIXED_GROUP_SUFFIXES[mixedGroupKey]);
+    } else if (rootPattern && ROOTS_BY_PATTERN[rootPattern]) {
+      allowedChords = buildAllowedChords(ROOTS_BY_PATTERN[rootPattern], chordSuffix);
     }
   }
 
-  return stages;
+  return {
+    stageNumber: Number(row.stage_number),
+    name: row.name as string,
+    nameEn: row.name_en as string,
+    difficulty: row.difficulty as SurvivalDifficulty,
+    stageType,
+    chordSuffix,
+    chordDisplayName: (row.chord_display_name as string) ?? '',
+    chordDisplayNameEn: (row.chord_display_name_en as string) ?? '',
+    rootPattern,
+    rootPatternName: (row.root_pattern_name as string) ?? '',
+    rootPatternNameEn: (row.root_pattern_name_en as string) ?? '',
+    allowedChords,
+    blockKey: row.block_key as BlockKey,
+    isMixedStage,
+    mixedGroupKey,
+    chordProgression: parseChordProgression(row.chord_progression),
+  };
 }
 
-export const ALL_STAGES: StageDefinition[] = generateAllStages();
-export const TOTAL_STAGES = ALL_STAGES.length;
+const LOCAL_CACHE_KEY = 'survival_stages_cache_v1';
+
+function readLocalCache(): StageDefinition[] | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const raw = window.localStorage.getItem(LOCAL_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Array<Record<string, unknown>>;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed.map(rowToStageDefinition);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalCache(rows: Array<Record<string, unknown>>): void {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(rows));
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+/**
+ * グローバルにキャッシュされたステージ一覧。
+ * fetchAllStages() で初期化されるまで空配列。
+ */
+export let ALL_STAGES: StageDefinition[] = [];
+export let TOTAL_STAGES = 0;
+
+let fetchPromise: Promise<StageDefinition[]> | null = null;
+
 export const STAGE_TIME_LIMIT_SECONDS = 90;
 export const STAGE_KILL_QUOTA = 150;
+
+/**
+ * survival_stages を Supabase から取得し、`ALL_STAGES` を更新する。
+ * 結果はメモリ + localStorage にキャッシュされる。
+ */
+export async function fetchAllStages(): Promise<StageDefinition[]> {
+  if (fetchPromise) return fetchPromise;
+
+  fetchPromise = (async () => {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('survival_stages')
+        .select('*')
+        .order('stage_number', { ascending: true });
+      if (error) throw error;
+      const rows = (data ?? []) as Array<Record<string, unknown>>;
+      if (rows.length === 0) {
+        const cached = readLocalCache();
+        if (cached) {
+          ALL_STAGES = cached;
+          TOTAL_STAGES = cached.length;
+          return cached;
+        }
+        return [];
+      }
+      const stages = rows.map(rowToStageDefinition);
+      ALL_STAGES = stages;
+      TOTAL_STAGES = stages.length;
+      writeLocalCache(rows);
+      return stages;
+    } catch {
+      const cached = readLocalCache();
+      if (cached) {
+        ALL_STAGES = cached;
+        TOTAL_STAGES = cached.length;
+        return cached;
+      }
+      return [];
+    } finally {
+      // 一度成功したら以後はメモリキャッシュを使う
+    }
+  })();
+
+  return fetchPromise;
+}
+
+/** テスト/再ロード用: キャッシュをクリアし次回 fetch を強制する */
+export function resetStageCache(): void {
+  fetchPromise = null;
+  ALL_STAGES = [];
+  TOTAL_STAGES = 0;
+}
 
 export function getStageByNumber(stageNumber: number): StageDefinition | undefined {
   return ALL_STAGES.find(s => s.stageNumber === stageNumber);

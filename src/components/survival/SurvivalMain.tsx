@@ -10,7 +10,9 @@ import { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
 import SurvivalDescentMap from './descent/SurvivalDescentMap';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import SurvivalGameScreen from './SurvivalGameScreen';
-import { StageDefinition, STAGE_TIME_LIMIT_SECONDS, ALL_STAGES, TOTAL_STAGES } from './SurvivalStageDefinitions';
+import { StageDefinition, ALL_STAGES, TOTAL_STAGES, fetchAllStages } from './SurvivalStageDefinitions';
+import { rebuildDescentBlocks } from './descent/descentBlocks';
+import { rebuildDescentLayouts } from './descent/descentLayout';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -121,27 +123,39 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
   useEffect(() => {
     if (!demoMode || demoInitialized) return;
-    const stage1 = ALL_STAGES[0];
-    const demoConfig: DifficultyConfig = {
-      difficulty: stage1.difficulty,
-      displayName: stage1.name,
-      description: stage1.name,
-      descriptionEn: stage1.nameEn,
-      allowedChords: DEMO_CDE_NOTES,
-      enemySpawnRate: 1,
-      enemySpawnCount: 1,
-      enemyStatMultiplier: 1,
-      expMultiplier: 1,
-      itemDropRate: 1,
-      bgmOddWaveUrl: DEMO_BGM_ODD,
-      bgmEvenWaveUrl: DEMO_BGM_EVEN,
+    let cancelled = false;
+    const init = async (): Promise<void> => {
+      try {
+        await fetchAllStages();
+        rebuildDescentBlocks();
+        rebuildDescentLayouts();
+      } catch { /* ignore */ }
+      if (cancelled) return;
+      const stage1 = ALL_STAGES[0];
+      if (!stage1) return;
+      const demoConfig: DifficultyConfig = {
+        difficulty: stage1.difficulty,
+        displayName: stage1.name,
+        description: stage1.name,
+        descriptionEn: stage1.nameEn,
+        allowedChords: DEMO_CDE_NOTES,
+        enemySpawnRate: 1,
+        enemySpawnCount: 1,
+        enemyStatMultiplier: 1,
+        expMultiplier: 1,
+        itemDropRate: 1,
+        bgmOddWaveUrl: DEMO_BGM_ODD,
+        bgmEvenWaveUrl: DEMO_BGM_EVEN,
+      };
+      setSelectedDifficulty(stage1.difficulty);
+      setSelectedConfig(demoConfig);
+      setActiveStageDefinition(stage1);
+      setActiveHintMode(true);
+      setScreen('game');
+      setDemoInitialized(true);
     };
-    setSelectedDifficulty(stage1.difficulty);
-    setSelectedConfig(demoConfig);
-    setActiveStageDefinition(stage1);
-    setActiveHintMode(true);
-    setScreen('game');
-    setDemoInitialized(true);
+    void init();
+    return () => { cancelled = true; };
   }, [demoMode, demoInitialized]);
 
   useEffect(() => {
@@ -157,6 +171,15 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
     const initIOS = async () => {
       try {
+        try {
+          await fetchAllStages();
+          rebuildDescentBlocks();
+          rebuildDescentLayouts();
+        } catch { /* ignore */ }
+        if (ALL_STAGES.length === 0) {
+          setIosInitError(true);
+          return;
+        }
         let targetStage: StageDefinition;
         if (iosStageNumber) {
           const stageNum = parseInt(iosStageNumber, 10);
@@ -233,8 +256,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
     try { clearConditions = JSON.parse(lessonParams.get('clearConditions') || '{}'); } catch { /* ignore */ }
 
-    const stageDef = ALL_STAGES.find(s => s.stageNumber === stageNumber);
-    if (!lessonId || !lessonSongId || !stageDef) {
+    if (!lessonId || !lessonSongId || !stageNumber) {
       window.location.hash = '#lessons';
       return;
     }
@@ -242,6 +264,18 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setLessonContext({ lessonId, lessonSongId, stageNumber, clearConditions });
 
     const initLesson = async () => {
+      try {
+        await fetchAllStages();
+        rebuildDescentBlocks();
+        rebuildDescentLayouts();
+      } catch { /* ignore */ }
+
+      const stageDef = ALL_STAGES.find(s => s.stageNumber === stageNumber);
+      if (!stageDef) {
+        window.location.hash = '#lessons';
+        return;
+      }
+
       try {
         await FantasySoundManager.unlock();
         await initializeAudioSystem();
@@ -319,7 +353,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const handleNextStage = useCallback(() => {
     if (!activeStageDefinition || !selectedConfig) return;
     const nextStageNumber = activeStageDefinition.stageNumber + 1;
-    const nextStage = ALL_STAGES.find(s => s.stageNumber === nextStageNumber);
+    const nextStage = ALL_STAGES.find((s: StageDefinition) => s.stageNumber === nextStageNumber);
     if (!nextStage) return;
 
     const nextConfig: DifficultyConfig = {

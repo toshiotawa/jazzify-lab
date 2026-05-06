@@ -20,12 +20,12 @@ export const LANE_X = {
 export type LaneKey = keyof typeof LANE_X;
 
 /** Y 間隔ルール */
-const Y_TOP_PADDING = 56;            // ブロックヘッダーの上余白（タイトルプレート上端分）
-const Y_HEADER_TO_FIRST = 80;        // ヘッダープレート → 1つ目の踊り場
-const Y_STAGE_GAP = 130;             // 通常踊り場間（小→小）
-const Y_BEFORE_BIG = 170;            // 直前踊り場 → 大踊り場
-const Y_DOOR_TO_NEXT_HEADER = 70;    // 扉 → 次ブロックヘッダー
-const Y_DOOR_OFFSET_FROM_BIG = -10;  // 大踊り場に対する扉の相対Y（上方・奥行き演出）
+const Y_TOP_PADDING = 56;
+const Y_HEADER_TO_FIRST = 80;
+const Y_STAGE_GAP = 130;
+const Y_BEFORE_BIG = 170;
+const Y_DOOR_TO_NEXT_HEADER = 70;
+const Y_DOOR_OFFSET_FROM_BIG = -10;
 
 /** 大踊り場（ブロック末尾ステージ）の相対位置 */
 const BIG_LANDING_HEIGHT = 180;
@@ -105,20 +105,29 @@ function buildAllLayouts(): BlockLayout[] {
   return layouts;
 }
 
-export const ALL_BLOCK_LAYOUTS: BlockLayout[] = buildAllLayouts();
+export let ALL_BLOCK_LAYOUTS: BlockLayout[] = [];
 
-const STAGE_POSITIONS: Map<number, StagePosition> = (() => {
-  const map = new Map<number, StagePosition>();
+const stagePositionsMap: Map<number, StagePosition> = new Map();
+
+/** マップ全長（論理px）。rebuildDescentLayouts() の呼出後に最新値が入る。 */
+export let MAP_LOGICAL_HEIGHT = 0;
+
+/** ALL_BLOCKS が更新された後に呼ぶ。 */
+export function rebuildDescentLayouts(): void {
+  ALL_BLOCK_LAYOUTS = buildAllLayouts();
+  stagePositionsMap.clear();
   for (const layout of ALL_BLOCK_LAYOUTS) {
     for (const stage of layout.stages) {
-      map.set(stage.stageNumber, stage);
+      stagePositionsMap.set(stage.stageNumber, stage);
     }
   }
-  return map;
-})();
+  MAP_LOGICAL_HEIGHT = ALL_BLOCK_LAYOUTS.length > 0
+    ? ALL_BLOCK_LAYOUTS[ALL_BLOCK_LAYOUTS.length - 1].endY
+    : 0;
+}
 
 export function getStagePosition(stageNumber: number): StagePosition | undefined {
-  return STAGE_POSITIONS.get(stageNumber);
+  return stagePositionsMap.get(stageNumber);
 }
 
 export function getBlockLayout(blockKey: BlockKey): BlockLayout | undefined {
@@ -128,9 +137,6 @@ export function getBlockLayout(blockKey: BlockKey): BlockLayout | undefined {
 export function getBlockLayoutByIndex(blockIndex: number): BlockLayout | undefined {
   return ALL_BLOCK_LAYOUTS[blockIndex];
 }
-
-/** マップ全長（論理px） */
-export const MAP_LOGICAL_HEIGHT = ALL_BLOCK_LAYOUTS[ALL_BLOCK_LAYOUTS.length - 1].endY;
 
 /** ステージが属するブロックのレイアウトを返す */
 export function getBlockLayoutForStage(stageNumber: number): BlockLayout | undefined {
@@ -150,7 +156,6 @@ export function getBlockNodeYRange(blockKey: BlockKey): { min: number; max: numb
 
 export const LAYOUT_CONSTANTS = {
   MAP_LOGICAL_WIDTH,
-  MAP_LOGICAL_HEIGHT,
   LANE_X,
   Y_STAGE_GAP,
   Y_BEFORE_BIG,

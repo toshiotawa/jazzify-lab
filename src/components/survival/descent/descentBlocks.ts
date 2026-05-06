@@ -1,6 +1,7 @@
 /**
  * 魔王城降下マップ: ブロック（コードタイプ）メタデータ
  * 1ブロック = 5 ステージ、Mixed を含むブロックのみ 6 ステージ。
+ * 注: Web版は survival_stages テーブルがソース。fetchAllStages 完了後に rebuildDescentBlocks を呼ぶ。
  */
 
 import { ALL_STAGES, BlockKey } from '../SurvivalStageDefinitions';
@@ -70,6 +71,7 @@ const BLOCK_LABELS: Record<BlockKey, { ja: string; en: string }> = {
 };
 
 function buildBlocks(): BlockMeta[] {
+  if (ALL_STAGES.length === 0) return [];
   const byKey: Map<BlockKey, { stageNumbers: number[]; mixedStageNumber: number | null }> = new Map();
   for (const stage of ALL_STAGES) {
     const entry = byKey.get(stage.blockKey) ?? { stageNumbers: [], mixedStageNumber: null };
@@ -78,14 +80,14 @@ function buildBlocks(): BlockMeta[] {
     byKey.set(stage.blockKey, entry);
   }
 
-  return BLOCK_ORDER.map((blockKey, blockIndex) => {
+  const result: BlockMeta[] = [];
+  for (let blockIndex = 0; blockIndex < BLOCK_ORDER.length; blockIndex += 1) {
+    const blockKey = BLOCK_ORDER[blockIndex];
     const entry = byKey.get(blockKey);
-    if (!entry) {
-      throw new Error(`Block ${blockKey} has no stages`);
-    }
+    if (!entry) continue;
     const sorted = [...entry.stageNumbers].sort((a, b) => a - b);
     const label = BLOCK_LABELS[blockKey];
-    return {
+    result.push({
       blockKey,
       blockIndex,
       label: label.ja,
@@ -96,24 +98,28 @@ function buildBlocks(): BlockMeta[] {
       mixedStageNumber: entry.mixedStageNumber,
       hasMixed: entry.mixedStageNumber !== null,
       stageCount: sorted.length,
-    };
-  });
+    });
+  }
+  return result;
 }
 
-export const ALL_BLOCKS: BlockMeta[] = buildBlocks();
+export let ALL_BLOCKS: BlockMeta[] = [];
 
-const STAGE_TO_BLOCK: Map<number, BlockMeta> = (() => {
-  const map = new Map<number, BlockMeta>();
+const stageToBlockMap: Map<number, BlockMeta> = new Map();
+
+/** ALL_STAGES が更新された後に呼ぶ。 */
+export function rebuildDescentBlocks(): void {
+  ALL_BLOCKS = buildBlocks();
+  stageToBlockMap.clear();
   for (const block of ALL_BLOCKS) {
     for (const stageNumber of block.stageNumbers) {
-      map.set(stageNumber, block);
+      stageToBlockMap.set(stageNumber, block);
     }
   }
-  return map;
-})();
+}
 
 export function getBlockForStage(stageNumber: number): BlockMeta | undefined {
-  return STAGE_TO_BLOCK.get(stageNumber);
+  return stageToBlockMap.get(stageNumber);
 }
 
 export function getBlockByKey(blockKey: BlockKey): BlockMeta | undefined {

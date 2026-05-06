@@ -4,6 +4,12 @@ import Foundation
 /// - 21 コードタイプブロック × 5 ステージ + 5 Mixed = 110 ステージ
 /// - 各ブロックは 5 つのルートパターン（CDE / FGAB / #系 / ♭系 / 全鍵盤）を順に並べる
 /// - Mixed ステージは難易度グループ末尾のブロックに 1 つ追加される
+/// ステージのタイプ。Web 版 `StageType` と同義。
+enum SurvivalStageType: String, Codable, Sendable {
+    case random
+    case progression
+}
+
 enum SurvivalDifficulty: String, Codable, Sendable, CaseIterable {
     case easy
     case normal
@@ -33,6 +39,12 @@ enum SurvivalRootPattern: String, Sendable {
     case all
 
     static let displayOrder: [SurvivalRootPattern] = [.cde, .fgab, .sharp, .flat, .all]
+
+    /// DB の `root_pattern` 値からの安全初期化（Progression 用に NULL/未知を許容）
+    init?(dbValue: String?) {
+        guard let raw = dbValue?.lowercased(), !raw.isEmpty else { return nil }
+        self.init(rawValue: raw)
+    }
 
     var roots: [String] {
         switch self {
@@ -92,20 +104,57 @@ enum SurvivalBlockKey: String, Sendable, Hashable {
     case dimM7
 }
 
+/// Progression ステージで出題する 1 コード分のエントリ。
+/// `survival_stages.chord_progression` JSONB の各要素に対応する。
+public struct SurvivalChordProgressionEntry: Codable, Sendable, Hashable {
+    public let name: String
+    public let voicing: [Int]
+
+    public init(name: String, voicing: [Int]) {
+        self.name = name
+        self.voicing = voicing
+    }
+}
+
+/// `survival_stages` テーブルの 1 行をデコードするための型。
+/// Web 版 `fetchAllStages()` が読み取るのと同じ列セット。
+struct SurvivalStageRow: Decodable, Sendable {
+    let stage_number: Int
+    let stage_type: String
+    let name: String
+    let name_en: String
+    let difficulty: String
+    let chord_suffix: String?
+    let chord_display_name: String?
+    let chord_display_name_en: String?
+    let root_pattern: String?
+    let root_pattern_name: String?
+    let root_pattern_name_en: String?
+    let block_key: String
+    let is_mixed_stage: Bool?
+    let mixed_group_key: String?
+    /// Progression 用コード進行（`[{"name": "FM7", "voicing": [65, 69, 72, 76]}, ...]`）
+    let chord_progression: [SurvivalChordProgressionEntry]?
+}
+
 struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let stageNumber: Int
+    let stageType: SurvivalStageType
     let nameJa: String
     let nameEn: String
     let difficulty: SurvivalDifficulty
     let chordSuffix: String
     let chordDisplayJa: String
     let chordDisplayEn: String
-    let rootPattern: SurvivalRootPattern
+    /// Progression ステージでは NULL 相当のため optional。
+    let rootPattern: SurvivalRootPattern?
     let rootPatternJa: String
     let rootPatternEn: String
     let allowedChords: [String]
     let blockKey: SurvivalBlockKey
     let isMixedStage: Bool
+    /// Progression ステージで使う事前ビルド済みのコード進行。Random ステージでは nil。
+    let chordProgression: [SurvivalChordProgressionEntry]?
 
     var id: Int { stageNumber }
 
@@ -141,30 +190,123 @@ struct SurvivalBlockMeta: Identifiable, Sendable {
     }
 }
 
-/// ステージ定義と階層情報をまとめて提供する静的カタログ
+/// ステージ定義と階層情報をまとめて提供するカタログ。
+/// - 注: Web 版 [src/components/survival/SurvivalStageDefinitions.ts](src/components/survival/SurvivalStageDefinitions.ts) と
+///   同様に、`survival_stages` テーブルがソース。`load(rows:)` で DB 行から再構築する。
+///   起動直後はローカルフォールバック（`generateStages()` の結果）を返す。
 enum SurvivalStageCatalog {
-    static let stages: [SurvivalStageDefinition] = Self.generateStages()
-    static let blocks: [SurvivalBlockMeta] = Self.generateBlocks(from: stages)
-    static let totalStages: Int = stages.count
+    /// `nonisolated(unsafe)`: Supabase ロード前後の単発書き換えのみ想定。
+    /// ロード完了は MainActor 上で行うことで実用上の競合を避ける。
+    nonisolated(unsafe) private static var _stages: [SurvivalStageDefinition] = Self.generateStages()
+    nonisolated(unsafe) private static var _blocks: [SurvivalBlockMeta] = Self.generateBlocks(from: Self.generateStages())
+
+    static var stages: [SurvivalStageDefinition] { _stages }
+    static var blocks: [SurvivalBlockMeta] { _blocks }
+    static var totalStages: Int { _stages.count }
     static let stageTimeLimitSeconds: Int = 90
 
     /// 無料プランで遊べるステージ番号（第一階層＝Major ブロック = 1〜5）
     static var freeTierStageNumbers: Set<Int> {
-        guard let first = blocks.first else { return [] }
+        guard let first = _blocks.first else { return [] }
         return Set(first.stageNumbers)
     }
 
     static func stage(byNumber stageNumber: Int) -> SurvivalStageDefinition? {
-        guard stageNumber >= 1, stageNumber <= stages.count else { return nil }
-        return stages[stageNumber - 1]
+        guard stageNumber >= 1 else { return nil }
+        return _stages.first { $0.stageNumber == stageNumber }
     }
 
     static func block(forStage stageNumber: Int) -> SurvivalBlockMeta? {
-        blocks.first { $0.stageNumbers.contains(stageNumber) }
+        _blocks.first { $0.stageNumbers.contains(stageNumber) }
     }
 
     static func block(byKey blockKey: SurvivalBlockKey) -> SurvivalBlockMeta? {
-        blocks.first { $0.blockKey == blockKey }
+        _blocks.first { $0.blockKey == blockKey }
+    }
+
+    /// 既知の Mixed グループ識別子（Web `MixedGroupKey` と同義）
+    enum MixedGroupKey: String {
+        case easy
+        case normalA
+        case normalB
+        case hard
+        case extreme
+    }
+
+    /// Supabase の `survival_stages` 行から `SurvivalStageDefinition` を構築する。
+    /// - random ステージは Web 版同様、`root_pattern + chord_suffix` から実行時に allowed_chords を再生成する。
+    /// - progression ステージは `allowedChords = []` で、MusicXML を後段の XMLパーサで処理する。
+    static func load(rows: [SurvivalStageRow]) {
+        let mixedConfigs: [MixedGroupKey: MixedGroupConfig] = [
+            .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: .minor),
+            .normalA: MixedGroupConfig(suffixes: ["M7", "m7", "7", "m7b5"], difficulty: .normal, blockKey: .m7b5),
+            .normalB: MixedGroupConfig(suffixes: ["mM7", "dim7", "aug7", "6", "m6"], difficulty: .normal, blockKey: .m6),
+            .hard: MixedGroupConfig(
+                suffixes: ["M7(9)", "m7(9)", "7(9.6th)", "7(b9.b6th)", "6(9)", "m6(9)"],
+                difficulty: .hard,
+                blockKey: .m6_9
+            ),
+            .extreme: MixedGroupConfig(
+                suffixes: ["7(b9.6th)", "7(#9.b6th)", "m7(b5)(11)", "dim(M7)"],
+                difficulty: .extreme,
+                blockKey: .dimM7
+            )
+        ]
+
+        let definitions: [SurvivalStageDefinition] = rows.compactMap { row in
+            let stageType = SurvivalStageType(rawValue: row.stage_type) ?? .random
+            let blockKey = SurvivalBlockKey(rawValue: row.block_key) ?? .major
+            let difficulty = SurvivalDifficulty(rawValue: row.difficulty) ?? .normal
+            let rootPattern = SurvivalRootPattern(dbValue: row.root_pattern)
+            let isMixedStage = row.is_mixed_stage ?? false
+
+            var allowed: [String] = []
+            switch stageType {
+            case .random:
+                if isMixedStage,
+                   let groupKeyRaw = row.mixed_group_key,
+                   let groupKey = MixedGroupKey(rawValue: groupKeyRaw),
+                   let config = mixedConfigs[groupKey] {
+                    allowed = buildMixedAllowed(for: config)
+                } else if let suffix = row.chord_suffix, let pattern = rootPattern {
+                    allowed = buildAllowed(roots: pattern.roots, suffix: suffix)
+                }
+            case .progression:
+                allowed = []
+            }
+
+            // 不正なエントリ（name 空 / voicing 空）は除去
+            let progression: [SurvivalChordProgressionEntry]? = {
+                guard let entries = row.chord_progression else { return nil }
+                let cleaned = entries.compactMap { entry -> SurvivalChordProgressionEntry? in
+                    let trimmed = entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty, !entry.voicing.isEmpty else { return nil }
+                    return SurvivalChordProgressionEntry(name: trimmed, voicing: entry.voicing)
+                }
+                return cleaned.isEmpty ? nil : cleaned
+            }()
+
+            return SurvivalStageDefinition(
+                stageNumber: row.stage_number,
+                stageType: stageType,
+                nameJa: row.name,
+                nameEn: row.name_en,
+                difficulty: difficulty,
+                chordSuffix: row.chord_suffix ?? "",
+                chordDisplayJa: row.chord_display_name ?? "",
+                chordDisplayEn: row.chord_display_name_en ?? "",
+                rootPattern: rootPattern,
+                rootPatternJa: row.root_pattern_name ?? "",
+                rootPatternEn: row.root_pattern_name_en ?? "",
+                allowedChords: allowed,
+                blockKey: blockKey,
+                isMixedStage: isMixedStage,
+                chordProgression: progression
+            )
+        }.sorted { $0.stageNumber < $1.stageNumber }
+
+        _stages = definitions
+        _blocks = generateBlocks(from: definitions)
     }
 
     // MARK: - Private generators
@@ -257,6 +399,7 @@ enum SurvivalStageCatalog {
                 result.append(
                     SurvivalStageDefinition(
                         stageNumber: stageNumber,
+                        stageType: .random,
                         nameJa: "\(stageNumber). \(chordType.displayJa) \(pattern.nameJa)",
                         nameEn: "\(stageNumber). \(chordType.displayEn) \(pattern.nameEn)",
                         difficulty: chordType.difficulty,
@@ -268,7 +411,8 @@ enum SurvivalStageCatalog {
                         rootPatternEn: pattern.nameEn,
                         allowedChords: buildAllowed(roots: roots, suffix: chordType.suffix),
                         blockKey: chordType.blockKey,
-                        isMixedStage: false
+                        isMixedStage: false,
+                        chordProgression: nil
                     )
                 )
                 stageNumber += 1
@@ -279,6 +423,7 @@ enum SurvivalStageCatalog {
                 result.append(
                     SurvivalStageDefinition(
                         stageNumber: stageNumber,
+                        stageType: .random,
                         nameJa: "\(stageNumber). ミックス \(patternAll.nameJa)",
                         nameEn: "\(stageNumber). Mixed \(patternAll.nameEn)",
                         difficulty: group.difficulty,
@@ -290,7 +435,8 @@ enum SurvivalStageCatalog {
                         rootPatternEn: patternAll.nameEn,
                         allowedChords: buildMixedAllowed(for: group),
                         blockKey: group.blockKey,
-                        isMixedStage: true
+                        isMixedStage: true,
+                        chordProgression: nil
                     )
                 )
                 stageNumber += 1

@@ -28,6 +28,8 @@ public enum SurvivalChordQuality: String, Hashable, Sendable {
     case seven_s9_b6th
     case m7b5_11
     case dimM7
+    /// Progression（コード進行）ステージ専用。MusicXML から動的に作る voicing でテンプレ計算は使わない。
+    case progression
 }
 
 public struct SurvivalResolvedChord: Hashable, Sendable {
@@ -51,6 +53,31 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
 
     public var rootPitchClass: Int {
         midiNotes.first.map { $0 % 12 } ?? 0
+    }
+
+    /// Progression エントリ（DB の `chord_progression` 由来）から `SurvivalResolvedChord` を構築する。
+    /// - `midiNotes` は実音域（鍵盤ハイライト用）。
+    /// - `pitchClasses` は重複除去した 0..<12 の集合（オクターブ無視判定用）。
+    public static func fromProgressionEntry(
+        _ entry: SurvivalChordProgressionEntry,
+        index: Int
+    ) -> SurvivalResolvedChord {
+        let sortedMidi = Array(Set(entry.voicing)).sorted()
+        var pcs: [Int] = []
+        var seen = Set<Int>()
+        for note in sortedMidi {
+            let pc = ((note % 12) + 12) % 12
+            if seen.insert(pc).inserted { pcs.append(pc) }
+        }
+        let id = "prog:\(index):\(entry.name):\(sortedMidi.map(String.init).joined(separator: ","))"
+        return SurvivalResolvedChord(
+            id: id,
+            root: entry.name,
+            quality: .progression,
+            midiNotes: sortedMidi,
+            pitchClasses: pcs,
+            displayName: entry.name
+        )
     }
 }
 

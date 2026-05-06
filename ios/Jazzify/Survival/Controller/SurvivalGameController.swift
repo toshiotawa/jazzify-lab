@@ -46,6 +46,24 @@ final class SurvivalGameController: ObservableObject {
     private let isDemo: Bool
     private let supabase = SupabaseService.shared
 
+    // MARK: - Progression（コード進行）ステージ用
+
+    /// Progression ステージで使用するコード配列（DB の `chord_progression` から構築）。Random ステージでは空。
+    private var progressionChords: [SurvivalResolvedChord] = []
+    /// 現在出題中の Progression 配列インデックス。完成のたびに +1 され、配列長で循環。
+    private var progressionIndex: Int = 0
+
+    /// Progression ステージかどうか（`stage.stageType == .progression`）
+    private var isProgressionStage: Bool { stage.stageType == .progression }
+
+    /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。空の場合は空配列。
+    private static func buildProgressionChords(for stage: SurvivalStageDefinition) -> [SurvivalResolvedChord] {
+        guard stage.stageType == .progression, let entries = stage.chordProgression else { return [] }
+        return entries.enumerated().map { index, entry in
+            SurvivalResolvedChord.fromProgressionEntry(entry, index: index)
+        }
+    }
+
     // MARK: - 内部
 
     private var activePressedPitchClasses: Set<Int> = []
@@ -80,13 +98,24 @@ final class SurvivalGameController: ObservableObject {
         self.config = config
         self.onExit = onExit
         self.isDemo = isDemo
-        let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber)
+        // Progression（コード進行）ステージはボス戦化しない（B 列のみで完結する仕様のため）
+        let isBoss = stage.stageType != .progression
+            && SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber)
         self.isBossStage = isBoss
 
-        let slots = SurvivalGameEngine.createStageInitialSlots(
-            allowedChords: stage.allowedChords,
-            isBossStage: isBoss
-        )
+        let slots: [SurvivalCodeSlot]
+        if stage.stageType == .progression {
+            // Progression ステージは DB の chord_progression から事前構築済みコード列を使う。
+            let chords = Self.buildProgressionChords(for: stage)
+            self.progressionChords = chords
+            self.progressionIndex = 0
+            slots = SurvivalGameEngine.createProgressionInitialSlots(progressionChords: chords)
+        } else {
+            slots = SurvivalGameEngine.createStageInitialSlots(
+                allowedChords: stage.allowedChords,
+                isBossStage: isBoss
+            )
+        }
         let player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
             hintMode: hintMode,
@@ -297,10 +326,26 @@ final class SurvivalGameController: ObservableObject {
         // 1 回の struct mutation にまとめることで `@Published runtime` の発火を
         // 集約し、コード完成時の SwiftUI 再評価コストを抑える。
         // (Shot / Punch の表示、次コード抽選、進捗リセット、triggerPulse 更新を一括適用)
-        let upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
-        let newNextChord = SurvivalChordResolver.resolve(
-            id: stage.allowedChords.randomElement() ?? chord.id
-        ) ?? upcomingChord
+        let upcomingChord: SurvivalResolvedChord
+        let newNextChord: SurvivalResolvedChord
+        if isProgressionStage {
+            // Progression: B 列だけが進行を進める。A/C/D 列は無効なのでここに来ない。
+            if !progressionChords.isEmpty {
+                progressionIndex = (progressionIndex + 1) % progressionChords.count
+                let curIdx = progressionIndex
+                let nextIdx = (progressionIndex + 1) % progressionChords.count
+                upcomingChord = progressionChords[curIdx]
+                newNextChord = progressionChords[nextIdx]
+            } else {
+                upcomingChord = chord
+                newNextChord = chord
+            }
+        } else {
+            upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
+            newNextChord = SurvivalChordResolver.resolve(
+                id: stage.allowedChords.randomElement() ?? chord.id
+            ) ?? upcomingChord
+        }
         var slotUpdate = runtime.slots[slotIndex]
         slotUpdate.chord = upcomingChord
         slotUpdate.nextChord = newNextChord

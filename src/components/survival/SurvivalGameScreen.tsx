@@ -24,6 +24,7 @@ import {
   createInitialGameState,
   initializeCodeSlots,
   selectRandomChord,
+  selectProgressionChord,
   spawnEnemy,
   updatePlayerPosition,
   updateEnemyPositions,
@@ -68,6 +69,8 @@ import {
 } from './SurvivalGameEngine';
 import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
 import { STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA, isBlockLastStage, getBossTypeForBlock } from './SurvivalStageDefinitions';
+import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
+import type { ChordDefinition as SurvivalChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import {
   createBossBattleState,
   tickBossBattle,
@@ -271,8 +274,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const initPromiseRef = useRef<Promise<void> | null>(null);
   
   const isStageMode = !!stageDefinition;
-  const isBossStage = !!stageDefinition && isBlockLastStage(stageDefinition.stageNumber);
+  const isProgressionStage = stageDefinition?.stageType === 'progression';
+  const isBossStage = !!stageDefinition && !isProgressionStage && isBlockLastStage(stageDefinition.stageNumber);
   const bossType = isBossStage && stageDefinition ? getBossTypeForBlock(stageDefinition.blockKey) : null;
+
+  // Progression（コード進行）モード: B列のみで進行を循環。
+  // DB の `chord_progression` から事前構築済みの ChordDefinition 配列を保持する。
+  const progressionChordsRef = useRef<SurvivalChordDefinition[]>([]);
+  const progressionIndexRef = useRef(0);
+
+  useEffect(() => {
+    if (!isProgressionStage) {
+      progressionChordsRef.current = [];
+      progressionIndexRef.current = 0;
+      return;
+    }
+    progressionChordsRef.current = buildProgressionChordDefinitions(stageDefinition?.chordProgression);
+    progressionIndexRef.current = 0;
+  }, [isProgressionStage, stageDefinition?.chordProgression]);
+
+  /** Progression の B 列が完成したときに、進行 index を進めて次の current/next chord を返す。 */
+  const advanceProgressionPair = useCallback((): { current: SurvivalChordDefinition | null; next: SurvivalChordDefinition | null } => {
+    const chords = progressionChordsRef.current;
+    if (chords.length === 0) return { current: null, next: null };
+    progressionIndexRef.current = (progressionIndexRef.current + 1) % chords.length;
+    const idx = progressionIndexRef.current;
+    return {
+      current: chords[idx],
+      next: chords[(idx + 1) % chords.length],
+    };
+  }, []);
 
   // ボス戦状態（ref 管理: 毎フレーム破壊的に更新するため）
   const bossBattleRef = useRef<BossBattleState | null>(null);
@@ -1092,14 +1123,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const startGame = useCallback(() => {
     setGameState(prev => {
       const hasMagic = Object.values(prev.player.magics).some(l => l > 0);
-      const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic, isStageMode);
+      const progressionChords = isProgressionStage ? progressionChordsRef.current : null;
+      // Progression 起動時は index を 0 から開始
+      if (isProgressionStage) progressionIndexRef.current = 0;
+      const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic, isStageMode, progressionChords);
       if (isBossStage) {
         codeSlots.current[2].isEnabled = false;
         codeSlots.current[3].isEnabled = false;
         codeSlots.next[2].isEnabled = false;
         codeSlots.next[3].isEnabled = false;
       }
-      
+
       return {
         ...prev,
         isPlaying: true,
@@ -1115,9 +1149,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords, isStageMode, isBossStage, bossType]);
-  
-  // ゲーム開始（初回）
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage]);
+
+  // ゲーム開始（初回のみ）。
+  // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
   useEffect(() => {
     startGame();
   }, []);
@@ -2842,6 +2877,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
             // 50ms以上経過していたらリセット
             if (Date.now() - slot.completedTime >= 50) {
+              // Progression（コード進行）モード: B列のみ進行を進める
+              if (isProgressionStage && slotIndex === 1) {
+                const advanced = advanceProgressionPair();
+                newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
+                  i === slotIndex ? { ...ns, chord: advanced.next } : ns
+                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+                return { ...slot, chord: advanced.current, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
+              }
+
               let nextChord = newState.codeSlots.next[slotIndex]?.chord;
               if (!nextChord) {
                 nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
@@ -2857,6 +2901,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
           // コードが空の場合、新しいコードを生成
           if (!slot.chord) {
+            if (isProgressionStage && slotIndex === 1) {
+              const idx = progressionIndexRef.current;
+              const chord = selectProgressionChord(progressionChordsRef.current, idx);
+              if (chord) {
+                return { ...slot, chord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
+              }
+              return slot;
+            }
             const newChord = selectRandomChord(config.allowedChords);
             if (newChord) {
               return { ...slot, chord: newChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
@@ -3786,6 +3838,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           isBMagicSlot={isBMagicSlot}
           isStageMode={isStageMode}
           isBossStage={isBossStage}
+          isProgressionStage={isProgressionStage}
         />
       </div>
       

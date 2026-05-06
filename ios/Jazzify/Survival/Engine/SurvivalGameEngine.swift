@@ -85,6 +85,49 @@ enum SurvivalGameEngine {
         }
     }
 
+    /// Progression（コード進行）ステージ用にスロットを初期化する。
+    /// - B 列のみ有効。`progressionChords[0]` を current、`progressionChords[1 % count]` を next に設定。
+    /// - A/C/D 列は無効（chord = nil）。
+    /// - `progressionChords` が空の場合は B 列も chord = nil（呼び出し側で「ロード失敗」表示推奨）。
+    static func createProgressionInitialSlots(progressionChords: [SurvivalResolvedChord]) -> [SurvivalCodeSlot] {
+        let firstChord: SurvivalResolvedChord? = progressionChords.first
+        let secondChord: SurvivalResolvedChord? = progressionChords.count > 1
+            ? progressionChords[1 % progressionChords.count]
+            : firstChord
+        return SurvivalSlotIndex.allCases.map { idx in
+            switch idx {
+            case .B:
+                return SurvivalCodeSlot(
+                    label: idx.label,
+                    chord: firstChord,
+                    nextChord: secondChord,
+                    timer: SurvivalConstants.slotTimeoutSec,
+                    isEnabled: true
+                )
+            case .A, .C, .D:
+                return SurvivalCodeSlot(
+                    label: idx.label,
+                    chord: nil,
+                    nextChord: nil,
+                    timer: SurvivalConstants.slotTimeoutSec,
+                    isEnabled: false
+                )
+            }
+        }
+    }
+
+    /// Progression コード配列の `index` 番目を循環参照で取得する。
+    /// 配列が空の場合は nil。
+    static func selectProgressionChord(
+        _ progressionChords: [SurvivalResolvedChord],
+        index: Int
+    ) -> SurvivalResolvedChord? {
+        guard !progressionChords.isEmpty else { return nil }
+        let count = progressionChords.count
+        let safeIndex = ((index % count) + count) % count
+        return progressionChords[safeIndex]
+    }
+
     // MARK: - プレイヤー移動
 
     /// Web 版 `updatePlayerPosition` のうちステージモードで必要な部分 (アナログ + 8 方向)

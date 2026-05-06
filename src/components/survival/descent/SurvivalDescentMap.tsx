@@ -23,6 +23,7 @@ import {
   ALL_STAGES,
   TOTAL_STAGES,
   StageDefinition,
+  fetchAllStages,
 } from '../SurvivalStageDefinitions';
 import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from '../SurvivalTypes';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
@@ -37,8 +38,9 @@ import {
   MAP_LOGICAL_WIDTH,
   getStagePosition,
   getBlockLayoutForStage,
+  rebuildDescentLayouts,
 } from './descentLayout';
-import { ALL_BLOCKS, getAccessibleBlockIndex, getBlockForStage, BlockMeta } from './descentBlocks';
+import { ALL_BLOCKS, getAccessibleBlockIndex, getBlockForStage, BlockMeta, rebuildDescentBlocks } from './descentBlocks';
 import DescentBlock, { BlockDimVeil } from './DescentBlock';
 import BackgroundWall from './parts/BackgroundWall';
 import DescentCharacter from './parts/DescentCharacter';
@@ -207,6 +209,13 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     try {
       setLoading(true);
       const imagesPreload = preloadDescentImages();
+
+      try {
+        await fetchAllStages();
+        rebuildDescentBlocks();
+        rebuildDescentLayouts();
+      } catch { /* fallback handled inside fetchAllStages */ }
+
       try {
         const settingsData = await fetchSurvivalDifficultySettings();
         if (settingsData.length > 0) {

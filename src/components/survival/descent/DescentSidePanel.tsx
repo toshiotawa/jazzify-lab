@@ -123,6 +123,16 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
             <dl className="mb-3 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-md bg-white/5 p-2">
                 <dt className="text-[10px] text-gray-400">
+                  {isEnglishCopy ? 'Type' : 'タイプ'}
+                </dt>
+                <dd className="mt-0.5 font-bold text-white">
+                  {selectedStage.stageType === 'progression'
+                    ? (isEnglishCopy ? 'Progression' : 'コード進行')
+                    : (isEnglishCopy ? 'Random' : 'ランダム')}
+                </dd>
+              </div>
+              <div className="rounded-md bg-white/5 p-2">
+                <dt className="text-[10px] text-gray-400">
                   {isEnglishCopy ? 'Chord Type' : 'コードタイプ'}
                 </dt>
                 <dd className="mt-0.5 font-bold text-white">

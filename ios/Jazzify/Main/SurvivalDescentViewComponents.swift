@@ -576,6 +576,7 @@ struct SurvivalDescentStageNode: View {
     let isSelected: Bool
     let requiresPremium: Bool
     let isMixed: Bool
+    let isProgression: Bool
     let dim: Bool
     let onTap: () -> Void
 
@@ -608,7 +609,11 @@ struct SurvivalDescentStageNode: View {
                         Text("\(stageNumber)")
                             .font(.system(size: max(12, 18 * scale), weight: .heavy))
                             .foregroundStyle(textColor)
-                        if isMixed {
+                        if isProgression {
+                            Text("PROG")
+                                .font(.system(size: max(7, 9 * scale), weight: .bold))
+                                .foregroundStyle(Color(red: 0.6, green: 0.85, blue: 1.0))
+                        } else if isMixed {
                             Text("MIX")
                                 .font(.system(size: max(7, 9 * scale), weight: .bold))
                                 .foregroundStyle(Color.yellow)

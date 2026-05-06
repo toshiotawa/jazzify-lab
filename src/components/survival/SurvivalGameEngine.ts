@@ -395,6 +395,19 @@ export const getChordDefinition = (chordId: string): ChordDefinition | null => {
   };
 };
 
+/**
+ * Progression（コード進行）モード用: index を進めて次のコードを返す。
+ * `progressionChords` を循環参照する。`startIndex` を指定すると、その位置を起点に検索する。
+ */
+export const selectProgressionChord = (
+  progressionChords: ChordDefinition[] | null | undefined,
+  index: number,
+): ChordDefinition | null => {
+  if (!progressionChords || progressionChords.length === 0) return null;
+  const safeIndex = ((index % progressionChords.length) + progressionChords.length) % progressionChords.length;
+  return progressionChords[safeIndex];
+};
+
 export const selectRandomChord = (allowedChords: string[], excludeIds?: string | string[]): ChordDefinition | null => {
   if (!allowedChords || allowedChords.length === 0) {
     return null;
@@ -433,8 +446,28 @@ export const selectRandomChord = (allowedChords: string[], excludeIds?: string |
 export const initializeCodeSlots = (
   allowedChords: string[],
   hasMagic: boolean,
-  isStageMode: boolean = false
+  isStageMode: boolean = false,
+  progressionChords?: ChordDefinition[] | null,
 ): SurvivalGameState['codeSlots'] => {
+  // Progression（コード進行）モード: B列のみ使用し、A/C/D列は無効化
+  if (progressionChords && progressionChords.length > 0) {
+    const slotB = selectProgressionChord(progressionChords, 0);
+    const slotBNext = selectProgressionChord(progressionChords, 1);
+    const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      { ...createEmptyCodeSlot('A'), chord: null, isEnabled: false },
+      { ...createEmptyCodeSlot('B'), chord: slotB },
+      { ...createEmptyCodeSlot('C'), chord: null, isEnabled: false },
+      { ...createEmptyCodeSlot('D'), chord: null, isEnabled: false },
+    ];
+    const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      { ...createEmptyCodeSlot('A'), chord: null, isEnabled: false },
+      { ...createEmptyCodeSlot('B'), chord: slotBNext },
+      { ...createEmptyCodeSlot('C'), chord: null, isEnabled: false },
+      { ...createEmptyCodeSlot('D'), chord: null, isEnabled: false },
+    ];
+    return { current, next };
+  }
+
   const cEnabled = hasMagic && (!isStageMode || hasMagic);
   const dEnabled = hasMagic && !isStageMode;
   const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
@@ -443,14 +476,14 @@ export const initializeCodeSlots = (
     { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords) : null, isEnabled: cEnabled },
     { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords) : null, isEnabled: dEnabled },
   ];
-  
+
   const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords, current[0].chord?.id) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id) },
     { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: cEnabled },
     { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: dEnabled },
   ];
-  
+
   return { current, next };
 };
 

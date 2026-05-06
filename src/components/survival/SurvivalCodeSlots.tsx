@@ -21,6 +21,8 @@ interface SurvivalCodeSlotsProps {
   isStageMode?: boolean;
   /** ボス戦時は C/D 列を封印表示にする */
   isBossStage?: boolean;
+  /** Progression（コード進行）ステージ時は B 列のみ拡大表示する */
+  isProgressionStage?: boolean;
 }
 
 // ===== スロットタイプの色設定 =====
@@ -230,6 +232,7 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
   isBMagicSlot = false,
   isStageMode = false,
   isBossStage = false,
+  isProgressionStage = false,
 }) => {
   // 各スロットのクールダウン状態を判定
   const getSlotCooldown = (index: number): boolean => {
@@ -253,19 +256,28 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
       {/* スロット行 */}
       <div className="flex gap-1 md:gap-2 w-full justify-center">
         {currentSlots.map((slot, index) => {
-          if (isStageMode && index >= 3) return null;
+          // Progression ステージは B 列(index=1)のみ表示し、中央寄せ・拡大表示
+          if (isProgressionStage && index !== 1) return null;
+          if (!isProgressionStage && isStageMode && index >= 3) return null;
           // ボス戦では C/D 列を完全非表示（A/B 列のみ）
-          if (isBossStage && index >= 2) return null;
+          if (!isProgressionStage && isBossStage && index >= 2) return null;
           return (
-            <SlotDisplay
+            <div
               key={slot.type}
-              slot={slot}
-              nextSlot={nextSlots[index]}
-              isHinted={hintSlotIndex === index}
-              isMagicOnCooldown={getSlotCooldown(index)}
-              isMagicSlot={isSlotMagic(index)}
-              isWide={isBossStage}
-            />
+              className={cn(
+                'flex',
+                isProgressionStage ? 'flex-1 max-w-[24rem] mx-auto' : 'flex-1 min-w-0'
+              )}
+            >
+              <SlotDisplay
+                slot={slot}
+                nextSlot={nextSlots[index]}
+                isHinted={hintSlotIndex === index}
+                isMagicOnCooldown={getSlotCooldown(index)}
+                isMagicSlot={isSlotMagic(index)}
+                isWide={isBossStage || isProgressionStage}
+              />
+            </div>
           );
         })}
       </div>
@@ -286,6 +298,7 @@ const SurvivalCodeSlots = React.memo(SurvivalCodeSlotsComponent, (prev, next) =>
   prev.isBMagicSlot === next.isBMagicSlot &&
   prev.isStageMode === next.isStageMode &&
   prev.isBossStage === next.isBossStage &&
+  prev.isProgressionStage === next.isProgressionStage &&
   // クールダウンは「> 0 か否か」だけが表示に影響するため真偽値で比較する
   (prev.aSlotCooldown > 0) === (next.aSlotCooldown > 0) &&
   (prev.bSlotCooldown > 0) === (next.bSlotCooldown > 0) &&

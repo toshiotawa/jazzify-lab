@@ -37,6 +37,7 @@ const DEMO_STAGE_DEFINITION: StageDefinition = {
   name: 'デモ CDE',
   nameEn: 'Demo CDE',
   difficulty: 'easy',
+  stageType: 'random',
   chordSuffix: '_note',
   chordDisplayName: '単音 CDE',
   chordDisplayNameEn: 'Single Notes CDE',
@@ -44,6 +45,7 @@ const DEMO_STAGE_DEFINITION: StageDefinition = {
   rootPatternName: 'CDE',
   rootPatternNameEn: 'CDE',
   allowedChords: DEMO_CDE_NOTES.map(r => `${r}_note`),
+  blockKey: 'major',
 };
 
 const LPFantasyDemo: React.FC = () => {

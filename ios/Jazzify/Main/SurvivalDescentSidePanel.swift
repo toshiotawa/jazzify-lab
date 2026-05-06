@@ -151,6 +151,11 @@ struct SurvivalDescentSidePanel: View {
                     spacing: 8
                 ) {
                     infoTile(
+                        label: isEnglishCopy ? "Type" : "タイプ",
+                        value: stageTypeText(stage: stage),
+                        valueColor: .white
+                    )
+                    infoTile(
                         label: isEnglishCopy ? "Chord Type" : "コードタイプ",
                         value: stage.localizedChordDisplay(locale),
                         valueColor: .white
@@ -372,6 +377,16 @@ struct SurvivalDescentSidePanel: View {
             return isEnglishCopy ? "Boss x1" : "ボス x1"
         }
         return isEnglishCopy ? "90s + 150 Kills" : "90秒 + 150体"
+    }
+
+    /// ステージのタイプ表示（Progression / Random）。
+    private func stageTypeText(stage: SurvivalStageDefinition) -> String {
+        switch stage.stageType {
+        case .progression:
+            return isEnglishCopy ? "Progression" : "コード進行"
+        case .random:
+            return isEnglishCopy ? "Random" : "ランダム"
+        }
     }
 
     /// ボス戦 (= 各ブロック最終ステージ) かどうか。`SurvivalGameController` と同じ

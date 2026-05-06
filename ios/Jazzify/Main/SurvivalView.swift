@@ -39,8 +39,9 @@ struct SurvivalView: View {
     @State private var showSurvivalInfo: Bool = false
     @State private var isSoundMuted: Bool = SurvivalMapAudio.shared.isMuted
 
-    private let blocks: [SurvivalBlockMeta] = SurvivalStageCatalog.blocks
-    private let freeStageNumbers: Set<Int> = SurvivalStageCatalog.freeTierStageNumbers
+    /// ステージ定義は Supabase からのロード後に再構築されるため、computed property で常に最新を参照する。
+    private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks }
+    private var freeStageNumbers: Set<Int> { SurvivalStageCatalog.freeTierStageNumbers }
 
     private var locale: AppLocale { appState.locale }
 
@@ -355,6 +356,11 @@ struct SurvivalView: View {
         }
         isLoading = true
         defer { isLoading = false }
+
+        // ステージ定義をまず Supabase から取得して反映する。失敗時はローカルフォールバックのまま。
+        if let rows = try? await SupabaseService.shared.fetchSurvivalStages(), !rows.isEmpty {
+            SurvivalStageCatalog.load(rows: rows)
+        }
 
         async let progressTask: SurvivalStageProgressRow? = {
             try? await SupabaseService.shared.fetchSurvivalStageProgress(userId: userId)
