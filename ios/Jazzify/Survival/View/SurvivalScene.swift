@@ -4,7 +4,7 @@ import UIKit
 import QuartzCore
 
 /// サバイバル ゲーム世界描画用の SKScene。
-/// - プレイヤー (SKSpriteNode `default-avater`) / 敵・弾・アイテム・コイン (絵文字 SKLabelNode)
+/// - プレイヤー (5 方向 `survival_muki_*` スプライト、左向きは右向き素材を水平反転) / 敵・弾・アイテム・コイン (絵文字 SKLabelNode)
 /// - ボスは `boss_a|b|c` スプライト (Assets.xcassets の SurvivalMap 配下) で描画
 /// - ハザード (扇 / 直線 / リング / 十字 / 引力) は SKShapeNode 群
 /// - `update(_:)` で `SurvivalGameController.tick` を呼び出し、そこで更新された状態を反映
@@ -114,6 +114,25 @@ final class SurvivalScene: SKScene {
         addChild(camera)
     }
 
+    /// プレイヤー向きに応じたテクスチャ名を Web 版 `getSurvivalDefaultSpriteForDirection` と同一マッピングにする。
+    private static func playerTextureAssetName(for dir: SurvivalDirection8) -> String {
+        switch dir {
+        case .right, .left:
+            return "survival_muki_migi"
+        case .downRight, .downLeft:
+            return "survival_muki_naname_shita"
+        case .upRight, .upLeft:
+            return "survival_muki_naname_ue"
+        case .down:
+            return "survival_muki_shita"
+        case .up:
+            return "survival_muki_ue"
+        }
+    }
+
+    /// 前フレームと同一テクスチャなら `SKTexture` の差し替えをスキップする。
+    private var playerLastTextureAssetName: String?
+
     private func buildPlayer() {
         let container = SKNode()
         container.zPosition = 100
@@ -121,11 +140,17 @@ final class SurvivalScene: SKScene {
             width: SurvivalConstants.playerSize * 1.6,
             height: SurvivalConstants.playerSize * 1.6
         )
+        let initialName = Self.playerTextureAssetName(for: .down)
         let sprite: SKSpriteNode
-        if UIImage(named: "default-avater") != nil {
+        if UIImage(named: initialName) != nil {
+            sprite = SKSpriteNode(imageNamed: initialName)
+            playerLastTextureAssetName = initialName
+        } else if UIImage(named: "default-avater") != nil {
             sprite = SKSpriteNode(imageNamed: "default-avater")
+            playerLastTextureAssetName = nil
         } else {
             sprite = SKSpriteNode(color: UIColor(red: 0.4, green: 0.85, blue: 1.0, alpha: 1.0), size: size)
+            playerLastTextureAssetName = nil
         }
         sprite.size = size
         container.addChild(sprite)
@@ -432,7 +457,12 @@ final class SurvivalScene: SKScene {
         // プレイヤー
         if let playerNode, let sprite = playerSprite {
             playerNode.position = toScenePoint(x: runtime.player.x, y: runtime.player.y)
-            // 向きによる水平反転 (進行方向 left なら -1)
+            let texName = Self.playerTextureAssetName(for: runtime.player.direction)
+            if texName != playerLastTextureAssetName, UIImage(named: texName) != nil {
+                sprite.texture = SKTexture(imageNamed: texName)
+                playerLastTextureAssetName = texName
+            }
+            // 向きによる水平反転 (進行方向が left / upLeft / downLeft なら -1)
             let facingLeft = runtime.player.direction == .left
                 || runtime.player.direction == .upLeft
                 || runtime.player.direction == .downLeft

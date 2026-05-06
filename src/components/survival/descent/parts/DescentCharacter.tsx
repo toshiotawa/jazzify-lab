@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { getSurvivalDescentSpriteForFacing, SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 
 interface DescentCharacterProps {
   xPx: number;
@@ -18,7 +18,9 @@ export const DescentCharacter: React.FC<DescentCharacterProps> = ({ xPx, yPx, sc
   const size = Math.round(88 * scale);
   const offsetX =
     facing === 'center' ? 0 : facing === 'right' ? Math.round(28 * scale) : -Math.round(28 * scale);
-  const flip = facing === 'left' ? 'scaleX(-1)' : 'scaleX(1)';
+  const { variant, flipX } = getSurvivalDescentSpriteForFacing(facing);
+  const src = SURVIVAL_DEFAULT_SPRITE_PATHS[variant];
+  const flip = flipX ? 'scaleX(-1)' : 'scaleX(1)';
   return (
     <div
       aria-hidden
@@ -33,7 +35,7 @@ export const DescentCharacter: React.FC<DescentCharacterProps> = ({ xPx, yPx, sc
       }}
     >
       <img
-        src={DEFAULT_AVATAR_URL}
+        src={src}
         alt=""
         draggable={false}
         style={{

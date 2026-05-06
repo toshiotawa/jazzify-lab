@@ -24,6 +24,12 @@ import {
   BOSS_DISPLAY_SIZE,
 } from './boss/SurvivalBossTypes';
 import { isIOSWebView } from '../../utils/iosbridge';
+import {
+  getSurvivalDefaultSpriteForDirection,
+  SURVIVAL_DEFAULT_SPRITE_PATHS,
+  SURVIVAL_DEFAULT_SPRITE_VARIANTS,
+  type SurvivalDefaultSpriteVariant,
+} from '@/utils/survivalPlayerSprites';
 
 /**
  * iOS WebKit では shadowBlur が極端に重い（1 回で数 ms）。
@@ -162,8 +168,7 @@ const ENEMY_ICONS: Record<string, string> = {
   boss: '👑',
 };
 
-// ===== プレイヤーアバター画像パス =====
-const PLAYER_AVATAR_PATH = '/default_avater/default-avater.webp';
+// ===== プレイヤー表示サイズ =====
 const PLAYER_SIZE = 48;  // プレイヤーの表示サイズ（当たり判定はGameEngine側で別管理）
 const LIGHTNING_SEGMENT_COUNT = 4;
 const LIGHTNING_SCREEN_PADDING = 120;
@@ -206,8 +211,14 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<BackgroundParticle[]>([]);
+  /** カスタム characterAvatarUrl 指定時のみ使用 */
   const playerImageRef = useRef<HTMLImageElement | null>(null);
   const playerImageLoadedRef = useRef(false);
+  /** デフォルト5方向スプライト（characterAvatarUrl 未指定時） */
+  const defaultPlayerSpritesRef = useRef<
+    Partial<Record<SurvivalDefaultSpriteVariant, HTMLImageElement>>
+  >({});
+  const defaultPlayerSpritesLoadedRef = useRef(false);
   // スプライトを赤く染めるためのオフスクリーンキャンバス（透明部分は染めない）
   const playerTintCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 通常モード用: HP減少を検知して被弾フラッシュを発動するためのトラッカー
@@ -221,9 +232,14 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const logicalWidth = viewportWidth / contentScale;
   const logicalHeight = viewportHeight / contentScale;
   
-  // プレイヤー画像をプリロード（キャラクターアバター優先）
+  // カスタムアバターURLがある場合は1枚のみプリロード
   useEffect(() => {
-    const avatarSrc = characterAvatarUrl || PLAYER_AVATAR_PATH;
+    const trimmed = characterAvatarUrl?.trim();
+    if (!trimmed) {
+      playerImageRef.current = null;
+      playerImageLoadedRef.current = false;
+      return;
+    }
     const img = new Image();
     img.onload = () => {
       playerImageRef.current = img;
@@ -232,7 +248,46 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     img.onerror = () => {
       playerImageLoadedRef.current = false;
     };
-    img.src = avatarSrc;
+    img.src = trimmed;
+  }, [characterAvatarUrl]);
+
+  // デフォルトキャラ: 5枚プリロード
+  useEffect(() => {
+    if (characterAvatarUrl?.trim()) return;
+    let cancelled = false;
+    defaultPlayerSpritesLoadedRef.current = false;
+    defaultPlayerSpritesRef.current = {};
+
+    const loaders = SURVIVAL_DEFAULT_SPRITE_VARIANTS.map(
+      (variant) =>
+        new Promise<{ variant: SurvivalDefaultSpriteVariant; img: HTMLImageElement }>(
+          (resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve({ variant, img });
+            img.onerror = () => reject(new Error(`failed: ${variant}`));
+            img.src = SURVIVAL_DEFAULT_SPRITE_PATHS[variant];
+          }
+        )
+    );
+
+    Promise.all(loaders)
+      .then((results) => {
+        if (cancelled) return;
+        const next: Partial<Record<SurvivalDefaultSpriteVariant, HTMLImageElement>> = {};
+        results.forEach(({ variant, img }) => {
+          next[variant] = img;
+        });
+        defaultPlayerSpritesRef.current = next;
+        defaultPlayerSpritesLoadedRef.current = true;
+      })
+      .catch(() => {
+        if (cancelled) return;
+        defaultPlayerSpritesLoadedRef.current = false;
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [characterAvatarUrl]);
 
   // ボススプライトをプリロード
@@ -606,14 +661,34 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       && nowForFlash < bossBattle.player.iFramesUntil);
     const inNormalDamageFlash = nowForFlash < damageFlashUntilRef.current;
     const playerDamageFlash = inBossIFrames || inNormalDamageFlash;
-    if (playerImageRef.current && playerImageLoadedRef.current) {
+    const useCustomAvatar = Boolean(characterAvatarUrl?.trim());
+
+    let frameImg: HTMLImageElement | null = null;
+    let flipPlayerX = false;
+    let avatarReady = false;
+
+    if (useCustomAvatar) {
+      frameImg = playerImageRef.current;
+      avatarReady = playerImageLoadedRef.current;
+      flipPlayerX =
+        player.direction === 'left' ||
+        player.direction === 'up-left' ||
+        player.direction === 'down-left';
+    } else {
+      const sel = getSurvivalDefaultSpriteForDirection(player.direction);
+      frameImg = defaultPlayerSpritesRef.current[sel.variant] ?? null;
+      avatarReady = defaultPlayerSpritesLoadedRef.current && frameImg !== null;
+      flipPlayerX = sel.flipX;
+    }
+
+    if (avatarReady && frameImg) {
       ctx.save();
       ctx.translate(playerScreenX, playerScreenY);
-      
-      if (player.direction === 'left' || player.direction === 'up-left' || player.direction === 'down-left') {
+
+      if (flipPlayerX) {
         ctx.scale(-1, 1);
       }
-      
+
       if (playerDamageFlash) {
         // オフスクリーンにスプライトを描画し、source-atop で本体ピクセルのみ赤く染める
         if (!playerTintCanvasRef.current) {
@@ -626,7 +701,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         const tctx = tc.getContext('2d');
         if (tctx) {
           tctx.clearRect(0, 0, PLAYER_SIZE, PLAYER_SIZE);
-          tctx.drawImage(playerImageRef.current, 0, 0, PLAYER_SIZE, PLAYER_SIZE);
+          tctx.drawImage(frameImg, 0, 0, PLAYER_SIZE, PLAYER_SIZE);
           const blink = Math.floor(performance.now() / 80) % 2 === 0;
           tctx.globalCompositeOperation = 'source-atop';
           tctx.fillStyle = `rgba(255, 40, 40, ${blink ? 0.85 : 0.5})`;
@@ -634,16 +709,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
           tctx.globalCompositeOperation = 'source-over';
           ctx.drawImage(tc, -PLAYER_SIZE / 2, -PLAYER_SIZE / 2);
         } else {
-          ctx.drawImage(playerImageRef.current, -PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
+          ctx.drawImage(frameImg, -PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
         }
       } else {
-        ctx.drawImage(
-          playerImageRef.current,
-          -PLAYER_SIZE / 2,
-          -PLAYER_SIZE / 2,
-          PLAYER_SIZE,
-          PLAYER_SIZE
-        );
+        ctx.drawImage(frameImg, -PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
       }
       ctx.restore();
     } else {
@@ -1719,7 +1788,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (contentScale !== 1) {
       ctx.restore();
     }
-  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles, bossBattle, bossUiTick]);
+  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles, bossBattle, bossUiTick, characterAvatarUrl]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

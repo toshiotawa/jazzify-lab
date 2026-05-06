@@ -740,6 +740,12 @@ struct SurvivalDescentCharacterView: View {
             }
         }()
         let flip: CGFloat = facing == .left ? -1 : 1
+        let imageBaseName: String = {
+            switch facing {
+            case .center: return "survival_muki_shita"
+            case .left, .right: return "survival_muki_migi"
+            }
+        }()
 
         ZStack(alignment: .bottom) {
             // 足元の柔らかい光
@@ -756,7 +762,7 @@ struct SurvivalDescentCharacterView: View {
                 .blendMode(.screen)
                 .offset(y: size * 0.05)
 
-            Image("SurvivalMap/default_avater")
+            Image(imageBaseName)
                 .resizable()
                 .interpolation(.medium)
                 .aspectRatio(contentMode: .fit)
