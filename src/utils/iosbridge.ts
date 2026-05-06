@@ -1,3 +1,5 @@
+import { getWindow } from '@/platform';
+
 declare global {
   interface Window {
     webkit?: {
@@ -13,12 +15,34 @@ declare global {
     onNativeMidiDevices?: (devices: Array<{ uniqueID: number; displayName: string; manufacturer: string }>) => void;
     onNativeMidiSelected?: (uniqueID: number) => void;
   }
+
+  /** W3C Audio Session — iOS Safari / WKWebView でメディア再生扱いに寄せる（消音スイッチの影響を弱める場合がある） */
+  interface Navigator {
+    audioSession?: {
+      type: string;
+    };
+  }
 }
 
 const getHashParams = (): URLSearchParams => {
   const hash = window.location.hash;
   if (!hash.includes('?')) return new URLSearchParams();
   return new URLSearchParams(hash.slice(hash.indexOf('?')));
+};
+
+/**
+ * iOS WKWebView 上で Web 音声を「再生」カテゴリに近づける（消音モード ON でも鳴る可能性を上げる）。
+ * 対応していない環境では何もしない。ユーザー操作付近から呼ぶこと。
+ */
+export const requestWebPlaybackAudioSession = (): void => {
+  if (!isIOSWebView()) return;
+  try {
+    const session = getWindow().navigator.audioSession;
+    if (session === undefined || session === null) return;
+    session.type = 'playback';
+  } catch {
+    /* ignore */
+  }
 };
 
 export const isIOSWebView = (): boolean => {

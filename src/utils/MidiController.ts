@@ -12,7 +12,7 @@ import type {
   ToneStatic,
   MidiControllerOptions
 } from '@/types';
-import { isIOSWebView } from '@/utils/iosbridge';
+import { isIOSWebView, requestWebPlaybackAudioSession } from '@/utils/iosbridge';
 import { FantasySoundManager } from './FantasySoundManager';
 
 // ToneSamplerインターフェースを拡張
@@ -141,7 +141,8 @@ const doInitializeAudioSystem = async (): Promise<void> => {
     console.log('🎹 Initializing optimized audio system...');
     
     await detectUserInteraction();
-    
+    requestWebPlaybackAudioSession();
+
     if (typeof window === 'undefined' || !window.Tone) {
       console.warn('⚠️ Tone.js not available, attempting to load...');
       let retryCount = 0;

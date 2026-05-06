@@ -29,7 +29,7 @@ import { shouldUseEnglishCopy, getLocalizedFantasyStageName } from '@/utils/glob
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { isIOSWebView } from '@/utils/iosbridge';
+import { isIOSWebView, requestWebPlaybackAudioSession } from '@/utils/iosbridge';
 
 /** 親が再マウント直後に同一ユーザージェスチャー内で `startGame` を呼ぶためのハンドル（iOS WKWebView 向け） */
 export interface FantasyGameScreenHandle {
@@ -1068,6 +1068,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
     mode: FantasyPlayMode, 
     speedMultiplier: number = 1.0
   ) => {
+    requestWebPlaybackAudioSession();
     bgmManager.ensureContextRunning();
     await bgmManager.ensureContextRunningAsync();
     try {

@@ -32,6 +32,7 @@
 
 // 追加 import
 import { getWindow } from '@/platform';
+import { requestWebPlaybackAudioSession } from '@/utils/iosbridge';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
 import * as Tone from 'tone';
@@ -1138,6 +1139,7 @@ export class FantasySoundManager {
 
   private async _unlock(): Promise<void> {
     try {
+      requestWebPlaybackAudioSession();
       // Tone.js のコンテキストをユーザー操作で開始
       try { await (window as any).Tone?.start?.(); } catch {}
 

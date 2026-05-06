@@ -1,5 +1,7 @@
 /* BGMルーパー（WebAudio優先 + HTMLAudioフォールバック） */
 
+import { requestWebPlaybackAudioSession } from '@/utils/iosbridge'
+
 // Tone.jsの型（動的インポート用）
 type ToneType = typeof import('tone');
 type PitchShiftType = InstanceType<ToneType['PitchShift']>;
@@ -601,6 +603,7 @@ class BGMManager {
 
   ensureContextRunning() {
     try {
+      requestWebPlaybackAudioSession()
       const ToneLib = (window as any).Tone
       if (ToneLib?.start) ToneLib.start()
       if (ToneLib?.context?.state === 'suspended') {
@@ -624,6 +627,7 @@ class BGMManager {
    */
   async ensureContextRunningAsync(): Promise<void> {
     try {
+      requestWebPlaybackAudioSession()
       let ToneLib = (window as any).Tone
       if (!ToneLib) {
         const Tone = await import('tone')
