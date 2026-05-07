@@ -3,7 +3,7 @@
  * 2D Canvasを使用したゲーム画面の描画
  */
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   SurvivalGameState,
   PlayerState,
@@ -99,8 +99,6 @@ interface SurvivalCanvasProps {
 
 // ===== 色定義 =====
 const COLORS = {
-  background: '#1a1a2e',
-  grid: '#2a2a4e',
   player: '#4ade80',
   playerBorder: '#22c55e',
   enemy: {
@@ -188,14 +186,9 @@ const MAGIC_ICONS: Record<string, string> = {
   hint: '💡',
 };
 
-// 背景パーティクル用の状態
-interface BackgroundParticle {
-  x: number;
-  y: number;
-  size: number;
-  speed: number;
-  opacity: number;
-}
+/** シームレス木床テクスチャ（論理 px 基準でタイル繰り返し） */
+const WOOD_FLOOR_SRC = '/data/wood_plank_floor.png';
+const WOOD_TILE_PX = 240;
 
 const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   gameState,
@@ -208,7 +201,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   bossUiTick = 0,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const particlesRef = useRef<BackgroundParticle[]>([]);
+  const woodPatternRef = useRef<CanvasPattern | null>(null);
+  const [woodFloorAssetRevision, setWoodFloorAssetRevision] = useState(0);
   /** デフォルト5方向スプライト（右向きベース、左向きは flipX） */
   const defaultPlayerSpritesRef = useRef<
     Partial<Record<SurvivalDefaultSpriteVariant, HTMLImageElement>>
@@ -280,6 +274,37 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     });
   }, []);
 
+  // 木床テクスチャ（1 回ロード → 論理タイルサイズに縮小した CanvasPattern）
+  useEffect(() => {
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const tile = document.createElement('canvas');
+      tile.width = WOOD_TILE_PX;
+      tile.height = WOOD_TILE_PX;
+      const tctx = tile.getContext('2d');
+      if (!tctx) {
+        woodPatternRef.current = null;
+        setWoodFloorAssetRevision((n) => n + 1);
+        return;
+      }
+      tctx.imageSmoothingEnabled = true;
+      tctx.drawImage(img, 0, 0, WOOD_TILE_PX, WOOD_TILE_PX);
+      woodPatternRef.current = tctx.createPattern(tile, 'repeat');
+      setWoodFloorAssetRevision((n) => n + 1);
+    };
+    img.onerror = () => {
+      if (cancelled) return;
+      woodPatternRef.current = null;
+      setWoodFloorAssetRevision((n) => n + 1);
+    };
+    img.src = WOOD_FLOOR_SRC;
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // カメラ位置（プレイヤー中心・論理ビューポート使用）
   const getCameraOffset = useCallback((player: PlayerState) => {
     const targetX = player.x - logicalWidth / 2;
@@ -295,24 +320,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     };
   }, [logicalWidth, logicalHeight]);
 
-  // 背景パーティクル初期化（パフォーマンス向上のため数を削減）
-  const initParticles = useCallback(() => {
-    if (particlesRef.current.length === 0) {
-      const particles: BackgroundParticle[] = [];
-      const particleCount = 25;  // 50 -> 25に削減
-      for (let i = 0; i < particleCount; i++) {
-        particles.push({
-          x: Math.random() * MAP_CONFIG.width,
-          y: Math.random() * MAP_CONFIG.height,
-          size: Math.random() * 2 + 1,
-          speed: Math.random() * 0.5 + 0.2,
-          opacity: Math.random() * 0.5 + 0.2,
-        });
-      }
-      particlesRef.current = particles;
-    }
-  }, []);
-  
   // 描画関数（contentScale時は論理ビューポートで描画し、ctx.scaleで縮小）
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
     if (contentScale !== 1) {
@@ -321,65 +328,23 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     }
     const { player, enemies, projectiles, items, damageTexts } = gameState;
     const camera = getCameraOffset(player);
-    
-    // パーティクル初期化
-    initParticles();
-    
-    // キャンバスクリア - グラデーション背景（論理サイズ）
-    const gradient = ctx.createRadialGradient(
-      logicalWidth / 2, logicalHeight / 2, 0,
-      logicalWidth / 2, logicalHeight / 2, logicalWidth
-    );
-    gradient.addColorStop(0, '#1e1e3f');
-    gradient.addColorStop(1, '#0a0a1a');
-    ctx.fillStyle = gradient;
+
+    // フォールバック塗り（テクスチャ未ロード時）
+    ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, logicalWidth, logicalHeight);
-    
-    // 背景パーティクル描画（星のような効果）
-    const time = Date.now() / 1000;
-    particlesRef.current.forEach((particle, i) => {
-      // パーティクルをカメラに対して相対移動（視差効果）
-      const parallaxFactor = 0.3;  // カメラより遅く動く
-      const screenX = (particle.x - camera.x * parallaxFactor) % logicalWidth;
-      const screenY = (particle.y - camera.y * parallaxFactor) % logicalHeight;
-      
-      // 画面外なら反対側に
-      const adjustedX = screenX < 0 ? screenX + logicalWidth : screenX;
-      const adjustedY = screenY < 0 ? screenY + logicalHeight : screenY;
-      
-      // 点滅効果
-      const twinkle = Math.sin(time * particle.speed * 3 + i) * 0.3 + 0.7;
-      const finalOpacity = particle.opacity * twinkle;
-      
-      ctx.globalAlpha = finalOpacity;
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(adjustedX, adjustedY, particle.size, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-    
-    // グリッド描画
-    ctx.strokeStyle = COLORS.grid;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.3;
-    const gridSize = 64;
-    const startX = -(camera.x % gridSize);
-    const startY = -(camera.y % gridSize);
-    
-    for (let x = startX; x < logicalWidth; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, logicalHeight);
-      ctx.stroke();
+
+    const pattern = woodFloorAssetRevision >= 0 ? woodPatternRef.current : null;
+    if (pattern) {
+      ctx.save();
+      ctx.translate(-camera.x, -camera.y);
+      ctx.fillStyle = pattern;
+      const x0 = Math.max(0, camera.x);
+      const y0 = Math.max(0, camera.y);
+      const x1 = Math.min(MAP_CONFIG.width, camera.x + logicalWidth);
+      const y1 = Math.min(MAP_CONFIG.height, camera.y + logicalHeight);
+      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+      ctx.restore();
     }
-    for (let y = startY; y < logicalHeight; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(logicalWidth, y);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
 
     // マップ境界描画
     ctx.strokeStyle = '#4a4a6e';
@@ -1749,7 +1714,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (contentScale !== 1) {
       ctx.restore();
     }
-  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles, bossBattle, bossUiTick]);
+  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, woodFloorAssetRevision, bossBattle, bossUiTick]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

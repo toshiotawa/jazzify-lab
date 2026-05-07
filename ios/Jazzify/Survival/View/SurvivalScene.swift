@@ -106,7 +106,6 @@ final class SurvivalScene: SKScene {
         worldNode.addChild(entitiesNode)
         drawBackground()
         drawMapBoundary()
-        addParticleStars()
         buildPlayer()
 
         let camera = SKCameraNode()
@@ -159,73 +158,18 @@ final class SurvivalScene: SKScene {
         playerSprite = sprite
     }
 
-    /// 市松模様の背景を **単一 SKSpriteNode** として 1 枚描く。
-    /// 旧実装は 200px タイル × (width/200 + 1) × (height/200 + 1) = 200+ 枚の `SKShapeNode` を
-    /// 敷き詰めており、カメラが動く度にノード境界の再評価が発生して
-    /// boss 戦 / 通常戦どちらでも CPU 負担の大きな原因となっていた。
-    /// 2 色チェック柄のタイル画像を 1 枚 CoreGraphics で生成し、その `SKTexture` を
-    /// `centerRect` 指定でマップ全面に伸ばすことで描画コストをほぼ 0 にする。
+    /// 暗い木床テクスチャを **単一 SKSpriteNode** としてマップ全面に敷く。
+    /// Web 版 `SurvivalCanvas` の `CanvasPattern` + カメラ固定タイルと同様に、
+    /// `SKTexture(rect:in:)` で UV リピートし描画コストを抑える。
     private func drawBackground() {
-        let tileSize: CGFloat = 200
-        let colorA = UIColor(red: 0.08, green: 0.05, blue: 0.14, alpha: 1)
-        let colorB = UIColor(red: 0.06, green: 0.04, blue: 0.10, alpha: 1)
-        let gridColor = UIColor(red: 0.24, green: 0.19, blue: 0.36, alpha: 0.20)
-        let motionLineColor = UIColor(red: 0.42, green: 0.31, blue: 0.72, alpha: 0.15)
-        let dotColor = UIColor(red: 0.65, green: 0.56, blue: 0.95, alpha: 0.18)
+        let woodTexture = SKTexture(imageNamed: "SurvivalMap/wood_plank_floor")
+        woodTexture.filteringMode = .linear
 
-        // 2x2 分の市松タイル画像 (400 × 400) を一度だけ生成。
-        // スプライト側で `textureRect` + `anchorPoint` で引き伸ばして敷き詰める。
-        let checkerSize = CGSize(width: tileSize * 2, height: tileSize * 2)
-        let checkerImage = UIGraphicsImageRenderer(size: checkerSize).image { ctx in
-            let cg = ctx.cgContext
-            cg.setFillColor(colorA.cgColor)
-            cg.fill(CGRect(x: 0, y: 0, width: tileSize, height: tileSize))
-            cg.fill(CGRect(x: tileSize, y: tileSize, width: tileSize, height: tileSize))
-            cg.setFillColor(colorB.cgColor)
-            cg.fill(CGRect(x: tileSize, y: 0, width: tileSize, height: tileSize))
-            cg.fill(CGRect(x: 0, y: tileSize, width: tileSize, height: tileSize))
-
-            cg.setStrokeColor(gridColor.cgColor)
-            cg.setLineWidth(1)
-            for pos in stride(from: CGFloat(0), through: checkerSize.width, by: tileSize / 2) {
-                cg.move(to: CGPoint(x: pos, y: 0))
-                cg.addLine(to: CGPoint(x: pos, y: checkerSize.height))
-                cg.move(to: CGPoint(x: 0, y: pos))
-                cg.addLine(to: CGPoint(x: checkerSize.width, y: pos))
-            }
-            cg.strokePath()
-
-            cg.setStrokeColor(motionLineColor.cgColor)
-            cg.setLineWidth(2)
-            for offset in stride(from: -checkerSize.height, through: checkerSize.width, by: tileSize) {
-                cg.move(to: CGPoint(x: offset, y: checkerSize.height))
-                cg.addLine(to: CGPoint(x: offset + checkerSize.height, y: 0))
-            }
-            cg.strokePath()
-
-            cg.setFillColor(dotColor.cgColor)
-            let dotRadius: CGFloat = 2
-            for x in stride(from: tileSize / 4, to: checkerSize.width, by: tileSize / 2) {
-                for y in stride(from: tileSize / 4, to: checkerSize.height, by: tileSize / 2) {
-                    cg.fillEllipse(in: CGRect(
-                        x: x - dotRadius,
-                        y: y - dotRadius,
-                        width: dotRadius * 2,
-                        height: dotRadius * 2
-                    ))
-                }
-            }
-        }
-        let tileTexture = SKTexture(image: checkerImage)
-        tileTexture.filteringMode = .nearest
-
+        let tileDisplaySize: CGFloat = 240
         let mapSize = CGSize(width: SurvivalMap.width, height: SurvivalMap.height)
-        // `SKTexture(rect:in:)` でリピート用 UV を直接指定する。
-        // 画面全体 (mapSize) にタイルを敷き詰めるため、UV を
-        // (0,0) → (mapSize.width / tileTextureSize, mapSize.height / tileTextureSize) まで伸ばす。
-        let uRepeat = mapSize.width / checkerSize.width
-        let vRepeat = mapSize.height / checkerSize.height
-        let tiledTexture = SKTexture(rect: CGRect(x: 0, y: 0, width: uRepeat, height: vRepeat), in: tileTexture)
+        let uRepeat = mapSize.width / tileDisplaySize
+        let vRepeat = mapSize.height / tileDisplaySize
+        let tiledTexture = SKTexture(rect: CGRect(x: 0, y: 0, width: uRepeat, height: vRepeat), in: woodTexture)
 
         let node = SKSpriteNode(texture: tiledTexture, size: mapSize)
         node.anchorPoint = CGPoint(x: 0, y: 0)
@@ -288,40 +232,6 @@ final class SurvivalScene: SKScene {
         innerFrame.glowWidth = 0
         innerFrame.position = toScenePoint(x: 0, y: mapHeight)
         boundary.addChild(innerFrame)
-    }
-
-    /// 背景に ほんの薄い星 (小さな白い点) を散りばめる。
-    /// - 60 → 30 個に削減し、半数のみ twinkle アニメを走らせる。
-    /// - SKShapeNode から共有テクスチャ の SKSpriteNode に変更してドローコールを削減。
-    private func addParticleStars() {
-        let starCount = 30
-        let dotTextureSize = CGSize(width: 6, height: 6)
-        let dotImage = UIGraphicsImageRenderer(size: dotTextureSize).image { ctx in
-            let cg = ctx.cgContext
-            cg.setFillColor(UIColor.white.cgColor)
-            cg.fillEllipse(in: CGRect(origin: .zero, size: dotTextureSize))
-        }
-        let dotTexture = SKTexture(image: dotImage)
-        dotTexture.filteringMode = .linear
-
-        for i in 0..<starCount {
-            let radius = CGFloat.random(in: 1...2.2)
-            let star = SKSpriteNode(texture: dotTexture)
-            star.size = CGSize(width: radius * 2, height: radius * 2)
-            star.alpha = CGFloat.random(in: 0.1...0.3)
-            let x = CGFloat.random(in: 0...SurvivalMap.width)
-            let y = CGFloat.random(in: 0...SurvivalMap.height)
-            star.position = toScenePoint(x: x, y: y)
-            star.zPosition = -90
-            backgroundNode.addChild(star)
-            if i % 2 == 0 {
-                let twinkle = SKAction.sequence([
-                    SKAction.fadeAlpha(to: 0.05, duration: Double.random(in: 1.4...2.6)),
-                    SKAction.fadeAlpha(to: 0.3, duration: Double.random(in: 1.4...2.6))
-                ])
-                star.run(SKAction.repeatForever(twinkle))
-            }
-        }
     }
 
     // MARK: - 座標変換 (Web 側 y=下向き → SpriteKit y=上向き)
