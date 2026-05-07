@@ -17,6 +17,7 @@ import {
 import type { CourseDifficultyTier } from '@/types';
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { FaLock, FaCheck, FaGraduationCap, FaChevronRight } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
@@ -55,9 +56,10 @@ const LessonPage: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       try {
+        const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
         const [coursesData, completedCourses] = await Promise.all([
-          fetchCoursesWithDetails(),
-          fetchUserCompletedCourses(profile.id),
+          fetchCoursesWithDetails({ includeDeveloperCourses: includeDevCourses }),
+          fetchUserCompletedCourses(profile.id, { includeDeveloperCourses: includeDevCourses }),
         ]);
 
         const audienceFilter = isEnglishCopy ? 'global' : 'japan';
@@ -109,7 +111,7 @@ const LessonPage: React.FC = () => {
 
     void loadData();
     return () => { cancelled = true; };
-  }, [open, profile?.id]);
+  }, [open, profile?.id, profile?.isAdmin]);
 
   const coursesByTier = useMemo(() => {
     const sorted = sortCoursesByDifficultyThenOrder(courses);

@@ -11,6 +11,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { courseDisplayDescription, courseDisplayTitle } from '@/utils/courseCopy';
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { FaArrowLeft } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
@@ -62,9 +63,10 @@ const CoursePage: React.FC = () => {
     const loadCourseData = async () => {
       setLoading(true);
       try {
+        const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
         const [courseData, completedCourses] = await Promise.all([
-          fetchCourseById(courseId),
-          fetchUserCompletedCourses(profile.id),
+          fetchCourseById(courseId, { includeDeveloperCourses: includeDevCourses }),
+          fetchUserCompletedCourses(profile.id, { includeDeveloperCourses: includeDevCourses }),
         ]);
 
         if (cancelled) return;
@@ -129,7 +131,7 @@ const CoursePage: React.FC = () => {
 
     void loadCourseData();
     return () => { cancelled = true; };
-  }, [open, courseId, profile?.id, isEnglishCopy, effectiveRank]);
+  }, [open, courseId, profile?.id, profile?.isAdmin, isEnglishCopy, effectiveRank]);
 
   useEffect(() => {
     if (!open || !courseId) return;

@@ -30,13 +30,23 @@ export const isDevelopment = (): boolean => {
   return getEnvironment() === 'development';
 };
 
-/** 開発者専用レッスンコースをクライアントに含めるか（Web） */
+/** 開発者専用レッスンコースをクライアントに含めるか（Web・未ログイン時の既定） */
 export const shouldIncludeDeveloperLessonCourses = (): boolean => {
   if (import.meta.env.VITE_INCLUDE_DEV_LESSON_COURSES === 'true') {
     return true;
   }
+  if (isStaging()) {
+    return true;
+  }
   return isDevelopment();
 };
+
+/**
+ * ログインセッション単位で is_developer_only コースを含めるか。
+ * 本番 Web では管理者のみ true になり得る（環境フラグ・staging・local と併用）。
+ */
+export const shouldIncludeDeveloperLessonCoursesForUser = (isAdmin: boolean | undefined): boolean =>
+  shouldIncludeDeveloperLessonCourses() || isAdmin === true;
 
 // 環境に応じた設定値を返す
 export const getEnvConfig = () => {

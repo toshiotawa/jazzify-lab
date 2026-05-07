@@ -1,19 +1,43 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FaTimes, FaExclamationTriangle } from 'react-icons/fa';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { detectMidiWarningTarget } from '@/utils/browserDetect';
 
 const SESSION_KEY = 'midi_warning_dismissed';
 
-const MESSAGES: Record<'mac-safari' | 'ios-browser', string> = {
-  'mac-safari':
-    'このブラウザはMIDIキーボードのサポート対象外です。Chrome、Firefoxなどのブラウザが対応しています。',
-  'ios-browser':
-    'このブラウザはMIDIキーボードのサポート対象外です。アプリ版をご利用ください。',
-};
+const COPY = {
+  ja: {
+    title: 'ご注意',
+    closeLabel: '閉じる',
+    macSafari:
+      'このブラウザはMIDIキーボードのサポート対象外です。Chrome、Firefoxなどのブラウザが対応しています。',
+    iosBrowser: 'このブラウザはMIDIキーボードのサポート対象外です。アプリ版をご利用ください。',
+    ok: 'OK',
+  },
+  en: {
+    title: 'Notice',
+    closeLabel: 'Close',
+    macSafari:
+      'This browser does not support USB MIDI keyboards. Please use Chrome, Firefox, or another supported desktop browser.',
+    iosBrowser:
+      'This browser does not support USB MIDI keyboards. Please use the Jazzify app for MIDI support.',
+    ok: 'OK',
+  },
+} as const;
 
 const MidiWarningModal: React.FC = () => {
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('');
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(s => s.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
+  const t = isEnglishCopy ? COPY.en : COPY.ja;
 
   useEffect(() => {
     try {
@@ -25,9 +49,10 @@ const MidiWarningModal: React.FC = () => {
     const target = detectMidiWarningTarget();
     if (!target) return;
 
-    setMessage(MESSAGES[target]);
+    const row = isEnglishCopy ? COPY.en : COPY.ja;
+    setMessage(target === 'mac-safari' ? row.macSafari : row.iosBrowser);
     setVisible(true);
-  }, []);
+  }, [isEnglishCopy]);
 
   const handleClose = useCallback(() => {
     setVisible(false);
@@ -52,12 +77,13 @@ const MidiWarningModal: React.FC = () => {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
           <div className="flex items-center gap-3">
             <FaExclamationTriangle className="text-yellow-400 text-lg" />
-            <h3 className="text-lg font-bold text-white">ご注意</h3>
+            <h3 className="text-lg font-bold text-white">{t.title}</h3>
           </div>
           <button
             onClick={handleClose}
             className="p-2 rounded-lg hover:bg-slate-700 transition-colors text-gray-400 hover:text-white"
-            aria-label="閉じる"
+            aria-label={t.closeLabel}
+            type="button"
           >
             <FaTimes />
           </button>
@@ -68,8 +94,9 @@ const MidiWarningModal: React.FC = () => {
           <button
             onClick={handleClose}
             className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 font-semibold text-white transition-colors"
+            type="button"
           >
-            OK
+            {t.ok}
           </button>
         </div>
       </div>

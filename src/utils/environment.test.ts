@@ -31,4 +31,24 @@ describe('shouldIncludeDeveloperLessonCourses', () => {
     const { shouldIncludeDeveloperLessonCourses } = await import('./environment');
     expect(shouldIncludeDeveloperLessonCourses()).toBe(true);
   });
+
+  it('VITE_APP_ENV が staging のときは true', async () => {
+    vi.stubEnv('VITE_INCLUDE_DEV_LESSON_COURSES', '');
+    vi.stubEnv('VITE_APP_ENV', 'staging');
+    vi.stubEnv('MODE', 'production');
+    vi.resetModules();
+    const { shouldIncludeDeveloperLessonCourses } = await import('./environment');
+    expect(shouldIncludeDeveloperLessonCourses()).toBe(true);
+  });
+
+  it('shouldIncludeDeveloperLessonCoursesForUser: 管理者なら本番でも true', async () => {
+    vi.stubEnv('VITE_INCLUDE_DEV_LESSON_COURSES', '');
+    vi.stubEnv('VITE_APP_ENV', 'production');
+    vi.stubEnv('MODE', 'production');
+    vi.resetModules();
+    const { shouldIncludeDeveloperLessonCoursesForUser } = await import('./environment');
+    expect(shouldIncludeDeveloperLessonCoursesForUser(true)).toBe(true);
+    expect(shouldIncludeDeveloperLessonCoursesForUser(false)).toBe(false);
+    expect(shouldIncludeDeveloperLessonCoursesForUser(undefined)).toBe(false);
+  });
 });

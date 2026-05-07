@@ -209,13 +209,23 @@ export async function deleteCourse(id: string): Promise<void> {
  * @param {string} userId
  * @returns {Promise<string[]>} 完了したコースIDの配列
  */
-export async function fetchUserCompletedCourses(userId: string): Promise<string[]> {
+export type FetchUserCompletedCoursesOptions = {
+  /** 省略時は shouldIncludeDeveloperLessonCourses() */
+  includeDeveloperCourses?: boolean;
+};
+
+export async function fetchUserCompletedCourses(
+  userId: string,
+  options: FetchUserCompletedCoursesOptions = {},
+): Promise<string[]> {
+  const includeDeveloperCourses =
+    options.includeDeveloperCourses ?? shouldIncludeDeveloperLessonCourses();
   try {
     // 全コースとユーザーのレッスン進捗を取得
     const [coursesData, progressData] = await Promise.all([
       fetchCoursesWithDetails({
         includeHidden: true,
-        includeDeveloperCourses: shouldIncludeDeveloperLessonCourses(),
+        includeDeveloperCourses,
       }),
       getSupabaseClient()
         .from('user_lesson_progress')

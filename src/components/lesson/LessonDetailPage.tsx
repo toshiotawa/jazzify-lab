@@ -26,6 +26,7 @@ import {
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
@@ -272,9 +273,10 @@ const LessonDetailPage: React.FC = () => {
 
       // 直接アクセス時のコース受講可否ガード（premium_onlyを唯一の判定）
       if (lessonData?.course_id && profile?.id) {
+        const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
         const [course, completedCourses] = await Promise.all([
-          fetchCourseById(lessonData.course_id),
-          fetchUserCompletedCourses(profile.id)
+          fetchCourseById(lessonData.course_id, { includeDeveloperCourses: includeDevCourses }),
+          fetchUserCompletedCourses(profile.id, { includeDeveloperCourses: includeDevCourses }),
         ]);
         if (isStale()) {
           return;
@@ -329,7 +331,7 @@ const LessonDetailPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [isEnglishCopy, profile?.id, effectiveRank]);
+  }, [isEnglishCopy, profile?.id, profile?.isAdmin, effectiveRank]);
 
   useEffect(() => {
     if (open && lessonId) {
