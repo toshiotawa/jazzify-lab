@@ -186,9 +186,61 @@ const MAGIC_ICONS: Record<string, string> = {
   hint: '💡',
 };
 
-/** シームレス木床テクスチャ（論理 px 基準でタイル繰り返し） */
-const WOOD_FLOOR_SRC = '/data/wood_plank_floor.png';
-const WOOD_TILE_PX = 240;
+/** レンガ風ハーフボンドの暗い木板床（論理 px）。板 = キャラ高さの約 0.5 × 長さ約 2.5 体分 */
+const WOOD_PLANK_W = 120;
+const WOOD_PLANK_H = 24;
+const WOOD_TILE_W = WOOD_PLANK_W * 2;
+const WOOD_TILE_H = WOOD_PLANK_H * 2;
+
+const woodSeededUnit = (seed: number): number => {
+  let t = (seed >>> 0) + 0x6d2b79f5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+const buildWoodTileCanvas = (): HTMLCanvasElement => {
+  const c = document.createElement('canvas');
+  c.width = WOOD_TILE_W;
+  c.height = WOOD_TILE_H;
+  const ctx = c.getContext('2d');
+  if (!ctx) return c;
+
+  ctx.fillStyle = '#150e07';
+  ctx.fillRect(0, 0, WOOD_TILE_W, WOOD_TILE_H);
+
+  const drawPlank = (x: number, y: number, w: number, h: number, seed: number): void => {
+    const r = woodSeededUnit(seed);
+    const baseR = 0x1c + Math.floor((r - 0.5) * 14);
+    const baseG = 0x13 + Math.floor((r - 0.5) * 10);
+    const baseB = 0x0a + Math.floor((r - 0.5) * 8);
+    ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
+    ctx.fillRect(x, y, w, h);
+
+    const grainCount = 2 + Math.floor(woodSeededUnit(seed + 31) * 2);
+    for (let i = 0; i < grainCount; i += 1) {
+      const gx = x + 6 + woodSeededUnit(seed + i * 7) * (w - 12);
+      ctx.strokeStyle = `rgba(80,55,30,${0.1 + woodSeededUnit(seed + i * 11) * 0.1})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(gx, y + 2);
+      ctx.lineTo(gx + (woodSeededUnit(seed + i * 13) - 0.5) * 4, y + h - 2);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(5,3,0,0.85)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  };
+
+  drawPlank(0, 0, WOOD_PLANK_W, WOOD_PLANK_H, 1001);
+  drawPlank(WOOD_PLANK_W, 0, WOOD_PLANK_W, WOOD_PLANK_H, 1002);
+  drawPlank(-WOOD_PLANK_W / 2, WOOD_PLANK_H, WOOD_PLANK_W, WOOD_PLANK_H, 2001);
+  drawPlank(WOOD_PLANK_W / 2, WOOD_PLANK_H, WOOD_PLANK_W, WOOD_PLANK_H, 2002);
+  drawPlank(WOOD_PLANK_W * 1.5, WOOD_PLANK_H, WOOD_PLANK_W, WOOD_PLANK_H, 2003);
+
+  return c;
+};
 
 const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   gameState,
@@ -274,35 +326,12 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     });
   }, []);
 
-  // 木床テクスチャ（1 回ロード → 論理タイルサイズに縮小した CanvasPattern）
+  // 木床: 手続き生成タイルを 1 度だけ CanvasPattern 化（PNG 不要・シームレス）
   useEffect(() => {
-    let cancelled = false;
-    const img = new Image();
-    img.onload = () => {
-      if (cancelled) return;
-      const tile = document.createElement('canvas');
-      tile.width = WOOD_TILE_PX;
-      tile.height = WOOD_TILE_PX;
-      const tctx = tile.getContext('2d');
-      if (!tctx) {
-        woodPatternRef.current = null;
-        setWoodFloorAssetRevision((n) => n + 1);
-        return;
-      }
-      tctx.imageSmoothingEnabled = true;
-      tctx.drawImage(img, 0, 0, WOOD_TILE_PX, WOOD_TILE_PX);
-      woodPatternRef.current = tctx.createPattern(tile, 'repeat');
-      setWoodFloorAssetRevision((n) => n + 1);
-    };
-    img.onerror = () => {
-      if (cancelled) return;
-      woodPatternRef.current = null;
-      setWoodFloorAssetRevision((n) => n + 1);
-    };
-    img.src = WOOD_FLOOR_SRC;
-    return () => {
-      cancelled = true;
-    };
+    const tile = buildWoodTileCanvas();
+    const tctx = tile.getContext('2d');
+    woodPatternRef.current = tctx ? tctx.createPattern(tile, 'repeat') : null;
+    setWoodFloorAssetRevision((n) => n + 1);
   }, []);
 
   // カメラ位置（プレイヤー中心・論理ビューポート使用）
