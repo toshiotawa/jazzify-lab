@@ -540,21 +540,29 @@ final class SupabaseService: Sendable {
 
     // MARK: - Survival Stage Clears
 
-    func fetchSurvivalStageClears(userId: UUID) async throws -> [SurvivalStageClearRow] {
+    func fetchSurvivalStageClears(
+        userId: UUID,
+        mapCategory: SurvivalMapCategory = .basic
+    ) async throws -> [SurvivalStageClearRow] {
         try await client
             .from("survival_stage_clears")
-            .select("stage_number, character_id, cleared_at")
+            .select("map_category, stage_number, character_id, cleared_at")
             .eq("user_id", value: userId.uuidString)
+            .eq("map_category", value: mapCategory.rawValue)
             .execute()
             .value
     }
 
     /// Web 版 `fetchSurvivalStageProgress` と同じデータを返す。行が無い場合は `(current: 1, cleared: 0)` を使用するよう呼び出し側で扱う。
-    func fetchSurvivalStageProgress(userId: UUID) async throws -> SurvivalStageProgressRow? {
+    func fetchSurvivalStageProgress(
+        userId: UUID,
+        mapCategory: SurvivalMapCategory = .basic
+    ) async throws -> SurvivalStageProgressRow? {
         let rows: [SurvivalStageProgressRow] = try await client
             .from("survival_stage_progress")
             .select("current_stage_number, total_cleared_stages")
             .eq("user_id", value: userId.uuidString)
+            .eq("map_category", value: mapCategory.rawValue)
             .limit(1)
             .execute()
             .value
@@ -574,11 +582,13 @@ final class SupabaseService: Sendable {
         finalLevel: Int,
         enemiesDefeated: Int,
         characterId: String?,
-        totalStages: Int
+        totalStages: Int,
+        mapCategory: SurvivalMapCategory = .basic
     ) async throws {
         struct ExistingRow: Decodable { let id: UUID }
         struct ClearUpsert: Encodable {
             let user_id: UUID
+            let map_category: String
             let stage_number: Int
             let character_id: String?
             let survival_time_seconds: Int
@@ -592,6 +602,7 @@ final class SupabaseService: Sendable {
         }
         struct ProgressUpsert: Encodable {
             let user_id: UUID
+            let map_category: String
             let current_stage_number: Int
             let total_cleared_stages: Int
             let updated_at: String
@@ -601,6 +612,7 @@ final class SupabaseService: Sendable {
             .from("survival_stage_clears")
             .select("id")
             .eq("user_id", value: userId.uuidString)
+            .eq("map_category", value: mapCategory.rawValue)
             .eq("stage_number", value: stageNumber)
             .limit(1)
             .execute()
@@ -613,6 +625,7 @@ final class SupabaseService: Sendable {
             .upsert(
                 ClearUpsert(
                     user_id: userId,
+                    map_category: mapCategory.rawValue,
                     stage_number: stageNumber,
                     character_id: characterId,
                     survival_time_seconds: survivalTimeSeconds,
@@ -620,7 +633,7 @@ final class SupabaseService: Sendable {
                     enemies_defeated: enemiesDefeated,
                     cleared_at: nowIso
                 ),
-                onConflict: "user_id,stage_number"
+                onConflict: "user_id,map_category,stage_number"
             )
             .execute()
 
@@ -630,6 +643,7 @@ final class SupabaseService: Sendable {
             .from("survival_stage_progress")
             .select("current_stage_number, total_cleared_stages")
             .eq("user_id", value: userId.uuidString)
+            .eq("map_category", value: mapCategory.rawValue)
             .limit(1)
             .execute()
             .value
@@ -645,11 +659,12 @@ final class SupabaseService: Sendable {
             .upsert(
                 ProgressUpsert(
                     user_id: userId,
+                    map_category: mapCategory.rawValue,
                     current_stage_number: updatedCurrent,
                     total_cleared_stages: updatedTotal,
                     updated_at: nowIso
                 ),
-                onConflict: "user_id"
+                onConflict: "user_id,map_category"
             )
             .execute()
     }

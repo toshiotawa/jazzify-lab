@@ -14,6 +14,8 @@ struct SurvivalDescentView: View {
 
     let freeStageNumbers: Set<Int>
     let playLockedForUpsell: Bool
+    /// 表示対象マップ。Web 版 `SurvivalDescentMap` の `mapCategory` と同義。
+    let mapCategory: SurvivalMapCategory
 
     let onStageSelect: (SurvivalStageDefinition) -> Void
 
@@ -22,13 +24,16 @@ struct SurvivalDescentView: View {
     @State private var didInitialScroll: Bool = false
 
     /// `SurvivalStageCatalog.load(rows:)` 完了後の最新値を反映できるよう computed property にする。
-    private var layout: SurvivalDescentLayout { SurvivalDescentLayoutBuilder.build() }
-    private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks }
+    private var layout: SurvivalDescentLayout {
+        SurvivalDescentLayoutBuilder.build(blocks: blocks)
+    }
+    private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks(in: mapCategory) }
 
     private var locale: AppLocale { appState.locale }
 
     private var frontierStageNumber: Int {
-        max(1, min(SurvivalStageCatalog.totalStages, currentStageNumber))
+        let total = SurvivalStageCatalog.totalStages(in: mapCategory)
+        return max(1, min(max(1, total), currentStageNumber))
     }
 
     private var accessibleBlockIndex: Int {
@@ -58,11 +63,11 @@ struct SurvivalDescentView: View {
     }
 
     private func isMixed(_ stageNumber: Int) -> Bool {
-        SurvivalStageCatalog.stage(byNumber: stageNumber)?.isMixedStage ?? false
+        SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory)?.isMixedStage ?? false
     }
 
     private func isProgression(_ stageNumber: Int) -> Bool {
-        SurvivalStageCatalog.stage(byNumber: stageNumber)?.stageType == .progression
+        SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory)?.stageType == .progression
     }
 
     private func blockAllCleared(_ meta: SurvivalBlockMeta) -> Bool {
@@ -119,6 +124,12 @@ struct SurvivalDescentView: View {
                       let pos = layout.position(for: target) else { return }
                 scrollAnimated = true
                 scrollTargetY = pos.y * mapScale
+            }
+            .onChange(of: mapCategory) { _ in
+                // カテゴリ切替時はマップが別構造になるため、初回スクロールフラグを下ろして
+                // 新マップのフロンティアまでアニメ無しで再ジャンプする。
+                didInitialScroll = false
+                requestScrollToFrontier(scale: mapScale, animated: false)
             }
         }
     }
@@ -346,7 +357,7 @@ struct SurvivalDescentView: View {
                 isProgression: isProgression(stage.stageNumber),
                 dim: locked,
                 onTap: {
-                    if let def = SurvivalStageCatalog.stage(byNumber: stage.stageNumber) {
+                    if let def = SurvivalStageCatalog.stage(byNumber: stage.stageNumber, in: mapCategory) {
                         selectedStageNumber = stage.stageNumber
                         onStageSelect(def)
                     }

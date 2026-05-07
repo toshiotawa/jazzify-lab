@@ -390,11 +390,11 @@ struct SurvivalDescentSidePanel: View {
     }
 
     /// ボス戦 (= 各ブロック最終ステージ) かどうか。`SurvivalGameController` と同じ
-    /// `SurvivalBossEngine.isBlockLastStage(stageNumber:)` を参照して判定を揃える。
+    /// `SurvivalBossEngine.isBlockLastStage(stageNumber:in:)` を参照して判定を揃える。
     /// `isMixedStage` はブロックに `trailingMixedGroup` がある場合のみ true になるため、
     /// `trailingMixedGroup=nil` のブロック末尾 (例: Major-5 / M7-5 など) を拾えない。
     private func isBossStage(_ stage: SurvivalStageDefinition) -> Bool {
-        SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber)
+        SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
     }
 }
 

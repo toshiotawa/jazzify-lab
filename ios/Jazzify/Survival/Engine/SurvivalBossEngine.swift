@@ -252,8 +252,11 @@ enum SurvivalBossEngine {
     /// ローテーションで割り当てる。Web 版 `getBossTypeForBlock` と同一実装。
     /// 既存の固定マッピングでは、扉アイコン (ブロック毎のボス画像) と実戦で出現するボスが
     /// ずれていた (例: `M7` ブロックの扉は C ボスなのに A ボスが出現する等) 不具合を解消する。
-    static func bossType(for blockKey: SurvivalBlockKey) -> SurvivalBossType {
-        let index = SurvivalStageCatalog.block(byKey: blockKey)?.blockIndex ?? 0
+    static func bossType(
+        for blockKey: SurvivalBlockKey,
+        in mapCategory: SurvivalMapCategory = .basic
+    ) -> SurvivalBossType {
+        let index = SurvivalStageCatalog.block(byKey: blockKey, in: mapCategory)?.blockIndex ?? 0
         switch ((index % 3) + 3) % 3 {
         case 0: return .A
         case 1: return .B
@@ -262,8 +265,11 @@ enum SurvivalBossEngine {
     }
 
     /// ブロック末尾 (= Mixed を含む最後のステージ番号) かどうか
-    static func isBlockLastStage(stageNumber: Int) -> Bool {
-        guard let block = SurvivalStageCatalog.block(forStage: stageNumber) else { return false }
+    static func isBlockLastStage(
+        stageNumber: Int,
+        in mapCategory: SurvivalMapCategory = .basic
+    ) -> Bool {
+        guard let block = SurvivalStageCatalog.block(forStage: stageNumber, in: mapCategory) else { return false }
         return block.lastStage == stageNumber
     }
 

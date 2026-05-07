@@ -210,6 +210,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [characters, setCharacters] = useState<SurvivalCharacter[]>([]);
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DIFFICULTY_CONFIGS);
   const [mapCategory, setMapCategory] = useState<SurvivalMapCategory>(initialMapCategory);
+  // `fetchAllStages()` + `rebuildDescentBlocks()` + `rebuildDescentLayouts()` 完了で
+  // カテゴリ別キャッシュ (STAGES_BY_CATEGORY 等) が後追いで更新されるため、
+  // 完了後にこの値を increment して下記 useMemo を強制再評価する。
+  // これが無いと初回ロード時に 'basic' のステージ/ブロック/レイアウトが空のままメモ化され、
+  // マップが描画されず TOTAL PROGRESS の分母が 0 (=Math.max(1,0)) で 1700% 等になる。
+  const [stagesVersion, setStagesVersion] = useState(0);
   const [currentStageNumber, setCurrentStageNumber] = useState(1);
   const [clearedStages, setClearedStages] = useState<Set<number>>(new Set());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
@@ -272,11 +278,11 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
   const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 2.2);
   const mapWidthPx = MAP_LOGICAL_WIDTH * scale;
-  const stagesForCategory = useMemo(() => getStagesByCategory(mapCategory), [mapCategory]);
-  const totalStagesForCategory = useMemo(() => getTotalStagesByCategory(mapCategory), [mapCategory]);
-  const blockLayoutsForCategory = useMemo(() => getBlockLayoutsByCategory(mapCategory), [mapCategory]);
-  const blocksForCategory = useMemo(() => getBlocksByCategory(mapCategory), [mapCategory]);
-  const mapHeightLogical = useMemo(() => getMapLogicalHeightByCategory(mapCategory), [mapCategory]);
+  const stagesForCategory = useMemo(() => getStagesByCategory(mapCategory), [mapCategory, stagesVersion]);
+  const totalStagesForCategory = useMemo(() => getTotalStagesByCategory(mapCategory), [mapCategory, stagesVersion]);
+  const blockLayoutsForCategory = useMemo(() => getBlockLayoutsByCategory(mapCategory), [mapCategory, stagesVersion]);
+  const blocksForCategory = useMemo(() => getBlocksByCategory(mapCategory), [mapCategory, stagesVersion]);
+  const mapHeightLogical = useMemo(() => getMapLogicalHeightByCategory(mapCategory), [mapCategory, stagesVersion]);
   const mapHeightPx = mapHeightLogical * scale;
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
 
@@ -290,6 +296,9 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         rebuildDescentBlocks();
         rebuildDescentLayouts();
       } catch { /* fallback handled inside fetchAllStages */ }
+      // 失敗時もローカルフォールバックでカテゴリ別キャッシュは存在するので、
+      // useMemo を再評価させて画面に反映する。
+      setStagesVersion(v => v + 1);
 
       try {
         const settingsData = await fetchSurvivalDifficultySettings();
@@ -410,13 +419,13 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
   const accessibleBlockIndex = useMemo(
     () => getAccessibleBlockIndex(frontierStageNumber, clearedStages, mapCategory),
-    [frontierStageNumber, clearedStages, mapCategory],
+    [frontierStageNumber, clearedStages, mapCategory, stagesVersion],
   );
 
   const frontierBlockIndex = useMemo(() => {
     const block = getBlockForStage(frontierStageNumber, mapCategory);
     return block ? block.blockIndex : 0;
-  }, [frontierStageNumber, mapCategory]);
+  }, [frontierStageNumber, mapCategory, stagesVersion]);
 
   const { cameraY, focusCamera, adjustCamera } = useDescentCamera({
     viewportHeight: viewport.height,
@@ -550,7 +559,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const panelBlock: BlockMeta | null = useMemo(() => {
     const refStage = selectedStage?.stageNumber ?? frontierStageNumber;
     return getBlockForStage(refStage, mapCategory) ?? blocksForCategory[0] ?? null;
-  }, [selectedStage, frontierStageNumber, mapCategory, blocksForCategory]);
+  }, [selectedStage, frontierStageNumber, mapCategory, blocksForCategory, stagesVersion]);
 
   const panelBlockClearedCount = useMemo(() => {
     if (!panelBlock) return 0;

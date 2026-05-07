@@ -29,11 +29,13 @@ struct SurvivalCharacterRow: Codable, Identifiable, Sendable {
 }
 
 struct SurvivalStageClearRow: Codable, Sendable {
+    let mapCategory: String?
     let stageNumber: Int
     let characterId: String?
     let clearedAt: Date
 
     enum CodingKeys: String, CodingKey {
+        case mapCategory = "map_category"
         case stageNumber = "stage_number"
         case characterId = "character_id"
         case clearedAt = "cleared_at"

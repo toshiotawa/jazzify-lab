@@ -10,6 +10,16 @@ enum SurvivalStageType: String, Codable, Sendable {
     case progression
 }
 
+/// マップ種別。Web 版 `SurvivalMapCategory` と同義。
+/// - basic: 既存の 110 ステージのコードタイプ別マップ
+/// - songs: 曲ベースのステージ群（追加予定 / 現在は basic stage 1 のモック 1 件のみ）
+enum SurvivalMapCategory: String, Codable, Sendable, CaseIterable, Hashable {
+    case basic
+    case songs
+
+    static let `default`: SurvivalMapCategory = .basic
+}
+
 enum SurvivalDifficulty: String, Codable, Sendable, CaseIterable {
     case easy
     case normal
@@ -119,6 +129,8 @@ public struct SurvivalChordProgressionEntry: Codable, Sendable, Hashable {
 /// `survival_stages` テーブルの 1 行をデコードするための型。
 /// Web 版 `fetchAllStages()` が読み取るのと同じ列セット。
 struct SurvivalStageRow: Decodable, Sendable {
+    /// `map_category` カラム。NULL/未設定時は `.basic` 扱い。
+    let map_category: String?
     let stage_number: Int
     let stage_type: String
     let name: String
@@ -138,6 +150,8 @@ struct SurvivalStageRow: Decodable, Sendable {
 }
 
 struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
+    /// 所属マップ。Basic / Songs を分離する。
+    let mapCategory: SurvivalMapCategory
     let stageNumber: Int
     let stageType: SurvivalStageType
     let nameJa: String
@@ -156,7 +170,8 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     /// Progression ステージで使う事前ビルド済みのコード進行。Random ステージでは nil。
     let chordProgression: [SurvivalChordProgressionEntry]?
 
-    var id: Int { stageNumber }
+    /// `Identifiable` 用 ID。マップ間で `stageNumber` が重複し得るため、`mapCategory` を含めて一意化する。
+    var id: String { "\(mapCategory.rawValue)-\(stageNumber)" }
 
     func localizedName(_ locale: AppLocale) -> String {
         locale == .en ? nameEn : nameJa
@@ -194,34 +209,75 @@ struct SurvivalBlockMeta: Identifiable, Sendable {
 /// - 注: Web 版 [src/components/survival/SurvivalStageDefinitions.ts](src/components/survival/SurvivalStageDefinitions.ts) と
 ///   同様に、`survival_stages` テーブルがソース。`load(rows:)` で DB 行から再構築する。
 ///   起動直後はローカルフォールバック（`generateStages()` の結果）を返す。
+/// - マップカテゴリごとに `_stagesByCategory` / `_blocksByCategory` で別々に保持する。
+///   既存呼び出し互換のため、無印プロパティ (`stages` 等) は `.basic` を返す。
 enum SurvivalStageCatalog {
     /// `nonisolated(unsafe)`: Supabase ロード前後の単発書き換えのみ想定。
     /// ロード完了は MainActor 上で行うことで実用上の競合を避ける。
-    nonisolated(unsafe) private static var _stages: [SurvivalStageDefinition] = Self.generateStages()
-    nonisolated(unsafe) private static var _blocks: [SurvivalBlockMeta] = Self.generateBlocks(from: Self.generateStages())
+    nonisolated(unsafe) private static var _stagesByCategory: [SurvivalMapCategory: [SurvivalStageDefinition]] = [
+        .basic: Self.generateStages(),
+        .songs: []
+    ]
+    nonisolated(unsafe) private static var _blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [
+        .basic: Self.generateBlocks(from: Self.generateStages()),
+        .songs: []
+    ]
 
-    static var stages: [SurvivalStageDefinition] { _stages }
-    static var blocks: [SurvivalBlockMeta] { _blocks }
-    static var totalStages: Int { _stages.count }
+    // MARK: - Backward compatible (basic 固定) アクセサ
+
+    static var stages: [SurvivalStageDefinition] { _stagesByCategory[.basic] ?? [] }
+    static var blocks: [SurvivalBlockMeta] { _blocksByCategory[.basic] ?? [] }
+    static var totalStages: Int { stages.count }
     static let stageTimeLimitSeconds: Int = 90
 
     /// 無料プランで遊べるステージ番号（第一階層＝Major ブロック = 1〜5）
     static var freeTierStageNumbers: Set<Int> {
-        guard let first = _blocks.first else { return [] }
+        guard let first = blocks.first else { return [] }
         return Set(first.stageNumbers)
     }
 
     static func stage(byNumber stageNumber: Int) -> SurvivalStageDefinition? {
-        guard stageNumber >= 1 else { return nil }
-        return _stages.first { $0.stageNumber == stageNumber }
+        stage(byNumber: stageNumber, in: .basic)
     }
 
     static func block(forStage stageNumber: Int) -> SurvivalBlockMeta? {
-        _blocks.first { $0.stageNumbers.contains(stageNumber) }
+        block(forStage: stageNumber, in: .basic)
     }
 
     static func block(byKey blockKey: SurvivalBlockKey) -> SurvivalBlockMeta? {
-        _blocks.first { $0.blockKey == blockKey }
+        block(byKey: blockKey, in: .basic)
+    }
+
+    // MARK: - カテゴリ別アクセサ
+
+    static func stages(in category: SurvivalMapCategory) -> [SurvivalStageDefinition] {
+        _stagesByCategory[category] ?? []
+    }
+
+    static func blocks(in category: SurvivalMapCategory) -> [SurvivalBlockMeta] {
+        _blocksByCategory[category] ?? []
+    }
+
+    static func totalStages(in category: SurvivalMapCategory) -> Int {
+        stages(in: category).count
+    }
+
+    static func freeTierStageNumbers(in category: SurvivalMapCategory) -> Set<Int> {
+        guard let first = blocks(in: category).first else { return [] }
+        return Set(first.stageNumbers)
+    }
+
+    static func stage(byNumber stageNumber: Int, in category: SurvivalMapCategory) -> SurvivalStageDefinition? {
+        guard stageNumber >= 1 else { return nil }
+        return stages(in: category).first { $0.stageNumber == stageNumber }
+    }
+
+    static func block(forStage stageNumber: Int, in category: SurvivalMapCategory) -> SurvivalBlockMeta? {
+        blocks(in: category).first { $0.stageNumbers.contains(stageNumber) }
+    }
+
+    static func block(byKey blockKey: SurvivalBlockKey, in category: SurvivalMapCategory) -> SurvivalBlockMeta? {
+        blocks(in: category).first { $0.blockKey == blockKey }
     }
 
     /// 既知の Mixed グループ識別子（Web `MixedGroupKey` と同義）
@@ -254,6 +310,7 @@ enum SurvivalStageCatalog {
         ]
 
         let definitions: [SurvivalStageDefinition] = rows.compactMap { row in
+            let mapCategory = SurvivalMapCategory(rawValue: row.map_category ?? "") ?? .basic
             let stageType = SurvivalStageType(rawValue: row.stage_type) ?? .random
             let blockKey = SurvivalBlockKey(rawValue: row.block_key) ?? .major
             let difficulty = SurvivalDifficulty(rawValue: row.difficulty) ?? .normal
@@ -287,6 +344,7 @@ enum SurvivalStageCatalog {
             }()
 
             return SurvivalStageDefinition(
+                mapCategory: mapCategory,
                 stageNumber: row.stage_number,
                 stageType: stageType,
                 nameJa: row.name,
@@ -303,10 +361,28 @@ enum SurvivalStageCatalog {
                 isMixedStage: isMixedStage,
                 chordProgression: progression
             )
-        }.sorted { $0.stageNumber < $1.stageNumber }
+        }
 
-        _stages = definitions
-        _blocks = generateBlocks(from: definitions)
+        // カテゴリ別にグルーピングして格納する。空カテゴリはフォールバック挙動が
+        // 期待されるため Songs はキー自体を保持しつつ空配列にする。
+        var stagesByCategory: [SurvivalMapCategory: [SurvivalStageDefinition]] = [:]
+        for category in SurvivalMapCategory.allCases {
+            stagesByCategory[category] = []
+        }
+        for def in definitions {
+            stagesByCategory[def.mapCategory, default: []].append(def)
+        }
+        for key in stagesByCategory.keys {
+            stagesByCategory[key]?.sort { $0.stageNumber < $1.stageNumber }
+        }
+
+        var blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [:]
+        for (category, stages) in stagesByCategory {
+            blocksByCategory[category] = generateBlocks(from: stages)
+        }
+
+        _stagesByCategory = stagesByCategory
+        _blocksByCategory = blocksByCategory
     }
 
     // MARK: - Private generators
@@ -398,6 +474,7 @@ enum SurvivalStageCatalog {
                 let roots = pattern.roots
                 result.append(
                     SurvivalStageDefinition(
+                        mapCategory: .basic,
                         stageNumber: stageNumber,
                         stageType: .random,
                         nameJa: "\(stageNumber). \(chordType.displayJa) \(pattern.nameJa)",
@@ -422,6 +499,7 @@ enum SurvivalStageCatalog {
                 let patternAll = SurvivalRootPattern.all
                 result.append(
                     SurvivalStageDefinition(
+                        mapCategory: .basic,
                         stageNumber: stageNumber,
                         stageType: .random,
                         nameJa: "\(stageNumber). ミックス \(patternAll.nameJa)",

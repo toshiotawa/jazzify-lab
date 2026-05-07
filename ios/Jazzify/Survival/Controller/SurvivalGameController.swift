@@ -102,7 +102,7 @@ final class SurvivalGameController: ObservableObject {
         self.isDemo = isDemo
         // Progression（コード進行）ステージはボス戦化しない（B 列のみで完結する仕様のため）
         let isBoss = stage.stageType != .progression
-            && SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber)
+            && SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
         self.isBossStage = isBoss
 
         let slots: [SurvivalCodeSlot]
@@ -135,7 +135,7 @@ final class SurvivalGameController: ObservableObject {
         self.currentHintSlotIndex = hintMode ? 0 : nil
 
         if isBoss {
-            let bossType = SurvivalBossEngine.bossType(for: stage.blockKey)
+            let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
             self.bossBattle = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
                 now: CACurrentMediaTime()
@@ -1000,6 +1000,7 @@ final class SurvivalGameController: ObservableObject {
         guard !clearReportInFlight else { return }
         clearReportInFlight = true
         let stageNumber = stage.stageNumber
+        let mapCategory = stage.mapCategory
         let elapsed = runtime.elapsedSeconds
         let defeated = runtime.enemiesDefeated
         let character = characterId
@@ -1014,7 +1015,8 @@ final class SurvivalGameController: ObservableObject {
                     finalLevel: 1,
                     enemiesDefeated: defeated,
                     characterId: character,
-                    totalStages: SurvivalStageCatalog.totalStages
+                    totalStages: SurvivalStageCatalog.totalStages(in: mapCategory),
+                    mapCategory: mapCategory
                 )
                 await MainActor.run { self.clearReportInFlight = false }
             } catch {

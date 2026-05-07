@@ -1,10 +1,23 @@
 import SwiftUI
+import UIKit
 
 @main
 struct JazzifyApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        // iOS 26 (SwiftUI iOS 26 SDK) では `TabView` がデフォルトで Liquid Glass 風の
+        // 半透明・カプセル状フローティング表示になる。Web 版と統一感を出すため、
+        // 旧来のフラットな不透明タブバーへ明示的に戻す。
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(Color(hex: "0f172a"))
+        appearance.shadowColor = .clear
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
 
     var body: some Scene {
         WindowGroup {

@@ -22,6 +22,7 @@ enum SurvivalDemoStage {
     static let definition: SurvivalStageDefinition = {
         let base = SurvivalStageCatalog.stage(byNumber: 1) ?? fallbackBase
         return SurvivalStageDefinition(
+            mapCategory: base.mapCategory,
             stageNumber: base.stageNumber,
             stageType: base.stageType,
             nameJa: "デモ CDE",
@@ -60,6 +61,7 @@ enum SurvivalDemoStage {
     /// `SurvivalStageCatalog` が何らかの理由で空配列だった場合のフォールバック定義。
     /// 実運用ではステージ 1 が存在する前提だが、強制アンラップを避けるために用意している。
     private static let fallbackBase: SurvivalStageDefinition = SurvivalStageDefinition(
+        mapCategory: .basic,
         stageNumber: 1,
         stageType: .random,
         nameJa: "デモ CDE",

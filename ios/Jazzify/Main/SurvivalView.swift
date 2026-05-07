@@ -23,8 +23,11 @@ struct SurvivalView: View {
     @State private var isLoading: Bool = true
     @State private var selectedStageNumber: Int?
     @State private var hintMode: Bool = false
-    /// `fullScreenCover(item:)` は `SurvivalStageDefinition.id == stageNumber` のため同一ステージ再開時に
-    /// 子ビューが再利用され、`SurvivalGameController` がリセットされない。セッションごとに一意の UUID で包む。
+    /// 表示マップカテゴリ。Web 版 `SurvivalDescentMap` と同様、初期は `.basic`。
+    @State private var mapCategory: SurvivalMapCategory = .basic
+    /// `SurvivalStageDefinition.id` が同一だと SwiftUI が同じシート/カバーを再利用するため、
+    /// 同じステージを連続再生したいケースでは `SurvivalGameController` がリセットされない問題が発生する。
+    /// セッションごとに一意の UUID で包んで `fullScreenCover(item:)` を確実に再マウントさせる。
     @State private var stageLaunchSession: StageLaunchSession?
     /// リトライ / 次ステージ遷移のためにセッションを一時的に nil にしている最中かどうか。
     /// 真の間は `onChange(of: stageLaunchSession == nil)` の進捗リロード処理をスキップする。
@@ -40,8 +43,8 @@ struct SurvivalView: View {
     @State private var isSoundMuted: Bool = SurvivalMapAudio.shared.isMuted
 
     /// ステージ定義は Supabase からのロード後に再構築されるため、computed property で常に最新を参照する。
-    private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks }
-    private var freeStageNumbers: Set<Int> { SurvivalStageCatalog.freeTierStageNumbers }
+    private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks(in: mapCategory) }
+    private var freeStageNumbers: Set<Int> { SurvivalStageCatalog.freeTierStageNumbers(in: mapCategory) }
 
     private var locale: AppLocale { appState.locale }
 
@@ -55,18 +58,19 @@ struct SurvivalView: View {
 
     private var selectedStage: SurvivalStageDefinition? {
         guard let stageNumber = selectedStageNumber else { return nil }
-        return SurvivalStageCatalog.stage(byNumber: stageNumber)
+        return SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory)
     }
 
     private var selectedStageBlock: SurvivalBlockMeta? {
         guard let stage = selectedStage else { return nil }
-        return SurvivalStageCatalog.block(forStage: stage.stageNumber)
+        return SurvivalStageCatalog.block(forStage: stage.stageNumber, in: mapCategory)
     }
 
     /// サイドパネル用: 選択ステージが無ければ現ブロック、無ければ先頭ブロック。
     private var panelBlock: SurvivalBlockMeta? {
-        let refStage = selectedStage?.stageNumber ?? max(1, min(SurvivalStageCatalog.totalStages, currentStageNumber))
-        return SurvivalStageCatalog.block(forStage: refStage) ?? blocks.first
+        let total = SurvivalStageCatalog.totalStages(in: mapCategory)
+        let refStage = selectedStage?.stageNumber ?? max(1, min(max(1, total), currentStageNumber))
+        return SurvivalStageCatalog.block(forStage: refStage, in: mapCategory) ?? blocks.first
     }
 
     private var panelBlockClearedCount: Int {
@@ -127,13 +131,14 @@ struct SurvivalView: View {
             .sheet(item: $mobileDetailStage) { stage in
                 // `.sheet(item:)` によりシート表示時点のステージ本体が直接クロージャに渡されるため、
                 // `@State` の反映タイミング揺らぎで「現在地」の詳細が表示されてしまうバグを回避できる。
-                let block = SurvivalStageCatalog.block(forStage: stage.stageNumber) ?? blocks.first
+                let block = SurvivalStageCatalog.block(forStage: stage.stageNumber, in: stage.mapCategory)
+                    ?? SurvivalStageCatalog.blocks(in: stage.mapCategory).first
                 let blockClearedCount = block?.stageNumbers.filter { clearedStages.contains($0) }.count ?? 0
                 NavigationStack {
                     SurvivalDescentSidePanel(
                         locale: locale,
                         totalClearedCount: clearedStages.count,
-                        totalStages: SurvivalStageCatalog.totalStages,
+                        totalStages: SurvivalStageCatalog.totalStages(in: stage.mapCategory),
                         activeBlock: block,
                         blockClearedCount: blockClearedCount,
                         selectedStage: stage,
@@ -171,8 +176,8 @@ struct SurvivalView: View {
                     iconColor: .orange,
                     title: locale == .ja ? "サバイバル" : "Survival",
                     description: locale == .ja
-                        ? "コードの構成音を制限時間内に演奏するモードです。全\(SurvivalStageCatalog.totalStages)ステージあり、21 の階層（コードタイプ）に分かれ、各階層の最後はその階層のコードを総合する Mixed ステージです。ステージをクリアすると次が解放されます。ヒントモードを使うと構成音が表示されますが、クリア扱いにはなりません。"
-                        : "Play chord tones within a time limit. There are \(SurvivalStageCatalog.totalStages) stages across 21 tiers (chord types). Each tier ends with a Mixed stage covering all chord types and all roots for that tier. Clear a stage to unlock the next. Hint mode shows chord tones but clears won't count as official.",
+                        ? "順番にステージをクリアしましょう。90秒間生き残れ、表示されているコードを演奏するとスキルが発動、ボス戦はボスの体力を0にすると勝利。"
+                        : "Clear stages in order. Survive for 90 seconds—play the displayed chords to trigger skills. In boss fights, reduce the boss's HP to 0 to win.",
                     locale: locale
                 )
                 .presentationDetents([.medium])
@@ -226,7 +231,7 @@ struct SurvivalView: View {
                     SurvivalDescentSidePanel(
                         locale: locale,
                         totalClearedCount: clearedStages.count,
-                        totalStages: SurvivalStageCatalog.totalStages,
+                        totalStages: SurvivalStageCatalog.totalStages(in: mapCategory),
                         activeBlock: panelBlock,
                         blockClearedCount: panelBlockClearedCount,
                         selectedStage: selectedStage,
@@ -254,17 +259,40 @@ struct SurvivalView: View {
     // MARK: - Descent map
 
     private var descentMap: some View {
-        SurvivalDescentView(
-            currentStageNumber: currentStageNumber,
-            clearedStages: clearedStages,
-            selectedStageNumber: $selectedStageNumber,
-            freeStageNumbers: freeStageNumbers,
-            playLockedForUpsell: playLockedForUpsell,
-            onStageSelect: { stage in
-                handleDescentStageSelect(stage: stage)
-            }
-        )
-        .environmentObject(appState)
+        ZStack(alignment: .bottom) {
+            SurvivalDescentView(
+                currentStageNumber: currentStageNumber,
+                clearedStages: clearedStages,
+                selectedStageNumber: $selectedStageNumber,
+                freeStageNumbers: freeStageNumbers,
+                playLockedForUpsell: playLockedForUpsell,
+                mapCategory: mapCategory,
+                onStageSelect: { stage in
+                    handleDescentStageSelect(stage: stage)
+                }
+            )
+            .environmentObject(appState)
+
+            // マップ下部にフローティング固定 (マップスクロールに追尾しない)。
+            // Web 版ではモバイル時の `compact` トグルと同じ位置・スタイルを採用する。
+            SurvivalMapCategoryToggle(
+                value: mapCategory,
+                isEnglishCopy: locale == .en,
+                onChange: { next in
+                    handleSelectMapCategory(next)
+                }
+            )
+            .padding(.bottom, 12)
+            .allowsHitTesting(true)
+        }
+    }
+
+    private func handleSelectMapCategory(_ next: SurvivalMapCategory) {
+        guard next != mapCategory else { return }
+        mapCategory = next
+        selectedStageNumber = nil
+        mobileDetailStage = nil
+        Task { await loadProgress() }
     }
 
     private func handleDescentStageSelect(stage: SurvivalStageDefinition) {
@@ -354,6 +382,7 @@ struct SurvivalView: View {
             isLoading = false
             return
         }
+        let category = mapCategory
         isLoading = true
         defer { isLoading = false }
 
@@ -363,10 +392,10 @@ struct SurvivalView: View {
         }
 
         async let progressTask: SurvivalStageProgressRow? = {
-            try? await SupabaseService.shared.fetchSurvivalStageProgress(userId: userId)
+            try? await SupabaseService.shared.fetchSurvivalStageProgress(userId: userId, mapCategory: category)
         }()
         async let clearsTask: [SurvivalStageClearRow] = {
-            (try? await SupabaseService.shared.fetchSurvivalStageClears(userId: userId)) ?? []
+            (try? await SupabaseService.shared.fetchSurvivalStageClears(userId: userId, mapCategory: category)) ?? []
         }()
 
         let progress = await progressTask
@@ -376,12 +405,61 @@ struct SurvivalView: View {
         clearedStages = Set(clears.map { $0.stageNumber })
 
         if selectedStageNumber == nil {
-            if let frontierBlock = SurvivalStageCatalog.block(forStage: currentStageNumber) {
+            if let frontierBlock = SurvivalStageCatalog.block(forStage: currentStageNumber, in: category) {
                 selectedStageNumber = frontierBlock.stageNumbers.first { isStageUnlocked($0) && !clearedStages.contains($0) }
                     ?? frontierBlock.stageNumbers.first
             } else {
-                selectedStageNumber = blocks.first?.stageNumbers.first
+                selectedStageNumber = SurvivalStageCatalog.blocks(in: category).first?.stageNumbers.first
             }
+        }
+    }
+}
+
+// MARK: - Map category toggle (Basic / Songs)
+
+/// 魔王城降下マップのカテゴリ切替トグル。Web 版 `MapCategoryToggle` (compact) と同じ見た目。
+private struct SurvivalMapCategoryToggle: View {
+    let value: SurvivalMapCategory
+    let isEnglishCopy: Bool
+    let onChange: (SurvivalMapCategory) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(SurvivalMapCategory.allCases, id: \.self) { category in
+                Button(action: { onChange(category) }) {
+                    Text(label(for: category))
+                        .font(.caption.bold())
+                        .tracking(0.5)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .foregroundStyle(category == value ? Color.black : Color(hex: "fde68a"))
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(category == value ? Color(hex: "f59e0b") : Color.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(category == value ? [.isSelected] : [])
+            }
+        }
+        .padding(2)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.black.opacity(0.55))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color(hex: "f59e0b").opacity(0.4), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.55), radius: 10, x: 0, y: 6)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(isEnglishCopy ? "Map category" : "マップ種別")
+    }
+
+    private func label(for category: SurvivalMapCategory) -> String {
+        switch category {
+        case .basic: return "Basic"
+        case .songs: return "Songs"
         }
     }
 }
