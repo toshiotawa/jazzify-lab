@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
+import { applyVoicingNoteheadColors } from '@/utils/voicingStaffColoring';
 import { buildVoicingMusicXml, parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 interface ChordVoicingStaffProps {
@@ -32,41 +33,41 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
-  const noteOrderRef = useRef<number[]>([]);
+  const noteheadOrderRef = useRef<Array<number | null>>([]);
+  const correctPitchClassesRef = useRef<readonly number[]>(correctPitchClasses);
+  const voicingPitchClassesRef = useRef<readonly (number | null)[]>([]);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendered, setIsRendered] = useState(false);
 
   const voicingArray = useMemo(() => Array.from(voicing), [voicing]);
   const voicingStavesArray = useMemo(() => Array.from(voicingStaves), [voicingStaves]);
-  const correctPitchClassSet = useMemo(
-    () => new Set(correctPitchClasses),
-    [correctPitchClasses],
-  );
   const voicingPitchClasses = useMemo(
     () => voicingArray.map(name => computePitchClass(name)),
     [voicingArray],
   );
 
-  const applyCorrectColors = useCallback(() => {
+  const applyCurrentColors = useCallback(() => {
     const container = containerRef.current;
     if (!container) {
       return;
     }
-    const order = noteOrderRef.current;
-    const noteElements = container.querySelectorAll<SVGGElement>('g.vf-stavenote');
-    noteElements.forEach((noteEl, index) => {
-      const voicingIndex = order[index];
-      if (voicingIndex === undefined) {
-        return;
-      }
-      const pc = voicingPitchClasses[voicingIndex];
-      const isCorrect = pc !== null && pc !== undefined && correctPitchClassSet.has(pc);
-      const fill = isCorrect ? CORRECT_FILL_COLOR : DEFAULT_FILL_COLOR;
-      noteEl.querySelectorAll<SVGPathElement>('path').forEach(pathEl => {
-        pathEl.setAttribute('fill', fill);
-      });
+    applyVoicingNoteheadColors({
+      container,
+      noteheadOrder: noteheadOrderRef.current,
+      voicingPitchClasses: voicingPitchClassesRef.current,
+      correctPitchClasses: correctPitchClassesRef.current,
+      correctFillColor: CORRECT_FILL_COLOR,
+      defaultFillColor: DEFAULT_FILL_COLOR,
     });
-  }, [correctPitchClassSet, voicingPitchClasses]);
+  }, []);
+
+  useEffect(() => {
+    correctPitchClassesRef.current = correctPitchClasses;
+    voicingPitchClassesRef.current = voicingPitchClasses;
+    if (isRendered) {
+      applyCurrentColors();
+    }
+  }, [applyCurrentColors, correctPitchClasses, isRendered, voicingPitchClasses]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -75,7 +76,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     }
     if (voicingArray.length === 0 || voicingStavesArray.length === 0) {
       container.innerHTML = '';
-      noteOrderRef.current = [];
+      noteheadOrderRef.current = [];
       setIsRendered(false);
       return;
     }
@@ -98,11 +99,11 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           defaultColorLabel: DEFAULT_FILL_COLOR,
         });
       }
-      const { xml, noteOrder } = buildVoicingMusicXml({
+      const { xml, noteheadOrder } = buildVoicingMusicXml({
         voicing: voicingArray,
         voicingStaves: voicingStavesArray,
       });
-      noteOrderRef.current = noteOrder;
+      noteheadOrderRef.current = noteheadOrder;
       const osmd = osmdRef.current;
       void osmd
         .load(xml)
@@ -112,7 +113,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           }
           osmd.render();
           setIsRendered(true);
-          applyCorrectColors();
+          applyCurrentColors();
         })
         .catch((error: unknown) => {
           if (cancelled) {
@@ -127,14 +128,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [applyCorrectColors, chordKey, voicingArray, voicingStavesArray]);
-
-  useEffect(() => {
-    if (!isRendered) {
-      return;
-    }
-    applyCorrectColors();
-  }, [applyCorrectColors, isRendered]);
+  }, [applyCurrentColors, chordKey, voicingArray, voicingStavesArray]);
 
   useEffect(() => () => {
     osmdRef.current?.clear();

@@ -152,6 +152,7 @@ export interface BuildVoicingMusicXmlOptions {
 export interface BuildVoicingMusicXmlResult {
   xml: string;
   noteOrder: number[];
+  noteheadOrder: Array<number | null>;
 }
 
 const STAFF_NUMBER_TREBLE = 1;
@@ -191,6 +192,10 @@ export const buildVoicingMusicXml = (
   const noteOrder: number[] = [
     ...trebleNotes.map(note => note.voicingIndex),
     ...bassNotes.map(note => note.voicingIndex),
+  ];
+  const noteheadOrder: Array<number | null> = [
+    ...(trebleNotes.length > 0 ? trebleNotes.map(note => note.voicingIndex) : [null]),
+    ...(bassNotes.length > 0 ? bassNotes.map(note => note.voicingIndex) : [null]),
   ];
 
   const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -235,5 +240,5 @@ ${buildStaffNotes(bassNotes)}
 </score-partwise>
 `;
 
-  return { xml, noteOrder };
+  return { xml, noteOrder, noteheadOrder };
 };

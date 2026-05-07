@@ -23,11 +23,12 @@ describe('voicingMusicXml', () => {
   });
 
   it('staff=1 のみの voicing でト音譜表側に4音生成される', () => {
-    const { xml, noteOrder } = buildVoicingMusicXml({
+    const { xml, noteOrder, noteheadOrder } = buildVoicingMusicXml({
       voicing: ['D4', 'F#4', 'A4', 'C5'],
       voicingStaves: [1, 1, 1, 1],
     });
     expect(noteOrder).toEqual([0, 1, 2, 3]);
+    expect(noteheadOrder).toEqual([0, 1, 2, 3, null]);
     expect(xml).toContain('<staves>2</staves>');
     expect(xml).toContain('<step>D</step>');
     expect(xml).toContain('<step>F</step>');
@@ -40,15 +41,25 @@ describe('voicingMusicXml', () => {
   });
 
   it('staff=1/2 混在の voicing で両譜表に振り分ける', () => {
-    const { xml, noteOrder } = buildVoicingMusicXml({
+    const { xml, noteOrder, noteheadOrder } = buildVoicingMusicXml({
       voicing: ['E2', 'G2', 'C3', 'E4'],
       voicingStaves: [2, 2, 2, 1],
     });
     expect(noteOrder.length).toBe(4);
     expect(noteOrder[0]).toBe(3);
+    expect(noteheadOrder).toEqual([3, 0, 1, 2]);
     expect(xml).toContain('<staff>1</staff>');
     expect(xml).toContain('<staff>2</staff>');
     expect(xml).not.toContain('<rest/>');
+  });
+
+  it('staff=2 のみの voicing ではト音譜表の休符を noteheadOrder でスキップできる', () => {
+    const { noteOrder, noteheadOrder } = buildVoicingMusicXml({
+      voicing: ['D3', 'F3', 'A3'],
+      voicingStaves: [2, 2, 2],
+    });
+    expect(noteOrder).toEqual([0, 1, 2]);
+    expect(noteheadOrder).toEqual([null, 0, 1, 2]);
   });
 
   it('ダブル臨時記号が <alter>2</alter>, <alter>-2</alter> として出力される', () => {
