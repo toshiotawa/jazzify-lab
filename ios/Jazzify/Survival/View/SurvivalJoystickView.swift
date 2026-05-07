@@ -1,116 +1,17 @@
 import SwiftUI
+import UIKit
 
-/// タップで出現する仮想スティック。
-/// - タップを始めた位置にジョイスティックのベース円を配置し、その位置を原点にドラッグ量をアナログ入力に変換する。
-/// - ドラッグが終了したらジョイスティックは消える（WEB 版モバイル操作に合わせる）。
-/// - 出現判定領域は `hitMask` でカスタマイズ可能。左右両サイドを有効化するなど柔軟に調整できる。
-/// - 8 方向離散化は `SurvivalDirection8.fromVector` に委ねる。
-struct SurvivalJoystickView: View {
-    /// スティックが出現するヒット領域の指定。
-    enum HitMask {
-        /// ビュー全体がヒット領域 (従来互換)。
-        case full
-        /// 画面の左右両サイドのみをヒット領域にする。
-        /// - Parameter exclusionRatio: 中央側で無効化する比率 (0.0〜1.0)。
-        ///   例: `0.2` なら中央 20% がデッドゾーンになり、左右それぞれ 40% がヒット領域になる。
-        case leftRightSides(exclusionRatio: CGFloat)
-    }
+// MARK: - Hit mask (SwiftUI / UIKit 共通)
 
-    let hitMask: HitMask
-    let onChange: (CGVector) -> Void
+/// 仮想スティックのタッチ有効領域。
+enum SurvivalJoystickHitMask: Sendable {
+    /// ビュー全体がヒット領域。
+    case full
+    /// 画面の左右両サイドのみ。`exclusionRatio` は中央で無効化する幅の比率 (0〜1)。
+    case leftRightSides(exclusionRatio: CGFloat)
 
-    private let outerRadius: CGFloat = 64
-    private let innerRadius: CGFloat = 28
-
-    @State private var basePosition: CGPoint? = nil
-    @State private var knobOffset: CGSize = .zero
-
-    init(hitMask: HitMask = .full, onChange: @escaping (CGVector) -> Void) {
-        self.hitMask = hitMask
-        self.onChange = onChange
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .topLeading) {
-                // ヒット領域。`contentShape` に渡すシェイプでタップ受け付け範囲を限定する。
-                Color.clear
-                    .contentShape(JoystickHitShape(mask: hitMask))
-
-                if let base = basePosition {
-                    // ベース円
-                    Circle()
-                        .fill(Color.white.opacity(0.08))
-                        .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1.5))
-                        .frame(width: outerRadius * 2, height: outerRadius * 2)
-                        .position(base)
-                    // ノブ
-                    Circle()
-                        .fill(Color.white.opacity(0.8))
-                        .shadow(color: .white.opacity(0.2), radius: 4)
-                        .frame(width: innerRadius * 2, height: innerRadius * 2)
-                        .position(
-                            x: base.x + knobOffset.width,
-                            y: base.y + knobOffset.height
-                        )
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                    .onChanged { value in
-                        // ヒット領域外から始まったジェスチャーは無視 (中央デッドゾーン対策)
-                        if basePosition == nil {
-                            guard isInsideHitArea(
-                                point: value.startLocation,
-                                in: proxy.size
-                            ) else { return }
-                            basePosition = value.startLocation
-                        }
-                        guard let base = basePosition else { return }
-                        let dx = value.location.x - base.x
-                        let dy = value.location.y - base.y
-                        let length = hypot(dx, dy)
-                        if length > outerRadius {
-                            let scale = outerRadius / length
-                            knobOffset = CGSize(width: dx * scale, height: dy * scale)
-                        } else {
-                            knobOffset = CGSize(width: dx, height: dy)
-                        }
-                        let nx = knobOffset.width / outerRadius
-                        let ny = knobOffset.height / outerRadius
-                        let vLen = hypot(nx, ny)
-                        let deadNorm: CGFloat = 0.18
-                        if vLen < deadNorm {
-                            onChange(.zero)
-                        } else {
-                            let inv = 1 / vLen
-                            let ux = nx * inv
-                            let uy = ny * inv
-                            let mag = min(CGFloat(1), (vLen - deadNorm) / (CGFloat(1) - deadNorm))
-                            var odx = ux * mag
-                            var ody = uy * mag
-                            if abs(odx) < 0.01 { odx = 0 }
-                            if abs(ody) < 0.01 { ody = 0 }
-                            onChange(CGVector(dx: odx, dy: ody))
-                        }
-                    }
-                    .onEnded { _ in
-                        // スティックが出ていなければ (デッドゾーン開始) 何もしない
-                        guard basePosition != nil else { return }
-                        basePosition = nil
-                        knobOffset = .zero
-                        onChange(.zero)
-                    }
-            )
-        }
-    }
-
-    /// ヒット領域内かどうかを判定 (ジェスチャーの開始位置チェック用)。
-    /// `contentShape` だけでは `DragGesture(minimumDistance: 0)` がデッドゾーン上で発火するケースがある
-    /// ため、`onChanged` 側で二重に弾いて確実にデッドゾーンを機能させる。
-    private func isInsideHitArea(point: CGPoint, in size: CGSize) -> Bool {
-        switch hitMask {
+    fileprivate func containsStartPoint(_ point: CGPoint, in size: CGSize) -> Bool {
+        switch self {
         case .full:
             return point.x >= 0 && point.x <= size.width
                 && point.y >= 0 && point.y <= size.height
@@ -125,23 +26,177 @@ struct SurvivalJoystickView: View {
     }
 }
 
-/// ジョイスティックのヒット領域シェイプ。`.contentShape()` に渡して SwiftUI 側の
-/// 下位レイヤ (ゲームシーン等) へのタップ透過を実現する。
-private struct JoystickHitShape: Shape {
-    let mask: SurvivalJoystickView.HitMask
+// MARK: - UIKit 実装（ドラッグ中に SwiftUI の body を毎イベント再評価しない）
 
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        switch mask {
+/// タップで出現する仮想スティック（UIKit）。
+/// - タップ開始位置にベース円を表示し、ドラッグ量をアナログ入力に変換する。
+/// - 指を離すと消える（Web 版モバイル操作に合わせる）。
+/// - ノブ位置は `UIView` のレイアウトのみ更新し、SpriteKit 60fps とメインスレッドを争わない。
+final class SurvivalJoystickHostView: UIView {
+    var onAnalogChange: ((CGVector) -> Void)?
+    var hitMask: SurvivalJoystickHitMask = .full
+
+    private let outerRadius: CGFloat = 64
+    private let innerRadius: CGFloat = 28
+    private let deadNorm: CGFloat = 0.18
+
+    private var activeTouch: UITouch?
+    private var basePoint: CGPoint = .zero
+    private var knobOffsetX: CGFloat = 0
+    private var knobOffsetY: CGFloat = 0
+
+    private let baseVisual = UIView()
+    private let knobVisual = UIView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isMultipleTouchEnabled = false
+        backgroundColor = .clear
+
+        baseVisual.isHidden = true
+        baseVisual.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+        baseVisual.layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
+        baseVisual.layer.borderWidth = 1.5
+        baseVisual.layer.cornerRadius = outerRadius
+
+        knobVisual.isHidden = true
+        knobVisual.backgroundColor = UIColor.white.withAlphaComponent(0.8)
+        knobVisual.layer.cornerRadius = innerRadius
+        knobVisual.layer.shadowColor = UIColor.white.withAlphaComponent(0.2).cgColor
+        knobVisual.layer.shadowRadius = 4
+        knobVisual.layer.shadowOpacity = 1
+        knobVisual.layer.shadowOffset = .zero
+
+        addSubview(baseVisual)
+        addSubview(knobVisual)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard isUserInteractionEnabled else { return false }
+        return bounds.contains(point)
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard isUserInteractionEnabled, !isHidden, alpha > 0.01 else { return nil }
+        guard bounds.contains(point) else { return nil }
+        switch hitMask {
         case .full:
-            path.addRect(rect)
-        case .leftRightSides(let exclusionRatio):
-            let clamped = max(0, min(1, exclusionRatio))
-            let exclusionWidth = rect.width * clamped
-            let sideWidth = (rect.width - exclusionWidth) / 2
-            path.addRect(CGRect(x: rect.minX, y: rect.minY, width: sideWidth, height: rect.height))
-            path.addRect(CGRect(x: rect.maxX - sideWidth, y: rect.minY, width: sideWidth, height: rect.height))
+            return self
+        case .leftRightSides:
+            return hitMask.containsStartPoint(point, in: bounds.size) ? self : nil
         }
-        return path
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let od = outerRadius * 2
+        let id = innerRadius * 2
+        baseVisual.bounds = CGRect(x: 0, y: 0, width: od, height: od)
+        knobVisual.bounds = CGRect(x: 0, y: 0, width: id, height: id)
+        repositionVisuals()
+    }
+
+    private func repositionVisuals() {
+        baseVisual.center = basePoint
+        knobVisual.center = CGPoint(x: basePoint.x + knobOffsetX, y: basePoint.y + knobOffsetY)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard isUserInteractionEnabled, activeTouch == nil, let touch = touches.first else { return }
+        let p = touch.location(in: self)
+        guard hitMask.containsStartPoint(p, in: bounds.size) else { return }
+        activeTouch = touch
+        basePoint = p
+        knobOffsetX = 0
+        knobOffsetY = 0
+        baseVisual.isHidden = false
+        knobVisual.isHidden = false
+        repositionVisuals()
+        emitAnalog()
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        updateKnob(using: touch)
+        emitAnalog()
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        endInteraction()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        endInteraction()
+    }
+
+    private func endInteraction() {
+        activeTouch = nil
+        knobOffsetX = 0
+        knobOffsetY = 0
+        baseVisual.isHidden = true
+        knobVisual.isHidden = true
+        onAnalogChange?(.zero)
+    }
+
+    private func updateKnob(using touch: UITouch) {
+        let loc = touch.location(in: self)
+        var dx = loc.x - basePoint.x
+        var dy = loc.y - basePoint.y
+        let len = hypot(dx, dy)
+        if len > outerRadius, len > 0 {
+            let scale = outerRadius / len
+            dx *= scale
+            dy *= scale
+        }
+        knobOffsetX = dx
+        knobOffsetY = dy
+        repositionVisuals()
+    }
+
+    private func emitAnalog() {
+        let nx = knobOffsetX / outerRadius
+        let ny = knobOffsetY / outerRadius
+        let vLen = hypot(nx, ny)
+        if vLen < deadNorm {
+            onAnalogChange?(.zero)
+            return
+        }
+        let inv = 1 / vLen
+        let ux = nx * inv
+        let uy = ny * inv
+        let mag = min(CGFloat(1), (vLen - deadNorm) / (CGFloat(1) - deadNorm))
+        var odx = ux * mag
+        var ody = uy * mag
+        if abs(odx) < 0.01 { odx = 0 }
+        if abs(ody) < 0.01 { ody = 0 }
+        onAnalogChange?(CGVector(dx: odx, dy: ody))
+    }
+}
+
+// MARK: - SwiftUI ブリッジ
+
+struct SurvivalJoystickRepresentable: UIViewRepresentable {
+    var hitMask: SurvivalJoystickHitMask = .full
+    var isInteractive: Bool
+    let onChange: (CGVector) -> Void
+
+    func makeUIView(context: Context) -> SurvivalJoystickHostView {
+        let v = SurvivalJoystickHostView()
+        v.hitMask = hitMask
+        v.onAnalogChange = onChange
+        v.isUserInteractionEnabled = isInteractive
+        return v
+    }
+
+    func updateUIView(_ uiView: SurvivalJoystickHostView, context: Context) {
+        uiView.hitMask = hitMask
+        uiView.onAnalogChange = onChange
+        uiView.isUserInteractionEnabled = isInteractive
     }
 }

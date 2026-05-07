@@ -241,17 +241,19 @@ final class SurvivalGameController: ObservableObject {
         start()
     }
 
-    /// 仮想スティックの生入力をデッドゾーン付きで正規化し、フレーム間スムージングする。
+    /// 仮想スティックの生入力をスムージングする。
+    /// - デッドゾーン正規化は `SurvivalJoystickHostView` 側で済ませているため、ここでは
+    ///   数値ノイズ除去用の極小閾値のみとし、二重デッドゾーンによるモタつきを避ける。
     private func filteredAnalogForMovement(deltaTime: TimeInterval) -> CGVector {
         let raw = analogInput
-        let deadZone: CGFloat = 0.18
+        let noiseFloor: CGFloat = 0.004
         let smoothSpeed: CGFloat = 14.0
         let len = hypot(raw.dx, raw.dy)
         var target = CGVector.zero
-        if len > deadZone {
+        if len > noiseFloor {
             let ndx = raw.dx / len
             let ndy = raw.dy / len
-            let strength = min(CGFloat(1), (len - deadZone) / (CGFloat(1) - deadZone))
+            let strength = min(CGFloat(1), (len - noiseFloor) / (CGFloat(1) - noiseFloor))
             target = CGVector(dx: ndx * strength, dy: ndy * strength)
         }
         let t = min(CGFloat(1), smoothSpeed * CGFloat(deltaTime))

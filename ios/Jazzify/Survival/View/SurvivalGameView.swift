@@ -202,7 +202,10 @@ private struct SurvivalGameContent: View {
             // 仮想スティックの出現領域。ゲーム画面のどこをタップしてもその位置に
             // スティックが出現するよう、ヒット領域はビュー全体に拡大する。
             // HUD / 鍵盤より下に置くことで、上部の一時停止ボタンや鍵盤タップを阻害しない。
-            SurvivalJoystickView(hitMask: .full) { analog in
+            SurvivalJoystickRepresentable(
+                hitMask: .full,
+                isInteractive: controller.uiSnapshot.phase == .playing && !controller.isPaused
+            ) { analog in
                 controller.analogInput = analog
             }
             .allowsHitTesting(controller.uiSnapshot.phase == .playing && !controller.isPaused)

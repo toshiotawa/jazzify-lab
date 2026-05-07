@@ -82,11 +82,14 @@ final class SurvivalScene: SKScene {
     private var cameraPreviousShakeOffset: CGPoint = .zero
 
     /// 初回フレームでカメラをプレイヤー位置に即時スナップするためのフラグ。
-    /// 放置すると SKCameraNode.position = (0, 0) から `lerp: 0.18` で指数追従するため、
-    /// プレイヤー初期位置 (マップ中央 1600, 1200) に到達するまで ~0.5 秒は
+    /// 放置すると SKCameraNode.position = (0, 0) から時間ベース追従するため、
+    /// プレイヤー初期位置 (マップ中央 1600, 1200) に到達するまで遅れて
     /// プレイヤーが画面外 (左下相当) に描画されて「左隅ポップ・移動できない」様に見える。
-    /// 初回だけ lerp をスキップしてマップ中央をキャプチャする。
+    /// 初回だけ追従をスキップしてマップ中央をキャプチャする。
     private var hasInitializedCameraPosition: Bool = false
+
+    /// `SKScene.update` の `currentTime` 差分。カメラ追従を `tick` の `deltaTime` と同様に上限付きで揃える。
+    private var lastSceneUpdateTimeForCamera: TimeInterval?
 
     /// ボス撃破演出を既に発火済みか (カメラシェイク + 爆散エフェクトを 1 回だけトリガーするため)。
     private var hasTriggeredBossDefeatFx: Bool = false
@@ -112,6 +115,7 @@ final class SurvivalScene: SKScene {
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
         hasInitializedCameraPosition = false
+        lastSceneUpdateTimeForCamera = nil
     }
 
     private func setup() {
@@ -340,16 +344,21 @@ final class SurvivalScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         guard let controller = controller else { return }
+        let rawDt = lastSceneUpdateTimeForCamera.map { currentTime - $0 } ?? 0
+        lastSceneUpdateTimeForCamera = currentTime
+        // `SurvivalGameController.tick` の dt 上限 (0.05s) に合わせ、長フレームでカメラだけ飛ばないようにする。
+        let cameraDeltaTime = CGFloat(max(0, min(0.05, rawDt)))
+
         controller.tick(currentTime: currentTime)
         renderState(controller: controller)
-        updateCamera(controller: controller)
+        updateCamera(controller: controller, deltaTime: cameraDeltaTime)
     }
 
-    private func updateCamera(controller: SurvivalGameController) {
+    private func updateCamera(controller: SurvivalGameController, deltaTime: CGFloat) {
         guard let camera else { return }
         let target = toScenePoint(x: controller.cameraTargetX, y: controller.cameraTargetY)
 
-        // 初回のみプレイヤー位置へ即時スナップ (lerp 追従による画面端からの遅延描画を防ぐ)。
+        // 初回のみプレイヤー位置へ即時スナップ (追従による画面端からの遅延描画を防ぐ)。
         // scene サイズ未確定 (SwiftUI layout 完了前) でスナップすると、以後の画面サイズ変化で
         // 再スナップが効かずプレイヤーが画面外 (= 左隅ポップのように見える) 状態が残る。
         // サイズ確定前 (100px 未満) は初回スナップを見送り、`didChangeSize` 後のフレームで再実行する。
@@ -361,13 +370,17 @@ final class SurvivalScene: SKScene {
             return
         }
 
-        let lerp: CGFloat = 0.18
+        // フレーム固定 lerp ではなく `deltaTime` ベースの指数追従にし、プレイヤー移動 (`tick` の dt 積分) と
+        // カメラの時間応答を揃える（可変 dt での画面上のカクつき低減）。
+        // λ=12 → 60fps・dt≈1/60 のとき 1-exp(-λdt) ≈ 0.18（旧固定 lerp に近い追従感）。
+        let followLambda: Double = 12
+        let alpha = CGFloat(1 - exp(-followLambda * Double(deltaTime)))
 
-        // 前フレームの shake offset を取り除き、「本来の lerp ベース位置」で追従計算する。
+        // 前フレームの shake offset を取り除き、「本来の追従ベース位置」で追従計算する。
         let basePosX = camera.position.x - cameraPreviousShakeOffset.x
         let basePosY = camera.position.y - cameraPreviousShakeOffset.y
-        let newBaseX = basePosX + (target.x - basePosX) * lerp
-        let newBaseY = basePosY + (target.y - basePosY) * lerp
+        let newBaseX = basePosX + (target.x - basePosX) * alpha
+        let newBaseY = basePosY + (target.y - basePosY) * alpha
 
         // 新しい shake offset を計算 (高周波ノイズ + 線形減衰)。
         let now = CACurrentMediaTime()
