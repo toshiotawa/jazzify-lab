@@ -1181,7 +1181,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       // 魔法を取得したらC列とD列を有効化（魔法不可キャラの場合は常に無効）
       const hasMagic = !charNoMagic && Object.values(newPlayer.magics).some(l => l > 0);
-      const newCodeSlots = {
+      const newCodeSlots = isProgressionStage ? gs.codeSlots : {
         ...gs.codeSlots,
         current: gs.codeSlots.current.map((slot, i) => 
           (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
@@ -1228,7 +1228,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }]);
       }
     }
-  }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount, displaySettings.showLevelUpBonusPopup, isEnglishCopy]);
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount, displaySettings.showLevelUpBonusPopup, isEnglishCopy, isProgressionStage]);
   
   // レベルアップタイムアウト処理
   const handleLevelUpTimeout = useCallback(() => {
@@ -1770,6 +1770,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const slotType = ['A', 'B', 'C', 'D'][slotIndex] as 'A' | 'B' | 'C' | 'D';
     
     setGameState(prev => {
+      if (isProgressionStage && slotIndex !== 1) return prev;
+
       const newState = {
         ...prev,
         damageTexts: [...prev.damageTexts],
@@ -2086,7 +2088,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     return newState;
   });
-}, [gameState.isGameOver, gameState.isPaused, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
+}, [gameState.isGameOver, gameState.isPaused, isAMagicSlot, isBMagicSlot, isProgressionStage, appendThunderEffectsFromDamageTexts]);
   
   // ゲームループ
   // 注意: isLevelingUp中もゲームは継続（一時停止しない）
@@ -2718,7 +2720,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             
             // 魔法を取得したらC列とD列を有効化（魔法不可キャラの場合は常に無効）
             const hasMagic = !charNoMagic && Object.values(newState.player.magics).some(l => l > 0);
-            newState.codeSlots = {
+            newState.codeSlots = isProgressionStage ? newState.codeSlots : {
               ...newState.codeSlots,
               current: newState.codeSlots.current.map((slot, i) => 
                 (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? selectRandomChord(config.allowedChords) : slot.chord } : slot
@@ -3155,7 +3157,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, hintMode, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
   
   // リトライ
   const handleRetry = useCallback(() => {
@@ -3540,30 +3542,34 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         {/* A/B/Cタップボタン（デバッグ用） */}
         {debugSettings?.tapSkillActivation && (
           <div className="absolute right-4 bottom-4 z-30 flex flex-col gap-2">
-            <button
-              onClick={() => handleTapSkillActivation(0)}
-              className="w-16 h-16 bg-blue-600/80 hover:bg-blue-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-blue-400 active:scale-95 transition-transform"
-            >
-              🔫 Shot
-            </button>
+            {!isProgressionStage && (
+              <button
+                onClick={() => handleTapSkillActivation(0)}
+                className="w-16 h-16 bg-blue-600/80 hover:bg-blue-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-blue-400 active:scale-95 transition-transform"
+              >
+                🔫 Shot
+              </button>
+            )}
             <button
               onClick={() => handleTapSkillActivation(1)}
               className="w-16 h-16 bg-orange-600/80 hover:bg-orange-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-orange-400 active:scale-95 transition-transform"
             >
               👊 Punch
             </button>
-            <button
-              onClick={() => handleTapSkillActivation(2)}
-              disabled={!gameState.codeSlots.current[2].isEnabled}
-              className={cn(
-                "w-16 h-16 rounded-lg font-bold text-white text-xl shadow-lg border-2 active:scale-95 transition-transform",
-                gameState.codeSlots.current[2].isEnabled
-                  ? "bg-purple-600/80 hover:bg-purple-500 border-purple-400"
-                  : "bg-gray-600/50 border-gray-500 cursor-not-allowed opacity-50"
-              )}
-            >
-              🪄 Magic
-            </button>
+            {!isProgressionStage && (
+              <button
+                onClick={() => handleTapSkillActivation(2)}
+                disabled={!gameState.codeSlots.current[2].isEnabled}
+                className={cn(
+                  "w-16 h-16 rounded-lg font-bold text-white text-xl shadow-lg border-2 active:scale-95 transition-transform",
+                  gameState.codeSlots.current[2].isEnabled
+                    ? "bg-purple-600/80 hover:bg-purple-500 border-purple-400"
+                    : "bg-gray-600/50 border-gray-500 cursor-not-allowed opacity-50"
+                )}
+              >
+                🪄 Magic
+              </button>
+            )}
           </div>
         )}
         

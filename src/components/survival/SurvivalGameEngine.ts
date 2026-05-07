@@ -450,7 +450,7 @@ export const initializeCodeSlots = (
   progressionChords?: ChordDefinition[] | null,
 ): SurvivalGameState['codeSlots'] => {
   // Progression（コード進行）モード: B列のみ使用し、A/C/D列は無効化
-  if (progressionChords && progressionChords.length > 0) {
+  if (progressionChords) {
     const slotB = selectProgressionChord(progressionChords, 0);
     const slotBNext = selectProgressionChord(progressionChords, 1);
     const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [

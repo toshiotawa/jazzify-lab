@@ -25,14 +25,15 @@ export interface PlatformWindow {
   innerWidth: number;
   innerHeight: number;
   devicePixelRatio: number;
-  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
-  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void;
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
   requestAnimationFrame(callback: FrameRequestCallback): number;
   cancelAnimationFrame(id: number): void;
   setTimeout(handler: TimerHandler, timeout: number): number;
   clearTimeout(id: number): void;
   setInterval(handler: TimerHandler, timeout: number): number;
   clearInterval(id: number): void;
+  matchMedia(query: string): MediaQueryList;
   location: Location;
   navigator: Navigator;
   localStorage?: Storage;
@@ -152,12 +153,12 @@ class BrowserWindow implements PlatformWindow {
     return window.navigator;
   }
 
-  addEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
-    window.addEventListener(event, handler as EventListener);
+  addEventListener(event: string, handler: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void {
+    window.addEventListener(event, handler as EventListener, options);
   }
 
-  removeEventListener(event: string, handler: EventListenerOrEventListenerObject): void {
-    window.removeEventListener(event, handler as EventListener);
+  removeEventListener(event: string, handler: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void {
+    window.removeEventListener(event, handler as EventListener, options);
   }
 
   requestAnimationFrame(callback: FrameRequestCallback): number {
@@ -182,6 +183,10 @@ class BrowserWindow implements PlatformWindow {
 
   clearInterval(id: number): void {
     window.clearInterval(id);
+  }
+
+  matchMedia(query: string): MediaQueryList {
+    return window.matchMedia(query);
   }
 }
 
@@ -335,4 +340,4 @@ export const removeEventListener = (element: PlatformElement | PlatformWindow | 
 export const setGlobalProperty = (key: string, value: unknown): void => platform.setGlobalProperty(key, value);
 export const getGlobalProperty = (key: string): unknown => platform.getGlobalProperty(key);
 
-export default platform; 
+export default platform;

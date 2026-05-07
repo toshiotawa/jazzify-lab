@@ -105,11 +105,36 @@ private struct GroupedBlock {
 }
 
 enum LessonJourneyLayoutBuilder {
+    nonisolated(unsafe) private static var layoutCache: [String: LessonJourneyLayout] = [:]
+
+    private static func cacheKey(
+        lessons: [LessonJourneyInput],
+        logicalWidth: CGFloat,
+        locale: AppLocale
+    ) -> String {
+        let lessonKey = lessons.map { lesson in
+            [
+                lesson.id.uuidString,
+                String(lesson.blockNumber),
+                lesson.blockName ?? "",
+                lesson.blockNameEn ?? "",
+                String(lesson.orderIndex)
+            ].joined(separator: ":")
+        }
+        .joined(separator: "|")
+        return "\(logicalWidth):\(locale.rawValue):\(lessonKey)"
+    }
+
     static func build(
         lessons: [LessonJourneyInput],
         logicalWidth: CGFloat = LessonJourneyLayoutConstants.logicalWidth,
         locale: AppLocale = .ja
     ) -> LessonJourneyLayout {
+        let key = cacheKey(lessons: lessons, logicalWidth: logicalWidth, locale: locale)
+        if let cached = layoutCache[key] {
+            return cached
+        }
+
         let c = LessonJourneyLayoutConstants.self
 
         let grouped = groupByBlock(lessons: lessons, locale: locale)
@@ -123,13 +148,15 @@ enum LessonJourneyLayoutBuilder {
                 blockIndex: 0,
                 lessonId: nil
             )
-            return LessonJourneyLayout(
+            let layout = LessonJourneyLayout(
                 logicalWidth: logicalWidth,
                 totalHeight: c.topMargin + c.bottomMargin,
                 blocks: [],
                 goal: goalNode,
                 allNodes: []
             )
+            layoutCache[key] = layout
+            return layout
         }
 
         let blockHeights: [CGFloat] = grouped.map { g in
@@ -202,13 +229,18 @@ enum LessonJourneyLayoutBuilder {
         )
         allNodes.append(goal)
 
-        return LessonJourneyLayout(
+        let layout = LessonJourneyLayout(
             logicalWidth: logicalWidth,
             totalHeight: totalHeight,
             blocks: blocks,
             goal: goal,
             allNodes: allNodes
         )
+        if layoutCache.count >= 8 {
+            layoutCache.removeAll(keepingCapacity: true)
+        }
+        layoutCache[key] = layout
+        return layout
     }
 
     /// ブロック番号昇順、各ブロック内 orderIndex 昇順にソートしてグルーピング

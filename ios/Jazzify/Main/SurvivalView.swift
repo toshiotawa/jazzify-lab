@@ -43,6 +43,7 @@ struct SurvivalView: View {
     @State private var mobileDetailStage: SurvivalStageDefinition?
     @State private var showSurvivalInfo: Bool = false
     @State private var isSoundMuted: Bool = SurvivalMapAudio.shared.isMuted
+    @State private var progressCacheByCategory: [SurvivalMapCategory: SurvivalProgressSnapshot] = [:]
 
     /// ステージ定義は Supabase からのロード後に再構築されるため、computed property で常に最新を参照する。
     private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks(in: mapCategory) }
@@ -118,6 +119,7 @@ struct SurvivalView: View {
             .task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
             .onChange(of: appState.profile?.id) { _ in
                 survivalStagesFetchedAt = nil
+                progressCacheByCategory = [:]
                 Task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
             }
             .onAppear {
@@ -290,6 +292,10 @@ struct SurvivalView: View {
         mapCategory = next
         selectedStageNumber = nil
         mobileDetailStage = nil
+        if let cached = progressCacheByCategory[next] {
+            currentStageNumber = cached.currentStageNumber
+            clearedStages = cached.clearedStages
+        }
         Task { await loadProgress(showBlockingLoader: false, forceCatalogFetch: false) }
     }
 
@@ -398,8 +404,16 @@ struct SurvivalView: View {
         let progress = await progressTask
         let clears = await clearsTask
 
-        currentStageNumber = progress?.currentStageNumber ?? 1
-        clearedStages = Set(clears.map { $0.stageNumber })
+        let snapshot = SurvivalProgressSnapshot(
+            currentStageNumber: progress?.currentStageNumber ?? 1,
+            clearedStages: Set(clears.map { $0.stageNumber })
+        )
+        progressCacheByCategory[category] = snapshot
+
+        guard category == mapCategory else { return }
+
+        currentStageNumber = snapshot.currentStageNumber
+        clearedStages = snapshot.clearedStages
 
         if selectedStageNumber == nil {
             if let frontierBlock = SurvivalStageCatalog.block(forStage: currentStageNumber, in: category) {
@@ -467,4 +481,9 @@ private struct StageLaunchSession: Identifiable {
     let id = UUID()
     let stage: SurvivalStageDefinition
     let hintMode: Bool
+}
+
+private struct SurvivalProgressSnapshot {
+    let currentStageNumber: Int
+    let clearedStages: Set<Int>
 }

@@ -116,8 +116,23 @@ const DESCENT_MAP_IMAGES = [
   '/door.webp?v=20260420b',
 ];
 
+interface SurvivalMapProgressSnapshot {
+  currentStageNumber: number;
+  clearedStages: Set<number>;
+}
+
+interface SurvivalMapStaticData {
+  configs: DifficultyConfig[];
+  characters: SurvivalCharacter[];
+}
+
+let descentImagesPreloadPromise: Promise<void> | null = null;
+let survivalMapStaticDataPromise: Promise<SurvivalMapStaticData> | null = null;
+
 const preloadDescentImages = (): Promise<void> => {
-  return new Promise(resolve => {
+  if (descentImagesPreloadPromise) return descentImagesPreloadPromise;
+
+  descentImagesPreloadPromise = new Promise(resolve => {
     let remaining = DESCENT_MAP_IMAGES.length;
     if (remaining === 0) {
       resolve();
@@ -134,11 +149,66 @@ const preloadDescentImages = (): Promise<void> => {
       img.src = src;
     });
   });
+
+  return descentImagesPreloadPromise;
 };
+
+const loadSurvivalMapStaticData = async (): Promise<SurvivalMapStaticData> => {
+  if (survivalMapStaticDataPromise) return survivalMapStaticDataPromise;
+
+  survivalMapStaticDataPromise = (async () => {
+    const imagesPreload = preloadDescentImages();
+
+    try {
+      await fetchAllStages();
+      rebuildDescentBlocks();
+      rebuildDescentLayouts();
+    } catch {
+      /* fallback handled inside fetchAllStages */
+    }
+
+    const [settingsData, charRows] = await Promise.all([
+      fetchSurvivalDifficultySettings().catch(() => []),
+      fetchSurvivalCharacters().catch(() => []),
+    ]);
+
+    await Promise.race([
+      imagesPreload,
+      new Promise<void>(resolve => platform.setTimeout(resolve, 2500)),
+    ]);
+
+    const configs = settingsData.map((s): DifficultyConfig => ({
+      difficulty: s.difficulty,
+      displayName: s.displayName,
+      description: s.description || '',
+      descriptionEn: s.descriptionEn || '',
+      allowedChords: s.allowedChords,
+      enemySpawnRate: s.enemySpawnRate,
+      enemySpawnCount: s.enemySpawnCount,
+      enemyStatMultiplier: s.enemyStatMultiplier,
+      expMultiplier: s.expMultiplier,
+      itemDropRate: s.itemDropRate,
+      bgmOddWaveUrl: s.bgmOddWaveUrl,
+      bgmEvenWaveUrl: s.bgmEvenWaveUrl,
+    }));
+
+    return {
+      configs,
+      characters: charRows.map(convertToSurvivalCharacter),
+    };
+  })();
+
+  return survivalMapStaticDataPromise;
+};
+
+const createDefaultProgressSnapshot = (): SurvivalMapProgressSnapshot => ({
+  currentStageNumber: 1,
+  clearedStages: new Set<number>(),
+});
 
 const readDebugProgress = (): number | null => {
   try {
-    const hash = window.location.hash;
+    const hash = getWindow().location.hash;
     const idx = hash.indexOf('?');
     if (idx < 0) return null;
     const params = new URLSearchParams(hash.slice(idx + 1));
@@ -212,6 +282,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   });
 
   const [loading, setLoading] = useState(true);
+  const [staticDataReady, setStaticDataReady] = useState(false);
   const [characters, setCharacters] = useState<SurvivalCharacter[]>([]);
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DIFFICULTY_CONFIGS);
   const [mapCategory, setMapCategory] = useState<SurvivalMapCategory>(initialMapCategory);
@@ -227,11 +298,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [hintMode, setHintMode] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return !window.matchMedia('(min-width: 768px)').matches;
+    return !getWindow().matchMedia('(min-width: 768px)').matches;
   });
   const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
   const [soundMuted, setSoundMuted] = useState<boolean>(() => SurvivalMapAudio.isMuted());
+  const progressCacheRef = useRef<Partial<Record<SurvivalMapCategory, SurvivalMapProgressSnapshot>>>({});
+  const progressRequestIdRef = useRef(0);
+  const didLoadInitialProgressRef = useRef(false);
+  const lastProfileIdRef = useRef<string | null>(profile?.id ?? null);
 
   const handleToggleSound = useCallback(() => {
     const next = SurvivalMapAudio.toggleMuted();
@@ -255,8 +329,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [viewport, setViewport] = useState({ width: MAP_LOGICAL_WIDTH, height: VIEWPORT_FALLBACK_HEIGHT });
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 768px)');
+    const mq = getWindow().matchMedia('(min-width: 768px)');
     const update = () => setIsMobileLayout(!mq.matches);
     update();
     try {
@@ -295,81 +368,100 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const mapHeightPx = mapHeightLogical * scale;
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const imagesPreload = preloadDescentImages();
+  const applyProgressSnapshot = useCallback((snapshot: SurvivalMapProgressSnapshot) => {
+    setCurrentStageNumber(snapshot.currentStageNumber);
+    setClearedStages(snapshot.clearedStages);
+  }, []);
 
-      try {
-        await fetchAllStages();
-        rebuildDescentBlocks();
-        rebuildDescentLayouts();
-      } catch { /* fallback handled inside fetchAllStages */ }
-      // 失敗時もローカルフォールバックでカテゴリ別キャッシュは存在するので、
-      // useMemo を再評価させて画面に反映する。
+  useEffect(() => {
+    const profileId = profile?.id ?? null;
+    if (lastProfileIdRef.current === profileId) return;
+    lastProfileIdRef.current = profileId;
+    progressCacheRef.current = {};
+    didLoadInitialProgressRef.current = false;
+  }, [profile?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    const loadStaticData = async (): Promise<void> => {
+      const data = await loadSurvivalMapStaticData();
+      if (cancelled) return;
+      if (data.configs.length > 0) {
+        setDifficultyConfigs(data.configs);
+      }
+      if (data.characters.length > 0) {
+        setCharacters(data.characters);
+      }
+      // fetchAllStages + rebuild 完了後にカテゴリ別キャッシュを再参照させる。
       setStagesVersion(v => v + 1);
+      setStaticDataReady(true);
+    };
 
-      try {
-        const settingsData = await fetchSurvivalDifficultySettings();
-        if (settingsData.length > 0) {
-          const configs = settingsData.map((s): DifficultyConfig => ({
-            difficulty: s.difficulty,
-            displayName: s.displayName,
-            description: s.description || '',
-            descriptionEn: s.descriptionEn || '',
-            allowedChords: s.allowedChords,
-            enemySpawnRate: s.enemySpawnRate,
-            enemySpawnCount: s.enemySpawnCount,
-            enemyStatMultiplier: s.enemyStatMultiplier,
-            expMultiplier: s.expMultiplier,
-            itemDropRate: s.itemDropRate,
-            bgmOddWaveUrl: s.bgmOddWaveUrl,
-            bgmEvenWaveUrl: s.bgmEvenWaveUrl,
-          }));
-          setDifficultyConfigs(configs);
-        }
-      } catch { /* fallback */ }
+    void loadStaticData();
 
-      try {
-        const charRows = await fetchSurvivalCharacters();
-        const chars = charRows.map(convertToSurvivalCharacter);
-        setCharacters(chars);
-      } catch { /* ignore */ }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-      if (profile) {
-        try {
-          const progress = await fetchSurvivalStageProgress(profile.id, mapCategory);
-          setCurrentStageNumber(progress.currentStageNumber);
-        } catch { /* ignore */ }
+  useEffect(() => {
+    if (!staticDataReady) return;
 
-        try {
-          const clears = await fetchSurvivalStageClears(profile.id, mapCategory);
-          setClearedStages(new Set(clears.map(c => c.stageNumber)));
-        } catch { /* ignore */ }
-      } else {
-        setCurrentStageNumber(1);
-        setClearedStages(new Set());
+    let cancelled = false;
+    const profileId = profile?.id ?? null;
+    const requestId = progressRequestIdRef.current + 1;
+    progressRequestIdRef.current = requestId;
+    const shouldBlockInitialLoad = !didLoadInitialProgressRef.current;
+    if (shouldBlockInitialLoad) {
+      setLoading(true);
+    }
+
+    const cached = progressCacheRef.current[mapCategory];
+    if (cached) {
+      applyProgressSnapshot(cached);
+    } else if (!profileId) {
+      applyProgressSnapshot(createDefaultProgressSnapshot());
+    }
+
+    const loadProgress = async (): Promise<void> => {
+      let snapshot = createDefaultProgressSnapshot();
+
+      if (profileId) {
+        const [progress, clears] = await Promise.all([
+          fetchSurvivalStageProgress(profileId, mapCategory).catch(() => null),
+          fetchSurvivalStageClears(profileId, mapCategory).catch(() => []),
+        ]);
+        snapshot = {
+          currentStageNumber: progress?.currentStageNumber ?? 1,
+          clearedStages: new Set(clears.map(c => c.stageNumber)),
+        };
       }
 
       const debugProgress = readDebugProgress();
       if (debugProgress != null) {
         const cleared = new Set<number>();
         for (let i = 1; i <= debugProgress; i += 1) cleared.add(i);
-        setClearedStages(cleared);
         const totalForDebug = getTotalStagesByCategory(mapCategory);
-        setCurrentStageNumber(Math.min(totalForDebug, debugProgress + 1));
+        snapshot = {
+          currentStageNumber: Math.min(totalForDebug, debugProgress + 1),
+          clearedStages: cleared,
+        };
       }
 
-      await Promise.race([
-        imagesPreload,
-        new Promise<void>(resolve => platform.setTimeout(resolve, 2500)),
-      ]);
-    } finally {
+      progressCacheRef.current[mapCategory] = snapshot;
+      if (cancelled || progressRequestIdRef.current !== requestId) return;
+      applyProgressSnapshot(snapshot);
+      didLoadInitialProgressRef.current = true;
       setLoading(false);
-    }
-  }, [profile, mapCategory]);
+    };
 
-  useEffect(() => { loadData(); }, [loadData]);
+    void loadProgress();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyProgressSnapshot, mapCategory, profile?.id, staticDataReady]);
 
   useEffect(() => {
     if (typeof soundEffectVolume === 'number') {
@@ -449,6 +541,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     clearedStages,
     mapCategory,
   });
+
+  const visibleBlockLayoutsForCategory = useMemo(() => {
+    if (blockLayoutsForCategory.length === 0) return blockLayoutsForCategory;
+    const bufferLogical = Math.max(420, viewport.height / Math.max(scale, 0.1));
+    const minY = Math.max(0, cameraY / scale - bufferLogical);
+    const maxY = (cameraY + viewport.height) / scale + bufferLogical;
+    return blockLayoutsForCategory.filter(layout => layout.endY >= minY && layout.startY <= maxY);
+  }, [blockLayoutsForCategory, cameraY, scale, viewport.height]);
 
   useEffect(() => {
     if (loading) return;
@@ -677,7 +777,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
               widthPx={worldWidthPx}
               heightPx={mapHeightPx}
               scale={scale}
-              layouts={blockLayoutsForCategory}
+              layouts={visibleBlockLayoutsForCategory}
             />
 
             <div
@@ -688,11 +788,11 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 transform: 'translateX(-50%)',
               }}
             >
-              {blockLayoutsForCategory.map((layout, idx) => {
-                const blockMeta = blocksForCategory[idx];
+              {visibleBlockLayoutsForCategory.map(layout => {
+                const blockMeta = blocksForCategory[layout.blockIndex];
                 if (!blockMeta) return null;
-                const dim = idx > accessibleBlockIndex;
-                const isFrontierBlock = idx === frontierBlockIndex;
+                const dim = layout.blockIndex > accessibleBlockIndex;
+                const isFrontierBlock = layout.blockIndex === frontierBlockIndex;
                 return (
                   <DescentBlock
                     key={`${mapCategory}-${layout.blockKey}`}
@@ -714,8 +814,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 );
               })}
 
-              {blockLayoutsForCategory.map((layout, idx) =>
-                idx > accessibleBlockIndex ? (
+              {visibleBlockLayoutsForCategory.map(layout =>
+                layout.blockIndex > accessibleBlockIndex ? (
                   <BlockDimVeil key={`veil-${mapCategory}-${layout.blockKey}`} layout={layout} scale={scale} widthPx={mapWidthPx} />
                 ) : null,
               )}

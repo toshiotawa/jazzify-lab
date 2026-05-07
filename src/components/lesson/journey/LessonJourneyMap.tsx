@@ -53,8 +53,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: JOURNEY_LOGICAL_WIDTH, height: VIEWPORT_FALLBACK_HEIGHT });
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return !window.matchMedia('(min-width: 768px)').matches;
+    return !getWindow().matchMedia('(min-width: 768px)').matches;
   });
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
@@ -86,8 +85,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
 
   // --- viewport 計測 -----------------------------------------------------
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 768px)');
+    const mq = getWindow().matchMedia('(min-width: 768px)');
     const update = (): void => setIsMobileLayout(!mq.matches);
     update();
     try {
@@ -184,6 +182,14 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
     scale,
     mapLogicalHeight: layout.totalHeight,
   });
+
+  const visibleBlocks = useMemo(() => {
+    if (layout.blocks.length === 0) return layout.blocks;
+    const bufferLogical = Math.max(360, viewport.height / Math.max(scale, 0.1));
+    const minY = Math.max(0, cameraY / scale - bufferLogical);
+    const maxY = (cameraY + viewport.height) / scale + bufferLogical;
+    return layout.blocks.filter(block => block.bottomY >= minY && block.topY <= maxY);
+  }, [layout.blocks, cameraY, scale, viewport.height]);
 
   // 初期フォーカス: viewport 実計測後にフロンティア (= 現在地) を画面中央へ即座配置
   useEffect(() => {
@@ -446,7 +452,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
                 transform: 'translateX(-50%)',
               }}
             >
-              {layout.blocks.map(block => {
+              {visibleBlocks.map(block => {
                 const dim = block.blockIndex > accessibleBlockIndex;
                 return (
                   <BlockThemeOverlay
@@ -461,11 +467,11 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
                 );
               })}
 
-              {layout.blocks.map((block, idx) => {
+              {visibleBlocks.map(block => {
                 const dim = block.blockIndex > accessibleBlockIndex;
-                const nextBlock = layout.blocks[idx + 1];
+                const nextBlock = layout.blocks[block.blockIndex + 1];
                 const nextFirst = nextBlock?.lessonNodes[0];
-                const isLast = idx === layout.blocks.length - 1;
+                const isLast = block.blockIndex === layout.blocks.length - 1;
                 return (
                   <JourneyBlock
                     key={block.blockNumber}
@@ -487,7 +493,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
                 );
               })}
 
-              {layout.blocks.map(block =>
+              {visibleBlocks.map(block =>
                 block.blockIndex > accessibleBlockIndex ? (
                   <BlockDimVeil
                     key={`veil-${block.blockNumber}`}

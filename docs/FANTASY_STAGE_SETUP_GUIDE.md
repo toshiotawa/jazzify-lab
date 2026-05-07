@@ -133,6 +133,16 @@ VITE_R2_PUBLIC_URL=https://your-cdn.com
 
 コース全体（DB・マイグレーション・`order_index` の注意など）は [II_V_I_LESSON_COURSE_SETUP.md](./II_V_I_LESSON_COURSE_SETUP.md) を参照。
 
+### 2.1a 開発者用 chord_voicing テスト用クリック MP3（R2）
+
+`supabase/migrations/*developer_course_chord_voicing*` の `audio_url` と一致するキーで R2 に置く。
+
+| 項目 | 内容 |
+|---|---|
+| 生成 | `node scripts/build-dev-chord-voicing-click-mp3.mjs` → `public/fantasy-bgm/ear-training-dev-chord-voicing-phrase-01.mp3` 等 |
+| R2 アップロード | `node scripts/upload-dev-chord-voicing-mp3-to-r2.mjs`（`--dry-run` / `--s3` / `--dir` は `upload-ii-v-i-mp3-to-r2.mjs` と同様の意味） |
+| CDN パージ（上書き後） | 同スクリプトに `--purge-cdn`、またはアップロードをスキップして `--purge-only`。要 `CF_ZONE_ID` と `CF_API_TOKEN`（`env.r2.example` 参照） |
+
 ### 2.2 II-V-I: カウントインと音源・楽譜の同期
 
 `progression_timing` で `fantasy_stages.count_in_measures = 1` のとき、**BGMManager**（`src/utils/BGMManager.ts`）は次の前提で時間を合わせます。

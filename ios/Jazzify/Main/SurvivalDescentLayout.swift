@@ -94,6 +94,15 @@ struct SurvivalDescentLayout: Sendable {
 }
 
 enum SurvivalDescentLayoutBuilder {
+    nonisolated(unsafe) private static var layoutCache: [String: SurvivalDescentLayout] = [:]
+
+    private static func cacheKey(for blocks: [SurvivalBlockMeta]) -> String {
+        blocks.map { block in
+            "\(block.blockKey.rawValue):\(block.stageNumbers.map(String.init).joined(separator: ","))"
+        }
+        .joined(separator: "|")
+    }
+
     /// ブロック内ステージに左右交互のレーンを割り当てる。末尾のみ中央。
     private static func assignLane(indexInBlock: Int, isLastInBlock: Bool) -> SurvivalDescentLane {
         if isLastInBlock { return .center }
@@ -148,6 +157,11 @@ enum SurvivalDescentLayoutBuilder {
     }
 
     static func build(blocks: [SurvivalBlockMeta] = SurvivalStageCatalog.blocks) -> SurvivalDescentLayout {
+        let key = cacheKey(for: blocks)
+        if let cached = layoutCache[key] {
+            return cached
+        }
+
         var layouts: [SurvivalDescentBlockLayout] = []
         var cursorY: CGFloat = 0
         for block in blocks {
@@ -165,12 +179,17 @@ enum SurvivalDescentLayoutBuilder {
 
         let totalHeight = layouts.last?.endY ?? 0
 
-        return SurvivalDescentLayout(
+        let layout = SurvivalDescentLayout(
             logicalWidth: SurvivalDescentLayoutConstants.logicalWidth,
             totalHeight: totalHeight,
             blocks: layouts,
             stagePositions: positions
         )
+        if layoutCache.count >= 4 {
+            layoutCache.removeAll(keepingCapacity: true)
+        }
+        layoutCache[key] = layout
+        return layout
     }
 }
 
