@@ -96,6 +96,8 @@ export interface EarTrainingGameCopy {
   countIn: string;
   transitionNextBar: (rank: string) => string;
   correct: (revealedNote?: string) => string;
+  chordCompleted: (chordName: string) => string;
+  chordWindowFail: (chordName: string) => string;
   missEnemyAttack: string;
   tryAgain: string;
   lessonSaved: string;
@@ -116,6 +118,8 @@ export const getEarTrainingGameCopy = (isEnglish: boolean): EarTrainingGameCopy 
         countIn: 'Count-in',
         transitionNextBar: rank => `${rank} — next phrase at the next bar line`,
         correct: revealedNote => (revealedNote ? `Correct: ${revealedNote}` : 'Correct'),
+        chordCompleted: chordName => `Chord completed: ${chordName}`,
+        chordWindowFail: chordName => `Window missed: ${chordName}`,
         missEnemyAttack: 'Miss — enemy attack',
         tryAgain: 'Try again',
         lessonSaved: 'Lesson progress saved',
@@ -133,6 +137,8 @@ export const getEarTrainingGameCopy = (isEnglish: boolean): EarTrainingGameCopy 
         countIn: 'カウントイン',
         transitionNextBar: rank => `${rank}: 次の小節頭で次へ`,
         correct: revealedNote => (revealedNote ? `正解: ${revealedNote}` : '正解'),
+        chordCompleted: chordName => `コード完成: ${chordName}`,
+        chordWindowFail: chordName => `ウィンドウ未完成: ${chordName}`,
         missEnemyAttack: 'ミス: 敵の攻撃',
         tryAgain: 'もう一度',
         lessonSaved: 'レッスン進捗を保存しました',

@@ -696,8 +696,12 @@ export interface EarTrainingPhraseChord {
   duration_beats?: number | null;
   start_time_sec?: number | null;
   end_time_sec?: number | null;
+  voicing?: string[] | null;
+  voicing_staves?: number[] | null;
   created_at?: string;
 }
+
+export type EarTrainingMode = 'phrase' | 'chord_voicing';
 
 export interface EarTrainingPhraseDemoLoop {
   phrase_id: string;
@@ -749,6 +753,7 @@ export interface EarTrainingStage {
   great_max_misses: number;
   background_theme: string;
   is_active: boolean;
+  mode: EarTrainingMode;
   created_at?: string;
   updated_at?: string;
   phrases?: EarTrainingPhrase[];
@@ -762,6 +767,15 @@ export interface EarTrainingPhraseAttempt {
   startedAtAudioTime: number;
   completed: boolean;
   failed: boolean;
+}
+
+export interface EarTrainingChordVoicingAttempt {
+  phraseId: string;
+  pressedByChord: Map<string, Set<number>>;
+  missByChord: Map<string, number>;
+  completedChordIds: Set<string>;
+  awardedChordIds: Set<string>;
+  failedChordIds: Set<string>;
 }
 
 export interface LessonSong {

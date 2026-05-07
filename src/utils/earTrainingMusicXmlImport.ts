@@ -440,3 +440,336 @@ export const buildEarTrainingPhraseDraftsFromMusicXml = (
     };
   });
 };
+
+// ---------------------------------------------------------------------------
+// Chord-voicing battle mode helpers
+// ---------------------------------------------------------------------------
+
+export interface EarTrainingPhraseChordVoicingImport extends EarTrainingPhraseChordImport {
+  voicing: string[];
+  voicing_staves: number[];
+}
+
+export interface EarTrainingChordVoicingPhraseDraft extends EarTrainingMusicXmlPhraseRange {
+  musicXmlText: string;
+  chords: EarTrainingPhraseChordVoicingImport[];
+}
+
+export interface EarTrainingChordVoicingMusicXmlPreview extends EarTrainingMusicXmlPreview {
+  hasMultipleStaves: boolean;
+}
+
+export interface BuildEarTrainingChordVoicingDraftsOptions {
+  phraseMeasures: number;
+  bpm: number;
+  beatsPerMeasure: number;
+}
+
+interface MusicXmlVoicingNoteRecord {
+  startBeat: number;
+  endBeat: number;
+  step: string;
+  alter: number;
+  octave: number;
+  staff: number;
+  noteName: string;
+  measureNumber: number;
+}
+
+interface MusicXmlHarmonyRecord {
+  startBeat: number;
+  measureNumber: number;
+  beatOffset: number;
+  chordName: string;
+}
+
+const stepAlterToVoicingName = (step: string, alter: number, octave: number): string => {
+  if (alter > 1) {
+    return `${step}x${octave}`;
+  }
+  if (alter === 1) {
+    return `${step}#${octave}`;
+  }
+  if (alter === -1) {
+    return `${step}b${octave}`;
+  }
+  if (alter < -1) {
+    return `${step}bb${octave}`;
+  }
+  return `${step}${octave}`;
+};
+
+const stepToSemitone = (step: string): number => {
+  switch (step.toUpperCase()) {
+    case 'C': return 0;
+    case 'D': return 2;
+    case 'E': return 4;
+    case 'F': return 5;
+    case 'G': return 7;
+    case 'A': return 9;
+    case 'B': return 11;
+    default: return 0;
+  }
+};
+
+const calculateMidi = (step: string, alter: number, octave: number): number =>
+  (octave + 1) * 12 + stepToSemitone(step) + alter;
+
+const validateChordVoicingMusicXml = (xmlText: string, label: string): void => {
+  const document = parseXml(xmlText);
+  const parts = Array.from(document.querySelectorAll('part'));
+  if (parts.length !== 1) {
+    throw new Error(`${label} は単一パートのMusicXMLのみ対応しています`);
+  }
+  if (document.querySelector('note > grace')) {
+    throw new Error(`${label} は装飾音符を含むためコード演奏バトルでは扱えません`);
+  }
+};
+
+const detectHasMultipleStaves = (document: Document): boolean => {
+  const staves = new Set<string>();
+  Array.from(document.querySelectorAll('part:first-of-type note')).forEach(note => {
+    if (!isPitchedNote(note)) {
+      return;
+    }
+    const staff = note.querySelector('staff')?.textContent?.trim();
+    if (staff) {
+      staves.add(staff);
+    }
+  });
+  return staves.size > 1;
+};
+
+const collectChordVoicingMusicXmlEntries = (
+  xmlText: string,
+  bpm: number,
+  defaultBeatsPerMeasure: number,
+): {
+  notes: MusicXmlVoicingNoteRecord[];
+  harmonies: MusicXmlHarmonyRecord[];
+  totalBeats: number;
+  hasMultipleStaves: boolean;
+} => {
+  const document = parseXml(xmlText);
+  const measures = Array.from(document.querySelectorAll('part:first-of-type > measure'));
+  const notes: MusicXmlVoicingNoteRecord[] = [];
+  const harmonies: MusicXmlHarmonyRecord[] = [];
+  let divisionsPerQuarter = 1;
+  let beatsPerMeasure = defaultBeatsPerMeasure;
+  let beatType = 4;
+  let cumulativeBeatPosition = 0;
+
+  measures.forEach((measure, measureIndex) => {
+    const divisionsEl = measure.querySelector('attributes > divisions');
+    if (divisionsEl?.textContent) {
+      const parsed = Number(divisionsEl.textContent);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        divisionsPerQuarter = parsed;
+      }
+    }
+    const timeEl = measure.querySelector('attributes > time');
+    if (timeEl) {
+      const parsedBeats = Number(timeEl.querySelector('beats')?.textContent);
+      const parsedBeatType = Number(timeEl.querySelector('beat-type')?.textContent);
+      if (Number.isFinite(parsedBeats) && parsedBeats > 0) {
+        beatsPerMeasure = parsedBeats;
+      }
+      if (Number.isFinite(parsedBeatType) && parsedBeatType > 0) {
+        beatType = parsedBeatType;
+      }
+    }
+
+    const measureQuarterBeats = (beatsPerMeasure / beatType) * 4;
+    let positionDivisions = 0;
+    let lastNoteStartDivisions = 0;
+
+    for (const child of Array.from(measure.children)) {
+      if (child.tagName === 'harmony') {
+        const beatOffset = roundToMillis(1 + positionDivisions / divisionsPerQuarter);
+        const startBeat = cumulativeBeatPosition + (beatOffset - 1);
+        harmonies.push({
+          startBeat,
+          measureNumber: measureIndex + 1,
+          beatOffset,
+          chordName: getHarmonyName(child),
+        });
+        continue;
+      }
+      if (child.tagName === 'backup') {
+        const duration = Number(child.querySelector('duration')?.textContent ?? '0');
+        positionDivisions -= Number.isFinite(duration) ? duration : 0;
+        continue;
+      }
+      if (child.tagName === 'forward') {
+        const duration = Number(child.querySelector('duration')?.textContent ?? '0');
+        positionDivisions += Number.isFinite(duration) ? duration : 0;
+        continue;
+      }
+      if (child.tagName !== 'note') {
+        continue;
+      }
+      if (isGraceNote(child)) {
+        continue;
+      }
+
+      const isChordTone = child.querySelector('chord') !== null;
+      const noteStartDivisions = isChordTone ? lastNoteStartDivisions : positionDivisions;
+      const duration = Number(child.querySelector('duration')?.textContent ?? '0');
+
+      if (isPitchedNote(child)) {
+        const step = child.querySelector('pitch > step')?.textContent?.trim() ?? 'C';
+        const alterText = child.querySelector('pitch > alter')?.textContent?.trim();
+        const alter = alterText ? Number(alterText) : 0;
+        const octaveText = child.querySelector('pitch > octave')?.textContent?.trim();
+        const octave = octaveText ? Number(octaveText) : 4;
+        const staffText = child.querySelector('staff')?.textContent?.trim();
+        const staff = staffText ? Number(staffText) : 1;
+        const startBeat = cumulativeBeatPosition + noteStartDivisions / divisionsPerQuarter;
+        const endBeat = startBeat + (Number.isFinite(duration) && duration > 0 ? duration / divisionsPerQuarter : 0);
+
+        notes.push({
+          startBeat,
+          endBeat,
+          step,
+          alter,
+          octave,
+          staff: staff === 2 ? 2 : 1,
+          noteName: stepAlterToVoicingName(step, alter, octave),
+          measureNumber: measureIndex + 1,
+        });
+      }
+
+      if (!isChordTone) {
+        lastNoteStartDivisions = noteStartDivisions;
+        positionDivisions += Number.isFinite(duration) ? duration : 0;
+      }
+    }
+
+    if (measureQuarterBeats > 0) {
+      cumulativeBeatPosition += measureQuarterBeats;
+    }
+  });
+
+  void bpm;
+  return {
+    notes,
+    harmonies,
+    totalBeats: cumulativeBeatPosition,
+    hasMultipleStaves: detectHasMultipleStaves(document),
+  };
+};
+
+const buildVoicingForHarmonyRange = (
+  notes: MusicXmlVoicingNoteRecord[],
+  startBeat: number,
+  endBeat: number,
+): { voicing: string[]; voicing_staves: number[] } => {
+  const seen = new Set<string>();
+  const collected: { name: string; staff: number; midi: number }[] = [];
+  for (const note of notes) {
+    const overlaps = note.startBeat < endBeat - 1e-6 && note.endBeat > startBeat + 1e-6;
+    if (!overlaps) {
+      continue;
+    }
+    const key = `${note.staff}|${note.step}|${note.alter}|${note.octave}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    collected.push({
+      name: note.noteName,
+      staff: note.staff,
+      midi: calculateMidi(note.step, note.alter, note.octave),
+    });
+  }
+  collected.sort((a, b) => {
+    if (a.staff !== b.staff) {
+      return a.staff - b.staff;
+    }
+    return a.midi - b.midi;
+  });
+  return {
+    voicing: collected.map(item => item.name),
+    voicing_staves: collected.map(item => item.staff),
+  };
+};
+
+export const createEarTrainingChordVoicingMusicXmlPreview = (
+  xmlText: string,
+  phraseMeasures: number,
+): EarTrainingChordVoicingMusicXmlPreview => {
+  if (!Number.isInteger(phraseMeasures) || phraseMeasures <= 0) {
+    throw new Error('1フレーズの小節数は1以上の整数で入力してください');
+  }
+  const measureNumbers = getMeasureNumbers(xmlText);
+  validateChordVoicingMusicXml(xmlText, 'MusicXML');
+  const document = parseXml(xmlText);
+  const ranges: EarTrainingMusicXmlPhraseRange[] = [];
+  for (let index = 0; index < measureNumbers.length; index += phraseMeasures) {
+    const rangeMeasures = measureNumbers.slice(index, index + phraseMeasures);
+    ranges.push({
+      orderIndex: ranges.length,
+      startMeasure: rangeMeasures[0],
+      endMeasure: rangeMeasures[rangeMeasures.length - 1],
+    });
+  }
+  return {
+    totalMeasures: measureNumbers.length,
+    phraseCount: ranges.length,
+    ranges,
+    hasMultipleStaves: detectHasMultipleStaves(document),
+  };
+};
+
+export const buildEarTrainingChordVoicingDraftsFromMusicXml = (
+  xmlText: string,
+  options: BuildEarTrainingChordVoicingDraftsOptions,
+): EarTrainingChordVoicingPhraseDraft[] => {
+  const preview = createEarTrainingChordVoicingMusicXmlPreview(xmlText, options.phraseMeasures);
+  const drafts: EarTrainingChordVoicingPhraseDraft[] = [];
+
+  preview.ranges.forEach(range => {
+    const musicXmlText = truncateMusicXmlByMeasureRange(xmlText, range.startMeasure, range.endMeasure);
+    validateChordVoicingMusicXml(musicXmlText, `Phrase ${range.orderIndex + 1}`);
+    const { notes, harmonies, totalBeats } = collectChordVoicingMusicXmlEntries(
+      musicXmlText,
+      options.bpm,
+      options.beatsPerMeasure,
+    );
+    if (harmonies.length === 0) {
+      throw new Error(`Phrase ${range.orderIndex + 1} に harmony 要素がありません`);
+    }
+    const phraseTotalBeats = totalBeats > 0 ? totalBeats : harmonies.length * options.beatsPerMeasure;
+    const beatDurationSec = 60 / options.bpm;
+
+    const chords: EarTrainingPhraseChordVoicingImport[] = harmonies.map((harmony, index) => {
+      const nextStartBeat = harmonies[index + 1]?.startBeat ?? phraseTotalBeats;
+      const startTimeSec = roundToMillis(harmony.startBeat * beatDurationSec);
+      const endTimeSec = roundToMillis(nextStartBeat * beatDurationSec);
+      const durationBeats = roundToMillis(Math.max(0, nextStartBeat - harmony.startBeat));
+      const { voicing, voicing_staves } = buildVoicingForHarmonyRange(notes, harmony.startBeat, nextStartBeat);
+      if (voicing.length === 0) {
+        throw new Error(`Phrase ${range.orderIndex + 1} の Chord ${index + 1} (${harmony.chordName}) に voicing がありません`);
+      }
+      return {
+        order_index: index,
+        chord_name: harmony.chordName,
+        measure_number: harmony.measureNumber,
+        beat_offset: harmony.beatOffset,
+        duration_beats: durationBeats,
+        start_time_sec: startTimeSec,
+        end_time_sec: endTimeSec,
+        voicing,
+        voicing_staves,
+      };
+    });
+
+    drafts.push({
+      ...range,
+      musicXmlText,
+      chords,
+    });
+  });
+
+  return drafts;
+};

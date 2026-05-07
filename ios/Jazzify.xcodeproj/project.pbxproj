@@ -24,6 +24,7 @@
 		2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */; };
 		2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */; };
 		2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB42EB0BEA73D79132F739 /* SettingsView.swift */; };
+		2CE30418294A3B0591792525 /* EarTrainingChordVoicingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */; };
 		2F1F2D964822F8E957597D56 /* C5.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BCFC653695FDC6395887F72A /* C5.mp3 */; };
 		343EF86689A175A8BE3A6B6A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5FE9128F8E93AC30291509CF /* Supabase */; };
 		38C8D1B2BFA5447F96D51D06 /* LessonAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */; };
@@ -54,7 +55,9 @@
 		6BFFD02966CF6D54DC197D87 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9287B850DB97CA095340096F /* SubscriptionView.swift */; };
 		6DF0F2EC897BEE7B9120DEA9 /* EarTrainingPianoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */; };
 		6FF3DDCFD71036E375BDCC55 /* C2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 903944BD135D748CB90B813D /* C2.mp3 */; };
+		73404858DC7ED47DE8628CD9 /* EarTrainingChordVoicingGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */; };
 		7630C3DB245018D47061B814 /* ContactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1468DBA9C15E0A44DD589ADD /* ContactView.swift */; };
+		7AD0743A4EE11942973B34A1 /* ChordVoicingStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */; };
 		7BA646FCEC525EF198BB2701 /* EarTrainingTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */; };
 		7CFB37256570B028A4C1E5EA /* LessonJourneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */; };
 		8B0A05DBF2C58F148B4FD55B /* EarTrainingHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */; };
@@ -85,6 +88,7 @@
 		D852F87150F3CD5F7A7A3142 /* SurvivalGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */; };
 		D8744E4938F50585AA91A7CA /* EarTrainingResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3064223A090AABB08DF8E5FA /* EarTrainingResultView.swift */; };
 		D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1873118CEEB8C7B4341EDE19 /* MainTabView.swift */; };
+		DD6CB384F0986D73E24D0390 /* EarTrainingChordVoicingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */; };
 		DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B7FB73F72A914199E51C1D /* LessonProgress.swift */; };
 		E09259FB92854762EA40D533 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546BECBA781840253623CBDC /* StoreManager.swift */; };
 		E3610256F40C29FB7E2F7D20 /* FantasyStageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA9A84AB9F7B849C9301F99 /* FantasyStageView.swift */; };
@@ -152,6 +156,7 @@
 		8335394CBDC8AC038641B7B8 /* SurvivalDescentViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentViewComponents.swift; sourceTree = "<group>"; };
 		8497DA09733314AB9BE43767 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		857DD3059AA2EE3BAFAE0DE9 /* C4.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C4.mp3; sourceTree = "<group>"; };
+		86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingGameView.swift; sourceTree = "<group>"; };
 		8AE637ADB172B5C753918491 /* SurvivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalView.swift; sourceTree = "<group>"; };
 		8CA9A84AB9F7B849C9301F99 /* FantasyStageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FantasyStageView.swift; sourceTree = "<group>"; };
 		8E80A364FA44BA2E07326B46 /* SurvivalBossEffectRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBossEffectRenderer.swift; sourceTree = "<group>"; };
@@ -166,6 +171,7 @@
 		9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		9C1C28DE06B5FB9224DDE130 /* AnnouncementListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementListView.swift; sourceTree = "<group>"; };
 		9D2BD5DA49B637FB8C0E889B /* ProfileSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupView.swift; sourceTree = "<group>"; };
+		9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingBattleController.swift; sourceTree = "<group>"; };
 		A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSettingsSheet.swift; sourceTree = "<group>"; };
 		AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingGameView.swift; sourceTree = "<group>"; };
 		AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
@@ -181,11 +187,12 @@
 		CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPianoView.swift; sourceTree = "<group>"; };
 		D0D52543D5D2C698BD559C23 /* SurvivalDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentLayout.swift; sourceTree = "<group>"; };
 		D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordPadView.swift; sourceTree = "<group>"; };
+		D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingEngine.swift; sourceTree = "<group>"; };
 		D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonAttachmentPreview.swift; sourceTree = "<group>"; };
 		D82BC28D5575DEEE8A1AE11E /* SurvivalDescentTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentTheme.swift; sourceTree = "<group>"; };
 		DA30893A906263BFC743A681 /* SurvivalCodeSlotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCodeSlotsView.swift; sourceTree = "<group>"; };
 		DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentIssueBannerView.swift; sourceTree = "<group>"; };
-		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStatusEffectEngine.swift; sourceTree = "<group>"; };
 		E6C1425BEA0C8052E33037DF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		E8965BF87290861DA4507B67 /* UserStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStats.swift; sourceTree = "<group>"; };
@@ -196,6 +203,7 @@
 		F6430F90E7C009810E9BE4AB /* SurvivalPianoSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPianoSampler.swift; sourceTree = "<group>"; };
 		F831419566658890CA84E9E6 /* LessonListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonListView.swift; sourceTree = "<group>"; };
 		F9FCAFC5B4E5655340C7965F /* JazzifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JazzifyApp.swift; sourceTree = "<group>"; };
+		FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordVoicingStaffView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -291,6 +299,7 @@
 		25F1FE436717D9B1D982DE79 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */,
 				3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */,
 			);
 			path = Engine;
@@ -379,6 +388,7 @@
 			isa = PBXGroup;
 			children = (
 				7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */,
+				9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */,
 			);
 			path = Controller;
 			sourceTree = "<group>";
@@ -498,7 +508,9 @@
 		F6A70154B3BE78EAF684A2B2 /* View */ = {
 			isa = PBXGroup;
 			children = (
+				FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */,
 				B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */,
+				86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */,
 				AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */,
 				0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */,
 				6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */,
@@ -550,6 +562,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					E500BA83C6EE4C666A3895FC = {
+						DevelopmentTeam = "";
+					};
+				};
 			};
 			buildConfigurationList = CC0218D6F2A41ED0C9D6D42D /* Build configuration list for PBXProject "Jazzify" */;
 			developmentRegion = en;
@@ -603,12 +620,16 @@
 				4EE732EF69290F9B474AB3AF /* AppDelegate.swift in Sources */,
 				0001DB9D114F5FDE7277099C /* AppState.swift in Sources */,
 				F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */,
+				7AD0743A4EE11942973B34A1 /* ChordVoicingStaffView.swift in Sources */,
 				9D13D89E03692A38ECCDD9DB /* Config.swift in Sources */,
 				7630C3DB245018D47061B814 /* ContactView.swift in Sources */,
 				54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */,
 				4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */,
 				B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */,
 				4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */,
+				DD6CB384F0986D73E24D0390 /* EarTrainingChordVoicingBattleController.swift in Sources */,
+				2CE30418294A3B0591792525 /* EarTrainingChordVoicingEngine.swift in Sources */,
+				73404858DC7ED47DE8628CD9 /* EarTrainingChordVoicingGameView.swift in Sources */,
 				2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */,
 				A9FFFB17E9606EA7AFD69772 /* EarTrainingGameView.swift in Sources */,
 				8B0A05DBF2C58F148B4FD55B /* EarTrainingHUDView.swift in Sources */,
@@ -731,7 +752,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -744,7 +765,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.2.2;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -762,14 +783,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Jazzify/Jazzify.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Jazzify/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Jazzify;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -810,7 +829,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -829,7 +848,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.2.2;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -848,14 +867,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Jazzify/Jazzify.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Jazzify/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Jazzify;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

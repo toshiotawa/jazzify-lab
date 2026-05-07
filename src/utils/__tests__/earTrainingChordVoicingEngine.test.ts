@@ -1,0 +1,150 @@
+import { describe, expect, it } from 'vitest';
+import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
+import {
+  acknowledgeChordAward,
+  advanceChordVoicingTick,
+  countChordVoicingMisses,
+  createChordVoicingAttempt,
+  getVoicingPitchClasses,
+  handleChordVoicingNoteOn,
+  isAllChordsCompleted,
+} from '@/utils/earTrainingChordVoicingEngine';
+
+const damage = {
+  perCorrectNote: 1,
+  good: 8,
+  great: 12,
+  perfect: 16,
+  miss: 3,
+  fail: 10,
+};
+
+const buildChord = (overrides: Partial<EarTrainingPhraseChord> & { id: string }): EarTrainingPhraseChord => ({
+  id: overrides.id,
+  phrase_id: overrides.phrase_id ?? 'phrase-1',
+  order_index: overrides.order_index ?? 0,
+  chord_name: overrides.chord_name ?? 'Dm7',
+  voicing: overrides.voicing ?? ['D4', 'F4', 'A4', 'C5'],
+  voicing_staves: overrides.voicing_staves ?? [1, 1, 1, 1],
+  start_time_sec: overrides.start_time_sec ?? 0,
+  end_time_sec: overrides.end_time_sec ?? 2,
+});
+
+const buildPhrase = (chords: EarTrainingPhraseChord[]): EarTrainingPhrase => ({
+  id: 'phrase-1',
+  stage_id: 'stage-1',
+  order_index: 0,
+  audio_url: 'https://example.com/phrase.mp3',
+  loop_duration_sec: 8,
+  audio_duration_sec: 48,
+  note_count: 0,
+  chords,
+});
+
+describe('earTrainingChordVoicingEngine', () => {
+  it('voicing からピッチクラス集合を生成する（重複除去）', () => {
+    const chord = buildChord({ id: 'c1', voicing: ['D4', 'D5', 'F4', 'A4', 'C5'] });
+    const pcs = getVoicingPitchClasses(chord);
+    expect(pcs.sort()).toEqual([0, 2, 5, 9]);
+  });
+
+  it('オクターブ違いを許容して順不同で完成する', () => {
+    const chord = buildChord({ id: 'c1' }); // D F A C
+    const phrase = buildPhrase([chord]);
+    let attempt = createChordVoicingAttempt(phrase);
+
+    const results: ReturnType<typeof handleChordVoicingNoteOn>[] = [];
+    [69, 65, 60, 50].forEach(note => {
+      const result = handleChordVoicingNoteOn(attempt, chord, note, damage);
+      attempt = result.attempt;
+      results.push(result);
+    });
+
+    expect(results[0].chordJustCompleted).toBe(false);
+    expect(results[3].chordJustCompleted).toBe(true);
+    expect(results[3].rootNoteName).toBe('D');
+    expect(results[3].enemyDamage).toBe(damage.perCorrectNote);
+    expect(attempt.completedChordIds.has('c1')).toBe(true);
+  });
+
+  it('構成音外のミスタッチは5回まで加算され、6回目以降は加算しない', () => {
+    const chord = buildChord({ id: 'c1' });
+    const phrase = buildPhrase([chord]);
+    let attempt = createChordVoicingAttempt(phrase);
+
+    for (let index = 0; index < 7; index += 1) {
+      const result = handleChordVoicingNoteOn(attempt, chord, 61, damage);
+      attempt = result.attempt;
+      expect(result.evaluationMissAdded).toBe(index < 5);
+      expect(result.playerDamage).toBe(index < 5 ? damage.miss : 0);
+    }
+    expect(countChordVoicingMisses(attempt)).toBe(5);
+  });
+
+  it('完成済みコードに対する追加入力は無視される', () => {
+    const chord = buildChord({ id: 'c1' });
+    const phrase = buildPhrase([chord]);
+    let attempt = createChordVoicingAttempt(phrase);
+    [50, 53, 57, 60].forEach(note => {
+      attempt = handleChordVoicingNoteOn(attempt, chord, note, damage).attempt;
+    });
+    expect(attempt.completedChordIds.has('c1')).toBe(true);
+
+    const extra = handleChordVoicingNoteOn(attempt, chord, 50, damage);
+    expect(extra.attempt).toBe(attempt);
+    expect(extra.chordJustCompleted).toBe(false);
+    expect(extra.rootNoteName).toBe(null);
+  });
+
+  it('ウィンドウ末尾で未完成だと Fail ダメージを 1 回だけ加算する', () => {
+    const chord = buildChord({ id: 'c1' });
+    const phrase = buildPhrase([chord]);
+    const attempt = createChordVoicingAttempt(phrase);
+    const first = advanceChordVoicingTick(attempt, chord, damage);
+    expect(first.failAdded).toBe(true);
+    expect(first.playerDamage).toBe(damage.fail);
+
+    const second = advanceChordVoicingTick(first.attempt, chord, damage);
+    expect(second.failAdded).toBe(false);
+    expect(second.playerDamage).toBe(0);
+  });
+
+  it('完成済みコードはウィンドウ末尾で Fail を発生させない', () => {
+    const chord = buildChord({ id: 'c1' });
+    const phrase = buildPhrase([chord]);
+    let attempt = createChordVoicingAttempt(phrase);
+    [50, 53, 57, 60].forEach(note => {
+      attempt = handleChordVoicingNoteOn(attempt, chord, note, damage).attempt;
+    });
+    const tick = advanceChordVoicingTick(attempt, chord, damage);
+    expect(tick.failAdded).toBe(false);
+    expect(tick.playerDamage).toBe(0);
+  });
+
+  it('全コード完成検知 isAllChordsCompleted', () => {
+    const c1 = buildChord({ id: 'c1', chord_name: 'Dm7' });
+    const c2 = buildChord({ id: 'c2', chord_name: 'G7', voicing: ['G3', 'B3', 'D4', 'F4'], voicing_staves: [2, 2, 1, 1] });
+    const phrase = buildPhrase([c1, c2]);
+    let attempt = createChordVoicingAttempt(phrase);
+    expect(isAllChordsCompleted(phrase, attempt)).toBe(false);
+
+    [62, 65, 69, 60].forEach(note => {
+      attempt = handleChordVoicingNoteOn(attempt, c1, note, damage).attempt;
+    });
+    expect(isAllChordsCompleted(phrase, attempt)).toBe(false);
+
+    [55, 59, 62, 65].forEach(note => {
+      attempt = handleChordVoicingNoteOn(attempt, c2, note, damage).attempt;
+    });
+    expect(isAllChordsCompleted(phrase, attempt)).toBe(true);
+  });
+
+  it('acknowledgeChordAward は同一コードに対して冪等', () => {
+    const phrase = buildPhrase([buildChord({ id: 'c1' })]);
+    const attempt = createChordVoicingAttempt(phrase);
+    const first = acknowledgeChordAward(attempt, 'c1');
+    expect(first.awardedChordIds.has('c1')).toBe(true);
+    const second = acknowledgeChordAward(first, 'c1');
+    expect(second).toBe(first);
+  });
+});

@@ -59,6 +59,8 @@ export interface EarTrainingBattleSnapshot {
   phraseSlots: string[];
   revealedNotes: string[];
   currentNoteIndex: number;
+  slotKind: 'noteName' | 'circle';
+  chordCompleted: boolean[];
   countInValue: number;
   lastRank: EarTrainingRank | null;
   showLobbyControls: boolean;

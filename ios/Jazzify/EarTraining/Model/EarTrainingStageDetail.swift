@@ -2,6 +2,11 @@ import Foundation
 
 /// 耳コピバトルのステージ詳細データ。Web 版 `EarTrainingStage` ([src/types/index.ts L726-755]) を移植。
 /// `Lesson.swift` の軽量 `EarTrainingStage` (レッスン一覧表示用) と区別するため、`Detail` 接尾辞を付ける。
+enum EarTrainingMode: String, Codable, Sendable {
+    case phrase
+    case chordVoicing = "chord_voicing"
+}
+
 struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let id: UUID
     let slug: String
@@ -28,10 +33,13 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let greatMaxMisses: Int
     let backgroundTheme: String?
     let isActive: Bool?
+    let mode: EarTrainingMode?
     let phrases: [EarTrainingPhraseDetail]?
 
+    var resolvedMode: EarTrainingMode { mode ?? .phrase }
+
     enum CodingKeys: String, CodingKey {
-        case id, slug, title, description, bpm, phrases
+        case id, slug, title, description, bpm, mode, phrases
         case titleEn = "title_en"
         case descriptionEn = "description_en"
         case beatsPerMeasure = "beats_per_measure"
@@ -195,6 +203,8 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
     let durationBeats: Double?
     let startTimeSec: Double?
     let endTimeSec: Double?
+    let voicing: [String]?
+    let voicingStaves: [Int]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -206,6 +216,8 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
         case durationBeats = "duration_beats"
         case startTimeSec = "start_time_sec"
         case endTimeSec = "end_time_sec"
+        case voicing
+        case voicingStaves = "voicing_staves"
     }
 }
 

@@ -16,10 +16,18 @@ struct EarTrainingGameView: View {
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
     @State private var isLoading: Bool = true
+    @State private var resolvedMode: EarTrainingMode?
 
     var body: some View {
         ZStack {
-            if let controller = controller, let audio = audio {
+            if resolvedMode == .chordVoicing {
+                EarTrainingChordVoicingGameView(
+                    stageId: stageId,
+                    lessonContext: lessonContext,
+                    locale: locale,
+                    onClose: onClose
+                )
+            } else if let controller = controller, let audio = audio {
                 EarTrainingGameContent(
                     controller: controller,
                     audio: audio,
@@ -83,6 +91,12 @@ struct EarTrainingGameView: View {
 
         do {
             let stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
+            if stageDetail.resolvedMode == .chordVoicing {
+                self.resolvedMode = .chordVoicing
+                self.isLoading = false
+                return
+            }
+            self.resolvedMode = .phrase
             let phrases = stageDetail.phrases ?? []
             guard !phrases.isEmpty else {
                 loadError = locale == .ja

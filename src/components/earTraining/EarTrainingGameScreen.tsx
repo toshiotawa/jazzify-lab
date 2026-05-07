@@ -955,6 +955,8 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     phraseSlots: currentNotes.map(note => getDisplayNoteName(note)),
     revealedNotes,
     currentNoteIndex,
+    slotKind: 'noteName',
+    chordCompleted: [],
     countInValue,
     lastRank,
     showLobbyControls,

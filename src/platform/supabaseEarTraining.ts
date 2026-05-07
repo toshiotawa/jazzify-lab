@@ -34,6 +34,7 @@ export interface EarTrainingPhraseImportPayload extends Omit<EarTrainingPhrasePa
 
 const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
   ...stage,
+  mode: stage.mode === 'chord_voicing' ? 'chord_voicing' : 'phrase',
   phrases: (stage.phrases ?? [])
     .map(phrase => ({
       ...phrase,

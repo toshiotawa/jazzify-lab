@@ -837,12 +837,49 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const totalWidth = visibleSlots.length * slotSize + (visibleSlots.length - 1) * gap;
     const startX = Math.max(16, (width - totalWidth) / 2);
     const y = height - getPianoHeight() - slotSize - 18;
+    const isCircleMode = snapshot.slotKind === 'circle';
 
     visibleSlots.forEach((_slot, visibleIndex) => {
       const index = firstVisibleIndex + visibleIndex;
+      const x = startX + visibleIndex * (slotSize + gap);
+      if (isCircleMode) {
+        const completed = Boolean(snapshot.chordCompleted[index]);
+        const current = index === snapshot.currentNoteIndex && snapshot.gameState === 'playingPhrase';
+        const bgColor = completed ? 0x10b981 : current ? 0x22d3ee : 0x020617;
+        const box = this.add.rectangle(
+          x,
+          y,
+          slotSize,
+          slotSize,
+          bgColor,
+          completed ? 0.32 : current ? 0.28 : 0.78,
+        ).setOrigin(0, 0);
+        box.setStrokeStyle(
+          current ? 3 : 1,
+          completed ? 0xa7f3d0 : current ? 0xa5f3fc : 0xffffff,
+          completed ? 0.9 : current ? 0.9 : 0.14,
+        );
+        const ring = this.add.circle(
+          x + slotSize / 2,
+          y + slotSize / 2,
+          slotSize * 0.32,
+          completed ? 0x10b981 : 0x020617,
+          completed ? 0.95 : 0,
+        );
+        ring.setStrokeStyle(
+          completed ? 4 : 3,
+          completed ? 0xbbf7d0 : current ? 0xa5f3fc : 0x64748b,
+          completed ? 0.95 : 0.85,
+        );
+        this.phraseLayer?.add([box, ring]);
+        if (current && !completed) {
+          this.tweens.add({ targets: box, alpha: 0.92, yoyo: true, repeat: -1, duration: 360 });
+        }
+        return;
+      }
+
       const revealed = index < snapshot.revealedNotes.length;
       const current = index === snapshot.currentNoteIndex && snapshot.gameState === 'playingPhrase';
-      const x = startX + visibleIndex * (slotSize + gap);
       const bgColor = current ? 0x22d3ee : revealed ? 0x10b981 : 0x020617;
       const textColor = current ? '#ecfeff' : revealed ? '#d1fae5' : '#64748b';
       const box = this.add.rectangle(x, y, slotSize, slotSize, bgColor, current ? 0.38 : revealed ? 0.28 : 0.78).setOrigin(0, 0);

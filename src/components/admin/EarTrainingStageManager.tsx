@@ -23,10 +23,13 @@ import {
 import { uploadEarTrainingMusicXml, uploadEarTrainingPhraseAudio } from '@/platform/r2Storage';
 import { midiToPitchClass, noteNameToPitchClass } from '@/utils/earTrainingEngine';
 import {
+  buildEarTrainingChordVoicingDraftsFromMusicXml,
   buildEarTrainingPhraseDraftsFromMusicXml,
+  createEarTrainingChordVoicingMusicXmlPreview,
   createEarTrainingMusicXmlPreview,
   scaleEarTrainingPhraseChordTimings,
   validateEarTrainingImportFileCount,
+  type EarTrainingChordVoicingMusicXmlPreview,
   type EarTrainingMusicXmlPreview,
 } from '@/utils/earTrainingMusicXmlImport';
 
@@ -63,6 +66,7 @@ const defaultStageForm: StageForm = {
   great_max_misses: 2,
   background_theme: 'blue_club',
   is_active: true,
+  mode: 'phrase',
 };
 
 const defaultPhraseForm: PhraseForm = {
@@ -107,6 +111,8 @@ const serializeChords = (chords: EarTrainingPhraseChord[] | undefined): string =
       chord.duration_beats ?? '',
       chord.start_time_sec ?? '',
       chord.end_time_sec ?? '',
+      (chord.voicing ?? []).join('|'),
+      (chord.voicing_staves ?? []).join('|'),
     ].join(','))
     .join('\n');
 
@@ -153,6 +159,7 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
   great_max_misses: stage.great_max_misses,
   background_theme: stage.background_theme,
   is_active: stage.is_active,
+  mode: stage.mode ?? 'phrase',
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -182,7 +189,16 @@ const parseChords = (text: string): Omit<EarTrainingPhraseChord, 'id' | 'phrase_
     .map(line => line.trim())
     .filter(Boolean)
     .map((line, index) => {
-      const [name, measure, beat, duration, start, end] = line.split(',').map(part => part.trim());
+      const [name, measure, beat, duration, start, end, voicing, voicingStaves] = line
+        .split(',')
+        .map(part => part.trim());
+      const voicingArray = voicing
+        ? voicing.split('|').map(value => value.trim()).filter(Boolean)
+        : [];
+      const voicingStavesArray = voicingStaves
+        ? voicingStaves.split('|').map(value => Number(value.trim())).filter(value => Number.isFinite(value))
+        : [];
+      const validVoicing = voicingArray.length > 0 && voicingArray.length === voicingStavesArray.length;
       return {
         order_index: index,
         chord_name: name || 'C',
@@ -191,6 +207,8 @@ const parseChords = (text: string): Omit<EarTrainingPhraseChord, 'id' | 'phrase_
         duration_beats: duration ? toNumber(duration, 4) : null,
         start_time_sec: start ? toNumber(start, 0) : null,
         end_time_sec: end ? toNumber(end, 0) : null,
+        voicing: validVoicing ? voicingArray : null,
+        voicing_staves: validVoicing ? voicingStavesArray : null,
       };
     });
 
@@ -240,7 +258,7 @@ const EarTrainingStageManager: React.FC = () => {
   const [importMusicXmlFile, setImportMusicXmlFile] = useState<File | null>(null);
   const [importMusicXmlText, setImportMusicXmlText] = useState('');
   const [importAudioFiles, setImportAudioFiles] = useState<File[]>([]);
-  const [importPreview, setImportPreview] = useState<EarTrainingMusicXmlPreview | null>(null);
+  const [importPreview, setImportPreview] = useState<EarTrainingMusicXmlPreview | EarTrainingChordVoicingMusicXmlPreview | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
   const selectedStage = useMemo(
@@ -296,13 +314,16 @@ const EarTrainingStageManager: React.FC = () => {
     }
 
     try {
-      setImportPreview(createEarTrainingMusicXmlPreview(importMusicXmlText, importPhraseMeasures));
+      const preview = stageForm.mode === 'chord_voicing'
+        ? createEarTrainingChordVoicingMusicXmlPreview(importMusicXmlText, importPhraseMeasures)
+        : createEarTrainingMusicXmlPreview(importMusicXmlText, importPhraseMeasures);
+      setImportPreview(preview);
       setImportError(null);
     } catch (error) {
       setImportPreview(null);
       setImportError(error instanceof Error ? error.message : 'MusicXMLの解析に失敗しました');
     }
-  }, [importMusicXmlText, importPhraseMeasures]);
+  }, [importMusicXmlText, importPhraseMeasures, stageForm.mode]);
 
   const selectStage = (stage: EarTrainingStage) => {
     setSelectedStageId(stage.id);
@@ -468,45 +489,89 @@ const EarTrainingStageManager: React.FC = () => {
 
     setImporting(true);
     try {
-      const phraseDrafts = buildEarTrainingPhraseDraftsFromMusicXml(importMusicXmlText, {
-        phraseMeasures: importPhraseMeasures,
-        bpm: selectedStage.bpm,
-        beatsPerMeasure: selectedStage.beats_per_measure,
-      });
       const musicXmlUrl = await uploadEarTrainingMusicXml(importMusicXmlFile, selectedStage.id);
       const phrasePayloads: EarTrainingPhraseImportPayload[] = [];
 
-      for (const draft of phraseDrafts) {
-        const audioFile = importAudioFiles[draft.orderIndex];
-        const audioUrl = await uploadEarTrainingPhraseAudio(audioFile, selectedStage.id, draft.orderIndex);
-        const audioDurationSec = await getAudioDurationSec(audioFile);
-        const phraseMeasureCount = draft.endMeasure - draft.startMeasure + 1;
-        const fallbackLoopDurationSec = (60 / selectedStage.bpm) * selectedStage.beats_per_measure * phraseMeasureCount;
-        const resolvedAudioDurationSec = audioDurationSec > 0
-          ? audioDurationSec
-          : fallbackLoopDurationSec * selectedStage.max_loops_per_phrase;
-        const loopDurationSec = audioDurationSec > 0
-          ? audioDurationSec / selectedStage.max_loops_per_phrase
-          : fallbackLoopDurationSec;
-        const normalizedChords = scaleEarTrainingPhraseChordTimings(
-          draft.chords,
-          loopDurationSec,
-          fallbackLoopDurationSec,
-        );
-
-        phrasePayloads.push({
-          order_index: draft.orderIndex,
-          title: `Phrase ${draft.orderIndex + 1}`,
-          title_en: null,
-          music_xml_url: musicXmlUrl,
-          audio_url: audioUrl,
-          loop_duration_sec: roundSeconds(loopDurationSec),
-          audio_duration_sec: roundSeconds(resolvedAudioDurationSec),
-          note_count: draft.noteCount,
-          notes: draft.notes,
-          chords: normalizedChords,
-          demoLoopNumbers: [1, 3, 5],
+      if (selectedStage.mode === 'chord_voicing') {
+        const phraseDrafts = buildEarTrainingChordVoicingDraftsFromMusicXml(importMusicXmlText, {
+          phraseMeasures: importPhraseMeasures,
+          bpm: selectedStage.bpm,
+          beatsPerMeasure: selectedStage.beats_per_measure,
         });
+        for (const draft of phraseDrafts) {
+          const audioFile = importAudioFiles[draft.orderIndex];
+          const audioUrl = await uploadEarTrainingPhraseAudio(audioFile, selectedStage.id, draft.orderIndex);
+          const audioDurationSec = await getAudioDurationSec(audioFile);
+          const phraseMeasureCount = draft.endMeasure - draft.startMeasure + 1;
+          const fallbackLoopDurationSec = (60 / selectedStage.bpm) * selectedStage.beats_per_measure * phraseMeasureCount;
+          const resolvedAudioDurationSec = audioDurationSec > 0
+            ? audioDurationSec
+            : fallbackLoopDurationSec * selectedStage.max_loops_per_phrase;
+          const loopDurationSec = audioDurationSec > 0
+            ? audioDurationSec / selectedStage.max_loops_per_phrase
+            : fallbackLoopDurationSec;
+          const normalizedChords = scaleEarTrainingPhraseChordTimings(
+            draft.chords,
+            loopDurationSec,
+            fallbackLoopDurationSec,
+          );
+
+          phrasePayloads.push({
+            order_index: draft.orderIndex,
+            title: `Phrase ${draft.orderIndex + 1}`,
+            title_en: null,
+            music_xml_url: musicXmlUrl,
+            audio_url: audioUrl,
+            loop_duration_sec: roundSeconds(loopDurationSec),
+            audio_duration_sec: roundSeconds(resolvedAudioDurationSec),
+            note_count: 0,
+            notes: [],
+            chords: normalizedChords.map((chord, index) => ({
+              ...chord,
+              voicing: draft.chords[index].voicing,
+              voicing_staves: draft.chords[index].voicing_staves,
+            })),
+            demoLoopNumbers: [1, 3, 5],
+          });
+        }
+      } else {
+        const phraseDrafts = buildEarTrainingPhraseDraftsFromMusicXml(importMusicXmlText, {
+          phraseMeasures: importPhraseMeasures,
+          bpm: selectedStage.bpm,
+          beatsPerMeasure: selectedStage.beats_per_measure,
+        });
+        for (const draft of phraseDrafts) {
+          const audioFile = importAudioFiles[draft.orderIndex];
+          const audioUrl = await uploadEarTrainingPhraseAudio(audioFile, selectedStage.id, draft.orderIndex);
+          const audioDurationSec = await getAudioDurationSec(audioFile);
+          const phraseMeasureCount = draft.endMeasure - draft.startMeasure + 1;
+          const fallbackLoopDurationSec = (60 / selectedStage.bpm) * selectedStage.beats_per_measure * phraseMeasureCount;
+          const resolvedAudioDurationSec = audioDurationSec > 0
+            ? audioDurationSec
+            : fallbackLoopDurationSec * selectedStage.max_loops_per_phrase;
+          const loopDurationSec = audioDurationSec > 0
+            ? audioDurationSec / selectedStage.max_loops_per_phrase
+            : fallbackLoopDurationSec;
+          const normalizedChords = scaleEarTrainingPhraseChordTimings(
+            draft.chords,
+            loopDurationSec,
+            fallbackLoopDurationSec,
+          );
+
+          phrasePayloads.push({
+            order_index: draft.orderIndex,
+            title: `Phrase ${draft.orderIndex + 1}`,
+            title_en: null,
+            music_xml_url: musicXmlUrl,
+            audio_url: audioUrl,
+            loop_duration_sec: roundSeconds(loopDurationSec),
+            audio_duration_sec: roundSeconds(resolvedAudioDurationSec),
+            note_count: draft.noteCount,
+            notes: draft.notes,
+            chords: normalizedChords,
+            demoLoopNumbers: [1, 3, 5],
+          });
+        }
       }
 
       await replaceEarTrainingStagePhrases(selectedStage.id, phrasePayloads);
@@ -569,6 +634,17 @@ const EarTrainingStageManager: React.FC = () => {
               <Input label="タイトル" value={stageForm.title} onChange={value => setStageForm(prev => ({ ...prev, title: value }))} />
               <Input label="英語タイトル" value={stageForm.title_en ?? ''} onChange={value => setStageForm(prev => ({ ...prev, title_en: value }))} />
               <Input label="背景テーマ" value={stageForm.background_theme} onChange={value => setStageForm(prev => ({ ...prev, background_theme: value }))} />
+              <label className="block text-sm">
+                <span className="mb-1 block text-gray-300">モード</span>
+                <select
+                  className="select select-bordered select-sm w-full bg-slate-900"
+                  value={stageForm.mode}
+                  onChange={event => setStageForm(prev => ({ ...prev, mode: event.target.value === 'chord_voicing' ? 'chord_voicing' : 'phrase' }))}
+                >
+                  <option value="phrase">単音耳コピ (phrase)</option>
+                  <option value="chord_voicing">コード演奏バトル (chord_voicing)</option>
+                </select>
+              </label>
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />
               <NumberInput label="拍/小節" value={stageForm.beats_per_measure} onChange={value => setStageForm(prev => ({ ...prev, beats_per_measure: value }))} />
               <NumberInput label="拍子分母" value={stageForm.beat_type} onChange={value => setStageForm(prev => ({ ...prev, beat_type: value }))} />
@@ -697,6 +773,11 @@ const EarTrainingStageManager: React.FC = () => {
                         選択mp3: {importAudioFiles.length} / {importPreview.phraseCount}
                       </span>
                     </div>
+                    {selectedStage?.mode === 'chord_voicing' && 'hasMultipleStaves' in importPreview && !importPreview.hasMultipleStaves && (
+                      <div className="mt-2 rounded bg-yellow-900/40 px-2 py-1 text-xs text-yellow-200">
+                        この MusicXML には &lt;staff&gt; 情報が1種類のみです。全ノートをト音譜表として扱います。
+                      </div>
+                    )}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {importPreview.ranges.map(range => (
                         <span key={range.orderIndex} className="rounded bg-slate-700 px-2 py-1 text-xs text-gray-200">
@@ -766,7 +847,9 @@ const EarTrainingStageManager: React.FC = () => {
                   onChange={value => setPhraseForm(prev => ({ ...prev, notesText: value }))}
                 />
                 <TextArea
-                  label="コード: chord,measure,beat,duration,start,end"
+                  label={selectedStage?.mode === 'chord_voicing'
+                    ? 'コード: chord,measure,beat,duration,start,end,voicing(D4|F#4|A4|C5),staves(1|1|1|1)'
+                    : 'コード: chord,measure,beat,duration,start,end'}
                   rows={8}
                   value={phraseForm.chordsText}
                   onChange={value => setPhraseForm(prev => ({ ...prev, chordsText: value }))}

@@ -21,6 +21,7 @@ interface EarTrainingLessonContext {
 }
 
 const EarTrainingGameScreen = React.lazy(() => import('./EarTrainingGameScreen'));
+const EarTrainingChordVoicingScreen = React.lazy(() => import('./EarTrainingChordVoicingScreen'));
 
 const defaultClearConditions: ClearConditions = {
   count: 1,
@@ -199,6 +200,21 @@ const EarTrainingMain: React.FC = () => {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (stage.mode === 'chord_voicing') {
+    return (
+      <React.Suspense fallback={<LoadingScreen message={mainCopy.preparing} />}>
+        <EarTrainingChordVoicingScreen
+          stage={stage}
+          enemy={enemy}
+          lessonContext={lessonContext}
+          initialPracticeMode={initialPracticeMode}
+          onLessonStageClear={handleLessonStageClear}
+          onBack={handleBack}
+        />
+      </React.Suspense>
     );
   }
 

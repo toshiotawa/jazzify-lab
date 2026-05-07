@@ -1,0 +1,1088 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import EarTrainingSettingsModal from './EarTrainingSettingsModal';
+import EarTrainingPhaserGame from './EarTrainingPhaserGame';
+import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
+import ChordVoicingStaff from './ChordVoicingStaff';
+import type {
+  ClearConditions,
+  EarTrainingChordVoicingAttempt,
+  EarTrainingGameState,
+  EarTrainingPhrase,
+  EarTrainingPhraseChord,
+  EarTrainingRank,
+  EarTrainingStage,
+} from '@/types';
+import type { SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import type {
+  EarTrainingBattleEffectCommand,
+  EarTrainingBattleEffectKind,
+  EarTrainingBattleSceneHandle,
+  EarTrainingBattleSnapshot,
+} from '@/game/earTraining/types';
+import { useGameStore } from '@/stores/gameStore';
+import { cn } from '@/utils/cn';
+import {
+  MIDIController,
+  initializeAudioSystem,
+  markAudioUserInteraction,
+  playNote,
+  stopNote,
+  updateGlobalVolume,
+} from '@/utils/MidiController';
+import {
+  calculateEarTrainingRank,
+  getCompletionDamage,
+  getNextMeasureDelaySec,
+  getNextPhraseIndex,
+  mapEarTrainingRankToLessonRank,
+  resolveEarTrainingOutcome,
+} from '@/utils/earTrainingEngine';
+import {
+  acknowledgeChordAward,
+  advanceChordVoicingTick,
+  createChordVoicingAttempt,
+  getVoicingPitchClasses,
+  handleChordVoicingNoteOn,
+  isAllChordsCompleted,
+} from '@/utils/earTrainingChordVoicingEngine';
+import {
+  getEarTrainingChordDisplayAtTime,
+} from '@/utils/earTrainingChordTimeline';
+import {
+  formatEarTrainingCountInDisplay,
+  formatEarTrainingPhraseIntroLine,
+  getEarTrainingBattleHudLabels,
+  getEarTrainingGameCopy,
+} from '@/utils/earTrainingUiCopy';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import {
+  DEFAULT_AVATAR_URL,
+  EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
+  EAR_TRAINING_ENEMY_AVATAR_URLS,
+  EAR_TRAINING_PLAYER_AVATAR_URL,
+} from '@/utils/constants';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
+
+interface EarTrainingLessonContext {
+  lessonId: string;
+  lessonSongId: string;
+  clearConditions: ClearConditions;
+}
+
+interface EarTrainingChordVoicingScreenProps {
+  stage: EarTrainingStage;
+  enemy: SurvivalCharacterRow | null;
+  lessonContext: EarTrainingLessonContext | null;
+  initialPracticeMode: boolean;
+  onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
+  onBack: () => void;
+}
+
+type PendingImpactHandler = () => void;
+
+const INPUT_COOLDOWN_MS = 20;
+const AUDIO_END_EPSILON_SEC = 0.03;
+const BATTLE_EFFECT_DURATION_MS = 720;
+const ATTACK_GAUGE_TARGET_LOOPS = 6;
+const NO_DAMAGE_CONFIG = {
+  perCorrectNote: 0,
+  good: 0,
+  great: 0,
+  perfect: 0,
+  miss: 0,
+  fail: 0,
+};
+
+const formatTime = (seconds: number): string => {
+  const safe = Math.max(0, Math.ceil(seconds));
+  const minutes = Math.floor(safe / 60);
+  const rest = safe % 60;
+  return `${minutes}:${rest.toString().padStart(2, '0')}`;
+};
+
+const clampRatio = (value: number): number => Math.min(1, Math.max(0, value));
+
+const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps> = ({
+  stage,
+  enemy,
+  lessonContext,
+  initialPracticeMode,
+  onLessonStageClear,
+  onBack,
+}) => {
+  const { settings, updateSettings } = useGameStore();
+  const { profile } = useAuthStore(state => ({ profile: state.profile }));
+  const geoCountry = useGeoStore(state => state.country);
+  const audienceContext = useMemo(
+    () => ({
+      rank: profile?.rank,
+      country: profile?.country ?? geoCountry,
+      preferredLocale: profile?.preferred_locale,
+    }),
+    [profile?.rank, profile?.country, profile?.preferred_locale, geoCountry],
+  );
+  const isEnglishCopy = shouldUseEnglishCopy(audienceContext);
+  const copy = useMemo(() => getEarTrainingGameCopy(isEnglishCopy), [isEnglishCopy]);
+  const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(isEnglishCopy), [isEnglishCopy]);
+
+  const [statusText, setStatusText] = useState(copy.idlePrompt);
+  const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
+  const phrases = useMemo(
+    () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
+    [stage.phrases],
+  );
+  const damageConfig = useMemo(
+    () => ({
+      perCorrectNote: stage.per_correct_note_damage,
+      good: stage.good_completion_damage,
+      great: stage.great_completion_damage,
+      perfect: stage.perfect_completion_damage,
+      miss: stage.miss_damage,
+      fail: stage.fail_damage,
+    }),
+    [stage],
+  );
+  const activeDamageConfig = useMemo(
+    () => (practiceMode ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceMode],
+  );
+  const rankRule = useMemo(
+    () => ({
+      perfectMaxMisses: stage.perfect_max_misses,
+      greatMaxMisses: stage.great_max_misses,
+    }),
+    [stage.great_max_misses, stage.perfect_max_misses],
+  );
+
+  const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [phraseRunId, setPhraseRunId] = useState(0);
+  const [attempt, setAttempt] = useState<EarTrainingChordVoicingAttempt | null>(null);
+  const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
+  const [playerHp, setPlayerHp] = useState(stage.player_hp);
+  const [timeRemaining, setTimeRemaining] = useState(stage.time_limit_sec);
+  const [countInValue, setCountInValue] = useState(stage.count_in_beats);
+  const [activeLoop, setActiveLoop] = useState(1);
+  const [activeChord, setActiveChord] = useState<EarTrainingPhraseChord | null>(null);
+  const [lastRank, setLastRank] = useState<EarTrainingRank | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMidiConnected, setIsMidiConnected] = useState(false);
+  const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
+  const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
+  const [progressSaved, setProgressSaved] = useState(false);
+  const [enemyAttackGaugePercent, setEnemyAttackGaugePercent] = useState(0);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const midiControllerRef = useRef<MIDIController | null>(null);
+  const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
+  const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
+  const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
+  const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
+  const attemptRef = useRef<EarTrainingChordVoicingAttempt | null>(null);
+  const activeChordRef = useRef<EarTrainingPhraseChord | null>(null);
+  const previousChordIdRef = useRef<string | null>(null);
+  const gameStateRef = useRef<EarTrainingGameState>('idle');
+  const phraseIndexRef = useRef(0);
+  const enemyHpRef = useRef(stage.enemy_hp);
+  const playerHpRef = useRef(stage.player_hp);
+  const timeRemainingRef = useRef(stage.time_limit_sec);
+  const audioPrimeTokenRef = useRef(0);
+  const failTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const battleEffectIdRef = useRef(0);
+  const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
+  const lastInputAtRef = useRef(0);
+  const progressSaveStartedRef = useRef(false);
+  const allChordsCompletedAtRef = useRef(false);
+
+  const currentPhrase = phrases[phraseIndex];
+
+  useEffect(() => { attemptRef.current = attempt; }, [attempt]);
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { phraseIndexRef.current = phraseIndex; }, [phraseIndex]);
+  useEffect(() => { enemyHpRef.current = enemyHp; }, [enemyHp]);
+  useEffect(() => { playerHpRef.current = playerHp; }, [playerHp]);
+  useEffect(() => { timeRemainingRef.current = timeRemaining; }, [timeRemaining]);
+  useEffect(() => { activeChordRef.current = activeChord; }, [activeChord]);
+
+  useEffect(() => {
+    if (gameState === 'idle') {
+      setStatusText(copy.idlePrompt);
+    }
+  }, [copy.idlePrompt, gameState]);
+
+  useEffect(() => {
+    updateGlobalVolume(settings.midiVolume * settings.masterVolume);
+  }, [settings.masterVolume, settings.midiVolume]);
+
+  const clearFailTimer = useCallback(() => {
+    if (failTimerRef.current) {
+      clearTimeout(failTimerRef.current);
+      failTimerRef.current = null;
+    }
+  }, []);
+
+  const clearTransitionTimer = useCallback(() => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+    }
+  }, []);
+
+  const clearCountdownTimer = useCallback(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  }, []);
+
+  const clearTimeLimitTimer = useCallback(() => {
+    if (timeLimitTimerRef.current) {
+      clearInterval(timeLimitTimerRef.current);
+      timeLimitTimerRef.current = null;
+    }
+  }, []);
+
+  const clearBattleEffectTimers = useCallback(() => {
+    if (battleEffectClearTimerRef.current) {
+      clearTimeout(battleEffectClearTimerRef.current);
+      battleEffectClearTimerRef.current = null;
+    }
+  }, []);
+
+  const stopPhraseAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audioPrimeTokenRef.current += 1;
+    audio.muted = false;
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
+
+  const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
+    setFeedback(value);
+    setTimeout(() => setFeedback(null), 220);
+  }, []);
+
+  const triggerBattleEffect = useCallback((
+    kind: EarTrainingBattleEffectKind,
+    label?: string,
+    damage?: number,
+    phraseNoteCount?: number,
+  ): number => {
+    clearBattleEffectTimers();
+    battleEffectIdRef.current += 1;
+    const effectId = battleEffectIdRef.current;
+    setBattleEffectCommand({ id: effectId, kind, label, damage, phraseNoteCount });
+    battleEffectClearTimerRef.current = setTimeout(() => {
+      setBattleEffectCommand(current => (current?.id === effectId ? null : current));
+    }, BATTLE_EFFECT_DURATION_MS);
+    return effectId;
+  }, [clearBattleEffectTimers]);
+
+  const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
+    pendingImpactHandlersRef.current.set(effectId, handler);
+  }, []);
+
+  const handleBattleEffectImpact = useCallback((effectId: number) => {
+    const handler = pendingImpactHandlersRef.current.get(effectId);
+    if (!handler) {
+      return;
+    }
+    pendingImpactHandlersRef.current.delete(effectId);
+    handler();
+  }, []);
+
+  const finishStageClear = useCallback(async (rank: EarTrainingRank) => {
+    pendingImpactHandlersRef.current.clear();
+    clearFailTimer();
+    clearTransitionTimer();
+    clearTimeLimitTimer();
+    gameStateRef.current = 'stageClear';
+    stopPhraseAudio();
+    setLastRank(rank);
+    setGameState('stageClear');
+    setStatusText(copy.stageClear);
+    triggerFeedback('clear');
+
+    if (practiceMode || !lessonContext || progressSaveStartedRef.current) {
+      return;
+    }
+    progressSaveStartedRef.current = true;
+    const lessonRank = mapEarTrainingRankToLessonRank(rank);
+    await onLessonStageClear(lessonRank);
+    setProgressSaved(true);
+  }, [
+    clearFailTimer,
+    clearTimeLimitTimer,
+    clearTransitionTimer,
+    copy,
+    lessonContext,
+    onLessonStageClear,
+    practiceMode,
+    stopPhraseAudio,
+    triggerFeedback,
+  ]);
+
+  const finishGameOver = useCallback((message: string) => {
+    pendingImpactHandlersRef.current.clear();
+    clearFailTimer();
+    clearTransitionTimer();
+    clearTimeLimitTimer();
+    gameStateRef.current = 'gameOver';
+    stopPhraseAudio();
+    setGameState('gameOver');
+    setStatusText(message);
+  }, [clearFailTimer, clearTimeLimitTimer, clearTransitionTimer, stopPhraseAudio]);
+
+  const failCurrentPhrase = useCallback(() => {
+    const currentAttempt = attemptRef.current;
+    if (!currentAttempt || gameStateRef.current !== 'playingPhrase') {
+      return;
+    }
+    gameStateRef.current = 'phraseFail';
+    setLastRank('Fail');
+    setEnemyAttackGaugePercent(1);
+    triggerFeedback('miss');
+    const effectId = triggerBattleEffect('fail', 'Fail', activeDamageConfig.fail);
+    registerBattleEffectImpact(effectId, () => {
+      const nextPlayerHp = Math.max(0, playerHpRef.current - activeDamageConfig.fail);
+      setPlayerHp(nextPlayerHp);
+      playerHpRef.current = nextPlayerHp;
+
+      const outcome = resolveEarTrainingOutcome({
+        enemyHp: enemyHpRef.current,
+        playerHp: nextPlayerHp,
+        timeRemainingSec: timeRemainingRef.current,
+        phraseCompleted: false,
+        phraseFailed: true,
+      });
+      if (outcome === 'gameOver') {
+        finishGameOver(copy.gameOver);
+        return;
+      }
+      setGameState('phraseFail');
+      setStatusText(copy.failAdvance);
+      clearTransitionTimer();
+      transitionTimerRef.current = setTimeout(() => {
+        const wrappedIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+        startPhraseRef.current(wrappedIndex);
+      }, 900);
+    });
+  }, [
+    activeDamageConfig.fail,
+    clearTransitionTimer,
+    copy,
+    finishGameOver,
+    phrases.length,
+    registerBattleEffectImpact,
+    triggerBattleEffect,
+    triggerFeedback,
+  ]);
+
+  const startPhrase = useCallback((nextPhraseIndex: number) => {
+    const phrase = phrases[nextPhraseIndex];
+    if (!phrase) {
+      finishGameOver(copy.noPhrases);
+      return;
+    }
+    clearFailTimer();
+    clearTransitionTimer();
+    setPhraseIndex(nextPhraseIndex);
+    phraseIndexRef.current = nextPhraseIndex;
+    setPhraseRunId(current => current + 1);
+    const nextAttempt = createChordVoicingAttempt(phrase);
+    setAttempt(nextAttempt);
+    attemptRef.current = nextAttempt;
+    setLastRank(null);
+    setActiveLoop(1);
+    setEnemyAttackGaugePercent(0);
+    allChordsCompletedAtRef.current = false;
+    previousChordIdRef.current = null;
+    const initialChord = getEarTrainingChordDisplayAtTime(phrase, 0, stage.bpm, nextAttempt.completedChordIds);
+    setActiveChord(initialChord);
+    activeChordRef.current = initialChord;
+    setStatusText(copy.phraseLabel(nextPhraseIndex + 1));
+    gameStateRef.current = 'playingPhrase';
+    setGameState('playingPhrase');
+
+    const audio = audioRef.current;
+    if (audio) {
+      audioPrimeTokenRef.current += 1;
+      audio.pause();
+      audio.src = phrase.audio_url;
+      audio.currentTime = 0;
+      audio.muted = false;
+      audio.volume = settings.musicVolume * settings.masterVolume;
+      void audio.play().catch(() => {
+        setStatusText(copy.audioFailed);
+      });
+    }
+  }, [
+    clearFailTimer,
+    clearTransitionTimer,
+    copy,
+    finishGameOver,
+    phrases,
+    settings.masterVolume,
+    settings.musicVolume,
+    stage.bpm,
+  ]);
+
+  useEffect(() => {
+    startPhraseRef.current = startPhrase;
+  }, [startPhrase]);
+
+  const startTimeLimit = useCallback(() => {
+    clearTimeLimitTimer();
+    if (practiceMode) {
+      return;
+    }
+    timeLimitTimerRef.current = setInterval(() => {
+      setTimeRemaining(prev => {
+        const next = Math.max(0, prev - 1);
+        if (next <= 0) {
+          finishGameOver(copy.timeOver);
+        }
+        return next;
+      });
+    }, 1000);
+  }, [clearTimeLimitTimer, copy, finishGameOver, practiceMode]);
+
+  const primePhraseAudio = useCallback((phrase: EarTrainingPhrase | undefined) => {
+    const audio = audioRef.current;
+    if (!audio || !phrase) {
+      return;
+    }
+    audioPrimeTokenRef.current += 1;
+    const token = audioPrimeTokenRef.current;
+    audio.pause();
+    audio.src = phrase.audio_url;
+    audio.currentTime = 0;
+    audio.muted = true;
+    audio.volume = 0;
+    void audio.play()
+      .then(() => {
+        if (audioPrimeTokenRef.current !== token || gameStateRef.current === 'playingPhrase') {
+          return;
+        }
+        audio.pause();
+        audio.currentTime = 0;
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (audioPrimeTokenRef.current !== token || gameStateRef.current === 'playingPhrase') {
+          return;
+        }
+        audio.muted = false;
+        audio.volume = settings.musicVolume * settings.masterVolume;
+      });
+  }, [settings.masterVolume, settings.musicVolume]);
+
+  const startCountIn = useCallback(() => {
+    if (phrases.length === 0) {
+      finishGameOver(copy.noPhrases);
+      return;
+    }
+    markAudioUserInteraction();
+    void initializeAudioSystem().catch(() => undefined);
+    primePhraseAudio(phrases[0]);
+    progressSaveStartedRef.current = false;
+    setProgressSaved(false);
+    setEnemyHp(stage.enemy_hp);
+    setPlayerHp(stage.player_hp);
+    setTimeRemaining(stage.time_limit_sec);
+    setPhraseIndex(0);
+    setPhraseRunId(0);
+    setCountInValue(stage.count_in_beats);
+    setBattleEffectCommand(null);
+    pendingImpactHandlersRef.current.clear();
+    setEnemyAttackGaugePercent(0);
+    gameStateRef.current = 'countIn';
+    setGameState('countIn');
+    setStatusText(copy.countIn);
+    clearCountdownTimer();
+    clearBattleEffectTimers();
+    clearFailTimer();
+    clearTransitionTimer();
+    clearTimeLimitTimer();
+    stopPhraseAudio();
+
+    let remaining = stage.count_in_beats;
+    countdownTimerRef.current = setInterval(() => {
+      remaining -= 1;
+      setCountInValue(Math.max(remaining, 0));
+      if (remaining <= 0) {
+        clearCountdownTimer();
+        startTimeLimit();
+        startPhrase(0);
+      }
+    }, Math.max(100, (60 / stage.bpm) * 1000));
+  }, [
+    clearCountdownTimer,
+    clearBattleEffectTimers,
+    clearFailTimer,
+    clearTimeLimitTimer,
+    clearTransitionTimer,
+    copy,
+    finishGameOver,
+    phrases.length,
+    primePhraseAudio,
+    stage.bpm,
+    stage.count_in_beats,
+    stage.enemy_hp,
+    stage.player_hp,
+    stage.time_limit_sec,
+    startPhrase,
+    startTimeLimit,
+    stopPhraseAudio,
+  ]);
+
+  const transitionToNextPhrase = useCallback((rank: EarTrainingRank, phrase: EarTrainingPhrase) => {
+    clearTransitionTimer();
+    const delaySec = getNextMeasureDelaySec(
+      audioRef.current?.currentTime ?? 0,
+      Number(phrase.loop_duration_sec),
+      stage.loop_measures,
+    );
+    gameStateRef.current = 'phraseComplete';
+    setGameState('phraseComplete');
+    setLastRank(rank);
+    setStatusText(copy.transitionNextBar(rank));
+    transitionTimerRef.current = setTimeout(() => {
+      transitionTimerRef.current = null;
+      stopPhraseAudio();
+      gameStateRef.current = 'transitionToNextPhrase';
+      setGameState('transitionToNextPhrase');
+      transitionTimerRef.current = setTimeout(() => {
+        transitionTimerRef.current = null;
+        const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+        startPhraseRef.current(nextIndex);
+      }, 420);
+    }, delaySec * 1000);
+  }, [clearTransitionTimer, copy, phrases.length, stage.loop_measures, stopPhraseAudio]);
+
+  const handlePhraseAllChordsCompleted = useCallback((
+    completedAttempt: EarTrainingChordVoicingAttempt,
+    phrase: EarTrainingPhrase,
+  ) => {
+    if (allChordsCompletedAtRef.current) {
+      return;
+    }
+    allChordsCompletedAtRef.current = true;
+    gameStateRef.current = 'phraseComplete';
+    clearFailTimer();
+    const totalChords = phrase.chords?.length ?? 0;
+    const totalVoicingNotes = (phrase.chords ?? []).reduce(
+      (sum, chord) => sum + (chord.voicing?.length ?? 0),
+      0,
+    );
+    const missMap = new Map<number, number>();
+    let chordSlotIndex = 0;
+    completedAttempt.missByChord.forEach(value => {
+      missMap.set(chordSlotIndex, value);
+      chordSlotIndex += 1;
+    });
+    const rank = calculateEarTrainingRank(missMap, rankRule);
+    const completionDamage = getCompletionDamage(rank, activeDamageConfig);
+    const effectId = triggerBattleEffect('complete', rank, completionDamage, totalVoicingNotes);
+    const willStageClear = enemyHpRef.current - completionDamage <= 0;
+    registerBattleEffectImpact(effectId, () => {
+      const nextEnemyHp = Math.max(0, enemyHpRef.current - completionDamage);
+      setEnemyHp(nextEnemyHp);
+      enemyHpRef.current = nextEnemyHp;
+      const outcome = resolveEarTrainingOutcome({
+        enemyHp: nextEnemyHp,
+        playerHp: playerHpRef.current,
+        timeRemainingSec: timeRemainingRef.current,
+        phraseCompleted: true,
+        phraseFailed: false,
+      });
+      if (outcome === 'stageClear') {
+        void finishStageClear(rank);
+      }
+    });
+    if (!willStageClear) {
+      transitionToNextPhrase(rank, phrase);
+    }
+    void totalChords;
+  }, [
+    activeDamageConfig,
+    clearFailTimer,
+    finishStageClear,
+    rankRule,
+    registerBattleEffectImpact,
+    transitionToNextPhrase,
+    triggerBattleEffect,
+  ]);
+
+  const handleNoteInput = useCallback((note: number) => {
+    const now = performance.now();
+    if (now - lastInputAtRef.current < INPUT_COOLDOWN_MS) {
+      return;
+    }
+    lastInputAtRef.current = now;
+    if (gameStateRef.current !== 'playingPhrase') {
+      return;
+    }
+    const phrase = phrases[phraseIndex];
+    const currentAttempt = attemptRef.current;
+    const currentChord = activeChordRef.current;
+    if (!phrase || !currentAttempt || !currentChord) {
+      return;
+    }
+    const result = handleChordVoicingNoteOn(currentAttempt, currentChord, note, activeDamageConfig);
+    if (result.attempt !== currentAttempt) {
+      setAttempt(result.attempt);
+      attemptRef.current = result.attempt;
+    }
+
+    if (result.evaluationMissAdded) {
+      triggerFeedback('miss');
+      const missEffectId = triggerBattleEffect('miss', 'MISS', result.playerDamage);
+      setStatusText(copy.missEnemyAttack);
+      registerBattleEffectImpact(missEffectId, () => {
+        const nextPlayerHp = Math.max(0, playerHpRef.current - result.playerDamage);
+        setPlayerHp(nextPlayerHp);
+        playerHpRef.current = nextPlayerHp;
+        const outcome = resolveEarTrainingOutcome({
+          enemyHp: enemyHpRef.current,
+          playerHp: nextPlayerHp,
+          timeRemainingSec: timeRemainingRef.current,
+          phraseCompleted: false,
+          phraseFailed: false,
+        });
+        if (outcome === 'gameOver') {
+          finishGameOver(copy.gameOver);
+        }
+      });
+      return;
+    }
+
+    if (result.hitPitchClass !== null) {
+      triggerFeedback('correct');
+    }
+
+    if (!result.chordJustCompleted) {
+      return;
+    }
+
+    const acknowledgedAttempt = acknowledgeChordAward(result.attempt, currentChord.id);
+    setAttempt(acknowledgedAttempt);
+    attemptRef.current = acknowledgedAttempt;
+
+    if (result.rootNoteName) {
+      void FantasySoundManager.playRootNote(result.rootNoteName);
+    }
+
+    setStatusText(copy.chordCompleted(currentChord.chord_name));
+    const correctEffectId = triggerBattleEffect('correct', undefined, result.enemyDamage);
+    registerBattleEffectImpact(correctEffectId, () => {
+      const nextEnemyHp = Math.max(0, enemyHpRef.current - result.enemyDamage);
+      setEnemyHp(nextEnemyHp);
+      enemyHpRef.current = nextEnemyHp;
+      const outcome = resolveEarTrainingOutcome({
+        enemyHp: nextEnemyHp,
+        playerHp: playerHpRef.current,
+        timeRemainingSec: timeRemainingRef.current,
+        phraseCompleted: false,
+        phraseFailed: false,
+      });
+      if (outcome === 'stageClear') {
+        const missMap = new Map<number, number>();
+        let idx = 0;
+        acknowledgedAttempt.missByChord.forEach(value => {
+          missMap.set(idx, value);
+          idx += 1;
+        });
+        const rank = calculateEarTrainingRank(missMap, rankRule);
+        void finishStageClear(rank);
+      }
+    });
+
+    if (isAllChordsCompleted(phrase, acknowledgedAttempt)) {
+      handlePhraseAllChordsCompleted(acknowledgedAttempt, phrase);
+    }
+  }, [
+    activeDamageConfig,
+    copy,
+    finishGameOver,
+    finishStageClear,
+    handlePhraseAllChordsCompleted,
+    phraseIndex,
+    phrases,
+    rankRule,
+    registerBattleEffectImpact,
+    triggerBattleEffect,
+    triggerFeedback,
+  ]);
+
+  useEffect(() => {
+    handleNoteInputRef.current = handleNoteInput;
+  }, [handleNoteInput]);
+
+  useEffect(() => {
+    if (!midiControllerRef.current) {
+      midiControllerRef.current = new MIDIController({
+        onNoteOn: (note) => handleNoteInputRef.current(note),
+        onNoteOff: () => undefined,
+        onConnectionChange: connected => setIsMidiConnected(connected),
+        playMidiSound: true,
+      });
+    }
+    const controller = midiControllerRef.current;
+    controller.setKeyHighlightCallback((note, active) => {
+      pianoOverlayRef.current?.highlightKey(note, active);
+    });
+    void controller.initialize().then(async () => {
+      if (settings.selectedMidiDevice) {
+        const connected = await controller.connectDevice(settings.selectedMidiDevice);
+        setIsMidiConnected(connected);
+      }
+    }).catch(() => setIsMidiConnected(false));
+    return () => {
+      void controller.destroy();
+      midiControllerRef.current = null;
+    };
+  }, [settings.selectedMidiDevice]);
+
+  const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
+    updateSettings({ selectedMidiDevice: deviceId });
+    if (!deviceId) {
+      midiControllerRef.current?.disconnect();
+      setIsMidiConnected(false);
+      return;
+    }
+    void midiControllerRef.current?.connectDevice(deviceId).then(connected => {
+      setIsMidiConnected(Boolean(connected));
+    });
+  }, [updateSettings]);
+
+  const handlePianoKeyDown = useCallback((midiNote: number) => {
+    markAudioUserInteraction();
+    void playNote(midiNote);
+    handleNoteInputRef.current(midiNote);
+  }, []);
+
+  const handlePianoKeyUp = useCallback((midiNote: number) => {
+    void stopNote(midiNote);
+  }, []);
+
+  const handleAudioTimeUpdate = useCallback(() => {
+    const audio = audioRef.current;
+    const phrase = phrases[phraseIndex];
+    if (!audio || !phrase) {
+      return;
+    }
+    const loop = Math.floor(audio.currentTime / Number(phrase.loop_duration_sec)) + 1;
+    setActiveLoop(Math.max(1, Math.min(stage.max_loops_per_phrase, loop)));
+
+    const loopTime = audio.currentTime % Number(phrase.loop_duration_sec);
+    const currentAttempt = attemptRef.current;
+    const completedSet = currentAttempt?.completedChordIds ?? new Set<string>();
+    const nextChord = getEarTrainingChordDisplayAtTime(phrase, loopTime, stage.bpm, completedSet);
+    const previousChord = activeChordRef.current;
+    if (nextChord?.id !== previousChord?.id) {
+      if (
+        previousChord
+        && currentAttempt
+        && !currentAttempt.completedChordIds.has(previousChord.id)
+        && !currentAttempt.failedChordIds.has(previousChord.id)
+      ) {
+        const tickResult = advanceChordVoicingTick(currentAttempt, previousChord, activeDamageConfig);
+        if (tickResult.failAdded) {
+          setAttempt(tickResult.attempt);
+          attemptRef.current = tickResult.attempt;
+          if (tickResult.playerDamage > 0) {
+            triggerFeedback('miss');
+            const failEffectId = triggerBattleEffect('miss', 'WINDOW', tickResult.playerDamage);
+            setStatusText(copy.chordWindowFail(previousChord.chord_name));
+            registerBattleEffectImpact(failEffectId, () => {
+              const nextPlayerHp = Math.max(0, playerHpRef.current - tickResult.playerDamage);
+              setPlayerHp(nextPlayerHp);
+              playerHpRef.current = nextPlayerHp;
+              const outcome = resolveEarTrainingOutcome({
+                enemyHp: enemyHpRef.current,
+                playerHp: nextPlayerHp,
+                timeRemainingSec: timeRemainingRef.current,
+                phraseCompleted: false,
+                phraseFailed: false,
+              });
+              if (outcome === 'gameOver') {
+                finishGameOver(copy.gameOver);
+              }
+            });
+          }
+        }
+      }
+      setActiveChord(nextChord);
+      activeChordRef.current = nextChord;
+      previousChordIdRef.current = previousChord?.id ?? null;
+    }
+
+    const loopDurationSec = Number(phrase.loop_duration_sec);
+    const gaugeDurationSec = loopDurationSec * ATTACK_GAUGE_TARGET_LOOPS;
+    setEnemyAttackGaugePercent(
+      Number.isFinite(gaugeDurationSec) && gaugeDurationSec > 0
+        ? clampRatio(audio.currentTime / gaugeDurationSec)
+        : 0,
+    );
+
+    const audioDurationSec = Number(phrase.audio_duration_sec);
+    if (audio.ended || (Number.isFinite(audioDurationSec) && audio.currentTime >= audioDurationSec - AUDIO_END_EPSILON_SEC)) {
+      failCurrentPhrase();
+    }
+  }, [
+    activeDamageConfig,
+    copy,
+    failCurrentPhrase,
+    finishGameOver,
+    phraseIndex,
+    phrases,
+    registerBattleEffectImpact,
+    stage.bpm,
+    stage.max_loops_per_phrase,
+    triggerBattleEffect,
+    triggerFeedback,
+  ]);
+
+  const handleAudioEnded = useCallback(() => {
+    failCurrentPhrase();
+  }, [failCurrentPhrase]);
+
+  useEffect(() => {
+    return () => {
+      pendingImpactHandlersRef.current.clear();
+      clearBattleEffectTimers();
+      clearCountdownTimer();
+      clearFailTimer();
+      clearTimeLimitTimer();
+      clearTransitionTimer();
+      stopPhraseAudio();
+    };
+  }, [
+    clearBattleEffectTimers,
+    clearCountdownTimer,
+    clearFailTimer,
+    clearTimeLimitTimer,
+    clearTransitionTimer,
+    stopPhraseAudio,
+  ]);
+
+  const totalChordCount = currentPhrase?.chords?.length ?? 0;
+  const chordCompletedFlags = useMemo(() => {
+    const chords = currentPhrase?.chords ?? [];
+    if (!attempt) {
+      return chords.map(() => false);
+    }
+    return chords.map(chord => attempt.completedChordIds.has(chord.id));
+  }, [attempt, currentPhrase]);
+  const chordCompletedIndex = chordCompletedFlags.findIndex(flag => !flag);
+  const currentChordSlotIndex = chordCompletedIndex >= 0
+    ? chordCompletedIndex
+    : Math.max(0, totalChordCount - 1);
+  const currentChordPressedPcs = useMemo(() => {
+    if (!attempt || !activeChord) {
+      return [] as number[];
+    }
+    const set = attempt.pressedByChord.get(activeChord.id);
+    return set ? Array.from(set) : [];
+  }, [activeChord, attempt]);
+
+  const enemyName = enemy?.name ?? 'Random Rival';
+  const enemyAvatar = useMemo(() => {
+    const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
+    let hash = 0;
+    for (let index = 0; index < source.length; index += 1) {
+      hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+    }
+    const avatarIndex = Math.abs(hash) % EAR_TRAINING_ENEMY_AVATAR_URLS.length;
+    return EAR_TRAINING_ENEMY_AVATAR_URLS[avatarIndex] ?? DEFAULT_AVATAR_URL;
+  }, [enemy?.id, enemy?.name, stage.id]);
+  const enemyAvatarFlipX = EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(enemyAvatar);
+  const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
+  const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
+  const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
+  const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';
+  const stageStatusText = gameState === 'countIn'
+    ? formatEarTrainingCountInDisplay(isEnglishCopy, countInValue)
+    : statusText;
+  const resultState = gameState === 'stageClear'
+    ? 'win'
+    : gameState === 'gameOver'
+      ? statusText === copy.timeOver ? 'timeOver' : 'lose'
+      : null;
+  const lessonProgressText = lessonContext && gameState === 'stageClear'
+    ? progressSaved ? copy.lessonSaved : copy.lessonSaving
+    : null;
+  const phraseIntroLine = formatEarTrainingPhraseIntroLine(isEnglishCopy, phraseIndex, phrases.length);
+  const resultRankLine = gameState === 'stageClear' && lastRank
+    ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
+    : null;
+
+  const correctPitchClasses = useMemo(() => {
+    if (!activeChord) {
+      return [] as number[];
+    }
+    return Array.from(new Set([
+      ...currentChordPressedPcs,
+      ...(attempt?.completedChordIds.has(activeChord.id) ? getVoicingPitchClasses(activeChord) : []),
+    ]));
+  }, [activeChord, attempt, currentChordPressedPcs]);
+
+  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
+    gameState,
+    resultState,
+    stageTitle: stage.title,
+    statusText: stageStatusText,
+    hudLabels,
+    phraseIntroLine,
+    resultRankLine,
+    timeLabel,
+    practiceMode,
+    isMidiConnected,
+    playerHp,
+    playerMaxHp: stage.player_hp,
+    enemyHp,
+    enemyMaxHp: stage.enemy_hp,
+    enemyName,
+    enemyAvatarUrl: enemyAvatar,
+    enemyAvatarFlipX,
+    playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
+    phraseIndex,
+    phraseRunId,
+    totalPhrases: phrases.length,
+    activeLoop,
+    maxLoops: stage.max_loops_per_phrase,
+    demoLoopActive: false,
+    enemyAttackGaugePercent,
+    chords: (currentPhrase?.chords ?? []).map(chord => ({
+      id: chord.id,
+      name: chord.chord_name,
+      active: activeChord?.id === chord.id,
+    })),
+    phraseSlots: chordCompletedFlags.map(() => '◯'),
+    revealedNotes: [],
+    currentNoteIndex: currentChordSlotIndex,
+    slotKind: 'circle',
+    chordCompleted: chordCompletedFlags,
+    countInValue,
+    lastRank,
+    showLobbyControls,
+    canChangePracticeMode,
+    startButtonLabel,
+    lessonProgressText,
+  }), [
+    activeChord?.id,
+    activeLoop,
+    canChangePracticeMode,
+    chordCompletedFlags,
+    countInValue,
+    currentChordSlotIndex,
+    currentPhrase?.chords,
+    enemyAvatar,
+    enemyAvatarFlipX,
+    enemyAttackGaugePercent,
+    enemyHp,
+    enemyName,
+    gameState,
+    hudLabels,
+    isMidiConnected,
+    lastRank,
+    lessonProgressText,
+    phraseIndex,
+    phraseRunId,
+    phraseIntroLine,
+    phrases.length,
+    playerHp,
+    practiceMode,
+    resultRankLine,
+    resultState,
+    showLobbyControls,
+    stage.enemy_hp,
+    stage.max_loops_per_phrase,
+    stage.player_hp,
+    stage.title,
+    stageStatusText,
+    startButtonLabel,
+    timeLabel,
+  ]);
+
+  const battleCallbacks = useMemo(() => ({
+    onStart: startCountIn,
+    onBack,
+    onOpenSettings: () => setIsSettingsOpen(true),
+    onPracticeModeChange: (nextPracticeMode: boolean) => {
+      if (canChangePracticeMode) {
+        setPracticeMode(nextPracticeMode);
+      }
+    },
+    onPianoKeyDown: handlePianoKeyDown,
+    onPianoKeyUp: handlePianoKeyUp,
+    onEffectImpact: handleBattleEffectImpact,
+  }), [
+    canChangePracticeMode,
+    handleBattleEffectImpact,
+    handlePianoKeyDown,
+    handlePianoKeyUp,
+    onBack,
+    startCountIn,
+  ]);
+
+  const staffVoicing = activeChord?.voicing ?? [];
+  const staffStaves = activeChord?.voicing_staves ?? [];
+  const staffChordKey = activeChord ? `${activeChord.id}:${activeChord.chord_name}` : 'empty';
+
+  return (
+    <div className={cn(
+      'relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-white',
+      feedback === 'miss' && 'bg-red-950',
+      feedback === 'clear' && 'bg-white text-slate-950',
+    )}>
+      <audio ref={audioRef} onEnded={handleAudioEnded} onTimeUpdate={handleAudioTimeUpdate} preload="auto" />
+
+      <EarTrainingPhaserGame
+        ref={phaserGameRef}
+        snapshot={battleSnapshot}
+        effectCommand={battleEffectCommand}
+        callbacks={battleCallbacks}
+        className="h-full w-full"
+      />
+
+      {staffVoicing.length > 0 && (
+        <div className="pointer-events-none absolute left-1/2 top-[44%] z-10 w-[min(560px,80vw)] -translate-x-1/2 -translate-y-1/2">
+          <ChordVoicingStaff
+            voicing={staffVoicing}
+            voicingStaves={staffStaves}
+            correctPitchClasses={correctPitchClasses}
+            chordKey={staffChordKey}
+          />
+        </div>
+      )}
+
+      <EarTrainingPianoOverlay
+        ref={pianoOverlayRef}
+        onPianoKeyDown={handlePianoKeyDown}
+        onPianoKeyUp={handlePianoKeyUp}
+      />
+
+      <EarTrainingSettingsModal
+        isOpen={isSettingsOpen}
+        isEnglishCopy={isEnglishCopy}
+        onClose={() => setIsSettingsOpen(false)}
+        midiDeviceId={settings.selectedMidiDevice}
+        onMidiDeviceChange={handleMidiDeviceChange}
+        isMidiConnected={isMidiConnected}
+      />
+    </div>
+  );
+};
+
+export default EarTrainingChordVoicingScreen;
