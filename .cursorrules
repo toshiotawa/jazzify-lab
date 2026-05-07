@@ -2,48 +2,395 @@
 
 # Cursor AI Coding Rules for This Project
 
+## 0. Core Priority
+
+This is a performance-sensitive game project.
+
+Correctness comes first, but every implementation must also protect runtime performance.
+
+Before writing code, always consider:
+
+- Can this be event-driven instead of checked every frame?
+- Can this be cached instead of recalculated?
+- Can this be updated only when state changes?
+- Can this avoid allocation during gameplay?
+- Can this avoid unnecessary React re-renders?
+
+Do not add broad per-frame logic unless there is no reasonable alternative.
+
+---
+
 ## 1. General Principles
-- All code must be valid TypeScript with strict mode enabled. Run `tsc --noEmit` and ensure 0 errors.
-- All code must pass ESLint with 0 errors and 0 warnings (use `npm run lint`). Fix with `--fix` if possible.
-- All code must pass ts-prune with 0 unused exports (run `npx ts-prune`).
-- Write clean, minimal code. Avoid unused variables, functions, imports, or exports.
-- Test all generated code with Jest (`npm test`). Ensure 100% coverage for new functions.
-- No console.log, console.warn, or console.error in production code. Use logger if needed.
-- Prefer const over let/var. Use arrow functions for callbacks.
 
-## 2. TypeScript Rules
-- Never use `any` type. Always specify explicit types (e.g., string, number, or custom interfaces).
-- No unused variables/functions/imports/exports (ESLint: @typescript-eslint/no-unused-vars = error).
-- No unused parameters in functions (ignore with _ prefix if necessary, e.g., _unusedParam).
-- Use interfaces/types for props, state, and return values in React components.
-- Avoid type assertions (as, !). Use type guards instead.
+- All code must be valid TypeScript with strict mode enabled.
+- Run `tsc --noEmit` and ensure 0 errors.
+- Run ESLint with `npm run lint` and ensure 0 errors and 0 warnings.
+- Run `npx ts-prune` and ensure there are no unused exports.
+- Run Jest tests with `npm test` when code is changed.
+- Do not claim that commands were run unless they were actually run.
+- If commands cannot be run, clearly state which checks were not run.
+- Write clean, minimal code.
+- Avoid unused variables, functions, imports, exports, files, and branches.
+- Prefer deleting unnecessary code over adding abstractions.
+- No `console.log`, `console.warn`, or `console.error` in production code. Use the project logger if needed.
+- Prefer `const` over `let` unless reassignment is required.
+- Use arrow functions for callbacks.
 
-## 3. React Rules
-- Follow Hooks rules strictly (ESLint: react-hooks/rules-of-hooks, exhaustive-deps = error).
-  - No Hooks in loops, conditions, or nested functions.
-  - Always include all dependencies in useEffect/useCallback arrays.
-- Ensure JSX accessibility (jsx-a11y plugin: label-has-associated-control, no-static-element-interactions = error).
-- No unused props in components. Destructure and use all props.
-- Use useMemo/useCallback for performance-critical code.
+---
 
-## 4. Cleanup Rules (for ts-prune)
-- Only export what's used in other files. Remove unused exports.
-- Remove dead code (unused if/else branches, functions).
-- Check with ts-prune after generation: If unused items found, refactor to remove them.
+## 2. Performance Rules for Game Code
 
-## 5. Testing Rules
-- For new functions, generate Jest tests covering 100% (use describe/it/expect).
-- Mock dependencies (e.g., use jest.mock for imports).
-- Run `npm test` and ensure all tests pass before finalizing code.
+### 2.1 Per-frame logic
 
-## 6. Project-Specific Rules
-- Use React 18+ best practices (e.g., no class components, prefer functional).
-- For Vite: Imports must be relative or aliased (@/path). No absolute paths.
-- No side-effects in render (e.g., no fetch in component body).
-- Follow file structure: Components in src/components/, Utils in src/utils/.
+Do not add new per-frame work casually.
 
-When generating code:
-1. Write the code.
-2. Simulate running tsc/ESLint/ts-prune/Jest.
-3. If errors, fix and re-output.
-4. Output final code only if all checks pass.
+Avoid adding logic to:
+
+- `requestAnimationFrame`
+- `Update`
+- `Tick`
+- `useFrame`
+- `setInterval`
+- `setTimeout` loops
+- animation loops
+- physics loops
+- render loops
+- polling effects
+
+Any new per-frame or repeated loop logic must include a short justification in the final response.
+
+Before adding per-frame logic, prefer:
+
+- event-driven updates
+- dirty flags
+- cached values
+- throttled updates
+- fixed-interval updates
+- spatial partitioning
+- precomputed data
+- state-change-based updates
+
+Bad:
+
+```ts
+// Checking everything every frame
+for (const enemy of enemies) {
+  enemy.findNearestTarget(players);
+}
+```
+
+Better:
+
+```ts
+// Recalculate only on a fixed interval or when relevant state changes
+targetingSystem.updateIfNeeded(elapsedTime);
+```
+
+### 2.2 No expensive operations inside gameplay loops
+
+Do not perform these inside per-frame loops, physics loops, animation loops, or hot paths:
+
+- broad array scans unless the collection is small and bounded
+- DOM queries
+- object creation in large quantities
+- deep cloning
+- JSON serialization/deserialization
+- sorting
+- filtering large arrays
+- React state updates
+- asset loading
+- dynamic imports
+- heavy math repeated unnecessarily
+- unnecessary allocations
+- logging
+- `map/filter/reduce` in hot paths if a simple loop avoids allocations
+- repeated lookup of the same object or component
+
+If such work is necessary, move it to:
+
+- initialization
+- cache-building
+- event handlers
+- dirty-flag updates
+- fixed lower-frequency systems
+- worker/background-safe processing if appropriate
+
+### 2.3 Avoid garbage collection pressure
+
+Gameplay code must minimize runtime allocations.
+
+Avoid in hot paths:
+
+- creating new arrays
+- creating new objects
+- creating closures repeatedly
+- spreading large objects/arrays
+- temporary vector/object creation
+- unnecessary string construction
+- inline object literals passed to frequently called functions
+
+Prefer:
+
+- object reuse
+- object pools where appropriate
+- mutable internal scratch objects in performance-critical systems
+- preallocated arrays
+- stable references
+
+React state should remain immutable, but low-level game simulation code may use controlled mutation when it improves performance and is isolated.
+
+### 2.4 React rendering performance
+
+Avoid unnecessary React re-renders.
+
+Do not store rapidly changing per-frame game state in React state unless the UI truly needs it.
+
+Bad:
+
+```ts
+setPlayerPosition(position);
+```
+
+inside a frame loop.
+
+Prefer:
+
+- refs for high-frequency mutable runtime state
+- React state only for UI-relevant changes
+- external stores with selective subscriptions
+- throttled UI updates
+- derived UI snapshots
+- dirty flags
+
+Use `useMemo`, `useCallback`, and `memo` only when they reduce real re-render cost or stabilize dependencies. Do not add them blindly.
+
+Do not put side effects in render.
+
+No fetches, subscriptions, timers, event listeners, random mutations, or imperative game updates in component bodies.
+
+### 2.5 Effects and subscriptions
+
+Every `useEffect` that creates a subscription, listener, timer, animation frame, or external resource must clean it up.
+
+Bad:
+
+```ts
+useEffect(() => {
+  window.addEventListener("resize", onResize);
+}, []);
+```
+
+Good:
+
+```ts
+useEffect(() => {
+  window.addEventListener("resize", onResize);
+  return () => window.removeEventListener("resize", onResize);
+}, [onResize]);
+```
+
+Avoid effects that poll state repeatedly.
+
+Prefer effects that respond to specific state changes.
+
+### 2.6 Timers and intervals
+
+Do not add `setInterval` or recursive `setTimeout` unless necessary.
+
+If a timer is used:
+
+- justify why an event-driven approach is not enough
+- use a clear interval
+- clean it up
+- avoid creating overlapping timers
+- avoid updating React state every tick unless throttled
+
+### 2.7 Asset and resource loading
+
+Do not load assets during gameplay hot paths.
+
+Assets should be:
+
+- preloaded
+- cached
+- reused
+- released intentionally if needed
+
+Do not repeatedly create audio, image, texture, model, or large data objects during gameplay.
+
+### 2.8 Performance reporting requirement
+
+After implementing or modifying game logic, report:
+
+- whether any new per-frame logic was added
+- whether any new timer/interval/polling loop was added
+- whether any new React state update can happen at high frequency
+- whether any new allocations happen inside hot paths
+- whether any expensive operation was moved to cache/event/dirty-flag logic
+
+If none were added, explicitly say so.
+
+---
+
+## 3. TypeScript Rules
+
+- Never use `any`.
+- Prefer precise types over broad types.
+- Use interfaces or type aliases for props, state, domain objects, and return values.
+- No unused variables, functions, imports, or exports.
+- No unused parameters unless prefixed with `_`.
+- Avoid type assertions such as `as` and non-null assertions `!`.
+- Prefer type guards, discriminated unions, and explicit validation.
+- Avoid overly generic abstractions unless they clearly reduce complexity.
+- Do not weaken types to make errors disappear.
+
+---
+
+## 4. React Rules
+
+- Use React 18+ functional components.
+- No class components.
+- Follow Hooks rules strictly.
+- No Hooks in loops, conditions, or nested functions.
+- Always include required dependencies in hook dependency arrays.
+- Do not suppress `exhaustive-deps` unless there is a clear written reason.
+- Ensure JSX accessibility.
+- No unused props.
+- Do not destructure props that are not used.
+- Keep components small and focused.
+- Separate game simulation logic from UI rendering logic.
+- Do not place heavy computation directly in render.
+- Memoize expensive derived values only when useful.
+
+---
+
+## 5. Game Architecture Rules
+
+Separate responsibilities clearly:
+
+- React components: UI only
+- game systems: simulation and rules
+- stores: shared state and subscriptions
+- utils: pure helper functions
+- assets: loading and caching
+- input: keyboard/mouse/touch/controller handling
+- rendering loop: minimal orchestration only
+
+Avoid mixing:
+
+- UI rendering and game simulation
+- input handling and physics
+- asset loading and frame updates
+- React state and high-frequency runtime state
+
+Prefer simple explicit systems over clever abstractions.
+
+Do not introduce a new manager, service, registry, or framework-style abstraction unless it removes real duplication or complexity.
+
+---
+
+## 6. Cleanup Rules
+
+- Only export what is used by other files.
+- Remove dead code immediately.
+- Remove unused branches, temporary helpers, and old implementations.
+- Do not keep fallback code unless it is actively used.
+- Do not leave TODO comments for issues that should be fixed now.
+- Check with `npx ts-prune` after generation.
+- If unused items are found, remove or refactor them.
+
+---
+
+## 7. Testing Rules
+
+- Add Jest tests for new pure functions and important logic.
+- Prioritize tests for:
+  - game rules
+  - collision logic
+  - scoring logic
+  - state transitions
+  - utility functions
+  - edge cases
+- Do not write shallow tests that only verify implementation details.
+- Mock dependencies when needed.
+- Avoid testing React internals directly.
+- New logic should be testable without requiring a real render loop whenever possible.
+
+Coverage should be high for new logic, but do not create meaningless tests only to satisfy a number.
+
+---
+
+## 8. Project-Specific Rules
+
+- Use React 18+ best practices.
+- For Vite, imports must be relative or use configured aliases such as `@/path`.
+- No unsupported absolute paths.
+- Components go in `src/components/`.
+- Game systems go in `src/game/` or the existing game logic directory.
+- Utilities go in `src/utils/`.
+- Hooks go in `src/hooks/`.
+- Types go close to the code that owns them unless shared broadly.
+- Avoid circular dependencies.
+- Keep file names and exports consistent.
+
+---
+
+## 9. Implementation Workflow
+
+When generating or modifying code:
+
+1. Inspect the existing architecture before adding new patterns.
+2. Choose the simplest implementation that satisfies the requirement.
+3. Avoid adding new per-frame logic unless necessary.
+4. Prefer event-driven, cached, or dirty-flag-based updates.
+5. Write the code.
+6. Remove unused code.
+7. Run or request running:
+   - `tsc --noEmit`
+   - `npm run lint`
+   - `npx ts-prune`
+   - `npm test`
+8. Fix all real errors.
+9. Report (see also Section 11 Final Response Format):
+   - changed files
+   - whether checks were run
+   - whether any per-frame/timer/high-frequency logic was added
+   - any performance risks that remain
+
+Do not output final code while pretending checks passed if they were not actually run.
+
+---
+
+## 10. Forbidden Patterns Unless Explicitly Justified
+
+Do not introduce these without a clear reason:
+
+- new global polling loops
+- new frame-loop scans over all entities
+- React state updates every frame
+- broad DOM queries during gameplay
+- asset loading during gameplay
+- repeated object creation in hot paths
+- unnecessary manager/service abstractions
+- duplicated state sources
+- hidden side effects in utility functions
+- large rewrites for small feature requests
+- adding dependencies for simple problems
+- weakening TypeScript types to silence errors
+- disabling lint rules to pass checks
+
+If one of these is unavoidable, explain why and minimize the scope.
+
+---
+
+## 11. Final Response Format
+
+After implementation, respond concisely with:
+
+- Summary of what changed
+- Files changed
+- Checks run and results
+- Performance impact (include Section 2.8 items: per-frame/timer/high-frequency state/allocations, or state none)
+- Any remaining risks
+
+This aligns with Section 9 step 9 and Section 2.8.
