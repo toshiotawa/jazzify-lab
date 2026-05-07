@@ -50,6 +50,7 @@ import {
   getAccessibleBlockIndex,
   getBlockForStage,
   getBlocksByCategory,
+  getFreeTierStageNumbers,
   BlockMeta,
   rebuildDescentBlocks,
 } from './descentBlocks';
@@ -97,7 +98,11 @@ interface SurvivalDescentMapProps {
   ) => void;
   onBackToMenu: () => void;
   embedded?: boolean;
-  playLocked?: boolean;
+  /**
+   * true のときフリープラン扱い: 閲覧は全ステージ可能だが、プレイは当該マップの第一ブロックのみ
+   *（Basic / Songs それぞれで `getFreeTierStageNumbers` と同じ集合）。
+   */
+  freeTierAccessOnly?: boolean;
   /** 初期表示マップ。省略時は 'basic' */
   initialMapCategory?: SurvivalMapCategory;
 }
@@ -194,7 +199,7 @@ const MapCategoryToggle: React.FC<MapCategoryToggleProps> = ({ value, onChange, 
 
 const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   onStageSelect,
-  playLocked = false,
+  freeTierAccessOnly = false,
   initialMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 }) => {
   const { profile } = useAuthStore();
@@ -282,6 +287,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const totalStagesForCategory = useMemo(() => getTotalStagesByCategory(mapCategory), [mapCategory, stagesVersion]);
   const blockLayoutsForCategory = useMemo(() => getBlockLayoutsByCategory(mapCategory), [mapCategory, stagesVersion]);
   const blocksForCategory = useMemo(() => getBlocksByCategory(mapCategory), [mapCategory, stagesVersion]);
+  const freeTierStageNumberSet = useMemo(
+    () => new Set(getFreeTierStageNumbers(mapCategory)),
+    [mapCategory, stagesVersion],
+  );
   const mapHeightLogical = useMemo(() => getMapLogicalHeightByCategory(mapCategory), [mapCategory, stagesVersion]);
   const mapHeightPx = mapHeightLogical * scale;
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
@@ -398,6 +407,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     if (selectedStageNumber == null) return null;
     return stagesForCategory.find(s => s.stageNumber === selectedStageNumber) ?? null;
   }, [selectedStageNumber, stagesForCategory]);
+
+  const selectedStagePlayPaywalled = Boolean(
+    freeTierAccessOnly
+    && selectedStage
+    && !freeTierStageNumberSet.has(selectedStage.stageNumber),
+  );
 
   const isStageUnlocked = useCallback((stageNumber: number): boolean => {
     if (stageNumber === 1) return true;
@@ -516,7 +531,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const handleStart = useCallback(async () => {
     if (!selectedStage) return;
     if (!isStageUnlocked(selectedStage.stageNumber)) return;
-    if (playLocked) return;
+    if (freeTierAccessOnly && !freeTierStageNumberSet.has(selectedStage.stageNumber)) {
+      setShowPaywall(true);
+      return;
+    }
 
     if (!isIOSWebView()) {
       try {
@@ -541,7 +559,16 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     const faiChar = characters.find(c => isFaiCharacter(c));
     setIsMobileDetailOpen(false);
     onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, hintMode);
-  }, [selectedStage, isStageUnlocked, playLocked, getConfig, characters, onStageSelect, hintMode]);
+  }, [
+    selectedStage,
+    isStageUnlocked,
+    freeTierAccessOnly,
+    freeTierStageNumberSet,
+    getConfig,
+    characters,
+    onStageSelect,
+    hintMode,
+  ]);
 
   const frontierPosition = getStagePosition(frontierStageNumber, mapCategory);
   const frontierBlockLayout = getBlockLayoutForStage(frontierStageNumber, mapCategory);
@@ -611,15 +638,15 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         }
       `}</style>
 
-      {playLocked && (
+      {freeTierAccessOnly && (
         <button
           type="button"
           className="mx-auto mb-3 block w-full max-w-[1280px] rounded-xl border border-amber-500/40 bg-amber-950/40 p-3 text-left text-sm text-amber-100 font-sans hover:bg-amber-950/60 hover:border-amber-500/60 transition-colors"
           onClick={() => setShowPaywall(true)}
         >
           {isEnglishCopy
-            ? 'Survival Stage Mode is view-only on the Free plan. Tap to view Premium plans →'
-            : 'サバイバル・ステージモードはフリープランでは閲覧のみです。タップしてプレミアムプランを見る →'}
+            ? 'Free plan: play the first tier (first block) on Basic & Songs maps. Tap for Premium →'
+            : 'フリープランは Basic / Songs それぞれで第一階層（最初のブロック）までプレイ可能です。タップしてプレミアムプランを見る →'}
         </button>
       )}
 
@@ -787,7 +814,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
             selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
             hintMode={hintMode}
             onHintModeChange={setHintMode}
-            playLocked={playLocked}
+            playLocked={selectedStagePlayPaywalled}
             onStart={handleStart}
             onRequestUpgrade={() => setShowPaywall(true)}
           />
@@ -828,7 +855,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
                 hintMode={hintMode}
                 onHintModeChange={setHintMode}
-                playLocked={playLocked}
+                playLocked={selectedStagePlayPaywalled}
                 onStart={handleStart}
                 onRequestUpgrade={() => setShowPaywall(true)}
               />

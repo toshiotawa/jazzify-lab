@@ -11,6 +11,7 @@ import {
   DEFAULT_SURVIVAL_MAP_CATEGORY,
   SURVIVAL_MAP_CATEGORIES,
 } from '../SurvivalTypes';
+import { getStageNumbersOfFirstBlock } from './survivalFreeTier';
 
 export interface BlockMeta {
   blockKey: BlockKey;
@@ -142,6 +143,14 @@ export function rebuildDescentBlocks(): void {
 
 export function getBlocksByCategory(category: SurvivalMapCategory): BlockMeta[] {
   return BLOCKS_BY_CATEGORY[category];
+}
+
+/**
+ * フリープランでプレイ可能なステージ番号（当該マップの第一ブロック＝Basic / Songs 共通ルール）。
+ * Web `SurvivalDescentMap` と iOS `SurvivalStageCatalog.freeTierStageNumbers(in:)` と同義。
+ */
+export function getFreeTierStageNumbers(mapCategory: SurvivalMapCategory): readonly number[] {
+  return getStageNumbersOfFirstBlock(getBlocksByCategory(mapCategory));
 }
 
 export function getBlockForStage(

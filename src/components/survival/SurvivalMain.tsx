@@ -17,6 +17,7 @@ import {
   getStagesByCategory,
   getTotalStagesByCategory,
 } from './SurvivalStageDefinitions';
+import { getFreeTierStageNumbers } from './descent/descentBlocks';
 import { rebuildDescentBlocks } from './descent/descentBlocks';
 import { rebuildDescentLayouts } from './descent/descentLayout';
 import { useAuthStore } from '@/stores/authStore';
@@ -125,7 +126,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [iosInitError, setIosInitError] = useState(false);
   const [demoInitialized, setDemoInitialized] = useState(false);
 
-  const survivalPlayLocked = !isPremiumMember && !lessonMode && !demoMode && !isIOSSurvival;
+  const survivalFreeTierOnly = !isPremiumMember && !lessonMode && !demoMode && !isIOSSurvival;
 
   useEffect(() => {
     if (!demoMode || demoInitialized) return;
@@ -359,6 +360,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const handleNextStage = useCallback(() => {
     if (!activeStageDefinition || !selectedConfig) return;
     const nextStageNumber = activeStageDefinition.stageNumber + 1;
+    if (survivalFreeTierOnly) {
+      const allowed = getFreeTierStageNumbers(activeStageDefinition.mapCategory);
+      if (!allowed.includes(nextStageNumber)) return;
+    }
     const stagesInCategory = getStagesByCategory(activeStageDefinition.mapCategory);
     const nextStage = stagesInCategory.find((s: StageDefinition) => s.stageNumber === nextStageNumber);
     if (!nextStage) return;
@@ -377,7 +382,19 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setActiveHintMode(false);
     setScreen('select');
     setTimeout(() => setScreen('game'), 0);
-  }, [activeStageDefinition, selectedConfig]);
+  }, [activeStageDefinition, selectedConfig, survivalFreeTierOnly]);
+
+  const survivalOnNextStage = useMemo((): (() => void) | undefined => {
+    if (lessonMode || !activeStageDefinition) return undefined;
+    const max = getTotalStagesByCategory(activeStageDefinition.mapCategory);
+    if (activeStageDefinition.stageNumber >= max) return undefined;
+    const nextNum = activeStageDefinition.stageNumber + 1;
+    if (survivalFreeTierOnly) {
+      const allowed = getFreeTierStageNumbers(activeStageDefinition.mapCategory);
+      if (!allowed.includes(nextNum)) return undefined;
+    }
+    return handleNextStage;
+  }, [lessonMode, activeStageDefinition, survivalFreeTierOnly, handleNextStage]);
 
   const handleBackToSelect = useCallback(() => {
     // iOS から直接ステージ起動 (レッスン連動 or タブ経由の stageNumber 指定) の場合のみ WebView を閉じる。
@@ -460,7 +477,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         >
           <SurvivalDescentMap
             embedded
-            playLocked={survivalPlayLocked}
+            freeTierAccessOnly={survivalFreeTierOnly}
             onStageSelect={handleStageSelect}
             onBackToMenu={handleBackToMenu}
           />
@@ -485,11 +502,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         hintMode={activeHintMode}
         onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
         onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}
-        onNextStage={lessonMode
-          ? undefined
-          : (activeStageDefinition && activeStageDefinition.stageNumber < getTotalStagesByCategory(activeStageDefinition.mapCategory)
-              ? handleNextStage
-              : undefined)}
+        onNextStage={survivalOnNextStage}
       />
     );
   }
@@ -506,7 +519,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       >
         <SurvivalDescentMap
           embedded
-          playLocked={survivalPlayLocked}
+          freeTierAccessOnly={survivalFreeTierOnly}
           onStageSelect={handleStageSelect}
           onBackToMenu={handleBackToMenu}
         />

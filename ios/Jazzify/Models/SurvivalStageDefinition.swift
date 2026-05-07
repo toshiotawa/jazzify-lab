@@ -230,7 +230,7 @@ enum SurvivalStageCatalog {
     static var totalStages: Int { stages.count }
     static let stageTimeLimitSeconds: Int = 90
 
-    /// 無料プランで遊べるステージ番号（第一階層＝Major ブロック = 1〜5）
+    /// 無料プランで遊べるステージ番号（当該マップの第一ブロック。Basic は Major 1〜5 相当）
     static var freeTierStageNumbers: Set<Int> {
         guard let first = blocks.first else { return [] }
         return Set(first.stageNumbers)
