@@ -40,7 +40,7 @@ export const getEarTrainingChordNominalAtTime = (
   return phrase.chords[0] ?? null;
 };
 
-const sortChordsByTime = (chords: EarTrainingPhraseChord[]): EarTrainingPhraseChord[] =>
+const sortChordsByTime = <T extends EarTrainingPhraseChord>(chords: T[]): T[] =>
   [...chords].sort((a, b) => {
     const as = a.start_time_sec ?? 0;
     const bs = b.start_time_sec ?? 0;
@@ -49,6 +49,59 @@ const sortChordsByTime = (chords: EarTrainingPhraseChord[]): EarTrainingPhraseCh
     }
     return (a.order_index ?? 0) - (b.order_index ?? 0);
   });
+
+type TimedEarTrainingPhraseChord = EarTrainingPhraseChord & { start_time_sec: number };
+
+interface EarTrainingChordDisplayWindow {
+  chord: TimedEarTrainingPhraseChord;
+  startSec: number;
+  endSec: number;
+}
+
+const DISPLAY_BOUNDARY_EPSILON_SEC = 0.001;
+
+const getChordDisplayWindows = (
+  phrase: EarTrainingPhrase | undefined,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
+): EarTrainingChordDisplayWindow[] => {
+  const chords = phrase?.chords ?? [];
+  if (chords.length === 0) {
+    return [];
+  }
+
+  const timed = chords.filter(
+    (c): c is TimedEarTrainingPhraseChord =>
+      c.start_time_sec !== null && c.start_time_sec !== undefined,
+  );
+  if (timed.length === 0) {
+    return [];
+  }
+
+  const sorted = sortChordsByTime(timed);
+  const half = getEarTrainingHalfBeatSec(bpm);
+  const windows: EarTrainingChordDisplayWindow[] = new Array(sorted.length);
+
+  for (let j = 0; j < sorted.length; j += 1) {
+    const chord = sorted[j];
+    const nextStart = j + 1 < sorted.length
+      ? sorted[j + 1].start_time_sec
+      : Number.POSITIVE_INFINITY;
+    const nominalEnd = chord.end_time_sec ?? nextStart;
+    const previousComplete = j > 0 && completedChordIds.has(sorted[j - 1].id);
+    const currentComplete = completedChordIds.has(chord.id);
+
+    windows[j] = {
+      chord,
+      startSec: chord.start_time_sec - (previousComplete ? half : 0),
+      endSec: currentComplete && j + 1 < sorted.length
+        ? nextStart - half
+        : Number.isFinite(nominalEnd) ? nominalEnd : Number.POSITIVE_INFINITY,
+    };
+  }
+
+  return windows;
+};
 
 /**
  * 直前コードがウィンドウ内で完成済みのとき、次コードの表示・判定開始を半拍早める。
@@ -66,51 +119,54 @@ export const getEarTrainingChordDisplayAtTime = (
   }
 
   const timed = chords.filter(
-    (c): c is EarTrainingPhraseChord & { start_time_sec: number } =>
+    (c): c is TimedEarTrainingPhraseChord =>
       c.start_time_sec !== null && c.start_time_sec !== undefined,
   );
   if (timed.length === 0) {
     return chords[0] ?? null;
   }
 
-  const sorted = sortChordsByTime(timed);
-  const half = getEarTrainingHalfBeatSec(bpm);
-  const n = sorted.length;
-
-  const adjStart: number[] = new Array(n);
-  const adjEnd: number[] = new Array(n);
-
-  for (let j = 0; j < n; j += 1) {
-    const start = sorted[j].start_time_sec ?? 0;
-    if (j === 0) {
-      adjStart[j] = start;
-    } else {
-      const prevComplete = completedChordIds.has(sorted[j - 1].id);
-      adjStart[j] = start - (prevComplete ? half : 0);
-    }
-  }
-
-  for (let j = 0; j < n; j += 1) {
-    const nextStart = j + 1 < n ? (sorted[j + 1].start_time_sec ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
-    const endNominal = sorted[j].end_time_sec ?? nextStart;
-    if (completedChordIds.has(sorted[j].id) && j + 1 < n) {
-      adjEnd[j] = nextStart - half;
-    } else {
-      adjEnd[j] = Number.isFinite(endNominal) ? endNominal : Number.POSITIVE_INFINITY;
-    }
-  }
+  const windows = getChordDisplayWindows(phrase, bpm, completedChordIds);
 
   let best = -1;
-  for (let j = 0; j < n; j += 1) {
-    if (adjStart[j] <= loopTimeSec && loopTimeSec < adjEnd[j]) {
+  for (let j = 0; j < windows.length; j += 1) {
+    const window = windows[j];
+    if (window.startSec <= loopTimeSec && loopTimeSec < window.endSec) {
       best = j;
     }
   }
 
   if (best >= 0) {
-    return sorted[best];
+    return windows[best].chord;
   }
   return null;
+};
+
+export const getEarTrainingNextChordDisplayBoundarySec = (
+  phrase: EarTrainingPhrase | undefined,
+  loopTimeSec: number,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
+): number | null => {
+  const windows = getChordDisplayWindows(phrase, bpm, completedChordIds);
+  if (windows.length === 0) {
+    return null;
+  }
+
+  let nextBoundary = Number.POSITIVE_INFINITY;
+  const threshold = loopTimeSec + DISPLAY_BOUNDARY_EPSILON_SEC;
+
+  for (let index = 0; index < windows.length; index += 1) {
+    const window = windows[index];
+    if (window.startSec > threshold && window.startSec < nextBoundary) {
+      nextBoundary = window.startSec;
+    }
+    if (Number.isFinite(window.endSec) && window.endSec > threshold && window.endSec < nextBoundary) {
+      nextBoundary = window.endSec;
+    }
+  }
+
+  return Number.isFinite(nextBoundary) ? nextBoundary : null;
 };
 
 /** `chord_name` をピッチクラス集合に解決（オクターブ非依存の判定用）。 */
