@@ -2,12 +2,14 @@
  * 魔王城降下マップ用: 仮想カメラフック
  * transform: translate3d(0, -cameraY, 0) でマップを縦に動かす。
  * ブラウザスクロールは使用しない。次ブロック(未解放)は先頭だけチラ見せして下限クランプ。
+ * Basic / Songs マップ別のレイアウトを参照する。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { platform } from '@/platform';
-import { ALL_BLOCK_LAYOUTS, MAP_LOGICAL_HEIGHT } from './descentLayout';
+import { getBlockLayoutsByCategory, getMapLogicalHeightByCategory } from './descentLayout';
 import { getAccessibleBlockIndex } from './descentBlocks';
+import { SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY } from '../SurvivalTypes';
 
 interface UseDescentCameraParams {
   viewportHeight: number;
@@ -16,6 +18,8 @@ interface UseDescentCameraParams {
   /** 最前線ステージ番号(キャラがいる位置) */
   frontierStageNumber: number;
   clearedStages: ReadonlySet<number>;
+  /** 対象マップ */
+  mapCategory?: SurvivalMapCategory;
 }
 
 interface CameraState {
@@ -31,6 +35,7 @@ export const useDescentCamera = ({
   scale,
   frontierStageNumber,
   clearedStages,
+  mapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 }: UseDescentCameraParams): CameraState => {
   const [cameraY, setCameraY] = useState(0);
 
@@ -41,13 +46,15 @@ export const useDescentCamera = ({
   const lastTimeRef = useRef<number | null>(null);
   const maxCameraYRef = useRef(0);
 
-  const accessibleIndex = getAccessibleBlockIndex(frontierStageNumber, clearedStages);
-  const accessibleBlock = ALL_BLOCK_LAYOUTS[accessibleIndex];
-  const nextBlock = ALL_BLOCK_LAYOUTS[accessibleIndex + 1];
+  const layouts = getBlockLayoutsByCategory(mapCategory);
+  const mapLogicalHeight = getMapLogicalHeightByCategory(mapCategory);
+  const accessibleIndex = getAccessibleBlockIndex(frontierStageNumber, clearedStages, mapCategory);
+  const accessibleBlock = layouts[accessibleIndex];
+  const nextBlock = layouts[accessibleIndex + 1];
   const peekDepth = 180;
   const maxLogicalY = nextBlock
-    ? Math.min(nextBlock.startY + peekDepth, MAP_LOGICAL_HEIGHT)
-    : MAP_LOGICAL_HEIGHT;
+    ? Math.min(nextBlock.startY + peekDepth, mapLogicalHeight)
+    : mapLogicalHeight;
   const visibleBottom = Math.max(accessibleBlock?.endY ?? 0, maxLogicalY);
   const maxCameraY = Math.max(0, visibleBottom * scale - viewportHeight);
   maxCameraYRef.current = maxCameraY;

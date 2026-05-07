@@ -20,12 +20,18 @@ import {
 } from '@/platform/supabaseSurvival';
 import { DIFFICULTY_CONFIGS } from '../SurvivalStageSelect';
 import {
-  ALL_STAGES,
-  TOTAL_STAGES,
   StageDefinition,
   fetchAllStages,
+  getStagesByCategory,
+  getTotalStagesByCategory,
 } from '../SurvivalStageDefinitions';
-import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from '../SurvivalTypes';
+import {
+  SurvivalDifficulty,
+  DifficultyConfig,
+  SurvivalCharacter,
+  SurvivalMapCategory,
+  DEFAULT_SURVIVAL_MAP_CATEGORY,
+} from '../SurvivalTypes';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
@@ -33,14 +39,20 @@ import { isIOSWebView } from '@/utils/iosbridge';
 import { SurvivalMapAudio, SURVIVAL_MAP_BGM_URL } from '@/utils/SurvivalMapAudio';
 import { useGameStore } from '@/stores/gameStore';
 import {
-  ALL_BLOCK_LAYOUTS,
-  MAP_LOGICAL_HEIGHT,
   MAP_LOGICAL_WIDTH,
   getStagePosition,
   getBlockLayoutForStage,
+  getBlockLayoutsByCategory,
+  getMapLogicalHeightByCategory,
   rebuildDescentLayouts,
 } from './descentLayout';
-import { ALL_BLOCKS, getAccessibleBlockIndex, getBlockForStage, BlockMeta, rebuildDescentBlocks } from './descentBlocks';
+import {
+  getAccessibleBlockIndex,
+  getBlockForStage,
+  getBlocksByCategory,
+  BlockMeta,
+  rebuildDescentBlocks,
+} from './descentBlocks';
 import DescentBlock, { BlockDimVeil } from './DescentBlock';
 import BackgroundWall from './parts/BackgroundWall';
 import DescentCharacter from './parts/DescentCharacter';
@@ -86,6 +98,8 @@ interface SurvivalDescentMapProps {
   onBackToMenu: () => void;
   embedded?: boolean;
   playLocked?: boolean;
+  /** 初期表示マップ。省略時は 'basic' */
+  initialMapCategory?: SurvivalMapCategory;
 }
 
 const VIEWPORT_FALLBACK_HEIGHT = 720;
@@ -127,15 +141,61 @@ const readDebugProgress = (): number | null => {
     if (!raw) return null;
     const n = parseInt(raw, 10);
     if (!Number.isFinite(n) || n <= 0) return null;
-    return Math.min(n, TOTAL_STAGES);
+    return n;
   } catch {
     return null;
   }
 };
 
+interface MapCategoryToggleProps {
+  value: SurvivalMapCategory;
+  onChange: (next: SurvivalMapCategory) => void;
+  isEnglishCopy: boolean;
+  /** モバイル下部用のコンパクト表示 */
+  compact?: boolean;
+}
+
+const MapCategoryToggle: React.FC<MapCategoryToggleProps> = ({ value, onChange, isEnglishCopy, compact = false }) => {
+  const options: Array<{ key: SurvivalMapCategory; label: string }> = [
+    { key: 'basic', label: isEnglishCopy ? 'Basic' : 'Basic' },
+    { key: 'songs', label: isEnglishCopy ? 'Songs' : 'Songs' },
+  ];
+  const sizeClass = compact ? 'px-3 py-1.5 text-xs' : 'px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm';
+  return (
+    <div
+      role="group"
+      aria-label={isEnglishCopy ? 'Map category' : 'マップ種別'}
+      className="inline-flex items-center rounded-full border border-amber-500/40 bg-black/55 p-0.5 backdrop-blur-sm"
+      style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.55)' }}
+    >
+      {options.map(opt => {
+        const active = opt.key === value;
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onChange(opt.key)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            aria-pressed={active}
+            className={`rounded-full font-semibold tracking-wide transition-colors ${sizeClass} ${
+              active
+                ? 'bg-amber-500/90 text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-amber-100 hover:bg-amber-500/15'
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   onStageSelect,
   playLocked = false,
+  initialMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -149,6 +209,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [loading, setLoading] = useState(true);
   const [characters, setCharacters] = useState<SurvivalCharacter[]>([]);
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DIFFICULTY_CONFIGS);
+  const [mapCategory, setMapCategory] = useState<SurvivalMapCategory>(initialMapCategory);
   const [currentStageNumber, setCurrentStageNumber] = useState(1);
   const [clearedStages, setClearedStages] = useState<Set<number>>(new Set());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
@@ -168,6 +229,15 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       void SurvivalMapAudio.unlock().catch(() => { /* ignore */ });
       void SurvivalMapAudio.playBgm(SURVIVAL_MAP_BGM_URL).catch(() => { /* ignore */ });
     }
+  }, []);
+
+  const handleSelectMapCategory = useCallback((next: SurvivalMapCategory) => {
+    setMapCategory(prev => {
+      if (prev === next) return prev;
+      setSelectedStageNumber(null);
+      setIsMobileDetailOpen(false);
+      return next;
+    });
   }, []);
 
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -202,7 +272,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
   const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 2.2);
   const mapWidthPx = MAP_LOGICAL_WIDTH * scale;
-  const mapHeightPx = MAP_LOGICAL_HEIGHT * scale;
+  const stagesForCategory = useMemo(() => getStagesByCategory(mapCategory), [mapCategory]);
+  const totalStagesForCategory = useMemo(() => getTotalStagesByCategory(mapCategory), [mapCategory]);
+  const blockLayoutsForCategory = useMemo(() => getBlockLayoutsByCategory(mapCategory), [mapCategory]);
+  const blocksForCategory = useMemo(() => getBlocksByCategory(mapCategory), [mapCategory]);
+  const mapHeightLogical = useMemo(() => getMapLogicalHeightByCategory(mapCategory), [mapCategory]);
+  const mapHeightPx = mapHeightLogical * scale;
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
 
   const loadData = useCallback(async () => {
@@ -245,14 +320,17 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
       if (profile) {
         try {
-          const progress = await fetchSurvivalStageProgress(profile.id);
+          const progress = await fetchSurvivalStageProgress(profile.id, mapCategory);
           setCurrentStageNumber(progress.currentStageNumber);
         } catch { /* ignore */ }
 
         try {
-          const clears = await fetchSurvivalStageClears(profile.id);
+          const clears = await fetchSurvivalStageClears(profile.id, mapCategory);
           setClearedStages(new Set(clears.map(c => c.stageNumber)));
         } catch { /* ignore */ }
+      } else {
+        setCurrentStageNumber(1);
+        setClearedStages(new Set());
       }
 
       const debugProgress = readDebugProgress();
@@ -260,7 +338,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         const cleared = new Set<number>();
         for (let i = 1; i <= debugProgress; i += 1) cleared.add(i);
         setClearedStages(cleared);
-        setCurrentStageNumber(Math.min(TOTAL_STAGES, debugProgress + 1));
+        const totalForDebug = getTotalStagesByCategory(mapCategory);
+        setCurrentStageNumber(Math.min(totalForDebug, debugProgress + 1));
       }
 
       await Promise.race([
@@ -270,7 +349,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, mapCategory]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -308,8 +387,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
   const selectedStage = useMemo<StageDefinition | null>(() => {
     if (selectedStageNumber == null) return null;
-    return ALL_STAGES.find(s => s.stageNumber === selectedStageNumber) ?? null;
-  }, [selectedStageNumber]);
+    return stagesForCategory.find(s => s.stageNumber === selectedStageNumber) ?? null;
+  }, [selectedStageNumber, stagesForCategory]);
 
   const isStageUnlocked = useCallback((stageNumber: number): boolean => {
     if (stageNumber === 1) return true;
@@ -325,31 +404,33 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }, [difficultyConfigs]);
 
   const frontierStageNumber = useMemo(() => {
-    return Math.max(1, Math.min(TOTAL_STAGES, currentStageNumber));
-  }, [currentStageNumber]);
+    const max = Math.max(1, totalStagesForCategory);
+    return Math.max(1, Math.min(max, currentStageNumber));
+  }, [currentStageNumber, totalStagesForCategory]);
 
   const accessibleBlockIndex = useMemo(
-    () => getAccessibleBlockIndex(frontierStageNumber, clearedStages),
-    [frontierStageNumber, clearedStages],
+    () => getAccessibleBlockIndex(frontierStageNumber, clearedStages, mapCategory),
+    [frontierStageNumber, clearedStages, mapCategory],
   );
 
   const frontierBlockIndex = useMemo(() => {
-    const block = getBlockForStage(frontierStageNumber);
+    const block = getBlockForStage(frontierStageNumber, mapCategory);
     return block ? block.blockIndex : 0;
-  }, [frontierStageNumber]);
+  }, [frontierStageNumber, mapCategory]);
 
   const { cameraY, focusCamera, adjustCamera } = useDescentCamera({
     viewportHeight: viewport.height,
     scale,
     frontierStageNumber,
     clearedStages,
+    mapCategory,
   });
 
   useEffect(() => {
     if (loading) return;
-    const pos = getStagePosition(frontierStageNumber);
+    const pos = getStagePosition(frontierStageNumber, mapCategory);
     if (pos) focusCamera(pos.y);
-  }, [loading, frontierStageNumber, focusCamera]);
+  }, [loading, frontierStageNumber, focusCamera, mapCategory]);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -412,12 +493,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
   const handleSelectStage = useCallback((stageNumber: number) => {
     setSelectedStageNumber(stageNumber);
-    const pos = getStagePosition(stageNumber);
+    const pos = getStagePosition(stageNumber, mapCategory);
     if (pos) focusCamera(pos.y);
     if (isMobileLayout) {
       setIsMobileDetailOpen(true);
     }
-  }, [focusCamera, isMobileLayout]);
+  }, [focusCamera, isMobileLayout, mapCategory]);
 
   const handleCloseMobileDetail = useCallback(() => {
     setIsMobileDetailOpen(false);
@@ -453,8 +534,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, hintMode);
   }, [selectedStage, isStageUnlocked, playLocked, getConfig, characters, onStageSelect, hintMode]);
 
-  const frontierPosition = getStagePosition(frontierStageNumber);
-  const frontierBlockLayout = getBlockLayoutForStage(frontierStageNumber);
+  const frontierPosition = getStagePosition(frontierStageNumber, mapCategory);
+  const frontierBlockLayout = getBlockLayoutForStage(frontierStageNumber, mapCategory);
   const frontierFacing: 'left' | 'right' | 'center' = (() => {
     if (!frontierPosition || !frontierBlockLayout) return 'center';
     const indexInBlock = frontierBlockLayout.stages.findIndex(s => s.stageNumber === frontierStageNumber);
@@ -468,8 +549,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
   const panelBlock: BlockMeta | null = useMemo(() => {
     const refStage = selectedStage?.stageNumber ?? frontierStageNumber;
-    return getBlockForStage(refStage) ?? ALL_BLOCKS[0];
-  }, [selectedStage, frontierStageNumber]);
+    return getBlockForStage(refStage, mapCategory) ?? blocksForCategory[0] ?? null;
+  }, [selectedStage, frontierStageNumber, mapCategory, blocksForCategory]);
 
   const panelBlockClearedCount = useMemo(() => {
     if (!panelBlock) return 0;
@@ -556,7 +637,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
               transform: `translate3d(0, ${-cameraY}px, 0)`,
             }}
           >
-            <BackgroundWall widthPx={worldWidthPx} heightPx={mapHeightPx} scale={scale} />
+            <BackgroundWall
+              widthPx={worldWidthPx}
+              heightPx={mapHeightPx}
+              scale={scale}
+              layouts={blockLayoutsForCategory}
+            />
 
             <div
               className="absolute left-1/2 top-0"
@@ -566,13 +652,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 transform: 'translateX(-50%)',
               }}
             >
-              {ALL_BLOCK_LAYOUTS.map((layout, idx) => {
-                const blockMeta = ALL_BLOCKS[idx];
+              {blockLayoutsForCategory.map((layout, idx) => {
+                const blockMeta = blocksForCategory[idx];
+                if (!blockMeta) return null;
                 const dim = idx > accessibleBlockIndex;
                 const isFrontierBlock = idx === frontierBlockIndex;
                 return (
                   <DescentBlock
-                    key={layout.blockKey}
+                    key={`${mapCategory}-${layout.blockKey}`}
                     layout={layout}
                     scale={scale}
                     selectedStageNumber={selectedStageNumber ?? -1}
@@ -586,13 +673,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                     frontierStageNumber={frontierStageNumber}
                     mapWidthPx={mapWidthPx}
                     isFrontierBlock={isFrontierBlock}
+                    mapCategory={mapCategory}
                   />
                 );
               })}
 
-              {ALL_BLOCK_LAYOUTS.map((layout, idx) =>
+              {blockLayoutsForCategory.map((layout, idx) =>
                 idx > accessibleBlockIndex ? (
-                  <BlockDimVeil key={`veil-${layout.blockKey}`} layout={layout} scale={scale} widthPx={mapWidthPx} />
+                  <BlockDimVeil key={`veil-${mapCategory}-${layout.blockKey}`} layout={layout} scale={scale} widthPx={mapWidthPx} />
                 ) : null,
               )}
 
@@ -607,6 +695,37 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
             </div>
           </div>
 
+          <div className="absolute bottom-4 right-4 z-30 hidden items-center gap-2 sm:flex">
+            <MapCategoryToggle
+              value={mapCategory}
+              onChange={handleSelectMapCategory}
+              isEnglishCopy={isEnglishCopy}
+            />
+            <button
+              type="button"
+              onClick={handleToggleSound}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              aria-label={soundMuted
+                ? (isEnglishCopy ? 'Unmute map sound' : 'マップのサウンドをオンにする')
+                : (isEnglishCopy ? 'Mute map sound' : 'マップのサウンドをオフにする')}
+              aria-pressed={!soundMuted}
+              className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-black/55 px-4 py-2.5 text-sm font-semibold text-amber-100 backdrop-blur-sm transition-colors hover:bg-black/75 hover:border-amber-400/70 active:scale-95"
+              style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.55)' }}
+            >
+              {soundMuted ? (
+                <FaVolumeMute aria-hidden className="text-lg" />
+              ) : (
+                <FaVolumeUp aria-hidden className="text-lg" />
+              )}
+              <span className="tracking-wide">
+                {soundMuted
+                  ? (isEnglishCopy ? 'Sound OFF' : 'サウンド OFF')
+                  : (isEnglishCopy ? 'Sound ON' : 'サウンド ON')}
+              </span>
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={handleToggleSound}
@@ -616,13 +735,13 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
               ? (isEnglishCopy ? 'Unmute map sound' : 'マップのサウンドをオンにする')
               : (isEnglishCopy ? 'Mute map sound' : 'マップのサウンドをオフにする')}
             aria-pressed={!soundMuted}
-            className="absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-full border border-amber-500/40 bg-black/55 px-3 py-2 text-xs font-semibold text-amber-100 backdrop-blur-sm transition-colors hover:bg-black/75 hover:border-amber-400/70 active:scale-95 sm:bottom-4 sm:right-4 sm:px-4 sm:py-2.5 sm:text-sm"
+            className="absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-full border border-amber-500/40 bg-black/55 px-3 py-2 text-xs font-semibold text-amber-100 backdrop-blur-sm transition-colors hover:bg-black/75 hover:border-amber-400/70 active:scale-95 sm:hidden"
             style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.55)' }}
           >
             {soundMuted ? (
-              <FaVolumeMute aria-hidden className="text-base sm:text-lg" />
+              <FaVolumeMute aria-hidden className="text-base" />
             ) : (
-              <FaVolumeUp aria-hidden className="text-base sm:text-lg" />
+              <FaVolumeUp aria-hidden className="text-base" />
             )}
             <span className="tracking-wide">
               {soundMuted
@@ -630,13 +749,28 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 : (isEnglishCopy ? 'Sound ON' : 'サウンド ON')}
             </span>
           </button>
+
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center sm:hidden"
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <div className="pointer-events-auto">
+              <MapCategoryToggle
+                value={mapCategory}
+                onChange={handleSelectMapCategory}
+                isEnglishCopy={isEnglishCopy}
+                compact
+              />
+            </div>
+          </div>
         </div>
 
         <div className="hidden md:block md:h-[min(88vh,960px)]">
           <DescentSidePanel
             isEnglishCopy={isEnglishCopy}
             totalClearedCount={clearedStages.size}
-            totalStages={TOTAL_STAGES}
+            totalStages={totalStagesForCategory}
             activeBlock={panelBlock}
             blockClearedCount={panelBlockClearedCount}
             selectedStage={selectedStage}
@@ -677,7 +811,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
               <DescentSidePanel
                 isEnglishCopy={isEnglishCopy}
                 totalClearedCount={clearedStages.size}
-                totalStages={TOTAL_STAGES}
+                totalStages={totalStagesForCategory}
                 activeBlock={panelBlock}
                 blockClearedCount={panelBlockClearedCount}
                 selectedStage={selectedStage}

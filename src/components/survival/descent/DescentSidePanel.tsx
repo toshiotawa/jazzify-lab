@@ -152,7 +152,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                   {isEnglishCopy ? 'Time' : '制限時間'}
                 </dt>
                 <dd className="mt-0.5 font-bold text-amber-300">
-                  {isBlockLastStage(selectedStage.stageNumber) ? '—' : `${STAGE_TIME_LIMIT_SECONDS}s`}
+                  {isBlockLastStage(selectedStage.stageNumber, selectedStage.mapCategory) ? '—' : `${STAGE_TIME_LIMIT_SECONDS}s`}
                 </dd>
               </div>
               <div className="rounded-md bg-white/5 p-2">
@@ -160,7 +160,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                   {isEnglishCopy ? 'Clear' : 'クリア条件'}
                 </dt>
                 <dd className="mt-0.5 text-[11px] font-bold text-emerald-300">
-                  {isBlockLastStage(selectedStage.stageNumber)
+                  {isBlockLastStage(selectedStage.stageNumber, selectedStage.mapCategory)
                     ? (isEnglishCopy ? 'Boss x1' : 'ボス x1')
                     : (isEnglishCopy ? '90s + 150 Kills' : '90秒 + 150体')}
                 </dd>

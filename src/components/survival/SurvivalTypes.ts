@@ -7,6 +7,14 @@ import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 // ===== 難易度 =====
 export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
 
+// ===== マップカテゴリ =====
+/** Basic = 既存の魔王城マップ / Songs = 楽曲ベースの新マップ */
+export type SurvivalMapCategory = 'basic' | 'songs';
+
+export const SURVIVAL_MAP_CATEGORIES: readonly SurvivalMapCategory[] = ['basic', 'songs'] as const;
+
+export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
+
 // ===== 方向 =====
 export type Direction = 'up' | 'down' | 'left' | 'right' | 
   'up-left' | 'up-right' | 'down-left' | 'down-right';

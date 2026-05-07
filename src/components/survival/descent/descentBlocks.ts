@@ -1,10 +1,16 @@
 /**
  * 魔王城降下マップ: ブロック（コードタイプ）メタデータ
  * 1ブロック = 5 ステージ、Mixed を含むブロックのみ 6 ステージ。
- * 注: Web版は survival_stages テーブルがソース。fetchAllStages 完了後に rebuildDescentBlocks を呼ぶ。
+ * Web版は survival_stages テーブルがソース。fetchAllStages 完了後に rebuildDescentBlocks を呼ぶ。
+ * Basic / Songs マップごとに別々のブロックリストを管理する。
  */
 
-import { ALL_STAGES, BlockKey } from '../SurvivalStageDefinitions';
+import { BlockKey, getStagesByCategory } from '../SurvivalStageDefinitions';
+import {
+  SurvivalMapCategory,
+  DEFAULT_SURVIVAL_MAP_CATEGORY,
+  SURVIVAL_MAP_CATEGORIES,
+} from '../SurvivalTypes';
 
 export interface BlockMeta {
   blockKey: BlockKey;
@@ -70,10 +76,11 @@ const BLOCK_LABELS: Record<BlockKey, { ja: string; en: string }> = {
   dimM7: { ja: 'dim(M7)', en: 'dim(M7)' },
 };
 
-function buildBlocks(): BlockMeta[] {
-  if (ALL_STAGES.length === 0) return [];
+function buildBlocksForCategory(category: SurvivalMapCategory): BlockMeta[] {
+  const stages = getStagesByCategory(category);
+  if (stages.length === 0) return [];
   const byKey: Map<BlockKey, { stageNumbers: number[]; mixedStageNumber: number | null }> = new Map();
-  for (const stage of ALL_STAGES) {
+  for (const stage of stages) {
     const entry = byKey.get(stage.blockKey) ?? { stageNumbers: [], mixedStageNumber: null };
     entry.stageNumbers.push(stage.stageNumber);
     if (stage.isMixedStage) entry.mixedStageNumber = stage.stageNumber;
@@ -81,8 +88,8 @@ function buildBlocks(): BlockMeta[] {
   }
 
   const result: BlockMeta[] = [];
-  for (let blockIndex = 0; blockIndex < BLOCK_ORDER.length; blockIndex += 1) {
-    const blockKey = BLOCK_ORDER[blockIndex];
+  let blockIndex = 0;
+  for (const blockKey of BLOCK_ORDER) {
     const entry = byKey.get(blockKey);
     if (!entry) continue;
     const sorted = [...entry.stageNumbers].sort((a, b) => a - b);
@@ -99,35 +106,64 @@ function buildBlocks(): BlockMeta[] {
       hasMixed: entry.mixedStageNumber !== null,
       stageCount: sorted.length,
     });
+    blockIndex += 1;
   }
   return result;
 }
 
+const BLOCKS_BY_CATEGORY: Record<SurvivalMapCategory, BlockMeta[]> = {
+  basic: [],
+  songs: [],
+};
+
+const STAGE_TO_BLOCK_BY_CATEGORY: Record<SurvivalMapCategory, Map<number, BlockMeta>> = {
+  basic: new Map(),
+  songs: new Map(),
+};
+
+/** 互換用: Basic マップのブロック一覧 */
 export let ALL_BLOCKS: BlockMeta[] = [];
 
-const stageToBlockMap: Map<number, BlockMeta> = new Map();
-
-/** ALL_STAGES が更新された後に呼ぶ。 */
+/** ALL_STAGES が更新された後に呼ぶ。全カテゴリを再構築する。 */
 export function rebuildDescentBlocks(): void {
-  ALL_BLOCKS = buildBlocks();
-  stageToBlockMap.clear();
-  for (const block of ALL_BLOCKS) {
-    for (const stageNumber of block.stageNumbers) {
-      stageToBlockMap.set(stageNumber, block);
+  for (const category of SURVIVAL_MAP_CATEGORIES) {
+    const blocks = buildBlocksForCategory(category);
+    BLOCKS_BY_CATEGORY[category] = blocks;
+    const stageMap = STAGE_TO_BLOCK_BY_CATEGORY[category];
+    stageMap.clear();
+    for (const block of blocks) {
+      for (const stageNumber of block.stageNumbers) {
+        stageMap.set(stageNumber, block);
+      }
     }
   }
+  ALL_BLOCKS = BLOCKS_BY_CATEGORY.basic;
 }
 
-export function getBlockForStage(stageNumber: number): BlockMeta | undefined {
-  return stageToBlockMap.get(stageNumber);
+export function getBlocksByCategory(category: SurvivalMapCategory): BlockMeta[] {
+  return BLOCKS_BY_CATEGORY[category];
 }
 
-export function getBlockByKey(blockKey: BlockKey): BlockMeta | undefined {
-  return ALL_BLOCKS.find(b => b.blockKey === blockKey);
+export function getBlockForStage(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): BlockMeta | undefined {
+  return STAGE_TO_BLOCK_BY_CATEGORY[mapCategory].get(stageNumber);
 }
 
-export function isBlockCleared(blockKey: BlockKey, clearedStages: ReadonlySet<number>): boolean {
-  const block = getBlockByKey(blockKey);
+export function getBlockByKey(
+  blockKey: BlockKey,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): BlockMeta | undefined {
+  return BLOCKS_BY_CATEGORY[mapCategory].find(b => b.blockKey === blockKey);
+}
+
+export function isBlockCleared(
+  blockKey: BlockKey,
+  clearedStages: ReadonlySet<number>,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): boolean {
+  const block = getBlockByKey(blockKey, mapCategory);
   if (!block) return false;
   return block.stageNumbers.every(n => clearedStages.has(n));
 }
@@ -136,11 +172,16 @@ export function isBlockCleared(blockKey: BlockKey, clearedStages: ReadonlySet<nu
  * カメラ下限クランプ用: キャラクターがいるブロック + その次のブロックまでを
  * 「閲覧可能」とみなす境界ブロックインデックスを返す。
  */
-export function getAccessibleBlockIndex(frontierStageNumber: number, clearedStages: ReadonlySet<number>): number {
-  const currentBlock = getBlockForStage(frontierStageNumber);
+export function getAccessibleBlockIndex(
+  frontierStageNumber: number,
+  clearedStages: ReadonlySet<number>,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): number {
+  const blocks = BLOCKS_BY_CATEGORY[mapCategory];
+  const currentBlock = getBlockForStage(frontierStageNumber, mapCategory);
   if (!currentBlock) return 0;
-  if (isBlockCleared(currentBlock.blockKey, clearedStages)) {
-    return Math.min(currentBlock.blockIndex + 1, ALL_BLOCKS.length - 1);
+  if (isBlockCleared(currentBlock.blockKey, clearedStages, mapCategory)) {
+    return Math.min(currentBlock.blockIndex + 1, blocks.length - 1);
   }
   return currentBlock.blockIndex;
 }

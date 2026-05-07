@@ -5,6 +5,10 @@ import { getSupabaseClient } from './supabaseClient';
 
 export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
 
+/** マップカテゴリ ('basic' | 'songs')。Basic と Songs で進行管理を分離する。 */
+export type SurvivalMapCategory = 'basic' | 'songs';
+export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
+
 export interface SurvivalHighScore {
   id: string;
   userId: string;
@@ -402,14 +406,19 @@ export interface SurvivalStageClear {
   finalLevel: number;
   enemiesDefeated: number;
   clearedAt: string;
+  mapCategory: SurvivalMapCategory;
 }
 
-export async function fetchSurvivalStageProgress(userId: string): Promise<SurvivalStageProgress> {
+export async function fetchSurvivalStageProgress(
+  userId: string,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): Promise<SurvivalStageProgress> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('survival_stage_progress')
     .select('current_stage_number, total_cleared_stages')
     .eq('user_id', userId)
+    .eq('map_category', mapCategory)
     .maybeSingle();
 
   if (error) throw error;
@@ -420,12 +429,16 @@ export async function fetchSurvivalStageProgress(userId: string): Promise<Surviv
   };
 }
 
-export async function fetchSurvivalStageClears(userId: string): Promise<SurvivalStageClear[]> {
+export async function fetchSurvivalStageClears(
+  userId: string,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): Promise<SurvivalStageClear[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('survival_stage_clears')
     .select('*')
     .eq('user_id', userId)
+    .eq('map_category', mapCategory)
     .order('stage_number', { ascending: true });
 
   if (error) throw error;
@@ -438,6 +451,7 @@ export async function fetchSurvivalStageClears(userId: string): Promise<Survival
     finalLevel: Number(row.final_level) || 1,
     enemiesDefeated: Number(row.enemies_defeated) || 0,
     clearedAt: row.cleared_at as string,
+    mapCategory: (row.map_category as SurvivalMapCategory) || DEFAULT_SURVIVAL_MAP_CATEGORY,
   }));
 }
 
@@ -449,6 +463,7 @@ export async function upsertSurvivalStageClear(
   enemiesDefeated: number,
   characterId: string | null,
   totalStages: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 ): Promise<{ isFirstClear: boolean }> {
   const supabase = getSupabaseClient();
 
@@ -456,6 +471,7 @@ export async function upsertSurvivalStageClear(
     .from('survival_stage_clears')
     .select('id')
     .eq('user_id', userId)
+    .eq('map_category', mapCategory)
     .eq('stage_number', stageNumber)
     .maybeSingle();
 
@@ -465,13 +481,14 @@ export async function upsertSurvivalStageClear(
     .from('survival_stage_clears')
     .upsert({
       user_id: userId,
+      map_category: mapCategory,
       stage_number: stageNumber,
       character_id: characterId,
       survival_time_seconds: survivalTimeSeconds,
       final_level: finalLevel,
       enemies_defeated: enemiesDefeated,
       cleared_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,stage_number' });
+    }, { onConflict: 'user_id,map_category,stage_number' });
 
   if (isFirstClear) {
     const nextStage = stageNumber + 1;
@@ -481,6 +498,7 @@ export async function upsertSurvivalStageClear(
       .from('survival_stage_progress')
       .select('current_stage_number, total_cleared_stages')
       .eq('user_id', userId)
+      .eq('map_category', mapCategory)
       .maybeSingle();
 
     const currentMax = progress ? Number(progress.current_stage_number) : 1;
@@ -493,10 +511,11 @@ export async function upsertSurvivalStageClear(
       .from('survival_stage_progress')
       .upsert({
         user_id: userId,
+        map_category: mapCategory,
         current_stage_number: updatedCurrent,
         total_cleared_stages: updatedTotal,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+      }, { onConflict: 'user_id,map_category' });
   }
 
   return { isFirstClear };

@@ -5,16 +5,27 @@
  */
 
 import React from 'react';
-import { ALL_BLOCK_LAYOUTS } from '../descentLayout';
+import { BlockLayout, getBlockLayoutsByCategory } from '../descentLayout';
 import { getBlockFilter, getBlockTint } from '../blockTheme';
+import { SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY } from '../../SurvivalTypes';
 
 interface BackgroundWallProps {
   widthPx: number;
   heightPx: number;
   scale: number;
+  /** 描画対象のレイアウト（未指定時は mapCategory から解決） */
+  layouts?: BlockLayout[];
+  mapCategory?: SurvivalMapCategory;
 }
 
-export const BackgroundWall: React.FC<BackgroundWallProps> = ({ widthPx, heightPx, scale }) => {
+export const BackgroundWall: React.FC<BackgroundWallProps> = ({
+  widthPx,
+  heightPx,
+  scale,
+  layouts,
+  mapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+}) => {
+  const resolvedLayouts = layouts ?? getBlockLayoutsByCategory(mapCategory);
   const tile = Math.round(256 * scale);
   return (
     <div
@@ -26,7 +37,7 @@ export const BackgroundWall: React.FC<BackgroundWallProps> = ({ widthPx, heightP
         background: '#09070f',
       }}
     >
-      {ALL_BLOCK_LAYOUTS.map(layout => {
+      {resolvedLayouts.map(layout => {
         const filter = getBlockFilter(layout.blockIndex);
         const tint = getBlockTint(layout.blockIndex);
         const top = layout.startY * scale;

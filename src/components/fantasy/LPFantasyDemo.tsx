@@ -46,6 +46,7 @@ const DEMO_STAGE_DEFINITION: StageDefinition = {
   rootPatternNameEn: 'CDE',
   allowedChords: DEMO_CDE_NOTES.map(r => `${r}_note`),
   blockKey: 'major',
+  mapCategory: 'basic',
 };
 
 const LPFantasyDemo: React.FC = () => {

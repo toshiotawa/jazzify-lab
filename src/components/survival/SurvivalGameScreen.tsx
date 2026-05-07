@@ -275,7 +275,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   const isStageMode = !!stageDefinition;
   const isProgressionStage = stageDefinition?.stageType === 'progression';
-  const isBossStage = !!stageDefinition && !isProgressionStage && isBlockLastStage(stageDefinition.stageNumber);
+  const isBossStage = !!stageDefinition && !isProgressionStage && isBlockLastStage(stageDefinition.stageNumber, stageDefinition.mapCategory);
   const bossType = isBossStage && stageDefinition ? getBossTypeForBlock(stageDefinition.blockKey) : null;
 
   // Progression（コード進行）モード: B列のみで進行を循環。

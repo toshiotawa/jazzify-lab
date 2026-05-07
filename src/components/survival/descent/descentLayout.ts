@@ -2,10 +2,16 @@
  * 魔王城降下マップ: レイアウト座標計算
  * マップ座標系は「論理ピクセル(lp)」で設計。描画側でビューポート幅にフィットするようスケールする。
  * 3レーン固定: 左 / 中央 / 右。ブロック末尾は必ず中央レーン＆大踊り場。
+ * Basic / Songs マップごとに別々のレイアウトを管理する。
  */
 
-import { ALL_BLOCKS, BlockMeta, getBlockByKey, getBlockForStage } from './descentBlocks';
+import { BlockMeta, getBlocksByCategory, getBlockByKey, getBlockForStage } from './descentBlocks';
 import { BlockKey } from '../SurvivalStageDefinitions';
+import {
+  SurvivalMapCategory,
+  DEFAULT_SURVIVAL_MAP_CATEGORY,
+  SURVIVAL_MAP_CATEGORIES,
+} from '../SurvivalTypes';
 
 /** ロジカル座標系の幅（デザイン基準・横長レイアウト寄り） */
 export const MAP_LOGICAL_WIDTH = 560;
@@ -94,10 +100,10 @@ function buildLayoutForBlock(block: BlockMeta, startY: number): BlockLayout {
   };
 }
 
-function buildAllLayouts(): BlockLayout[] {
+function buildAllLayouts(category: SurvivalMapCategory): BlockLayout[] {
   const layouts: BlockLayout[] = [];
   let cursorY = 0;
-  for (const block of ALL_BLOCKS) {
+  for (const block of getBlocksByCategory(category)) {
     const layout = buildLayoutForBlock(block, cursorY);
     layouts.push(layout);
     cursorY = layout.endY;
@@ -105,51 +111,94 @@ function buildAllLayouts(): BlockLayout[] {
   return layouts;
 }
 
+const LAYOUTS_BY_CATEGORY: Record<SurvivalMapCategory, BlockLayout[]> = {
+  basic: [],
+  songs: [],
+};
+
+const STAGE_POSITIONS_BY_CATEGORY: Record<SurvivalMapCategory, Map<number, StagePosition>> = {
+  basic: new Map(),
+  songs: new Map(),
+};
+
+const MAP_LOGICAL_HEIGHT_BY_CATEGORY: Record<SurvivalMapCategory, number> = {
+  basic: 0,
+  songs: 0,
+};
+
+/** 互換用: Basic マップのレイアウト一覧 */
 export let ALL_BLOCK_LAYOUTS: BlockLayout[] = [];
 
-const stagePositionsMap: Map<number, StagePosition> = new Map();
-
-/** マップ全長（論理px）。rebuildDescentLayouts() の呼出後に最新値が入る。 */
+/** 互換用: Basic マップ全長（論理px） */
 export let MAP_LOGICAL_HEIGHT = 0;
 
-/** ALL_BLOCKS が更新された後に呼ぶ。 */
+/** ALL_BLOCKS が更新された後に呼ぶ。全カテゴリを再構築する。 */
 export function rebuildDescentLayouts(): void {
-  ALL_BLOCK_LAYOUTS = buildAllLayouts();
-  stagePositionsMap.clear();
-  for (const layout of ALL_BLOCK_LAYOUTS) {
-    for (const stage of layout.stages) {
-      stagePositionsMap.set(stage.stageNumber, stage);
+  for (const category of SURVIVAL_MAP_CATEGORIES) {
+    const layouts = buildAllLayouts(category);
+    LAYOUTS_BY_CATEGORY[category] = layouts;
+    const positions = STAGE_POSITIONS_BY_CATEGORY[category];
+    positions.clear();
+    for (const layout of layouts) {
+      for (const stage of layout.stages) {
+        positions.set(stage.stageNumber, stage);
+      }
     }
+    MAP_LOGICAL_HEIGHT_BY_CATEGORY[category] = layouts.length > 0
+      ? layouts[layouts.length - 1].endY
+      : 0;
   }
-  MAP_LOGICAL_HEIGHT = ALL_BLOCK_LAYOUTS.length > 0
-    ? ALL_BLOCK_LAYOUTS[ALL_BLOCK_LAYOUTS.length - 1].endY
-    : 0;
+  ALL_BLOCK_LAYOUTS = LAYOUTS_BY_CATEGORY.basic;
+  MAP_LOGICAL_HEIGHT = MAP_LOGICAL_HEIGHT_BY_CATEGORY.basic;
 }
 
-export function getStagePosition(stageNumber: number): StagePosition | undefined {
-  return stagePositionsMap.get(stageNumber);
+export function getBlockLayoutsByCategory(category: SurvivalMapCategory): BlockLayout[] {
+  return LAYOUTS_BY_CATEGORY[category];
 }
 
-export function getBlockLayout(blockKey: BlockKey): BlockLayout | undefined {
-  return ALL_BLOCK_LAYOUTS.find(l => l.blockKey === blockKey);
+export function getMapLogicalHeightByCategory(category: SurvivalMapCategory): number {
+  return MAP_LOGICAL_HEIGHT_BY_CATEGORY[category];
 }
 
-export function getBlockLayoutByIndex(blockIndex: number): BlockLayout | undefined {
-  return ALL_BLOCK_LAYOUTS[blockIndex];
+export function getStagePosition(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): StagePosition | undefined {
+  return STAGE_POSITIONS_BY_CATEGORY[mapCategory].get(stageNumber);
+}
+
+export function getBlockLayout(
+  blockKey: BlockKey,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): BlockLayout | undefined {
+  return LAYOUTS_BY_CATEGORY[mapCategory].find(l => l.blockKey === blockKey);
+}
+
+export function getBlockLayoutByIndex(
+  blockIndex: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): BlockLayout | undefined {
+  return LAYOUTS_BY_CATEGORY[mapCategory][blockIndex];
 }
 
 /** ステージが属するブロックのレイアウトを返す */
-export function getBlockLayoutForStage(stageNumber: number): BlockLayout | undefined {
-  const block = getBlockForStage(stageNumber);
+export function getBlockLayoutForStage(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): BlockLayout | undefined {
+  const block = getBlockForStage(stageNumber, mapCategory);
   if (!block) return undefined;
-  return getBlockLayout(block.blockKey);
+  return getBlockLayout(block.blockKey, mapCategory);
 }
 
 /** ユーティリティ: ブロックの全ノードを覆う y 範囲 */
-export function getBlockNodeYRange(blockKey: BlockKey): { min: number; max: number } | undefined {
-  const block = getBlockByKey(blockKey);
+export function getBlockNodeYRange(
+  blockKey: BlockKey,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): { min: number; max: number } | undefined {
+  const block = getBlockByKey(blockKey, mapCategory);
   if (!block) return undefined;
-  const layout = getBlockLayout(blockKey);
+  const layout = getBlockLayout(blockKey, mapCategory);
   if (!layout) return undefined;
   return { min: layout.stages[0].y, max: layout.stages[layout.stages.length - 1].y };
 }

@@ -7,6 +7,7 @@ import React, { useMemo } from 'react';
 import { BlockLayout, LANE_X, MAP_LOGICAL_WIDTH } from './descentLayout';
 import { getBlockByKey } from './descentBlocks';
 import { getBlockTheme, getBlockFilter } from './blockTheme';
+import { SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY } from '../SurvivalTypes';
 import LandingPlatform from './parts/LandingPlatform';
 import StairConnector from './parts/StairConnector';
 import StageNode, { StageNodeState } from './parts/StageNode';
@@ -32,6 +33,7 @@ interface DescentBlockProps {
   frontierStageNumber: number;
   mapWidthPx: number;
   isFrontierBlock: boolean;
+  mapCategory?: SurvivalMapCategory;
 }
 
 export const DescentBlock: React.FC<DescentBlockProps> = ({
@@ -48,8 +50,9 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
   frontierStageNumber,
   mapWidthPx,
   isFrontierBlock,
+  mapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 }) => {
-  const block = getBlockByKey(layout.blockKey);
+  const block = getBlockByKey(layout.blockKey, mapCategory);
   const theme = getBlockTheme(layout.blockIndex);
   const blockFilter = getBlockFilter(layout.blockIndex);
 

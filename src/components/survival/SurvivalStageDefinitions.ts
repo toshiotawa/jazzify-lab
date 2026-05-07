@@ -6,7 +6,7 @@
  *   `[{ name, voicing }]` 配列をそのままコード列として使う。MusicXML は使用しない。
  */
 
-import { SurvivalDifficulty } from './SurvivalTypes';
+import { SurvivalDifficulty, SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY, SURVIVAL_MAP_CATEGORIES } from './SurvivalTypes';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 
 export type RootPattern = 'cde' | 'fgab' | 'sharp' | 'flat' | 'all';
@@ -62,6 +62,8 @@ export interface StageDefinition {
   mixedGroupKey?: MixedGroupKey;
   /** Progressionタイプ用コード進行（DB `chord_progression` の値）。Random時は undefined。 */
   chordProgression?: SurvivalChordProgressionEntry[];
+  /** マップカテゴリ（'basic' or 'songs'） */
+  mapCategory: SurvivalMapCategory;
 }
 
 /**
@@ -138,6 +140,10 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
   const mixedGroupKey = (row.mixed_group_key as MixedGroupKey | null) ?? undefined;
   const chordSuffix = (row.chord_suffix as string) ?? '';
   const rootPattern = (row.root_pattern as RootPattern | null) ?? null;
+  const rawCategory = typeof row.map_category === 'string' ? (row.map_category as string) : DEFAULT_SURVIVAL_MAP_CATEGORY;
+  const mapCategory: SurvivalMapCategory = SURVIVAL_MAP_CATEGORIES.includes(rawCategory as SurvivalMapCategory)
+    ? (rawCategory as SurvivalMapCategory)
+    : DEFAULT_SURVIVAL_MAP_CATEGORY;
 
   let allowedChords: string[] = [];
   if (stageType === 'random') {
@@ -165,10 +171,11 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     isMixedStage,
     mixedGroupKey,
     chordProgression: parseChordProgression(row.chord_progression),
+    mapCategory,
   };
 }
 
-const LOCAL_CACHE_KEY = 'survival_stages_cache_v1';
+const LOCAL_CACHE_KEY = 'survival_stages_cache_v2';
 
 function readLocalCache(): StageDefinition[] | null {
   try {
@@ -193,11 +200,28 @@ function writeLocalCache(rows: Array<Record<string, unknown>>): void {
 }
 
 /**
- * グローバルにキャッシュされたステージ一覧。
+ * カテゴリ別のステージ一覧。
  * fetchAllStages() で初期化されるまで空配列。
  */
+const STAGES_BY_CATEGORY: Record<SurvivalMapCategory, StageDefinition[]> = {
+  basic: [],
+  songs: [],
+};
+
+/**
+ * 互換用: Basic マップの全ステージを返す（既存コード参照のため）。
+ * 新規コードは getStagesByCategory(category) を使うこと。
+ */
 export let ALL_STAGES: StageDefinition[] = [];
+/** 互換用: Basic マップの総ステージ数 */
 export let TOTAL_STAGES = 0;
+
+function applyStageCaches(stages: StageDefinition[]): void {
+  STAGES_BY_CATEGORY.basic = stages.filter(s => s.mapCategory === 'basic');
+  STAGES_BY_CATEGORY.songs = stages.filter(s => s.mapCategory === 'songs');
+  ALL_STAGES = STAGES_BY_CATEGORY.basic;
+  TOTAL_STAGES = STAGES_BY_CATEGORY.basic.length;
+}
 
 let fetchPromise: Promise<StageDefinition[]> | null = null;
 
@@ -205,7 +229,7 @@ export const STAGE_TIME_LIMIT_SECONDS = 90;
 export const STAGE_KILL_QUOTA = 150;
 
 /**
- * survival_stages を Supabase から取得し、`ALL_STAGES` を更新する。
+ * survival_stages を Supabase から取得し、カテゴリ別キャッシュを更新する。
  * 結果はメモリ + localStorage にキャッシュされる。
  */
 export async function fetchAllStages(): Promise<StageDefinition[]> {
@@ -217,28 +241,26 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
       const { data, error } = await supabase
         .from('survival_stages')
         .select('*')
+        .order('map_category', { ascending: true })
         .order('stage_number', { ascending: true });
       if (error) throw error;
       const rows = (data ?? []) as Array<Record<string, unknown>>;
       if (rows.length === 0) {
         const cached = readLocalCache();
         if (cached) {
-          ALL_STAGES = cached;
-          TOTAL_STAGES = cached.length;
+          applyStageCaches(cached);
           return cached;
         }
         return [];
       }
       const stages = rows.map(rowToStageDefinition);
-      ALL_STAGES = stages;
-      TOTAL_STAGES = stages.length;
+      applyStageCaches(stages);
       writeLocalCache(rows);
       return stages;
     } catch {
       const cached = readLocalCache();
       if (cached) {
-        ALL_STAGES = cached;
-        TOTAL_STAGES = cached.length;
+        applyStageCaches(cached);
         return cached;
       }
       return [];
@@ -253,24 +275,45 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
 /** テスト/再ロード用: キャッシュをクリアし次回 fetch を強制する */
 export function resetStageCache(): void {
   fetchPromise = null;
+  STAGES_BY_CATEGORY.basic = [];
+  STAGES_BY_CATEGORY.songs = [];
   ALL_STAGES = [];
   TOTAL_STAGES = 0;
 }
 
-export function getStageByNumber(stageNumber: number): StageDefinition | undefined {
-  return ALL_STAGES.find(s => s.stageNumber === stageNumber);
+/** カテゴリ別のステージ一覧を返す（参照のみ。配列を変更しないこと） */
+export function getStagesByCategory(category: SurvivalMapCategory): StageDefinition[] {
+  return STAGES_BY_CATEGORY[category];
 }
 
-export function getDifficultyForStage(stageNumber: number): SurvivalDifficulty {
-  const stage = getStageByNumber(stageNumber);
+/** カテゴリ別の総ステージ数を返す */
+export function getTotalStagesByCategory(category: SurvivalMapCategory): number {
+  return STAGES_BY_CATEGORY[category].length;
+}
+
+export function getStageByNumber(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): StageDefinition | undefined {
+  return STAGES_BY_CATEGORY[mapCategory].find(s => s.stageNumber === stageNumber);
+}
+
+export function getDifficultyForStage(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): SurvivalDifficulty {
+  const stage = getStageByNumber(stageNumber, mapCategory);
   return stage?.difficulty ?? 'easy';
 }
 
 /** 指定ステージが所属ブロックの最終ステージ（扉の敵＝ボス戦）かを判定する */
-export function isBlockLastStage(stageNumber: number): boolean {
-  const current = getStageByNumber(stageNumber);
+export function isBlockLastStage(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): boolean {
+  const current = getStageByNumber(stageNumber, mapCategory);
   if (!current) return false;
-  const next = getStageByNumber(stageNumber + 1);
+  const next = getStageByNumber(stageNumber + 1, mapCategory);
   if (!next) return true;
   return next.blockKey !== current.blockKey;
 }

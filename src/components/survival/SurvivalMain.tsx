@@ -10,7 +10,13 @@ import { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
 import SurvivalDescentMap from './descent/SurvivalDescentMap';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import SurvivalGameScreen from './SurvivalGameScreen';
-import { StageDefinition, ALL_STAGES, TOTAL_STAGES, fetchAllStages } from './SurvivalStageDefinitions';
+import {
+  StageDefinition,
+  ALL_STAGES,
+  fetchAllStages,
+  getStagesByCategory,
+  getTotalStagesByCategory,
+} from './SurvivalStageDefinitions';
 import { rebuildDescentBlocks } from './descent/descentBlocks';
 import { rebuildDescentLayouts } from './descent/descentLayout';
 import { useAuthStore } from '@/stores/authStore';
@@ -353,7 +359,8 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const handleNextStage = useCallback(() => {
     if (!activeStageDefinition || !selectedConfig) return;
     const nextStageNumber = activeStageDefinition.stageNumber + 1;
-    const nextStage = ALL_STAGES.find((s: StageDefinition) => s.stageNumber === nextStageNumber);
+    const stagesInCategory = getStagesByCategory(activeStageDefinition.mapCategory);
+    const nextStage = stagesInCategory.find((s: StageDefinition) => s.stageNumber === nextStageNumber);
     if (!nextStage) return;
 
     const nextConfig: DifficultyConfig = {
@@ -478,7 +485,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         hintMode={activeHintMode}
         onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
         onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}
-        onNextStage={lessonMode ? undefined : (activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined)}
+        onNextStage={lessonMode
+          ? undefined
+          : (activeStageDefinition && activeStageDefinition.stageNumber < getTotalStagesByCategory(activeStageDefinition.mapCategory)
+              ? handleNextStage
+              : undefined)}
       />
     );
   }

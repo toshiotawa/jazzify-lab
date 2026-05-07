@@ -11,7 +11,12 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore, upsertSurvivalStageClear } from '@/platform/supabaseSurvival';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
-import { StageDefinition, TOTAL_STAGES, STAGE_KILL_QUOTA, isBlockLastStage } from './SurvivalStageDefinitions';
+import {
+  StageDefinition,
+  STAGE_KILL_QUOTA,
+  isBlockLastStage,
+  getTotalStagesByCategory,
+} from './SurvivalStageDefinitions';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 interface SurvivalGameOverProps {
@@ -56,7 +61,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isStageMode = !!stageDefinition;
   const isStageClear = result.isStageClear === true && isStageMode && !hintMode;
   const isStageClearHint = result.isStageClear === true && isStageMode && hintMode;
-  const isBossStage = isStageMode && isBlockLastStage(stageDefinition!.stageNumber);
+  const isBossStage = isStageMode && isBlockLastStage(stageDefinition!.stageNumber, stageDefinition!.mapCategory);
 
   const handleBackToSelect = () => {
     if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
@@ -76,6 +81,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 
       if (isStageClear && !stageSaved && !isLessonMode) {
         try {
+          const stageCategory = stageDefinition!.mapCategory;
           await upsertSurvivalStageClear(
             profile.id,
             stageDefinition!.stageNumber,
@@ -83,7 +89,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             result.finalLevel,
             result.enemiesDefeated,
             characterId ?? null,
-            TOTAL_STAGES,
+            getTotalStagesByCategory(stageCategory),
+            stageCategory,
           );
           setStageSaved(true);
           clearUserStatsCache(profile.id);
