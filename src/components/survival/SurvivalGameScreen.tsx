@@ -3679,7 +3679,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             contentScale={isMobile ? (viewportSize.width >= 768 ? 0.95 : 0.75) : 1}
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
-            characterAvatarUrl={character?.avatarUrl}
             bossBattle={bossBattleRef.current}
             bossUiTick={bossUiTick}
           />

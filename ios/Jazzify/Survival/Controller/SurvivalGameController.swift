@@ -12,7 +12,9 @@ import QuartzCore
 final class SurvivalGameController: ObservableObject {
     // MARK: - 公開状態 (SwiftUI 反映用)
 
-    @Published private(set) var runtime: SurvivalStageRuntime
+    /// SpriteKit / ゲームロジックが毎フレーム参照。SwiftUI は `uiSnapshot` を購読する。
+    private(set) var runtime: SurvivalStageRuntime
+    @Published private(set) var uiSnapshot: SurvivalUISnapshot
     @Published private(set) var bossBattle: SurvivalBossBattleState?
     @Published private(set) var isBossStage: Bool
     /// SKScene からのみ参照されるカメラ追従先。SwiftUI のビュー更新に使われないため
@@ -139,6 +141,8 @@ final class SurvivalGameController: ObservableObject {
                 now: CACurrentMediaTime()
             )
         }
+
+        self._uiSnapshot = Published(initialValue: SurvivalUISnapshot.make(from: self.runtime))
     }
 
     // MARK: - ライフサイクル
@@ -261,6 +265,7 @@ final class SurvivalGameController: ObservableObject {
         }
         // 鍵盤タップのフィードバック音は `handleNoteOn` 側で既に発音済み。
         // ここで追加の `playNote` は呼ばない (重複発音防止)。
+        rebuildUISnapshotIfChanged()
     }
 
     private func triggerSlot(atIndex slotIndex: Int, chord: SurvivalResolvedChord) {
@@ -323,8 +328,7 @@ final class SurvivalGameController: ObservableObject {
         SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
 
         // 完成コード名をプレイヤー頭上にフローティング表示 + スロット入れ替えを
-        // 1 回の struct mutation にまとめることで `@Published runtime` の発火を
-        // 集約し、コード完成時の SwiftUI 再評価コストを抑える。
+        // 1 回の struct mutation にまとめ、`rebuildUISnapshotIfChanged` で SwiftUI 更新を集約する。
         // (Shot / Punch の表示、次コード抽選、進捗リセット、triggerPulse 更新を一括適用)
         let upcomingChord: SurvivalResolvedChord
         let newNextChord: SurvivalResolvedChord
@@ -399,6 +403,15 @@ final class SurvivalGameController: ObservableObject {
         if let effect = outcome.visualEffect {
             runtime.magicEffects.append(effect)
         }
+        rebuildUISnapshotIfChanged()
+    }
+
+    /// SwiftUI 向けスナップショットを再計算し、前回と異なるときだけ `@Published` を更新する。
+    private func rebuildUISnapshotIfChanged() {
+        let next = SurvivalUISnapshot.make(from: runtime)
+        if next != uiSnapshot {
+            uiSnapshot = next
+        }
     }
 
     // MARK: - 毎フレーム更新 (SKScene から呼ばれる)
@@ -416,8 +429,14 @@ final class SurvivalGameController: ObservableObject {
                 bossBattle = boss
             }
             // 初回フレームは dt = 0 相当とし、これ以降のフレームから通常進行させる。
-            guard !isPaused else { return }
-            guard runtime.phase == .playing else { return }
+            guard !isPaused else {
+                rebuildUISnapshotIfChanged()
+                return
+            }
+            guard runtime.phase == .playing else {
+                rebuildUISnapshotIfChanged()
+                return
+            }
             if isBossStage {
                 tickBoss(deltaTime: 0, now: currentTime)
             } else {
@@ -425,6 +444,7 @@ final class SurvivalGameController: ObservableObject {
             }
             cameraTargetX = runtime.player.x
             cameraTargetY = runtime.player.y
+            rebuildUISnapshotIfChanged()
             return
         }
 
@@ -440,6 +460,7 @@ final class SurvivalGameController: ObservableObject {
         }
         cameraTargetX = runtime.player.x
         cameraTargetY = runtime.player.y
+        rebuildUISnapshotIfChanged()
     }
 
     // MARK: - 通常ステージ 1 フレーム

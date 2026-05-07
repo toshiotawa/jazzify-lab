@@ -23,6 +23,7 @@ enum SurvivalDemoStage {
         let base = SurvivalStageCatalog.stage(byNumber: 1) ?? fallbackBase
         return SurvivalStageDefinition(
             stageNumber: base.stageNumber,
+            stageType: base.stageType,
             nameJa: "デモ CDE",
             nameEn: "Demo CDE",
             difficulty: base.difficulty,
@@ -34,7 +35,8 @@ enum SurvivalDemoStage {
             rootPatternEn: base.rootPatternEn,
             allowedChords: allowedChords,
             blockKey: base.blockKey,
-            isMixedStage: false
+            isMixedStage: false,
+            chordProgression: base.chordProgression
         )
     }()
 
@@ -59,6 +61,7 @@ enum SurvivalDemoStage {
     /// 実運用ではステージ 1 が存在する前提だが、強制アンラップを避けるために用意している。
     private static let fallbackBase: SurvivalStageDefinition = SurvivalStageDefinition(
         stageNumber: 1,
+        stageType: .random,
         nameJa: "デモ CDE",
         nameEn: "Demo CDE",
         difficulty: .easy,
@@ -70,6 +73,7 @@ enum SurvivalDemoStage {
         rootPatternEn: SurvivalRootPattern.cde.nameEn,
         allowedChords: allowedChords,
         blockKey: .major,
-        isMixedStage: false
+        isMixedStage: false,
+        chordProgression: nil
     )
 }

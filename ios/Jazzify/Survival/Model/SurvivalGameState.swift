@@ -529,3 +529,57 @@ struct SurvivalStageRuntime: Sendable {
     /// プレイヤーがまだ一度も敵と出会っていない (最初のスポーンを特別にする) 用フラグ
     public var hasSpawnedAny: Bool = false
 }
+
+extension SurvivalCodeSlot: Equatable {
+    /// UI 差分検知用。`timer` のサブ秒変化では再描画しない（毎フレームの SwiftUI 負荷を避ける）。
+    static func == (lhs: SurvivalCodeSlot, rhs: SurvivalCodeSlot) -> Bool {
+        lhs.label == rhs.label &&
+            lhs.chord == rhs.chord &&
+            lhs.nextChord == rhs.nextChord &&
+            lhs.isEnabled == rhs.isEnabled &&
+            lhs.inputPitchClasses == rhs.inputPitchClasses &&
+            lhs.triggerPulse == rhs.triggerPulse
+    }
+}
+
+// MARK: - SwiftUI snapshot (HUD / スロット用)
+
+/// `SurvivalStageRuntime` 全体を `@Published` しないため、表示に必要なフィールドだけを束ねる。
+/// SKScene は引き続き `runtime` を直接参照する。
+struct SurvivalUISnapshot: Equatable {
+    struct StatusStripItem: Equatable, Identifiable {
+        let id: UUID
+        let icon: String
+        let level: Int
+    }
+
+    var phase: SurvivalStagePhase
+    var hintMode: Bool
+    var stageType: SurvivalStageType
+    var hp: Int
+    var maxHp: Int
+    var remainingSecondsCoarse: Int
+    var enemiesDefeated: Int
+    var elapsedSecondsRounded: Int
+    var statusEffectStrip: [StatusStripItem]
+    var slots: [SurvivalCodeSlot]
+
+    static func make(from runtime: SurvivalStageRuntime) -> SurvivalUISnapshot {
+        let remaining = max(0, runtime.remainingSeconds)
+        let strip = runtime.statusEffects.map {
+            StatusStripItem(id: $0.id, icon: $0.kind.systemIcon, level: $0.level)
+        }
+        return SurvivalUISnapshot(
+            phase: runtime.phase,
+            hintMode: runtime.hintMode,
+            stageType: runtime.stage.stageType,
+            hp: runtime.player.hp,
+            maxHp: runtime.player.maxHp,
+            remainingSecondsCoarse: Int(remaining.rounded()),
+            enemiesDefeated: runtime.enemiesDefeated,
+            elapsedSecondsRounded: Int(runtime.elapsedSeconds.rounded()),
+            statusEffectStrip: strip,
+            slots: runtime.slots
+        )
+    }
+}

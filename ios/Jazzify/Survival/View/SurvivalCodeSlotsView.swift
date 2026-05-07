@@ -12,17 +12,17 @@ struct SurvivalCodeSlotsView: View {
 
     var body: some View {
         let isBoss = controller.isBossStage
-        let isProgression = controller.runtime.stage.stageType == .progression
+        let isProgression = controller.uiSnapshot.stageType == .progression
         // Progression: B 列のみ。通常・ボス: A/B の 2 枠。
         let visibleIndices: [Int] = isProgression ? [1] : [0, 1]
 
         return HStack(spacing: isBoss ? 14 : 10) {
             ForEach(visibleIndices, id: \.self) { idx in
                 SlotCell(
-                    slot: controller.runtime.slots[idx],
+                    slot: controller.uiSnapshot.slots[idx],
                     style: SurvivalCodeSlotsView.slotStyle(for: idx),
                     isWide: isBoss || isProgression,
-                    isHintTarget: controller.runtime.hintMode && controller.runtime.slots[idx].isEnabled
+                    isHintTarget: controller.uiSnapshot.hintMode && controller.uiSnapshot.slots[idx].isEnabled
                 )
                 .frame(maxWidth: isProgression ? 360 : .infinity)
             }

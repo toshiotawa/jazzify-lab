@@ -91,7 +91,6 @@ interface SurvivalCanvasProps {
   contentScale?: number;
   shockwaves?: ShockwaveEffect[];
   lightningEffects?: LightningEffect[];
-  characterAvatarUrl?: string;
   /** ボス戦状態（ボス戦中のみ非 null） */
   bossBattle?: BossBattleState | null;
   /** ボス戦 UI の再描画トリガ */
@@ -205,16 +204,12 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   contentScale = 1,
   shockwaves = [],
   lightningEffects = [],
-  characterAvatarUrl,
   bossBattle = null,
   bossUiTick = 0,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<BackgroundParticle[]>([]);
-  /** カスタム characterAvatarUrl 指定時のみ使用 */
-  const playerImageRef = useRef<HTMLImageElement | null>(null);
-  const playerImageLoadedRef = useRef(false);
-  /** デフォルト5方向スプライト（characterAvatarUrl 未指定時） */
+  /** デフォルト5方向スプライト（右向きベース、左向きは flipX） */
   const defaultPlayerSpritesRef = useRef<
     Partial<Record<SurvivalDefaultSpriteVariant, HTMLImageElement>>
   >({});
@@ -232,28 +227,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const logicalWidth = viewportWidth / contentScale;
   const logicalHeight = viewportHeight / contentScale;
   
-  // カスタムアバターURLがある場合は1枚のみプリロード
+  // デフォルトキャラ: 5枚プリロード（iOS 版と同様8方向は flipX で表現）
   useEffect(() => {
-    const trimmed = characterAvatarUrl?.trim();
-    if (!trimmed) {
-      playerImageRef.current = null;
-      playerImageLoadedRef.current = false;
-      return;
-    }
-    const img = new Image();
-    img.onload = () => {
-      playerImageRef.current = img;
-      playerImageLoadedRef.current = true;
-    };
-    img.onerror = () => {
-      playerImageLoadedRef.current = false;
-    };
-    img.src = trimmed;
-  }, [characterAvatarUrl]);
-
-  // デフォルトキャラ: 5枚プリロード
-  useEffect(() => {
-    if (characterAvatarUrl?.trim()) return;
     let cancelled = false;
     defaultPlayerSpritesLoadedRef.current = false;
     defaultPlayerSpritesRef.current = {};
@@ -288,7 +263,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [characterAvatarUrl]);
+  }, []);
 
   // ボススプライトをプリロード
   useEffect(() => {
@@ -655,31 +630,17 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       prevPlayerHpRef.current = currentHp;
     }
 
-    // プレイヤー本体（アバター画像で描画）
+    // プレイヤー本体（デフォルト5枚スプライトで8方向、iOS と同マッピング）
     const nowForFlash = performance.now();
     const inBossIFrames = !!(bossBattle && bossBattle.active
       && nowForFlash < bossBattle.player.iFramesUntil);
     const inNormalDamageFlash = nowForFlash < damageFlashUntilRef.current;
     const playerDamageFlash = inBossIFrames || inNormalDamageFlash;
-    const useCustomAvatar = Boolean(characterAvatarUrl?.trim());
 
-    let frameImg: HTMLImageElement | null = null;
-    let flipPlayerX = false;
-    let avatarReady = false;
-
-    if (useCustomAvatar) {
-      frameImg = playerImageRef.current;
-      avatarReady = playerImageLoadedRef.current;
-      flipPlayerX =
-        player.direction === 'left' ||
-        player.direction === 'up-left' ||
-        player.direction === 'down-left';
-    } else {
-      const sel = getSurvivalDefaultSpriteForDirection(player.direction);
-      frameImg = defaultPlayerSpritesRef.current[sel.variant] ?? null;
-      avatarReady = defaultPlayerSpritesLoadedRef.current && frameImg !== null;
-      flipPlayerX = sel.flipX;
-    }
+    const sel = getSurvivalDefaultSpriteForDirection(player.direction);
+    const frameImg = defaultPlayerSpritesRef.current[sel.variant] ?? null;
+    const avatarReady = defaultPlayerSpritesLoadedRef.current && frameImg !== null;
+    const flipPlayerX = sel.flipX;
 
     if (avatarReady && frameImg) {
       ctx.save();
@@ -1788,7 +1749,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (contentScale !== 1) {
       ctx.restore();
     }
-  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles, bossBattle, bossUiTick, characterAvatarUrl]);
+  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles, bossBattle, bossUiTick]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

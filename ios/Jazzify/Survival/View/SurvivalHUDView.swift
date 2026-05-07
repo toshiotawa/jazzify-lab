@@ -14,7 +14,7 @@ struct SurvivalHUDView: View {
     let locale: AppLocale
 
     private var hpRatio: CGFloat {
-        CGFloat(controller.runtime.player.hp) / CGFloat(max(1, controller.runtime.player.maxHp))
+        CGFloat(controller.uiSnapshot.hp) / CGFloat(max(1, controller.uiSnapshot.maxHp))
     }
 
     private var bossHpRatio: CGFloat? {
@@ -26,8 +26,7 @@ struct SurvivalHUDView: View {
         if controller.bossBattle != nil {
             return locale == .ja ? "ボス戦" : "Boss"
         }
-        let remaining = max(0, controller.runtime.remainingSeconds)
-        let totalSec = Int(remaining.rounded())
+        let totalSec = max(0, controller.uiSnapshot.remainingSecondsCoarse)
         return String(format: "%02d:%02d", totalSec / 60, totalSec % 60)
     }
 
@@ -36,19 +35,19 @@ struct SurvivalHUDView: View {
             SurvivalHUDTopRow(
                 stageName: stage.localizedName(locale),
                 timeLabel: timeLabel,
-                enemiesDefeated: controller.runtime.enemiesDefeated,
+                enemiesDefeated: controller.uiSnapshot.enemiesDefeated,
                 enemyQuota: SurvivalConstants.stageEnemyQuota,
                 isBossBattle: controller.bossBattle != nil,
-                hintMode: controller.runtime.hintMode,
+                hintMode: controller.uiSnapshot.hintMode,
                 isPaused: controller.isPaused,
                 locale: locale,
                 onTogglePause: { controller.togglePause() }
             )
             .equatable()
 
-            if !controller.runtime.statusEffects.isEmpty || controller.runtime.hintMode {
-                SurvivalHUDStatusStrip(effects: controller.runtime.statusEffects.map {
-                    .init(id: $0.id, icon: $0.kind.systemIcon, level: $0.level)
+            if !controller.uiSnapshot.statusEffectStrip.isEmpty || controller.uiSnapshot.hintMode {
+                SurvivalHUDStatusStrip(effects: controller.uiSnapshot.statusEffectStrip.map {
+                    .init(id: $0.id, icon: $0.icon, level: $0.level)
                 })
                 .equatable()
             }
@@ -56,16 +55,16 @@ struct SurvivalHUDView: View {
             if let bossRatio = bossHpRatio {
                 SurvivalHUDBossHpBar(
                     ratio: bossRatio,
-                    hp: controller.runtime.player.hp,
-                    maxHp: controller.runtime.player.maxHp,
+                    hp: controller.uiSnapshot.hp,
+                    maxHp: controller.uiSnapshot.maxHp,
                     hpRatio: hpRatio,
                     locale: locale
                 )
                 .equatable()
             } else {
                 SurvivalHUDPlayerHpBar(
-                    hp: controller.runtime.player.hp,
-                    maxHp: controller.runtime.player.maxHp,
+                    hp: controller.uiSnapshot.hp,
+                    maxHp: controller.uiSnapshot.maxHp,
                     ratio: hpRatio
                 )
                 .equatable()

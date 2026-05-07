@@ -209,7 +209,7 @@ private struct SurvivalGameContent: View {
             SurvivalJoystickView(hitMask: .full) { analog in
                 controller.analogInput = analog
             }
-            .allowsHitTesting(controller.runtime.phase == .playing && !controller.isPaused)
+            .allowsHitTesting(controller.uiSnapshot.phase == .playing && !controller.isPaused)
 
             VStack(spacing: 0) {
                 SurvivalHUDView(
@@ -231,11 +231,11 @@ private struct SurvivalGameContent: View {
                     .padding(.bottom, 8)
             }
 
-            if controller.isPaused && controller.runtime.phase == .playing {
+            if controller.isPaused && controller.uiSnapshot.phase == .playing {
                 pauseOverlay
             }
 
-            if controller.runtime.phase != .playing {
+            if controller.uiSnapshot.phase != .playing {
                 resultOverlay
             }
         }
@@ -256,7 +256,7 @@ private struct SurvivalGameContent: View {
     }
 
     private var resultOverlay: some View {
-        let isCleared = controller.runtime.phase == .cleared
+        let isCleared = controller.uiSnapshot.phase == .cleared
         // リトライ (同 hintMode) は `onRequestReplay` が提供されている場合のみ有効。
         // 渡されていない場合はマップに戻す挙動にフォールバックする。
         let retry: () -> Void = {
@@ -271,10 +271,10 @@ private struct SurvivalGameContent: View {
             SurvivalGameResultView(
                 isCleared: isCleared,
                 stage: stage,
-                enemiesDefeated: controller.runtime.enemiesDefeated,
-                elapsedSeconds: Int(controller.runtime.elapsedSeconds.rounded()),
-                playerHp: controller.runtime.player.hp,
-                playerMaxHp: controller.runtime.player.maxHp,
+                enemiesDefeated: controller.uiSnapshot.enemiesDefeated,
+                elapsedSeconds: controller.uiSnapshot.elapsedSecondsRounded,
+                playerHp: controller.uiSnapshot.hp,
+                playerMaxHp: controller.uiSnapshot.maxHp,
                 hintMode: hintMode,
                 isBossStage: controller.isBossStage,
                 locale: locale,
