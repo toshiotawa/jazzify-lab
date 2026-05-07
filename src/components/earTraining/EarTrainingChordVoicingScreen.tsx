@@ -1057,7 +1057,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       />
 
       {staffVoicing.length > 0 && (
-        <div className="pointer-events-none absolute left-1/2 top-[44%] z-10 w-[min(560px,80vw)] -translate-x-1/2 -translate-y-1/2">
+        <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 w-[min(620px,82vw)] -translate-x-1/2 -translate-y-1/2">
           <ChordVoicingStaff
             voicing={staffVoicing}
             voicingStaves={staffStaves}

@@ -57,7 +57,9 @@ describe('voicingMusicXml', () => {
       voicingStaves: [1, 2],
     });
     expect(xml).toContain('<alter>2</alter>');
+    expect(xml).toContain('<accidental>double-sharp</accidental>');
     expect(xml).toContain('<alter>-2</alter>');
+    expect(xml).toContain('<accidental>flat-flat</accidental>');
   });
 
   it('voicing が空だとエラー', () => {

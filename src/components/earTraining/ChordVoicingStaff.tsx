@@ -145,7 +145,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     <div className={cn('relative w-full', className)}>
       <div
         ref={containerRef}
-        className="w-full overflow-hidden rounded-xl bg-white"
+        className="w-full overflow-hidden rounded-lg bg-white"
       />
       {renderError && (
         <div className="absolute inset-x-2 bottom-2 rounded bg-red-900/80 px-3 py-1 text-xs text-red-100">

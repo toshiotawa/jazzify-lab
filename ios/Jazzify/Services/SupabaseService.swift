@@ -729,6 +729,7 @@ final class SupabaseService: Sendable {
             greatMaxMisses: raw.greatMaxMisses,
             backgroundTheme: raw.backgroundTheme,
             isActive: raw.isActive,
+            mode: raw.mode,
             phrases: raw.sortedPhrases()
         )
     }

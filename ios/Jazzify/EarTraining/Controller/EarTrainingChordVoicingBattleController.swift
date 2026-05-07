@@ -285,7 +285,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         statusText = copy.countIn
         cancelAllTimers()
         audio.stopPhrase()
-        startTimeLimit()
 
         countdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -296,6 +295,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 remaining -= 1
                 self.countInValue = max(remaining, 0)
             }
+            self.startTimeLimit()
             self.startPhrase(at: 0)
         }
     }

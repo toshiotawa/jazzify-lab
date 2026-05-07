@@ -70,6 +70,22 @@ const escapeXml = (value: string): string => value
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;');
 
+const accidentalXmlValue = (alter: number): string => {
+  if (alter === 2) {
+    return 'double-sharp';
+  }
+  if (alter === 1) {
+    return 'sharp';
+  }
+  if (alter === -1) {
+    return 'flat';
+  }
+  if (alter === -2) {
+    return 'flat-flat';
+  }
+  return 'natural';
+};
+
 interface VoicingNoteWithStaff extends ParsedVoicingNote {
   staff: number;
   noteName: string;
@@ -92,6 +108,7 @@ const compareNotesForDisplay = (a: VoicingNoteWithStaff, b: VoicingNoteWithStaff
 
 const renderNoteXml = (note: VoicingNoteWithStaff, isChordTone: boolean): string => {
   const alterLine = note.alter !== 0 ? `        <alter>${note.alter}</alter>\n` : '';
+  const accidentalLine = note.alter !== 0 ? `        <accidental>${accidentalXmlValue(note.alter)}</accidental>` : '';
   return [
     '      <note>',
     isChordTone ? '        <chord/>' : '',
@@ -103,6 +120,7 @@ const renderNoteXml = (note: VoicingNoteWithStaff, isChordTone: boolean): string
     '        <duration>4</duration>',
     '        <voice>1</voice>',
     '        <type>whole</type>',
+    accidentalLine,
     `        <staff>${note.staff}</staff>`,
     '      </note>',
   ]

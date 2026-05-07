@@ -224,7 +224,7 @@ enum EarTrainingChordVoicingEngine {
     }
 
     /// 半拍早期遷移ロジック（Web `getEarTrainingChordDisplayAtTime`）。
-    /// `loopTime` が次コードの開始まで半拍以下、かつ現コードが完成済み or 失敗扱いなら次コードを返す。
+    /// 直前コードが完成済みなら次コードの表示・判定開始を半拍早め、明示区間外は判定しない。
     static func chordDisplayAt(
         phrase: EarTrainingPhraseDetail,
         loopTime: Double,
@@ -233,25 +233,50 @@ enum EarTrainingChordVoicingEngine {
     ) -> EarTrainingPhraseChordDetail? {
         let chords = phrase.chords ?? []
         guard !chords.isEmpty else { return nil }
-        let halfBeatSec = max(0.05, 60.0 / Double(bpm) * 0.5)
-        var currentChord: EarTrainingPhraseChordDetail?
-        for chord in chords {
-            let start = chord.startTimeSec ?? 0
-            if loopTime >= start - 1e-6 {
-                currentChord = chord
+
+        let timed = chords
+            .filter { $0.startTimeSec != nil }
+            .sorted {
+                let leftStart = $0.startTimeSec ?? 0
+                let rightStart = $1.startTimeSec ?? 0
+                if leftStart != rightStart {
+                    return leftStart < rightStart
+                }
+                return $0.orderIndex < $1.orderIndex
             }
-        }
-        guard let resolved = currentChord, let index = chords.firstIndex(where: { $0.id == resolved.id }) else {
+        guard !timed.isEmpty else {
             return chords.first
         }
-        if index + 1 < chords.count {
-            let next = chords[index + 1]
-            let nextStart = next.startTimeSec ?? Double.greatestFiniteMagnitude
-            let timeUntilNext = nextStart - loopTime
-            if timeUntilNext <= halfBeatSec, completedChordIds.contains(resolved.id) {
-                return next
+
+        let beatSec = bpm > 0 ? 60.0 / Double(bpm) : 0
+        let halfBeatSec = beatSec * 0.5
+        for index in timed.indices {
+            let chord = timed[index]
+            let nominalStart = chord.startTimeSec ?? 0
+            let adjustedStart: Double
+            if index == timed.startIndex {
+                adjustedStart = nominalStart
+            } else {
+                let previous = timed[timed.index(before: index)]
+                adjustedStart = nominalStart - (completedChordIds.contains(previous.id) ? halfBeatSec : 0)
+            }
+
+            let nextIndex = timed.index(after: index)
+            let nextStart = nextIndex < timed.endIndex
+                ? (timed[nextIndex].startTimeSec ?? Double.infinity)
+                : Double.infinity
+            let nominalEnd = chord.endTimeSec ?? nextStart
+            let adjustedEnd: Double
+            if completedChordIds.contains(chord.id), nextIndex < timed.endIndex {
+                adjustedEnd = nextStart - halfBeatSec
+            } else {
+                adjustedEnd = nominalEnd.isFinite ? nominalEnd : Double.infinity
+            }
+
+            if adjustedStart <= loopTime && loopTime < adjustedEnd {
+                return chord
             }
         }
-        return resolved
+        return nil
     }
 }

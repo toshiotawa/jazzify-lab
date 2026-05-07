@@ -142,6 +142,15 @@ private struct EarTrainingChordVoicingContent: View {
     let locale: AppLocale
     let onClose: () -> Void
 
+    private struct LayoutMetrics {
+        let horizontalPadding: CGFloat
+        let verticalPadding: CGFloat
+        let spacing: CGFloat
+        let topBarHeight: CGFloat
+        let staffAreaHeight: CGFloat
+        let pianoHeight: CGFloat
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let portraitSize = proxy.size
@@ -169,6 +178,7 @@ private struct EarTrainingChordVoicingContent: View {
 
     @ViewBuilder
     private func landscapeContent(size: CGSize) -> some View {
+        let metrics = layoutMetrics(for: size)
         ZStack(alignment: .top) {
             LinearGradient(
                 colors: [Color(red: 0.04, green: 0.07, blue: 0.13), Color(red: 0.10, green: 0.13, blue: 0.21)],
@@ -177,19 +187,40 @@ private struct EarTrainingChordVoicingContent: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 12) {
+            VStack(spacing: metrics.spacing) {
                 topBar
-                staffArea
-                Spacer()
-                bottomPiano
+                    .frame(height: metrics.topBarHeight)
+                staffArea(height: metrics.staffAreaHeight)
+                Spacer(minLength: 0)
+                bottomPiano(height: metrics.pianoHeight)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, metrics.horizontalPadding)
+            .padding(.vertical, metrics.verticalPadding)
 
             if controller.showLobbyControls {
                 lobbyOverlay
             }
         }
+    }
+
+    private func layoutMetrics(for size: CGSize) -> LayoutMetrics {
+        let compactHeight = size.height < 430
+        let horizontalPadding: CGFloat = compactHeight ? 12 : 16
+        let verticalPadding: CGFloat = compactHeight ? 8 : 12
+        let spacing: CGFloat = compactHeight ? 8 : 12
+        let topBarHeight: CGFloat = compactHeight ? 42 : 50
+        let pianoRatio: CGFloat = compactHeight ? 0.24 : 0.22
+        let pianoHeight = min(CGFloat(120), max(CGFloat(86), size.height * pianoRatio))
+        let reservedHeight = verticalPadding * 2 + spacing * 3 + topBarHeight + pianoHeight
+        let staffAreaHeight = min(CGFloat(260), max(CGFloat(172), size.height - reservedHeight))
+        return LayoutMetrics(
+            horizontalPadding: horizontalPadding,
+            verticalPadding: verticalPadding,
+            spacing: spacing,
+            topBarHeight: topBarHeight,
+            staffAreaHeight: staffAreaHeight,
+            pianoHeight: pianoHeight
+        )
     }
 
     private var topBar: some View {
@@ -238,12 +269,17 @@ private struct EarTrainingChordVoicingContent: View {
         }
     }
 
-    private var staffArea: some View {
-        VStack(spacing: 8) {
+    private func staffArea(height: CGFloat) -> some View {
+        let slotHeight: CGFloat = 36
+        let innerPadding: CGFloat = 8
+        let staffHeight = max(CGFloat(112), height - slotHeight - innerPadding * 2 - 8)
+        return VStack(spacing: 8) {
             chordSlots
-            staffView
+                .frame(height: slotHeight)
+            staffView(height: staffHeight)
         }
-        .padding(8)
+        .padding(innerPadding)
+        .frame(height: height)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -274,7 +310,7 @@ private struct EarTrainingChordVoicingContent: View {
         }
     }
 
-    private var staffView: some View {
+    private func staffView(height: CGFloat) -> some View {
         let chord = controller.activeChord
         let voicing = chord?.voicing ?? []
         let staves = chord?.voicingStaves ?? []
@@ -291,14 +327,15 @@ private struct EarTrainingChordVoicingContent: View {
                 Text(locale == .ja ? "コード待機中…" : "Waiting for chord…")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.7))
-                    .frame(maxWidth: .infinity, minHeight: 160)
+                    .frame(maxWidth: .infinity, minHeight: height)
             } else {
                 ChordVoicingStaffView(
                     voicing: voicing,
                     voicingStaves: staves,
                     correctPitchClasses: correctSet
                 )
-                .frame(height: 200)
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
             }
         }
         .overlay(alignment: .topLeading) {
@@ -314,9 +351,9 @@ private struct EarTrainingChordVoicingContent: View {
         }
     }
 
-    private var bottomPiano: some View {
+    private func bottomPiano(height: CGFloat) -> some View {
         EarTrainingChordVoicingPianoView(controller: controller)
-            .frame(height: 120)
+            .frame(height: height)
     }
 
     private var lobbyOverlay: some View {

@@ -52,7 +52,7 @@ const sortChordsByTime = (chords: EarTrainingPhraseChord[]): EarTrainingPhraseCh
 
 /**
  * 直前コードがウィンドウ内で完成済みのとき、次コードの表示・判定開始を半拍早める。
- * 完成していないコード区間は nominal と同じ境界を使う。
+ * 完成していないコード区間は nominal と同じ境界を使い、明示区間外は判定しない。
  */
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
@@ -110,7 +110,7 @@ export const getEarTrainingChordDisplayAtTime = (
   if (best >= 0) {
     return sorted[best];
   }
-  return chords[0] ?? null;
+  return null;
 };
 
 /** `chord_name` をピッチクラス集合に解決（オクターブ非依存の判定用）。 */
