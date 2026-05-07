@@ -79,7 +79,21 @@ struct SurvivalJoystickView: View {
                         }
                         let nx = knobOffset.width / outerRadius
                         let ny = knobOffset.height / outerRadius
-                        onChange(CGVector(dx: nx, dy: ny))
+                        let vLen = hypot(nx, ny)
+                        let deadNorm: CGFloat = 0.18
+                        if vLen < deadNorm {
+                            onChange(.zero)
+                        } else {
+                            let inv = 1 / vLen
+                            let ux = nx * inv
+                            let uy = ny * inv
+                            let mag = min(CGFloat(1), (vLen - deadNorm) / (CGFloat(1) - deadNorm))
+                            var odx = ux * mag
+                            var ody = uy * mag
+                            if abs(odx) < 0.01 { odx = 0 }
+                            if abs(ody) < 0.01 { ody = 0 }
+                            onChange(CGVector(dx: odx, dy: ody))
+                        }
                     }
                     .onEnded { _ in
                         // スティックが出ていなければ (デッドゾーン開始) 何もしない

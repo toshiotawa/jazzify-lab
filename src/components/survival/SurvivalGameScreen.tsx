@@ -262,10 +262,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   onNextStage,
   embeddedFullHeight = false,
 }) => {
-  const { profile } = useAuthStore();
+  const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
-  const { settings } = useGameStore();
+  const settings = useGameStore(state => state.settings);
   
   // 初期化エラー状態
   const [initError, setInitError] = useState<string | null>(null);

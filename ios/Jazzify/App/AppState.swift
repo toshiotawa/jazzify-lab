@@ -130,10 +130,18 @@ final class AppState: ObservableObject {
         } catch {
             self.lastBillingCheckedAt = Date()
             self.billingFetchFailCount += 1
-            if billingFetchFailCount > Self.maxFailOpenRetries {
-                self.billingStatus = nil
-            }
         }
+    }
+
+    /// バックグラウンド復帰時など、スロットルを無視してセッション更新＋課金状態を取り直す。
+    func forceRefreshBilling() async {
+        guard case .authenticated = authState else { return }
+        do {
+            _ = try await supabase.client.auth.refreshSession()
+        } catch {
+            // セッション更新失敗時も billing-status は従来トークンで試行する
+        }
+        await refreshBillingStatus()
     }
 
     /// 課金側は有効だが `profiles.rank` のWebhook反映が遅いとき、表示・他画面との整合のため再取得を試みる
@@ -163,6 +171,11 @@ final class AppState: ObservableObject {
 
     /// プレミアム機能ゲート: stale なら再取得してから判定を返す
     func ensureFreshBilling() async -> Bool {
+        if billingStatus == nil, case .authenticated = authState {
+            _ = try? await supabase.client.auth.refreshSession()
+            await refreshBillingStatus()
+            return isPremium
+        }
         if isBillingStale {
             await refreshBillingStatus()
         }

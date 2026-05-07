@@ -106,7 +106,16 @@ public enum SurvivalDirection8: String, CaseIterable, Sendable {
     }
 
     static func fromVector(dx: CGFloat, dy: CGFloat) -> SurvivalDirection8? {
+        fromVector(dx: dx, dy: dy, previous: nil)
+    }
+
+    /// 8 方向を決定。`previous` があるとき `|dx|` が中間帯なら前フレームの向きを維持しジッターを抑える。
+    static func fromVector(dx: CGFloat, dy: CGFloat, previous: SurvivalDirection8?) -> SurvivalDirection8? {
         if abs(dx) < 0.001 && abs(dy) < 0.001 { return nil }
+        let absDx = abs(dx)
+        if let prev = previous, absDx >= 0.45 && absDx <= 0.55 {
+            return prev
+        }
         if dx > 0.5 {
             if dy < -0.5 { return .upRight }
             if dy > 0.5 { return .downRight }

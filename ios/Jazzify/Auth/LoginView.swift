@@ -82,15 +82,7 @@ struct LoginView: View {
                     locale: locale,
                     onClose: { showDemoLP = false },
                     isDemo: true,
-                    configOverride: SurvivalDemoStage.config,
-                    // デモもログイン後と同じくリザルトからのリトライに対応する。
-                    // `showDemoLP` を一旦 false にして dismiss を待ち、同じ hintMode で再提示する。
-                    onRequestReplay: {
-                        showDemoLP = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            showDemoLP = true
-                        }
-                    }
+                    configOverride: SurvivalDemoStage.config
                 )
             }
             .fullScreenCover(isPresented: $showDemoFantasy) {

@@ -160,7 +160,7 @@ enum SurvivalGameEngine {
         let newY = clamp(updated.y + ny * move, min: 0, max: SurvivalMap.height)
         updated.x = newX
         updated.y = newY
-        if let dir = SurvivalDirection8.fromVector(dx: nx, dy: ny) {
+        if let dir = SurvivalDirection8.fromVector(dx: nx, dy: ny, previous: updated.direction) {
             updated.direction = dir
         }
         return updated

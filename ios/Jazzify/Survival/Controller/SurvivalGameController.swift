@@ -26,6 +26,8 @@ final class SurvivalGameController: ObservableObject {
     @Published private(set) var isPaused: Bool = false
     @Published private(set) var clearReportInFlight: Bool = false
     @Published private(set) var clearReportError: String?
+    /// リトライ時に `SurvivalSceneContainer` が新しい `SKScene` を `presentScene` するための世代カウンタ。
+    @Published private(set) var sceneRestartGeneration: Int = 0
     /// ヒントモード中にピアノ鍵盤をハイライトする対象スロットの index (A=0, B=1)。
     /// Web 版 `SurvivalGameScreen.getHintSlotIndex` と同様 A↔B を交互に切り替える。
     /// `runtime.hintMode` が false の場合は nil。
@@ -35,6 +37,8 @@ final class SurvivalGameController: ObservableObject {
 
     /// アナログ入力 (仮想スティック) x,y は [-1, 1] 正規化
     var analogInput: CGVector = .zero
+    /// ジョイスティック入力のローパス後。`tick*` 内で `analogInput` から更新する。
+    private var smoothedAnalogInput: CGVector = .zero
 
     // MARK: - 設定
 
@@ -170,6 +174,92 @@ final class SurvivalGameController: ObservableObject {
     func requestExit() {
         stopAudio()
         onExit(runtime.phase == .cleared)
+    }
+
+    /// リザルトからのリトライ。`fullScreenCover` を閉じずにランタイムと SpriteKit シーンだけ初期化する。
+    func restartSameStage() {
+        stopAudio()
+        smoothedAnalogInput = .zero
+        analogInput = .zero
+        activePressedPitchClasses.removeAll()
+        midiHeldKeys.removeAll()
+
+        let isBoss = stage.stageType != .progression
+            && SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
+        isBossStage = isBoss
+
+        let slots: [SurvivalCodeSlot]
+        if stage.stageType == .progression {
+            let chords = Self.buildProgressionChords(for: stage)
+            progressionChords = chords
+            progressionIndex = 0
+            slots = SurvivalGameEngine.createProgressionInitialSlots(progressionChords: chords)
+        } else {
+            progressionChords = []
+            progressionIndex = 0
+            slots = SurvivalGameEngine.createStageInitialSlots(
+                allowedChords: stage.allowedChords,
+                isBossStage: isBoss
+            )
+        }
+        let player = SurvivalGameEngine.createStageInitialPlayer(
+            profile: profile,
+            hintMode: hintMode,
+            isBossStage: isBoss
+        )
+        runtime = SurvivalStageRuntime(
+            stage: stage,
+            hintMode: hintMode,
+            player: player,
+            slots: slots
+        )
+        currentHintSlotIndex = hintMode ? 0 : nil
+
+        if isBoss {
+            let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
+            bossBattle = SurvivalBossEngine.createBossBattleState(
+                bossType: bossType,
+                now: CACurrentMediaTime()
+            )
+        } else {
+            bossBattle = nil
+        }
+
+        lastNow = CACurrentMediaTime()
+        hasSyncedSceneClock = false
+        bgmPhaseEven = false
+        hpRegenAccumulator = 0
+        fireDotAccumulator = 0
+        contactDamageAccumulator = 0
+        clearReportInFlight = false
+        clearReportError = nil
+        isPaused = false
+        cameraTargetX = runtime.player.x
+        cameraTargetY = runtime.player.y
+        uiSnapshot = SurvivalUISnapshot.make(from: runtime)
+        sceneRestartGeneration &+= 1
+        start()
+    }
+
+    /// 仮想スティックの生入力をデッドゾーン付きで正規化し、フレーム間スムージングする。
+    private func filteredAnalogForMovement(deltaTime: TimeInterval) -> CGVector {
+        let raw = analogInput
+        let deadZone: CGFloat = 0.18
+        let smoothSpeed: CGFloat = 14.0
+        let len = hypot(raw.dx, raw.dy)
+        var target = CGVector.zero
+        if len > deadZone {
+            let ndx = raw.dx / len
+            let ndy = raw.dy / len
+            let strength = min(CGFloat(1), (len - deadZone) / (CGFloat(1) - deadZone))
+            target = CGVector(dx: ndx * strength, dy: ndy * strength)
+        }
+        let t = min(CGFloat(1), smoothSpeed * CGFloat(deltaTime))
+        smoothedAnalogInput.dx += (target.dx - smoothedAnalogInput.dx) * t
+        smoothedAnalogInput.dy += (target.dy - smoothedAnalogInput.dy) * t
+        if abs(smoothedAnalogInput.dx) < 0.01 { smoothedAnalogInput.dx = 0 }
+        if abs(smoothedAnalogInput.dy) < 0.01 { smoothedAnalogInput.dy = 0 }
+        return smoothedAnalogInput
     }
 
     // MARK: - ヒント
@@ -476,7 +566,7 @@ final class SurvivalGameController: ObservableObject {
 
         runtime.player = SurvivalGameEngine.updatePlayerPosition(
             player: runtime.player,
-            analog: analogInput,
+            analog: filteredAnalogForMovement(deltaTime: deltaTime),
             deltaTime: deltaTime,
             now: now,
             speedMultiplier: speedMul
@@ -791,7 +881,7 @@ final class SurvivalGameController: ObservableObject {
 
         runtime.player = SurvivalGameEngine.updatePlayerPosition(
             player: runtime.player,
-            analog: analogInput,
+            analog: filteredAnalogForMovement(deltaTime: deltaTime),
             deltaTime: deltaTime,
             now: now,
             speedMultiplier: speedMul

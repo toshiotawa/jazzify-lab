@@ -8,6 +8,10 @@ final class BillingService: Sendable {
     private init() {}
 
     func fetchBillingStatus() async throws -> BillingStatusResponse {
+        try await fetchBillingStatus(allowAuthRefreshRetry: true)
+    }
+
+    private func fetchBillingStatus(allowAuthRefreshRetry: Bool) async throws -> BillingStatusResponse {
         let token = try await supabase.accessToken()
 
         let url = Config.supabaseURL
@@ -22,8 +26,14 @@ final class BillingService: Sendable {
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BillingServiceError.fetchFailed
+        }
+        if httpResponse.statusCode == 401, allowAuthRefreshRetry {
+            _ = try? await supabase.client.auth.refreshSession()
+            return try await fetchBillingStatus(allowAuthRefreshRetry: false)
+        }
+        guard httpResponse.statusCode == 200 else {
             throw BillingServiceError.fetchFailed
         }
 

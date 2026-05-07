@@ -66,6 +66,9 @@ struct LessonListView: View {
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .task { await loadCourses() }
+            .onAppear {
+                Task { await appState.ensureFreshBilling() }
+            }
             .navigationDestination(
                 isPresented: Binding(
                     get: { journeyCourse != nil },

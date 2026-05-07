@@ -28,7 +28,7 @@ struct JazzifyApp: App {
                 }
                 .onChange(of: scenePhase) { phase in
                     guard phase == .active else { return }
-                    Task { await appState.refreshBillingIfNeeded() }
+                    Task { await appState.forceRefreshBilling() }
                 }
         }
     }

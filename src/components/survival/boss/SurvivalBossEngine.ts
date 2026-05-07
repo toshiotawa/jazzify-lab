@@ -641,12 +641,27 @@ const pickNextSkill = (state: BossBattleState, ctx: BossTickContext): void => {
 };
 
 // ===== ボス移動処理 =====
+/** プレイヤーとボスの X がほぼ同じとき、向きが毎フレーム反転しないよう余白を持たせる (px)。 */
+const BOSS_FACING_HYSTERESIS_PX = 24;
+
+const updateBossFacing = (boss: BossState, playerX: number): void => {
+  if (boss.facing === 'left') {
+    if (playerX > boss.x + BOSS_FACING_HYSTERESIS_PX) {
+      boss.facing = 'right';
+    }
+  } else {
+    if (playerX < boss.x - BOSS_FACING_HYSTERESIS_PX) {
+      boss.facing = 'left';
+    }
+  }
+};
+
 const moveBoss = (state: BossBattleState, ctx: BossTickContext): void => {
   const boss = state.boss;
   const now = ctx.now;
 
-  // 向きをプレイヤーに合わせる
-  boss.facing = ctx.player.x < boss.x ? 'left' : 'right';
+  // 向きをプレイヤーに合わせる（隣接時の符号フラップをヒステリシスで抑制）
+  updateBossFacing(boss, ctx.player.x);
 
   // 開戦直後の猶予時間中は移動しない（突進などの進行中アクションは除外）
   if (

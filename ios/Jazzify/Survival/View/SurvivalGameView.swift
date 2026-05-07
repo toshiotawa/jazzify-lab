@@ -7,6 +7,7 @@ import UIKit
 /// - `onAppear` で Supabase から `SurvivalCharacterProfile` / `SurvivalStageConfig` を取得し、
 ///   `SurvivalGameController` を生成する (失敗時はデフォルト値にフォールバック)
 /// - MIDI 入力は `MIDIManager.shared.onMIDIEvent` を直接フックして `SurvivalGameController.handleNoteOn/Off` に中継
+/// - リトライは `SurvivalGameController.restartSameStage()`（fullScreen を閉じずにランタイムと SKScene を初期化）
 struct SurvivalGameView: View {
     let stage: SurvivalStageDefinition
     let hintMode: Bool
@@ -19,9 +20,6 @@ struct SurvivalGameView: View {
     /// Supabase から取得する代わりに使用する `SurvivalStageConfig` (デモや固定難易度用)。
     /// `nil` の場合は従来通り `SupabaseService.fetchSurvivalStageConfig` を呼び出す。
     var configOverride: SurvivalStageConfig? = nil
-    /// リトライ要求。呼び出し側 (例: `SurvivalView`) で `launchStage` を一度閉じて再提示することで再起動する。
-    /// `nil` の場合はリトライボタンの代わりにマップに戻る挙動にフォールバックする。
-    var onRequestReplay: (() -> Void)? = nil
 
     /// `@State` は値の差し替えしか観測できず、`SurvivalGameController` 内部の
     /// `@Published` プロパティ (`runtime.phase` 等) の変化を SwiftUI が再描画しない。
@@ -41,8 +39,7 @@ struct SurvivalGameView: View {
                     hintMode: hintMode,
                     locale: locale,
                     isDemo: isDemo,
-                    onClose: onClose,
-                    onRequestReplay: onRequestReplay
+                    onClose: onClose
                 )
             } else if isLoading {
                 loadingView
@@ -196,7 +193,6 @@ private struct SurvivalGameContent: View {
     let locale: AppLocale
     let isDemo: Bool
     let onClose: () -> Void
-    let onRequestReplay: (() -> Void)?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -257,15 +253,6 @@ private struct SurvivalGameContent: View {
 
     private var resultOverlay: some View {
         let isCleared = controller.uiSnapshot.phase == .cleared
-        // リトライ (同 hintMode) は `onRequestReplay` が提供されている場合のみ有効。
-        // 渡されていない場合はマップに戻す挙動にフォールバックする。
-        let retry: () -> Void = {
-            if let onRequestReplay {
-                onRequestReplay()
-            } else {
-                controller.requestExit()
-            }
-        }
         return ZStack {
             Color.black.opacity(0.6).ignoresSafeArea()
             SurvivalGameResultView(
@@ -281,7 +268,7 @@ private struct SurvivalGameContent: View {
                 clearReportInFlight: controller.clearReportInFlight,
                 clearReportError: controller.clearReportError,
                 isDemo: isDemo,
-                onRetry: retry,
+                onRetry: { controller.restartSameStage() },
                 onExit: { controller.requestExit() }
             )
         }
@@ -330,11 +317,27 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         // 起動直後に即 fullScreenCover を開く (= アプリライフサイクルと画面遷移が重なる)
         // ユーザー操作で顕在化しやすい「一歩も動けない / HP が減らない」症状の主要因。
         context.coordinator.attach(view: view, scene: scene)
+        context.coordinator.lastSceneRestartGeneration = controller.sceneRestartGeneration
         return view
     }
 
     func updateUIView(_ uiView: SKView, context: Context) {
-        // SurvivalGameController の状態変化は scene.update で直接参照されるため、ここでは何もしない。
+        let gen = controller.sceneRestartGeneration
+        guard gen != context.coordinator.lastSceneRestartGeneration else { return }
+        context.coordinator.lastSceneRestartGeneration = gen
+        let bounds = uiView.bounds
+        let sceneSize: CGSize
+        if bounds.width > 0, bounds.height > 0 {
+            sceneSize = bounds.size
+        } else {
+            sceneSize = UIScreen.main.bounds.size
+        }
+        let scene = SurvivalScene(size: sceneSize, controller: controller)
+        scene.scaleMode = .resizeFill
+        scene.isPaused = false
+        uiView.isPaused = false
+        uiView.presentScene(scene)
+        context.coordinator.attach(view: uiView, scene: scene)
     }
 
     static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
@@ -346,8 +349,14 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         private weak var scene: SKScene?
         private var activeObserver: NSObjectProtocol?
         private var willResignObserver: NSObjectProtocol?
+        /// `SurvivalGameController.sceneRestartGeneration` の最後に `presentScene` した値。
+        var lastSceneRestartGeneration: Int = 0
 
         func attach(view: SKView, scene: SKScene) {
+            if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
+            if let o = willResignObserver { NotificationCenter.default.removeObserver(o) }
+            activeObserver = nil
+            willResignObserver = nil
             self.view = view
             self.scene = scene
             activeObserver = NotificationCenter.default.addObserver(

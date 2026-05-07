@@ -29,10 +29,12 @@ struct SurvivalView: View {
     /// 同じステージを連続再生したいケースでは `SurvivalGameController` がリセットされない問題が発生する。
     /// セッションごとに一意の UUID で包んで `fullScreenCover(item:)` を確実に再マウントさせる。
     @State private var stageLaunchSession: StageLaunchSession?
-    /// リトライ / 次ステージ遷移のためにセッションを一時的に nil にしている最中かどうか。
-    /// 真の間は `onChange(of: stageLaunchSession == nil)` の進捗リロード処理をスキップする。
-    @State private var isTransitioningStage: Bool = false
     @State private var showSubscription: Bool = false
+    /// `fetchSurvivalStages` が成功した時刻。Basic/Songs 切替では TTL 内はカタログ再取得を省略する。
+    @State private var survivalStagesFetchedAt: Date?
+
+    private static let survivalStagesCatalogTTL: TimeInterval = 600
+
     /// 1 カラム (iPhone) 表示時にステージ詳細シートを出すためのバインド。
     /// 以前は `showMobileDetail: Bool` + computed `selectedStage` で参照していたが、
     /// `.sheet(isPresented:)` + `@State` 同時更新だと初回タップ時に
@@ -113,14 +115,16 @@ struct SurvivalView: View {
                     }
                 }
             }
-            .task { await loadProgress() }
+            .task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
             .onChange(of: appState.profile?.id) { _ in
-                Task { await loadProgress() }
+                survivalStagesFetchedAt = nil
+                Task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
             }
             .onAppear {
                 if !SurvivalMapAudio.shared.isMuted {
                     SurvivalMapAudio.shared.play()
                 }
+                Task { await appState.ensureFreshBilling() }
             }
             .onDisappear {
                 SurvivalMapAudio.shared.stop()
@@ -189,18 +193,12 @@ struct SurvivalView: View {
                     hintMode: session.hintMode,
                     characterId: "fai",
                     locale: locale,
-                    onClose: { stageLaunchSession = nil },
-                    onRequestReplay: {
-                        replayCurrentStage(stage: session.stage, hintMode: session.hintMode)
-                    }
+                    onClose: { stageLaunchSession = nil }
                 )
             }
             .onChange(of: stageLaunchSession == nil) { isNil in
                 if isNil {
-                    // リトライ / 次ステージ遷移中は一時的に nil にしてから再提示するため、
-                    // その中継では進捗再読込と BGM 再生を行わない。
-                    guard !isTransitioningStage else { return }
-                    Task { await loadProgress() }
+                    Task { await loadProgress(showBlockingLoader: false, forceCatalogFetch: false) }
                     if !SurvivalMapAudio.shared.isMuted {
                         SurvivalMapAudio.shared.play()
                     }
@@ -292,7 +290,7 @@ struct SurvivalView: View {
         mapCategory = next
         selectedStageNumber = nil
         mobileDetailStage = nil
-        Task { await loadProgress() }
+        Task { await loadProgress(showBlockingLoader: false, forceCatalogFetch: false) }
     }
 
     private func handleDescentStageSelect(stage: SurvivalStageDefinition) {
@@ -363,32 +361,31 @@ struct SurvivalView: View {
         stageLaunchSession = StageLaunchSession(stage: stage, hintMode: hintMode)
     }
 
-    /// リザルトの「リトライ」から呼ばれる。
-    /// 同一ステージでも `StageLaunchSession` を新規 UUID で差し替え、`SurvivalGameView` を必ず再生成する。
-    /// HINT モードは開始時と同じ値を維持する (ヒント切り替えはマップ画面側で行う想定)。
-    private func replayCurrentStage(stage: SurvivalStageDefinition, hintMode currentHintMode: Bool) {
-        isTransitioningStage = true
-        stageLaunchSession = nil
-        // fullScreenCover の dismiss アニメーション完了を待ってから再提示する
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            SurvivalMapAudio.shared.stop()
-            stageLaunchSession = StageLaunchSession(stage: stage, hintMode: currentHintMode)
-            isTransitioningStage = false
-        }
-    }
-
-    private func loadProgress() async {
+    private func loadProgress(showBlockingLoader: Bool = true, forceCatalogFetch: Bool = false) async {
         guard let userId = appState.profile?.id else {
             isLoading = false
             return
         }
         let category = mapCategory
-        isLoading = true
-        defer { isLoading = false }
+        if showBlockingLoader {
+            isLoading = true
+        }
+        defer {
+            if showBlockingLoader {
+                isLoading = false
+            }
+        }
 
-        // ステージ定義をまず Supabase から取得して反映する。失敗時はローカルフォールバックのまま。
-        if let rows = try? await SupabaseService.shared.fetchSurvivalStages(), !rows.isEmpty {
-            SurvivalStageCatalog.load(rows: rows)
+        let catalogStale = forceCatalogFetch
+            || survivalStagesFetchedAt == nil
+            || Date().timeIntervalSince(survivalStagesFetchedAt!) > Self.survivalStagesCatalogTTL
+        let needCatalogBecauseEmpty = SurvivalStageCatalog.totalStages(in: category) == 0
+
+        if catalogStale || needCatalogBecauseEmpty {
+            if let rows = try? await SupabaseService.shared.fetchSurvivalStages(), !rows.isEmpty {
+                SurvivalStageCatalog.load(rows: rows)
+                survivalStagesFetchedAt = Date()
+            }
         }
 
         async let progressTask: SurvivalStageProgressRow? = {

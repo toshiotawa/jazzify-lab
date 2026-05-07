@@ -255,6 +255,17 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const woodPatternRef = useRef<CanvasPattern | null>(null);
   const [woodFloorAssetRevision, setWoodFloorAssetRevision] = useState(0);
+  /** 毎フレームの `setGameState` で draw の参照が切り替わると React のコミット負荷が増えるため、RAF 内で最新を読む。 */
+  const gameStateRef = useRef(gameState);
+  const shockwavesRef = useRef(shockwaves);
+  const lightningEffectsRef = useRef(lightningEffects);
+  const bossBattleRef = useRef(bossBattle);
+  const bossUiTickRef = useRef(bossUiTick);
+  gameStateRef.current = gameState;
+  shockwavesRef.current = shockwaves;
+  lightningEffectsRef.current = lightningEffects;
+  bossBattleRef.current = bossBattle;
+  bossUiTickRef.current = bossUiTick;
   /** デフォルト5方向スプライト（右向きベース、左向きは flipX） */
   const defaultPlayerSpritesRef = useRef<
     Partial<Record<SurvivalDefaultSpriteVariant, HTMLImageElement>>
@@ -355,7 +366,11 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.save();
       ctx.scale(contentScale, contentScale);
     }
-    const { player, enemies, projectiles, items, damageTexts } = gameState;
+    const snapshot = gameStateRef.current;
+    const { player, enemies, projectiles, items, damageTexts } = snapshot;
+    const shockwavesSnap = shockwavesRef.current;
+    const lightningSnap = lightningEffectsRef.current;
+    const bossBattleSnap = bossBattleRef.current;
     const camera = getCameraOffset(player);
 
     // フォールバック塗り（テクスチャ未ロード時）
@@ -411,7 +426,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 
     // コイン描画（軽量なCanvas図形）
     const now = Date.now();
-    gameState.coins.forEach(coin => {
+    snapshot.coins.forEach(coin => {
       const screenX = coin.x - camera.x;
       const screenY = coin.y - camera.y;
       
@@ -569,7 +584,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     });
     
     // 敵の弾丸描画（小さめ）
-    gameState.enemyProjectiles.forEach(proj => {
+    snapshot.enemyProjectiles.forEach(proj => {
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
       
@@ -626,8 +641,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 
     // プレイヤー本体（デフォルト5枚スプライトで8方向、iOS と同マッピング）
     const nowForFlash = performance.now();
-    const inBossIFrames = !!(bossBattle && bossBattle.active
-      && nowForFlash < bossBattle.player.iFramesUntil);
+    const inBossIFrames = !!(bossBattleSnap && bossBattleSnap.active
+      && nowForFlash < bossBattleSnap.player.iFramesUntil);
     const inNormalDamageFlash = nowForFlash < damageFlashUntilRef.current;
     const playerDamageFlash = inBossIFrames || inNormalDamageFlash;
 
@@ -738,10 +753,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     }
 
     // ===== ボス戦レイヤ =====
-    if (bossBattle && bossBattle.active) {
+    if (bossBattleSnap && bossBattleSnap.active) {
       const nowMs = performance.now();
       // ハザード（予兆→発動）
-      bossBattle.hazards.forEach(h => {
+      bossBattleSnap.hazards.forEach(h => {
         if (nowMs < h.startAt || nowMs > h.endAt) return;
 
         const sx = h.x - camera.x;
@@ -1361,7 +1376,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       });
 
       // ボス弾
-      bossBattle.projectiles.forEach(p => {
+      bossBattleSnap.projectiles.forEach(p => {
         const sx = p.x - camera.x;
         const sy = p.y - camera.y;
         if (sx < -40 || sx > logicalWidth + 40 || sy < -40 || sy > logicalHeight + 40) return;
@@ -1471,7 +1486,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       });
 
       // 雑魚（自爆ボム）
-      bossBattle.minions.forEach(m => {
+      bossBattleSnap.minions.forEach(m => {
         const sx = m.x - camera.x;
         const sy = m.y - camera.y;
         if (sx < -40 || sx > logicalWidth + 40 || sy < -40 || sy > logicalHeight + 40) return;
@@ -1500,7 +1515,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       });
 
       // ボス本体
-      const boss = bossBattle.boss;
+      const boss = bossBattleSnap.boss;
       const bsx = boss.x - camera.x;
       const bsy = boss.y - camera.y;
       const bossImg = bossImagesRef.current[boss.bossType];
@@ -1579,7 +1594,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 
       // 被弾直後の赤い血飛沫風の光彩（被弾から最初の 200ms だけ外側にも広がる）
       {
-        const remain = bossBattle.player.iFramesUntil - performance.now();
+        const remain = bossBattleSnap.player.iFramesUntil - performance.now();
         if (remain > 0 && remain > 400) {
           const px = player.x - camera.x;
           const py = player.y - camera.y;
@@ -1596,12 +1611,12 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         }
       }
 
-      // 使用しない変数警告を抑止
-      void bossUiTick;
+      // 使用しない変数警告を抑止（RAF ループで毎フレーム参照し UI 更新を取り込む）
+      void bossUiTickRef.current;
     }
 
     // 衝撃波エフェクト描画（前方向のみ）
-    shockwaves.forEach(sw => {
+    shockwavesSnap.forEach(sw => {
       const elapsed = now - sw.startTime;
       if (elapsed >= sw.duration) return;
       
@@ -1683,7 +1698,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     });
 
     // 雷エフェクト描画
-    lightningEffects.forEach(lightning => {
+    lightningSnap.forEach(lightning => {
       const elapsed = now - lightning.startTime;
       if (elapsed >= lightning.duration) return;
       
@@ -1743,7 +1758,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (contentScale !== 1) {
       ctx.restore();
     }
-  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, woodFloorAssetRevision, bossBattle, bossUiTick]);
+  }, [logicalWidth, logicalHeight, contentScale, getCameraOffset, woodFloorAssetRevision]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {
@@ -1779,7 +1794,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     }
   }, [viewportWidth, viewportHeight]);
 
-  // 描画ループ（draw 更新時のみ。毎フレームの canvas.width 再設定を回避）
+  // 描画ループ: RAF で駆動し、gameState 変更のたびに draw 関数を再生成しない（メインスレッド負荷軽減）。
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1788,9 +1803,17 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (!ctx) return;
 
     const dpr = getEffectiveDpr();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx);
-  }, [draw]);
+    let rafId = 0;
+    const loop = (): void => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw(ctx);
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [draw, viewportWidth, viewportHeight]);
 
   return (
     <canvas
