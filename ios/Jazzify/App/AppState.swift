@@ -11,13 +11,10 @@ final class AppState: ObservableObject {
     @Published var locale: AppLocale
     @Published private(set) var lastBillingCheckedAt: Date?
 
-    private(set) var billingFetchFailCount: Int = 0
     private var periodEndTimer: Task<Void, Never>?
 
     private static let staleTTL: TimeInterval = 300
-    private static let failGraceTTL: TimeInterval = 1800
     private static let refreshThrottle: TimeInterval = 60
-    private static let maxFailOpenRetries: Int = 3
 
     private let supabase = SupabaseService.shared
     private let billing = BillingService.shared
@@ -47,7 +44,6 @@ final class AppState: ObservableObject {
             self.profile = nil
             self.billingStatus = nil
             self.lastBillingCheckedAt = nil
-            self.billingFetchFailCount = 0
             self.profileSetupError = nil
             self.authState = .profileSetupRequired(userId, email)
         } catch {
@@ -55,7 +51,6 @@ final class AppState: ObservableObject {
             self.profile = nil
             self.billingStatus = nil
             self.lastBillingCheckedAt = nil
-            self.billingFetchFailCount = 0
             self.profileSetupError = nil
             UserDefaults.standard.removeObject(forKey: "preferred_locale")
             self.locale = Config.appLocale
@@ -124,12 +119,10 @@ final class AppState: ObservableObject {
             let response = try await billing.fetchBillingStatus()
             self.billingStatus = response
             self.lastBillingCheckedAt = Date()
-            self.billingFetchFailCount = 0
             schedulePeriodEndRefresh(response)
             await refreshProfileIfBillingShowsPaidButRankStillFree(response)
         } catch {
             self.lastBillingCheckedAt = Date()
-            self.billingFetchFailCount += 1
         }
     }
 
@@ -201,7 +194,6 @@ final class AppState: ObservableObject {
         self.profile = nil
         self.billingStatus = nil
         self.lastBillingCheckedAt = nil
-        self.billingFetchFailCount = 0
         self.profileSetupError = nil
         UserDefaults.standard.removeObject(forKey: "preferred_locale")
         self.locale = Config.appLocale
@@ -343,17 +335,8 @@ final class AppState: ObservableObject {
             }
         }
 
-        guard lastBillingCheckedAt != nil else {
-            return profile?.rank.isPremium ?? false
-        }
-
-        if let checkedAt = lastBillingCheckedAt,
-           Date().timeIntervalSince(checkedAt) <= Self.failGraceTTL,
-           billingFetchFailCount <= Self.maxFailOpenRetries {
-            return profile?.rank.isPremium ?? false
-        }
-
-        return false
+        // `billing-status` が一度も成功していない間は API 不通でも閉じ込めない。権威あるスナップショットが取れたら上の分岐のみを使う。
+        return profile?.rank.isPremium ?? false
     }
 
     var canShowIAP: Bool {
@@ -372,22 +355,18 @@ final class AppState: ObservableObject {
         return billing.entitlementState == .expired
     }
 
-    // MARK: - Plan display (align with `isPremium`, not only `profiles.rank`)
+    // MARK: - Plan display（機能ゲートは `isPremium` のみのため、ラベルも同一ソースに揃える）
 
-    /// トップのプロフィールカード・設定の「プラン」用。課金エンタイトルメントは `billingStatus` 経由で先に確定しうるため、`rank` 単体より `isPremium` を優先する。
+    /// トップのプロフィールカード・設定の「プラン」用。`isPremium` と矛盾しないよう、`profiles.rank` だけではプレミアム表示しない。
     var displayPlanLabel: String {
         if isPremium {
             return locale == .ja ? "プレミアム" : "Premium"
         }
-        guard let profile else {
-            return locale == .ja ? "フリー" : "Free"
-        }
-        return profile.rank.label(locale: locale)
+        return locale == .ja ? "フリー" : "Free"
     }
 
     var displayPlanUsesPremiumAccent: Bool {
-        if isPremium { return true }
-        return profile?.rank.isPremium ?? false
+        isPremium
     }
 
     /// 支払い問題バナー（Lemon: 利用可 / Apple: 停止）
