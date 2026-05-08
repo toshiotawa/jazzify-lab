@@ -1267,8 +1267,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           chordName: chord.chord_name,
           voicing: chord.voicing ?? [],
           voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
-          correctPitchClasses: activeChord?.id === chord.id && pressed ? Array.from(pressed) : EMPTY_PITCH_CLASSES,
+          correctPitchClasses: pressed ? Array.from(pressed) : EMPTY_PITCH_CLASSES,
           measureOffset: measureNumber === currentMeasureNumber ? 0 : 1,
+          isActive: activeChord?.id === chord.id,
         };
       });
   }, [

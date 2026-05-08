@@ -10,6 +10,7 @@ export interface ChordVoicingStaffGroup {
   voicingStaves?: readonly number[] | null;
   correctPitchClasses?: readonly number[];
   measureOffset?: 0 | 1;
+  isActive?: boolean;
 }
 
 interface ChordVoicingStaffProps {
@@ -48,6 +49,7 @@ interface ParsedVoicingStaffGroup {
   measureOffset: 0 | 1;
   slotIndex: number;
   slotCount: number;
+  isActive: boolean;
 }
 
 interface KeySignatureMark {
@@ -58,7 +60,8 @@ interface KeySignatureMark {
 type StaffNumber = 1 | 2;
 
 const NOTATION_COLOR = '#ffffff';
-const CORRECT_NOTATION_COLOR = '#ef4444';
+const CORRECT_NOTATION_COLOR = '#22c55e';
+const ACTIVE_CHORD_LABEL_COLOR = '#facc15';
 const SP = 12;
 const STAFF_WIDTH = 720;
 const STAFF_LINE_LEFT_X = 24;
@@ -575,6 +578,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           measureOffset,
           slotIndex,
           slotCount: measureSlotCounts.get(measureOffset) ?? 1,
+          isActive: group.isActive === true,
         };
       });
       return { groups, error: null };
@@ -632,10 +636,12 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           {renderState.groups.map(group => (
             <text
               key={`${group.id}-label`}
+              data-voicing-group-active={group.isActive ? 'true' : 'false'}
+              data-voicing-group-id={group.id}
               x={getVoicingGroupBaseX(group)}
               y={SP * 2.25}
               dominantBaseline="central"
-              fill={NOTATION_COLOR}
+              fill={group.isActive ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR}
               fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
               fontSize="18"
               fontWeight="800"

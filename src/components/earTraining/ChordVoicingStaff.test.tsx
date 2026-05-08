@@ -32,7 +32,7 @@ describe('ChordVoicingStaff', () => {
     expect(container.querySelector('line[data-staff-number="2"][data-staff-line="0"]')).not.toBeNull();
   });
 
-  it('正解済み構成音と臨時記号を赤く表示する', () => {
+  it('正解済み構成音と臨時記号を緑で表示する', () => {
     const { container } = render(
       <ChordVoicingStaff
         voicing={['F#4', 'A4']}
@@ -46,9 +46,43 @@ describe('ChordVoicingStaff', () => {
     const defaultNotehead = container.querySelector('ellipse[data-voicing-index="1"]');
     const correctAccidental = container.querySelector('text[data-accidental-voicing-index="0"]');
 
-    expect(correctNotehead?.getAttribute('stroke')).toBe('#ef4444');
+    expect(correctNotehead?.getAttribute('stroke')).toBe('#22c55e');
     expect(defaultNotehead?.getAttribute('stroke')).toBe('#ffffff');
-    expect(correctAccidental?.getAttribute('fill')).toBe('#ef4444');
+    expect(correctAccidental?.getAttribute('fill')).toBe('#22c55e');
+  });
+
+  it('非アクティブなコードでも正解済み構成音の色を保持し、現在コード名を黄色にする', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="CM7"
+        voicingGroups={[
+          {
+            id: 'completed',
+            chordName: 'D7',
+            voicing: ['F#4', 'A4'],
+            voicingStaves: [1, 1],
+            correctPitchClasses: [6],
+            measureOffset: 0,
+          },
+          {
+            id: 'active',
+            chordName: 'G7',
+            voicing: ['G4', 'B4'],
+            voicingStaves: [1, 1],
+            measureOffset: 0,
+            isActive: true,
+          },
+        ]}
+      />,
+    );
+
+    const completedNotehead = container.querySelector('ellipse[data-voicing-pitch-class="6"]');
+    const activeLabel = container.querySelector('text[data-voicing-group-id="active"]');
+    const inactiveLabel = container.querySelector('text[data-voicing-group-id="completed"]');
+
+    expect(completedNotehead?.getAttribute('stroke')).toBe('#22c55e');
+    expect(activeLabel?.getAttribute('fill')).toBe('#facc15');
+    expect(inactiveLabel?.getAttribute('fill')).toBe('#ffffff');
   });
 
   it('同じ小節の複数ヴォイシングを横に均等配置する', () => {
