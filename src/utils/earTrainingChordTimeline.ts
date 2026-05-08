@@ -1,5 +1,9 @@
 import { Note } from 'tonal';
-import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
+import type {
+  EarTrainingChordVoicingAttempt,
+  EarTrainingPhrase,
+  EarTrainingPhraseChord,
+} from '@/types';
 import { resolveChord } from '@/utils/chord-utils';
 import { midiToPitchClass } from '@/utils/earTrainingEngine';
 
@@ -144,6 +148,32 @@ export const getEarTrainingHarmonyHudRows = (
     voicingIds: group.chords.map(c => c.id),
   }));
 };
+
+/** タイムラインが無いフレーズではコード1つを1行とみなす（HUD・報酬キー用）。 */
+export const getHarmonyRowForChordId = (
+  phrase: EarTrainingPhrase | undefined,
+  chordId: string,
+): EarTrainingHarmonyHudRow | null => {
+  const rows = getEarTrainingHarmonyHudRows(phrase);
+  const match = rows.find(row => row.voicingIds.includes(chordId));
+  if (match) {
+    return match;
+  }
+  const chord = phrase?.chords?.find(c => c.id === chordId);
+  if (!chord) {
+    return null;
+  }
+  return {
+    representativeId: chord.id,
+    chordName: chord.chord_name,
+    voicingIds: [chord.id],
+  };
+};
+
+export const isHarmonySegmentFullyCompleted = (
+  attempt: EarTrainingChordVoicingAttempt,
+  row: EarTrainingHarmonyHudRow,
+): boolean => row.voicingIds.every(id => attempt.completedChordIds.has(id));
 
 /**
  * オーディオループ内時刻における現在ヴォイシング行。

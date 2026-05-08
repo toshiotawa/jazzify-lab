@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
+import { createChordVoicingAttempt } from '@/utils/earTrainingChordVoicingEngine';
 import {
   getEarTrainingChordDisplayAtTime,
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
+  getHarmonyRowForChordId,
+  isHarmonySegmentFullyCompleted,
 } from '@/utils/earTrainingChordTimeline';
 
 const buildChord = (
@@ -110,5 +113,34 @@ describe('earTrainingChordTimeline', () => {
       { representativeId: 'c1', chordName: 'C', voicingIds: ['c1', 'c2'] },
       { representativeId: 'm2-1', chordName: 'CM7', voicingIds: ['m2-1'] },
     ]);
+  });
+
+  it('getHarmonyRowForChordId は同一 harmony 内のどの voicing ID でも代表行を返す', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'C', start_time_sec: 1, end_time_sec: 4 }),
+    ]);
+    const rowC2 = getHarmonyRowForChordId(phrase, 'c2');
+    expect(rowC2).toEqual({
+      representativeId: 'c1',
+      chordName: 'C',
+      voicingIds: ['c1', 'c2'],
+    });
+  });
+
+  it('isHarmonySegmentFullyCompleted は行内の全 voicing が completed のときだけ true', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'C', start_time_sec: 1, end_time_sec: 4 }),
+    ]);
+    const row = getHarmonyRowForChordId(phrase, 'c1');
+    expect(row).not.toBeNull();
+    const partial = createChordVoicingAttempt(phrase);
+    partial.completedChordIds.add('c1');
+    expect(isHarmonySegmentFullyCompleted(partial, row!)).toBe(false);
+    const full = createChordVoicingAttempt(phrase);
+    full.completedChordIds.add('c1');
+    full.completedChordIds.add('c2');
+    expect(isHarmonySegmentFullyCompleted(full, row!)).toBe(true);
   });
 });

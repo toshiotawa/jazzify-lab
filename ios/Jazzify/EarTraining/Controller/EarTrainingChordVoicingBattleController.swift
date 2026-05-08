@@ -201,7 +201,18 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             return
         }
 
-        let acknowledged = EarTrainingChordVoicingEngine.acknowledgeChordAward(attempt: result.attempt, chordId: chord.id)
+        let harmonyRow = EarTrainingChordVoicingEngine.harmonyRow(containingChordId: chord.id, phrase: phrase)
+        if let row = harmonyRow,
+           !EarTrainingChordVoicingEngine.isHarmonySegmentFullyCompleted(attempt: result.attempt, row: row) {
+            attempt = result.attempt
+            return
+        }
+
+        let awardId = harmonyRow?.representativeId ?? chord.id
+        let acknowledged = EarTrainingChordVoicingEngine.acknowledgeChordAward(
+            attempt: result.attempt,
+            chordId: awardId
+        )
         attempt = acknowledged
 
         if let rootName = result.rootNoteName {

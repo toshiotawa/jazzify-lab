@@ -47,6 +47,8 @@ import {
   getEarTrainingChordDisplayAtTime,
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
+  getHarmonyRowForChordId,
+  isHarmonySegmentFullyCompleted,
 } from '@/utils/earTrainingChordTimeline';
 import {
   formatEarTrainingCountInDisplay,
@@ -943,7 +945,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return;
     }
 
-    const acknowledgedAttempt = acknowledgeChordAward(result.attempt, currentChord.id);
+    const harmonyRow = getHarmonyRowForChordId(phrase, currentChord.id);
+    if (harmonyRow !== null && !isHarmonySegmentFullyCompleted(result.attempt, harmonyRow)) {
+      syncAudioTimelineRef.current();
+      return;
+    }
+
+    const awardKey = harmonyRow?.representativeId ?? currentChord.id;
+    const acknowledgedAttempt = acknowledgeChordAward(result.attempt, awardKey);
     setAttempt(acknowledgedAttempt);
     attemptRef.current = acknowledgedAttempt;
 
@@ -1097,18 +1106,33 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stopPhraseAudio,
   ]);
 
-  const totalChordCount = currentPhrase?.chords?.length ?? 0;
-  const chordCompletedFlags = useMemo(() => {
-    const chords = currentPhrase?.chords ?? [];
-    if (!attempt) {
-      return chords.map(() => false);
+  const harmonyHudRowsForHud = useMemo(() => {
+    const rows = getEarTrainingHarmonyHudRows(currentPhrase);
+    if (rows.length > 0) {
+      return rows;
     }
-    return chords.map(chord => attempt.completedChordIds.has(chord.id));
-  }, [attempt, currentPhrase]);
-  const chordCompletedIndex = chordCompletedFlags.findIndex(flag => !flag);
-  const currentChordSlotIndex = chordCompletedIndex >= 0
-    ? chordCompletedIndex
-    : Math.max(0, totalChordCount - 1);
+    const chords = currentPhrase?.chords ?? [];
+    return chords.map(chord => ({
+      representativeId: chord.id,
+      chordName: chord.chord_name,
+      voicingIds: [chord.id],
+    }));
+  }, [currentPhrase]);
+
+  const harmonyCompletedFlags = useMemo(() => {
+    if (!attempt) {
+      return harmonyHudRowsForHud.map(() => false);
+    }
+    return harmonyHudRowsForHud.map(row =>
+      row.voicingIds.every(id => attempt.completedChordIds.has(id)),
+    );
+  }, [attempt, harmonyHudRowsForHud]);
+
+  const harmonyCompletedIndex = harmonyCompletedFlags.findIndex(flag => !flag);
+  const harmonySlotCount = harmonyHudRowsForHud.length;
+  const currentChordSlotIndex = harmonyCompletedIndex >= 0
+    ? harmonyCompletedIndex
+    : Math.max(0, harmonySlotCount - 1);
 
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyAvatar = useMemo(() => {
@@ -1141,11 +1165,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
     : null;
 
-  const harmonyHudRows = useMemo(
-    () => getEarTrainingHarmonyHudRows(currentPhrase),
-    [currentPhrase],
-  );
-
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
     resultState,
@@ -1172,16 +1191,16 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     maxLoops: stage.max_loops_per_phrase,
     demoLoopActive: false,
     enemyAttackGaugePercent,
-    chords: harmonyHudRows.map(row => ({
+    chords: harmonyHudRowsForHud.map(row => ({
       id: row.representativeId,
       name: row.chordName,
       active: Boolean(activeChord?.id && row.voicingIds.includes(activeChord.id)),
     })),
-    phraseSlots: chordCompletedFlags.map(() => '◯'),
+    phraseSlots: harmonyHudRowsForHud.map(() => '◯'),
     revealedNotes: [],
     currentNoteIndex: currentChordSlotIndex,
     slotKind: 'circle',
-    chordCompleted: chordCompletedFlags,
+    chordCompleted: harmonyCompletedFlags,
     countInValue,
     lastRank,
     showLobbyControls,
@@ -1191,9 +1210,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }), [
     activeChord?.id,
     activeLoop,
-    harmonyHudRows,
+    harmonyHudRowsForHud,
+    harmonyCompletedFlags,
     canChangePracticeMode,
-    chordCompletedFlags,
     countInValue,
     currentChordSlotIndex,
     enemyAvatar,

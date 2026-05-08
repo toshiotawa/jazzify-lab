@@ -223,6 +223,85 @@ enum EarTrainingChordVoicingEngine {
         attempt.missByChord.values.reduce(0, +)
     }
 
+    /// Web `EarTrainingHarmonyHudRow` 相当（同一 harmony 区間は 1 行）。
+    struct HarmonyHudRow: Sendable, Equatable {
+        let representativeId: UUID
+        let chordName: String
+        let voicingIds: [UUID]
+    }
+
+    private static let harmonyGroupEpsilonSec = 0.001
+
+    private static func isSameHarmonyGroup(
+        _ chord: EarTrainingPhraseChordDetail,
+        _ next: EarTrainingPhraseChordDetail
+    ) -> Bool {
+        guard chord.chordName == next.chordName else { return false }
+        guard let end = chord.endTimeSec, let nextEnd = next.endTimeSec,
+              end.isFinite, nextEnd.isFinite else { return false }
+        return abs(end - nextEnd) <= harmonyGroupEpsilonSec
+    }
+
+    private static func buildHarmonyChordRuns(from timed: [EarTrainingPhraseChordDetail]) -> [[EarTrainingPhraseChordDetail]] {
+        guard !timed.isEmpty else { return [] }
+        var runs: [[EarTrainingPhraseChordDetail]] = []
+        var run: [EarTrainingPhraseChordDetail] = [timed[0]]
+        for index in 1..<timed.count {
+            let prev = timed[index - 1]
+            let curr = timed[index]
+            if isSameHarmonyGroup(prev, curr) {
+                run.append(curr)
+            } else {
+                runs.append(run)
+                run = [curr]
+            }
+        }
+        runs.append(run)
+        return runs
+    }
+
+    private static func harmonyHudRow(from group: [EarTrainingPhraseChordDetail]) -> HarmonyHudRow? {
+        guard let first = group.first,
+              let endSec = first.endTimeSec, endSec.isFinite else { return nil }
+        return HarmonyHudRow(
+            representativeId: first.id,
+            chordName: first.chordName,
+            voicingIds: group.map { $0.id }
+        )
+    }
+
+    static func harmonyHudRows(for phrase: EarTrainingPhraseDetail) -> [HarmonyHudRow] {
+        guard let chords = phrase.chords, !chords.isEmpty else { return [] }
+        let timed = chords
+            .filter { $0.startTimeSec != nil }
+            .sorted {
+                let leftStart = $0.startTimeSec ?? 0
+                let rightStart = $1.startTimeSec ?? 0
+                if leftStart != rightStart {
+                    return leftStart < rightStart
+                }
+                return $0.orderIndex < $1.orderIndex
+            }
+        guard !timed.isEmpty else { return [] }
+        return buildHarmonyChordRuns(from: timed).compactMap { harmonyHudRow(from: $0) }
+    }
+
+    static func harmonyRow(containingChordId chordId: UUID, phrase: EarTrainingPhraseDetail) -> HarmonyHudRow? {
+        let rows = harmonyHudRows(for: phrase)
+        if let row = rows.first(where: { $0.voicingIds.contains(chordId) }) {
+            return row
+        }
+        guard let chord = phrase.chords?.first(where: { $0.id == chordId }) else { return nil }
+        return HarmonyHudRow(representativeId: chord.id, chordName: chord.chordName, voicingIds: [chord.id])
+    }
+
+    static func isHarmonySegmentFullyCompleted(
+        attempt: EarTrainingChordVoicingAttempt,
+        row: HarmonyHudRow
+    ) -> Bool {
+        row.voicingIds.allSatisfy { attempt.completedChordIds.contains($0) }
+    }
+
     /// 半拍早期遷移ロジック（Web `getEarTrainingChordDisplayAtTime`）。
     /// 直前コードが完成済みなら次コードの表示・判定開始を半拍早め、明示区間外は判定しない。
     static func chordDisplayAt(
