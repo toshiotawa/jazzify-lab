@@ -3,17 +3,6 @@ import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import { resolveChord } from '@/utils/chord-utils';
 import { midiToPitchClass } from '@/utils/earTrainingEngine';
 
-/** 1 拍の秒長（BPM から）。 */
-export const getEarTrainingBeatSec = (bpm: number): number => {
-  if (!Number.isFinite(bpm) || bpm <= 0) {
-    return 0;
-  }
-  return 60 / bpm;
-};
-
-/** 半拍の秒長（次コードの早期開始量）。 */
-export const getEarTrainingHalfBeatSec = (bpm: number): number => getEarTrainingBeatSec(bpm) * 0.5;
-
 /**
  * オーディオループ内時刻における「譜面・タイムライン上の」現在コード（従来の耳コピ HUD 用）。
  * `start_time_sec` / `end_time_sec` が無い場合は先頭コードを返す。
@@ -53,6 +42,14 @@ const sortChordsByTime = <T extends EarTrainingPhraseChord>(chords: T[]): T[] =>
 type TimedEarTrainingPhraseChord = EarTrainingPhraseChord & { start_time_sec: number };
 
 const DISPLAY_BOUNDARY_EPSILON_SEC = 0.001;
+
+const getBeatSec = (bpm: number): number => {
+  if (!Number.isFinite(bpm) || bpm <= 0) {
+    return 0;
+  }
+  return 60 / bpm;
+};
+
 const getTimedChords = (
   phrase: EarTrainingPhrase | undefined,
 ): TimedEarTrainingPhraseChord[] => {
@@ -89,15 +86,29 @@ const getChordEndSec = (
   return sortedChords[index + 1]?.start_time_sec ?? Number.POSITIVE_INFINITY;
 };
 
+const getEffectiveChordStartSec = (
+  sortedChords: readonly TimedEarTrainingPhraseChord[],
+  index: number,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
+): number => {
+  const chord = sortedChords[index];
+  const previousChord = sortedChords[index - 1];
+  if (!previousChord || !completedChordIds.has(previousChord.id)) {
+    return chord.start_time_sec;
+  }
+  return chord.start_time_sec - getBeatSec(bpm) * 0.5;
+};
+
 /**
  * オーディオループ内時刻における現在コード。
- * コードの完成状態では止めず、MusicXML由来のタイムラインに沿って移動する。
+ * 未完成コードでは止めず、直前コードが完成済みなら次コードを半拍早く開始する。
  */
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,
-  _bpm: number,
-  _completedChordIds: ReadonlySet<string>,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
 ): EarTrainingPhraseChord | null => {
   const chords = phrase?.chords ?? [];
   if (chords.length === 0) {
@@ -111,8 +122,12 @@ export const getEarTrainingChordDisplayAtTime = (
 
   for (let index = 0; index < timed.length; index += 1) {
     const chord = timed[index];
-    const endSec = getChordEndSec(chord, timed, index);
-    if (loopTimeSec >= chord.start_time_sec && loopTimeSec < endSec) {
+    const startSec = getEffectiveChordStartSec(timed, index, bpm, completedChordIds);
+    const nextEffectiveStartSec = index + 1 < timed.length
+      ? getEffectiveChordStartSec(timed, index + 1, bpm, completedChordIds)
+      : Number.POSITIVE_INFINITY;
+    const endSec = Math.min(getChordEndSec(chord, timed, index), nextEffectiveStartSec);
+    if (loopTimeSec >= startSec && loopTimeSec < endSec) {
       return chord;
     }
   }
@@ -122,8 +137,8 @@ export const getEarTrainingChordDisplayAtTime = (
 export const getEarTrainingNextChordDisplayBoundarySec = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,
-  _bpm: number,
-  _completedChordIds: ReadonlySet<string>,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
 ): number | null => {
   const timed = getTimedChords(phrase);
   if (timed.length === 0) {
@@ -135,9 +150,13 @@ export const getEarTrainingNextChordDisplayBoundarySec = (
 
   for (let index = 0; index < timed.length; index += 1) {
     const chord = timed[index];
-    const endSec = getChordEndSec(chord, timed, index);
-    if (chord.start_time_sec > threshold && chord.start_time_sec < nextBoundary) {
-      nextBoundary = chord.start_time_sec;
+    const startSec = getEffectiveChordStartSec(timed, index, bpm, completedChordIds);
+    const nextEffectiveStartSec = index + 1 < timed.length
+      ? getEffectiveChordStartSec(timed, index + 1, bpm, completedChordIds)
+      : Number.POSITIVE_INFINITY;
+    const endSec = Math.min(getChordEndSec(chord, timed, index), nextEffectiveStartSec);
+    if (startSec > threshold && startSec < nextBoundary) {
+      nextBoundary = startSec;
     }
     if (Number.isFinite(endSec) && endSec > threshold && endSec < nextBoundary) {
       nextBoundary = endSec;

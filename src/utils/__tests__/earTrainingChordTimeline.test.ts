@@ -42,13 +42,14 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingChordDisplayAtTime(phrase, 3.5, 120, new Set())?.id).toBe('c2');
   });
 
-  it('完成状態に関係なく譜面タイムライン通りに現在コードを移動する', () => {
+  it('直前コードが完成済みなら次コードを半拍早く現在コードにする', () => {
     const first = buildChord({ id: 'c1', start_time_sec: 0, end_time_sec: 2 });
     const second = buildChord({ id: 'c2', start_time_sec: 2, end_time_sec: 4 });
     const phrase = buildPhrase([first, second]);
 
     expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set())?.id).toBe('c1');
-    expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set(['c1']))?.id).toBe('c1');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 1.7, 120, new Set(['c1']))?.id).toBe('c1');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set(['c1']))?.id).toBe('c2');
     expect(getEarTrainingChordDisplayAtTime(phrase, 2.1, 120, new Set())?.id).toBe('c2');
   });
 
@@ -63,13 +64,13 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set())?.id).toBe('c3');
   });
 
-  it('次の表示境界は完成状態に関係なく次の譜面境界を返す', () => {
+  it('次の表示境界は直前コード完成済みなら半拍早めた時刻を返す', () => {
     const first = buildChord({ id: 'c1', start_time_sec: 0, end_time_sec: 2 });
     const second = buildChord({ id: 'c2', start_time_sec: 2, end_time_sec: 4 });
     const phrase = buildPhrase([first, second]);
 
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set())).toBe(2);
-    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set(['c1']))).toBe(2);
+    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set(['c1']))).toBe(1.75);
   });
 
   it('コード終端と次コード開始にギャップがある場合は両方を境界として返す', () => {
