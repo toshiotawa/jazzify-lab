@@ -82,6 +82,18 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingChordDisplayAtTime(phrase, 4.05, 120, new Set(['c1']))?.id).toBe('m2-1');
   });
 
+  it('voicing が空の harmony は区間内だけ休符コードを返し、前区間完成による早進はしない', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'G7', start_time_sec: 0, end_time_sec: 2 }),
+      buildChord({ id: 'rest', chord_name: 'CM7', start_time_sec: 2, end_time_sec: 4, voicing: [], voicing_staves: [] }),
+      buildChord({ id: 'c2', chord_name: 'CM7', start_time_sec: 4, end_time_sec: 6 }),
+    ]);
+
+    expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set(['c1']))).toBeNull();
+    expect(getEarTrainingChordDisplayAtTime(phrase, 2.2, 120, new Set(['rest']))?.id).toBe('rest');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 4.1, 120, new Set(['rest']))?.id).toBe('c2');
+  });
+
   it('次の表示境界はharmony終端など次にアクティブが変わり得る時刻', () => {
     const phrase = buildPhrase([
       buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),

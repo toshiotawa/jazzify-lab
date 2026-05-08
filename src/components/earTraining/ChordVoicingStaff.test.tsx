@@ -243,4 +243,52 @@ describe('ChordVoicingStaff', () => {
     expect(container.querySelector('text[data-accidental-group-id="tied-sharp"]')).toBeNull();
     expect(container.querySelector('text[data-accidental-group-id="after-tie-natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
   });
+
+  it('voicing が空のグループは全休符として両譜表へ表示する', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="CM7"
+        voicingGroups={[
+          {
+            id: 'rest',
+            chordName: 'CM7',
+            voicing: [],
+            voicingStaves: [],
+            measureOffset: 0,
+            isRest: true,
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelectorAll('rect[data-whole-rest-group-id="rest"]')).toHaveLength(2);
+    expect(container.querySelector('ellipse[data-voicing-group-id="rest"]')).toBeNull();
+  });
+
+  it('現在小節に5音以上のヴォイシングがある場合は小節線を右へ寄せる', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="CM9"
+        voicingGroups={[
+          {
+            id: 'dense',
+            chordName: 'CM9',
+            voicing: ['C4', 'E4', 'G4', 'B4', 'D5'],
+            voicingStaves: [1, 1, 1, 1, 1],
+            measureOffset: 0,
+          },
+          {
+            id: 'next',
+            chordName: 'F7',
+            voicing: ['F4', 'A4', 'C5', 'Eb5'],
+            voicingStaves: [1, 1, 1, 1],
+            measureOffset: 1,
+          },
+        ]}
+      />,
+    );
+
+    const firstBarline = container.querySelector('line[data-staff-barline]');
+    expect(Number(firstBarline?.getAttribute('x1'))).toBeGreaterThan(600);
+  });
 });

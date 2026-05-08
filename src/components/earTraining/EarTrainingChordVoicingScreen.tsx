@@ -90,6 +90,7 @@ const AUDIO_SYNC_EPSILON_SEC = 0.012;
 const MIN_AUDIO_SYNC_TIMER_MS = 8;
 const BATTLE_EFFECT_DURATION_MS = 720;
 const ATTACK_GAUGE_TARGET_LOOPS = 6;
+const ENEMY_ATTACK_GAUGE_STEP = 0.02;
 const NO_DAMAGE_CONFIG = {
   perCorrectNote: 0,
   good: 0,
@@ -108,6 +109,10 @@ const formatTime = (seconds: number): string => {
 };
 
 const clampRatio = (value: number): number => Math.min(1, Math.max(0, value));
+
+const quantizeAttackGaugePercent = (value: number): number => (
+  Math.round(clampRatio(value) / ENEMY_ATTACK_GAUGE_STEP) * ENEMY_ATTACK_GAUGE_STEP
+);
 
 const getFinitePhraseLoopDuration = (phrase: EarTrainingPhrase): number | null => {
   const loopDurationSec = Number(phrase.loop_duration_sec);
@@ -232,7 +237,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
-  const [enemyAttackGaugePercent, setEnemyAttackGaugePercent] = useState(0);
+  const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
@@ -263,6 +268,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const lastInputAtRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
   const allChordsCompletedAtRef = useRef(false);
+  const enemyAttackGaugePercentRef = useRef(0);
 
   const currentPhrase = phrases[phraseIndex];
 
@@ -319,6 +325,15 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       clearInterval(timeLimitTimerRef.current);
       timeLimitTimerRef.current = null;
     }
+  }, []);
+
+  const setEnemyAttackGaugePercent = useCallback((value: number) => {
+    const next = quantizeAttackGaugePercent(value);
+    if (Math.abs(next - enemyAttackGaugePercentRef.current) < 0.0001) {
+      return;
+    }
+    enemyAttackGaugePercentRef.current = next;
+    setEnemyAttackGaugePercentState(next);
   }, []);
 
   const clearBattleEffectTimers = useCallback(() => {
@@ -459,6 +474,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     finishGameOver,
     phrases.length,
     registerBattleEffectImpact,
+    setEnemyAttackGaugePercent,
     triggerBattleEffect,
     triggerFeedback,
   ]);
@@ -498,6 +514,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     copy.gameOver,
     finishGameOver,
     registerBattleEffectImpact,
+    setEnemyAttackGaugePercent,
     stage.max_loops_per_phrase,
     triggerBattleEffect,
     triggerFeedback,
@@ -682,6 +699,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     phrases,
     settings.masterVolume,
     settings.musicVolume,
+    setEnemyAttackGaugePercent,
     stage.bpm,
   ]);
 
@@ -790,6 +808,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     finishGameOver,
     phrases.length,
     primePhraseAudio,
+    setEnemyAttackGaugePercent,
     stage.bpm,
     stage.count_in_beats,
     stage.enemy_hp,
@@ -1078,6 +1097,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     failCurrentPhrase,
     phraseIndex,
     phrases,
+    setEnemyAttackGaugePercent,
   ]);
 
   const handleAudioEnded = useCallback(() => {
@@ -1275,26 +1295,40 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     const nextMeasureNumber = normalizeMeasureNumber(currentMeasureNumber + 1, stage.loop_measures);
     const slotIndexByMeasure = new Map<number, number>();
 
-    return chords
+    const visibleEntries = chords
       .slice()
       .sort(sortChordsForVoicingDisplay)
       .map(chord => ({
         chord,
         measureNumber: getChordMeasureNumber(chord, loopDurationSec, stage.loop_measures),
       }))
-      .filter(({ chord, measureNumber }) => (
-        (chord.voicing?.length ?? 0) > 0
-        && (measureNumber === currentMeasureNumber || measureNumber === nextMeasureNumber)
-      ))
+      .filter(({ measureNumber }) => (
+        measureNumber === currentMeasureNumber || measureNumber === nextMeasureNumber
+      ));
+    const useWideCurrentMeasure = visibleEntries.some(({ chord, measureNumber }) => (
+      measureNumber === currentMeasureNumber && (chord.voicing?.length ?? 0) >= 5
+    ));
+    let nextMeasureVisibleCount = 0;
+
+    return visibleEntries
+      .filter(({ measureNumber }) => {
+        if (measureNumber === currentMeasureNumber || !useWideCurrentMeasure) {
+          return true;
+        }
+        nextMeasureVisibleCount += 1;
+        return nextMeasureVisibleCount === 1;
+      })
       .map(({ chord, measureNumber }) => {
         const slotIndex = slotIndexByMeasure.get(measureNumber) ?? 0;
         slotIndexByMeasure.set(measureNumber, slotIndex + 1);
+        const voicing = chord.voicing ?? [];
         return {
           id: chord.id,
           chordName: slotIndex === 0 ? chord.chord_name : '',
-          voicing: chord.voicing ?? [],
+          voicing,
           voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
           measureOffset: measureNumber === currentMeasureNumber ? 0 : 1,
+          isRest: voicing.length === 0,
         };
       });
   }, [

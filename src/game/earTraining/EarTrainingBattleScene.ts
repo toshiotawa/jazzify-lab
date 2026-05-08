@@ -25,6 +25,7 @@ const ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS = 16;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
+const MIN_SCENE_REBUILD_INTERVAL_MS = 50;
 
 type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
 type CharacterSide = 'player' | 'enemy';
@@ -202,6 +203,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private playerPoseToken = 0;
   private pendingSceneRebuild = false;
   private isReady = false;
+  private lastBackgroundSizeKey: string | null = null;
+  private lastSceneRebuildAt = 0;
+  private sceneRebuildTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super({ key: 'EarTrainingBattleScene' });
@@ -224,6 +228,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   shutdown(): void {
     this.isReady = false;
     this.pendingSceneRebuild = false;
+    this.sceneRebuildTimer?.remove(false);
+    this.sceneRebuildTimer = null;
     this.scale.off('resize', this.handleResize, this);
   }
 
@@ -275,6 +281,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private handleResize = (): void => {
+    this.clearBackgroundScene();
     this.queueSceneRebuild();
   };
 
@@ -307,19 +314,26 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   private rebuildScene(): void {
     this.pendingSceneRebuild = false;
-    this.clearScene();
+    this.lastSceneRebuildAt = this.time.now;
 
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
+    const backgroundSizeKey = `${width}x${height}`;
 
-    this.backgroundLayer = this.add.container(0, 0);
+    if (!this.backgroundLayer || this.lastBackgroundSizeKey !== backgroundSizeKey) {
+      this.clearBackgroundScene();
+      this.backgroundLayer = this.add.container(0, 0);
+      this.drawBackground(width, height);
+      this.lastBackgroundSizeKey = backgroundSizeKey;
+    }
+
+    this.clearDynamicScene();
     this.characterLayer = this.add.container(0, 0);
     this.hudLayer = this.add.container(0, 0);
     this.phraseLayer = this.add.container(0, 0);
     const effectLayer = this.effectLayer ?? this.add.container(0, 0);
     this.effectLayer = effectLayer;
 
-    this.drawBackground(width, height);
     this.drawHud(width);
     this.drawCharacters(width, height);
     this.drawPhraseIntro(width, height);
@@ -333,21 +347,30 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     this.pendingSceneRebuild = true;
-    this.time.delayedCall(0, () => {
+    const elapsedMs = this.time.now - this.lastSceneRebuildAt;
+    const delayMs = Math.max(0, MIN_SCENE_REBUILD_INTERVAL_MS - elapsedMs);
+    this.sceneRebuildTimer = this.time.delayedCall(delayMs, () => {
+      this.sceneRebuildTimer = null;
       if (!this.isReady || !this.pendingSceneRebuild) {
         return;
       }
+      this.lastSceneRebuildAt = this.time.now;
       this.rebuildScene();
     });
   }
 
-  private clearScene(): void {
-    this.backgroundLayer?.destroy(true);
+  private clearDynamicScene(): void {
     this.characterLayer?.destroy(true);
     this.hudLayer?.destroy(true);
     this.phraseLayer?.destroy(true);
     this.playerView = null;
     this.enemyView = null;
+  }
+
+  private clearBackgroundScene(): void {
+    this.backgroundLayer?.destroy(true);
+    this.backgroundLayer = null;
+    this.lastBackgroundSizeKey = null;
   }
 
   private drawBackground(width: number, height: number): void {

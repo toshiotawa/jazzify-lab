@@ -77,6 +77,7 @@ const INPUT_COOLDOWN_MS = 20;
 const AUDIO_END_EPSILON_SEC = 0.03;
 const BATTLE_EFFECT_DURATION_MS = 720;
 const ATTACK_GAUGE_TARGET_LOOPS = 6;
+const ENEMY_ATTACK_GAUGE_STEP = 0.02;
 const NO_DAMAGE_CONFIG = {
   perCorrectNote: 0,
   good: 0,
@@ -94,6 +95,10 @@ const formatTime = (seconds: number): string => {
 };
 
 const clampRatio = (value: number): number => Math.min(1, Math.max(0, value));
+
+const quantizeAttackGaugePercent = (value: number): number => (
+  Math.round(clampRatio(value) / ENEMY_ATTACK_GAUGE_STEP) * ENEMY_ATTACK_GAUGE_STEP
+);
 
 const getActiveChord = (phrase: EarTrainingPhrase | undefined, timeSec: number): EarTrainingPhraseChord | null => {
   if (!phrase?.chords || phrase.chords.length === 0) {
@@ -244,7 +249,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
-  const [enemyAttackGaugePercent, setEnemyAttackGaugePercent] = useState(0);
+  const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
   const [demoBubbleVisible, setDemoBubbleVisible] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -269,6 +274,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
   const lastInputAtRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
+  const enemyAttackGaugePercentRef = useRef(0);
 
   const currentPhrase = phrases[phraseIndex];
 
@@ -339,6 +345,15 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       clearTimeout(battleEffectClearTimerRef.current);
       battleEffectClearTimerRef.current = null;
     }
+  }, []);
+
+  const setEnemyAttackGaugePercent = useCallback((value: number) => {
+    const next = quantizeAttackGaugePercent(value);
+    if (Math.abs(next - enemyAttackGaugePercentRef.current) < 0.0001) {
+      return;
+    }
+    enemyAttackGaugePercentRef.current = next;
+    setEnemyAttackGaugePercentState(next);
   }, []);
 
   const stopPhraseAudio = useCallback(() => {
@@ -474,6 +489,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     finishGameOver,
     phrases.length,
     registerBattleEffectImpact,
+    setEnemyAttackGaugePercent,
     triggerBattleEffect,
     triggerFeedback,
   ]);
@@ -519,6 +535,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     copy,
     finishGameOver,
     phrases,
+    setEnemyAttackGaugePercent,
     stage,
     settings.masterVolume,
     settings.musicVolume,
@@ -627,6 +644,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     finishGameOver,
     phrases.length,
     primePhraseAudio,
+    setEnemyAttackGaugePercent,
     stage.bpm,
     stage.count_in_beats,
     stage.enemy_hp,
@@ -861,7 +879,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     if (audio.ended || (Number.isFinite(audioDurationSec) && audio.currentTime >= audioDurationSec - AUDIO_END_EPSILON_SEC)) {
       failCurrentPhrase();
     }
-  }, [failCurrentPhrase, phraseIndex, phrases, stage]);
+  }, [failCurrentPhrase, phraseIndex, phrases, setEnemyAttackGaugePercent, stage]);
 
   const handleAudioEnded = useCallback(() => {
     failCurrentPhrase();

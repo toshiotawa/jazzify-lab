@@ -5,6 +5,7 @@ import type {
   EarTrainingPhraseChord,
 } from '@/types';
 import { resolveChord } from '@/utils/chord-utils';
+import { chordHasVoicingNotes } from '@/utils/earTrainingChordVoicingEngine';
 import { midiToPitchClass } from '@/utils/earTrainingEngine';
 
 /**
@@ -98,6 +99,12 @@ interface HarmonyTimelineGroup {
   readonly segmentStart: number;
   readonly segmentEnd: number;
 }
+
+const firstPlayableChord = (
+  chords: readonly TimedEarTrainingPhraseChord[],
+): TimedEarTrainingPhraseChord | null => (
+  chords.find(chordHasVoicingNotes) ?? null
+);
 
 const buildHarmonyTimelineGroups = (sorted: readonly TimedEarTrainingPhraseChord[]): HarmonyTimelineGroup[] => {
   if (sorted.length === 0) {
@@ -211,15 +218,20 @@ export const getEarTrainingChordDisplayAtTime = (
       continue;
     }
 
+    const playableChord = firstPlayableChord(groupChords);
+    if (!playableChord) {
+      return groupChords[0] ?? null;
+    }
+
     for (const chord of groupChords) {
-      if (!completedChordIds.has(chord.id)) {
+      if (chordHasVoicingNotes(chord) && !completedChordIds.has(chord.id)) {
         return chord;
       }
     }
 
     const nextGroup = groups[groupIndex + 1];
     if (nextGroup) {
-      return nextGroup.chords[0] ?? null;
+      return firstPlayableChord(nextGroup.chords);
     }
     return null;
   }

@@ -121,4 +121,20 @@ describe('earTrainingChordVoicingEngine', () => {
     const second = acknowledgeChordAward(first, 'c1');
     expect(second).toBe(first);
   });
+
+  it('voicing が空のコードは完成済み扱いになり、入力してもミス判定しない', () => {
+    const restChord = buildChord({ id: 'rest', chord_name: 'CM7', voicing: [], voicing_staves: [] });
+    const playableChord = buildChord({ id: 'playable', chord_name: 'CM7' });
+    const phrase = buildPhrase([restChord, playableChord]);
+    const attempt = createChordVoicingAttempt(phrase);
+
+    expect(attempt.completedChordIds.has('rest')).toBe(true);
+    expect(isAllChordsCompleted(phrase, attempt)).toBe(false);
+
+    const result = handleChordVoicingNoteOn(attempt, restChord, 60, damage);
+    expect(result.attempt).toBe(attempt);
+    expect(result.evaluationMissAdded).toBe(false);
+    expect(result.chordJustCompleted).toBe(false);
+    expect(countChordVoicingMisses(result.attempt)).toBe(0);
+  });
 });

@@ -31,6 +31,10 @@ const noteNameToPitchClassSafe = (name: string): number | null => {
   return typeof chroma === 'number' ? chroma : null;
 };
 
+export const chordHasVoicingNotes = (chord: EarTrainingPhraseChord): boolean => (
+  (chord.voicing?.length ?? 0) > 0
+);
+
 export const getVoicingPitchClasses = (chord: EarTrainingPhraseChord): number[] => {
   const voicing = chord.voicing ?? [];
   if (voicing.length === 0) {
@@ -58,14 +62,23 @@ const getRootNoteName = (chord: EarTrainingPhraseChord): string | null => {
   return resolved.root || null;
 };
 
-export const createChordVoicingAttempt = (phrase: EarTrainingPhrase): EarTrainingChordVoicingAttempt => ({
-  phraseId: phrase.id,
-  pressedByChord: new Map<string, Set<number>>(),
-  missByChord: new Map<string, number>(),
-  completedChordIds: new Set<string>(),
-  awardedChordIds: new Set<string>(),
-  failedChordIds: new Set<string>(),
-});
+export const createChordVoicingAttempt = (phrase: EarTrainingPhrase): EarTrainingChordVoicingAttempt => {
+  const completedChordIds = new Set<string>();
+  (phrase.chords ?? []).forEach(chord => {
+    if (!chordHasVoicingNotes(chord)) {
+      completedChordIds.add(chord.id);
+    }
+  });
+
+  return {
+    phraseId: phrase.id,
+    pressedByChord: new Map<string, Set<number>>(),
+    missByChord: new Map<string, number>(),
+    completedChordIds,
+    awardedChordIds: new Set<string>(),
+    failedChordIds: new Set<string>(),
+  };
+};
 
 const cloneAttempt = (attempt: EarTrainingChordVoicingAttempt): EarTrainingChordVoicingAttempt => ({
   phraseId: attempt.phraseId,
@@ -118,6 +131,17 @@ export const handleChordVoicingNoteOn = (
   }
 
   const targetPcs = getVoicingPitchClasses(activeChord);
+  if (targetPcs.length === 0) {
+    return {
+      attempt,
+      hitPitchClass: null,
+      chordJustCompleted: false,
+      rootNoteName: null,
+      enemyDamage: 0,
+      playerDamage: 0,
+      evaluationMissAdded: false,
+    };
+  }
   const inputPc = midiToPitchClass(midiNote);
   const pressedSet = attempt.pressedByChord.get(chordId) ?? new Set<number>();
   const isTargetTone = targetPcs.includes(inputPc);
@@ -181,7 +205,7 @@ export const isAllChordsCompleted = (
   if (chords.length === 0) {
     return false;
   }
-  return chords.every(chord => attempt.completedChordIds.has(chord.id));
+  return chords.every(chord => !chordHasVoicingNotes(chord) || attempt.completedChordIds.has(chord.id));
 };
 
 export const countChordVoicingMisses = (attempt: EarTrainingChordVoicingAttempt): number => {
