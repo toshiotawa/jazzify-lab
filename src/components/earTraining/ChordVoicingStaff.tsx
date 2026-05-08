@@ -634,21 +634,23 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           viewBox={`0 0 ${STAFF_WIDTH} ${svgHeight}`}
         >
           {renderState.groups.map(group => (
-            <text
-              key={`${group.id}-label`}
-              data-voicing-group-active={group.isActive ? 'true' : 'false'}
-              data-voicing-group-id={group.id}
-              x={getVoicingGroupBaseX(group)}
-              y={SP * 2.25}
-              dominantBaseline="central"
-              fill={group.isActive ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR}
-              fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
-              fontSize="18"
-              fontWeight="800"
-              textAnchor="middle"
-            >
-              {group.chordName}
-            </text>
+            group.chordName ? (
+              <text
+                key={`${group.id}-label`}
+                data-voicing-group-active={group.isActive ? 'true' : 'false'}
+                data-voicing-group-id={group.id}
+                x={getVoicingGroupBaseX(group)}
+                y={SP * 2.25}
+                dominantBaseline="central"
+                fill={group.isActive ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR}
+                fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
+                fontSize="18"
+                fontWeight="800"
+                textAnchor="middle"
+              >
+                {group.chordName}
+              </text>
+            ) : null
           ))}
           {activeStaves.map((staff, index) => (
             <RenderedStaff

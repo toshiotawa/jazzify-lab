@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import {
   getEarTrainingChordDisplayAtTime,
+  getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
 } from '@/utils/earTrainingChordTimeline';
 
@@ -42,18 +43,7 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingChordDisplayAtTime(phrase, 3.5, 120, new Set())?.id).toBe('c2');
   });
 
-  it('直前コードが完成済みなら次コードを半拍早く現在コードにする', () => {
-    const first = buildChord({ id: 'c1', start_time_sec: 0, end_time_sec: 2 });
-    const second = buildChord({ id: 'c2', start_time_sec: 2, end_time_sec: 4 });
-    const phrase = buildPhrase([first, second]);
-
-    expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set())?.id).toBe('c1');
-    expect(getEarTrainingChordDisplayAtTime(phrase, 1.7, 120, new Set(['c1']))?.id).toBe('c1');
-    expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set(['c1']))?.id).toBe('c2');
-    expect(getEarTrainingChordDisplayAtTime(phrase, 2.1, 120, new Set())?.id).toBe('c2');
-  });
-
-  it('未完成コードがあっても時刻が進めば次コードを現在コードにする', () => {
+  it('別harmony（終端が異なる）では時刻が進めば次コードへ移る', () => {
     const first = buildChord({ id: 'c1', start_time_sec: 0, end_time_sec: 1 });
     const second = buildChord({ id: 'c2', start_time_sec: 1, end_time_sec: 2 });
     const third = buildChord({ id: 'c3', start_time_sec: 2, end_time_sec: 3 });
@@ -64,7 +54,7 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set())?.id).toBe('c3');
   });
 
-  it('同一harmony内のvoicingは順番制で、harmony境界では時間で次へ進む', () => {
+  it('同一harmony内は未完成があれば時刻が進んでも先頭未完成に留まる', () => {
     const phrase = buildPhrase([
       buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
       buildChord({ id: 'c2', chord_name: 'C', start_time_sec: 1, end_time_sec: 4 }),
@@ -73,34 +63,30 @@ describe('earTrainingChordTimeline', () => {
     ]);
 
     expect(getEarTrainingChordDisplayAtTime(phrase, 1.5, 120, new Set())?.id).toBe('c1');
-    expect(getEarTrainingChordDisplayAtTime(phrase, 1.5, 120, new Set(['c1']))?.id).toBe('c2');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set())?.id).toBe('c1');
     expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set(['c1']))?.id).toBe('c2');
-    expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set(['c1', 'c2']))?.id).toBe('c3');
     expect(getEarTrainingChordDisplayAtTime(phrase, 4.1, 120, new Set())?.id).toBe('m2-1');
     expect(getEarTrainingChordDisplayAtTime(phrase, 3.8, 120, new Set(['c1', 'c2', 'c3']))?.id).toBe('m2-1');
   });
 
-  it('次の表示境界は直前コード完成済みなら半拍早めた時刻を返す', () => {
-    const first = buildChord({ id: 'c1', start_time_sec: 0, end_time_sec: 2 });
-    const second = buildChord({ id: 'c2', start_time_sec: 2, end_time_sec: 4 });
-    const phrase = buildPhrase([first, second]);
-
-    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set())).toBe(2);
-    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set(['c1']))).toBe(1.75);
-  });
-
-  it('同一harmony内の未完成voicingは未来voicingの表示境界を隠す', () => {
+  it('harmony終端を過ぎたら次harmonyの先頭へ移る（未完成が残っていても）', () => {
     const phrase = buildPhrase([
       buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
       buildChord({ id: 'c2', chord_name: 'C', start_time_sec: 1, end_time_sec: 4 }),
-      buildChord({ id: 'c3', chord_name: 'C', start_time_sec: 2, end_time_sec: 4 }),
       buildChord({ id: 'm2-1', chord_name: 'CM7', start_time_sec: 4, end_time_sec: 8 }),
     ]);
 
+    expect(getEarTrainingChordDisplayAtTime(phrase, 4.05, 120, new Set(['c1']))?.id).toBe('m2-1');
+  });
+
+  it('次の表示境界はharmony終端など次にアクティブが変わり得る時刻', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'CM7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set())).toBe(4);
-    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 0.6, 120, new Set(['c1']))).toBe(0.75);
-    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set(['c1']))).toBe(4);
-    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 3.1, 120, new Set(['c1', 'c2', 'c3']))).toBe(3.75);
+    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 4.1, 120, new Set())).toBe(8);
   });
 
   it('コード終端と次コード開始にギャップがある場合は両方を境界として返す', () => {
@@ -111,5 +97,18 @@ describe('earTrainingChordTimeline', () => {
 
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set())).toBe(2);
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 2.2, 120, new Set())).toBe(3);
+  });
+
+  it('HUD行はharmonyごとに1行（代表IDとvoicing列）', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'C', start_time_sec: 1, end_time_sec: 4 }),
+      buildChord({ id: 'm2-1', chord_name: 'CM7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+
+    expect(getEarTrainingHarmonyHudRows(phrase)).toEqual([
+      { representativeId: 'c1', chordName: 'C', voicingIds: ['c1', 'c2'] },
+      { representativeId: 'm2-1', chordName: 'CM7', voicingIds: ['m2-1'] },
+    ]);
   });
 });

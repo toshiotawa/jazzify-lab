@@ -45,6 +45,7 @@ import {
 } from '@/utils/earTrainingChordVoicingEngine';
 import {
   getEarTrainingChordDisplayAtTime,
+  getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
 } from '@/utils/earTrainingChordTimeline';
 import {
@@ -1140,6 +1141,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
     : null;
 
+  const harmonyHudRows = useMemo(
+    () => getEarTrainingHarmonyHudRows(currentPhrase),
+    [currentPhrase],
+  );
+
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
     resultState,
@@ -1166,10 +1172,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     maxLoops: stage.max_loops_per_phrase,
     demoLoopActive: false,
     enemyAttackGaugePercent,
-    chords: (currentPhrase?.chords ?? []).map(chord => ({
-      id: chord.id,
-      name: chord.chord_name,
-      active: activeChord?.id === chord.id,
+    chords: harmonyHudRows.map(row => ({
+      id: row.representativeId,
+      name: row.chordName,
+      active: Boolean(activeChord?.id && row.voicingIds.includes(activeChord.id)),
     })),
     phraseSlots: chordCompletedFlags.map(() => '◯'),
     revealedNotes: [],
@@ -1185,11 +1191,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }), [
     activeChord?.id,
     activeLoop,
+    harmonyHudRows,
     canChangePracticeMode,
     chordCompletedFlags,
     countInValue,
     currentChordSlotIndex,
-    currentPhrase?.chords,
     enemyAvatar,
     enemyAvatarFlipX,
     enemyAttackGaugePercent,
@@ -1249,6 +1255,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
     const currentMeasureNumber = normalizeMeasureNumber(activeMeasureNumber, stage.loop_measures);
     const nextMeasureNumber = normalizeMeasureNumber(currentMeasureNumber + 1, stage.loop_measures);
+    const slotIndexByMeasure = new Map<number, number>();
+
     return chords
       .slice()
       .sort(sortChordsForVoicingDisplay)
@@ -1261,10 +1269,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         && (measureNumber === currentMeasureNumber || measureNumber === nextMeasureNumber)
       ))
       .map(({ chord, measureNumber }) => {
+        const slotIndex = slotIndexByMeasure.get(measureNumber) ?? 0;
+        slotIndexByMeasure.set(measureNumber, slotIndex + 1);
         const pressed = attempt?.pressedByChord.get(chord.id);
         return {
           id: chord.id,
-          chordName: chord.chord_name,
+          chordName: slotIndex === 0 ? chord.chord_name : '',
           voicing: chord.voicing ?? [],
           voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
           correctPitchClasses: pressed ? Array.from(pressed) : EMPTY_PITCH_CLASSES,
@@ -1288,16 +1298,21 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     )}>
       <audio ref={audioRef} onEnded={handleAudioEnded} onTimeUpdate={handleAudioTimeUpdate} preload="auto" />
 
-      <EarTrainingPhaserGame
-        ref={phaserGameRef}
-        snapshot={battleSnapshot}
-        effectCommand={battleEffectCommand}
-        callbacks={battleCallbacks}
-        className="h-full w-full"
-      />
+      <div className={cn('relative h-full w-full', showLobbyControls ? 'z-30' : 'z-0')}>
+        <EarTrainingPhaserGame
+          ref={phaserGameRef}
+          snapshot={battleSnapshot}
+          effectCommand={battleEffectCommand}
+          callbacks={battleCallbacks}
+          className="h-full w-full"
+        />
+      </div>
 
       {staffVoicingGroups.length > 0 && (
-        <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
+        <div className={cn(
+          'pointer-events-none absolute left-1/2 top-[42%] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2',
+          showLobbyControls ? 'z-0' : 'z-10',
+        )}>
           <ChordVoicingStaff
             chordName={activeChord?.chord_name}
             voicingGroups={staffVoicingGroups}
