@@ -324,7 +324,8 @@ private struct EarTrainingChordVoicingContent: View {
                 ChordVoicingStaffView(
                     voicing: voicing,
                     voicingStaves: staves,
-                    chordName: chord?.chordName ?? ""
+                    chordName: chord?.chordName ?? "",
+                    keyFifths: controller.currentPhrase?.keyFifths ?? controller.stage.keyFifths ?? 0
                 )
                 .frame(width: staffWidth, height: height)
                 .frame(maxWidth: .infinity, alignment: .center)

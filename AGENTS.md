@@ -1,230 +1,397 @@
-# Jazz Learning Game - Agent Guidelines
+日本語で回答すること。
 
-## 基本運用ルール
-- 日本語で回答すること
-- 作業開始前に作業計画を提示し、ユーザーの承認（y/n）を得てから実行する
-- 計画が失敗した場合は代替案を提示し、再度承認を得る
-- 指示されたタスクを完遂するまで作業を継続する
-- ユーザーの指示を最優先し、独断で方針変更を行わない
+# Cursor AI Coding Rules for This Project
 
-## プロジェクト概要
-ジャズ音楽学習ウェブアプリケーション。ピアノ・ギターモードでのリアルタイム演奏判定ゲーム。
+## 0. Core Priority
 
-## 技術スタック
-- React 18 + TypeScript + Vite
-- Tailwind CSS + CSS Modules
-- Zustand + Immer
-- PIXI.js
-- Tone.js
-- Rust + WebAssembly (PYIN)
-- Netlify
-- MIDI / Audio (PYIN)
+This is a performance-sensitive game project.
 
-## 開発者プロファイル
-経験豊富なフロントエンド開発者として以下に精通している：
-- React 18, TypeScript, Vite
-- Zustand状態管理, Immer
-- Tailwind CSS, CSS Modules
-- PIXI.js, Tone.js, Web Audio API
-- WebAssembly統合
-- リアルタイム音響処理
-- ゲーム開発パターン
+Correctness comes first, but every implementation must also protect runtime performance.
 
-## アーキテクチャ原則
-### プラットフォーム抽象化
-- `src/platform/index.ts`経由でブラウザAPIを操作する
-- `window.`オブジェクトを直接参照しない
-- DOM操作は最小限に抑える
+Before writing code, always consider:
 
-### 型安全性
-- 全てTypeScriptで記述する
-- `any`型を使用しない
-- 型定義は`src/types/index.ts`に集約する
+- Can this be event-driven instead of checked every frame?
+- Can this be cached instead of recalculated?
+- Can this be updated only when state changes?
+- Can this avoid allocation during gameplay?
+- Can this avoid unnecessary React re-renders?
 
-### 状態管理
-- Zustandストア（`src/stores/gameStore.ts`）で状態を管理する
-- Immerミドルウェアを使用し`enableMapSet()`を有効化する
-- 不変性を維持する
+Do not add broad per-frame logic unless there is no reasonable alternative.
 
-### パフォーマンス最優先
-- PIXI.jsでノーツ描画を最適化する
-- `requestAnimationFrame`を活用する
-- メモリリークを防止する
-- 60fps維持、<20msレイテンシを守る
-- `unifiedFrameController`を使用し、競合するループを避ける
+---
 
-## ファイル構成規則
-```
-src/
-├── components/          # React コンポーネント
-│   ├── game/            # ゲーム関連UI
-│   └── ui/              # 共通UIコンポーネント
-├── stores/              # Zustand ストア
-├── types/               # TypeScript 型定義
-├── platform/            # プラットフォーム抽象化
-├── utils/               # ユーティリティ関数
-└── data/                # 楽曲・設定データ
-```
+## 1. General Principles
 
-## コーディング規約
-### React コンポーネント
-```typescript
-interface Props {
-  title: string;
-  onAction: () => void;
-}
+- All code must be valid TypeScript with strict mode enabled.
+- Run `tsc --noEmit` and ensure 0 errors.
+- Run ESLint with `npm run lint` and ensure 0 errors and 0 warnings.
+- Run `npx ts-prune` and ensure there are no unused exports.
+- Run Jest tests with `npm test` when code is changed.
+- Do not claim that commands were run unless they were actually run.
+- If commands cannot be run, clearly state which checks were not run.
+- Write clean, minimal code.
+- Avoid unused variables, functions, imports, exports, files, and branches.
+- Prefer deleting unnecessary code over adding abstractions.
+- No `console.log`, `console.warn`, or `console.error` in production code. Use the project logger if needed.
+- Prefer `const` over `let` unless reassignment is required.
+- Use arrow functions for callbacks.
 
-export const Component: React.FC<Props> = ({ title, onAction }) => {
-  return <div>{title}</div>;
-};
-```
+---
 
-### Zustand ストア
-```typescript
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
+## 2. Performance Rules for Game Code
 
-interface State {
-  // state properties
-}
+### 2.1 Per-frame logic
 
-interface Actions {
-  // action methods
-}
+Do not add new per-frame work casually.
 
-export const useStore = create<State & Actions>()(
-  immer((set, get) => ({
-    // implementation
-  }))
-);
-```
+Avoid adding logic to:
 
-### イベントハンドラー命名
-- `handleClick`, `handleKeyDown`, `handleMidiInput`など`handle`接頭辞を使用する
-- 音楽関連処理は`handleNoteOn`, `handleNoteOff`, `handlePitchDetected`を使用する
+- `requestAnimationFrame`
+- `Update`
+- `Tick`
+- `useFrame`
+- `setInterval`
+- `setTimeout` loops
+- animation loops
+- physics loops
+- render loops
+- polling effects
 
-### スタイリング
-- Tailwind CSSを優先する
-- CSS Modulesは複雑なアニメーション時のみ使用する
-- レスポンシブデザインを意識し、`sm:`, `md:`, `lg:`を活用する
-- Reactでは`class:`ではなく三項演算子を使用する
+Any new per-frame or repeated loop logic must include a short justification in the final response.
 
-### アクセシビリティ
-```typescript
-<button
-  tabIndex={0}
-  aria-label="Play song"
-  onClick={handlePlay}
-  onKeyDown={handleKeyDown}
-  className="..."
->
-```
+Before adding per-frame logic, prefer:
 
-## ゲーム固有規則
-### 楽曲データ形式
-```typescript
-interface Note {
-  time: number;    // 秒単位
-  pitch: number;   // MIDI番号
+- event-driven updates
+- dirty flags
+- cached values
+- throttled updates
+- fixed-interval updates
+- spatial partitioning
+- precomputed data
+- state-change-based updates
+
+Bad:
+
+```ts
+// Checking everything every frame
+for (const enemy of enemies) {
+  enemy.findNearestTarget(players);
 }
 ```
 
-### 判定システム
-- good判定: ±300ms
-- 1000点満点制
-- エフェクト表示必須
+Better:
 
-### リアルタイム処理
-- MIDI入力: <10ms応答
-- WASMピッチ検出: <20ms
-- 音響処理優先度を最上位に保つ
+```ts
+// Recalculate only on a fixed interval or when relevant state changes
+targetingSystem.updateIfNeeded(elapsedTime);
+```
 
-### メモリ管理
-```typescript
+### 2.2 No expensive operations inside gameplay loops
+
+Do not perform these inside per-frame loops, physics loops, animation loops, or hot paths:
+
+- broad array scans unless the collection is small and bounded
+- DOM queries
+- object creation in large quantities
+- deep cloning
+- JSON serialization/deserialization
+- sorting
+- filtering large arrays
+- React state updates
+- asset loading
+- dynamic imports
+- heavy math repeated unnecessarily
+- unnecessary allocations
+- logging
+- `map/filter/reduce` in hot paths if a simple loop avoids allocations
+- repeated lookup of the same object or component
+
+If such work is necessary, move it to:
+
+- initialization
+- cache-building
+- event handlers
+- dirty-flag updates
+- fixed lower-frequency systems
+- worker/background-safe processing if appropriate
+
+### 2.3 Avoid garbage collection pressure
+
+Gameplay code must minimize runtime allocations.
+
+Avoid in hot paths:
+
+- creating new arrays
+- creating new objects
+- creating closures repeatedly
+- spreading large objects/arrays
+- temporary vector/object creation
+- unnecessary string construction
+- inline object literals passed to frequently called functions
+
+Prefer:
+
+- object reuse
+- object pools where appropriate
+- mutable internal scratch objects in performance-critical systems
+- preallocated arrays
+- stable references
+
+React state should remain immutable, but low-level game simulation code may use controlled mutation when it improves performance and is isolated.
+
+### 2.4 React rendering performance
+
+Avoid unnecessary React re-renders.
+
+Do not store rapidly changing per-frame game state in React state unless the UI truly needs it.
+
+Bad:
+
+```ts
+setPlayerPosition(position);
+```
+
+inside a frame loop.
+
+Prefer:
+
+- refs for high-frequency mutable runtime state
+- React state only for UI-relevant changes
+- external stores with selective subscriptions
+- throttled UI updates
+- derived UI snapshots
+- dirty flags
+
+Use `useMemo`, `useCallback`, and `memo` only when they reduce real re-render cost or stabilize dependencies. Do not add them blindly.
+
+Do not put side effects in render.
+
+No fetches, subscriptions, timers, event listeners, random mutations, or imperative game updates in component bodies.
+
+### 2.5 Effects and subscriptions
+
+Every `useEffect` that creates a subscription, listener, timer, animation frame, or external resource must clean it up.
+
+Bad:
+
+```ts
 useEffect(() => {
-  return () => {
-    texture.destroy();
-    sprite.destroy();
-  };
+  window.addEventListener("resize", onResize);
 }, []);
+```
 
+Good:
+
+```ts
 useEffect(() => {
-  return () => {
-    audioContext.close();
-  };
-}, []);
+  window.addEventListener("resize", onResize);
+  return () => window.removeEventListener("resize", onResize);
+}, [onResize]);
 ```
 
-## 実装ガイドライン
-### 必須事項
-- 早期`return`で可読性向上
-- Tailwindクラスのみでスタイリング（独自CSS禁止）
-- 説明的な変数・関数名を用いる
-- `const`宣言を優先する（例: `const toggle = () => {}`）
-- 必要な型定義をすべて実装する
-- TODOやプレースホルダーを残さない
-- 必要な`import`をすべて含める
-- アクセシビリティ対応を実装する
+Avoid effects that poll state repeatedly.
 
-### パフォーマンス
-- 通常時は可読性を優先する
-- リアルタイム処理ではパフォーマンスを最優先する
-- メモリリークを防ぐ
-- `requestAnimationFrame`を適切に使用する
+Prefer effects that respond to specific state changes.
 
-### 禁止事項
-- `console.log`などのデバッグ出力を本番コードに残さない
-- 直接的なDOM操作を行わない
-- グローバル変数を使用しない
-- エラーハンドリングを省略しない
-- 型安全性を犠牲にしない
-- `window.`オブジェクトを直接参照しない
-- 複数のアニメーションループを作成しない（60fpsを阻害するため）
+### 2.6 Timers and intervals
 
-## 音楽・ゲーム特有の考慮事項
-### 音響処理
-```typescript
-const handleAudioProcessing = useCallback((audioBuffer: AudioBuffer) => {
-  const context = platform.getAudioContext();
-  // 処理実装
-}, []);
-```
+Do not add `setInterval` or recursive `setTimeout` unless necessary.
 
-### MIDI処理
-```typescript
-const handleMidiMessage = useCallback((message: MIDIMessageEvent) => {
-  const [status, note, velocity] = message.data;
-  if (status === 144) {
-    handleNoteOn(note, velocity);
-  }
-}, [handleNoteOn]);
-```
+If a timer is used:
 
-### PIXI.js統合
-```typescript
-useEffect(() => {
-  const app = new PIXI.Application({
-    width: 800,
-    height: 600,
-    antialias: true,
-  });
+- justify why an event-driven approach is not enough
+- use a clear interval
+- clean it up
+- avoid creating overlapping timers
+- avoid updating React state every tick unless throttled
 
-  return () => {
-    app.destroy(true);
-  };
-}, []);
-```
+### 2.7 Asset and resource loading
 
-## デバッグ・テスト
-- ブラウザコンソールでストアを確認する場合は`window.gameStore`
-- Redux DevToolsに対応する
-- エラーバウンダリを実装する
-- パフォーマンスを常時監視する
+Do not load assets during gameplay hot paths.
 
-## 回答スタイル
-- ユーザー要件に正確に従う
-- ステップバイステップで計画を説明し、承認後に実装する
-- ベストプラクティスとDRY原則を順守する
-- バグのない完全な実装を目指す
-- 説明は簡潔かつ必要最小限に留める
-- 不明な場合は憶測せず正直に報告する
+Assets should be:
+
+- preloaded
+- cached
+- reused
+- released intentionally if needed
+
+Do not repeatedly create audio, image, texture, model, or large data objects during gameplay.
+
+### 2.8 Performance reporting requirement
+
+After implementing or modifying game logic, report:
+
+- whether any new per-frame logic was added
+- whether any new timer/interval/polling loop was added
+- whether any new React state update can happen at high frequency
+- whether any new allocations happen inside hot paths
+- whether any expensive operation was moved to cache/event/dirty-flag logic
+
+If none were added, explicitly say so.
+
+---
+
+## 3. TypeScript Rules
+
+- Never use `any`.
+- Prefer precise types over broad types.
+- Use interfaces or type aliases for props, state, domain objects, and return values.
+- No unused variables, functions, imports, or exports.
+- No unused parameters unless prefixed with `_`.
+- Avoid type assertions such as `as` and non-null assertions `!`.
+- Prefer type guards, discriminated unions, and explicit validation.
+- Avoid overly generic abstractions unless they clearly reduce complexity.
+- Do not weaken types to make errors disappear.
+
+---
+
+## 4. React Rules
+
+- Use React 18+ functional components.
+- No class components.
+- Follow Hooks rules strictly.
+- No Hooks in loops, conditions, or nested functions.
+- Always include required dependencies in hook dependency arrays.
+- Do not suppress `exhaustive-deps` unless there is a clear written reason.
+- Ensure JSX accessibility.
+- No unused props.
+- Do not destructure props that are not used.
+- Keep components small and focused.
+- Separate game simulation logic from UI rendering logic.
+- Do not place heavy computation directly in render.
+- Memoize expensive derived values only when useful.
+
+---
+
+## 5. Game Architecture Rules
+
+Separate responsibilities clearly:
+
+- React components: UI only
+- game systems: simulation and rules
+- stores: shared state and subscriptions
+- utils: pure helper functions
+- assets: loading and caching
+- input: keyboard/mouse/touch/controller handling
+- rendering loop: minimal orchestration only
+
+Avoid mixing:
+
+- UI rendering and game simulation
+- input handling and physics
+- asset loading and frame updates
+- React state and high-frequency runtime state
+
+Prefer simple explicit systems over clever abstractions.
+
+Do not introduce a new manager, service, registry, or framework-style abstraction unless it removes real duplication or complexity.
+
+---
+
+## 6. Cleanup Rules
+
+- Only export what is used by other files.
+- Remove dead code immediately.
+- Remove unused branches, temporary helpers, and old implementations.
+- Do not keep fallback code unless it is actively used.
+- Do not leave TODO comments for issues that should be fixed now.
+- Check with `npx ts-prune` after generation.
+- If unused items are found, remove or refactor them.
+
+---
+
+## 7. Testing Rules
+
+- Add Jest tests for new pure functions and important logic.
+- Prioritize tests for:
+  - game rules
+  - collision logic
+  - scoring logic
+  - state transitions
+  - utility functions
+  - edge cases
+- Do not write shallow tests that only verify implementation details.
+- Mock dependencies when needed.
+- Avoid testing React internals directly.
+- New logic should be testable without requiring a real render loop whenever possible.
+
+Coverage should be high for new logic, but do not create meaningless tests only to satisfy a number.
+
+---
+
+## 8. Project-Specific Rules
+
+- Use React 18+ best practices.
+- For Vite, imports must be relative or use configured aliases such as `@/path`.
+- No unsupported absolute paths.
+- Components go in `src/components/`.
+- Game systems go in `src/game/` or the existing game logic directory.
+- Utilities go in `src/utils/`.
+- Hooks go in `src/hooks/`.
+- Types go close to the code that owns them unless shared broadly.
+- Avoid circular dependencies.
+- Keep file names and exports consistent.
+- 耳コピバトル（コードヴォイシング）の譜面調号は Supabase の `ear_training_stages.key_fifths`（デフォルト）と、必要ならフレーズ単位の `ear_training_phrases.key_fifths`（NULL のときステージを継承）。MusicXML の `<fifths>` と同じ -7〜7。
+
+---
+
+## 9. Implementation Workflow
+
+When generating or modifying code:
+
+1. Inspect the existing architecture before adding new patterns.
+2. Choose the simplest implementation that satisfies the requirement.
+3. Avoid adding new per-frame logic unless necessary.
+4. Prefer event-driven, cached, or dirty-flag-based updates.
+5. Write the code.
+6. Remove unused code.
+7. Run or request running:
+   - `tsc --noEmit`
+   - `npm run lint`
+   - `npx ts-prune`
+   - `npm test`
+8. Fix all real errors.
+9. Report (see also Section 11 Final Response Format):
+   - changed files
+   - whether checks were run
+   - whether any per-frame/timer/high-frequency logic was added
+   - any performance risks that remain
+
+Do not output final code while pretending checks passed if they were not actually run.
+
+---
+
+## 10. Forbidden Patterns Unless Explicitly Justified
+
+Do not introduce these without a clear reason:
+
+- new global polling loops
+- new frame-loop scans over all entities
+- React state updates every frame
+- broad DOM queries during gameplay
+- asset loading during gameplay
+- repeated object creation in hot paths
+- unnecessary manager/service abstractions
+- duplicated state sources
+- hidden side effects in utility functions
+- large rewrites for small feature requests
+- adding dependencies for simple problems
+- weakening TypeScript types to silence errors
+- disabling lint rules to pass checks
+
+If one of these is unavoidable, explain why and minimize the scope.
+
+---
+
+## 11. Final Response Format
+
+After implementation, respond concisely with:
+
+- Summary of what changed
+- Files changed
+- Checks run and results
+- Performance impact (include Section 2.8 items: per-frame/timer/high-frequency state/allocations, or state none)
+- Any remaining risks
+
+This aligns with Section 9 step 9 and Section 2.8.

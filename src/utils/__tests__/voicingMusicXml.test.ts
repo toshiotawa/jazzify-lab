@@ -73,6 +73,18 @@ describe('voicingMusicXml', () => {
     expect(xml).toContain('<accidental>flat-flat</accidental>');
   });
 
+  it('調号を MusicXML に反映し、調号由来の音には不要な accidental を出さない', () => {
+    const { xml } = buildVoicingMusicXml({
+      voicing: ['F#4', 'F4'],
+      voicingStaves: [1, 1],
+      keyFifths: 1,
+    });
+
+    expect(xml).toContain('<fifths>1</fifths>');
+    expect(xml).toContain('<accidental>natural</accidental>');
+    expect(xml).not.toContain('<accidental>sharp</accidental>');
+  });
+
   it('voicing が空だとエラー', () => {
     expect(() => buildVoicingMusicXml({ voicing: [], voicingStaves: [] })).toThrow();
   });

@@ -99,7 +99,6 @@ const NO_DAMAGE_CONFIG = {
   fail: 0,
 };
 const EMPTY_STAVES: readonly number[] = [];
-const EMPTY_PITCH_CLASSES: readonly number[] = [];
 
 const formatTime = (seconds: number): string => {
   const safe = Math.max(0, Math.ceil(seconds));
@@ -1290,24 +1289,33 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       .map(({ chord, measureNumber }) => {
         const slotIndex = slotIndexByMeasure.get(measureNumber) ?? 0;
         slotIndexByMeasure.set(measureNumber, slotIndex + 1);
-        const pressed = attempt?.pressedByChord.get(chord.id);
         return {
           id: chord.id,
           chordName: slotIndex === 0 ? chord.chord_name : '',
           voicing: chord.voicing ?? [],
           voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
-          correctPitchClasses: pressed ? Array.from(pressed) : EMPTY_PITCH_CLASSES,
           measureOffset: measureNumber === currentMeasureNumber ? 0 : 1,
-          isActive: activeChord?.id === chord.id,
         };
       });
   }, [
-    activeChord?.id,
     activeMeasureNumber,
-    attempt,
     currentPhrase,
     stage.loop_measures,
   ]);
+
+  const staffCorrectPitchClassesByGroupId = useMemo(() => {
+    const correctPitchClassesByGroupId = new Map<string, readonly number[]>();
+    if (!attempt) {
+      return correctPitchClassesByGroupId;
+    }
+    staffVoicingGroups.forEach(group => {
+      const pressed = attempt.pressedByChord.get(group.id);
+      if (pressed) {
+        correctPitchClassesByGroupId.set(group.id, Array.from(pressed));
+      }
+    });
+    return correctPitchClassesByGroupId;
+  }, [attempt, staffVoicingGroups]);
 
   return (
     <div className={cn(
@@ -1335,6 +1343,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           <ChordVoicingStaff
             chordName={activeChord?.chord_name}
             voicingGroups={staffVoicingGroups}
+            activeGroupId={activeChord?.id ?? null}
+            correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
+            keyFifths={currentPhrase?.key_fifths ?? stage.key_fifths ?? 0}
           />
         </div>
       )}

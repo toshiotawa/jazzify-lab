@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import './bravuraClefFont.css';
@@ -9,6 +9,7 @@ export interface ChordVoicingStaffGroup {
   voicing: readonly string[];
   voicingStaves?: readonly number[] | null;
   correctPitchClasses?: readonly number[];
+  tiedFromPreviousVoicingIndices?: readonly number[];
   measureOffset?: 0 | 1;
   isActive?: boolean;
 }
@@ -20,6 +21,8 @@ interface ChordVoicingStaffProps {
   keyFifths?: number;
   correctPitchClasses?: readonly number[];
   voicingGroups?: readonly ChordVoicingStaffGroup[];
+  activeGroupId?: string | null;
+  correctPitchClassesByGroupId?: ReadonlyMap<string, readonly number[]>;
   className?: string;
 }
 
@@ -39,21 +42,22 @@ interface ParsedVoicingNoteWithStaff {
   degree: number;
   pitchClass: number;
   voicingIndex: number;
+  displayAccidentalAlter: number | null;
+  tiedFromPrevious: boolean;
 }
 
 interface ParsedVoicingStaffGroup {
   id: string;
   chordName: string;
   notes: ParsedVoicingNoteWithStaff[];
-  correctPitchClassSet: ReadonlySet<number>;
   measureOffset: 0 | 1;
   slotIndex: number;
   slotCount: number;
-  isActive: boolean;
+  legacyIsActive: boolean;
 }
 
 interface KeySignatureMark {
-  symbol: string;
+  alter: number;
   degree: number;
 }
 
@@ -75,6 +79,11 @@ const CLEF_FONT_SIZE = SP * 4;
 /** SMuFL: gClef / fClef（https://www.w3.org/2021/03/smufl14/tables/clefs.html） */
 const SMUFL_G_CLEF = '\uE050';
 const SMUFL_F_CLEF = '\uE062';
+const SMUFL_ACCIDENTAL_FLAT = '\uE260';
+const SMUFL_ACCIDENTAL_NATURAL = '\uE261';
+const SMUFL_ACCIDENTAL_SHARP = '\uE262';
+const SMUFL_ACCIDENTAL_DOUBLE_SHARP = '\uE263';
+const SMUFL_ACCIDENTAL_DOUBLE_FLAT = '\uE264';
 const TREBLE_REFERENCE_DEGREE = 4 * 7 + 6;
 const BASS_REFERENCE_DEGREE = 3 * 7 + 1;
 const STEP_ORDER: Record<string, number> = {
@@ -88,12 +97,19 @@ const STEP_ORDER: Record<string, number> = {
 };
 const EMPTY_STAVES: readonly number[] = [];
 const EMPTY_PITCH_CLASSES: readonly number[] = [];
+const EMPTY_TIED_INDICES: readonly number[] = [];
 const EMPTY_GROUPS: readonly ChordVoicingStaffGroup[] = [];
+const EMPTY_CORRECT_PITCH_CLASS_MAP = new Map<string, readonly number[]>();
 const MEASURE_DIVIDER_X = STAFF_WIDTH / 2;
 const MEASURE_ONE_NOTE_LEFT_X = 138;
 const MEASURE_ONE_NOTE_RIGHT_X = MEASURE_DIVIDER_X - 30;
 const MEASURE_TWO_NOTE_LEFT_X = MEASURE_DIVIDER_X + 30;
 const MEASURE_TWO_NOTE_RIGHT_X = STAFF_LINE_RIGHT_X - 30;
+const KEY_SIGNATURE_LEFT_X = 88;
+const KEY_SIGNATURE_GAP_X = SP * 0.9;
+const PARSED_NOTE_CACHE_LIMIT = 96;
+const SHARP_KEY_SIGNATURE_STEPS: readonly string[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLAT_KEY_SIGNATURE_STEPS: readonly string[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
 
 const REFERENCE_DEGREE_BY_STAFF: Record<StaffNumber, number> = {
   1: TREBLE_REFERENCE_DEGREE,
@@ -156,20 +172,45 @@ const yForDegree = (staffTopY: number, staff: StaffNumber, degree: number): numb
   return middleLineY - (degree - REFERENCE_DEGREE_BY_STAFF[staff]) * (SP / 2);
 };
 
-const accidentalSymbol = (alter: number): string => {
+const accidentalGlyph = (alter: number): string => {
   if (alter === 2) {
-    return '𝄪';
+    return SMUFL_ACCIDENTAL_DOUBLE_SHARP;
   }
   if (alter === 1) {
-    return '♯';
+    return SMUFL_ACCIDENTAL_SHARP;
   }
   if (alter === -1) {
-    return '♭';
+    return SMUFL_ACCIDENTAL_FLAT;
   }
   if (alter === -2) {
-    return '𝄫';
+    return SMUFL_ACCIDENTAL_DOUBLE_FLAT;
+  }
+  if (alter === 0) {
+    return SMUFL_ACCIDENTAL_NATURAL;
   }
   return '';
+};
+
+const keySignatureAlter = (step: string, keyFifths: number): number => {
+  const fifths = clampKeyFifths(keyFifths);
+  if (fifths > 0) {
+    for (let index = 0; index < fifths; index += 1) {
+      if (SHARP_KEY_SIGNATURE_STEPS[index] === step) {
+        return 1;
+      }
+    }
+    return 0;
+  }
+  if (fifths < 0) {
+    const flatCount = Math.abs(fifths);
+    for (let index = 0; index < flatCount; index += 1) {
+      if (FLAT_KEY_SIGNATURE_STEPS[index] === step) {
+        return -1;
+      }
+    }
+    return 0;
+  }
+  return 0;
 };
 
 const keySignatureMarks = (staff: StaffNumber, keyFifths: number): KeySignatureMark[] => {
@@ -177,21 +218,23 @@ const keySignatureMarks = (staff: StaffNumber, keyFifths: number): KeySignatureM
   if (fifths === 0) {
     return [];
   }
-  const symbol = fifths > 0 ? '♯' : '♭';
+  const alter = fifths > 0 ? 1 : -1;
   const degrees = fifths > 0
     ? KEY_SIGNATURE_MARKS[staff].sharps.slice(0, fifths)
     : KEY_SIGNATURE_MARKS[staff].flats.slice(0, Math.abs(fifths));
-  return degrees.map(degree => ({ symbol, degree }));
+  return degrees.map(degree => ({ alter, degree }));
 };
 
 const parseNotes = (
   voicing: readonly string[],
   voicingStaves: readonly number[],
+  tiedFromPreviousVoicingIndices: readonly number[],
 ): ParsedVoicingNoteWithStaff[] => {
   const shouldInferStaves = voicingStaves.length === 0;
   if (!shouldInferStaves && voicing.length !== voicingStaves.length) {
     throw new Error('voicing と voicing_staves は同じ長さである必要があります');
   }
+  const tiedIndexSet = new Set(tiedFromPreviousVoicingIndices);
   return voicing.map((noteName, index) => {
     const parsed = parseVoicingNoteName(noteName);
     const inferredStaff: StaffNumber = parsed.midi < 60 ? 2 : 1;
@@ -205,8 +248,89 @@ const parseNotes = (
       degree: degreeForNote(parsed.step, parsed.octave),
       pitchClass: ((parsed.midi % 12) + 12) % 12,
       voicingIndex: index,
+      displayAccidentalAlter: null,
+      tiedFromPrevious: tiedIndexSet.has(index),
     };
   });
+};
+
+const parsedNoteCacheKey = (
+  voicing: readonly string[],
+  voicingStaves: readonly number[],
+  tiedFromPreviousVoicingIndices: readonly number[],
+): string => [
+  voicing.join(','),
+  voicingStaves.join(','),
+  tiedFromPreviousVoicingIndices.join(','),
+].join('|');
+
+const parseNotesWithCache = (
+  cache: Map<string, ParsedVoicingNoteWithStaff[]>,
+  voicing: readonly string[],
+  voicingStaves: readonly number[],
+  tiedFromPreviousVoicingIndices: readonly number[],
+): ParsedVoicingNoteWithStaff[] => {
+  const cacheKey = parsedNoteCacheKey(voicing, voicingStaves, tiedFromPreviousVoicingIndices);
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const parsed = parseNotes(voicing, voicingStaves, tiedFromPreviousVoicingIndices);
+  cache.set(cacheKey, parsed);
+  if (cache.size > PARSED_NOTE_CACHE_LIMIT) {
+    const firstKey = cache.keys().next().value;
+    if (typeof firstKey === 'string') {
+      cache.delete(firstKey);
+    }
+  }
+  return parsed;
+};
+
+const accidentalStateKey = (note: ParsedVoicingNoteWithStaff): string => (
+  `${note.staff}:${note.step}:${note.octave}`
+);
+
+const applyRequiredAccidentals = (
+  groups: readonly ParsedVoicingStaffGroup[],
+  keyFifths: number,
+): ParsedVoicingStaffGroup[] => {
+  const groupsByMeasure = new Map<0 | 1, ParsedVoicingStaffGroup[]>();
+  groups.forEach(group => {
+    const measureGroups = groupsByMeasure.get(group.measureOffset) ?? [];
+    measureGroups.push(group);
+    groupsByMeasure.set(group.measureOffset, measureGroups);
+  });
+
+  const nextGroupsById = new Map<string, ParsedVoicingStaffGroup>();
+  ([0, 1] as const).forEach(measureOffset => {
+    const measureGroups = groupsByMeasure.get(measureOffset) ?? [];
+    const accidentalState = new Map<string, number>();
+    measureGroups
+      .slice()
+      .sort((a, b) => a.slotIndex - b.slotIndex)
+      .forEach(group => {
+        const updatedNotes = group.notes.map(note => {
+          const currentAlter = accidentalState.get(accidentalStateKey(note)) ?? keySignatureAlter(note.step, keyFifths);
+          const displayAccidentalAlter = !note.tiedFromPrevious && currentAlter !== note.alter
+            ? note.alter
+            : null;
+          return {
+            ...note,
+            displayAccidentalAlter,
+          };
+        });
+
+        group.notes.forEach(note => {
+          accidentalState.set(accidentalStateKey(note), note.alter);
+        });
+        nextGroupsById.set(group.id, {
+          ...group,
+          notes: updatedNotes,
+        });
+      });
+  });
+
+  return groups.map(group => nextGroupsById.get(group.id) ?? group);
 };
 
 const compareNotesForDisplay = (
@@ -258,7 +382,7 @@ const layoutNotes = (
   const accidentalCollisionHeight = SP * 1.15;
   const accidentalIndices = sortedNotes
     .map((note, index) => ({ note, index }))
-    .filter(item => item.note.alter !== 0)
+    .filter(item => item.note.displayAccidentalAlter !== null)
     .sort((a, b) => yCenters[a.index] - yCenters[b.index]);
 
   accidentalIndices.forEach(({ index }) => {
@@ -404,15 +528,18 @@ const LedgerLines: React.FC<{
 };
 
 const WholeNote: React.FC<{
+  groupId: string;
   positioned: PositionedVoicingNote;
   baseX: number;
   staffTopY: number;
   isCorrect: boolean;
-}> = ({ positioned, baseX, staffTopY, isCorrect }) => {
+}> = ({ groupId, positioned, baseX, staffTopY, isCorrect }) => {
   const noteWidth = SP * 1.45;
   const noteHeight = SP * 0.86;
   const xCenter = baseX + positioned.xOffset;
-  const accidental = accidentalSymbol(positioned.note.alter);
+  const accidental = positioned.note.displayAccidentalAlter === null
+    ? ''
+    : accidentalGlyph(positioned.note.displayAccidentalAlter);
   const notationColor = isCorrect ? CORRECT_NOTATION_COLOR : NOTATION_COLOR;
   const accidentalX = Math.min(
     xCenter - noteWidth * 1.05,
@@ -430,21 +557,22 @@ const WholeNote: React.FC<{
       />
       {accidental && (
         <text
+          data-accidental-group-id={groupId}
           data-accidental-voicing-index={positioned.note.voicingIndex}
           data-voicing-pitch-class={positioned.note.pitchClass}
           x={accidentalX}
           y={positioned.yCenter}
           dominantBaseline="central"
           fill={notationColor}
-          fontFamily="Georgia, 'Times New Roman', serif"
-          fontSize={SP * 1.45}
-          fontWeight="600"
+          fontFamily="Bravura, serif"
+          fontSize={SP * 1.75}
           textAnchor="middle"
         >
           {accidental}
         </text>
       )}
       <ellipse
+        data-voicing-group-id={groupId}
         data-voicing-index={positioned.note.voicingIndex}
         data-voicing-pitch-class={positioned.note.pitchClass}
         cx={xCenter}
@@ -470,10 +598,18 @@ const getVoicingGroupBaseX = (group: ParsedVoicingStaffGroup): number => {
 const RenderedStaff: React.FC<{
   staff: StaffNumber;
   groups: readonly ParsedVoicingStaffGroup[];
+  correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>;
   staffTopY: number;
   keyFifths: number;
-}> = ({ staff, groups, staffTopY, keyFifths }) => {
+}> = ({ staff, groups, correctPitchClassSets, staffTopY, keyFifths }) => {
   const marks = keySignatureMarks(staff, keyFifths);
+  const positionedGroups = useMemo(() => (
+    groups.map(group => ({
+      group,
+      noteBaseX: getVoicingGroupBaseX(group),
+      positionedNotes: layoutNotes(group.notes.filter(note => note.staff === staff), staffTopY),
+    }))
+  ), [groups, staff, staffTopY]);
 
   return (
     <g>
@@ -485,30 +621,30 @@ const RenderedStaff: React.FC<{
       />
       {marks.map((mark, index) => (
         <text
-          key={`${mark.symbol}-${index}`}
-          x={88 + index * 10}
+          key={`${mark.alter}-${index}`}
+          data-key-signature-index={index}
+          data-key-signature-staff={staff}
+          x={KEY_SIGNATURE_LEFT_X + index * KEY_SIGNATURE_GAP_X}
           y={yForDegree(staffTopY, staff, mark.degree)}
           dominantBaseline="central"
           fill={NOTATION_COLOR}
-          fontFamily="Georgia, 'Times New Roman', serif"
-          fontSize={SP * 1.45}
-          fontWeight="600"
+          fontFamily="Bravura, serif"
+          fontSize={SP * 1.75}
           textAnchor="middle"
         >
-          {mark.symbol}
+          {accidentalGlyph(mark.alter)}
         </text>
       ))}
-      {groups.map(group => {
-        const staffNotes = group.notes.filter(note => note.staff === staff);
-        const positionedNotes = layoutNotes(staffNotes, staffTopY);
-        const noteBaseX = getVoicingGroupBaseX(group);
+      {positionedGroups.map(({ group, noteBaseX, positionedNotes }) => {
+        const correctPitchClassSet = correctPitchClassSets.get(group.id);
         return positionedNotes.map(positioned => (
           <WholeNote
             key={`${group.id}-${positioned.note.voicingIndex}`}
+            groupId={group.id}
             positioned={positioned}
             baseX={noteBaseX}
             staffTopY={staffTopY}
-            isCorrect={group.correctPitchClassSet.has(positioned.note.pitchClass)}
+            isCorrect={correctPitchClassSet?.has(positioned.note.pitchClass) ?? false}
           />
         ));
       })}
@@ -523,11 +659,15 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   keyFifths = 0,
   correctPitchClasses,
   voicingGroups,
+  activeGroupId,
+  correctPitchClassesByGroupId,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
   const normalizedCorrectPitchClasses = correctPitchClasses ?? EMPTY_PITCH_CLASSES;
   const normalizedVoicingGroups = voicingGroups ?? EMPTY_GROUPS;
+  const normalizedCorrectPitchClassesByGroupId = correctPitchClassesByGroupId ?? EMPTY_CORRECT_PITCH_CLASS_MAP;
+  const parseCacheRef = useRef(new Map<string, ParsedVoicingNoteWithStaff[]>());
   const staffGroups = useMemo<ChordVoicingStaffGroup[]>(() => {
     if (normalizedVoicingGroups.length > 0) {
       return normalizedVoicingGroups
@@ -573,22 +713,44 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         return {
           id: group.id,
           chordName: group.chordName,
-          notes: parseNotes(group.voicing, group.voicingStaves ?? EMPTY_STAVES),
-          correctPitchClassSet: new Set(group.correctPitchClasses ?? EMPTY_PITCH_CLASSES),
+          notes: parseNotesWithCache(
+            parseCacheRef.current,
+            group.voicing,
+            group.voicingStaves ?? EMPTY_STAVES,
+            group.tiedFromPreviousVoicingIndices ?? EMPTY_TIED_INDICES,
+          ),
           measureOffset,
           slotIndex,
           slotCount: measureSlotCounts.get(measureOffset) ?? 1,
-          isActive: group.isActive === true,
+          legacyIsActive: group.isActive === true,
         };
       });
-      return { groups, error: null };
+      return { groups: applyRequiredAccidentals(groups, keyFifths), error: null };
     } catch (error) {
       return {
         groups: [] as ParsedVoicingStaffGroup[],
         error: error instanceof Error ? error.message : '譜面の生成に失敗しました',
       };
     }
-  }, [staffGroups]);
+  }, [keyFifths, staffGroups]);
+
+  const correctPitchClassSets = useMemo(() => {
+    const sets = new Map<string, ReadonlySet<number>>();
+    staffGroups.forEach(group => {
+      const pitchClasses = normalizedCorrectPitchClassesByGroupId.get(group.id)
+        ?? group.correctPitchClasses
+        ?? EMPTY_PITCH_CLASSES;
+      sets.set(group.id, new Set(pitchClasses));
+    });
+    return sets;
+  }, [normalizedCorrectPitchClassesByGroupId, staffGroups]);
+
+  const isGroupActive = (group: ParsedVoicingStaffGroup): boolean => {
+    if (activeGroupId !== undefined && activeGroupId !== null) {
+      return group.id === activeGroupId;
+    }
+    return group.legacyIsActive;
+  };
 
   const [clefFontsLoaded, setClefFontsLoaded] = useState(false);
   useEffect(() => {
@@ -598,6 +760,8 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       try {
         await document.fonts.load(`${sizePx}px Bravura`, SMUFL_G_CLEF);
         await document.fonts.load(`${sizePx}px Bravura`, SMUFL_F_CLEF);
+        await document.fonts.load(`${SP * 1.75}px Bravura`, SMUFL_ACCIDENTAL_SHARP);
+        await document.fonts.load(`${SP * 1.75}px Bravura`, SMUFL_ACCIDENTAL_NATURAL);
         await document.fonts.ready;
       } catch {
         // Font Loading API 非対応時はブラウザのフォールバック描画に任せる
@@ -637,12 +801,12 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
             group.chordName ? (
               <text
                 key={`${group.id}-label`}
-                data-voicing-group-active={group.isActive ? 'true' : 'false'}
+                data-voicing-group-active={isGroupActive(group) ? 'true' : 'false'}
                 data-voicing-group-id={group.id}
                 x={getVoicingGroupBaseX(group)}
                 y={SP * 2.25}
                 dominantBaseline="central"
-                fill={group.isActive ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR}
+                fill={isGroupActive(group) ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR}
                 fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
                 fontSize="18"
                 fontWeight="800"
@@ -657,6 +821,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               key={staff}
               staff={staff}
               groups={renderState.groups}
+              correctPitchClassSets={correctPitchClassSets}
               staffTopY={staffTopForIndex(index)}
               keyFifths={keyFifths}
             />

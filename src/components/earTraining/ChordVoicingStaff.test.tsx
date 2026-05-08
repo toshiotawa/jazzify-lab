@@ -2,6 +2,9 @@ import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ChordVoicingStaff from './ChordVoicingStaff';
 
+const SMUFL_ACCIDENTAL_NATURAL = '\uE261';
+const SMUFL_ACCIDENTAL_SHARP = '\uE262';
+
 describe('ChordVoicingStaff', () => {
   it('sp基準で2段譜の五線間に7spの余白を確保する', () => {
     const { container } = render(
@@ -120,5 +123,124 @@ describe('ChordVoicingStaff', () => {
 
     expect(labelXs).toHaveLength(3);
     expect(labelXs[1] - labelXs[0]).toBeCloseTo(labelXs[2] - labelXs[1]);
+  });
+
+  it('丸め込み後の表示小節内では F# の後の F natural にナチュラルを表示する', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="F line"
+        voicingGroups={[
+          {
+            id: 'sharp',
+            chordName: 'F#',
+            voicing: ['F#4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+          {
+            id: 'natural',
+            chordName: '',
+            voicing: ['F4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector('text[data-accidental-group-id="sharp"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
+    expect(container.querySelector('text[data-accidental-group-id="natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
+  });
+
+  it('表示小節が変わると臨時記号状態を調号基準に戻す', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="F line"
+        voicingGroups={[
+          {
+            id: 'measure-1-sharp',
+            chordName: 'F#',
+            voicing: ['F#4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+          {
+            id: 'measure-2-natural',
+            chordName: 'F',
+            voicing: ['F4'],
+            voicingStaves: [1],
+            measureOffset: 1,
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector('text[data-accidental-group-id="measure-1-sharp"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
+    expect(container.querySelector('text[data-accidental-group-id="measure-2-natural"]')).toBeNull();
+  });
+
+  it('調号の状態から臨時記号を判定し、同じ表示小節で調号音に戻る時は記号を出す', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="G major"
+        keyFifths={1}
+        voicingGroups={[
+          {
+            id: 'key-f-sharp',
+            chordName: 'F#',
+            voicing: ['F#4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+          {
+            id: 'f-natural',
+            chordName: '',
+            voicing: ['F4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+          {
+            id: 'f-sharp-again',
+            chordName: '',
+            voicing: ['F#4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelectorAll('text[data-key-signature-index]')).toHaveLength(1);
+    expect(container.querySelector('text[data-accidental-group-id="key-f-sharp"]')).toBeNull();
+    expect(container.querySelector('text[data-accidental-group-id="f-natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
+    expect(container.querySelector('text[data-accidental-group-id="f-sharp-again"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
+  });
+
+  it('タイ継続音は臨時記号表示を抑制しつつ状態更新には使う', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="Tie"
+        voicingGroups={[
+          {
+            id: 'tied-sharp',
+            chordName: 'F#',
+            voicing: ['F#4'],
+            voicingStaves: [1],
+            tiedFromPreviousVoicingIndices: [0],
+            measureOffset: 0,
+          },
+          {
+            id: 'after-tie-natural',
+            chordName: '',
+            voicing: ['F4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+        ]}
+      />,
+    );
+
+    expect(container.querySelector('text[data-accidental-group-id="tied-sharp"]')).toBeNull();
+    expect(container.querySelector('text[data-accidental-group-id="after-tie-natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
   });
 });

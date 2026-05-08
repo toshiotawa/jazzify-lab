@@ -713,6 +713,7 @@ export interface EarTrainingPhrase {
   id: string;
   stage_id: string;
   order_index: number;
+  key_fifths?: number | null;
   title?: string | null;
   title_en?: string | null;
   music_xml_url?: string | null;
@@ -735,6 +736,7 @@ export interface EarTrainingStage {
   description?: string | null;
   description_en?: string | null;
   bpm: number;
+  key_fifths?: number | null;
   beats_per_measure: number;
   beat_type: number;
   loop_measures: number;

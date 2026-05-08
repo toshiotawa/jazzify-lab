@@ -24,6 +24,8 @@ const STEP_ORDER: Record<string, number> = {
   A: 5,
   B: 6,
 };
+const SHARP_KEY_SIGNATURE_STEPS: readonly string[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLAT_KEY_SIGNATURE_STEPS: readonly string[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
 
 const NOTE_NAME_PATTERN = /^([A-G])(x|##|#|bb|b|♯|♭)?(-?\d+)$/;
 
@@ -86,6 +88,32 @@ const accidentalXmlValue = (alter: number): string => {
   return 'natural';
 };
 
+const clampKeyFifths = (keyFifths: number): number => (
+  Math.max(-7, Math.min(7, Math.trunc(keyFifths)))
+);
+
+const keySignatureAlter = (step: string, keyFifths: number): number => {
+  const fifths = clampKeyFifths(keyFifths);
+  if (fifths > 0) {
+    for (let index = 0; index < fifths; index += 1) {
+      if (SHARP_KEY_SIGNATURE_STEPS[index] === step) {
+        return 1;
+      }
+    }
+    return 0;
+  }
+  if (fifths < 0) {
+    const flatCount = Math.abs(fifths);
+    for (let index = 0; index < flatCount; index += 1) {
+      if (FLAT_KEY_SIGNATURE_STEPS[index] === step) {
+        return -1;
+      }
+    }
+    return 0;
+  }
+  return 0;
+};
+
 interface VoicingNoteWithStaff extends ParsedVoicingNote {
   staff: number;
   noteName: string;
@@ -106,9 +134,11 @@ const compareNotesForDisplay = (a: VoicingNoteWithStaff, b: VoicingNoteWithStaff
   return a.alter - b.alter;
 };
 
-const renderNoteXml = (note: VoicingNoteWithStaff, isChordTone: boolean): string => {
+const renderNoteXml = (note: VoicingNoteWithStaff, isChordTone: boolean, keyFifths: number): string => {
   const alterLine = note.alter !== 0 ? `        <alter>${note.alter}</alter>\n` : '';
-  const accidentalLine = note.alter !== 0 ? `        <accidental>${accidentalXmlValue(note.alter)}</accidental>` : '';
+  const accidentalLine = note.alter !== keySignatureAlter(note.step, keyFifths)
+    ? `        <accidental>${accidentalXmlValue(note.alter)}</accidental>`
+    : '';
   return [
     '      <note>',
     isChordTone ? '        <chord/>' : '',
@@ -128,7 +158,7 @@ const renderNoteXml = (note: VoicingNoteWithStaff, isChordTone: boolean): string
     .join('\n');
 };
 
-const buildStaffNotes = (notes: VoicingNoteWithStaff[]): string => {
+const buildStaffNotes = (notes: VoicingNoteWithStaff[], keyFifths: number): string => {
   if (notes.length === 0) {
     return [
       '      <note>',
@@ -140,13 +170,14 @@ const buildStaffNotes = (notes: VoicingNoteWithStaff[]): string => {
     ].join('\n');
   }
   return notes
-    .map((note, index) => renderNoteXml(note, index > 0))
+    .map((note, index) => renderNoteXml(note, index > 0, keyFifths))
     .join('\n');
 };
 
 export interface BuildVoicingMusicXmlOptions {
   voicing: readonly string[];
   voicingStaves: readonly number[];
+  keyFifths?: number;
 }
 
 export interface BuildVoicingMusicXmlResult {
@@ -162,6 +193,7 @@ export const buildVoicingMusicXml = (
   options: BuildVoicingMusicXmlOptions,
 ): BuildVoicingMusicXmlResult => {
   const { voicing, voicingStaves } = options;
+  const keyFifths = clampKeyFifths(options.keyFifths ?? 0);
   if (voicing.length !== voicingStaves.length) {
     throw new Error('voicing と voicing_staves は同じ長さである必要があります');
   }
@@ -211,7 +243,7 @@ export const buildVoicingMusicXml = (
       <attributes>
         <divisions>1</divisions>
         <key>
-          <fifths>0</fifths>
+          <fifths>${keyFifths}</fifths>
         </key>
         <time>
           <beats>4</beats>
@@ -227,11 +259,11 @@ export const buildVoicingMusicXml = (
           <line>4</line>
         </clef>
       </attributes>
-${buildStaffNotes(trebleNotes)}
+${buildStaffNotes(trebleNotes, keyFifths)}
       <backup>
         <duration>4</duration>
       </backup>
-${buildStaffNotes(bassNotes)}
+${buildStaffNotes(bassNotes, keyFifths)}
       <barline location="right">
         <bar-style>light-heavy</bar-style>
       </barline>

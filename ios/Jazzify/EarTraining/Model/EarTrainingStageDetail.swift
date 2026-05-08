@@ -34,12 +34,15 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let backgroundTheme: String?
     let isActive: Bool?
     let mode: EarTrainingMode?
+    /// MusicXML-style key signature fifths (-7…7) for staff when phrase has no override.
+    let keyFifths: Int?
     let phrases: [EarTrainingPhraseDetail]?
 
     var resolvedMode: EarTrainingMode { mode ?? .phrase }
 
     enum CodingKeys: String, CodingKey {
         case id, slug, title, description, bpm, mode, phrases
+        case keyFifths = "key_fifths"
         case titleEn = "title_en"
         case descriptionEn = "description_en"
         case beatsPerMeasure = "beats_per_measure"
@@ -79,6 +82,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
                 id: phrase.id,
                 stageId: phrase.stageId,
                 orderIndex: phrase.orderIndex,
+                keyFifths: phrase.keyFifths,
                 title: phrase.title,
                 titleEn: phrase.titleEn,
                 audioUrl: phrase.audioUrl,
@@ -144,6 +148,8 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
     let id: UUID
     let stageId: UUID
     let orderIndex: Int
+    /// Per-phrase staff key; nil falls back to stage `key_fifths`.
+    let keyFifths: Int?
     let title: String?
     let titleEn: String?
     let audioUrl: String
@@ -156,6 +162,7 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, notes, chords
+        case keyFifths = "key_fifths"
         case stageId = "stage_id"
         case orderIndex = "order_index"
         case titleEn = "title_en"
