@@ -1,5 +1,27 @@
 import SwiftUI
 
+/// Web `ChordVoicingStaff.tsx` と揃えた Bravura / SMuFL。
+private enum MusicNotationFont {
+    static let name = "Bravura"
+    /// Web: `CLEF_FONT_SIZE = SP * 4`
+    static let clefFontScale: CGFloat = 4
+    /// Web: `ACCIDENTAL_FONT_SIZE = SP * 2.9`
+    static let accidentalFontScale: CGFloat = 2.9
+    static let smuflGClef = "\u{E050}"
+    static let smuflFClef = "\u{E062}"
+}
+
+private func smuflAccidentalGlyph(for alter: Int) -> String {
+    switch alter {
+    case 2: return "\u{E263}"
+    case 1: return "\u{E262}"
+    case -1: return "\u{E260}"
+    case -2: return "\u{E264}"
+    case 0: return "\u{E261}"
+    default: return ""
+    }
+}
+
 private struct ParsedVoicingNote: Hashable {
     let step: String
     let alter: Int
@@ -75,7 +97,7 @@ private struct PositionedVoicingNote {
 }
 
 private struct KeySignatureMark {
-    let symbol: String
+    let alter: Int
     let degree: Int
 }
 
@@ -133,8 +155,6 @@ struct ChordVoicingStaffView: View {
     let chordName: String
     let keyFifths: Int = 0
 
-    private static let trebleSign = "𝄞"
-    private static let bassSign = "𝄢"
     private static let notationColor = Color.white
     private static let labelHeight: CGFloat = 28
     private static let trebleReferenceDegree = 4 * 7 + 6
@@ -248,14 +268,14 @@ struct ChordVoicingStaffView: View {
         staffTopY: CGFloat,
         staffSpacing: CGFloat
     ) {
-        let sign = staff == 2 ? Self.bassSign : Self.trebleSign
+        let glyph = staff == 2 ? MusicNotationFont.smuflFClef : MusicNotationFont.smuflGClef
+        let fontSize = staffSpacing * MusicNotationFont.clefFontScale
         let y = staff == 2
-            ? staffTopY + staffSpacing * 1.82
-            : staffTopY + staffSpacing * 2.18
-        let fontSize = staff == 2 ? staffSpacing * 2.55 : staffSpacing * 3.05
+            ? staffTopY + staffSpacing * 1.75
+            : staffTopY + staffSpacing * 2.35
         let resolved = context.resolve(
-            Text(sign)
-                .font(.system(size: fontSize, weight: .regular))
+            Text(glyph)
+                .font(.custom(MusicNotationFont.name, size: fontSize))
                 .foregroundColor(Self.notationColor)
         )
         context.draw(resolved, at: CGPoint(x: x, y: y), anchor: .center)
@@ -271,9 +291,10 @@ struct ChordVoicingStaffView: View {
         let marks = keySignatureMarks(staff: staff, keyFifths: keyFifths)
         guard !marks.isEmpty else { return }
         for (index, mark) in marks.enumerated() {
+            let glyph = smuflAccidentalGlyph(for: mark.alter)
             let resolved = context.resolve(
-                Text(mark.symbol)
-                    .font(.system(size: staffSpacing * 1.85, weight: .semibold))
+                Text(glyph)
+                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
                     .foregroundColor(Self.notationColor)
             )
             context.draw(
@@ -390,7 +411,7 @@ struct ChordVoicingStaffView: View {
             )
             let resolved = context.resolve(
                 Text(accidental)
-                    .font(.system(size: staffSpacing * 1.8, weight: .semibold))
+                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
                     .foregroundColor(Self.notationColor)
             )
             context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)
@@ -462,8 +483,8 @@ struct ChordVoicingStaffView: View {
         let degrees = fifths > 0
             ? Array(degreeMap.sharps.prefix(fifths))
             : Array(degreeMap.flats.prefix(abs(fifths)))
-        let symbol = fifths > 0 ? "♯" : "♭"
-        return degrees.map { KeySignatureMark(symbol: symbol, degree: $0) }
+        let alter = fifths > 0 ? 1 : -1
+        return degrees.map { KeySignatureMark(alter: alter, degree: $0) }
     }
 
     private func keySignatureDegreeMap(staff: Int) -> (sharps: [Int], flats: [Int]) {
@@ -512,14 +533,7 @@ struct ChordVoicingStaffView: View {
     }
 
     private func accidentalString(for alter: Int) -> String {
-        switch alter {
-        case 2: return "𝄪"
-        case 1: return "♯"
-        case -1: return "♭"
-        case -2: return "𝄫"
-        case 0: return "♮"
-        default: return ""
-        }
+        smuflAccidentalGlyph(for: alter)
     }
 }
 
@@ -765,14 +779,14 @@ struct ChordVoicingStaffGroupsView: View {
         staffTopY: CGFloat,
         staffSpacing: CGFloat
     ) {
-        let sign = staff == 2 ? "𝄢" : "𝄞"
+        let glyph = staff == 2 ? MusicNotationFont.smuflFClef : MusicNotationFont.smuflGClef
+        let fontSize = staffSpacing * MusicNotationFont.clefFontScale
         let y = staff == 2
-            ? staffTopY + staffSpacing * 1.82
-            : staffTopY + staffSpacing * 2.18
-        let fontSize = staff == 2 ? staffSpacing * 2.55 : staffSpacing * 3.05
+            ? staffTopY + staffSpacing * 1.75
+            : staffTopY + staffSpacing * 2.35
         let resolved = context.resolve(
-            Text(sign)
-                .font(.system(size: fontSize, weight: .regular))
+            Text(glyph)
+                .font(.custom(MusicNotationFont.name, size: fontSize))
                 .foregroundColor(notationColor)
         )
         context.draw(resolved, at: CGPoint(x: x, y: y), anchor: .center)
@@ -789,9 +803,10 @@ struct ChordVoicingStaffGroupsView: View {
         let marks = groupsKeySignatureMarks(staff: staff, keyFifths: keyFifths)
         guard !marks.isEmpty else { return }
         for (index, mark) in marks.enumerated() {
+            let glyph = smuflAccidentalGlyph(for: mark.alter)
             let resolved = context.resolve(
-                Text(mark.symbol)
-                    .font(.system(size: staffSpacing * 1.85, weight: .semibold))
+                Text(glyph)
+                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
                     .foregroundColor(notationColor)
             )
             context.draw(
@@ -812,8 +827,8 @@ struct ChordVoicingStaffGroupsView: View {
         let degrees = fifths > 0
             ? Array(degreeMap.sharps.prefix(fifths))
             : Array(degreeMap.flats.prefix(abs(fifths)))
-        let symbol = fifths > 0 ? "♯" : "♭"
-        return degrees.map { KeySignatureMark(symbol: symbol, degree: $0) }
+        let alter = fifths > 0 ? 1 : -1
+        return degrees.map { KeySignatureMark(alter: alter, degree: $0) }
     }
 
     private static func groupsKeySignatureDegreeMap(staff: Int) -> (sharps: [Int], flats: [Int]) {
@@ -932,7 +947,7 @@ struct ChordVoicingStaffGroupsView: View {
             )
             let resolved = context.resolve(
                 Text(accidental)
-                    .font(.system(size: staffSpacing * 1.8, weight: .semibold))
+                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
                     .foregroundColor(color)
             )
             context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)
@@ -1000,13 +1015,6 @@ struct ChordVoicingStaffGroupsView: View {
     }
 
     private static func groupsAccidentalString(for alter: Int) -> String {
-        switch alter {
-        case 2: return "𝄪"
-        case 1: return "♯"
-        case -1: return "♭"
-        case -2: return "𝄫"
-        case 0: return "♮"
-        default: return ""
-        }
+        smuflAccidentalGlyph(for: alter)
     }
 }

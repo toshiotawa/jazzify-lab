@@ -105,6 +105,7 @@
 		F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44BB606E44E08242A371BE80 /* BillingService.swift */; };
 		FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F76672005EE666A9B39BC95 /* SurvivalModels.swift */; };
 		FB81F1928B9632D5FF13FC83 /* C4.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 857DD3059AA2EE3BAFAE0DE9 /* C4.mp3 */; };
+		EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */ = {isa = PBXBuildFile; fileRef = 0E7D765BC46E4F868B334BAF /* Bravura.otf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -181,6 +182,7 @@
 		AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingGameView.swift; sourceTree = "<group>"; };
 		AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
 		B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleScene.swift; sourceTree = "<group>"; };
+		0E7D765BC46E4F868B334BAF /* Bravura.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Bravura.otf; sourceTree = "<group>"; };
 		B4665837C213B33E7EA39A7E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B97734F6F02D7D4A8F9DCC03 /* SurvivalBossEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBossEngine.swift; sourceTree = "<group>"; };
 		BCFC653695FDC6395887F72A /* C5.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C5.mp3; sourceTree = "<group>"; };
@@ -259,6 +261,7 @@
 				7C5DADE9937DCB1DFC4A96C3 /* MIDI */,
 				16963DFD05E194E9B5451257 /* Models */,
 				A55BA536236528C407A8F828 /* Resources */,
+				8A317B48CABC4F2191C2CE0E /* Fonts */,
 				6BD54480895BB04D2CB3EDFF /* Services */,
 				52F3EEB711395BE727225146 /* Survival */,
 				B4665837C213B33E7EA39A7E /* Assets.xcassets */,
@@ -452,6 +455,14 @@
 			path = EarTraining;
 			sourceTree = "<group>";
 		};
+		8A317B48CABC4F2191C2CE0E /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				0E7D765BC46E4F868B334BAF /* Bravura.otf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		A55BA536236528C407A8F828 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -614,6 +625,7 @@
 				60BCB75E89D7C46F20FEE1A4 /* C7.mp3 in Resources */,
 				B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */,
 				607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */,
+				EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

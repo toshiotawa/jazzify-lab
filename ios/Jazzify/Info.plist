@@ -68,6 +68,10 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fonts/Bravura.otf</string>
+	</array>
 	<key>WEB_APP_BASE_URL</key>
 	<string>https://$(WEB_APP_HOST)</string>
 </dict>
