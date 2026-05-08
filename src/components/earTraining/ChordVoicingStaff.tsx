@@ -24,6 +24,8 @@ interface ChordVoicingStaffProps {
   voicingGroups?: readonly ChordVoicingStaffGroup[];
   activeGroupId?: string | null;
   correctPitchClassesByGroupId?: ReadonlyMap<string, readonly number[]>;
+  /** 親が算出した密集レイアウト。未指定時は measureOffset===0 のグループの合計音数で推論 */
+  denseCurrentMeasureLayout?: boolean;
   className?: string;
 }
 
@@ -114,9 +116,10 @@ const MEASURE_DIVIDER_X = STAFF_WIDTH / 2;
 const MEASURE_ONE_NOTE_LEFT_X = 138;
 const KEY_SIGNATURE_LEFT_X = 88;
 const KEY_SIGNATURE_GAP_X = SP * 1.05;
-const ACCIDENTAL_FONT_SIZE = SP * 2.1;
+const ACCIDENTAL_FONT_SIZE = SP * 2.9;
 const PARSED_NOTE_CACHE_LIMIT = 96;
-const DENSE_CURRENT_MEASURE_NOTE_COUNT = 5;
+/** 現在小節の同一ハーモニー内の横並びヴォイシング合計がこれ以上なら密集レイアウト（親と共有） */
+export const CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD = 5;
 const DENSE_CURRENT_MEASURE_RATIO = 0.9;
 const SHARP_KEY_SIGNATURE_STEPS: readonly string[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 const FLAT_KEY_SIGNATURE_STEPS: readonly string[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
@@ -226,7 +229,7 @@ const keySignatureAlter = (step: string, keyFifths: number): number => {
 const getStaffLayoutMetrics = (keyFifths: number, wideFirstMeasure: boolean): StaffLayoutMetrics => {
   const fifths = Math.abs(clampKeyFifths(keyFifths));
   const keySignatureEndX = fifths > 0
-    ? KEY_SIGNATURE_LEFT_X + (fifths - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.42
+    ? KEY_SIGNATURE_LEFT_X + (fifths - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.4
     : KEY_SIGNATURE_LEFT_X;
   const dividerX = wideFirstMeasure
     ? STAFF_LINE_LEFT_X + (STAFF_LINE_RIGHT_X - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO
@@ -728,6 +731,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   voicingGroups,
   activeGroupId,
   correctPitchClassesByGroupId,
+  denseCurrentMeasureLayout,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
@@ -849,9 +853,16 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   const activeStaves = hasRestGroups ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
     renderState.groups.some(group => group.notes.some(note => note.staff === staff))
   ));
-  const wideFirstMeasure = staffGroups.some(group => (
-    group.measureOffset !== 1 && group.voicing.length >= DENSE_CURRENT_MEASURE_NOTE_COUNT
-  ));
+  const measureZeroNoteTotal = staffGroups.reduce((sum, group) => {
+    if ((group.measureOffset ?? 0) !== 0 || group.isRest === true) {
+      return sum;
+    }
+    return sum + group.voicing.length;
+  }, 0);
+  const inferredDenseLayout = measureZeroNoteTotal >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
+  const wideFirstMeasure = typeof denseCurrentMeasureLayout === 'boolean'
+    ? denseCurrentMeasureLayout
+    : inferredDenseLayout;
   const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure);
   const svgHeight = activeStaves.length > 0
     ? STAFF_TOP_Y + (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT + SP * 3

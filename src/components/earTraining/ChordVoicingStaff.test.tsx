@@ -291,4 +291,73 @@ describe('ChordVoicingStaff', () => {
     const firstBarline = container.querySelector('line[data-staff-barline]');
     expect(Number(firstBarline?.getAttribute('x1'))).toBeGreaterThan(600);
   });
+
+  it('現在小節で複数グループの合計が5音以上なら小節線を右へ寄せる（推論）', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="CM7"
+        voicingGroups={[
+          {
+            id: 'a',
+            chordName: 'CM7',
+            voicing: ['C4', 'E4', 'G4'],
+            voicingStaves: [1, 1, 1],
+            measureOffset: 0,
+          },
+          {
+            id: 'b',
+            chordName: '',
+            voicing: ['B3', 'D4'],
+            voicingStaves: [2, 2],
+            measureOffset: 0,
+          },
+          {
+            id: 'next',
+            chordName: 'F7',
+            voicing: ['F4', 'A4'],
+            voicingStaves: [1, 1],
+            measureOffset: 1,
+          },
+        ]}
+      />,
+    );
+
+    const firstBarline = container.querySelector('line[data-staff-barline]');
+    expect(Number(firstBarline?.getAttribute('x1'))).toBeGreaterThan(600);
+  });
+
+  it('denseCurrentMeasureLayout が false のときは合計が5音以上でも小節線を中央のままにする', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="CM7"
+        denseCurrentMeasureLayout={false}
+        voicingGroups={[
+          {
+            id: 'a',
+            chordName: 'CM7',
+            voicing: ['C4', 'E4', 'G4'],
+            voicingStaves: [1, 1, 1],
+            measureOffset: 0,
+          },
+          {
+            id: 'b',
+            chordName: '',
+            voicing: ['B3', 'D4'],
+            voicingStaves: [2, 2],
+            measureOffset: 0,
+          },
+          {
+            id: 'next',
+            chordName: 'F7',
+            voicing: ['F4', 'A4'],
+            voicingStaves: [1, 1],
+            measureOffset: 1,
+          },
+        ]}
+      />,
+    );
+
+    const firstBarline = container.querySelector('line[data-staff-barline]');
+    expect(Number(firstBarline?.getAttribute('x1'))).toBe(360);
+  });
 });

@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingPhaserGame from './EarTrainingPhaserGame';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
-import ChordVoicingStaff, { type ChordVoicingStaffGroup } from './ChordVoicingStaff';
+import ChordVoicingStaff, {
+  CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD,
+  type ChordVoicingStaffGroup,
+} from './ChordVoicingStaff';
 import type {
   ClearConditions,
   EarTrainingChordVoicingAttempt,
@@ -1283,12 +1286,15 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     startCountIn,
   ]);
 
-  const staffVoicingGroups = useMemo<ChordVoicingStaffGroup[]>(() => {
+  const { staffVoicingGroups, staffDenseCurrentMeasureLayout } = useMemo(() => {
     const phrase = currentPhrase;
     const chords = phrase?.chords ?? [];
     const loopDurationSec = getFinitePhraseLoopDuration(phrase);
     if (!phrase || chords.length === 0 || loopDurationSec === null) {
-      return [];
+      return {
+        staffVoicingGroups: [] as ChordVoicingStaffGroup[],
+        staffDenseCurrentMeasureLayout: false,
+      };
     }
 
     const currentMeasureNumber = normalizeMeasureNumber(activeMeasureNumber, stage.loop_measures);
@@ -1305,12 +1311,24 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       .filter(({ measureNumber }) => (
         measureNumber === currentMeasureNumber || measureNumber === nextMeasureNumber
       ));
-    const useWideCurrentMeasure = visibleEntries.some(({ chord, measureNumber }) => (
-      measureNumber === currentMeasureNumber && (chord.voicing?.length ?? 0) >= 5
-    ));
+
+    const harmonyRow = activeChord ? getHarmonyRowForChordId(phrase, activeChord.id) : null;
+    const harmonyIdSet = new Set(harmonyRow?.voicingIds ?? []);
+    const currentMeasureNoteTotalAll = visibleEntries.reduce((sum, { chord, measureNumber }) => (
+      measureNumber === currentMeasureNumber ? sum + (chord.voicing?.length ?? 0) : sum
+    ), 0);
+    const currentMeasureNoteTotalInActiveHarmony = visibleEntries.reduce((sum, { chord, measureNumber }) => {
+      if (measureNumber !== currentMeasureNumber || !harmonyIdSet.has(chord.id)) {
+        return sum;
+      }
+      return sum + (chord.voicing?.length ?? 0);
+    }, 0);
+    const useWideCurrentMeasure = activeChord
+      ? currentMeasureNoteTotalInActiveHarmony >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD
+      : currentMeasureNoteTotalAll >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
     let nextMeasureVisibleCount = 0;
 
-    return visibleEntries
+    const staffVoicingGroups = visibleEntries
       .filter(({ measureNumber }) => {
         if (measureNumber === currentMeasureNumber || !useWideCurrentMeasure) {
           return true;
@@ -1327,11 +1345,17 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           chordName: slotIndex === 0 ? chord.chord_name : '',
           voicing,
           voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
-          measureOffset: measureNumber === currentMeasureNumber ? 0 : 1,
+          measureOffset: (measureNumber === currentMeasureNumber ? 0 : 1) as 0 | 1,
           isRest: voicing.length === 0,
         };
       });
+
+    return {
+      staffVoicingGroups,
+      staffDenseCurrentMeasureLayout: useWideCurrentMeasure,
+    };
   }, [
+    activeChord?.id,
     activeMeasureNumber,
     currentPhrase,
     stage.loop_measures,
@@ -1379,6 +1403,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
             voicingGroups={staffVoicingGroups}
             activeGroupId={activeChord?.id ?? null}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
+            denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
             keyFifths={currentPhrase?.key_fifths ?? stage.key_fifths ?? 0}
           />
         </div>
