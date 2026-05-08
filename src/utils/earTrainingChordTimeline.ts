@@ -104,8 +104,8 @@ const getChordDisplayWindows = (
 };
 
 /**
- * 直前コードがウィンドウ内で完成済みのとき、次コードの表示・判定開始を半拍早める。
- * 完成していないコード区間は nominal と同じ境界を使い、明示区間外は判定しない。
+ * 直前のヴォイシングが完成済みのとき、次ヴォイシングの表示・判定開始を半拍早める。
+ * 未完成のヴォイシングがある場合は、その後ろの未来のヴォイシングを判定対象にしない。
  */
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
@@ -128,16 +128,11 @@ export const getEarTrainingChordDisplayAtTime = (
 
   const windows = getChordDisplayWindows(phrase, bpm, completedChordIds);
 
-  let best = -1;
   for (let j = 0; j < windows.length; j += 1) {
     const window = windows[j];
-    if (window.startSec <= loopTimeSec && loopTimeSec < window.endSec) {
-      best = j;
+    if (!completedChordIds.has(window.chord.id) && window.startSec <= loopTimeSec) {
+      return window.chord;
     }
-  }
-
-  if (best >= 0) {
-    return windows[best].chord;
   }
   return null;
 };
@@ -158,11 +153,12 @@ export const getEarTrainingNextChordDisplayBoundarySec = (
 
   for (let index = 0; index < windows.length; index += 1) {
     const window = windows[index];
-    if (window.startSec > threshold && window.startSec < nextBoundary) {
+    if (
+      !completedChordIds.has(window.chord.id)
+      && window.startSec > threshold
+      && window.startSec < nextBoundary
+    ) {
       nextBoundary = window.startSec;
-    }
-    if (Number.isFinite(window.endSec) && window.endSec > threshold && window.endSec < nextBoundary) {
-      nextBoundary = window.endSec;
     }
   }
 

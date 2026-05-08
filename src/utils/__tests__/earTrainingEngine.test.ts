@@ -64,7 +64,7 @@ describe('earTrainingEngine', () => {
     expect(isMatchingPitchClass(phrase.notes![1], 75)).toBe(true);
   });
 
-  it('同じ音でのミスダメージと評価ミスを5回まで加算する', () => {
+  it('同じ音での評価ミスは5回まで加算し、ミスタッチ被ダメは発生しない', () => {
     const attempt = createPhraseAttempt(phrase);
     const first = handleEarTrainingNoteInput(phrase, attempt, 60, damage);
     const second = handleEarTrainingNoteInput(phrase, first.attempt, 61, damage);
@@ -73,15 +73,15 @@ describe('earTrainingEngine', () => {
     const fifth = handleEarTrainingNoteInput(phrase, fourth.attempt, 66, damage);
     const sixth = handleEarTrainingNoteInput(phrase, fifth.attempt, 67, damage);
 
-    expect(first.playerDamage).toBe(3);
+    expect(first.playerDamage).toBe(0);
     expect(first.evaluationMissAdded).toBe(true);
-    expect(second.playerDamage).toBe(3);
+    expect(second.playerDamage).toBe(0);
     expect(second.evaluationMissAdded).toBe(true);
-    expect(third.playerDamage).toBe(3);
+    expect(third.playerDamage).toBe(0);
     expect(third.evaluationMissAdded).toBe(true);
-    expect(fourth.playerDamage).toBe(3);
+    expect(fourth.playerDamage).toBe(0);
     expect(fourth.evaluationMissAdded).toBe(true);
-    expect(fifth.playerDamage).toBe(3);
+    expect(fifth.playerDamage).toBe(0);
     expect(fifth.evaluationMissAdded).toBe(true);
     expect(sixth.playerDamage).toBe(0);
     expect(sixth.evaluationMissAdded).toBe(false);

@@ -1,7 +1,7 @@
 import type { EarTrainingBattleHudLabels } from '@/game/earTraining/types';
 
-/** Supabase 等から投げられる耳コピ「未検出」メッセージ（UI で英語へマッピングする） */
-export const EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA = '耳コピステージが見つかりません';
+/** Supabase 等から投げられるバトルモード「未検出」メッセージ（UI で英語へマッピングする） */
+export const EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA = 'バトルモードステージが見つかりません';
 
 export interface EarTrainingMainCopy {
   loading: string;
@@ -17,23 +17,23 @@ export interface EarTrainingMainCopy {
 export const getEarTrainingMainCopy = (isEnglish: boolean): EarTrainingMainCopy => (
   isEnglish
     ? {
-        loading: 'Loading ear training battle…',
-        preparing: 'Preparing ear training battle…',
-        title: 'Ear training battle',
+        loading: 'Loading battle mode…',
+        preparing: 'Preparing battle mode…',
+        title: 'Battle mode',
         stageNotFound: 'Stage not found',
         back: 'Back',
-        noStagesRegistered: 'No ear training stages are available.',
-        loadFailedDefault: 'Failed to load ear training stages.',
-        stageNotFoundFromFetch: 'Ear training stage not found.',
+        noStagesRegistered: 'No battle mode stages are available.',
+        loadFailedDefault: 'Failed to load battle mode stages.',
+        stageNotFoundFromFetch: 'Battle mode stage not found.',
       }
     : {
-        loading: '耳コピバトルを読み込み中…',
-        preparing: '耳コピバトルを準備中…',
-        title: '耳コピバトル',
+        loading: 'バトルモードを読み込み中…',
+        preparing: 'バトルモードを準備中…',
+        title: 'バトルモード',
         stageNotFound: 'ステージが見つかりません',
         back: '戻る',
-        noStagesRegistered: '耳コピステージが登録されていません',
-        loadFailedDefault: '耳コピステージの読み込みに失敗しました',
+        noStagesRegistered: 'バトルモードステージが登録されていません',
+        loadFailedDefault: 'バトルモードステージの読み込みに失敗しました',
         stageNotFoundFromFetch: EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA,
       }
 );
@@ -56,8 +56,8 @@ export interface EarTrainingSettingsModalCopy {
 export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTrainingSettingsModalCopy => (
   isEnglish
     ? {
-        dialogAriaLabel: 'Ear training battle settings',
-        title: 'Ear training battle settings',
+        dialogAriaLabel: 'Battle mode settings',
+        title: 'Battle mode settings',
         closeAriaLabel: 'Close settings',
         close: 'Close',
         midiHeading: 'MIDI device',
@@ -70,8 +70,8 @@ export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTraining
         soundEffects: 'Sound effects',
       }
     : {
-        dialogAriaLabel: '耳コピバトル設定',
-        title: '耳コピバトル設定',
+        dialogAriaLabel: 'バトルモード設定',
+        title: 'バトルモード設定',
         closeAriaLabel: '設定を閉じる',
         close: '閉じる',
         midiHeading: 'MIDIデバイス',
@@ -118,9 +118,9 @@ export const getEarTrainingGameCopy = (isEnglish: boolean): EarTrainingGameCopy 
         countIn: 'Count-in',
         transitionNextBar: rank => `${rank} — next phrase at the next bar line`,
         correct: revealedNote => (revealedNote ? `Correct: ${revealedNote}` : 'Correct'),
-        chordCompleted: chordName => `Chord completed: ${chordName}`,
-        chordWindowFail: chordName => `Window missed: ${chordName}`,
-        missEnemyAttack: 'Miss — enemy attack',
+        chordCompleted: chordName => `Completed: ${chordName}`,
+        chordWindowFail: chordName => `Incomplete: ${chordName}`,
+        missEnemyAttack: 'Miss',
         tryAgain: 'Try again',
         lessonSaved: 'Lesson progress saved',
         lessonSaving: 'Saving lesson progress…',
@@ -137,9 +137,9 @@ export const getEarTrainingGameCopy = (isEnglish: boolean): EarTrainingGameCopy 
         countIn: 'カウントイン',
         transitionNextBar: rank => `${rank}: 次の小節頭で次へ`,
         correct: revealedNote => (revealedNote ? `正解: ${revealedNote}` : '正解'),
-        chordCompleted: chordName => `コード完成: ${chordName}`,
-        chordWindowFail: chordName => `ウィンドウ未完成: ${chordName}`,
-        missEnemyAttack: 'ミス: 敵の攻撃',
+        chordCompleted: chordName => `完成: ${chordName}`,
+        chordWindowFail: chordName => `未完成: ${chordName}`,
+        missEnemyAttack: 'ミス',
         tryAgain: 'もう一度',
         lessonSaved: 'レッスン進捗を保存しました',
         lessonSaving: 'レッスン進捗を保存中…',

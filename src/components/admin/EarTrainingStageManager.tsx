@@ -281,7 +281,7 @@ const EarTrainingStageManager: React.FC = () => {
         setStageForm(stageToForm(data[0]));
       }
     } catch {
-      toast.error('耳コピステージの読み込みに失敗しました');
+      toast.error('バトルモードステージの読み込みに失敗しました');
     } finally {
       setLoading(false);
     }
@@ -386,7 +386,7 @@ const EarTrainingStageManager: React.FC = () => {
   };
 
   const removeStage = async () => {
-    if (!selectedStage || !confirm('この耳コピステージを削除しますか？')) {
+    if (!selectedStage || !confirm('このバトルモードステージを削除しますか？')) {
       return;
     }
     setSaving(true);
@@ -593,7 +593,7 @@ const EarTrainingStageManager: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">耳コピバトル管理</h1>
+          <h1 className="text-2xl font-bold">バトルモード管理</h1>
           <p className="text-sm text-gray-400">ステージ、フレーズ音源、判定ノート、コード表示を編集します。</p>
         </div>
         <button
@@ -641,8 +641,8 @@ const EarTrainingStageManager: React.FC = () => {
                   value={stageForm.mode}
                   onChange={event => setStageForm(prev => ({ ...prev, mode: event.target.value === 'chord_voicing' ? 'chord_voicing' : 'phrase' }))}
                 >
-                  <option value="phrase">単音耳コピ (phrase)</option>
-                  <option value="chord_voicing">コード演奏バトル (chord_voicing)</option>
+                  <option value="phrase">バトルモード (phrase)</option>
+                  <option value="chord_voicing">バトルモード (chord_voicing)</option>
                 </select>
               </label>
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />

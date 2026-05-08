@@ -50,4 +50,41 @@ describe('ChordVoicingStaff', () => {
     expect(defaultNotehead?.getAttribute('stroke')).toBe('#ffffff');
     expect(correctAccidental?.getAttribute('fill')).toBe('#ef4444');
   });
+
+  it('同じ小節の複数ヴォイシングを横に均等配置する', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="CM7"
+        voicingGroups={[
+          {
+            id: 'v1',
+            chordName: 'CM7',
+            voicing: ['C4', 'E4'],
+            voicingStaves: [1, 1],
+            measureOffset: 0,
+          },
+          {
+            id: 'v2',
+            chordName: 'CM7',
+            voicing: ['C4', 'E4', 'G4'],
+            voicingStaves: [1, 1, 1],
+            measureOffset: 0,
+          },
+          {
+            id: 'v3',
+            chordName: 'CM7',
+            voicing: ['E4', 'G4', 'B4', 'D5'],
+            voicingStaves: [1, 1, 1, 1],
+            measureOffset: 0,
+          },
+        ]}
+      />,
+    );
+
+    const labels = Array.from(container.querySelectorAll('text')).filter(label => label.textContent === 'CM7');
+    const labelXs = labels.map(label => Number(label.getAttribute('x')));
+
+    expect(labelXs).toHaveLength(3);
+    expect(labelXs[1] - labelXs[0]).toBeCloseTo(labelXs[2] - labelXs[1]);
+  });
 });

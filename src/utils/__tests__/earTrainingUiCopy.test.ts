@@ -13,15 +13,15 @@ describe('earTrainingUiCopy', () => {
     it('英語モードでは読み込み文言が英語になる', () => {
       const en = getEarTrainingMainCopy(true);
       expect(en.loading).toContain('Loading');
-      expect(en.title).toBe('Ear training battle');
+      expect(en.title).toBe('Battle mode');
       expect(en.back).toBe('Back');
-      expect(en.noStagesRegistered).toContain('No ear training');
+      expect(en.noStagesRegistered).toContain('No battle mode');
     });
 
     it('日本語モードでは読み込み文言が日本語になる', () => {
       const ja = getEarTrainingMainCopy(false);
       expect(ja.loading).toContain('読み込み');
-      expect(ja.title).toBe('耳コピバトル');
+      expect(ja.title).toBe('バトルモード');
       expect(ja.back).toBe('戻る');
     });
   });
@@ -36,7 +36,7 @@ describe('earTrainingUiCopy', () => {
 
     it('日本語では設定モーダル見出しが日本語になる', () => {
       const ja = getEarTrainingSettingsModalCopy(false);
-      expect(ja.title).toContain('耳コピ');
+      expect(ja.title).toContain('バトルモード');
       expect(ja.midiHeading).toBe('MIDIデバイス');
     });
   });
@@ -88,6 +88,6 @@ describe('earTrainingUiCopy', () => {
   });
 
   it('未検出メッセージ定数が日本語である', () => {
-    expect(EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA).toContain('耳コピ');
+    expect(EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA).toContain('バトルモード');
   });
 });

@@ -116,10 +116,10 @@ const validatePhraseStart = (
     throw new Error(`${label} の先頭小節に判定ノートがありません`);
   }
   if (firstNotePositionDivisions !== 0) {
-    throw new Error(`${label} はアウフタクトまたは休符開始のため耳コピMVPでは扱えません`);
+    throw new Error(`${label} はアウフタクトまたは休符開始のためバトルモードMVPでは扱えません`);
   }
   if (hasTieStop(firstPitchedNote)) {
-    throw new Error(`${label} はループ開始前からタイでつながるため耳コピMVPでは扱えません`);
+    throw new Error(`${label} はループ開始前からタイでつながるためバトルモードMVPでは扱えません`);
   }
   if (Math.abs(positionDivisions - expectedMeasureDivisions) > 0.001) {
     throw new Error(`${label} の先頭小節が不完全です。アウフタクトは禁止です`);
@@ -137,13 +137,13 @@ const validateEarTrainingMusicXmlMvpConstraints = (
     throw new Error(`${label} は単一パートのMusicXMLのみ対応しています`);
   }
   if (document.querySelector('note > chord')) {
-    throw new Error(`${label} は和音を含むため耳コピMVPでは扱えません`);
+    throw new Error(`${label} は和音を含むためバトルモードMVPでは扱えません`);
   }
   if (document.querySelector('backup')) {
-    throw new Error(`${label} は複声または複数スタッフを含むため耳コピMVPでは扱えません`);
+    throw new Error(`${label} は複声または複数スタッフを含むためバトルモードMVPでは扱えません`);
   }
   if (document.querySelector('note > grace')) {
-    throw new Error(`${label} は装飾音符を含むため耳コピMVPでは扱えません`);
+    throw new Error(`${label} は装飾音符を含むためバトルモードMVPでは扱えません`);
   }
 
   const voices = new Set<string>();

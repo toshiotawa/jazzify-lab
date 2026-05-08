@@ -30,15 +30,15 @@ const buildPhrase = (chords: EarTrainingPhraseChord[]): EarTrainingPhrase => ({
 });
 
 describe('earTrainingChordTimeline', () => {
-  it('明示されたコード区間外は判定対象なしにする', () => {
+  it('開始前は判定対象なし、開始後の未完成ヴォイシングは区間後も保持する', () => {
     const phrase = buildPhrase([
       buildChord({ id: 'c1', start_time_sec: 1, end_time_sec: 2 }),
       buildChord({ id: 'c2', start_time_sec: 3, end_time_sec: 4 }),
     ]);
 
     expect(getEarTrainingChordDisplayAtTime(phrase, 0.5, 120, new Set())).toBeNull();
-    expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set())).toBeNull();
-    expect(getEarTrainingChordDisplayAtTime(phrase, 4.5, 120, new Set())).toBeNull();
+    expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set())?.id).toBe('c1');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 4.5, 120, new Set())?.id).toBe('c1');
   });
 
   it('直前コードが完成済みなら次コードの判定開始を半拍早める', () => {
@@ -50,6 +50,17 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set(['c1']))?.id).toBe('c2');
   });
 
+  it('未来のヴォイシングは手前が完成するまで判定対象にしない', () => {
+    const first = buildChord({ id: 'c1', start_time_sec: 0, end_time_sec: 1 });
+    const second = buildChord({ id: 'c2', start_time_sec: 1, end_time_sec: 2 });
+    const third = buildChord({ id: 'c3', start_time_sec: 2, end_time_sec: 3 });
+    const phrase = buildPhrase([first, second, third]);
+
+    expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set())?.id).toBe('c1');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set(['c1']))?.id).toBe('c2');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 2.5, 120, new Set(['c1', 'c2']))?.id).toBe('c3');
+  });
+
   it('次の表示境界も半拍早めた時刻で返す', () => {
     const first = buildChord({ id: 'c1', start_time_sec: 0, end_time_sec: 2 });
     const second = buildChord({ id: 'c2', start_time_sec: 2, end_time_sec: 4 });
@@ -59,13 +70,13 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set(['c1']))).toBe(1.75);
   });
 
-  it('明示区間の終端を次の境界として返す', () => {
+  it('未完成ウィンドウの終端ではなく次の開始境界を返す', () => {
     const phrase = buildPhrase([
       buildChord({ id: 'c1', start_time_sec: 1, end_time_sec: 2 }),
       buildChord({ id: 'c2', start_time_sec: 3, end_time_sec: 4 }),
     ]);
 
-    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set())).toBe(2);
+    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set())).toBe(3);
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 2.2, 120, new Set())).toBe(3);
   });
 });

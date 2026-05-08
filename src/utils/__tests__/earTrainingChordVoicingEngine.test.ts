@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import {
   acknowledgeChordAward,
-  advanceChordVoicingTick,
   countChordVoicingMisses,
   createChordVoicingAttempt,
   getVoicingPitchClasses,
@@ -67,7 +66,7 @@ describe('earTrainingChordVoicingEngine', () => {
     expect(attempt.completedChordIds.has('c1')).toBe(true);
   });
 
-  it('構成音外のミスタッチは5回まで加算され、6回目以降は加算しない', () => {
+  it('構成音外のミスタッチは5回まで評価に加算し、被ダメは発生しない', () => {
     const chord = buildChord({ id: 'c1' });
     const phrase = buildPhrase([chord]);
     let attempt = createChordVoicingAttempt(phrase);
@@ -76,7 +75,7 @@ describe('earTrainingChordVoicingEngine', () => {
       const result = handleChordVoicingNoteOn(attempt, chord, 61, damage);
       attempt = result.attempt;
       expect(result.evaluationMissAdded).toBe(index < 5);
-      expect(result.playerDamage).toBe(index < 5 ? damage.miss : 0);
+      expect(result.playerDamage).toBe(0);
     }
     expect(countChordVoicingMisses(attempt)).toBe(5);
   });
@@ -94,31 +93,6 @@ describe('earTrainingChordVoicingEngine', () => {
     expect(extra.attempt).toBe(attempt);
     expect(extra.chordJustCompleted).toBe(false);
     expect(extra.rootNoteName).toBe(null);
-  });
-
-  it('ウィンドウ末尾で未完成だと Fail ダメージを 1 回だけ加算する', () => {
-    const chord = buildChord({ id: 'c1' });
-    const phrase = buildPhrase([chord]);
-    const attempt = createChordVoicingAttempt(phrase);
-    const first = advanceChordVoicingTick(attempt, chord, damage);
-    expect(first.failAdded).toBe(true);
-    expect(first.playerDamage).toBe(damage.fail);
-
-    const second = advanceChordVoicingTick(first.attempt, chord, damage);
-    expect(second.failAdded).toBe(false);
-    expect(second.playerDamage).toBe(0);
-  });
-
-  it('完成済みコードはウィンドウ末尾で Fail を発生させない', () => {
-    const chord = buildChord({ id: 'c1' });
-    const phrase = buildPhrase([chord]);
-    let attempt = createChordVoicingAttempt(phrase);
-    [50, 53, 57, 60].forEach(note => {
-      attempt = handleChordVoicingNoteOn(attempt, chord, note, damage).attempt;
-    });
-    const tick = advanceChordVoicingTick(attempt, chord, damage);
-    expect(tick.failAdded).toBe(false);
-    expect(tick.playerDamage).toBe(0);
   });
 
   it('全コード完成検知 isAllChordsCompleted', () => {

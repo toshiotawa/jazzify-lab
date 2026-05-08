@@ -225,7 +225,7 @@ export async function uploadEarTrainingPhraseAudio(
   stageId: string,
   phraseOrderIndex: number,
 ): Promise<string> {
-  checkFileSize(file, MAX_SONG_FILE_SIZE, '耳コピフレーズ音源');
+  checkFileSize(file, MAX_SONG_FILE_SIZE, 'バトルモードフレーズ音源');
 
   const client = getR2Client();
   const phraseNumber = String(phraseOrderIndex + 1).padStart(3, '0');

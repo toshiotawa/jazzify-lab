@@ -770,7 +770,6 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
     setStatusText(copy.tryAgain);
     triggerFeedback('miss');
-    triggerBattleEffect('miss', 'MISS');
   }, [
     clearFailTimer,
     activeDamageConfig,

@@ -178,7 +178,7 @@ export const handleEarTrainingNoteInput = (
     correct: false,
     completed: false,
     enemyDamage: 0,
-    playerDamage: evaluationMissAdded ? damage.miss : 0,
+    playerDamage: 0,
     evaluationMissAdded,
   };
 };

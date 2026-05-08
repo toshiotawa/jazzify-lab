@@ -537,7 +537,7 @@ export const LessonManager: React.FC = () => {
         )
       );
       
-      const contentTypeMessages = { song: '楽曲を追加しました。', fantasy: 'ファンタジーステージを追加しました。', survival: 'サバイバルステージを追加しました。', ear_training: '耳コピバトルステージを追加しました。' };
+      const contentTypeMessages = { song: '楽曲を追加しました。', fantasy: 'ファンタジーステージを追加しました。', survival: 'サバイバルステージを追加しました。', ear_training: 'バトルモードステージを追加しました。' };
       toast.success(contentTypeMessages[formData.content_type]);
       
       invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
@@ -606,7 +606,7 @@ export const LessonManager: React.FC = () => {
   const handleRemoveContent = async (lessonId: string, lessonSongId: string, isFantasy: boolean, contentId: string, isSurvival?: boolean, isEarTraining?: boolean) => {
     if (!selectedCourseId) return;
     
-    const confirmMessage = isEarTraining ? 'この耳コピバトルステージをレッスンから削除しますか？'
+    const confirmMessage = isEarTraining ? 'このバトルモードステージをレッスンから削除しますか？'
       : isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
       : isFantasy ? 'このファンタジーステージをレッスンから削除しますか？' : 'この曲をレッスンから削除しますか？';
     
@@ -630,7 +630,7 @@ export const LessonManager: React.FC = () => {
           )
         );
         
-        toast.success(isEarTraining ? '耳コピバトルステージを削除しました。' : isFantasy ? 'ファンタジーステージを削除しました。' : '曲を削除しました。');
+        toast.success(isEarTraining ? 'バトルモードステージを削除しました。' : isFantasy ? 'ファンタジーステージを削除しました。' : '曲を削除しました。');
         
         invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
         setTimeout(() => loadLessons(true), 500);
@@ -1098,8 +1098,8 @@ export const LessonManager: React.FC = () => {
                                   <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
                                     <div>
                                       <FaMusic className="inline-block mr-2 text-cyan-300" />
-                                      <span className="font-medium">{stage?.title || '不明な耳コピステージ'}</span>
-                                      <span className="text-xs text-cyan-300 ml-2">[耳コピバトル]</span>
+                                      <span className="font-medium">{stage?.title || '不明なバトルモードステージ'}</span>
+                                      <span className="text-xs text-cyan-300 ml-2">[バトルモード]</span>
                                       <span className="text-xs text-gray-400 ml-2">
                                         (ランク: {ls.clear_conditions?.rank || 'B'},
                                         {ls.clear_conditions?.requires_days
@@ -1446,7 +1446,7 @@ export const LessonManager: React.FC = () => {
                     value="ear_training"
                     className="radio radio-info"
                   />
-                  <span className="ml-2">耳コピバトル</span>
+                  <span className="ml-2">バトルモード</span>
                 </label>
               </div>
             </div>
@@ -1465,9 +1465,9 @@ export const LessonManager: React.FC = () => {
               </div>
             ) : watchContent && watchContent('content_type') === 'ear_training' ? (
               <div className="space-y-3">
-                <label className="label"><span className="label-text">耳コピステージを選択 *</span></label>
+                <label className="label"><span className="label-text">バトルモードステージを選択 *</span></label>
                 <select {...registerContent('ear_training_stage_id', { required: true })} className="select select-bordered w-full">
-                  <option value="">-- 耳コピステージを選択してください --</option>
+                  <option value="">-- バトルモードステージを選択してください --</option>
                   {availableEarTrainingStages.map(stage => (
                     <option key={stage.id} value={stage.id}>
                       {stage.title} ({stage.slug})
@@ -1698,4 +1698,4 @@ export const LessonManager: React.FC = () => {
   );
 };
 
-export default LessonManager; 
+export default LessonManager;

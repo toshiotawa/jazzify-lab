@@ -65,7 +65,7 @@ const AdminDashboard: React.FC = () => {
            <SidebarLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <SidebarLink hash="#admin-fantasy-stages" label="ファンタジーステージ" />
            <SidebarLink hash="#admin-survival" label="サバイバル設定" />
-           <SidebarLink hash="#admin-ear-training" label="耳コピバトル" />
+           <SidebarLink hash="#admin-ear-training" label="バトルモード" />
            <SidebarLink hash="#admin-dayly-fantasy" label="デイリーチャレンジ" />
            <SidebarLink hash="#admin-lesson-stages" label="レッスン用ステージ" />
            <SidebarLink hash="#admin-courses" label="コース管理" />
@@ -92,7 +92,7 @@ const AdminDashboard: React.FC = () => {
            <MobileTabLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <MobileTabLink hash="#admin-fantasy-stages" label="ステージ" />
            <MobileTabLink hash="#admin-survival" label="サバイバル" />
-           <MobileTabLink hash="#admin-ear-training" label="耳コピ" />
+           <MobileTabLink hash="#admin-ear-training" label="バトル" />
            <MobileTabLink hash="#admin-dayly-fantasy" label="デイリー" />
            <MobileTabLink hash="#admin-lesson-stages" label="レッスン用" />
            <MobileTabLink hash="#admin-courses" label="コース" />
@@ -168,4 +168,4 @@ const DashboardContent: React.FC = () => {
       </p>
     </div>
   );
-}; 
+};

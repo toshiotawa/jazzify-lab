@@ -3,12 +3,22 @@ import { cn } from '@/utils/cn';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import './bravuraClefFont.css';
 
-interface ChordVoicingStaffProps {
+export interface ChordVoicingStaffGroup {
+  id: string;
+  chordName: string;
   voicing: readonly string[];
   voicingStaves?: readonly number[] | null;
-  chordName: string;
+  correctPitchClasses?: readonly number[];
+  measureOffset?: 0 | 1;
+}
+
+interface ChordVoicingStaffProps {
+  voicing?: readonly string[];
+  voicingStaves?: readonly number[] | null;
+  chordName?: string;
   keyFifths?: number;
   correctPitchClasses?: readonly number[];
+  voicingGroups?: readonly ChordVoicingStaffGroup[];
   className?: string;
 }
 
@@ -30,6 +40,16 @@ interface ParsedVoicingNoteWithStaff {
   voicingIndex: number;
 }
 
+interface ParsedVoicingStaffGroup {
+  id: string;
+  chordName: string;
+  notes: ParsedVoicingNoteWithStaff[];
+  correctPitchClassSet: ReadonlySet<number>;
+  measureOffset: 0 | 1;
+  slotIndex: number;
+  slotCount: number;
+}
+
 interface KeySignatureMark {
   symbol: string;
   degree: number;
@@ -40,9 +60,9 @@ type StaffNumber = 1 | 2;
 const NOTATION_COLOR = '#ffffff';
 const CORRECT_NOTATION_COLOR = '#ef4444';
 const SP = 12;
-const STAFF_WIDTH = 360;
+const STAFF_WIDTH = 720;
 const STAFF_LINE_LEFT_X = 24;
-const STAFF_LINE_RIGHT_X = 336;
+const STAFF_LINE_RIGHT_X = 696;
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
 /** コード名ラベルとト譜表の間に余白を取る（譜面の可読性） */
@@ -65,6 +85,12 @@ const STEP_ORDER: Record<string, number> = {
 };
 const EMPTY_STAVES: readonly number[] = [];
 const EMPTY_PITCH_CLASSES: readonly number[] = [];
+const EMPTY_GROUPS: readonly ChordVoicingStaffGroup[] = [];
+const MEASURE_DIVIDER_X = STAFF_WIDTH / 2;
+const MEASURE_ONE_NOTE_LEFT_X = 138;
+const MEASURE_ONE_NOTE_RIGHT_X = MEASURE_DIVIDER_X - 30;
+const MEASURE_TWO_NOTE_LEFT_X = MEASURE_DIVIDER_X + 30;
+const MEASURE_TWO_NOTE_RIGHT_X = STAFF_LINE_RIGHT_X - 30;
 
 const REFERENCE_DEGREE_BY_STAFF: Record<StaffNumber, number> = {
   1: TREBLE_REFERENCE_DEGREE,
@@ -317,6 +343,20 @@ const StaffLines: React.FC<{ staff: StaffNumber; topY: number }> = ({ staff, top
         />
       );
     })}
+    {[MEASURE_DIVIDER_X, STAFF_LINE_RIGHT_X].map(x => (
+      <line
+        key={x}
+        data-staff-barline={x}
+        data-staff-number={staff}
+        x1={x}
+        x2={x}
+        y1={topY}
+        y2={topY + STAFF_HEIGHT}
+        stroke={NOTATION_COLOR}
+        strokeLinecap="round"
+        strokeWidth={STAFF_LINE_THICKNESS}
+      />
+    ))}
   </g>
 );
 
@@ -417,16 +457,20 @@ const WholeNote: React.FC<{
   );
 };
 
+const getVoicingGroupBaseX = (group: ParsedVoicingStaffGroup): number => {
+  const left = group.measureOffset === 0 ? MEASURE_ONE_NOTE_LEFT_X : MEASURE_TWO_NOTE_LEFT_X;
+  const right = group.measureOffset === 0 ? MEASURE_ONE_NOTE_RIGHT_X : MEASURE_TWO_NOTE_RIGHT_X;
+  const slotWidth = (right - left) / Math.max(1, group.slotCount);
+  return left + slotWidth * (group.slotIndex + 0.5);
+};
+
 const RenderedStaff: React.FC<{
   staff: StaffNumber;
-  notes: readonly ParsedVoicingNoteWithStaff[];
+  groups: readonly ParsedVoicingStaffGroup[];
   staffTopY: number;
   keyFifths: number;
-  correctPitchClassSet: ReadonlySet<number>;
-}> = ({ staff, notes, staffTopY, keyFifths, correctPitchClassSet }) => {
+}> = ({ staff, groups, staffTopY, keyFifths }) => {
   const marks = keySignatureMarks(staff, keyFifths);
-  const noteBaseX = marks.length > 0 ? 246 : 228;
-  const positionedNotes = layoutNotes(notes, staffTopY);
 
   return (
     <g>
@@ -451,47 +495,96 @@ const RenderedStaff: React.FC<{
           {mark.symbol}
         </text>
       ))}
-      {positionedNotes.map(positioned => (
-        <WholeNote
-          key={positioned.note.voicingIndex}
-          positioned={positioned}
-          baseX={noteBaseX}
-          staffTopY={staffTopY}
-          isCorrect={correctPitchClassSet.has(positioned.note.pitchClass)}
-        />
-      ))}
+      {groups.map(group => {
+        const staffNotes = group.notes.filter(note => note.staff === staff);
+        const positionedNotes = layoutNotes(staffNotes, staffTopY);
+        const noteBaseX = getVoicingGroupBaseX(group);
+        return positionedNotes.map(positioned => (
+          <WholeNote
+            key={`${group.id}-${positioned.note.voicingIndex}`}
+            positioned={positioned}
+            baseX={noteBaseX}
+            staffTopY={staffTopY}
+            isCorrect={group.correctPitchClassSet.has(positioned.note.pitchClass)}
+          />
+        ));
+      })}
     </g>
   );
 };
 
 const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
-  voicing,
+  voicing = [],
   voicingStaves,
-  chordName,
+  chordName = '',
   keyFifths = 0,
   correctPitchClasses,
+  voicingGroups,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
   const normalizedCorrectPitchClasses = correctPitchClasses ?? EMPTY_PITCH_CLASSES;
-  const renderState = useMemo(() => {
+  const normalizedVoicingGroups = voicingGroups ?? EMPTY_GROUPS;
+  const staffGroups = useMemo<ChordVoicingStaffGroup[]>(() => {
+    if (normalizedVoicingGroups.length > 0) {
+      return normalizedVoicingGroups
+        .filter(group => group.voicing.length > 0)
+        .map(group => ({
+          ...group,
+          measureOffset: group.measureOffset === 1 ? 1 : 0,
+        }));
+    }
     if (voicing.length === 0) {
-      return { notes: [] as ParsedVoicingNoteWithStaff[], error: null };
+      return [];
+    }
+    return [{
+      id: 'single',
+      chordName,
+      voicing,
+      voicingStaves: normalizedVoicingStaves,
+      correctPitchClasses: normalizedCorrectPitchClasses,
+      measureOffset: 0,
+    }];
+  }, [
+    chordName,
+    normalizedCorrectPitchClasses,
+    normalizedVoicingGroups,
+    normalizedVoicingStaves,
+    voicing,
+  ]);
+
+  const renderState = useMemo(() => {
+    if (staffGroups.length === 0) {
+      return { groups: [] as ParsedVoicingStaffGroup[], error: null };
     }
     try {
-      return { notes: parseNotes(voicing, normalizedVoicingStaves), error: null };
+      const measureSlotCounts = new Map<0 | 1, number>();
+      staffGroups.forEach(group => {
+        measureSlotCounts.set(group.measureOffset ?? 0, (measureSlotCounts.get(group.measureOffset ?? 0) ?? 0) + 1);
+      });
+      const nextSlotByMeasure = new Map<0 | 1, number>();
+      const groups = staffGroups.map(group => {
+        const measureOffset = group.measureOffset ?? 0;
+        const slotIndex = nextSlotByMeasure.get(measureOffset) ?? 0;
+        nextSlotByMeasure.set(measureOffset, slotIndex + 1);
+        return {
+          id: group.id,
+          chordName: group.chordName,
+          notes: parseNotes(group.voicing, group.voicingStaves ?? EMPTY_STAVES),
+          correctPitchClassSet: new Set(group.correctPitchClasses ?? EMPTY_PITCH_CLASSES),
+          measureOffset,
+          slotIndex,
+          slotCount: measureSlotCounts.get(measureOffset) ?? 1,
+        };
+      });
+      return { groups, error: null };
     } catch (error) {
       return {
-        notes: [] as ParsedVoicingNoteWithStaff[],
+        groups: [] as ParsedVoicingStaffGroup[],
         error: error instanceof Error ? error.message : '譜面の生成に失敗しました',
       };
     }
-  }, [normalizedVoicingStaves, voicing]);
-
-  const correctPitchClassSet = useMemo(
-    () => new Set(normalizedCorrectPitchClasses),
-    [normalizedCorrectPitchClasses],
-  );
+  }, [staffGroups]);
 
   const [clefFontsLoaded, setClefFontsLoaded] = useState(false);
   useEffect(() => {
@@ -516,7 +609,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   }, []);
 
   const activeStaves = ([1, 2] as const).filter(staff => (
-    renderState.notes.some(note => note.staff === staff)
+    renderState.groups.some(group => group.notes.some(note => note.staff === staff))
   ));
   const svgHeight = activeStaves.length > 0
     ? STAFF_TOP_Y + (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT + SP * 3
@@ -531,31 +624,33 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       ) : (
         <svg
           aria-busy={!clefFontsLoaded}
-          aria-label={`${chordName} chord voicing`}
+          aria-label={chordName ? `${chordName} battle mode staff` : 'Battle mode staff'}
           className="h-auto w-full overflow-visible drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]"
           role="img"
           viewBox={`0 0 ${STAFF_WIDTH} ${svgHeight}`}
         >
-          <text
-            x={STAFF_WIDTH / 2}
-            y={SP * 2.25}
-            dominantBaseline="central"
-            fill={NOTATION_COLOR}
-            fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
-            fontSize="18"
-            fontWeight="800"
-            textAnchor="middle"
-          >
-            {chordName}
-          </text>
+          {renderState.groups.map(group => (
+            <text
+              key={`${group.id}-label`}
+              x={getVoicingGroupBaseX(group)}
+              y={SP * 2.25}
+              dominantBaseline="central"
+              fill={NOTATION_COLOR}
+              fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
+              fontSize="18"
+              fontWeight="800"
+              textAnchor="middle"
+            >
+              {group.chordName}
+            </text>
+          ))}
           {activeStaves.map((staff, index) => (
             <RenderedStaff
               key={staff}
               staff={staff}
-              notes={renderState.notes.filter(note => note.staff === staff)}
+              groups={renderState.groups}
               staffTopY={staffTopForIndex(index)}
               keyFifths={keyFifths}
-              correctPitchClassSet={correctPitchClassSet}
             />
           ))}
         </svg>

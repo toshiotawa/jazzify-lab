@@ -22,12 +22,6 @@ export interface ChordVoicingEvaluationResult {
   evaluationMissAdded: boolean;
 }
 
-export interface ChordVoicingTickResult {
-  attempt: EarTrainingChordVoicingAttempt;
-  failAdded: boolean;
-  playerDamage: number;
-}
-
 const noteNameToPitchClassSafe = (name: string): number | null => {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -141,7 +135,7 @@ export const handleChordVoicingNoteOn = (
       chordJustCompleted: false,
       rootNoteName: null,
       enemyDamage: 0,
-      playerDamage: evaluationMissAdded ? damage.miss : 0,
+      playerDamage: 0,
       evaluationMissAdded,
     };
   }
@@ -176,27 +170,6 @@ export const handleChordVoicingNoteOn = (
     enemyDamage: damage.perCorrectNote,
     playerDamage: 0,
     evaluationMissAdded: false,
-  };
-};
-
-export const advanceChordVoicingTick = (
-  attempt: EarTrainingChordVoicingAttempt,
-  prevChord: EarTrainingPhraseChord | null,
-  damage: EarTrainingDamageConfig,
-): ChordVoicingTickResult => {
-  if (!prevChord) {
-    return { attempt, failAdded: false, playerDamage: 0 };
-  }
-  const chordId = prevChord.id;
-  if (attempt.completedChordIds.has(chordId) || attempt.failedChordIds.has(chordId)) {
-    return { attempt, failAdded: false, playerDamage: 0 };
-  }
-  const next = cloneAttempt(attempt);
-  next.failedChordIds.add(chordId);
-  return {
-    attempt: next,
-    failAdded: true,
-    playerDamage: damage.fail,
   };
 };
 
