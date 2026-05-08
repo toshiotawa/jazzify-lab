@@ -671,7 +671,7 @@ struct ChordVoicingStaffGroupsView: View {
         let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
         let firstTopY = max(sp * 2, (size.height - groupHeight) / 2)
 
-        let labelY = max(sp * 1.8, firstTopY - sp * 2.2)
+        let labelY = max(sp * 1.5, firstTopY - sp * 3.0)
         for item in parsedGroups where !item.group.chordName.isEmpty {
             let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
             let labelColor = item.group.id == activeGroupId ? activeLabelColor : notationColor

@@ -189,8 +189,8 @@ struct EarTrainingHUDView: View {
         switch hud.slotRow {
         case let .melody(slots, revealed, currentIndex):
             melodySlots(slots: slots, revealed: revealed, currentIndex: currentIndex)
-        case let .chordVoicing(slotCount, completed, currentIndex):
-            chordVoicingCircleSlots(slotCount: slotCount, completed: completed, currentIndex: currentIndex)
+        case let .chordVoicing(slotCount, completed, _):
+            chordVoicingCircleSlots(slotCount: slotCount, completed: completed)
         }
     }
 
@@ -251,7 +251,7 @@ struct EarTrainingHUDView: View {
         .padding(.horizontal, 10)
     }
 
-    private func chordVoicingCircleSlots(slotCount: Int, completed: [Bool], currentIndex: Int) -> some View {
+    private func chordVoicingCircleSlots(slotCount: Int, completed: [Bool]) -> some View {
         let count = max(1, slotCount)
         return GeometryReader { proxy in
             let availableWidth = max(40, proxy.size.width - 24)
@@ -260,11 +260,10 @@ struct EarTrainingHUDView: View {
             HStack(spacing: phraseSlotGap) {
                 ForEach(0..<count, id: \.self) { index in
                     let done = index < completed.count ? completed[index] : false
-                    let isActive = index == currentIndex && hud.gameState == .playingPhrase
                     ZStack {
                         Circle()
                             .stroke(
-                                done ? Color.green : (isActive ? Color.cyan : Color.white.opacity(0.45)),
+                                done ? Color.green : Color.white.opacity(0.45),
                                 lineWidth: 3
                             )
                             .frame(width: slotSize - 4, height: slotSize - 4)

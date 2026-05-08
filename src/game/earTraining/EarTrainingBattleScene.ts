@@ -169,6 +169,7 @@ interface CharacterView {
   container: Phaser.GameObjects.Container;
   image: Phaser.GameObjects.Image | null;
   fallback: Phaser.GameObjects.Text;
+  knockbackTween: Phaser.Tweens.Tween | null;
 }
 
 interface CharacterAnchors {
@@ -201,9 +202,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private lastEffectId: number | null = null;
   private lastPhraseRunId: number | null = null;
   private playerPoseToken = 0;
+  private activePlayerPoseName: PlayerAvatarPoseName | null = null;
   private pendingSceneRebuild = false;
   private isReady = false;
   private lastBackgroundSizeKey: string | null = null;
+  private lastCharacterBuildKey: string | null = null;
   private lastSceneRebuildAt = 0;
   private sceneRebuildTimer: Phaser.Time.TimerEvent | null = null;
 
@@ -243,6 +246,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.lastPhraseRunId = snapshot.phraseRunId;
     if (previousPhraseRunId !== null && previousPhraseRunId !== snapshot.phraseRunId) {
       this.playerPoseToken += 1;
+      this.activePlayerPoseName = null;
+      this.restorePlayerPose();
     }
     if (!this.isReady) {
       return;
@@ -327,15 +332,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.lastBackgroundSizeKey = backgroundSizeKey;
     }
 
-    this.clearDynamicScene();
-    this.characterLayer = this.add.container(0, 0);
+    this.rebuildCharactersIfNeeded(width, height);
+    this.clearUiScene();
     this.hudLayer = this.add.container(0, 0);
     this.phraseLayer = this.add.container(0, 0);
     const effectLayer = this.effectLayer ?? this.add.container(0, 0);
     this.effectLayer = effectLayer;
 
     this.drawHud(width);
-    this.drawCharacters(width, height);
+    this.drawCharacterStatus(width, height);
     this.drawPhraseIntro(width, height);
     this.drawPhraseSlots(width, height);
     this.drawLobbyOverlay(width, height);
@@ -359,12 +364,49 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
   }
 
-  private clearDynamicScene(): void {
+  private rebuildCharactersIfNeeded(width: number, height: number): void {
+    const snapshot = this.snapshot;
+    let nextBuildKey: string | null = null;
+    if (snapshot) {
+      const playerTextureReady = this.textures.exists(hashText(snapshot.playerAvatarUrl)) ? 1 : 0;
+      const enemyTextureReady = this.textures.exists(hashText(snapshot.enemyAvatarUrl)) ? 1 : 0;
+      nextBuildKey = [
+        `${width}x${height}`,
+        snapshot.playerAvatarUrl,
+        playerTextureReady,
+        snapshot.enemyAvatarUrl,
+        enemyTextureReady,
+        snapshot.enemyAvatarFlipX ? 1 : 0,
+      ].join(':');
+    }
+    if (this.characterLayer && this.lastCharacterBuildKey === nextBuildKey) {
+      return;
+    }
+    this.clearCharacterScene();
+    if (!snapshot) {
+      return;
+    }
+    this.characterLayer = this.add.container(0, 0);
+    this.drawCharacters(width, height);
+    this.lastCharacterBuildKey = nextBuildKey;
+    if (this.activePlayerPoseName) {
+      this.applyPlayerPose(this.activePlayerPoseName);
+    }
+  }
+
+  private clearCharacterScene(): void {
     this.characterLayer?.destroy(true);
-    this.hudLayer?.destroy(true);
-    this.phraseLayer?.destroy(true);
+    this.characterLayer = null;
     this.playerView = null;
     this.enemyView = null;
+    this.lastCharacterBuildKey = null;
+  }
+
+  private clearUiScene(): void {
+    this.hudLayer?.destroy(true);
+    this.phraseLayer?.destroy(true);
+    this.hudLayer = null;
+    this.phraseLayer = null;
   }
 
   private clearBackgroundScene(): void {
@@ -730,6 +772,14 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const floorY = getFloorY(height);
     this.playerView = this.createCharacter(width * 0.23, floorY, true, snapshot.playerAvatarUrl, false);
     this.enemyView = this.createCharacter(width * 0.77, floorY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
+  }
+
+  private drawCharacterStatus(width: number, height: number): void {
+    const snapshot = this.snapshot;
+    if (!snapshot) {
+      return;
+    }
+    const floorY = getFloorY(height);
     this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, floorY - 166));
     if (snapshot.demoLoopActive) {
       this.drawDemoBubble(width * 0.77, Math.max(HUD_HEIGHT + 46, floorY - CHARACTER_DISPLAY_SIZE - 38));
@@ -759,12 +809,12 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     container.add(fallback);
     this.characterLayer?.add(container);
-    return { container, image, fallback };
+    return { container, image, fallback, knockbackTween: null };
   }
 
   private drawEnemyAttackGauge(x: number, y: number): void {
     const snapshot = this.snapshot;
-    if (!snapshot || !this.characterLayer) {
+    if (!snapshot || !this.hudLayer) {
       return;
     }
     const width = 126;
@@ -778,11 +828,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const frame = this.add.rectangle(x, y + 4, width, 12, 0x020617, 0.84).setOrigin(0.5, 0.5);
     frame.setStrokeStyle(1, percent >= 0.92 ? 0xfca5a5 : 0xfb7185, 0.78);
     const fill = this.add.rectangle(x - width / 2 + 2, y + 4, Math.max(0, (width - 4) * percent), 8, 0xfb7185, 0.95).setOrigin(0, 0.5);
-    this.characterLayer.add([label, frame, fill]);
+    this.hudLayer.add([label, frame, fill]);
   }
 
   private drawDemoBubble(x: number, y: number): void {
-    if (!this.characterLayer || !this.textures.exists(FUKIDASHI_ASSET_KEY)) {
+    if (!this.hudLayer || !this.textures.exists(FUKIDASHI_ASSET_KEY)) {
       return;
     }
 
@@ -791,7 +841,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       .setOrigin(0.5, 0.72)
       .setDisplaySize(112, 84)
       .setAlpha(0.96);
-    this.characterLayer.add(bubble);
+    this.hudLayer.add(bubble);
   }
 
   private drawPhraseIntro(width: number, height: number): void {
@@ -868,20 +918,19 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       const x = startX + visibleIndex * (slotSize + gap);
       if (isCircleMode) {
         const completed = Boolean(snapshot.chordCompleted[index]);
-        const current = index === snapshot.currentNoteIndex && snapshot.gameState === 'playingPhrase';
-        const bgColor = completed ? 0x10b981 : current ? 0x22d3ee : 0x020617;
+        const bgColor = completed ? 0x10b981 : 0x020617;
         const box = this.add.rectangle(
           x,
           y,
           slotSize,
           slotSize,
           bgColor,
-          completed ? 0.32 : current ? 0.28 : 0.78,
+          completed ? 0.32 : 0.78,
         ).setOrigin(0, 0);
         box.setStrokeStyle(
-          current ? 3 : 1,
-          completed ? 0xa7f3d0 : current ? 0xa5f3fc : 0xffffff,
-          completed ? 0.9 : current ? 0.9 : 0.14,
+          1,
+          completed ? 0xa7f3d0 : 0xffffff,
+          completed ? 0.9 : 0.14,
         );
         const ring = this.add.circle(
           x + slotSize / 2,
@@ -892,13 +941,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         );
         ring.setStrokeStyle(
           completed ? 4 : 3,
-          completed ? 0xbbf7d0 : current ? 0xa5f3fc : 0x64748b,
+          completed ? 0xbbf7d0 : 0x64748b,
           completed ? 0.95 : 0.85,
         );
         this.phraseLayer?.add([box, ring]);
-        if (current && !completed) {
-          this.tweens.add({ targets: box, alpha: 0.92, yoyo: true, repeat: -1, duration: 360 });
-        }
         return;
       }
 
@@ -1717,34 +1763,41 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       onComplete?.();
       return;
     }
-    const startX = view.container.x;
-    const startY = view.container.y;
+    const anchors = this.getBattleAnchors(Math.max(320, this.scale.width), Math.max(480, this.scale.height));
+    const home = side === 'player' ? anchors.player : anchors.enemy;
+    view.knockbackTween?.stop();
+    view.knockbackTween = null;
+    view.container.setPosition(home.x, home.footY);
+    view.container.setAngle(0);
     const pushDuration = Math.max(80, Math.floor(duration * 0.38));
     const returnDuration = Math.max(120, duration - pushDuration);
     const rotation = distance >= 0 ? 4 : -4;
-    this.tweens.add({
+    const pushTween = this.tweens.add({
       targets: view.container,
-      x: startX + distance,
-      y: startY - 10,
+      x: home.x + distance,
+      y: home.footY - 10,
       angle: rotation,
       duration: pushDuration,
       ease: 'Quad.easeOut',
       onComplete: () => {
-        this.tweens.add({
+        const returnTween = this.tweens.add({
           targets: view.container,
-          x: startX,
-          y: startY,
+          x: home.x,
+          y: home.footY,
           angle: 0,
           duration: returnDuration,
           ease: 'Back.easeOut',
           onComplete: () => {
-            view.container.setPosition(startX, startY);
+            view.knockbackTween = null;
+            view.container.setPosition(home.x, home.footY);
             view.container.setAngle(0);
             onComplete?.();
           },
         });
+        view.knockbackTween = returnTween;
       },
     });
+    view.knockbackTween = pushTween;
   }
 
   private knockEnemyAfterDamage(distance: number, duration: number): void {
@@ -1826,16 +1879,23 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private applyPlayerPose(poseName: PlayerAvatarPoseName): boolean {
-    const image = this.playerView?.image;
+    const view = this.playerView;
     const asset = PLAYER_AVATAR_POSE_ASSETS[poseName];
-    if (!image || !this.textures.exists(asset.key)) {
+    if (!view || !this.textures.exists(asset.key)) {
       return false;
+    }
+    let image = view.image;
+    if (!image) {
+      image = this.add.image(0, 0, asset.key).setOrigin(0.5, 1);
+      view.image = image;
+      view.container.add(image);
     }
     image
       .setTexture(asset.key)
       .setFlipX(false)
       .setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE);
-    this.playerView?.fallback.setVisible(false);
+    view.fallback.setVisible(false);
+    this.activePlayerPoseName = poseName;
     return true;
   }
 
@@ -1843,21 +1903,28 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (token !== undefined && token !== this.playerPoseToken) {
       return;
     }
-    const image = this.playerView?.image;
+    const view = this.playerView;
     const avatarUrl = this.snapshot?.playerAvatarUrl;
-    if (!image || !avatarUrl) {
+    if (!view || !avatarUrl) {
       return;
     }
     const defaultTextureKey = hashText(avatarUrl);
     if (!this.textures.exists(defaultTextureKey)) {
       return;
     }
+    let image = view.image;
+    if (!image) {
+      image = this.add.image(0, 0, defaultTextureKey).setOrigin(0.5, 1);
+      view.image = image;
+      view.container.add(image);
+    }
+    this.activePlayerPoseName = null;
     this.playerPoseToken = 0;
     image
       .setTexture(defaultTextureKey)
       .setFlipX(false)
       .setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE);
-    this.playerView?.fallback.setVisible(false);
+    view.fallback.setVisible(false);
   }
 
   private loadAvatarTextures(snapshot: EarTrainingBattleSnapshot): void {

@@ -262,8 +262,7 @@ private struct EarTrainingChordVoicingContent: View {
             ChordVoicingBottomSlotsView(
                 slotCount: slotCount,
                 completed: completed,
-                currentIndex: currentIndex,
-                isPlaying: hud.gameState == .playingPhrase
+                currentIndex: currentIndex
             )
             .frame(width: min(size.width * 0.52, 260), height: slotSize + 6)
             .position(
@@ -288,7 +287,6 @@ private struct ChordVoicingBottomSlotsView: View {
     let slotCount: Int
     let completed: [Bool]
     let currentIndex: Int
-    let isPlaying: Bool
 
     private static let gap: CGFloat = 6
 
@@ -299,20 +297,19 @@ private struct ChordVoicingBottomSlotsView: View {
             HStack(spacing: Self.gap) {
                 ForEach(0..<count, id: \.self) { index in
                     let done = index < completed.count ? completed[index] : false
-                    let active = isPlaying && index == currentIndex
                     ZStack {
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(active ? Color(hex: "22d3ee").opacity(0.16) : Color.black.opacity(0.36))
+                            .fill(Color.black.opacity(0.36))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                    .stroke(active ? Color(hex: "a5f3fc").opacity(0.7) : Color.white.opacity(0.12), lineWidth: active ? 1.5 : 1)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
                             )
                         Circle()
                             .fill(done ? Color(hex: "10b981").opacity(0.95) : Color.clear)
                             .overlay(
                                 Circle()
                                     .stroke(
-                                        done ? Color(hex: "bbf7d0") : (active ? Color(hex: "a5f3fc") : Color.white.opacity(0.42)),
+                                        done ? Color(hex: "bbf7d0") : Color.white.opacity(0.42),
                                         lineWidth: done ? 2.5 : 2
                                     )
                             )
