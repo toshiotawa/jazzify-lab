@@ -280,7 +280,6 @@ private struct EarTrainingChordVoicingContent: View {
         }
         .padding(innerPadding)
         .frame(height: height)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var chordSlots: some View {
@@ -314,14 +313,7 @@ private struct EarTrainingChordVoicingContent: View {
         let chord = controller.activeChord
         let voicing = chord?.voicing ?? []
         let staves = chord?.voicingStaves ?? []
-        let attempt = controller.attempt
-        let pressedSet = chord.flatMap { attempt?.pressedByChord[$0.id] } ?? []
-        var correctSet = Set<Int>(pressedSet)
-        if let chord, attempt?.completedChordIds.contains(chord.id) == true {
-            for pc in EarTrainingChordVoicingEngine.voicingPitchClasses(for: chord) {
-                correctSet.insert(pc)
-            }
-        }
+        let staffWidth = min(CGFloat(360), max(CGFloat(260), height * 1.85))
         return Group {
             if voicing.isEmpty {
                 Text(locale == .ja ? "コード待機中…" : "Waiting for chord…")
@@ -332,21 +324,10 @@ private struct EarTrainingChordVoicingContent: View {
                 ChordVoicingStaffView(
                     voicing: voicing,
                     voicingStaves: staves,
-                    correctPitchClasses: correctSet
+                    chordName: chord?.chordName ?? ""
                 )
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            if let chord {
-                Text(chord.chordName)
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.6), in: Capsule())
-                    .padding(8)
+                .frame(width: staffWidth, height: height)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
     }

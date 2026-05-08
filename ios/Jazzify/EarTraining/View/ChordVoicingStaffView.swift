@@ -54,21 +54,46 @@ private struct PositionedVoicingNote {
     let accidentalColumn: Int
 }
 
-/// 大譜表（ト音＋ヘ音）に全音符を自前描画する SwiftUI Canvas ビュー。
-/// Web `ChordVoicingStaff` ([src/components/earTraining/ChordVoicingStaff.tsx]) と挙動を揃える。
+private struct KeySignatureMark {
+    let symbol: String
+    let degree: Int
+}
+
+/// コード演奏バトル専用の最小譜面ビュー。
+/// 調号、全音符、変化記号、音部記号、五線、コードネームだけを描画する。
 struct ChordVoicingStaffView: View {
     let voicing: [String]
     let voicingStaves: [Int]
-    let correctPitchClasses: Set<Int>
+    let chordName: String
+    let keyFifths: Int = 0
 
     private static let trebleSign = "𝄞"
     private static let bassSign = "𝄢"
+    private static let notationColor = Color.white
+    private static let labelHeight: CGFloat = 28
+    private static let trebleReferenceDegree = 4 * 7 + 6
+    private static let bassReferenceDegree = 3 * 7 + 1
 
     var body: some View {
-        Canvas { context, size in
-            draw(context: &context, size: size)
+        GeometryReader { proxy in
+            let labelHeight = Self.labelHeight
+            let canvasHeight = max(CGFloat(1), proxy.size.height - labelHeight - 4)
+            VStack(spacing: 4) {
+                Text(chordName)
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .foregroundStyle(Self.notationColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(height: labelHeight)
+                Canvas { context, size in
+                    draw(context: &context, size: size)
+                }
+                .frame(height: canvasHeight)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .accessibilityHidden(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(chordName))
     }
 
     private func draw(context: inout GraphicsContext, size: CGSize) {
@@ -79,74 +104,57 @@ struct ChordVoicingStaffView: View {
                 let normalizedStaff = staff == 2 ? 2 : 1
                 return VoicingNoteParser.parse(name: name, staff: normalizedStaff, voicingIndex: offset)
             }
+        guard !parsedNotes.isEmpty else { return }
 
-        let backgroundRect = CGRect(origin: .zero, size: size)
-        context.fill(Path(roundedRect: backgroundRect, cornerRadius: 14), with: .color(.white))
-
-        let leftMargin = max(CGFloat(30), size.width * 0.07)
-        let rightMargin = max(CGFloat(22), size.width * 0.04)
-        let staffSpacing = min(CGFloat(18), max(CGFloat(10), (size.height - 24) / 13))
-        let staffGap = staffSpacing * 3
-        let staffGroupHeight = staffSpacing * 8 + staffGap
-        let trebleTopY = max(CGFloat(12), (size.height - staffGroupHeight) / 2)
-        let bassTopY = trebleTopY + staffSpacing * 4 + staffGap
-
-        drawStaff(context: &context, top: trebleTopY, staffSpacing: staffSpacing, leftX: leftMargin, rightX: size.width - rightMargin)
-        drawStaff(context: &context, top: bassTopY, staffSpacing: staffSpacing, leftX: leftMargin, rightX: size.width - rightMargin)
-
-        drawClef(
-            context: &context,
-            sign: Self.trebleSign,
-            x: leftMargin + staffSpacing * 0.4,
-            y: trebleTopY + staffSpacing * 4,
-            fontSize: staffSpacing * 4.4
-        )
-        drawClef(
-            context: &context,
-            sign: Self.bassSign,
-            x: leftMargin + staffSpacing * 0.4,
-            y: bassTopY + staffSpacing * 0.7,
-            fontSize: staffSpacing * 3.4
-        )
-
-        let treble = parsedNotes.filter { $0.staff == 1 }.sorted { $0.degree < $1.degree }
-        let bass = parsedNotes.filter { $0.staff == 2 }.sorted { $0.degree < $1.degree }
-
-        let noteStartX = leftMargin + staffSpacing * 5.8
-        let noteEndX = size.width - rightMargin - staffSpacing * 1.2
-        let noteAreaWidth = max(staffSpacing * 1.5, noteEndX - noteStartX)
-        let baseX = noteStartX + noteAreaWidth / 2
-
-        for positioned in layoutNotes(
-            notes: treble,
-            staffTopY: trebleTopY,
-            staffSpacing: staffSpacing,
-            referenceDegree: 4 * 7 + 6
-        ) {
-            drawWholeNote(
-                context: &context,
-                staffTopY: trebleTopY,
-                staffSpacing: staffSpacing,
-                positioned: positioned,
-                baseX: baseX,
-                isCorrect: correctPitchClasses.contains(positioned.note.pitchClass)
-            )
+        let activeStaves = [1, 2].filter { staff in
+            parsedNotes.contains { $0.staff == staff }
         }
+        let staffCount = max(activeStaves.count, 1)
+        let verticalUnits = staffCount == 1 ? CGFloat(4) : CGFloat(11)
+        let staffSpacing = min(CGFloat(18), max(CGFloat(10), (size.height - 18) / verticalUnits))
+        let staffGap = staffSpacing * 3
+        let groupHeight = staffCount == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
+        let firstTopY = max(CGFloat(8), (size.height - groupHeight) / 2)
+        let leftMargin = max(CGFloat(18), size.width * 0.06)
+        let rightMargin = max(CGFloat(18), size.width * 0.05)
+        let rightX = size.width - rightMargin
 
-        for positioned in layoutNotes(
-            notes: bass,
-            staffTopY: bassTopY,
-            staffSpacing: staffSpacing,
-            referenceDegree: 3 * 7 + 1
-        ) {
-            drawWholeNote(
+        for (index, staff) in activeStaves.enumerated() {
+            let topY = firstTopY + CGFloat(index) * (staffSpacing * 4 + staffGap)
+            let notes = parsedNotes
+                .filter { $0.staff == staff }
+                .sorted { first, second in
+                    if first.degree != second.degree { return first.degree < second.degree }
+                    if first.alter != second.alter { return first.alter < second.alter }
+                    return first.voicingIndex < second.voicingIndex
+                }
+            drawStaff(context: &context, top: topY, staffSpacing: staffSpacing, leftX: leftMargin, rightX: rightX)
+            drawClef(
                 context: &context,
-                staffTopY: bassTopY,
-                staffSpacing: staffSpacing,
-                positioned: positioned,
-                baseX: baseX,
-                isCorrect: correctPitchClasses.contains(positioned.note.pitchClass)
+                staff: staff,
+                x: leftMargin + staffSpacing * 1.7,
+                staffTopY: topY,
+                staffSpacing: staffSpacing
             )
+            drawKeySignature(
+                context: &context,
+                staff: staff,
+                staffTopY: topY,
+                staffSpacing: staffSpacing,
+                startX: leftMargin + staffSpacing * 4.8
+            )
+
+            let hasKeySignature = keyFifths != 0
+            let baseX = size.width * (hasKeySignature ? 0.68 : 0.63)
+            for positioned in layoutNotes(notes: notes, staffTopY: topY, staffSpacing: staffSpacing) {
+                drawWholeNote(
+                    context: &context,
+                    staffTopY: topY,
+                    staffSpacing: staffSpacing,
+                    positioned: positioned,
+                    baseX: baseX
+                )
+            }
         }
     }
 
@@ -162,30 +170,63 @@ struct ChordVoicingStaffView: View {
             var path = Path()
             path.move(to: CGPoint(x: leftX, y: y))
             path.addLine(to: CGPoint(x: rightX, y: y))
-            context.stroke(path, with: .color(Color(red: 0.06, green: 0.09, blue: 0.16)), lineWidth: 1.0)
+            context.stroke(path, with: .color(Self.notationColor), lineWidth: 1.3)
         }
     }
 
-    private func drawClef(context: inout GraphicsContext, sign: String, x: CGFloat, y: CGFloat, fontSize: CGFloat) {
+    private func drawClef(
+        context: inout GraphicsContext,
+        staff: Int,
+        x: CGFloat,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat
+    ) {
+        let sign = staff == 2 ? Self.bassSign : Self.trebleSign
+        let y = staff == 2
+            ? staffTopY + staffSpacing * 1.9
+            : staffTopY + staffSpacing * 2.35
+        let fontSize = staff == 2 ? staffSpacing * 3.0 : staffSpacing * 3.75
         let resolved = context.resolve(
             Text(sign)
                 .font(.system(size: fontSize, weight: .regular))
-                .foregroundColor(Color(red: 0.06, green: 0.09, blue: 0.16))
+                .foregroundColor(Self.notationColor)
         )
-        let textSize = resolved.measure(in: CGSize(width: 200, height: 200))
-        context.draw(resolved, at: CGPoint(x: x + textSize.width / 2, y: y), anchor: .center)
+        context.draw(resolved, at: CGPoint(x: x, y: y), anchor: .center)
+    }
+
+    private func drawKeySignature(
+        context: inout GraphicsContext,
+        staff: Int,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat,
+        startX: CGFloat
+    ) {
+        let marks = keySignatureMarks(staff: staff, keyFifths: keyFifths)
+        guard !marks.isEmpty else { return }
+        for (index, mark) in marks.enumerated() {
+            let resolved = context.resolve(
+                Text(mark.symbol)
+                    .font(.system(size: staffSpacing * 1.35, weight: .semibold))
+                    .foregroundColor(Self.notationColor)
+            )
+            context.draw(
+                resolved,
+                at: CGPoint(
+                    x: startX + CGFloat(index) * staffSpacing * 0.72,
+                    y: yForDegree(mark.degree, staff: staff, staffTopY: staffTopY, staffSpacing: staffSpacing)
+                ),
+                anchor: .center
+            )
+        }
     }
 
     private func layoutNotes(
         notes: [ParsedVoicingNote],
         staffTopY: CGFloat,
-        staffSpacing: CGFloat,
-        referenceDegree: Int
+        staffSpacing: CGFloat
     ) -> [PositionedVoicingNote] {
         guard !notes.isEmpty else { return [] }
 
-        let middleLineY = staffTopY + staffSpacing * 2
-        let halfStep = staffSpacing / 2
         let noteWidth = staffSpacing * 1.45
         let adjacentOffset = noteWidth * 0.5
         var offsets = Array(repeating: CGFloat.zero, count: notes.count)
@@ -197,8 +238,7 @@ struct ChordVoicingStaffView: View {
                 let clusterCount = index - clusterStart
                 if clusterCount > 1 {
                     for noteIndex in clusterStart..<index {
-                        let clusterOffset = noteIndex - clusterStart
-                        offsets[noteIndex] = clusterOffset.isMultiple(of: 2)
+                        offsets[noteIndex] = (noteIndex - clusterStart).isMultiple(of: 2)
                             ? -adjacentOffset
                             : adjacentOffset
                     }
@@ -209,7 +249,12 @@ struct ChordVoicingStaffView: View {
 
         var yCenters = Array(repeating: CGFloat.zero, count: notes.count)
         for index in notes.indices {
-            yCenters[index] = middleLineY - CGFloat(notes[index].degree - referenceDegree) * halfStep
+            yCenters[index] = yForDegree(
+                notes[index].degree,
+                staff: notes[index].staff,
+                staffTopY: staffTopY,
+                staffSpacing: staffSpacing
+            )
         }
 
         var accidentalColumns = Array(repeating: 0, count: notes.count)
@@ -248,29 +293,18 @@ struct ChordVoicingStaffView: View {
         staffTopY: CGFloat,
         staffSpacing: CGFloat,
         positioned: PositionedVoicingNote,
-        baseX: CGFloat,
-        isCorrect: Bool
+        baseX: CGFloat
     ) {
         let xCenter = baseX + positioned.xOffset
         let yCenter = positioned.yCenter
         let noteWidth = staffSpacing * 1.45
-        let noteHeight = staffSpacing * 0.85
+        let noteHeight = staffSpacing * 0.86
         let rect = CGRect(
             x: xCenter - noteWidth / 2,
             y: yCenter - noteHeight / 2,
             width: noteWidth,
             height: noteHeight
         )
-        var ovalPath = Path()
-        ovalPath.addEllipse(in: rect)
-        let fillColor: Color = isCorrect
-            ? Color(red: 0.13, green: 0.74, blue: 0.81)
-            : Color(red: 0.06, green: 0.09, blue: 0.16)
-        context.fill(ovalPath, with: .color(fillColor))
-        let innerRect = rect.insetBy(dx: noteWidth * 0.24, dy: noteHeight * 0.28)
-        var innerPath = Path()
-        innerPath.addEllipse(in: innerRect)
-        context.fill(innerPath, with: .color(.white))
 
         drawLedgerLines(
             context: &context,
@@ -283,22 +317,21 @@ struct ChordVoicingStaffView: View {
 
         if positioned.note.alter != 0 {
             let accidental = accidentalString(for: positioned.note.alter)
-            let textSize = staffSpacing * 1.05
             let accidentalX = min(
-                xCenter - noteWidth * 0.9,
-                baseX - noteWidth * 1.05 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.76
+                xCenter - noteWidth * 1.05,
+                baseX - noteWidth * 1.15 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.85
             )
             let resolved = context.resolve(
                 Text(accidental)
-                    .font(.system(size: textSize, weight: .semibold))
-                    .foregroundColor(fillColor)
+                    .font(.system(size: staffSpacing * 1.3, weight: .semibold))
+                    .foregroundColor(Self.notationColor)
             )
-            context.draw(
-                resolved,
-                at: CGPoint(x: accidentalX, y: yCenter),
-                anchor: .center
-            )
+            context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)
         }
+
+        var ovalPath = Path()
+        ovalPath.addEllipse(in: rect)
+        context.stroke(ovalPath, with: .color(Self.notationColor), lineWidth: max(CGFloat(2.2), staffSpacing * 0.18))
     }
 
     private func drawLedgerLines(
@@ -311,38 +344,112 @@ struct ChordVoicingStaffView: View {
     ) {
         let topLineY = staffTopY
         let bottomLineY = staffTopY + staffSpacing * 4
-        let lineColor = Color(red: 0.06, green: 0.09, blue: 0.16)
-        let lineWidth = noteWidth * 1.1
+        let lineWidth = noteWidth * 1.25
         let half: CGFloat = lineWidth / 2
 
         if yCenter < topLineY {
             var stepY = topLineY - staffSpacing
             while stepY >= yCenter - 0.1 {
-                var path = Path()
-                path.move(to: CGPoint(x: xCenter - half, y: stepY))
-                path.addLine(to: CGPoint(x: xCenter + half, y: stepY))
-                context.stroke(path, with: .color(lineColor), lineWidth: 1.0)
+                drawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY)
                 stepY -= staffSpacing
             }
         }
         if yCenter > bottomLineY {
             var stepY = bottomLineY + staffSpacing
             while stepY <= yCenter + 0.1 {
-                var path = Path()
-                path.move(to: CGPoint(x: xCenter - half, y: stepY))
-                path.addLine(to: CGPoint(x: xCenter + half, y: stepY))
-                context.stroke(path, with: .color(lineColor), lineWidth: 1.0)
+                drawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY)
                 stepY += staffSpacing
             }
         }
     }
 
+    private func drawLedgerLine(
+        context: inout GraphicsContext,
+        xCenter: CGFloat,
+        halfWidth: CGFloat,
+        y: CGFloat
+    ) {
+        var path = Path()
+        path.move(to: CGPoint(x: xCenter - halfWidth, y: y))
+        path.addLine(to: CGPoint(x: xCenter + halfWidth, y: y))
+        context.stroke(path, with: .color(Self.notationColor), lineWidth: 1.25)
+    }
+
+    private func yForDegree(
+        _ degree: Int,
+        staff: Int,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat
+    ) -> CGFloat {
+        let referenceDegree = staff == 2
+            ? Self.bassReferenceDegree
+            : Self.trebleReferenceDegree
+        let middleLineY = staffTopY + staffSpacing * 2
+        return middleLineY - CGFloat(degree - referenceDegree) * (staffSpacing / 2)
+    }
+
+    private func keySignatureMarks(staff: Int, keyFifths: Int) -> [KeySignatureMark] {
+        let fifths = max(-7, min(7, keyFifths))
+        guard fifths != 0 else { return [] }
+        let degreeMap = keySignatureDegreeMap(staff: staff)
+        let degrees = fifths > 0
+            ? Array(degreeMap.sharps.prefix(fifths))
+            : Array(degreeMap.flats.prefix(abs(fifths)))
+        let symbol = fifths > 0 ? "♯" : "♭"
+        return degrees.map { KeySignatureMark(symbol: symbol, degree: $0) }
+    }
+
+    private func keySignatureDegreeMap(staff: Int) -> (sharps: [Int], flats: [Int]) {
+        if staff == 2 {
+            return (
+                sharps: [
+                    3 * 7 + 3,
+                    3 * 7 + 0,
+                    3 * 7 + 4,
+                    3 * 7 + 1,
+                    2 * 7 + 5,
+                    3 * 7 + 2,
+                    2 * 7 + 6
+                ],
+                flats: [
+                    2 * 7 + 6,
+                    3 * 7 + 2,
+                    2 * 7 + 5,
+                    3 * 7 + 1,
+                    2 * 7 + 4,
+                    3 * 7 + 0,
+                    2 * 7 + 3
+                ]
+            )
+        }
+        return (
+            sharps: [
+                5 * 7 + 3,
+                5 * 7 + 0,
+                5 * 7 + 4,
+                5 * 7 + 1,
+                4 * 7 + 5,
+                5 * 7 + 2,
+                4 * 7 + 6
+            ],
+            flats: [
+                4 * 7 + 6,
+                5 * 7 + 2,
+                4 * 7 + 5,
+                5 * 7 + 1,
+                4 * 7 + 4,
+                5 * 7 + 0,
+                4 * 7 + 3
+            ]
+        )
+    }
+
     private func accidentalString(for alter: Int) -> String {
         switch alter {
-        case 2: return "♯♯"
+        case 2: return "𝄪"
         case 1: return "♯"
         case -1: return "♭"
-        case -2: return "♭♭"
+        case -2: return "𝄫"
         default: return ""
         }
     }

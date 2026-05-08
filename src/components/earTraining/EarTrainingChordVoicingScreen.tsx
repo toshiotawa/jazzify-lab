@@ -41,7 +41,6 @@ import {
   acknowledgeChordAward,
   advanceChordVoicingTick,
   createChordVoicingAttempt,
-  getVoicingPitchClasses,
   handleChordVoicingNoteOn,
   isAllChordsCompleted,
 } from '@/utils/earTrainingChordVoicingEngine';
@@ -1057,13 +1056,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const currentChordSlotIndex = chordCompletedIndex >= 0
     ? chordCompletedIndex
     : Math.max(0, totalChordCount - 1);
-  const currentChordPressedPcs = useMemo(() => {
-    if (!attempt || !activeChord) {
-      return [] as number[];
-    }
-    const set = attempt.pressedByChord.get(activeChord.id);
-    return set ? Array.from(set) : [];
-  }, [activeChord, attempt]);
 
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyAvatar = useMemo(() => {
@@ -1095,16 +1087,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const resultRankLine = gameState === 'stageClear' && lastRank
     ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
     : null;
-
-  const correctPitchClasses = useMemo(() => {
-    if (!activeChord) {
-      return [] as number[];
-    }
-    return Array.from(new Set([
-      ...currentChordPressedPcs,
-      ...(attempt?.completedChordIds.has(activeChord.id) ? getVoicingPitchClasses(activeChord) : []),
-    ]));
-  }, [activeChord, attempt, currentChordPressedPcs]);
 
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
@@ -1207,7 +1189,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
   const staffVoicing = activeChord?.voicing ?? [];
   const staffStaves = activeChord?.voicing_staves ?? [];
-  const staffChordKey = activeChord ? `${activeChord.id}:${activeChord.chord_name}` : 'empty';
 
   return (
     <div className={cn(
@@ -1225,13 +1206,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         className="h-full w-full"
       />
 
-      {staffVoicing.length > 0 && (
-        <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 w-[min(620px,82vw)] -translate-x-1/2 -translate-y-1/2">
+      {activeChord && staffVoicing.length > 0 && (
+        <div className="pointer-events-none absolute left-1/2 top-[42%] z-10 w-[min(360px,58vw)] -translate-x-1/2 -translate-y-1/2">
           <ChordVoicingStaff
             voicing={staffVoicing}
             voicingStaves={staffStaves}
-            correctPitchClasses={correctPitchClasses}
-            chordKey={staffChordKey}
+            chordName={activeChord.chord_name}
           />
         </div>
       )}
