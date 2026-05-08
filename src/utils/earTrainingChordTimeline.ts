@@ -52,19 +52,10 @@ const sortChordsByTime = <T extends EarTrainingPhraseChord>(chords: T[]): T[] =>
 
 type TimedEarTrainingPhraseChord = EarTrainingPhraseChord & { start_time_sec: number };
 
-interface EarTrainingChordDisplayWindow {
-  chord: TimedEarTrainingPhraseChord;
-  startSec: number;
-  endSec: number;
-}
-
 const DISPLAY_BOUNDARY_EPSILON_SEC = 0.001;
-
-const getChordDisplayWindows = (
+const getTimedChords = (
   phrase: EarTrainingPhrase | undefined,
-  bpm: number,
-  completedChordIds: ReadonlySet<string>,
-): EarTrainingChordDisplayWindow[] => {
+): TimedEarTrainingPhraseChord[] => {
   const chords = phrase?.chords ?? [];
   if (chords.length === 0) {
     return [];
@@ -78,60 +69,51 @@ const getChordDisplayWindows = (
     return [];
   }
 
-  const sorted = sortChordsByTime(timed);
-  const half = getEarTrainingHalfBeatSec(bpm);
-  const windows: EarTrainingChordDisplayWindow[] = new Array(sorted.length);
+  return sortChordsByTime(timed);
+};
 
-  for (let j = 0; j < sorted.length; j += 1) {
-    const chord = sorted[j];
-    const nextStart = j + 1 < sorted.length
-      ? sorted[j + 1].start_time_sec
-      : Number.POSITIVE_INFINITY;
-    const nominalEnd = chord.end_time_sec ?? nextStart;
-    const previousComplete = j > 0 && completedChordIds.has(sorted[j - 1].id);
-    const currentComplete = completedChordIds.has(chord.id);
-
-    windows[j] = {
-      chord,
-      startSec: chord.start_time_sec - (previousComplete ? half : 0),
-      endSec: currentComplete && j + 1 < sorted.length
-        ? nextStart - half
-        : Number.isFinite(nominalEnd) ? nominalEnd : Number.POSITIVE_INFINITY,
-    };
+const getChordEndSec = (
+  chord: TimedEarTrainingPhraseChord,
+  sortedChords: readonly TimedEarTrainingPhraseChord[],
+  index: number,
+): number => {
+  const explicitEnd = chord.end_time_sec;
+  if (
+    explicitEnd !== null
+    && explicitEnd !== undefined
+    && Number.isFinite(explicitEnd)
+    && explicitEnd > chord.start_time_sec
+  ) {
+    return explicitEnd;
   }
-
-  return windows;
+  return sortedChords[index + 1]?.start_time_sec ?? Number.POSITIVE_INFINITY;
 };
 
 /**
- * 直前のヴォイシングが完成済みのとき、次ヴォイシングの表示・判定開始を半拍早める。
- * 未完成のヴォイシングがある場合は、その後ろの未来のヴォイシングを判定対象にしない。
+ * オーディオループ内時刻における現在コード。
+ * コードの完成状態では止めず、MusicXML由来のタイムラインに沿って移動する。
  */
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,
-  bpm: number,
-  completedChordIds: ReadonlySet<string>,
+  _bpm: number,
+  _completedChordIds: ReadonlySet<string>,
 ): EarTrainingPhraseChord | null => {
   const chords = phrase?.chords ?? [];
   if (chords.length === 0) {
     return null;
   }
 
-  const timed = chords.filter(
-    (c): c is TimedEarTrainingPhraseChord =>
-      c.start_time_sec !== null && c.start_time_sec !== undefined,
-  );
+  const timed = getTimedChords(phrase);
   if (timed.length === 0) {
     return chords[0] ?? null;
   }
 
-  const windows = getChordDisplayWindows(phrase, bpm, completedChordIds);
-
-  for (let j = 0; j < windows.length; j += 1) {
-    const window = windows[j];
-    if (!completedChordIds.has(window.chord.id) && window.startSec <= loopTimeSec) {
-      return window.chord;
+  for (let index = 0; index < timed.length; index += 1) {
+    const chord = timed[index];
+    const endSec = getChordEndSec(chord, timed, index);
+    if (loopTimeSec >= chord.start_time_sec && loopTimeSec < endSec) {
+      return chord;
     }
   }
   return null;
@@ -140,25 +122,25 @@ export const getEarTrainingChordDisplayAtTime = (
 export const getEarTrainingNextChordDisplayBoundarySec = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,
-  bpm: number,
-  completedChordIds: ReadonlySet<string>,
+  _bpm: number,
+  _completedChordIds: ReadonlySet<string>,
 ): number | null => {
-  const windows = getChordDisplayWindows(phrase, bpm, completedChordIds);
-  if (windows.length === 0) {
+  const timed = getTimedChords(phrase);
+  if (timed.length === 0) {
     return null;
   }
 
   let nextBoundary = Number.POSITIVE_INFINITY;
   const threshold = loopTimeSec + DISPLAY_BOUNDARY_EPSILON_SEC;
 
-  for (let index = 0; index < windows.length; index += 1) {
-    const window = windows[index];
-    if (
-      !completedChordIds.has(window.chord.id)
-      && window.startSec > threshold
-      && window.startSec < nextBoundary
-    ) {
-      nextBoundary = window.startSec;
+  for (let index = 0; index < timed.length; index += 1) {
+    const chord = timed[index];
+    const endSec = getChordEndSec(chord, timed, index);
+    if (chord.start_time_sec > threshold && chord.start_time_sec < nextBoundary) {
+      nextBoundary = chord.start_time_sec;
+    }
+    if (Number.isFinite(endSec) && endSec > threshold && endSec < nextBoundary) {
+      nextBoundary = endSec;
     }
   }
 
