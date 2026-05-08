@@ -1,0 +1,8 @@
+/* Bravura — Steinberg Media Technologies GmbH, SIL Open Font License 1.1 (see smufl.org/fonts) */
+@font-face {
+  font-family: 'Bravura';
+  src: url('/fonts/Bravura.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}

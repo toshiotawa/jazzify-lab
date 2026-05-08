@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
+import './bravuraClefFont.css';
 
 interface ChordVoicingStaffProps {
   voicing: readonly string[];
@@ -44,10 +45,13 @@ const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 336;
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
-const STAFF_TOP_Y = SP * 4.5;
+/** コード名ラベルとト譜表の間に余白を取る（譜面の可読性） */
+const STAFF_TOP_Y = SP * 5.75;
 const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 7;
 const CLEF_FONT_SIZE = SP * 4;
-const CLEF_FONT_FAMILY = "Noto Music, Bravura, 'Apple Symbols', Georgia, 'Times New Roman', serif";
+/** SMuFL: gClef / fClef（https://www.w3.org/2021/03/smufl14/tables/clefs.html） */
+const SMUFL_G_CLEF = '\uE050';
+const SMUFL_F_CLEF = '\uE062';
 const TREBLE_REFERENCE_DEGREE = 4 * 7 + 6;
 const BASS_REFERENCE_DEGREE = 3 * 7 + 1;
 const STEP_ORDER: Record<string, number> = {
@@ -61,11 +65,6 @@ const STEP_ORDER: Record<string, number> = {
 };
 const EMPTY_STAVES: readonly number[] = [];
 const EMPTY_PITCH_CLASSES: readonly number[] = [];
-
-const CLEF_BY_STAFF: Record<StaffNumber, string> = {
-  1: '𝄞',
-  2: '𝄢',
-};
 
 const REFERENCE_DEGREE_BY_STAFF: Record<StaffNumber, number> = {
   1: TREBLE_REFERENCE_DEGREE,
@@ -259,6 +258,46 @@ const layoutNotes = (
 
 const staffTopForIndex = (index: number): number => STAFF_TOP_Y + index * STAFF_TOP_STEP;
 
+const CLEF_LEFT_X = STAFF_LINE_LEFT_X + SP * 0.8;
+
+const StaffClefGlyph: React.FC<{
+  staff: StaffNumber;
+  staffTopY: number;
+  showAnchorDebug: boolean;
+}> = ({ staff, staffTopY, showAnchorDebug }) => {
+  const anchorLineY = staff === 1 ? staffTopY + 3 * SP : staffTopY + SP;
+  const glyph = staff === 1 ? SMUFL_G_CLEF : SMUFL_F_CLEF;
+
+  return (
+    <g data-staff-clef={staff}>
+      {showAnchorDebug ? (
+        <g aria-hidden>
+          <line
+            x1={STAFF_LINE_LEFT_X}
+            x2={STAFF_LINE_RIGHT_X}
+            y1={anchorLineY}
+            y2={anchorLineY}
+            stroke="#ef4444"
+            strokeWidth={1}
+          />
+          <circle cx={CLEF_LEFT_X} cy={anchorLineY} fill="#ef4444" r={4} />
+        </g>
+      ) : null}
+      <text
+        dominantBaseline="alphabetic"
+        fill={NOTATION_COLOR}
+        fontFamily="Bravura, serif"
+        fontSize={CLEF_FONT_SIZE}
+        textAnchor="start"
+        x={CLEF_LEFT_X}
+        y={anchorLineY}
+      >
+        {glyph}
+      </text>
+    </g>
+  );
+};
+
 const StaffLines: React.FC<{ staff: StaffNumber; topY: number }> = ({ staff, topY }) => (
   <g>
     {Array.from({ length: 5 }, (_, line) => {
@@ -387,25 +426,16 @@ const RenderedStaff: React.FC<{
 }> = ({ staff, notes, staffTopY, keyFifths, correctPitchClassSet }) => {
   const marks = keySignatureMarks(staff, keyFifths);
   const noteBaseX = marks.length > 0 ? 246 : 228;
-  const clefY = staff === 1
-    ? staffTopY + SP * 3
-    : staffTopY + SP;
   const positionedNotes = layoutNotes(notes, staffTopY);
 
   return (
     <g>
       <StaffLines staff={staff} topY={staffTopY} />
-      <text
-        x={52}
-        y={clefY}
-        dominantBaseline="central"
-        fill={NOTATION_COLOR}
-        fontFamily={CLEF_FONT_FAMILY}
-        fontSize={CLEF_FONT_SIZE}
-        textAnchor="middle"
-      >
-        {CLEF_BY_STAFF[staff]}
-      </text>
+      <StaffClefGlyph
+        showAnchorDebug={import.meta.env.DEV}
+        staff={staff}
+        staffTopY={staffTopY}
+      />
       {marks.map((mark, index) => (
         <text
           key={`${mark.symbol}-${index}`}
@@ -463,6 +493,28 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     [normalizedCorrectPitchClasses],
   );
 
+  const [clefFontsLoaded, setClefFontsLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const loadClefFont = async () => {
+      const sizePx = SP * 4;
+      try {
+        await document.fonts.load(`${sizePx}px Bravura`, SMUFL_G_CLEF);
+        await document.fonts.load(`${sizePx}px Bravura`, SMUFL_F_CLEF);
+        await document.fonts.ready;
+      } catch {
+        // Font Loading API 非対応時はブラウザのフォールバック描画に任せる
+      }
+      if (!cancelled) {
+        setClefFontsLoaded(true);
+      }
+    };
+    void loadClefFont();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const activeStaves = ([1, 2] as const).filter(staff => (
     renderState.notes.some(note => note.staff === staff)
   ));
@@ -478,6 +530,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         </div>
       ) : (
         <svg
+          aria-busy={!clefFontsLoaded}
           aria-label={`${chordName} chord voicing`}
           className="h-auto w-full overflow-visible drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]"
           role="img"
@@ -485,7 +538,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         >
           <text
             x={STAFF_WIDTH / 2}
-            y={SP * 1.5}
+            y={SP * 2.25}
             dominantBaseline="central"
             fill={NOTATION_COLOR}
             fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"

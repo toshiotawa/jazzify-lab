@@ -790,7 +790,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     this.lastPhraseIntroKey = introKey;
     this.phraseIntroText?.destroy();
-    const y = Math.max(HUD_HEIGHT + 42, getFloorY(height) - 220);
+    // 中央のコード譜オーバーレイ（画面高の約42%付近）と重ならないよう、HUD直下〜画面上部寄りに固定
+    const y = Math.max(HUD_HEIGHT + 20, Math.round(height * 0.3));
     const text = this.add.text(width / 2, y, snapshot.phraseIntroLine, {
       color: '#fef3c7',
       fontFamily: 'Arial, sans-serif',
