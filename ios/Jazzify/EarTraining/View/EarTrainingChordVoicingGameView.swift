@@ -144,6 +144,8 @@ private struct EarTrainingChordVoicingContent: View {
     let locale: AppLocale
     let onClose: () -> Void
 
+    private static let pianoOverlayHeight: CGFloat = 104
+
     @State private var hudHorizontalPadding: CGFloat = 16
 
     var body: some View {
@@ -184,6 +186,7 @@ private struct EarTrainingChordVoicingContent: View {
                 EarTrainingHUDView(
                     hud: controller.hudModel,
                     horizontalPadding: hudHorizontalPadding,
+                    showsSlotsRow: false,
                     onSettings: { controller.handleOpenSettings() },
                     onBack: { controller.handleBack() }
                 )
@@ -191,6 +194,7 @@ private struct EarTrainingChordVoicingContent: View {
             }
 
             staffOverlay(size: size)
+            chordVoicingSlotsOverlay(size: size)
 
             VStack(spacing: 0) {
                 Spacer()
@@ -239,10 +243,34 @@ private struct EarTrainingChordVoicingContent: View {
                     activeGroupId: controller.activeChord?.id,
                     correctPitchClassesByGroupId: correctMap
                 )
-                .frame(width: min(size.width * 0.82, 720), height: size.height * 0.34)
+                .frame(width: min(size.width * 0.56, 520), height: size.height * 0.34)
                 .position(x: size.width / 2, y: size.height * 0.42)
                 .allowsHitTesting(false)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func chordVoicingSlotsOverlay(size: CGSize) -> some View {
+        let hud = controller.hudModel
+        if case let .chordVoicing(slotCount, completed, currentIndex) = hud.slotRow,
+           !controller.showLobbyControls {
+            let slotSize = ChordVoicingBottomSlotsView.slotSize(
+                slotCount: slotCount,
+                availableWidth: min(size.width * 0.52, 260)
+            )
+            ChordVoicingBottomSlotsView(
+                slotCount: slotCount,
+                completed: completed,
+                currentIndex: currentIndex,
+                isPlaying: hud.gameState == .playingPhrase
+            )
+            .frame(width: min(size.width * 0.52, 260), height: slotSize + 6)
+            .position(
+                x: size.width / 2,
+                y: size.height - Self.pianoOverlayHeight - slotSize / 2 - 16
+            )
+            .allowsHitTesting(false)
         }
     }
 
@@ -253,6 +281,61 @@ private struct EarTrainingChordVoicingContent: View {
         }
         let s = window.safeAreaInsets
         return max(16, s.left, s.right, s.top)
+    }
+}
+
+private struct ChordVoicingBottomSlotsView: View {
+    let slotCount: Int
+    let completed: [Bool]
+    let currentIndex: Int
+    let isPlaying: Bool
+
+    private static let gap: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { proxy in
+            let count = max(1, slotCount)
+            let slotSize = Self.slotSize(slotCount: count, availableWidth: proxy.size.width)
+            HStack(spacing: Self.gap) {
+                ForEach(0..<count, id: \.self) { index in
+                    let done = index < completed.count ? completed[index] : false
+                    let active = isPlaying && index == currentIndex
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(active ? Color(hex: "22d3ee").opacity(0.16) : Color.black.opacity(0.36))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                    .stroke(active ? Color(hex: "a5f3fc").opacity(0.7) : Color.white.opacity(0.12), lineWidth: active ? 1.5 : 1)
+                            )
+                        Circle()
+                            .fill(done ? Color(hex: "10b981").opacity(0.95) : Color.clear)
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        done ? Color(hex: "bbf7d0") : (active ? Color(hex: "a5f3fc") : Color.white.opacity(0.42)),
+                                        lineWidth: done ? 2.5 : 2
+                                    )
+                            )
+                            .frame(width: slotSize * 0.68, height: slotSize * 0.68)
+                        if done {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: slotSize * 0.34, weight: .bold))
+                                .foregroundStyle(Color(hex: "bbf7d0"))
+                        }
+                    }
+                    .frame(width: slotSize, height: slotSize)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+        .id("\(slotCount)-\(currentIndex)-\(completed)")
+    }
+
+    static func slotSize(slotCount: Int, availableWidth: CGFloat) -> CGFloat {
+        let count = max(1, slotCount)
+        let gaps = CGFloat(max(0, count - 1)) * gap
+        let raw = (max(44, availableWidth) - gaps) / CGFloat(count)
+        return min(30, max(22, raw))
     }
 }
 

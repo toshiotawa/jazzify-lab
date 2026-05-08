@@ -250,9 +250,9 @@ struct ChordVoicingStaffView: View {
     ) {
         let sign = staff == 2 ? Self.bassSign : Self.trebleSign
         let y = staff == 2
-            ? staffTopY + staffSpacing * 1.9
-            : staffTopY + staffSpacing * 2.35
-        let fontSize = staff == 2 ? staffSpacing * 3.0 : staffSpacing * 3.75
+            ? staffTopY + staffSpacing * 1.82
+            : staffTopY + staffSpacing * 2.18
+        let fontSize = staff == 2 ? staffSpacing * 2.55 : staffSpacing * 3.05
         let resolved = context.resolve(
             Text(sign)
                 .font(.system(size: fontSize, weight: .regular))
@@ -273,7 +273,7 @@ struct ChordVoicingStaffView: View {
         for (index, mark) in marks.enumerated() {
             let resolved = context.resolve(
                 Text(mark.symbol)
-                    .font(.system(size: staffSpacing * 1.35, weight: .semibold))
+                    .font(.system(size: staffSpacing * 1.85, weight: .semibold))
                     .foregroundColor(Self.notationColor)
             )
             context.draw(
@@ -385,12 +385,12 @@ struct ChordVoicingStaffView: View {
         if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
             let accidental = accidentalString(for: displayAccidentalAlter)
             let accidentalX = min(
-                xCenter - noteWidth * 1.05,
-                baseX - noteWidth * 1.15 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.85
+                xCenter - noteWidth * 0.95,
+                baseX - noteWidth * 1.05 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.75
             )
             let resolved = context.resolve(
                 Text(accidental)
-                    .font(.system(size: staffSpacing * 1.3, weight: .semibold))
+                    .font(.system(size: staffSpacing * 1.8, weight: .semibold))
                     .foregroundColor(Self.notationColor)
             )
             context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)
@@ -767,9 +767,9 @@ struct ChordVoicingStaffGroupsView: View {
     ) {
         let sign = staff == 2 ? "𝄢" : "𝄞"
         let y = staff == 2
-            ? staffTopY + staffSpacing * 1.9
-            : staffTopY + staffSpacing * 2.35
-        let fontSize = staff == 2 ? staffSpacing * 3.0 : staffSpacing * 3.75
+            ? staffTopY + staffSpacing * 1.82
+            : staffTopY + staffSpacing * 2.18
+        let fontSize = staff == 2 ? staffSpacing * 2.55 : staffSpacing * 3.05
         let resolved = context.resolve(
             Text(sign)
                 .font(.system(size: fontSize, weight: .regular))
@@ -791,7 +791,7 @@ struct ChordVoicingStaffGroupsView: View {
         for (index, mark) in marks.enumerated() {
             let resolved = context.resolve(
                 Text(mark.symbol)
-                    .font(.system(size: staffSpacing * 1.35, weight: .semibold))
+                    .font(.system(size: staffSpacing * 1.85, weight: .semibold))
                     .foregroundColor(notationColor)
             )
             context.draw(
@@ -927,12 +927,12 @@ struct ChordVoicingStaffGroupsView: View {
         if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
             let accidental = groupsAccidentalString(for: displayAccidentalAlter)
             let accidentalX = min(
-                xCenter - noteWidth * 1.05,
-                baseX - noteWidth * 1.15 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.85
+                xCenter - noteWidth * 0.95,
+                baseX - noteWidth * 1.05 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.75
             )
             let resolved = context.resolve(
                 Text(accidental)
-                    .font(.system(size: staffSpacing * 1.3, weight: .semibold))
+                    .font(.system(size: staffSpacing * 1.8, weight: .semibold))
                     .foregroundColor(color)
             )
             context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)

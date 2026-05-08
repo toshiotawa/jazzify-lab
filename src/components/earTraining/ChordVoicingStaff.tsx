@@ -595,8 +595,8 @@ const WholeNote: React.FC<{
     : accidentalGlyph(positioned.note.displayAccidentalAlter);
   const notationColor = isCorrect ? CORRECT_NOTATION_COLOR : NOTATION_COLOR;
   const accidentalX = Math.min(
-    xCenter - noteWidth * 1.45,
-    baseX - noteWidth * 1.55 - positioned.accidentalColumn * SP * 1.05,
+    xCenter - noteWidth * 1.15,
+    baseX - noteWidth * 1.25 - positioned.accidentalColumn * SP * 0.95,
   );
 
   return (

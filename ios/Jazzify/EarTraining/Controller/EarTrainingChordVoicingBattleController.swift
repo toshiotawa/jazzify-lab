@@ -631,13 +631,16 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         else { return }
 
         lastLoopAttackApplied = completedLoop
+        let phraseRunAtAttack = phraseRunId
+        let missDamage = damageConfig.miss
         let denom = max(1, Self.attackGaugeTargetLoops)
         enemyAttackGaugePercent = max(0, min(1, Double(completedLoop) / Double(denom)))
         triggerFeedback(.miss)
-        let attackEffectId = triggerBattleEffect(kind: .miss, label: "ATTACK", damage: damageConfig.miss, phraseNoteCount: nil)
+        let attackEffectId = triggerBattleEffect(kind: .miss, label: "ATTACK", damage: missDamage, phraseNoteCount: nil)
         registerBattleEffectImpact(effectId: attackEffectId) { [weak self] in
             guard let self else { return }
-            let nextPlayerHp = max(0, self.playerHp - self.damageConfig.miss)
+            guard self.phraseRunId == phraseRunAtAttack, self.gameState == .playingPhrase else { return }
+            let nextPlayerHp = max(0, self.playerHp - missDamage)
             self.playerHp = nextPlayerHp
             let outcome = EarTrainingEngine.resolveOutcome(
                 enemyHp: self.enemyHp,
@@ -662,6 +665,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         gameState = .phraseFail
         lastRank = .fail
         enemyAttackGaugePercent = 1
+        pendingImpactHandlers.removeAll()
         triggerFeedback(.miss)
         let failDamage = damageConfig.fail
         let effectId = triggerBattleEffect(kind: .fail, label: "Fail", damage: failDamage, phraseNoteCount: nil)

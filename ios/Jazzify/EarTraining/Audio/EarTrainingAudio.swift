@@ -100,6 +100,7 @@ final class EarTrainingAudio: NSObject {
     /// フレーズ MP3 を頭から再生する。
     func playPhrase(url: URL) {
         prepareItem(url: url)
+        currentTimeSec = 0
         player.volume = phraseVolume
         player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
         player.play()
@@ -116,6 +117,7 @@ final class EarTrainingAudio: NSObject {
 
     private func prepareItem(url: URL) {
         removeObservers()
+        currentTimeSec = 0
         let item: AVPlayerItem
         if let preloadedAsset, preloadedAssetURL == url {
             item = AVPlayerItem(asset: preloadedAsset)

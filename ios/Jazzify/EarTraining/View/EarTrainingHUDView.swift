@@ -6,6 +6,7 @@ import SwiftUI
 struct EarTrainingHUDView: View {
     let hud: EarTrainingHudModel
     var horizontalPadding: CGFloat = 8
+    var showsSlotsRow: Bool = true
     let onSettings: () -> Void
     let onBack: () -> Void
 
@@ -18,7 +19,9 @@ struct EarTrainingHUDView: View {
                 healthTimeRow
                 attackGauge
                 chordChips
-                slotsRow
+                if showsSlotsRow {
+                    slotsRow
+                }
             }
             .padding(.horizontal, horizontalPadding)
             .padding(.top, 4)
