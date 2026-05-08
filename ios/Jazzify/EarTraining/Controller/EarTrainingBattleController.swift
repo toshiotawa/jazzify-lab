@@ -925,13 +925,11 @@ struct EarTrainingGameCopy {
     private let _correct: (String?) -> String
     private let _phraseLabel: (Int) -> String
     private let _chordCompleted: (String) -> String
-    private let _chordWindowFail: (String) -> String
 
     func transitionNextBar(rank: String) -> String { _transitionNextBar(rank) }
     func correct(revealedNote: String?) -> String { _correct(revealedNote) }
     func phraseLabel(indexOneBased: Int) -> String { _phraseLabel(indexOneBased) }
     func chordCompleted(chordName: String) -> String { _chordCompleted(chordName) }
-    func chordWindowFail(chordName: String) -> String { _chordWindowFail(chordName) }
 
     static func make(isEnglish: Bool) -> EarTrainingGameCopy {
         if isEnglish {
@@ -951,8 +949,7 @@ struct EarTrainingGameCopy {
                 _transitionNextBar: { rank in "\(rank) — next phrase at the next bar line" },
                 _correct: { note in note.map { "Correct: \($0)" } ?? "Correct" },
                 _phraseLabel: { index in "Phrase \(index)" },
-                _chordCompleted: { name in "Chord completed: \(name)" },
-                _chordWindowFail: { name in "Window missed: \(name)" }
+                _chordCompleted: { name in "Chord completed: \(name)" }
             )
         }
         return EarTrainingGameCopy(
@@ -971,8 +968,7 @@ struct EarTrainingGameCopy {
             _transitionNextBar: { rank in "\(rank): 次の小節頭で次へ" },
             _correct: { note in note.map { "正解: \($0)" } ?? "正解" },
             _phraseLabel: { index in "フレーズ \(index)" },
-            _chordCompleted: { name in "コード完成: \(name)" },
-            _chordWindowFail: { name in "ウィンドウ未完成: \(name)" }
+            _chordCompleted: { name in "コード完成: \(name)" }
         )
     }
 }

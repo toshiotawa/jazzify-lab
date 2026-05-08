@@ -13,6 +13,9 @@ struct EarTrainingChordVoicingAttempt: Sendable, Equatable {
 /// Web `earTrainingChordVoicingEngine.ts` を 1:1 で移植する。
 enum EarTrainingChordVoicingEngine {
     static let maxMissesPerChord = 5
+    private static let displayBoundaryEpsilonSec = 0.001
+    private static let harmonyGroupEpsilonSec = 0.001
+    private static let harmonyTimeWindowEpsilonSec = 0.0005
 
     static func midiToPitchClass(_ midiNote: Int) -> Int {
         ((midiNote % 12) + 12) % 12
@@ -57,6 +60,10 @@ enum EarTrainingChordVoicingEngine {
         return ordered
     }
 
+    static func chordHasVoicingNotes(_ chord: EarTrainingPhraseChordDetail) -> Bool {
+        (chord.voicing?.count ?? 0) > 0
+    }
+
     static func rootNoteName(for chord: EarTrainingPhraseChordDetail) -> String? {
         let trimmed = chord.chordName.trimmingCharacters(in: .whitespaces)
         guard let first = trimmed.first else { return nil }
@@ -76,11 +83,15 @@ enum EarTrainingChordVoicingEngine {
     }
 
     static func createAttempt(for phrase: EarTrainingPhraseDetail) -> EarTrainingChordVoicingAttempt {
-        EarTrainingChordVoicingAttempt(
+        var completedChordIds = Set<UUID>()
+        for chord in phrase.chords ?? [] where !chordHasVoicingNotes(chord) {
+            completedChordIds.insert(chord.id)
+        }
+        return EarTrainingChordVoicingAttempt(
             phraseId: phrase.id,
             pressedByChord: [:],
             missByChord: [:],
-            completedChordIds: [],
+            completedChordIds: completedChordIds,
             awardedChordIds: [],
             failedChordIds: []
         )
@@ -126,6 +137,17 @@ enum EarTrainingChordVoicingEngine {
             )
         }
         let targetPcs = voicingPitchClasses(for: chord)
+        if targetPcs.isEmpty {
+            return InputResult(
+                attempt: attempt,
+                hitPitchClass: nil,
+                chordJustCompleted: false,
+                rootNoteName: nil,
+                enemyDamage: 0,
+                playerDamage: 0,
+                evaluationMissAdded: false
+            )
+        }
         let inputPc = midiToPitchClass(midiNote)
         var pressed = attempt.pressedByChord[chordId] ?? Set<Int>()
         let isTargetTone = targetPcs.contains(inputPc)
@@ -175,36 +197,15 @@ enum EarTrainingChordVoicingEngine {
         )
     }
 
-    struct TickResult {
-        var attempt: EarTrainingChordVoicingAttempt
-        var failAdded: Bool
-        var playerDamage: Int
-    }
-
-    static func advanceTick(
-        attempt: EarTrainingChordVoicingAttempt,
-        previousChord: EarTrainingPhraseChordDetail?,
-        damage: EarTrainingDamageConfig
-    ) -> TickResult {
-        guard let chord = previousChord else {
-            return TickResult(attempt: attempt, failAdded: false, playerDamage: 0)
-        }
-        let chordId = chord.id
-        if attempt.completedChordIds.contains(chordId) || attempt.failedChordIds.contains(chordId) {
-            return TickResult(attempt: attempt, failAdded: false, playerDamage: 0)
-        }
-        var next = attempt
-        next.failedChordIds.insert(chordId)
-        return TickResult(attempt: next, failAdded: true, playerDamage: damage.fail)
-    }
-
     static func isAllChordsCompleted(
         phrase: EarTrainingPhraseDetail,
         attempt: EarTrainingChordVoicingAttempt
     ) -> Bool {
         let chords = phrase.chords ?? []
         guard !chords.isEmpty else { return false }
-        return chords.allSatisfy { attempt.completedChordIds.contains($0.id) }
+        return chords.allSatisfy { chord in
+            !chordHasVoicingNotes(chord) || attempt.completedChordIds.contains(chord.id)
+        }
     }
 
     static func acknowledgeChordAward(
@@ -230,7 +231,11 @@ enum EarTrainingChordVoicingEngine {
         let voicingIds: [UUID]
     }
 
-    private static let harmonyGroupEpsilonSec = 0.001
+    private struct HarmonyTimelineGroup {
+        let chords: [EarTrainingPhraseChordDetail]
+        let segmentStart: Double
+        let segmentEnd: Double
+    }
 
     private static func isSameHarmonyGroup(
         _ chord: EarTrainingPhraseChordDetail,
@@ -242,37 +247,8 @@ enum EarTrainingChordVoicingEngine {
         return abs(end - nextEnd) <= harmonyGroupEpsilonSec
     }
 
-    private static func buildHarmonyChordRuns(from timed: [EarTrainingPhraseChordDetail]) -> [[EarTrainingPhraseChordDetail]] {
-        guard !timed.isEmpty else { return [] }
-        var runs: [[EarTrainingPhraseChordDetail]] = []
-        var run: [EarTrainingPhraseChordDetail] = [timed[0]]
-        for index in 1..<timed.count {
-            let prev = timed[index - 1]
-            let curr = timed[index]
-            if isSameHarmonyGroup(prev, curr) {
-                run.append(curr)
-            } else {
-                runs.append(run)
-                run = [curr]
-            }
-        }
-        runs.append(run)
-        return runs
-    }
-
-    private static func harmonyHudRow(from group: [EarTrainingPhraseChordDetail]) -> HarmonyHudRow? {
-        guard let first = group.first,
-              let endSec = first.endTimeSec, endSec.isFinite else { return nil }
-        return HarmonyHudRow(
-            representativeId: first.id,
-            chordName: first.chordName,
-            voicingIds: group.map { $0.id }
-        )
-    }
-
-    static func harmonyHudRows(for phrase: EarTrainingPhraseDetail) -> [HarmonyHudRow] {
-        guard let chords = phrase.chords, !chords.isEmpty else { return [] }
-        let timed = chords
+    private static func timedChords(for phrase: EarTrainingPhraseDetail) -> [EarTrainingPhraseChordDetail] {
+        (phrase.chords ?? [])
             .filter { $0.startTimeSec != nil }
             .sorted {
                 let leftStart = $0.startTimeSec ?? 0
@@ -282,8 +258,51 @@ enum EarTrainingChordVoicingEngine {
                 }
                 return $0.orderIndex < $1.orderIndex
             }
+    }
+
+    private static func buildHarmonyTimelineGroups(
+        from timed: [EarTrainingPhraseChordDetail]
+    ) -> [HarmonyTimelineGroup] {
         guard !timed.isEmpty else { return [] }
-        return buildHarmonyChordRuns(from: timed).compactMap { harmonyHudRow(from: $0) }
+        var groups: [HarmonyTimelineGroup] = []
+        var run: [EarTrainingPhraseChordDetail] = [timed[0]]
+        func flush(_ chords: [EarTrainingPhraseChordDetail]) {
+            guard !chords.isEmpty,
+                  let end = chords[0].endTimeSec,
+                  end.isFinite
+            else { return }
+            let start = chords.reduce(Double.infinity) { current, chord in
+                min(current, chord.startTimeSec ?? Double.infinity)
+            }
+            guard start.isFinite else { return }
+            groups.append(HarmonyTimelineGroup(chords: chords, segmentStart: start, segmentEnd: end))
+        }
+
+        for index in 1..<timed.count {
+            let prev = timed[index - 1]
+            let curr = timed[index]
+            if isSameHarmonyGroup(prev, curr) {
+                run.append(curr)
+            } else {
+                flush(run)
+                run = [curr]
+            }
+        }
+        flush(run)
+        return groups
+    }
+
+    static func harmonyHudRows(for phrase: EarTrainingPhraseDetail) -> [HarmonyHudRow] {
+        let timed = timedChords(for: phrase)
+        guard !timed.isEmpty else { return [] }
+        return buildHarmonyTimelineGroups(from: timed).map { group in
+            let first = group.chords[0]
+            return HarmonyHudRow(
+                representativeId: first.id,
+                chordName: first.chordName,
+                voicingIds: group.chords.map { $0.id }
+            )
+        }
     }
 
     static func harmonyRow(containingChordId chordId: UUID, phrase: EarTrainingPhraseDetail) -> HarmonyHudRow? {
@@ -302,60 +321,83 @@ enum EarTrainingChordVoicingEngine {
         row.voicingIds.allSatisfy { attempt.completedChordIds.contains($0) }
     }
 
-    /// 半拍早期遷移ロジック（Web `getEarTrainingChordDisplayAtTime`）。
-    /// 直前コードが完成済みなら次コードの表示・判定開始を半拍早め、明示区間外は判定しない。
+    private static func firstPlayableChord(
+        in chords: [EarTrainingPhraseChordDetail]
+    ) -> EarTrainingPhraseChordDetail? {
+        chords.first { chordHasVoicingNotes($0) }
+    }
+
+    /// Web `getEarTrainingChordDisplayAtTime` と同じ表示対象を返す。
+    /// 同一 harmony 区間では未完成の先頭 voicing を保持し、区間終端では未完成が残っていても次 harmony へ進む。
     static func chordDisplayAt(
         phrase: EarTrainingPhraseDetail,
         loopTime: Double,
         bpm: Int,
         completedChordIds: Set<UUID>
     ) -> EarTrainingPhraseChordDetail? {
+        _ = bpm
         let chords = phrase.chords ?? []
         guard !chords.isEmpty else { return nil }
 
-        let timed = chords
-            .filter { $0.startTimeSec != nil }
-            .sorted {
-                let leftStart = $0.startTimeSec ?? 0
-                let rightStart = $1.startTimeSec ?? 0
-                if leftStart != rightStart {
-                    return leftStart < rightStart
-                }
-                return $0.orderIndex < $1.orderIndex
-            }
+        let timed = timedChords(for: phrase)
         guard !timed.isEmpty else {
             return chords.first
         }
 
-        let beatSec = bpm > 0 ? 60.0 / Double(bpm) : 0
-        let halfBeatSec = beatSec * 0.5
-        for index in timed.indices {
-            let chord = timed[index]
-            let nominalStart = chord.startTimeSec ?? 0
-            let adjustedStart: Double
-            if index == timed.startIndex {
-                adjustedStart = nominalStart
-            } else {
-                let previous = timed[timed.index(before: index)]
-                adjustedStart = nominalStart - (completedChordIds.contains(previous.id) ? halfBeatSec : 0)
+        let groups = buildHarmonyTimelineGroups(from: timed)
+        for groupIndex in groups.indices {
+            let group = groups[groupIndex]
+            if loopTime < group.segmentStart - harmonyTimeWindowEpsilonSec {
+                return nil
+            }
+            if loopTime >= group.segmentEnd - harmonyTimeWindowEpsilonSec {
+                continue
             }
 
-            let nextIndex = timed.index(after: index)
-            let nextStart = nextIndex < timed.endIndex
-                ? (timed[nextIndex].startTimeSec ?? Double.infinity)
-                : Double.infinity
-            let nominalEnd = chord.endTimeSec ?? nextStart
-            let adjustedEnd: Double
-            if completedChordIds.contains(chord.id), nextIndex < timed.endIndex {
-                adjustedEnd = nextStart - halfBeatSec
-            } else {
-                adjustedEnd = nominalEnd.isFinite ? nominalEnd : Double.infinity
+            guard firstPlayableChord(in: group.chords) != nil else {
+                return group.chords.first
             }
 
-            if adjustedStart <= loopTime && loopTime < adjustedEnd {
+            for chord in group.chords where chordHasVoicingNotes(chord) && !completedChordIds.contains(chord.id) {
                 return chord
             }
+
+            let nextGroupIndex = groupIndex + 1
+            if groups.indices.contains(nextGroupIndex) {
+                return firstPlayableChord(in: groups[nextGroupIndex].chords)
+            }
+            return nil
         }
         return nil
+    }
+
+    /// Web `getEarTrainingNextChordDisplayBoundarySec` と同じく、次に表示対象が変わり得る境界を返す。
+    static func nextChordDisplayBoundarySec(
+        phrase: EarTrainingPhraseDetail,
+        loopTimeSec: Double,
+        bpm: Int,
+        completedChordIds: Set<UUID>
+    ) -> Double? {
+        _ = bpm
+        _ = completedChordIds
+        let timed = timedChords(for: phrase)
+        guard !timed.isEmpty else { return nil }
+
+        let groups = buildHarmonyTimelineGroups(from: timed)
+        let threshold = loopTimeSec + displayBoundaryEpsilonSec
+        var nextBoundary = Double.infinity
+
+        for group in groups {
+            if group.segmentEnd > threshold && group.segmentEnd < nextBoundary {
+                nextBoundary = group.segmentEnd
+            }
+            if let segmentStart = group.chords.first?.startTimeSec,
+               segmentStart.isFinite,
+               segmentStart > threshold,
+               segmentStart < nextBoundary {
+                nextBoundary = segmentStart
+            }
+        }
+        return nextBoundary.isFinite ? nextBoundary : nil
     }
 }

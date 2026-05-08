@@ -4,9 +4,11 @@ private struct ParsedVoicingNote: Hashable {
     let step: String
     let alter: Int
     let octave: Int
+    let midi: Int
     let staff: Int
     let pitchClass: Int
     let voicingIndex: Int
+    let displayAccidentalAlter: Int?
 
     var degree: Int {
         let stepIndex: [String: Int] = [
@@ -14,10 +16,23 @@ private struct ParsedVoicingNote: Hashable {
         ]
         return octave * 7 + (stepIndex[step.uppercased()] ?? 0)
     }
+
+    func withDisplayAccidentalAlter(_ value: Int?) -> ParsedVoicingNote {
+        ParsedVoicingNote(
+            step: step,
+            alter: alter,
+            octave: octave,
+            midi: midi,
+            staff: staff,
+            pitchClass: pitchClass,
+            voicingIndex: voicingIndex,
+            displayAccidentalAlter: value
+        )
+    }
 }
 
 private enum VoicingNoteParser {
-    static func parse(name: String, staff: Int, voicingIndex: Int) -> ParsedVoicingNote? {
+    static func parse(name: String, staff: Int?, voicingIndex: Int) -> ParsedVoicingNote? {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard let first = trimmed.first else { return nil }
         let step = String(first).uppercased()
@@ -35,14 +50,19 @@ private enum VoicingNoteParser {
         let baseSemitone: [String: Int] = [
             "C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11
         ]
-        let pitchClass = (((baseSemitone[step] ?? 0) + alter) % 12 + 12) % 12
+        let semitone = (baseSemitone[step] ?? 0) + alter
+        let pitchClass = ((semitone % 12) + 12) % 12
+        let midi = (octave + 1) * 12 + semitone
+        let normalizedStaff = staff ?? (midi < 60 ? 2 : 1)
         return ParsedVoicingNote(
             step: step,
             alter: alter,
             octave: octave,
-            staff: staff,
+            midi: midi,
+            staff: normalizedStaff == 2 ? 2 : 1,
             pitchClass: pitchClass,
-            voicingIndex: voicingIndex
+            voicingIndex: voicingIndex,
+            displayAccidentalAlter: nil
         )
     }
 }
@@ -57,6 +77,52 @@ private struct PositionedVoicingNote {
 private struct KeySignatureMark {
     let symbol: String
     let degree: Int
+}
+
+private let sharpKeySignatureSteps: [String] = ["F", "C", "G", "D", "A", "E", "B"]
+private let flatKeySignatureSteps: [String] = ["B", "E", "A", "D", "G", "C", "F"]
+
+private func clampedKeyFifths(_ keyFifths: Int) -> Int {
+    max(-7, min(7, keyFifths))
+}
+
+private func keySignatureAlter(step: String, keyFifths: Int) -> Int {
+    let fifths = clampedKeyFifths(keyFifths)
+    if fifths > 0 {
+        return sharpKeySignatureSteps.prefix(fifths).contains(step) ? 1 : 0
+    }
+    if fifths < 0 {
+        return flatKeySignatureSteps.prefix(abs(fifths)).contains(step) ? -1 : 0
+    }
+    return 0
+}
+
+private func accidentalStateKey(_ note: ParsedVoicingNote) -> String {
+    "\(note.staff):\(note.step):\(note.octave)"
+}
+
+private func applyRequiredAccidentals(
+    to notes: [ParsedVoicingNote],
+    keyFifths: Int
+) -> [ParsedVoicingNote] {
+    var state: [String: Int] = [:]
+    return applyRequiredAccidentals(to: notes, keyFifths: keyFifths, state: &state)
+}
+
+private func applyRequiredAccidentals(
+    to notes: [ParsedVoicingNote],
+    keyFifths: Int,
+    state: inout [String: Int]
+) -> [ParsedVoicingNote] {
+    let updated = notes.map { note in
+        let key = accidentalStateKey(note)
+        let currentAlter = state[key] ?? keySignatureAlter(step: note.step, keyFifths: keyFifths)
+        return note.withDisplayAccidentalAlter(currentAlter == note.alter ? nil : note.alter)
+    }
+    for note in notes {
+        state[accidentalStateKey(note)] = note.alter
+    }
+    return updated
 }
 
 /// コード演奏バトル専用の最小譜面ビュー。
@@ -97,13 +163,14 @@ struct ChordVoicingStaffView: View {
     }
 
     private func draw(context: inout GraphicsContext, size: CGSize) {
-        let parsedNotes: [ParsedVoicingNote] = zip(voicing, voicingStaves)
-            .enumerated()
-            .compactMap { offset, pair in
-                let (name, staff) = pair
-                let normalizedStaff = staff == 2 ? 2 : 1
-                return VoicingNoteParser.parse(name: name, staff: normalizedStaff, voicingIndex: offset)
-            }
+        let shouldInferStaves = voicingStaves.isEmpty
+        let rawParsedNotes: [ParsedVoicingNote] = voicing.enumerated().compactMap { offset, name in
+            let staff = shouldInferStaves || !voicingStaves.indices.contains(offset)
+                ? nil
+                : (voicingStaves[offset] == 2 ? 2 : 1)
+            return VoicingNoteParser.parse(name: name, staff: staff, voicingIndex: offset)
+        }
+        let parsedNotes = applyRequiredAccidentals(to: rawParsedNotes, keyFifths: keyFifths)
         guard !parsedNotes.isEmpty else { return }
 
         let activeStaves = [1, 2].filter { staff in
@@ -261,7 +328,7 @@ struct ChordVoicingStaffView: View {
         var occupiedColumnY: [CGFloat] = []
         let accidentalCollisionHeight = staffSpacing * 1.15
         let accidentalIndices = notes.indices
-            .filter { notes[$0].alter != 0 }
+            .filter { notes[$0].displayAccidentalAlter != nil }
             .sorted { yCenters[$0] < yCenters[$1] }
 
         for index in accidentalIndices {
@@ -315,8 +382,8 @@ struct ChordVoicingStaffView: View {
             noteWidth: noteWidth
         )
 
-        if positioned.note.alter != 0 {
-            let accidental = accidentalString(for: positioned.note.alter)
+        if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
+            let accidental = accidentalString(for: displayAccidentalAlter)
             let accidentalX = min(
                 xCenter - noteWidth * 1.05,
                 baseX - noteWidth * 1.15 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.85
@@ -450,6 +517,7 @@ struct ChordVoicingStaffView: View {
         case 1: return "♯"
         case -1: return "♭"
         case -2: return "𝄫"
+        case 0: return "♮"
         default: return ""
         }
     }
@@ -500,6 +568,22 @@ struct ChordVoicingStaffGroupsView: View {
         let measureTwoNoteRightX: CGFloat
     }
 
+    private struct ParsedGroupRenderItem {
+        let group: EarTrainingChordVoicingStaffLayout.GroupInput
+        let slotIndex: Int
+        let slotCount: Int
+        let notes: [ParsedVoicingNote]
+
+        func withNotes(_ nextNotes: [ParsedVoicingNote]) -> ParsedGroupRenderItem {
+            ParsedGroupRenderItem(
+                group: group,
+                slotIndex: slotIndex,
+                slotCount: slotCount,
+                notes: nextNotes
+            )
+        }
+    }
+
     private static func staffLayoutMetrics(width: CGFloat, keyFifths: Int, wideFirstMeasure: Bool) -> StaffLayoutMetrics {
         let sp = max(8, width * (12 / 720))
         let staffLineLeft = width * (24 / 720)
@@ -545,14 +629,22 @@ struct ChordVoicingStaffGroupsView: View {
             measureSlotCounts[g.measureOffset, default: 0] += 1
         }
         var nextSlot: [Int: Int] = [:]
-        var parsedGroups: [(group: EarTrainingChordVoicingStaffLayout.GroupInput, slotIndex: Int, slotCount: Int, notes: [ParsedVoicingNote])] = []
+        var parsedGroups: [ParsedGroupRenderItem] = []
         for g in groups {
             let mo = g.measureOffset
             let si = nextSlot[mo, default: 0]
             nextSlot[mo] = si + 1
             let sc = measureSlotCounts[mo] ?? 1
             let notes = parseGroupNotes(g)
-            parsedGroups.append((g, si, sc, notes))
+            parsedGroups.append(ParsedGroupRenderItem(group: g, slotIndex: si, slotCount: sc, notes: notes))
+        }
+
+        var accidentalStateByMeasure: [Int: [String: Int]] = [:]
+        parsedGroups = parsedGroups.map { item in
+            var state = accidentalStateByMeasure[item.group.measureOffset] ?? [:]
+            let notes = applyRequiredAccidentals(to: item.notes, keyFifths: keyFifths, state: &state)
+            accidentalStateByMeasure[item.group.measureOffset] = state
+            return item.withNotes(notes)
         }
 
         let hasRest = parsedGroups.contains { $0.group.isRest }
@@ -565,31 +657,35 @@ struct ChordVoicingStaffGroupsView: View {
         let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
         let firstTopY = max(sp * 2, (size.height - groupHeight) / 2)
 
-        var divPath = Path()
-        divPath.move(to: CGPoint(x: layout.measureDividerX, y: firstTopY - sp))
-        divPath.addLine(to: CGPoint(x: layout.measureDividerX, y: firstTopY + groupHeight + sp))
-        context.stroke(divPath, with: .color(.white.opacity(0.35)), lineWidth: 1.2)
+        let labelY = max(sp * 1.8, firstTopY - sp * 2.2)
+        for item in parsedGroups where !item.group.chordName.isEmpty {
+            let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
+            let labelColor = item.group.id == activeGroupId ? activeLabelColor : notationColor
+            let resolved = context.resolve(
+                Text(item.group.chordName)
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundColor(labelColor)
+            )
+            context.draw(resolved, at: CGPoint(x: baseX, y: labelY), anchor: .center)
+        }
 
         for (staffIndex, staff) in activeStaves.enumerated() {
             let topY = firstTopY + CGFloat(staffIndex) * (staffSpacing * 4 + staffGap)
             let leftX = w * (24 / 720)
             let rightX = w * (696 / 720)
-            groupsDrawStaff(context: &context, top: topY, staffSpacing: staffSpacing, leftX: leftX, rightX: rightX)
+            groupsDrawStaff(
+                context: &context,
+                top: topY,
+                staffSpacing: staffSpacing,
+                leftX: leftX,
+                rightX: rightX,
+                dividerX: layout.measureDividerX
+            )
             groupsDrawClef(context: &context, staff: staff, x: leftX + staffSpacing * 1.7, staffTopY: topY, staffSpacing: staffSpacing)
             groupsDrawKeySignature(context: &context, staff: staff, staffTopY: topY, staffSpacing: staffSpacing, startX: leftX + staffSpacing * 4.8, keyFifths: keyFifths)
 
             for item in parsedGroups {
                 let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
-                let labelY = topY - sp * 2.2
-                if !item.group.chordName.isEmpty {
-                    let labelColor = item.group.id == activeGroupId ? activeLabelColor : notationColor
-                    let resolved = context.resolve(
-                        Text(item.group.chordName)
-                            .font(.system(size: 18, weight: .heavy, design: .rounded))
-                            .foregroundColor(labelColor)
-                    )
-                    context.draw(resolved, at: CGPoint(x: baseX, y: labelY), anchor: .center)
-                }
                 if item.group.isRest {
                     groupsDrawWholeRest(context: &context, baseX: baseX, staffTopY: topY, staffSpacing: staffSpacing)
                     continue
@@ -630,10 +726,12 @@ struct ChordVoicingStaffGroupsView: View {
     private static func parseGroupNotes(_ group: EarTrainingChordVoicingStaffLayout.GroupInput) -> [ParsedVoicingNote] {
         let v = group.voicing
         let st = group.voicingStaves
-        return zip(v, st).enumerated().compactMap { offset, pair in
-            let (name, staffRaw) = pair
-            let staffNum = staffRaw == 2 ? 2 : 1
-            return VoicingNoteParser.parse(name: name, staff: staffNum, voicingIndex: offset)
+        let shouldInferStaves = st.isEmpty
+        return v.enumerated().compactMap { offset, name in
+            let staff = shouldInferStaves || !st.indices.contains(offset)
+                ? nil
+                : (st[offset] == 2 ? 2 : 1)
+            return VoicingNoteParser.parse(name: name, staff: staff, voicingIndex: offset)
         }
     }
 
@@ -642,7 +740,8 @@ struct ChordVoicingStaffGroupsView: View {
         top: CGFloat,
         staffSpacing: CGFloat,
         leftX: CGFloat,
-        rightX: CGFloat
+        rightX: CGFloat,
+        dividerX: CGFloat
     ) {
         for line in 0..<5 {
             let y = top + CGFloat(line) * staffSpacing
@@ -650,6 +749,12 @@ struct ChordVoicingStaffGroupsView: View {
             path.move(to: CGPoint(x: leftX, y: y))
             path.addLine(to: CGPoint(x: rightX, y: y))
             context.stroke(path, with: .color(notationColor), lineWidth: 1.3)
+        }
+        for x in [dividerX, rightX] {
+            var barline = Path()
+            barline.move(to: CGPoint(x: x, y: top))
+            barline.addLine(to: CGPoint(x: x, y: top + staffSpacing * 4))
+            context.stroke(barline, with: .color(notationColor), lineWidth: 1.3)
         }
     }
 
@@ -767,7 +872,7 @@ struct ChordVoicingStaffGroupsView: View {
         var occupiedColumnY: [CGFloat] = []
         let accidentalCollisionHeight = staffSpacing * 1.15
         let accidentalIndices = notes.indices
-            .filter { notes[$0].alter != 0 }
+            .filter { notes[$0].displayAccidentalAlter != nil }
             .sorted { yCenters[$0] < yCenters[$1] }
         for index in accidentalIndices {
             var column = 0
@@ -819,8 +924,8 @@ struct ChordVoicingStaffGroupsView: View {
             noteWidth: noteWidth,
             color: color
         )
-        if positioned.note.alter != 0 {
-            let accidental = groupsAccidentalString(for: positioned.note.alter)
+        if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
+            let accidental = groupsAccidentalString(for: displayAccidentalAlter)
             let accidentalX = min(
                 xCenter - noteWidth * 1.05,
                 baseX - noteWidth * 1.15 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.85
@@ -900,6 +1005,7 @@ struct ChordVoicingStaffGroupsView: View {
         case 1: return "♯"
         case -1: return "♭"
         case -2: return "𝄫"
+        case 0: return "♮"
         default: return ""
         }
     }

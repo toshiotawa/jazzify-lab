@@ -7,8 +7,8 @@ import QuartzCore
 final class EarTrainingChordVoicingBattleController: ObservableObject {
     private static let inputCooldownMs: Double = 20
     private static let audioEndEpsilonSec: Double = 0.03
-    private static let audioSyncEpsilonSec: Double = 0.02
-    private static let minAudioSyncTimerSec: Double = 0.02
+    private static let audioSyncEpsilonSec: Double = 0.012
+    private static let minAudioSyncTimerSec: Double = 0.008
     private static let kBattleEffectMs: Double = 1_600
     private static let kAwesomeBattleEffectMs: Double = 4_500
     private static let attackGaugeTargetLoops: Int = 6
@@ -573,26 +573,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             completedChordIds: completedSet
         )
         if nextChord?.id != activeChord?.id {
-            if let prev = activeChord, !currentAttempt.completedChordIds.contains(prev.id),
-               !currentAttempt.failedChordIds.contains(prev.id) {
-                let tickResult = EarTrainingChordVoicingEngine.advanceTick(
-                    attempt: currentAttempt,
-                    previousChord: prev,
-                    damage: damageConfig
-                )
-                if tickResult.failAdded {
-                    attempt = tickResult.attempt
-                    if tickResult.playerDamage > 0 {
-                        let nextPlayerHp = max(0, playerHp - tickResult.playerDamage)
-                        playerHp = nextPlayerHp
-                        statusText = copy.chordWindowFail(chordName: prev.chordName)
-                        if nextPlayerHp <= 0 {
-                            finishGameOver(message: copy.gameOver)
-                            return
-                        }
-                    }
-                }
-            }
             activeChord = nextChord
         }
 
@@ -616,7 +596,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let loopTimeSec = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
         let loopTimeSafe = loopTimeSec < 0 ? loopTimeSec + loopDurationSec : loopTimeSec
 
-        let nextBoundary = nextChordBoundarySec(phrase: phrase, loopTimeSec: loopTimeSafe)
+        let nextBoundary = EarTrainingChordVoicingEngine.nextChordDisplayBoundarySec(
+            phrase: phrase,
+            loopTimeSec: loopTimeSafe,
+            bpm: stage.bpm,
+            completedChordIds: attempt?.completedChordIds ?? []
+        )
         var nextSync = (Double(loopIndex) + 1) * loopDurationSec
         if let boundary = nextBoundary {
             nextSync = Double(loopIndex) * loopDurationSec + boundary
@@ -635,25 +620,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             guard let self else { return }
             self.syncChordTimeline(scheduleNext: true)
         }
-    }
-
-    /// 次の和弦境界（ループ内秒）。厳密な Web 版タイムラインの簡易近似。
-    private func nextChordBoundarySec(phrase: EarTrainingPhraseDetail, loopTimeSec: Double) -> Double? {
-        let chords = phrase.chords ?? []
-        guard !chords.isEmpty else { return nil }
-        let starts: [Double] = chords.compactMap { $0.startTimeSec }.filter { $0.isFinite }
-        let epsilon = 0.02
-        let threshold = loopTimeSec + epsilon
-        var best: Double?
-        for chord in chords {
-            if let end = chord.endTimeSec, end.isFinite, end > threshold {
-                if best == nil || end < best! { best = end }
-            }
-            if let start = chord.startTimeSec, start.isFinite, start > threshold {
-                if best == nil || start < best! { best = start }
-            }
-        }
-        return best
     }
 
     private func triggerLoopEnemyAttackIfNeeded(completedLoop: Int) {
