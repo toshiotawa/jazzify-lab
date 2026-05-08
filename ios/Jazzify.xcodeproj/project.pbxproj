@@ -25,6 +25,7 @@
 		2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */; };
 		2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB42EB0BEA73D79132F739 /* SettingsView.swift */; };
 		2CE30418294A3B0591792525 /* EarTrainingChordVoicingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */; };
+		F1EE770000CC11EE0000CCC2 /* EarTrainingChordVoicingStaffLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1EE770000CC11EE0000CCC1 /* EarTrainingChordVoicingStaffLayout.swift */; };
 		2F1F2D964822F8E957597D56 /* C5.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BCFC653695FDC6395887F72A /* C5.mp3 */; };
 		343EF86689A175A8BE3A6B6A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5FE9128F8E93AC30291509CF /* Supabase */; };
 		38C8D1B2BFA5447F96D51D06 /* LessonAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */; };
@@ -59,6 +60,8 @@
 		7630C3DB245018D47061B814 /* ContactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1468DBA9C15E0A44DD589ADD /* ContactView.swift */; };
 		7AD0743A4EE11942973B34A1 /* ChordVoicingStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */; };
 		7BA646FCEC525EF198BB2701 /* EarTrainingTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */; };
+		F1EE770000AA11EE0000AAA2 /* EarTrainingBattleProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1EE770000AA11EE0000AAA1 /* EarTrainingBattleProtocols.swift */; };
+		F1EE770000BB11EE0000BBB2 /* EarTrainingHudModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1EE770000BB11EE0000BBB1 /* EarTrainingHudModel.swift */; };
 		7CFB37256570B028A4C1E5EA /* LessonJourneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */; };
 		8B0A05DBF2C58F148B4FD55B /* EarTrainingHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */; };
 		9D13D89E03692A38ECCDD9DB /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F8BFE37B198C035761B13AD /* Config.swift */; };
@@ -152,6 +155,8 @@
 		7EF02ACFD14CC587854BC574 /* SurvivalJoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalJoystickView.swift; sourceTree = "<group>"; };
 		7F76672005EE666A9B39BC95 /* SurvivalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalModels.swift; sourceTree = "<group>"; };
 		81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTypes.swift; sourceTree = "<group>"; };
+		F1EE770000AA11EE0000AAA1 /* EarTrainingBattleProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleProtocols.swift; sourceTree = "<group>"; };
+		F1EE770000BB11EE0000BBB1 /* EarTrainingHudModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingHudModel.swift; sourceTree = "<group>"; };
 		8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerifyView.swift; sourceTree = "<group>"; };
 		8335394CBDC8AC038641B7B8 /* SurvivalDescentViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentViewComponents.swift; sourceTree = "<group>"; };
 		8497DA09733314AB9BE43767 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
@@ -188,6 +193,7 @@
 		D0D52543D5D2C698BD559C23 /* SurvivalDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentLayout.swift; sourceTree = "<group>"; };
 		D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordPadView.swift; sourceTree = "<group>"; };
 		D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingEngine.swift; sourceTree = "<group>"; };
+		F1EE770000CC11EE0000CCC1 /* EarTrainingChordVoicingStaffLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingStaffLayout.swift; sourceTree = "<group>"; };
 		D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonAttachmentPreview.swift; sourceTree = "<group>"; };
 		D82BC28D5575DEEE8A1AE11E /* SurvivalDescentTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentTheme.swift; sourceTree = "<group>"; };
 		DA30893A906263BFC743A681 /* SurvivalCodeSlotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCodeSlotsView.swift; sourceTree = "<group>"; };
@@ -300,6 +306,7 @@
 			isa = PBXGroup;
 			children = (
 				D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */,
+				F1EE770000CC11EE0000CCC1 /* EarTrainingChordVoicingStaffLayout.swift */,
 				3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */,
 			);
 			path = Engine;
@@ -457,6 +464,8 @@
 		ACC5357E09A041CCA3B9E036 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				F1EE770000AA11EE0000AAA1 /* EarTrainingBattleProtocols.swift */,
+				F1EE770000BB11EE0000BBB1 /* EarTrainingHudModel.swift */,
 				5BAE352D4750FD9B61D66ACE /* EarTrainingStageDetail.swift */,
 				81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */,
 			);
@@ -626,9 +635,11 @@
 				54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */,
 				4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */,
 				B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */,
+				F1EE770000AA11EE0000AAA2 /* EarTrainingBattleProtocols.swift in Sources */,
 				4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */,
 				DD6CB384F0986D73E24D0390 /* EarTrainingChordVoicingBattleController.swift in Sources */,
 				2CE30418294A3B0591792525 /* EarTrainingChordVoicingEngine.swift in Sources */,
+				F1EE770000CC11EE0000CCC2 /* EarTrainingChordVoicingStaffLayout.swift in Sources */,
 				73404858DC7ED47DE8628CD9 /* EarTrainingChordVoicingGameView.swift in Sources */,
 				2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */,
 				A9FFFB17E9606EA7AFD69772 /* EarTrainingGameView.swift in Sources */,
@@ -638,6 +649,7 @@
 				D8744E4938F50585AA91A7CA /* EarTrainingResultView.swift in Sources */,
 				53EDBDC25339FD88006E14DF /* EarTrainingSettingsSheet.swift in Sources */,
 				3BD0C5691E6107E03BF69BB8 /* EarTrainingStageDetail.swift in Sources */,
+				F1EE770000BB11EE0000BBB2 /* EarTrainingHudModel.swift in Sources */,
 				7BA646FCEC525EF198BB2701 /* EarTrainingTypes.swift in Sources */,
 				24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */,
 				E3610256F40C29FB7E2F7D20 /* FantasyStageView.swift in Sources */,

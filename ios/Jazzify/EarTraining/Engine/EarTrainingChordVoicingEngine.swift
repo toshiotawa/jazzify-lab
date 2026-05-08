@@ -142,7 +142,7 @@ enum EarTrainingChordVoicingEngine {
                 chordJustCompleted: false,
                 rootNoteName: nil,
                 enemyDamage: 0,
-                playerDamage: evaluationMissAdded ? damage.miss : 0,
+                playerDamage: 0,
                 evaluationMissAdded: evaluationMissAdded
             )
         }

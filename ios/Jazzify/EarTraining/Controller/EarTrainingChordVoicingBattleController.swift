@@ -7,6 +7,11 @@ import QuartzCore
 final class EarTrainingChordVoicingBattleController: ObservableObject {
     private static let inputCooldownMs: Double = 20
     private static let audioEndEpsilonSec: Double = 0.03
+    private static let audioSyncEpsilonSec: Double = 0.02
+    private static let minAudioSyncTimerSec: Double = 0.02
+    private static let kBattleEffectMs: Double = 1_600
+    private static let kAwesomeBattleEffectMs: Double = 4_500
+    private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
 
     @Published private(set) var gameState: EarTrainingGameState = .idle
@@ -20,6 +25,11 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var activeChord: EarTrainingPhraseChordDetail?
     @Published private(set) var lastRank: EarTrainingRank?
     @Published private(set) var statusText: String
+    @Published private(set) var activeLoop: Int = 1
+    @Published private(set) var activeMeasureNumber: Int = 1
+    @Published private(set) var enemyAttackGaugePercent: Double = 0
+    @Published private(set) var feedback: EarTrainingBattleController.Feedback?
+    @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
     @Published var practiceMode: Bool
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
@@ -29,20 +39,30 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     let phrases: [EarTrainingPhraseDetail]
     let lessonContext: EarTrainingLessonContext?
     let isEnglishCopy: Bool
+    let hudLabels: EarTrainingBattleHudLabels
     let copy: EarTrainingGameCopy
     let enemyName: String
+    let enemyId: String
 
     private let onExitCallback: () -> Void
     private let audio: EarTrainingAudio
     private let supabase = SupabaseService.shared
+    private weak var scene: EarTrainingBattleSceneHandle?
 
     private var lastInputAt: TimeInterval = 0
     private var failTimerTask: Task<Void, Never>?
     private var transitionTimerTask: Task<Void, Never>?
     private var countdownTask: Task<Void, Never>?
     private var timeLimitTask: Task<Void, Never>?
+    private var chordSyncTask: Task<Void, Never>?
+    private var feedbackTask: Task<Void, Never>?
+    private var battleEffectClearTask: Task<Void, Never>?
+    private var pendingImpactHandlers: [Int: () -> Void] = [:]
+    private var battleEffectIdCounter: Int = 0
+    private var lastEmittedEffectId: Int = -1
     private var progressSaveStarted: Bool = false
     private var allChordsCompletedFlag: Bool = false
+    private var lastLoopAttackApplied: Int = 0
 
     var damageConfig: EarTrainingDamageConfig {
         if practiceMode { return Self.zeroDamage }
@@ -85,11 +105,82 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         return String(format: "%d:%02d", minutes, rest)
     }
 
+    var countInDisplay: String {
+        isEnglishCopy ? "Count \(countInValue)" : "カウント \(countInValue)"
+    }
+
+    var phraseIntroLine: String {
+        let current = phraseIndex + 1
+        return isEnglishCopy
+            ? "Phrase \(current) / \(phrases.count)"
+            : "フレーズ \(current) / \(phrases.count)"
+    }
+
+    var stageStatusText: String {
+        gameState == .countIn ? countInDisplay : statusText
+    }
+
+    var resultRankLine: String? {
+        guard gameState == .stageClear, let rank = lastRank else { return nil }
+        let letter = EarTrainingEngine.lessonRank(from: rank)
+        return "\(hudLabels.clearGradePrefix) \(letter)"
+    }
+
+    var lessonProgressText: String? {
+        guard lessonContext != nil, gameState == .stageClear else { return nil }
+        switch lessonProgressStatus {
+        case .saved: return copy.lessonSaved
+        case .saving: return copy.lessonSaving
+        case nil: return copy.lessonSaving
+        }
+    }
+
+    var hudModel: EarTrainingHudModel {
+        let phrase = currentPhrase
+        let rows: [EarTrainingChordVoicingEngine.HarmonyHudRow] = {
+            guard let phrase else { return [] }
+            let built = EarTrainingChordVoicingEngine.harmonyHudRows(for: phrase)
+            if !built.isEmpty { return built }
+            return (phrase.chords ?? []).map { chord in
+                EarTrainingChordVoicingEngine.HarmonyHudRow(
+                    representativeId: chord.id,
+                    chordName: chord.chordName,
+                    voicingIds: [chord.id]
+                )
+            }
+        }()
+        let completed = rows.map { row in
+            row.voicingIds.allSatisfy { id in attempt?.completedChordIds.contains(id) ?? false }
+        }
+        let firstIncomplete = completed.firstIndex(where: { !$0 }) ?? completed.count
+        let slotIndex = firstIncomplete < completed.count ? firstIncomplete : max(0, completed.count - 1)
+        let chips = rows.map { row in
+            let active = activeChord.map { row.voicingIds.contains($0.id) } ?? false
+            return EarTrainingChordChip(id: row.representativeId, name: row.chordName, active: active)
+        }
+        return EarTrainingHudModel(
+            playerHp: playerHp,
+            playerMaxHp: stage.playerHp,
+            enemyHp: enemyHp,
+            enemyMaxHp: stage.enemyHp,
+            practiceMode: practiceMode,
+            timeRemaining: timeRemaining,
+            timeLabel: timeLabel,
+            enemyAttackGaugePercent: enemyAttackGaugePercent,
+            hudLabels: hudLabels,
+            gameState: gameState,
+            phraseRunId: phraseRunId,
+            chordChips: chips,
+            slotRow: .chordVoicing(slotCount: max(1, rows.count), completed: completed, currentIndex: slotIndex)
+        )
+    }
+
     init(
         stage: EarTrainingStageDetail,
         phrases: [EarTrainingPhraseDetail],
         lessonContext: EarTrainingLessonContext?,
         isEnglishCopy: Bool,
+        enemyId: String,
         enemyName: String,
         audio: EarTrainingAudio,
         onExit: @escaping () -> Void
@@ -98,16 +189,34 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         self.phrases = phrases
         self.lessonContext = lessonContext
         self.isEnglishCopy = isEnglishCopy
-        self.copy = EarTrainingGameCopy.make(isEnglish: isEnglishCopy)
+        self.enemyId = enemyId
         self.enemyName = enemyName
         self.audio = audio
         self.onExitCallback = onExit
+        self.hudLabels = EarTrainingBattleHudLabels.make(isEnglish: isEnglishCopy)
+        self.copy = EarTrainingGameCopy.make(isEnglish: isEnglishCopy)
+        self.practiceMode = lessonContext == nil ? false : false
         self.enemyHp = stage.enemyHp
         self.playerHp = stage.playerHp
         self.timeRemaining = stage.timeLimitSec
         self.countInValue = stage.countInBeats
-        self.practiceMode = lessonContext == nil ? false : false
         self.statusText = copy.idlePrompt
+    }
+
+    // MARK: - Scene
+
+    func attachScene(_ scene: EarTrainingBattleSceneHandle) {
+        self.scene = scene
+        publishSnapshot()
+    }
+
+    func detachScene() {
+        scene = nil
+    }
+
+    func handleEffectImpact(effectId: Int) {
+        guard let handler = pendingImpactHandlers.removeValue(forKey: effectId) else { return }
+        handler()
     }
 
     // MARK: - Lifecycle
@@ -124,6 +233,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 self?.failCurrentPhrase()
             }
         }
+        publishSnapshot()
     }
 
     func tearDown() {
@@ -132,6 +242,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         audio.onEnded = nil
         audio.stop()
         midiHeldKeys.removeAll()
+        scene = nil
     }
 
     func registerMidiKeyDown(_ midi: Int) { midiHeldKeys.insert(midi) }
@@ -174,6 +285,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         lastInputAt = now
 
         guard gameState == .playingPhrase else { return }
+        syncChordTimeline(scheduleNext: false)
+        guard gameState == .playingPhrase else { return }
         guard let phrase = currentPhrase, let current = attempt, let chord = activeChord else { return }
 
         let result = EarTrainingChordVoicingEngine.handleNoteOn(
@@ -188,13 +301,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
 
         if result.evaluationMissAdded {
-            statusText = copy.missEnemyAttack
-            let nextPlayerHp = max(0, playerHp - result.playerDamage)
-            playerHp = nextPlayerHp
-            if nextPlayerHp <= 0 {
-                finishGameOver(message: copy.gameOver)
-            }
+            triggerFeedback(.miss)
+            statusText = copy.tryAgain
             return
+        }
+
+        if result.hitPitchClass != nil {
+            triggerFeedback(.correct)
         }
 
         if !result.chordJustCompleted {
@@ -205,6 +318,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         if let row = harmonyRow,
            !EarTrainingChordVoicingEngine.isHarmonySegmentFullyCompleted(attempt: result.attempt, row: row) {
             attempt = result.attempt
+            syncChordTimeline(scheduleNext: true)
             return
         }
 
@@ -220,18 +334,33 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
 
         statusText = copy.chordCompleted(chordName: chord.chordName)
-        let nextEnemyHp = max(0, enemyHp - result.enemyDamage)
-        enemyHp = nextEnemyHp
-        if nextEnemyHp <= 0 {
-            let rank = EarTrainingChordVoicingEngine.totalMissCount(acknowledged) <= rankRule.perfectMaxMisses ? EarTrainingRank.perfect
-                : EarTrainingChordVoicingEngine.totalMissCount(acknowledged) <= rankRule.greatMaxMisses ? .great : .good
-            Task { @MainActor in await self.finishStageClear(rank: rank) }
-            return
+        let effectId = triggerBattleEffect(kind: .correct, label: nil, damage: result.enemyDamage, phraseNoteCount: nil)
+        registerBattleEffectImpact(effectId: effectId) { [weak self] in
+            guard let self else { return }
+            let nextEnemyHp = max(0, self.enemyHp - result.enemyDamage)
+            self.enemyHp = nextEnemyHp
+            let outcome = EarTrainingEngine.resolveOutcome(
+                enemyHp: nextEnemyHp,
+                playerHp: self.playerHp,
+                timeRemainingSec: self.timeRemaining,
+                phraseCompleted: false,
+                phraseFailed: false
+            )
+            if outcome == .stageClear {
+                let rank: EarTrainingRank
+                let totalMiss = EarTrainingChordVoicingEngine.totalMissCount(acknowledged)
+                if totalMiss <= self.rankRule.perfectMaxMisses { rank = .perfect }
+                else if totalMiss <= self.rankRule.greatMaxMisses { rank = .great }
+                else { rank = .good }
+                Task { @MainActor in await self.finishStageClear(rank: rank) }
+            }
         }
 
         if EarTrainingChordVoicingEngine.isAllChordsCompleted(phrase: phrase, attempt: acknowledged) {
             handleAllChordsCompleted(phrase: phrase, attempt: acknowledged)
+            return
         }
+        syncChordTimeline(scheduleNext: true)
     }
 
     private func handleAllChordsCompleted(
@@ -242,6 +371,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         allChordsCompletedFlag = true
         gameState = .phraseComplete
         cancelFailTimer()
+        cancelChordSyncTask()
 
         let totalMiss = EarTrainingChordVoicingEngine.totalMissCount(attempt)
         let rank: EarTrainingRank
@@ -250,13 +380,39 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         else { rank = .good }
         lastRank = rank
         let completionDamage = EarTrainingEngine.completionDamage(rank: rank, damage: damageConfig)
-        let nextEnemyHp = max(0, enemyHp - completionDamage)
-        enemyHp = nextEnemyHp
-        if nextEnemyHp <= 0 {
-            Task { @MainActor in await self.finishStageClear(rank: rank) }
-            return
+        let totalVoicingNotes = (phrase.chords ?? []).reduce(0) { $0 + ($1.voicing?.count ?? 0) }
+        let effectId = triggerBattleEffect(
+            kind: .complete,
+            label: completionDisplayRank(rank: rank, phrase: phrase),
+            damage: completionDamage,
+            phraseNoteCount: totalVoicingNotes
+        )
+        let willStageClear = enemyHp - completionDamage <= 0
+        registerBattleEffectImpact(effectId: effectId) { [weak self] in
+            guard let self else { return }
+            let nextEnemyHp = max(0, self.enemyHp - completionDamage)
+            self.enemyHp = nextEnemyHp
+            let outcome = EarTrainingEngine.resolveOutcome(
+                enemyHp: nextEnemyHp,
+                playerHp: self.playerHp,
+                timeRemainingSec: self.timeRemaining,
+                phraseCompleted: true,
+                phraseFailed: false
+            )
+            if outcome == .stageClear {
+                Task { @MainActor in await self.finishStageClear(rank: rank) }
+            }
         }
-        scheduleTransitionToNextPhrase(rank: rank, phrase: phrase)
+        if !willStageClear {
+            scheduleTransitionToNextPhrase(rank: rank, phrase: phrase)
+        }
+    }
+
+    private func completionDisplayRank(rank: EarTrainingRank, phrase: EarTrainingPhraseDetail) -> String {
+        if rank == .perfect && (phrase.chords ?? []).reduce(0, { $0 + ($1.voicing?.count ?? 0) }) >= 6 {
+            return "Awesome!"
+        }
+        return rank.rawValue
     }
 
     private func scheduleTransitionToNextPhrase(
@@ -286,12 +442,18 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             return
         }
         progressSaveStarted = false
+        lessonProgressStatus = nil
         enemyHp = stage.enemyHp
         playerHp = stage.playerHp
         timeRemaining = stage.timeLimitSec
         phraseIndex = 0
         phraseRunId = 0
         countInValue = stage.countInBeats
+        lastLoopAttackApplied = 0
+        pendingImpactHandlers.removeAll()
+        enemyAttackGaugePercent = 0
+        activeLoop = 1
+        activeMeasureNumber = 1
         gameState = .countIn
         statusText = copy.countIn
         cancelAllTimers()
@@ -309,6 +471,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             self.startTimeLimit()
             self.startPhrase(at: 0)
         }
+        publishSnapshot()
     }
 
     private func startPhrase(at nextIndex: Int) {
@@ -318,8 +481,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
         cancelFailTimer()
         cancelTransitionTimer()
+        cancelChordSyncTask()
         phraseIndex = nextIndex
         phraseRunId += 1
+        lastLoopAttackApplied = 0
+        enemyAttackGaugePercent = 0
+        activeLoop = 1
+        activeMeasureNumber = 1
         let next = EarTrainingChordVoicingEngine.createAttempt(for: phrase)
         attempt = next
         lastRank = nil
@@ -336,6 +504,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         if let url = URL(string: phrase.audioUrl) {
             audio.playPhrase(url: url)
         }
+        publishSnapshot()
+        syncChordTimeline(scheduleNext: true)
     }
 
     private func startTimeLimit() {
@@ -356,24 +526,57 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
     }
 
-    private func handleAudioTimeUpdate(currentTime: Double) {
-        guard let phrase = currentPhrase else { return }
+    private func syncChordTimeline(scheduleNext: Bool) {
+        guard gameState == .playingPhrase else { return }
+        guard let phrase = currentPhrase, let currentAttempt = attempt else { return }
         let loopDurationSec = phrase.loopDurationSec
         guard loopDurationSec > 0 else { return }
+
+        let currentTime = audio.currentTimeSec
+        let audioDurationSec = phrase.audioDurationSec
+        if audioDurationSec.isFinite, currentTime >= audioDurationSec - Self.audioEndEpsilonSec {
+            failCurrentPhrase()
+            return
+        }
+
+        let loop = Int(floor(currentTime / loopDurationSec)) + 1
+        let clampedLoop = max(1, min(stage.maxLoopsPerPhrase, loop))
+        if activeLoop != clampedLoop { activeLoop = clampedLoop }
+
         let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
-        let completedSet = attempt?.completedChordIds ?? []
+        let loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
+        let measureNum = measureNumberAtLoopTime(
+            loopTimeSec: loopTimeSafe,
+            loopDurationSec: loopDurationSec,
+            loopMeasures: stage.loopMeasures
+        )
+        if activeMeasureNumber != measureNum {
+            activeMeasureNumber = measureNum
+        }
+
+        let gaugeDuration = loopDurationSec * Double(Self.attackGaugeTargetLoops)
+        if gaugeDuration > 0 {
+            let nextGauge = max(0, min(1, currentTime / gaugeDuration))
+            if abs(nextGauge - enemyAttackGaugePercent) > 0.001 {
+                enemyAttackGaugePercent = nextGauge
+            }
+        }
+
+        let completedLoop = min(stage.maxLoopsPerPhrase, max(0, Int(floor(currentTime / loopDurationSec))))
+        triggerLoopEnemyAttackIfNeeded(completedLoop: completedLoop)
+
+        let completedSet = currentAttempt.completedChordIds
         let nextChord = EarTrainingChordVoicingEngine.chordDisplayAt(
             phrase: phrase,
-            loopTime: loopTime,
+            loopTime: loopTimeSafe,
             bpm: stage.bpm,
             completedChordIds: completedSet
         )
         if nextChord?.id != activeChord?.id {
-            if let prev = activeChord, let current = attempt,
-               !current.completedChordIds.contains(prev.id),
-               !current.failedChordIds.contains(prev.id) {
+            if let prev = activeChord, !currentAttempt.completedChordIds.contains(prev.id),
+               !currentAttempt.failedChordIds.contains(prev.id) {
                 let tickResult = EarTrainingChordVoicingEngine.advanceTick(
-                    attempt: current,
+                    attempt: currentAttempt,
                     previousChord: prev,
                     damage: damageConfig
                 )
@@ -393,29 +596,133 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             activeChord = nextChord
         }
 
-        let audioDurationSec = phrase.audioDurationSec
-        if audioDurationSec.isFinite, currentTime >= audioDurationSec - Self.audioEndEpsilonSec {
-            failCurrentPhrase()
+        if scheduleNext {
+            scheduleNextChordSync(phrase: phrase, currentTime: currentTime, loopDurationSec: loopDurationSec)
         }
+    }
+
+    private func measureNumberAtLoopTime(loopTimeSec: Double, loopDurationSec: Double, loopMeasures: Int) -> Int {
+        let safeLoopMeasures = max(1, loopMeasures)
+        let measureDurationSec = loopDurationSec / Double(safeLoopMeasures)
+        guard measureDurationSec.isFinite, measureDurationSec > 0 else { return 1 }
+        return min(safeLoopMeasures, Int(floor(loopTimeSec / measureDurationSec)) + 1)
+    }
+
+    private func scheduleNextChordSync(phrase: EarTrainingPhraseDetail, currentTime: Double, loopDurationSec: Double) {
+        cancelChordSyncTask()
+        guard gameState == .playingPhrase else { return }
+
+        let loopIndex = max(0, Int(floor(currentTime / loopDurationSec)))
+        let loopTimeSec = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
+        let loopTimeSafe = loopTimeSec < 0 ? loopTimeSec + loopDurationSec : loopTimeSec
+
+        let nextBoundary = nextChordBoundarySec(phrase: phrase, loopTimeSec: loopTimeSafe)
+        var nextSync = (Double(loopIndex) + 1) * loopDurationSec
+        if let boundary = nextBoundary {
+            nextSync = Double(loopIndex) * loopDurationSec + boundary
+        }
+        let audioEnd = phrase.audioDurationSec - Self.audioEndEpsilonSec
+        if audioEnd.isFinite, audioEnd > 0 {
+            nextSync = min(nextSync, audioEnd)
+        }
+        if nextSync <= currentTime + Self.audioSyncEpsilonSec {
+            nextSync = currentTime + Self.minAudioSyncTimerSec
+        }
+        let delaySec = max(Self.minAudioSyncTimerSec, nextSync - currentTime - Self.audioSyncEpsilonSec)
+
+        chordSyncTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
+            guard let self else { return }
+            self.syncChordTimeline(scheduleNext: true)
+        }
+    }
+
+    /// 次の和弦境界（ループ内秒）。厳密な Web 版タイムラインの簡易近似。
+    private func nextChordBoundarySec(phrase: EarTrainingPhraseDetail, loopTimeSec: Double) -> Double? {
+        let chords = phrase.chords ?? []
+        guard !chords.isEmpty else { return nil }
+        let starts: [Double] = chords.compactMap { $0.startTimeSec }.filter { $0.isFinite }
+        let epsilon = 0.02
+        let threshold = loopTimeSec + epsilon
+        var best: Double?
+        for chord in chords {
+            if let end = chord.endTimeSec, end.isFinite, end > threshold {
+                if best == nil || end < best! { best = end }
+            }
+            if let start = chord.startTimeSec, start.isFinite, start > threshold {
+                if best == nil || start < best! { best = start }
+            }
+        }
+        return best
+    }
+
+    private func triggerLoopEnemyAttackIfNeeded(completedLoop: Int) {
+        guard gameState == .playingPhrase else { return }
+        guard completedLoop >= 2,
+              completedLoop < stage.maxLoopsPerPhrase,
+              completedLoop > lastLoopAttackApplied,
+              damageConfig.miss > 0
+        else { return }
+
+        lastLoopAttackApplied = completedLoop
+        let denom = max(1, Self.attackGaugeTargetLoops)
+        enemyAttackGaugePercent = max(0, min(1, Double(completedLoop) / Double(denom)))
+        triggerFeedback(.miss)
+        let attackEffectId = triggerBattleEffect(kind: .miss, label: "ATTACK", damage: damageConfig.miss, phraseNoteCount: nil)
+        registerBattleEffectImpact(effectId: attackEffectId) { [weak self] in
+            guard let self else { return }
+            let nextPlayerHp = max(0, self.playerHp - self.damageConfig.miss)
+            self.playerHp = nextPlayerHp
+            let outcome = EarTrainingEngine.resolveOutcome(
+                enemyHp: self.enemyHp,
+                playerHp: nextPlayerHp,
+                timeRemainingSec: self.timeRemaining,
+                phraseCompleted: false,
+                phraseFailed: false
+            )
+            if outcome == .gameOver {
+                self.finishGameOver(message: self.copy.gameOver)
+            }
+        }
+    }
+
+    private func handleAudioTimeUpdate(currentTime: Double) {
+        syncChordTimeline(scheduleNext: false)
     }
 
     private func failCurrentPhrase() {
         guard let attempt, gameState == .playingPhrase else { return }
+        cancelChordSyncTask()
         gameState = .phraseFail
         lastRank = .fail
-        let nextPlayerHp = max(0, playerHp - damageConfig.fail)
-        playerHp = nextPlayerHp
-        statusText = copy.failAdvance
-        if nextPlayerHp <= 0 {
-            finishGameOver(message: copy.gameOver)
-            return
-        }
-        cancelTransitionTimer()
-        transitionTimerTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 900_000_000)
+        enemyAttackGaugePercent = 1
+        triggerFeedback(.miss)
+        let failDamage = damageConfig.fail
+        let effectId = triggerBattleEffect(kind: .fail, label: "Fail", damage: failDamage, phraseNoteCount: nil)
+        registerBattleEffectImpact(effectId: effectId) { [weak self] in
             guard let self else { return }
-            let next = (self.phraseIndex + 1) % max(1, self.phrases.count)
-            self.startPhrase(at: next)
+            let nextPlayerHp = max(0, self.playerHp - failDamage)
+            self.playerHp = nextPlayerHp
+            let outcome = EarTrainingEngine.resolveOutcome(
+                enemyHp: self.enemyHp,
+                playerHp: nextPlayerHp,
+                timeRemainingSec: self.timeRemaining,
+                phraseCompleted: false,
+                phraseFailed: true
+            )
+            if outcome == .gameOver {
+                self.finishGameOver(message: self.copy.gameOver)
+                return
+            }
+            self.gameState = .phraseFail
+            self.statusText = self.copy.failAdvance
+            self.cancelTransitionTimer()
+            self.transitionTimerTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                guard let self else { return }
+                let next = (self.phraseIndex + 1) % max(1, self.phrases.count)
+                self.startPhrase(at: next)
+            }
         }
         _ = attempt
     }
@@ -427,8 +734,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         lastRank = rank
         statusText = copy.stageClear
         audio.stopPhrase()
+        triggerFeedback(.clear)
+        publishSnapshot()
+
         guard let lessonContext, !practiceMode, !progressSaveStarted else { return }
         progressSaveStarted = true
+        lessonProgressStatus = .saving
         let lessonRank = EarTrainingEngine.lessonRank(from: rank)
         do {
             _ = try await supabase.recordEarTrainingLessonProgress(
@@ -437,8 +748,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 rank: lessonRank,
                 clearConditions: lessonContext.clearConditions
             )
+            lessonProgressStatus = .saved
         } catch {
-            // 失敗時もUIを止めないために握り潰す（既存挙動と同様）。
+            lessonProgressStatus = .saving
         }
     }
 
@@ -447,6 +759,83 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         gameState = .gameOver
         statusText = message
         audio.stopPhrase()
+        publishSnapshot()
+    }
+
+    private func publishSnapshot() {
+        let snapshot = EarTrainingBattleSceneSnapshot(
+            gameState: gameState,
+            stageId: stage.id,
+            stageTitle: stage.localizedTitle(isEnglishCopy ? .en : .ja),
+            phraseIndex: phraseIndex,
+            phraseRunId: phraseRunId,
+            totalPhrases: phrases.count,
+            phraseIntroLine: phraseIntroLine,
+            demoLoopActive: false,
+            playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
+            enemyAvatarName: Self.avatarAssetName(stageId: stage.id, enemyId: enemyId),
+            enemyAvatarFlipX: Self.shouldFlipEnemyAvatar(name: Self.avatarAssetName(stageId: stage.id, enemyId: enemyId)),
+            showLobbyControls: showLobbyControls,
+            isEnglishCopy: isEnglishCopy
+        )
+        scene?.applySnapshot(snapshot)
+    }
+
+    private func triggerBattleEffect(
+        kind: EarTrainingBattleEffectKind,
+        label: String?,
+        damage: Int?,
+        phraseNoteCount: Int?
+    ) -> Int {
+        battleEffectIdCounter += 1
+        let id = battleEffectIdCounter
+        let command = EarTrainingBattleEffectCommand(
+            id: id,
+            kind: kind,
+            label: label,
+            damage: damage,
+            phraseNoteCount: phraseNoteCount
+        )
+        if lastEmittedEffectId != id {
+            lastEmittedEffectId = id
+            scene?.runEffect(command)
+        }
+        let effectTimeoutMs = Self.effectDurationMs(kind: kind, label: label, phraseNoteCount: phraseNoteCount)
+        battleEffectClearTask?.cancel()
+        battleEffectClearTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(effectTimeoutMs * 1_000_000))
+            await MainActor.run {
+                self?.pendingImpactHandlers[id] = nil
+            }
+        }
+        return id
+    }
+
+    private func registerBattleEffectImpact(effectId: Int, handler: @escaping () -> Void) {
+        pendingImpactHandlers[effectId] = handler
+    }
+
+    private static func effectDurationMs(
+        kind: EarTrainingBattleEffectKind,
+        label: String?,
+        phraseNoteCount: Int?
+    ) -> Double {
+        let isAwesome = kind == .complete
+            && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
+        return isAwesome ? kAwesomeBattleEffectMs : kBattleEffectMs
+    }
+
+    private func triggerFeedback(_ value: EarTrainingBattleController.Feedback) {
+        feedback = value
+        feedbackTask?.cancel()
+        feedbackTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            await MainActor.run {
+                if self?.feedback == value {
+                    self?.feedback = nil
+                }
+            }
+        }
     }
 
     private func cancelAllTimers() {
@@ -454,16 +843,47 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelTransitionTimer()
         cancelCountdownTimer()
         cancelTimeLimitTimer()
+        cancelChordSyncTask()
+        feedbackTask?.cancel()
+        feedbackTask = nil
+        battleEffectClearTask?.cancel()
+        battleEffectClearTask = nil
     }
 
     private func cancelFailTimer() { failTimerTask?.cancel(); failTimerTask = nil }
     private func cancelTransitionTimer() { transitionTimerTask?.cancel(); transitionTimerTask = nil }
     private func cancelCountdownTimer() { countdownTask?.cancel(); countdownTask = nil }
     private func cancelTimeLimitTimer() { timeLimitTask?.cancel(); timeLimitTask = nil }
+    private func cancelChordSyncTask() { chordSyncTask?.cancel(); chordSyncTask = nil }
 
     private func playRootNoteIfPossible(rootName: String) {
         guard let pc = EarTrainingChordVoicingEngine.noteNameToPitchClass(rootName) else { return }
-        let midi = 36 + pc // C2 (=36) を基点に根音のピッチクラスを再生
+        let midi = 36 + pc
         SurvivalGameAudio.shared.playSynthBassRoot(midi: midi)
+    }
+
+    static func avatarAssetName(stageId: UUID, enemyId: String) -> String {
+        EarTrainingBattleController.avatarAssetName(stageId: stageId, enemyId: enemyId)
+    }
+
+    static func shouldFlipEnemyAvatar(name: String) -> Bool {
+        EarTrainingBattleController.shouldFlipEnemyAvatar(name: name)
+    }
+}
+
+extension EarTrainingChordVoicingBattleController: EarTrainingBattleSceneDriving {}
+extension EarTrainingChordVoicingBattleController: EarTrainingPianoPlayable {}
+extension EarTrainingChordVoicingBattleController: EarTrainingLobbyPresentable {
+    var resultState: EarTrainingResultState? {
+        switch gameState {
+        case .stageClear: return .win
+        case .gameOver:
+            return statusText == copy.timeOver ? .timeOver : .lose
+        default: return nil
+        }
+    }
+
+    var stageTitleForLobby: String {
+        stage.localizedTitle(isEnglishCopy ? .en : .ja)
     }
 }

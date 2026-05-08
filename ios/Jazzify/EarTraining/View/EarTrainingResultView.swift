@@ -1,28 +1,28 @@
 import SwiftUI
 
 /// ロビー / 結果モーダル。Web `drawLobbyOverlay` と等価のレイアウトで表示する。
-struct EarTrainingResultView: View {
-    @ObservedObject var controller: EarTrainingBattleController
+struct EarTrainingResultView<Host: EarTrainingLobbyPresentable>: View {
+    @ObservedObject var host: Host
 
     var body: some View {
-        if controller.showLobbyControls {
+        if host.showLobbyControls {
             ZStack {
                 Color.black.opacity(0.55).ignoresSafeArea()
                 VStack(spacing: 14) {
                     titleLine
-                    if let rankLine = controller.resultRankLine {
+                    if let rankLine = host.resultRankLine {
                         Text(rankLine)
                             .font(.system(size: 16, weight: .heavy))
                             .foregroundColor(rankColor)
                     }
-                    if controller.gameState == .gameOver {
-                        Text(controller.statusText)
+                    if host.gameState == .gameOver {
+                        Text(host.statusText)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.white.opacity(0.86))
                     }
                     practiceToggle
-                    Button(action: { controller.startBattle() }) {
-                        Text(controller.startButtonLabel)
+                    Button(action: { host.startBattle() }) {
+                        Text(host.startButtonLabel)
                             .font(.system(size: 17, weight: .heavy))
                             .foregroundColor(Color(hex: "0f172a"))
                             .padding(.horizontal, 28)
@@ -30,8 +30,8 @@ struct EarTrainingResultView: View {
                             .background(Color(hex: "facc15"))
                             .clipShape(Capsule())
                     }
-                    Button(action: { controller.handleBack() }) {
-                        Text(controller.hudLabels.lobbyBack)
+                    Button(action: { host.handleBack() }) {
+                        Text(host.hudLabels.lobbyBack)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white.opacity(0.85))
                             .padding(.horizontal, 16)
@@ -40,9 +40,9 @@ struct EarTrainingResultView: View {
                                 Capsule().stroke(Color.white.opacity(0.5), lineWidth: 1)
                             )
                     }
-                    if let progressText = controller.lessonProgressText {
+                    if let progressText = host.lessonProgressText {
                         HStack(spacing: 4) {
-                            if controller.lessonProgressStatus == .saving {
+                            if host.lessonProgressStatus == .saving {
                                 ProgressView()
                                     .progressViewStyle(.circular)
                                     .scaleEffect(0.6)
@@ -70,11 +70,11 @@ struct EarTrainingResultView: View {
 
     private var titleLine: some View {
         let text: String
-        switch controller.resultState {
-        case .win: text = controller.hudLabels.resultWin
-        case .lose: text = controller.hudLabels.resultLose
-        case .timeOver: text = controller.hudLabels.resultTimeOver
-        case nil: text = controller.stage.localizedTitle(controller.isEnglishCopy ? .en : .ja)
+        switch host.resultState {
+        case .win: text = host.hudLabels.resultWin
+        case .lose: text = host.hudLabels.resultLose
+        case .timeOver: text = host.hudLabels.resultTimeOver
+        case nil: text = host.stageTitleForLobby
         }
         return Text(text)
             .font(.system(size: 22, weight: .heavy))
@@ -82,7 +82,7 @@ struct EarTrainingResultView: View {
     }
 
     private var rankColor: Color {
-        switch controller.lastRank {
+        switch host.lastRank {
         case .perfect: return Color(hex: "fde68a")
         case .great: return Color(hex: "bfdbfe")
         case .good: return Color(hex: "bbf7d0")
@@ -92,19 +92,19 @@ struct EarTrainingResultView: View {
     }
 
     private var practiceToggle: some View {
-        Picker(controller.isEnglishCopy ? "Mode" : "モード", selection: practiceBinding) {
-            Text(controller.hudLabels.battleMode).tag(false)
-            Text(controller.hudLabels.practiceMode).tag(true)
+        Picker(host.isEnglishCopy ? "Mode" : "モード", selection: practiceBinding) {
+            Text(host.hudLabels.battleMode).tag(false)
+            Text(host.hudLabels.practiceMode).tag(true)
         }
         .pickerStyle(.segmented)
         .frame(maxWidth: 220)
-        .disabled(!controller.canChangePracticeMode)
+        .disabled(!host.canChangePracticeMode)
     }
 
     private var practiceBinding: Binding<Bool> {
         Binding(
-            get: { controller.practiceMode },
-            set: { controller.setPracticeMode($0) }
+            get: { host.practiceMode },
+            set: { host.setPracticeMode($0) }
         )
     }
 }

@@ -200,7 +200,7 @@ private struct EarTrainingGameContent: View {
 
     private func landscapeContent(size: CGSize) -> some View {
         ZStack(alignment: .top) {
-            EarTrainingSceneContainer(controller: controller, sceneSize: size)
+            EarTrainingSceneContainer(driver: controller, sceneSize: size)
                 .ignoresSafeArea()
 
             EarTrainingDemoBubbleView(controller: controller)
@@ -208,18 +208,23 @@ private struct EarTrainingGameContent: View {
                 .allowsHitTesting(false)
 
             VStack(spacing: 0) {
-                EarTrainingHUDView(controller: controller, horizontalPadding: hudHorizontalPadding)
+                EarTrainingHUDView(
+                    hud: controller.hudModel,
+                    horizontalPadding: hudHorizontalPadding,
+                    onSettings: { controller.handleOpenSettings() },
+                    onBack: { controller.handleBack() }
+                )
                 Spacer()
             }
 
             VStack(spacing: 0) {
                 Spacer()
-                EarTrainingPianoView(controller: controller)
+                EarTrainingPianoView(player: controller)
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)
             }
 
-            EarTrainingResultView(controller: controller)
+            EarTrainingResultView(host: controller)
         }
     }
 
@@ -236,8 +241,8 @@ private struct EarTrainingGameContent: View {
 
 // MARK: - SpriteKit ブリッジ
 
-private struct EarTrainingSceneContainer: UIViewRepresentable {
-    let controller: EarTrainingBattleController
+private struct EarTrainingSceneContainer<Driver: EarTrainingBattleSceneDriving>: UIViewRepresentable {
+    let driver: Driver
     let sceneSize: CGSize
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -254,14 +259,14 @@ private struct EarTrainingSceneContainer: UIViewRepresentable {
         let scene = EarTrainingBattleScene(size: initialFrame.size)
         scene.scaleMode = .resizeFill
         scene.isPaused = false
-        scene.onEffectImpact = { [weak controller] effectId in
-            Task { @MainActor [weak controller] in
-                controller?.handleEffectImpact(effectId: effectId)
+        scene.onEffectImpact = { [weak driver] effectId in
+            Task { @MainActor [weak driver] in
+                driver?.handleEffectImpact(effectId: effectId)
             }
         }
         view.presentScene(scene)
-        controller.attachScene(scene)
-        context.coordinator.attach(view: view, scene: scene, controller: controller)
+        driver.attachScene(scene)
+        context.coordinator.attach(view: view, scene: scene, driver: driver)
         return view
     }
 
@@ -280,13 +285,13 @@ private struct EarTrainingSceneContainer: UIViewRepresentable {
     final class Coordinator {
         private weak var view: SKView?
         private weak var scene: EarTrainingBattleScene?
-        private weak var controller: EarTrainingBattleController?
+        private weak var driver: Driver?
         private var activeObserver: NSObjectProtocol?
 
-        func attach(view: SKView, scene: EarTrainingBattleScene, controller: EarTrainingBattleController) {
+        func attach(view: SKView, scene: EarTrainingBattleScene, driver: Driver) {
             self.view = view
             self.scene = scene
-            self.controller = controller
+            self.driver = driver
             activeObserver = NotificationCenter.default.addObserver(
                 forName: UIApplication.didBecomeActiveNotification,
                 object: nil,
@@ -306,13 +311,13 @@ private struct EarTrainingSceneContainer: UIViewRepresentable {
         func detach() {
             if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
             activeObserver = nil
-            let pendingController = controller
+            let pendingDriver = driver
             Task { @MainActor in
-                pendingController?.detachScene()
+                pendingDriver?.detachScene()
             }
             view = nil
             scene = nil
-            controller = nil
+            driver = nil
         }
     }
 }

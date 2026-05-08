@@ -730,6 +730,7 @@ final class SupabaseService: Sendable {
             backgroundTheme: raw.backgroundTheme,
             isActive: raw.isActive,
             mode: raw.mode,
+            keyFifths: raw.keyFifths,
             phrases: raw.sortedPhrases()
         )
     }

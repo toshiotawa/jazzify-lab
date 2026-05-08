@@ -454,3 +454,453 @@ struct ChordVoicingStaffView: View {
         }
     }
 }
+
+// MARK: - Multi-group staff (Web `ChordVoicingStaff` voicingGroups)
+
+/// Web `ChordVoicingStaff` の複数グループ（2 小節・密集・正解色）を Canvas で近似描画する。
+struct ChordVoicingStaffGroupsView: View {
+    let groups: [EarTrainingChordVoicingStaffLayout.GroupInput]
+    let denseCurrentMeasureLayout: Bool
+    let keyFifths: Int
+    let activeGroupId: UUID?
+    let correctPitchClassesByGroupId: [UUID: Set<Int>]
+
+    private static let notationColor = Color.white
+    private static let correctColor = Color(red: 0.13, green: 0.77, blue: 0.37)
+    private static let activeLabelColor = Color(red: 0.98, green: 0.8, blue: 0.09)
+    private static let trebleReferenceDegree = 4 * 7 + 6
+    private static let bassReferenceDegree = 3 * 7 + 1
+
+    var body: some View {
+        GeometryReader { proxy in
+            let w = max(1, proxy.size.width)
+            let h = max(1, proxy.size.height)
+            Canvas { context, size in
+                Self.drawAll(
+                    context: &context,
+                    size: size,
+                    groups: groups,
+                    dense: denseCurrentMeasureLayout,
+                    keyFifths: keyFifths,
+                    activeGroupId: activeGroupId,
+                    correctByGroup: correctPitchClassesByGroupId
+                )
+            }
+            .frame(width: w, height: h)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Chord voicing staff"))
+    }
+
+    private struct StaffLayoutMetrics {
+        let measureDividerX: CGFloat
+        let measureOneNoteLeftX: CGFloat
+        let measureOneNoteRightX: CGFloat
+        let measureTwoNoteLeftX: CGFloat
+        let measureTwoNoteRightX: CGFloat
+    }
+
+    private static func staffLayoutMetrics(width: CGFloat, keyFifths: Int, wideFirstMeasure: Bool) -> StaffLayoutMetrics {
+        let sp = max(8, width * (12 / 720))
+        let staffLineLeft = width * (24 / 720)
+        let staffLineRight = width * (696 / 720)
+        let fifths = max(0, min(7, abs(keyFifths)))
+        let keySigLeft = width * (88 / 720)
+        let keySigGap = sp * 1.05
+        let accFont = sp * 2.9
+        let keySignatureEndX = fifths > 0
+            ? keySigLeft + CGFloat(fifths - 1) * keySigGap + accFont * 0.4
+            : keySigLeft
+        let dividerX = wideFirstMeasure
+            ? staffLineLeft + (staffLineRight - staffLineLeft) * 0.9
+            : width / 2
+        let measureOneLeft = max(width * (138 / 720), keySignatureEndX + sp * 3.1)
+        let measureOneRight = max(measureOneLeft + sp * 3, dividerX - sp * 2.5)
+        let measureTwoLeft = min(dividerX + sp * 2.1, staffLineRight - sp * 2.2)
+        let measureTwoRight = staffLineRight - sp * 2.5
+        return StaffLayoutMetrics(
+            measureDividerX: dividerX,
+            measureOneNoteLeftX: measureOneLeft,
+            measureOneNoteRightX: measureOneRight,
+            measureTwoNoteLeftX: measureTwoLeft,
+            measureTwoNoteRightX: measureTwoRight
+        )
+    }
+
+    private static func drawAll(
+        context: inout GraphicsContext,
+        size: CGSize,
+        groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
+        dense: Bool,
+        keyFifths: Int,
+        activeGroupId: UUID?,
+        correctByGroup: [UUID: Set<Int>]
+    ) {
+        guard !groups.isEmpty else { return }
+        let w = size.width
+        let layout = staffLayoutMetrics(width: w, keyFifths: keyFifths, wideFirstMeasure: dense)
+
+        var measureSlotCounts: [Int: Int] = [:]
+        for g in groups {
+            measureSlotCounts[g.measureOffset, default: 0] += 1
+        }
+        var nextSlot: [Int: Int] = [:]
+        var parsedGroups: [(group: EarTrainingChordVoicingStaffLayout.GroupInput, slotIndex: Int, slotCount: Int, notes: [ParsedVoicingNote])] = []
+        for g in groups {
+            let mo = g.measureOffset
+            let si = nextSlot[mo, default: 0]
+            nextSlot[mo] = si + 1
+            let sc = measureSlotCounts[mo] ?? 1
+            let notes = parseGroupNotes(g)
+            parsedGroups.append((g, si, sc, notes))
+        }
+
+        let hasRest = parsedGroups.contains { $0.group.isRest }
+        let activeStaves = hasRest ? [1, 2] : [1, 2].filter { st in
+            parsedGroups.contains { $0.notes.contains { $0.staff == st } }
+        }
+        let sp = max(8, w * (12 / 720))
+        let staffSpacing = min(18, max(10, (size.height - sp * 10) / CGFloat(max(11, activeStaves.count * 7 + 3))))
+        let staffGap = staffSpacing * 3
+        let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
+        let firstTopY = max(sp * 2, (size.height - groupHeight) / 2)
+
+        var divPath = Path()
+        divPath.move(to: CGPoint(x: layout.measureDividerX, y: firstTopY - sp))
+        divPath.addLine(to: CGPoint(x: layout.measureDividerX, y: firstTopY + groupHeight + sp))
+        context.stroke(divPath, with: .color(.white.opacity(0.35)), lineWidth: 1.2)
+
+        for (staffIndex, staff) in activeStaves.enumerated() {
+            let topY = firstTopY + CGFloat(staffIndex) * (staffSpacing * 4 + staffGap)
+            let leftX = w * (24 / 720)
+            let rightX = w * (696 / 720)
+            groupsDrawStaff(context: &context, top: topY, staffSpacing: staffSpacing, leftX: leftX, rightX: rightX)
+            groupsDrawClef(context: &context, staff: staff, x: leftX + staffSpacing * 1.7, staffTopY: topY, staffSpacing: staffSpacing)
+            groupsDrawKeySignature(context: &context, staff: staff, staffTopY: topY, staffSpacing: staffSpacing, startX: leftX + staffSpacing * 4.8, keyFifths: keyFifths)
+
+            for item in parsedGroups {
+                let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
+                let labelY = topY - sp * 2.2
+                if !item.group.chordName.isEmpty {
+                    let labelColor = item.group.id == activeGroupId ? activeLabelColor : notationColor
+                    let resolved = context.resolve(
+                        Text(item.group.chordName)
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
+                            .foregroundColor(labelColor)
+                    )
+                    context.draw(resolved, at: CGPoint(x: baseX, y: labelY), anchor: .center)
+                }
+                if item.group.isRest {
+                    groupsDrawWholeRest(context: &context, baseX: baseX, staffTopY: topY, staffSpacing: staffSpacing)
+                    continue
+                }
+                let staffNotes = item.notes.filter { $0.staff == staff }.sorted {
+                    if $0.degree != $1.degree { return $0.degree < $1.degree }
+                    if $0.alter != $1.alter { return $0.alter < $1.alter }
+                    return $0.voicingIndex < $1.voicingIndex
+                }
+                let correctSet = correctByGroup[item.group.id] ?? []
+                for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: staffSpacing) {
+                    let isCorrect = correctSet.contains(positioned.note.pitchClass)
+                    groupsDrawWholeNote(
+                        context: &context,
+                        staffTopY: topY,
+                        staffSpacing: staffSpacing,
+                        positioned: positioned,
+                        baseX: baseX,
+                        color: isCorrect ? correctColor : notationColor
+                    )
+                }
+            }
+        }
+    }
+
+    private static func groupBaseX(
+        group: EarTrainingChordVoicingStaffLayout.GroupInput,
+        slotIndex: Int,
+        slotCount: Int,
+        layout: StaffLayoutMetrics
+    ) -> CGFloat {
+        let left = group.measureOffset == 0 ? layout.measureOneNoteLeftX : layout.measureTwoNoteLeftX
+        let right = group.measureOffset == 0 ? layout.measureOneNoteRightX : layout.measureTwoNoteRightX
+        let slotWidth = (right - left) / CGFloat(max(1, slotCount))
+        return left + slotWidth * (CGFloat(slotIndex) + 0.5)
+    }
+
+    private static func parseGroupNotes(_ group: EarTrainingChordVoicingStaffLayout.GroupInput) -> [ParsedVoicingNote] {
+        let v = group.voicing
+        let st = group.voicingStaves
+        return zip(v, st).enumerated().compactMap { offset, pair in
+            let (name, staffRaw) = pair
+            let staffNum = staffRaw == 2 ? 2 : 1
+            return VoicingNoteParser.parse(name: name, staff: staffNum, voicingIndex: offset)
+        }
+    }
+
+    private static func groupsDrawStaff(
+        context: inout GraphicsContext,
+        top: CGFloat,
+        staffSpacing: CGFloat,
+        leftX: CGFloat,
+        rightX: CGFloat
+    ) {
+        for line in 0..<5 {
+            let y = top + CGFloat(line) * staffSpacing
+            var path = Path()
+            path.move(to: CGPoint(x: leftX, y: y))
+            path.addLine(to: CGPoint(x: rightX, y: y))
+            context.stroke(path, with: .color(notationColor), lineWidth: 1.3)
+        }
+    }
+
+    private static func groupsDrawClef(
+        context: inout GraphicsContext,
+        staff: Int,
+        x: CGFloat,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat
+    ) {
+        let sign = staff == 2 ? "𝄢" : "𝄞"
+        let y = staff == 2
+            ? staffTopY + staffSpacing * 1.9
+            : staffTopY + staffSpacing * 2.35
+        let fontSize = staff == 2 ? staffSpacing * 3.0 : staffSpacing * 3.75
+        let resolved = context.resolve(
+            Text(sign)
+                .font(.system(size: fontSize, weight: .regular))
+                .foregroundColor(notationColor)
+        )
+        context.draw(resolved, at: CGPoint(x: x, y: y), anchor: .center)
+    }
+
+    private static func groupsDrawKeySignature(
+        context: inout GraphicsContext,
+        staff: Int,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat,
+        startX: CGFloat,
+        keyFifths: Int
+    ) {
+        let marks = groupsKeySignatureMarks(staff: staff, keyFifths: keyFifths)
+        guard !marks.isEmpty else { return }
+        for (index, mark) in marks.enumerated() {
+            let resolved = context.resolve(
+                Text(mark.symbol)
+                    .font(.system(size: staffSpacing * 1.35, weight: .semibold))
+                    .foregroundColor(notationColor)
+            )
+            context.draw(
+                resolved,
+                at: CGPoint(
+                    x: startX + CGFloat(index) * staffSpacing * 0.72,
+                    y: groupsYForDegree(mark.degree, staff: staff, staffTopY: staffTopY, staffSpacing: staffSpacing)
+                ),
+                anchor: .center
+            )
+        }
+    }
+
+    private static func groupsKeySignatureMarks(staff: Int, keyFifths: Int) -> [KeySignatureMark] {
+        let fifths = max(-7, min(7, keyFifths))
+        guard fifths != 0 else { return [] }
+        let degreeMap = groupsKeySignatureDegreeMap(staff: staff)
+        let degrees = fifths > 0
+            ? Array(degreeMap.sharps.prefix(fifths))
+            : Array(degreeMap.flats.prefix(abs(fifths)))
+        let symbol = fifths > 0 ? "♯" : "♭"
+        return degrees.map { KeySignatureMark(symbol: symbol, degree: $0) }
+    }
+
+    private static func groupsKeySignatureDegreeMap(staff: Int) -> (sharps: [Int], flats: [Int]) {
+        if staff == 2 {
+            return (
+                sharps: [24, 21, 25, 22, 19, 23, 20],
+                flats: [20, 23, 19, 22, 18, 21, 17]
+            )
+        }
+        return (
+            sharps: [38, 35, 39, 36, 33, 37, 34],
+            flats: [34, 37, 33, 36, 32, 35, 31]
+        )
+    }
+
+    private static func groupsYForDegree(_ degree: Int, staff: Int, staffTopY: CGFloat, staffSpacing: CGFloat) -> CGFloat {
+        let ref = staff == 2 ? bassReferenceDegree : trebleReferenceDegree
+        let middleLineY = staffTopY + staffSpacing * 2
+        return middleLineY - CGFloat(degree - ref) * (staffSpacing / 2)
+    }
+
+    private static func groupsLayoutNotes(
+        notes: [ParsedVoicingNote],
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat
+    ) -> [PositionedVoicingNote] {
+        guard !notes.isEmpty else { return [] }
+        let noteWidth = staffSpacing * 1.45
+        let adjacentOffset = noteWidth * 0.5
+        var offsets = Array(repeating: CGFloat.zero, count: notes.count)
+        var clusterStart = 0
+        for index in 1...notes.count {
+            let shouldBreak = index == notes.count || notes[index].degree - notes[index - 1].degree > 1
+            if shouldBreak {
+                let clusterCount = index - clusterStart
+                if clusterCount > 1 {
+                    for noteIndex in clusterStart..<index {
+                        offsets[noteIndex] = (noteIndex - clusterStart).isMultiple(of: 2)
+                            ? -adjacentOffset
+                            : adjacentOffset
+                    }
+                }
+                clusterStart = index
+            }
+        }
+        var yCenters = Array(repeating: CGFloat.zero, count: notes.count)
+        for index in notes.indices {
+            yCenters[index] = groupsYForDegree(
+                notes[index].degree,
+                staff: notes[index].staff,
+                staffTopY: staffTopY,
+                staffSpacing: staffSpacing
+            )
+        }
+        var accidentalColumns = Array(repeating: 0, count: notes.count)
+        var occupiedColumnY: [CGFloat] = []
+        let accidentalCollisionHeight = staffSpacing * 1.15
+        let accidentalIndices = notes.indices
+            .filter { notes[$0].alter != 0 }
+            .sorted { yCenters[$0] < yCenters[$1] }
+        for index in accidentalIndices {
+            var column = 0
+            while column < occupiedColumnY.count
+                && abs(occupiedColumnY[column] - yCenters[index]) < accidentalCollisionHeight {
+                column += 1
+            }
+            if column == occupiedColumnY.count {
+                occupiedColumnY.append(yCenters[index])
+            } else {
+                occupiedColumnY[column] = yCenters[index]
+            }
+            accidentalColumns[index] = column
+        }
+        return notes.indices.map { index in
+            PositionedVoicingNote(
+                note: notes[index],
+                yCenter: yCenters[index],
+                xOffset: offsets[index],
+                accidentalColumn: accidentalColumns[index]
+            )
+        }
+    }
+
+    private static func groupsDrawWholeNote(
+        context: inout GraphicsContext,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat,
+        positioned: PositionedVoicingNote,
+        baseX: CGFloat,
+        color: Color
+    ) {
+        let xCenter = baseX + positioned.xOffset
+        let yCenter = positioned.yCenter
+        let noteWidth = staffSpacing * 1.45
+        let noteHeight = staffSpacing * 0.86
+        let rect = CGRect(
+            x: xCenter - noteWidth / 2,
+            y: yCenter - noteHeight / 2,
+            width: noteWidth,
+            height: noteHeight
+        )
+        groupsDrawLedgerLines(
+            context: &context,
+            xCenter: xCenter,
+            yCenter: yCenter,
+            staffTopY: staffTopY,
+            staffSpacing: staffSpacing,
+            noteWidth: noteWidth,
+            color: color
+        )
+        if positioned.note.alter != 0 {
+            let accidental = groupsAccidentalString(for: positioned.note.alter)
+            let accidentalX = min(
+                xCenter - noteWidth * 1.05,
+                baseX - noteWidth * 1.15 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.85
+            )
+            let resolved = context.resolve(
+                Text(accidental)
+                    .font(.system(size: staffSpacing * 1.3, weight: .semibold))
+                    .foregroundColor(color)
+            )
+            context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)
+        }
+        var ovalPath = Path()
+        ovalPath.addEllipse(in: rect)
+        context.stroke(ovalPath, with: .color(color), lineWidth: max(CGFloat(2.2), staffSpacing * 0.18))
+    }
+
+    private static func groupsDrawLedgerLines(
+        context: inout GraphicsContext,
+        xCenter: CGFloat,
+        yCenter: CGFloat,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat,
+        noteWidth: CGFloat,
+        color: Color
+    ) {
+        let topLineY = staffTopY
+        let bottomLineY = staffTopY + staffSpacing * 4
+        let lineWidth = noteWidth * 1.25
+        let half = lineWidth / 2
+        if yCenter < topLineY {
+            var stepY = topLineY - staffSpacing
+            while stepY >= yCenter - 0.1 {
+                groupsDrawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY, color: color)
+                stepY -= staffSpacing
+            }
+        }
+        if yCenter > bottomLineY {
+            var stepY = bottomLineY + staffSpacing
+            while stepY <= yCenter + 0.1 {
+                groupsDrawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY, color: color)
+                stepY += staffSpacing
+            }
+        }
+    }
+
+    private static func groupsDrawLedgerLine(
+        context: inout GraphicsContext,
+        xCenter: CGFloat,
+        halfWidth: CGFloat,
+        y: CGFloat,
+        color: Color
+    ) {
+        var path = Path()
+        path.move(to: CGPoint(x: xCenter - halfWidth, y: y))
+        path.addLine(to: CGPoint(x: xCenter + halfWidth, y: y))
+        context.stroke(path, with: .color(color), lineWidth: 1.25)
+    }
+
+    private static func groupsDrawWholeRest(
+        context: inout GraphicsContext,
+        baseX: CGFloat,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat
+    ) {
+        let rect = CGRect(
+            x: baseX - staffSpacing * 0.35,
+            y: staffTopY + staffSpacing * 1.25,
+            width: staffSpacing * 0.7,
+            height: staffSpacing * 0.35
+        )
+        context.fill(Path(rect), with: .color(notationColor.opacity(0.85)))
+    }
+
+    private static func groupsAccidentalString(for alter: Int) -> String {
+        switch alter {
+        case 2: return "𝄪"
+        case 1: return "♯"
+        case -1: return "♭"
+        case -2: return "𝄫"
+        default: return ""
+        }
+    }
+}

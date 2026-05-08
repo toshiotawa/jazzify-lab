@@ -1,4 +1,5 @@
 import SwiftUI
+import SpriteKit
 import UIKit
 
 /// コード演奏バトルモード ([src/components/earTraining/EarTrainingChordVoicingScreen.tsx]) の iOS 画面。
@@ -93,6 +94,7 @@ struct EarTrainingChordVoicingGameView: View {
                 phrases: phrases,
                 lessonContext: lessonContext,
                 isEnglishCopy: locale == .en,
+                enemyId: stageDetail.id.uuidString,
                 enemyName: stageDetail.localizedTitle(locale),
                 audio: audioInstance,
                 onExit: onClose
@@ -142,14 +144,7 @@ private struct EarTrainingChordVoicingContent: View {
     let locale: AppLocale
     let onClose: () -> Void
 
-    private struct LayoutMetrics {
-        let horizontalPadding: CGFloat
-        let verticalPadding: CGFloat
-        let spacing: CGFloat
-        let topBarHeight: CGFloat
-        let staffAreaHeight: CGFloat
-        let pianoHeight: CGFloat
-    }
+    @State private var hudHorizontalPadding: CGFloat = 16
 
     var body: some View {
         GeometryReader { proxy in
@@ -166,6 +161,9 @@ private struct EarTrainingChordVoicingContent: View {
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
         }
         .ignoresSafeArea()
+        .onAppear {
+            hudHorizontalPadding = Self.resolveHudHorizontalPadding()
+        }
         .sheet(isPresented: $controller.isSettingsOpen) {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
@@ -176,262 +174,167 @@ private struct EarTrainingChordVoicingContent: View {
         }
     }
 
-    @ViewBuilder
     private func landscapeContent(size: CGSize) -> some View {
-        let metrics = layoutMetrics(for: size)
-        ZStack(alignment: .top) {
-            LinearGradient(
-                colors: [Color(red: 0.04, green: 0.07, blue: 0.13), Color(red: 0.10, green: 0.13, blue: 0.21)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+        ZStack {
+            feedbackBackground
+            ChordVoicingEarTrainingSceneContainer(driver: controller, sceneSize: size)
+                .ignoresSafeArea()
 
-            VStack(spacing: metrics.spacing) {
-                topBar
-                    .frame(height: metrics.topBarHeight)
-                staffArea(height: metrics.staffAreaHeight)
-                Spacer(minLength: 0)
-                bottomPiano(height: metrics.pianoHeight)
-            }
-            .padding(.horizontal, metrics.horizontalPadding)
-            .padding(.vertical, metrics.verticalPadding)
-
-            if controller.showLobbyControls {
-                lobbyOverlay
-            }
-        }
-    }
-
-    private func layoutMetrics(for size: CGSize) -> LayoutMetrics {
-        let compactHeight = size.height < 430
-        let horizontalPadding: CGFloat = compactHeight ? 12 : 16
-        let verticalPadding: CGFloat = compactHeight ? 8 : 12
-        let spacing: CGFloat = compactHeight ? 8 : 12
-        let topBarHeight: CGFloat = compactHeight ? 42 : 50
-        let pianoRatio: CGFloat = compactHeight ? 0.24 : 0.22
-        let pianoHeight = min(CGFloat(120), max(CGFloat(86), size.height * pianoRatio))
-        let reservedHeight = verticalPadding * 2 + spacing * 3 + topBarHeight + pianoHeight
-        let staffAreaHeight = min(CGFloat(260), max(CGFloat(172), size.height - reservedHeight))
-        return LayoutMetrics(
-            horizontalPadding: horizontalPadding,
-            verticalPadding: verticalPadding,
-            spacing: spacing,
-            topBarHeight: topBarHeight,
-            staffAreaHeight: staffAreaHeight,
-            pianoHeight: pianoHeight
-        )
-    }
-
-    private var topBar: some View {
-        HStack(spacing: 12) {
-            Button(action: { controller.handleBack() }) {
-                Label(locale == .ja ? "戻る" : "Back", systemImage: "chevron.left")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.black.opacity(0.55), in: Capsule())
-                    .foregroundColor(.white)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(controller.statusText)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.85))
-                Text(controller.timeLabel)
-                    .font(.system(size: 18, weight: .black, design: .monospaced))
-                    .foregroundStyle(.white)
-            }
-            Spacer()
-            HStack(spacing: 14) {
-                hpBar(label: locale == .ja ? "敵HP" : "Enemy", value: controller.enemyHp, max: controller.stage.enemyHp, tint: .red)
-                hpBar(label: locale == .ja ? "自HP" : "Player", value: controller.playerHp, max: controller.stage.playerHp, tint: .green)
-            }
-            Button(action: { controller.handleOpenSettings() }) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(8)
-                    .background(Color.black.opacity(0.55), in: Circle())
-            }
-        }
-    }
-
-    private func hpBar(label: String, value: Int, max maxValue: Int, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption2).foregroundStyle(.white.opacity(0.7))
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.2)).frame(width: 110, height: 8)
-                Capsule().fill(tint).frame(width: 110 * CGFloat(min(max(0, value), maxValue)) / CGFloat(max(1, maxValue)), height: 8)
-            }
-            Text("\(value) / \(maxValue)")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white)
-        }
-    }
-
-    private func staffArea(height: CGFloat) -> some View {
-        let slotHeight: CGFloat = 36
-        let innerPadding: CGFloat = 8
-        let staffHeight = max(CGFloat(112), height - slotHeight - innerPadding * 2 - 8)
-        return VStack(spacing: 8) {
-            chordSlots
-                .frame(height: slotHeight)
-            staffView(height: staffHeight)
-        }
-        .padding(innerPadding)
-        .frame(height: height)
-    }
-
-    private var chordSlots: some View {
-        HStack(spacing: 8) {
-            let chords = controller.currentPhrase?.chords ?? []
-            let attempt = controller.attempt
-            ForEach(Array(chords.enumerated()), id: \.element.id) { index, chord in
-                let completed = attempt?.completedChordIds.contains(chord.id) ?? false
-                let active = controller.activeChord?.id == chord.id
-                ZStack {
-                    Circle()
-                        .stroke(completed ? Color.green : (active ? Color.cyan : Color.white.opacity(0.4)), lineWidth: 3)
-                        .frame(width: 28, height: 28)
-                    if completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.green)
-                    }
-                }
-                .overlay(alignment: .bottom) {
-                    Text("\(index + 1)")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .offset(y: 14)
-                }
-            }
-        }
-    }
-
-    private func staffView(height: CGFloat) -> some View {
-        let chord = controller.activeChord
-        let voicing = chord?.voicing ?? []
-        let staves = chord?.voicingStaves ?? []
-        let staffWidth = min(CGFloat(360), max(CGFloat(260), height * 1.85))
-        return Group {
-            if voicing.isEmpty {
-                Text(locale == .ja ? "コード待機中…" : "Waiting for chord…")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(maxWidth: .infinity, minHeight: height)
-            } else {
-                ChordVoicingStaffView(
-                    voicing: voicing,
-                    voicingStaves: staves,
-                    chordName: chord?.chordName ?? "",
-                    keyFifths: controller.currentPhrase?.keyFifths ?? controller.stage.keyFifths ?? 0
+            VStack(spacing: 0) {
+                EarTrainingHUDView(
+                    hud: controller.hudModel,
+                    horizontalPadding: hudHorizontalPadding,
+                    onSettings: { controller.handleOpenSettings() },
+                    onBack: { controller.handleBack() }
                 )
-                .frame(width: staffWidth, height: height)
-                .frame(maxWidth: .infinity, alignment: .center)
+                Spacer()
+            }
+
+            staffOverlay(size: size)
+
+            VStack(spacing: 0) {
+                Spacer()
+                EarTrainingPianoView(player: controller)
+                    .ignoresSafeArea(.container, edges: .horizontal)
+                    .padding(.bottom, 4)
+            }
+
+            EarTrainingResultView(host: controller)
+        }
+    }
+
+    @ViewBuilder
+    private var feedbackBackground: some View {
+        switch controller.feedback {
+        case .miss:
+            Color.red.opacity(0.12).ignoresSafeArea().allowsHitTesting(false)
+        case .clear:
+            Color.white.opacity(0.08).ignoresSafeArea().allowsHitTesting(false)
+        case .correct:
+            Color.clear
+        case nil:
+            Color.clear
+        }
+    }
+
+    @ViewBuilder
+    private func staffOverlay(size: CGSize) -> some View {
+        if let phrase = controller.currentPhrase {
+            let build = EarTrainingChordVoicingStaffLayout.buildGroups(
+                input: EarTrainingChordVoicingStaffLayout.BuildInput(
+                    phrase: phrase,
+                    stageLoopMeasures: controller.stage.loopMeasures,
+                    activeMeasureNumber: controller.activeMeasureNumber,
+                    activeChordId: controller.activeChord?.id,
+                    attempt: controller.attempt
+                )
+            )
+            let correctMap = EarTrainingChordVoicingStaffLayout.correctPitchClassesByGroupId(attempt: controller.attempt)
+            let keyFifths = phrase.keyFifths ?? controller.stage.keyFifths ?? 0
+            if !build.groups.isEmpty {
+                ChordVoicingStaffGroupsView(
+                    groups: build.groups,
+                    denseCurrentMeasureLayout: build.denseCurrentMeasureLayout,
+                    keyFifths: keyFifths,
+                    activeGroupId: controller.activeChord?.id,
+                    correctPitchClassesByGroupId: correctMap
+                )
+                .frame(width: min(size.width * 0.82, 720), height: size.height * 0.34)
+                .position(x: size.width / 2, y: size.height * 0.42)
+                .allowsHitTesting(false)
             }
         }
     }
 
-    private func bottomPiano(height: CGFloat) -> some View {
-        EarTrainingChordVoicingPianoView(controller: controller)
-            .frame(height: height)
-    }
-
-    private var lobbyOverlay: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            VStack(spacing: 12) {
-                Text(controller.stage.localizedTitle(locale))
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white)
-                Text(controller.statusText)
-                    .font(.callout)
-                    .foregroundStyle(.white.opacity(0.85))
-                HStack(spacing: 12) {
-                    Button(action: { controller.startBattle() }) {
-                        Text(controller.startButtonLabel)
-                            .font(.headline)
-                            .frame(maxWidth: 160)
-                            .padding(.vertical, 12)
-                            .background(Color.yellow, in: Capsule())
-                            .foregroundStyle(.black)
-                    }
-                    Toggle(locale == .ja ? "練習" : "Practice", isOn: Binding(
-                        get: { controller.practiceMode },
-                        set: { controller.setPracticeMode($0) }
-                    ))
-                    .toggleStyle(.button)
-                    .tint(.cyan)
-                    .disabled(!controller.canChangePracticeMode)
-                }
-            }
-            .padding(20)
-            .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            Spacer()
+    private static func resolveHudHorizontalPadding() -> CGFloat {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first(where: { $0.isKeyWindow }) else {
+            return 16
         }
+        let s = window.safeAreaInsets
+        return max(16, s.left, s.right, s.top)
     }
 }
 
-private struct EarTrainingChordVoicingPianoView: View {
-    @ObservedObject var controller: EarTrainingChordVoicingBattleController
+// MARK: - SpriteKit (コードヴォイシング用に `EarTrainingGameView` と同型のコンテナを複製)
 
-    private static let lowestMidi = 36
-    private static let highestMidi = 84
-    private static let whiteSemitones: Set<Int> = [0, 2, 4, 5, 7, 9, 11]
+private struct ChordVoicingEarTrainingSceneContainer<Driver: EarTrainingBattleSceneDriving>: UIViewRepresentable {
+    let driver: Driver
+    let sceneSize: CGSize
 
-    var body: some View {
-        GeometryReader { proxy in
-            let whiteKeys = (Self.lowestMidi...Self.highestMidi).filter { Self.whiteSemitones.contains(midiToSemitone($0)) }
-            let whiteWidth = proxy.size.width / CGFloat(max(1, whiteKeys.count))
-            ZStack(alignment: .leading) {
-                Color.black.opacity(0.0)
-                ForEach(Array(whiteKeys.enumerated()), id: \.element) { index, midi in
-                    let active = controller.midiHeldKeys.contains(midi)
-                    Rectangle()
-                        .fill(active ? Color.cyan.opacity(0.8) : Color.white)
-                        .frame(width: whiteWidth - 1, height: proxy.size.height)
-                        .overlay(Rectangle().stroke(Color.black.opacity(0.7), lineWidth: 1))
-                        .position(x: CGFloat(index) * whiteWidth + whiteWidth / 2, y: proxy.size.height / 2)
-                        .onTapGesture {
-                            controller.handleNoteOn(midi: midi, velocity: 100)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                controller.handleNoteOff(midi: midi)
-                            }
-                        }
-                }
-                let blackKeys: [(midi: Int, x: CGFloat)] = computeBlackKeyPositions(whiteKeys: whiteKeys, whiteWidth: whiteWidth)
-                ForEach(blackKeys, id: \.midi) { item in
-                    let active = controller.midiHeldKeys.contains(item.midi)
-                    Rectangle()
-                        .fill(active ? Color.cyan : Color.black)
-                        .frame(width: whiteWidth * 0.6, height: proxy.size.height * 0.6)
-                        .position(x: item.x, y: proxy.size.height * 0.3)
-                        .onTapGesture {
-                            controller.handleNoteOn(midi: item.midi, velocity: 100)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                controller.handleNoteOff(midi: item.midi)
-                            }
-                        }
-                }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> SKView {
+        let initialFrame = CGRect(origin: .zero, size: normalizedSceneSize(sceneSize))
+        let view = SKView(frame: initialFrame)
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.ignoresSiblingOrder = true
+        view.preferredFramesPerSecond = 60
+        view.isAsynchronous = false
+        view.isPaused = false
+
+        let scene = EarTrainingBattleScene(size: initialFrame.size)
+        scene.scaleMode = .resizeFill
+        scene.isPaused = false
+        scene.onEffectImpact = { [weak driver] effectId in
+            Task { @MainActor [weak driver] in
+                driver?.handleEffectImpact(effectId: effectId)
             }
         }
-        .background(Color.black.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        view.presentScene(scene)
+        driver.attachScene(scene)
+        context.coordinator.attach(view: view, scene: scene, driver: driver)
+        return view
     }
 
-    private func midiToSemitone(_ midi: Int) -> Int { ((midi % 12) + 12) % 12 }
+    func updateUIView(_ uiView: SKView, context: Context) {
+        context.coordinator.update(sceneSize: normalizedSceneSize(sceneSize))
+    }
 
-    private func computeBlackKeyPositions(whiteKeys: [Int], whiteWidth: CGFloat) -> [(midi: Int, x: CGFloat)] {
-        var result: [(midi: Int, x: CGFloat)] = []
-        for (index, white) in whiteKeys.enumerated() {
-            let nextWhite = white + 1
-            let semitone = midiToSemitone(nextWhite)
-            let isBlack = ![0, 5].contains(semitone) && !Self.whiteSemitones.contains(semitone)
-            if isBlack && index < whiteKeys.count - 1 {
-                result.append((midi: nextWhite, x: CGFloat(index + 1) * whiteWidth))
+    private func normalizedSceneSize(_ size: CGSize) -> CGSize {
+        CGSize(width: max(1, size.width), height: max(1, size.height))
+    }
+
+    static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        private weak var view: SKView?
+        private weak var scene: EarTrainingBattleScene?
+        private weak var driver: Driver?
+        private var activeObserver: NSObjectProtocol?
+
+        func attach(view: SKView, scene: EarTrainingBattleScene, driver: Driver) {
+            self.view = view
+            self.scene = scene
+            self.driver = driver
+            activeObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                if let v = self?.view, v.isPaused { v.isPaused = false }
+                if let s = self?.scene, s.isPaused { s.isPaused = false }
             }
         }
-        return result
+
+        func update(sceneSize: CGSize) {
+            view?.bounds = CGRect(origin: .zero, size: sceneSize)
+            guard let scene, scene.size != sceneSize else { return }
+            scene.size = sceneSize
+        }
+
+        func detach() {
+            if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
+            activeObserver = nil
+            let pendingDriver = driver
+            Task { @MainActor in
+                pendingDriver?.detachScene()
+            }
+            view = nil
+            scene = nil
+            driver = nil
+        }
     }
 }

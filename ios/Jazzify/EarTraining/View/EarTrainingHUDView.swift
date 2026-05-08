@@ -4,9 +4,10 @@ import SwiftUI
 /// - 上段：HP バー / 時間
 /// - 中段：攻撃ゲージ / コードチップ / 解答スロット
 struct EarTrainingHUDView: View {
-    @ObservedObject var controller: EarTrainingBattleController
-    /// ノッチ等を避けるための水平パディング（回転後の左右端用）。
+    let hud: EarTrainingHudModel
     var horizontalPadding: CGFloat = 8
+    let onSettings: () -> Void
+    let onBack: () -> Void
 
     private let chordChipWidth: CGFloat = 76
     private let phraseSlotGap: CGFloat = 5
@@ -17,7 +18,7 @@ struct EarTrainingHUDView: View {
                 healthTimeRow
                 attackGauge
                 chordChips
-                phraseSlots
+                slotsRow
             }
             .padding(.horizontal, horizontalPadding)
             .padding(.top, 4)
@@ -44,8 +45,8 @@ struct EarTrainingHUDView: View {
     private var healthTimeRow: some View {
         HStack(alignment: .center, spacing: 6) {
             hpPanel(
-                current: controller.playerHp,
-                max: controller.stage.playerHp,
+                current: hud.playerHp,
+                max: hud.playerMaxHp,
                 isEnemy: false,
                 horizontalAlignment: .leading,
                 frameAlignment: .leading
@@ -55,8 +56,8 @@ struct EarTrainingHUDView: View {
                 .frame(minWidth: 64)
 
             hpPanel(
-                current: controller.enemyHp,
-                max: controller.stage.enemyHp,
+                current: hud.enemyHp,
+                max: hud.enemyMaxHp,
                 isEnemy: true,
                 horizontalAlignment: .trailing,
                 frameAlignment: .trailing
@@ -67,11 +68,11 @@ struct EarTrainingHUDView: View {
 
     private var rightControls: some View {
         HStack(spacing: 4) {
-            iconButton(systemName: "gearshape.fill", label: controller.hudLabels.settings) {
-                controller.handleOpenSettings()
+            iconButton(systemName: "gearshape.fill", label: hud.hudLabels.settings) {
+                onSettings()
             }
-            iconButton(systemName: "xmark", label: controller.hudLabels.backShort) {
-                controller.handleBack()
+            iconButton(systemName: "xmark", label: hud.hudLabels.backShort) {
+                onBack()
             }
         }
     }
@@ -96,8 +97,8 @@ struct EarTrainingHUDView: View {
     }
 
     private var timePill: some View {
-        let isInfinity = controller.practiceMode
-        let isLow = controller.timeRemaining <= 10
+        let isInfinity = hud.practiceMode
+        let isLow = hud.timeRemaining <= 10
         let textColor: Color
         if isInfinity {
             textColor = Color(hex: "67e8f9")
@@ -110,7 +111,7 @@ struct EarTrainingHUDView: View {
             Image(systemName: "clock.fill")
                 .font(.system(size: 9, weight: .bold))
                 .foregroundColor(textColor.opacity(0.85))
-            Text(controller.timeLabel)
+            Text(hud.timeLabel)
                 .font(.system(size: 12, weight: .heavy, design: .monospaced))
                 .foregroundColor(textColor)
         }
@@ -142,7 +143,7 @@ struct EarTrainingHUDView: View {
     }
 
     private var chordChips: some View {
-        let chips = controller.chordChips
+        let chips = hud.chordChips
         return Group {
             if chips.isEmpty {
                 Color.clear.frame(height: 0)
@@ -180,23 +181,31 @@ struct EarTrainingHUDView: View {
         .padding(.horizontal, 10)
     }
 
-    private var phraseSlots: some View {
-        let slots = controller.phraseSlots.isEmpty ? ["_"] : controller.phraseSlots
-        let revealed = controller.revealedNotes
-        let currentIndex = controller.currentNoteIndex
+    @ViewBuilder
+    private var slotsRow: some View {
+        switch hud.slotRow {
+        case let .melody(slots, revealed, currentIndex):
+            melodySlots(slots: slots, revealed: revealed, currentIndex: currentIndex)
+        case let .chordVoicing(slotCount, completed, currentIndex):
+            chordVoicingCircleSlots(slotCount: slotCount, completed: completed, currentIndex: currentIndex)
+        }
+    }
+
+    private func melodySlots(slots: [String], revealed: [String], currentIndex: Int) -> some View {
+        let slotList = slots.isEmpty ? ["_"] : slots
         return GeometryReader { proxy in
             let availableWidth = max(30, proxy.size.width - 20)
-            let slotBaseCount = min(max(9, slots.count), 12)
+            let slotBaseCount = min(max(9, slotList.count), 12)
             let slotSize = min(max((availableWidth - 20) / CGFloat(slotBaseCount), 28), 44)
-            let totalSlotWidth = CGFloat(slots.count) * slotSize + CGFloat(max(0, slots.count - 1)) * phraseSlotGap
+            let totalSlotWidth = CGFloat(slotList.count) * slotSize + CGFloat(max(0, slotList.count - 1)) * phraseSlotGap
             let indicatorReserve: CGFloat = totalSlotWidth > availableWidth ? 28 : 0
-            let visibleCount = max(1, min(slots.count, Int(floor((availableWidth - indicatorReserve + phraseSlotGap) / (slotSize + phraseSlotGap)))))
-            let focusedIndex = min(max(currentIndex, 0), max(0, slots.count - 1))
+            let visibleCount = max(1, min(slotList.count, Int(floor((availableWidth - indicatorReserve + phraseSlotGap) / (slotSize + phraseSlotGap)))))
+            let focusedIndex = min(max(currentIndex, 0), max(0, slotList.count - 1))
             let firstVisibleIndex = min(
                 max(focusedIndex - visibleCount / 2, 0),
-                max(0, slots.count - visibleCount)
+                max(0, slotList.count - visibleCount)
             )
-            let visibleSlots = Array(slots.enumerated())[firstVisibleIndex..<min(slots.count, firstVisibleIndex + visibleCount)]
+            let visibleSlots = Array(slotList.enumerated())[firstVisibleIndex..<min(slotList.count, firstVisibleIndex + visibleCount)]
 
             HStack(spacing: phraseSlotGap) {
                 if firstVisibleIndex > 0 {
@@ -207,7 +216,7 @@ struct EarTrainingHUDView: View {
                 }
                 ForEach(Array(visibleSlots), id: \.offset) { index, name in
                     let revealedNote: String? = index < revealed.count ? revealed[index] : nil
-                    let isActive = index == currentIndex && controller.gameState == .playingPhrase
+                    let isActive = index == currentIndex && hud.gameState == .playingPhrase
                     let displayText = revealedNote ?? "_"
                     Text(displayText)
                         .font(.system(size: max(11, slotSize * 0.44), weight: .heavy, design: .monospaced))
@@ -225,7 +234,7 @@ struct EarTrainingHUDView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .accessibilityLabel(Text(revealedNote ?? name))
                 }
-                if firstVisibleIndex + visibleCount < slots.count {
+                if firstVisibleIndex + visibleCount < slotList.count {
                     Text("›")
                         .font(.system(size: 20, weight: .heavy))
                         .foregroundColor(Color(hex: "94a3b8"))
@@ -234,13 +243,46 @@ struct EarTrainingHUDView: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .id(controller.phraseRunId)
+        .id(hud.phraseRunId)
         .frame(height: 32)
         .padding(.horizontal, 10)
     }
 
+    private func chordVoicingCircleSlots(slotCount: Int, completed: [Bool], currentIndex: Int) -> some View {
+        let count = max(1, slotCount)
+        return GeometryReader { proxy in
+            let availableWidth = max(40, proxy.size.width - 24)
+            let raw = (availableWidth - CGFloat(max(0, count - 1)) * phraseSlotGap) / CGFloat(count)
+            let slotSize = min(40, max(24, raw))
+            HStack(spacing: phraseSlotGap) {
+                ForEach(0..<count, id: \.self) { index in
+                    let done = index < completed.count ? completed[index] : false
+                    let isActive = index == currentIndex && hud.gameState == .playingPhrase
+                    ZStack {
+                        Circle()
+                            .stroke(
+                                done ? Color.green : (isActive ? Color.cyan : Color.white.opacity(0.45)),
+                                lineWidth: 3
+                            )
+                            .frame(width: slotSize - 4, height: slotSize - 4)
+                        if done {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: slotSize * 0.38, weight: .bold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    .frame(width: slotSize, height: slotSize)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .id(hud.phraseRunId)
+        .frame(height: 36)
+        .padding(.horizontal, 10)
+    }
+
     private var attackGauge: some View {
-        let percent = controller.enemyAttackGaugePercent
+        let percent = hud.enemyAttackGaugePercent
         return HStack(spacing: 0) {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -256,7 +298,6 @@ struct EarTrainingHUDView: View {
         .frame(height: 8)
         .padding(.horizontal, 14)
     }
-
 }
 
 private struct HpBar: View {

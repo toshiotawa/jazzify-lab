@@ -860,6 +860,36 @@ final class EarTrainingBattleController: ObservableObject {
     static func shouldFlipEnemyAvatar(name: String) -> Bool {
         EarTrainingAvatarCatalog.flipXAssetNames.contains(name)
     }
+
+    var hudModel: EarTrainingHudModel {
+        EarTrainingHudModel(
+            playerHp: playerHp,
+            playerMaxHp: stage.playerHp,
+            enemyHp: enemyHp,
+            enemyMaxHp: stage.enemyHp,
+            practiceMode: practiceMode,
+            timeRemaining: timeRemaining,
+            timeLabel: timeLabel,
+            enemyAttackGaugePercent: enemyAttackGaugePercent,
+            hudLabels: hudLabels,
+            gameState: gameState,
+            phraseRunId: phraseRunId,
+            chordChips: chordChips,
+            slotRow: .melody(
+                slots: phraseSlots,
+                revealed: revealedNotes,
+                currentIndex: currentNoteIndex
+            )
+        )
+    }
+}
+
+extension EarTrainingBattleController: EarTrainingBattleSceneDriving {}
+extension EarTrainingBattleController: EarTrainingPianoPlayable {}
+extension EarTrainingBattleController: EarTrainingLobbyPresentable {
+    var stageTitleForLobby: String {
+        stage.localizedTitle(isEnglishCopy ? .en : .ja)
+    }
 }
 
 // MARK: - Avatar catalog (Web `EAR_TRAINING_ENEMY_AVATAR_URLS` 相当)

@@ -1,10 +1,12 @@
 import SwiftUI
 
+private let earTrainingPianoNoteNameLabels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
 /// 耳コピバトル ゲーム画面の鍵盤。`SurvivalChordPadView` のレイアウト/インタラクションを踏襲しつつ、
-/// ヒント (緑グロー) は無効化し、押下時に `EarTrainingBattleController.handleNoteOn/Off` を呼ぶ。
+/// ヒント (緑グロー) は無効化し、押下時に `handleNoteOn/Off` を呼ぶ。
 /// iOS 版は 36 鍵 (連続 36 音 = C2〜B4 / MIDI 36〜71) に固定し、従来の C4 付近中心より低音域をカバーする。
-struct EarTrainingPianoView: View {
-    @ObservedObject var controller: EarTrainingBattleController
+struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
+    @ObservedObject var player: Player
 
     /// C2 (36) 〜 B4 (71) の 36 鍵。Salamander サンプラーの下限付近からメロディ域まで。
     private let firstMidi: Int = 36
@@ -28,11 +30,11 @@ struct EarTrainingPianoView: View {
                             midi: midi,
                             label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                             isBlack: false,
-                            isMidiHeld: controller.midiHeldKeys.contains(midi),
+                            isMidiHeld: player.midiHeldKeys.contains(midi),
                             width: whiteKeyWidth,
                             height: keyboardHeight,
-                            onPress: { controller.handleNoteOn(midi: $0) },
-                            onRelease: { controller.handleNoteOff(midi: $0) }
+                            onPress: { player.handleNoteOn(midi: $0, velocity: 100, playAudio: true) },
+                            onRelease: { player.handleNoteOff(midi: $0, playAudio: true) }
                         )
                     }
                 }
@@ -44,11 +46,11 @@ struct EarTrainingPianoView: View {
                         midi: midi,
                         label: "",
                         isBlack: true,
-                        isMidiHeld: controller.midiHeldKeys.contains(midi),
+                        isMidiHeld: player.midiHeldKeys.contains(midi),
                         width: blackKeyWidth,
                         height: blackKeyHeight,
-                        onPress: { controller.handleNoteOn(midi: $0) },
-                        onRelease: { controller.handleNoteOff(midi: $0) }
+                        onPress: { player.handleNoteOn(midi: $0, velocity: 100, playAudio: true) },
+                        onRelease: { player.handleNoteOff(midi: $0, playAudio: true) }
                     )
                     .offset(x: x - blackKeyWidth / 2, y: 0)
                 }
@@ -74,8 +76,6 @@ struct EarTrainingPianoView: View {
         return (CGFloat(idx) + 1) * whiteKeyWidth
     }
 
-    private static let labels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
     private static func isBlackKey(_ midi: Int) -> Bool {
         let pc = ((midi % 12) + 12) % 12
         return [1, 3, 6, 8, 10].contains(pc)
@@ -89,7 +89,7 @@ struct EarTrainingPianoView: View {
     private static func midiLabel(_ midi: Int) -> String {
         let pc = ((midi % 12) + 12) % 12
         let octave = midi / 12 - 1
-        return "\(labels[pc])\(octave)"
+        return "\(earTrainingPianoNoteNameLabels[pc])\(octave)"
     }
 }
 
