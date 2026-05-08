@@ -1189,6 +1189,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
   const staffVoicing = activeChord?.voicing ?? [];
   const staffStaves = activeChord?.voicing_staves ?? [];
+  const staffCorrectPitchClasses = useMemo(() => {
+    if (!activeChord || !attempt) {
+      return [];
+    }
+    const pressed = attempt.pressedByChord.get(activeChord.id);
+    return pressed ? Array.from(pressed) : [];
+  }, [activeChord, attempt]);
 
   return (
     <div className={cn(
@@ -1212,6 +1219,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
             voicing={staffVoicing}
             voicingStaves={staffStaves}
             chordName={activeChord.chord_name}
+            correctPitchClasses={staffCorrectPitchClasses}
           />
         </div>
       )}

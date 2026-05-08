@@ -4,9 +4,10 @@ import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 interface ChordVoicingStaffProps {
   voicing: readonly string[];
-  voicingStaves: readonly number[];
+  voicingStaves?: readonly number[] | null;
   chordName: string;
   keyFifths?: number;
+  correctPitchClasses?: readonly number[];
   className?: string;
 }
 
@@ -36,13 +37,17 @@ interface KeySignatureMark {
 type StaffNumber = 1 | 2;
 
 const NOTATION_COLOR = '#ffffff';
+const CORRECT_NOTATION_COLOR = '#ef4444';
+const SP = 12;
 const STAFF_WIDTH = 360;
 const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 336;
-const STAFF_SPACING = 14;
-const CHORD_LABEL_HEIGHT = 30;
-const STAFF_TOP_Y = 50;
-const STAFF_GAP = 72;
+const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
+const STAFF_HEIGHT = SP * 4;
+const STAFF_TOP_Y = SP * 4.5;
+const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 7;
+const CLEF_FONT_SIZE = SP * 4;
+const CLEF_FONT_FAMILY = "Noto Music, Bravura, 'Apple Symbols', Georgia, 'Times New Roman', serif";
 const TREBLE_REFERENCE_DEGREE = 4 * 7 + 6;
 const BASS_REFERENCE_DEGREE = 3 * 7 + 1;
 const STEP_ORDER: Record<string, number> = {
@@ -54,6 +59,8 @@ const STEP_ORDER: Record<string, number> = {
   A: 5,
   B: 6,
 };
+const EMPTY_STAVES: readonly number[] = [];
+const EMPTY_PITCH_CLASSES: readonly number[] = [];
 
 const CLEF_BY_STAFF: Record<StaffNumber, string> = {
   1: '𝄞',
@@ -117,8 +124,8 @@ const degreeForNote = (step: string, octave: number): number => (
 );
 
 const yForDegree = (staffTopY: number, staff: StaffNumber, degree: number): number => {
-  const middleLineY = staffTopY + STAFF_SPACING * 2;
-  return middleLineY - (degree - REFERENCE_DEGREE_BY_STAFF[staff]) * (STAFF_SPACING / 2);
+  const middleLineY = staffTopY + SP * 2;
+  return middleLineY - (degree - REFERENCE_DEGREE_BY_STAFF[staff]) * (SP / 2);
 };
 
 const accidentalSymbol = (alter: number): string => {
@@ -153,12 +160,14 @@ const parseNotes = (
   voicing: readonly string[],
   voicingStaves: readonly number[],
 ): ParsedVoicingNoteWithStaff[] => {
-  if (voicing.length !== voicingStaves.length) {
+  const shouldInferStaves = voicingStaves.length === 0;
+  if (!shouldInferStaves && voicing.length !== voicingStaves.length) {
     throw new Error('voicing と voicing_staves は同じ長さである必要があります');
   }
   return voicing.map((noteName, index) => {
     const parsed = parseVoicingNoteName(noteName);
-    const staff = Math.trunc(voicingStaves[index]);
+    const inferredStaff: StaffNumber = parsed.midi < 60 ? 2 : 1;
+    const staff = shouldInferStaves ? inferredStaff : Math.trunc(voicingStaves[index]);
     if (staff !== 1 && staff !== 2) {
       throw new Error(`voicing_staves の値は 1 または 2 のみ許容します (index=${index})`);
     }
@@ -194,7 +203,7 @@ const layoutNotes = (
   }
 
   const sortedNotes = [...notes].sort(compareNotesForDisplay);
-  const noteWidth = STAFF_SPACING * 1.45;
+  const noteWidth = SP * 1.45;
   const adjacentOffset = noteWidth * 0.5;
   const offsets = Array.from({ length: sortedNotes.length }, () => 0);
 
@@ -218,7 +227,7 @@ const layoutNotes = (
   const yCenters = sortedNotes.map(note => yForDegree(staffTopY, note.staff, note.degree));
   const accidentalColumns = Array.from({ length: sortedNotes.length }, () => 0);
   const occupiedColumnY: number[] = [];
-  const accidentalCollisionHeight = STAFF_SPACING * 1.15;
+  const accidentalCollisionHeight = SP * 1.15;
   const accidentalIndices = sortedNotes
     .map((note, index) => ({ note, index }))
     .filter(item => item.note.alter !== 0)
@@ -248,22 +257,24 @@ const layoutNotes = (
   }));
 };
 
-const staffTopForIndex = (index: number): number => STAFF_TOP_Y + index * STAFF_GAP;
+const staffTopForIndex = (index: number): number => STAFF_TOP_Y + index * STAFF_TOP_STEP;
 
-const StaffLines: React.FC<{ topY: number }> = ({ topY }) => (
+const StaffLines: React.FC<{ staff: StaffNumber; topY: number }> = ({ staff, topY }) => (
   <g>
     {Array.from({ length: 5 }, (_, line) => {
-      const y = topY + line * STAFF_SPACING;
+      const y = topY + line * SP;
       return (
         <line
           key={line}
+          data-staff-line={line}
+          data-staff-number={staff}
           x1={STAFF_LINE_LEFT_X}
           x2={STAFF_LINE_RIGHT_X}
           y1={y}
           y2={y}
           stroke={NOTATION_COLOR}
           strokeLinecap="round"
-          strokeWidth="1.3"
+          strokeWidth={STAFF_LINE_THICKNESS}
         />
       );
     })}
@@ -275,18 +286,19 @@ const LedgerLines: React.FC<{
   yCenter: number;
   staffTopY: number;
   noteWidth: number;
-}> = ({ xCenter, yCenter, staffTopY, noteWidth }) => {
+  color: string;
+}> = ({ xCenter, yCenter, staffTopY, noteWidth, color }) => {
   const topLineY = staffTopY;
-  const bottomLineY = staffTopY + STAFF_SPACING * 4;
+  const bottomLineY = staffTopY + STAFF_HEIGHT;
   const ledgerLineYs: number[] = [];
 
   if (yCenter < topLineY) {
-    for (let y = topLineY - STAFF_SPACING; y >= yCenter - 0.1; y -= STAFF_SPACING) {
+    for (let y = topLineY - SP; y >= yCenter - 0.1; y -= SP) {
       ledgerLineYs.push(y);
     }
   }
   if (yCenter > bottomLineY) {
-    for (let y = bottomLineY + STAFF_SPACING; y <= yCenter + 0.1; y += STAFF_SPACING) {
+    for (let y = bottomLineY + SP; y <= yCenter + 0.1; y += SP) {
       ledgerLineYs.push(y);
     }
   }
@@ -296,13 +308,13 @@ const LedgerLines: React.FC<{
       {ledgerLineYs.map(y => (
         <line
           key={y}
-          x1={xCenter - noteWidth * 0.62}
-          x2={xCenter + noteWidth * 0.62}
+          x1={xCenter - noteWidth / 2 - SP * 0.4}
+          x2={xCenter + noteWidth / 2 + SP * 0.4}
           y1={y}
           y2={y}
-          stroke={NOTATION_COLOR}
+          stroke={color}
           strokeLinecap="round"
-          strokeWidth="1.25"
+          strokeWidth={STAFF_LINE_THICKNESS}
         />
       ))}
     </g>
@@ -313,14 +325,16 @@ const WholeNote: React.FC<{
   positioned: PositionedVoicingNote;
   baseX: number;
   staffTopY: number;
-}> = ({ positioned, baseX, staffTopY }) => {
-  const noteWidth = STAFF_SPACING * 1.45;
-  const noteHeight = STAFF_SPACING * 0.86;
+  isCorrect: boolean;
+}> = ({ positioned, baseX, staffTopY, isCorrect }) => {
+  const noteWidth = SP * 1.45;
+  const noteHeight = SP * 0.86;
   const xCenter = baseX + positioned.xOffset;
   const accidental = accidentalSymbol(positioned.note.alter);
+  const notationColor = isCorrect ? CORRECT_NOTATION_COLOR : NOTATION_COLOR;
   const accidentalX = Math.min(
     xCenter - noteWidth * 1.05,
-    baseX - noteWidth * 1.15 - positioned.accidentalColumn * STAFF_SPACING * 0.85,
+    baseX - noteWidth * 1.15 - positioned.accidentalColumn * SP * 0.85,
   );
 
   return (
@@ -330,15 +344,18 @@ const WholeNote: React.FC<{
         yCenter={positioned.yCenter}
         staffTopY={staffTopY}
         noteWidth={noteWidth}
+        color={notationColor}
       />
       {accidental && (
         <text
+          data-accidental-voicing-index={positioned.note.voicingIndex}
+          data-voicing-pitch-class={positioned.note.pitchClass}
           x={accidentalX}
           y={positioned.yCenter}
           dominantBaseline="central"
-          fill={NOTATION_COLOR}
+          fill={notationColor}
           fontFamily="Georgia, 'Times New Roman', serif"
-          fontSize={STAFF_SPACING * 1.45}
+          fontSize={SP * 1.45}
           fontWeight="600"
           textAnchor="middle"
         >
@@ -346,12 +363,14 @@ const WholeNote: React.FC<{
         </text>
       )}
       <ellipse
+        data-voicing-index={positioned.note.voicingIndex}
+        data-voicing-pitch-class={positioned.note.pitchClass}
         cx={xCenter}
         cy={positioned.yCenter}
         fill="none"
         rx={noteWidth / 2}
         ry={noteHeight / 2}
-        stroke={NOTATION_COLOR}
+        stroke={notationColor}
         strokeWidth="2.8"
         transform={`rotate(-18 ${xCenter} ${positioned.yCenter})`}
       />
@@ -364,25 +383,25 @@ const RenderedStaff: React.FC<{
   notes: readonly ParsedVoicingNoteWithStaff[];
   staffTopY: number;
   keyFifths: number;
-}> = ({ staff, notes, staffTopY, keyFifths }) => {
+  correctPitchClassSet: ReadonlySet<number>;
+}> = ({ staff, notes, staffTopY, keyFifths, correctPitchClassSet }) => {
   const marks = keySignatureMarks(staff, keyFifths);
   const noteBaseX = marks.length > 0 ? 246 : 228;
   const clefY = staff === 1
-    ? staffTopY + STAFF_SPACING * 2.35
-    : staffTopY + STAFF_SPACING * 1.9;
-  const clefSize = staff === 1 ? 52 : 42;
+    ? staffTopY + SP * 3
+    : staffTopY + SP;
   const positionedNotes = layoutNotes(notes, staffTopY);
 
   return (
     <g>
-      <StaffLines topY={staffTopY} />
+      <StaffLines staff={staff} topY={staffTopY} />
       <text
         x={52}
         y={clefY}
         dominantBaseline="central"
         fill={NOTATION_COLOR}
-        fontFamily="Georgia, 'Times New Roman', serif"
-        fontSize={clefSize}
+        fontFamily={CLEF_FONT_FAMILY}
+        fontSize={CLEF_FONT_SIZE}
         textAnchor="middle"
       >
         {CLEF_BY_STAFF[staff]}
@@ -395,7 +414,7 @@ const RenderedStaff: React.FC<{
           dominantBaseline="central"
           fill={NOTATION_COLOR}
           fontFamily="Georgia, 'Times New Roman', serif"
-          fontSize={STAFF_SPACING * 1.45}
+          fontSize={SP * 1.45}
           fontWeight="600"
           textAnchor="middle"
         >
@@ -408,6 +427,7 @@ const RenderedStaff: React.FC<{
           positioned={positioned}
           baseX={noteBaseX}
           staffTopY={staffTopY}
+          isCorrect={correctPitchClassSet.has(positioned.note.pitchClass)}
         />
       ))}
     </g>
@@ -419,28 +439,36 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   voicingStaves,
   chordName,
   keyFifths = 0,
+  correctPitchClasses,
   className,
 }) => {
+  const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
+  const normalizedCorrectPitchClasses = correctPitchClasses ?? EMPTY_PITCH_CLASSES;
   const renderState = useMemo(() => {
-    if (voicing.length === 0 || voicingStaves.length === 0) {
+    if (voicing.length === 0) {
       return { notes: [] as ParsedVoicingNoteWithStaff[], error: null };
     }
     try {
-      return { notes: parseNotes(voicing, voicingStaves), error: null };
+      return { notes: parseNotes(voicing, normalizedVoicingStaves), error: null };
     } catch (error) {
       return {
         notes: [] as ParsedVoicingNoteWithStaff[],
         error: error instanceof Error ? error.message : '譜面の生成に失敗しました',
       };
     }
-  }, [voicing, voicingStaves]);
+  }, [normalizedVoicingStaves, voicing]);
+
+  const correctPitchClassSet = useMemo(
+    () => new Set(normalizedCorrectPitchClasses),
+    [normalizedCorrectPitchClasses],
+  );
 
   const activeStaves = ([1, 2] as const).filter(staff => (
     renderState.notes.some(note => note.staff === staff)
   ));
-  const svgHeight = CHORD_LABEL_HEIGHT
-    + (activeStaves.length > 1 ? STAFF_GAP + STAFF_SPACING * 4 : STAFF_SPACING * 4)
-    + 24;
+  const svgHeight = activeStaves.length > 0
+    ? STAFF_TOP_Y + (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT + SP * 3
+    : STAFF_TOP_Y + STAFF_HEIGHT + SP * 3;
 
   return (
     <div className={cn('relative flex w-full justify-center', className)}>
@@ -457,7 +485,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         >
           <text
             x={STAFF_WIDTH / 2}
-            y={18}
+            y={SP * 1.5}
             dominantBaseline="central"
             fill={NOTATION_COLOR}
             fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
@@ -474,6 +502,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               notes={renderState.notes.filter(note => note.staff === staff)}
               staffTopY={staffTopForIndex(index)}
               keyFifths={keyFifths}
+              correctPitchClassSet={correctPitchClassSet}
             />
           ))}
         </svg>
