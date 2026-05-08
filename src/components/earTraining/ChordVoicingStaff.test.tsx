@@ -5,7 +5,36 @@ import ChordVoicingStaff from './ChordVoicingStaff';
 const SMUFL_ACCIDENTAL_NATURAL = '\uE261';
 const SMUFL_ACCIDENTAL_SHARP = '\uE262';
 
+const NEXT_TARGET_COLOR = '#f97316';
+
 describe('ChordVoicingStaff', () => {
+  it('アクティブ・グループで未演奏の左端ノートをオレンジ、トップノート上に赤い逆三角形を表示する', () => {
+    const correctMap = new Map<string, readonly number[]>();
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="G"
+        voicingGroups={[
+          {
+            id: 'active-v',
+            chordName: 'G',
+            voicing: ['G3', 'B3', 'D4', 'G4'],
+            voicingStaves: [2, 2, 1, 1],
+            measureOffset: 0,
+          },
+        ]}
+        activeGroupId="active-v"
+        correctPitchClassesByGroupId={correctMap}
+      />,
+    );
+
+    const hintEllipse = container.querySelector('ellipse[data-next-voicing-hint="true"]');
+    expect(hintEllipse?.getAttribute('data-voicing-index')).toBe('0');
+    expect(hintEllipse?.getAttribute('stroke')).toBe(NEXT_TARGET_COLOR);
+
+    const pointer = container.querySelector('polygon[data-voicing-top-pointer="true"]');
+    expect(pointer?.getAttribute('fill')).toBe('#ef4444');
+  });
+
   it('sp基準で2段譜の五線間に7spの余白を確保する', () => {
     const { container } = render(
       <ChordVoicingStaff
@@ -20,7 +49,7 @@ describe('ChordVoicingStaff', () => {
 
     expect(trebleBottomLine).not.toBeNull();
     expect(bassTopLine).not.toBeNull();
-    expect(Number(bassTopLine?.getAttribute('y1')) - Number(trebleBottomLine?.getAttribute('y1'))).toBe(84);
+    expect(Number(bassTopLine?.getAttribute('y1')) - Number(trebleBottomLine?.getAttribute('y1'))).toBeCloseTo(84, 10);
   });
 
   it('voicing_staves が無い場合はDBの音域から譜表を推定する', () => {

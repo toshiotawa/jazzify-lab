@@ -549,6 +549,10 @@ struct ChordVoicingStaffGroupsView: View {
 
     private static let notationColor = Color.white
     private static let correctColor = Color(red: 0.13, green: 0.77, blue: 0.37)
+    /// Web `NEXT_TARGET_COLOR`
+    private static let nextTargetColor = Color(red: 0.976, green: 0.451, blue: 0.086)
+    /// Web `TOP_POINTER_COLOR`
+    private static let topPointerColor = Color(red: 0.937, green: 0.267, blue: 0.267)
     private static let activeLabelColor = Color(red: 0.98, green: 0.8, blue: 0.09)
     private static let trebleReferenceDegree = 4 * 7 + 6
     private static let bassReferenceDegree = 3 * 7 + 1
@@ -598,6 +602,33 @@ struct ChordVoicingStaffGroupsView: View {
         }
     }
 
+    /// 計算済みのコード名ラベル（Canvas 描画座標のみ保持）
+    private struct ChordLabelFrame {
+        let text: String
+        let color: Color
+        let center: CGPoint
+        let fontSize: CGFloat
+    }
+
+    private struct ChordLabelLayoutRow {
+        let item: ParsedGroupRenderItem
+        let color: Color
+        let fullWidth: CGFloat
+        var centerX: CGFloat
+
+        var leftEdge: CGFloat { centerX - fullWidth / 2 }
+        var rightEdge: CGFloat { centerX + fullWidth / 2 }
+    }
+
+    private struct StaffSystemGeometry {
+        let staffSpacing: CGFloat
+        let staffGap: CGFloat
+        let groupHeight: CGFloat
+        let firstTopY: CGFloat
+        let labelCenterY: CGFloat
+        let sp: CGFloat
+    }
+
     private static func staffLayoutMetrics(width: CGFloat, keyFifths: Int, wideFirstMeasure: Bool) -> StaffLayoutMetrics {
         let sp = max(8, width * (12 / 720))
         let staffLineLeft = width * (24 / 720)
@@ -625,19 +656,11 @@ struct ChordVoicingStaffGroupsView: View {
         )
     }
 
-    private static func drawAll(
-        context: inout GraphicsContext,
-        size: CGSize,
+    /// 1. 入力グループを解析し、小節内スロットと臨時記号を付与した描画アイテムを返す。
+    private static func buildParsedRenderItems(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
-        dense: Bool,
-        keyFifths: Int,
-        activeGroupId: UUID?,
-        correctByGroup: [UUID: Set<Int>]
-    ) {
-        guard !groups.isEmpty else { return }
-        let w = size.width
-        let layout = staffLayoutMetrics(width: w, keyFifths: keyFifths, wideFirstMeasure: dense)
-
+        keyFifths: Int
+    ) -> [ParsedGroupRenderItem] {
         var measureSlotCounts: [Int: Int] = [:]
         for g in groups {
             measureSlotCounts[g.measureOffset, default: 0] += 1
@@ -652,76 +675,408 @@ struct ChordVoicingStaffGroupsView: View {
             let notes = parseGroupNotes(g)
             parsedGroups.append(ParsedGroupRenderItem(group: g, slotIndex: si, slotCount: sc, notes: notes))
         }
-
         var accidentalStateByMeasure: [Int: [String: Int]] = [:]
-        parsedGroups = parsedGroups.map { item in
+        return parsedGroups.map { item in
             var state = accidentalStateByMeasure[item.group.measureOffset] ?? [:]
             let notes = applyRequiredAccidentals(to: item.notes, keyFifths: keyFifths, state: &state)
             accidentalStateByMeasure[item.group.measureOffset] = state
             return item.withNotes(notes)
         }
+    }
+
+    private static func measureChordNameFullWidth(
+        context: inout GraphicsContext,
+        chordName: String,
+        color: Color,
+        fontSize: CGFloat,
+        horizontalPadding: CGFloat
+    ) -> CGFloat {
+        let resolved = context.resolve(
+            Text(chordName)
+                .font(.system(size: fontSize, weight: .heavy, design: .rounded))
+                .foregroundColor(color)
+        )
+        let measured = resolved.measure(in: CGSize(width: CGFloat.greatestFiniteMagnitude, height: 80))
+        return measured.width + horizontalPadding
+    }
+
+    /// 希望 X を起点に左右 clamp → 左から右へ重なりを解消 → はみ出し補正。
+    private static func resolveChordLabelHorizontalLayout(
+        rows: inout [ChordLabelLayoutRow],
+        leftBound: CGFloat,
+        rightBound: CGFloat,
+        minGap: CGFloat
+    ) {
+        rows.sort { $0.centerX < $1.centerX }
+        for i in rows.indices.dropFirst() {
+            let previousRight = rows[i - 1].rightEdge
+            let currentLeft = rows[i].leftEdge
+            if currentLeft < previousRight + minGap {
+                rows[i].centerX += previousRight + minGap - currentLeft
+            }
+        }
+        if let lastIndex = rows.indices.last {
+            let overflow = rows[lastIndex].rightEdge - rightBound
+            if overflow > 0 {
+                for i in rows.indices {
+                    rows[i].centerX -= overflow
+                }
+            }
+        }
+        if let firstIndex = rows.indices.first {
+            let underflow = leftBound - rows[firstIndex].leftEdge
+            if underflow > 0 {
+                for i in rows.indices {
+                    rows[i].centerX += underflow
+                }
+            }
+        }
+    }
+
+    private static func makeChordLabelFrames(
+        context: inout GraphicsContext,
+        parsedItems: [ParsedGroupRenderItem],
+        layout: StaffLayoutMetrics,
+        labelCenterY: CGFloat,
+        leftBound: CGFloat,
+        rightBound: CGFloat,
+        sp: CGFloat,
+        activeGroupId: UUID?
+    ) -> [ChordLabelFrame] {
+        let named = parsedItems.filter { !$0.group.chordName.isEmpty }
+        guard !named.isEmpty else { return [] }
+        let minGap = sp * 0.8
+        let horizontalPadding = sp * 0.8
+        var fontSize: CGFloat = 18
+        let minFont: CGFloat = 12
+        while fontSize >= minFont {
+            var rows: [ChordLabelLayoutRow] = named.map { item in
+                let color = item.group.id == activeGroupId ? activeLabelColor : notationColor
+                let desiredX = groupBaseX(
+                    group: item.group,
+                    slotIndex: item.slotIndex,
+                    slotCount: item.slotCount,
+                    layout: layout
+                )
+                let fullWidth = measureChordNameFullWidth(
+                    context: &context,
+                    chordName: item.group.chordName,
+                    color: color,
+                    fontSize: fontSize,
+                    horizontalPadding: horizontalPadding
+                )
+                let clampedX = min(
+                    max(desiredX, leftBound + fullWidth / 2),
+                    rightBound - fullWidth / 2
+                )
+                return ChordLabelLayoutRow(
+                    item: item,
+                    color: color,
+                    fullWidth: fullWidth,
+                    centerX: clampedX
+                )
+            }
+            resolveChordLabelHorizontalLayout(
+                rows: &rows,
+                leftBound: leftBound,
+                rightBound: rightBound,
+                minGap: minGap
+            )
+            let fits = rows.allSatisfy { $0.leftEdge >= leftBound - 0.5 && $0.rightEdge <= rightBound + 0.5 }
+            if fits {
+                return rows.map {
+                    ChordLabelFrame(
+                        text: $0.item.group.chordName,
+                        color: $0.color,
+                        center: CGPoint(x: $0.centerX, y: labelCenterY),
+                        fontSize: fontSize
+                    )
+                }
+            }
+            fontSize -= 1
+        }
+        var rows: [ChordLabelLayoutRow] = named.map { item in
+            let color = item.group.id == activeGroupId ? activeLabelColor : notationColor
+            let desiredX = groupBaseX(
+                group: item.group,
+                slotIndex: item.slotIndex,
+                slotCount: item.slotCount,
+                layout: layout
+            )
+            let fullWidth = measureChordNameFullWidth(
+                context: &context,
+                chordName: item.group.chordName,
+                color: color,
+                fontSize: minFont,
+                horizontalPadding: horizontalPadding
+            )
+            let clampedX = min(
+                max(desiredX, leftBound + fullWidth / 2),
+                rightBound - fullWidth / 2
+            )
+            return ChordLabelLayoutRow(item: item, color: color, fullWidth: fullWidth, centerX: clampedX)
+        }
+        resolveChordLabelHorizontalLayout(
+            rows: &rows,
+            leftBound: leftBound,
+            rightBound: rightBound,
+            minGap: minGap
+        )
+        return rows.map {
+            ChordLabelFrame(
+                text: $0.item.group.chordName,
+                color: $0.color,
+                center: CGPoint(x: $0.centerX, y: labelCenterY),
+                fontSize: minFont
+            )
+        }
+    }
+
+    private static func drawChordLabels(context: inout GraphicsContext, labels: [ChordLabelFrame]) {
+        for label in labels {
+            let resolved = context.resolve(
+                Text(label.text)
+                    .font(.system(size: label.fontSize, weight: .heavy, design: .rounded))
+                    .foregroundColor(label.color)
+            )
+            context.draw(resolved, at: label.center, anchor: .center)
+        }
+    }
+
+    /// 2. コード名レーンを先に確保し、その下に五線ブロックが収まる縦レイアウトを計算する。
+    private static func computeStaffSystemGeometry(
+        size: CGSize,
+        width: CGFloat,
+        activeStaves: [Int]
+    ) -> StaffSystemGeometry {
+        let sp = max(8, width * (12 / 720))
+        let labelTopPadding = sp * 0.4
+        let labelBandCoreHeight = min(CGFloat(34), max(CGFloat(24), sp * 2.6))
+        let reservedLabelTop = labelTopPadding + labelBandCoreHeight
+        let labelCenterY = labelTopPadding + labelBandCoreHeight / 2
+        let labelBottomGap = sp * 0.9
+        let availableStaffHeight = max(CGFloat(0), size.height - reservedLabelTop - labelBottomGap)
+        let staffSpacing = min(
+            18,
+            max(10, (availableStaffHeight - sp * 8) / CGFloat(max(11, activeStaves.count * 7 + 3)))
+        )
+        let staffGap = staffSpacing * 3
+        let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
+        let firstTopY = reservedLabelTop + labelBottomGap + max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
+        return StaffSystemGeometry(
+            staffSpacing: staffSpacing,
+            staffGap: staffGap,
+            groupHeight: groupHeight,
+            firstTopY: firstTopY,
+            labelCenterY: labelCenterY,
+            sp: sp
+        )
+    }
+
+    private struct VoicingBattleHints {
+        let nextHintVoicingIndex: Int?
+        let topPointer: CGPoint?
+    }
+
+    private static func sortStaffNotesForVoicing(_ notes: [ParsedVoicingNote]) -> [ParsedVoicingNote] {
+        notes.sorted {
+            if $0.degree != $1.degree { return $0.degree < $1.degree }
+            if $0.alter != $1.alter { return $0.alter < $1.alter }
+            return $0.voicingIndex < $1.voicingIndex
+        }
+    }
+
+    private static func computeVoicingBattleHints(
+        parsedGroups: [ParsedGroupRenderItem],
+        layout: StaffLayoutMetrics,
+        activeGroupId: UUID?,
+        correctByGroup: [UUID: Set<Int>],
+        activeStaves: [Int],
+        firstTopY: CGFloat,
+        staffSpacing: CGFloat,
+        staffGap: CGFloat
+    ) -> VoicingBattleHints {
+        guard let aid = activeGroupId,
+              let activeItem = parsedGroups.first(where: { $0.group.id == aid }),
+              !activeItem.group.isRest,
+              !activeItem.notes.isEmpty else {
+            return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
+        }
+        let pressed = correctByGroup[aid] ?? []
+        struct Row {
+            let voicingIndex: Int
+            let pitchClass: Int
+            let xCenter: CGFloat
+            let yCenter: CGFloat
+            let degree: Int
+            let midi: Int
+        }
+        var rowsForTop: [Row] = []
+        var candidates: [Row] = []
+        for (staffIndex, staff) in activeStaves.enumerated() {
+            let topY = firstTopY + CGFloat(staffIndex) * (staffSpacing * 4 + staffGap)
+            let baseX = groupBaseX(group: activeItem.group, slotIndex: activeItem.slotIndex, slotCount: activeItem.slotCount, layout: layout)
+            let staffNotes = sortStaffNotesForVoicing(activeItem.notes.filter { $0.staff == staff })
+            for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: staffSpacing) {
+                let xCenter = baseX + positioned.xOffset
+                let row = Row(
+                    voicingIndex: positioned.note.voicingIndex,
+                    pitchClass: positioned.note.pitchClass,
+                    xCenter: xCenter,
+                    yCenter: positioned.yCenter,
+                    degree: positioned.note.degree,
+                    midi: positioned.note.midi
+                )
+                rowsForTop.append(row)
+                if !pressed.contains(positioned.note.pitchClass) {
+                    candidates.append(row)
+                }
+            }
+        }
+        let highest = rowsForTop.max { $0.midi < $1.midi }
+        let nextIdx: Int?
+        if candidates.isEmpty {
+            nextIdx = nil
+        } else {
+            let best = candidates.min { a, b in
+                if a.xCenter != b.xCenter { return a.xCenter < b.xCenter }
+                if a.degree != b.degree { return a.degree < b.degree }
+                return a.voicingIndex < b.voicingIndex
+            }
+            nextIdx = best?.voicingIndex
+        }
+        let topPoint: CGPoint?
+        if let h = highest {
+            topPoint = CGPoint(x: h.xCenter, y: h.yCenter)
+        } else {
+            topPoint = nil
+        }
+        return VoicingBattleHints(nextHintVoicingIndex: nextIdx, topPointer: topPoint)
+    }
+
+    private static func groupsDrawTopPointer(
+        context: inout GraphicsContext,
+        xCenter: CGFloat,
+        yCenter: CGFloat,
+        staffSpacing: CGFloat
+    ) {
+        let noteHeight = staffSpacing * 0.86
+        let triH = staffSpacing * 0.55
+        let halfW = staffSpacing * 0.42
+        let topEdgeY = yCenter - noteHeight / 2
+        let tipY = topEdgeY - staffSpacing * 0.35
+        let baseY = tipY - triH
+        var path = Path()
+        path.move(to: CGPoint(x: xCenter, y: tipY))
+        path.addLine(to: CGPoint(x: xCenter - halfW, y: baseY))
+        path.addLine(to: CGPoint(x: xCenter + halfW, y: baseY))
+        path.closeSubpath()
+        context.fill(path, with: .color(topPointerColor))
+    }
+
+    private static func drawAll(
+        context: inout GraphicsContext,
+        size: CGSize,
+        groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
+        dense: Bool,
+        keyFifths: Int,
+        activeGroupId: UUID?,
+        correctByGroup: [UUID: Set<Int>]
+    ) {
+        guard !groups.isEmpty else { return }
+        let w = size.width
+        let layout = staffLayoutMetrics(width: w, keyFifths: keyFifths, wideFirstMeasure: dense)
+        let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
 
         let hasRest = parsedGroups.contains { $0.group.isRest }
         let activeStaves = hasRest ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
         }
-        let sp = max(8, w * (12 / 720))
-        let staffSpacing = min(18, max(10, (size.height - sp * 10) / CGFloat(max(11, activeStaves.count * 7 + 3))))
-        let staffGap = staffSpacing * 3
-        let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
-        let firstTopY = max(sp * 2, (size.height - groupHeight) / 2)
+        let geo = computeStaffSystemGeometry(size: size, width: w, activeStaves: activeStaves)
+        let margin = geo.sp * 0.35
+        let leftBound = w * (24 / 720) + margin
+        let rightBound = w * (696 / 720) - margin
+        let labelFrames = makeChordLabelFrames(
+            context: &context,
+            parsedItems: parsedGroups,
+            layout: layout,
+            labelCenterY: geo.labelCenterY,
+            leftBound: leftBound,
+            rightBound: rightBound,
+            sp: geo.sp,
+            activeGroupId: activeGroupId
+        )
 
-        let labelY = max(sp * 1.5, firstTopY - sp * 3.0)
-        for item in parsedGroups where !item.group.chordName.isEmpty {
-            let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
-            let labelColor = item.group.id == activeGroupId ? activeLabelColor : notationColor
-            let resolved = context.resolve(
-                Text(item.group.chordName)
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .foregroundColor(labelColor)
-            )
-            context.draw(resolved, at: CGPoint(x: baseX, y: labelY), anchor: .center)
-        }
+        let battleHints = computeVoicingBattleHints(
+            parsedGroups: parsedGroups,
+            layout: layout,
+            activeGroupId: activeGroupId,
+            correctByGroup: correctByGroup,
+            activeStaves: activeStaves,
+            firstTopY: geo.firstTopY,
+            staffSpacing: geo.staffSpacing,
+            staffGap: geo.staffGap
+        )
 
         for (staffIndex, staff) in activeStaves.enumerated() {
-            let topY = firstTopY + CGFloat(staffIndex) * (staffSpacing * 4 + staffGap)
+            let topY = geo.firstTopY + CGFloat(staffIndex) * (geo.staffSpacing * 4 + geo.staffGap)
             let leftX = w * (24 / 720)
             let rightX = w * (696 / 720)
             groupsDrawStaff(
                 context: &context,
                 top: topY,
-                staffSpacing: staffSpacing,
+                staffSpacing: geo.staffSpacing,
                 leftX: leftX,
                 rightX: rightX,
                 dividerX: layout.measureDividerX
             )
-            groupsDrawClef(context: &context, staff: staff, x: leftX + staffSpacing * 1.7, staffTopY: topY, staffSpacing: staffSpacing)
-            groupsDrawKeySignature(context: &context, staff: staff, staffTopY: topY, staffSpacing: staffSpacing, startX: leftX + staffSpacing * 4.8, keyFifths: keyFifths)
+            groupsDrawClef(
+                context: &context,
+                staff: staff,
+                x: leftX + geo.staffSpacing * 1.7,
+                staffTopY: topY,
+                staffSpacing: geo.staffSpacing
+            )
+            groupsDrawKeySignature(
+                context: &context,
+                staff: staff,
+                staffTopY: topY,
+                staffSpacing: geo.staffSpacing,
+                startX: leftX + geo.staffSpacing * 4.8,
+                keyFifths: keyFifths
+            )
 
             for item in parsedGroups {
                 let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
                 if item.group.isRest {
-                    groupsDrawWholeRest(context: &context, baseX: baseX, staffTopY: topY, staffSpacing: staffSpacing)
+                    groupsDrawWholeRest(context: &context, baseX: baseX, staffTopY: topY, staffSpacing: geo.staffSpacing)
                     continue
                 }
-                let staffNotes = item.notes.filter { $0.staff == staff }.sorted {
-                    if $0.degree != $1.degree { return $0.degree < $1.degree }
-                    if $0.alter != $1.alter { return $0.alter < $1.alter }
-                    return $0.voicingIndex < $1.voicingIndex
-                }
+                let staffNotes = sortStaffNotesForVoicing(item.notes.filter { $0.staff == staff })
                 let correctSet = correctByGroup[item.group.id] ?? []
-                for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: staffSpacing) {
+                for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: geo.staffSpacing) {
                     let isCorrect = correctSet.contains(positioned.note.pitchClass)
+                    let isNextHint =
+                        !isCorrect
+                        && item.group.id == activeGroupId
+                        && battleHints.nextHintVoicingIndex == positioned.note.voicingIndex
+                    let noteColor: Color = isCorrect ? correctColor : (isNextHint ? nextTargetColor : notationColor)
                     groupsDrawWholeNote(
                         context: &context,
                         staffTopY: topY,
-                        staffSpacing: staffSpacing,
+                        staffSpacing: geo.staffSpacing,
                         positioned: positioned,
                         baseX: baseX,
-                        color: isCorrect ? correctColor : notationColor
+                        color: noteColor
                     )
                 }
             }
+        }
+
+        drawChordLabels(context: &context, labels: labelFrames)
+
+        if let tp = battleHints.topPointer {
+            groupsDrawTopPointer(context: &context, xCenter: tp.x, yCenter: tp.y, staffSpacing: geo.staffSpacing)
         }
     }
 

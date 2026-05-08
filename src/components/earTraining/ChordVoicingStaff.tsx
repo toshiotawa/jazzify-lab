@@ -77,6 +77,8 @@ type StaffNumber = 1 | 2;
 
 const NOTATION_COLOR = '#ffffff';
 const CORRECT_NOTATION_COLOR = '#22c55e';
+const NEXT_TARGET_COLOR = '#f97316';
+const TOP_POINTER_COLOR = '#ef4444';
 const ACTIVE_CHORD_LABEL_COLOR = '#facc15';
 const SP = 12;
 const STAFF_WIDTH = 720;
@@ -84,8 +86,6 @@ const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 696;
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
-/** コード名ラベルとト譜表の間に余白を取る（譜面の可読性） */
-const STAFF_TOP_Y = SP * 5.75;
 const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 7;
 const CLEF_FONT_SIZE = SP * 4;
 /** SMuFL: gClef / fClef（https://www.w3.org/2021/03/smufl14/tables/clefs.html） */
@@ -441,8 +441,6 @@ const layoutNotes = (
   }));
 };
 
-const staffTopForIndex = (index: number): number => STAFF_TOP_Y + index * STAFF_TOP_STEP;
-
 const CLEF_LEFT_X = STAFF_LINE_LEFT_X + SP * 0.8;
 
 const StaffClefGlyph: React.FC<{
@@ -586,14 +584,19 @@ const WholeNote: React.FC<{
   baseX: number;
   staffTopY: number;
   isCorrect: boolean;
-}> = ({ groupId, positioned, baseX, staffTopY, isCorrect }) => {
+  isNextHint: boolean;
+}> = ({ groupId, positioned, baseX, staffTopY, isCorrect, isNextHint }) => {
   const noteWidth = SP * 1.45;
   const noteHeight = SP * 0.86;
   const xCenter = baseX + positioned.xOffset;
   const accidental = positioned.note.displayAccidentalAlter === null
     ? ''
     : accidentalGlyph(positioned.note.displayAccidentalAlter);
-  const notationColor = isCorrect ? CORRECT_NOTATION_COLOR : NOTATION_COLOR;
+  const notationColor = isCorrect
+    ? CORRECT_NOTATION_COLOR
+    : isNextHint
+      ? NEXT_TARGET_COLOR
+      : NOTATION_COLOR;
   const accidentalX = Math.min(
     xCenter - noteWidth * 1.15,
     baseX - noteWidth * 1.25 - positioned.accidentalColumn * SP * 0.95,
@@ -625,6 +628,7 @@ const WholeNote: React.FC<{
         </text>
       )}
       <ellipse
+        data-next-voicing-hint={isNextHint ? 'true' : undefined}
         data-voicing-group-id={groupId}
         data-voicing-index={positioned.note.voicingIndex}
         data-voicing-pitch-class={positioned.note.pitchClass}
@@ -651,6 +655,319 @@ const getVoicingGroupBaseX = (
   return left + slotWidth * (group.slotIndex + 0.5);
 };
 
+/** 計算済みコード名ラベル（座標は viewBox 内の論理 px） */
+interface ChordLabelFrame {
+  groupId: string;
+  chordName: string;
+  x: number;
+  fontSize: number;
+  fill: string;
+}
+
+interface StaffSystemVerticalLayout {
+  firstStaffTopY: number;
+  labelCenterY: number;
+  svgHeight: number;
+  chordLabels: readonly ChordLabelFrame[];
+}
+
+export const estimateChordNameWidthPx = (chordName: string, fontSize: number): number => {
+  let w = 0;
+  for (const ch of chordName) {
+    if (/[mwMW#b°Δ]/.test(ch)) {
+      w += fontSize * 0.68;
+    } else if (/[il1I|]/.test(ch)) {
+      w += fontSize * 0.26;
+    } else if (/\d/.test(ch)) {
+      w += fontSize * 0.5;
+    } else {
+      w += fontSize * 0.56;
+    }
+  }
+  return Math.min(STAFF_WIDTH * 0.44, w + fontSize * 0.8);
+};
+
+interface ChordLabelLayoutRow {
+  groupId: string;
+  chordName: string;
+  fill: string;
+  fullWidth: number;
+  centerX: number;
+}
+
+const layoutChordLabelRowsInPlace = (
+  rows: ChordLabelLayoutRow[],
+  leftBound: number,
+  rightBound: number,
+  minGap: number,
+): void => {
+  rows.sort((a, b) => a.centerX - b.centerX);
+  for (let i = 1; i < rows.length; i += 1) {
+    const previousRight = rows[i - 1].centerX + rows[i - 1].fullWidth / 2;
+    const currentLeft = rows[i].centerX - rows[i].fullWidth / 2;
+    if (currentLeft < previousRight + minGap) {
+      rows[i].centerX += previousRight + minGap - currentLeft;
+    }
+  }
+  const last = rows[rows.length - 1];
+  const overflow = last.centerX + last.fullWidth / 2 - rightBound;
+  if (overflow > 0) {
+    for (let j = 0; j < rows.length; j += 1) {
+      rows[j].centerX -= overflow;
+    }
+  }
+  const first = rows[0];
+  const underflow = leftBound - (first.centerX - first.fullWidth / 2);
+  if (underflow > 0) {
+    for (let j = 0; j < rows.length; j += 1) {
+      rows[j].centerX += underflow;
+    }
+  }
+};
+
+export const layoutBattleChordLabels = (
+  groups: readonly ParsedVoicingStaffGroup[],
+  layout: StaffLayoutMetrics,
+  activeGroupId: string | null | undefined,
+  labelCenterY: number,
+  leftBound: number,
+  rightBound: number,
+  sp: number,
+): readonly ChordLabelFrame[] => {
+  const named = groups.filter(g => g.chordName.length > 0);
+  if (named.length === 0) {
+    return [];
+  }
+  const minGap = sp * 0.8;
+  let fontSize = 18;
+  const minFont = 12;
+  while (fontSize >= minFont) {
+    const rows: ChordLabelLayoutRow[] = named.map(g => {
+      const isActiveChord = activeGroupId !== undefined && activeGroupId !== null
+        ? g.id === activeGroupId
+        : g.legacyIsActive;
+      const fill = isActiveChord ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR;
+      const fullWidth = estimateChordNameWidthPx(g.chordName, fontSize);
+      const desiredX = getVoicingGroupBaseX(g, layout);
+      const clampedX = Math.min(
+        Math.max(desiredX, leftBound + fullWidth / 2),
+        rightBound - fullWidth / 2,
+      );
+      return {
+        groupId: g.id,
+        chordName: g.chordName,
+        fill,
+        fullWidth,
+        centerX: clampedX,
+      };
+    });
+    layoutChordLabelRowsInPlace(rows, leftBound, rightBound, minGap);
+    const fits = rows.every(r => (
+      r.centerX - r.fullWidth / 2 >= leftBound - 0.5
+      && r.centerX + r.fullWidth / 2 <= rightBound + 0.5
+    ));
+    if (fits) {
+      return rows.map(r => ({
+        groupId: r.groupId,
+        chordName: r.chordName,
+        x: r.centerX,
+        fontSize,
+        fill: r.fill,
+      }));
+    }
+    fontSize -= 1;
+  }
+  const rows: ChordLabelLayoutRow[] = named.map(g => {
+    const isActiveChord = activeGroupId !== undefined && activeGroupId !== null
+      ? g.id === activeGroupId
+      : g.legacyIsActive;
+    const fill = isActiveChord ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR;
+    const fullWidth = estimateChordNameWidthPx(g.chordName, minFont);
+    const desiredX = getVoicingGroupBaseX(g, layout);
+    const clampedX = Math.min(
+      Math.max(desiredX, leftBound + fullWidth / 2),
+      rightBound - fullWidth / 2,
+    );
+    return {
+      groupId: g.id,
+      chordName: g.chordName,
+      fill,
+      fullWidth,
+      centerX: clampedX,
+    };
+  });
+  layoutChordLabelRowsInPlace(rows, leftBound, rightBound, minGap);
+  return rows.map(r => ({
+    groupId: r.groupId,
+    chordName: r.chordName,
+    x: r.centerX,
+    fontSize: minFont,
+    fill: r.fill,
+  }));
+};
+
+/** コード名レーンを確保し、その下に五線系を置く縦レイアウト（論理座標系） */
+const computeBattleStaffSystemLayout = (
+  activeStaves: readonly StaffNumber[],
+  groups: readonly ParsedVoicingStaffGroup[],
+  layout: StaffLayoutMetrics,
+  activeGroupId: string | null | undefined,
+): StaffSystemVerticalLayout => {
+  const labelTopPadding = SP * 0.4;
+  const labelBandCore = Math.min(34, Math.max(24, SP * 2.6));
+  const reservedLabelTop = labelTopPadding + labelBandCore;
+  const labelCenterY = labelTopPadding + labelBandCore / 2;
+  const labelBottomGap = SP * 0.9;
+  const firstStaffTopY = reservedLabelTop + labelBottomGap;
+  const staffCount = activeStaves.length;
+  const staffBlockHeight = (staffCount - 1) * STAFF_TOP_STEP + STAFF_HEIGHT;
+  const svgHeight = firstStaffTopY + staffBlockHeight + SP * 3;
+  const margin = SP * 0.35;
+  const leftBound = STAFF_LINE_LEFT_X + margin;
+  const rightBound = STAFF_LINE_RIGHT_X - margin;
+  const chordLabels = layoutBattleChordLabels(
+    groups,
+    layout,
+    activeGroupId,
+    labelCenterY,
+    leftBound,
+    rightBound,
+    SP,
+  );
+  return {
+    firstStaffTopY,
+    labelCenterY,
+    svgHeight,
+    chordLabels,
+  };
+};
+
+interface VoicingBattleHintsResult {
+  nextHintVoicingIndex: number | null;
+  topPointer: {
+    staff: StaffNumber;
+    staffTopY: number;
+    xCenter: number;
+    yCenter: number;
+  } | null;
+}
+
+/** アクティブ・グループの「左端の未演奏ヒント」とトップノート位置 */
+const computeVoicingBattleHints = (
+  groups: readonly ParsedVoicingStaffGroup[],
+  layout: StaffLayoutMetrics,
+  activeGroupId: string | null | undefined,
+  correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>,
+  activeStaves: readonly StaffNumber[],
+  firstStaffTopY: number,
+): VoicingBattleHintsResult => {
+  if (activeGroupId === undefined || activeGroupId === null) {
+    return { nextHintVoicingIndex: null, topPointer: null };
+  }
+  const group = groups.find(g => g.id === activeGroupId);
+  if (!group || group.isRest || group.notes.length === 0) {
+    return { nextHintVoicingIndex: null, topPointer: null };
+  }
+
+  const pressed = correctPitchClassSets.get(activeGroupId) ?? new Set<number>();
+
+  type Candidate = {
+    voicingIndex: number;
+    pitchClass: number;
+    xCenter: number;
+    degree: number;
+    midi: number;
+    staff: StaffNumber;
+    staffTopY: number;
+    yCenter: number;
+  };
+
+  const candidates: Candidate[] = [];
+
+  const rowsForTop: Candidate[] = [];
+  activeStaves.forEach((staff, staffIndex) => {
+    const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
+    const baseX = getVoicingGroupBaseX(group, layout);
+    const staffNotes = group.notes.filter(note => note.staff === staff);
+    const positioned = layoutNotes(staffNotes, staffTopY);
+    positioned.forEach(p => {
+      const xCenter = baseX + p.xOffset;
+      const row: Candidate = {
+        voicingIndex: p.note.voicingIndex,
+        pitchClass: p.note.pitchClass,
+        xCenter,
+        degree: p.note.degree,
+        midi: p.note.midi,
+        staff,
+        staffTopY,
+        yCenter: p.yCenter,
+      };
+      rowsForTop.push(row);
+      if (!pressed.has(p.note.pitchClass)) {
+        candidates.push(row);
+      }
+    });
+  });
+
+  const highestMidi = rowsForTop.reduce<Candidate | null>((best, row) => {
+    if (best === null || row.midi > best.midi) {
+      return row;
+    }
+    return best;
+  }, null);
+
+  let nextHintVoicingIndex: number | null = null;
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => {
+      if (a.xCenter !== b.xCenter) {
+        return a.xCenter - b.xCenter;
+      }
+      if (a.degree !== b.degree) {
+        return a.degree - b.degree;
+      }
+      return a.voicingIndex - b.voicingIndex;
+    });
+    nextHintVoicingIndex = candidates[0].voicingIndex;
+  }
+
+  if (highestMidi === null) {
+    return {
+      nextHintVoicingIndex,
+      topPointer: null,
+    };
+  }
+
+  return {
+    nextHintVoicingIndex,
+    topPointer: {
+      staff: highestMidi.staff,
+      staffTopY: highestMidi.staffTopY,
+      xCenter: highestMidi.xCenter,
+      yCenter: highestMidi.yCenter,
+    },
+  };
+};
+
+const TopNotePointer: React.FC<{
+  xCenter: number;
+  yCenter: number;
+}> = ({ xCenter, yCenter }) => {
+  const noteHeight = SP * 0.86;
+  const triH = SP * 0.55;
+  const halfW = SP * 0.42;
+  const topEdgeY = yCenter - noteHeight / 2;
+  const tipY = topEdgeY - SP * 0.35;
+  const baseY = tipY - triH;
+  return (
+    <polygon
+      aria-hidden
+      data-voicing-top-pointer="true"
+      fill={TOP_POINTER_COLOR}
+      points={`${xCenter},${tipY} ${xCenter - halfW},${baseY} ${xCenter + halfW},${baseY}`}
+    />
+  );
+};
+
 const RenderedStaff: React.FC<{
   staff: StaffNumber;
   groups: readonly ParsedVoicingStaffGroup[];
@@ -658,7 +975,9 @@ const RenderedStaff: React.FC<{
   staffTopY: number;
   keyFifths: number;
   layout: StaffLayoutMetrics;
-}> = ({ staff, groups, correctPitchClassSets, staffTopY, keyFifths, layout }) => {
+  activeGroupId: string | null | undefined;
+  nextHintVoicingIndex: number | null;
+}> = ({ staff, groups, correctPitchClassSets, staffTopY, keyFifths, layout, activeGroupId, nextHintVoicingIndex }) => {
   const marks = keySignatureMarks(staff, keyFifths);
   const positionedGroups = useMemo(() => (
     groups.map(group => ({
@@ -702,6 +1021,13 @@ const RenderedStaff: React.FC<{
             baseX={noteBaseX}
             staffTopY={staffTopY}
             isCorrect={correctPitchClassSet?.has(positioned.note.pitchClass) ?? false}
+            isNextHint={
+              activeGroupId !== undefined
+              && activeGroupId !== null
+              && group.id === activeGroupId
+              && nextHintVoicingIndex !== null
+              && positioned.note.voicingIndex === nextHintVoicingIndex
+            }
           />
         ));
         if (!group.isRest) {
@@ -818,13 +1144,6 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     return sets;
   }, [normalizedCorrectPitchClassesByGroupId, staffGroups]);
 
-  const isGroupActive = (group: ParsedVoicingStaffGroup): boolean => {
-    if (activeGroupId !== undefined && activeGroupId !== null) {
-      return group.id === activeGroupId;
-    }
-    return group.legacyIsActive;
-  };
-
   const [clefFontsLoaded, setClefFontsLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -864,9 +1183,34 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     ? denseCurrentMeasureLayout
     : inferredDenseLayout;
   const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure);
-  const svgHeight = activeStaves.length > 0
-    ? STAFF_TOP_Y + (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT + SP * 3
-    : STAFF_TOP_Y + STAFF_HEIGHT + SP * 3;
+  const systemLayout = useMemo(
+    () => computeBattleStaffSystemLayout(
+      activeStaves,
+      renderState.groups,
+      layout,
+      activeGroupId,
+    ),
+    [activeGroupId, activeStaves, layout, renderState.groups],
+  );
+  const battleHints = useMemo(
+    () => computeVoicingBattleHints(
+      renderState.groups,
+      layout,
+      activeGroupId,
+      correctPitchClassSets,
+      activeStaves,
+      systemLayout.firstStaffTopY,
+    ),
+    [
+      activeGroupId,
+      activeStaves,
+      correctPitchClassSets,
+      layout,
+      renderState.groups,
+      systemLayout.firstStaffTopY,
+    ],
+  );
+  const svgHeight = systemLayout.svgHeight;
 
   return (
     <div className={cn('relative flex w-full justify-center', className)}>
@@ -882,24 +1226,22 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           role="img"
           viewBox={`0 0 ${STAFF_WIDTH} ${svgHeight}`}
         >
-          {renderState.groups.map(group => (
-            group.chordName ? (
-              <text
-                key={`${group.id}-label`}
-                data-voicing-group-active={isGroupActive(group) ? 'true' : 'false'}
-                data-voicing-group-id={group.id}
-                x={getVoicingGroupBaseX(group, layout)}
-                y={SP * 1.4}
-                dominantBaseline="central"
-                fill={isGroupActive(group) ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR}
-                fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
-                fontSize="18"
-                fontWeight="800"
-                textAnchor="middle"
-              >
-                {group.chordName}
-              </text>
-            ) : null
+          {systemLayout.chordLabels.map(label => (
+            <text
+              key={`${label.groupId}-label`}
+              data-voicing-group-active={label.fill === ACTIVE_CHORD_LABEL_COLOR ? 'true' : 'false'}
+              data-voicing-group-id={label.groupId}
+              x={label.x}
+              y={systemLayout.labelCenterY}
+              dominantBaseline="central"
+              fill={label.fill}
+              fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
+              fontSize={label.fontSize}
+              fontWeight="800"
+              textAnchor="middle"
+            >
+              {label.chordName}
+            </text>
           ))}
           {activeStaves.map((staff, index) => (
             <RenderedStaff
@@ -907,11 +1249,19 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               staff={staff}
               groups={renderState.groups}
               correctPitchClassSets={correctPitchClassSets}
-              staffTopY={staffTopForIndex(index)}
+              staffTopY={systemLayout.firstStaffTopY + index * STAFF_TOP_STEP}
               keyFifths={keyFifths}
               layout={layout}
+              activeGroupId={activeGroupId}
+              nextHintVoicingIndex={battleHints.nextHintVoicingIndex}
             />
           ))}
+          {battleHints.topPointer ? (
+            <TopNotePointer
+              xCenter={battleHints.topPointer.xCenter}
+              yCenter={battleHints.topPointer.yCenter}
+            />
+          ) : null}
         </svg>
       )}
     </div>
