@@ -659,39 +659,87 @@ const collectChordVoicingMusicXmlEntries = (
   };
 };
 
-const buildVoicingForHarmonyRange = (
+const CHORD_VOICING_BEAT_EPSILON = 1e-6;
+
+interface HarmonyVoicingTimingGroup {
+  startBeat: number;
+  voicing: string[];
+  voicing_staves: number[];
+}
+
+interface CollectedHarmonyVoicingTimingGroup {
+  startBeat: number;
+  seenKeys: Set<string>;
+  notes: {
+    name: string;
+    staff: number;
+    midi: number;
+  }[];
+}
+
+const resolveMeasurePositionFromBeat = (
+  totalBeatPosition: number,
+  beatsPerMeasure: number,
+): { measureNumber: number; beatOffset: number } => {
+  if (!Number.isFinite(beatsPerMeasure) || beatsPerMeasure <= 0) {
+    return {
+      measureNumber: 1,
+      beatOffset: roundToMillis(totalBeatPosition + 1),
+    };
+  }
+  return {
+    measureNumber: Math.floor(totalBeatPosition / beatsPerMeasure) + 1,
+    beatOffset: roundToMillis((totalBeatPosition % beatsPerMeasure) + 1),
+  };
+};
+
+const buildVoicingTimingGroupsForHarmonyRange = (
   notes: MusicXmlVoicingNoteRecord[],
   startBeat: number,
   endBeat: number,
-): { voicing: string[]; voicing_staves: number[] } => {
-  const seen = new Set<string>();
-  const collected: { name: string; staff: number; midi: number }[] = [];
+): HarmonyVoicingTimingGroup[] => {
+  const groups: CollectedHarmonyVoicingTimingGroup[] = [];
   for (const note of notes) {
-    const overlaps = note.startBeat < endBeat - 1e-6 && note.endBeat > startBeat + 1e-6;
-    if (!overlaps) {
+    const startsInRange = note.startBeat >= startBeat - CHORD_VOICING_BEAT_EPSILON
+      && note.startBeat < endBeat - CHORD_VOICING_BEAT_EPSILON;
+    if (!startsInRange) {
       continue;
+    }
+    let group = groups.find(item => Math.abs(item.startBeat - note.startBeat) <= CHORD_VOICING_BEAT_EPSILON);
+    if (!group) {
+      group = {
+        startBeat: note.startBeat,
+        seenKeys: new Set<string>(),
+        notes: [],
+      };
+      groups.push(group);
     }
     const key = `${note.staff}|${note.step}|${note.alter}|${note.octave}`;
-    if (seen.has(key)) {
+    if (group.seenKeys.has(key)) {
       continue;
     }
-    seen.add(key);
-    collected.push({
+    group.seenKeys.add(key);
+    group.notes.push({
       name: note.noteName,
       staff: note.staff,
       midi: calculateMidi(note.step, note.alter, note.octave),
     });
   }
-  collected.sort((a, b) => {
-    if (a.staff !== b.staff) {
-      return a.staff - b.staff;
-    }
-    return a.midi - b.midi;
-  });
-  return {
-    voicing: collected.map(item => item.name),
-    voicing_staves: collected.map(item => item.staff),
-  };
+  return groups
+    .sort((a, b) => a.startBeat - b.startBeat)
+    .map(group => {
+      const sortedNotes = [...group.notes].sort((a, b) => {
+        if (a.staff !== b.staff) {
+          return a.staff - b.staff;
+        }
+        return a.midi - b.midi;
+      });
+      return {
+        startBeat: group.startBeat,
+        voicing: sortedNotes.map(item => item.name),
+        voicing_staves: sortedNotes.map(item => item.staff),
+      };
+    });
 };
 
 export const createEarTrainingChordVoicingMusicXmlPreview = (
@@ -742,26 +790,28 @@ export const buildEarTrainingChordVoicingDraftsFromMusicXml = (
     const phraseTotalBeats = totalBeats > 0 ? totalBeats : harmonies.length * options.beatsPerMeasure;
     const beatDurationSec = 60 / options.bpm;
 
-    const chords: EarTrainingPhraseChordVoicingImport[] = harmonies.map((harmony, index) => {
+    const chords: EarTrainingPhraseChordVoicingImport[] = [];
+    harmonies.forEach((harmony, index) => {
       const nextStartBeat = harmonies[index + 1]?.startBeat ?? phraseTotalBeats;
-      const startTimeSec = roundToMillis(harmony.startBeat * beatDurationSec);
       const endTimeSec = roundToMillis(nextStartBeat * beatDurationSec);
-      const durationBeats = roundToMillis(Math.max(0, nextStartBeat - harmony.startBeat));
-      const { voicing, voicing_staves } = buildVoicingForHarmonyRange(notes, harmony.startBeat, nextStartBeat);
-      if (voicing.length === 0) {
+      const voicingGroups = buildVoicingTimingGroupsForHarmonyRange(notes, harmony.startBeat, nextStartBeat);
+      if (voicingGroups.length === 0) {
         throw new Error(`Phrase ${range.orderIndex + 1} の Chord ${index + 1} (${harmony.chordName}) に voicing がありません`);
       }
-      return {
-        order_index: index,
-        chord_name: harmony.chordName,
-        measure_number: harmony.measureNumber,
-        beat_offset: harmony.beatOffset,
-        duration_beats: durationBeats,
-        start_time_sec: startTimeSec,
-        end_time_sec: endTimeSec,
-        voicing,
-        voicing_staves,
-      };
+      voicingGroups.forEach(group => {
+        const measurePosition = resolveMeasurePositionFromBeat(group.startBeat, options.beatsPerMeasure);
+        chords.push({
+          order_index: chords.length,
+          chord_name: harmony.chordName,
+          measure_number: measurePosition.measureNumber,
+          beat_offset: measurePosition.beatOffset,
+          duration_beats: roundToMillis(Math.max(0, nextStartBeat - group.startBeat)),
+          start_time_sec: roundToMillis(group.startBeat * beatDurationSec),
+          end_time_sec: endTimeSec,
+          voicing: group.voicing,
+          voicing_staves: group.voicing_staves,
+        });
+      });
     });
 
     drafts.push({

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildEarTrainingChordVoicingDraftsFromMusicXml,
   buildEarTrainingPhraseDraftsFromMusicXml,
   createEarTrainingMusicXmlPreview,
   scaleEarTrainingPhraseChordTimings,
@@ -77,6 +78,38 @@ const singleNoteMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
+const chordVoicingMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <harmony><root><root-step>C</root-step></root></harmony>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <note><chord/><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><type>half</type></note>
+      <note><chord/><pitch><step>G</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><type>half</type></note>
+      <note><chord/><pitch><step>B</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><type>half</type></note>
+      <note><chord/><pitch><step>D</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>half</type></note>
+    </measure>
+    <measure number="2">
+      <harmony>
+        <root><root-step>C</root-step></root>
+        <kind text="M7">major-seventh</kind>
+      </harmony>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><type>half</type></note>
+    </measure>
+  </part>
+</score-partwise>`;
+
 describe('earTrainingMusicXmlImport', () => {
   it('指定小節数ごとにMusicXMLのフレーズ範囲を作る', () => {
     const preview = createEarTrainingMusicXmlPreview(sampleMusicXml, 2);
@@ -148,6 +181,41 @@ describe('earTrainingMusicXmlImport', () => {
       start_time_sec: 2.5,
       end_time_sec: 5,
     });
+  });
+
+  it('コードヴォイシングMusicXMLは同一harmony内のタイミング別音群を分割する', () => {
+    const drafts = buildEarTrainingChordVoicingDraftsFromMusicXml(chordVoicingMusicXml, {
+      phraseMeasures: 2,
+      bpm: 120,
+      beatsPerMeasure: 4,
+    });
+
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].chords.map(chord => chord.chord_name)).toEqual(['C', 'C', 'C', 'CM7', 'CM7', 'CM7']);
+    expect(drafts[0].chords.map(chord => chord.voicing)).toEqual([
+      ['C4', 'E4'],
+      ['C4', 'E4', 'G4'],
+      ['E4', 'G4', 'B4', 'D5'],
+      ['C4'],
+      ['C4'],
+      ['E4'],
+    ]);
+    expect(drafts[0].chords.map(chord => [chord.measure_number, chord.beat_offset])).toEqual([
+      [1, 1],
+      [1, 2],
+      [1, 3],
+      [2, 1],
+      [2, 2],
+      [2, 3],
+    ]);
+    expect(drafts[0].chords.map(chord => [chord.start_time_sec, chord.end_time_sec])).toEqual([
+      [0, 2],
+      [0.5, 2],
+      [1, 2],
+      [2, 4],
+      [2.5, 4],
+      [3, 4],
+    ]);
   });
 
   it('生成フレーズ数とmp3数が一致しない場合はエラーにする', () => {

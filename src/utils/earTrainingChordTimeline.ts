@@ -42,6 +42,7 @@ const sortChordsByTime = <T extends EarTrainingPhraseChord>(chords: T[]): T[] =>
 type TimedEarTrainingPhraseChord = EarTrainingPhraseChord & { start_time_sec: number };
 
 const DISPLAY_BOUNDARY_EPSILON_SEC = 0.001;
+const HARMONY_GROUP_EPSILON_SEC = 0.001;
 
 const getBeatSec = (bpm: number): number => {
   if (!Number.isFinite(bpm) || bpm <= 0) {
@@ -86,6 +87,40 @@ const getChordEndSec = (
   return sortedChords[index + 1]?.start_time_sec ?? Number.POSITIVE_INFINITY;
 };
 
+const isFiniteExplicitEndSec = (chord: TimedEarTrainingPhraseChord): chord is TimedEarTrainingPhraseChord & { end_time_sec: number } =>
+  chord.end_time_sec !== null
+  && chord.end_time_sec !== undefined
+  && Number.isFinite(chord.end_time_sec);
+
+const isSameHarmonyGroup = (
+  chord: TimedEarTrainingPhraseChord,
+  nextChord: TimedEarTrainingPhraseChord,
+): boolean => {
+  if (chord.chord_name !== nextChord.chord_name) {
+    return false;
+  }
+  if (!isFiniteExplicitEndSec(chord) || !isFiniteExplicitEndSec(nextChord)) {
+    return false;
+  }
+  return Math.abs(chord.end_time_sec - nextChord.end_time_sec) <= HARMONY_GROUP_EPSILON_SEC;
+};
+
+const canStartChordAtIndex = (
+  sortedChords: readonly TimedEarTrainingPhraseChord[],
+  index: number,
+  completedChordIds: ReadonlySet<string>,
+): boolean => {
+  const chord = sortedChords[index];
+  const previousChord = sortedChords[index - 1];
+  if (!chord || !previousChord) {
+    return true;
+  }
+  if (!isSameHarmonyGroup(previousChord, chord)) {
+    return true;
+  }
+  return completedChordIds.has(previousChord.id);
+};
+
 const getEffectiveChordStartSec = (
   sortedChords: readonly TimedEarTrainingPhraseChord[],
   index: number,
@@ -100,9 +135,31 @@ const getEffectiveChordStartSec = (
   return chord.start_time_sec - getBeatSec(bpm) * 0.5;
 };
 
+const getEffectiveChordEndSec = (
+  sortedChords: readonly TimedEarTrainingPhraseChord[],
+  index: number,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
+): number => {
+  const chord = sortedChords[index];
+  const nextChord = sortedChords[index + 1];
+  const chordEndSec = getChordEndSec(chord, sortedChords, index);
+  if (!nextChord) {
+    return chordEndSec;
+  }
+  if (isSameHarmonyGroup(chord, nextChord) && !completedChordIds.has(chord.id)) {
+    return chordEndSec;
+  }
+  if (!canStartChordAtIndex(sortedChords, index + 1, completedChordIds)) {
+    return chordEndSec;
+  }
+  return Math.min(chordEndSec, getEffectiveChordStartSec(sortedChords, index + 1, bpm, completedChordIds));
+};
+
 /**
  * オーディオループ内時刻における現在コード。
- * 未完成コードでは止めず、直前コードが完成済みなら次コードを半拍早く開始する。
+ * 同一 harmony 内の voicing は順番に判定し、別 harmony には時刻で移動する。
+ * 直前 voicing が完成済みなら次 voicing/コードを半拍早く開始する。
  */
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
@@ -122,11 +179,11 @@ export const getEarTrainingChordDisplayAtTime = (
 
   for (let index = 0; index < timed.length; index += 1) {
     const chord = timed[index];
+    if (!canStartChordAtIndex(timed, index, completedChordIds)) {
+      continue;
+    }
     const startSec = getEffectiveChordStartSec(timed, index, bpm, completedChordIds);
-    const nextEffectiveStartSec = index + 1 < timed.length
-      ? getEffectiveChordStartSec(timed, index + 1, bpm, completedChordIds)
-      : Number.POSITIVE_INFINITY;
-    const endSec = Math.min(getChordEndSec(chord, timed, index), nextEffectiveStartSec);
+    const endSec = getEffectiveChordEndSec(timed, index, bpm, completedChordIds);
     if (loopTimeSec >= startSec && loopTimeSec < endSec) {
       return chord;
     }
@@ -149,12 +206,11 @@ export const getEarTrainingNextChordDisplayBoundarySec = (
   const threshold = loopTimeSec + DISPLAY_BOUNDARY_EPSILON_SEC;
 
   for (let index = 0; index < timed.length; index += 1) {
-    const chord = timed[index];
+    if (!canStartChordAtIndex(timed, index, completedChordIds)) {
+      continue;
+    }
     const startSec = getEffectiveChordStartSec(timed, index, bpm, completedChordIds);
-    const nextEffectiveStartSec = index + 1 < timed.length
-      ? getEffectiveChordStartSec(timed, index + 1, bpm, completedChordIds)
-      : Number.POSITIVE_INFINITY;
-    const endSec = Math.min(getChordEndSec(chord, timed, index), nextEffectiveStartSec);
+    const endSec = getEffectiveChordEndSec(timed, index, bpm, completedChordIds);
     if (startSec > threshold && startSec < nextBoundary) {
       nextBoundary = startSec;
     }
