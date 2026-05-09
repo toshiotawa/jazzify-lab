@@ -262,15 +262,17 @@ private enum MusicNotationSymbol {
             lineCap: .round,
             lineJoin: .round
         )
+        // 全 y 成分を s * 0.43 上方シフトし、bowl の中心が center.y（音符ステップ）に揃うようにしている。
+        // これにより Web の SMuFL Bravura flat（dominantBaseline=central）と同じく「線に刺さる」配置になる。
         var path = Path()
         // ステム（縦棒）：上端から下端まで一本の縦線。
-        path.move(to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 1.22))
-        path.addLine(to: CGPoint(x: center.x - s * 0.15, y: center.y + s * 0.92))
+        path.move(to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 1.65))
+        path.addLine(to: CGPoint(x: center.x - s * 0.15, y: center.y + s * 0.49))
         // bowl（ふくらみ）：ステム下端からステム中段にかけて右側に一つだけ膨らむ。
         path.addCurve(
-            to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 0.05),
-            control1: CGPoint(x: center.x + s * 0.95, y: center.y + s * 0.55),
-            control2: CGPoint(x: center.x + s * 0.55, y: center.y - s * 0.18)
+            to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 0.48),
+            control1: CGPoint(x: center.x + s * 0.95, y: center.y + s * 0.12),
+            control2: CGPoint(x: center.x + s * 0.55, y: center.y - s * 0.61)
         )
         context.stroke(path, with: .color(color), style: stroke)
     }
