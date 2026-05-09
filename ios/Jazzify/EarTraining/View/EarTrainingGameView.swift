@@ -22,7 +22,7 @@ struct EarTrainingGameView: View {
         ZStack {
             if resolvedMode == .chordVoicing {
                 EarTrainingChordVoicingGameView(
-                    stageId: stageId,
+                    source: .id(stageId),
                     lessonContext: lessonContext,
                     locale: locale,
                     onClose: onClose

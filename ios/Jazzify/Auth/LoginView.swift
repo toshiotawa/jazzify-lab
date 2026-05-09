@@ -15,6 +15,9 @@ struct LoginView: View {
     @State private var demoSurvivalHintMode: Bool = true
     @State private var showDemoChordVoicing = false
 
+    /// Web 版 [src/components/earTraining/EarTrainingMain.tsx] の `DEMO_CHORD_VOICING_STAGE_SLUG` と同値。
+    private static let demoChordVoicingStageSlug = "demo-ios-chord-voicing-bpm100"
+
     private var locale: AppLocale { appState.locale }
 
     /// sendOTP / verify と同一の正規化（改行・全角スペース等の差で OTP が不一致にならないようにする）
@@ -86,7 +89,12 @@ struct LoginView: View {
                 )
             }
             .fullScreenCover(isPresented: $showDemoChordVoicing) {
-                GameWebView(mode: .demoChordVoicing, locale: locale, onClose: { showDemoChordVoicing = false })
+                EarTrainingChordVoicingGameView(
+                    source: .slug(Self.demoChordVoicingStageSlug),
+                    lessonContext: nil,
+                    locale: locale,
+                    onClose: { showDemoChordVoicing = false }
+                )
             }
         }
     }
@@ -273,7 +281,7 @@ struct LoginView: View {
                     showDemoChordVoicing = true
                 } label: {
                     Label(
-                        locale == .ja ? "コード演奏バトル" : "Chord Voicing",
+                        locale == .ja ? "バトル" : "Battle",
                         systemImage: "pianokeys"
                     )
                     .frame(maxWidth: .infinity)

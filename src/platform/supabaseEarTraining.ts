@@ -92,36 +92,6 @@ export const fetchEarTrainingStages = async (
   return ((data ?? []) as EarTrainingStage[]).map(sortStageRelations);
 };
 
-export const fetchEarTrainingStageBySlug = async (
-  slug: string,
-  { forceRefresh = false }: { forceRefresh?: boolean } = {},
-): Promise<EarTrainingStage> => {
-  const supabase = getSupabaseClient();
-  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stage:slug:${slug}`;
-  if (forceRefresh) {
-    clearCacheByPattern(cacheKey);
-  }
-
-  const { data, error } = await fetchWithCache(
-    cacheKey,
-    async () => await supabase
-      .from('ear_training_stages')
-      .select(EAR_TRAINING_STAGE_SELECT)
-      .eq('slug', slug)
-      .single(),
-    1000 * 60 * 5,
-  );
-
-  if (error) {
-    throw error;
-  }
-  if (!data) {
-    throw new Error(EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA);
-  }
-
-  return sortStageRelations(data as EarTrainingStage);
-};
-
 export const fetchEarTrainingStageById = async (
   stageId: string,
   { forceRefresh = false }: { forceRefresh?: boolean } = {},

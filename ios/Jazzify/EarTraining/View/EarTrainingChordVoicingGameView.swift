@@ -2,9 +2,15 @@ import SwiftUI
 import SpriteKit
 import UIKit
 
+/// バトル起動時に渡すステージ識別子。レッスン経由は UUID、ログイン画面のデモは slug を使う。
+enum EarTrainingStageSource {
+    case id(UUID)
+    case slug(String)
+}
+
 /// コード演奏バトルモード ([src/components/earTraining/EarTrainingChordVoicingScreen.tsx]) の iOS 画面。
 struct EarTrainingChordVoicingGameView: View {
-    let stageId: UUID
+    let source: EarTrainingStageSource
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
     let onClose: () -> Void
@@ -76,7 +82,13 @@ struct EarTrainingChordVoicingGameView: View {
         isLoading = true
         loadError = nil
         do {
-            let stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
+            let stageDetail: EarTrainingStageDetail
+            switch source {
+            case .id(let stageId):
+                stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
+            case .slug(let slug):
+                stageDetail = try await SupabaseService.shared.fetchEarTrainingStageDetailBySlug(slug: slug)
+            }
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
                 loadError = locale == .ja

@@ -4,7 +4,6 @@ import WebKit
 
 enum GameMode {
     case demoLP
-    case demoChordVoicing
     case fantasy(stageNumber: String)
     case survival(difficulty: String, characterId: String)
     case survivalStage(stageNumber: Int, characterId: String, hintMode: Bool = false)
@@ -23,8 +22,6 @@ enum GameMode {
         switch self {
         case .demoLP:
             items.append(URLQueryItem(name: "mode", value: "demo-lp"))
-        case .demoChordVoicing:
-            items.append(URLQueryItem(name: "mode", value: "demo-chord-voicing"))
         case .fantasy(let stageNumber):
             items.append(URLQueryItem(name: "mode", value: "fantasy"))
             items.append(URLQueryItem(name: "stage", value: stageNumber))
@@ -61,8 +58,6 @@ enum GameMode {
         switch self {
         case .demoLP:
             return "ios?platform=ios&mode=demo-lp"
-        case .demoChordVoicing:
-            return "ios?platform=ios&mode=demo-chord-voicing"
         case .fantasy(let stageNumber):
             return "ios?platform=ios&mode=fantasy&stage=\(stageNumber)"
         case .survival(let difficulty, let characterId):
@@ -100,7 +95,7 @@ struct GameWebView: View {
 
     private var isDemoMode: Bool {
         switch mode {
-        case .demoLP, .demoChordVoicing: return true
+        case .demoLP: return true
         default: return false
         }
     }

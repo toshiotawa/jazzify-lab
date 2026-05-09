@@ -4,13 +4,11 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import type { ClearConditions, EarTrainingStage } from '@/types';
 import {
   fetchEarTrainingStageById,
-  fetchEarTrainingStageBySlug,
   fetchEarTrainingStages,
 } from '@/platform/supabaseEarTraining';
 import { fetchSurvivalCharacters, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWindow } from '@/platform';
-import { sendGameCallback } from '@/utils/iosbridge';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import {
@@ -18,13 +16,6 @@ import {
   getEarTrainingMainCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-
-const DEMO_CHORD_VOICING_STAGE_SLUG = 'demo-ios-chord-voicing-bpm100';
-
-interface EarTrainingMainProps {
-  /** iOS ログイン画面からの「コード演奏バトル」デモ起動フラグ。固定 slug でデモ用ステージを単独ロードする。 */
-  demoChordVoicing?: boolean;
-}
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -60,7 +51,7 @@ const getParamsFromHash = (): URLSearchParams => {
   return new URLSearchParams(hash.split('?')[1] ?? '');
 };
 
-const EarTrainingMain: React.FC<EarTrainingMainProps> = ({ demoChordVoicing = false }) => {
+const EarTrainingMain: React.FC = () => {
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
   const audienceContext = useMemo(
@@ -83,9 +74,6 @@ const EarTrainingMain: React.FC<EarTrainingMainProps> = ({ demoChordVoicing = fa
 
   const params = useMemo(() => getParamsFromHash(), []);
   const lessonContext = useMemo<EarTrainingLessonContext | null>(() => {
-    if (demoChordVoicing) {
-      return null;
-    }
     const lessonId = params.get('lessonId');
     const lessonSongId = params.get('lessonSongId');
     if (!lessonId || !lessonSongId) {
@@ -96,10 +84,10 @@ const EarTrainingMain: React.FC<EarTrainingMainProps> = ({ demoChordVoicing = fa
       lessonSongId,
       clearConditions: parseClearConditions(params.get('clearConditions')),
     };
-  }, [demoChordVoicing, params]);
+  }, [params]);
   const initialPracticeMode = useMemo(
-    () => !demoChordVoicing && params.get('practice') === '1',
-    [demoChordVoicing, params],
+    () => params.get('practice') === '1',
+    [params],
   );
 
   useEffect(() => {
@@ -109,12 +97,10 @@ const EarTrainingMain: React.FC<EarTrainingMainProps> = ({ demoChordVoicing = fa
       setError(null);
       const copy = getEarTrainingMainCopy(isEnglishCopy);
       try {
-        const stageId = demoChordVoicing ? null : params.get('stageId');
+        const stageId = params.get('stageId');
         const [stageData, stageList, characters] = await Promise.all([
-          demoChordVoicing
-            ? fetchEarTrainingStageBySlug(DEMO_CHORD_VOICING_STAGE_SLUG)
-            : (stageId ? fetchEarTrainingStageById(stageId) : Promise.resolve(null)),
-          (demoChordVoicing || stageId) ? Promise.resolve<EarTrainingStage[]>([]) : fetchEarTrainingStages(),
+          stageId ? fetchEarTrainingStageById(stageId) : Promise.resolve(null),
+          stageId ? Promise.resolve<EarTrainingStage[]>([]) : fetchEarTrainingStages(),
           fetchSurvivalCharacters(),
         ]);
 
@@ -152,19 +138,15 @@ const EarTrainingMain: React.FC<EarTrainingMainProps> = ({ demoChordVoicing = fa
     return () => {
       cancelled = true;
     };
-  }, [demoChordVoicing, isEnglishCopy, params]);
+  }, [isEnglishCopy, params]);
 
   const handleBack = useCallback(() => {
-    if (demoChordVoicing) {
-      sendGameCallback('gameEnd');
-      return;
-    }
     if (lessonContext) {
       getWindow().location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
     }
     getWindow().location.hash = '#lessons';
-  }, [demoChordVoicing, lessonContext]);
+  }, [lessonContext]);
 
   const handleLessonStageClear = useCallback(async (lessonRank: 'S' | 'A' | 'B' | 'C') => {
     if (!lessonContext) {
@@ -200,7 +182,7 @@ const EarTrainingMain: React.FC<EarTrainingMainProps> = ({ demoChordVoicing = fa
     );
   }
 
-  if (!demoChordVoicing && !params.get('stageId') && stages.length > 1 && !stagePicked) {
+  if (!params.get('stageId') && stages.length > 1 && !stagePicked) {
     return (
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-slate-950 text-white">
         <GameHeader />

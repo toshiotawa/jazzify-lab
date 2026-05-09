@@ -690,20 +690,38 @@ final class SupabaseService: Sendable {
     func fetchEarTrainingStageDetail(stageId: UUID) async throws -> EarTrainingStageDetail {
         let raw: EarTrainingStageDetail = try await client
             .from("ear_training_stages")
-            .select("""
-            *,
-            phrases:ear_training_phrases (
-                *,
-                notes:ear_training_phrase_notes (*),
-                chords:ear_training_phrase_chords (*),
-                demo_loops:ear_training_phrase_demo_loops (*)
-            )
-            """)
+            .select(Self.earTrainingStageDetailSelect)
             .eq("id", value: stageId.uuidString)
             .single()
             .execute()
             .value
-        return EarTrainingStageDetail(
+        return Self.normalizeStageDetail(raw)
+    }
+
+    /// 耳コピバトル ステージの詳細を slug で取得する (ログイン画面のデモ起動用)。
+    func fetchEarTrainingStageDetailBySlug(slug: String) async throws -> EarTrainingStageDetail {
+        let raw: EarTrainingStageDetail = try await client
+            .from("ear_training_stages")
+            .select(Self.earTrainingStageDetailSelect)
+            .eq("slug", value: slug)
+            .single()
+            .execute()
+            .value
+        return Self.normalizeStageDetail(raw)
+    }
+
+    private static let earTrainingStageDetailSelect = """
+    *,
+    phrases:ear_training_phrases (
+        *,
+        notes:ear_training_phrase_notes (*),
+        chords:ear_training_phrase_chords (*),
+        demo_loops:ear_training_phrase_demo_loops (*)
+    )
+    """
+
+    private static func normalizeStageDetail(_ raw: EarTrainingStageDetail) -> EarTrainingStageDetail {
+        EarTrainingStageDetail(
             id: raw.id,
             slug: raw.slug,
             title: raw.title,

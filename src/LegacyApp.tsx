@@ -214,13 +214,6 @@ const App: React.FC = () => {
           </React.Suspense>
         );
         break;
-      case 'demo-chord-voicing':
-        IOSContent = (
-          <React.Suspense fallback={<LoadingScreen />}>
-            <LazyEarTrainingMain demoChordVoicing />
-          </React.Suspense>
-        );
-        break;
       case 'fantasy': {
         const stageParam = getIOSParam('stage');
         IOSContent = (
