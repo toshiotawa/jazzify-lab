@@ -25,7 +25,7 @@ interface UseDescentCameraParams {
 interface CameraState {
   cameraY: number;
   maxCameraY: number;
-  focusCamera: (logicalY: number) => void;
+  focusCamera: (logicalY: number, instant?: boolean) => void;
   adjustCamera: (deltaPx: number) => void;
   setCamera: (valuePx: number) => void;
 }
@@ -59,20 +59,36 @@ export const useDescentCamera = ({
   const maxCameraY = Math.max(0, visibleBottom * scale - viewportHeight);
   maxCameraYRef.current = maxCameraY;
 
-  const focusCamera = useCallback((logicalY: number) => {
-    const rawTargetPx = logicalY * scale - viewportHeight * 0.55;
-    const clamped = Math.max(0, Math.min(maxCameraYRef.current, rawTargetPx));
+  const clampCameraY = useCallback((valuePx: number): number => {
+    return Math.max(0, Math.min(maxCameraYRef.current, valuePx));
+  }, []);
+
+  const jumpCamera = useCallback((valuePx: number) => {
+    const clamped = clampCameraY(valuePx);
     targetRef.current = clamped;
-  }, [scale, viewportHeight]);
+    currentRef.current = clamped;
+    velocityRef.current = 0;
+    lastTimeRef.current = null;
+    setCameraY(clamped);
+  }, [clampCameraY]);
+
+  const focusCamera = useCallback((logicalY: number, instant = false) => {
+    const rawTargetPx = logicalY * scale - viewportHeight * 0.55;
+    if (instant) {
+      jumpCamera(rawTargetPx);
+      return;
+    }
+    targetRef.current = clampCameraY(rawTargetPx);
+  }, [clampCameraY, jumpCamera, scale, viewportHeight]);
 
   const adjustCamera = useCallback((deltaPx: number) => {
     const next = targetRef.current + deltaPx;
-    targetRef.current = Math.max(0, Math.min(maxCameraYRef.current, next));
-  }, []);
+    targetRef.current = clampCameraY(next);
+  }, [clampCameraY]);
 
   const setCamera = useCallback((valuePx: number) => {
-    targetRef.current = Math.max(0, Math.min(maxCameraYRef.current, valuePx));
-  }, []);
+    targetRef.current = clampCameraY(valuePx);
+  }, [clampCameraY]);
 
   useEffect(() => {
     const animate = (now: number) => {
@@ -108,6 +124,11 @@ export const useDescentCamera = ({
   useEffect(() => {
     if (targetRef.current > maxCameraY) {
       targetRef.current = maxCameraY;
+    }
+    if (currentRef.current > maxCameraY) {
+      currentRef.current = maxCameraY;
+      velocityRef.current = 0;
+      setCameraY(maxCameraY);
     }
   }, [maxCameraY]);
 

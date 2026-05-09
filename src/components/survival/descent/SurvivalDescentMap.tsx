@@ -6,7 +6,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
+import { FaMap, FaMusic, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -226,25 +227,46 @@ interface MapCategoryToggleProps {
   value: SurvivalMapCategory;
   onChange: (next: SurvivalMapCategory) => void;
   isEnglishCopy: boolean;
-  /** モバイル下部用のコンパクト表示 */
+  /** モバイル用の大型表示 */
   compact?: boolean;
 }
 
 const MapCategoryToggle: React.FC<MapCategoryToggleProps> = ({ value, onChange, isEnglishCopy, compact = false }) => {
-  const options: Array<{ key: SurvivalMapCategory; label: string }> = [
-    { key: 'basic', label: isEnglishCopy ? 'Basic' : 'Basic' },
-    { key: 'songs', label: isEnglishCopy ? 'Songs' : 'Songs' },
+  const options: Array<{
+    key: SurvivalMapCategory;
+    label: string;
+    subLabel: string;
+    Icon: IconType;
+  }> = [
+    {
+      key: 'basic',
+      label: 'Basic',
+      subLabel: isEnglishCopy ? 'Core' : '基礎',
+      Icon: FaMap,
+    },
+    {
+      key: 'songs',
+      label: 'Songs',
+      subLabel: isEnglishCopy ? 'Tunes' : '楽曲',
+      Icon: FaMusic,
+    },
   ];
-  const sizeClass = compact ? 'px-3 py-1.5 text-xs' : 'px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm';
+  const groupClass = compact
+    ? 'flex w-full max-w-[360px] items-center gap-1.5 rounded-[24px] border border-amber-400/55 bg-black/70 p-1.5 backdrop-blur-md'
+    : 'inline-flex items-center gap-1 rounded-full border border-amber-500/45 bg-black/60 p-1 backdrop-blur-sm';
+  const sizeClass = compact
+    ? 'min-h-[50px] flex-1 px-3 py-2 text-sm'
+    : 'min-h-[44px] px-4 py-2 text-sm sm:px-5 sm:py-2.5';
   return (
     <div
       role="group"
       aria-label={isEnglishCopy ? 'Map category' : 'マップ種別'}
-      className="inline-flex items-center rounded-full border border-amber-500/40 bg-black/55 p-0.5 backdrop-blur-sm"
+      className={groupClass}
       style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.55)' }}
     >
       {options.map(opt => {
         const active = opt.key === value;
+        const Icon = opt.Icon;
         return (
           <button
             key={opt.key}
@@ -253,13 +275,19 @@ const MapCategoryToggle: React.FC<MapCategoryToggleProps> = ({ value, onChange, 
             onPointerDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
             aria-pressed={active}
-            className={`rounded-full font-semibold tracking-wide transition-colors ${sizeClass} ${
+            className={`flex items-center justify-center gap-2 rounded-[20px] font-semibold transition-colors active:scale-[0.98] ${sizeClass} ${
               active
-                ? 'bg-amber-500/90 text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]'
+                ? 'bg-amber-400 text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_6px_18px_rgba(245,158,11,0.28)]'
                 : 'text-amber-100 hover:bg-amber-500/15'
             }`}
           >
-            {opt.label}
+            <Icon aria-hidden className={compact ? 'text-base' : 'text-sm'} />
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-[1em] tracking-wide">{opt.label}</span>
+              <span className={`text-[10px] font-bold tracking-normal ${active ? 'text-black/65' : 'text-amber-200/70'}`}>
+                {opt.subLabel}
+              </span>
+            </span>
           </button>
         );
       })}
@@ -553,7 +581,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   useEffect(() => {
     if (loading) return;
     const pos = getStagePosition(frontierStageNumber, mapCategory);
-    if (pos) focusCamera(pos.y);
+    if (pos) focusCamera(pos.y, true);
   }, [loading, frontierStageNumber, focusCamera, mapCategory]);
 
   useEffect(() => {
@@ -618,7 +646,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const handleSelectStage = useCallback((stageNumber: number) => {
     setSelectedStageNumber(stageNumber);
     const pos = getStagePosition(stageNumber, mapCategory);
-    if (pos) focusCamera(pos.y);
+    if (pos) focusCamera(pos.y, true);
     if (isMobileLayout) {
       setIsMobileDetailOpen(true);
     }
@@ -887,7 +915,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           </button>
 
           <div
-            className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center sm:hidden"
+            className="pointer-events-none absolute left-3 right-3 z-30 flex justify-center sm:hidden"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
             onPointerDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
