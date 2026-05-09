@@ -755,6 +755,7 @@ export interface EarTrainingStage {
   great_max_misses: number;
   background_theme: string;
   is_active: boolean;
+  is_demo?: boolean;
   mode: EarTrainingMode;
   created_at?: string;
   updated_at?: string;

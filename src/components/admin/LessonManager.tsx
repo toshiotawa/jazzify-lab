@@ -128,7 +128,7 @@ export const LessonManager: React.FC = () => {
         fetchCoursesSimple({ includeHidden: true, includeDeveloperCourses: true }),
         fetchSongs('lesson'),
         fetchFantasyStages(),
-        fetchEarTrainingStages({ includeInactive: true })
+        fetchEarTrainingStages({ includeInactive: true, includeDemo: true })
       ]);
       setCourses(coursesData);
       setAvailableSongs(songsData);

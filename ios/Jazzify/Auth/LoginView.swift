@@ -13,7 +13,7 @@ struct LoginView: View {
     @State private var showDemoLP = false
     /// デモサバイバルの起動時 `hintMode`。リザルトからの「ヒントなしで挑戦」等で書き換える。
     @State private var demoSurvivalHintMode: Bool = true
-    @State private var showDemoFantasy = false
+    @State private var showDemoChordVoicing = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -85,8 +85,8 @@ struct LoginView: View {
                     configOverride: SurvivalDemoStage.config
                 )
             }
-            .fullScreenCover(isPresented: $showDemoFantasy) {
-                GameWebView(mode: .demoFantasy, locale: locale, onClose: { showDemoFantasy = false })
+            .fullScreenCover(isPresented: $showDemoChordVoicing) {
+                GameWebView(mode: .demoChordVoicing, locale: locale, onClose: { showDemoChordVoicing = false })
             }
         }
     }
@@ -270,11 +270,11 @@ struct LoginView: View {
                 .tint(.purple)
 
                 Button {
-                    showDemoFantasy = true
+                    showDemoChordVoicing = true
                 } label: {
                     Label(
-                        locale == .ja ? "ファンタジー" : "Fantasy",
-                        systemImage: "gamecontroller"
+                        locale == .ja ? "コード演奏バトル" : "Chord Voicing",
+                        systemImage: "pianokeys"
                     )
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)

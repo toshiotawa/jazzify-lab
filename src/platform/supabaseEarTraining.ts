@@ -50,10 +50,16 @@ const invalidateEarTrainingCache = (): void => {
 };
 
 export const fetchEarTrainingStages = async (
-  { includeInactive = false, forceRefresh = false }: { includeInactive?: boolean; forceRefresh?: boolean } = {},
+  {
+    includeInactive = false,
+    includeDemo = false,
+    forceRefresh = false,
+  }: { includeInactive?: boolean; includeDemo?: boolean; forceRefresh?: boolean } = {},
 ): Promise<EarTrainingStage[]> => {
   const supabase = getSupabaseClient();
-  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stages:${includeInactive ? 'all' : 'active'}`;
+  const activeKey = includeInactive ? 'all' : 'active';
+  const demoKey = includeDemo ? 'with-demo' : 'no-demo';
+  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stages:${activeKey}:${demoKey}`;
   if (forceRefresh) {
     clearCacheByPattern(cacheKey);
   }
@@ -70,6 +76,10 @@ export const fetchEarTrainingStages = async (
         query = query.eq('is_active', true);
       }
 
+      if (!includeDemo) {
+        query = query.eq('is_demo', false);
+      }
+
       return await query;
     },
     1000 * 60 * 5,
@@ -80,6 +90,36 @@ export const fetchEarTrainingStages = async (
   }
 
   return ((data ?? []) as EarTrainingStage[]).map(sortStageRelations);
+};
+
+export const fetchEarTrainingStageBySlug = async (
+  slug: string,
+  { forceRefresh = false }: { forceRefresh?: boolean } = {},
+): Promise<EarTrainingStage> => {
+  const supabase = getSupabaseClient();
+  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stage:slug:${slug}`;
+  if (forceRefresh) {
+    clearCacheByPattern(cacheKey);
+  }
+
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('ear_training_stages')
+      .select(EAR_TRAINING_STAGE_SELECT)
+      .eq('slug', slug)
+      .single(),
+    1000 * 60 * 5,
+  );
+
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new Error(EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA);
+  }
+
+  return sortStageRelations(data as EarTrainingStage);
 };
 
 export const fetchEarTrainingStageById = async (
