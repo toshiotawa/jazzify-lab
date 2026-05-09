@@ -43,7 +43,7 @@ struct EarTrainingChordVoicingGameView: View {
     private var loadingView: some View {
         VStack(spacing: 12) {
             ProgressView().tint(.yellow)
-            Text(locale == .ja ? "ステージを準備中…" : "Preparing ear training battle…")
+            Text(locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
         }
@@ -259,8 +259,8 @@ private struct EarTrainingChordVoicingContent: View {
                     correctPitchClassesByGroupId: correctMap,
                     completionPulse: controller.completionPulse
                 )
-                .frame(width: min(size.width * 0.56, 520), height: size.height * 0.34)
-                .position(x: size.width / 2, y: size.height * 0.42)
+                .frame(width: min(size.width * 0.56, 520), height: size.height * 0.42)
+                .position(x: size.width / 2, y: size.height * 0.38)
                 .allowsHitTesting(false)
             }
         }
@@ -283,7 +283,7 @@ private struct EarTrainingChordVoicingContent: View {
             .frame(width: min(size.width * 0.52, 260), height: slotSize + 6)
             .position(
                 x: size.width / 2,
-                y: size.height - Self.pianoOverlayHeight - slotSize / 2 - 16
+                y: size.height - Self.pianoOverlayHeight - slotSize / 2 - 8
             )
             .allowsHitTesting(false)
         }

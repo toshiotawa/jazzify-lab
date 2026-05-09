@@ -68,7 +68,13 @@ import {
   getStageSpawnConfig,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
-import { STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA, isBlockLastStage, getBossTypeForBlock } from './SurvivalStageDefinitions';
+import {
+  STAGE_TIME_LIMIT_SECONDS,
+  STAGE_KILL_QUOTA,
+  getSurvivalStageBattleKind,
+  isBlockLastStage,
+  getBossTypeForBlock,
+} from './SurvivalStageDefinitions';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
 import type { ChordDefinition as SurvivalChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import {
@@ -274,8 +280,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const initPromiseRef = useRef<Promise<void> | null>(null);
   
   const isStageMode = !!stageDefinition;
-  const isProgressionStage = stageDefinition?.stageType === 'progression';
-  const isBossStage = !!stageDefinition && !isProgressionStage && isBlockLastStage(stageDefinition.stageNumber, stageDefinition.mapCategory);
+  const stageBattleKind = stageDefinition
+    ? getSurvivalStageBattleKind(
+        stageDefinition.stageType,
+        isBlockLastStage(stageDefinition.stageNumber, stageDefinition.mapCategory),
+      )
+    : null;
+  const isBossStage = stageBattleKind === 'boss';
+  const isProgressionStage = stageBattleKind === 'progression';
   const bossType = isBossStage && stageDefinition ? getBossTypeForBlock(stageDefinition.blockKey) : null;
 
   // Progression（コード進行）モード: B列のみで進行を循環。

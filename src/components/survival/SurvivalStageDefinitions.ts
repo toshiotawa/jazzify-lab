@@ -77,6 +77,15 @@ export interface SurvivalChordProgressionEntry {
   voicing: number[];
 }
 
+type SurvivalStageBattleKind = 'random' | 'progression' | 'boss';
+
+export function getSurvivalStageBattleKind(stageType: StageType, isBlockLast: boolean): SurvivalStageBattleKind {
+  if (isBlockLast) {
+    return 'boss';
+  }
+  return stageType === 'progression' ? 'progression' : 'random';
+}
+
 const ROOT_CDE = ['C', 'D', 'E'];
 const ROOT_FGAB = ['F', 'G', 'A', 'B'];
 const ROOT_SHARP = ['C#', 'D#', 'F#', 'G#', 'A#'];

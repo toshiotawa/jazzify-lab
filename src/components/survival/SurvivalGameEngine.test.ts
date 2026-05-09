@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { initializeCodeSlots, selectProgressionChord } from './SurvivalGameEngine';
+import { getSurvivalStageBattleKind } from './SurvivalStageDefinitions';
 
 vi.mock('@/platform/supabaseClient', () => ({
   getSupabaseClient: () => ({}),
@@ -44,5 +45,19 @@ describe('survival progression code slots', () => {
     expect(selectProgressionChord(progressionChords, 1)?.displayName).toBe('Dm7');
     expect(selectProgressionChord(progressionChords, 2)?.displayName).toBe('G7');
     expect(selectProgressionChord(progressionChords, 3)?.displayName).toBe('Cmaj7');
+  });
+});
+
+describe('survival stage battle kind', () => {
+  it('prioritizes boss battles on block-final progression stages', () => {
+    expect(getSurvivalStageBattleKind('progression', true)).toBe('boss');
+  });
+
+  it('keeps non-final progression stages in progression gameplay', () => {
+    expect(getSurvivalStageBattleKind('progression', false)).toBe('progression');
+  });
+
+  it('keeps non-final random stages in random gameplay', () => {
+    expect(getSurvivalStageBattleKind('random', false)).toBe('random');
   });
 });

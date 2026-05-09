@@ -56,7 +56,7 @@ struct EarTrainingGameView: View {
     private var loadingView: some View {
         VStack(spacing: 12) {
             ProgressView().tint(.yellow)
-            Text(locale == .ja ? "ステージを準備中…" : "Preparing ear training battle…")
+            Text(locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
         }

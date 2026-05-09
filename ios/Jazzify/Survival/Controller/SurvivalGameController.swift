@@ -59,8 +59,8 @@ final class SurvivalGameController: ObservableObject {
     /// 現在出題中の Progression 配列インデックス。完成のたびに +1 され、配列長で循環。
     private var progressionIndex: Int = 0
 
-    /// Progression ステージかどうか（`stage.stageType == .progression`）
-    private var isProgressionStage: Bool { stage.stageType == .progression }
+    /// Progression 通常戦かどうか。ブロック末尾は表示上のクリア条件に合わせてボス戦を優先する。
+    private var isProgressionStage: Bool { stage.stageType == .progression && !isBossStage }
 
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。空の場合は空配列。
     private static func buildProgressionChords(for stage: SurvivalStageDefinition) -> [SurvivalResolvedChord] {
@@ -104,13 +104,11 @@ final class SurvivalGameController: ObservableObject {
         self.config = config
         self.onExit = onExit
         self.isDemo = isDemo
-        // Progression（コード進行）ステージはボス戦化しない（B 列のみで完結する仕様のため）
-        let isBoss = stage.stageType != .progression
-            && SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
+        let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
         self.isBossStage = isBoss
 
         let slots: [SurvivalCodeSlot]
-        if stage.stageType == .progression {
+        if stage.stageType == .progression && !isBoss {
             // Progression ステージは DB の chord_progression から事前構築済みコード列を使う。
             let chords = Self.buildProgressionChords(for: stage)
             self.progressionChords = chords
@@ -184,12 +182,11 @@ final class SurvivalGameController: ObservableObject {
         activePressedPitchClasses.removeAll()
         midiHeldKeys.removeAll()
 
-        let isBoss = stage.stageType != .progression
-            && SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
+        let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
         isBossStage = isBoss
 
         let slots: [SurvivalCodeSlot]
-        if stage.stageType == .progression {
+        if stage.stageType == .progression && !isBoss {
             let chords = Self.buildProgressionChords(for: stage)
             progressionChords = chords
             progressionIndex = 0

@@ -21,7 +21,7 @@ struct EarTrainingSettingsSheet: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                Text(isEnglishCopy ? "Ear training battle settings" : "耳コピバトル設定")
+                Text(isEnglishCopy ? "Battle mode settings" : "バトルモード設定")
                     .font(.title3.bold())
                     .foregroundStyle(.white)
 

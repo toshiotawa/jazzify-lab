@@ -66,10 +66,6 @@ struct SurvivalDescentView: View {
         SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory)?.isMixedStage ?? false
     }
 
-    private func isProgression(_ stageNumber: Int) -> Bool {
-        SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory)?.stageType == .progression
-    }
-
     private func blockAllCleared(_ meta: SurvivalBlockMeta) -> Bool {
         !meta.stageNumbers.isEmpty && meta.stageNumbers.allSatisfy { clearedStages.contains($0) }
     }
@@ -354,7 +350,6 @@ struct SurvivalDescentView: View {
                 isSelected: selectedStageNumber == stage.stageNumber,
                 requiresPremium: requiresPremium,
                 isMixed: isMixed(stage.stageNumber),
-                isProgression: isProgression(stage.stageNumber),
                 dim: locked,
                 onTap: {
                     if let def = SurvivalStageCatalog.stage(byNumber: stage.stageNumber, in: mapCategory) {
