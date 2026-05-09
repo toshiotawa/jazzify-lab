@@ -307,6 +307,13 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         // SwiftUI で表示直前に window が一時非アクティブだった場合、SKView のデフォルト挙動で
         // isPaused=true が残って永遠に update が呼ばれなくなる不具合を防ぐ。
         view.isPaused = false
+        // SKView 自身に対するタッチ入力は不要（操作は全て SwiftUI 上のジョイスティック /
+        // 鍵盤 / HUD ボタンで受けている）。`isUserInteractionEnabled = true` のまま
+        // ZStack に積むと、実機で SwiftUI/UIKit 連携のヒットテスト順が稀に逆転して、
+        // SKView がジョイスティック層より前にタッチを奪い「9 割動けない（ジョイスティック
+        // 反応なし／プレイヤーがダメージを受けない）」状態を引き起こす。SKScene の描画
+        // ループには影響しないため、ここで明示的に false にして touch を素通しさせる。
+        view.isUserInteractionEnabled = false
 
         let sceneSize = initialFrame.size.width > 0 && initialFrame.size.height > 0
             ? initialFrame.size
