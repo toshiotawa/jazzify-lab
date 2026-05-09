@@ -1,24 +1,321 @@
 import SwiftUI
 
-/// Web `ChordVoicingStaff.tsx` と揃えた Bravura / SMuFL。
-private enum MusicNotationFont {
-    static let name = "Bravura"
-    /// Web: `CLEF_FONT_SIZE = SP * 4`
-    static let clefFontScale: CGFloat = 4
-    /// Web: `ACCIDENTAL_FONT_SIZE = SP * 2.9`
-    static let accidentalFontScale: CGFloat = 2.9
-    static let smuflGClef = "\u{E050}"
-    static let smuflFClef = "\u{E062}"
-}
+/// iOS 実機で Private Use Area / SMuFL 文字がフォントフォールバックすると文字化けするため、
+/// バトル用の固定記号は Canvas ベクターで描く。
+private enum MusicNotationSymbol {
+    static func drawClef(
+        context: inout GraphicsContext,
+        staff: Int,
+        x: CGFloat,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        if staff == 2 {
+            drawBassClef(
+                context: &context,
+                x: x,
+                anchorY: staffTopY + staffSpacing,
+                staffSpacing: staffSpacing,
+                color: color
+            )
+        } else {
+            drawTrebleClef(
+                context: &context,
+                x: x,
+                anchorY: staffTopY + staffSpacing * 3,
+                staffSpacing: staffSpacing,
+                color: color
+            )
+        }
+    }
 
-private func smuflAccidentalGlyph(for alter: Int) -> String {
-    switch alter {
-    case 2: return "\u{E263}"
-    case 1: return "\u{E262}"
-    case -1: return "\u{E260}"
-    case -2: return "\u{E264}"
-    case 0: return "\u{E261}"
-    default: return ""
+    static func drawAccidental(
+        context: inout GraphicsContext,
+        alter: Int,
+        center: CGPoint,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        switch alter {
+        case 2:
+            drawDoubleSharp(context: &context, center: center, staffSpacing: staffSpacing, color: color)
+        case 1:
+            drawSharp(context: &context, center: center, staffSpacing: staffSpacing, color: color)
+        case -1:
+            drawFlat(context: &context, center: center, staffSpacing: staffSpacing, color: color)
+        case -2:
+            let offset = staffSpacing * 0.36
+            drawFlat(
+                context: &context,
+                center: CGPoint(x: center.x - offset, y: center.y),
+                staffSpacing: staffSpacing,
+                color: color
+            )
+            drawFlat(
+                context: &context,
+                center: CGPoint(x: center.x + offset, y: center.y),
+                staffSpacing: staffSpacing,
+                color: color
+            )
+        case 0:
+            drawNatural(context: &context, center: center, staffSpacing: staffSpacing, color: color)
+        default:
+            return
+        }
+    }
+
+    private static func drawTrebleClef(
+        context: inout GraphicsContext,
+        x: CGFloat,
+        anchorY: CGFloat,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        let s = staffSpacing
+        let cx = x + s * 0.1
+        let stroke = StrokeStyle(
+            lineWidth: max(2, s * 0.18),
+            lineCap: .round,
+            lineJoin: .round
+        )
+
+        var spine = Path()
+        spine.move(to: CGPoint(x: cx + s * 0.1, y: anchorY + s * 2.55))
+        spine.addCurve(
+            to: CGPoint(x: cx - s * 0.08, y: anchorY - s * 3.0),
+            control1: CGPoint(x: cx + s * 0.95, y: anchorY + s * 1.1),
+            control2: CGPoint(x: cx - s * 0.85, y: anchorY - s * 1.8)
+        )
+        spine.addCurve(
+            to: CGPoint(x: cx + s * 0.65, y: anchorY - s * 1.8),
+            control1: CGPoint(x: cx + s * 0.6, y: anchorY - s * 3.75),
+            control2: CGPoint(x: cx + s * 1.25, y: anchorY - s * 2.75)
+        )
+        spine.addCurve(
+            to: CGPoint(x: cx + s * 0.12, y: anchorY + s * 2.72),
+            control1: CGPoint(x: cx - s * 0.5, y: anchorY - s * 0.45),
+            control2: CGPoint(x: cx + s * 1.0, y: anchorY + s * 1.35)
+        )
+        spine.addCurve(
+            to: CGPoint(x: cx - s * 0.58, y: anchorY + s * 2.12),
+            control1: CGPoint(x: cx + s * 0.02, y: anchorY + s * 3.4),
+            control2: CGPoint(x: cx - s * 0.98, y: anchorY + s * 3.02)
+        )
+        context.stroke(spine, with: .color(color), style: stroke)
+
+        var loop = Path()
+        loop.move(to: CGPoint(x: cx + s * 1.02, y: anchorY + s * 0.04))
+        loop.addCurve(
+            to: CGPoint(x: cx - s * 0.85, y: anchorY + s * 0.38),
+            control1: CGPoint(x: cx + s * 0.42, y: anchorY - s * 0.82),
+            control2: CGPoint(x: cx - s * 0.78, y: anchorY - s * 0.55)
+        )
+        loop.addCurve(
+            to: CGPoint(x: cx + s * 0.78, y: anchorY + s * 1.05),
+            control1: CGPoint(x: cx - s * 1.22, y: anchorY + s * 1.34),
+            control2: CGPoint(x: cx + s * 0.2, y: anchorY + s * 1.72)
+        )
+        loop.addCurve(
+            to: CGPoint(x: cx + s * 1.02, y: anchorY + s * 0.04),
+            control1: CGPoint(x: cx + s * 1.2, y: anchorY + s * 0.72),
+            control2: CGPoint(x: cx + s * 1.28, y: anchorY + s * 0.32)
+        )
+        context.stroke(loop, with: .color(color), style: stroke)
+    }
+
+    private static func drawBassClef(
+        context: inout GraphicsContext,
+        x: CGFloat,
+        anchorY: CGFloat,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        let s = staffSpacing
+        let stroke = StrokeStyle(
+            lineWidth: max(2, s * 0.2),
+            lineCap: .round,
+            lineJoin: .round
+        )
+        var path = Path()
+        path.move(to: CGPoint(x: x + s * 0.32, y: anchorY - s * 0.78))
+        path.addCurve(
+            to: CGPoint(x: x + s * 0.1, y: anchorY + s * 1.25),
+            control1: CGPoint(x: x + s * 2.25, y: anchorY - s * 1.12),
+            control2: CGPoint(x: x + s * 2.7, y: anchorY + s * 0.82)
+        )
+        path.addCurve(
+            to: CGPoint(x: x + s * 0.34, y: anchorY - s * 0.12),
+            control1: CGPoint(x: x + s * 1.24, y: anchorY + s * 0.38),
+            control2: CGPoint(x: x + s * 1.22, y: anchorY - s * 0.34)
+        )
+        context.stroke(path, with: .color(color), style: stroke)
+
+        var leftDot = Path()
+        leftDot.addEllipse(in: CGRect(
+            x: x + s * 0.1,
+            y: anchorY - s * 0.36,
+            width: s * 0.32,
+            height: s * 0.32
+        ))
+        context.fill(leftDot, with: .color(color))
+
+        for dotY in [anchorY - s * 0.52, anchorY + s * 0.52] {
+            var dot = Path()
+            dot.addEllipse(in: CGRect(
+                x: x + s * 2.65,
+                y: dotY - s * 0.14,
+                width: s * 0.28,
+                height: s * 0.28
+            ))
+            context.fill(dot, with: .color(color))
+        }
+    }
+
+    private static func drawSharp(
+        context: inout GraphicsContext,
+        center: CGPoint,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        let s = staffSpacing
+        let verticalStyle = StrokeStyle(lineWidth: max(1.2, s * 0.13), lineCap: .round)
+        let beamStyle = StrokeStyle(lineWidth: max(1.8, s * 0.2), lineCap: .butt)
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x - s * 0.34, y: center.y - s * 1.15),
+            to: CGPoint(x: center.x - s * 0.5, y: center.y + s * 1.15),
+            color: color,
+            style: verticalStyle
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x + s * 0.42, y: center.y - s * 1.2),
+            to: CGPoint(x: center.x + s * 0.26, y: center.y + s * 1.1),
+            color: color,
+            style: verticalStyle
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x - s * 0.86, y: center.y - s * 0.42),
+            to: CGPoint(x: center.x + s * 0.82, y: center.y - s * 0.64),
+            color: color,
+            style: beamStyle
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x - s * 0.9, y: center.y + s * 0.46),
+            to: CGPoint(x: center.x + s * 0.78, y: center.y + s * 0.24),
+            color: color,
+            style: beamStyle
+        )
+    }
+
+    private static func drawNatural(
+        context: inout GraphicsContext,
+        center: CGPoint,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        let s = staffSpacing
+        let stroke = StrokeStyle(lineWidth: max(1.4, s * 0.15), lineCap: .butt, lineJoin: .miter)
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x - s * 0.35, y: center.y - s * 1.05),
+            to: CGPoint(x: center.x - s * 0.35, y: center.y + s * 0.68),
+            color: color,
+            style: stroke
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x + s * 0.38, y: center.y - s * 0.68),
+            to: CGPoint(x: center.x + s * 0.38, y: center.y + s * 1.05),
+            color: color,
+            style: stroke
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x - s * 0.35, y: center.y - s * 0.18),
+            to: CGPoint(x: center.x + s * 0.38, y: center.y - s * 0.42),
+            color: color,
+            style: StrokeStyle(lineWidth: max(1.7, s * 0.2), lineCap: .butt)
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x - s * 0.35, y: center.y + s * 0.58),
+            to: CGPoint(x: center.x + s * 0.38, y: center.y + s * 0.34),
+            color: color,
+            style: StrokeStyle(lineWidth: max(1.7, s * 0.2), lineCap: .butt)
+        )
+    }
+
+    private static func drawFlat(
+        context: inout GraphicsContext,
+        center: CGPoint,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        let s = staffSpacing
+        let stroke = StrokeStyle(
+            lineWidth: max(1.6, s * 0.16),
+            lineCap: .round,
+            lineJoin: .round
+        )
+        var path = Path()
+        path.move(to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 1.22))
+        path.addLine(to: CGPoint(x: center.x - s * 0.15, y: center.y + s * 0.92))
+        path.addCurve(
+            to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 0.02),
+            control1: CGPoint(x: center.x + s * 0.95, y: center.y + s * 0.48),
+            control2: CGPoint(x: center.x + s * 0.85, y: center.y - s * 0.36)
+        )
+        path.addCurve(
+            to: CGPoint(x: center.x - s * 0.15, y: center.y + s * 0.9),
+            control1: CGPoint(x: center.x + s * 0.38, y: center.y + s * 0.04),
+            control2: CGPoint(x: center.x + s * 0.38, y: center.y + s * 0.55)
+        )
+        context.stroke(path, with: .color(color), style: stroke)
+    }
+
+    private static func drawDoubleSharp(
+        context: inout GraphicsContext,
+        center: CGPoint,
+        staffSpacing: CGFloat,
+        color: Color
+    ) {
+        let s = staffSpacing
+        let stroke = StrokeStyle(
+            lineWidth: max(1.8, s * 0.2),
+            lineCap: .round,
+            lineJoin: .round
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x - s * 0.58, y: center.y - s * 0.58),
+            to: CGPoint(x: center.x + s * 0.58, y: center.y + s * 0.58),
+            color: color,
+            style: stroke
+        )
+        strokeLine(
+            context: &context,
+            from: CGPoint(x: center.x + s * 0.58, y: center.y - s * 0.58),
+            to: CGPoint(x: center.x - s * 0.58, y: center.y + s * 0.58),
+            color: color,
+            style: stroke
+        )
+    }
+
+    private static func strokeLine(
+        context: inout GraphicsContext,
+        from start: CGPoint,
+        to end: CGPoint,
+        color: Color,
+        style: StrokeStyle
+    ) {
+        var path = Path()
+        path.move(to: start)
+        path.addLine(to: end)
+        context.stroke(path, with: .color(color), style: style)
     }
 }
 
@@ -268,17 +565,14 @@ struct ChordVoicingStaffView: View {
         staffTopY: CGFloat,
         staffSpacing: CGFloat
     ) {
-        let glyph = staff == 2 ? MusicNotationFont.smuflFClef : MusicNotationFont.smuflGClef
-        let fontSize = staffSpacing * MusicNotationFont.clefFontScale
-        let y = staff == 2
-            ? staffTopY + staffSpacing * 1.75
-            : staffTopY + staffSpacing * 2.35
-        let resolved = context.resolve(
-            Text(glyph)
-                .font(.custom(MusicNotationFont.name, size: fontSize))
-                .foregroundColor(Self.notationColor)
+        MusicNotationSymbol.drawClef(
+            context: &context,
+            staff: staff,
+            x: x,
+            staffTopY: staffTopY,
+            staffSpacing: staffSpacing,
+            color: Self.notationColor
         )
-        context.draw(resolved, at: CGPoint(x: x, y: y), anchor: .center)
     }
 
     private func drawKeySignature(
@@ -291,19 +585,15 @@ struct ChordVoicingStaffView: View {
         let marks = keySignatureMarks(staff: staff, keyFifths: keyFifths)
         guard !marks.isEmpty else { return }
         for (index, mark) in marks.enumerated() {
-            let glyph = smuflAccidentalGlyph(for: mark.alter)
-            let resolved = context.resolve(
-                Text(glyph)
-                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
-                    .foregroundColor(Self.notationColor)
-            )
-            context.draw(
-                resolved,
-                at: CGPoint(
-                    x: startX + CGFloat(index) * staffSpacing * 0.72,
+            MusicNotationSymbol.drawAccidental(
+                context: &context,
+                alter: mark.alter,
+                center: CGPoint(
+                    x: startX + CGFloat(index) * staffSpacing * 1.05,
                     y: yForDegree(mark.degree, staff: staff, staffTopY: staffTopY, staffSpacing: staffSpacing)
                 ),
-                anchor: .center
+                staffSpacing: staffSpacing,
+                color: Self.notationColor
             )
         }
     }
@@ -404,17 +694,17 @@ struct ChordVoicingStaffView: View {
         )
 
         if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
-            let accidental = accidentalString(for: displayAccidentalAlter)
             let accidentalX = min(
                 xCenter - noteWidth * 0.95,
                 baseX - noteWidth * 1.05 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.75
             )
-            let resolved = context.resolve(
-                Text(accidental)
-                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
-                    .foregroundColor(Self.notationColor)
+            MusicNotationSymbol.drawAccidental(
+                context: &context,
+                alter: displayAccidentalAlter,
+                center: CGPoint(x: accidentalX, y: yCenter),
+                staffSpacing: staffSpacing,
+                color: Self.notationColor
             )
-            context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)
         }
 
         var ovalPath = Path()
@@ -532,9 +822,6 @@ struct ChordVoicingStaffView: View {
         )
     }
 
-    private func accidentalString(for alter: Int) -> String {
-        smuflAccidentalGlyph(for: alter)
-    }
 }
 
 // MARK: - Multi-group staff (Web `ChordVoicingStaff` voicingGroups)
@@ -1219,17 +1506,14 @@ struct ChordVoicingStaffGroupsView: View {
         staffTopY: CGFloat,
         staffSpacing: CGFloat
     ) {
-        let glyph = staff == 2 ? MusicNotationFont.smuflFClef : MusicNotationFont.smuflGClef
-        let fontSize = staffSpacing * MusicNotationFont.clefFontScale
-        let y = staff == 2
-            ? staffTopY + staffSpacing * 1.75
-            : staffTopY + staffSpacing * 2.35
-        let resolved = context.resolve(
-            Text(glyph)
-                .font(.custom(MusicNotationFont.name, size: fontSize))
-                .foregroundColor(notationColor)
+        MusicNotationSymbol.drawClef(
+            context: &context,
+            staff: staff,
+            x: x,
+            staffTopY: staffTopY,
+            staffSpacing: staffSpacing,
+            color: notationColor
         )
-        context.draw(resolved, at: CGPoint(x: x, y: y), anchor: .center)
     }
 
     private static func groupsDrawKeySignature(
@@ -1243,19 +1527,15 @@ struct ChordVoicingStaffGroupsView: View {
         let marks = groupsKeySignatureMarks(staff: staff, keyFifths: keyFifths)
         guard !marks.isEmpty else { return }
         for (index, mark) in marks.enumerated() {
-            let glyph = smuflAccidentalGlyph(for: mark.alter)
-            let resolved = context.resolve(
-                Text(glyph)
-                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
-                    .foregroundColor(notationColor)
-            )
-            context.draw(
-                resolved,
-                at: CGPoint(
-                    x: startX + CGFloat(index) * staffSpacing * 0.72,
+            MusicNotationSymbol.drawAccidental(
+                context: &context,
+                alter: mark.alter,
+                center: CGPoint(
+                    x: startX + CGFloat(index) * staffSpacing * 1.05,
                     y: groupsYForDegree(mark.degree, staff: staff, staffTopY: staffTopY, staffSpacing: staffSpacing)
                 ),
-                anchor: .center
+                staffSpacing: staffSpacing,
+                color: notationColor
             )
         }
     }
@@ -1380,17 +1660,17 @@ struct ChordVoicingStaffGroupsView: View {
             color: color
         )
         if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
-            let accidental = groupsAccidentalString(for: displayAccidentalAlter)
             let accidentalX = min(
                 xCenter - noteWidth * 0.95,
                 baseX - noteWidth * 1.05 - CGFloat(positioned.accidentalColumn) * staffSpacing * 0.75
             )
-            let resolved = context.resolve(
-                Text(accidental)
-                    .font(.custom(MusicNotationFont.name, size: staffSpacing * MusicNotationFont.accidentalFontScale))
-                    .foregroundColor(color)
+            MusicNotationSymbol.drawAccidental(
+                context: &context,
+                alter: displayAccidentalAlter,
+                center: CGPoint(x: accidentalX, y: yCenter),
+                staffSpacing: staffSpacing,
+                color: color
             )
-            context.draw(resolved, at: CGPoint(x: accidentalX, y: yCenter), anchor: .center)
         }
         var ovalPath = Path()
         ovalPath.addEllipse(in: rect)
@@ -1452,10 +1732,6 @@ struct ChordVoicingStaffGroupsView: View {
             height: staffSpacing * 0.35
         )
         context.fill(Path(rect), with: .color(notationColor.opacity(0.85)))
-    }
-
-    private static func groupsAccidentalString(for alter: Int) -> String {
-        smuflAccidentalGlyph(for: alter)
     }
 
     // MARK: - Completion pulse overlay layout
