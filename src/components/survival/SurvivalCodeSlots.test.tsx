@@ -58,4 +58,42 @@ describe('SurvivalCodeSlots progression layout', () => {
     expect(screen.queryByText(/Shot/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Magic/)).not.toBeInTheDocument();
   });
+
+  it('renders only the Punch column when both progression and boss flags are set', () => {
+    const currentSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      buildSlot('A', null, false),
+      buildSlot('B', buildChord('Fmaj7'), true),
+      buildSlot('C', null, false),
+      buildSlot('D', null, false),
+    ];
+    const nextSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      buildSlot('A', null, false),
+      buildSlot('B', buildChord('G7'), true),
+      buildSlot('C', null, false),
+      buildSlot('D', null, false),
+    ];
+
+    render(
+      <SurvivalCodeSlots
+        currentSlots={currentSlots}
+        nextSlots={nextSlots}
+        hintSlotIndex={null}
+        aSlotCooldown={0}
+        bSlotCooldown={0}
+        cSlotCooldown={0}
+        dSlotCooldown={0}
+        hasMagic={false}
+        isStageMode
+        isBossStage
+        isProgressionStage
+      />,
+    );
+
+    expect(screen.getByText(/Punch/)).toBeInTheDocument();
+    expect(screen.getByText('Fmaj7')).toBeInTheDocument();
+    expect(screen.getByText('G7')).toBeInTheDocument();
+    expect(screen.queryByText(/Shot/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Magic/)).not.toBeInTheDocument();
+    expect(screen.queryByText('---')).not.toBeInTheDocument();
+  });
 });

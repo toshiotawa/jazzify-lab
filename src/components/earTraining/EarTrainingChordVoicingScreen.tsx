@@ -1046,6 +1046,15 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
     setStatusText(copy.chordCompleted(currentChord.chord_name));
     triggerCompletionPulse(currentChord.id, 'harmonyComplete');
+
+    // フレーズ最後のコード完了時は Skill (complete) 演出のみで完結させる。
+    // ここで `correct` を発火すると火の玉と Skill 演出が二重に走り、Skill 演出が埋もれてしまう。
+    // この回の `result.enemyDamage` は意図的に drop し、`completionDamage` のみ HP に反映する。
+    if (isAllChordsCompleted(phrase, acknowledgedAttempt)) {
+      handlePhraseAllChordsCompleted(acknowledgedAttempt, phrase);
+      return;
+    }
+
     const correctOriginPoint = computeChordLabelOriginPoint(currentChord.id);
     const correctEffectId = triggerBattleEffect(
       'correct',
@@ -1076,11 +1085,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         void finishStageClear(rank);
       }
     });
-
-    if (isAllChordsCompleted(phrase, acknowledgedAttempt)) {
-      handlePhraseAllChordsCompleted(acknowledgedAttempt, phrase);
-      return;
-    }
     syncAudioTimelineRef.current();
   }, [
     activeDamageConfig,

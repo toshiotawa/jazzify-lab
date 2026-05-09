@@ -63,12 +63,19 @@ final class SurvivalGameController: ObservableObject {
     /// ボス特有のロジック（HP・攻撃・openingGrace 等）は別途 `isBossStage` を見て分岐する。
     private var isProgressionStage: Bool { stage.stageType == .progression }
 
-    /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。空の場合は空配列。
+    /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。
+    /// - `pitchClasses` が空のエントリは `SurvivalChordResolver.isMatch` が常に false を返すため
+    ///   B スロットの入力が永久に通らず「動けない」状態を引き起こす。空エントリはフィルタする。
+    /// - フィルタ後に空になった (= データ不正) 場合は `allowedChords` からの解決へフォールバックし、
+    ///   最低限ゲームが進行できる状態を保つ。
     private static func buildProgressionChords(for stage: SurvivalStageDefinition) -> [SurvivalResolvedChord] {
         guard stage.stageType == .progression, let entries = stage.chordProgression else { return [] }
-        return entries.enumerated().map { index, entry in
+        let resolved = entries.enumerated().map { index, entry in
             SurvivalResolvedChord.fromProgressionEntry(entry, index: index)
         }
+        let valid = resolved.filter { !$0.pitchClasses.isEmpty }
+        if !valid.isEmpty { return valid }
+        return stage.allowedChords.compactMap { SurvivalChordResolver.resolve(id: $0) }
     }
 
     // MARK: - 内部

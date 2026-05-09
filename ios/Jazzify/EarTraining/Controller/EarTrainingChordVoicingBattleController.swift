@@ -356,6 +356,15 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         statusText = copy.chordCompleted(chordName: chord.chordName)
         triggerCompletionPulse(groupId: chord.id, kind: .harmonyComplete)
+
+        // フレーズ最後のコード完了時は Skill (.complete) 演出のみで完結させる。
+        // ここで .correct を発火すると火の玉と Skill 演出が二重に走り、Skill 演出が埋もれてしまう。
+        // この回の `result.enemyDamage` は意図的に drop し、completionDamage のみ HP に反映する。
+        if EarTrainingChordVoicingEngine.isAllChordsCompleted(phrase: phrase, attempt: acknowledged) {
+            handleAllChordsCompleted(phrase: phrase, attempt: acknowledged)
+            return
+        }
+
         let correctOrigin = chordLabelOriginInScene()
         let effectId = triggerBattleEffect(
             kind: .correct,
@@ -383,11 +392,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 else { rank = .good }
                 Task { @MainActor in await self.finishStageClear(rank: rank) }
             }
-        }
-
-        if EarTrainingChordVoicingEngine.isAllChordsCompleted(phrase: phrase, attempt: acknowledged) {
-            handleAllChordsCompleted(phrase: phrase, attempt: acknowledged)
-            return
         }
         syncChordTimeline(scheduleNext: true)
     }

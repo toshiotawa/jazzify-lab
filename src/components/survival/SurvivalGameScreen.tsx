@@ -287,7 +287,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       )
     : null;
   const isBossStage = stageBattleKind === 'boss';
-  const isProgressionStage = stageBattleKind === 'progression';
+  // Progression コード進行ステージは、ブロック末尾のボス戦であっても DB の `chord_progression`
+  // を順番通りに出題する設計（iOS ネイティブ `SurvivalGameController` と整合）。
+  // `getSurvivalStageBattleKind` は isBlockLast を優先して 'boss' を返すため、ここで
+  // 出題ロジック判定だけは `stageType === 'progression'` を直接見る。
+  const isProgressionStage = stageDefinition?.stageType === 'progression';
   const bossType = isBossStage && stageDefinition ? getBossTypeForBlock(stageDefinition.blockKey) : null;
 
   // Progression（コード進行）モード: B列のみで進行を循環。

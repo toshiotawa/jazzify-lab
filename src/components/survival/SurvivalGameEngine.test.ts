@@ -40,6 +40,20 @@ describe('survival progression code slots', () => {
     expect(slots.next[1].chord).toBeNull();
   });
 
+  it('uses progression chords on block-final boss stages too (Punch only)', () => {
+    // ボス戦相当でも progression データがある限り Punch スロットに進行を流す。
+    // SurvivalGameScreen 側では isProgressionStage を stageType ベースで判定するため、
+    // ここでは progressionChords を渡したケースが期待どおり動くことを担保する。
+    const slots = initializeCodeSlots([], false, true, progressionChords);
+
+    expect(slots.current[1].isEnabled).toBe(true);
+    expect(slots.current[1].chord?.displayName).toBe('Cmaj7');
+    expect(slots.next[1].chord?.displayName).toBe('Dm7');
+    expect(slots.current[0].isEnabled).toBe(false);
+    expect(slots.current[2].isEnabled).toBe(false);
+    expect(slots.current[3].isEnabled).toBe(false);
+  });
+
   it('selects progression chords sequentially with wraparound', () => {
     expect(selectProgressionChord(progressionChords, 0)?.displayName).toBe('Cmaj7');
     expect(selectProgressionChord(progressionChords, 1)?.displayName).toBe('Dm7');
