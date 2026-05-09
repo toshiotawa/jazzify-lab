@@ -11,7 +11,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let pianoOverlayHeight: CGFloat = 104
     private static let hudHeight: CGFloat = 104
     private static let phraseIntroFadeMs: TimeInterval = 2.6
-    private static let floorClearanceFromPiano: CGFloat = 16
+    /// ピアノの SwiftUI と合わせる目安下部占有（[`EarTrainingPianoView.keyboardHeight`]+下端パディング程度）。
+    private static let approximateEarTrainingKeyboardVisualTopFromBottom: CGFloat = 80
+    /// 白鍵上端と足下のごくわずかなギャップ（ほぼキーボード直上）。
+    private static let battleFloorAirAboveKeyboardKeys: CGFloat = 6
     private static let characterDisplaySize: CGFloat = 88
     private static let characterShadowWidth: CGFloat = 82
     private static let characterShadowHeight: CGFloat = 18
@@ -891,13 +894,15 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
-    /// 画像アセット無しでジャズバー風の背景を描く（UIKit・上原点）。暗さ設計優先／コードUI背後には明るい面を置かない。
+    /// 画像アセット無しでジャズバー風の背景を描く（UIKit・上原点）。`floorY` は SpriteKit 下端からの足元（スポットライト処理と同一）。
     private static func paintJazzBarBackdrop(cgContext cg: CGContext, size textureSize: CGSize, floorY: CGFloat) {
         let width = textureSize.width
         let height = textureSize.height
-        let fyMax = height - Self.hudHeight - 48
-        let fyMin = Self.pianoOverlayHeight + 24
-        let fyClamped = min(max(floorY, fyMin), fyMax)
+        /// Spotlight / キャラと同じ定義: 床ラインの UIKit Y（上原点）。
+        let floorUIKitY = height - floorY
+        let fyMax = height - 20
+        let fyMin = height * 0.08
+        let fyClamped = min(max(floorUIKitY, fyMin), fyMax)
         let wallHeightUi = height - fyClamped
 
         let rgb = CGColorSpaceCreateDeviceRGB()
@@ -2205,13 +2210,11 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func floorYForHeight(_ height: CGFloat) -> CGFloat {
-        let minimumFloorY = Self.pianoOverlayHeight + 14
-        let preferredFloorY = max(
-            Self.pianoOverlayHeight + Self.floorClearanceFromPiano,
-            height * 0.28
-        )
+        let baselineFootY =
+            Self.approximateEarTrainingKeyboardVisualTopFromBottom + Self.battleFloorAirAboveKeyboardKeys
+        let preferredFloorY = max(baselineFootY, height * 0.15)
         let maximumFloorY = height - Self.hudHeight - Self.characterDisplaySize * 1.1
-        return max(minimumFloorY, min(preferredFloorY, maximumFloorY))
+        return min(preferredFloorY, maximumFloorY)
     }
 
     private func rankColor(label: String) -> UIColor {
