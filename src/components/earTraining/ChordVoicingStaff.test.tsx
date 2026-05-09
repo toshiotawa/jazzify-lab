@@ -5,10 +5,10 @@ import ChordVoicingStaff from './ChordVoicingStaff';
 const SMUFL_ACCIDENTAL_NATURAL = '\uE261';
 const SMUFL_ACCIDENTAL_SHARP = '\uE262';
 
-const NEXT_TARGET_COLOR = '#f97316';
+const NEXT_TARGET_COLOR = '#f39800';
 
 describe('ChordVoicingStaff', () => {
-  it('アクティブ・グループで未演奏の左端ノートをオレンジ、トップノート上に赤い逆三角形を表示する', () => {
+  it('アクティブ・グループで未演奏の左端ノートをオレンジ、その同一ノート上に赤い逆三角形を表示する', () => {
     const correctMap = new Map<string, readonly number[]>();
     const { container } = render(
       <ChordVoicingStaff
@@ -32,7 +32,61 @@ describe('ChordVoicingStaff', () => {
     expect(hintEllipse?.getAttribute('stroke')).toBe(NEXT_TARGET_COLOR);
 
     const pointer = container.querySelector('polygon[data-voicing-top-pointer="true"]');
-    expect(pointer?.getAttribute('fill')).toBe('#ef4444');
+    expect(pointer?.getAttribute('fill')).toBe(NEXT_TARGET_COLOR);
+  });
+
+  it('次小節プレビュー（measureOffset===1）がアクティブでも未正解ガイドと赤マーカーを出さない', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="G"
+        voicingGroups={[
+          {
+            id: 'current',
+            chordName: 'C',
+            voicing: ['C4', 'E4'],
+            voicingStaves: [1, 1],
+            measureOffset: 0,
+          },
+          {
+            id: 'next',
+            chordName: 'G',
+            voicing: ['G3', 'B3'],
+            voicingStaves: [2, 2],
+            measureOffset: 1,
+          },
+        ]}
+        activeGroupId="next"
+        correctPitchClassesByGroupId={new Map()}
+      />,
+    );
+
+    expect(container.querySelector('ellipse[data-next-voicing-hint="true"]')).toBeNull();
+    expect(container.querySelector('polygon[data-voicing-top-pointer="true"]')).toBeNull();
+  });
+
+  it('現在小節で全構成音が正解済みなら未正解ガイドと赤マーカーを出さない', () => {
+    const correctMap = new Map<string, readonly number[]>([
+      ['active-v', [7, 11, 2]],
+    ]);
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="G"
+        voicingGroups={[
+          {
+            id: 'active-v',
+            chordName: 'G',
+            voicing: ['G3', 'B3', 'D4', 'G4'],
+            voicingStaves: [2, 2, 1, 1],
+            measureOffset: 0,
+          },
+        ]}
+        activeGroupId="active-v"
+        correctPitchClassesByGroupId={correctMap}
+      />,
+    );
+
+    expect(container.querySelector('ellipse[data-next-voicing-hint="true"]')).toBeNull();
+    expect(container.querySelector('polygon[data-voicing-top-pointer="true"]')).toBeNull();
   });
 
   it('sp基準で2段譜の五線間に7spの余白を確保する', () => {

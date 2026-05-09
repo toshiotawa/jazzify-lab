@@ -77,8 +77,9 @@ type StaffNumber = 1 | 2;
 
 const NOTATION_COLOR = '#ffffff';
 const CORRECT_NOTATION_COLOR = '#22c55e';
-const NEXT_TARGET_COLOR = '#f97316';
-const TOP_POINTER_COLOR = '#ef4444';
+/** 未正解ガイド（次ノートの楕円ストロークとマーカー）マリンゴールド */
+const NEXT_TARGET_COLOR = '#f39800';
+const TOP_POINTER_COLOR = '#f39800';
 const ACTIVE_CHORD_LABEL_COLOR = '#facc15';
 const SP = 12;
 const STAFF_WIDTH = 720;
@@ -852,7 +853,7 @@ interface VoicingBattleHintsResult {
   } | null;
 }
 
-/** アクティブ・グループの「左端の未演奏ヒント」とトップノート位置 */
+/** 現在小節（measureOffset === 0）のアクティブ・グループの未正解ガイド（次ヒント index と同一音へのマーカー） */
 const computeVoicingBattleHints = (
   groups: readonly ParsedVoicingStaffGroup[],
   layout: StaffLayoutMetrics,
@@ -865,7 +866,7 @@ const computeVoicingBattleHints = (
     return { nextHintVoicingIndex: null, topPointer: null };
   }
   const group = groups.find(g => g.id === activeGroupId);
-  if (!group || group.isRest || group.notes.length === 0) {
+  if (!group || group.measureOffset !== 0 || group.isRest || group.notes.length === 0) {
     return { nextHintVoicingIndex: null, topPointer: null };
   }
 
@@ -876,7 +877,6 @@ const computeVoicingBattleHints = (
     pitchClass: number;
     xCenter: number;
     degree: number;
-    midi: number;
     staff: StaffNumber;
     staffTopY: number;
     yCenter: number;
@@ -884,66 +884,48 @@ const computeVoicingBattleHints = (
 
   const candidates: Candidate[] = [];
 
-  const rowsForTop: Candidate[] = [];
   activeStaves.forEach((staff, staffIndex) => {
     const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
     const baseX = getVoicingGroupBaseX(group, layout);
     const staffNotes = group.notes.filter(note => note.staff === staff);
     const positioned = layoutNotes(staffNotes, staffTopY);
     positioned.forEach(p => {
-      const xCenter = baseX + p.xOffset;
-      const row: Candidate = {
-        voicingIndex: p.note.voicingIndex,
-        pitchClass: p.note.pitchClass,
-        xCenter,
-        degree: p.note.degree,
-        midi: p.note.midi,
-        staff,
-        staffTopY,
-        yCenter: p.yCenter,
-      };
-      rowsForTop.push(row);
       if (!pressed.has(p.note.pitchClass)) {
-        candidates.push(row);
+        const xCenter = baseX + p.xOffset;
+        candidates.push({
+          voicingIndex: p.note.voicingIndex,
+          pitchClass: p.note.pitchClass,
+          xCenter,
+          degree: p.note.degree,
+          staff,
+          staffTopY,
+          yCenter: p.yCenter,
+        });
       }
     });
   });
 
-  const highestMidi = rowsForTop.reduce<Candidate | null>((best, row) => {
-    if (best === null || row.midi > best.midi) {
-      return row;
+  if (candidates.length === 0) {
+    return { nextHintVoicingIndex: null, topPointer: null };
+  }
+
+  candidates.sort((a, b) => {
+    if (a.xCenter !== b.xCenter) {
+      return a.xCenter - b.xCenter;
     }
-    return best;
-  }, null);
-
-  let nextHintVoicingIndex: number | null = null;
-  if (candidates.length > 0) {
-    candidates.sort((a, b) => {
-      if (a.xCenter !== b.xCenter) {
-        return a.xCenter - b.xCenter;
-      }
-      if (a.degree !== b.degree) {
-        return a.degree - b.degree;
-      }
-      return a.voicingIndex - b.voicingIndex;
-    });
-    nextHintVoicingIndex = candidates[0].voicingIndex;
-  }
-
-  if (highestMidi === null) {
-    return {
-      nextHintVoicingIndex,
-      topPointer: null,
-    };
-  }
-
+    if (a.degree !== b.degree) {
+      return a.degree - b.degree;
+    }
+    return a.voicingIndex - b.voicingIndex;
+  });
+  const nextTarget = candidates[0];
   return {
-    nextHintVoicingIndex,
+    nextHintVoicingIndex: nextTarget.voicingIndex,
     topPointer: {
-      staff: highestMidi.staff,
-      staffTopY: highestMidi.staffTopY,
-      xCenter: highestMidi.xCenter,
-      yCenter: highestMidi.yCenter,
+      staff: nextTarget.staff,
+      staffTopY: nextTarget.staffTopY,
+      xCenter: nextTarget.xCenter,
+      yCenter: nextTarget.yCenter,
     },
   };
 };

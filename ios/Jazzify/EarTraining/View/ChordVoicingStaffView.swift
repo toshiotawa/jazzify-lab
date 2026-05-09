@@ -549,10 +549,9 @@ struct ChordVoicingStaffGroupsView: View {
 
     private static let notationColor = Color.white
     private static let correctColor = Color(red: 0.13, green: 0.77, blue: 0.37)
-    /// Web `NEXT_TARGET_COLOR`
-    private static let nextTargetColor = Color(red: 0.976, green: 0.451, blue: 0.086)
-    /// Web `TOP_POINTER_COLOR`
-    private static let topPointerColor = Color(red: 0.937, green: 0.267, blue: 0.267)
+    /// Web `NEXT_TARGET_COLOR` / `TOP_POINTER_COLOR`（#f39800 マリンゴールド）
+    private static let nextTargetColor = Color(red: 243 / 255, green: 152 / 255, blue: 0 / 255)
+    private static let topPointerColor = nextTargetColor
     private static let activeLabelColor = Color(red: 0.98, green: 0.8, blue: 0.09)
     private static let trebleReferenceDegree = 4 * 7 + 6
     private static let bassReferenceDegree = 3 * 7 + 1
@@ -898,6 +897,7 @@ struct ChordVoicingStaffGroupsView: View {
     ) -> VoicingBattleHints {
         guard let aid = activeGroupId,
               let activeItem = parsedGroups.first(where: { $0.group.id == aid }),
+              activeItem.group.measureOffset == 0,
               !activeItem.group.isRest,
               !activeItem.notes.isEmpty else {
             return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
@@ -905,53 +905,37 @@ struct ChordVoicingStaffGroupsView: View {
         let pressed = correctByGroup[aid] ?? []
         struct Row {
             let voicingIndex: Int
-            let pitchClass: Int
             let xCenter: CGFloat
             let yCenter: CGFloat
             let degree: Int
-            let midi: Int
         }
-        var rowsForTop: [Row] = []
         var candidates: [Row] = []
         for (staffIndex, staff) in activeStaves.enumerated() {
             let topY = firstTopY + CGFloat(staffIndex) * (staffSpacing * 4 + staffGap)
             let baseX = groupBaseX(group: activeItem.group, slotIndex: activeItem.slotIndex, slotCount: activeItem.slotCount, layout: layout)
             let staffNotes = sortStaffNotesForVoicing(activeItem.notes.filter { $0.staff == staff })
             for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: staffSpacing) {
+                guard !pressed.contains(positioned.note.pitchClass) else { continue }
                 let xCenter = baseX + positioned.xOffset
-                let row = Row(
-                    voicingIndex: positioned.note.voicingIndex,
-                    pitchClass: positioned.note.pitchClass,
-                    xCenter: xCenter,
-                    yCenter: positioned.yCenter,
-                    degree: positioned.note.degree,
-                    midi: positioned.note.midi
+                candidates.append(
+                    Row(
+                        voicingIndex: positioned.note.voicingIndex,
+                        xCenter: xCenter,
+                        yCenter: positioned.yCenter,
+                        degree: positioned.note.degree
+                    )
                 )
-                rowsForTop.append(row)
-                if !pressed.contains(positioned.note.pitchClass) {
-                    candidates.append(row)
-                }
             }
         }
-        let highest = rowsForTop.max { $0.midi < $1.midi }
-        let nextIdx: Int?
-        if candidates.isEmpty {
-            nextIdx = nil
-        } else {
-            let best = candidates.min { a, b in
-                if a.xCenter != b.xCenter { return a.xCenter < b.xCenter }
-                if a.degree != b.degree { return a.degree < b.degree }
-                return a.voicingIndex < b.voicingIndex
-            }
-            nextIdx = best?.voicingIndex
+        guard let best = candidates.min(by: { a, b in
+            if a.xCenter != b.xCenter { return a.xCenter < b.xCenter }
+            if a.degree != b.degree { return a.degree < b.degree }
+            return a.voicingIndex < b.voicingIndex
+        }) else {
+            return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
         }
-        let topPoint: CGPoint?
-        if let h = highest {
-            topPoint = CGPoint(x: h.xCenter, y: h.yCenter)
-        } else {
-            topPoint = nil
-        }
-        return VoicingBattleHints(nextHintVoicingIndex: nextIdx, topPointer: topPoint)
+        let topPoint = CGPoint(x: best.xCenter, y: best.yCenter)
+        return VoicingBattleHints(nextHintVoicingIndex: best.voicingIndex, topPointer: topPoint)
     }
 
     private static func groupsDrawTopPointer(
