@@ -59,8 +59,9 @@ final class SurvivalGameController: ObservableObject {
     /// 現在出題中の Progression 配列インデックス。完成のたびに +1 され、配列長で循環。
     private var progressionIndex: Int = 0
 
-    /// Progression 通常戦かどうか。ブロック末尾は表示上のクリア条件に合わせてボス戦を優先する。
-    private var isProgressionStage: Bool { stage.stageType == .progression && !isBossStage }
+    /// Progression ステージかどうか。ブロック末尾（ボス戦）でも `chord_progression` を使うため、
+    /// ボス特有のロジック（HP・攻撃・openingGrace 等）は別途 `isBossStage` を見て分岐する。
+    private var isProgressionStage: Bool { stage.stageType == .progression }
 
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。空の場合は空配列。
     private static func buildProgressionChords(for stage: SurvivalStageDefinition) -> [SurvivalResolvedChord] {
@@ -108,8 +109,9 @@ final class SurvivalGameController: ObservableObject {
         self.isBossStage = isBoss
 
         let slots: [SurvivalCodeSlot]
-        if stage.stageType == .progression && !isBoss {
-            // Progression ステージは DB の chord_progression から事前構築済みコード列を使う。
+        if stage.stageType == .progression {
+            // Progression ステージは通常戦・ボス戦どちらでも DB の chord_progression を使う。
+            // ボス特有のロジックは下の `if isBoss` ブロックで初期化される。
             let chords = Self.buildProgressionChords(for: stage)
             self.progressionChords = chords
             self.progressionIndex = 0
@@ -186,7 +188,7 @@ final class SurvivalGameController: ObservableObject {
         isBossStage = isBoss
 
         let slots: [SurvivalCodeSlot]
-        if stage.stageType == .progression && !isBoss {
+        if stage.stageType == .progression {
             let chords = Self.buildProgressionChords(for: stage)
             progressionChords = chords
             progressionIndex = 0

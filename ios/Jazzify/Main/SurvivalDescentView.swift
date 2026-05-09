@@ -113,12 +113,12 @@ struct SurvivalDescentView: View {
                 }
             }
             .onChange(of: frontierStageNumber) { _ in
-                requestScrollToFrontier(scale: mapScale, animated: true)
+                requestScrollToFrontier(scale: mapScale, animated: false)
             }
             .onChange(of: selectedStageNumber) { target in
                 guard let target,
                       let pos = layout.position(for: target) else { return }
-                scrollAnimated = true
+                scrollAnimated = false
                 scrollTargetY = pos.y * mapScale
             }
             .onChange(of: mapCategory) { _ in

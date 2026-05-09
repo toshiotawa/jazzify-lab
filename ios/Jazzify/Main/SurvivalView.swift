@@ -428,41 +428,62 @@ struct SurvivalView: View {
 
 // MARK: - Map category toggle (Basic / Songs)
 
-/// 魔王城降下マップのカテゴリ切替トグル。Web 版 `MapCategoryToggle` (compact) と同じ見た目。
+/// 魔王城降下マップのカテゴリ切替トグル。
+/// iOS 標準の Segmented Picker 風に大型化し、選択中のセグメントを濃い塗りで強調する。
 private struct SurvivalMapCategoryToggle: View {
     let value: SurvivalMapCategory
     let isEnglishCopy: Bool
     let onChange: (SurvivalMapCategory) -> Void
 
+    private let cornerRadius: CGFloat = 16
+    private let innerPadding: CGFloat = 4
+
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             ForEach(SurvivalMapCategory.allCases, id: \.self) { category in
-                Button(action: { onChange(category) }) {
+                let selected = category == value
+                Button(action: {
+                    if selected { return }
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        onChange(category)
+                    }
+                }) {
                     Text(label(for: category))
-                        .font(.caption.bold())
-                        .tracking(0.5)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .foregroundStyle(category == value ? Color.black : Color(hex: "fde68a"))
+                        .font(.headline.weight(.bold))
+                        .tracking(0.6)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .foregroundStyle(selected ? Color.black : Color(hex: "fde68a"))
                         .background(
-                            Capsule(style: .continuous)
-                                .fill(category == value ? Color(hex: "f59e0b") : Color.clear)
+                            RoundedRectangle(cornerRadius: cornerRadius - innerPadding, style: .continuous)
+                                .fill(selected ? Color(hex: "f59e0b") : Color.clear)
+                                .shadow(
+                                    color: selected ? Color.black.opacity(0.35) : .clear,
+                                    radius: selected ? 4 : 0,
+                                    x: 0,
+                                    y: selected ? 2 : 0
+                                )
                         )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityAddTraits(category == value ? [.isSelected] : [])
+                .accessibilityAddTraits(selected ? [.isSelected] : [])
+                .accessibilityLabel(label(for: category))
             }
         }
-        .padding(2)
+        .padding(innerPadding)
+        .frame(maxWidth: 360)
         .background(
-            Capsule(style: .continuous)
-                .fill(Color.black.opacity(0.55))
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.black.opacity(0.65))
                 .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(Color(hex: "f59e0b").opacity(0.4), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(Color(hex: "f59e0b").opacity(0.55), lineWidth: 1.5)
                 )
-                .shadow(color: Color.black.opacity(0.55), radius: 10, x: 0, y: 6)
+                .shadow(color: Color.black.opacity(0.55), radius: 12, x: 0, y: 6)
         )
+        .padding(.horizontal, 16)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isEnglishCopy ? "Map category" : "マップ種別")
     }
