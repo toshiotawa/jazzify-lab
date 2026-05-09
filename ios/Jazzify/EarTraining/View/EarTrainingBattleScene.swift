@@ -20,12 +20,35 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let skillPlayerPoseFrameMs: TimeInterval = 80
     private static let awesomeMagicCircleAlpha: CGFloat = 0.68
     private static let generatedTextureCacheLimit = 16
+    private static let autoIdleMinSec: TimeInterval = 1.0
+    private static let autoIdleMaxSec: TimeInterval = 2.5
+    private static let recoverIdleMinSec: TimeInterval = 0.5
+    private static let recoverIdleMaxSec: TimeInterval = 1.2
+    private static let actionResumeIdleSec: TimeInterval = 0.9
+    private static let playerHomeXRatio: CGFloat = 0.23
+    private static let enemyHomeXRatio: CGFloat = 0.77
+    private static let walkRangeXRatio: CGFloat = 0.052
+    private static let minWalkRangeX: CGFloat = 28
+    private static let maxWalkRangeX: CGFloat = 84
+    private static let minDistanceX: CGFloat = 220
+    private static let minDistanceWidthRatio: CGFloat = 0.28
+    private static let minDistanceLowerBound: CGFloat = 96
+    private static let playerWalkSpeed: CGFloat = 34
+    private static let enemyWalkSpeed: CGFloat = 31
     private static var generatedTextureCache: [String: SKTexture] = [:]
 
     private enum PlayerAvatarPoseAsset {
         static let correctName = "correct3"
         static let castName = "eishou"
         static let skillNames = ["Frame1", "Frame2", "Frame3", "Frame4", "Frame5"]
+    }
+
+    private enum CharacterActionKey {
+        static let idle = "battle-character-idle"
+        static let walk = "battle-character-walk"
+        static let actionHold = "battle-character-action-hold"
+        static let knockback = "battle-character-knockback"
+        static let recover = "battle-character-recover"
     }
 
     /// 耳コピバトル スポットライト（図解仕様: 薄い円錐・足元プール・リム・ヴィネット）。
@@ -231,6 +254,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func rebuildScene() {
         guard size.width > 0, size.height > 0 else { return }
         lastBuildSize = size
+        stopAllCharacterMotion()
         backgroundLayer.removeAllChildren()
         characterLayer.removeAllChildren()
         finalVignetteLayer.removeAllChildren()
@@ -1203,6 +1227,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             avatarAssetName: snapshot.enemyAvatarName,
             flipX: snapshot.enemyAvatarFlipX
         )
+        startCharacterAutoMotion(playerNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
+        startCharacterAutoMotion(enemyNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
     }
 
     private func createCharacter(x: CGFloat, footY: CGFloat, isPlayer: Bool, avatarAssetName: String, flipX: Bool) -> CharacterView {
@@ -1261,7 +1287,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         container.addChild(fallback)
 
         characterLayer.addChild(container)
-        return CharacterView(container: container, image: imageNode, rim: rimNode, fallback: fallback)
+        let side: CharacterSide = isPlayer ? .player : .enemy
+        let range = Self.motionRange(for: side, stageWidth: max(320, size.width))
+        let motion = CharacterMotion(side: side, range: range, targetX: x)
+        return CharacterView(container: container, image: imageNode, rim: rimNode, fallback: fallback, motion: motion)
     }
 
     // MARK: - Phrase intro
@@ -1300,6 +1329,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     // MARK: - Effects
 
     private func playCorrectEffect(_ command: EarTrainingBattleEffectCommand) {
+        holdCharacterForAction(.player, state: .cast, durationMs: 720)
         showCorrectPlayerPose()
         let anchors = battleAnchors()
         if let origin = command.originPoint {
@@ -1333,6 +1363,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let label = command.label ?? "Good"
         let isAwesome = label == "Awesome!" || (label == "Perfect" && (command.phraseNoteCount ?? 0) >= 6)
         let displayLabel = isAwesome ? "Awesome!" : label
+        holdCharacterForAction(.player, state: .attack, durationMs: isAwesome ? 1780 : 1120)
         let anchors = battleAnchors()
         showFloatingResultText(label: displayLabel, x: anchors.player.x, y: anchors.player.resultTextY, color: rankColor(label: displayLabel))
 
@@ -1360,11 +1391,11 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playEnemyAttackEffect(_ command: EarTrainingBattleEffectCommand, heavy: Bool) {
+        holdCharacterForAction(.enemy, state: .attack, durationMs: heavy ? 980 : 760)
         let anchors = battleAnchors()
         if heavy {
             showFloatingResultText(label: command.label ?? "Fail", x: anchors.player.x, y: anchors.player.resultTextY, color: UIColor(red: 0.996, green: 0.792, blue: 0.792, alpha: 1.0))
         }
-        knockCharacter(.enemy, distance: -18, durationMs: 170)
 
         let slashWidth: CGFloat = heavy ? 128 : 78
         let slashHeight: CGFloat = heavy ? 22 : 15
@@ -1780,7 +1811,195 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     // MARK: - Character feedback
 
-    private enum CharacterSide { case player, enemy }
+    private static func motionRange(for side: CharacterSide, stageWidth: CGFloat) -> BattleCharacterMotionRange {
+        let homeRatio = side == .player ? playerHomeXRatio : enemyHomeXRatio
+        let homeX = stageWidth * homeRatio
+        let halfRange = min(max(stageWidth * walkRangeXRatio, minWalkRangeX), maxWalkRangeX)
+        let centerX = stageWidth * 0.5
+        let centerGap = characterMinDistance(stageWidth: stageWidth) * 0.5
+        let minX = side == .player ? homeX - halfRange : max(homeX - halfRange, centerX + centerGap)
+        let maxX = side == .player ? min(homeX + halfRange, centerX - centerGap) : homeX + halfRange
+        return BattleCharacterMotionRange(
+            homeX: min(max(homeX, minX), maxX),
+            minX: minX,
+            maxX: maxX,
+            speed: side == .player ? playerWalkSpeed : enemyWalkSpeed
+        )
+    }
+
+    private static func characterMinDistance(stageWidth: CGFloat) -> CGFloat {
+        let responsiveDistance = stageWidth * minDistanceWidthRatio
+        return min(minDistanceX, max(minDistanceLowerBound, responsiveDistance))
+    }
+
+    private static func clampCharacterX(_ x: CGFloat, range: BattleCharacterMotionRange) -> CGFloat {
+        min(max(x, range.minX), range.maxX)
+    }
+
+    private func stopAllCharacterMotion() {
+        if let playerNode {
+            stopCharacterMotion(playerNode)
+        }
+        if let enemyNode {
+            stopCharacterMotion(enemyNode)
+        }
+    }
+
+    private func stopCharacterMotion(_ view: CharacterView) {
+        view.motion.token += 1
+        view.container.removeAction(forKey: CharacterActionKey.idle)
+        view.container.removeAction(forKey: CharacterActionKey.walk)
+        view.container.removeAction(forKey: CharacterActionKey.actionHold)
+        view.container.removeAction(forKey: CharacterActionKey.knockback)
+        view.container.removeAction(forKey: CharacterActionKey.recover)
+    }
+
+    private func startCharacterAutoMotion(_ view: CharacterView?, idleMinSec: TimeInterval, idleMaxSec: TimeInterval) {
+        guard let view, view.motion.state != .dead else { return }
+        stopCharacterMotion(view)
+        view.motion.state = .idle
+        view.motion.targetX = Self.clampCharacterX(view.container.position.x, range: view.motion.range)
+        view.container.position = CGPoint(x: view.motion.targetX, y: floorYForHeight(max(320, size.height)))
+        view.container.zRotation = 0
+
+        let token = view.motion.token
+        let side = view.motion.side
+        let waitDuration = TimeInterval.random(in: idleMinSec...idleMaxSec)
+        view.container.run(SKAction.sequence([
+            SKAction.wait(forDuration: waitDuration),
+            SKAction.run { [weak self] in
+                guard
+                    let self,
+                    let currentView = self.characterView(for: side),
+                    currentView.motion.token == token,
+                    currentView.motion.state == .idle
+                else { return }
+                self.startCharacterWalk(side)
+            },
+        ]), withKey: CharacterActionKey.idle)
+    }
+
+    private func startCharacterWalk(_ side: CharacterSide) {
+        guard let view = characterView(for: side), view.motion.state != .dead else { return }
+        stopCharacterMotion(view)
+        view.motion.state = .walk
+        view.motion.targetX = pickCharacterTargetX(view)
+        let currentX = Self.clampCharacterX(view.container.position.x, range: view.motion.range)
+        let distance = abs(view.motion.targetX - currentX)
+        if distance < 2 {
+            startCharacterAutoMotion(view, idleMinSec: Self.recoverIdleMinSec, idleMaxSec: Self.recoverIdleMaxSec)
+            return
+        }
+
+        view.container.position = CGPoint(x: currentX, y: floorYForHeight(max(320, size.height)))
+        let token = view.motion.token
+        let duration = TimeInterval(max(0.14, distance / view.motion.range.speed))
+        let move = SKAction.moveTo(x: view.motion.targetX, duration: duration)
+        move.timingMode = .easeInEaseOut
+        view.container.run(SKAction.sequence([
+            move,
+            SKAction.run { [weak self] in
+                guard
+                    let self,
+                    let currentView = self.characterView(for: side),
+                    currentView.motion.token == token,
+                    currentView.motion.state == .walk
+                else { return }
+                self.startCharacterAutoMotion(currentView, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
+            },
+        ]), withKey: CharacterActionKey.walk)
+    }
+
+    private func pickCharacterTargetX(_ view: CharacterView) -> CGFloat {
+        let otherX = otherCharacterX(for: view.motion.side)
+        let minDistance = Self.characterMinDistance(stageWidth: max(320, size.width))
+        let rangeSpan = view.motion.range.maxX - view.motion.range.minX
+        let homeSpread = min(84, rangeSpan * 0.78)
+
+        for _ in 0..<5 {
+            let offset = CGFloat.random(in: -homeSpread...homeSpread)
+            let candidate = Self.clampCharacterX(view.motion.range.homeX + offset, range: view.motion.range)
+            if let otherX {
+                if abs(candidate - otherX) >= minDistance {
+                    return candidate
+                }
+            } else {
+                return candidate
+            }
+        }
+
+        guard let otherX else {
+            return view.motion.range.homeX
+        }
+        let fallback: CGFloat
+        if view.motion.side == .player {
+            fallback = min(view.motion.range.maxX, otherX - minDistance)
+        } else {
+            fallback = max(view.motion.range.minX, otherX + minDistance)
+        }
+        return Self.clampCharacterX(fallback, range: view.motion.range)
+    }
+
+    private func characterView(for side: CharacterSide) -> CharacterView? {
+        if side == .player {
+            return playerNode
+        }
+        return enemyNode
+    }
+
+    private func otherCharacterX(for side: CharacterSide) -> CGFloat? {
+        if side == .player {
+            return enemyNode?.container.position.x
+        }
+        return playerNode?.container.position.x
+    }
+
+    private func holdCharacterForAction(_ side: CharacterSide, state: BattleCharacterMotionState, durationMs: TimeInterval) {
+        guard let view = characterView(for: side), view.motion.state != .dead else { return }
+        stopCharacterMotion(view)
+        view.motion.state = state
+        view.container.position = CGPoint(
+            x: Self.clampCharacterX(view.container.position.x, range: view.motion.range),
+            y: floorYForHeight(max(320, size.height))
+        )
+        view.container.zRotation = 0
+
+        let token = view.motion.token
+        view.container.run(SKAction.sequence([
+            SKAction.wait(forDuration: durationMs / 1000),
+            SKAction.run { [weak self] in
+                guard
+                    let self,
+                    let currentView = self.characterView(for: side),
+                    currentView.motion.token == token,
+                    currentView.motion.state == state
+                else { return }
+                self.startCharacterAutoMotion(currentView, idleMinSec: Self.actionResumeIdleSec, idleMaxSec: Self.actionResumeIdleSec)
+            },
+        ]), withKey: CharacterActionKey.actionHold)
+    }
+
+    private func scheduleCharacterRecover(_ side: CharacterSide, completion: (() -> Void)?) {
+        guard let view = characterView(for: side) else {
+            completion?()
+            return
+        }
+        view.motion.state = .recover
+        let token = view.motion.token
+        completion?()
+        view.container.run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.36),
+            SKAction.run { [weak self] in
+                guard
+                    let self,
+                    let currentView = self.characterView(for: side),
+                    currentView.motion.token == token,
+                    currentView.motion.state == .recover
+                else { return }
+                self.startCharacterAutoMotion(currentView, idleMinSec: Self.recoverIdleMinSec, idleMaxSec: Self.recoverIdleMaxSec)
+            },
+        ]), withKey: CharacterActionKey.recover)
+    }
 
     private func flashCharacter(_ side: CharacterSide) {
         guard let view = side == .player ? playerNode : enemyNode else { return }
@@ -1796,31 +2015,42 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             completion?()
             return
         }
-        let anchors = battleAnchors()
-        let homePosition = side == .player
-            ? CGPoint(x: anchors.player.x, y: anchors.player.footY)
-            : CGPoint(x: anchors.enemy.x, y: anchors.enemy.footY)
+        guard view.motion.state != .dead else {
+            completion?()
+            return
+        }
+
+        stopCharacterMotion(view)
+        view.motion.state = .knockback
+        let floorY = floorYForHeight(max(320, size.height))
+        let startX = Self.clampCharacterX(view.container.position.x, range: view.motion.range)
+        let targetX = Self.clampCharacterX(startX + distance, range: view.motion.range)
         let totalDuration = durationMs / 1000
-        let pushDuration = max(0.08, totalDuration * 0.38)
+        let pushDuration = max(0.08, totalDuration * 0.65)
         let returnDuration = max(0.12, totalDuration - pushDuration)
         let rotation: CGFloat = (distance >= 0 ? 4 : -4) * (.pi / 180)
-        view.container.removeAction(forKey: "knockback")
-        view.container.position = homePosition
+        view.container.position = CGPoint(x: startX, y: floorY)
         view.container.zRotation = 0
         let push = SKAction.group([
-            SKAction.move(to: CGPoint(x: homePosition.x + distance, y: homePosition.y + 10), duration: pushDuration),
+            SKAction.move(to: CGPoint(x: targetX, y: floorY + 10), duration: pushDuration),
             SKAction.rotate(toAngle: rotation, duration: pushDuration, shortestUnitArc: true),
         ])
         push.timingMode = .easeOut
         let back = SKAction.group([
-            SKAction.move(to: homePosition, duration: returnDuration),
+            SKAction.move(to: CGPoint(x: targetX, y: floorY), duration: returnDuration),
             SKAction.rotate(toAngle: 0, duration: returnDuration, shortestUnitArc: true),
         ])
         back.timingMode = .easeOut
-        let complete = SKAction.run {
-            completion?()
+        let complete = SKAction.run { [weak self] in
+            guard let self else {
+                completion?()
+                return
+            }
+            view.container.position = CGPoint(x: targetX, y: floorY)
+            view.container.zRotation = 0
+            self.scheduleCharacterRecover(side, completion: completion)
         }
-        view.container.run(SKAction.sequence([push, back, complete]), withKey: "knockback")
+        view.container.run(SKAction.sequence([push, back, complete]), withKey: CharacterActionKey.knockback)
     }
 
     private func knockEnemyAfterDamage(distance: CGFloat, durationMs: TimeInterval) {
@@ -1851,6 +2081,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playVoicingCastEffect() {
+        holdCharacterForAction(.player, state: .cast, durationMs: Self.correctPlayerPoseDurationMs)
         showPlayerPose(assetName: PlayerAvatarPoseAsset.castName, durationMs: Self.correctPlayerPoseDurationMs)
     }
 
@@ -1968,8 +2199,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             )
         }
         return BattleAnchors(
-            player: make(x: width * 0.23),
-            enemy: make(x: width * 0.77)
+            player: make(x: playerNode?.container.position.x ?? width * 0.23),
+            enemy: make(x: enemyNode?.container.position.x ?? width * 0.77)
         )
     }
 
@@ -1998,10 +2229,50 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     // MARK: - Helpers
 
+    private enum CharacterSide {
+        case player
+        case enemy
+    }
+
+    private enum BattleCharacterMotionState {
+        case idle
+        case walk
+        case cast
+        case attack
+        case hit
+        case knockback
+        case recover
+        case dead
+    }
+
+    private struct BattleCharacterMotionRange {
+        let homeX: CGFloat
+        let minX: CGFloat
+        let maxX: CGFloat
+        let speed: CGFloat
+    }
+
+    private final class CharacterMotion {
+        let side: CharacterSide
+        var state: BattleCharacterMotionState
+        var range: BattleCharacterMotionRange
+        var targetX: CGFloat
+        var token: Int
+
+        init(side: CharacterSide, range: BattleCharacterMotionRange, targetX: CGFloat) {
+            self.side = side
+            self.state = .idle
+            self.range = range
+            self.targetX = targetX
+            self.token = 0
+        }
+    }
+
     private struct CharacterView {
         let container: SKNode
         let image: SKSpriteNode?
         let rim: SKSpriteNode?
         let fallback: SKLabelNode
+        let motion: CharacterMotion
     }
 }

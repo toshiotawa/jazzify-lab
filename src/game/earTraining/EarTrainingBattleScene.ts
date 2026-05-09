@@ -6,6 +6,12 @@ import type {
   EarTrainingBattleSnapshot,
 } from './types';
 import { EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS } from '@/utils/constants';
+import {
+  clampBattleCharacterX,
+  getBattleCharacterMinDistance,
+  getBattleCharacterMotionRange,
+  type BattleCharacterMotionRange,
+} from './battleCharacterMotion';
 
 const PIANO_OVERLAY_HEIGHT = 120;
 const HUD_HEIGHT = 150;
@@ -26,9 +32,15 @@ const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
 const MIN_SCENE_REBUILD_INTERVAL_MS = 50;
+const AUTO_IDLE_MIN_MS = 1000;
+const AUTO_IDLE_MAX_MS = 2500;
+const RECOVER_IDLE_MIN_MS = 500;
+const RECOVER_IDLE_MAX_MS = 1200;
+const ACTION_RESUME_IDLE_MS = 900;
 
 type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
 type CharacterSide = 'player' | 'enemy';
+type BattleCharacterMotionState = 'idle' | 'walk' | 'cast' | 'attack' | 'hit' | 'knockback' | 'recover' | 'dead';
 type JazzStagePropName = 'doubleBass' | 'piano' | 'drumKit';
 type PlayerAvatarPoseName =
   | 'correct3'
@@ -174,7 +186,18 @@ interface CharacterView {
   container: Phaser.GameObjects.Container;
   image: Phaser.GameObjects.Image | null;
   fallback: Phaser.GameObjects.Text;
-  knockbackTween: Phaser.Tweens.Tween | null;
+  motion: CharacterMotion;
+}
+
+interface CharacterMotion {
+  side: CharacterSide;
+  state: BattleCharacterMotionState;
+  range: BattleCharacterMotionRange;
+  targetX: number;
+  idleEvent: Phaser.Time.TimerEvent | null;
+  motionTween: Phaser.Tweens.Tween | null;
+  resumeEvent: Phaser.Time.TimerEvent | null;
+  token: number;
 }
 
 interface CharacterAnchors {
@@ -236,6 +259,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   shutdown(): void {
     this.isReady = false;
     this.pendingSceneRebuild = false;
+    this.stopAllCharacterMotion();
     this.sceneRebuildTimer?.remove(false);
     this.sceneRebuildTimer = null;
     this.scale.off('resize', this.handleResize, this);
@@ -259,6 +283,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     this.queueSceneRebuild();
     this.loadAvatarTextures(snapshot);
+    this.syncCharacterLifeState(snapshot);
   }
 
   triggerEffect(command: EarTrainingBattleEffectCommand): void {
@@ -342,6 +367,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
 
     this.rebuildCharactersIfNeeded(width, height);
+    if (this.snapshot) {
+      this.syncCharacterLifeState(this.snapshot);
+    }
     this.clearUiScene();
     this.hudLayer = this.add.container(0, 0);
     this.phraseLayer = this.add.container(0, 0);
@@ -404,6 +432,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private clearCharacterScene(): void {
+    this.stopAllCharacterMotion();
     this.characterLayer?.destroy(true);
     this.characterLayer = null;
     this.playerView = null;
@@ -781,6 +810,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const floorY = getFloorY(height);
     this.playerView = this.createCharacter(width * 0.23, floorY, true, snapshot.playerAvatarUrl, false);
     this.enemyView = this.createCharacter(width * 0.77, floorY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
+    this.startCharacterAutoMotion(this.playerView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+    this.startCharacterAutoMotion(this.enemyView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
   }
 
   private drawCharacterStatus(width: number, height: number): void {
@@ -818,7 +849,21 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     container.add(fallback);
     this.characterLayer?.add(container);
-    return { container, image, fallback, knockbackTween: null };
+    return {
+      container,
+      image,
+      fallback,
+      motion: {
+        side: isPlayer ? 'player' : 'enemy',
+        state: 'idle',
+        range: getBattleCharacterMotionRange(isPlayer ? 'player' : 'enemy', Math.max(320, this.scale.width)),
+        targetX: x,
+        idleEvent: null,
+        motionTween: null,
+        resumeEvent: null,
+        token: 0,
+      },
+    };
   }
 
   private drawEnemyAttackGauge(x: number, y: number): void {
@@ -1131,6 +1176,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
+    this.holdCharacterForAction('player', 'cast', 720);
     this.showCorrectPlayerPose();
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
@@ -1182,10 +1228,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
-    const anchors = this.getBattleAnchors(width, height);
     const label = command.label ?? 'Good';
     const isSuperPerfect = label === 'Perfect' && (command.phraseNoteCount ?? 0) >= 6;
     const displayLabel = isSuperPerfect ? 'Awesome!' : label;
+    this.holdCharacterForAction('player', 'attack', isSuperPerfect ? 1780 : 1120);
+    const anchors = this.getBattleAnchors(width, height);
     this.showFloatingResultText(displayLabel, anchors.player.x, anchors.player.resultTextY, this.getRankColor(displayLabel));
 
     if (isSuperPerfect) {
@@ -1211,13 +1258,13 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
+    this.holdCharacterForAction('enemy', 'attack', heavy ? 980 : 760);
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
     const anchors = this.getBattleAnchors(width, height);
     if (heavy) {
       this.showFloatingResultText(command.label ?? 'Fail', anchors.player.x, anchors.player.resultTextY, '#fecaca');
     }
-    this.knockCharacter('enemy', -18, 170);
     const slash = this.add.rectangle(anchors.enemy.x - 28, anchors.enemy.bodyY, heavy ? 128 : 78, heavy ? 22 : 15, 0xfb7185, 1);
     slash.setStrokeStyle(2, 0xfdf2f8, 0.82);
     slash.setRotation(-0.18);
@@ -1235,7 +1282,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         slash.destroy();
         this.flashPlayer();
         this.showImpactBurst(anchors.player.x, anchors.player.bodyY, 0xfb7185, heavy);
-        this.knockCharacter('player', heavy ? -52 : -32, heavy ? 290 : 210, () => this.callbacks.onEffectImpact(command.id));
+        this.callbacks.onEffectImpact(command.id);
+        this.knockCharacter('player', heavy ? -52 : -32, heavy ? 290 : 210);
       },
     });
   }
@@ -1251,8 +1299,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       resultTextY: floorY - CHARACTER_DISPLAY_SIZE * 1.12,
     });
     return {
-      player: createAnchors(width * 0.23),
-      enemy: createAnchors(width * 0.77),
+      player: createAnchors(this.playerView?.container.x ?? width * 0.23),
+      enemy: createAnchors(this.enemyView?.container.x ?? width * 0.77),
     };
   }
 
@@ -1784,6 +1832,169 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
   }
 
+  private stopAllCharacterMotion(): void {
+    if (this.playerView) {
+      this.stopCharacterMotion(this.playerView);
+    }
+    if (this.enemyView) {
+      this.stopCharacterMotion(this.enemyView);
+    }
+  }
+
+  private stopCharacterMotion(view: CharacterView): void {
+    view.motion.token += 1;
+    view.motion.idleEvent?.remove(false);
+    view.motion.resumeEvent?.remove(false);
+    view.motion.motionTween?.stop();
+    view.motion.idleEvent = null;
+    view.motion.resumeEvent = null;
+    view.motion.motionTween = null;
+  }
+
+  private startCharacterAutoMotion(
+    view: CharacterView | null,
+    idleMinMs: number,
+    idleMaxMs: number,
+  ): void {
+    if (!view || view.motion.state === 'dead') {
+      return;
+    }
+
+    this.stopCharacterMotion(view);
+    view.motion.state = 'idle';
+    view.motion.targetX = clampBattleCharacterX(view.container.x, view.motion.range);
+    view.container.setPosition(view.motion.targetX, getFloorY(Math.max(480, this.scale.height)));
+    view.container.setAngle(0);
+
+    const token = view.motion.token;
+    const delayMs = Phaser.Math.Between(idleMinMs, idleMaxMs);
+    view.motion.idleEvent = this.time.delayedCall(delayMs, () => {
+      if (view.motion.token !== token || view.motion.state !== 'idle') {
+        return;
+      }
+      this.startCharacterWalk(view);
+    });
+  }
+
+  private startCharacterWalk(view: CharacterView): void {
+    if (view.motion.state === 'dead') {
+      return;
+    }
+
+    this.stopCharacterMotion(view);
+    view.motion.state = 'walk';
+    view.motion.targetX = this.pickCharacterTargetX(view);
+    const currentX = clampBattleCharacterX(view.container.x, view.motion.range);
+    const distance = Math.abs(view.motion.targetX - currentX);
+    if (distance < 2) {
+      this.startCharacterAutoMotion(view, RECOVER_IDLE_MIN_MS, RECOVER_IDLE_MAX_MS);
+      return;
+    }
+
+    view.container.setPosition(currentX, getFloorY(Math.max(480, this.scale.height)));
+    const token = view.motion.token;
+    view.motion.motionTween = this.tweens.add({
+      targets: view.container,
+      x: view.motion.targetX,
+      duration: Math.max(140, Math.round((distance / view.motion.range.speed) * 1000)),
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        if (view.motion.token !== token || view.motion.state !== 'walk') {
+          return;
+        }
+        view.motion.motionTween = null;
+        this.startCharacterAutoMotion(view, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+      },
+    });
+  }
+
+  private pickCharacterTargetX(view: CharacterView): number {
+    const otherX = this.getOtherCharacterX(view.motion.side);
+    const minDistance = getBattleCharacterMinDistance(Math.max(320, this.scale.width));
+    const rangeSpan = view.motion.range.maxX - view.motion.range.minX;
+    const homeSpread = Math.min(84, rangeSpan * 0.78);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const offset = Phaser.Math.FloatBetween(-homeSpread, homeSpread);
+      const candidate = clampBattleCharacterX(view.motion.range.homeX + offset, view.motion.range);
+      if (otherX === null || Math.abs(candidate - otherX) >= minDistance) {
+        return candidate;
+      }
+    }
+
+    if (otherX === null) {
+      return view.motion.range.homeX;
+    }
+
+    const fallback = view.motion.side === 'player'
+      ? Math.min(view.motion.range.maxX, otherX - minDistance)
+      : Math.max(view.motion.range.minX, otherX + minDistance);
+    return clampBattleCharacterX(fallback, view.motion.range);
+  }
+
+  private getOtherCharacterX(side: CharacterSide): number | null {
+    if (side === 'player') {
+      return this.enemyView?.container.x ?? null;
+    }
+    return this.playerView?.container.x ?? null;
+  }
+
+  private holdCharacterForAction(side: CharacterSide, state: 'cast' | 'attack', durationMs: number): void {
+    const view = side === 'player' ? this.playerView : this.enemyView;
+    if (!view || view.motion.state === 'dead') {
+      return;
+    }
+
+    this.stopCharacterMotion(view);
+    view.motion.state = state;
+    view.container.setPosition(clampBattleCharacterX(view.container.x, view.motion.range), getFloorY(Math.max(480, this.scale.height)));
+    view.container.setAngle(0);
+
+    const token = view.motion.token;
+    view.motion.resumeEvent = this.time.delayedCall(durationMs, () => {
+      if (view.motion.token !== token || view.motion.state !== state) {
+        return;
+      }
+      this.startCharacterAutoMotion(view, ACTION_RESUME_IDLE_MS, ACTION_RESUME_IDLE_MS);
+    });
+  }
+
+  private scheduleCharacterRecover(view: CharacterView, onComplete?: () => void): void {
+    view.motion.state = 'recover';
+    view.motion.motionTween = null;
+    const token = view.motion.token;
+    view.motion.resumeEvent = this.time.delayedCall(360, () => {
+      if (view.motion.token !== token || view.motion.state !== 'recover') {
+        return;
+      }
+      this.startCharacterAutoMotion(view, RECOVER_IDLE_MIN_MS, RECOVER_IDLE_MAX_MS);
+    });
+    onComplete?.();
+  }
+
+  private syncCharacterLifeState(snapshot: EarTrainingBattleSnapshot): void {
+    this.syncCharacterDeadState(this.playerView, snapshot.playerHp <= 0);
+    this.syncCharacterDeadState(this.enemyView, snapshot.enemyHp <= 0);
+  }
+
+  private syncCharacterDeadState(view: CharacterView | null, dead: boolean): void {
+    if (!view) {
+      return;
+    }
+    if (dead) {
+      if (view.motion.state !== 'dead') {
+        this.stopCharacterMotion(view);
+        view.motion.state = 'dead';
+        view.container.setAngle(0);
+      }
+      return;
+    }
+    if (view.motion.state === 'dead') {
+      view.motion.state = 'idle';
+      this.startCharacterAutoMotion(view, RECOVER_IDLE_MIN_MS, RECOVER_IDLE_MAX_MS);
+    }
+  }
+
   private getRankColor(label: string): string {
     if (label === 'Awesome!' || label === 'Perfect') {
       return '#fef08a';
@@ -1803,41 +2014,45 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       onComplete?.();
       return;
     }
-    const anchors = this.getBattleAnchors(Math.max(320, this.scale.width), Math.max(480, this.scale.height));
-    const home = side === 'player' ? anchors.player : anchors.enemy;
-    view.knockbackTween?.stop();
-    view.knockbackTween = null;
-    view.container.setPosition(home.x, home.footY);
+    if (view.motion.state === 'dead') {
+      onComplete?.();
+      return;
+    }
+
+    this.stopCharacterMotion(view);
+    view.motion.state = 'knockback';
+    const floorY = getFloorY(Math.max(480, this.scale.height));
+    const startX = clampBattleCharacterX(view.container.x, view.motion.range);
+    const targetX = clampBattleCharacterX(startX + distance, view.motion.range);
+    view.container.setPosition(startX, floorY);
     view.container.setAngle(0);
-    const pushDuration = Math.max(80, Math.floor(duration * 0.38));
+    const pushDuration = Math.max(80, Math.floor(duration * 0.65));
     const returnDuration = Math.max(120, duration - pushDuration);
     const rotation = distance >= 0 ? 4 : -4;
     const pushTween = this.tweens.add({
       targets: view.container,
-      x: home.x + distance,
-      y: home.footY - 10,
+      x: targetX,
+      y: floorY - 10,
       angle: rotation,
       duration: pushDuration,
       ease: 'Quad.easeOut',
       onComplete: () => {
         const returnTween = this.tweens.add({
           targets: view.container,
-          x: home.x,
-          y: home.footY,
+          y: floorY,
           angle: 0,
           duration: returnDuration,
           ease: 'Back.easeOut',
           onComplete: () => {
-            view.knockbackTween = null;
-            view.container.setPosition(home.x, home.footY);
+            view.container.setPosition(targetX, floorY);
             view.container.setAngle(0);
-            onComplete?.();
+            this.scheduleCharacterRecover(view, onComplete);
           },
         });
-        view.knockbackTween = returnTween;
+        view.motion.motionTween = returnTween;
       },
     });
-    view.knockbackTween = pushTween;
+    view.motion.motionTween = pushTween;
   }
 
   private knockEnemyAfterDamage(distance: number, duration: number): void {
@@ -1879,6 +2094,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playVoicingCastEffect(): void {
+    this.holdCharacterForAction('player', 'cast', CORRECT_PLAYER_POSE_DURATION_MS);
     this.showPlayerPose('cast', CORRECT_PLAYER_POSE_DURATION_MS);
   }
 
