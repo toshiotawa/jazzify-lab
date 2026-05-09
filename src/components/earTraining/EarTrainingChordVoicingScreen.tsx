@@ -46,6 +46,7 @@ import {
   handleChordVoicingNoteOn,
   isAllChordsCompleted,
 } from '@/utils/earTrainingChordVoicingEngine';
+import { computeVoicingKeyboardHints } from '@/utils/earTrainingChordVoicingHints';
 import {
   getEarTrainingChordDisplayAtTime,
   getEarTrainingHarmonyHudRows,
@@ -1375,6 +1376,26 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     });
     return correctPitchClassesByGroupId;
   }, [attempt, staffVoicingGroups]);
+
+  const voicingKeyboardHints = useMemo(() => {
+    if (!practiceMode || !activeChord) {
+      return null;
+    }
+    const pressed = attempt?.pressedByChord.get(activeChord.id);
+    return computeVoicingKeyboardHints(activeChord.voicing, pressed);
+  }, [practiceMode, activeChord, attempt]);
+
+  useEffect(() => {
+    const overlay = pianoOverlayRef.current;
+    if (!overlay) {
+      return;
+    }
+    if (!voicingKeyboardHints) {
+      overlay.clearVoicingHints();
+      return;
+    }
+    overlay.setVoicingHints(voicingKeyboardHints.pendingMidis, voicingKeyboardHints.completedMidis);
+  }, [voicingKeyboardHints]);
 
   return (
     <div className={cn(

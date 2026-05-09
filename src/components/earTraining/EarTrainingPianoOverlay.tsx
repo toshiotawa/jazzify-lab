@@ -12,6 +12,8 @@ import { getWindow } from '@/platform';
 
 export interface EarTrainingPianoOverlayHandle {
   highlightKey: (midiNote: number, active: boolean) => void;
+  setVoicingHints: (pendingMidiNotes: readonly number[], completedMidiNotes: readonly number[]) => void;
+  clearVoicingHints: () => void;
 }
 
 interface EarTrainingPianoOverlayProps {
@@ -49,6 +51,12 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
 
   useImperativeHandle(ref, () => ({
     highlightKey: (midiNote, active) => rendererRef.current?.highlightKey(midiNote, active),
+    setVoicingHints: (pendingMidiNotes, completedMidiNotes) => {
+      rendererRef.current?.setVoicingHints(pendingMidiNotes, completedMidiNotes);
+    },
+    clearVoicingHints: () => {
+      rendererRef.current?.clearVoicingHints();
+    },
   }), []);
 
   useEffect(() => {

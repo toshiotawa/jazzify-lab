@@ -10,6 +10,13 @@ struct EarTrainingChordVoicingAttempt: Sendable, Equatable {
     var failedChordIds: Set<UUID>
 }
 
+/// 耳コピヴォイシング練習モード用の鍵盤ヒント状態。
+/// Web `src/utils/earTrainingChordVoicingHints.ts` と同じ意味。
+enum VoicingHintState: Sendable, Equatable {
+    case pending
+    case completed
+}
+
 /// Web `earTrainingChordVoicingEngine.ts` を 1:1 で移植する。
 enum EarTrainingChordVoicingEngine {
     static let maxMissesPerChord = 5
@@ -58,6 +65,56 @@ enum EarTrainingChordVoicingEngine {
             }
         }
         return ordered
+    }
+
+    /// Web `parseVoicingNoteName(...).midi`（`src/utils/voicingMusicXml.ts`）と同等。
+    /// オクターブまで含めた音名（例 "G3", "F#4", "Bb3"）から MIDI 番号を返す。
+    static func noteNameToMidi(_ noteName: String) -> Int? {
+        let trimmed = noteName.trimmingCharacters(in: .whitespaces)
+        guard let first = trimmed.first else { return nil }
+        let upper = String(first).uppercased()
+        let baseSemitones: [String: Int] = [
+            "C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11
+        ]
+        guard let semitone = baseSemitones[upper] else { return nil }
+
+        var alter = 0
+        var index = trimmed.index(after: trimmed.startIndex)
+        accidentalLoop: while index < trimmed.endIndex {
+            let ch = trimmed[index]
+            switch ch {
+            case "x":
+                alter += 2
+            case "#", "♯":
+                alter += 1
+            case "b", "♭":
+                alter -= 1
+            default:
+                break accidentalLoop
+            }
+            index = trimmed.index(after: index)
+        }
+
+        let octaveString = String(trimmed[index...])
+        guard let octave = Int(octaveString) else { return nil }
+        return (octave + 1) * 12 + semitone + alter
+    }
+
+    /// Web `computeVoicingKeyboardHints(...)` 相当。voicing 文字列の各音を
+    /// オクターブ付き MIDI に展開し、押下済み PC があるノートは `.completed`、
+    /// それ以外は `.pending` として返す。
+    static func voicingKeyboardHints(
+        voicing: [String]?,
+        pressedPitchClasses: Set<Int>
+    ) -> [Int: VoicingHintState] {
+        guard let voicing, !voicing.isEmpty else { return [:] }
+        var result: [Int: VoicingHintState] = [:]
+        for name in voicing {
+            guard let midi = noteNameToMidi(name), result[midi] == nil else { continue }
+            let pc = midiToPitchClass(midi)
+            result[midi] = pressedPitchClasses.contains(pc) ? .completed : .pending
+        }
+        return result
     }
 
     static func chordHasVoicingNotes(_ chord: EarTrainingPhraseChordDetail) -> Bool {

@@ -31,6 +31,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                             label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                             isBlack: false,
                             isMidiHeld: player.midiHeldKeys.contains(midi),
+                            voicingHint: player.voicingHintsByMidi[midi],
                             width: whiteKeyWidth,
                             height: keyboardHeight,
                             onPress: { player.handleNoteOn(midi: $0, velocity: 100, playAudio: true) },
@@ -47,6 +48,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                         label: "",
                         isBlack: true,
                         isMidiHeld: player.midiHeldKeys.contains(midi),
+                        voicingHint: player.voicingHintsByMidi[midi],
                         width: blackKeyWidth,
                         height: blackKeyHeight,
                         onPress: { player.handleNoteOn(midi: $0, velocity: 100, playAudio: true) },
@@ -98,12 +100,19 @@ private struct EarTrainingPianoKeyButton: View {
     let label: String
     let isBlack: Bool
     let isMidiHeld: Bool
+    /// 練習モード時のヴォイシング構成音ヒント。`nil` ならヒント表示なし。
+    let voicingHint: VoicingHintState?
     let width: CGFloat
     let height: CGFloat
     let onPress: (Int) -> Void
     let onRelease: (Int) -> Void
 
     @State private var isPressing: Bool = false
+
+    /// Web `NEXT_TARGET_COLOR`（#f39800 マリーゴールド）と統一。
+    private static let voicingHintPendingColor = Color(red: 243.0 / 255.0, green: 152.0 / 255.0, blue: 0.0)
+    /// Web `CORRECT_NOTATION_COLOR`（#22c55e 緑）と統一。
+    private static let voicingHintCompletedColor = Color(red: 34.0 / 255.0, green: 197.0 / 255.0, blue: 94.0 / 255.0)
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -141,9 +150,16 @@ private struct EarTrainingPianoKeyButton: View {
 
     private var fillColor: Color {
         let held = isPressing || isMidiHeld
-        if isBlack {
-            return held ? Color(white: 0.35) : Color.black
+        if held {
+            return isBlack ? Color(white: 0.35) : Color(white: 0.78)
         }
-        return held ? Color(white: 0.78) : Color.white
+        switch voicingHint {
+        case .completed:
+            return Self.voicingHintCompletedColor
+        case .pending:
+            return Self.voicingHintPendingColor
+        case .none:
+            return isBlack ? Color.black : Color.white
+        }
     }
 }

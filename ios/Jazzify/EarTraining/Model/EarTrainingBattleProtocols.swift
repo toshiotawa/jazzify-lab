@@ -17,6 +17,9 @@ protocol EarTrainingBattleSceneDriving: AnyObject {
 @MainActor
 protocol EarTrainingPianoPlayable: ObservableObject {
     var midiHeldKeys: Set<Int> { get }
+    /// 耳コピヴォイシング練習モード時の鍵盤ヒント。MIDI → 状態。
+    /// 表示が不要なモードでは空辞書を返してよい。
+    var voicingHintsByMidi: [Int: VoicingHintState] { get }
 
     func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool)
     func handleNoteOff(midi: Int, playAudio: Bool)

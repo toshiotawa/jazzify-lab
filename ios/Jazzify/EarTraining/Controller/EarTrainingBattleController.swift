@@ -885,7 +885,10 @@ final class EarTrainingBattleController: ObservableObject {
 }
 
 extension EarTrainingBattleController: EarTrainingBattleSceneDriving {}
-extension EarTrainingBattleController: EarTrainingPianoPlayable {}
+extension EarTrainingBattleController: EarTrainingPianoPlayable {
+    /// 単音耳コピモードでは鍵盤ヒントは使わないため、常に空辞書を返す。
+    var voicingHintsByMidi: [Int: VoicingHintState] { [:] }
+}
 extension EarTrainingBattleController: EarTrainingLobbyPresentable {
     var stageTitleForLobby: String {
         stage.localizedTitle(isEnglishCopy ? .en : .ja)

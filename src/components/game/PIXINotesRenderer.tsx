@@ -21,6 +21,8 @@ interface RendererSettings {
     activeKey: string | number;
     guideKey: string | number;
     correctKey: string | number; // 正解済み鍵盤の色
+    voicingHintPending: string | number; // 耳コピヴォイシング: 未押下構成音ヒント
+    voicingHintCompleted: string | number; // 耳コピヴォイシング: 押下済み構成音ヒント
     background: string | number;
     // 右手/左手/両手ユニゾン色
     rightHand: string | number;
@@ -162,6 +164,8 @@ const createDefaultSettings = (): RendererSettings => ({
     activeKey: '#FF8C00',
     guideKey: '#22C55E',
     correctKey: '#EF4444',
+    voicingHintPending: '#f39800',
+    voicingHintCompleted: '#22c55e',
     background: '#05060A',
     // 右手: スカイブルー
     rightHand: '#93C5FD',
@@ -207,6 +211,8 @@ export class PIXINotesRendererInstance {
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
   private correctHighlightedKeys = new Set<number>(); // 正解済み鍵盤（赤色で保持）
+  private voicingHintPendingKeys = new Set<number>(); // 耳コピヴォイシング: 未押下構成音ヒント
+  private voicingHintCompletedKeys = new Set<number>(); // 耳コピヴォイシング: 押下済み構成音ヒント
   private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
   private onKeyRelease?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
@@ -383,10 +389,38 @@ export class PIXINotesRendererInstance {
     this.requestRender();
   }
 
+  /**
+   * 耳コピヴォイシング練習モード用の構成音ヒントを設定する。
+   * pending = マリーゴールド、completed = 緑。判定はピッチクラスのため、
+   * 別オクターブが押されても呼び出し元で completed に振り分けられる。
+   */
+  setVoicingHints(pendingMidiNotes: readonly number[], completedMidiNotes: readonly number[]): void {
+    this.voicingHintPendingKeys.clear();
+    this.voicingHintCompletedKeys.clear();
+    for (let i = 0; i < pendingMidiNotes.length; i += 1) {
+      this.voicingHintPendingKeys.add(this.clampMidi(pendingMidiNotes[i]));
+    }
+    for (let i = 0; i < completedMidiNotes.length; i += 1) {
+      this.voicingHintCompletedKeys.add(this.clampMidi(completedMidiNotes[i]));
+    }
+    this.requestRender();
+  }
+
+  clearVoicingHints(): void {
+    if (this.voicingHintPendingKeys.size === 0 && this.voicingHintCompletedKeys.size === 0) {
+      return;
+    }
+    this.voicingHintPendingKeys.clear();
+    this.voicingHintCompletedKeys.clear();
+    this.requestRender();
+  }
+
   clearAllHighlights(): void {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
     this.correctHighlightedKeys.clear();
+    this.voicingHintPendingKeys.clear();
+    this.voicingHintCompletedKeys.clear();
     this.requestRender();
   }
 
@@ -412,6 +446,8 @@ export class PIXINotesRendererInstance {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
     this.correctHighlightedKeys.clear();
+    this.voicingHintPendingKeys.clear();
+    this.voicingHintCompletedKeys.clear();
     this.pointerStates.clear();
     this.backgroundCanvas = null;
     this.noteRenderSnapshots.clear();
@@ -493,6 +529,8 @@ export class PIXINotesRendererInstance {
       activeKey: toColor(colors.activeKey),
       guideKey: toColor(colors.guideKey),
       correctKey: toColor(colors.correctKey),
+      voicingHintPending: toColor(colors.voicingHintPending),
+      voicingHintCompleted: toColor(colors.voicingHintCompleted),
       background: toColor(colors.background),
       rightHand: toColor(colors.rightHand),
       rightHandBlack: toColor(colors.rightHandBlack),
@@ -1298,6 +1336,10 @@ export class PIXINotesRendererInstance {
     };
     // ガイドハイライト（緑色）
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 耳コピヴォイシング: 未押下構成音ヒント（マリーゴールド）
+    this.voicingHintPendingKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintPending, 0.7));
+    // 耳コピヴォイシング: 押下済み構成音ヒント（緑）
+    this.voicingHintCompletedKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintCompleted, 0.7));
     // 正解済みハイライト（赤色）- ガイドより上に描画
     this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
     // アクティブハイライト（オレンジ）- 最前面

@@ -17,12 +17,16 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseIndex: Int = 0
     @Published private(set) var phraseRunId: Int = 0
-    @Published private(set) var attempt: EarTrainingChordVoicingAttempt?
+    @Published private(set) var attempt: EarTrainingChordVoicingAttempt? {
+        didSet { recomputeVoicingHints() }
+    }
     @Published private(set) var enemyHp: Int
     @Published private(set) var playerHp: Int
     @Published private(set) var timeRemaining: Int
     @Published private(set) var countInValue: Int
-    @Published private(set) var activeChord: EarTrainingPhraseChordDetail?
+    @Published private(set) var activeChord: EarTrainingPhraseChordDetail? {
+        didSet { recomputeVoicingHints() }
+    }
     @Published private(set) var lastRank: EarTrainingRank?
     @Published private(set) var statusText: String
     @Published private(set) var activeLoop: Int = 1
@@ -30,10 +34,16 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var enemyAttackGaugePercent: Double = 0
     @Published private(set) var feedback: EarTrainingBattleController.Feedback?
     @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
-    @Published var practiceMode: Bool
+    @Published var practiceMode: Bool {
+        didSet { recomputeVoicingHints() }
+    }
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
+    /// 練習モード時の鍵盤ヒント。`activeChord` の voicing を MIDI に展開し、
+    /// 押下済み PC を含むノートは `.completed`、それ以外は `.pending`。
+    /// activeChord または attempt の状態変化に応じて event-driven に再計算する。
+    @Published private(set) var voicingHintsByMidi: [Int: VoicingHintState] = [:]
 
     let stage: EarTrainingStageDetail
     let phrases: [EarTrainingPhraseDetail]
@@ -826,6 +836,22 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private func cancelCountdownTimer() { countdownTask?.cancel(); countdownTask = nil }
     private func cancelTimeLimitTimer() { timeLimitTask?.cancel(); timeLimitTask = nil }
     private func cancelChordSyncTask() { chordSyncTask?.cancel(); chordSyncTask = nil }
+
+    private func recomputeVoicingHints() {
+        let next: [Int: VoicingHintState]
+        if practiceMode, let chord = activeChord {
+            let pressed = attempt?.pressedByChord[chord.id] ?? []
+            next = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+                voicing: chord.voicing,
+                pressedPitchClasses: pressed
+            )
+        } else {
+            next = [:]
+        }
+        if next != voicingHintsByMidi {
+            voicingHintsByMidi = next
+        }
+    }
 
     private func playRootNoteIfPossible(rootName: String) {
         guard let pc = EarTrainingChordVoicingEngine.noteNameToPitchClass(rootName) else { return }
