@@ -908,33 +908,41 @@ struct ChordVoicingStaffGroupsView: View {
             let xCenter: CGFloat
             let yCenter: CGFloat
             let degree: Int
+            let midi: Int
         }
+        var rowsForTop: [Row] = []
         var candidates: [Row] = []
         for (staffIndex, staff) in activeStaves.enumerated() {
             let topY = firstTopY + CGFloat(staffIndex) * (staffSpacing * 4 + staffGap)
             let baseX = groupBaseX(group: activeItem.group, slotIndex: activeItem.slotIndex, slotCount: activeItem.slotCount, layout: layout)
             let staffNotes = sortStaffNotesForVoicing(activeItem.notes.filter { $0.staff == staff })
             for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: staffSpacing) {
-                guard !pressed.contains(positioned.note.pitchClass) else { continue }
                 let xCenter = baseX + positioned.xOffset
-                candidates.append(
-                    Row(
-                        voicingIndex: positioned.note.voicingIndex,
-                        xCenter: xCenter,
-                        yCenter: positioned.yCenter,
-                        degree: positioned.note.degree
-                    )
+                let row = Row(
+                    voicingIndex: positioned.note.voicingIndex,
+                    xCenter: xCenter,
+                    yCenter: positioned.yCenter,
+                    degree: positioned.note.degree,
+                    midi: positioned.note.midi
                 )
+                rowsForTop.append(row)
+                if !pressed.contains(positioned.note.pitchClass) {
+                    candidates.append(row)
+                }
             }
         }
-        guard let best = candidates.min(by: { a, b in
+        guard !candidates.isEmpty else {
+            return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
+        }
+        let best = candidates.min(by: { a, b in
             if a.xCenter != b.xCenter { return a.xCenter < b.xCenter }
             if a.degree != b.degree { return a.degree < b.degree }
             return a.voicingIndex < b.voicingIndex
-        }) else {
-            return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
+        })!
+        guard let highest = rowsForTop.max(by: { $0.midi < $1.midi }) else {
+            return VoicingBattleHints(nextHintVoicingIndex: best.voicingIndex, topPointer: nil)
         }
-        let topPoint = CGPoint(x: best.xCenter, y: best.yCenter)
+        let topPoint = CGPoint(x: highest.xCenter, y: highest.yCenter)
         return VoicingBattleHints(nextHintVoicingIndex: best.voicingIndex, topPointer: topPoint)
     }
 

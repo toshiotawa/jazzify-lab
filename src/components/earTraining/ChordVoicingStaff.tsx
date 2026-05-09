@@ -853,7 +853,7 @@ interface VoicingBattleHintsResult {
   } | null;
 }
 
-/** 現在小節（measureOffset === 0）のアクティブ・グループの未正解ガイド（次ヒント index と同一音へのマーカー） */
+/** 現在小節（measureOffset === 0）のアクティブ・グループ: 未正解ガイドは左端の未演奏音、マーカーは和音の最高音上 */
 const computeVoicingBattleHints = (
   groups: readonly ParsedVoicingStaffGroup[],
   layout: StaffLayoutMetrics,
@@ -877,12 +877,14 @@ const computeVoicingBattleHints = (
     pitchClass: number;
     xCenter: number;
     degree: number;
+    midi: number;
     staff: StaffNumber;
     staffTopY: number;
     yCenter: number;
   };
 
   const candidates: Candidate[] = [];
+  const rowsForTop: Candidate[] = [];
 
   activeStaves.forEach((staff, staffIndex) => {
     const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
@@ -890,23 +892,31 @@ const computeVoicingBattleHints = (
     const staffNotes = group.notes.filter(note => note.staff === staff);
     const positioned = layoutNotes(staffNotes, staffTopY);
     positioned.forEach(p => {
+      const xCenter = baseX + p.xOffset;
+      const row: Candidate = {
+        voicingIndex: p.note.voicingIndex,
+        pitchClass: p.note.pitchClass,
+        xCenter,
+        degree: p.note.degree,
+        midi: p.note.midi,
+        staff,
+        staffTopY,
+        yCenter: p.yCenter,
+      };
+      rowsForTop.push(row);
       if (!pressed.has(p.note.pitchClass)) {
-        const xCenter = baseX + p.xOffset;
-        candidates.push({
-          voicingIndex: p.note.voicingIndex,
-          pitchClass: p.note.pitchClass,
-          xCenter,
-          degree: p.note.degree,
-          staff,
-          staffTopY,
-          yCenter: p.yCenter,
-        });
+        candidates.push(row);
       }
     });
   });
 
+  let nextHintVoicingIndex: number | null = null;
+
   if (candidates.length === 0) {
-    return { nextHintVoicingIndex: null, topPointer: null };
+    return {
+      nextHintVoicingIndex: null,
+      topPointer: null,
+    };
   }
 
   candidates.sort((a, b) => {
@@ -918,14 +928,31 @@ const computeVoicingBattleHints = (
     }
     return a.voicingIndex - b.voicingIndex;
   });
+
   const nextTarget = candidates[0];
+  nextHintVoicingIndex = nextTarget.voicingIndex;
+
+  const highestMidi = rowsForTop.reduce<Candidate | null>((best, row) => {
+    if (best === null || row.midi > best.midi) {
+      return row;
+    }
+    return best;
+  }, null);
+
+  if (highestMidi === null) {
+    return {
+      nextHintVoicingIndex,
+      topPointer: null,
+    };
+  }
+
   return {
-    nextHintVoicingIndex: nextTarget.voicingIndex,
+    nextHintVoicingIndex,
     topPointer: {
-      staff: nextTarget.staff,
-      staffTopY: nextTarget.staffTopY,
-      xCenter: nextTarget.xCenter,
-      yCenter: nextTarget.yCenter,
+      staff: highestMidi.staff,
+      staffTopY: highestMidi.staffTopY,
+      xCenter: highestMidi.xCenter,
+      yCenter: highestMidi.yCenter,
     },
   };
 };

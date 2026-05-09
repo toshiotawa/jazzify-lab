@@ -8,7 +8,7 @@ const SMUFL_ACCIDENTAL_SHARP = '\uE262';
 const NEXT_TARGET_COLOR = '#f39800';
 
 describe('ChordVoicingStaff', () => {
-  it('アクティブ・グループで未演奏の左端ノートをオレンジ、その同一ノート上に赤い逆三角形を表示する', () => {
+  it('アクティブ・グループで未演奏の左端ノートをマリンゴールド枠、和音の最高音上にマーカーを表示する', () => {
     const correctMap = new Map<string, readonly number[]>();
     const { container } = render(
       <ChordVoicingStaff
@@ -31,8 +31,12 @@ describe('ChordVoicingStaff', () => {
     expect(hintEllipse?.getAttribute('data-voicing-index')).toBe('0');
     expect(hintEllipse?.getAttribute('stroke')).toBe(NEXT_TARGET_COLOR);
 
+    const highestNoteEllipse = container.querySelector('ellipse[data-voicing-index="3"]');
     const pointer = container.querySelector('polygon[data-voicing-top-pointer="true"]');
     expect(pointer?.getAttribute('fill')).toBe(NEXT_TARGET_COLOR);
+    const points = pointer?.getAttribute('points')?.trim() ?? '';
+    const markerTipX = points.split(/\s+/)[0]?.split(',')[0] ?? '';
+    expect(markerTipX).toBe(highestNoteEllipse?.getAttribute('cx'));
   });
 
   it('次小節プレビュー（measureOffset===1）がアクティブでも未正解ガイドと赤マーカーを出さない', () => {
