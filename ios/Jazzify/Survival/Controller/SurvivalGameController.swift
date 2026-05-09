@@ -29,7 +29,8 @@ final class SurvivalGameController: ObservableObject {
     /// リトライ時に `SurvivalSceneContainer` が新しい `SKScene` を `presentScene` するための世代カウンタ。
     @Published private(set) var sceneRestartGeneration: Int = 0
     /// ヒントモード中にピアノ鍵盤をハイライトする対象スロットの index (A=0, B=1)。
-    /// Web 版 `SurvivalGameScreen.getHintSlotIndex` と同様 A↔B を交互に切り替える。
+    /// Web 版 `SurvivalGameScreen.getHintSlotIndex` と同様、有効な A/B を優先し A↔B を交互に切り替える。
+    /// Progression（B のみ有効）では初期値およびトリガ後は B に固定される。
     /// `runtime.hintMode` が false の場合は nil。
     @Published private(set) var currentHintSlotIndex: Int? = 0
     /// MIDI 入力で押下中の鍵（SwiftUI 鍵盤ハイライト用）。タッチ押下は各鍵のローカル状態と合成する。
@@ -76,6 +77,15 @@ final class SurvivalGameController: ObservableObject {
         let valid = resolved.filter { !$0.pitchClasses.isEmpty }
         if !valid.isEmpty { return valid }
         return stage.allowedChords.compactMap { SurvivalChordResolver.resolve(id: $0) }
+    }
+
+    /// ヒント鍵盤ハイライトの初期対象スロット（有効な A/B のうち最も若い index）。
+    /// Progression は B のみ有効のため `0` 固定だとハイライトが永遠に空になる。
+    private static func initialHintSlotIndex(slots: [SurvivalCodeSlot], hintMode: Bool) -> Int? {
+        guard hintMode else { return nil }
+        if slots.indices.contains(0), slots[0].isEnabled { return 0 }
+        if slots.indices.contains(1), slots[1].isEnabled { return 1 }
+        return nil
     }
 
     // MARK: - 内部
@@ -142,8 +152,8 @@ final class SurvivalGameController: ObservableObject {
             slots: slots
         )
 
-        // ヒントモード時のみ鍵盤ハイライト対象スロットを設定 (最初は A 列)
-        self.currentHintSlotIndex = hintMode ? 0 : nil
+        // ヒントモード時のみ鍵盤ハイライト対象スロットを設定（Progression は B のみ有効）
+        self.currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: hintMode)
 
         if isBoss {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
@@ -219,7 +229,7 @@ final class SurvivalGameController: ObservableObject {
             player: player,
             slots: slots
         )
-        currentHintSlotIndex = hintMode ? 0 : nil
+        currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: hintMode)
 
         if isBoss {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
@@ -307,13 +317,18 @@ final class SurvivalGameController: ObservableObject {
     }
 
     /// ヒント対象を「A/B のうち有効かつ反対側」へ切り替える。
-    /// 次の候補も無効/未割当なら現状維持する。
+    /// Progression（B のみ有効）では反対側が無効のため、トリガした側に固定する（Web 版のフォールバック相当）。
     private func advanceHintSlotIndex(triggeredIndex: Int) {
         guard runtime.hintMode else { return }
         guard triggeredIndex == 0 || triggeredIndex == 1 else { return }
-        let next = triggeredIndex == 0 ? 1 : 0
-        guard runtime.slots.indices.contains(next), runtime.slots[next].isEnabled else { return }
-        currentHintSlotIndex = next
+        let preferred = triggeredIndex == 0 ? 1 : 0
+        if runtime.slots.indices.contains(preferred), runtime.slots[preferred].isEnabled {
+            currentHintSlotIndex = preferred
+            return
+        }
+        if runtime.slots.indices.contains(triggeredIndex), runtime.slots[triggeredIndex].isEnabled {
+            currentHintSlotIndex = triggeredIndex
+        }
     }
 
     // MARK: - 入力
