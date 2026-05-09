@@ -497,7 +497,7 @@ enum SurvivalGameEngine {
     /// Web 版と同様に衝撃波を生成する。
     /// - プレイヤー位置から向きベクトル方向へ `meleeAttackForwardOffset` (= 40px) だけオフセットした
     ///   位置を中心として、ベース半径 `meleeShockwaveBaseRadius` (= 80px)、
-    ///   +20/レベルの射程ボーナスを持つ円形衝撃波を作る。
+    ///   +20/レベルの射程ボーナスを持つ円形衝撃波を作る (命中は iOS では正面 180° のみ)。
     /// - ダメージは発射時のプレイヤー座標を基準に適用したいので、
     ///   `colorLevel` で 0 (初撃) / 1..3 (多段) を区別しておく。
     static func createShockwave(
@@ -588,10 +588,10 @@ enum SurvivalGameEngine {
         return hits
     }
 
-    /// 衝撃波 × 敵のヒット判定。Web 版 `newShockwave` 生成直後のループと同じ仕様:
-    /// - 中心座標から敵までの距離と、プレイヤー向きとの内積で `isInFront` を判定
-    /// - 正面は `maxRadius` (= baseRadius + 20 * bRangeBonus)、背後は `baseRadius` を使用
-    /// - ダメージは Web 版と同じく 1 衝撃波につき 1 敵 1 回 (`hitEnemyIds` でデデュープ)
+    /// 衝撃波 × 敵のヒット判定 (iOS: 正面 180° のみ)。
+    /// - プレイヤー中心 → 敵 が向きベクトルと内積 `dot > 0` のときのみヒット (直角・背面は対象外)
+    /// - 距離は衝撃波中心から `maxRadius` (= baseRadius + 20 * bRangeBonus) 以内
+    /// - 1 衝撃波につき 1 敵 1 回 (`hitEnemyIds` でデデュープ)
     /// - ノックバック速度は `150 + bKnockbackBonusLevel * 50`
     /// - 1 発の衝撃波でダメージ計算が完結するため、多段ヒットは呼び出し側で
     ///   `SurvivalPendingShockwave` を積んで時差発火する。
@@ -615,14 +615,14 @@ enum SurvivalGameEngine {
                 let dy = enemy.y - wave.y
                 let distSq = dx * dx + dy * dy
 
-                // isInFront 判定: プレイヤー中心 → 敵 のベクトルと向きの内積
+                // 正面 180°: プレイヤー中心 → 敵 と向きの内積が正のときのみヒット (直角・背面は対象外)
                 let toEnemyX = enemy.x - player.x
                 let toEnemyY = enemy.y - player.y
                 let dot = toEnemyX * dirVec.dx + toEnemyY * dirVec.dy
-                let isInFront = dot > 0
-                let effectiveRange = isInFront ? wave.maxRadius : wave.baseRadius
+                if dot <= 0 { continue }
 
-                if distSq <= effectiveRange * effectiveRange {
+                let maxR = wave.maxRadius
+                if distSq <= maxR * maxR {
                     wave.hitEnemyIds.insert(enemy.id)
                     let scaled = Int(Double(wave.damage) * haisuiMultiplier)
                     let dmg = calculateAttackDamage(baseDamage: scaled, attackerAtk: 0, defenderDef: enemy.stats.def)

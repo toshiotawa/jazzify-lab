@@ -958,19 +958,35 @@ enum SurvivalBossEngine {
         var killedMinions: [(id: UUID, point: CGPoint)] = []
     }
 
+    /// 近接 (衝撃波) のみ: ターゲットがプレイヤー位置からの正面半平面 (`dot > 0`) にあるときだけダメージを通す。
+    /// `nil` のときは従来どおり全方向 (プレイヤー弾用)。
+    struct ForwardFilter: Sendable {
+        let origin: CGPoint
+        let direction: CGVector
+    }
+
     /// プレイヤー弾・衝撃波によるボスダメージ適用。呼び出し側で Controller から呼ぶ。
     /// - Parameter alreadyHitIds: 既に当該攻撃 (弾丸 or 衝撃波) がヒット済みのエンティティ ID 集合。
     ///   含まれているボス / ミニオンには今回はダメージを適用しない (Web 版 `applyPlayerProjectileToBoss` 準拠)。
+    /// - Parameter forwardFilter: 衝撃波のときに渡す。内積 `dot <= 0` のターゲットにはダメージを与えない (正面 180° のみ)。
     @discardableResult
     static func applyPlayerAttack(
         state: inout SurvivalBossBattleState,
         damage: Int,
         atPoint point: CGPoint,
         radius: CGFloat,
-        alreadyHitIds: Set<UUID> = []
+        alreadyHitIds: Set<UUID> = [],
+        forwardFilter: ForwardFilter? = nil
     ) -> PlayerAttackResolution {
         var result = PlayerAttackResolution()
-        if !alreadyHitIds.contains(state.boss.id),
+        var bossInFront = true
+        if let f = forwardFilter {
+            let toX = state.boss.x - f.origin.x
+            let toY = state.boss.y - f.origin.y
+            bossInFront = toX * f.direction.dx + toY * f.direction.dy > 0
+        }
+        if bossInFront,
+           !alreadyHitIds.contains(state.boss.id),
            hypot(point.x - state.boss.x, point.y - state.boss.y) <= (radius + SurvivalConstants.bossHitboxRadius) {
             state.boss.hp = max(0, state.boss.hp - damage)
             result.bossHitDamage = damage
@@ -982,7 +998,14 @@ enum SurvivalBossEngine {
                 state.minions[idx] = minion
                 continue
             }
-            if hypot(point.x - minion.x, point.y - minion.y) <= (radius + SurvivalConstants.bossMinionRadius) {
+            var minionInFront = true
+            if let f = forwardFilter {
+                let toX = minion.x - f.origin.x
+                let toY = minion.y - f.origin.y
+                minionInFront = toX * f.direction.dx + toY * f.direction.dy > 0
+            }
+            if minionInFront,
+               hypot(point.x - minion.x, point.y - minion.y) <= (radius + SurvivalConstants.bossMinionRadius) {
                 minion.hp -= damage
                 result.minionHits.append((id: minion.id, damage: damage, point: CGPoint(x: minion.x, y: minion.y)))
             }

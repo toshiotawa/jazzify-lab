@@ -311,9 +311,9 @@ public struct SurvivalShockwave: Identifiable, Sendable {
     public var y: CGFloat
     public var radius: CGFloat
     public var maxRadius: CGFloat
-    /// Web 版 `baseRange` (= 80)。プレイヤーの後方に居る敵はこの距離しか当たらない。
+    /// Web 版 `baseRange` (= 80)。距離計算・拡大演出用。ヒット可否は正面 180° (`dot > 0`) で決まる。
     public var baseRadius: CGFloat
-    /// 衝撃波を発射した時点でのプレイヤー向き (isInFront 判定用)
+    /// 衝撃波を発射した時点でのプレイヤー向き (正面半平面判定用)
     public var direction: SurvivalDirection8
     public var createdAt: TimeInterval
     public var lifetime: TimeInterval

@@ -976,12 +976,20 @@ final class SurvivalGameController: ObservableObject {
         // `wave.hitEnemyIds` で「この衝撃波で既にヒット済み」なボス/ミニオンをスキップし、多段ヒットを防ぐ。
         for idx in runtime.shockwaves.indices {
             var wave = runtime.shockwaves[idx]
+            let dirVec = wave.direction.vector
+            let originX = wave.x - dirVec.dx * SurvivalConstants.meleeAttackForwardOffset
+            let originY = wave.y - dirVec.dy * SurvivalConstants.meleeAttackForwardOffset
+            let meleeForwardFilter = SurvivalBossEngine.ForwardFilter(
+                origin: CGPoint(x: originX, y: originY),
+                direction: dirVec
+            )
             let res = SurvivalBossEngine.applyPlayerAttack(
                 state: &boss,
                 damage: Int(Double(wave.damage) * 0.6),
                 atPoint: CGPoint(x: wave.x, y: wave.y),
                 radius: wave.maxRadius,
-                alreadyHitIds: wave.hitEnemyIds
+                alreadyHitIds: wave.hitEnemyIds,
+                forwardFilter: meleeForwardFilter
             )
             if res.bossHitDamage > 0, let p = res.bossHitPoint {
                 runtime.floatingTexts.append(
