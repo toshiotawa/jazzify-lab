@@ -539,6 +539,27 @@ struct ChordVoicingStaffView: View {
 
 // MARK: - Multi-group staff (Web `ChordVoicingStaff` voicingGroups)
 
+/// Web `ChordVoicingCompletionPulse` と同等の完成エフェクトワンショット指示。
+struct ChordVoicingCompletionPulse: Equatable {
+    enum Kind: String, Equatable {
+        case voicingPartial
+        case harmonyComplete
+    }
+    let groupId: UUID
+    let kind: Kind
+    let eventKey: Int
+}
+
+/// アクティブコード名ラベルの Global 座標フレーム。Controller がエネルギー演出の起点として利用する。
+struct ChordVoicingActiveChordLabelFrameKey: PreferenceKey {
+    static var defaultValue: CGRect? = nil
+    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+        if let next = nextValue() {
+            value = next
+        }
+    }
+}
+
 /// Web `ChordVoicingStaff` の複数グループ（2 小節・密集・正解色）を Canvas で近似描画する。
 struct ChordVoicingStaffGroupsView: View {
     let groups: [EarTrainingChordVoicingStaffLayout.GroupInput]
@@ -546,13 +567,30 @@ struct ChordVoicingStaffGroupsView: View {
     let keyFifths: Int
     let activeGroupId: UUID?
     let correctPitchClassesByGroupId: [UUID: Set<Int>]
+    let completionPulse: ChordVoicingCompletionPulse?
 
-    private static let notationColor = Color.white
-    private static let correctColor = Color(red: 0.13, green: 0.77, blue: 0.37)
+    init(
+        groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
+        denseCurrentMeasureLayout: Bool,
+        keyFifths: Int,
+        activeGroupId: UUID?,
+        correctPitchClassesByGroupId: [UUID: Set<Int>],
+        completionPulse: ChordVoicingCompletionPulse? = nil
+    ) {
+        self.groups = groups
+        self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
+        self.keyFifths = keyFifths
+        self.activeGroupId = activeGroupId
+        self.correctPitchClassesByGroupId = correctPitchClassesByGroupId
+        self.completionPulse = completionPulse
+    }
+
+    static let notationColor = Color.white
+    static let correctColor = Color(red: 0.13, green: 0.77, blue: 0.37)
     /// Web `NEXT_TARGET_COLOR` / `TOP_POINTER_COLOR`（#f39800 マリンゴールド）
-    private static let nextTargetColor = Color(red: 243 / 255, green: 152 / 255, blue: 0 / 255)
-    private static let topPointerColor = nextTargetColor
-    private static let activeLabelColor = Color(red: 0.98, green: 0.8, blue: 0.09)
+    static let nextTargetColor = Color(red: 243 / 255, green: 152 / 255, blue: 0 / 255)
+    static let topPointerColor = nextTargetColor
+    static let activeLabelColor = Color(red: 0.98, green: 0.8, blue: 0.09)
     private static let trebleReferenceDegree = 4 * 7 + 6
     private static let bassReferenceDegree = 3 * 7 + 1
 
@@ -560,21 +598,76 @@ struct ChordVoicingStaffGroupsView: View {
         GeometryReader { proxy in
             let w = max(1, proxy.size.width)
             let h = max(1, proxy.size.height)
-            Canvas { context, size in
-                Self.drawAll(
-                    context: &context,
-                    size: size,
-                    groups: groups,
-                    dense: denseCurrentMeasureLayout,
-                    keyFifths: keyFifths,
-                    activeGroupId: activeGroupId,
-                    correctByGroup: correctPitchClassesByGroupId
-                )
+            let canvasSize = CGSize(width: w, height: h)
+            let overlay = Self.computeOverlayLayout(
+                size: canvasSize,
+                groups: groups,
+                dense: denseCurrentMeasureLayout,
+                keyFifths: keyFifths,
+                correctByGroup: correctPitchClassesByGroupId
+            )
+            let activeLabelGlobalFrame = activeLabelGlobalRect(proxy: proxy, overlay: overlay)
+            ZStack(alignment: .topLeading) {
+                Canvas { context, size in
+                    Self.drawAll(
+                        context: &context,
+                        size: size,
+                        groups: groups,
+                        dense: denseCurrentMeasureLayout,
+                        keyFifths: keyFifths,
+                        activeGroupId: activeGroupId,
+                        correctByGroup: correctPitchClassesByGroupId
+                    )
+                }
+                .frame(width: w, height: h)
+
+                if let pulse = effectivePulse() {
+                    PulseOverlayView(
+                        pulse: pulse,
+                        overlay: overlay,
+                        groupsByMeasureZero: measureZeroGroupIds(),
+                        canvasSize: canvasSize
+                    )
+                    .id(pulse.eventKey)
+                }
             }
-            .frame(width: w, height: h)
+            .preference(key: ChordVoicingActiveChordLabelFrameKey.self, value: activeLabelGlobalFrame)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Chord voicing staff"))
+    }
+
+    private func activeLabelGlobalRect(
+        proxy: GeometryProxy,
+        overlay: OverlayLayout
+    ) -> CGRect? {
+        guard let aid = activeGroupId, let center = overlay.chordLabelCenters[aid] else {
+            return nil
+        }
+        let globalFrame = proxy.frame(in: .global)
+        let centerX = globalFrame.minX + center.x
+        let centerY = globalFrame.minY + center.y
+        let labelSize = CGSize(width: 64, height: 28)
+        return CGRect(
+            x: centerX - labelSize.width / 2,
+            y: centerY - labelSize.height / 2,
+            width: labelSize.width,
+            height: labelSize.height
+        )
+    }
+
+    private func effectivePulse() -> ChordVoicingCompletionPulse? {
+        guard let pulse = completionPulse else { return nil }
+        let exists = groups.contains { $0.id == pulse.groupId && $0.measureOffset == 0 }
+        return exists ? pulse : nil
+    }
+
+    private func measureZeroGroupIds() -> Set<UUID> {
+        var set = Set<UUID>()
+        for g in groups where g.measureOffset == 0 {
+            set.insert(g.id)
+        }
+        return set
     }
 
     private struct StaffLayoutMetrics {
@@ -1363,5 +1456,196 @@ struct ChordVoicingStaffGroupsView: View {
 
     private static func groupsAccidentalString(for alter: Int) -> String {
         smuflAccidentalGlyph(for: alter)
+    }
+
+    // MARK: - Completion pulse overlay layout
+
+    /// 完成エフェクト用に各種位置情報を返す（Canvas 描画と同じ計算を再利用）。
+    struct OverlayLayout {
+        let chordLabelCenters: [UUID: CGPoint]
+        let currentMeasureFrame: CGRect?
+        /// 各グループ内の正解済み音符の幾何情報（オーバーレイ用ハロー描画に使用）
+        let correctNotesByGroupId: [UUID: [PulseNoteInfo]]
+    }
+
+    struct PulseNoteInfo: Equatable, Identifiable {
+        let id: String
+        let staff: Int
+        let center: CGPoint
+        let size: CGSize
+    }
+
+    static func computeOverlayLayout(
+        size: CGSize,
+        groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
+        dense: Bool,
+        keyFifths: Int,
+        correctByGroup: [UUID: Set<Int>]
+    ) -> OverlayLayout {
+        guard !groups.isEmpty, size.width > 0, size.height > 0 else {
+            return OverlayLayout(
+                chordLabelCenters: [:],
+                currentMeasureFrame: nil,
+                correctNotesByGroupId: [:]
+            )
+        }
+        let w = size.width
+        let layout = staffLayoutMetrics(width: w, keyFifths: keyFifths, wideFirstMeasure: dense)
+        let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
+        let hasRest = parsedGroups.contains { $0.group.isRest }
+        let activeStaves = hasRest ? [1, 2] : [1, 2].filter { st in
+            parsedGroups.contains { $0.notes.contains { $0.staff == st } }
+        }
+        let geo = computeStaffSystemGeometry(size: size, width: w, activeStaves: activeStaves)
+
+        var labelCenters: [UUID: CGPoint] = [:]
+        for item in parsedGroups where !item.group.chordName.isEmpty {
+            let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
+            labelCenters[item.group.id] = CGPoint(x: baseX, y: geo.labelCenterY)
+        }
+
+        var measureFrame: CGRect? = nil
+        let hasCurrentMeasure = parsedGroups.contains { $0.group.measureOffset == 0 }
+        if hasCurrentMeasure && !activeStaves.isEmpty {
+            let leftX = w * (24 / 720)
+            let staffBlockHeight = CGFloat(activeStaves.count - 1) * (geo.staffSpacing * 4 + geo.staffGap) + geo.staffSpacing * 4
+            measureFrame = CGRect(
+                x: leftX,
+                y: geo.firstTopY,
+                width: layout.measureDividerX - leftX,
+                height: staffBlockHeight
+            )
+        }
+
+        var correctNotes: [UUID: [PulseNoteInfo]] = [:]
+        for (staffIndex, staff) in activeStaves.enumerated() {
+            let topY = geo.firstTopY + CGFloat(staffIndex) * (geo.staffSpacing * 4 + geo.staffGap)
+            for item in parsedGroups {
+                guard !item.group.isRest else { continue }
+                let correctSet = correctByGroup[item.group.id] ?? []
+                guard !correctSet.isEmpty else { continue }
+                let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
+                let staffNotes = sortStaffNotesForVoicing(item.notes.filter { $0.staff == staff })
+                for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: geo.staffSpacing) {
+                    guard correctSet.contains(positioned.note.pitchClass) else { continue }
+                    let xCenter = baseX + positioned.xOffset
+                    let info = PulseNoteInfo(
+                        id: "\(staff)-\(positioned.note.voicingIndex)",
+                        staff: staff,
+                        center: CGPoint(x: xCenter, y: positioned.yCenter),
+                        size: CGSize(width: geo.staffSpacing * 1.45, height: geo.staffSpacing * 0.86)
+                    )
+                    correctNotes[item.group.id, default: []].append(info)
+                }
+            }
+        }
+
+        return OverlayLayout(
+            chordLabelCenters: labelCenters,
+            currentMeasureFrame: measureFrame,
+            correctNotesByGroupId: correctNotes
+        )
+    }
+}
+
+/// 完成エフェクトオーバーレイ。`.id(eventKey)` で再マウントし、各サブビューの onAppear からアニメーションを開始する。
+private struct PulseOverlayView: View {
+    let pulse: ChordVoicingCompletionPulse
+    let overlay: ChordVoicingStaffGroupsView.OverlayLayout
+    let groupsByMeasureZero: Set<UUID>
+    let canvasSize: CGSize
+
+    private static let frameDuration: TimeInterval = 0.28
+    private static let labelDuration: TimeInterval = 0.28
+    private static let haloCompleteDuration: TimeInterval = 0.28
+    private static let haloPartialDuration: TimeInterval = 0.22
+    private static let pulseGreen = Color(red: 0.13, green: 0.77, blue: 0.37)
+    private static let haloGreen = Color(red: 0.36, green: 0.86, blue: 0.55)
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if pulse.kind == .harmonyComplete, let frame = overlay.currentMeasureFrame {
+                FadeOutView(duration: Self.frameDuration, initialOpacity: 0.9) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Self.pulseGreen, lineWidth: 3)
+                        .frame(width: frame.width + 8, height: frame.height + 16)
+                        .position(x: frame.midX, y: frame.midY)
+                }
+                .allowsHitTesting(false)
+            }
+
+            if pulse.kind == .harmonyComplete, let center = overlay.chordLabelCenters[pulse.groupId] {
+                FadeOutView(duration: Self.labelDuration, initialOpacity: 0.85) {
+                    Capsule()
+                        .fill(Self.pulseGreen)
+                        .frame(width: 64, height: 28)
+                        .blur(radius: 9)
+                        .position(x: center.x, y: center.y)
+                }
+                .allowsHitTesting(false)
+            }
+
+            ForEach(haloItems(), id: \.compositeId) { item in
+                FadeOutView(
+                    duration: pulse.kind == .harmonyComplete ? Self.haloCompleteDuration : Self.haloPartialDuration,
+                    initialOpacity: 0.65
+                ) {
+                    Ellipse()
+                        .fill(Self.haloGreen)
+                        .frame(width: item.note.size.width * 1.9, height: item.note.size.height * 2.4)
+                        .blur(radius: 4)
+                        .position(x: item.note.center.x, y: item.note.center.y)
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .frame(width: canvasSize.width, height: canvasSize.height)
+        .allowsHitTesting(false)
+    }
+
+    private struct HaloItem {
+        let groupId: UUID
+        let note: ChordVoicingStaffGroupsView.PulseNoteInfo
+        var compositeId: String { "\(groupId.uuidString)-\(note.id)" }
+    }
+
+    private func haloItems() -> [HaloItem] {
+        let targetGroups: Set<UUID> = pulse.kind == .harmonyComplete
+            ? groupsByMeasureZero
+            : [pulse.groupId]
+        var items: [HaloItem] = []
+        for gid in targetGroups {
+            guard let notes = overlay.correctNotesByGroupId[gid] else { continue }
+            for note in notes {
+                items.append(HaloItem(groupId: gid, note: note))
+            }
+        }
+        return items
+    }
+}
+
+/// onAppear からの片道フェードアウト。タイマーは SwiftUI 標準アニメーションだけを使う。
+private struct FadeOutView<Content: View>: View {
+    let duration: TimeInterval
+    let initialOpacity: Double
+    @ViewBuilder let content: () -> Content
+    @State private var opacity: Double
+
+    init(duration: TimeInterval, initialOpacity: Double = 0.9, @ViewBuilder content: @escaping () -> Content) {
+        self.duration = duration
+        self.initialOpacity = initialOpacity
+        self.content = content
+        self._opacity = State(initialValue: initialOpacity)
+    }
+
+    var body: some View {
+        content()
+            .opacity(opacity)
+            .onAppear {
+                opacity = initialOpacity
+                withAnimation(.easeOut(duration: duration)) {
+                    opacity = 0
+                }
+            }
     }
 }

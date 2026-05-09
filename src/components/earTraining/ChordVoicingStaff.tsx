@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import './bravuraClefFont.css';
+import './chordVoicingStaffEffects.css';
 
 export interface ChordVoicingStaffGroup {
   id: string;
@@ -15,6 +16,12 @@ export interface ChordVoicingStaffGroup {
   isRest?: boolean;
 }
 
+export interface ChordVoicingCompletionPulse {
+  groupId: string;
+  kind: 'voicingPartial' | 'harmonyComplete';
+  eventKey: number;
+}
+
 interface ChordVoicingStaffProps {
   voicing?: readonly string[];
   voicingStaves?: readonly number[] | null;
@@ -26,6 +33,8 @@ interface ChordVoicingStaffProps {
   correctPitchClassesByGroupId?: ReadonlyMap<string, readonly number[]>;
   /** 親が算出した密集レイアウト。未指定時は measureOffset===0 のグループの合計音数で推論 */
   denseCurrentMeasureLayout?: boolean;
+  /** 完成エフェクトのワンショット指示。groupId が現在小節（measureOffset===0）に存在しない場合は無視 */
+  completionPulse?: ChordVoicingCompletionPulse | null;
   className?: string;
 }
 
@@ -957,6 +966,60 @@ const computeVoicingBattleHints = (
   };
 };
 
+/** ハーモニー完成 / 部分完成の発光オーバーレイ。eventKey で再マウントして CSS アニメーションを再起動する */
+const PulseOverlayLayer: React.FC<{
+  pulse: ChordVoicingCompletionPulse;
+  groups: readonly ParsedVoicingStaffGroup[];
+  correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>;
+  layout: StaffLayoutMetrics;
+  activeStaves: readonly StaffNumber[];
+  firstStaffTopY: number;
+  pulseGroupIds: ReadonlySet<string>;
+}> = ({ pulse, groups, correctPitchClassSets, layout, activeStaves, firstStaffTopY, pulseGroupIds }) => {
+  const haloClass = pulse.kind === 'harmonyComplete'
+    ? 'voicing-halo-pulse-complete'
+    : 'voicing-halo-pulse-partial';
+  const halos: React.ReactNode[] = [];
+  const noteWidth = SP * 1.45;
+  const noteHeight = SP * 0.86;
+  activeStaves.forEach((staff, staffIndex) => {
+    const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
+    groups.forEach(group => {
+      if (group.measureOffset !== 0 || !pulseGroupIds.has(group.id)) {
+        return;
+      }
+      const correctSet = correctPitchClassSets.get(group.id);
+      if (!correctSet || correctSet.size === 0) {
+        return;
+      }
+      const baseX = getVoicingGroupBaseX(group, layout);
+      const positioned = layoutNotes(group.notes.filter(n => n.staff === staff), staffTopY);
+      positioned.forEach(p => {
+        if (!correctSet.has(p.note.pitchClass)) {
+          return;
+        }
+        const xCenter = baseX + p.xOffset;
+        halos.push(
+          <ellipse
+            key={`halo-${group.id}-${staff}-${p.note.voicingIndex}`}
+            className={haloClass}
+            cx={xCenter}
+            cy={p.yCenter}
+            rx={noteWidth * 0.9}
+            ry={noteHeight * 1.25}
+            fill="#22c55e"
+            stroke="#bbf7d0"
+            strokeWidth={2}
+            opacity={0.9}
+            transform={`rotate(-18 ${xCenter} ${p.yCenter})`}
+          />,
+        );
+      });
+    });
+  });
+  return <g aria-hidden>{halos}</g>;
+};
+
 const TopNotePointer: React.FC<{
   xCenter: number;
   yCenter: number;
@@ -1067,6 +1130,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   activeGroupId,
   correctPitchClassesByGroupId,
   denseCurrentMeasureLayout,
+  completionPulse,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
@@ -1219,6 +1283,47 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       systemLayout.firstStaffTopY,
     ],
   );
+
+  /** completionPulse が現在小節（measureOffset===0）に有効な間だけ採用する。小節が進めば自然に消える。 */
+  const activePulse = useMemo<ChordVoicingCompletionPulse | null>(() => {
+    if (!completionPulse) {
+      return null;
+    }
+    const target = renderState.groups.find(group => (
+      group.id === completionPulse.groupId && group.measureOffset === 0
+    ));
+    return target ? completionPulse : null;
+  }, [completionPulse, renderState.groups]);
+
+  const pulseGroupIds = useMemo<ReadonlySet<string> | null>(() => {
+    if (!activePulse) {
+      return null;
+    }
+    if (activePulse.kind === 'harmonyComplete') {
+      const set = new Set<string>();
+      renderState.groups.forEach(group => {
+        if (group.measureOffset === 0) {
+          set.add(group.id);
+        }
+      });
+      return set;
+    }
+    return new Set<string>([activePulse.groupId]);
+  }, [activePulse, renderState.groups]);
+
+  const measureFramePulseGeometry = useMemo(() => {
+    if (!activePulse || activePulse.kind !== 'harmonyComplete' || activeStaves.length === 0) {
+      return null;
+    }
+    const padX = SP * 0.6;
+    const padY = SP * 1.2;
+    const x = STAFF_LINE_LEFT_X - padX;
+    const y = systemLayout.firstStaffTopY - padY;
+    const width = layout.measureDividerX - STAFF_LINE_LEFT_X + padX;
+    const height = (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT + padY * 2;
+    return { x, y, width, height };
+  }, [activePulse, activeStaves.length, layout.measureDividerX, systemLayout.firstStaffTopY]);
+
   const svgHeight = systemLayout.svgHeight;
 
   return (
@@ -1235,23 +1340,43 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           role="img"
           viewBox={`0 0 ${STAFF_WIDTH} ${svgHeight}`}
         >
-          {systemLayout.chordLabels.map(label => (
-            <text
-              key={`${label.groupId}-label`}
-              data-voicing-group-active={label.fill === ACTIVE_CHORD_LABEL_COLOR ? 'true' : 'false'}
-              data-voicing-group-id={label.groupId}
-              x={label.x}
-              y={systemLayout.labelCenterY}
-              dominantBaseline="central"
-              fill={label.fill}
-              fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
-              fontSize={label.fontSize}
-              fontWeight="800"
-              textAnchor="middle"
-            >
-              {label.chordName}
-            </text>
-          ))}
+          {activePulse?.kind === 'harmonyComplete' && measureFramePulseGeometry ? (
+            <rect
+              key={`measure-frame-pulse-${activePulse.eventKey}`}
+              className="voicing-measure-frame-pulse"
+              x={measureFramePulseGeometry.x}
+              y={measureFramePulseGeometry.y}
+              width={measureFramePulseGeometry.width}
+              height={measureFramePulseGeometry.height}
+              rx={SP * 0.6}
+              ry={SP * 0.6}
+              fill="none"
+              stroke="#22c55e"
+              strokeWidth={3}
+              pointerEvents="none"
+            />
+          ) : null}
+          {systemLayout.chordLabels.map(label => {
+            const shouldGlow = activePulse?.kind === 'harmonyComplete' && label.groupId === activePulse.groupId;
+            return (
+              <text
+                key={shouldGlow ? `${label.groupId}-label-${activePulse?.eventKey}` : `${label.groupId}-label`}
+                className={shouldGlow ? 'voicing-chord-name-glow' : undefined}
+                data-voicing-group-active={label.fill === ACTIVE_CHORD_LABEL_COLOR ? 'true' : 'false'}
+                data-voicing-group-id={label.groupId}
+                x={label.x}
+                y={systemLayout.labelCenterY}
+                dominantBaseline="central"
+                fill={label.fill}
+                fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
+                fontSize={label.fontSize}
+                fontWeight="800"
+                textAnchor="middle"
+              >
+                {label.chordName}
+              </text>
+            );
+          })}
           {activeStaves.map((staff, index) => (
             <RenderedStaff
               key={staff}
@@ -1265,6 +1390,19 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               nextHintVoicingIndex={battleHints.nextHintVoicingIndex}
             />
           ))}
+          {activePulse && pulseGroupIds ? (
+            <g key={`pulse-overlay-${activePulse.eventKey}`}>
+              <PulseOverlayLayer
+                pulse={activePulse}
+                groups={renderState.groups}
+                correctPitchClassSets={correctPitchClassSets}
+                layout={layout}
+                activeStaves={activeStaves}
+                firstStaffTopY={systemLayout.firstStaffTopY}
+                pulseGroupIds={pulseGroupIds}
+              />
+            </g>
+          ) : null}
           {battleHints.topPointer ? (
             <TopNotePointer
               xCenter={battleHints.topPointer.xCenter}

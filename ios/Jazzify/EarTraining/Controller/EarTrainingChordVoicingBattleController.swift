@@ -40,6 +40,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
+    /// 完成エフェクトのワンショット指示。コード名 → 自キャラのエネルギー演出と五線譜側の発光に利用。
+    @Published private(set) var completionPulse: ChordVoicingCompletionPulse?
+    /// 五線譜オーバーレイから受け取るアクティブコード名ラベルの Global 座標フレーム。
+    var activeChordLabelGlobalFrame: CGRect?
+    /// SpriteKit シーンの Global 座標フレーム。SwiftUI 座標 → シーン座標変換に利用。
+    var battleSceneGlobalFrame: CGRect?
+    private var completionPulseEventKey: Int = 0
     /// 練習モード時の鍵盤ヒント。`activeChord` の voicing を MIDI に展開し、
     /// 押下済み PC を含むノートは `.completed`、それ以外は `.pending`。
     /// `activeChord` が既に完成済み（`completedChordIds` に含まれる）のときは
@@ -330,6 +337,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         if let row = harmonyRow,
            !EarTrainingChordVoicingEngine.isHarmonySegmentFullyCompleted(attempt: result.attempt, row: row) {
             attempt = result.attempt
+            triggerCompletionPulse(groupId: chord.id, kind: .voicingPartial)
             _ = triggerBattleEffect(kind: .voicingCast, label: nil, damage: nil, phraseNoteCount: nil)
             syncChordTimeline(scheduleNext: true)
             return
@@ -347,7 +355,15 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
 
         statusText = copy.chordCompleted(chordName: chord.chordName)
-        let effectId = triggerBattleEffect(kind: .correct, label: nil, damage: result.enemyDamage, phraseNoteCount: nil)
+        triggerCompletionPulse(groupId: chord.id, kind: .harmonyComplete)
+        let correctOrigin = chordLabelOriginInScene()
+        let effectId = triggerBattleEffect(
+            kind: .correct,
+            label: nil,
+            damage: result.enemyDamage,
+            phraseNoteCount: nil,
+            originPoint: correctOrigin
+        )
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
             guard let self else { return }
             let nextEnemyHp = max(0, self.enemyHp - result.enemyDamage)
@@ -394,11 +410,16 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         lastRank = rank
         let completionDamage = EarTrainingEngine.completionDamage(rank: rank, damage: damageConfig)
         let totalVoicingNotes = (phrase.chords ?? []).reduce(0) { $0 + ($1.voicing?.count ?? 0) }
+        if let activeId = activeChord?.id {
+            triggerCompletionPulse(groupId: activeId, kind: .harmonyComplete)
+        }
+        let completeOrigin = chordLabelOriginInScene()
         let effectId = triggerBattleEffect(
             kind: .complete,
             label: completionDisplayRank(rank: rank, phrase: phrase),
             damage: completionDamage,
-            phraseNoteCount: totalVoicingNotes
+            phraseNoteCount: totalVoicingNotes,
+            originPoint: completeOrigin
         )
         let willStageClear = enemyHp - completionDamage <= 0
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
@@ -768,7 +789,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         kind: EarTrainingBattleEffectKind,
         label: String?,
         damage: Int?,
-        phraseNoteCount: Int?
+        phraseNoteCount: Int?,
+        originPoint: CGPoint? = nil
     ) -> Int {
         battleEffectIdCounter += 1
         let id = battleEffectIdCounter
@@ -777,7 +799,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             kind: kind,
             label: label,
             damage: damage,
-            phraseNoteCount: phraseNoteCount
+            phraseNoteCount: phraseNoteCount,
+            originPoint: originPoint
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
@@ -796,6 +819,32 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     private func registerBattleEffectImpact(effectId: Int, handler: @escaping () -> Void) {
         pendingImpactHandlers[effectId] = handler
+    }
+
+    private func triggerCompletionPulse(groupId: UUID, kind: ChordVoicingCompletionPulse.Kind) {
+        completionPulseEventKey += 1
+        completionPulse = ChordVoicingCompletionPulse(
+            groupId: groupId,
+            kind: kind,
+            eventKey: completionPulseEventKey
+        )
+    }
+
+    /// アクティブコード名の Global 座標フレーム中心 → SpriteKit シーン座標へ変換する。
+    /// SwiftUI/UIKit の Y 軸（top-down）と SKScene の Y 軸（bottom-up）の差を補正する。
+    private func chordLabelOriginInScene() -> CGPoint? {
+        guard let labelFrame = activeChordLabelGlobalFrame, let sceneFrame = battleSceneGlobalFrame else {
+            return nil
+        }
+        guard sceneFrame.height > 0 else { return nil }
+        let centerX = labelFrame.midX - sceneFrame.minX
+        let topDownY = labelFrame.midY - sceneFrame.minY
+        // SKScene 既定座標は bottomLeft origin。`scaleMode = .resizeFill` のため scene.size = view.bounds.size。
+        let sceneY = sceneFrame.height - topDownY
+        if !centerX.isFinite || !sceneY.isFinite {
+            return nil
+        }
+        return CGPoint(x: centerX, y: sceneY)
     }
 
     private static func effectDurationMs(

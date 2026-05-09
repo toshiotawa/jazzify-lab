@@ -4,6 +4,7 @@ import EarTrainingPhaserGame from './EarTrainingPhaserGame';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
 import ChordVoicingStaff, {
   CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD,
+  type ChordVoicingCompletionPulse,
   type ChordVoicingStaffGroup,
 } from './ChordVoicingStaff';
 import type {
@@ -19,6 +20,7 @@ import type { SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import type {
   EarTrainingBattleEffectCommand,
   EarTrainingBattleEffectKind,
+  EarTrainingBattleEffectOriginPoint,
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
@@ -242,10 +244,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
   const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
+  const [completionPulse, setCompletionPulse] = useState<ChordVoicingCompletionPulse | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
+  const phaserContainerRef = useRef<HTMLDivElement | null>(null);
+  const staffOverlayRef = useRef<HTMLDivElement | null>(null);
+  const completionPulseEventKeyRef = useRef(0);
   const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
   const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
@@ -369,16 +375,57 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     label?: string,
     damage?: number,
     phraseNoteCount?: number,
+    originPoint?: EarTrainingBattleEffectOriginPoint,
   ): number => {
     clearBattleEffectTimers();
     battleEffectIdRef.current += 1;
     const effectId = battleEffectIdRef.current;
-    setBattleEffectCommand({ id: effectId, kind, label, damage, phraseNoteCount });
+    setBattleEffectCommand({ id: effectId, kind, label, damage, phraseNoteCount, originPoint });
     battleEffectClearTimerRef.current = setTimeout(() => {
       setBattleEffectCommand(current => (current?.id === effectId ? null : current));
     }, BATTLE_EFFECT_DURATION_MS);
     return effectId;
   }, [clearBattleEffectTimers]);
+
+  /** アクティブなコード名ラベルの中心座標を Phaser シーン座標で返す。Phaser.Scale.RESIZE のためコンテナと等倍。 */
+  const computeChordLabelOriginPoint = useCallback((
+    groupId: string | null | undefined,
+  ): EarTrainingBattleEffectOriginPoint | undefined => {
+    if (!groupId) {
+      return undefined;
+    }
+    const overlay = staffOverlayRef.current;
+    const container = phaserContainerRef.current;
+    if (!overlay || !container) {
+      return undefined;
+    }
+    const labelEl = overlay.querySelector(
+      `text[data-voicing-group-id="${groupId}"][data-voicing-group-active="true"]`,
+    );
+    if (!labelEl) {
+      return undefined;
+    }
+    const labelRect = labelEl.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const x = labelRect.left + labelRect.width / 2 - containerRect.left;
+    const y = labelRect.top + labelRect.height / 2 - containerRect.top;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return undefined;
+    }
+    return { x, y };
+  }, []);
+
+  const triggerCompletionPulse = useCallback((
+    groupId: string,
+    kind: 'voicingPartial' | 'harmonyComplete',
+  ) => {
+    completionPulseEventKeyRef.current += 1;
+    setCompletionPulse({
+      groupId,
+      kind,
+      eventKey: completionPulseEventKeyRef.current,
+    });
+  }, []);
 
   const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
     pendingImpactHandlersRef.current.set(effectId, handler);
@@ -896,7 +943,18 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     });
     const rank = calculateEarTrainingRank(missMap, rankRule);
     const completionDamage = getCompletionDamage(rank, activeDamageConfig);
-    const effectId = triggerBattleEffect('complete', rank, completionDamage, totalVoicingNotes);
+    const completionOriginGroupId = activeChordRef.current?.id ?? null;
+    if (completionOriginGroupId) {
+      triggerCompletionPulse(completionOriginGroupId, 'harmonyComplete');
+    }
+    const completionOriginPoint = computeChordLabelOriginPoint(completionOriginGroupId);
+    const effectId = triggerBattleEffect(
+      'complete',
+      rank,
+      completionDamage,
+      totalVoicingNotes,
+      completionOriginPoint,
+    );
     const willStageClear = enemyHpRef.current - completionDamage <= 0;
     registerBattleEffectImpact(effectId, () => {
       const nextEnemyHp = Math.max(0, enemyHpRef.current - completionDamage);
@@ -921,11 +979,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     activeDamageConfig,
     clearChordSyncTimer,
     clearFailTimer,
+    computeChordLabelOriginPoint,
     finishStageClear,
     rankRule,
     registerBattleEffectImpact,
     transitionToNextPhrase,
     triggerBattleEffect,
+    triggerCompletionPulse,
   ]);
 
   const handleNoteInput = useCallback((note: number) => {
@@ -969,6 +1029,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
     const harmonyRow = getHarmonyRowForChordId(phrase, currentChord.id);
     if (harmonyRow !== null && !isHarmonySegmentFullyCompleted(result.attempt, harmonyRow)) {
+      triggerCompletionPulse(currentChord.id, 'voicingPartial');
       triggerBattleEffect('voicingCast');
       syncAudioTimelineRef.current();
       return;
@@ -984,7 +1045,15 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
 
     setStatusText(copy.chordCompleted(currentChord.chord_name));
-    const correctEffectId = triggerBattleEffect('correct', undefined, result.enemyDamage);
+    triggerCompletionPulse(currentChord.id, 'harmonyComplete');
+    const correctOriginPoint = computeChordLabelOriginPoint(currentChord.id);
+    const correctEffectId = triggerBattleEffect(
+      'correct',
+      undefined,
+      result.enemyDamage,
+      undefined,
+      correctOriginPoint,
+    );
     registerBattleEffectImpact(correctEffectId, () => {
       const nextEnemyHp = Math.max(0, enemyHpRef.current - result.enemyDamage);
       setEnemyHp(nextEnemyHp);
@@ -1015,6 +1084,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     syncAudioTimelineRef.current();
   }, [
     activeDamageConfig,
+    computeChordLabelOriginPoint,
     copy,
     finishGameOver,
     finishStageClear,
@@ -1024,6 +1094,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     rankRule,
     registerBattleEffectImpact,
     triggerBattleEffect,
+    triggerCompletionPulse,
     triggerFeedback,
   ]);
 
@@ -1408,7 +1479,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     )}>
       <audio ref={audioRef} onEnded={handleAudioEnded} onTimeUpdate={handleAudioTimeUpdate} preload="auto" />
 
-      <div className={cn('relative h-full w-full', showLobbyControls ? 'z-30' : 'z-0')}>
+      <div
+        ref={phaserContainerRef}
+        className={cn('relative h-full w-full', showLobbyControls ? 'z-30' : 'z-0')}
+      >
         <EarTrainingPhaserGame
           ref={phaserGameRef}
           snapshot={battleSnapshot}
@@ -1419,10 +1493,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       </div>
 
       {staffVoicingGroups.length > 0 && (
-        <div className={cn(
-          'pointer-events-none absolute left-1/2 top-[42%] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2',
-          showLobbyControls ? 'z-0' : 'z-10',
-        )}>
+        <div
+          ref={staffOverlayRef}
+          className={cn(
+            'pointer-events-none absolute left-1/2 top-[42%] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2',
+            showLobbyControls ? 'z-0' : 'z-10',
+          )}
+        >
           <ChordVoicingStaff
             chordName={activeChord?.chord_name}
             voicingGroups={staffVoicingGroups}
@@ -1430,6 +1507,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
             keyFifths={currentPhrase?.key_fifths ?? stage.key_fifths ?? 0}
+            completionPulse={completionPulse}
           />
         </div>
       )}

@@ -1135,6 +1135,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
     const anchors = this.getBattleAnchors(width, height);
+    if (command.originPoint) {
+      this.playEnergyToPlayer(command.originPoint.x, command.originPoint.y, anchors);
+    }
     const fireball = this.createEffectSprite('fireball', anchors.player.x + 44, anchors.player.castY, 78);
     fireball.setAngle(-24);
     const glow = this.add.circle(anchors.player.x + 44, anchors.player.castY, 22, 0xf97316, 0.34);
@@ -1188,6 +1191,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (isSuperPerfect) {
       this.playMeteorEffect(command, anchors);
       return;
+    }
+    if (command.originPoint) {
+      this.playEnergyToPlayer(command.originPoint.x, command.originPoint.y, anchors);
     }
     this.showPlayerPoseSequence(SKILL_PLAYER_POSE_SEQUENCE, SKILL_PLAYER_POSE_FRAME_MS, false);
     if (label === 'Perfect') {
@@ -1248,6 +1254,31 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       player: createAnchors(width * 0.23),
       enemy: createAnchors(width * 0.77),
     };
+  }
+
+  /** コード名（オーバーレイ）→ プレイヤーへ短い緑のオーブを飛ばす軽量演出。140ms で完結。 */
+  private playEnergyToPlayer(originX: number, originY: number, anchors: BattleAnchors): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const targetX = anchors.player.x;
+    const targetY = anchors.player.castY;
+    const orb = this.add.circle(originX, originY, 7, 0x86efac, 0.95);
+    orb.setStrokeStyle(2, 0xbbf7d0, 0.9);
+    const tail = this.add.circle(originX, originY, 14, 0x22c55e, 0.36);
+    this.effectLayer.add([tail, orb]);
+    this.tweens.add({
+      targets: [orb, tail],
+      x: targetX,
+      y: targetY,
+      alpha: 0,
+      duration: 140,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        orb.destroy();
+        tail.destroy();
+      },
+    });
   }
 
   private playGoodCompleteEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {

@@ -2,12 +2,18 @@ import type { EarTrainingGameState, EarTrainingRank } from '@/types';
 
 export type EarTrainingBattleEffectKind = 'correct' | 'miss' | 'complete' | 'fail' | 'voicingCast';
 
+export interface EarTrainingBattleEffectOriginPoint {
+  x: number;
+  y: number;
+}
+
 export interface EarTrainingBattleEffectCommand {
   id: number;
   kind: EarTrainingBattleEffectKind;
   label?: string;
   damage?: number;
   phraseNoteCount?: number;
+  originPoint?: EarTrainingBattleEffectOriginPoint;
 }
 
 export interface EarTrainingBattleChordView {

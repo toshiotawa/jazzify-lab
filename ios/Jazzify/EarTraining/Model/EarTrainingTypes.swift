@@ -31,12 +31,30 @@ enum EarTrainingBattleEffectKind: String, Sendable {
 }
 
 /// Web `EarTrainingBattleEffectCommand` と同等。
+/// originPoint はシーン (SKScene) 座標。コード名→自キャラ間のエネルギー演出の起点に利用。
 struct EarTrainingBattleEffectCommand: Sendable, Equatable {
     let id: Int
     let kind: EarTrainingBattleEffectKind
     let label: String?
     let damage: Int?
     let phraseNoteCount: Int?
+    let originPoint: CGPoint?
+
+    init(
+        id: Int,
+        kind: EarTrainingBattleEffectKind,
+        label: String? = nil,
+        damage: Int? = nil,
+        phraseNoteCount: Int? = nil,
+        originPoint: CGPoint? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.label = label
+        self.damage = damage
+        self.phraseNoteCount = phraseNoteCount
+        self.originPoint = originPoint
+    }
 }
 
 /// Web `EarTrainingBattleHudLabels` と同等。

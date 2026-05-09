@@ -181,6 +181,15 @@ private struct EarTrainingChordVoicingContent: View {
             feedbackBackground
             ChordVoicingEarTrainingSceneContainer(driver: controller, sceneSize: size)
                 .ignoresSafeArea()
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(
+                                key: ChordVoicingSceneFrameKey.self,
+                                value: proxy.frame(in: .global)
+                            )
+                    }
+                )
 
             VStack(spacing: 0) {
                 EarTrainingHUDView(
@@ -204,6 +213,12 @@ private struct EarTrainingChordVoicingContent: View {
             }
 
             EarTrainingResultView(host: controller)
+        }
+        .onPreferenceChange(ChordVoicingActiveChordLabelFrameKey.self) { frame in
+            controller.activeChordLabelGlobalFrame = frame
+        }
+        .onPreferenceChange(ChordVoicingSceneFrameKey.self) { frame in
+            controller.battleSceneGlobalFrame = frame
         }
     }
 
@@ -241,7 +256,8 @@ private struct EarTrainingChordVoicingContent: View {
                     denseCurrentMeasureLayout: build.denseCurrentMeasureLayout,
                     keyFifths: keyFifths,
                     activeGroupId: controller.activeChord?.id,
-                    correctPitchClassesByGroupId: correctMap
+                    correctPitchClassesByGroupId: correctMap,
+                    completionPulse: controller.completionPulse
                 )
                 .frame(width: min(size.width * 0.56, 520), height: size.height * 0.34)
                 .position(x: size.width / 2, y: size.height * 0.42)
@@ -280,6 +296,17 @@ private struct EarTrainingChordVoicingContent: View {
         }
         let s = window.safeAreaInsets
         return max(16, s.left, s.right, s.top)
+    }
+}
+
+/// SpriteKit シーンのグローバル座標フレーム。Controller が SwiftUI 座標 → シーン座標変換に利用する。
+private struct ChordVoicingSceneFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero {
+            value = next
+        }
     }
 }
 

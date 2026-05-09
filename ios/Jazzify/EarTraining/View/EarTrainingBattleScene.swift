@@ -1302,6 +1302,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func playCorrectEffect(_ command: EarTrainingBattleEffectCommand) {
         showCorrectPlayerPose()
         let anchors = battleAnchors()
+        if let origin = command.originPoint {
+            playEnergyToPlayer(origin: origin, anchors: anchors)
+        }
         let start = CGPoint(x: anchors.player.x + 44, y: anchors.player.castY)
         let target = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY)
 
@@ -1336,6 +1339,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         if isAwesome {
             playMeteorEffect(command, anchors: anchors)
             return
+        }
+        if let origin = command.originPoint {
+            playEnergyToPlayer(origin: origin, anchors: anchors)
         }
         showPlayerPoseSequence(
             assetNames: PlayerAvatarPoseAsset.skillNames,
@@ -1387,6 +1393,36 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.onEffectImpact?(command.id)
             self.knockCharacter(.player, distance: heavy ? -52 : -32, durationMs: heavy ? 290 : 210)
         }
+    }
+
+    /// コード名（オーバーレイ）→ プレイヤーへ短い緑のオーブを飛ばす軽量演出。140ms で完結。
+    /// effectLayer 直下に追加する。Awesome のカメラズームでは呼び出し側で明示的に skip すること。
+    private func playEnergyToPlayer(origin: CGPoint, anchors: BattleAnchors) {
+        let target = CGPoint(x: anchors.player.x, y: anchors.player.castY)
+        let orb = SKShapeNode(circleOfRadius: 7)
+        orb.fillColor = UIColor(red: 0.526, green: 0.937, blue: 0.671, alpha: 0.95)
+        orb.strokeColor = UIColor(red: 0.733, green: 0.969, blue: 0.816, alpha: 0.9)
+        orb.lineWidth = 2
+        orb.position = origin
+        orb.zPosition = 60
+
+        let tail = SKShapeNode(circleOfRadius: 14)
+        tail.fillColor = UIColor(red: 0.133, green: 0.773, blue: 0.369, alpha: 0.36)
+        tail.strokeColor = .clear
+        tail.lineWidth = 0
+        tail.position = origin
+        tail.zPosition = 59
+
+        effectLayer.addChild(tail)
+        effectLayer.addChild(orb)
+
+        let move = SKAction.move(to: target, duration: 0.14)
+        move.timingMode = .easeIn
+        let fade = SKAction.fadeOut(withDuration: 0.14)
+        let group = SKAction.group([move, fade])
+        let sequence = SKAction.sequence([group, SKAction.removeFromParent()])
+        orb.run(sequence)
+        tail.run(sequence)
     }
 
     private func playGoodCompleteEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
