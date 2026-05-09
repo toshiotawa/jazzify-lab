@@ -655,7 +655,16 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
 
     const loopTime = getLoopTimeSec(audio.currentTime, loopDurationSec);
-    const nextActiveMeasureNumber = getMeasureNumberAtLoopTime(loopTime, loopDurationSec, stage.loop_measures);
+
+    const nextChord = getEarTrainingChordDisplayAtTime(
+      phrase,
+      loopTime,
+      stage.bpm,
+      currentAttempt.completedChordIds,
+    );
+    const nextActiveMeasureNumber = nextChord !== null
+      ? getChordMeasureNumber(nextChord, loopDurationSec, stage.loop_measures)
+      : getMeasureNumberAtLoopTime(loopTime, loopDurationSec, stage.loop_measures);
     if (nextActiveMeasureNumber !== activeMeasureNumberRef.current) {
       activeMeasureNumberRef.current = nextActiveMeasureNumber;
       setActiveMeasureNumber(nextActiveMeasureNumber);
@@ -666,12 +675,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     );
     triggerLoopEnemyAttack(completedLoop);
 
-    const nextChord = getEarTrainingChordDisplayAtTime(
-      phrase,
-      loopTime,
-      stage.bpm,
-      currentAttempt.completedChordIds,
-    );
     const previousChord = activeChordRef.current;
     if (nextChord?.id !== previousChord?.id) {
       setActiveChord(nextChord);
@@ -713,12 +716,16 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setLastRank(null);
     setActiveLoop(1);
     activeLoopRef.current = 1;
-    setActiveMeasureNumber(1);
-    activeMeasureNumberRef.current = 1;
     lastLoopAttackAppliedRef.current = 0;
     setEnemyAttackGaugePercent(0);
     allChordsCompletedAtRef.current = false;
     const initialChord = getEarTrainingChordDisplayAtTime(phrase, 0, stage.bpm, nextAttempt.completedChordIds);
+    const phraseLoopDuration = getFinitePhraseLoopDuration(phrase);
+    const initialMeasureNumber = initialChord !== null && phraseLoopDuration !== null
+      ? getChordMeasureNumber(initialChord, phraseLoopDuration, stage.loop_measures)
+      : 1;
+    activeMeasureNumberRef.current = initialMeasureNumber;
+    setActiveMeasureNumber(initialMeasureNumber);
     setActiveChord(initialChord);
     activeChordRef.current = initialChord;
     setStatusText(copy.phraseLabel(nextPhraseIndex + 1));

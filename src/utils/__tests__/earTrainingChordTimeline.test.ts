@@ -3,6 +3,7 @@ import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import { createChordVoicingAttempt } from '@/utils/earTrainingChordVoicingEngine';
 import {
   getEarTrainingChordDisplayAtTime,
+  getEarTrainingHalfBeatSec,
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
   getHarmonyRowForChordId,
@@ -89,9 +90,32 @@ describe('earTrainingChordTimeline', () => {
       buildChord({ id: 'c2', chord_name: 'CM7', start_time_sec: 4, end_time_sec: 6 }),
     ]);
 
-    expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set(['c1']))).toBeNull();
+    expect(getEarTrainingChordDisplayAtTime(phrase, 1.8, 120, new Set(['c1']))?.id).toBe('c1');
     expect(getEarTrainingChordDisplayAtTime(phrase, 2.2, 120, new Set(['rest']))?.id).toBe('rest');
     expect(getEarTrainingChordDisplayAtTime(phrase, 4.1, 120, new Set(['rest']))?.id).toBe('c2');
+  });
+
+  it('グループ完成後は次プレイアブル開始の半拍前まで現在コードを保持し、その後次コードへ切り替える', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'DM7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+    const bpm = 120;
+    const half = getEarTrainingHalfBeatSec(bpm);
+    const completed = new Set(['c1']);
+    expect(getEarTrainingChordDisplayAtTime(phrase, 4 - half - 0.02, bpm, completed)?.id).toBe('c1');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 4 - half + 0.02, bpm, completed)?.id).toBe('c2');
+    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1, bpm, completed)).toBeCloseTo(4 - half, 10);
+  });
+
+  it('未完成時は半拍オフセットをかけず標準の時間境界で次グループへ移る', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'DM7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+    const bpm = 120;
+    expect(getEarTrainingChordDisplayAtTime(phrase, 3.9, bpm, new Set())?.id).toBe('c1');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 4.05, bpm, new Set())?.id).toBe('c2');
   });
 
   it('次の表示境界はharmony終端など次にアクティブが変わり得る時刻', () => {
@@ -102,6 +126,18 @@ describe('earTrainingChordTimeline', () => {
 
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1.2, 120, new Set())).toBe(4);
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 4.1, 120, new Set())).toBe(8);
+  });
+
+  it('休符グループを挟む場合、完成済みでも次プレイアブル半拍前までは当該グループ終端でクリップされる', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'G7', start_time_sec: 0, end_time_sec: 2 }),
+      buildChord({ id: 'rest', chord_name: 'CM7', start_time_sec: 2, end_time_sec: 4, voicing: [], voicing_staves: [] }),
+      buildChord({ id: 'c2', chord_name: 'CM7', start_time_sec: 4, end_time_sec: 6 }),
+    ]);
+    const bpm = 120;
+    const half = getEarTrainingHalfBeatSec(bpm);
+    const completed = new Set(['c1', 'rest']);
+    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 2.1, bpm, completed)).toBeCloseTo(4 - half, 10);
   });
 
   it('コード終端と次コード開始にギャップがある場合は両方を境界として返す', () => {

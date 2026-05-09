@@ -51,6 +51,10 @@ const HARMONY_GROUP_EPSILON_SEC = 0.001;
 /** harmony 終端と判定する閾値（同一小節の時間ウィンドウ終わり） */
 const HARMONY_TIME_WINDOW_EPSILON_SEC = 0.0005;
 
+/** BPM に基づく半拍の長さ（秒）。 */
+export const getEarTrainingHalfBeatSec = (bpm: number): number =>
+  bpm > 0 ? 30 / bpm : 0;
+
 const getTimedChords = (
   phrase: EarTrainingPhrase | undefined,
 ): TimedEarTrainingPhraseChord[] => {
@@ -105,6 +109,27 @@ const firstPlayableChord = (
 ): TimedEarTrainingPhraseChord | null => (
   chords.find(chordHasVoicingNotes) ?? null
 );
+
+const groupPlayablesCompleted = (
+  group: HarmonyTimelineGroup,
+  completedChordIds: ReadonlySet<string>,
+): boolean => group.chords.every(
+  chord => !chordHasVoicingNotes(chord) || completedChordIds.has(chord.id),
+);
+
+/** 指定グループより後ろにある、最初のプレイアブル・コードの開始時刻 */
+const nextPlayableChordStartAfterGroup = (
+  groups: readonly HarmonyTimelineGroup[],
+  groupIndex: number,
+): number | null => {
+  for (let j = groupIndex + 1; j < groups.length; j += 1) {
+    const fp = firstPlayableChord(groups[j].chords);
+    if (fp && fp.start_time_sec !== undefined && fp.start_time_sec !== null) {
+      return fp.start_time_sec;
+    }
+  }
+  return null;
+};
 
 const buildHarmonyTimelineGroups = (sorted: readonly TimedEarTrainingPhraseChord[]): HarmonyTimelineGroup[] => {
   if (sorted.length === 0) {
@@ -182,19 +207,46 @@ export const isHarmonySegmentFullyCompleted = (
   row: EarTrainingHarmonyHudRow,
 ): boolean => row.voicingIds.every(id => attempt.completedChordIds.has(id));
 
+const computeGroupEffectiveWindowSec = (
+  groups: readonly HarmonyTimelineGroup[],
+  groupIndex: number,
+  halfSec: number,
+  completedChordIds: ReadonlySet<string>,
+): { effStart: number; effEnd: number } => {
+  const { chords: groupChords, segmentStart, segmentEnd } = groups[groupIndex];
+  const prevCompleted = groupIndex > 0
+    && groupPlayablesCompleted(groups[groupIndex - 1], completedChordIds);
+  const thisCompleted = groupPlayablesCompleted(groups[groupIndex], completedChordIds);
+  const playable = firstPlayableChord(groupChords);
+  const thisFirstStart = playable?.start_time_sec ?? segmentStart;
+
+  const effStart = playable !== null && prevCompleted && halfSec > 0
+    ? thisFirstStart - halfSec
+    : segmentStart;
+
+  let effEnd = segmentEnd;
+  if (thisCompleted && halfSec > 0) {
+    const nextPlayStart = nextPlayableChordStartAfterGroup(groups, groupIndex);
+    if (nextPlayStart !== null) {
+      effEnd = Math.min(segmentEnd, nextPlayStart - halfSec);
+    }
+  }
+
+  return { effStart, effEnd };
+};
+
 /**
  * オーディオループ内時刻における現在ヴォイシング行。
  * - 同一 harmony（同一 chord_name + 同一 end_time_sec の連鎖）では、手前から順に未完成の行だけが対象。
- * - harmony の時間終端に達すると、未完成が残っていても次 harmony の先頭行へ移る。
- * - harmony 内で全行完成済みなら、次 harmony の先頭行へ早進する。
+ * - harmony をすべてプレイ済みにすると、そのグループの表示終端は「次のプレイアブル・コード開始 − 半拍」とグループ終端のうち早い方まで延伸する。
+ * - 次グループへの入室も、そのグループ先頭プレイアブル開始 − 半拍から（前グループが完了済みのとき）。
  */
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,
-  _bpm: number,
+  bpm: number,
   completedChordIds: ReadonlySet<string>,
 ): EarTrainingPhraseChord | null => {
-  void _bpm;
   const chords = phrase?.chords ?? [];
   if (chords.length === 0) {
     return null;
@@ -206,15 +258,22 @@ export const getEarTrainingChordDisplayAtTime = (
   }
 
   const groups = buildHarmonyTimelineGroups(timed);
+  const halfSec = getEarTrainingHalfBeatSec(bpm);
+  const EPS = HARMONY_TIME_WINDOW_EPSILON_SEC;
 
   for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-    const { chords: groupChords, segmentStart, segmentEnd } = groups[groupIndex];
+    const { chords: groupChords } = groups[groupIndex];
+    const { effStart, effEnd } = computeGroupEffectiveWindowSec(
+      groups,
+      groupIndex,
+      halfSec,
+      completedChordIds,
+    );
 
-    if (loopTimeSec < segmentStart - HARMONY_TIME_WINDOW_EPSILON_SEC) {
-      return null;
+    if (loopTimeSec + EPS < effStart) {
+      continue;
     }
-
-    if (loopTimeSec >= segmentEnd - HARMONY_TIME_WINDOW_EPSILON_SEC) {
+    if (loopTimeSec + EPS >= effEnd) {
       continue;
     }
 
@@ -229,11 +288,7 @@ export const getEarTrainingChordDisplayAtTime = (
       }
     }
 
-    const nextGroup = groups[groupIndex + 1];
-    if (nextGroup) {
-      return firstPlayableChord(nextGroup.chords);
-    }
-    return null;
+    return playableChord;
   }
 
   return null;
@@ -242,33 +297,31 @@ export const getEarTrainingChordDisplayAtTime = (
 export const getEarTrainingNextChordDisplayBoundarySec = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,
-  _bpm: number,
-  _completedChordIds: ReadonlySet<string>,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
 ): number | null => {
-  void _bpm;
-  void _completedChordIds;
   const timed = getTimedChords(phrase);
   if (timed.length === 0) {
     return null;
   }
 
   const groups = buildHarmonyTimelineGroups(timed);
-  let nextBoundary = Number.POSITIVE_INFINITY;
+  const halfSec = getEarTrainingHalfBeatSec(bpm);
   const threshold = loopTimeSec + DISPLAY_BOUNDARY_EPSILON_SEC;
+  let nextBoundary = Number.POSITIVE_INFINITY;
 
-  for (const group of groups) {
-    const segEnd = group.segmentEnd;
-    if (segEnd > threshold && segEnd < nextBoundary) {
-      nextBoundary = segEnd;
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+    const { effStart, effEnd } = computeGroupEffectiveWindowSec(
+      groups,
+      groupIndex,
+      halfSec,
+      completedChordIds,
+    );
+    if (effStart > threshold && effStart < nextBoundary) {
+      nextBoundary = effStart;
     }
-    const segStart = group.chords[0]?.start_time_sec;
-    if (
-      typeof segStart === 'number'
-      && Number.isFinite(segStart)
-      && segStart > threshold
-      && segStart < nextBoundary
-    ) {
-      nextBoundary = segStart;
+    if (effEnd > threshold && effEnd < nextBoundary) {
+      nextBoundary = effEnd;
     }
   }
 

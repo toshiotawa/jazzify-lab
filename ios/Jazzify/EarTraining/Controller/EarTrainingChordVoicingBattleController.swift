@@ -525,7 +525,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         lastLoopAttackApplied = 0
         enemyAttackGaugePercent = 0
         activeLoop = 1
-        activeMeasureNumber = 1
         let next = EarTrainingChordVoicingEngine.createAttempt(for: phrase)
         attempt = next
         lastRank = nil
@@ -537,6 +536,20 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             completedChordIds: next.completedChordIds
         )
         activeChord = initialChord
+        let ld = phrase.loopDurationSec
+        if ld > 0 {
+            if let chord = initialChord {
+                activeMeasureNumber = chordMeasureNumber(chord: chord, loopDurationSec: ld)
+            } else {
+                activeMeasureNumber = measureNumberAtLoopTime(
+                    loopTimeSec: 0,
+                    loopDurationSec: ld,
+                    loopMeasures: stage.loopMeasures
+                )
+            }
+        } else {
+            activeMeasureNumber = 1
+        }
         statusText = copy.phraseLabel(indexOneBased: nextIndex + 1)
         gameState = .playingPhrase
         if let url = URL(string: phrase.audioUrl) {
@@ -583,11 +596,24 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
         let loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
-        let measureNum = measureNumberAtLoopTime(
-            loopTimeSec: loopTimeSafe,
-            loopDurationSec: loopDurationSec,
-            loopMeasures: stage.loopMeasures
+
+        let completedSet = currentAttempt.completedChordIds
+        let nextChord = EarTrainingChordVoicingEngine.chordDisplayAt(
+            phrase: phrase,
+            loopTime: loopTimeSafe,
+            bpm: stage.bpm,
+            completedChordIds: completedSet
         )
+        let measureNum: Int
+        if let chord = nextChord {
+            measureNum = chordMeasureNumber(chord: chord, loopDurationSec: loopDurationSec)
+        } else {
+            measureNum = measureNumberAtLoopTime(
+                loopTimeSec: loopTimeSafe,
+                loopDurationSec: loopDurationSec,
+                loopMeasures: stage.loopMeasures
+            )
+        }
         if activeMeasureNumber != measureNum {
             activeMeasureNumber = measureNum
         }
@@ -603,13 +629,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let completedLoop = min(stage.maxLoopsPerPhrase, max(0, Int(floor(currentTime / loopDurationSec))))
         triggerLoopEnemyAttackIfNeeded(completedLoop: completedLoop)
 
-        let completedSet = currentAttempt.completedChordIds
-        let nextChord = EarTrainingChordVoicingEngine.chordDisplayAt(
-            phrase: phrase,
-            loopTime: loopTimeSafe,
-            bpm: stage.bpm,
-            completedChordIds: completedSet
-        )
         if nextChord?.id != activeChord?.id {
             activeChord = nextChord
         }
@@ -624,6 +643,26 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let measureDurationSec = loopDurationSec / Double(safeLoopMeasures)
         guard measureDurationSec.isFinite, measureDurationSec > 0 else { return 1 }
         return min(safeLoopMeasures, Int(floor(loopTimeSec / measureDurationSec)) + 1)
+    }
+
+    private func normalizedMeasureNumber(_ measureNumber: Int, loopMeasures: Int) -> Int {
+        let safeLoopMeasures = max(1, loopMeasures)
+        let base = max(1, measureNumber)
+        return ((base - 1) % safeLoopMeasures) + 1
+    }
+
+    private func chordMeasureNumber(chord: EarTrainingPhraseChordDetail, loopDurationSec: Double) -> Int {
+        if let explicit = chord.measureNumber {
+            return normalizedMeasureNumber(explicit, loopMeasures: stage.loopMeasures)
+        }
+        if let start = chord.startTimeSec, start.isFinite {
+            return measureNumberAtLoopTime(
+                loopTimeSec: start,
+                loopDurationSec: loopDurationSec,
+                loopMeasures: stage.loopMeasures
+            )
+        }
+        return 1
     }
 
     private func scheduleNextChordSync(phrase: EarTrainingPhraseDetail, currentTime: Double, loopDurationSec: Double) {

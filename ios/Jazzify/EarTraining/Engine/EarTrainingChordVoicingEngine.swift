@@ -384,15 +384,76 @@ enum EarTrainingChordVoicingEngine {
         chords.first { chordHasVoicingNotes($0) }
     }
 
+    private static func halfBeatSec(bpm: Int) -> Double {
+        guard bpm > 0 else { return 0 }
+        return 30 / Double(bpm)
+    }
+
+    private static func groupPlayablesCompleted(
+        _ group: HarmonyTimelineGroup,
+        completedChordIds: Set<UUID>
+    ) -> Bool {
+        group.chords.allSatisfy { chord in
+            !chordHasVoicingNotes(chord) || completedChordIds.contains(chord.id)
+        }
+    }
+
+    /// `groupIndex` より後のグループにある最初のプレイアブル・コードの開始時刻。
+    private static func nextPlayableChordStartAfterGroup(
+        groups: [HarmonyTimelineGroup],
+        groupIndex: Int
+    ) -> Double? {
+        var j = groupIndex + 1
+        while j < groups.count {
+            if let fp = firstPlayableChord(in: groups[j].chords),
+               let start = fp.startTimeSec, start.isFinite {
+                return start
+            }
+            j += 1
+        }
+        return nil
+    }
+
+    private static func computeGroupEffectiveWindowSec(
+        groups: [HarmonyTimelineGroup],
+        groupIndex: Int,
+        halfSec: Double,
+        completedChordIds: Set<UUID>
+    ) -> (effStart: Double, effEnd: Double) {
+        let group = groups[groupIndex]
+        let prevCompleted = groupIndex > 0 && groupPlayablesCompleted(groups[groupIndex - 1], completedChordIds: completedChordIds)
+        let thisCompleted = groupPlayablesCompleted(group, completedChordIds: completedChordIds)
+        let playable = firstPlayableChord(in: group.chords)
+        let thisFirstStart: Double = {
+            guard let playable,
+                  let start = playable.startTimeSec,
+                  start.isFinite else { return group.segmentStart }
+            return start
+        }()
+
+        let effStart: Double
+        if playable != nil, prevCompleted, halfSec > 0 {
+            effStart = thisFirstStart - halfSec
+        } else {
+            effStart = group.segmentStart
+        }
+
+        var effEnd = group.segmentEnd
+        if thisCompleted, halfSec > 0, let nextPlayStart = nextPlayableChordStartAfterGroup(groups: groups, groupIndex: groupIndex) {
+            effEnd = min(group.segmentEnd, nextPlayStart - halfSec)
+        }
+
+        return (effStart, effEnd)
+    }
+
     /// Web `getEarTrainingChordDisplayAtTime` と同じ表示対象を返す。
-    /// 同一 harmony 区間では未完成の先頭 voicing を保持し、区間終端では未完成が残っていても次 harmony へ進む。
+    /// 同一 harmony では未完成の先頭 voicing を保持し、グループ完成後は次プレイアブル開始の半拍前までラベルを維持する。
     static func chordDisplayAt(
         phrase: EarTrainingPhraseDetail,
         loopTime: Double,
         bpm: Int,
         completedChordIds: Set<UUID>
     ) -> EarTrainingPhraseChordDetail? {
-        _ = bpm
         let chords = phrase.chords ?? []
         guard !chords.isEmpty else { return nil }
 
@@ -402,16 +463,26 @@ enum EarTrainingChordVoicingEngine {
         }
 
         let groups = buildHarmonyTimelineGroups(from: timed)
+        let halfSec = halfBeatSec(bpm: bpm)
+        let eps = harmonyTimeWindowEpsilonSec
+
         for groupIndex in groups.indices {
             let group = groups[groupIndex]
-            if loopTime < group.segmentStart - harmonyTimeWindowEpsilonSec {
-                return nil
+            let window = computeGroupEffectiveWindowSec(
+                groups: groups,
+                groupIndex: groupIndex,
+                halfSec: halfSec,
+                completedChordIds: completedChordIds
+            )
+
+            if loopTime + eps < window.effStart {
+                continue
             }
-            if loopTime >= group.segmentEnd - harmonyTimeWindowEpsilonSec {
+            if loopTime + eps >= window.effEnd {
                 continue
             }
 
-            guard firstPlayableChord(in: group.chords) != nil else {
+            guard let playableChord = firstPlayableChord(in: group.chords) else {
                 return group.chords.first
             }
 
@@ -419,11 +490,7 @@ enum EarTrainingChordVoicingEngine {
                 return chord
             }
 
-            let nextGroupIndex = groupIndex + 1
-            if groups.indices.contains(nextGroupIndex) {
-                return firstPlayableChord(in: groups[nextGroupIndex].chords)
-            }
-            return nil
+            return playableChord
         }
         return nil
     }
@@ -435,24 +502,26 @@ enum EarTrainingChordVoicingEngine {
         bpm: Int,
         completedChordIds: Set<UUID>
     ) -> Double? {
-        _ = bpm
-        _ = completedChordIds
         let timed = timedChords(for: phrase)
         guard !timed.isEmpty else { return nil }
 
         let groups = buildHarmonyTimelineGroups(from: timed)
+        let halfSec = halfBeatSec(bpm: bpm)
         let threshold = loopTimeSec + displayBoundaryEpsilonSec
         var nextBoundary = Double.infinity
 
-        for group in groups {
-            if group.segmentEnd > threshold && group.segmentEnd < nextBoundary {
-                nextBoundary = group.segmentEnd
+        for groupIndex in groups.indices {
+            let window = computeGroupEffectiveWindowSec(
+                groups: groups,
+                groupIndex: groupIndex,
+                halfSec: halfSec,
+                completedChordIds: completedChordIds
+            )
+            if window.effStart > threshold && window.effStart < nextBoundary {
+                nextBoundary = window.effStart
             }
-            if let segmentStart = group.chords.first?.startTimeSec,
-               segmentStart.isFinite,
-               segmentStart > threshold,
-               segmentStart < nextBoundary {
-                nextBoundary = segmentStart
+            if window.effEnd > threshold && window.effEnd < nextBoundary {
+                nextBoundary = window.effEnd
             }
         }
         return nextBoundary.isFinite ? nextBoundary : nil
