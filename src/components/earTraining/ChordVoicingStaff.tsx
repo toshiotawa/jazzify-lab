@@ -90,13 +90,16 @@ const CORRECT_NOTATION_COLOR = '#22c55e';
 const NEXT_TARGET_COLOR = '#f39800';
 const TOP_POINTER_COLOR = '#f39800';
 const ACTIVE_CHORD_LABEL_COLOR = '#facc15';
-const SP = 12;
+const SP = 10;
 const STAFF_WIDTH = 720;
 const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 696;
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
-const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 7;
+/** 上下五線の縦オフセット。ト音譜の下端〜ヘ音譜の上端のあいだの余白は SP*9 に拡張済み（要望6）。 */
+const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 9;
+/** 上下加線3本ぶん（+0.5SP の安全マージン込み）の余白。要望1。 */
+const LEDGER_LINE_PADDING = SP * 3.5;
 const CLEF_FONT_SIZE = SP * 4;
 /** SMuFL: gClef / fClef（https://www.w3.org/2021/03/smufl14/tables/clefs.html） */
 const SMUFL_G_CLEF = '\uE050';
@@ -494,8 +497,7 @@ const StaffClefGlyph: React.FC<{
 const StaffLines: React.FC<{
   staff: StaffNumber;
   topY: number;
-  layout: StaffLayoutMetrics;
-}> = ({ staff, topY, layout }) => (
+}> = ({ staff, topY }) => (
   <g>
     {Array.from({ length: 5 }, (_, line) => {
       const y = topY + line * SP;
@@ -514,20 +516,6 @@ const StaffLines: React.FC<{
         />
       );
     })}
-    {[layout.measureDividerX, STAFF_LINE_RIGHT_X].map(x => (
-      <line
-        key={x}
-        data-staff-barline={x}
-        data-staff-number={staff}
-        x1={x}
-        x2={x}
-        y1={topY}
-        y2={topY + STAFF_HEIGHT}
-        stroke={NOTATION_COLOR}
-        strokeLinecap="round"
-        strokeWidth={STAFF_LINE_THICKNESS}
-      />
-    ))}
   </g>
 );
 
@@ -828,10 +816,10 @@ const computeBattleStaffSystemLayout = (
   const reservedLabelTop = labelTopPadding + labelBandCore;
   const labelCenterY = labelTopPadding + labelBandCore / 2;
   const labelBottomGap = SP * 0.9;
-  const firstStaffTopY = reservedLabelTop + labelBottomGap;
+  const firstStaffTopY = reservedLabelTop + labelBottomGap + LEDGER_LINE_PADDING;
   const staffCount = activeStaves.length;
   const staffBlockHeight = (staffCount - 1) * STAFF_TOP_STEP + STAFF_HEIGHT;
-  const svgHeight = firstStaffTopY + staffBlockHeight + SP * 3;
+  const svgHeight = firstStaffTopY + staffBlockHeight + LEDGER_LINE_PADDING + SP * 0.5;
   const margin = SP * 0.35;
   const leftBound = STAFF_LINE_LEFT_X + margin;
   const rightBound = STAFF_LINE_RIGHT_X - margin;
@@ -1061,7 +1049,7 @@ const RenderedStaff: React.FC<{
 
   return (
     <g>
-      <StaffLines staff={staff} topY={staffTopY} layout={layout} />
+      <StaffLines staff={staff} topY={staffTopY} />
       <StaffClefGlyph
         showAnchorDebug={import.meta.env.DEV}
         staff={staff}
@@ -1388,6 +1376,19 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               layout={layout}
               activeGroupId={activeGroupId}
               nextHintVoicingIndex={battleHints.nextHintVoicingIndex}
+            />
+          ))}
+          {activeStaves.length > 0 && [layout.measureDividerX, STAFF_LINE_RIGHT_X].map(x => (
+            <line
+              key={`system-barline-${x}`}
+              data-staff-barline={x}
+              x1={x}
+              x2={x}
+              y1={systemLayout.firstStaffTopY}
+              y2={systemLayout.firstStaffTopY + (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT}
+              stroke={NOTATION_COLOR}
+              strokeLinecap="round"
+              strokeWidth={STAFF_LINE_THICKNESS}
             />
           ))}
           {activePulse && pulseGroupIds ? (

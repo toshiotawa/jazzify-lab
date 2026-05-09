@@ -21,7 +21,7 @@ interface EarTrainingPianoOverlayProps {
   onPianoKeyUp: (midiNote: number) => void;
 }
 
-const PIANO_HEIGHT = 120;
+const PIANO_HEIGHT = 88;
 const VISIBLE_WHITE_KEYS = 14;
 const TOTAL_WHITE_KEYS = 52;
 const C4_WHITE_INDEX = 23;
@@ -178,7 +178,7 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
       noteNameStyle: 'abc',
       simpleDisplayMode: true,
       pianoHeight: PIANO_HEIGHT,
-      noteHeight: 16,
+      noteHeight: 12,
       noteWidth: Math.max(whiteKeyWidth - 2, 16),
       transpose: 0,
       transposingInstrument: 'concert_pitch',
@@ -203,7 +203,7 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
   return (
     <div
       ref={rootRef}
-      className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 h-[120px] bg-black/20"
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 h-[88px] bg-black/20"
     >
       {layout.needsScroll ? (
         <>

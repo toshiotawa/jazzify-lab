@@ -1496,7 +1496,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         <div
           ref={staffOverlayRef}
           className={cn(
-            'pointer-events-none absolute left-1/2 top-[42%] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2',
+            'pointer-events-none absolute left-1/2 top-[44%] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2',
             showLobbyControls ? 'z-0' : 'z-10',
           )}
         >

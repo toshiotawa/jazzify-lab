@@ -11,7 +11,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     /// C2 (36) 〜 B4 (71) の 36 鍵。Salamander サンプラーの下限付近からメロディ域まで。
     private let firstMidi: Int = 36
     private let lastMidi: Int = 71
-    private let keyboardHeight: CGFloat = 100
+    private let keyboardHeight: CGFloat = 76
     private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6
 

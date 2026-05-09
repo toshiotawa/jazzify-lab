@@ -93,7 +93,7 @@ describe('ChordVoicingStaff', () => {
     expect(container.querySelector('polygon[data-voicing-top-pointer="true"]')).toBeNull();
   });
 
-  it('sp基準で2段譜の五線間に7spの余白を確保する', () => {
+  it('sp基準で2段譜の五線間に9spの余白を確保する', () => {
     const { container } = render(
       <ChordVoicingStaff
         voicing={['D3', 'F3', 'A3', 'C4']}
@@ -107,7 +107,7 @@ describe('ChordVoicingStaff', () => {
 
     expect(trebleBottomLine).not.toBeNull();
     expect(bassTopLine).not.toBeNull();
-    expect(Number(bassTopLine?.getAttribute('y1')) - Number(trebleBottomLine?.getAttribute('y1'))).toBeCloseTo(84, 10);
+    expect(Number(bassTopLine?.getAttribute('y1')) - Number(trebleBottomLine?.getAttribute('y1'))).toBeCloseTo(90, 10);
   });
 
   it('voicing_staves が無い場合はDBの音域から譜表を推定する', () => {

@@ -144,7 +144,7 @@ private struct EarTrainingChordVoicingContent: View {
     let locale: AppLocale
     let onClose: () -> Void
 
-    private static let pianoOverlayHeight: CGFloat = 104
+    private static let pianoOverlayHeight: CGFloat = 80
 
     @State private var hudHorizontalPadding: CGFloat = 16
 
@@ -259,8 +259,8 @@ private struct EarTrainingChordVoicingContent: View {
                     correctPitchClassesByGroupId: correctMap,
                     completionPulse: controller.completionPulse
                 )
-                .frame(width: min(size.width * 0.56, 520), height: size.height * 0.42)
-                .position(x: size.width / 2, y: size.height * 0.38)
+                .frame(width: min(size.width * 0.56, 520), height: size.height * 0.5)
+                .position(x: size.width / 2, y: size.height * 0.42)
                 .allowsHitTesting(false)
             }
         }
@@ -359,7 +359,7 @@ private struct ChordVoicingBottomSlotsView: View {
         let count = max(1, slotCount)
         let gaps = CGFloat(max(0, count - 1)) * gap
         let raw = (max(44, availableWidth) - gaps) / CGFloat(count)
-        return min(30, max(22, raw))
+        return min(22, max(16, raw))
     }
 }
 

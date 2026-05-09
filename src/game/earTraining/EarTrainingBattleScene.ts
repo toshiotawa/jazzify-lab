@@ -13,7 +13,7 @@ import {
   type BattleCharacterMotionRange,
 } from './battleCharacterMotion';
 
-const PIANO_OVERLAY_HEIGHT = 120;
+const PIANO_OVERLAY_HEIGHT = 88;
 const HUD_HEIGHT = 150;
 const PHRASE_INTRO_FADE_MS = 2600;
 const FLOOR_CLEARANCE_FROM_PIANO = 100;
@@ -951,8 +951,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     const slots = snapshot.phraseSlots.length > 0 ? snapshot.phraseSlots : ['_'];
-    const slotSize = Phaser.Math.Clamp((width - 48) / Math.min(Math.max(8, slots.length), 11), 34, 54);
-    const gap = 7;
+    const slotSize = Phaser.Math.Clamp((width - 48) / Math.min(Math.max(8, slots.length), 11), 22, 36);
+    const gap = 5;
     const availableWidth = Math.max(slotSize, width - 40);
     const visibleCount = Math.max(1, Math.min(slots.length, Math.floor((availableWidth + gap) / (slotSize + gap))));
     const focusedIndex = Phaser.Math.Clamp(snapshot.currentNoteIndex, 0, Math.max(0, slots.length - 1));

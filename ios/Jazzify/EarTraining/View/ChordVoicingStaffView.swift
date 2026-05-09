@@ -104,22 +104,23 @@ private enum MusicNotationSymbol {
         )
         context.stroke(spine, with: .color(color), style: stroke)
 
+        // loop 全体を G ラインを中心に揃えるため、y 座標を staffSpacing*0.5 上にシフト（要望3）。
         var loop = Path()
-        loop.move(to: CGPoint(x: cx + s * 1.02, y: anchorY + s * 0.04))
+        loop.move(to: CGPoint(x: cx + s * 1.02, y: anchorY - s * 0.46))
         loop.addCurve(
-            to: CGPoint(x: cx - s * 0.85, y: anchorY + s * 0.38),
-            control1: CGPoint(x: cx + s * 0.42, y: anchorY - s * 0.82),
-            control2: CGPoint(x: cx - s * 0.78, y: anchorY - s * 0.55)
+            to: CGPoint(x: cx - s * 0.85, y: anchorY - s * 0.12),
+            control1: CGPoint(x: cx + s * 0.42, y: anchorY - s * 1.32),
+            control2: CGPoint(x: cx - s * 0.78, y: anchorY - s * 1.05)
         )
         loop.addCurve(
-            to: CGPoint(x: cx + s * 0.78, y: anchorY + s * 1.05),
-            control1: CGPoint(x: cx - s * 1.22, y: anchorY + s * 1.34),
-            control2: CGPoint(x: cx + s * 0.2, y: anchorY + s * 1.72)
+            to: CGPoint(x: cx + s * 0.78, y: anchorY + s * 0.55),
+            control1: CGPoint(x: cx - s * 1.22, y: anchorY + s * 0.84),
+            control2: CGPoint(x: cx + s * 0.2, y: anchorY + s * 1.22)
         )
         loop.addCurve(
-            to: CGPoint(x: cx + s * 1.02, y: anchorY + s * 0.04),
-            control1: CGPoint(x: cx + s * 1.2, y: anchorY + s * 0.72),
-            control2: CGPoint(x: cx + s * 1.28, y: anchorY + s * 0.32)
+            to: CGPoint(x: cx + s * 1.02, y: anchorY - s * 0.46),
+            control1: CGPoint(x: cx + s * 1.2, y: anchorY + s * 0.22),
+            control2: CGPoint(x: cx + s * 1.28, y: anchorY - s * 0.18)
         )
         context.stroke(loop, with: .color(color), style: stroke)
     }
@@ -262,17 +263,14 @@ private enum MusicNotationSymbol {
             lineJoin: .round
         )
         var path = Path()
+        // ステム（縦棒）：上端から下端まで一本の縦線。
         path.move(to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 1.22))
         path.addLine(to: CGPoint(x: center.x - s * 0.15, y: center.y + s * 0.92))
+        // bowl（ふくらみ）：ステム下端からステム中段にかけて右側に一つだけ膨らむ。
         path.addCurve(
-            to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 0.02),
-            control1: CGPoint(x: center.x + s * 0.95, y: center.y + s * 0.48),
-            control2: CGPoint(x: center.x + s * 0.85, y: center.y - s * 0.36)
-        )
-        path.addCurve(
-            to: CGPoint(x: center.x - s * 0.15, y: center.y + s * 0.9),
-            control1: CGPoint(x: center.x + s * 0.38, y: center.y + s * 0.04),
-            control2: CGPoint(x: center.x + s * 0.38, y: center.y + s * 0.55)
+            to: CGPoint(x: center.x - s * 0.15, y: center.y - s * 0.05),
+            control1: CGPoint(x: center.x + s * 0.95, y: center.y + s * 0.55),
+            control2: CGPoint(x: center.x + s * 0.55, y: center.y - s * 0.18)
         )
         context.stroke(path, with: .color(color), style: stroke)
     }
@@ -1223,6 +1221,7 @@ struct ChordVoicingStaffGroupsView: View {
     }
 
     /// 2. コード名レーンを先に確保し、その下に五線ブロックが収まる縦レイアウトを計算する。
+    /// 上下に加線3本ぶんの余白を確保し（要望1）、ト音とヘ音の間隔も拡張（要望6）。
     private static func computeStaffSystemGeometry(
         size: CGSize,
         width: CGFloat,
@@ -1234,14 +1233,16 @@ struct ChordVoicingStaffGroupsView: View {
         let reservedLabelTop = labelTopPadding + labelBandCoreHeight
         let labelCenterY = labelTopPadding + labelBandCoreHeight / 2
         let labelBottomGap = sp * 0.9
-        let availableStaffHeight = max(CGFloat(0), size.height - reservedLabelTop - labelBottomGap)
+        let ledgerLinePadding = sp * 3.5
+        let reservedTop = reservedLabelTop + labelBottomGap + ledgerLinePadding
+        let availableStaffHeight = max(CGFloat(0), size.height - reservedTop - ledgerLinePadding)
         let staffSpacing = min(
-            18,
-            max(10, (availableStaffHeight - sp * 8) / CGFloat(max(11, activeStaves.count * 7 + 3)))
+            14,
+            max(8, (availableStaffHeight - sp * 8) / CGFloat(max(13, activeStaves.count * 9 + 5)))
         )
-        let staffGap = staffSpacing * 3
+        let staffGap = staffSpacing * 5
         let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
-        let firstTopY = reservedLabelTop + labelBottomGap + max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
+        let firstTopY = reservedTop + max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
         return StaffSystemGeometry(
             staffSpacing: staffSpacing,
             staffGap: staffGap,
@@ -1390,17 +1391,17 @@ struct ChordVoicingStaffGroupsView: View {
             staffGap: geo.staffGap
         )
 
+        let leftX = w * (24 / 720)
+        let rightX = w * (696 / 720)
+
         for (staffIndex, staff) in activeStaves.enumerated() {
             let topY = geo.firstTopY + CGFloat(staffIndex) * (geo.staffSpacing * 4 + geo.staffGap)
-            let leftX = w * (24 / 720)
-            let rightX = w * (696 / 720)
             groupsDrawStaff(
                 context: &context,
                 top: topY,
                 staffSpacing: geo.staffSpacing,
                 leftX: leftX,
-                rightX: rightX,
-                dividerX: layout.measureDividerX
+                rightX: rightX
             )
             groupsDrawClef(
                 context: &context,
@@ -1445,6 +1446,16 @@ struct ChordVoicingStaffGroupsView: View {
             }
         }
 
+        groupsDrawSystemBarlines(
+            context: &context,
+            firstTopY: geo.firstTopY,
+            staffSpacing: geo.staffSpacing,
+            staffGap: geo.staffGap,
+            staffCount: activeStaves.count,
+            rightX: rightX,
+            dividerX: layout.measureDividerX
+        )
+
         drawChordLabels(context: &context, labels: labelFrames)
 
         if let tp = battleHints.topPointer {
@@ -1481,8 +1492,7 @@ struct ChordVoicingStaffGroupsView: View {
         top: CGFloat,
         staffSpacing: CGFloat,
         leftX: CGFloat,
-        rightX: CGFloat,
-        dividerX: CGFloat
+        rightX: CGFloat
     ) {
         for line in 0..<5 {
             let y = top + CGFloat(line) * staffSpacing
@@ -1491,10 +1501,24 @@ struct ChordVoicingStaffGroupsView: View {
             path.addLine(to: CGPoint(x: rightX, y: y))
             context.stroke(path, with: .color(notationColor), lineWidth: 1.3)
         }
+    }
+
+    /// 全活性五線をまたぐ小節区切り＋右端線を1度だけ描画（要望5）。
+    private static func groupsDrawSystemBarlines(
+        context: inout GraphicsContext,
+        firstTopY: CGFloat,
+        staffSpacing: CGFloat,
+        staffGap: CGFloat,
+        staffCount: Int,
+        rightX: CGFloat,
+        dividerX: CGFloat
+    ) {
+        guard staffCount > 0 else { return }
+        let bottomY = firstTopY + CGFloat(staffCount - 1) * (staffSpacing * 4 + staffGap) + staffSpacing * 4
         for x in [dividerX, rightX] {
             var barline = Path()
-            barline.move(to: CGPoint(x: x, y: top))
-            barline.addLine(to: CGPoint(x: x, y: top + staffSpacing * 4))
+            barline.move(to: CGPoint(x: x, y: firstTopY))
+            barline.addLine(to: CGPoint(x: x, y: bottomY))
             context.stroke(barline, with: .color(notationColor), lineWidth: 1.3)
         }
     }
