@@ -2284,6 +2284,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 // 50ms 経過でリセット。以前は 500ms だったが、handleNoteInput の
                 // setTimeout(50ms) 経路を撤去したので、ここで素早くリセットする。
                 if (Date.now() - slot.completedTime >= 50) {
+                  // Progression（コード進行）モード: B列のみ進行を進める
+                  if (isProgressionStage && slotIndex === 1) {
+                    const advanced = advanceProgressionPair();
+                    newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
+                      i === slotIndex ? { ...ns, chord: advanced.next } : ns
+                    ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+                    return { ...slot, chord: advanced.current, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
+                  }
                   let nextChord = newState.codeSlots.next[slotIndex]?.chord;
                   if (!nextChord) nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
                   const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
@@ -2295,6 +2303,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 return slot;
               }
               if (!slot.chord) {
+                if (isProgressionStage && slotIndex === 1) {
+                  const idx = progressionIndexRef.current;
+                  const chord = selectProgressionChord(progressionChordsRef.current, idx);
+                  if (chord) {
+                    return { ...slot, chord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
+                  }
+                  return slot;
+                }
                 const newChord = selectRandomChord(config.allowedChords);
                 if (newChord) {
                   return { ...slot, chord: newChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
