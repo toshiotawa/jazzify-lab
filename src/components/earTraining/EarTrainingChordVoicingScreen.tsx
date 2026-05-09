@@ -1381,6 +1381,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     if (!practiceMode || !activeChord) {
       return null;
     }
+    if (attempt?.completedChordIds.has(activeChord.id)) {
+      return null;
+    }
     const pressed = attempt?.pressedByChord.get(activeChord.id);
     return computeVoicingKeyboardHints(activeChord.voicing, pressed);
   }, [practiceMode, activeChord, attempt]);

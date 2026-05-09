@@ -42,7 +42,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var midiHeldKeys: Set<Int> = []
     /// 練習モード時の鍵盤ヒント。`activeChord` の voicing を MIDI に展開し、
     /// 押下済み PC を含むノートは `.completed`、それ以外は `.pending`。
-    /// activeChord または attempt の状態変化に応じて event-driven に再計算する。
+    /// `activeChord` が既に完成済み（`completedChordIds` に含まれる）のときは
+    /// ヒントを表示しない。activeChord または attempt の状態変化に応じて
+    /// event-driven に再計算する。
     @Published private(set) var voicingHintsByMidi: [Int: VoicingHintState] = [:]
 
     let stage: EarTrainingStageDetail
@@ -839,7 +841,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     private func recomputeVoicingHints() {
         let next: [Int: VoicingHintState]
-        if practiceMode, let chord = activeChord {
+        if practiceMode,
+           let chord = activeChord,
+           !(attempt?.completedChordIds.contains(chord.id) ?? false) {
             let pressed = attempt?.pressedByChord[chord.id] ?? []
             next = EarTrainingChordVoicingEngine.voicingKeyboardHints(
                 voicing: chord.voicing,
