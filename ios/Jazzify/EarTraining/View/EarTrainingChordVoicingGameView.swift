@@ -259,7 +259,7 @@ private struct EarTrainingChordVoicingContent: View {
                     correctPitchClassesByGroupId: correctMap,
                     completionPulse: controller.completionPulse
                 )
-                .frame(width: min(size.width * 0.56, 520), height: size.height * 0.5)
+                .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
                 .position(x: size.width / 2, y: size.height * 0.42)
                 .allowsHitTesting(false)
             }

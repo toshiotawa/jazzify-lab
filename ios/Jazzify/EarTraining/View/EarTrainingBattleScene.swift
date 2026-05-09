@@ -11,7 +11,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let pianoOverlayHeight: CGFloat = 104
     private static let hudHeight: CGFloat = 104
     private static let phraseIntroFadeMs: TimeInterval = 2.6
-    private static let floorClearanceFromPiano: CGFloat = 48
+    private static let floorClearanceFromPiano: CGFloat = 16
     private static let characterDisplaySize: CGFloat = 88
     private static let characterShadowWidth: CGFloat = 82
     private static let characterShadowHeight: CGFloat = 18
@@ -2205,10 +2205,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func floorYForHeight(_ height: CGFloat) -> CGFloat {
-        let minimumFloorY = Self.pianoOverlayHeight + 34
+        let minimumFloorY = Self.pianoOverlayHeight + 14
         let preferredFloorY = max(
             Self.pianoOverlayHeight + Self.floorClearanceFromPiano,
-            height * 0.32
+            height * 0.28
         )
         let maximumFloorY = height - Self.hudHeight - Self.characterDisplaySize * 1.1
         return max(minimumFloorY, min(preferredFloorY, maximumFloorY))
