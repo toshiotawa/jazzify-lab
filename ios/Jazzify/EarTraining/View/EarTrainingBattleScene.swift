@@ -24,6 +24,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private enum PlayerAvatarPoseAsset {
         static let correctName = "correct3"
+        static let castName = "eishou"
         static let skillNames = ["Frame1", "Frame2", "Frame3", "Frame4", "Frame5"]
     }
 
@@ -218,6 +219,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         lastEffectId = command.id
         switch command.kind {
         case .correct: playCorrectEffect(command)
+        case .voicingCast: playVoicingCastEffect()
         case .complete: playCompleteEffect(command)
         case .miss: playEnemyAttackEffect(command, heavy: false)
         case .fail: playEnemyAttackEffect(command, heavy: true)
@@ -1810,6 +1812,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func showCorrectPlayerPose() {
         showPlayerPose(assetName: PlayerAvatarPoseAsset.correctName, durationMs: Self.correctPlayerPoseDurationMs)
+    }
+
+    private func playVoicingCastEffect() {
+        showPlayerPose(assetName: PlayerAvatarPoseAsset.castName, durationMs: Self.correctPlayerPoseDurationMs)
     }
 
     private func showPlayerPose(assetName: String, durationMs: TimeInterval) {

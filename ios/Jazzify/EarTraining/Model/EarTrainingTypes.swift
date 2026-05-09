@@ -27,6 +27,7 @@ enum EarTrainingBattleEffectKind: String, Sendable {
     case miss
     case complete
     case fail
+    case voicingCast
 }
 
 /// Web `EarTrainingBattleEffectCommand` と同等。

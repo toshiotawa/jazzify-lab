@@ -1,6 +1,6 @@
 import type { EarTrainingGameState, EarTrainingRank } from '@/types';
 
-export type EarTrainingBattleEffectKind = 'correct' | 'miss' | 'complete' | 'fail';
+export type EarTrainingBattleEffectKind = 'correct' | 'miss' | 'complete' | 'fail' | 'voicingCast';
 
 export interface EarTrainingBattleEffectCommand {
   id: number;

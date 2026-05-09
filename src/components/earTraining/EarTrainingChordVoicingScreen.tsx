@@ -968,6 +968,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
     const harmonyRow = getHarmonyRowForChordId(phrase, currentChord.id);
     if (harmonyRow !== null && !isHarmonySegmentFullyCompleted(result.attempt, harmonyRow)) {
+      triggerBattleEffect('voicingCast');
       syncAudioTimelineRef.current();
       return;
     }

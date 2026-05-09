@@ -318,6 +318,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         if let row = harmonyRow,
            !EarTrainingChordVoicingEngine.isHarmonySegmentFullyCompleted(attempt: result.attempt, row: row) {
             attempt = result.attempt
+            _ = triggerBattleEffect(kind: .voicingCast, label: nil, damage: nil, phraseNoteCount: nil)
             syncChordTimeline(scheduleNext: true)
             return
         }

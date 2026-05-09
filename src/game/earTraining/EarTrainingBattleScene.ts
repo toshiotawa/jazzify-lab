@@ -32,6 +32,7 @@ type CharacterSide = 'player' | 'enemy';
 type JazzStagePropName = 'doubleBass' | 'piano' | 'drumKit';
 type PlayerAvatarPoseName =
   | 'correct3'
+  | 'cast'
   | 'skill1'
   | 'skill2'
   | 'skill3'
@@ -97,6 +98,10 @@ const PLAYER_AVATAR_POSE_ASSETS: Record<PlayerAvatarPoseName, BattleEffectSprite
   correct3: {
     key: 'ear-training-player-pose-correct-3',
     url: '/data/correct3.webp',
+  },
+  cast: {
+    key: 'ear-training-player-pose-cast',
+    url: '/data/eishou.png',
   },
   skill1: {
     key: 'ear-training-player-pose-skill-1',
@@ -267,6 +272,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     if (command.kind === 'correct') {
       this.playCorrectEffect(command);
+      return;
+    }
+    if (command.kind === 'voicingCast') {
+      this.playVoicingCastEffect();
       return;
     }
     if (command.kind === 'complete') {
@@ -1836,6 +1845,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   private showCorrectPlayerPose(): void {
     this.showPlayerPose('correct3', CORRECT_PLAYER_POSE_DURATION_MS);
+  }
+
+  private playVoicingCastEffect(): void {
+    this.showPlayerPose('cast', CORRECT_PLAYER_POSE_DURATION_MS);
   }
 
   private showPlayerPoseSequence(poseNames: PlayerAvatarPoseName[], frameDurationMs: number, restoreOnComplete: boolean): void {
