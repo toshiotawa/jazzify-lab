@@ -15,9 +15,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let approximateEarTrainingKeyboardVisualTopFromBottom: CGFloat = 80
     /// 白鍵上端と足下のごくわずかなギャップ（ほぼキーボード直上）。
     private static let battleFloorAirAboveKeyboardKeys: CGFloat = 6
-    private static let characterDisplaySize: CGFloat = 88
-    private static let characterShadowWidth: CGFloat = 82
-    private static let characterShadowHeight: CGFloat = 18
+    /// アバター表示を約 2/3 に（耳コピ・コードヴォイシングの iOS バトル共通）。
+    private static let battleCharacterVisualScale: CGFloat = 2.0 / 3.0
+    /// 旧 88pt アバター基準の pt を現在の縮尺へ。
+    private static func battleLayoutPt(_ base: CGFloat) -> CGFloat {
+        base * battleCharacterVisualScale
+    }
+
+    private static let characterDisplaySize: CGFloat = battleLayoutPt(88)
+    private static let characterShadowWidth: CGFloat = battleLayoutPt(82)
+    private static let characterShadowHeight: CGFloat = battleLayoutPt(18)
+    private static let spotlightFloorPoolRadiusX: CGFloat = battleLayoutPt(84)
+    private static let spotlightFloorPoolRadiusY: CGFloat = battleLayoutPt(14)
     private static let enemyKnockbackDelaySec: TimeInterval = 0.016
     private static let correctPlayerPoseDurationMs: TimeInterval = 300
     private static let skillPlayerPoseFrameMs: TimeInterval = 80
@@ -70,9 +79,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         /// 円錐の頂点（光源）を UIKit 上端付近に置き、天井スポットのように見せる（pt、上＝0 に近いほど高い）。
         /// コード帯は SwiftUI で上に重なるため、ここを上げても HUD の可読性は基本維持される。
         static let coneApexInsetFromTopUIKit: CGFloat = 2
-        /// 床プール・旧シャドウと同程度の水平半径（pt）。
-        static let floorPoolRadiusX: CGFloat = 84
-        static let floorPoolRadiusY: CGFloat = 14
         /// 図解: Cone Alpha 0.08–0.16
         static let coneAlphaPlayer: CGFloat = 0.11
         static let coneAlphaEnemy: CGFloat = 0.13
@@ -740,8 +746,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let floorUIKitY = height - floorY
         let cx = centerX
         let cy = floorUIKitY - 6
-        let rx = SpotlightStageLayout.floorPoolRadiusX * 1.05
-        let ry = SpotlightStageLayout.floorPoolRadiusY * 1.2
+        let rx = Self.spotlightFloorPoolRadiusX * 1.05
+        let ry = Self.spotlightFloorPoolRadiusY * 1.2
 
         cg.addEllipse(in: CGRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2))
         cg.clip()
@@ -1282,7 +1288,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         let fallback = SKLabelNode(text: isPlayer ? "P" : "E")
         fallback.fontName = "AvenirNext-Heavy"
-        fallback.fontSize = 34
+        fallback.fontSize = Self.battleLayoutPt(34)
         fallback.fontColor = .white
         fallback.verticalAlignmentMode = .baseline
         fallback.horizontalAlignmentMode = .center
@@ -1340,10 +1346,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         if let origin = command.originPoint {
             playEnergyToPlayer(origin: origin, anchors: anchors)
         }
-        let start = CGPoint(x: anchors.player.x + 44, y: anchors.player.castY)
+        let start = CGPoint(x: anchors.player.x + Self.characterDisplaySize * 0.5, y: anchors.player.castY)
         let target = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY)
 
-        let fireball = makeEffectSprite(name: "ear-training-effect-fireball", size: 78)
+        let fireball = makeEffectSprite(name: "ear-training-effect-fireball", size: Self.battleLayoutPt(78))
         fireball.position = start
         fireball.zRotation = -24 * (.pi / 180)
         effectLayer.addChild(fireball)
@@ -1360,7 +1366,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.showImpactBurst(at: target, color: UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1.0), large: false)
             self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
             self.onEffectImpact?(command.id)
-            self.knockEnemyAfterDamage(distance: 24, durationMs: 170)
+            self.knockEnemyAfterDamage(distance: Self.battleLayoutPt(24), durationMs: 170)
         }
     }
 
@@ -1402,18 +1408,17 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             showFloatingResultText(label: command.label ?? "Fail", x: anchors.player.x, y: anchors.player.resultTextY, color: UIColor(red: 0.996, green: 0.792, blue: 0.792, alpha: 1.0))
         }
 
-        let slashWidth: CGFloat = heavy ? 128 : 78
-        let slashHeight: CGFloat = heavy ? 22 : 15
+        let slashWidth: CGFloat = heavy ? Self.battleLayoutPt(128) : Self.battleLayoutPt(78)
+        let slashHeight: CGFloat = heavy ? Self.battleLayoutPt(22) : Self.battleLayoutPt(15)
         let slash = SKShapeNode(rect: CGRect(x: -slashWidth / 2, y: -slashHeight / 2, width: slashWidth, height: slashHeight), cornerRadius: 4)
         slash.fillColor = UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0)
         slash.strokeColor = UIColor(red: 0.992, green: 0.949, blue: 0.969, alpha: 0.82)
         slash.lineWidth = 2
-        slash.position = CGPoint(x: anchors.enemy.x - 28, y: anchors.enemy.bodyY)
+        slash.position = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
         slash.zRotation = -0.18
         effectLayer.addChild(slash)
 
-        let cameraShakeIntensity: CGFloat = heavy ? 12 : 7
-        cameraShake(amplitude: cameraShakeIntensity, durationMs: heavy ? 240 : 150)
+        cameraShake(amplitude: heavy ? Self.battleLayoutPt(12) : Self.battleLayoutPt(7), durationMs: heavy ? 240 : 150)
 
         let dx = anchors.player.x - slash.position.x
         let dy = anchors.player.bodyY - slash.position.y
@@ -1427,7 +1432,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.flashCharacter(.player)
             self.showImpactBurst(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0), large: heavy)
             self.onEffectImpact?(command.id)
-            self.knockCharacter(.player, distance: heavy ? -52 : -32, durationMs: heavy ? 290 : 210)
+            self.knockCharacter(.player, distance: heavy ? -Self.battleLayoutPt(52) : -Self.battleLayoutPt(32), durationMs: heavy ? 290 : 210)
         }
     }
 
@@ -1435,14 +1440,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     /// effectLayer 直下に追加する。Awesome のカメラズームでは呼び出し側で明示的に skip すること。
     private func playEnergyToPlayer(origin: CGPoint, anchors: BattleAnchors) {
         let target = CGPoint(x: anchors.player.x, y: anchors.player.castY)
-        let orb = SKShapeNode(circleOfRadius: 7)
+        let orb = SKShapeNode(circleOfRadius: Self.battleLayoutPt(7))
         orb.fillColor = UIColor(red: 0.526, green: 0.937, blue: 0.671, alpha: 0.95)
         orb.strokeColor = UIColor(red: 0.733, green: 0.969, blue: 0.816, alpha: 0.9)
         orb.lineWidth = 2
         orb.position = origin
         orb.zPosition = 60
 
-        let tail = SKShapeNode(circleOfRadius: 14)
+        let tail = SKShapeNode(circleOfRadius: Self.battleLayoutPt(14))
         tail.fillColor = UIColor(red: 0.133, green: 0.773, blue: 0.369, alpha: 0.36)
         tail.strokeColor = .clear
         tail.lineWidth = 0
@@ -1462,18 +1467,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playGoodCompleteEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        let ring = makeEffectSprite(name: "ear-training-effect-fire-ring", size: 64)
-        ring.position = CGPoint(x: anchors.player.x + 42, y: anchors.player.castY)
+        let ring = makeEffectSprite(name: "ear-training-effect-fire-ring", size: Self.battleLayoutPt(64))
+        ring.position = CGPoint(x: anchors.player.x + Self.battleLayoutPt(42), y: anchors.player.castY)
         ring.alpha = 0.92
         effectLayer.addChild(ring)
         let move = SKAction.move(to: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), duration: 0.68)
         move.timingMode = .easeOut
         let rotate = SKAction.rotate(byAngle: 540 * (.pi / 180), duration: 0.68)
-        let resize = SKAction.resize(toWidth: 176, height: 176, duration: 0.68)
+        let resize = SKAction.resize(toWidth: Self.battleLayoutPt(176), height: Self.battleLayoutPt(176), duration: 0.68)
         ring.run(SKAction.group([move, rotate, resize])) { [weak self, weak ring] in
             guard let self else { return }
             ring?.run(SKAction.group([
-                SKAction.resize(toWidth: 226, height: 226, duration: 0.26),
+                SKAction.resize(toWidth: Self.battleLayoutPt(226), height: Self.battleLayoutPt(226), duration: 0.26),
                 SKAction.fadeOut(withDuration: 0.26),
             ])) {
                 ring?.removeFromParent()
@@ -1481,7 +1486,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.applyCompletionImpact(
                 anchors: anchors,
                 color: UIColor(red: 0.980, green: 0.800, blue: 0.082, alpha: 1.0),
-                knockbackDistance: 84,
+                knockbackDistance: Self.battleLayoutPt(84),
                 knockbackDurationMs: 330,
                 tintColor: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0),
                 damage: command.damage
@@ -1492,12 +1497,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playSnowflakeEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        let snowflake = makeEffectSprite(name: "ear-training-effect-snowflake", size: 72)
-        snowflake.position = CGPoint(x: anchors.player.x + 42, y: anchors.player.castY)
+        let snowflake = makeEffectSprite(name: "ear-training-effect-snowflake", size: Self.battleLayoutPt(72))
+        snowflake.position = CGPoint(x: anchors.player.x + Self.battleLayoutPt(42), y: anchors.player.castY)
         effectLayer.addChild(snowflake)
         let move = SKAction.move(to: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), duration: 0.86)
         move.timingMode = .easeInEaseOut
-        let resize = SKAction.resize(toWidth: 154, height: 154, duration: 0.86)
+        let resize = SKAction.resize(toWidth: Self.battleLayoutPt(154), height: Self.battleLayoutPt(154), duration: 0.86)
         let rotate = SKAction.rotate(byAngle: 720 * (.pi / 180), duration: 0.86)
         snowflake.run(SKAction.group([move, resize, rotate])) { [weak self, weak snowflake] in
             guard let self else { return }
@@ -1505,7 +1510,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.applyCompletionImpact(
                 anchors: anchors,
                 color: UIColor(red: 0.576, green: 0.773, blue: 0.992, alpha: 1.0),
-                knockbackDistance: 106,
+                knockbackDistance: Self.battleLayoutPt(106),
                 knockbackDurationMs: 360,
                 tintColor: UIColor(red: 0.490, green: 0.827, blue: 0.988, alpha: 1.0),
                 damage: command.damage
@@ -1516,14 +1521,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playLightningEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        let cloud = makeEffectSprite(name: "ear-training-effect-cloud", size: 148)
-        cloud.position = CGPoint(x: anchors.enemy.x, y: anchors.enemy.headY + 32)
+        let cloud = makeEffectSprite(name: "ear-training-effect-cloud", size: Self.battleLayoutPt(148))
+        cloud.position = CGPoint(x: anchors.enemy.x, y: anchors.enemy.headY + Self.battleLayoutPt(32))
         cloud.alpha = 0.9
         effectLayer.addChild(cloud)
-        cameraShake(amplitude: 6, durationMs: 200)
+        cameraShake(amplitude: Self.battleLayoutPt(6), durationMs: 200)
 
-        let lightning = makeEffectSprite(name: "ear-training-effect-lightning", size: 190)
-        lightning.position = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY + 34)
+        let lightning = makeEffectSprite(name: "ear-training-effect-lightning", size: Self.battleLayoutPt(190))
+        lightning.position = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY + Self.battleLayoutPt(34))
         lightning.zRotation = 4 * (.pi / 180)
         lightning.alpha = 0
         effectLayer.addChild(lightning)
@@ -1538,7 +1543,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                     self.applyCompletionImpact(
                         anchors: anchors,
                         color: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0),
-                        knockbackDistance: 122,
+                        knockbackDistance: Self.battleLayoutPt(122),
                         knockbackDurationMs: 390,
                         tintColor: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0),
                         damage: command.damage
@@ -1575,18 +1580,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 self?.launchMeteor(command, anchors: anchors)
             }
         )
-        showMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + 12), size: 190)
+        showMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + Self.battleLayoutPt(12)), size: Self.battleLayoutPt(190))
     }
 
     private func launchMeteor(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        let meteor = makeEffectSprite(name: "ear-training-effect-meteor", size: 230)
-        let start = CGPoint(x: anchors.enemy.x - 148, y: anchors.enemy.headY + 230)
+        let meteor = makeEffectSprite(name: "ear-training-effect-meteor", size: Self.battleLayoutPt(230))
+        let start = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(148), y: anchors.enemy.headY + Self.battleLayoutPt(230))
         meteor.position = start
         meteor.zRotation = -8 * (.pi / 180)
         effectLayer.addChild(meteor)
         let move = SKAction.move(to: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), duration: 0.98)
         move.timingMode = .easeIn
-        let resize = SKAction.resize(toWidth: 352, height: 352, duration: 0.98)
+        let resize = SKAction.resize(toWidth: Self.battleLayoutPt(352), height: Self.battleLayoutPt(352), duration: 0.98)
         let rotate = SKAction.rotate(toAngle: 10 * (.pi / 180), duration: 0.98, shortestUnitArc: false)
         meteor.run(SKAction.group([move, resize, rotate])) { [weak self, weak meteor] in
             guard let self else { return }
@@ -1594,7 +1599,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.applyCompletionImpact(
                 anchors: anchors,
                 color: UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 1.0),
-                knockbackDistance: 172,
+                knockbackDistance: Self.battleLayoutPt(172),
                 knockbackDurationMs: 460,
                 tintColor: UIColor(red: 1.000, green: 0.929, blue: 0.835, alpha: 1.0),
                 damage: command.damage
@@ -1673,14 +1678,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func showFloatingResultText(label: String, x: CGFloat, y: CGFloat, color: UIColor) {
         let text = SKLabelNode(text: label)
         text.fontName = "AvenirNext-Heavy"
-        text.fontSize = 28
+        text.fontSize = Self.battleLayoutPt(28)
         text.fontColor = color
         text.position = CGPoint(x: x, y: y)
         text.zPosition = 70
         effectLayer.addChild(text)
         text.run(SKAction.sequence([
             SKAction.group([
-                SKAction.moveBy(x: 0, y: 58, duration: 0.92),
+                SKAction.moveBy(x: 0, y: Self.battleLayoutPt(58), duration: 0.92),
                 SKAction.fadeOut(withDuration: 0.92),
                 SKAction.scale(to: 1.18, duration: 0.92),
             ]),
@@ -1693,14 +1698,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let displayDamage = Int(round(Double(abs(damage))))
         let text = SKLabelNode(text: "\(displayDamage)")
         text.fontName = "AvenirNext-Heavy"
-        text.fontSize = 18
+        text.fontSize = Self.battleLayoutPt(18)
         text.fontColor = UIColor(red: 0.996, green: 0.792, blue: 0.792, alpha: 1.0)
-        text.position = CGPoint(x: anchors.x + 28, y: anchors.headY - 18)
+        text.position = CGPoint(x: anchors.x + Self.battleLayoutPt(28), y: anchors.headY - Self.battleLayoutPt(18))
         text.zPosition = 70
         effectLayer.addChild(text)
         text.run(SKAction.sequence([
             SKAction.group([
-                SKAction.moveBy(x: 10, y: 36, duration: 0.72),
+                SKAction.moveBy(x: Self.battleLayoutPt(10), y: Self.battleLayoutPt(36), duration: 0.72),
                 SKAction.fadeOut(withDuration: 0.72),
                 SKAction.scale(to: 1.08, duration: 0.72),
             ]),
@@ -1709,11 +1714,11 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func showImpactBurst(at position: CGPoint, color: UIColor, large: Bool) {
-        let radius: CGFloat = large ? 46 : 24
+        let radius: CGFloat = large ? Self.battleLayoutPt(46) : Self.battleLayoutPt(24)
         let ring = SKShapeNode(circleOfRadius: radius)
         ring.fillColor = color.withAlphaComponent(0.16)
         ring.strokeColor = UIColor.white.withAlphaComponent(large ? 0.9 : 0.72)
-        ring.lineWidth = large ? 7 : 3
+        ring.lineWidth = large ? Self.battleLayoutPt(7) : Self.battleLayoutPt(3)
         ring.position = position
         effectLayer.addChild(ring)
         ring.run(SKAction.sequence([
@@ -1726,14 +1731,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let sparkCount = large ? 22 : 9
         for index in 0..<sparkCount {
             let angle = (Double.pi * 2 * Double(index)) / Double(sparkCount)
-            let spark = SKShapeNode(circleOfRadius: large ? 5 : 3)
+            let spark = SKShapeNode(circleOfRadius: large ? Self.battleLayoutPt(5) : Self.battleLayoutPt(3))
             spark.fillColor = color.withAlphaComponent(0.9)
             spark.strokeColor = .clear
             spark.lineWidth = 0
             spark.position = position
             effectLayer.addChild(spark)
-            let dx = cos(angle) * (large ? 104 : 44)
-            let dy = sin(angle) * (large ? 68 : 30)
+            let dx = cos(angle) * (large ? Self.battleLayoutPt(104) : Self.battleLayoutPt(44))
+            let dy = sin(angle) * (large ? Self.battleLayoutPt(68) : Self.battleLayoutPt(30))
             spark.run(SKAction.sequence([
                 SKAction.group([
                     SKAction.moveBy(x: CGFloat(dx), y: CGFloat(dy), duration: large ? 0.68 : 0.36),
