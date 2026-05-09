@@ -320,7 +320,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   // これが無いと初回ロード時に 'basic' のステージ/ブロック/レイアウトが空のままメモ化され、
   // マップが描画されず TOTAL PROGRESS の分母が 0 (=Math.max(1,0)) で 1700% 等になる。
   const [stagesVersion, setStagesVersion] = useState(0);
-  const [currentStageNumber, setCurrentStageNumber] = useState(1);
   const [clearedStages, setClearedStages] = useState<Set<number>>(new Set());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
@@ -397,7 +396,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
 
   const applyProgressSnapshot = useCallback((snapshot: SurvivalMapProgressSnapshot) => {
-    setCurrentStageNumber(snapshot.currentStageNumber);
     setClearedStages(snapshot.clearedStages);
   }, []);
 
@@ -549,8 +547,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
   const frontierStageNumber = useMemo(() => {
     const max = Math.max(1, totalStagesForCategory);
-    return Math.max(1, Math.min(max, currentStageNumber));
-  }, [currentStageNumber, totalStagesForCategory]);
+    for (let n = 1; n <= max; n += 1) {
+      const unlocked = n === 1 || clearedStages.has(n - 1);
+      if (unlocked && !clearedStages.has(n)) return n;
+    }
+    return max;
+  }, [clearedStages, totalStagesForCategory]);
 
   const accessibleBlockIndex = useMemo(
     () => getAccessibleBlockIndex(frontierStageNumber, clearedStages, mapCategory),

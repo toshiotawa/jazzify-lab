@@ -349,6 +349,12 @@ struct LessonJourneyView: View {
                         yPx: frontierNode.y * scale,
                         scale: scale
                     )
+                } else if allCleared {
+                    LessonJourneyCharacterView(
+                        xPx: layout.goal.x * scale,
+                        yPx: layout.goal.y * scale,
+                        scale: scale
+                    )
                 }
             }
             .frame(width: layout.logicalWidth * scale, height: contentHeight)

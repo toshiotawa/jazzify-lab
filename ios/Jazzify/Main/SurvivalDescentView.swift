@@ -33,7 +33,13 @@ struct SurvivalDescentView: View {
 
     private var frontierStageNumber: Int {
         let total = SurvivalStageCatalog.totalStages(in: mapCategory)
-        return max(1, min(max(1, total), currentStageNumber))
+        let upper = Swift.max(1, total)
+        for n in 1...upper {
+            if isStageUnlocked(n) && !clearedStages.contains(n) {
+                return n
+            }
+        }
+        return upper
     }
 
     private var accessibleBlockIndex: Int {

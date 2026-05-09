@@ -521,6 +521,14 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
                   facing={frontierFacing}
                 />
               )}
+              {!frontierNode && allCleared && (
+                <JourneyCharacter
+                  xPx={layout.goal.x * scale}
+                  yPx={layout.goal.y * scale}
+                  scale={scale}
+                  facing="center"
+                />
+              )}
             </div>
           </div>
 
