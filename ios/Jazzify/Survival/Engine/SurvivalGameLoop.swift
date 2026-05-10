@@ -326,14 +326,34 @@ final class SurvivalGameLoop {
             if !runtime.slots[idx].inputPitchClasses.contains(pc) {
                 runtime.slots[idx].inputPitchClasses.append(pc)
             }
+        }
+
+        var completedIndices: [Int] = []
+        for idx in runtime.slots.indices {
+            guard runtime.slots[idx].isEnabled else { continue }
             guard let target = runtime.slots[idx].chord else { continue }
             if SurvivalChordResolver.isMatch(
                 inputPitchClasses: runtime.slots[idx].inputPitchClasses,
                 target: target
             ) {
-                events.append(contentsOf: triggerSlot(atIndex: idx, chord: target))
+                completedIndices.append(idx)
             }
         }
+
+        guard !completedIndices.isEmpty else { return events }
+
+        for idx in completedIndices {
+            guard let target = runtime.slots[idx].chord else { continue }
+            events.append(contentsOf: triggerSlot(atIndex: idx, chord: target))
+        }
+
+        let completedSet = Set(completedIndices)
+        for idx in runtime.slots.indices {
+            guard runtime.slots[idx].isEnabled else { continue }
+            if completedSet.contains(idx) { continue }
+            runtime.slots[idx].inputPitchClasses.removeAll()
+        }
+
         return events
     }
 

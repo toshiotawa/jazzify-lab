@@ -292,6 +292,21 @@ const createEmptyCodeSlot = (type: 'A' | 'B' | 'C' | 'D', chord: ChordDefinition
   isEnabled: type !== 'C' && type !== 'D',  // C列・D列は魔法取得まで無効
 });
 
+/** コード完成入力で確定したスロット以外の、入力途中のみ `correctNotes` を空にする（ランダム多列向け）。 */
+export const resetIncompleteOtherSlotCorrectNotes = (
+  slots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+  completedThisInput: readonly number[],
+): [CodeSlot, CodeSlot, CodeSlot, CodeSlot] => {
+  if (completedThisInput.length === 0) return slots;
+  const completedSet = new Set(completedThisInput);
+  return slots.map((slot, index) => {
+    if (completedSet.has(index)) return slot;
+    if (!slot.isEnabled || slot.isCompleted || slot.completedTime) return slot;
+    if (slot.correctNotes.length === 0) return slot;
+    return { ...slot, correctNotes: [] };
+  }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+};
+
 // ===== 初期WAVE状態 =====
 const createInitialWaveState = (): WaveState => ({
   currentWave: 1,

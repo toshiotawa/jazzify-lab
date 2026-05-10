@@ -66,6 +66,7 @@ import {
   MAX_COINS,
   spawnStageEnemy,
   getStageSpawnConfig,
+  resetIncompleteOtherSlotCorrectNotes,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
 import {
@@ -1367,7 +1368,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           completedTime: isComplete ? Date.now() : undefined,
         };
       }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
-      
+
+      newState.codeSlots.current = resetIncompleteOtherSlotCorrectNotes(
+        newState.codeSlots.current,
+        completedSlotIndices,
+      );
+
       // コード完成時の処理 - すべての完了スロットに対してスキル発動
       for (const completedSlotIndex of completedSlotIndices) {
         const slotType = ['A', 'B', 'C', 'D'][completedSlotIndex] as 'A' | 'B' | 'C' | 'D';

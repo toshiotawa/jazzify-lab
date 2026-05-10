@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
-import { initializeCodeSlots, selectProgressionChord } from './SurvivalGameEngine';
+import type { CodeSlot } from './SurvivalTypes';
+import { initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord } from './SurvivalGameEngine';
 import { getSurvivalStageBattleKind } from './SurvivalStageDefinitions';
 
 vi.mock('@/platform/supabaseClient', () => ({
@@ -73,5 +74,60 @@ describe('survival stage battle kind', () => {
 
   it('keeps non-final random stages in random gameplay', () => {
     expect(getSurvivalStageBattleKind('random', false)).toBe('random');
+  });
+});
+
+const baseSlot = (overrides: Partial<CodeSlot> & Pick<CodeSlot, 'type'>): CodeSlot => ({
+  chord: null,
+  correctNotes: [],
+  timer: 10,
+  isCompleted: false,
+  isEnabled: true,
+  ...overrides,
+});
+
+describe('resetIncompleteOtherSlotCorrectNotes', () => {
+  it('clears partial progress on incomplete enabled slots when others complete this input', () => {
+    const row: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      baseSlot({ type: 'A', correctNotes: [0], isCompleted: true, completedTime: 1 }),
+      baseSlot({ type: 'B', correctNotes: [1, 5] }),
+      baseSlot({ type: 'C', isEnabled: false, correctNotes: [2] }),
+      baseSlot({ type: 'D', correctNotes: [] }),
+    ];
+
+    const next = resetIncompleteOtherSlotCorrectNotes(row, [0]);
+
+    expect(next[0]).toBe(row[0]);
+    expect(next[1].correctNotes).toEqual([]);
+    expect(next[2].correctNotes).toEqual([2]);
+    expect(next[3]).toBe(row[3]);
+  });
+
+  it('does nothing when no completions and leaves array reference stable', () => {
+    const row: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      baseSlot({ type: 'A' }),
+      baseSlot({ type: 'B', correctNotes: [1] }),
+      baseSlot({ type: 'C', isEnabled: false }),
+      baseSlot({ type: 'D' }),
+    ];
+
+    const next = resetIncompleteOtherSlotCorrectNotes(row, []);
+    expect(next).toBe(row);
+    expect(next[1].correctNotes).toEqual([1]);
+  });
+
+  it('preserves another slot that is already completed and awaiting rollover', () => {
+    const row: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      baseSlot({ type: 'A', correctNotes: [], isCompleted: true, completedTime: 99 }),
+      baseSlot({ type: 'B', correctNotes: [0, 4, 7], isCompleted: true, completedTime: 100 }),
+      baseSlot({ type: 'C', correctNotes: [9] }),
+      baseSlot({ type: 'D' }),
+    ];
+
+    const next = resetIncompleteOtherSlotCorrectNotes(row, [1]);
+
+    expect(next[0].correctNotes).toEqual([]);
+    expect(next[2].correctNotes).toEqual([]);
+    expect(next[1].isCompleted).toBe(true);
   });
 });
