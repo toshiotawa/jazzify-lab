@@ -22,6 +22,33 @@ struct SurvivalDescentView: View {
     @State private var scrollTargetY: CGFloat?
     @State private var scrollAnimated: Bool = false
     @State private var didInitialScroll: Bool = false
+    @State private var viewport: UIKitVerticalViewport = .zero
+
+    private let logicalCullMargin: CGFloat = 640
+
+    private func visibleBlockLayouts(scale: CGFloat, fallbackViewportHeight: CGFloat) -> [SurvivalDescentBlockLayout] {
+        let safeScale = max(scale, 0.001)
+        let viewportHeight = max(1, viewport.height > 0 ? viewport.height : fallbackViewportHeight)
+
+        let logicalMinY = max(0, viewport.offsetY / safeScale - logicalCullMargin)
+        let logicalMaxY = viewport.offsetY / safeScale + viewportHeight / safeScale + logicalCullMargin
+
+        var visible = layout.blocks.filter {
+            $0.endY >= logicalMinY && $0.startY <= logicalMaxY
+        }
+
+        // 初回ジャンプ時に空白にならないよう、現在地ブロック/選択ブロックは強制で残す
+        var seen = Set(visible.map(\.blockKey))
+        for stageNumber in [frontierStageNumber, selectedStageNumber].compactMap({ $0 }) {
+            if let block = layout.blockLayout(for: stageNumber),
+               seen.insert(block.blockKey).inserted {
+                visible.append(block)
+            }
+        }
+
+        visible.sort { $0.blockIndex < $1.blockIndex }
+        return visible
+    }
 
     /// `SurvivalStageCatalog.load(rows:)` 完了後の最新値を反映できるよう computed property にする。
     private var layout: SurvivalDescentLayout {
@@ -103,12 +130,23 @@ struct SurvivalDescentView: View {
             let worldWidth = max(width, SurvivalDescentLayoutConstants.logicalWidth * mapScale)
             let worldHeight = layout.totalHeight * mapScale
 
+            let visibleBlocks = visibleBlockLayouts(
+                scale: mapScale,
+                fallbackViewportHeight: proxy.size.height
+            )
+
             UIKitVerticalScrollView(
                 contentSize: CGSize(width: worldWidth, height: worldHeight),
                 scrollTargetY: $scrollTargetY,
+                viewport: $viewport,
                 animated: scrollAnimated
             ) {
-                mapBody(worldWidth: worldWidth, worldHeight: worldHeight, scale: mapScale)
+                mapBody(
+                    worldWidth: worldWidth,
+                    worldHeight: worldHeight,
+                    scale: mapScale,
+                    visibleBlocks: visibleBlocks
+                )
             }
             .onAppear {
                 requestScrollToFrontier(scale: mapScale, animated: false)
@@ -137,11 +175,16 @@ struct SurvivalDescentView: View {
     }
 
     @ViewBuilder
-    private func mapBody(worldWidth: CGFloat, worldHeight: CGFloat, scale: CGFloat) -> some View {
+    private func mapBody(
+        worldWidth: CGFloat,
+        worldHeight: CGFloat,
+        scale: CGFloat,
+        visibleBlocks: [SurvivalDescentBlockLayout]
+    ) -> some View {
         // 論理座標 0..logicalWidth を worldWidth の中央に寄せるための横オフセット
         let horizontalOffset = (worldWidth - SurvivalDescentLayoutConstants.logicalWidth * scale) / 2
 
-        let bands: [(startY: CGFloat, endY: CGFloat, filter: SurvivalDescentBlockFilter)] = layout.blocks.map { b in
+        let bands: [(startY: CGFloat, endY: CGFloat, filter: SurvivalDescentBlockFilter)] = visibleBlocks.map { b in
             (b.startY, b.endY, SurvivalDescentThemeCatalog.filter(for: b.blockIndex))
         }
 
@@ -149,7 +192,7 @@ struct SurvivalDescentView: View {
             SurvivalDescentBackgroundView(widthPx: worldWidth, heightPx: worldHeight, blockBands: bands, scale: scale)
 
             // ブロック区間のテーマ色オーバーレイ (全ブロック)
-            ForEach(Array(layout.blocks.enumerated()), id: \.element.blockKey) { idx, blockLayout in
+            ForEach(Array(visibleBlocks.enumerated()), id: \.element.blockKey) { idx, blockLayout in
                 let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
                 let locked = blockLayout.blockIndex > accessibleBlockIndex
                 SurvivalDescentBlockTintOverlay(
@@ -164,7 +207,7 @@ struct SurvivalDescentView: View {
             }
 
             // 装飾＋踊り場＋階段＋ステージノード
-            ForEach(Array(layout.blocks.enumerated()), id: \.element.blockKey) { _, blockLayout in
+            ForEach(visibleBlocks) { blockLayout in
                 if let meta = block(at: blockLayout.blockIndex) {
                     blockContent(
                         meta: meta,
@@ -177,7 +220,7 @@ struct SurvivalDescentView: View {
             }
 
             // 未解放ブロックの暗幕
-            ForEach(layout.blocks) { blockLayout in
+            ForEach(visibleBlocks) { blockLayout in
                 if blockLayout.blockIndex > accessibleBlockIndex {
                     SurvivalDescentDimVeil(
                         startY: blockLayout.startY,
@@ -189,7 +232,7 @@ struct SurvivalDescentView: View {
             }
 
             // フロンティアブロックに漂う火の粉
-            if let frontierBlock = layout.blocks.first(where: { $0.blockIndex == accessibleBlockIndex }) {
+            if let frontierBlock = visibleBlocks.first(where: { $0.blockIndex == accessibleBlockIndex }) {
                 let theme = SurvivalDescentThemeCatalog.theme(for: frontierBlock.blockIndex)
                 SurvivalDescentFloatingEmber(
                     startY: frontierBlock.startY,

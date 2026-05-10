@@ -17,6 +17,7 @@ struct SurvivalGameView: View {
 
     @State private var session: SurvivalGameSession?
     @State private var bootstrapTask: Task<Void, Never>?
+    @State private var bootstrapID = UUID()
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
     @State private var isLoading: Bool = true
     @State private var loadError: String?
@@ -28,20 +29,24 @@ struct SurvivalGameView: View {
                 SurvivalGameContent(session: session, stage: stage, hintMode: hintMode, locale: locale, isDemo: isDemo)
             } else if isLoading {
                 loadingView
-            } else {
+            } else if loadError != nil {
                 errorView
+            } else {
+                loadingView
             }
         }
         .background(Color.black)
         .task {
             bootstrapTask?.cancel()
+            let id = UUID()
+            bootstrapID = id
             bootstrapTask = Task {
-                await bootstrap()
+                await bootstrap(id: id)
             }
         }
         .onDisappear {
             bootstrapTask?.cancel()
-            bootstrapTask = nil
+            bootstrapID = UUID()
             midiSubscriptionHolder.cancel()
             session?.dispose()
         }
@@ -82,8 +87,9 @@ struct SurvivalGameView: View {
     // MARK: - Bootstrap
 
     @MainActor
-    private func bootstrap() async {
+    private func bootstrap(id: UUID) async {
         guard session == nil else { return }
+
         isLoading = true
         loadError = nil
 
@@ -113,10 +119,8 @@ struct SurvivalGameView: View {
             config = await configTask
         }
 
-        guard !Task.isCancelled else {
-            isLoading = false
-            return
-        }
+        // 古い task / cancel 済み task は UI を壊さず静かに終了
+        guard !Task.isCancelled, bootstrapID == id else { return }
 
         let created = SurvivalGameSession(
             stage: stage,
@@ -128,11 +132,12 @@ struct SurvivalGameView: View {
             isDemo: isDemo
         )
         created.start()
-        guard !Task.isCancelled else {
+
+        guard !Task.isCancelled, bootstrapID == id else {
             created.dispose()
-            isLoading = false
             return
         }
+
         self.session = created
         self.isLoading = false
 
