@@ -1,8 +1,10 @@
 import Foundation
 
 enum SurvivalBgmDefaults {
-    /// Web `DEFAULT_SURVIVAL_RANDOM_BGM_URL` と一致（マップBGMと同一URL）
-    static let randomURL = SurvivalMapAudio.bgmURL
+    /// Web `DEFAULT_SURVIVAL_RANDOM_BGM_URL` と一致
+    static let randomURL = URL(
+        string: "https://jazzify-cdn.com/fantasy-bgm/727a4d3b-21b9-4889-933b-ba170c6037bc.mp3"
+    )!
     static let progressionURL = URL(
         string: "https://jazzify-cdn.com/fantasy-bgm/74099219-644e-46c1-b509-bedf9adadf10.mp3"
     )!

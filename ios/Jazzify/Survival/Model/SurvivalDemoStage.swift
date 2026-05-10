@@ -13,9 +13,7 @@ import Foundation
 enum SurvivalDemoStage {
     static let allowedChords: [String] = ["C_note", "D_note", "E_note"]
 
-    private static let bgmUrl: URL? = URL(
-        string: "https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3"
-    )
+    private static let bgmUrl: URL? = SurvivalBgmDefaults.randomURL
 
     /// ステージ 1 (メジャー CDE) をベースに `allowedChords` / `chordSuffix` のみ差し替えたデモ用定義。
     /// 他のプロパティ (難易度 / ルートパターン / ブロックキー) は流用してボス判定等の挙動を揃える。

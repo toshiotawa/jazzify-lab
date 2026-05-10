@@ -6,6 +6,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import '@/app-extra.css';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
+import { DEFAULT_SURVIVAL_RANDOM_BGM_URL } from '@/platform/supabaseSurvival';
 
 const LPPIXIPiano = React.lazy(() => import('./LPPIXIPiano'));
 const SurvivalGameScreen = React.lazy(() => import('@/components/survival/SurvivalGameScreen'));
@@ -14,7 +15,7 @@ const DEMO_TIME_LIMIT_MS = 90 * 1000;
 
 const DEMO_CDE_NOTES = ['C', 'D', 'E'];
 
-const DEMO_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
+const DEMO_BGM_URL = DEFAULT_SURVIVAL_RANDOM_BGM_URL;
 
 const DEMO_STAGE_CONFIG: DifficultyConfig = {
   difficulty: 'easy',
