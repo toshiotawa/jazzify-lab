@@ -573,7 +573,7 @@ final class SupabaseService: Sendable {
     ) async throws -> [SurvivalStageClearRow] {
         try await client
             .from("survival_stage_clears")
-            .select("map_category, stage_number, character_id, cleared_at")
+            .select("map_category, stage_number, character_id, cleared_at, clear_count")
             .eq("user_id", value: userId.uuidString)
             .eq("map_category", value: mapCategory.rawValue)
             .execute()
@@ -612,7 +612,10 @@ final class SupabaseService: Sendable {
         totalStages: Int,
         mapCategory: SurvivalMapCategory = .basic
     ) async throws {
-        struct ExistingRow: Decodable { let id: UUID }
+        struct ExistingClearRow: Decodable {
+            let id: UUID
+            let clear_count: Int?
+        }
         struct ClearUpsert: Encodable {
             let user_id: UUID
             let map_category: String
@@ -622,6 +625,7 @@ final class SupabaseService: Sendable {
             let final_level: Int
             let enemies_defeated: Int
             let cleared_at: String
+            let clear_count: Int
         }
         struct ProgressRow: Decodable {
             let current_stage_number: Int
@@ -635,9 +639,9 @@ final class SupabaseService: Sendable {
             let updated_at: String
         }
 
-        let existing: [ExistingRow] = try await client
+        let existing: [ExistingClearRow] = try await client
             .from("survival_stage_clears")
-            .select("id")
+            .select("id, clear_count")
             .eq("user_id", value: userId.uuidString)
             .eq("map_category", value: mapCategory.rawValue)
             .eq("stage_number", value: stageNumber)
@@ -645,6 +649,11 @@ final class SupabaseService: Sendable {
             .execute()
             .value
         let isFirstClear = existing.isEmpty
+        let priorClearCount: Int = {
+            guard let row = existing.first, let c = row.clear_count, c >= 1 else { return 1 }
+            return c
+        }()
+        let nextClearCount = isFirstClear ? 1 : priorClearCount + 1
         let nowIso = ISO8601DateFormatter().string(from: Date())
 
         try await client
@@ -658,7 +667,8 @@ final class SupabaseService: Sendable {
                     survival_time_seconds: survivalTimeSeconds,
                     final_level: finalLevel,
                     enemies_defeated: enemiesDefeated,
-                    cleared_at: nowIso
+                    cleared_at: nowIso,
+                    clear_count: nextClearCount
                 ),
                 onConflict: "user_id,map_category,stage_number"
             )

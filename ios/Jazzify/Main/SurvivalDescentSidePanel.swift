@@ -12,6 +12,8 @@ struct SurvivalDescentSidePanel: View {
     let activeBlock: SurvivalBlockMeta?
     let blockClearedCount: Int
     let selectedStage: SurvivalStageDefinition?
+    /// ログインユーザーが当該ステージをクリアした累計回数（未プレイは0）
+    let selectedStageClearCount: Int
     let selectedStageIsUnlocked: Bool
     let selectedStageIsCleared: Bool
     @Binding var hintMode: Bool
@@ -155,26 +157,29 @@ struct SurvivalDescentSidePanel: View {
                         value: stageTypeText(stage: stage),
                         valueColor: .white
                     )
+                    if stage.mapCategory != .songs {
+                        infoTile(
+                            label: isEnglishCopy ? "Chord Type" : "コードタイプ",
+                            value: stage.localizedChordDisplay(locale),
+                            valueColor: .white
+                        )
+                        infoTile(
+                            label: isEnglishCopy ? "Root" : "ルート",
+                            value: stage.localizedRootPattern(locale),
+                            valueColor: .white
+                        )
+                    }
                     infoTile(
-                        label: isEnglishCopy ? "Chord Type" : "コードタイプ",
-                        value: stage.localizedChordDisplay(locale),
-                        valueColor: .white
-                    )
-                    infoTile(
-                        label: isEnglishCopy ? "Root" : "ルート",
-                        value: stage.localizedRootPattern(locale),
-                        valueColor: .white
-                    )
-                    infoTile(
-                        label: isEnglishCopy ? "Time" : "制限時間",
-                        value: timeLimitText(stage: stage),
-                        valueColor: Color(hex: "fde68a")
+                        label: isEnglishCopy ? "Total clears" : "累計クリア回数",
+                        value: "\(selectedStageClearCount)",
+                        valueColor: Color(hex: "bae6fd")
                     )
                     infoTile(
                         label: isEnglishCopy ? "Clear" : "クリア条件",
                         value: clearConditionText(stage: stage),
                         valueColor: Color(hex: "6ee7b7")
                     )
+                    .gridCellColumns(2)
                 }
 
                 hintToggle(disabled: playLocked)
@@ -365,11 +370,6 @@ struct SurvivalDescentSidePanel: View {
     private var startButtonLabel: String {
         if playLocked { return isEnglishCopy ? "Upgrade" : "アップグレード" }
         return isEnglishCopy ? "Start" : "開始"
-    }
-
-    private func timeLimitText(stage: SurvivalStageDefinition) -> String {
-        if isBossStage(stage) { return "—" }
-        return "\(SurvivalStageCatalog.stageTimeLimitSeconds)s"
     }
 
     private func clearConditionText(stage: SurvivalStageDefinition) -> String {

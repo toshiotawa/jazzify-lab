@@ -125,6 +125,8 @@ const DESCENT_MAP_IMAGES = [
 interface SurvivalMapProgressSnapshot {
   currentStageNumber: number;
   clearedStages: Set<number>;
+  /** stageNumber -> DB clear_count（行が無いステージは未設定） */
+  stageClearCounts: Map<number, number>;
 }
 
 interface SurvivalMapStaticData {
@@ -213,6 +215,7 @@ const loadSurvivalMapStaticData = async (): Promise<SurvivalMapStaticData> => {
 const createDefaultProgressSnapshot = (): SurvivalMapProgressSnapshot => ({
   currentStageNumber: 1,
   clearedStages: new Set<number>(),
+  stageClearCounts: new Map<number, number>(),
 });
 
 const readDebugProgress = (): number | null => {
@@ -330,6 +333,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   // マップが描画されず TOTAL PROGRESS の分母が 0 (=Math.max(1,0)) で 1700% 等になる。
   const [stagesVersion, setStagesVersion] = useState(0);
   const [clearedStages, setClearedStages] = useState<Set<number>>(new Set());
+  const [stageClearCounts, setStageClearCounts] = useState<Map<number, number>>(() => new Map());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -405,7 +409,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
 
   const applyProgressSnapshot = useCallback((snapshot: SurvivalMapProgressSnapshot) => {
-    setClearedStages(snapshot.clearedStages);
+    setClearedStages(new Set(snapshot.clearedStages));
+    setStageClearCounts(new Map(snapshot.stageClearCounts));
   }, []);
 
   useEffect(() => {
@@ -469,24 +474,38 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           fetchSurvivalStageProgress(profileId, mapCategory).catch(() => null),
           fetchSurvivalStageClears(profileId, mapCategory).catch(() => []),
         ]);
+        const stageClearCountsNext = new Map<number, number>();
+        clears.forEach(c => {
+          stageClearCountsNext.set(c.stageNumber, c.clearCount);
+        });
         snapshot = {
           currentStageNumber: progress?.currentStageNumber ?? 1,
           clearedStages: new Set(clears.map(c => c.stageNumber)),
+          stageClearCounts: stageClearCountsNext,
         };
       }
 
       const debugProgress = readDebugProgress();
       if (debugProgress != null) {
         const cleared = new Set<number>();
-        for (let i = 1; i <= debugProgress; i += 1) cleared.add(i);
+        const counts = new Map<number, number>();
+        for (let i = 1; i <= debugProgress; i += 1) {
+          cleared.add(i);
+          counts.set(i, 1);
+        }
         const totalForDebug = getTotalStagesByCategory(mapCategory);
         snapshot = {
           currentStageNumber: Math.min(totalForDebug, debugProgress + 1),
           clearedStages: cleared,
+          stageClearCounts: counts,
         };
       }
 
-      progressCacheRef.current[mapCategory] = snapshot;
+      progressCacheRef.current[mapCategory] = {
+        currentStageNumber: snapshot.currentStageNumber,
+        clearedStages: new Set(snapshot.clearedStages),
+        stageClearCounts: new Map(snapshot.stageClearCounts),
+      };
       if (cancelled || progressRequestIdRef.current !== requestId) return;
       applyProgressSnapshot(snapshot);
       didLoadInitialProgressRef.current = true;
@@ -535,6 +554,11 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     if (selectedStageNumber == null) return null;
     return stagesForCategory.find(s => s.stageNumber === selectedStageNumber) ?? null;
   }, [selectedStageNumber, stagesForCategory]);
+
+  const selectedStageClearCount = useMemo(() => {
+    if (selectedStageNumber == null) return 0;
+    return stageClearCounts.get(selectedStageNumber) ?? 0;
+  }, [selectedStageNumber, stageClearCounts]);
 
   const selectedStagePlayPaywalled = Boolean(
     freeTierAccessOnly
@@ -953,6 +977,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
             activeBlock={panelBlock}
             blockClearedCount={panelBlockClearedCount}
             selectedStage={selectedStage}
+            selectedStageClearCount={selectedStageClearCount}
             selectedStageIsUnlocked={selectedStage ? isStageUnlocked(selectedStage.stageNumber) : false}
             selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
             hintMode={hintMode}
@@ -994,6 +1019,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 activeBlock={panelBlock}
                 blockClearedCount={panelBlockClearedCount}
                 selectedStage={selectedStage}
+                selectedStageClearCount={selectedStageClearCount}
                 selectedStageIsUnlocked={selectedStage ? isStageUnlocked(selectedStage.stageNumber) : false}
                 selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
                 hintMode={hintMode}

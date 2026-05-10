@@ -503,6 +503,8 @@ export interface SurvivalStageClear {
   enemiesDefeated: number;
   clearedAt: string;
   mapCategory: SurvivalMapCategory;
+  /** DB `survival_stage_clears.clear_count`。行があるときは常に >= 1 */
+  clearCount: number;
 }
 
 export async function fetchSurvivalStageProgress(
@@ -538,17 +540,22 @@ export async function fetchSurvivalStageClears(
     .order('stage_number', { ascending: true });
 
   if (error) throw error;
-  return (data ?? []).map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    userId: row.user_id as string,
-    stageNumber: Number(row.stage_number),
-    characterId: typeof row.character_id === 'string' ? row.character_id : null,
-    survivalTimeSeconds: Number(row.survival_time_seconds) || 0,
-    finalLevel: Number(row.final_level) || 1,
-    enemiesDefeated: Number(row.enemies_defeated) || 0,
-    clearedAt: row.cleared_at as string,
-    mapCategory: (row.map_category as SurvivalMapCategory) || DEFAULT_SURVIVAL_MAP_CATEGORY,
-  }));
+  return (data ?? []).map((row: Record<string, unknown>) => {
+    const rawClearCount = Number(row.clear_count);
+    const clearCount = Number.isFinite(rawClearCount) && rawClearCount >= 1 ? rawClearCount : 1;
+    return {
+      id: row.id as string,
+      userId: row.user_id as string,
+      stageNumber: Number(row.stage_number),
+      characterId: typeof row.character_id === 'string' ? row.character_id : null,
+      survivalTimeSeconds: Number(row.survival_time_seconds) || 0,
+      finalLevel: Number(row.final_level) || 1,
+      enemiesDefeated: Number(row.enemies_defeated) || 0,
+      clearedAt: row.cleared_at as string,
+      mapCategory: (row.map_category as SurvivalMapCategory) || DEFAULT_SURVIVAL_MAP_CATEGORY,
+      clearCount,
+    };
+  });
 }
 
 export async function upsertSurvivalStageClear(
@@ -565,13 +572,18 @@ export async function upsertSurvivalStageClear(
 
   const { data: existing } = await supabase
     .from('survival_stage_clears')
-    .select('id')
+    .select('id, clear_count')
     .eq('user_id', userId)
     .eq('map_category', mapCategory)
     .eq('stage_number', stageNumber)
     .maybeSingle();
 
   const isFirstClear = !existing;
+
+  const priorClearCount = existing && typeof existing.clear_count === 'number'
+    ? Number(existing.clear_count)
+    : 1;
+  const nextClearCount = isFirstClear ? 1 : (Number.isFinite(priorClearCount) && priorClearCount >= 1 ? priorClearCount + 1 : 2);
 
   await supabase
     .from('survival_stage_clears')
@@ -584,6 +596,7 @@ export async function upsertSurvivalStageClear(
       final_level: finalLevel,
       enemies_defeated: enemiesDefeated,
       cleared_at: new Date().toISOString(),
+      clear_count: nextClearCount,
     }, { onConflict: 'user_id,map_category,stage_number' });
 
   if (isFirstClear) {

@@ -20,6 +20,7 @@ struct SurvivalView: View {
 
     @State private var currentStageNumber: Int = 1
     @State private var clearedStages: Set<Int> = []
+    @State private var stageClearCounts: [Int: Int] = [:]
     @State private var isLoading: Bool = true
     @State private var selectedStageNumber: Int?
     @State private var hintMode: Bool = false
@@ -148,6 +149,7 @@ struct SurvivalView: View {
                         activeBlock: block,
                         blockClearedCount: blockClearedCount,
                         selectedStage: stage,
+                        selectedStageClearCount: stageClearCounts[stage.stageNumber] ?? 0,
                         selectedStageIsUnlocked: isStageUnlocked(stage.stageNumber),
                         selectedStageIsCleared: clearedStages.contains(stage.stageNumber),
                         hintMode: $hintMode,
@@ -235,6 +237,7 @@ struct SurvivalView: View {
                         activeBlock: panelBlock,
                         blockClearedCount: panelBlockClearedCount,
                         selectedStage: selectedStage,
+                        selectedStageClearCount: selectedStage.map { stageClearCounts[$0.stageNumber] ?? 0 } ?? 0,
                         selectedStageIsUnlocked: selectedStage.map { isStageUnlocked($0.stageNumber) } ?? false,
                         selectedStageIsCleared: selectedStage.map { clearedStages.contains($0.stageNumber) } ?? false,
                         hintMode: $hintMode,
@@ -295,6 +298,7 @@ struct SurvivalView: View {
         if let cached = progressCacheByCategory[next] {
             currentStageNumber = cached.currentStageNumber
             clearedStages = cached.clearedStages
+            stageClearCounts = cached.stageClearCounts
         }
         Task { await loadProgress(showBlockingLoader: false, forceCatalogFetch: false) }
     }
@@ -408,9 +412,16 @@ struct SurvivalView: View {
         let progress = await progressTask
         let clears = await clearsTask
 
+        var counts: [Int: Int] = [:]
+        counts.reserveCapacity(clears.count)
+        for row in clears {
+            counts[row.stageNumber] = row.clearCount
+        }
+
         let snapshot = SurvivalProgressSnapshot(
             currentStageNumber: progress?.currentStageNumber ?? 1,
-            clearedStages: Set(clears.map { $0.stageNumber })
+            clearedStages: Set(clears.map(\.stageNumber)),
+            stageClearCounts: counts
         )
         progressCacheByCategory[category] = snapshot
 
@@ -418,6 +429,7 @@ struct SurvivalView: View {
 
         currentStageNumber = snapshot.currentStageNumber
         clearedStages = snapshot.clearedStages
+        stageClearCounts = snapshot.stageClearCounts
 
         if selectedStageNumber == nil {
             if let frontierBlock = SurvivalStageCatalog.block(forStage: currentStageNumber, in: category) {
@@ -511,4 +523,5 @@ private struct StageLaunchSession: Identifiable {
 private struct SurvivalProgressSnapshot {
     let currentStageNumber: Int
     let clearedStages: Set<Int>
+    let stageClearCounts: [Int: Int]
 }

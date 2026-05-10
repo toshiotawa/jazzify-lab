@@ -8,7 +8,7 @@
 import React from 'react';
 import { cn } from '@/utils/cn';
 import { FaLock, FaCheck, FaPlay } from 'react-icons/fa';
-import { StageDefinition, STAGE_TIME_LIMIT_SECONDS, isBlockLastStage } from '../SurvivalStageDefinitions';
+import { StageDefinition, isBlockLastStage } from '../SurvivalStageDefinitions';
 import { BlockMeta } from './descentBlocks';
 
 interface DescentSidePanelProps {
@@ -18,6 +18,8 @@ interface DescentSidePanelProps {
   activeBlock: BlockMeta | null;
   blockClearedCount: number;
   selectedStage: StageDefinition | null;
+  /** ログインユーザーが当該ステージをクリアした累計回数（未プレイは0） */
+  selectedStageClearCount: number;
   selectedStageIsUnlocked: boolean;
   selectedStageIsCleared: boolean;
   hintMode: boolean;
@@ -34,6 +36,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
   activeBlock,
   blockClearedCount,
   selectedStage,
+  selectedStageClearCount,
   selectedStageIsUnlocked,
   selectedStageIsCleared,
   hintMode,
@@ -131,31 +134,35 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                     : (isEnglishCopy ? 'Random' : 'ランダム')}
                 </dd>
               </div>
+              {selectedStage.mapCategory !== 'songs' && (
+                <>
+                  <div className="rounded-md bg-white/5 p-2">
+                    <dt className="text-[10px] text-gray-400">
+                      {isEnglishCopy ? 'Chord Type' : 'コードタイプ'}
+                    </dt>
+                    <dd className="mt-0.5 font-bold text-white">
+                      {isEnglishCopy ? selectedStage.chordDisplayNameEn : selectedStage.chordDisplayName}
+                    </dd>
+                  </div>
+                  <div className="rounded-md bg-white/5 p-2">
+                    <dt className="text-[10px] text-gray-400">
+                      {isEnglishCopy ? 'Root' : 'ルート'}
+                    </dt>
+                    <dd className="mt-0.5 font-bold text-white">
+                      {isEnglishCopy ? selectedStage.rootPatternNameEn : selectedStage.rootPatternName}
+                    </dd>
+                  </div>
+                </>
+              )}
               <div className="rounded-md bg-white/5 p-2">
                 <dt className="text-[10px] text-gray-400">
-                  {isEnglishCopy ? 'Chord Type' : 'コードタイプ'}
+                  {isEnglishCopy ? 'Total clears' : '累計クリア回数'}
                 </dt>
-                <dd className="mt-0.5 font-bold text-white">
-                  {isEnglishCopy ? selectedStage.chordDisplayNameEn : selectedStage.chordDisplayName}
+                <dd className="mt-0.5 font-bold text-sky-200">
+                  {selectedStageClearCount}
                 </dd>
               </div>
-              <div className="rounded-md bg-white/5 p-2">
-                <dt className="text-[10px] text-gray-400">
-                  {isEnglishCopy ? 'Root' : 'ルート'}
-                </dt>
-                <dd className="mt-0.5 font-bold text-white">
-                  {isEnglishCopy ? selectedStage.rootPatternNameEn : selectedStage.rootPatternName}
-                </dd>
-              </div>
-              <div className="rounded-md bg-white/5 p-2">
-                <dt className="text-[10px] text-gray-400">
-                  {isEnglishCopy ? 'Time' : '制限時間'}
-                </dt>
-                <dd className="mt-0.5 font-bold text-amber-300">
-                  {isBlockLastStage(selectedStage.stageNumber, selectedStage.mapCategory) ? '—' : `${STAGE_TIME_LIMIT_SECONDS}s`}
-                </dd>
-              </div>
-              <div className="rounded-md bg-white/5 p-2">
+              <div className="col-span-2 rounded-md bg-white/5 p-2">
                 <dt className="text-[10px] text-gray-400">
                   {isEnglishCopy ? 'Clear' : 'クリア条件'}
                 </dt>
