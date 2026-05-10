@@ -1,6 +1,6 @@
 {
   "name": "jazz-learning-game",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Jazz Learning Game - Music game with piano and guitar modes",
   "private": true,
   "type": "module",
