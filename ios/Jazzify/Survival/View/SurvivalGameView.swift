@@ -182,7 +182,7 @@ private struct SurvivalGameContent: View {
                 .ignoresSafeArea()
 
             SurvivalJoystickRepresentable(
-                hitMask: .leftRightSides(exclusionRatio: 0.42),
+                hitMask: .full,
                 isInteractive: vm.uiSnapshot.phase == .playing && !vm.isPaused
             ) { analog in
                 session.input.setAnalog(analog)
@@ -222,6 +222,7 @@ private struct SurvivalGameContent: View {
         SurvivalChordPadView(
             snapshot: SurvivalChordPadSnapshot(
                 hintMidis: vm.chordPadHintMidis,
+                completedHintMidis: vm.chordPadCompletedHintMidis,
                 midiHeldKeys: vm.midiHeldKeys,
                 isEnabled: vm.uiSnapshot.phase == .playing && !vm.isPaused
             ),

@@ -83,6 +83,7 @@ final class SurvivalJoystickHostView: UIView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard isUserInteractionEnabled, !isHidden, alpha > 0.01 else { return nil }
         guard bounds.contains(point) else { return nil }
+        reconcileActiveTouchIfNeeded(with: event)
         switch hitMask {
         case .full:
             return self
@@ -106,6 +107,7 @@ final class SurvivalJoystickHostView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        reconcileActiveTouchIfNeeded(with: event)
         guard isUserInteractionEnabled, activeTouch == nil, let touch = touches.first else { return }
         let p = touch.location(in: self)
         guard hitMask.containsStartPoint(p, in: bounds.size) else { return }
@@ -142,6 +144,34 @@ final class SurvivalJoystickHostView: UIView {
         baseVisual.isHidden = true
         knobVisual.isHidden = true
         onAnalogChange?(.zero)
+    }
+
+    /// システムが `touchesEnded` / `touchesCancelled` を配信しなかった場合でも
+    /// `activeTouch` が残って新規タッチを弾かないよう、終了済み・無効なタッチを掃除する。
+    private func reconcileActiveTouchIfNeeded(with event: UIEvent?) {
+        guard let touch = activeTouch else { return }
+        switch touch.phase {
+        case .ended, .cancelled:
+            endInteraction()
+            return
+        default:
+            break
+        }
+        if touch.window == nil {
+            endInteraction()
+            return
+        }
+        if let all = event?.allTouches, !all.contains(touch) {
+            endInteraction()
+        }
+    }
+
+    /// 一時停止・フェーズ遷移などで SwiftUI から無効化されるときに呼ぶ。
+    func clearInteractionStateForExternalDisable() {
+        if activeTouch != nil || !baseVisual.isHidden {
+            endInteraction()
+            return
+        }
     }
 
     private func updateKnob(using touch: UITouch) {
@@ -197,6 +227,9 @@ struct SurvivalJoystickRepresentable: UIViewRepresentable {
     func updateUIView(_ uiView: SurvivalJoystickHostView, context: Context) {
         uiView.hitMask = hitMask
         uiView.onAnalogChange = onChange
+        if !isInteractive {
+            uiView.clearInteractionStateForExternalDisable()
+        }
         uiView.isUserInteractionEnabled = isInteractive
     }
 }

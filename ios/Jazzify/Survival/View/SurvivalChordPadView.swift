@@ -1,15 +1,17 @@
 import SwiftUI
 
-/// 鍵盤 UI に閉じた入力 (`hintMidis` / `midiHeldKeys` / `isEnabled`)。親が差分のみで構築し `.equatable()` で再評価を抑える。
+/// 鍵盤 UI に閉じた入力 (`hintMidis` / `completedHintMidis` / `midiHeldKeys` / `isEnabled`)。親が差分のみで構築し `.equatable()` で再評価を抑える。
 struct SurvivalChordPadSnapshot: Equatable, Sendable {
     let hintMidis: Set<Int>
+    /// 構成音入力済み（pitch class 一致）に対応するハイライト MIDI。`hintMidis` の部分集合。
+    let completedHintMidis: Set<Int>
     let midiHeldKeys: Set<Int>
     let isEnabled: Bool
 }
 
 /// 画面右下のピアノ鍵盤（WEB モバイル版と同様に A0〜C8 の 52 白鍵をスクロール表示、14 鍵程度が見える）。
 /// - `@ObservedObject` は使わず `SurvivalChordPadSnapshot` とコールバックのみ受け取る（controller 全体の publish から隔離）。
-/// - ヒント MIDI は親が `SurvivalViewModel.chordPadHintMidis` で組み立てて渡す。
+/// - ヒント MIDI / 入力済みハイライトは親が `SurvivalViewModel` で組み立てて渡す。
 struct SurvivalChordPadView: View, Equatable {
     let snapshot: SurvivalChordPadSnapshot
     let onPress: (Int) -> Void
@@ -40,10 +42,10 @@ struct SurvivalChordPadView: View, Equatable {
                         HStack(spacing: 0) {
                             ForEach(Array(whites.enumerated()), id: \.offset) { _, midi in
                                 PianoKeyButton(
-                                    midi: midi,
                                     label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                                     isBlack: false,
                                     isHinted: snapshot.hintMidis.contains(midi),
+                                    isHintCompleted: snapshot.completedHintMidis.contains(midi),
                                     isMidiHeld: snapshot.midiHeldKeys.contains(midi),
                                     width: whiteKeyWidth,
                                     height: keyboardHeight,
@@ -64,10 +66,10 @@ struct SurvivalChordPadView: View, Equatable {
                         ForEach(Self.blackMidiNotes(first: firstMidi, last: lastMidi), id: \.self) { midi in
                             let x = Self.blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth, firstMidi: firstMidi, lastMidi: lastMidi)
                             PianoKeyButton(
-                                midi: midi,
                                 label: "",
                                 isBlack: true,
                                 isHinted: snapshot.hintMidis.contains(midi),
+                                isHintCompleted: snapshot.completedHintMidis.contains(midi),
                                 isMidiHeld: snapshot.midiHeldKeys.contains(midi),
                                 width: blackKeyWidth,
                                 height: blackKeyHeight,
@@ -130,10 +132,16 @@ struct SurvivalChordPadView: View, Equatable {
 }
 
 private struct PianoKeyButton: View {
-    let midi: Int
+    private static let marigold = Color(red: 0.93, green: 0.62, blue: 0.13)
+    private static let marigoldLight = Color(red: 0.98, green: 0.86, blue: 0.45)
+    private static let marigoldLightPressed = Color(red: 0.95, green: 0.75, blue: 0.30)
+    private static let marigoldDark = Color(red: 0.42, green: 0.26, blue: 0.06)
+    private static let marigoldDarkPressed = Color(red: 0.55, green: 0.35, blue: 0.10)
+
     let label: String
     let isBlack: Bool
     let isHinted: Bool
+    let isHintCompleted: Bool
     let isMidiHeld: Bool
     let width: CGFloat
     let height: CGFloat
@@ -152,8 +160,7 @@ private struct PianoKeyButton: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
-                        .stroke(Color.green, lineWidth: isHinted ? 3 : 0)
-                        .shadow(color: isHinted ? Color.green.opacity(0.85) : .clear, radius: isHinted ? 4 : 0)
+                        .stroke(hintBorderColor, lineWidth: hintBorderWidth)
                 )
             if !label.isEmpty {
                 Text(label)
@@ -181,22 +188,37 @@ private struct PianoKeyButton: View {
         )
     }
 
+    private var hintBorderWidth: CGFloat {
+        ((isHinted && !isHintCompleted) || isHintCompleted) ? 3 : 0
+    }
+
+    private var hintBorderColor: Color {
+        if isHintCompleted { return .green }
+        if isHinted { return Self.marigold }
+        return .clear
+    }
+
     private var fillColor: Color {
         let held = isPressing || isMidiHeld
         if isBlack {
-            if isHinted {
+            if isHintCompleted {
                 return held
                     ? Color(red: 0.15, green: 0.55, blue: 0.25)
                     : Color(red: 0.10, green: 0.40, blue: 0.18)
             }
-            return held ? Color(white: 0.35) : Color.black
-        } else {
             if isHinted {
-                return held
-                    ? Color(red: 0.55, green: 0.90, blue: 0.55)
-                    : Color(red: 0.75, green: 1.0, blue: 0.75)
+                return held ? Self.marigoldDarkPressed : Self.marigoldDark
             }
-            return held ? Color(white: 0.78) : Color.white
+            return held ? Color(white: 0.35) : Color.black
         }
+        if isHintCompleted {
+            return held
+                ? Color(red: 0.55, green: 0.90, blue: 0.55)
+                : Color(red: 0.78, green: 1.0, blue: 0.78)
+        }
+        if isHinted {
+            return held ? Self.marigoldLightPressed : Self.marigoldLight
+        }
+        return held ? Color(white: 0.78) : Color.white
     }
 }

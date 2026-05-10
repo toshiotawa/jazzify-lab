@@ -4,7 +4,7 @@ import SwiftUI
 /// - 通常ステージ / ボスステージ共に A/B の 2 スロット表示 (C / D は非表示)
 /// - ラベル: A=🔫 Shot, B=👊 Punch
 /// - 現コード表示 + 構成音の正解進捗バー + 次コード (NEXT) を同時表示
-/// - ヒント時は構成音を pitch class 表示 + 黄色リングで強調
+/// - ヒント時は構成音を pitch class 表示 + マリーゴールド色のリングで現在の HINT 対象スロットを強調
 /// - 正解発動時 (triggerPulse 増加) は枠線＋内部を一瞬ライトアップ
 /// - コードは時間切れ自動切替えを行わない (スキル発動するまで保持)
 struct SurvivalCodeSlotsView: View {
@@ -21,7 +21,7 @@ struct SurvivalCodeSlotsView: View {
                     slot: uiSnapshot.slots[idx],
                     style: SurvivalCodeSlotsView.slotStyle(for: idx),
                     isWide: isBossStage || isProgression,
-                    isHintTarget: uiSnapshot.hintMode && uiSnapshot.slots[idx].isEnabled
+                    isHintTarget: uiSnapshot.hintMode && uiSnapshot.hintSlotIndex == idx
                 )
                 .frame(maxWidth: isProgression ? 360 : .infinity)
             }
@@ -193,10 +193,10 @@ private struct SlotCell: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(slot.isEnabled ? style.borderColor : Color.gray.opacity(0.4), lineWidth: 1.8)
         )
-        // ヒント対象時の黄色リング
+        // ヒント対象スロットのリング（鍵盤 HINT のマリーゴールドに揃える）
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.yellow, lineWidth: isHintTarget ? 2.5 : 0)
+                .stroke(Color(red: 0.93, green: 0.62, blue: 0.13), lineWidth: isHintTarget ? 2.5 : 0)
         )
         // 正解発動時の白〜黄フラッシュ (flashLevel > 0 の間だけ可視)
         // `shadow` / `blur` / `compositingGroup` は発火時の GPU レイヤ構築コストが大きく、

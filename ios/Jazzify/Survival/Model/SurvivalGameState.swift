@@ -588,8 +588,10 @@ struct SurvivalUISnapshot: Equatable {
     var elapsedSecondsRounded: Int
     var statusEffectStrip: [StatusStripItem]
     var slots: [SurvivalCodeSlot]
+    /// HINT 対象のコードスロット index（A=0, B=1）。HINT でないときは nil。
+    var hintSlotIndex: Int?
 
-    static func make(from runtime: SurvivalStageRuntime) -> SurvivalUISnapshot {
+    static func make(from runtime: SurvivalStageRuntime, hintSlotIndex: Int?) -> SurvivalUISnapshot {
         let remaining = max(0, runtime.remainingSeconds)
         let strip = runtime.statusEffects.map {
             StatusStripItem(id: $0.id, icon: $0.kind.systemIcon, level: $0.level)
@@ -604,7 +606,8 @@ struct SurvivalUISnapshot: Equatable {
             enemiesDefeated: runtime.enemiesDefeated,
             elapsedSecondsRounded: Int(runtime.elapsedSeconds.rounded()),
             statusEffectStrip: strip,
-            slots: runtime.slots
+            slots: runtime.slots,
+            hintSlotIndex: hintSlotIndex
         )
     }
 }

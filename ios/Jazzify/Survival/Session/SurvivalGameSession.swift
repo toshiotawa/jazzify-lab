@@ -41,10 +41,11 @@ final class SurvivalGameSession: ObservableObject {
         self.input = SurvivalInputBuffer()
         let now = CACurrentMediaTime()
         let vm = SurvivalViewModel(
-            uiSnapshot: SurvivalUISnapshot.make(from: loop.runtime),
+            uiSnapshot: SurvivalUISnapshot.make(from: loop.runtime, hintSlotIndex: loop.currentHintSlotIndex),
             bossHud: loop.bossBattle.map(Self.makeBossHudSnapshot(from:)),
             isBossStage: loop.isBossStage,
             chordPadHintMidis: loop.currentHintHighlightMidis(),
+            chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
             now: now
         )
         self.viewModel = vm

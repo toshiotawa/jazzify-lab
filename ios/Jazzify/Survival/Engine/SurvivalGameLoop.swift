@@ -221,21 +221,20 @@ final class SurvivalGameLoop {
 
     // MARK: - ヒント
 
-    /// 現在のヒント対象スロットのコード構成音を、Web 版と同じアルゴリズムで
-    /// C4 (MIDI 60) 起点の昇順の MIDI 番号に展開したもの。
-    /// 全オクターブではなく単一オクターブ内（1 つの pitch class あたり 1 鍵）のみをハイライトするため、
-    /// 鍵盤ビューは MIDI 完全一致で判定する。
-    /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
-    func currentHintHighlightMidis() -> Set<Int> {
+    private func currentHintTargetSlot() -> (index: Int, chord: SurvivalResolvedChord)? {
         guard runtime.hintMode,
               let idx = currentHintSlotIndex,
               runtime.slots.indices.contains(idx),
               runtime.slots[idx].isEnabled,
               let chord = runtime.slots[idx].chord else {
-            return []
+            return nil
         }
+        return (idx, chord)
+    }
+
+    /// Web 版 HINT と同様に単一オクターブへ展開したハイライト MIDI。
+    private static func hintHighlightMidis(from chord: SurvivalResolvedChord) -> Set<Int> {
         let baseOctave = 4
-        // 入力順を維持したまま pitch class をユニーク化
         var seen = Set<Int>()
         var uniquePitchClasses: [Int] = []
         for pc in chord.pitchClasses {
@@ -253,6 +252,34 @@ final class SurvivalGameLoop {
             lastMidi = midi
         }
         return result
+    }
+
+    /// 現在のヒント対象スロットのコード構成音を、Web 版と同じアルゴリズムで
+    /// C4 (MIDI 60) 起点の昇順の MIDI 番号に展開したもの。
+    /// 全オクターブではなく単一オクターブ内（1 つの pitch class あたり 1 鍵）のみをハイライトするため、
+    /// 鍵盤ビューは MIDI 完全一致で判定する。
+    /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
+    func currentHintHighlightMidis() -> Set<Int> {
+        guard let target = currentHintTargetSlot() else { return [] }
+        return Self.hintHighlightMidis(from: target.chord)
+    }
+
+    /// 構成音として対象スロットに入力済み（pitch class が一致）のハイライト MIDI。
+    /// オクターブ違いの演奏でも、この集合は「元々のヒント MIDI」側に載せる。
+    func currentHintCompletedHighlightMidis() -> Set<Int> {
+        guard let target = currentHintTargetSlot() else { return [] }
+        let highlights = Self.hintHighlightMidis(from: target.chord)
+        let inputPCs = Set(
+            runtime.slots[target.index].inputPitchClasses.map { (($0 % 12) + 12) % 12 }
+        )
+        var completed = Set<Int>()
+        for midi in highlights {
+            let pc = ((midi % 12) + 12) % 12
+            if inputPCs.contains(pc) {
+                completed.insert(midi)
+            }
+        }
+        return completed
     }
 
     /// 値が変わったときだけ更新する（Progression+HINT で同一スロット固定時の無駄な再計算を避ける）。

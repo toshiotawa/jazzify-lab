@@ -15,6 +15,8 @@ final class SurvivalViewModel: ObservableObject {
     @Published private(set) var isBossStage: Bool
     /// 鍵盤ヒント用。`SurvivalChordPadView` へ渡す MIDI 集合。
     @Published private(set) var chordPadHintMidis: Set<Int> = []
+    /// HINT 構成音のうち、現在のスロット入力で満たされた pitch class に対応するハイライト MIDI。
+    @Published private(set) var chordPadCompletedHintMidis: Set<Int> = []
 
     private var lastBossHudPublishAt: TimeInterval = 0
 
@@ -23,12 +25,14 @@ final class SurvivalViewModel: ObservableObject {
         bossHud: SurvivalBossHUDSnapshot?,
         isBossStage: Bool,
         chordPadHintMidis: Set<Int>,
+        chordPadCompletedHintMidis: Set<Int>,
         now: TimeInterval
     ) {
         self.uiSnapshot = uiSnapshot
         self.bossHud = bossHud
         self.isBossStage = isBossStage
         self.chordPadHintMidis = chordPadHintMidis
+        self.chordPadCompletedHintMidis = chordPadCompletedHintMidis
         self.lastBossHudPublishAt = now
     }
 
@@ -70,7 +74,7 @@ final class SurvivalViewModel: ObservableObject {
 
     /// `SKScene.update` の末尾で呼び、HUD / スロット用スナップショットだけ更新する。
     func syncAfterFrame(gameLoop: SurvivalGameLoop, now: TimeInterval) {
-        let nextSnapshot = SurvivalUISnapshot.make(from: gameLoop.runtime)
+        let nextSnapshot = SurvivalUISnapshot.make(from: gameLoop.runtime, hintSlotIndex: gameLoop.currentHintSlotIndex)
         let phaseChanged = nextSnapshot.phase != uiSnapshot.phase
         if nextSnapshot != uiSnapshot {
             uiSnapshot = nextSnapshot
@@ -79,6 +83,11 @@ final class SurvivalViewModel: ObservableObject {
         let nextHints = gameLoop.currentHintHighlightMidis()
         if nextHints != chordPadHintMidis {
             chordPadHintMidis = nextHints
+        }
+
+        let nextCompletedHints = gameLoop.currentHintCompletedHighlightMidis()
+        if nextCompletedHints != chordPadCompletedHintMidis {
+            chordPadCompletedHintMidis = nextCompletedHints
         }
 
         let forceBossHud = gameLoop.runtime.phase != .playing || phaseChanged
@@ -94,10 +103,11 @@ final class SurvivalViewModel: ObservableObject {
 
     func applyFullReset(from gameLoop: SurvivalGameLoop, now: TimeInterval) {
         isBossStage = gameLoop.isBossStage
-        uiSnapshot = SurvivalUISnapshot.make(from: gameLoop.runtime)
+        uiSnapshot = SurvivalUISnapshot.make(from: gameLoop.runtime, hintSlotIndex: gameLoop.currentHintSlotIndex)
         bossHud = gameLoop.bossBattle.map(Self.makeBossHudSnapshot(from:))
         lastBossHudPublishAt = now
         chordPadHintMidis = gameLoop.currentHintHighlightMidis()
+        chordPadCompletedHintMidis = gameLoop.currentHintCompletedHighlightMidis()
         isPaused = false
         clearMidiHeldKeys()
         resetClearReportState()
