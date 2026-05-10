@@ -624,10 +624,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     };
   }, []);
   
-  // ステージモード: 30秒区切りでBGM切り替え判定（0-29s: odd, 30-59s: odd, 60-89s: even）
-  const stageBgmPhase = isStageMode ? Math.floor(gameState.elapsedTime / 30) : 0;
-
-  // BGM再生制御（WAVEごとに切り替え / ステージモードは残り30秒でevenに切り替え）
+  // BGM再生制御（ステージ種別ごとに決まる1曲をループ再生）
   useEffect(() => {
     // ゲームオーバーまたはポーズ中はBGMを停止
     if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
@@ -637,11 +634,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return;
     }
     
-    // BGM URLを決定: ステージモードは残り30秒でeven、それ以外はWAVEの奇数/偶数
-    const useEvenBgm = isStageMode
-      ? gameState.elapsedTime >= STAGE_TIME_LIMIT_SECONDS - 30
-      : gameState.wave.currentWave % 2 === 0;
-    const targetBgmUrl = useEvenBgm ? config.bgmEvenWaveUrl : config.bgmOddWaveUrl;
+    const targetBgmUrl = config.bgmUrl;
     
     // BGMが設定されていない場合は何もしない
     if (!targetBgmUrl) {
@@ -676,9 +669,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         currentBgmUrlRef.current = targetBgmUrl;
         
         await audio.play();
-      } catch (error) {
+      } catch {
         // BGM再生に失敗しても、ゲームは続行
-        console.warn('BGM playback failed:', error);
       }
     };
     
@@ -687,9 +679,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     // クリーンアップ
     return () => {
       // コンポーネントアンマウント時はBGMを停止
-      // 注: WAVEが変わるたびに呼ばれるので、この中ではBGMを停止しない
     };
-  }, [gameState.wave.currentWave, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, isStageMode, stageBgmPhase, config.bgmOddWaveUrl, config.bgmEvenWaveUrl]);
+  }, [gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmUrl]);
   
   // コンポーネントアンマウント時にBGMを停止
   useEffect(() => {
@@ -3043,19 +3034,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               ...prev,
               { id: `powerup_${Date.now()}`, icon: '⚡', displayName: '全能力強化', startTime: Date.now() },
             ]);
-            // BGM切り替え（evenWaveに変更）
-            if (config.bgmEvenWaveUrl && currentBgmUrlRef.current !== config.bgmEvenWaveUrl) {
-              if (bgmAudioRef.current) {
-                bgmAudioRef.current.pause();
-                bgmAudioRef.current = null;
-              }
-              const audio = new Audio(config.bgmEvenWaveUrl);
-              audio.loop = true;
-              audio.volume = bgmVolumeRef.current;
-              bgmAudioRef.current = audio;
-              currentBgmUrlRef.current = config.bgmEvenWaveUrl;
-              audio.play().catch(() => {});
-            }
           }
 
           // ステージモード: 90秒生存 + 撃破ノルマ150体

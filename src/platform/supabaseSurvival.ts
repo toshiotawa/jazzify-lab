@@ -4,10 +4,20 @@
 import { getSupabaseClient } from './supabaseClient';
 
 export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
+export type SurvivalStageType = 'random' | 'progression';
 
 /** マップカテゴリ ('basic' | 'songs')。Basic と Songs で進行管理を分離する。 */
 export type SurvivalMapCategory = 'basic' | 'songs';
 export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
+export const DEFAULT_SURVIVAL_RANDOM_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
+const DEFAULT_SURVIVAL_PROGRESSION_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/116797c5-c714-4a4d-85c6-5212af860d0b.mp3';
+
+export type SurvivalBgmSettingsMap = Record<SurvivalStageType, string>;
+
+export const DEFAULT_SURVIVAL_BGM_SETTINGS: SurvivalBgmSettingsMap = {
+  random: DEFAULT_SURVIVAL_RANDOM_BGM_URL,
+  progression: DEFAULT_SURVIVAL_PROGRESSION_BGM_URL,
+};
 
 export interface SurvivalHighScore {
   id: string;
@@ -42,6 +52,11 @@ export interface SurvivalDifficultySettings {
   bgmEvenWaveUrl: string | null;
 }
 
+interface SurvivalBgmSetting {
+  stageType: SurvivalStageType;
+  bgmUrl: string;
+}
+
 export interface UserBestSurvivalTime {
   bestSurvivalTime: number;
   bestDifficulty: SurvivalDifficulty | null;
@@ -67,6 +82,30 @@ const isCharacterConflictTargetError = (error: { code?: string; message?: string
     return true;
   }
   return (error.message ?? '').includes('ON CONFLICT');
+};
+
+const isSurvivalStageType = (value: unknown): value is SurvivalStageType => {
+  return value === 'random' || value === 'progression';
+};
+
+export const toSurvivalBgmSettingsMap = (
+  rows: SurvivalBgmSetting[],
+): SurvivalBgmSettingsMap => {
+  const result: SurvivalBgmSettingsMap = { ...DEFAULT_SURVIVAL_BGM_SETTINGS };
+  for (const row of rows) {
+    result[row.stageType] = row.bgmUrl;
+  }
+  return result;
+};
+
+export const resolveSurvivalBgmUrl = (
+  stageType: SurvivalStageType,
+  settings?: Partial<Record<SurvivalStageType, string | null>>,
+): string => {
+  const configured = settings?.[stageType];
+  return configured && configured.trim().length > 0
+    ? configured
+    : DEFAULT_SURVIVAL_BGM_SETTINGS[stageType];
 };
 
 async function hasCharacterColumn(supabase: ReturnType<typeof getSupabaseClient>): Promise<boolean> {
@@ -246,6 +285,22 @@ export async function fetchSurvivalDifficultySettings(): Promise<SurvivalDifficu
 }
 
 /**
+ * サバイバル本編BGM設定を取得。
+ * 難易度ではなくステージ種別 (`random` / `progression`) ごとに1曲を選ぶ。
+ */
+export async function fetchSurvivalBgmSettings(): Promise<SurvivalBgmSetting[]> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('survival_bgm_settings')
+    .select('stage_type, bgm_url')
+    .order('stage_type');
+
+  if (error) throw error;
+  return (data ?? []).map(convertBgmSetting).filter((row): row is SurvivalBgmSetting => row !== null);
+}
+
+/**
  * 難易度設定を更新（管理者のみ）
  */
 export async function updateSurvivalDifficultySettings(
@@ -278,6 +333,35 @@ export async function updateSurvivalDifficultySettings(
   
   if (error) throw error;
   return convertDifficultySettings(data);
+}
+
+/**
+ * サバイバル本編BGM設定を更新（管理者のみ）。
+ */
+export async function updateSurvivalBgmSetting(
+  stageType: SurvivalStageType,
+  bgmUrl: string,
+): Promise<SurvivalBgmSetting> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('survival_bgm_settings')
+    .upsert({
+      stage_type: stageType,
+      bgm_url: bgmUrl,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'stage_type',
+    })
+    .select('stage_type, bgm_url')
+    .single();
+
+  if (error) throw error;
+  const converted = convertBgmSetting(data);
+  if (!converted) {
+    throw new Error('Invalid survival BGM setting returned from database');
+  }
+  return converted;
 }
 
 // ===== キャラクター型 =====
@@ -387,6 +471,16 @@ function convertDifficultySettings(row: Record<string, unknown>): SurvivalDiffic
     itemDropRate: Number(row.item_drop_rate) || 0.1,
     bgmOddWaveUrl: row.bgm_odd_wave_url as string | null,
     bgmEvenWaveUrl: row.bgm_even_wave_url as string | null,
+  };
+}
+
+function convertBgmSetting(row: Record<string, unknown>): SurvivalBgmSetting | null {
+  if (!isSurvivalStageType(row.stage_type)) return null;
+  const bgmUrl = typeof row.bgm_url === 'string' ? row.bgm_url.trim() : '';
+  if (!bgmUrl) return null;
+  return {
+    stageType: row.stage_type,
+    bgmUrl,
   };
 }
 

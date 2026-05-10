@@ -67,7 +67,6 @@ final class SurvivalGameLoop {
     /// 数百 ms のズレが生じ得るため、ここで強制的に整合させてボス戦 openingGrace の
     /// 誤作動 (= 開幕即ダメージ or 永遠に開幕しない) を防ぐ。
     private var hasSyncedSceneClock: Bool = false
-    private var bgmPhaseEven: Bool = false
     private var hpRegenAccumulator: Double = 0
     private var fireDotAccumulator: Double = 0
     /// WEB 版は接触 DOT を小数 HP として減算。整数 HP との整合のため端数を蓄積する。
@@ -190,7 +189,6 @@ final class SurvivalGameLoop {
 
         lastNow = CACurrentMediaTime()
         hasSyncedSceneClock = false
-        bgmPhaseEven = false
         hpRegenAccumulator = 0
         fireDotAccumulator = 0
         contactDamageAccumulator = 0
@@ -722,13 +720,9 @@ final class SurvivalGameLoop {
             return
         }
 
-        // 経過時間 + BGM 切替
+        // 経過時間
         runtime.elapsedSeconds += deltaTime
         runtime.remainingSeconds = max(0, SurvivalConstants.stageTimeLimitSec - runtime.elapsedSeconds)
-        if !bgmPhaseEven && runtime.remainingSeconds <= SurvivalConstants.bgmPhaseSwitchThresholdSec {
-            bgmPhaseEven = true
-            events.append(.switchWavePhase(useEven: true))
-        }
 
         // クリア判定 (Web 版 `SurvivalGameScreen` と同じく 90 秒経過時にのみ判定)
         // - 撃破数が 150 に達してもゲームは止めず、残り時間まで継続させる。

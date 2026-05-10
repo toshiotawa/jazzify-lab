@@ -1,7 +1,21 @@
 import Foundation
 
+enum SurvivalBgmDefaults {
+    static let randomURL = URL(string: "https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3")!
+    static let progressionURL = SurvivalMapAudio.bgmURL
+
+    static func url(for stageType: SurvivalStageType) -> URL {
+        switch stageType {
+        case .random:
+            return randomURL
+        case .progression:
+            return progressionURL
+        }
+    }
+}
+
 /// Web 版 `DifficultySettings` (`survival_difficulty_settings` テーブル) を iOS で扱うためのモデル。
-/// - ステージモードで使われるのは主に `bgmOddWaveUrl / bgmEvenWaveUrl` と倍率系 (敵/経験/アイテム) のみ
+/// - ステージモードで使われるのは主に倍率系 (敵/経験/アイテム) とステージ種別BGM
 /// - `allowedChords` と `enemySpawnRate / enemySpawnCount` はステージ定義側の値を優先するため保持のみ
 public struct SurvivalStageConfig: Sendable, Equatable {
     public let difficulty: String
@@ -14,8 +28,7 @@ public struct SurvivalStageConfig: Sendable, Equatable {
     public let enemyStatMultiplier: Double
     public let expMultiplier: Double
     public let itemDropRate: Double
-    public let bgmOddWaveUrl: URL?
-    public let bgmEvenWaveUrl: URL?
+    public let bgmUrl: URL?
 
     public static let `default`: SurvivalStageConfig = SurvivalStageConfig(
         difficulty: "normal",
@@ -28,9 +41,23 @@ public struct SurvivalStageConfig: Sendable, Equatable {
         enemyStatMultiplier: 1.0,
         expMultiplier: 1.0,
         itemDropRate: 0.1,
-        bgmOddWaveUrl: SurvivalMapAudio.bgmURL,
-        bgmEvenWaveUrl: SurvivalMapAudio.bgmURL
+        bgmUrl: SurvivalBgmDefaults.randomURL
     )
+}
+
+/// Supabase `survival_bgm_settings` 行モデル。
+struct SurvivalBgmSettingRow: Decodable, Sendable {
+    let stageType: String
+    let bgmUrl: String
+
+    enum CodingKeys: String, CodingKey {
+        case stageType = "stage_type"
+        case bgmUrl = "bgm_url"
+    }
+
+    func url() -> URL? {
+        URL(string: bgmUrl)
+    }
 }
 
 /// Supabase `survival_difficulty_settings` 行モデル (全カラム)
@@ -46,8 +73,6 @@ struct SurvivalDifficultyDetailRow: Decodable, Sendable {
     let enemyStatMultiplier: Double?
     let expMultiplier: Double?
     let itemDropRate: Double?
-    let bgmOddWaveUrl: String?
-    let bgmEvenWaveUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case id, difficulty, description
@@ -59,11 +84,9 @@ struct SurvivalDifficultyDetailRow: Decodable, Sendable {
         case enemyStatMultiplier = "enemy_stat_multiplier"
         case expMultiplier = "exp_multiplier"
         case itemDropRate = "item_drop_rate"
-        case bgmOddWaveUrl = "bgm_odd_wave_url"
-        case bgmEvenWaveUrl = "bgm_even_wave_url"
     }
 
-    func toConfig() -> SurvivalStageConfig {
+    func toConfig(stageType: SurvivalStageType = .random, bgmUrl: URL? = nil) -> SurvivalStageConfig {
         SurvivalStageConfig(
             difficulty: difficulty,
             displayName: displayName,
@@ -75,8 +98,7 @@ struct SurvivalDifficultyDetailRow: Decodable, Sendable {
             enemyStatMultiplier: enemyStatMultiplier ?? 1.0,
             expMultiplier: expMultiplier ?? 1.0,
             itemDropRate: itemDropRate ?? 0.1,
-            bgmOddWaveUrl: bgmOddWaveUrl.flatMap { URL(string: $0) } ?? SurvivalMapAudio.bgmURL,
-            bgmEvenWaveUrl: bgmEvenWaveUrl.flatMap { URL(string: $0) } ?? SurvivalMapAudio.bgmURL
+            bgmUrl: bgmUrl ?? SurvivalBgmDefaults.url(for: stageType)
         )
     }
 }

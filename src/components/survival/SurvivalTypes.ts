@@ -384,8 +384,7 @@ export interface DifficultyConfig {
   enemyStatMultiplier: number; // 敵ステータス倍率
   expMultiplier: number;     // 経験値倍率
   itemDropRate: number;      // アイテムドロップ率
-  bgmOddWaveUrl: string | null;  // 奇数WAVEのBGM URL
-  bgmEvenWaveUrl: string | null; // 偶数WAVEのBGM URL
+  bgmUrl: string | null;     // ステージ種別（random/progression）で選ばれるBGM URL
 }
 
 // ===== マップ設定 =====

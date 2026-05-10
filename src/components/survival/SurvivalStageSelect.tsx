@@ -11,11 +11,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import {
+  DEFAULT_SURVIVAL_RANDOM_BGM_URL,
   fetchSurvivalDifficultySettings,
+  fetchSurvivalBgmSettings,
   fetchUserSurvivalHighScores,
   fetchSurvivalCharacters,
+  resolveSurvivalBgmUrl,
   SurvivalHighScore,
   SurvivalCharacterRow,
+  toSurvivalBgmSettingsMap,
 } from '@/platform/supabaseSurvival';
 import { FaSkull, FaStar, FaFire, FaBolt } from 'react-icons/fa';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -38,8 +42,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 0.5,
     expMultiplier: 0.5,
     itemDropRate: 0.20,
-    bgmOddWaveUrl: null,
-    bgmEvenWaveUrl: null,
+    bgmUrl: DEFAULT_SURVIVAL_RANDOM_BGM_URL,
   },
   {
     difficulty: 'easy',
@@ -52,8 +55,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 0.5,
     expMultiplier: 1.0,
     itemDropRate: 0.15,
-    bgmOddWaveUrl: null,
-    bgmEvenWaveUrl: null,
+    bgmUrl: DEFAULT_SURVIVAL_RANDOM_BGM_URL,
   },
   {
     difficulty: 'normal',
@@ -70,8 +72,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 0.5,
     expMultiplier: 1.5,
     itemDropRate: 0.12,
-    bgmOddWaveUrl: null,
-    bgmEvenWaveUrl: null,
+    bgmUrl: DEFAULT_SURVIVAL_RANDOM_BGM_URL,
   },
   {
     difficulty: 'hard',
@@ -88,8 +89,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 0.5,
     expMultiplier: 2.0,
     itemDropRate: 0.10,
-    bgmOddWaveUrl: null,
-    bgmEvenWaveUrl: null,
+    bgmUrl: DEFAULT_SURVIVAL_RANDOM_BGM_URL,
   },
   {
     difficulty: 'extreme',
@@ -108,8 +108,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 0.5,
     expMultiplier: 3.0,
     itemDropRate: 0.08,
-    bgmOddWaveUrl: null,
-    bgmEvenWaveUrl: null,
+    bgmUrl: DEFAULT_SURVIVAL_RANDOM_BGM_URL,
   },
 ];
 
@@ -290,7 +289,11 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
       // 難易度設定を取得
       try {
-        const settingsData = await fetchSurvivalDifficultySettings();
+        const [settingsData, bgmRows] = await Promise.all([
+          fetchSurvivalDifficultySettings(),
+          fetchSurvivalBgmSettings().catch(() => []),
+        ]);
+        const bgmSettings = toSurvivalBgmSettingsMap(bgmRows);
         if (settingsData.length > 0) {
           const configs = settingsData.map((s): DifficultyConfig => ({
             difficulty: s.difficulty,
@@ -303,8 +306,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             enemyStatMultiplier: s.enemyStatMultiplier,
             expMultiplier: s.expMultiplier,
             itemDropRate: s.itemDropRate,
-            bgmOddWaveUrl: s.bgmOddWaveUrl,
-            bgmEvenWaveUrl: s.bgmEvenWaveUrl,
+            bgmUrl: resolveSurvivalBgmUrl('random', bgmSettings),
           }));
           setDifficultyConfigs(configs);
         }

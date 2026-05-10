@@ -5,16 +5,10 @@ import AVFoundation
 /// - AVAudioEngine + AVAudioUnitSampler (SoundFont 無しの内蔵音色) で SE 用 MIDI ノート再生
 /// - ピアノ鍵盤 / 正解ルート音は `SurvivalPianoSampler` (Salamander サンプル) で再生し、
 ///   Web 版のピアノ音色と揃える。ノート ON/OFF で発音時間を制御する。
-/// - BGM は 奇数フェーズ / 偶数フェーズの 2 URL を `AVQueuePlayer + AVPlayerLooper` で切替再生
+/// - BGM はステージ種別ごとの 1 URL を `AVQueuePlayer + AVPlayerLooper` でループ再生
 /// - SE (my_attack / enemy_attack / stage_clear / stage_gameover) は内蔵サンプラーで簡易再生
 final class SurvivalGameAudio {
     static let shared = SurvivalGameAudio()
-
-    /// BGM フェーズ。ステージ開始時は `.odd`、残り 30 秒で `.even` に切替わる。
-    enum BgmPhase {
-        case odd
-        case even
-    }
 
     /// SE 種別 (WEB 版 `FantasySoundManager` の代表ケース)
     enum SoundEffect {
@@ -68,9 +62,7 @@ final class SurvivalGameAudio {
 
     private let bgmPlayer = AVQueuePlayer()
     private var bgmLooper: AVPlayerLooper?
-    private var oddBgmUrl: URL?
-    private var evenBgmUrl: URL?
-    private var currentPhase: BgmPhase = .odd
+    private var bgmUrl: URL?
     private var currentBgmUrl: URL?
 
     private let userDefaults = UserDefaults.standard
@@ -111,8 +103,7 @@ final class SurvivalGameAudio {
         startEngineIfNeeded()
         preWarmSynthBassBuffers()
         if playBackgroundMusic {
-            currentPhase = .odd
-            playBgm(phase: .odd)
+            playBgm()
         } else {
             stopBgm()
         }
@@ -176,23 +167,13 @@ final class SurvivalGameAudio {
         }
     }
 
-    /// ステージ難易度から BGM URL を注入 (未指定時はデフォルト URL を維持)
-    func setBgmUrls(odd: URL?, even: URL?) {
-        oddBgmUrl = odd ?? SurvivalMapAudio.bgmURL
-        evenBgmUrl = even ?? oddBgmUrl
+    /// ステージ種別から BGM URL を注入 (未指定時はランダムステージ用デフォルト URL を維持)
+    func setBgmUrl(_ url: URL?) {
+        bgmUrl = url ?? SurvivalBgmDefaults.randomURL
         // 既に再生中なら即時反映
         if currentBgmUrl != nil {
-            playBgm(phase: currentPhase)
+            playBgm()
         }
-    }
-
-    /// 残り時間に応じて BGM フェーズを切り替える。
-    /// - Parameter useEven: `true` で偶数 BGM へ、`false` で奇数 BGM へ
-    func switchWavePhase(useEven: Bool) {
-        let target: BgmPhase = useEven ? .even : .odd
-        guard target != currentPhase else { return }
-        currentPhase = target
-        playBgm(phase: target)
     }
 
     var isMuted: Bool {
@@ -468,14 +449,8 @@ final class SurvivalGameAudio {
         return 0.3 + min(1.0, effective) * 0.7
     }
 
-    private func playBgm(phase: BgmPhase) {
-        let targetUrl: URL? = {
-            switch phase {
-            case .odd: return oddBgmUrl ?? SurvivalMapAudio.bgmURL
-            case .even: return evenBgmUrl ?? oddBgmUrl ?? SurvivalMapAudio.bgmURL
-            }
-        }()
-        guard let url = targetUrl else { return }
+    private func playBgm() {
+        let url = bgmUrl ?? SurvivalBgmDefaults.randomURL
         if currentBgmUrl == url, bgmPlayer.timeControlStatus == .playing {
             bgmPlayer.volume = effectiveBgmVolume()
             return

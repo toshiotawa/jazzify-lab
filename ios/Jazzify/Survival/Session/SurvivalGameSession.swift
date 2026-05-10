@@ -80,7 +80,7 @@ final class SurvivalGameSession: ObservableObject {
 
     func start() {
         guard state != .disposed else { return }
-        audioController.setBgmUrls(odd: gameLoop.stageConfig.bgmOddWaveUrl, even: gameLoop.stageConfig.bgmEvenWaveUrl)
+        audioController.setBgmUrl(gameLoop.stageConfig.bgmUrl)
         audioController.start()
         gameLoop.markAudioClockStarted()
         state = .running
@@ -121,8 +121,6 @@ final class SurvivalGameSession: ObservableObject {
             switch event {
             case let .playEffect(effect):
                 audioController.playEffect(effect)
-            case let .switchWavePhase(useEven):
-                audioController.switchWavePhase(useEven: useEven)
             case let .playSynthBassRoot(midi):
                 audioController.playSynthBassRoot(midi: midi)
             case let .stageEnded(cleared):

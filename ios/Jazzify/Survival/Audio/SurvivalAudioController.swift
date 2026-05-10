@@ -3,8 +3,8 @@ import Foundation
 /// サバイバル 1 セッションがオーディオを束ねる薄い境界（当面は `SurvivalGameAudio.shared` へ委譲）。
 @MainActor
 final class SurvivalAudioController {
-    func setBgmUrls(odd: URL?, even: URL?) {
-        SurvivalGameAudio.shared.setBgmUrls(odd: odd, even: even)
+    func setBgmUrl(_ url: URL?) {
+        SurvivalGameAudio.shared.setBgmUrl(url)
     }
 
     func start() {
@@ -13,10 +13,6 @@ final class SurvivalAudioController {
 
     func stop() {
         SurvivalGameAudio.shared.stop()
-    }
-
-    func switchWavePhase(useEven: Bool) {
-        SurvivalGameAudio.shared.switchWavePhase(useEven: useEven)
     }
 
     func playEffect(_ effect: SurvivalGameAudio.SoundEffect) {

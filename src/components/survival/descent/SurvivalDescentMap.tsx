@@ -13,11 +13,16 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { platform, getWindow } from '@/platform';
 import {
+  DEFAULT_SURVIVAL_BGM_SETTINGS,
+  fetchSurvivalBgmSettings,
   fetchSurvivalDifficultySettings,
   fetchSurvivalCharacters,
   fetchSurvivalStageProgress,
   fetchSurvivalStageClears,
+  resolveSurvivalBgmUrl,
+  SurvivalBgmSettingsMap,
   SurvivalCharacterRow,
+  toSurvivalBgmSettingsMap,
 } from '@/platform/supabaseSurvival';
 import { DIFFICULTY_CONFIGS } from '../SurvivalStageSelect';
 import {
@@ -125,6 +130,7 @@ interface SurvivalMapProgressSnapshot {
 interface SurvivalMapStaticData {
   configs: DifficultyConfig[];
   characters: SurvivalCharacter[];
+  bgmSettings: SurvivalBgmSettingsMap;
 }
 
 let descentImagesPreloadPromise: Promise<void> | null = null;
@@ -168,10 +174,12 @@ const loadSurvivalMapStaticData = async (): Promise<SurvivalMapStaticData> => {
       /* fallback handled inside fetchAllStages */
     }
 
-    const [settingsData, charRows] = await Promise.all([
+    const [settingsData, charRows, bgmRows] = await Promise.all([
       fetchSurvivalDifficultySettings().catch(() => []),
       fetchSurvivalCharacters().catch(() => []),
+      fetchSurvivalBgmSettings().catch(() => []),
     ]);
+    const bgmSettings = toSurvivalBgmSettingsMap(bgmRows);
 
     await Promise.race([
       imagesPreload,
@@ -189,13 +197,13 @@ const loadSurvivalMapStaticData = async (): Promise<SurvivalMapStaticData> => {
       enemyStatMultiplier: s.enemyStatMultiplier,
       expMultiplier: s.expMultiplier,
       itemDropRate: s.itemDropRate,
-      bgmOddWaveUrl: s.bgmOddWaveUrl,
-      bgmEvenWaveUrl: s.bgmEvenWaveUrl,
+      bgmUrl: null,
     }));
 
     return {
       configs,
       characters: charRows.map(convertToSurvivalCharacter),
+      bgmSettings,
     };
   })();
 
@@ -313,6 +321,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [staticDataReady, setStaticDataReady] = useState(false);
   const [characters, setCharacters] = useState<SurvivalCharacter[]>([]);
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DIFFICULTY_CONFIGS);
+  const [bgmSettings, setBgmSettings] = useState<SurvivalBgmSettingsMap>(DEFAULT_SURVIVAL_BGM_SETTINGS);
   const [mapCategory, setMapCategory] = useState<SurvivalMapCategory>(initialMapCategory);
   // `fetchAllStages()` + `rebuildDescentBlocks()` + `rebuildDescentLayouts()` 完了で
   // カテゴリ別キャッシュ (STAGES_BY_CATEGORY 等) が後追いで更新されるため、
@@ -420,6 +429,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       if (data.characters.length > 0) {
         setCharacters(data.characters);
       }
+      setBgmSettings(data.bgmSettings);
       // fetchAllStages + rebuild 完了後にカテゴリ別キャッシュを再参照させる。
       setStagesVersion(v => v + 1);
       setStaticDataReady(true);
@@ -684,6 +694,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     const stageConfig: DifficultyConfig = {
       ...baseConfig,
       allowedChords: selectedStage.allowedChords,
+      bgmUrl: resolveSurvivalBgmUrl(selectedStage.stageType, bgmSettings),
     };
 
     const faiChar = characters.find(c => isFaiCharacter(c));
@@ -695,6 +706,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     freeTierAccessOnly,
     freeTierStageNumberSet,
     getConfig,
+    bgmSettings,
     characters,
     onStageSelect,
     hintMode,

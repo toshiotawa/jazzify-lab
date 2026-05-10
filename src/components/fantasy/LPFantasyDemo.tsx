@@ -14,8 +14,7 @@ const DEMO_TIME_LIMIT_MS = 90 * 1000;
 
 const DEMO_CDE_NOTES = ['C', 'D', 'E'];
 
-const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
-const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
+const DEMO_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
 
 const DEMO_STAGE_CONFIG: DifficultyConfig = {
   difficulty: 'easy',
@@ -28,8 +27,7 @@ const DEMO_STAGE_CONFIG: DifficultyConfig = {
   enemyStatMultiplier: 0.5,
   expMultiplier: 0.5,
   itemDropRate: 0.20,
-  bgmOddWaveUrl: DEMO_BGM_ODD,
-  bgmEvenWaveUrl: DEMO_BGM_EVEN,
+  bgmUrl: DEMO_BGM_URL,
 };
 
 const DEMO_STAGE_DEFINITION: StageDefinition = {

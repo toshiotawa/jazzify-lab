@@ -503,7 +503,7 @@ final class SupabaseService: Sendable {
     }
 
     /// 全カラムを取得して `SurvivalStageConfig` を構築する。
-    /// ステージモードでは難易度 (`easy` / `normal` / `hard` / `extreme`) ごとの BGM と倍率を参照する。
+    /// ステージモードでは倍率系は難易度、BGM はステージ種別 (`random` / `progression`) を参照する。
     func fetchSurvivalStageConfigs() async throws -> [SurvivalStageConfig] {
         let rows: [SurvivalDifficultyDetailRow] = try await client
             .from("survival_difficulty_settings")
@@ -511,19 +511,35 @@ final class SupabaseService: Sendable {
             .order("difficulty")
             .execute()
             .value
-        return rows.map { $0.toConfig() }
+        let bgmUrl = try? await fetchSurvivalBgmUrl(stageType: .random)
+        return rows.map { $0.toConfig(stageType: .random, bgmUrl: bgmUrl) }
     }
 
-    /// 指定難易度の `SurvivalStageConfig` を取得。見つからなければ `nil`。
-    func fetchSurvivalStageConfig(difficulty: String) async throws -> SurvivalStageConfig? {
-        let rows: [SurvivalDifficultyDetailRow] = try await client
+    /// 指定難易度 + ステージ種別の `SurvivalStageConfig` を取得。見つからなければ `nil`。
+    func fetchSurvivalStageConfig(difficulty: String, stageType: SurvivalStageType) async throws -> SurvivalStageConfig? {
+        async let difficultyRowsTask: [SurvivalDifficultyDetailRow] = client
             .from("survival_difficulty_settings")
             .select("*")
             .eq("difficulty", value: difficulty)
             .limit(1)
             .execute()
             .value
-        return rows.first?.toConfig()
+        async let bgmUrlTask: URL? = fetchSurvivalBgmUrl(stageType: stageType)
+
+        let difficultyRows = try await difficultyRowsTask
+        let bgmUrl = try? await bgmUrlTask
+        return difficultyRows.first?.toConfig(stageType: stageType, bgmUrl: bgmUrl)
+    }
+
+    private func fetchSurvivalBgmUrl(stageType: SurvivalStageType) async throws -> URL? {
+        let rows: [SurvivalBgmSettingRow] = try await client
+            .from("survival_bgm_settings")
+            .select("stage_type, bgm_url")
+            .eq("stage_type", value: stageType.rawValue)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.url()
     }
 
     /// 全カラムを取得して `SurvivalCharacterProfile` を構築する。

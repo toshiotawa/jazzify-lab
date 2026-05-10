@@ -3,7 +3,7 @@ import Foundation
 /// ログイン前のデモプレイ（サバイバル）で使うステージ定義と BGM 設定。
 ///
 /// Web 版 `src/components/survival/SurvivalMain.tsx` のデモ初期化ブロック
-/// (`DEMO_CDE_NOTES` / `DEMO_BGM_ODD` / `DEMO_BGM_EVEN`) と揃えた仕様:
+/// (`DEMO_CDE_NOTES` / `DEMO_BGM_URL`) と揃えた仕様:
 /// - 出題コード: 単音 C / D / E のみ (`C_note`, `D_note`, `E_note`)
 /// - ヒントモード前提 (呼び出し側で `hintMode = true` を指定する)
 /// - BGM: Web 版デモと同じファンタジー BGM
@@ -54,8 +54,7 @@ enum SurvivalDemoStage {
         enemyStatMultiplier: 1.0,
         expMultiplier: 1.0,
         itemDropRate: 0.1,
-        bgmOddWaveUrl: bgmUrl,
-        bgmEvenWaveUrl: bgmUrl
+        bgmUrl: bgmUrl
     )
 
     /// `SurvivalStageCatalog` が何らかの理由で空配列だった場合のフォールバック定義。

@@ -23,7 +23,17 @@ import { rebuildDescentLayouts } from './descent/descentLayout';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { fetchSurvivalCharacters, fetchSurvivalDifficultySettings, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import {
+  DEFAULT_SURVIVAL_BGM_SETTINGS,
+  DEFAULT_SURVIVAL_RANDOM_BGM_URL,
+  fetchSurvivalBgmSettings,
+  fetchSurvivalCharacters,
+  fetchSurvivalDifficultySettings,
+  resolveSurvivalBgmUrl,
+  SurvivalBgmSettingsMap,
+  SurvivalCharacterRow,
+  toSurvivalBgmSettingsMap,
+} from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
@@ -88,17 +98,23 @@ async function fetchDbDifficultyConfigs(): Promise<DifficultyConfig[]> {
         enemyStatMultiplier: s.enemyStatMultiplier,
         expMultiplier: s.expMultiplier,
         itemDropRate: s.itemDropRate,
-        bgmOddWaveUrl: s.bgmOddWaveUrl,
-        bgmEvenWaveUrl: s.bgmEvenWaveUrl,
+        bgmUrl: null,
       }));
     }
   } catch { /* fallback */ }
   return [];
 }
 
+async function fetchDbBgmSettings(): Promise<SurvivalBgmSettingsMap> {
+  try {
+    return toSurvivalBgmSettingsMap(await fetchSurvivalBgmSettings());
+  } catch {
+    return DEFAULT_SURVIVAL_BGM_SETTINGS;
+  }
+}
+
 const DEMO_CDE_NOTES = ['C_note', 'D_note', 'E_note'];
-const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
-const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
+const DEMO_BGM_URL = DEFAULT_SURVIVAL_RANDOM_BGM_URL;
 
 const hasIOSParams = (): boolean => {
   if (!isIOSWebView()) return false;
@@ -121,12 +137,27 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [activeHintMode, setActiveHintMode] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
+  const [survivalBgmSettings, setSurvivalBgmSettings] = useState<SurvivalBgmSettingsMap>(DEFAULT_SURVIVAL_BGM_SETTINGS);
 
   const [iosInitialized, setIosInitialized] = useState(false);
   const [iosInitError, setIosInitError] = useState(false);
   const [demoInitialized, setDemoInitialized] = useState(false);
 
   const survivalFreeTierOnly = !isPremiumMember && !lessonMode && !demoMode && !isIOSSurvival;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBgmSettings = async (): Promise<void> => {
+      const bgmSettings = await fetchDbBgmSettings();
+      if (!cancelled) {
+        setSurvivalBgmSettings(bgmSettings);
+      }
+    };
+    void loadBgmSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!demoMode || demoInitialized) return;
@@ -151,8 +182,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         enemyStatMultiplier: 1,
         expMultiplier: 1,
         itemDropRate: 1,
-        bgmOddWaveUrl: DEMO_BGM_ODD,
-        bgmEvenWaveUrl: DEMO_BGM_EVEN,
+        bgmUrl: DEMO_BGM_URL,
       };
       setSelectedDifficulty(stage1.difficulty);
       setSelectedConfig(demoConfig);
@@ -208,9 +238,14 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         } catch { /* ignore */ }
 
         let dbConfigs: DifficultyConfig[] = [];
+        let bgmSettings = DEFAULT_SURVIVAL_BGM_SETTINGS;
         try {
-          dbConfigs = await fetchDbDifficultyConfigs();
+          [dbConfigs, bgmSettings] = await Promise.all([
+            fetchDbDifficultyConfigs(),
+            fetchDbBgmSettings(),
+          ]);
         } catch { /* ignore */ }
+        setSurvivalBgmSettings(bgmSettings);
 
         const baseConfig = dbConfigs.find(c => c.difficulty === targetStage.difficulty)
           ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === targetStage.difficulty)
@@ -219,6 +254,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         const config: DifficultyConfig = {
           ...baseConfig,
           allowedChords: targetStage.allowedChords,
+          bgmUrl: resolveSurvivalBgmUrl(targetStage.stageType, bgmSettings),
         };
 
         const iosHintMode = getIOSParam('hintMode') === 'true';
@@ -295,7 +331,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         faiChar = chars.find(isFaiCharacter);
       } catch { /* ignore */ }
 
-      const dbConfigs = await fetchDbDifficultyConfigs();
+      const [dbConfigs, bgmSettings] = await Promise.all([
+        fetchDbDifficultyConfigs(),
+        fetchDbBgmSettings(),
+      ]);
+      setSurvivalBgmSettings(bgmSettings);
       const baseConfig = dbConfigs.find(c => c.difficulty === stageDef.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
@@ -303,6 +343,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         ...baseConfig,
         difficulty: stageDef.difficulty,
         allowedChords: stageDef.allowedChords,
+        bgmUrl: resolveSurvivalBgmUrl(stageDef.stageType, bgmSettings),
       };
 
       setSelectedDifficulty(stageDef.difficulty);
@@ -338,6 +379,12 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   ) => {
     setSelectedDifficulty(difficulty);
     setSelectedConfig(config);
+    if (config.bgmUrl) {
+      setSurvivalBgmSettings(prev => ({
+        ...prev,
+        [stageDefinition.stageType]: config.bgmUrl,
+      }));
+    }
     setDebugSettings(undefined);
     setSelectedCharacter(character);
     setActiveStageDefinition(stageDefinition);
@@ -375,6 +422,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       description: nextStage.name,
       descriptionEn: nextStage.nameEn,
       allowedChords: nextStage.allowedChords,
+      bgmUrl: resolveSurvivalBgmUrl(nextStage.stageType, survivalBgmSettings),
     };
     setActiveStageDefinition(nextStage);
     setSelectedConfig(nextConfig);
@@ -382,7 +430,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setActiveHintMode(false);
     setScreen('select');
     setTimeout(() => setScreen('game'), 0);
-  }, [activeStageDefinition, selectedConfig, survivalFreeTierOnly]);
+  }, [activeStageDefinition, selectedConfig, survivalBgmSettings, survivalFreeTierOnly]);
 
   const survivalOnNextStage = useMemo((): (() => void) | undefined => {
     if (lessonMode || !activeStageDefinition) return undefined;

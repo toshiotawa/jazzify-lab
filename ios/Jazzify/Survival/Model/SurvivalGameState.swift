@@ -27,8 +27,6 @@ enum SurvivalConstants {
     static let stageTimeLimitSec: TimeInterval = 90
     /// ステージクリアに必要な撃破数 (WEB 版 `STAGE_KILL_QUOTA` = 150)
     static let stageEnemyQuota: Int = 150
-    /// 残り時間しきい値 (秒) - これ以下で BGM 偶数フェーズへ
-    static let bgmPhaseSwitchThresholdSec: TimeInterval = 30
     /// コードスロット切替タイマー (秒)
     static let slotTimeoutSec: TimeInterval = 10
     /// 近接衝撃波のベース半径 (B 攻撃、Web 版 baseRange = 80 と一致)

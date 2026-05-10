@@ -23,6 +23,9 @@ ios/Secrets.xcconfig
 # ドットなしのローカル R2 設定（秘密をコミットしないこと）
 /env.r2
 
+# Xcode per-user workspace UI state（コミットしない）
+*.xcuserstate
+
 # IDE files
 .vscode/
 .idea/

@@ -5,9 +5,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/stores/toastStore';
 import {
+  DEFAULT_SURVIVAL_BGM_SETTINGS,
+  fetchSurvivalBgmSettings,
   SurvivalDifficulty,
+  SurvivalBgmSettingsMap,
+  SurvivalStageType,
   SurvivalDifficultySettings,
   fetchSurvivalDifficultySettings,
+  toSurvivalBgmSettingsMap,
+  updateSurvivalBgmSetting,
   updateSurvivalDifficultySettings,
 } from '@/platform/supabaseSurvival';
 import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
@@ -105,7 +111,9 @@ const SurvivalStageManager: React.FC = () => {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingBgm, setSavingBgm] = useState(false);
   const [settings, setSettings] = useState<SurvivalDifficultySettings[]>([]);
+  const [bgmSettings, setBgmSettings] = useState<SurvivalBgmSettingsMap>(DEFAULT_SURVIVAL_BGM_SETTINGS);
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty>('easy');
   
   // 現在選択中の難易度設定
@@ -118,9 +126,13 @@ const SurvivalStageManager: React.FC = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const data = await fetchSurvivalDifficultySettings();
+        const [data, bgmRows] = await Promise.all([
+          fetchSurvivalDifficultySettings(),
+          fetchSurvivalBgmSettings().catch(() => []),
+        ]);
         if (isMounted) {
           setSettings(data);
+          setBgmSettings(toSurvivalBgmSettingsMap(bgmRows));
         }
       } catch (e) {
         if (isMounted) {
@@ -203,8 +215,6 @@ const SurvivalStageManager: React.FC = () => {
         enemyStatMultiplier: currentSettings.enemyStatMultiplier,
         expMultiplier: currentSettings.expMultiplier,
         itemDropRate: currentSettings.itemDropRate,
-        bgmOddWaveUrl: currentSettings.bgmOddWaveUrl,
-        bgmEvenWaveUrl: currentSettings.bgmEvenWaveUrl,
       });
       toast.success('設定を保存しました');
     } catch (e) {
@@ -226,16 +236,35 @@ const SurvivalStageManager: React.FC = () => {
     }));
   }, [selectedDifficulty]);
   
-  // BGMフィールドを更新
-  const updateBgmField = useCallback((
-    field: 'bgmOddWaveUrl' | 'bgmEvenWaveUrl',
-    value: string
-  ) => {
-    setSettings(prev => prev.map(s => {
-      if (s.difficulty !== selectedDifficulty) return s;
-      return { ...s, [field]: value || null };
+  // ステージ種別BGMを更新
+  const updateBgmField = useCallback((stageType: SurvivalStageType, value: string) => {
+    setBgmSettings(prev => ({
+      ...prev,
+      [stageType]: value,
     }));
-  }, [selectedDifficulty]);
+  }, []);
+
+  const saveBgmSettings = useCallback(async () => {
+    const entries: Array<[SurvivalStageType, string]> = [
+      ['random', bgmSettings.random.trim()],
+      ['progression', bgmSettings.progression.trim()],
+    ];
+    if (entries.some(([, url]) => url.length === 0)) {
+      toast.error('BGM URLを入力してください');
+      return;
+    }
+
+    try {
+      setSavingBgm(true);
+      await Promise.all(entries.map(([stageType, bgmUrl]) => updateSurvivalBgmSetting(stageType, bgmUrl)));
+      toast.success('BGM設定を保存しました');
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : 'BGM設定の保存に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setSavingBgm(false);
+    }
+  }, [bgmSettings, toast]);
   
   if (loading) {
     return <div className="text-center text-gray-400 py-8">読み込み中...</div>;
@@ -324,31 +353,38 @@ const SurvivalStageManager: React.FC = () => {
           
           {/* BGM設定 */}
           <div className="mb-6">
-            <h4 className="text-lg font-semibold text-white mb-4">🎵 BGM設定（WAVE別）</h4>
+            <h4 className="text-lg font-semibold text-white mb-4">BGM設定（ステージ種別）</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <SmallLabel>奇数WAVE BGM URL（WAVE 1, 3, 5...）</SmallLabel>
+                <SmallLabel>Randomステージ BGM URL</SmallLabel>
                 <input
                   type="url"
-                  placeholder="https://example.com/bgm-odd.mp3"
+                  placeholder="https://example.com/random-bgm.mp3"
                   className="input input-bordered w-full bg-slate-700"
-                  value={currentSettings.bgmOddWaveUrl || ''}
-                  onChange={(e) => updateBgmField('bgmOddWaveUrl', e.target.value)}
+                  value={bgmSettings.random}
+                  onChange={(e) => updateBgmField('random', e.target.value)}
                 />
                 <p className="text-xs text-gray-500 mt-1">MP3/OGG形式のURLを入力（ループ再生）</p>
               </div>
               <div>
-                <SmallLabel>偶数WAVE BGM URL（WAVE 2, 4, 6...）</SmallLabel>
+                <SmallLabel>Progressionステージ BGM URL</SmallLabel>
                 <input
                   type="url"
-                  placeholder="https://example.com/bgm-even.mp3"
+                  placeholder="https://example.com/progression-bgm.mp3"
                   className="input input-bordered w-full bg-slate-700"
-                  value={currentSettings.bgmEvenWaveUrl || ''}
-                  onChange={(e) => updateBgmField('bgmEvenWaveUrl', e.target.value)}
+                  value={bgmSettings.progression}
+                  onChange={(e) => updateBgmField('progression', e.target.value)}
                 />
                 <p className="text-xs text-gray-500 mt-1">MP3/OGG形式のURLを入力（ループ再生）</p>
               </div>
             </div>
+            <button
+              onClick={saveBgmSettings}
+              disabled={savingBgm}
+              className="btn btn-sm btn-secondary mt-4"
+            >
+              {savingBgm ? '保存中...' : 'BGM設定を保存'}
+            </button>
           </div>
           
           {/* 許可コード設定 */}
