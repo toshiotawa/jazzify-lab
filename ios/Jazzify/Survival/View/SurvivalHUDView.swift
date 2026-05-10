@@ -18,12 +18,12 @@ struct SurvivalHUDView: View {
     }
 
     private var bossHpRatio: CGFloat? {
-        guard let boss = controller.bossBattle else { return nil }
-        return CGFloat(boss.boss.hp) / CGFloat(max(1, boss.boss.maxHp))
+        guard let hud = controller.bossHud else { return nil }
+        return hud.hpRatio
     }
 
     private var timeLabel: String {
-        if controller.bossBattle != nil {
+        if controller.bossHud != nil {
             return locale == .ja ? "ボス戦" : "Boss"
         }
         let totalSec = max(0, controller.uiSnapshot.remainingSecondsCoarse)
@@ -37,7 +37,7 @@ struct SurvivalHUDView: View {
                 timeLabel: timeLabel,
                 enemiesDefeated: controller.uiSnapshot.enemiesDefeated,
                 enemyQuota: SurvivalConstants.stageEnemyQuota,
-                isBossBattle: controller.bossBattle != nil,
+                isBossBattle: controller.bossHud != nil,
                 hintMode: controller.uiSnapshot.hintMode,
                 isPaused: controller.isPaused,
                 locale: locale,

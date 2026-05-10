@@ -37,7 +37,7 @@ enum SurvivalBossActionKind: Sendable {
     case charging(angle: CGFloat, startAt: TimeInterval, durationMs: Double, origin: CGPoint)
 }
 
-enum SurvivalBossPhase: Int, Sendable { case one = 1, two = 2, three = 3 }
+enum SurvivalBossPhase: Int, Sendable, Equatable { case one = 1, two = 2, three = 3 }
 
 struct SurvivalBossHazard: Identifiable, Sendable {
     enum Kind: Sendable {
@@ -125,7 +125,7 @@ struct SurvivalBoss: Sendable {
     var pendingAcidAngle: CGFloat? = nil
 }
 
-enum SurvivalBossResult: Sendable { case ongoing, win, lose }
+enum SurvivalBossResult: Sendable, Equatable { case ongoing, win, lose }
 
 /// C ボス heal スキル発動時に積まれるボス自身の HP 回復イベント。
 /// `SurvivalGameController` が毎フレーム drain し、緑色の "+N" floating text に変換する。

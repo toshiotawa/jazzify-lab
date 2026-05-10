@@ -15,7 +15,11 @@ final class SurvivalGameController: ObservableObject {
     /// SpriteKit / ゲームロジックが毎フレーム参照。SwiftUI は `uiSnapshot` を購読する。
     private(set) var runtime: SurvivalStageRuntime
     @Published private(set) var uiSnapshot: SurvivalUISnapshot
-    @Published private(set) var bossBattle: SurvivalBossBattleState?
+    /// ボス戦のフル状態。SKScene と `tickBoss` が毎フレーム読む。**`@Published` にしないこと** —
+    /// 毎フレーム `objectWillChange` が流れメインスレッドが飽和し、SKScene.update が間引かれてゲーム進行が止まる。
+    private(set) var bossBattle: SurvivalBossBattleState?
+    /// ボス HP バー等に必要な HUD だけを低頻度で公開する (`publishBossHudIfNeeded`)。
+    @Published private(set) var bossHud: SurvivalBossHUDSnapshot?
     @Published private(set) var isBossStage: Bool
     /// SKScene からのみ参照されるカメラ追従先。SwiftUI のビュー更新に使われないため
     /// `@Published` にはしない。毎フレーム更新される値を `objectWillChange.send()` で
@@ -103,6 +107,8 @@ final class SurvivalGameController: ObservableObject {
     private var fireDotAccumulator: Double = 0
     /// WEB 版は接触 DOT を小数 HP として減算。整数 HP との整合のため端数を蓄積する。
     private var contactDamageAccumulator: Double = 0
+    /// `@Published bossHud` の throttle 基準時刻 (`tick` と同じ時間軸)
+    private var lastBossHudPublishAt: TimeInterval = 0
 
     // MARK: - Init
 
@@ -155,13 +161,22 @@ final class SurvivalGameController: ObservableObject {
         // ヒントモード時のみ鍵盤ハイライト対象スロットを設定（Progression は B のみ有効）
         self.currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: hintMode)
 
+        let bossNow = CACurrentMediaTime()
+        let initialBoss: SurvivalBossBattleState?
         if isBoss {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
-            self.bossBattle = SurvivalBossEngine.createBossBattleState(
+            initialBoss = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
-                now: CACurrentMediaTime()
+                now: bossNow
             )
+        } else {
+            initialBoss = nil
         }
+        self.bossBattle = initialBoss
+
+        let initialHud = initialBoss.map(Self.makeBossHudSnapshot(from:))
+        self._bossHud = Published(initialValue: initialHud)
+        lastBossHudPublishAt = bossNow
 
         self._uiSnapshot = Published(initialValue: SurvivalUISnapshot.make(from: self.runtime))
     }
@@ -181,11 +196,11 @@ final class SurvivalGameController: ObservableObject {
     }
 
     func registerMidiKeyDown(_ midi: Int) {
-        midiHeldKeys.insert(midi)
+        guard midiHeldKeys.insert(midi).inserted else { return }
     }
 
     func registerMidiKeyUp(_ midi: Int) {
-        midiHeldKeys.remove(midi)
+        guard midiHeldKeys.remove(midi) != nil else { return }
     }
 
     func requestExit() {
@@ -229,7 +244,7 @@ final class SurvivalGameController: ObservableObject {
             player: player,
             slots: slots
         )
-        currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: hintMode)
+        setHintSlotIndexIfChanged(Self.initialHintSlotIndex(slots: slots, hintMode: hintMode))
 
         if isBoss {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
@@ -253,6 +268,7 @@ final class SurvivalGameController: ObservableObject {
         cameraTargetX = runtime.player.x
         cameraTargetY = runtime.player.y
         uiSnapshot = SurvivalUISnapshot.make(from: runtime)
+        publishBossHudIfNeeded(now: lastNow, force: true)
         sceneRestartGeneration &+= 1
         start()
     }
@@ -316,6 +332,12 @@ final class SurvivalGameController: ObservableObject {
         return result
     }
 
+    /// `@Published currentHintSlotIndex` は値が変わったときだけ更新する（Progression+HINT で同一スロット固定時の無駄な SwiftUI 再描画を避ける）。
+    private func setHintSlotIndexIfChanged(_ newValue: Int?) {
+        guard currentHintSlotIndex != newValue else { return }
+        currentHintSlotIndex = newValue
+    }
+
     /// ヒント対象を「A/B のうち有効かつ反対側」へ切り替える。
     /// Progression（B のみ有効）では反対側が無効のため、トリガした側に固定する（Web 版のフォールバック相当）。
     private func advanceHintSlotIndex(triggeredIndex: Int) {
@@ -323,11 +345,11 @@ final class SurvivalGameController: ObservableObject {
         guard triggeredIndex == 0 || triggeredIndex == 1 else { return }
         let preferred = triggeredIndex == 0 ? 1 : 0
         if runtime.slots.indices.contains(preferred), runtime.slots[preferred].isEnabled {
-            currentHintSlotIndex = preferred
+            setHintSlotIndexIfChanged(preferred)
             return
         }
         if runtime.slots.indices.contains(triggeredIndex), runtime.slots[triggeredIndex].isEnabled {
-            currentHintSlotIndex = triggeredIndex
+            setHintSlotIndexIfChanged(triggeredIndex)
         }
     }
 
@@ -527,6 +549,27 @@ final class SurvivalGameController: ObservableObject {
         }
     }
 
+    private static func makeBossHudSnapshot(from battle: SurvivalBossBattleState) -> SurvivalBossHUDSnapshot {
+        SurvivalBossHUDSnapshot(
+            hp: battle.boss.hp,
+            maxHp: battle.boss.maxHp,
+            phase: battle.boss.phase,
+            result: battle.result,
+            isDefeating: battle.defeatedAt != nil
+        )
+    }
+
+    /// ボス HP バーなど SwiftUI 用のみ。変更時または最大 10fps で `bossHud` を更新する。
+    private func publishBossHudIfNeeded(now: TimeInterval, force: Bool = false) {
+        let next: SurvivalBossHUDSnapshot? = bossBattle.map(Self.makeBossHudSnapshot(from:))
+        let throttleSec: TimeInterval = 0.10
+        guard force || bossHud != next || now - lastBossHudPublishAt >= throttleSec else { return }
+        if bossHud != next {
+            bossHud = next
+        }
+        lastBossHudPublishAt = now
+    }
+
     // MARK: - 毎フレーム更新 (SKScene から呼ばれる)
 
     func tick(currentTime: TimeInterval) {
@@ -541,6 +584,7 @@ final class SurvivalGameController: ObservableObject {
                 boss.startedAt = currentTime
                 bossBattle = boss
             }
+            publishBossHudIfNeeded(now: currentTime, force: true)
             // 初回フレームは dt = 0 相当とし、これ以降のフレームから通常進行させる。
             guard !isPaused else {
                 rebuildUISnapshotIfChanged()
@@ -1057,6 +1101,7 @@ final class SurvivalGameController: ObservableObject {
         }
 
         bossBattle = boss
+        publishBossHudIfNeeded(now: now)
 
         // ドロップ ハート × プレイヤーの接触ピックアップ + 期限切れ除去
         // (通常ステージでは tickNormal 内で同等の処理を行っているが、ボス戦では
@@ -1094,10 +1139,12 @@ final class SurvivalGameController: ObservableObject {
 
         switch boss.result {
         case .win:
+            publishBossHudIfNeeded(now: now, force: true)
             runtime.phase = .cleared
             SurvivalGameAudio.shared.playEffect(.stageClear)
             finalizeStage(cleared: true)
         case .lose:
+            publishBossHudIfNeeded(now: now, force: true)
             runtime.phase = .gameOver
             SurvivalGameAudio.shared.playEffect(.stageGameOver)
             finalizeStage(cleared: false)

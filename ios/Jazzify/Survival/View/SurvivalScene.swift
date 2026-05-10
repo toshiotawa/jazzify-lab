@@ -94,6 +94,9 @@ final class SurvivalScene: SKScene {
     /// ボス撃破演出を既に発火済みか (カメラシェイク + 爆散エフェクトを 1 回だけトリガーするため)。
     private var hasTriggeredBossDefeatFx: Bool = false
 
+    /// `SKScene.update` が最後に走ったホスト時刻。`UIViewRepresentable.Coordinator` の watchdog がゲームループ停止を検出するために使う。
+    private(set) var lastUpdateWallTime: TimeInterval = CACurrentMediaTime()
+
     init(size: CGSize, controller: SurvivalGameController) {
         self.controller = controller
         super.init(size: size)
@@ -343,6 +346,7 @@ final class SurvivalScene: SKScene {
     // MARK: - フレーム更新
 
     override func update(_ currentTime: TimeInterval) {
+        lastUpdateWallTime = CACurrentMediaTime()
         guard let controller = controller else { return }
         let rawDt = lastSceneUpdateTimeForCamera.map { currentTime - $0 } ?? 0
         lastSceneUpdateTimeForCamera = currentTime

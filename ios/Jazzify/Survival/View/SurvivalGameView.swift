@@ -1,6 +1,7 @@
 import SwiftUI
 import SpriteKit
 import UIKit
+import QuartzCore
 
 /// サバイバル ゲーム画面のルート (fullScreenCover から表示されるネイティブ版)。
 /// - SpriteKit ゲーム世界 + SwiftUI オーバーレイ (HUD / スロット / スティック / 鍵盤)
@@ -199,11 +200,10 @@ private struct SurvivalGameContent: View {
             SurvivalSceneContainer(controller: controller)
                 .ignoresSafeArea()
 
-            // 仮想スティックの出現領域。ゲーム画面のどこをタップしてもその位置に
-            // スティックが出現するよう、ヒット領域はビュー全体に拡大する。
-            // HUD / 鍵盤より下に置くことで、上部の一時停止ボタンや鍵盤タップを阻害しない。
+            // 仮想スティック: 画面上部 (HUD)・下部 (鍵盤) の中央バンドをヒット無効にし、
+            // 「どこでも出現」をやめてタッチ競合による操作不能を減らす（ゲーム進行より安定性優先）。
             SurvivalJoystickRepresentable(
-                hitMask: .full,
+                hitMask: .leftRightSides(exclusionRatio: 0.42),
                 isInteractive: controller.uiSnapshot.phase == .playing && !controller.isPaused
             ) { analog in
                 controller.analogInput = analog
@@ -223,11 +223,7 @@ private struct SurvivalGameContent: View {
 
             VStack {
                 Spacer()
-                // 鍵盤の最低 C / 最高 C もタップできるよう左右の余白を取らず、
-                // ノッチ付き端末の横向きでもセーフエリア無視で画面幅いっぱいに敷き詰める。
-                SurvivalChordPadView(controller: controller)
-                    .ignoresSafeArea(.container, edges: .horizontal)
-                    .padding(.bottom, 8)
+                chordPadBar
             }
 
             if controller.isPaused && controller.uiSnapshot.phase == .playing {
@@ -238,6 +234,21 @@ private struct SurvivalGameContent: View {
                 resultOverlay
             }
         }
+    }
+
+    private var chordPadBar: some View {
+        SurvivalChordPadView(
+            snapshot: SurvivalChordPadSnapshot(
+                hintMidis: controller.currentHintHighlightMidis,
+                midiHeldKeys: controller.midiHeldKeys,
+                isEnabled: controller.uiSnapshot.phase == .playing && !controller.isPaused
+            ),
+            onPress: { controller.handleNoteOn($0) },
+            onRelease: { controller.handleNoteOff($0) }
+        )
+        .equatable()
+        .ignoresSafeArea(.container, edges: .horizontal)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Overlays
@@ -326,7 +337,7 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         // バックグラウンド復帰時に SKView が isPaused=true のまま固着するケースを救済する。
         // 起動直後に即 fullScreenCover を開く (= アプリライフサイクルと画面遷移が重なる)
         // ユーザー操作で顕在化しやすい「一歩も動けない / HP が減らない」症状の主要因。
-        context.coordinator.attach(view: view, scene: scene)
+        context.coordinator.attach(view: view, scene: scene, controller: controller)
         context.coordinator.lastSceneRestartGeneration = controller.sceneRestartGeneration
         return view
     }
@@ -346,8 +357,9 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         scene.scaleMode = .resizeFill
         scene.isPaused = false
         uiView.isPaused = false
+        uiView.isUserInteractionEnabled = false
         uiView.presentScene(scene)
-        context.coordinator.attach(view: uiView, scene: scene)
+        context.coordinator.attach(view: uiView, scene: scene, controller: controller)
     }
 
     static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
@@ -356,51 +368,80 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
 
     final class Coordinator {
         private weak var view: SKView?
-        private weak var scene: SKScene?
+        private weak var scene: SurvivalScene?
+        private weak var controller: SurvivalGameController?
+        private var watchdog: Timer?
+
         private var activeObserver: NSObjectProtocol?
         private var willResignObserver: NSObjectProtocol?
         /// `SurvivalGameController.sceneRestartGeneration` の最後に `presentScene` した値。
         var lastSceneRestartGeneration: Int = 0
 
-        func attach(view: SKView, scene: SKScene) {
-            if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
-            if let o = willResignObserver { NotificationCenter.default.removeObserver(o) }
-            activeObserver = nil
-            willResignObserver = nil
+        func attach(view: SKView, scene: SurvivalScene, controller: SurvivalGameController) {
+            detach()
+
             self.view = view
             self.scene = scene
+            self.controller = controller
+
             activeObserver = NotificationCenter.default.addObserver(
                 forName: UIApplication.didBecomeActiveNotification,
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.resumeIfPausedExternally()
+                Task { @MainActor in
+                    self?.resumeIfPausedExternally()
+                }
             }
             willResignObserver = NotificationCenter.default.addObserver(
                 forName: UIApplication.willResignActiveNotification,
                 object: nil,
                 queue: .main
-            ) { [weak self] _ in
-                // resign 直後に SpriteKit が isPaused を自動セットすることを許容し、
-                // didBecomeActive 側で確実に再開するだけにとどめる。
-                _ = self
+            ) { _ in }
+
+            let w = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+                Task { @MainActor in
+                    self?.resumeIfSceneLoopStalled()
+                }
             }
+            watchdog = w
+            RunLoop.main.add(w, forMode: .common)
         }
 
         func detach() {
+            watchdog?.invalidate()
+            watchdog = nil
             if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
             if let o = willResignObserver { NotificationCenter.default.removeObserver(o) }
             activeObserver = nil
             willResignObserver = nil
             view = nil
             scene = nil
+            controller = nil
         }
 
+        @MainActor
         private func resumeIfPausedExternally() {
-            // 復帰直後のフレームで SKView / SKScene が暗黙に isPaused=true のままになる
-            // ケースを救済。明示的に false を書き戻すことで次の vsync で update() が再開する。
-            if let v = view, v.isPaused { v.isPaused = false }
-            if let s = scene, s.isPaused { s.isPaused = false }
+            guard let view, let scene else { return }
+            if view.isPaused { view.isPaused = false }
+            if scene.isPaused { scene.isPaused = false }
+        }
+
+        /// プレイ中に `SKView` / `SKScene` の `isPaused` 固着、または update 停止 (>0.5s) があれば復帰する。
+        @MainActor
+        private func resumeIfSceneLoopStalled() {
+            guard let view, let scene, let controller else { return }
+            guard view.window != nil else { return }
+            guard controller.uiSnapshot.phase == .playing, !controller.isPaused else { return }
+
+            let wallNow = CACurrentMediaTime()
+            let stalled = wallNow - scene.lastUpdateWallTime > 0.5
+            let viewWasPaused = view.isPaused
+            let sceneWasPaused = scene.isPaused
+            if viewWasPaused || sceneWasPaused || stalled {
+                view.isPaused = false
+                scene.isPaused = false
+            }
         }
     }
 }

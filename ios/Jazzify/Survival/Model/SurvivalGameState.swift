@@ -551,6 +551,22 @@ extension SurvivalCodeSlot: Equatable {
     }
 }
 
+// MARK: - Boss HUD snapshot (SwiftUI / 低頻度 publish)
+
+/// ボス戦 HUD が参照する値のみ。@Published で毎フレーム流さないために `bossBattle` 本体から縮約する。
+struct SurvivalBossHUDSnapshot: Equatable, Sendable {
+    let hp: Int
+    let maxHp: Int
+    let phase: SurvivalBossPhase
+    let result: SurvivalBossResult
+    /// 撃破フェード演出中か（ボス状態の defeatedAt と同期）
+    let isDefeating: Bool
+
+    var hpRatio: CGFloat {
+        CGFloat(hp) / CGFloat(max(1, maxHp))
+    }
+}
+
 // MARK: - SwiftUI snapshot (HUD / スロット用)
 
 /// `SurvivalStageRuntime` 全体を `@Published` しないため、表示に必要なフィールドだけを束ねる。
