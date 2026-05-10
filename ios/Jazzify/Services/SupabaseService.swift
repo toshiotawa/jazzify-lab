@@ -473,6 +473,17 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    /// 降下マップのブロック表示名（ja/en）。RLS: 全員 SELECT 可。
+    func fetchSurvivalStageBlocks() async throws -> [SurvivalStageBlockRow] {
+        try await client
+            .from("survival_stage_blocks")
+            .select()
+            .order("map_category")
+            .order("sort_order")
+            .execute()
+            .value
+    }
+
     func fetchSurvivalCharacters() async throws -> [SurvivalCharacterRow] {
         try await client
             .from("survival_characters")

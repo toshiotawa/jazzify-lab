@@ -388,8 +388,12 @@ struct SurvivalView: View {
         let needCatalogBecauseEmpty = SurvivalStageCatalog.totalStages(in: category) == 0
 
         if catalogStale || needCatalogBecauseEmpty {
-            if let rows = try? await SupabaseService.shared.fetchSurvivalStages(), !rows.isEmpty {
-                SurvivalStageCatalog.load(rows: rows)
+            async let fetchedStages = SupabaseService.shared.fetchSurvivalStages()
+            async let fetchedBlocks = SupabaseService.shared.fetchSurvivalStageBlocks()
+            let rows = try? await fetchedStages
+            let blockRows = (try? await fetchedBlocks) ?? []
+            if let rows, !rows.isEmpty {
+                SurvivalStageCatalog.load(rows: rows, blockLabelRows: blockRows)
                 survivalStagesFetchedAt = Date()
             }
         }

@@ -149,6 +149,14 @@ struct SurvivalStageRow: Decodable, Sendable {
     let chord_progression: [SurvivalChordProgressionEntry]?
 }
 
+/// `survival_stage_blocks` テーブル 1 行。降下マップのブロックヘッダー表示名。
+struct SurvivalStageBlockRow: Decodable, Sendable {
+    let map_category: String
+    let block_key: String
+    let label: String
+    let label_en: String
+}
+
 struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     /// 所属マップ。Basic / Songs を分離する。
     let mapCategory: SurvivalMapCategory
@@ -207,7 +215,7 @@ struct SurvivalBlockMeta: Identifiable, Sendable {
 
 /// ステージ定義と階層情報をまとめて提供するカタログ。
 /// - 注: Web 版 [src/components/survival/SurvivalStageDefinitions.ts](src/components/survival/SurvivalStageDefinitions.ts) と
-///   同様に、`survival_stages` テーブルがソース。`load(rows:)` で DB 行から再構築する。
+///   同様に、`survival_stages` がステージ正、`survival_stage_blocks` がブロック表示名。`load` で DB 行から再構築する。
 ///   起動直後はローカルフォールバック（`generateStages()` の結果）を返す。
 /// - マップカテゴリごとに `_stagesByCategory` / `_blocksByCategory` で別々に保持する。
 ///   既存呼び出し互換のため、無印プロパティ (`stages` 等) は `.basic` を返す。
@@ -219,7 +227,7 @@ enum SurvivalStageCatalog {
         .songs: []
     ]
     nonisolated(unsafe) private static var _blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [
-        .basic: Self.generateBlocks(from: Self.generateStages()),
+        .basic: Self.generateBlocks(from: Self.generateStages(), labelOverrides: [:]),
         .songs: []
     ]
 
@@ -290,9 +298,11 @@ enum SurvivalStageCatalog {
     }
 
     /// Supabase の `survival_stages` 行から `SurvivalStageDefinition` を構築する。
+    /// - `blockLabelRows` で `survival_stage_blocks` の表示名を上書き（未取得時は `blockLabels`）。
     /// - random ステージは Web 版同様、`root_pattern + chord_suffix` から実行時に allowed_chords を再生成する。
     /// - progression ステージは `allowedChords = []` で、MusicXML を後段の XMLパーサで処理する。
-    static func load(rows: [SurvivalStageRow]) {
+    static func load(rows: [SurvivalStageRow], blockLabelRows: [SurvivalStageBlockRow] = []) {
+        let labelOverridesByCategory = Self.blockLabelOverrides(from: blockLabelRows)
         let mixedConfigs: [MixedGroupKey: MixedGroupConfig] = [
             .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: .minor),
             .normalA: MixedGroupConfig(suffixes: ["M7", "m7", "7", "m7b5"], difficulty: .normal, blockKey: .m7b5),
@@ -378,11 +388,31 @@ enum SurvivalStageCatalog {
 
         var blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [:]
         for (category, stages) in stagesByCategory {
-            blocksByCategory[category] = generateBlocks(from: stages)
+            let overrides = labelOverridesByCategory[category] ?? [:]
+            blocksByCategory[category] = generateBlocks(from: stages, labelOverrides: overrides)
         }
 
         _stagesByCategory = stagesByCategory
         _blocksByCategory = blocksByCategory
+    }
+
+    private static func blockLabelOverrides(
+        from rows: [SurvivalStageBlockRow]
+    ) -> [SurvivalMapCategory: [SurvivalBlockKey: (ja: String, en: String)]] {
+        var result: [SurvivalMapCategory: [SurvivalBlockKey: (ja: String, en: String)]] = [:]
+        for row in rows {
+            let catRaw = row.map_category.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let category = SurvivalMapCategory(rawValue: catRaw) else { continue }
+            let keyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let blockKey = SurvivalBlockKey(rawValue: keyRaw) else { continue }
+            let ja = row.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let en = row.label_en.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !ja.isEmpty, !en.isEmpty else { continue }
+            var inner = result[category] ?? [:]
+            inner[blockKey] = (ja, en)
+            result[category] = inner
+        }
+        return result
     }
 
     // MARK: - Private generators
@@ -556,7 +586,10 @@ enum SurvivalStageCatalog {
         .seven_b9_13, .seven_sharp9_b13, .m7b5_11, .dimM7
     ]
 
-    private static func generateBlocks(from stages: [SurvivalStageDefinition]) -> [SurvivalBlockMeta] {
+    private static func generateBlocks(
+        from stages: [SurvivalStageDefinition],
+        labelOverrides: [SurvivalBlockKey: (ja: String, en: String)]
+    ) -> [SurvivalBlockMeta] {
         var bucket: [SurvivalBlockKey: (stages: [Int], mixed: Int?, difficulty: SurvivalDifficulty)] = [:]
         for stage in stages {
             var entry = bucket[stage.blockKey] ?? (stages: [], mixed: nil, difficulty: stage.difficulty)
@@ -567,12 +600,14 @@ enum SurvivalStageCatalog {
         }
 
         return blockOrder.enumerated().compactMap { index, key in
-            guard let entry = bucket[key], let labels = blockLabels[key] else { return nil }
+            guard let entry = bucket[key] else { return nil }
+            let resolvedLabels = labelOverrides[key] ?? blockLabels[key]
+            guard let resolvedLabels else { return nil }
             return SurvivalBlockMeta(
                 blockKey: key,
                 blockIndex: index,
-                labelJa: labels.ja,
-                labelEn: labels.en,
+                labelJa: resolvedLabels.ja,
+                labelEn: resolvedLabels.en,
                 stageNumbers: entry.stages.sorted(),
                 mixedStageNumber: entry.mixed,
                 difficulty: entry.difficulty

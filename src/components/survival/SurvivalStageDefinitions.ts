@@ -121,6 +121,85 @@ function buildMixedAllowedChords(suffixes: string[]): string[] {
   return combined;
 }
 
+/** ブロックキーの出現順（21 要素） */
+const BLOCK_ORDER: BlockKey[] = [
+  'major',
+  'minor',
+  'M7',
+  'm7',
+  '7',
+  'm7b5',
+  'mM7',
+  'dim7',
+  'aug7',
+  '6',
+  'm6',
+  'M7_9',
+  'm7_9',
+  '7_9_13',
+  '7_b9_b13',
+  '6_9',
+  'm6_9',
+  '7_b9_13',
+  '7_sharp9_b13',
+  'm7b5_11',
+  'dimM7',
+];
+
+function parseBlockKey(raw: unknown): BlockKey | null {
+  if (typeof raw !== 'string') return null;
+  return (BLOCK_ORDER as readonly string[]).includes(raw) ? (raw as BlockKey) : null;
+}
+
+interface SurvivalStageBlockRow {
+  map_category: SurvivalMapCategory;
+  block_key: BlockKey;
+  label: string;
+  label_en: string;
+}
+
+const BLOCK_LABELS_FROM_DB: Record<
+  SurvivalMapCategory,
+  Partial<Record<BlockKey, { ja: string; en: string }>>
+> = {
+  basic: {},
+  songs: {},
+};
+
+function applySurvivalStageBlockLabels(rows: SurvivalStageBlockRow[]): void {
+  for (const c of SURVIVAL_MAP_CATEGORIES) {
+    BLOCK_LABELS_FROM_DB[c] = {};
+  }
+  for (const row of rows) {
+    if (!SURVIVAL_MAP_CATEGORIES.includes(row.map_category)) continue;
+    const ja = row.label.trim();
+    const en = row.label_en.trim();
+    if (!ja || !en) continue;
+    BLOCK_LABELS_FROM_DB[row.map_category][row.block_key] = { ja, en };
+  }
+}
+
+export function resolveSurvivalBlockLabel(
+  category: SurvivalMapCategory,
+  blockKey: BlockKey,
+): { ja: string; en: string } | undefined {
+  return BLOCK_LABELS_FROM_DB[category][blockKey];
+}
+
+function survivalStageBlockRowFromRecord(row: Record<string, unknown>): SurvivalStageBlockRow | null {
+  const rawCategory = typeof row.map_category === 'string' ? row.map_category : '';
+  const mapCategory: SurvivalMapCategory | null = SURVIVAL_MAP_CATEGORIES.includes(rawCategory as SurvivalMapCategory)
+    ? (rawCategory as SurvivalMapCategory)
+    : null;
+  if (!mapCategory) return null;
+  const blockKey = parseBlockKey(row.block_key);
+  if (!blockKey) return null;
+  const label = typeof row.label === 'string' ? row.label.trim() : '';
+  const label_en = typeof row.label_en === 'string' ? row.label_en.trim() : '';
+  if (!label || !label_en) return null;
+  return { map_category: mapCategory, block_key: blockKey, label, label_en };
+}
+
 /** chord_progression JSONB の正規化（不正値はスキップ） */
 function parseChordProgression(raw: unknown): SurvivalChordProgressionEntry[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -247,16 +326,32 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
   fetchPromise = (async () => {
     try {
       const supabase = getSupabaseClient();
-      const { data, error } = await supabase
-        .from('survival_stages')
-        .select('*')
-        .order('map_category', { ascending: true })
-        .order('stage_number', { ascending: true });
-      if (error) throw error;
-      const rows = (data ?? []) as Array<Record<string, unknown>>;
+      const [stagesResponse, blocksResponse] = await Promise.all([
+        supabase
+          .from('survival_stages')
+          .select('*')
+          .order('map_category', { ascending: true })
+          .order('stage_number', { ascending: true }),
+        supabase
+          .from('survival_stage_blocks')
+          .select('map_category, block_key, label, label_en')
+          .order('map_category', { ascending: true })
+          .order('sort_order', { ascending: true }),
+      ]);
+      if (stagesResponse.error) throw stagesResponse.error;
+      if (blocksResponse.error) {
+        applySurvivalStageBlockLabels([]);
+      } else {
+        const blockRows = (blocksResponse.data ?? [])
+          .map(r => survivalStageBlockRowFromRecord(r as Record<string, unknown>))
+          .filter((x): x is SurvivalStageBlockRow => x !== null);
+        applySurvivalStageBlockLabels(blockRows);
+      }
+      const rows = (stagesResponse.data ?? []) as Array<Record<string, unknown>>;
       if (rows.length === 0) {
         const cached = readLocalCache();
         if (cached) {
+          applySurvivalStageBlockLabels([]);
           applyStageCaches(cached);
           return cached;
         }
@@ -267,6 +362,7 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
       writeLocalCache(rows);
       return stages;
     } catch {
+      applySurvivalStageBlockLabels([]);
       const cached = readLocalCache();
       if (cached) {
         applyStageCaches(cached);
@@ -288,6 +384,7 @@ export function resetStageCache(): void {
   STAGES_BY_CATEGORY.songs = [];
   ALL_STAGES = [];
   TOTAL_STAGES = 0;
+  applySurvivalStageBlockLabels([]);
 }
 
 /** カテゴリ別のステージ一覧を返す（参照のみ。配列を変更しないこと） */
@@ -326,31 +423,6 @@ export function isBlockLastStage(
   if (!next) return true;
   return next.blockKey !== current.blockKey;
 }
-
-/** ブロックキーの出現順（21 要素） */
-const BLOCK_ORDER: BlockKey[] = [
-  'major',
-  'minor',
-  'M7',
-  'm7',
-  '7',
-  'm7b5',
-  'mM7',
-  'dim7',
-  'aug7',
-  '6',
-  'm6',
-  'M7_9',
-  'm7_9',
-  '7_9_13',
-  '7_b9_b13',
-  '6_9',
-  'm6_9',
-  '7_b9_13',
-  '7_sharp9_b13',
-  'm7b5_11',
-  'dimM7',
-];
 
 export type SurvivalBossType = 'A' | 'B' | 'C';
 

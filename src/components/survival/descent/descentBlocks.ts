@@ -1,11 +1,11 @@
 /**
  * 魔王城降下マップ: ブロック（コードタイプ）メタデータ
  * 1ブロック = 5 ステージ、Mixed を含むブロックのみ 6 ステージ。
- * Web版は survival_stages テーブルがソース。fetchAllStages 完了後に rebuildDescentBlocks を呼ぶ。
+ * Web版は survival_stages テーブルと survival_stage_blocks でメタを取得。fetchAllStages 完了後に rebuildDescentBlocks を呼ぶ。
  * Basic / Songs マップごとに別々のブロックリストを管理する。
  */
 
-import { BlockKey, getStagesByCategory } from '../SurvivalStageDefinitions';
+import { BlockKey, getStagesByCategory, resolveSurvivalBlockLabel } from '../SurvivalStageDefinitions';
 import {
   SurvivalMapCategory,
   DEFAULT_SURVIVAL_MAP_CATEGORY,
@@ -94,12 +94,13 @@ function buildBlocksForCategory(category: SurvivalMapCategory): BlockMeta[] {
     const entry = byKey.get(blockKey);
     if (!entry) continue;
     const sorted = [...entry.stageNumbers].sort((a, b) => a - b);
-    const label = BLOCK_LABELS[blockKey];
+    const fallback = BLOCK_LABELS[blockKey];
+    const fromDb = resolveSurvivalBlockLabel(category, blockKey);
     result.push({
       blockKey,
       blockIndex,
-      label: label.ja,
-      labelEn: label.en,
+      label: fromDb?.ja ?? fallback.ja,
+      labelEn: fromDb?.en ?? fallback.en,
       stageNumbers: sorted,
       firstStage: sorted[0],
       lastStage: sorted[sorted.length - 1],

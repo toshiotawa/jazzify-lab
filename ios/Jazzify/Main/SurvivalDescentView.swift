@@ -50,7 +50,7 @@ struct SurvivalDescentView: View {
         return visible
     }
 
-    /// `SurvivalStageCatalog.load(rows:)` 完了後の最新値を反映できるよう computed property にする。
+    /// `SurvivalStageCatalog.load(rows:blockLabelRows:)` 完了後の最新値を反映できるよう computed property にする。
     private var layout: SurvivalDescentLayout {
         SurvivalDescentLayoutBuilder.build(blocks: blocks)
     }
