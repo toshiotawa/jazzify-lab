@@ -83,7 +83,7 @@ struct GameWebView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @StateObject private var coordinator = WebViewCoordinator()
-    /// `MIDIManager.onMIDIEvent` を `WebViewCoordinator` に渡す（`MIDIBridge` を保持しないとコールバックが切れる）
+    /// `MIDIManager.subscribe`（`MIDIBridge`）経由で `WebViewCoordinator` に MIDI を渡す（ブリッジを保持しないとコールバックが切れる）
     @State private var midiBridge: MIDIBridge?
 
     let mode: GameMode

@@ -174,9 +174,9 @@ const LandingPage: React.FC = () => {
           <title>{helmetTitle}</title>
           <meta name="description" content={helmetDescription} />
           <link rel="canonical" href={`${siteOrigin}/`} />
-          <link rel="alternate" hreflang="ja" href="https://jazzify.jp/" />
-          <link rel="alternate" hreflang="en" href="https://en.jazzify.jp/" />
-          <link rel="alternate" hreflang="x-default" href="https://jazzify.jp/" />
+          <link rel="alternate" hrefLang="ja" href="https://jazzify.jp/" />
+          <link rel="alternate" hrefLang="en" href="https://en.jazzify.jp/" />
+          <link rel="alternate" hrefLang="x-default" href="https://jazzify.jp/" />
           <meta property="og:type" content="website" />
           <meta property="og:site_name" content="Jazzify" />
           <meta property="og:title" content={helmetTitle} />

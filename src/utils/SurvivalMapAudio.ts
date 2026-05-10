@@ -41,7 +41,7 @@ const clamp01 = (v: number): number => Math.max(0, Math.min(1, Number.isFinite(v
 /** localStorage 読み取り（失敗時は fallback） */
 function readStoredNumber(key: string, fallback: number): number {
   try {
-    const raw = getWindow().localStorage.getItem(key);
+    const raw = getWindow().localStorage?.getItem(key);
     if (raw == null) return fallback;
     const num = parseFloat(raw);
     if (!Number.isFinite(num)) return fallback;
@@ -53,7 +53,7 @@ function readStoredNumber(key: string, fallback: number): number {
 
 function readStoredBool(key: string, fallback: boolean): boolean {
   try {
-    const raw = getWindow().localStorage.getItem(key);
+    const raw = getWindow().localStorage?.getItem(key);
     if (raw == null) return fallback;
     return raw === '1' || raw === 'true';
   } catch {
@@ -63,7 +63,7 @@ function readStoredBool(key: string, fallback: boolean): boolean {
 
 function writeStored(key: string, value: string): void {
   try {
-    getWindow().localStorage.setItem(key, value);
+    getWindow().localStorage?.setItem(key, value);
   } catch {
     /* ignore */
   }

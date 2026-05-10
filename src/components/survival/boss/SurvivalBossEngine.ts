@@ -684,7 +684,7 @@ const moveBoss = (state: BossBattleState, ctx: BossTickContext): void => {
   }
   if (isImmobile(boss.action)) return;
 
-  let speedFactor = BOSS_A_PARAMS.speedFactor;
+  let speedFactor: number = BOSS_A_PARAMS.speedFactor;
   if (boss.bossType === 'B') speedFactor = BOSS_B_PARAMS.speedFactor;
   else if (boss.bossType === 'C') speedFactor = BOSS_C_PARAMS.speedFactor;
 

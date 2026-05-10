@@ -128,7 +128,7 @@ struct SurvivalBoss: Sendable {
 enum SurvivalBossResult: Sendable, Equatable { case ongoing, win, lose }
 
 /// C ボス heal スキル発動時に積まれるボス自身の HP 回復イベント。
-/// `SurvivalGameController` が毎フレーム drain し、緑色の "+N" floating text に変換する。
+/// `SurvivalGameLoop` が毎フレーム処理し、Scene が緑色の "+N" floating text に変換する。
 struct SurvivalBossHealEvent: Sendable {
     var x: CGFloat
     var y: CGFloat
@@ -147,7 +147,7 @@ struct SurvivalBossBattleState: Sendable {
     /// iOS 独自の「ボスが消えてからクリア画面」を実現するため。
     var defeatedAt: TimeInterval?
     /// C ボス自己回復スキル発動時に積まれる HP 回復イベント。
-    /// UI 側 (`SurvivalGameController`) が drain して floating text を生成する。
+    /// Scene (`SurvivalScene.renderState`) が反映して floating text を生成する。
     var pendingBossHealEvents: [SurvivalBossHealEvent] = []
 }
 

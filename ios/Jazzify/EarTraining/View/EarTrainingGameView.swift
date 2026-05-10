@@ -5,7 +5,7 @@ import UIKit
 /// 耳コピバトル ゲーム画面 (ネイティブ版) のルートビュー。
 /// - SpriteKit シーン上に SwiftUI で HUD / ピアノ / ロビー / 結果 / 設定モーダルを重ねる。
 /// - `onAppear` で Supabase からステージ詳細を取得し、`EarTrainingBattleController` を生成する。
-/// - MIDI 入力は `MIDIManager.shared.onMIDIEvent` を直接フックする（Survival と同パターン）。
+/// - MIDI 入力は `MIDIManager.shared.subscribe` で購読する。
 struct EarTrainingGameView: View {
     let stageId: UUID
     let lessonContext: EarTrainingLessonContext?
@@ -17,6 +17,7 @@ struct EarTrainingGameView: View {
     @State private var loadError: String?
     @State private var isLoading: Bool = true
     @State private var resolvedMode: EarTrainingMode?
+    @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
 
     var body: some View {
         ZStack {
@@ -47,7 +48,7 @@ struct EarTrainingGameView: View {
         .task { await bootstrap() }
         .onDisappear {
             OrientationManager.shared.lock(.portrait)
-            MIDIManager.shared.onMIDIEvent = nil
+            midiSubscriptionHolder.cancel()
             controller?.tearDown()
         }
         .preferredColorScheme(.dark)
@@ -121,8 +122,8 @@ struct EarTrainingGameView: View {
             )
 
             // MIDI 入力をブリッジ
-            MIDIManager.shared.onMIDIEvent = nil
-            MIDIManager.shared.onMIDIEvent = { [weak createdController] status, data1, data2 in
+            midiSubscriptionHolder.cancel()
+            midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
                 let messageType = status & 0xF0
                 let note = Int(data1)
                 let velocity = Int(data2)

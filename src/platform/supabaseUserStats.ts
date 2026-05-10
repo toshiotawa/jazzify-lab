@@ -28,7 +28,7 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
     return cached.data;
   }
 
-  if (inflightRequests[targetUserId]) {
+  if (Object.prototype.hasOwnProperty.call(inflightRequests, targetUserId)) {
     return inflightRequests[targetUserId];
   }
 

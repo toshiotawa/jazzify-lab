@@ -9,7 +9,7 @@ struct SurvivalChordPadSnapshot: Equatable, Sendable {
 
 /// 画面右下のピアノ鍵盤（WEB モバイル版と同様に A0〜C8 の 52 白鍵をスクロール表示、14 鍵程度が見える）。
 /// - `@ObservedObject` は使わず `SurvivalChordPadSnapshot` とコールバックのみ受け取る（controller 全体の publish から隔離）。
-/// - ヒント MIDI は親が `SurvivalGameController.currentHintHighlightMidis` で組み立てて渡す。
+/// - ヒント MIDI は親が `SurvivalViewModel.chordPadHintMidis` で組み立てて渡す。
 struct SurvivalChordPadView: View, Equatable {
     let snapshot: SurvivalChordPadSnapshot
     let onPress: (Int) -> Void

@@ -3,32 +3,13 @@ import CoreGraphics
 import UIKit
 import QuartzCore
 
-// MARK: - Web 版 `SurvivalCanvas` の `woodSeededUnit` / `Math.imul` 互換（板の色・木目の決定論的再現）
-
-@inline(__always)
-fileprivate func survivalMathImul32(_ a: UInt32, _ b: UInt32) -> UInt32 {
-    let product = Int64(Int32(bitPattern: a)) * Int64(Int32(bitPattern: b))
-    return UInt32(bitPattern: Int32(truncatingIfNeeded: product))
-}
-
-@inline(__always)
-fileprivate func survivalWoodSeededUnit(seed: UInt32) -> CGFloat {
-    var t = seed &+ 0x6d2b79f5
-    t = survivalMathImul32(t ^ (t >> 15), t | 1)
-    t ^= t &+ survivalMathImul32(t ^ (t >> 7), t | 61)
-    let fin = t ^ (t >> 14)
-    return CGFloat(Double(fin) / 4294967296.0)
-}
-
 /// サバイバル ゲーム世界描画用の SKScene。
 /// - プレイヤー (5 方向 `survival_muki_*` スプライト、左向きは右向き素材を水平反転) / 敵・弾・アイテム・コイン (絵文字 SKLabelNode)
 /// - ボスは `boss_a|b|c` スプライト (Assets.xcassets の SurvivalMap 配下) で描画
 /// - ハザード (扇 / 直線 / リング / 十字 / 引力) は SKShapeNode 群
-/// - `update(_:)` で `SurvivalGameController.tick` を呼び出し、そこで更新された状態を反映
+/// - `update(_:)` は `SurvivalSceneDriver` でシミュレーションを 1 ステップ進め、受け取ったスナップショットを描画するのみとする。
 final class SurvivalScene: SKScene {
-    /// SwiftUI 側 (`@State`) が先に解放された場合に参照先が無効化されないよう weak 保持。
-    /// `update(_:)` が 1 フレームだけ余分に呼ばれる可能性があるため、nil チェックで安全に無視する。
-    private weak var controller: SurvivalGameController?
+    private weak var driver: SurvivalSceneDriver?
 
     private let worldNode = SKNode()
     private let backgroundNode = SKNode()
@@ -58,6 +39,8 @@ final class SurvivalScene: SKScene {
     /// 毎フレーム CoreGraphics 描画していたのが B ボス戦で特に重い原因だったため、
     /// 「前回との差が閾値未満なら描き直さない」節約を入れる。
     private var bossHpBarLastRatio: CGFloat = -1
+    /// `renderBossWindupWarning` を progress の 0.05 刻みバケット単位でだけ更新する。
+    private var bossWindupLastBucket: Int = -1
     /// ハザード毎の最終描画 progress (0.0〜1.0)。閾値以上変化したときだけ再描画する。
     private var hazardLastProgress: [UUID: Double] = [:]
     /// ボス弾テクスチャの共有キャッシュ。進行方向を 8 分割して同方向の弾で
@@ -97,8 +80,11 @@ final class SurvivalScene: SKScene {
     /// `SKScene.update` が最後に走ったホスト時刻。`UIViewRepresentable.Coordinator` の watchdog がゲームループ停止を検出するために使う。
     private(set) var lastUpdateWallTime: TimeInterval = CACurrentMediaTime()
 
-    init(size: CGSize, controller: SurvivalGameController) {
-        self.controller = controller
+    init(
+        size: CGSize,
+        driver: SurvivalSceneDriver
+    ) {
+        self.driver = driver
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = UIColor(red: 0.03, green: 0.02, blue: 0.06, alpha: 1.0)
@@ -107,6 +93,39 @@ final class SurvivalScene: SKScene {
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    /// `restartSameStage()` で `SKScene` を再生成せず、動的ノードとボス関連キャッシュだけ初期化する。
+    func resetForRestart() {
+        removeBossNodesIfAny()
+        purgeNodeMap(&enemyNodes)
+        purgeNodeMap(&projectileNodes)
+        purgeNodeMap(&enemyProjectileNodes)
+        purgeNodeMap(&shockwaveNodes)
+        purgeNodeMap(&magicEffectNodes)
+        purgeNodeMap(&itemNodes)
+        purgeNodeMap(&coinNodes)
+        purgeNodeMap(&floatingTextNodes)
+        for (_, node) in hazardNodes {
+            node.removeFromParent()
+        }
+        hazardNodes.removeAll()
+        hazardLastProgress.removeAll()
+
+        bossWindupLastBucket = -1
+        hasInitializedCameraPosition = false
+        lastSceneUpdateTimeForCamera = nil
+        cameraShakeStartAt = 0
+        cameraPreviousShakeOffset = .zero
+        nextCacheSweepAtMs = 0
+        lastUpdateWallTime = CACurrentMediaTime()
+    }
+
+    private func purgeNodeMap<Node: SKNode>(_ map: inout [UUID: Node]) {
+        for (_, node) in map {
+            node.removeFromParent()
+        }
+        map.removeAll()
     }
 
     /// SKView の autoresize でシーン サイズが確定するタイミングでカメラ スナップを再実行する。
@@ -182,98 +201,10 @@ final class SurvivalScene: SKScene {
         playerSprite = sprite
     }
 
-    /// 暗い木床（Web 版 `SurvivalCanvas` の `buildWoodTileCanvas` と同じ寸法・ハーフボンド）。
-    /// `SKTexture(rect:in:)` は正規化 UV（0〜1）用であり、繰り返し回数を width に渡す旧実装では
-    /// タイルが正しく敷き詰められず単色に近く見えていたため、**マップ全体分を CoreGraphics でタイル敷き**してから
-    /// 1 枚の `SKTexture(image:)` に載せる。
+    /// 暗い木床（Web 版と同一見た目）。テクスチャ本体は `SurvivalBackgroundCache` でプロセス共有。
     private func drawBackground() {
-        /// Web: `WOOD_PLANK_W` / `WOOD_PLANK_H`
-        let plankW: CGFloat = 120
-        let plankH: CGFloat = 24
-        let tileW = plankW * 2
-        let tileH = plankH * 2
-        let tileSize = CGSize(width: tileW, height: tileH)
-
-        let tileRenderer = UIGraphicsImageRenderer(size: tileSize)
-        let tileImage = tileRenderer.image { ctx in
-            let cg = ctx.cgContext
-            cg.setFillColor(UIColor(red: 0x15 / 255.0, green: 0x0e / 255.0, blue: 0x07 / 255.0, alpha: 1).cgColor)
-            cg.fill(CGRect(origin: .zero, size: tileSize))
-
-            func drawPlank(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, seed: UInt32) {
-                let ru = survivalWoodSeededUnit(seed: seed)
-                let dr = Double(ru) - 0.5
-                let baseRi = 0x1c + Int(floor(dr * 14))
-                let baseGi = 0x13 + Int(floor(dr * 10))
-                let baseBi = 0x0a + Int(floor(dr * 8))
-                cg.setFillColor(
-                    UIColor(
-                        red: CGFloat(baseRi) / 255.0,
-                        green: CGFloat(baseGi) / 255.0,
-                        blue: CGFloat(baseBi) / 255.0,
-                        alpha: 1
-                    ).cgColor
-                )
-                cg.fill(CGRect(x: x, y: y, width: w, height: h))
-
-                let grainCount = 2 + Int(floor(Double(survivalWoodSeededUnit(seed: seed &+ 31)) * 2))
-                for i in 0..<grainCount {
-                    let gx = x + 6 + survivalWoodSeededUnit(seed: seed &+ UInt32(i * 7)) * (w - 12)
-                    let grainAlpha = 0.1 + Double(survivalWoodSeededUnit(seed: seed &+ UInt32(i * 11))) * 0.1
-                    cg.setStrokeColor(
-                        UIColor(red: 80 / 255.0, green: 55 / 255.0, blue: 30 / 255.0, alpha: grainAlpha).cgColor
-                    )
-                    cg.setLineWidth(1)
-                    cg.beginPath()
-                    cg.move(to: CGPoint(x: gx, y: y + 2))
-                    let dx = (survivalWoodSeededUnit(seed: seed &+ UInt32(i * 13)) - 0.5) * 4
-                    cg.addLine(to: CGPoint(x: gx + dx, y: y + h - 2))
-                    cg.strokePath()
-                }
-
-                cg.setStrokeColor(UIColor(red: 5 / 255.0, green: 3 / 255.0, blue: 0, alpha: 0.85).cgColor)
-                cg.setLineWidth(1)
-                cg.stroke(CGRect(x: x + 0.5, y: y + 0.5, width: w - 1, height: h - 1))
-            }
-
-            drawPlank(x: 0, y: 0, w: plankW, h: plankH, seed: 1001)
-            drawPlank(x: plankW, y: 0, w: plankW, h: plankH, seed: 1002)
-            drawPlank(x: -plankW / 2, y: plankH, w: plankW, h: plankH, seed: 2001)
-            drawPlank(x: plankW / 2, y: plankH, w: plankW, h: plankH, seed: 2002)
-            drawPlank(x: plankW * 1.5, y: plankH, w: plankW, h: plankH, seed: 2003)
-        }
-
-        let mapW = SurvivalMap.width
-        let mapH = SurvivalMap.height
-        let mapSize = CGSize(width: mapW, height: mapH)
-
-        guard let tileCg = tileImage.cgImage else { return }
-
-        let format = UIGraphicsImageRendererFormat.default()
-        format.opaque = true
-        format.scale = 1
-        let floorRenderer = UIGraphicsImageRenderer(size: mapSize, format: format)
-        let floorImage = floorRenderer.image { ctx in
-            let cg = ctx.cgContext
-            var y: CGFloat = 0
-            while y < mapH {
-                let rowH = min(tileH, mapH - y)
-                var x: CGFloat = 0
-                while x < mapW {
-                    let colW = min(tileW, mapW - x)
-                    cg.saveGState()
-                    cg.clip(to: CGRect(x: x, y: y, width: colW, height: rowH))
-                    cg.draw(tileCg, in: CGRect(x: x, y: y, width: tileW, height: tileH))
-                    cg.restoreGState()
-                    x += tileW
-                }
-                y += tileH
-            }
-        }
-
-        let floorTexture = SKTexture(image: floorImage)
-        floorTexture.filteringMode = .linear
-
+        let mapSize = CGSize(width: SurvivalMap.width, height: SurvivalMap.height)
+        let floorTexture = SurvivalBackgroundCache.sharedFloorTexture()
         let node = SKSpriteNode(texture: floorTexture, size: mapSize)
         node.anchorPoint = CGPoint(x: 0, y: 0)
         node.position = toScenePoint(x: 0, y: mapSize.height)
@@ -347,20 +278,21 @@ final class SurvivalScene: SKScene {
 
     override func update(_ currentTime: TimeInterval) {
         lastUpdateWallTime = CACurrentMediaTime()
-        guard let controller = controller else { return }
+        guard let driver else { return }
         let rawDt = lastSceneUpdateTimeForCamera.map { currentTime - $0 } ?? 0
         lastSceneUpdateTimeForCamera = currentTime
-        // `SurvivalGameController.tick` の dt 上限 (0.05s) に合わせ、長フレームでカメラだけ飛ばないようにする。
+        // `SurvivalGameLoop.tick` の dt 上限 (0.05s) に合わせ、長フレームでカメラだけ飛ばないようにする。
         let cameraDeltaTime = CGFloat(max(0, min(0.05, rawDt)))
 
-        controller.tick(currentTime: currentTime)
-        renderState(controller: controller)
-        updateCamera(controller: controller, deltaTime: cameraDeltaTime)
+        let snapshot = driver.advanceSceneFrame(currentTime: currentTime)
+        let runtime = snapshot.runtime
+        renderState(runtime: runtime, bossBattle: snapshot.bossBattle)
+        updateCamera(runtime: runtime, deltaTime: cameraDeltaTime)
     }
 
-    private func updateCamera(controller: SurvivalGameController, deltaTime: CGFloat) {
+    private func updateCamera(runtime: SurvivalStageRuntime, deltaTime: CGFloat) {
         guard let camera else { return }
-        let target = toScenePoint(x: controller.cameraTargetX, y: controller.cameraTargetY)
+        let target = toScenePoint(x: runtime.player.x, y: runtime.player.y)
 
         // 初回のみプレイヤー位置へ即時スナップ (追従による画面端からの遅延描画を防ぐ)。
         // scene サイズ未確定 (SwiftUI layout 完了前) でスナップすると、以後の画面サイズ変化で
@@ -460,8 +392,7 @@ final class SurvivalScene: SKScene {
         }
     }
 
-    private func renderState(controller: SurvivalGameController) {
-        let runtime = controller.runtime
+    private func renderState(runtime: SurvivalStageRuntime, bossBattle: SurvivalBossBattleState?) {
         let now = CACurrentMediaTime()
 
         // O(n^2) 検索を避けるため、この 1 フレームで参照するエンティティは
@@ -793,8 +724,8 @@ final class SurvivalScene: SKScene {
             }
         )
 
-        if let boss = controller.bossBattle {
-            renderBoss(state: boss)
+        if let boss = bossBattle {
+            renderBoss(state: boss, runtime: runtime)
         } else {
             removeBossNodesIfAny()
         }
@@ -802,13 +733,14 @@ final class SurvivalScene: SKScene {
 
     // MARK: - ボス描画
 
-    /// ボス戦が終了した (`controller.bossBattle == nil`) タイミングで残留ノードを破棄。
+    /// ボス戦が終了した (`bossBattle == nil`) タイミングで残留ノードを破棄。
     private func removeBossNodesIfAny() {
         bossNode?.removeFromParent()
         bossNode = nil
         bossHpBarNode?.removeFromParent()
         bossHpBarNode = nil
         bossHpBarLastRatio = -1
+        bossWindupLastBucket = -1
         bossWindupNode?.removeFromParent()
         bossWindupNode = nil
         for (_, node) in bossProjectileNodes { node.removeFromParent() }
@@ -825,7 +757,7 @@ final class SurvivalScene: SKScene {
         hasTriggeredBossDefeatFx = false
     }
 
-    private func renderBoss(state: SurvivalBossBattleState) {
+    private func renderBoss(state: SurvivalBossBattleState, runtime: SurvivalStageRuntime) {
         let nowMs = CACurrentMediaTime() * 1000.0
 
         // O(n^2) 検索を避ける辞書化 (renderState と同じ狙い)。
@@ -873,6 +805,7 @@ final class SurvivalScene: SKScene {
             bossHpBarNode?.removeFromParent()
             bossHpBarNode = nil
             bossHpBarLastRatio = -1
+            bossWindupLastBucket = -1
             bossWindupNode?.removeFromParent()
             bossWindupNode = nil
             if !hasTriggeredBossDefeatFx {
@@ -894,8 +827,8 @@ final class SurvivalScene: SKScene {
         }
         if let barNode = bossHpBarNode {
             // HP が変化したときだけ UIImage/SKTexture を作り直す (毎フレーム再生成は CPU 負担大)。
-            // 1/255 (≒ 0.004) 以上の差があれば再描画。
-            if abs(hpRatio - bossHpBarLastRatio) > 1.0 / 255.0 {
+            // 1/64 以上の差があれば再描画（細かい変化による CG 負荷をさらに抑える）。
+            if abs(hpRatio - bossHpBarLastRatio) > 1.0 / 64.0 {
                 let img = SurvivalBossEffectRenderer.renderBossHpBar(ratio: hpRatio)
                 let tex = SKTexture(image: img)
                 tex.filteringMode = .linear
@@ -911,20 +844,26 @@ final class SurvivalScene: SKScene {
         // MARK: ボス予備動作 警告 (⚠️ + ゲージ)
         if case .windup(_, let startAt, let durationMs) = state.boss.action {
             let progress = min(1, max(0, (CACurrentMediaTime() - startAt) / (durationMs / 1000.0)))
+            let bucket = min(20, Int(floor(progress * 20.0)))
             if bossWindupNode == nil {
                 let n = SKSpriteNode()
                 n.zPosition = 135
                 entitiesNode.addChild(n)
                 bossWindupNode = n
+                bossWindupLastBucket = -1
             }
             if let n = bossWindupNode {
-                let img = SurvivalBossEffectRenderer.renderBossWindupWarning(progress: progress, nowMs: nowMs)
-                n.texture = SKTexture(image: img)
-                n.size = img.size
                 let bossTop = bossPos.y + SurvivalConstants.bossHitboxRadius * 1.5
                 n.position = CGPoint(x: bossPos.x, y: bossTop + 48)
+                if bucket != bossWindupLastBucket || n.texture == nil {
+                    let img = SurvivalBossEffectRenderer.renderBossWindupWarning(progress: progress, nowMs: nowMs)
+                    n.texture = SKTexture(image: img)
+                    n.size = img.size
+                    bossWindupLastBucket = bucket
+                }
             }
         } else {
+            bossWindupLastBucket = -1
             bossWindupNode?.removeFromParent()
             bossWindupNode = nil
         }
@@ -970,8 +909,8 @@ final class SurvivalScene: SKScene {
                 guard let minion = minionById[id] else { return }
                 node.position = self.toScenePoint(x: minion.x, y: minion.y)
                 // プレイヤー距離から導火線点滅を推定 (トリガー距離の 1.6 倍以内で点滅開始)
-                let dx = self.controller?.runtime.player.x ?? minion.x
-                let dy = self.controller?.runtime.player.y ?? minion.y
+                let dx = runtime.player.x
+                let dy = runtime.player.y
                 let dist = hypot(minion.x - dx, minion.y - dy)
                 let fused = dist <= minion.triggerRange * 1.6 || minion.isExploding
                 if let ring = node.childNode(withName: "fuseRing") {

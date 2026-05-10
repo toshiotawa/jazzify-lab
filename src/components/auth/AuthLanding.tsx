@@ -190,7 +190,6 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
                     placeholder="••••••••"
                     required
                     disabled={loading}
-                    autoFocus
                   />
                 </div>
               )}

@@ -657,7 +657,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             });
           
           // 判定イベントコールバック登録
-          engine.setJudgmentCallback((judgment) => {
+          engine.setJudgmentCallback((judgment: JudgmentResult) => {
             set((state) => {
               // スコア・コンボ管理
               if (judgment.type === 'good') {
@@ -846,7 +846,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const transposingInstrumentSemitones = getTransposingInstrumentSemitones(finalSettings.transposingInstrument);
           const totalTranspose = finalSettings.transpose + transposingInstrumentSemitones;
           
-          let { finalNotes, finalXml, finalChords } = await _processSongData(song, notes, totalTranspose);
+          const processedSong = await _processSongData(song, notes, totalTranspose);
+          let finalNotes = processedSong.finalNotes;
+          const finalXml = processedSong.finalXml;
+          const finalChords = processedSong.finalChords;
 
           // hand_filter: 右手のみ / 左手のみ のフィルタリング
           const handFilter = (song as any).hand_filter as 'right' | 'left' | null | undefined;

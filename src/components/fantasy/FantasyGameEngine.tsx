@@ -1890,7 +1890,7 @@ export const useFantasyGameEngine = ({
       stage.mode === 'progression_timing' ||
       stage.mode === 'timing_combining';
     let taikoNotes: TaikoNote[] = [];
-    let combinedSections: CombinedSection[] = [];
+    const combinedSections: CombinedSection[] = [];
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
@@ -2498,12 +2498,13 @@ export const useFantasyGameEngine = ({
     if (!prevState.isGameActive || !prevState.currentStage) return;
 
     const nextState = ((prevState: FantasyGameState): FantasyGameState => {
-      
+      const stage = prevState.currentStage;
+      if (!stage) return prevState;
+
       // 太鼓の達人モードの場合は専用のミス判定を行う（single以外）
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const taikoResult = (() => {
         const currentTime = bgmManager.getCurrentMusicTime();
-        const stage = prevState.currentStage;
         
         // ===== timing_combining: セクション境界検出 =====
         if (prevState.isCombiningMode && prevState.combinedSections.length > 0) {
@@ -3278,7 +3279,7 @@ export const useFantasyGameEngine = ({
         return taikoResult;
       }
       
-      const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
+      const incrementRate = 100 / (stage.enemyGaugeSeconds * 10); // 100ms間隔で更新
       
       // 🚀 パフォーマンス最適化: ゲージが既に100%のモンスターがいるかチェック
       const hasMaxGauge = prevState.activeMonsters.some(m => m.gauge >= 100);
@@ -3511,7 +3512,6 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleTaikoModeInput は安定参照で十分
   }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds, setGameStateSync, flushToReact]);
   
   // 次の敵へ進むための新しい関数

@@ -23,7 +23,6 @@ describe('II-V-I MusicXML', () => {
       const mc = doc.querySelectorAll('part > measure').length;
       rows.push({ file: f, measures: mc, notes: noteLike.length });
     }
-    // eslint-disable-next-line no-console -- マイグレーション用の目安出力
     console.table(rows);
     expect(rows[0].notes).toBeGreaterThan(10);
   });

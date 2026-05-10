@@ -1,61 +1,28 @@
 import Foundation
-import Combine
 import CoreGraphics
 import QuartzCore
 
-/// サバイバル ゲーム画面のメイン状態ハブ。SwiftUI + SpriteKit の間で参照される。
-/// - 通常ステージ / ボス戦 の両モード対応
-/// - MIDI 入力 と 画面タップ の両方からノート ON/OFF を受け付ける
-/// - Supabase への書込みは終了時に 1 回だけ呼ぶ
-/// - `SurvivalCharacterProfile` + `SurvivalStageConfig` を注入して WEB 版と一致する挙動へ
+/// 毎フレームのシミュレーション本体。SwiftUI / `ObservableObject` を持たない。
 @MainActor
-final class SurvivalGameController: ObservableObject {
-    // MARK: - 公開状態 (SwiftUI 反映用)
-
-    /// SpriteKit / ゲームロジックが毎フレーム参照。SwiftUI は `uiSnapshot` を購読する。
+final class SurvivalGameLoop {
     private(set) var runtime: SurvivalStageRuntime
-    @Published private(set) var uiSnapshot: SurvivalUISnapshot
-    /// ボス戦のフル状態。SKScene と `tickBoss` が毎フレーム読む。**`@Published` にしないこと** —
-    /// 毎フレーム `objectWillChange` が流れメインスレッドが飽和し、SKScene.update が間引かれてゲーム進行が止まる。
     private(set) var bossBattle: SurvivalBossBattleState?
-    /// ボス HP バー等に必要な HUD だけを低頻度で公開する (`publishBossHudIfNeeded`)。
-    @Published private(set) var bossHud: SurvivalBossHUDSnapshot?
-    @Published private(set) var isBossStage: Bool
-    /// SKScene からのみ参照されるカメラ追従先。SwiftUI のビュー更新に使われないため
-    /// `@Published` にはしない。毎フレーム更新される値を `objectWillChange.send()` で
-    /// 流すと、HUD / コードスロット / 鍵盤など 60Hz で body 評価が走りメインスレッドが
-    /// 飽和してしまい、最悪ボス戦で SKScene.update が間引かれる (= ゲームが進まない) 原因となる。
-    private(set) var cameraTargetX: CGFloat = SurvivalMap.width / 2
-    private(set) var cameraTargetY: CGFloat = SurvivalMap.height / 2
-    @Published private(set) var isPaused: Bool = false
-    @Published private(set) var clearReportInFlight: Bool = false
-    @Published private(set) var clearReportError: String?
-    /// リトライ時に `SurvivalSceneContainer` が新しい `SKScene` を `presentScene` するための世代カウンタ。
-    @Published private(set) var sceneRestartGeneration: Int = 0
-    /// ヒントモード中にピアノ鍵盤をハイライトする対象スロットの index (A=0, B=1)。
-    /// Web 版 `SurvivalGameScreen.getHintSlotIndex` と同様、有効な A/B を優先し A↔B を交互に切り替える。
-    /// Progression（B のみ有効）では初期値およびトリガ後は B に固定される。
-    /// `runtime.hintMode` が false の場合は nil。
-    @Published private(set) var currentHintSlotIndex: Int? = 0
-    /// MIDI 入力で押下中の鍵（SwiftUI 鍵盤ハイライト用）。タッチ押下は各鍵のローカル状態と合成する。
-    @Published private(set) var midiHeldKeys: Set<Int> = []
+    private(set) var mode: SurvivalMode
+    private(set) var currentHintSlotIndex: Int?
 
-    /// アナログ入力 (仮想スティック) x,y は [-1, 1] 正規化
-    var analogInput: CGVector = .zero
-    /// ジョイスティック入力のローパス後。`tick*` 内で `analogInput` から更新する。
+    /// `SurvivalViewModel` / HUD 互換。
+    var isBossStage: Bool { mode.isBossStage }
+
+    private var lastFrameAnalog: CGVector = .zero
     private var smoothedAnalogInput: CGVector = .zero
 
     // MARK: - 設定
 
     private let stage: SurvivalStageDefinition
-    private let hintMode: Bool
-    private let characterId: String
     private let profile: SurvivalCharacterProfile
     private let config: SurvivalStageConfig
-    private let onExit: (_ isCleared: Bool) -> Void
-    /// ログイン前デモ中は Supabase への書込みを完全にスキップするために true になる。
-    private let isDemo: Bool
-    private let supabase = SupabaseService.shared
+
+    var stageConfig: SurvivalStageConfig { config }
 
     // MARK: - Progression（コード進行）ステージ用
 
@@ -64,16 +31,14 @@ final class SurvivalGameController: ObservableObject {
     /// 現在出題中の Progression 配列インデックス。完成のたびに +1 され、配列長で循環。
     private var progressionIndex: Int = 0
 
-    /// Progression ステージかどうか。ブロック末尾（ボス戦）でも `chord_progression` を使うため、
-    /// ボス特有のロジック（HP・攻撃・openingGrace 等）は別途 `isBossStage` を見て分岐する。
-    private var isProgressionStage: Bool { stage.stageType == .progression }
-
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。
     /// - `pitchClasses` が空のエントリは `SurvivalChordResolver.isMatch` が常に false を返すため
     ///   B スロットの入力が永久に通らず「動けない」状態を引き起こす。空エントリはフィルタする。
     /// - フィルタ後に空になった (= データ不正) 場合は `allowedChords` からの解決へフォールバックし、
     ///   最低限ゲームが進行できる状態を保つ。
-    private static func buildProgressionChords(for stage: SurvivalStageDefinition) -> [SurvivalResolvedChord] {
+    /// `SurvivalMode.resolve` と初期化で共通のコード進行配列構築。
+    /// `SurvivalMode` は非隔離のため `nonisolated`（ステージ定義のみ参照する純関数）。
+    nonisolated static func buildProgressionChords(for stage: SurvivalStageDefinition) -> [SurvivalResolvedChord] {
         guard stage.stageType == .progression, let entries = stage.chordProgression else { return [] }
         let resolved = entries.enumerated().map { index, entry in
             SurvivalResolvedChord.fromProgressionEntry(entry, index: index)
@@ -107,59 +72,58 @@ final class SurvivalGameController: ObservableObject {
     private var fireDotAccumulator: Double = 0
     /// WEB 版は接触 DOT を小数 HP として減算。整数 HP との整合のため端数を蓄積する。
     private var contactDamageAccumulator: Double = 0
-    /// `@Published bossHud` の throttle 基準時刻 (`tick` と同じ時間軸)
-    private var lastBossHudPublishAt: TimeInterval = 0
 
-    // MARK: - Init
-
-    init(
+    convenience init(
         stage: SurvivalStageDefinition,
         hintMode: Bool,
-        characterId: String,
         profile: SurvivalCharacterProfile = .defaultFai,
-        config: SurvivalStageConfig = .default,
-        onExit: @escaping (_ isCleared: Bool) -> Void,
-        isDemo: Bool = false
+        config: SurvivalStageConfig = .default
     ) {
+        let mode = SurvivalMode.resolve(stage: stage, hintMode: hintMode)
+        self.init(mode: mode, stage: stage, profile: profile, config: config)
+    }
+
+    init(
+        mode: SurvivalMode,
+        stage: SurvivalStageDefinition,
+        profile: SurvivalCharacterProfile = .defaultFai,
+        config: SurvivalStageConfig = .default
+    ) {
+        self.mode = mode
         self.stage = stage
-        self.hintMode = hintMode
-        self.characterId = characterId
         self.profile = profile
         self.config = config
-        self.onExit = onExit
-        self.isDemo = isDemo
-        let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
-        self.isBossStage = isBoss
+
+        let isBoss = mode.isBossStage
 
         let slots: [SurvivalCodeSlot]
-        if stage.stageType == .progression {
-            // Progression ステージは通常戦・ボス戦どちらでも DB の chord_progression を使う。
-            // ボス特有のロジックは下の `if isBoss` ブロックで初期化される。
-            let chords = Self.buildProgressionChords(for: stage)
+        switch mode.stageKind {
+        case let .progression(chords):
             self.progressionChords = chords
             self.progressionIndex = 0
             slots = SurvivalGameEngine.createProgressionInitialSlots(progressionChords: chords)
-        } else {
+        case let .random(allowedChords):
+            self.progressionChords = []
+            self.progressionIndex = 0
             slots = SurvivalGameEngine.createStageInitialSlots(
-                allowedChords: stage.allowedChords,
+                allowedChords: allowedChords,
                 isBossStage: isBoss
             )
         }
         let player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
-            hintMode: hintMode,
+            hintMode: mode.hintMode,
             isBossStage: isBoss
         )
 
         self.runtime = SurvivalStageRuntime(
             stage: stage,
-            hintMode: hintMode,
+            hintMode: mode.hintMode,
             player: player,
             slots: slots
         )
 
-        // ヒントモード時のみ鍵盤ハイライト対象スロットを設定（Progression は B のみ有効）
-        self.currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: hintMode)
+        self.currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: mode.hintMode)
 
         let bossNow = CACurrentMediaTime()
         let initialBoss: SurvivalBossBattleState?
@@ -173,78 +137,46 @@ final class SurvivalGameController: ObservableObject {
             initialBoss = nil
         }
         self.bossBattle = initialBoss
-
-        let initialHud = initialBoss.map(Self.makeBossHudSnapshot(from:))
-        self._bossHud = Published(initialValue: initialHud)
-        lastBossHudPublishAt = bossNow
-
-        self._uiSnapshot = Published(initialValue: SurvivalUISnapshot.make(from: self.runtime))
     }
 
-    // MARK: - ライフサイクル
-
-    func start() {
-        let audio = SurvivalGameAudio.shared
-        audio.setBgmUrls(odd: config.bgmOddWaveUrl, even: config.bgmEvenWaveUrl)
-        audio.start()
+    func markAudioClockStarted() {
         lastNow = CACurrentMediaTime()
     }
 
-    func stopAudio() {
-        SurvivalGameAudio.shared.stop()
-        midiHeldKeys.removeAll()
-    }
-
-    func registerMidiKeyDown(_ midi: Int) {
-        guard midiHeldKeys.insert(midi).inserted else { return }
-    }
-
-    func registerMidiKeyUp(_ midi: Int) {
-        guard midiHeldKeys.remove(midi) != nil else { return }
-    }
-
-    func requestExit() {
-        stopAudio()
-        onExit(runtime.phase == .cleared)
-    }
-
-    /// リザルトからのリトライ。`fullScreenCover` を閉じずにランタイムと SpriteKit シーンだけ初期化する。
-    func restartSameStage() {
-        stopAudio()
+    func resetForSameStage() {
         smoothedAnalogInput = .zero
-        analogInput = .zero
+        lastFrameAnalog = .zero
         activePressedPitchClasses.removeAll()
-        midiHeldKeys.removeAll()
 
-        let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
-        isBossStage = isBoss
+        mode = SurvivalMode.resolve(stage: stage, hintMode: mode.hintMode)
+        let isBoss = mode.isBossStage
 
         let slots: [SurvivalCodeSlot]
-        if stage.stageType == .progression {
-            let chords = Self.buildProgressionChords(for: stage)
+        switch mode.stageKind {
+        case let .progression(chords):
             progressionChords = chords
             progressionIndex = 0
             slots = SurvivalGameEngine.createProgressionInitialSlots(progressionChords: chords)
-        } else {
+        case let .random(allowedChords):
             progressionChords = []
             progressionIndex = 0
             slots = SurvivalGameEngine.createStageInitialSlots(
-                allowedChords: stage.allowedChords,
+                allowedChords: allowedChords,
                 isBossStage: isBoss
             )
         }
         let player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
-            hintMode: hintMode,
+            hintMode: mode.hintMode,
             isBossStage: isBoss
         )
         runtime = SurvivalStageRuntime(
             stage: stage,
-            hintMode: hintMode,
+            hintMode: mode.hintMode,
             player: player,
             slots: slots
         )
-        setHintSlotIndexIfChanged(Self.initialHintSlotIndex(slots: slots, hintMode: hintMode))
+        setHintSlotIndexIfChanged(Self.initialHintSlotIndex(slots: slots, hintMode: mode.hintMode))
 
         if isBoss {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
@@ -262,22 +194,13 @@ final class SurvivalGameController: ObservableObject {
         hpRegenAccumulator = 0
         fireDotAccumulator = 0
         contactDamageAccumulator = 0
-        clearReportInFlight = false
-        clearReportError = nil
-        isPaused = false
-        cameraTargetX = runtime.player.x
-        cameraTargetY = runtime.player.y
-        uiSnapshot = SurvivalUISnapshot.make(from: runtime)
-        publishBossHudIfNeeded(now: lastNow, force: true)
-        sceneRestartGeneration &+= 1
-        start()
     }
 
     /// 仮想スティックの生入力をスムージングする。
     /// - デッドゾーン正規化は `SurvivalJoystickHostView` 側で済ませているため、ここでは
     ///   数値ノイズ除去用の極小閾値のみとし、二重デッドゾーンによるモタつきを避ける。
     private func filteredAnalogForMovement(deltaTime: TimeInterval) -> CGVector {
-        let raw = analogInput
+        let raw = lastFrameAnalog
         let noiseFloor: CGFloat = 0.004
         let smoothSpeed: CGFloat = 14.0
         let len = hypot(raw.dx, raw.dy)
@@ -303,7 +226,7 @@ final class SurvivalGameController: ObservableObject {
     /// 全オクターブではなく単一オクターブ内（1 つの pitch class あたり 1 鍵）のみをハイライトするため、
     /// 鍵盤ビューは MIDI 完全一致で判定する。
     /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
-    var currentHintHighlightMidis: Set<Int> {
+    func currentHintHighlightMidis() -> Set<Int> {
         guard runtime.hintMode,
               let idx = currentHintSlotIndex,
               runtime.slots.indices.contains(idx),
@@ -332,7 +255,7 @@ final class SurvivalGameController: ObservableObject {
         return result
     }
 
-    /// `@Published currentHintSlotIndex` は値が変わったときだけ更新する（Progression+HINT で同一スロット固定時の無駄な SwiftUI 再描画を避ける）。
+    /// 値が変わったときだけ更新する（Progression+HINT で同一スロット固定時の無駄な再計算を避ける）。
     private func setHintSlotIndexIfChanged(_ newValue: Int?) {
         guard currentHintSlotIndex != newValue else { return }
         currentHintSlotIndex = newValue
@@ -353,37 +276,25 @@ final class SurvivalGameController: ObservableObject {
         }
     }
 
-    // MARK: - 入力
+    // MARK: - 入力（フレーム単位）
 
-    /// ピアノ鍵盤タップ or MIDI Note On。
-    /// - Parameters:
-    ///   - note: MIDI ノート番号
-    ///   - velocity: 0〜127。MIDI 入力からは打鍵強度をそのまま渡す (Web 版 MIDI コントローラー同等)。
-    ///     タップ入力の場合はデフォルト 100。
-    ///   - playAudio: `true` の場合はこのメソッド内でピアノ発音する (デフォルト)。
-    ///     MIDI 入力経路で既に `SurvivalGameAudio.pianoNoteOnRealtime` を呼んで
-    ///     低レイテンシ再生している場合は `false` を渡して二重発音を避ける。
-    func handleNoteOn(_ note: Int, velocity: Int = 100, playAudio: Bool = true) {
-        let pc = ((note % 12) + 12) % 12
-        activePressedPitchClasses.insert(pc)
-        if playAudio {
-            SurvivalGameAudio.shared.pianoNoteOn(midi: note, velocity: velocity)
+    private func applyFrameInput(_ frameInput: SurvivalFrameInput) -> [SurvivalFrameEvent] {
+        var events: [SurvivalFrameEvent] = []
+        lastFrameAnalog = frameInput.analog
+        for midi in frameInput.noteOffs {
+            let pc = ((midi % 12) + 12) % 12
+            activePressedPitchClasses.remove(pc)
         }
-        evaluateSlots(for: note)
+        for on in frameInput.noteOns {
+            let pc = ((on.midi % 12) + 12) % 12
+            activePressedPitchClasses.insert(pc)
+            events.append(contentsOf: evaluateSlots(for: on.midi))
+        }
+        return events
     }
 
-    /// ピアノ鍵盤離し or MIDI Note Off。
-    /// `playAudio` を `false` にすると発音停止の処理をスキップする (MIDI 経路で先に
-    /// `pianoNoteOffRealtime` を呼んだ場合の二重停止を避ける用途)。
-    func handleNoteOff(_ note: Int, playAudio: Bool = true) {
-        let pc = ((note % 12) + 12) % 12
-        activePressedPitchClasses.remove(pc)
-        if playAudio {
-            SurvivalGameAudio.shared.pianoNoteOff(midi: note)
-        }
-    }
-
-    private func evaluateSlots(for note: Int) {
+    private func evaluateSlots(for note: Int) -> [SurvivalFrameEvent] {
+        var events: [SurvivalFrameEvent] = []
         let pc = ((note % 12) + 12) % 12
         for idx in runtime.slots.indices {
             guard runtime.slots[idx].isEnabled else { continue }
@@ -395,15 +306,14 @@ final class SurvivalGameController: ObservableObject {
                 inputPitchClasses: runtime.slots[idx].inputPitchClasses,
                 target: target
             ) {
-                triggerSlot(atIndex: idx, chord: target)
+                events.append(contentsOf: triggerSlot(atIndex: idx, chord: target))
             }
         }
-        // 鍵盤タップのフィードバック音は `handleNoteOn` 側で既に発音済み。
-        // ここで追加の `playNote` は呼ばない (重複発音防止)。
-        rebuildUISnapshotIfChanged()
+        return events
     }
 
-    private func triggerSlot(atIndex slotIndex: Int, chord: SurvivalResolvedChord) {
+    private func triggerSlot(atIndex slotIndex: Int, chord: SurvivalResolvedChord) -> [SurvivalFrameEvent] {
+        var events: [SurvivalFrameEvent] = []
         let now = CACurrentMediaTime()
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,
@@ -425,7 +335,6 @@ final class SurvivalGameController: ObservableObject {
                 colorLevel: 0
             )
             runtime.shockwaves.append(initialWave)
-            // 多段ヒット: Web 版と同様に 200ms 間隔で追加衝撃波をスケジュール
             let multiHitLevel = max(0, runtime.player.skills.multiHitLevel)
             if multiHitLevel > 0 {
                 let baseDamage = SurvivalGameEngine.calculateBMeleeDamage(bAtk: effectiveStats.bAtk)
@@ -456,19 +365,12 @@ final class SurvivalGameController: ObservableObject {
             break
         }
 
-        // WEB 版準拠: 正解時はシンセのベース ルート音 (C2 起点 / 三角波) を鳴らす。
-        // Web 版 `FantasySoundManager._playRootNote` と同じく、ピアノ鍵盤とは
-        // 音色を明確に区別するため低音のシンセ音を使用する。
         let rootMidi = 36 + chord.rootPitchClass
-        SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
+        events.append(.playSynthBassRoot(midi: rootMidi))
 
-        // 完成コード名をプレイヤー頭上にフローティング表示 + スロット入れ替えを
-        // 1 回の struct mutation にまとめ、`rebuildUISnapshotIfChanged` で SwiftUI 更新を集約する。
-        // (Shot / Punch の表示、次コード抽選、進捗リセット、triggerPulse 更新を一括適用)
         let upcomingChord: SurvivalResolvedChord
         let newNextChord: SurvivalResolvedChord
-        if isProgressionStage {
-            // Progression: B 列だけが進行を進める。A/C/D 列は無効なのでここに来ない。
+        if mode.isProgressionStage {
             if !progressionChords.isEmpty {
                 progressionIndex = (progressionIndex + 1) % progressionChords.count
                 let curIdx = progressionIndex
@@ -508,8 +410,8 @@ final class SurvivalGameController: ObservableObject {
         }
         runtime.slots[slotIndex] = slotUpdate
 
-        // ヒント対象スロットを A↔B 交互に切り替える (Web 版と同挙動)
         advanceHintSlotIndex(triggeredIndex: slotIndex)
+        return events
     }
 
     private func applyMagicOutcome(_ outcome: SurvivalMagicEngine.MagicOutcome, now: TimeInterval) {
@@ -538,45 +440,14 @@ final class SurvivalGameController: ObservableObject {
         if let effect = outcome.visualEffect {
             runtime.magicEffects.append(effect)
         }
-        rebuildUISnapshotIfChanged()
-    }
-
-    /// SwiftUI 向けスナップショットを再計算し、前回と異なるときだけ `@Published` を更新する。
-    private func rebuildUISnapshotIfChanged() {
-        let next = SurvivalUISnapshot.make(from: runtime)
-        if next != uiSnapshot {
-            uiSnapshot = next
-        }
-    }
-
-    private static func makeBossHudSnapshot(from battle: SurvivalBossBattleState) -> SurvivalBossHUDSnapshot {
-        SurvivalBossHUDSnapshot(
-            hp: battle.boss.hp,
-            maxHp: battle.boss.maxHp,
-            phase: battle.boss.phase,
-            result: battle.result,
-            isDefeating: battle.defeatedAt != nil
-        )
-    }
-
-    /// ボス HP バーなど SwiftUI 用のみ。変更時または最大 10fps で `bossHud` を更新する。
-    private func publishBossHudIfNeeded(now: TimeInterval, force: Bool = false) {
-        let next: SurvivalBossHUDSnapshot? = bossBattle.map(Self.makeBossHudSnapshot(from:))
-        let throttleSec: TimeInterval = 0.10
-        guard force || bossHud != next || now - lastBossHudPublishAt >= throttleSec else { return }
-        if bossHud != next {
-            bossHud = next
-        }
-        lastBossHudPublishAt = now
     }
 
     // MARK: - 毎フレーム更新 (SKScene から呼ばれる)
 
-    func tick(currentTime: TimeInterval) {
-        // 初回 tick では `lastNow` (start() 時刻 = CACurrentMediaTime) と SKScene currentTime の
-        // 時間軸を揃え直し、ボス戦 openingGrace / スローン関連の時刻計算を SKScene 時計に統一する。
-        // これにより init → presentScene → 初回 update の間に遅延が発生しても
-        // 「開幕いきなりボスが動く」「openingGrace が永遠に抜けない」などを防げる。
+    func tick(currentTime: TimeInterval, frameInput: SurvivalFrameInput, isPaused: Bool) -> [SurvivalFrameEvent] {
+        var events: [SurvivalFrameEvent] = []
+        events.append(contentsOf: applyFrameInput(frameInput))
+
         if !hasSyncedSceneClock {
             hasSyncedSceneClock = true
             lastNow = currentTime
@@ -584,45 +455,35 @@ final class SurvivalGameController: ObservableObject {
                 boss.startedAt = currentTime
                 bossBattle = boss
             }
-            publishBossHudIfNeeded(now: currentTime, force: true)
-            // 初回フレームは dt = 0 相当とし、これ以降のフレームから通常進行させる。
-            guard !isPaused else {
-                rebuildUISnapshotIfChanged()
-                return
+            guard !isPaused else { return events }
+            guard runtime.phase == .playing else { return events }
+            switch mode.encounter {
+            case .boss:
+                tickBoss(deltaTime: 0, now: currentTime, events: &events)
+            case .regular:
+                tickNormal(deltaTime: 0, now: currentTime, events: &events)
             }
-            guard runtime.phase == .playing else {
-                rebuildUISnapshotIfChanged()
-                return
-            }
-            if isBossStage {
-                tickBoss(deltaTime: 0, now: currentTime)
-            } else {
-                tickNormal(deltaTime: 0, now: currentTime)
-            }
-            cameraTargetX = runtime.player.x
-            cameraTargetY = runtime.player.y
-            rebuildUISnapshotIfChanged()
-            return
+            return events
         }
 
         let dt = max(0, min(0.05, currentTime - lastNow))
         lastNow = currentTime
-        guard !isPaused else { return }
-        guard runtime.phase == .playing else { return }
+        guard !isPaused else { return events }
+        guard runtime.phase == .playing else { return events }
 
-        if isBossStage {
-            tickBoss(deltaTime: dt, now: currentTime)
-        } else {
-            tickNormal(deltaTime: dt, now: currentTime)
+        switch mode.encounter {
+        case .boss:
+            tickBoss(deltaTime: dt, now: currentTime, events: &events)
+        case .regular:
+            tickNormal(deltaTime: dt, now: currentTime, events: &events)
         }
-        cameraTargetX = runtime.player.x
-        cameraTargetY = runtime.player.y
-        rebuildUISnapshotIfChanged()
+        return events
     }
+
 
     // MARK: - 通常ステージ 1 フレーム
 
-    private func tickNormal(deltaTime: TimeInterval, now: TimeInterval) {
+    private func tickNormal(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,
@@ -822,15 +683,15 @@ final class SurvivalGameController: ObservableObject {
             }
             // EXP 獲得は行わない (iOS ステージモードでは経験値システム自体を非有効化)
             if !pickup.pickedItemIds.isEmpty {
-                SurvivalGameAudio.shared.playEffect(.itemPickup)
+                events.append(.playEffect(.itemPickup))
             }
         }
 
         // HP 0 判定
         if runtime.player.hp <= 0 {
             runtime.phase = .gameOver
-            SurvivalGameAudio.shared.playEffect(.stageGameOver)
-            finalizeStage(cleared: false)
+            events.append(.playEffect(.stageGameOver))
+            events.append(.stageEnded(cleared: false))
             return
         }
 
@@ -839,7 +700,7 @@ final class SurvivalGameController: ObservableObject {
         runtime.remainingSeconds = max(0, SurvivalConstants.stageTimeLimitSec - runtime.elapsedSeconds)
         if !bgmPhaseEven && runtime.remainingSeconds <= SurvivalConstants.bgmPhaseSwitchThresholdSec {
             bgmPhaseEven = true
-            SurvivalGameAudio.shared.switchWavePhase(useEven: true)
+            events.append(.switchWavePhase(useEven: true))
         }
 
         // クリア判定 (Web 版 `SurvivalGameScreen` と同じく 90 秒経過時にのみ判定)
@@ -849,8 +710,8 @@ final class SurvivalGameController: ObservableObject {
         if runtime.remainingSeconds <= 0 {
             let cleared = runtime.enemiesDefeated >= SurvivalConstants.stageEnemyQuota
             runtime.phase = cleared ? .cleared : .gameOver
-            SurvivalGameAudio.shared.playEffect(cleared ? .stageClear : .stageGameOver)
-            finalizeStage(cleared: cleared)
+            events.append(.playEffect(cleared ? .stageClear : .stageGameOver))
+            events.append(.stageEnded(cleared: cleared))
             return
         }
 
@@ -938,7 +799,7 @@ final class SurvivalGameController: ObservableObject {
 
     // MARK: - ボスステージ 1 フレーム
 
-    private func tickBoss(deltaTime: TimeInterval, now: TimeInterval) {
+    private func tickBoss(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,
@@ -1101,7 +962,6 @@ final class SurvivalGameController: ObservableObject {
         }
 
         bossBattle = boss
-        publishBossHudIfNeeded(now: now)
 
         // ドロップ ハート × プレイヤーの接触ピックアップ + 期限切れ除去
         // (通常ステージでは tickNormal 内で同等の処理を行っているが、ボス戦では
@@ -1134,20 +994,18 @@ final class SurvivalGameController: ObservableObject {
                     )
                 )
             }
-            SurvivalGameAudio.shared.playEffect(.itemPickup)
+            events.append(.playEffect(.itemPickup))
         }
 
         switch boss.result {
         case .win:
-            publishBossHudIfNeeded(now: now, force: true)
             runtime.phase = .cleared
-            SurvivalGameAudio.shared.playEffect(.stageClear)
-            finalizeStage(cleared: true)
+            events.append(.playEffect(.stageClear))
+            events.append(.stageEnded(cleared: true))
         case .lose:
-            publishBossHudIfNeeded(now: now, force: true)
             runtime.phase = .gameOver
-            SurvivalGameAudio.shared.playEffect(.stageGameOver)
-            finalizeStage(cleared: false)
+            events.append(.playEffect(.stageGameOver))
+            events.append(.stageEnded(cleared: false))
         case .ongoing:
             break
         }
@@ -1158,47 +1016,5 @@ final class SurvivalGameController: ObservableObject {
         runtime.floatingTexts.removeAll { now - $0.createdAt > $0.lifetime }
 
         _ = effectiveStats // 現時点ではボス戦で基礎スタッツを直接使わない
-    }
-
-    // MARK: - クリア処理 (Supabase 書込み)
-
-    private func finalizeStage(cleared: Bool) {
-        // HINT モード / デモ (未ログイン) 中はクリア記録を Supabase に送らない。
-        guard cleared, !hintMode, !isDemo else { return }
-        guard !clearReportInFlight else { return }
-        clearReportInFlight = true
-        let stageNumber = stage.stageNumber
-        let mapCategory = stage.mapCategory
-        let elapsed = runtime.elapsedSeconds
-        let defeated = runtime.enemiesDefeated
-        let character = characterId
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let userId = try await self.supabase.currentUserId()
-                try await self.supabase.upsertSurvivalStageClear(
-                    userId: userId,
-                    stageNumber: stageNumber,
-                    survivalTimeSeconds: Int(elapsed.rounded()),
-                    finalLevel: 1,
-                    enemiesDefeated: defeated,
-                    characterId: character,
-                    totalStages: SurvivalStageCatalog.totalStages(in: mapCategory),
-                    mapCategory: mapCategory
-                )
-                await MainActor.run { self.clearReportInFlight = false }
-            } catch {
-                await MainActor.run {
-                    self.clearReportError = error.localizedDescription
-                    self.clearReportInFlight = false
-                }
-            }
-        }
-    }
-
-    // MARK: - 一時停止
-
-    func togglePause() {
-        isPaused.toggle()
     }
 }

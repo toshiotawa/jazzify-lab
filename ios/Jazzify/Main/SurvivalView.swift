@@ -26,7 +26,7 @@ struct SurvivalView: View {
     /// 表示マップカテゴリ。Web 版 `SurvivalDescentMap` と同様、初期は `.basic`。
     @State private var mapCategory: SurvivalMapCategory = .basic
     /// `SurvivalStageDefinition.id` が同一だと SwiftUI が同じシート/カバーを再利用するため、
-    /// 同じステージを連続再生したいケースでは `SurvivalGameController` がリセットされない問題が発生する。
+    /// 同じステージを連続再生したいケースではセッションがリセットされないと状態が残る問題が発生する。
     /// セッションごとに一意の UUID で包んで `fullScreenCover(item:)` を確実に再マウントさせる。
     @State private var stageLaunchSession: StageLaunchSession?
     @State private var showSubscription: Bool = false

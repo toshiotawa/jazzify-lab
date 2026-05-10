@@ -50,6 +50,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- オーバーレイ押下で閉じるモーダル背景
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
       role="dialog"

@@ -10,6 +10,9 @@ export default defineConfig({
     setupFiles: './src/setupTests.ts',
     css: true,
     reporters: ['verbose'],
+    /** fork worker 落ちを避けるためテストファイルを逐次実行（CI/低メモリ向け） */
+    fileParallelism: false,
+    maxWorkers: 1,
     coverage: {
       reporter: ['text', 'json', 'html'],
       exclude: [

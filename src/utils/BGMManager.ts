@@ -505,7 +505,10 @@ class BGMManager {
       try { this.waSource?.stop?.() } catch {}
       try { this.waSource?.disconnect?.() } catch {}
       this.waSource = null; this.waBuffer = null
-      if (this.audio) { try { this.audio.pause?.() } catch {}; this.audio = null }
+      if (this.audio) {
+        try { this.audio.pause?.() } catch { /* ignore */ }
+        this.audio = null
+      }
 
       this.tonePlayer = this.pendingTonePlayer
       this.toneGain = this.pendingToneGain
@@ -525,7 +528,10 @@ class BGMManager {
       try { this.waSource?.stop?.() } catch {}
       try { this.waSource?.disconnect?.() } catch {}
       this.waSource = null
-      if (this.audio) { try { this.audio.pause?.() } catch {}; this.audio = null }
+      if (this.audio) {
+        try { this.audio.pause?.() } catch { /* ignore */ }
+        this.audio = null
+      }
 
       this.useTonePitchShift = false
       this.waBuffer = this.pendingWaBuffer

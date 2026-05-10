@@ -4,29 +4,28 @@ import SwiftUI
 /// WEB 版 `SurvivalGameOverlay` 準拠 (HP を緑/黄/赤で色分け、状態アイコンを横並び、ヒントバッジ)
 ///
 /// パフォーマンス最適化:
-/// 親ビューで `controller.objectWillChange` が 60Hz で発火しても、
-/// 各サブビューは `Equatable` な値型のみ受け取り `.equatable()` 経由で差分比較されるため
-/// 実際の再描画は値が変わったときだけになる。`HP 120/120` や `03:42` 表示は
-/// 秒単位でしか変わらないため、SwiftUI ツリーの diff コストを大幅に削減できる。
+/// 親が `ObservableObject` を購読しても、各サブビューは `Equatable` な値型のみ受け取り `.equatable()` で差分比較する。
 struct SurvivalHUDView: View {
-    @ObservedObject var controller: SurvivalGameController
+    let uiSnapshot: SurvivalUISnapshot
+    let bossHud: SurvivalBossHUDSnapshot?
+    let isPaused: Bool
     let stage: SurvivalStageDefinition
     let locale: AppLocale
+    let onTogglePause: () -> Void
 
     private var hpRatio: CGFloat {
-        CGFloat(controller.uiSnapshot.hp) / CGFloat(max(1, controller.uiSnapshot.maxHp))
+        CGFloat(uiSnapshot.hp) / CGFloat(max(1, uiSnapshot.maxHp))
     }
 
     private var bossHpRatio: CGFloat? {
-        guard let hud = controller.bossHud else { return nil }
-        return hud.hpRatio
+        bossHud?.hpRatio
     }
 
     private var timeLabel: String {
-        if controller.bossHud != nil {
+        if bossHud != nil {
             return locale == .ja ? "ボス戦" : "Boss"
         }
-        let totalSec = max(0, controller.uiSnapshot.remainingSecondsCoarse)
+        let totalSec = max(0, uiSnapshot.remainingSecondsCoarse)
         return String(format: "%02d:%02d", totalSec / 60, totalSec % 60)
     }
 
@@ -35,18 +34,18 @@ struct SurvivalHUDView: View {
             SurvivalHUDTopRow(
                 stageName: stage.localizedName(locale),
                 timeLabel: timeLabel,
-                enemiesDefeated: controller.uiSnapshot.enemiesDefeated,
+                enemiesDefeated: uiSnapshot.enemiesDefeated,
                 enemyQuota: SurvivalConstants.stageEnemyQuota,
-                isBossBattle: controller.bossHud != nil,
-                hintMode: controller.uiSnapshot.hintMode,
-                isPaused: controller.isPaused,
+                isBossBattle: bossHud != nil,
+                hintMode: uiSnapshot.hintMode,
+                isPaused: isPaused,
                 locale: locale,
-                onTogglePause: { controller.togglePause() }
+                onTogglePause: onTogglePause
             )
             .equatable()
 
-            if !controller.uiSnapshot.statusEffectStrip.isEmpty || controller.uiSnapshot.hintMode {
-                SurvivalHUDStatusStrip(effects: controller.uiSnapshot.statusEffectStrip.map {
+            if !uiSnapshot.statusEffectStrip.isEmpty || uiSnapshot.hintMode {
+                SurvivalHUDStatusStrip(effects: uiSnapshot.statusEffectStrip.map {
                     .init(id: $0.id, icon: $0.icon, level: $0.level)
                 })
                 .equatable()
@@ -55,16 +54,16 @@ struct SurvivalHUDView: View {
             if let bossRatio = bossHpRatio {
                 SurvivalHUDBossHpBar(
                     ratio: bossRatio,
-                    hp: controller.uiSnapshot.hp,
-                    maxHp: controller.uiSnapshot.maxHp,
+                    hp: uiSnapshot.hp,
+                    maxHp: uiSnapshot.maxHp,
                     hpRatio: hpRatio,
                     locale: locale
                 )
                 .equatable()
             } else {
                 SurvivalHUDPlayerHpBar(
-                    hp: controller.uiSnapshot.hp,
-                    maxHp: controller.uiSnapshot.maxHp,
+                    hp: uiSnapshot.hp,
+                    maxHp: uiSnapshot.maxHp,
                     ratio: hpRatio
                 )
                 .equatable()
@@ -94,7 +93,6 @@ private struct SurvivalHUDTopRow: View, Equatable {
     let hintMode: Bool
     let isPaused: Bool
     let locale: AppLocale
-    /// クロージャは Equatable できないため比較から除外する。
     let onTogglePause: () -> Void
 
     static func == (lhs: SurvivalHUDTopRow, rhs: SurvivalHUDTopRow) -> Bool {

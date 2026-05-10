@@ -294,7 +294,7 @@ final class SurvivalGameAudio {
     /// CoreMIDI コールバックから直接呼ぶことでメインスレッド混雑時の遅延を回避するため、
     /// `preparePianoIfNeeded` / `startEngineIfNeeded` など内部フラグの mutation 伴う
     /// 初期化処理をスキップする。代わりに `start()` が main から呼ばれている前提とする。
-    /// - 前提: ゲーム開始時の `SurvivalGameController.start()` にて engine / sampler 初期化済み。
+    /// - 前提: ゲーム開始時の `SurvivalGameSession.start()` にて engine / sampler 初期化済み。
     /// - 実体: `SurvivalPianoSampler.noteOn` は内部で `audioQueue.async` に逃がすため
     ///   この経路自体は呼び出しスレッドをブロックしない。
     func pianoNoteOnRealtime(midi: Int, velocity: Int) {

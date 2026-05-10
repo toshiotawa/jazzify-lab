@@ -8,21 +8,20 @@ import SwiftUI
 /// - 正解発動時 (triggerPulse 増加) は枠線＋内部を一瞬ライトアップ
 /// - コードは時間切れ自動切替えを行わない (スキル発動するまで保持)
 struct SurvivalCodeSlotsView: View {
-    @ObservedObject var controller: SurvivalGameController
+    let uiSnapshot: SurvivalUISnapshot
+    let isBossStage: Bool
 
     var body: some View {
-        let isBoss = controller.isBossStage
-        let isProgression = controller.uiSnapshot.stageType == .progression
-        // Progression: B 列のみ。通常・ボス: A/B の 2 枠。
+        let isProgression = uiSnapshot.stageType == .progression
         let visibleIndices: [Int] = isProgression ? [1] : [0, 1]
 
-        return HStack(spacing: isBoss ? 14 : 10) {
+        return HStack(spacing: isBossStage ? 14 : 10) {
             ForEach(visibleIndices, id: \.self) { idx in
                 SlotCell(
-                    slot: controller.uiSnapshot.slots[idx],
+                    slot: uiSnapshot.slots[idx],
                     style: SurvivalCodeSlotsView.slotStyle(for: idx),
-                    isWide: isBoss || isProgression,
-                    isHintTarget: controller.uiSnapshot.hintMode && controller.uiSnapshot.slots[idx].isEnabled
+                    isWide: isBossStage || isProgression,
+                    isHintTarget: uiSnapshot.hintMode && uiSnapshot.slots[idx].isEnabled
                 )
                 .frame(maxWidth: isProgression ? 360 : .infinity)
             }

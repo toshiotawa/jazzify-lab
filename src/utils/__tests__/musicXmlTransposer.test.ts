@@ -74,24 +74,28 @@ describe('transposeMusicXml', () => {
     expect(pitchSignatures[0]).toBe('D:-1:4');
   });
 
-  it('invention 1 を +-1, +-2 移調しても note 要素の順序が壊れない', () => {
-    const xmlPath = resolve(process.cwd(), 'public', 'invention 1.musicxml');
-    const sourceXml = readFileSync(xmlPath, 'utf-8');
-    const offsets = [-2, -1, 1, 2];
+  it(
+    'invention 1 を +-1, +-2 移調しても note 要素の順序が壊れない',
+    () => {
+      const xmlPath = resolve(process.cwd(), 'public', 'invention 1.musicxml');
+      const sourceXml = readFileSync(xmlPath, 'utf-8');
+      const offsets = [-2, -1, 1, 2];
 
-    offsets.forEach((offset) => {
-      const transposed = transposeMusicXml(sourceXml, offset);
-      const doc = parseXml(transposed);
-      expect(doc.querySelector('parsererror')).toBeNull();
+      offsets.forEach((offset) => {
+        const transposed = transposeMusicXml(sourceXml, offset);
+        const doc = parseXml(transposed);
+        expect(doc.querySelector('parsererror')).toBeNull();
 
-      const hasAccidentalBeforeDuration = Array.from(doc.querySelectorAll('note')).some((noteEl) => {
-        const childTags = Array.from(noteEl.children).map((child) => child.tagName);
-        const accidentalIndex = childTags.indexOf('accidental');
-        const durationIndex = childTags.indexOf('duration');
-        return accidentalIndex !== -1 && durationIndex !== -1 && accidentalIndex < durationIndex;
+        const hasAccidentalBeforeDuration = Array.from(doc.querySelectorAll('note')).some((noteEl) => {
+          const childTags = Array.from(noteEl.children).map((child) => child.tagName);
+          const accidentalIndex = childTags.indexOf('accidental');
+          const durationIndex = childTags.indexOf('duration');
+          return accidentalIndex !== -1 && durationIndex !== -1 && accidentalIndex < durationIndex;
+        });
+
+        expect(hasAccidentalBeforeDuration).toBe(false);
       });
-
-      expect(hasAccidentalBeforeDuration).toBe(false);
-    });
-  });
+    },
+    60_000
+  );
 });

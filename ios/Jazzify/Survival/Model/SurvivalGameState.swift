@@ -178,7 +178,7 @@ public struct SurvivalPlayerSkills: Sendable, Equatable {
     /// ボス戦を含むステージモードはこの値からスタートする (ファイのキャラ定義で上書き可能)。
     /// - `multiHitLevel = 2`: 1 回の Punch で初撃 + 200ms 間隔で 2 発の追加衝撃波 = 計 3 ヒット。
     ///   以前はボス戦のデデュープバグで実質 20 ヒット超えていたため暫定的に 0 に下げていたが、
-    ///   `SurvivalGameController.tickBoss` の `hitEnemyIds` デデュープ修正完了に伴い Web 版同値へ復帰。
+    ///   `SurvivalGameLoop.tickBoss` の `hitEnemyIds` デデュープ修正完了に伴い Web 版同値へ復帰。
     public static let defaultStage: SurvivalPlayerSkills = SurvivalPlayerSkills(
         aBulletCount: 5,
         aPenetration: true,

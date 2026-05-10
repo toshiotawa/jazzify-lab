@@ -4,6 +4,7 @@ import Foundation
 final class MIDIBridge {
     private let midiManager: MIDIManager
     private weak var coordinator: WebViewCoordinator?
+    private var midiSubscription: MIDISubscription?
 
     init(midiManager: MIDIManager, coordinator: WebViewCoordinator) {
         self.midiManager = midiManager
@@ -12,10 +13,8 @@ final class MIDIBridge {
     }
 
     private func setupCallbacks() {
-        // `MIDIManager.onMIDIEvent` は CoreMIDI スレッド上で直接呼び出される。
-        // WKWebView 操作 (`sendMIDIEvent` 内の `evaluateJavaScript`) は
-        // メインスレッド必須のため、ここで明示的に main へディスパッチする。
-        midiManager.onMIDIEvent = { [weak self] status, note, velocity in
+        midiSubscription?.cancel()
+        midiSubscription = midiManager.subscribe { [weak self] status, note, velocity in
             DispatchQueue.main.async { [weak self] in
                 self?.coordinator?.sendMIDIEvent(status: status, note: note, velocity: velocity)
             }
@@ -23,6 +22,7 @@ final class MIDIBridge {
     }
 
     func detach() {
-        midiManager.onMIDIEvent = nil
+        midiSubscription?.cancel()
+        midiSubscription = nil
     }
 }
