@@ -9,8 +9,9 @@ export type SurvivalStageType = 'random' | 'progression';
 /** マップカテゴリ ('basic' | 'songs')。Basic と Songs で進行管理を分離する。 */
 export type SurvivalMapCategory = 'basic' | 'songs';
 export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
-export const DEFAULT_SURVIVAL_RANDOM_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
-const DEFAULT_SURVIVAL_PROGRESSION_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/116797c5-c714-4a4d-85c6-5212af860d0b.mp3';
+export const DEFAULT_SURVIVAL_RANDOM_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/116797c5-c714-4a4d-85c6-5212af860d0b.mp3';
+const DEFAULT_SURVIVAL_PROGRESSION_BGM_URL =
+  'https://jazzify-cdn.com/fantasy-bgm/74099219-644e-46c1-b509-bedf9adadf10.mp3';
 
 export type SurvivalBgmSettingsMap = Record<SurvivalStageType, string>;
 
