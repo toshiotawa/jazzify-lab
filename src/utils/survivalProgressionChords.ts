@@ -48,3 +48,21 @@ export const buildProgressionChordDefinitions = (
   if (!entries || entries.length === 0) return [];
   return entries.map((entry, idx) => buildProgressionChordDefinition(entry, idx));
 };
+
+/** サバイバル progression ヴォイシング下書き（詳細は survivalProgressionVoicings.ts） */
+export {
+  analyzeSurvivalChordProgression,
+  buildSurvivalChordProgression,
+  buildSurvivalProgressionVoicingFormsMap,
+  SURVIVAL_PROGRESSION_VOICING_MAP,
+  SURVIVAL_VOICING_MIDDLE_C,
+  survivalVoicingToNoteNames,
+} from './survivalProgressionVoicings';
+
+export type {
+  SurvivalProgressionAnalyzeEntry,
+  SurvivalProgressionAnalyzeResult,
+  SurvivalProgressionVoicingForms,
+  SurvivalProgressionVoicingKind,
+  SurvivalVoicingForm,
+} from './survivalProgressionVoicings';
