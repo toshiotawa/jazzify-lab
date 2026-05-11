@@ -113,6 +113,8 @@ export class FantasySoundManager {
   private static readonly GM_NOTE_RELEASE_SEC = 0.038;
   private static readonly ROOT_TRIANGLE_FALLBACK_PEAK_GAIN = 1.25;
   private static readonly ROOT_TRIANGLE_FALLBACK_SUSTAIN_GAIN = 0.42;
+  /** 三角波フォールバックを、ルート用ピアノ相当ゲイン（`0.42 + eff*0.58`）に対して何倍にするか */
+  private static readonly ROOT_TRIANGLE_VS_PIANO_REF_LINEAR = 1.5;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -681,11 +683,13 @@ export class FantasySoundManager {
     } catch { /* ignore */ }
   }
 
-  // ルート音ベースの音量を同期（三角波フォールバック用マスター。GM ルートは _playCorrectRootGMOneShot 側のゲイン計算と併用）
+  // ルート音ベースの音量を同期（三角波フォールバック用マスター: ピアノ相当 `0.42+eff*0.58` の線形 1.5 倍。GM ルートは _playCorrectRootGMOneShot 側）
   private _syncRootBassVolume(): void {
     if (this.rootMasterGain && this.rootAudioContext) {
       const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
-      const normalizedVolume = 0.42 + effectiveVolume * 0.58;
+      const pianoRefLinear = 0.42 + effectiveVolume * 0.58;
+      const normalizedVolume =
+        pianoRefLinear * FantasySoundManager.ROOT_TRIANGLE_VS_PIANO_REF_LINEAR;
       try {
         this.rootMasterGain.gain.setValueAtTime(normalizedVolume, this.rootAudioContext.currentTime);
       } catch {

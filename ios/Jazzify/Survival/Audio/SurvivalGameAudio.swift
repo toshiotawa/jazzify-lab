@@ -9,6 +9,8 @@ private let kRootBlendGrandProgram: UInt8 = 0
 private let kRootBlendElectricProgram: UInt8 = 4
 private let kRootTriangleFallbackPeakScale: Double = 1.25
 private let kRootTriangleFallbackSustainLevel: Double = 0.42
+/// 三角波フォールバックの振幅を、同一 `rootBassMixer` 上の GM ルート相当に対して何倍にするか
+private let kRootTriangleLinearGainVsPianoReference: Double = 1.5
 
 /// サバイバル ゲーム画面専用の軽量オーディオマネージャ。
 /// - AVAudioEngine + AVAudioUnitSampler (SoundFont 無しの内蔵音色) で SE 用 MIDI ノート再生
@@ -401,7 +403,7 @@ final class SurvivalGameAudio {
         // - 0 → 10ms: attack、ゲイン 0 → peakScale
         // - 10ms → 120ms: decay、peakScale → sustainLevel
         // - 120ms → 400ms: release、sustainLevel → 0
-        // フォールバック三角波は GM ピアノより少し小さい体感になるよう、Web 版と同じ係数で持ち上げる。
+        // フォールバック三角波は GM ルート（ピアノ相当）より大きく聞こえるよう線形 1.5 倍する。
         let totalDuration: Double = 0.40
         let frameCount = AVAudioFrameCount(sampleRate * totalDuration)
         guard let buffer = AVAudioPCMBuffer(pcmFormat: synthBassFormat, frameCapacity: frameCount) else { return nil }
@@ -429,7 +431,7 @@ final class SurvivalGameAudio {
             } else {
                 env = 0
             }
-            data[i] = Float(sample * env * peakScale)
+            data[i] = Float(sample * env * peakScale * kRootTriangleLinearGainVsPianoReference)
             phase += phaseInc
             if phase > 2.0 * .pi { phase -= 2.0 * .pi }
         }
