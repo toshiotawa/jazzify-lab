@@ -5,6 +5,7 @@ import AVFoundation
 /// - フレーズ MP3 (AVPlayer + AVPlayerItem) のストリーミング再生 + 周期的な currentTime 通知
 /// - ピアノ発音と効果音は `SurvivalGameAudio.shared` を共有して再利用する
 /// - フレーズ音量 = `musicVolume * masterVolume` を反映
+/// - AVPlayer は UI / ゲーム状態と同様メインスレッドからのみ操作する（呼び出し元は `@MainActor` コントローラ）。
 final class EarTrainingAudio: NSObject {
     /// 周期的に通知される再生時刻 (秒)。停止中は 0。
     private(set) var currentTimeSec: Double = 0
@@ -23,6 +24,8 @@ final class EarTrainingAudio: NSObject {
     private var preloadedAsset: AVURLAsset?
     /// `player` に現在載っているフレーズ URL（同一 URL では `AVPlayerItem` を作り直さず再利用する）。
     private var loadedPhraseURL: URL?
+    /// `preparePhraseForImmediatePlayback` 完了済みで、頭出し済み pause 状態のフレーズ URL。
+    private var preparedForImmediatePlaybackURL: URL?
     private var playbackToken: Int = 0
 
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
@@ -91,6 +94,7 @@ final class EarTrainingAudio: NSObject {
         if loadedPhraseURL == url, currentItem != nil, player.currentItem === currentItem {
             return
         }
+        preparedForImmediatePlaybackURL = nil
         playbackToken += 1
         let token = playbackToken
         prepareItem(url: url)
@@ -107,8 +111,57 @@ final class EarTrainingAudio: NSObject {
         }
     }
 
+    /// カウントイン前に呼ぶ。アイテム作成・ playable 読み込み・頭出し済みまで待機し、`playPreparedPhrase` で即再生できる状態にする。
+    func preparePhraseForImmediatePlayback(url: URL) async -> Bool {
+        playbackToken += 1
+        let token = playbackToken
+        preparedForImmediatePlaybackURL = nil
+
+        prepareItem(url: url)
+        guard let item = currentItem else { return false }
+
+        do {
+            _ = try await item.asset.load(.isPlayable)
+        } catch {
+            return false
+        }
+        guard playbackToken == token, loadedPhraseURL == url else { return false }
+
+        let ready = await waitForItemReadyToPlay(item)
+        guard ready, playbackToken == token, loadedPhraseURL == url else { return false }
+
+        player.pause()
+        player.volume = phraseVolume
+        currentTimeSec = 0
+
+        let seekFinished = await seekToZeroAsync()
+        guard seekFinished, playbackToken == token, loadedPhraseURL == url else { return false }
+
+        currentTimeSec = 0
+        preparedForImmediatePlaybackURL = url
+        return true
+    }
+
+    /// `preparePhraseForImmediatePlayback` 済みの同一 URL なら `seek` せず `play()` のみ。消費後は準備状態をクリアする。
+    func playPreparedPhrase(url: URL, onStarted: (() -> Void)? = nil) -> Bool {
+        guard preparedForImmediatePlaybackURL == url,
+              loadedPhraseURL == url,
+              let item = currentItem,
+              player.currentItem === item
+        else {
+            return false
+        }
+        preparedForImmediatePlaybackURL = nil
+        currentTimeSec = 0
+        player.volume = phraseVolume
+        player.play()
+        onStarted?()
+        return true
+    }
+
     /// フレーズ MP3 を頭から再生する。
     func playPhrase(url: URL, onStarted: (() -> Void)? = nil) {
+        preparedForImmediatePlaybackURL = nil
         playbackToken += 1
         let token = playbackToken
 
@@ -135,6 +188,7 @@ final class EarTrainingAudio: NSObject {
 
     /// フレーズ MP3 を停止し、再生時刻を 0 に戻す。
     func stopPhrase() {
+        preparedForImmediatePlaybackURL = nil
         playbackToken += 1
         player.pause()
         player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
@@ -152,6 +206,7 @@ final class EarTrainingAudio: NSObject {
         if loadedPhraseURL == url, currentItem != nil, player.currentItem === currentItem {
             return
         }
+        preparedForImmediatePlaybackURL = nil
         removeObservers()
         currentTimeSec = 0
         loadedPhraseURL = url
@@ -166,13 +221,44 @@ final class EarTrainingAudio: NSObject {
         addObservers(for: item)
     }
 
+    private func seekToZeroAsync() async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { finished in
+                continuation.resume(returning: finished)
+            }
+        }
+    }
+
+    private func waitForItemReadyToPlay(_ item: AVPlayerItem) async -> Bool {
+        if item.status == .readyToPlay { return true }
+        if item.status == .failed { return false }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            var resumed = false
+            var observation: NSKeyValueObservation?
+            observation = item.observe(\.status, options: [.initial, .new]) { observedItem, _ in
+                guard !resumed else { return }
+                switch observedItem.status {
+                case .readyToPlay, .failed:
+                    resumed = true
+                    observation?.invalidate()
+                    observation = nil
+                    continuation.resume()
+                default:
+                    break
+                }
+            }
+        }
+        return item.status == .readyToPlay
+    }
+
     private func addObservers(for item: AVPlayerItem) {
         endObservation = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: item,
             queue: .main
         ) { [weak self] _ in
-            self?.onEnded?()
+            guard let self else { return }
+            self.onEnded?()
         }
 
         // 30Hz で currentTime を通知する。

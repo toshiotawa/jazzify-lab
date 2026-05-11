@@ -517,12 +517,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         statusText = copy.countIn
         cancelAllTimers()
         audio.stopPhrase()
-        if let first = phrases.first, let url = URL(string: first.audioUrl) {
-            audio.prefetchPhraseItem(url: url)
-        }
 
         countdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            if let first = self.phrases.first, let url = URL(string: first.audioUrl) {
+                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+            }
+            if Task.isCancelled { return }
             await self.runCountIn()
             if Task.isCancelled { return }
             self.beginPhrasePlayback(at: 0, startsTimeLimit: true)
@@ -572,13 +573,18 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelTransitionTimer()
         cancelChordSyncTask()
         if playsCountIn {
-            if let url = URL(string: phrases[nextIndex].audioUrl) {
-                audio.prefetchPhraseItem(url: url)
-            }
             countdownTask = Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.gameState = .countIn
                 self.statusText = self.copy.countIn
+                self.publishSnapshot()
+
+                guard let url = URL(string: self.phrases[nextIndex].audioUrl) else {
+                    self.finishGameOver(message: self.copy.audioFailed)
+                    return
+                }
+                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+                if Task.isCancelled { return }
                 await self.runCountIn()
                 if Task.isCancelled { return }
                 self.beginPhrasePlayback(at: nextIndex, startsTimeLimit: false)
@@ -638,7 +644,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         gameState = .playingPhrase
         publishSnapshot()
         syncChordTimeline(scheduleNext: true)
-        audio.playPhrase(url: url) { [weak self] in
+
+        let onStarted: () -> Void = { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 guard self.phraseRunId == runId else { return }
@@ -648,6 +655,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 }
                 self.syncChordTimeline(scheduleNext: true)
             }
+        }
+
+        if !audio.playPreparedPhrase(url: url, onStarted: onStarted) {
+            audio.playPhrase(url: url, onStarted: onStarted)
         }
     }
 
