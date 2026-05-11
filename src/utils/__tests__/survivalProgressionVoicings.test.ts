@@ -8,10 +8,10 @@ import {
 import { runSurvivalProgressionVoicingsCli } from '@/utils/survivalProgressionVoicingsCli';
 
 describe('survivalProgressionVoicings', () => {
-  it('例進行: フォームが A-B-A-B になり、4 コード生成される', () => {
+  it('例進行: コードマップ既定フォームを固定し、同一コードの繰り返しで反転しない', () => {
     const input = 'Dm7(9) G7(9.13) CM7(9) CM7(9)';
     const r = analyzeSurvivalChordProgression(input);
-    expect(r.entries.map(e => e.form)).toEqual(['A', 'B', 'A', 'B']);
+    expect(r.entries.map(e => e.form)).toEqual(['A', 'B', 'A', 'A']);
     expect(r.entries.map(e => e.name)).toEqual(['Dm7(9)', 'G7(9.13)', 'CM7(9)', 'CM7(9)']);
     expect(r.progression.length).toBe(4);
     for (const e of r.entries) {
