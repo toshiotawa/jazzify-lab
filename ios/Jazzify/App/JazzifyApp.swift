@@ -51,6 +51,15 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: appState.authState)
+        .sheet(item: $appState.appUpdateNotice) { notice in
+            AppUpdateModal(
+                notice: notice,
+                locale: appState.locale,
+                onDismiss: {
+                    appState.dismissAppUpdateNotice()
+                }
+            )
+        }
     }
 }
 
@@ -113,6 +122,94 @@ struct FeatureInfoModal: View {
                 Text(locale == .ja ? "閉じる" : "Close")
                     .font(.headline)
                     .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(hex: "334155"))
+                    .cornerRadius(12)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(hex: "0f172a"))
+    }
+}
+
+private enum AppUpdateModalCopy {
+    static func updateButton(_ locale: AppLocale) -> String {
+        switch locale {
+        case .ja: return "アップデート"
+        case .en: return "Update"
+        }
+    }
+
+    static func close(_ locale: AppLocale) -> String {
+        switch locale {
+        case .ja: return "閉じる"
+        case .en: return "Close"
+        }
+    }
+
+    static func versionLine(_ locale: AppLocale, current: String, latest: String) -> String {
+        switch locale {
+        case .ja:
+            return "使用中のバージョン: \(current) · App Store 最新: \(latest)"
+        case .en:
+            return "Installed \(current) · App Store \(latest)"
+        }
+    }
+}
+
+struct AppUpdateModal: View {
+    @Environment(\.openURL) private var openURL
+
+    let notice: AppUpdateNotice
+    let locale: AppLocale
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(Color(hex: "a78bfa"))
+
+            VStack(spacing: 8) {
+                Text(notice.title)
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+
+                Text(notice.message)
+                    .font(.body)
+                    .foregroundStyle(Color(hex: "d1d5db"))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(AppUpdateModalCopy.versionLine(locale, current: notice.currentVersion, latest: notice.latestVersion))
+                .font(.footnote)
+                .foregroundStyle(Color(hex: "94a3b8"))
+                .multilineTextAlignment(.center)
+
+            Spacer()
+
+            Button {
+                openURL(Config.iosAppStoreListingURL)
+            } label: {
+                Text(AppUpdateModalCopy.updateButton(locale))
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(hex: "7c3aed"))
+                    .cornerRadius(12)
+            }
+
+            Button {
+                onDismiss()
+            } label: {
+                Text(AppUpdateModalCopy.close(locale))
+                    .font(.headline)
+                    .foregroundStyle(Color(hex: "cbd5e1"))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(Color(hex: "334155"))

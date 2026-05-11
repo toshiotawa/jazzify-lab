@@ -399,6 +399,20 @@ final class SupabaseService: Sendable {
         return rows
     }
 
+    // MARK: - App Release Versions
+
+    func fetchActiveAppReleaseVersion(platform: String) async throws -> AppReleaseVersionRow? {
+        let rows: [AppReleaseVersionRow] = try await client
+            .from("app_release_versions")
+            .select()
+            .eq("platform", value: platform)
+            .eq("is_active", value: true)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
     // MARK: - User Stats
 
     func fetchUserStats(userId: UUID) async throws -> UserStats {

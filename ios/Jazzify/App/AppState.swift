@@ -8,13 +8,16 @@ final class AppState: ObservableObject {
     @Published var profile: Profile?
     @Published var billingStatus: BillingStatusResponse?
     @Published var profileSetupError: String?
+    @Published var appUpdateNotice: AppUpdateNotice?
     @Published var locale: AppLocale
     @Published private(set) var lastBillingCheckedAt: Date?
 
     private var periodEndTimer: Task<Void, Never>?
+    private var didRequestAppUpdateNotice = false
 
     private static let staleTTL: TimeInterval = 300
     private static let refreshThrottle: TimeInterval = 60
+    private static let appReleasePlatform = "ios"
 
     private let supabase = SupabaseService.shared
     private let billing = BillingService.shared
@@ -30,6 +33,8 @@ final class AppState: ObservableObject {
     }
 
     func bootstrap() async {
+        startAppUpdateNoticeRefreshIfNeeded()
+
         do {
             let session = try await supabase.client.auth.session
             let userId = session.user.id
@@ -56,6 +61,69 @@ final class AppState: ObservableObject {
             self.locale = Config.appLocale
             self.authState = .unauthenticated
         }
+    }
+
+    func dismissAppUpdateNotice() {
+        appUpdateNotice = nil
+    }
+
+    private func startAppUpdateNoticeRefreshIfNeeded() {
+        guard !didRequestAppUpdateNotice else { return }
+        didRequestAppUpdateNotice = true
+
+        Task { [weak self] in
+            await self?.refreshAppUpdateNotice()
+        }
+    }
+
+    private func refreshAppUpdateNotice() async {
+        guard let currentVersion = Self.currentAppVersion() else { return }
+
+        do {
+            guard let release = try await supabase.fetchActiveAppReleaseVersion(platform: Self.appReleasePlatform),
+                  Self.isVersion(release.latestVersion, newerThan: currentVersion) else {
+                return
+            }
+
+            appUpdateNotice = AppUpdateNotice(
+                latestVersion: release.latestVersion,
+                currentVersion: currentVersion,
+                title: release.localizedTitle(locale),
+                message: release.localizedMessage(locale)
+            )
+        } catch {
+            appUpdateNotice = nil
+        }
+    }
+
+    private static func currentAppVersion() -> String? {
+        guard let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+              !version.isEmpty else {
+            return nil
+        }
+        return version
+    }
+
+    private static func isVersion(_ version: String, newerThan currentVersion: String) -> Bool {
+        let candidateParts = numericVersionComponents(version)
+        let currentParts = numericVersionComponents(currentVersion)
+        let componentCount = max(candidateParts.count, currentParts.count)
+
+        for index in 0..<componentCount {
+            let candidate = index < candidateParts.count ? candidateParts[index] : 0
+            let current = index < currentParts.count ? currentParts[index] : 0
+
+            if candidate > current { return true }
+            if candidate < current { return false }
+        }
+
+        return false
+    }
+
+    private static func numericVersionComponents(_ version: String) -> [Int] {
+        version
+            .split(separator: ".")
+            .map { Int($0) ?? 0 }
     }
 
     func createProfile(nickname: String, agreed: Bool) async {
