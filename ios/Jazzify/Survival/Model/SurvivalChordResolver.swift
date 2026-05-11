@@ -51,8 +51,13 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         self.displayName = displayName
     }
 
+    /// 正解時ルート音用。Progression はコード記号ルート（`displayName`）を、それ以外は最低 MIDI のピッチクラスを使う。
     public var rootPitchClass: Int {
-        midiNotes.first.map { $0 % 12 } ?? 0
+        if quality == .progression, let pc = SurvivalChordResolver.progressionSymbolRootPitchClass(chordSymbol: displayName) {
+            return pc
+        }
+        guard let first = midiNotes.first else { return 0 }
+        return ((first % 12) + 12) % 12
     }
 
     /// Progression エントリ（DB の `chord_progression` 由来）から `SurvivalResolvedChord` を構築する。
@@ -154,7 +159,7 @@ enum SurvivalChordResolver {
 
     /// ルート音名 → Cからの半音数 (重複あり: 異名同音許容)
     private static let rootSemitones: [String: Int] = [
-        "C": 0,
+        "C": 0, "B#": 0,
         "C#": 1, "Db": 1,
         "D": 2,
         "D#": 3, "Eb": 3,
@@ -171,6 +176,21 @@ enum SurvivalChordResolver {
     private static let validRootPrefixes = ["C#", "Db", "D#", "Eb", "F#", "Gb", "G#", "Ab", "A#", "Bb",
                                             "Cb", "E#", "Fb", "B#",
                                             "C", "D", "E", "F", "G", "A", "B"]
+
+    /// Progression エントリの `name`（例: `Dm7(9)`、`C/E`）からコード記号ルートのピッチクラス (0 = C)。
+    /// - スラッシュコードは分子のみを見る。パース不能時は nil。
+    static func progressionSymbolRootPitchClass(chordSymbol: String) -> Int? {
+        var s = chordSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let slash = s.firstIndex(of: "/") {
+            s = String(s[..<slash]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        for prefix in validRootPrefixes where s.hasPrefix(prefix) {
+            if let semi = rootSemitones[prefix] {
+                return ((semi % 12) + 12) % 12
+            }
+        }
+        return nil
+    }
 
     /// コード ID (例: "CM7", "Db7(b9.b6th)") をルートとサフィックスに分割
     static func parseChord(id: String) -> (root: String, quality: SurvivalChordQuality)? {

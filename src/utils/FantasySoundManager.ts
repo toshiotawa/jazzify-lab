@@ -480,16 +480,85 @@ export class FantasySoundManager {
     }
   }
 
-  // 🎸 ルート音再生（Web Audio API直接使用 - クリック音完全防止）
-  // 🚀 パフォーマンス最適化: setTimeout不使用、Web Audio APIスケジューリングのみ
-  // 🚀 クリック音防止: linearRampでスムーズなフェードイン/フェードアウト
+  // 🎸 ルート音再生: GM アコースティック + エレピのワンショット（メイン演奏の activeGMNotes とは別経路）。未準備時は三角波。
   private _playRootNote(rootName: string) {
-    // 初期化が完了していない場合は無視
     if (!this.isInited || !this.bassEnabled) return;
-    
-    const n = tonalNote(rootName + '2');        // C2 付近
+
+    const n = tonalNote(rootName + '2');
     if (n.midi == null) return;
-    
+
+    this._ensureContextsRunning();
+    if (this.gmPianoReady && this.gmAudioContext && this.gmAcousticPiano && this.gmElectricPiano) {
+      this._playCorrectRootGMOneShot(n.midi);
+      return;
+    }
+    this._playRootTriangleOscillator(n.midi);
+  }
+
+  /** 正解ルート専用: Soundfont の acoustic_grand + electric_piano_1 を短く重ね、鍵盤用 GM マップと干渉させない */
+  private _playCorrectRootGMOneShot(midiNote: number): void {
+    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano) return;
+
+    try {
+      const ctx = this.gmAudioContext;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const currentTime = ctx.currentTime;
+      const safeDuration = 0.42;
+      const eff = Math.max(this.gmPianoVolume, this.bassVolume);
+      const velocity = Math.max(0.22, Math.min(1, 0.28 + eff * 0.92));
+      const volumeBoost = 15.0;
+      const baseGain = velocity * volumeBoost * Math.max(eff, 0.09);
+      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
+      const electricGain = this.gmElectricPiano ? baseGain * this.gmMixBalance : 0;
+
+      const noteGain = ctx.createGain();
+      noteGain.gain.value = 1.0;
+      noteGain.connect(this.gmMasterGain || ctx.destination);
+
+      const releaseSec = 0.06;
+      const releaseStart = currentTime + Math.max(0, safeDuration - releaseSec);
+      noteGain.gain.setValueAtTime(1.0, currentTime);
+      noteGain.gain.setValueAtTime(1.0, releaseStart);
+      noteGain.gain.linearRampToValueAtTime(0, currentTime + safeDuration);
+
+      const totalDuration = safeDuration + 0.06;
+      const startedVoices: unknown[] = [];
+
+      if (acousticGain > 0) {
+        startedVoices.push(this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
+          gain: acousticGain,
+          duration: totalDuration,
+          destination: noteGain
+        } as any));
+      }
+
+      if (this.gmElectricPiano && electricGain > 0) {
+        startedVoices.push(this.gmElectricPiano.play(midiNote.toString(), currentTime, {
+          gain: electricGain,
+          duration: totalDuration,
+          destination: noteGain
+        } as any));
+      }
+
+      getWindow().setTimeout(() => {
+        try { noteGain.disconnect(); } catch { /* ignore */ }
+        for (const voice of startedVoices) {
+          try {
+            (voice as { stop?: () => void })?.stop?.();
+          } catch {
+            /* ignore */
+          }
+        }
+      }, totalDuration * 1000 + 100);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private _playRootTriangleOscillator(midiValue: number) {
     // Web Audio APIコンテキストを取得または作成（初回のみ）
     if (!this.rootAudioContext) {
       try {
@@ -501,65 +570,56 @@ export class FantasySoundManager {
         return;
       }
     }
-    
+
     const ctx = this.rootAudioContext;
     if (!ctx || !this.rootMasterGain) return;
-    
-    // AudioContextがsuspended状態ならresumeする（非ブロッキング、待機しない）
+
     if (ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
     }
-    
+
     const now = ctx.currentTime;
-    const frequency = 440 * Math.pow(2, (n.midi - 69) / 12);
-    
-    // 🚀 前のオシレーターはWeb Audio APIのstop()でスケジュール停止（setTimeoutなし）
-    // onended イベントで自動クリーンアップされる
+    const frequency = 440 * Math.pow(2, (midiValue - 69) / 12);
+
     if (this.activeRootOscillator && this.activeRootGain) {
       try {
-        // 30ms後に停止をスケジュール（フェードアウト完了後）
         this.activeRootGain.gain.linearRampToValueAtTime(0, now + 0.03);
         this.activeRootOscillator.stop(now + 0.035);
       } catch { /* 既に停止済み */ }
     }
 
     try {
-      // 新しいオシレーターを作成
       const osc = ctx.createOscillator();
       osc.type = 'triangle';
       osc.frequency.value = frequency;
-      
-      // 個別のゲインノード
+
       const gainNode = ctx.createGain();
       gainNode.gain.value = 0;
-      
+
       osc.connect(gainNode);
       gainNode.connect(this.rootMasterGain);
-      
-      // エンベロープ（すべてスケジュール済み、メインスレッド負荷なし）
-      const totalDuration = 0.4; // 400ms
-      gainNode.gain.linearRampToValueAtTime(1.0, now + 0.01);      // 10ms attack
-      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.12);      // 110ms後にdecay
-      gainNode.gain.linearRampToValueAtTime(0, now + totalDuration); // 400ms後にfade out完了
-      
+
+      const totalDuration = 0.4;
+      gainNode.gain.linearRampToValueAtTime(1.0, now + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.12);
+      gainNode.gain.linearRampToValueAtTime(0, now + totalDuration);
+
       osc.start(now);
       osc.stop(now + totalDuration + 0.01);
-      
-      // onendedでクリーンアップ（Web Audioスレッドで実行、メインスレッド負荷なし）
+
       osc.onended = () => {
         try {
           osc.disconnect();
           gainNode.disconnect();
         } catch { /* ignore */ }
       };
-      
+
       this.activeRootOscillator = osc;
       this.activeRootGain = gainNode;
-
     } catch { /* ignore */ }
   }
 
-  // 🎸 ルート音用 Web Audio API リソース
+  // 🎸 ルート音用 Web Audio API リソース（三角波フォールバック用）
   private rootAudioContext: AudioContext | null = null;
   private rootMasterGain: GainNode | null = null;
   private activeRootOscillator: OscillatorNode | null = null;
@@ -619,13 +679,11 @@ export class FantasySoundManager {
     } catch { /* ignore */ }
   }
 
-  // ルート音ベースの音量を同期
+  // ルート音ベースの音量を同期（三角波フォールバック用マスター。GM ルートは _playCorrectRootGMOneShot 側のゲイン計算と併用）
   private _syncRootBassVolume(): void {
     if (this.rootMasterGain && this.rootAudioContext) {
-      // gmPianoVolumeとbassVolumeの両方を考慮
       const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
-      // 音量を0.3〜1.0の範囲で調整（小さすぎると聞こえない）
-      const normalizedVolume = 0.3 + effectiveVolume * 0.7;
+      const normalizedVolume = 0.42 + effectiveVolume * 0.58;
       try {
         this.rootMasterGain.gain.setValueAtTime(normalizedVolume, this.rootAudioContext.currentTime);
       } catch {

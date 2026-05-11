@@ -9,12 +9,28 @@
 
 import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import type { SurvivalChordProgressionEntry } from '@/components/survival/SurvivalStageDefinitions';
+import { parseChordName } from '@/utils/chord-utils';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 
 const midiToNoteName = (midi: number): string => {
   const pitchClass = ((midi % 12) + 12) % 12;
   return NOTE_NAMES[pitchClass];
+};
+
+/**
+ * DB の progression `name`（例: Dm7(9)、C/E）からコード記号上のルート音名を取り出す。
+ * - スラッシュコードは分子のみ（演奏 voicing の最低音とは無関係）。
+ * - パース不能時は null（呼び出し側で voicing 最低音へフォールバック）。
+ */
+const progressionChordSymbolRoot = (chordSymbol: string): string | null => {
+  let numerator = chordSymbol.trim();
+  if (numerator.includes('/')) {
+    const parts = numerator.split('/');
+    if (parts[0]) numerator = parts[0].trim();
+  }
+  const parsed = parseChordName(numerator);
+  return parsed?.root ?? null;
 };
 
 /**
@@ -28,6 +44,7 @@ export const buildProgressionChordDefinition = (
 ): ChordDefinition => {
   const sortedVoicing: number[] = Array.from(new Set<number>(entry.voicing)).sort((a, b) => a - b);
   const noteNames = sortedVoicing.map(midiToNoteName);
+  const symbolRoot = progressionChordSymbolRoot(entry.name);
   const id = `prog:${index}:${entry.name}:${sortedVoicing.join(',')}`;
   return {
     id,
@@ -35,7 +52,7 @@ export const buildProgressionChordDefinition = (
     notes: sortedVoicing,
     noteNames,
     quality: 'progression',
-    root: noteNames[0] ?? 'C',
+    root: symbolRoot ?? noteNames[0] ?? 'C',
   };
 };
 

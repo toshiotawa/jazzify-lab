@@ -1,10 +1,17 @@
 import Foundation
 import AVFoundation
 
+/// Apple DLS（General MIDI）のデフォルトバンク MSB（メロディック）
+private let kDefaultMelodicBankMSB: UInt8 = 0x79
+/// GM program: Acoustic Grand Piano
+private let kRootBlendGrandProgram: UInt8 = 0
+/// GM program: Electric Piano 1 (Rhodes)
+private let kRootBlendElectricProgram: UInt8 = 4
+
 /// サバイバル ゲーム画面専用の軽量オーディオマネージャ。
 /// - AVAudioEngine + AVAudioUnitSampler (SoundFont 無しの内蔵音色) で SE 用 MIDI ノート再生
-/// - ピアノ鍵盤 / 正解ルート音は `SurvivalPianoSampler` (Salamander サンプル) で再生し、
-///   Web 版のピアノ音色と揃える。ノート ON/OFF で発音時間を制御する。
+/// - 正解ルート音は専用 `rootBassMixer` に別系統の GM アコースティックピアノ+エレピ
+///   （別系統の `AVAudioUnitSampler` ×2）を優先し、失敗時は従来の三角波バッファを再生する。
 /// - BGM はステージ種別ごとの 1 URL を `AVQueuePlayer + AVPlayerLooper` でループ再生
 /// - SE (my_attack / enemy_attack / stage_clear / stage_gameover) は内蔵サンプラーで簡易再生
 final class SurvivalGameAudio {
@@ -45,6 +52,13 @@ final class SurvivalGameAudio {
     /// ピアノ音量とは独立して大きめに鳴らせる。
     private let synthBassPlayer = AVAudioPlayerNode()
     private let rootBassMixer = AVAudioMixerNode()
+    /// 正解ルート用: 内蔵 DLS のアコースティックピアノ（メイン鍵盤の Salamander とは別系統）
+    private let rootGrandSampler = AVAudioUnitSampler()
+    /// 正解ルート用: エレピ（GM electric_piano_1）を薄く重ねる
+    private let rootElectricSampler = AVAudioUnitSampler()
+    /// `rootGrandSampler` / `rootElectricSampler` の DLS ロード成功
+    private var rootBlendGMReady = false
+    private var rootBlendGMLoadAttempted = false
     private let synthBassFormat: AVAudioFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
     /// `AVAudioPlayerNode.play()` / `scheduleBuffer` をメインスレッドから逃がすためのキュー。
     /// 移動中にスキル発動した際の 1 フレーム落ちを防ぐ。
@@ -79,6 +93,8 @@ final class SurvivalGameAudio {
         engine.attach(sfxMixer)
         engine.attach(pianoMixer)
         engine.attach(synthBassPlayer)
+        engine.attach(rootGrandSampler)
+        engine.attach(rootElectricSampler)
         engine.attach(rootBassMixer)
         engine.connect(sampler, to: sfxMixer, format: nil)
         engine.connect(sfxMixer, to: engine.mainMixerNode, format: nil)
@@ -87,7 +103,9 @@ final class SurvivalGameAudio {
         // Web 版 `FantasySoundManager._playRootNote` の master gain (0.3 + effectiveVolume * 0.7)
         // 相当をここで再現する (`applyVolumesToNodes` で反映)。
         engine.connect(synthBassPlayer, to: rootBassMixer, format: synthBassFormat)
-        engine.connect(rootBassMixer, to: engine.mainMixerNode, format: synthBassFormat)
+        engine.connect(rootGrandSampler, to: rootBassMixer, format: nil)
+        engine.connect(rootElectricSampler, to: rootBassMixer, format: nil)
+        engine.connect(rootBassMixer, to: engine.mainMixerNode, format: nil)
         bgmPlayer.actionAtItemEnd = .advance
         self.pianoSampler = SurvivalPianoSampler(engine: engine, output: pianoMixer)
     }
@@ -304,18 +322,17 @@ final class SurvivalGameAudio {
         }
     }
 
-    /// コード正解時に鳴らすシンセ ルート音 (Web 版 `FantasySoundManager._playRootNote` 相当)。
-    /// 三角波オシレーター + エンベロープ (attack 10ms → decay 120ms → release 400ms) を
-    /// バッファにレンダリングして `AVAudioPlayerNode` に流し込むことで、メインスレッドを
-    /// 一切ブロックせずに低音を即時再生する。
+    /// コード正解時のルート音。DLS のピアノ+エレピ混合を優先し、失敗時は従来の三角波バッファ。
     /// - Parameter midi: ルート音のピッチクラス (0=C) を C2 起点で鳴らす MIDI ノート番号推奨。
     func playSynthBassRoot(midi: Int) {
         guard !isStopping else { return }
         startEngineIfNeeded()
         guard isEngineStarted, engine.isRunning else { return }
         let clamped = max(0, min(127, midi))
-        // バッファ生成 (初回のみ重い) と scheduleBuffer/play はバックグラウンドで実行。
-        // 移動中にスキル発動してもメインスレッドを 1 フレームもブロックさせない。
+        prepareRootBlendGMBankIfNeeded()
+        if playRootGMBlendOneShot(midi: clamped) {
+            return
+        }
         synthBassQueue.async { [weak self] in
             guard let self else { return }
             guard let buffer = self.synthBassBuffer(midi: clamped) else { return }
@@ -327,6 +344,45 @@ final class SurvivalGameAudio {
         }
     }
 
+    /// GM ピアノ + エレピのプログラムを割り当てる（1 回のみ試行）。
+    /// iOS 実機では macOS の `gs_instruments.dls` パスを参照できずフォールバックになりやすいため、
+    /// 既定サンプラーへ program change を送って内蔵音源を使う。
+    private func prepareRootBlendGMBankIfNeeded() {
+        guard !rootBlendGMLoadAttempted else { return }
+        rootBlendGMLoadAttempted = true
+        rootGrandSampler.sendProgramChange(
+            kRootBlendGrandProgram,
+            bankMSB: kDefaultMelodicBankMSB,
+            bankLSB: 0,
+            onChannel: 0
+        )
+        rootElectricSampler.sendProgramChange(
+            kRootBlendElectricProgram,
+            bankMSB: kDefaultMelodicBankMSB,
+            bankLSB: 0,
+            onChannel: 0
+        )
+        rootBlendGMReady = true
+    }
+
+    /// GM 混合ワンショット。成功したら true。
+    private func playRootGMBlendOneShot(midi: Int) -> Bool {
+        guard rootBlendGMReady, !isStopping, isEngineStarted, engine.isRunning else { return false }
+        let n = UInt8(midi)
+        let velGrand: UInt8 = 118
+        let velElectric: UInt8 = 100
+        rootGrandSampler.startNote(n, withVelocity: velGrand, onChannel: 0)
+        rootElectricSampler.startNote(n, withVelocity: velElectric, onChannel: 0)
+        let stopDelay: TimeInterval = 0.45
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + stopDelay) { [weak self] in
+            guard let self, self.rootBlendGMReady else { return }
+            self.rootGrandSampler.stopNote(n, onChannel: 0)
+            self.rootElectricSampler.stopNote(n, onChannel: 0)
+        }
+        return true
+    }
+
+    /// 三角波フォールバック（`playSynthBassRoot` から非同期呼び出し用にバッファ生成のみ保持）
     /// MIDI ノートから三角波 + エンベロープ済み PCM バッファを生成 (初回のみ)。
     /// 生成結果はキャッシュし、以降の同じノートでは再計算しない。
     /// - Note: `preWarmSynthBassBuffers` のバックグラウンド生成と main からの再生が
@@ -446,7 +502,7 @@ final class SurvivalGameAudio {
     private func effectiveRootBassVolume() -> Float {
         if isMuted { return 0 }
         let effective = max(pianoVolume, 0)
-        return 0.3 + min(1.0, effective) * 0.7
+        return 0.42 + min(1.0, effective) * 0.58
     }
 
     private func playBgm() {
