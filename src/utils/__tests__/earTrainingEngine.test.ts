@@ -141,8 +141,8 @@ describe('earTrainingEngine', () => {
     })).toBe('gameOver');
   });
 
-  it('小節終端の 1ms 手前までの待ち時間を計算する', () => {
-    expect(getNextMeasureDelaySec(1.25, 4, 2)).toBeCloseTo(0.749);
+  it('小節終端のリード秒手前までの待ち時間を計算する', () => {
+    expect(getNextMeasureDelaySec(1.25, 4, 2)).toBeCloseTo(0.63);
   });
 
   it('境界直前では待ち時間がほぼ 0（負にならない）', () => {

@@ -51,9 +51,10 @@ final class EarTrainingAudio: NSObject {
     private var playbackToken: Int = 0
     private var isPhraseEngineRunning = false
 
-    /// フレーズ頭まで `currentTimeSec` を 0 に保つ（カウントイン中は進捗を流さない）。
-    private var phraseHeadClampActive = false
-    private var phraseHeadHostTime: UInt64 = 0
+    /// `schedulePreparedPhraseWithCountIn` でフレーズ `scheduleFile` した頭のホスト時刻。
+    /// 非ゼロの間は `playerTime.sampleTime` ではなくアンカー差分から `currentTimeSec` を出す。
+    /// （`phrasePlayer.play()` 直後〜フレーズ実再生まで、`sampleTime` にカウントイン分が混ざるのを避けるため）
+    private var phrasePlaybackAnchorHostTime: UInt64 = 0
 
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
     private var phraseVolume: Float = 1.0
@@ -231,18 +232,17 @@ final class EarTrainingAudio: NSObject {
 
             let phraseHost = nowHost &+ leadHost &+ beatHost &* UInt64(safeBeats)
             let phraseWhen = AVAudioTime(hostTime: phraseHost)
-            phraseHeadHostTime = phraseHost
-            phraseHeadClampActive = true
+            phrasePlaybackAnchorHostTime = phraseHost
 
             phrasePlayer.scheduleFile(file, at: phraseWhen) { [weak self] in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     guard self.playbackToken == scheduleToken else { return }
                     self.currentTimeSec = 0
+                    self.phrasePlaybackAnchorHostTime = 0
                     self.stopTimeTicker()
                     self.phrasePlayer.stop()
                     self.clickPlayer.stop()
-                    self.phraseHeadClampActive = false
                     self.onEnded?()
                 }
             }
@@ -252,8 +252,6 @@ final class EarTrainingAudio: NSObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + phraseStartDelaySec) { [weak self] in
                 guard let self else { return }
                 guard self.playbackToken == scheduleToken else { return }
-                self.phraseHeadClampActive = false
-                self.phraseHeadHostTime = 0
                 let cb = onPhraseStarted
                 cb?()
             }
@@ -306,8 +304,7 @@ final class EarTrainingAudio: NSObject {
         clickPlayer.stop()
         stopTimeTicker()
         currentTimeSec = 0
-        phraseHeadClampActive = false
-        phraseHeadHostTime = 0
+        phrasePlaybackAnchorHostTime = 0
     }
 
     /// コードヴォイシングバトルのカウントイン（同一 `AVAudioEngine` 上の短いクリック）。
@@ -391,8 +388,7 @@ final class EarTrainingAudio: NSObject {
         clickPlayer.stop()
         stopTimeTicker()
         currentTimeSec = 0
-        phraseHeadClampActive = false
-        phraseHeadHostTime = 0
+        phrasePlaybackAnchorHostTime = 0
     }
 
     private func schedulePhrase(file: AVAudioFile, scheduleToken: Int, onStarted: (() -> Void)?) {
@@ -400,8 +396,7 @@ final class EarTrainingAudio: NSObject {
 
         phrasePlayer.stop()
         currentTimeSec = 0
-        phraseHeadClampActive = false
-        phraseHeadHostTime = 0
+        phrasePlaybackAnchorHostTime = 0
 
         phrasePlayer.scheduleFile(file, at: nil, completionHandler: { [weak self] in
             DispatchQueue.main.async {
@@ -446,14 +441,18 @@ final class EarTrainingAudio: NSObject {
 
     private func emitPhraseTimeIfPlaying() {
         guard phrasePlayer.isPlaying else { return }
-        if phraseHeadClampActive {
+        let anchor = phrasePlaybackAnchorHostTime
+        if anchor != 0 {
             let now = mach_absolute_time()
-            if now < phraseHeadHostTime {
+            if now < anchor {
                 currentTimeSec = 0
                 return
             }
-            phraseHeadClampActive = false
-            phraseHeadHostTime = 0
+            let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
+            guard sec.isFinite else { return }
+            currentTimeSec = max(0, sec)
+            onTimeUpdate?(currentTimeSec)
+            return
         }
         guard let nodeTime = phrasePlayer.lastRenderTime,
               let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)
@@ -465,6 +464,19 @@ final class EarTrainingAudio: NSObject {
         currentTimeSec = max(0, sec)
         onTimeUpdate?(currentTimeSec)
     }
+
+    private static func secondsFromMachHostDifference(from start: UInt64, to end: UInt64) -> Double {
+        let delta = end &- start
+        let info = machTimebaseInfo
+        let nanos = Double(delta) * Double(info.numer) / Double(info.denom)
+        return nanos / 1_000_000_000
+    }
+
+    private static let machTimebaseInfo: mach_timebase_info_data_t = {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        return info
+    }()
 
     private func rebuildClickBuffer(for format: AVAudioFormat) {
         let sampleRate = format.sampleRate

@@ -214,8 +214,8 @@ enum EarTrainingEngine {
         return .input
     }
 
-    /// Web `NEXT_PHRASE_AT_MEASURE_END_LEAD_SEC` と一致。
-    private static let nextPhraseAtMeasureEndLeadSec: Double = 0.001
+    /// Web `NEXT_PHRASE_AT_MEASURE_END_LEAD_SEC` と一致。次小節頭が鳴らないよう停止を余裕をもって前倒しする。
+    private static let nextPhraseAtMeasureEndLeadSec: Double = 0.12
 
     /// Web `getNextMeasureDelaySec` 相当（現在小節終端から `nextPhraseAtMeasureEndLeadSec` 手前）。
     static func nextMeasureDelaySec(currentAudioTimeSec: Double, loopDurationSec: Double, loopMeasures: Int) -> Double {

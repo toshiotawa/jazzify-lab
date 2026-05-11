@@ -208,8 +208,8 @@ export const resolveEarTrainingOutcome = (state: {
   return 'input';
 };
 
-/** フレーズ完了遷移: 現在小節の終端からこの秒だけ手前で次へ進む（Web と iOS で同値） */
-const NEXT_PHRASE_AT_MEASURE_END_LEAD_SEC = 0.001;
+/** フレーズ完了遷移: 現在小節の終端からこの秒だけ手前で次へ進む（次小節頭を鳴らさない余白。Web と iOS で同値） */
+const NEXT_PHRASE_AT_MEASURE_END_LEAD_SEC = 0.12;
 
 export const getNextMeasureDelaySec = (
   currentAudioTimeSec: number,
