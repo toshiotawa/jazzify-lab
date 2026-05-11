@@ -7,6 +7,8 @@ private let kDefaultMelodicBankMSB: UInt8 = 0x79
 private let kRootBlendGrandProgram: UInt8 = 0
 /// GM program: Electric Piano 1 (Rhodes)
 private let kRootBlendElectricProgram: UInt8 = 4
+private let kRootTriangleFallbackPeakScale: Double = 1.25
+private let kRootTriangleFallbackSustainLevel: Double = 0.42
 
 /// サバイバル ゲーム画面専用の軽量オーディオマネージャ。
 /// - AVAudioEngine + AVAudioUnitSampler (SoundFont 無しの内蔵音色) で SE 用 MIDI ノート再生
@@ -397,10 +399,9 @@ final class SurvivalGameAudio {
         let sampleRate = synthBassFormat.sampleRate
         // Web 版 `_playRootNote` と同じく total 400ms、linearRamp ベースのエンベロープに揃える。
         // - 0 → 10ms: attack、ゲイン 0 → peakScale
-        // - 10ms → 120ms: decay、peakScale → sustainLevel (0.3)
+        // - 10ms → 120ms: decay、peakScale → sustainLevel
         // - 120ms → 400ms: release、sustainLevel → 0
-        // peakScale は Web 版 1.0 と同じ頭打ちにし、ミキサー (`rootBassMixer`) 側で
-        // 0.3 + pianoVolume * 0.7 の gain を掛けることで実効音量を確保する。
+        // フォールバック三角波は GM ピアノより少し小さい体感になるよう、Web 版と同じ係数で持ち上げる。
         let totalDuration: Double = 0.40
         let frameCount = AVAudioFrameCount(sampleRate * totalDuration)
         guard let buffer = AVAudioPCMBuffer(pcmFormat: synthBassFormat, frameCapacity: frameCount) else { return nil }
@@ -412,8 +413,8 @@ final class SurvivalGameAudio {
         let phaseInc = 2.0 * .pi * freq / sampleRate
         var phase: Double = 0
         let data = buffer.floatChannelData![0]
-        let peakScale: Double = 1.0
-        let sustainLevel: Double = 0.3
+        let peakScale = kRootTriangleFallbackPeakScale
+        let sustainLevel = kRootTriangleFallbackSustainLevel
         for i in 0..<Int(frameCount) {
             let sample = 2.0 / .pi * asin(sin(phase))
             let env: Double

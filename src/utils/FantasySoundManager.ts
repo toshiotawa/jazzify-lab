@@ -111,6 +111,8 @@ export class FantasySoundManager {
   private gmConvolver: ConvolverNode | null = null;
   /** GM ノートオフ時のゲインリリース（即 disconnect によるクリック／グリッサンドのプチ音を抑える） */
   private static readonly GM_NOTE_RELEASE_SEC = 0.038;
+  private static readonly ROOT_TRIANGLE_FALLBACK_PEAK_GAIN = 1.25;
+  private static readonly ROOT_TRIANGLE_FALLBACK_SUSTAIN_GAIN = 0.42;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -600,8 +602,8 @@ export class FantasySoundManager {
       gainNode.connect(this.rootMasterGain);
 
       const totalDuration = 0.4;
-      gainNode.gain.linearRampToValueAtTime(1.0, now + 0.01);
-      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.12);
+      gainNode.gain.linearRampToValueAtTime(FantasySoundManager.ROOT_TRIANGLE_FALLBACK_PEAK_GAIN, now + 0.01);
+      gainNode.gain.linearRampToValueAtTime(FantasySoundManager.ROOT_TRIANGLE_FALLBACK_SUSTAIN_GAIN, now + 0.12);
       gainNode.gain.linearRampToValueAtTime(0, now + totalDuration);
 
       osc.start(now);
