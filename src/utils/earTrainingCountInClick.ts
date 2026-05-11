@@ -30,7 +30,14 @@ export interface PlayEarTrainingCountInParams {
   gain: number;
   /** 各クリックの直後に残り拍（終了時は0）を通知。任意。 */
   onBeat?: (beatsRemaining: number) => void;
+  /** カウントイン末尾の「最後の半拍」の頭で1回だけ（フレーズ頭の半拍前）。beats>0 のときのみ。 */
+  onInputWindowStart?: () => void;
 }
+
+const halfBeatSecForBpm = (bpm: number): number => {
+  const safe = Math.max(20, Math.min(400, bpm));
+  return 30 / safe;
+};
 
 /**
  * 設定拍数分のカウントインを再生し、終了まで await する。
@@ -61,6 +68,15 @@ export const playEarTrainingCountIn = async (
     const spb = 60 / bpm;
     const start = ctx.currentTime + 0.02;
     const beatTimers: number[] = [];
+    let inputWindowTimer: number | undefined;
+    if (beats > 0 && params.onInputWindowStart) {
+      const phraseStartAudioTime = start + beats * spb;
+      const inputWindowAudioTime = phraseStartAudioTime - halfBeatSecForBpm(bpm);
+      const delayMs = Math.max(0, Math.ceil((inputWindowAudioTime - ctx.currentTime) * 1000));
+      inputWindowTimer = window.setTimeout(() => {
+        params.onInputWindowStart?.();
+      }, delayMs);
+    }
     for (let i = 0; i < beats; i += 1) {
       const when = start + i * spb;
       scheduleClick(ctx, when, gain * 0.55);
@@ -76,6 +92,9 @@ export const playEarTrainingCountIn = async (
     });
     for (const timer of beatTimers) {
       window.clearTimeout(timer);
+    }
+    if (inputWindowTimer !== undefined) {
+      window.clearTimeout(inputWindowTimer);
     }
   } finally {
     void ctx.close();

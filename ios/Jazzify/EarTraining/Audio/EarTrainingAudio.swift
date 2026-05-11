@@ -10,6 +10,8 @@ struct EarTrainingScheduledCountInPhrase: Sendable {
     let countInBeats: Int
     /// スケジュール呼び出し完了からフレーズ頭までの秒（リードイン＋拍×拍間）。
     let phraseStartDelaySec: Double
+    /// スケジュール呼び出し完了から入力ウィンドウ開始までの秒（フレーズ頭の半拍前）。
+    let inputWindowStartDelaySec: Double
 }
 
 /// 耳コピバトル ゲーム画面のオーディオマネージャ。
@@ -185,6 +187,7 @@ final class EarTrainingAudio: NSObject {
         url: URL,
         countInBeats: Int,
         bpm: Int,
+        onInputWindowStarted: (() -> Void)? = nil,
         onPhraseStarted: (() -> Void)? = nil
     ) -> EarTrainingScheduledCountInPhrase? {
         guard preparedForImmediatePlaybackURL == url,
@@ -200,6 +203,8 @@ final class EarTrainingAudio: NSObject {
         let beatDurationSec = max(0.1, 60.0 / Double(safeBpm))
         let safeBeats = max(0, countInBeats)
         let phraseStartDelaySec = leadInSec + beatDurationSec * Double(safeBeats)
+        let halfBeatSec = 30.0 / Double(safeBpm)
+        let inputWindowStartDelaySec = max(0, phraseStartDelaySec - halfBeatSec)
 
         do {
             let file = try AVAudioFile(forReading: local)
@@ -249,6 +254,13 @@ final class EarTrainingAudio: NSObject {
 
             startTimeTickerIfNeeded()
 
+            let inputWindowToken = scheduleToken
+            DispatchQueue.main.asyncAfter(deadline: .now() + inputWindowStartDelaySec) { [weak self] in
+                guard let self else { return }
+                guard self.playbackToken == inputWindowToken else { return }
+                onInputWindowStarted?()
+            }
+
             DispatchQueue.main.asyncAfter(deadline: .now() + phraseStartDelaySec) { [weak self] in
                 guard let self else { return }
                 guard self.playbackToken == scheduleToken else { return }
@@ -260,7 +272,8 @@ final class EarTrainingAudio: NSObject {
                 leadInSec: leadInSec,
                 beatDurationSec: beatDurationSec,
                 countInBeats: safeBeats,
-                phraseStartDelaySec: phraseStartDelaySec
+                phraseStartDelaySec: phraseStartDelaySec,
+                inputWindowStartDelaySec: inputWindowStartDelaySec
             )
         } catch {
             return nil

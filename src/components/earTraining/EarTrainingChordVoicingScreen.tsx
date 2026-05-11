@@ -281,6 +281,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const progressSaveStartedRef = useRef(false);
   const allChordsCompletedAtRef = useRef(false);
   const enemyAttackGaugePercentRef = useRef(0);
+  /** カウントイン末尾の「最後の半拍」からのみ true（譜面ヒント／先行入力許可）。 */
+  const countInEarlyInputRef = useRef(false);
+  const [countInEarlyInputActive, setCountInEarlyInputActive] = useState(false);
 
   const currentPhrase = phrases[phraseIndex];
 
@@ -702,11 +705,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     syncAudioTimelineRef.current = syncAudioTimeline;
   }, [syncAudioTimeline]);
 
-  const beginPhrasePlayback = useCallback((nextPhraseIndex: number) => {
+  const prepareChordVoicingPhrasePlayback = useCallback((nextPhraseIndex: number): boolean => {
     const phrase = phrases[nextPhraseIndex];
     if (!phrase) {
       finishGameOver(copy.noPhrases);
-      return;
+      return false;
     }
     setPhraseIndex(nextPhraseIndex);
     phraseIndexRef.current = nextPhraseIndex;
@@ -736,35 +739,55 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setActiveChord(initialChord);
     activeChordRef.current = initialChord;
     setStatusText(copy.phraseLabel(nextPhraseIndex + 1));
-    gameStateRef.current = 'playingPhrase';
-    setGameState('playingPhrase');
-
-    const audio = audioRef.current;
-    if (audio) {
-      audioPrimeTokenRef.current += 1;
-      audio.pause();
-      audio.src = phrase.audio_url;
-      audio.currentTime = 0;
-      audio.muted = false;
-      audio.volume = settings.musicVolume * settings.masterVolume;
-      void audio.play()
-        .then(() => {
-          syncAudioTimelineRef.current();
-        })
-        .catch(() => {
-          setStatusText(copy.audioFailed);
-        });
-    }
+    return true;
   }, [
     copy,
     finishGameOver,
     phrases,
-    settings.masterVolume,
-    settings.musicVolume,
     setEnemyAttackGaugePercent,
     stage.bpm,
     stage.loop_measures,
   ]);
+
+  const startPhraseAudioPlaybackOnly = useCallback(() => {
+    countInEarlyInputRef.current = false;
+    setCountInEarlyInputActive(false);
+    gameStateRef.current = 'playingPhrase';
+    setGameState('playingPhrase');
+    const phrase = phrases[phraseIndexRef.current];
+    if (!phrase) {
+      return;
+    }
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    audioPrimeTokenRef.current += 1;
+    audio.pause();
+    audio.src = phrase.audio_url;
+    audio.currentTime = 0;
+    audio.muted = false;
+    audio.volume = settings.musicVolume * settings.masterVolume;
+    void audio.play()
+      .then(() => {
+        syncAudioTimelineRef.current();
+      })
+      .catch(() => {
+        setStatusText(copy.audioFailed);
+      });
+  }, [
+    copy.audioFailed,
+    phrases,
+    settings.masterVolume,
+    settings.musicVolume,
+  ]);
+
+  const beginPhrasePlayback = useCallback((nextPhraseIndex: number) => {
+    if (!prepareChordVoicingPhrasePlayback(nextPhraseIndex)) {
+      return;
+    }
+    startPhraseAudioPlaybackOnly();
+  }, [prepareChordVoicingPhrasePlayback, startPhraseAudioPlaybackOnly]);
 
   const primePhraseAudio = useCallback((phrase: EarTrainingPhrase | undefined) => {
     const audio = audioRef.current;
@@ -807,6 +830,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearTransitionTimer();
     if (playsCountIn) {
       void (async () => {
+        countInEarlyInputRef.current = false;
+        setCountInEarlyInputActive(false);
         gameStateRef.current = 'countIn';
         setGameState('countIn');
         setStatusText(copy.countIn);
@@ -814,6 +839,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         setCountInValue(beats);
         stopPhraseAudio();
         primePhraseAudio(phrase);
+        if (!prepareChordVoicingPhrasePlayback(nextPhraseIndex)) {
+          return;
+        }
         try {
           await playEarTrainingCountIn({
             bpm: stage.bpm,
@@ -822,11 +850,19 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
             onBeat: remaining => {
               setCountInValue(remaining);
             },
+            ...(beats > 0
+              ? {
+                  onInputWindowStart: () => {
+                    countInEarlyInputRef.current = true;
+                    setCountInEarlyInputActive(true);
+                  },
+                }
+              : {}),
           });
         } catch {
           // クリック生成失敗時はそのままフレーズへ進む
         }
-        beginPhrasePlayback(nextPhraseIndex);
+        startPhraseAudioPlaybackOnly();
       })();
       return;
     }
@@ -839,12 +875,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     copy,
     finishGameOver,
     phrases,
+    prepareChordVoicingPhrasePlayback,
+    primePhraseAudio,
     settings.masterVolume,
     settings.musicVolume,
     stage.bpm,
     stage.count_in_beats,
+    startPhraseAudioPlaybackOnly,
     stopPhraseAudio,
-    primePhraseAudio,
   ]);
 
   useEffect(() => {
@@ -876,6 +914,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     void initializeAudioSystem().catch(() => undefined);
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
+    countInEarlyInputRef.current = false;
+    setCountInEarlyInputActive(false);
     setEnemyHp(stage.enemy_hp);
     setPlayerHp(stage.player_hp);
     setTimeRemaining(stage.time_limit_sec);
@@ -904,6 +944,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     const beats = Math.max(0, Math.min(32, stage.count_in_beats));
     setCountInValue(beats);
     void (async () => {
+      countInEarlyInputRef.current = false;
+      setCountInEarlyInputActive(false);
+      if (!prepareChordVoicingPhrasePlayback(0)) {
+        return;
+      }
       try {
         await playEarTrainingCountIn({
           bpm: stage.bpm,
@@ -912,15 +957,23 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           onBeat: remaining => {
             setCountInValue(remaining);
           },
+          ...(beats > 0
+            ? {
+                onInputWindowStart: () => {
+                  countInEarlyInputRef.current = true;
+                  setCountInEarlyInputActive(true);
+                },
+              }
+            : {}),
         });
       } catch {
         // 無音では続行
       }
       startTimeLimit();
-      beginPhrasePlayback(0);
+      startPhraseAudioPlaybackOnly();
     })();
   }, [
-    beginPhrasePlayback,
+    prepareChordVoicingPhrasePlayback,
     clearBattleEffectTimers,
     clearChordSyncTimer,
     clearFailTimer,
@@ -938,6 +991,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stage.enemy_hp,
     stage.player_hp,
     stage.time_limit_sec,
+    startPhraseAudioPlaybackOnly,
     startTimeLimit,
     stopPhraseAudio,
   ]);
@@ -1066,22 +1120,37 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return;
     }
     lastInputAtRef.current = now;
-    if (gameStateRef.current !== 'playingPhrase') {
+    const allowEarlyCountIn = gameStateRef.current === 'countIn' && countInEarlyInputRef.current;
+    if (gameStateRef.current !== 'playingPhrase' && !allowEarlyCountIn) {
       return;
     }
-    syncAudioTimelineRef.current({ scheduleNext: false });
-    if (gameStateRef.current !== 'playingPhrase') {
-      return;
+    const isEarlyCountIn = allowEarlyCountIn;
+    if (!isEarlyCountIn) {
+      syncAudioTimelineRef.current({ scheduleNext: false });
+      if (gameStateRef.current !== 'playingPhrase') {
+        return;
+      }
     }
     const phrase = phrases[phraseIndex];
     const currentAttempt = attemptRef.current;
     const displayChord = activeChordRef.current;
     const audio = audioRef.current;
     const loopDurationSec = getFinitePhraseLoopDuration(phrase);
-    if (!phrase || !currentAttempt || !audio || loopDurationSec === null) {
+    if (
+      !phrase
+      || !currentAttempt
+      || loopDurationSec === null
+      || (!isEarlyCountIn && !audio)
+    ) {
       return;
     }
-    const loopTimeSec = getLoopTimeSec(audio.currentTime, loopDurationSec);
+    let loopTimeSec = 0;
+    if (!isEarlyCountIn) {
+      if (!audio) {
+        return;
+      }
+      loopTimeSec = getLoopTimeSec(audio.currentTime, loopDurationSec);
+    }
     const targets = getEarTrainingChordJudgmentTargetsAtTime(
       phrase,
       loopTimeSec,
@@ -1242,6 +1311,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }, []);
 
   const handleAudioTimeUpdate = useCallback(() => {
+    if (gameStateRef.current !== 'playingPhrase') {
+      return;
+    }
     const audio = audioRef.current;
     const phrase = phrases[phraseIndex];
     if (!audio || !phrase) {
@@ -1321,6 +1393,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     ? harmonyCompletedIndex
     : Math.max(0, harmonySlotCount - 1);
 
+  const showVoicingTargetHints =
+    gameState === 'playingPhrase'
+    || (gameState === 'countIn' && countInEarlyInputActive);
+
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyAvatar = useMemo(() => {
     const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
@@ -1381,7 +1457,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     chords: harmonyHudRowsForHud.map(row => ({
       id: row.representativeId,
       name: row.chordName,
-      active: Boolean(activeChord?.id && row.voicingIds.includes(activeChord.id)),
+      active: Boolean(
+        showVoicingTargetHints && activeChord?.id && row.voicingIds.includes(activeChord.id),
+      ),
     })),
     phraseSlots: harmonyHudRowsForHud.map(() => '◯'),
     revealedNotes: [],
@@ -1426,6 +1504,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stage.player_hp,
     stage.title,
     stageStatusText,
+    showVoicingTargetHints,
     startButtonLabel,
     timeLabel,
   ]);
@@ -1544,12 +1623,15 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     if (!practiceMode || !activeChord) {
       return null;
     }
+    if (!showVoicingTargetHints) {
+      return null;
+    }
     if (attempt?.completedChordIds.has(activeChord.id)) {
       return null;
     }
     const pressed = attempt?.pressedByChord.get(activeChord.id);
     return computeVoicingKeyboardHints(activeChord.voicing, pressed);
-  }, [practiceMode, activeChord, attempt]);
+  }, [practiceMode, activeChord, attempt, showVoicingTargetHints]);
 
   useEffect(() => {
     const overlay = pianoOverlayRef.current;
@@ -1596,6 +1678,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
             chordName={activeChord?.chord_name}
             voicingGroups={staffVoicingGroups}
             activeGroupId={activeChord?.id ?? null}
+            showTargetHints={showVoicingTargetHints}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
             keyFifths={currentPhrase?.key_fifths ?? stage.key_fifths ?? 0}

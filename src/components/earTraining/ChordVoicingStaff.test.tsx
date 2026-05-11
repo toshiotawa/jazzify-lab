@@ -41,6 +41,30 @@ describe('ChordVoicingStaff', () => {
     expect(markerTipX).toBe(highestNoteEllipse?.getAttribute('cx'));
   });
 
+  it('showTargetHints が false のときマリンゴールド枠と逆三角マーカーを出さない', () => {
+    const correctMap = new Map<string, readonly number[]>();
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="G"
+        voicingGroups={[
+          {
+            id: 'active-v',
+            chordName: 'G',
+            voicing: ['G3', 'B3', 'D4', 'G4'],
+            voicingStaves: [2, 2, 1, 1],
+            measureOffset: 0,
+          },
+        ]}
+        activeGroupId="active-v"
+        showTargetHints={false}
+        correctPitchClassesByGroupId={correctMap}
+      />,
+    );
+
+    expect(container.querySelectorAll('ellipse[data-next-voicing-hint="true"]')).toHaveLength(0);
+    expect(container.querySelector('polygon[data-voicing-top-pointer="true"]')).toBeNull();
+  });
+
   it('次小節プレビュー（measureOffset===1）がアクティブでも未正解ガイドと赤マーカーを出さない', () => {
     const { container } = render(
       <ChordVoicingStaff

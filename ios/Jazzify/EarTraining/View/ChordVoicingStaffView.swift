@@ -881,6 +881,7 @@ struct ChordVoicingStaffGroupsView: View {
     let activeGroupId: UUID?
     let correctPitchClassesByGroupId: [UUID: Set<Int>]
     let completionPulse: ChordVoicingCompletionPulse?
+    var showTargetHints: Bool
 
     init(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
@@ -888,7 +889,8 @@ struct ChordVoicingStaffGroupsView: View {
         keyFifths: Int,
         activeGroupId: UUID?,
         correctPitchClassesByGroupId: [UUID: Set<Int>],
-        completionPulse: ChordVoicingCompletionPulse? = nil
+        completionPulse: ChordVoicingCompletionPulse? = nil,
+        showTargetHints: Bool = true
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -896,6 +898,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.activeGroupId = activeGroupId
         self.correctPitchClassesByGroupId = correctPitchClassesByGroupId
         self.completionPulse = completionPulse
+        self.showTargetHints = showTargetHints
     }
 
     static let notationColor = Color.white
@@ -909,6 +912,7 @@ struct ChordVoicingStaffGroupsView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let hintGroupId = showTargetHints ? activeGroupId : nil
             let w = max(1, proxy.size.width)
             let h = max(1, proxy.size.height)
             let canvasSize = CGSize(width: w, height: h)
@@ -919,7 +923,11 @@ struct ChordVoicingStaffGroupsView: View {
                 keyFifths: keyFifths,
                 correctByGroup: correctPitchClassesByGroupId
             )
-            let activeLabelGlobalFrame = activeLabelGlobalRect(proxy: proxy, overlay: overlay)
+            let activeLabelGlobalFrame = activeLabelGlobalRect(
+                proxy: proxy,
+                overlay: overlay,
+                activeGroupForLabel: hintGroupId
+            )
             ZStack(alignment: .topLeading) {
                 Canvas { context, size in
                     Self.drawAll(
@@ -928,7 +936,7 @@ struct ChordVoicingStaffGroupsView: View {
                         groups: groups,
                         dense: denseCurrentMeasureLayout,
                         keyFifths: keyFifths,
-                        activeGroupId: activeGroupId,
+                        activeGroupId: hintGroupId,
                         correctByGroup: correctPitchClassesByGroupId
                     )
                 }
@@ -952,9 +960,10 @@ struct ChordVoicingStaffGroupsView: View {
 
     private func activeLabelGlobalRect(
         proxy: GeometryProxy,
-        overlay: OverlayLayout
+        overlay: OverlayLayout,
+        activeGroupForLabel: UUID?
     ) -> CGRect? {
-        guard let aid = activeGroupId, let center = overlay.chordLabelCenters[aid] else {
+        guard let aid = activeGroupForLabel, let center = overlay.chordLabelCenters[aid] else {
             return nil
         }
         let globalFrame = proxy.frame(in: .global)

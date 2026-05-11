@@ -98,6 +98,21 @@ describe('playEarTrainingCountIn', () => {
     expect(resolved).toBe(true);
   });
 
+  it('最後の半拍の頭で onInputWindowStart を1回だけ呼ぶ', async () => {
+    const onInputWindowStart = vi.fn();
+    const promise = playEarTrainingCountIn({
+      bpm: 60,
+      countInBeats: 4,
+      gain: 1,
+      onInputWindowStart,
+    });
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(3520);
+    expect(onInputWindowStart).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(500);
+    await promise;
+  });
+
   it('resolves immediately without scheduling clicks when count-in beats is zero', async () => {
     const onBeat = vi.fn();
 

@@ -35,6 +35,8 @@ interface ChordVoicingStaffProps {
   denseCurrentMeasureLayout?: boolean;
   /** 完成エフェクトのワンショット指示。groupId が現在小節（measureOffset===0）に存在しない場合は無視 */
   completionPulse?: ChordVoicingCompletionPulse | null;
+  /** false のとき、次ガイド色・三角・コード名強調など「入力許可」を示す強調のみ抑止する */
+  showTargetHints?: boolean;
   className?: string;
 }
 
@@ -1152,6 +1154,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   correctPitchClassesByGroupId,
   denseCurrentMeasureLayout,
   completionPulse,
+  showTargetHints = true,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
@@ -1277,26 +1280,27 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     ? denseCurrentMeasureLayout
     : inferredDenseLayout;
   const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure);
+  const effectiveActiveGroupId = showTargetHints ? activeGroupId : null;
   const systemLayout = useMemo(
     () => computeBattleStaffSystemLayout(
       activeStaves,
       renderState.groups,
       layout,
-      activeGroupId,
+      effectiveActiveGroupId,
     ),
-    [activeGroupId, activeStaves, layout, renderState.groups],
+    [effectiveActiveGroupId, activeStaves, layout, renderState.groups],
   );
   const battleHints = useMemo(
     () => computeVoicingBattleHints(
       renderState.groups,
       layout,
-      activeGroupId,
+      effectiveActiveGroupId,
       correctPitchClassSets,
       activeStaves,
       systemLayout.firstStaffTopY,
     ),
     [
-      activeGroupId,
+      effectiveActiveGroupId,
       activeStaves,
       correctPitchClassSets,
       layout,
@@ -1407,7 +1411,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               staffTopY={systemLayout.firstStaffTopY + index * STAFF_TOP_STEP}
               keyFifths={keyFifths}
               layout={layout}
-              activeGroupId={activeGroupId}
+              activeGroupId={effectiveActiveGroupId}
             />
           ))}
           {activeStaves.length > 0 && [layout.measureDividerX, STAFF_LINE_RIGHT_X].map(x => (

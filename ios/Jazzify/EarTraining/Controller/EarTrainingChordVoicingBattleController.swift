@@ -37,6 +37,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var activeChord: EarTrainingPhraseChordDetail? {
         didSet { recomputeVoicingHints() }
     }
+    @Published private(set) var countInEarlyInputActive = false {
+        didSet {
+            if oldValue != countInEarlyInputActive {
+                recomputeVoicingHints()
+            }
+        }
+    }
     @Published private(set) var lastRank: EarTrainingRank?
     @Published private(set) var statusText: String
     @Published private(set) var activeLoop: Int = 1
@@ -191,7 +198,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let firstIncomplete = completed.firstIndex(where: { !$0 }) ?? completed.count
         let slotIndex = firstIncomplete < completed.count ? firstIncomplete : max(0, completed.count - 1)
         let chips = rows.map { row in
-            let active = activeChord.map { row.voicingIds.contains($0.id) } ?? false
+            let activeChordMatches = activeChord.map { row.voicingIds.contains($0.id) } ?? false
+            let showTargets = gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive)
+            let active = showTargets && activeChordMatches
             return EarTrainingChordChip(id: row.representativeId, name: row.chordName, active: active)
         }
         return EarTrainingHudModel(
@@ -320,15 +329,26 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         if now - lastInputAt < Self.inputCooldownMs { return }
         lastInputAt = now
 
-        guard gameState == .playingPhrase else { return }
-        syncChordTimeline(scheduleNext: false)
-        guard gameState == .playingPhrase else { return }
+        let allowEarlyCountIn = gameState == .countIn && countInEarlyInputActive
+        guard gameState == .playingPhrase || allowEarlyCountIn else { return }
+
+        if gameState == .playingPhrase {
+            syncChordTimeline(scheduleNext: false)
+            guard gameState == .playingPhrase else { return }
+        }
+
         guard let phrase = currentPhrase, let current = attempt else { return }
         let loopDurationSec = phrase.loopDurationSec
         guard loopDurationSec > 0 else { return }
-        let currentTime = audio.currentTimeSec
-        let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
-        let loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
+
+        let loopTimeSafe: Double
+        if allowEarlyCountIn {
+            loopTimeSafe = 0
+        } else {
+            let currentTime = audio.currentTimeSec
+            let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
+            loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
+        }
         let targets = EarTrainingChordVoicingEngine.judgmentTargetsAt(
             phrase: phrase,
             loopTime: loopTimeSafe,
@@ -657,6 +677,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelTransitionTimer()
         cancelChordSyncTask()
         completionPulse = nil
+        countInEarlyInputActive = false
         phraseIndex = prepared.phraseIndex
         phraseRunId += 1
         let runId = phraseRunId
@@ -674,6 +695,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             guard let self else { return }
             guard self.phraseRunId == runId else { return }
 
+            self.countInEarlyInputActive = false
             self.gameState = .playingPhrase
             if startsTimeLimit {
                 self.startTimeLimit()
@@ -687,6 +709,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 url: prepared.url,
                 countInBeats: sanitizedCountInBeats,
                 bpm: stage.bpm,
+                onInputWindowStarted: { [weak self] in
+                    guard let self else { return }
+                    guard self.phraseRunId == runId else { return }
+                    guard self.gameState == .countIn else { return }
+                    self.countInEarlyInputActive = true
+                },
                 onPhraseStarted: onStarted
             ) {
                 Task { @MainActor [weak self] in
@@ -1073,6 +1101,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelCountdownTimer()
         cancelTimeLimitTimer()
         cancelChordSyncTask()
+        countInEarlyInputActive = false
         feedbackTask?.cancel()
         feedbackTask = nil
         battleEffectClearTask?.cancel()
@@ -1089,7 +1118,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let next: [Int: VoicingHintState]
         if practiceMode,
            let chord = activeChord,
-           !(attempt?.completedChordIds.contains(chord.id) ?? false) {
+           !(attempt?.completedChordIds.contains(chord.id) ?? false),
+           gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive) {
             let pressed = attempt?.pressedByChord[chord.id] ?? []
             next = EarTrainingChordVoicingEngine.voicingKeyboardHints(
                 voicing: chord.voicing,

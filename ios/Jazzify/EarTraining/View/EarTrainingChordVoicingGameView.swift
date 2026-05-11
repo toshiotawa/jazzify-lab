@@ -263,6 +263,8 @@ private struct EarTrainingChordVoicingContent: View {
             )
             let correctMap = EarTrainingChordVoicingStaffLayout.correctPitchClassesByGroupId(attempt: controller.attempt)
             let keyFifths = phrase.keyFifths ?? controller.stage.keyFifths ?? 0
+            let showVoicingTargets = controller.gameState == .playingPhrase
+                || (controller.gameState == .countIn && controller.countInEarlyInputActive)
             if !build.groups.isEmpty {
                 ChordVoicingStaffGroupsView(
                     groups: build.groups,
@@ -270,7 +272,8 @@ private struct EarTrainingChordVoicingContent: View {
                     keyFifths: keyFifths,
                     activeGroupId: controller.activeChord?.id,
                     correctPitchClassesByGroupId: correctMap,
-                    completionPulse: controller.completionPulse
+                    completionPulse: controller.completionPulse,
+                    showTargetHints: showVoicingTargets
                 )
                 .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
                 .position(x: size.width / 2, y: size.height * 0.42)
