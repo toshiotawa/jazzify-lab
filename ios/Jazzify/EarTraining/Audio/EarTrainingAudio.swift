@@ -1,6 +1,16 @@
 import CryptoKit
 import Foundation
 import AVFoundation
+import Darwin
+
+/// コードヴォイシング同期用。`schedulePreparedPhraseWithCountIn` が採用したリードインと BPM を UI 側に渡す。
+struct EarTrainingScheduledCountInPhrase: Sendable {
+    let leadInSec: Double
+    let beatDurationSec: Double
+    let countInBeats: Int
+    /// スケジュール呼び出し完了からフレーズ頭までの秒（リードイン＋拍×拍間）。
+    let phraseStartDelaySec: Double
+}
 
 /// 耳コピバトル ゲーム画面のオーディオマネージャ。
 /// - フレーズ MP3: ローカルキャッシュ後に `AVAudioEngine` + `AVAudioPlayerNode` で再生し、約30Hzで進捗通知
@@ -40,6 +50,10 @@ final class EarTrainingAudio: NSObject {
 
     private var playbackToken: Int = 0
     private var isPhraseEngineRunning = false
+
+    /// フレーズ頭まで `currentTimeSec` を 0 に保つ（カウントイン中は進捗を流さない）。
+    private var phraseHeadClampActive = false
+    private var phraseHeadHostTime: UInt64 = 0
 
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
     private var phraseVolume: Float = 1.0
@@ -164,6 +178,97 @@ final class EarTrainingAudio: NSObject {
         }
     }
 
+    /// カウントイン全拍とフレーズ頭を同一ホスト時間軸で予約する（コードヴォイシング用）。
+    /// - Note: `preparePhraseForImmediatePlayback` 済みの `url` のみ受け付け。成功後は準備フラグを消費する。
+    func schedulePreparedPhraseWithCountIn(
+        url: URL,
+        countInBeats: Int,
+        bpm: Int,
+        onPhraseStarted: (() -> Void)? = nil
+    ) -> EarTrainingScheduledCountInPhrase? {
+        guard preparedForImmediatePlaybackURL == url,
+              loadedPhraseURL == url,
+              let local = preparedLocalFileURL
+        else {
+            return nil
+        }
+
+        let scheduleToken = playbackToken
+        let leadInSec = 0.02
+        let safeBpm = max(1, bpm)
+        let beatDurationSec = max(0.1, 60.0 / Double(safeBpm))
+        let safeBeats = max(0, countInBeats)
+        let phraseStartDelaySec = leadInSec + beatDurationSec * Double(safeBeats)
+
+        do {
+            let file = try AVAudioFile(forReading: local)
+            stopPhrasePlaybackOnly()
+            ensureGraph(for: file.processingFormat)
+            startPhraseEngineIfNeeded()
+
+            guard let pcm = clickPCM else { return nil }
+
+            preparedForImmediatePlaybackURL = nil
+            preparedLocalFileURL = nil
+
+            clickPlayer.stop()
+            phrasePlayer.stop()
+
+            clickPlayer.play()
+            phrasePlayer.play()
+
+            let nowHost = mach_absolute_time()
+            let leadHost = AVAudioTime.hostTime(forSeconds: leadInSec)
+            let beatHost = AVAudioTime.hostTime(forSeconds: beatDurationSec)
+
+            var clickIndex: UInt64 = 0
+            while clickIndex < UInt64(safeBeats) {
+                let hostTime = nowHost &+ leadHost &+ beatHost &* clickIndex
+                let when = AVAudioTime(hostTime: hostTime)
+                clickPlayer.scheduleBuffer(pcm, at: when, options: [], completionHandler: nil)
+                clickIndex &+= 1
+            }
+
+            let phraseHost = nowHost &+ leadHost &+ beatHost &* UInt64(safeBeats)
+            let phraseWhen = AVAudioTime(hostTime: phraseHost)
+            phraseHeadHostTime = phraseHost
+            phraseHeadClampActive = true
+
+            phrasePlayer.scheduleFile(file, at: phraseWhen) { [weak self] in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard self.playbackToken == scheduleToken else { return }
+                    self.currentTimeSec = 0
+                    self.stopTimeTicker()
+                    self.phrasePlayer.stop()
+                    self.clickPlayer.stop()
+                    self.phraseHeadClampActive = false
+                    self.onEnded?()
+                }
+            }
+
+            startTimeTickerIfNeeded()
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + phraseStartDelaySec) { [weak self] in
+                guard let self else { return }
+                guard self.playbackToken == scheduleToken else { return }
+                self.phraseHeadClampActive = false
+                self.phraseHeadHostTime = 0
+                let cb = onPhraseStarted
+                cb?()
+            }
+
+            return EarTrainingScheduledCountInPhrase(
+                leadInSec: leadInSec,
+                beatDurationSec: beatDurationSec,
+                countInBeats: safeBeats,
+                phraseStartDelaySec: phraseStartDelaySec
+            )
+        } catch {
+            return nil
+        }
+    }
+
     /// フレーズ MP3 を頭から再生する（準備に失敗した場合のフォールバック）。
     func playPhrase(url: URL, onStarted: (() -> Void)? = nil) {
         preparedForImmediatePlaybackURL = nil
@@ -198,8 +303,11 @@ final class EarTrainingAudio: NSObject {
         preparedLocalFileURL = nil
         playbackToken += 1
         phrasePlayer.stop()
+        clickPlayer.stop()
         stopTimeTicker()
         currentTimeSec = 0
+        phraseHeadClampActive = false
+        phraseHeadHostTime = 0
     }
 
     /// コードヴォイシングバトルのカウントイン（同一 `AVAudioEngine` 上の短いクリック）。
@@ -280,8 +388,11 @@ final class EarTrainingAudio: NSObject {
 
     private func stopPhrasePlaybackOnly() {
         phrasePlayer.stop()
+        clickPlayer.stop()
         stopTimeTicker()
         currentTimeSec = 0
+        phraseHeadClampActive = false
+        phraseHeadHostTime = 0
     }
 
     private func schedulePhrase(file: AVAudioFile, scheduleToken: Int, onStarted: (() -> Void)?) {
@@ -289,6 +400,8 @@ final class EarTrainingAudio: NSObject {
 
         phrasePlayer.stop()
         currentTimeSec = 0
+        phraseHeadClampActive = false
+        phraseHeadHostTime = 0
 
         phrasePlayer.scheduleFile(file, at: nil, completionHandler: { [weak self] in
             DispatchQueue.main.async {
@@ -297,6 +410,7 @@ final class EarTrainingAudio: NSObject {
                 self.currentTimeSec = 0
                 self.stopTimeTicker()
                 self.phrasePlayer.stop()
+                self.clickPlayer.stop()
                 self.onEnded?()
             }
         })
@@ -332,6 +446,15 @@ final class EarTrainingAudio: NSObject {
 
     private func emitPhraseTimeIfPlaying() {
         guard phrasePlayer.isPlaying else { return }
+        if phraseHeadClampActive {
+            let now = mach_absolute_time()
+            if now < phraseHeadHostTime {
+                currentTimeSec = 0
+                return
+            }
+            phraseHeadClampActive = false
+            phraseHeadHostTime = 0
+        }
         guard let nodeTime = phrasePlayer.lastRenderTime,
               let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)
         else {

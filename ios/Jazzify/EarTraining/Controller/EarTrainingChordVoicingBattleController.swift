@@ -575,44 +575,38 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             }
             _ = await self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
             if Task.isCancelled { return }
-            await self.runCountIn()
-            if Task.isCancelled { return }
-            self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: true)
+            self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: true, scheduledCountIn: true)
         }
         publishSnapshot()
     }
 
-    /// ステージ設定の拍数分、BPM に同期したクリックを鳴らす（ループ再生中の再突入では呼ばない）。
-    /// Web 版 `playEarTrainingCountIn` と同様に、基準時刻から絶対時刻で拍を刻み累積ドリフトを抑える。
-    private func runCountIn() async {
-        let beats = sanitizedCountInBeats
+    /// カウントイン表示をオーディオと同じリードイン＋拍間で進める（クリック音は `EarTrainingAudio` がスケジュール）。
+    private func runCountInDisplayOnly(scheduleStart: TimeInterval, meta: EarTrainingScheduledCountInPhrase) async {
+        let beats = meta.countInBeats
         guard beats > 0 else {
             countInValue = 0
             publishSnapshot()
             return
         }
-        let beatDurationSec = max(0.1, 60.0 / Double(stage.bpm))
-        let webLeadInSec = 0.02
-        let t0 = CFAbsoluteTimeGetCurrent() + webLeadInSec
+        let beatDurationSec = meta.beatDurationSec
+        let leadInSec = meta.leadInSec
         countInValue = beats
         publishSnapshot()
         for beatIndex in 0..<beats {
-            let targetClick = t0 + Double(beatIndex) * beatDurationSec
-            let sleepSec = targetClick - CFAbsoluteTimeGetCurrent()
+            let targetClick = scheduleStart + leadInSec + Double(beatIndex) * beatDurationSec
+            let sleepSec = targetClick - CACurrentMediaTime()
             if sleepSec > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(sleepSec * 1_000_000_000))
             }
             if Task.isCancelled { return }
-            audio.playCountInClick()
             countInValue = max(beats - beatIndex - 1, 0)
             publishSnapshot()
         }
-        let measureEnd = t0 + Double(beats) * beatDurationSec
-        let tailSec = measureEnd - CFAbsoluteTimeGetCurrent()
+        let measureEnd = scheduleStart + leadInSec + Double(beats) * beatDurationSec
+        let tailSec = measureEnd - CACurrentMediaTime()
         if tailSec > 0 {
             try? await Task.sleep(nanoseconds: UInt64(tailSec * 1_000_000_000))
         }
-        if Task.isCancelled { return }
     }
 
     private func startPhrase(at nextIndex: Int, playsCountIn: Bool = true) {
@@ -637,9 +631,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 }
                 _ = await self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
                 if Task.isCancelled { return }
-                await self.runCountIn()
-                if Task.isCancelled { return }
-                self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: false)
+                self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: false, scheduledCountIn: true)
             }
             publishSnapshot()
             return
@@ -652,11 +644,15 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             }
             _ = await self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
             if Task.isCancelled { return }
-            self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: false)
+            self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: false, scheduledCountIn: false)
         }
     }
 
-    private func beginPhrasePlayback(prepared: PreparedPhraseStart, startsTimeLimit: Bool) {
+    private func beginPhrasePlayback(
+        prepared: PreparedPhraseStart,
+        startsTimeLimit: Bool,
+        scheduledCountIn: Bool
+    ) {
         cancelFailTimer()
         cancelTransitionTimer()
         cancelChordSyncTask()
@@ -685,8 +681,26 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             self.syncChordTimeline(scheduleNext: true)
         }
 
-        if !audio.playPreparedPhrase(url: prepared.url, onStarted: onStarted) {
-            audio.playPhrase(url: prepared.url, onStarted: onStarted)
+        if scheduledCountIn {
+            let scheduleStart = CACurrentMediaTime()
+            if let meta = audio.schedulePreparedPhraseWithCountIn(
+                url: prepared.url,
+                countInBeats: sanitizedCountInBeats,
+                bpm: stage.bpm,
+                onPhraseStarted: onStarted
+            ) {
+                Task { @MainActor [weak self] in
+                    await self?.runCountInDisplayOnly(scheduleStart: scheduleStart, meta: meta)
+                }
+            } else {
+                if !audio.playPreparedPhrase(url: prepared.url, onStarted: onStarted) {
+                    audio.playPhrase(url: prepared.url, onStarted: onStarted)
+                }
+            }
+        } else {
+            if !audio.playPreparedPhrase(url: prepared.url, onStarted: onStarted) {
+                audio.playPhrase(url: prepared.url, onStarted: onStarted)
+            }
         }
 
         publishSnapshot()
