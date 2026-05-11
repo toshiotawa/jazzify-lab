@@ -514,7 +514,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelAllTimers()
         audio.stopPhrase()
         if let first = phrases.first, let url = URL(string: first.audioUrl) {
-            audio.primePhrase(url: url)
+            audio.prefetchPhraseItem(url: url)
         }
 
         countdownTask = Task { @MainActor [weak self] in
@@ -564,7 +564,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelChordSyncTask()
         if playsCountIn {
             if let url = URL(string: phrases[nextIndex].audioUrl) {
-                audio.primePhrase(url: url)
+                audio.prefetchPhraseItem(url: url)
             }
             countdownTask = Task { @MainActor [weak self] in
                 guard let self else { return }

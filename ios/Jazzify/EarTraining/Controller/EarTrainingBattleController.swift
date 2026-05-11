@@ -517,9 +517,9 @@ final class EarTrainingBattleController: ObservableObject {
         cancelCountdownTimer()
         audio.stopPhrase()
 
-        // 最初のフレーズを無音プライムする
+        // 最初のフレーズの AVPlayerItem を先読みする（無音 play は行わない）
         if let first = phrases.first, let url = URL(string: first.audioUrl) {
-            audio.primePhrase(url: url)
+            audio.prefetchPhraseItem(url: url)
         }
 
         let beatIntervalMs = max(100.0, (60.0 / Double(stage.bpm)) * 1000)

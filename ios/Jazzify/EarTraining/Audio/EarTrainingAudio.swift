@@ -85,37 +85,24 @@ final class EarTrainingAudio: NSObject {
         }
     }
 
-    /// フレーズ MP3 をプリロードして無音状態でわずかに再生し、ユーザー操作直後の遅延を緩和する。
-    /// Web 版 `primePhraseAudio` 相当。
-    func primePhrase(url: URL) {
+    /// カウントイン中にフレーズ用 `AVPlayerItem` を先読みしてバッファリングを進める。
+    /// 無音 `play()` は行わない（先頭音欠落の原因になる副作用を避ける）。Web の `audio.src` 割当＋事前ロード相当。
+    func prefetchPhraseItem(url: URL) {
+        if loadedPhraseURL == url, currentItem != nil, player.currentItem === currentItem {
+            return
+        }
         playbackToken += 1
         let token = playbackToken
         prepareItem(url: url)
-        player.volume = 0
         player.pause()
+        currentTimeSec = 0
         player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
             guard finished else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                guard self.playbackToken == token, self.loadedPhraseURL == url else { return }
-                self.player.play()
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
-                    guard let self else { return }
-                    guard self.playbackToken == token, self.loadedPhraseURL == url else { return }
-
-                    self.player.pause()
-                    self.player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
-                        guard finished else { return }
-                        DispatchQueue.main.async { [weak self] in
-                            guard let self else { return }
-                            guard self.playbackToken == token, self.loadedPhraseURL == url else { return }
-
-                            self.player.volume = self.phraseVolume
-                            self.currentTimeSec = 0
-                        }
-                    }
-                }
+                guard self.playbackToken == token else { return }
+                guard self.loadedPhraseURL == url else { return }
+                self.currentTimeSec = 0
             }
         }
     }
