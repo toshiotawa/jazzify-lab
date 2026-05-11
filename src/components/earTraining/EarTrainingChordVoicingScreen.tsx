@@ -766,73 +766,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stage.loop_measures,
   ]);
 
-  const startPhrase = useCallback((nextPhraseIndex: number, playsCountIn = true) => {
-    const phrase = phrases[nextPhraseIndex];
-    if (!phrase) {
-      finishGameOver(copy.noPhrases);
-      return;
-    }
-    clearFailTimer();
-    clearChordSyncTimer();
-    clearTransitionTimer();
-    if (playsCountIn) {
-      void (async () => {
-        gameStateRef.current = 'countIn';
-        setGameState('countIn');
-        setStatusText(copy.countIn);
-        const beats = Math.max(1, Math.min(32, stage.beats_per_measure));
-        setCountInValue(beats);
-        try {
-          await playEarTrainingCountInMeasure({
-            bpm: stage.bpm,
-            beatsPerMeasure: beats,
-            gain: settings.masterVolume * settings.musicVolume,
-            onBeat: remaining => {
-              setCountInValue(remaining);
-            },
-          });
-        } catch {
-          // クリック生成失敗時はそのままフレーズへ進む
-        }
-        beginPhrasePlayback(nextPhraseIndex);
-      })();
-      return;
-    }
-    beginPhrasePlayback(nextPhraseIndex);
-  }, [
-    beginPhrasePlayback,
-    clearChordSyncTimer,
-    clearFailTimer,
-    clearTransitionTimer,
-    copy,
-    finishGameOver,
-    phrases,
-    settings.masterVolume,
-    settings.musicVolume,
-    stage.beats_per_measure,
-    stage.bpm,
-  ]);
-
-  useEffect(() => {
-    startPhraseRef.current = startPhrase;
-  }, [startPhrase]);
-
-  const startTimeLimit = useCallback(() => {
-    clearTimeLimitTimer();
-    if (practiceMode) {
-      return;
-    }
-    timeLimitTimerRef.current = setInterval(() => {
-      setTimeRemaining(prev => {
-        const next = Math.max(0, prev - 1);
-        if (next <= 0) {
-          finishGameOver(copy.timeOver);
-        }
-        return next;
-      });
-    }, 1000);
-  }, [clearTimeLimitTimer, copy, finishGameOver, practiceMode]);
-
   const primePhraseAudio = useCallback((phrase: EarTrainingPhrase | undefined) => {
     const audio = audioRef.current;
     if (!audio || !phrase) {
@@ -863,6 +796,77 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       });
   }, [settings.masterVolume, settings.musicVolume]);
 
+  const startPhrase = useCallback((nextPhraseIndex: number, playsCountIn = true) => {
+    const phrase = phrases[nextPhraseIndex];
+    if (!phrase) {
+      finishGameOver(copy.noPhrases);
+      return;
+    }
+    clearFailTimer();
+    clearChordSyncTimer();
+    clearTransitionTimer();
+    if (playsCountIn) {
+      void (async () => {
+        gameStateRef.current = 'countIn';
+        setGameState('countIn');
+        setStatusText(copy.countIn);
+        const beats = Math.max(1, Math.min(32, stage.beats_per_measure));
+        setCountInValue(beats);
+        stopPhraseAudio();
+        primePhraseAudio(phrase);
+        try {
+          await playEarTrainingCountInMeasure({
+            bpm: stage.bpm,
+            beatsPerMeasure: beats,
+            gain: settings.masterVolume * settings.musicVolume,
+            onBeat: remaining => {
+              setCountInValue(remaining);
+            },
+          });
+        } catch {
+          // クリック生成失敗時はそのままフレーズへ進む
+        }
+        beginPhrasePlayback(nextPhraseIndex);
+      })();
+      return;
+    }
+    beginPhrasePlayback(nextPhraseIndex);
+  }, [
+    beginPhrasePlayback,
+    clearChordSyncTimer,
+    clearFailTimer,
+    clearTransitionTimer,
+    copy,
+    finishGameOver,
+    phrases,
+    settings.masterVolume,
+    settings.musicVolume,
+    stage.beats_per_measure,
+    stage.bpm,
+    stopPhraseAudio,
+    primePhraseAudio,
+  ]);
+
+  useEffect(() => {
+    startPhraseRef.current = startPhrase;
+  }, [startPhrase]);
+
+  const startTimeLimit = useCallback(() => {
+    clearTimeLimitTimer();
+    if (practiceMode) {
+      return;
+    }
+    timeLimitTimerRef.current = setInterval(() => {
+      setTimeRemaining(prev => {
+        const next = Math.max(0, prev - 1);
+        if (next <= 0) {
+          finishGameOver(copy.timeOver);
+        }
+        return next;
+      });
+    }, 1000);
+  }, [clearTimeLimitTimer, copy, finishGameOver, practiceMode]);
+
   const startCountIn = useCallback(() => {
     if (phrases.length === 0) {
       finishGameOver(copy.noPhrases);
@@ -870,7 +874,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
     markAudioUserInteraction();
     void initializeAudioSystem().catch(() => undefined);
-    primePhraseAudio(phrases[0]);
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     setEnemyHp(stage.enemy_hp);
@@ -896,6 +899,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearTransitionTimer();
     clearTimeLimitTimer();
     stopPhraseAudio();
+    primePhraseAudio(phrases[0]);
 
     const beats = Math.max(1, Math.min(32, stage.beats_per_measure));
     setCountInValue(beats);
