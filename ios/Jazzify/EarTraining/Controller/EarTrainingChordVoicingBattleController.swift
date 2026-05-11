@@ -14,6 +14,16 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
 
+    /// カウントイン中に組み立て、終了直後は適用＋再生だけに寄せる。
+    private struct PreparedPhraseStart {
+        let phraseIndex: Int
+        let phrase: EarTrainingPhraseDetail
+        let attempt: EarTrainingChordVoicingAttempt
+        let initialChord: EarTrainingPhraseChordDetail?
+        let activeMeasureNumber: Int
+        let url: URL
+    }
+
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseIndex: Int = 0
     @Published private(set) var phraseRunId: Int = 0
@@ -473,6 +483,43 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         return rank.rawValue
     }
 
+    private func makePreparedPhraseStart(at index: Int) -> PreparedPhraseStart? {
+        guard phrases.indices.contains(index) else { return nil }
+        let phrase = phrases[index]
+        guard let url = URL(string: phrase.audioUrl) else { return nil }
+        let nextAttempt = EarTrainingChordVoicingEngine.createAttempt(for: phrase)
+        let initialChord = EarTrainingChordVoicingEngine.chordDisplayAt(
+            phrase: phrase,
+            loopTime: 0,
+            bpm: stage.bpm,
+            completedChordIds: nextAttempt.completedChordIds,
+            loopDurationSec: phrase.loopDurationSec
+        )
+        let ld = phrase.loopDurationSec
+        let measureNum: Int
+        if ld > 0 {
+            if let chord = initialChord {
+                measureNum = chordMeasureNumber(chord: chord, loopDurationSec: ld)
+            } else {
+                measureNum = measureNumberAtLoopTime(
+                    loopTimeSec: 0,
+                    loopDurationSec: ld,
+                    loopMeasures: stage.loopMeasures
+                )
+            }
+        } else {
+            measureNum = 1
+        }
+        return PreparedPhraseStart(
+            phraseIndex: index,
+            phrase: phrase,
+            attempt: nextAttempt,
+            initialChord: initialChord,
+            activeMeasureNumber: measureNum,
+            url: url
+        )
+    }
+
     private func scheduleTransitionToNextPhrase(
         rank: EarTrainingRank,
         phrase: EarTrainingPhraseDetail
@@ -488,7 +535,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
             guard let self else { return }
             self.audio.stopPhrase()
-            try? await Task.sleep(nanoseconds: 420_000_000)
             let next = (self.phraseIndex + 1) % max(1, self.phrases.count)
             self.startPhrase(at: next, playsCountIn: true)
         }
@@ -520,13 +566,15 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         countdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            if let first = self.phrases.first, let url = URL(string: first.audioUrl) {
-                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+            guard let prepared = self.makePreparedPhraseStart(at: 0) else {
+                self.finishGameOver(message: self.copy.audioFailed)
+                return
             }
+            _ = await self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
             if Task.isCancelled { return }
             await self.runCountIn()
             if Task.isCancelled { return }
-            self.beginPhrasePlayback(at: 0, startsTimeLimit: true)
+            self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: true)
         }
         publishSnapshot()
     }
@@ -572,6 +620,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelFailTimer()
         cancelTransitionTimer()
         cancelChordSyncTask()
+        cancelCountdownTimer()
         if playsCountIn {
             countdownTask = Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -579,71 +628,49 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 self.statusText = self.copy.countIn
                 self.publishSnapshot()
 
-                guard let url = URL(string: self.phrases[nextIndex].audioUrl) else {
+                guard let prepared = self.makePreparedPhraseStart(at: nextIndex) else {
                     self.finishGameOver(message: self.copy.audioFailed)
                     return
                 }
-                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+                _ = await self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
                 if Task.isCancelled { return }
                 await self.runCountIn()
                 if Task.isCancelled { return }
-                self.beginPhrasePlayback(at: nextIndex, startsTimeLimit: false)
+                self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: false)
             }
             publishSnapshot()
             return
         }
-        beginPhrasePlayback(at: nextIndex, startsTimeLimit: false)
+        countdownTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard let prepared = self.makePreparedPhraseStart(at: nextIndex) else {
+                self.finishGameOver(message: self.copy.audioFailed)
+                return
+            }
+            _ = await self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
+            if Task.isCancelled { return }
+            self.beginPhrasePlayback(prepared: prepared, startsTimeLimit: false)
+        }
     }
 
-    private func beginPhrasePlayback(at nextIndex: Int, startsTimeLimit: Bool = false) {
-        guard let phrase = phrases.indices.contains(nextIndex) ? phrases[nextIndex] : nil else {
-            finishGameOver(message: copy.noPhrases)
-            return
-        }
+    private func beginPhrasePlayback(prepared: PreparedPhraseStart, startsTimeLimit: Bool) {
         cancelFailTimer()
         cancelTransitionTimer()
         cancelChordSyncTask()
         completionPulse = nil
-        phraseIndex = nextIndex
+        phraseIndex = prepared.phraseIndex
         phraseRunId += 1
         let runId = phraseRunId
         lastLoopAttackApplied = 0
         enemyAttackGaugePercent = 0
         activeLoop = 1
-        let next = EarTrainingChordVoicingEngine.createAttempt(for: phrase)
-        attempt = next
+        attempt = prepared.attempt
         lastRank = nil
         allChordsCompletedFlag = false
-        let initialChord = EarTrainingChordVoicingEngine.chordDisplayAt(
-            phrase: phrase,
-            loopTime: 0,
-            bpm: stage.bpm,
-            completedChordIds: next.completedChordIds,
-            loopDurationSec: phrase.loopDurationSec
-        )
-        activeChord = initialChord
-        let ld = phrase.loopDurationSec
-        if ld > 0 {
-            if let chord = initialChord {
-                activeMeasureNumber = chordMeasureNumber(chord: chord, loopDurationSec: ld)
-            } else {
-                activeMeasureNumber = measureNumberAtLoopTime(
-                    loopTimeSec: 0,
-                    loopDurationSec: ld,
-                    loopMeasures: stage.loopMeasures
-                )
-            }
-        } else {
-            activeMeasureNumber = 1
-        }
-        statusText = copy.phraseLabel(indexOneBased: nextIndex + 1)
-        guard let url = URL(string: phrase.audioUrl) else {
-            finishGameOver(message: copy.audioFailed)
-            return
-        }
+        activeChord = prepared.initialChord
+        activeMeasureNumber = prepared.activeMeasureNumber
+        statusText = copy.phraseLabel(indexOneBased: prepared.phraseIndex + 1)
         gameState = .playingPhrase
-        publishSnapshot()
-        syncChordTimeline(scheduleNext: true)
 
         let onStarted: () -> Void = { [weak self] in
             Task { @MainActor in
@@ -657,9 +684,11 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             }
         }
 
-        if !audio.playPreparedPhrase(url: url, onStarted: onStarted) {
-            audio.playPhrase(url: url, onStarted: onStarted)
+        if !audio.playPreparedPhrase(url: prepared.url, onStarted: onStarted) {
+            audio.playPhrase(url: prepared.url, onStarted: onStarted)
         }
+
+        publishSnapshot()
     }
 
     private func startTimeLimit() {
