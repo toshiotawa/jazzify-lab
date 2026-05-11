@@ -5,6 +5,7 @@ import ChordVoicingStaff from './ChordVoicingStaff';
 const SMUFL_ACCIDENTAL_NATURAL = '\uE261';
 const SMUFL_ACCIDENTAL_SHARP = '\uE262';
 
+const NOTATION_COLOR = '#ffffff';
 const NEXT_TARGET_COLOR = '#f39800';
 
 describe('ChordVoicingStaff', () => {
@@ -39,6 +40,46 @@ describe('ChordVoicingStaff', () => {
     const points = pointer?.getAttribute('points')?.trim() ?? '';
     const markerTipX = points.split(/\s+/)[0]?.split(',')[0] ?? '';
     expect(markerTipX).toBe(highestNoteEllipse?.getAttribute('cx'));
+    const cy = Number(highestNoteEllipse?.getAttribute('cy'));
+    const pointerApexY = Number(points.split(/\s+/)[0]?.split(',')[1]);
+    expect(Number.isFinite(cy)).toBe(true);
+    expect(Number.isFinite(pointerApexY)).toBe(true);
+    const noteRy = Number(highestNoteEllipse?.getAttribute('ry'));
+    expect(Number.isFinite(noteRy)).toBe(true);
+    expect(pointerApexY).toBeLessThanOrEqual(cy - noteRy - 4);
+  });
+
+  it('五線外表の加線はヒントや正解でも常に音符と同じ白（五線本体に合わせる）', () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="High"
+        voicingGroups={[
+          {
+            id: 'grp',
+            chordName: 'C+D',
+            voicing: ['C6', 'D6'],
+            voicingStaves: [1, 1],
+            measureOffset: 0,
+          },
+        ]}
+        activeGroupId="grp"
+        correctPitchClassesByGroupId={new Map([['grp', [0]]])}
+      />,
+    );
+    container.querySelectorAll('ellipse[data-voicing-group-id="grp"]').forEach(ellipse => {
+      const color = ellipse.getAttribute('stroke');
+      expect(color === '#22c55e' || color === NEXT_TARGET_COLOR).toBe(true);
+      const parent = ellipse.parentElement;
+      expect(parent).not.toBeNull();
+      const ledgerWrap = parent?.querySelector('[data-voicing-ledger-lines="true"]');
+      expect(ledgerWrap).not.toBeNull();
+      const children = parent ? Array.from(parent.children) : [];
+      expect(children.indexOf(ledgerWrap!)).toBeGreaterThan(children.indexOf(ellipse));
+
+      ellipse.parentElement?.querySelectorAll('line').forEach(line => {
+        expect(line.getAttribute('stroke')).toBe(NOTATION_COLOR);
+      });
+    });
   });
 
   it('showTargetHints が false のときマリンゴールド枠と逆三角マーカーを出さない', () => {

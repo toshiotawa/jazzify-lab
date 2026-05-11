@@ -1380,7 +1380,7 @@ struct ChordVoicingStaffGroupsView: View {
         let halfW = staffSpacing * 0.42
         let topEdgeY = yCenter - noteHeight / 2
         /// 逆三角形：頂点を音符側（下）、底辺を上に（Web `TopNotePointer` の上下と揃える）
-        let apexY = topEdgeY - staffSpacing * 0.18
+        let apexY = topEdgeY - staffSpacing * 0.55
         let baseY = apexY - triH
         var path = Path()
         path.move(to: CGPoint(x: xCenter, y: apexY))
@@ -1745,7 +1745,7 @@ struct ChordVoicingStaffGroupsView: View {
             staffTopY: staffTopY,
             staffSpacing: staffSpacing,
             noteWidth: noteWidth,
-            color: color
+            color: notationColor
         )
         if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
             let accidentalX = min(

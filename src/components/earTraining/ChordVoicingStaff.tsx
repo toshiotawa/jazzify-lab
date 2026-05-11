@@ -570,8 +570,7 @@ const LedgerLines: React.FC<{
   yCenter: number;
   staffTopY: number;
   noteWidth: number;
-  color: string;
-}> = ({ xCenter, yCenter, staffTopY, noteWidth, color }) => {
+}> = ({ xCenter, yCenter, staffTopY, noteWidth }) => {
   const topLineY = staffTopY;
   const bottomLineY = staffTopY + STAFF_HEIGHT;
   const noteHeight = SP * 0.86;
@@ -591,7 +590,7 @@ const LedgerLines: React.FC<{
   }
 
   return (
-    <g>
+    <g data-voicing-ledger-lines="true">
       {ledgerLineYs.map(y => (
         <line
           key={y}
@@ -599,7 +598,7 @@ const LedgerLines: React.FC<{
           x2={xCenter + noteWidth / 2 + SP * 0.4}
           y1={y}
           y2={y}
-          stroke={color}
+          stroke={NOTATION_COLOR}
           strokeLinecap="round"
           strokeWidth={STAFF_LINE_THICKNESS}
         />
@@ -634,13 +633,6 @@ const WholeNote: React.FC<{
 
   return (
     <g>
-      <LedgerLines
-        xCenter={xCenter}
-        yCenter={positioned.yCenter}
-        staffTopY={staffTopY}
-        noteWidth={noteWidth}
-        color={notationColor}
-      />
       {accidental && (
         <text
           data-accidental-group-id={groupId}
@@ -670,6 +662,12 @@ const WholeNote: React.FC<{
         stroke={notationColor}
         strokeWidth="2.8"
         transform={`rotate(-18 ${xCenter} ${positioned.yCenter})`}
+      />
+      <LedgerLines
+        xCenter={xCenter}
+        yCenter={positioned.yCenter}
+        staffTopY={staffTopY}
+        noteWidth={noteWidth}
       />
     </g>
   );
@@ -1048,7 +1046,8 @@ const TopNotePointer: React.FC<{
   const triH = SP * 0.55;
   const halfW = SP * 0.42;
   const topEdgeY = yCenter - noteHeight / 2;
-  const apexY = topEdgeY - SP * 0.18;
+  /** 逆三角マーカーを五線直上でやや離す（上方向へ） */
+  const apexY = topEdgeY - SP * 0.55;
   const baseY = apexY - triH;
   return (
     <polygon

@@ -209,6 +209,10 @@ private struct EarTrainingChordVoicingContent: View {
                     hud: controller.hudModel,
                     horizontalPadding: hudHorizontalPadding,
                     showsSlotsRow: false,
+                    rightControlIconPointSize: 17,
+                    rightControlCapsuleSize: 36,
+                    rightControlHitSize: 52,
+                    healthRowTrailingReserve: 118,
                     onSettings: { controller.handleOpenSettings() },
                     onBack: { controller.handleBack() }
                 )

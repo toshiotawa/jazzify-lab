@@ -7,6 +7,12 @@ struct EarTrainingHUDView: View {
     let hud: EarTrainingHudModel
     var horizontalPadding: CGFloat = 8
     var showsSlotsRow: Bool = true
+    /// 右上の設定ギア／閉じるボタン（コードヴォイシング画面などで拡大可能）
+    var rightControlIconPointSize: CGFloat = 13
+    var rightControlCapsuleSize: CGFloat = 30
+    var rightControlHitSize: CGFloat = 44
+    /// `healthTimeRow` が右上コントロールと重ならないよう確保する trailing
+    var healthRowTrailingReserve: CGFloat = 98
     let onSettings: () -> Void
     let onBack: () -> Void
 
@@ -66,7 +72,7 @@ struct EarTrainingHUDView: View {
                 frameAlignment: .trailing
             )
         }
-        .padding(.trailing, 98)
+        .padding(.trailing, healthRowTrailingReserve)
     }
 
     private var rightControls: some View {
@@ -130,8 +136,8 @@ struct EarTrainingHUDView: View {
     private func iconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 13, weight: .bold))
-                .frame(width: 30, height: 30)
+                .font(.system(size: rightControlIconPointSize, weight: .bold))
+                .frame(width: rightControlCapsuleSize, height: rightControlCapsuleSize)
                 .foregroundColor(.white)
                 .background(Color.black.opacity(0.55))
                 .overlay(
@@ -141,7 +147,7 @@ struct EarTrainingHUDView: View {
         }
         .accessibilityLabel(Text(label))
         .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
+        .frame(width: rightControlHitSize, height: rightControlHitSize)
         .contentShape(Rectangle())
     }
 

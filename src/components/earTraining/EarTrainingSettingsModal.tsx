@@ -67,7 +67,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-3 py-1 text-slate-300 hover:bg-slate-800 hover:text-white"
+            className="rounded-lg px-5 py-2.5 text-base font-semibold text-slate-300 hover:bg-slate-800 hover:text-white"
             aria-label={ui.closeAriaLabel}
           >
             {ui.close}

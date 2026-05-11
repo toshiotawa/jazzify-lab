@@ -704,8 +704,28 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }).setOrigin(0.5, 0);
     this.hudLayer.add(time);
 
-    this.drawUtilityButton(width - 118, 58, 46, snapshot.hudLabels.settings, () => this.callbacks.onOpenSettings());
-    this.drawUtilityButton(width - 66, 58, 46, snapshot.hudLabels.backShort, () => this.callbacks.onBack());
+    const utilBtnW = 58;
+    const utilBtnH = 36;
+    const utilRightPad = 12;
+    const utilGap = 10;
+    const utilBackX = width - utilRightPad - utilBtnW;
+    const utilSettingsX = utilBackX - utilGap - utilBtnW;
+    this.drawUtilityButton(
+      utilSettingsX,
+      56,
+      utilBtnW,
+      utilBtnH,
+      snapshot.hudLabels.settings,
+      () => this.callbacks.onOpenSettings(),
+    );
+    this.drawUtilityButton(
+      utilBackX,
+      56,
+      utilBtnW,
+      utilBtnH,
+      snapshot.hudLabels.backShort,
+      () => this.callbacks.onBack(),
+    );
     this.drawChordHud(width, 104);
 
     if (snapshot.practiceMode) {
@@ -785,18 +805,25 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
   }
 
-  private drawUtilityButton(x: number, y: number, width: number, label: string, onClick: () => void): void {
+  private drawUtilityButton(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    label: string,
+    onClick: () => void,
+  ): void {
     if (!this.hudLayer) {
       return;
     }
-    const button = this.add.rectangle(x, y, width, 28, 0x020617, 0.72).setOrigin(0, 0);
+    const button = this.add.rectangle(x, y, width, height, 0x020617, 0.72).setOrigin(0, 0);
     button.setStrokeStyle(1, 0xffffff, 0.16);
     button.setInteractive({ useHandCursor: true });
     button.on('pointerdown', onClick);
-    const text = this.add.text(x + width / 2, y + 14, label, {
+    const text = this.add.text(x + width / 2, y + height / 2, label, {
       color: '#e2e8f0',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '12px',
+      fontSize: '15px',
       fontStyle: '900',
     }).setOrigin(0.5, 0.5);
     this.hudLayer.add([button, text]);
