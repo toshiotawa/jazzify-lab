@@ -146,7 +146,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var stageStatusText: String {
-        gameState == .countIn ? countInDisplay : statusText
+        if gameState == .countIn, countInValue > 0 {
+            return countInDisplay
+        }
+        return statusText
     }
 
     private var sanitizedCountInBeats: Int {
@@ -670,18 +673,16 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         activeChord = prepared.initialChord
         activeMeasureNumber = prepared.activeMeasureNumber
         statusText = copy.phraseLabel(indexOneBased: prepared.phraseIndex + 1)
-        gameState = .playingPhrase
 
         let onStarted: () -> Void = { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                guard self.phraseRunId == runId else { return }
+            guard let self else { return }
+            guard self.phraseRunId == runId else { return }
 
-                if startsTimeLimit {
-                    self.startTimeLimit()
-                }
-                self.syncChordTimeline(scheduleNext: true)
+            self.gameState = .playingPhrase
+            if startsTimeLimit {
+                self.startTimeLimit()
             }
+            self.syncChordTimeline(scheduleNext: true)
         }
 
         if !audio.playPreparedPhrase(url: prepared.url, onStarted: onStarted) {

@@ -124,7 +124,10 @@ final class EarTrainingBattleController: ObservableObject {
     }
 
     var stageStatusText: String {
-        gameState == .countIn ? countInDisplay : statusText
+        if gameState == .countIn, countInValue > 0 {
+            return countInDisplay
+        }
+        return statusText
     }
 
     var resultRankLine: String? {
@@ -579,21 +582,21 @@ final class EarTrainingBattleController: ObservableObject {
         demoBubbleVisible = shouldShowDemoBubble(phrase: phrase, loopNumber: 1, loopTimeSec: 0)
         activeChord = activeChordAt(phrase: phrase, timeSec: 0)
         statusText = copy.phraseLabel(indexOneBased: index + 1)
-        gameState = .playingPhrase
 
         if let url = URL(string: phrase.audioUrl) {
             let onStarted: () -> Void = { [weak self] in
-                Task { @MainActor in
-                    guard let self else { return }
-                    guard self.phraseRunId == runId else { return }
-                    if startsTimeLimit {
-                        self.startTimeLimit()
-                    }
+                guard let self else { return }
+                guard self.phraseRunId == runId else { return }
+                self.gameState = .playingPhrase
+                if startsTimeLimit {
+                    self.startTimeLimit()
                 }
             }
             if !audio.playPreparedPhrase(url: url, onStarted: onStarted) {
                 audio.playPhrase(url: url, onStarted: onStarted)
             }
+        } else {
+            gameState = .playingPhrase
         }
         publishSnapshot()
     }

@@ -1,43 +1,58 @@
+import CryptoKit
 import Foundation
 import AVFoundation
 
 /// 耳コピバトル ゲーム画面のオーディオマネージャ。
-/// - フレーズ MP3 (AVPlayer + AVPlayerItem) のストリーミング再生 + 周期的な currentTime 通知
+/// - フレーズ MP3: ローカルキャッシュ後に `AVAudioEngine` + `AVAudioPlayerNode` で再生し、約30Hzで進捗通知
 /// - ピアノ発音と効果音は `SurvivalGameAudio.shared` を共有して再利用する
-/// - フレーズ音量 = `musicVolume * masterVolume` を反映
-/// - AVPlayer は UI / ゲーム状態と同様メインスレッドからのみ操作する（呼び出し元は `@MainActor` コントローラ）。
+/// - フレーズ音量 = `musicVolume * masterVolume` を `phraseMixer` に反映
+/// - コードヴォイシングのカウントインクリックは同一エンジン上の短いPCMバッファで再生する
 final class EarTrainingAudio: NSObject {
     /// 周期的に通知される再生時刻 (秒)。停止中は 0。
     private(set) var currentTimeSec: Double = 0
 
-    /// MP3 終端到達 (`AVPlayerItem.didPlayToEndTime`) の発火コールバック。
+    /// フレーズが最後まで再生完了したときのコールバック（`scheduleFile` の completion）。
     var onEnded: (() -> Void)?
     /// 周期 (≒30Hz) で呼ばれる進捗コールバック。引数は秒。
     var onTimeUpdate: ((Double) -> Void)?
 
-    private let player = AVPlayer()
-    private var currentItem: AVPlayerItem?
-    private var timeObserverToken: Any?
-    private var endObservation: NSObjectProtocol?
-    private var statusObservation: NSKeyValueObservation?
-    private var preloadedAssetURL: URL?
-    private var preloadedAsset: AVURLAsset?
-    /// `player` に現在載っているフレーズ URL（同一 URL では `AVPlayerItem` を作り直さず再利用する）。
+    private let engine = AVAudioEngine()
+    private let phrasePlayer = AVAudioPlayerNode()
+    private let clickPlayer = AVAudioPlayerNode()
+    private let phraseMixer = AVAudioMixerNode()
+
+    private let cache = EarTrainingPhraseFileCache()
+    private var timeTicker: DispatchSourceTimer?
+
+    private var isGraphInstalled = false
+    private var lastPhraseFormat: AVAudioFormat?
+    private var clickPCM: AVAudioPCMBuffer?
+
+    /// リモート先読み重複排除用（ロビー `preloadPhrase`）。
+    private var preloadDedupeURL: URL?
+
+    /// 論理キー（API に渡る `URL`）。リモートまたは file URL。
     private var loadedPhraseURL: URL?
-    /// `preparePhraseForImmediatePlayback` 完了済みで、頭出し済み pause 状態のフレーズ URL。
+    /// `preparePhraseForImmediatePlayback` 済みの論理 URL。
     private var preparedForImmediatePlaybackURL: URL?
+    /// キャッシュ上のローカルファイル（再生直前に `AVAudioFile` を開く）。
+    private var preparedLocalFileURL: URL?
+
     private var playbackToken: Int = 0
+    private var isPhraseEngineRunning = false
 
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
     private var phraseVolume: Float = 1.0
 
     override init() {
         super.init()
-        player.actionAtItemEnd = .pause
     }
 
     deinit {
-        removeObservers()
+        stopTimeTicker()
+        if engine.isRunning {
+            engine.stop()
+        }
     }
 
     // MARK: - Lifecycle
@@ -45,11 +60,17 @@ final class EarTrainingAudio: NSObject {
     /// 開始時に呼ぶ。Survival と同じ AVAudioSession 設定 + ピアノ準備を行うが、BGM は鳴らさない。
     func start() {
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
+        installGraphIfNeeded()
+        startPhraseEngineIfNeeded()
     }
 
-    /// 終了時に呼ぶ。フレーズ MP3 を完全停止し、ピアノ発音停止 + Survival のオーディオセッションを閉じる。
+    /// 終了時に呼ぶ。フレーズを完全停止し、ピアノ発音停止 + Survival のオーディオセッションを閉じる。
     func stop() {
         stopPhrase()
+        if engine.isRunning {
+            engine.stop()
+        }
+        isPhraseEngineRunning = false
         SurvivalGameAudio.shared.stop()
     }
 
@@ -58,15 +79,14 @@ final class EarTrainingAudio: NSObject {
     func setVolumes(master: Double, music: Double, piano: Double, sfx: Double) {
         let m = clampedFloat(master)
         phraseVolume = clampedFloat(music) * m
-        player.volume = phraseVolume
-        // ピアノ / 効果音は SurvivalGameAudio の永続音量に反映する。
+        phraseMixer.outputVolume = phraseVolume
         SurvivalGameAudio.shared.setPianoVolume(clampedFloat(piano))
         SurvivalGameAudio.shared.setSfxVolume(clampedFloat(sfx))
     }
 
     func setPhraseVolume(_ value: Float) {
         phraseVolume = max(0, min(1, value))
-        player.volume = phraseVolume
+        phraseMixer.outputVolume = phraseVolume
     }
 
     private func clampedFloat(_ value: Double) -> Float {
@@ -75,113 +95,99 @@ final class EarTrainingAudio: NSObject {
 
     // MARK: - Phrase playback
 
-    /// ロビー表示中に先頭フレーズのアセット情報を読み始め、START 後の初回バッファ待ちを短縮する。
+    /// ロビー表示中に先頭フレーズをキャッシュへ取り込み、START 後の待ちを短縮する。
     func preloadPhrase(url: URL) {
-        guard preloadedAssetURL != url else { return }
-
-        let asset = AVURLAsset(url: url)
-        preloadedAssetURL = url
-        preloadedAsset = asset
-        Task {
-            _ = try? await asset.load(.isPlayable)
-            _ = try? await asset.load(.duration)
+        guard preloadDedupeURL != url else { return }
+        preloadDedupeURL = url
+        Task { [weak self] in
+            _ = try? await self?.cache.localFileURL(for: url)
         }
     }
 
-    /// カウントイン中にフレーズ用 `AVPlayerItem` を先読みしてバッファリングを進める。
-    /// 無音 `play()` は行わない（先頭音欠落の原因になる副作用を避ける）。Web の `audio.src` 割当＋事前ロード相当。
+    /// 互換のため残す。キャッシュの先読みのみ行う（無音 `play()` はしない）。
     func prefetchPhraseItem(url: URL) {
-        if loadedPhraseURL == url, currentItem != nil, player.currentItem === currentItem {
-            return
-        }
-        preparedForImmediatePlaybackURL = nil
-        playbackToken += 1
-        let token = playbackToken
-        prepareItem(url: url)
-        player.pause()
-        currentTimeSec = 0
-        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
-            guard finished else { return }
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                guard self.playbackToken == token else { return }
-                guard self.loadedPhraseURL == url else { return }
-                self.currentTimeSec = 0
-            }
+        Task { [weak self] in
+            _ = try? await self?.cache.localFileURL(for: url)
         }
     }
 
-    /// カウントイン前に呼ぶ。アイテム作成・ playable 読み込み・頭出し済みまで待機し、`playPreparedPhrase` で即再生できる状態にする。
+    /// カウントイン前に呼ぶ。リモートならダウンロード・キャッシュし、`playPreparedPhrase` で即スケジュール再生可能にする。
     func preparePhraseForImmediatePlayback(url: URL) async -> Bool {
         playbackToken += 1
         let token = playbackToken
         preparedForImmediatePlaybackURL = nil
-
-        prepareItem(url: url)
-        guard let item = currentItem else { return false }
+        preparedLocalFileURL = nil
 
         do {
-            _ = try await item.asset.load(.isPlayable)
+            let local = try await cache.localFileURL(for: url)
+            guard playbackToken == token else { return false }
+
+            let file = try AVAudioFile(forReading: local)
+            guard file.length > 0 else { return false }
+            guard playbackToken == token else { return false }
+
+            loadedPhraseURL = url
+            preparedLocalFileURL = local
+            preparedForImmediatePlaybackURL = url
+
+            await MainActor.run {
+                self.ensureGraph(for: file.processingFormat)
+            }
+            return true
         } catch {
             return false
         }
-        guard playbackToken == token, loadedPhraseURL == url else { return false }
-
-        let ready = await waitForItemReadyToPlay(item)
-        guard ready, playbackToken == token, loadedPhraseURL == url else { return false }
-
-        player.pause()
-        player.volume = phraseVolume
-        currentTimeSec = 0
-
-        let seekFinished = await seekToZeroAsync()
-        guard seekFinished, playbackToken == token, loadedPhraseURL == url else { return false }
-
-        currentTimeSec = 0
-        preparedForImmediatePlaybackURL = url
-        return true
     }
 
-    /// `preparePhraseForImmediatePlayback` 済みの同一 URL なら `seek` せず `play()` のみ。消費後は準備状態をクリアする。
+    /// `preparePhraseForImmediatePlayback` 済みの同一 URL ならファイル頭からスケジュールして再生する。
     func playPreparedPhrase(url: URL, onStarted: (() -> Void)? = nil) -> Bool {
         guard preparedForImmediatePlaybackURL == url,
               loadedPhraseURL == url,
-              let item = currentItem,
-              player.currentItem === item
+              let local = preparedLocalFileURL
         else {
             return false
         }
+
         preparedForImmediatePlaybackURL = nil
-        currentTimeSec = 0
-        player.volume = phraseVolume
-        player.play()
-        onStarted?()
-        return true
+        preparedLocalFileURL = nil
+
+        let scheduleToken = playbackToken
+
+        do {
+            let file = try AVAudioFile(forReading: local)
+            stopPhrasePlaybackOnly()
+            ensureGraph(for: file.processingFormat)
+            schedulePhrase(file: file, scheduleToken: scheduleToken, onStarted: onStarted)
+            return true
+        } catch {
+            return false
+        }
     }
 
-    /// フレーズ MP3 を頭から再生する。
+    /// フレーズ MP3 を頭から再生する（準備に失敗した場合のフォールバック）。
     func playPhrase(url: URL, onStarted: (() -> Void)? = nil) {
         preparedForImmediatePlaybackURL = nil
+        preparedLocalFileURL = nil
         playbackToken += 1
         let token = playbackToken
 
-        prepareItem(url: url)
-
-        player.pause()
-        player.volume = phraseVolume
-        currentTimeSec = 0
-
-        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
-            guard finished else { return }
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                guard self.playbackToken == token else { return }
-                guard self.loadedPhraseURL == url else { return }
-
-                self.currentTimeSec = 0
-                self.player.volume = self.phraseVolume
-                self.player.play()
-                onStarted?()
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let local = try await self.cache.localFileURL(for: url)
+                let file = try AVAudioFile(forReading: local)
+                await MainActor.run {
+                    guard self.playbackToken == token else { return }
+                    self.loadedPhraseURL = url
+                    self.stopPhrasePlaybackOnly()
+                    self.ensureGraph(for: file.processingFormat)
+                    self.schedulePhrase(file: file, scheduleToken: token, onStarted: onStarted)
+                }
+            } catch {
+                await MainActor.run {
+                    guard self.playbackToken == token else { return }
+                    self.loadedPhraseURL = nil
+                }
             }
         }
     }
@@ -189,104 +195,186 @@ final class EarTrainingAudio: NSObject {
     /// フレーズ MP3 を停止し、再生時刻を 0 に戻す。
     func stopPhrase() {
         preparedForImmediatePlaybackURL = nil
+        preparedLocalFileURL = nil
         playbackToken += 1
-        player.pause()
-        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+        phrasePlayer.stop()
+        stopTimeTicker()
         currentTimeSec = 0
     }
 
-    /// コードヴォイシングバトルのカウントイン（1拍メトロノーム相当の短いクリック）。
+    /// コードヴォイシングバトルのカウントイン（同一 `AVAudioEngine` 上の短いクリック）。
     func playCountInClick() {
-        SurvivalGameAudio.shared.playNote(76, velocity: 88, duration: 0.065, asPiano: false)
+        installGraphIfNeeded()
+        startPhraseEngineIfNeeded()
+
+        if lastPhraseFormat == nil {
+            let fmt = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
+            ensureGraph(for: fmt)
+        }
+
+        guard let pcm = clickPCM else { return }
+
+        if !clickPlayer.isPlaying {
+            clickPlayer.play()
+        }
+        clickPlayer.scheduleBuffer(pcm, at: nil, options: [.interrupts], completionHandler: nil)
     }
 
     // MARK: - Internals
 
-    private func prepareItem(url: URL) {
-        if loadedPhraseURL == url, currentItem != nil, player.currentItem === currentItem {
+    private func installGraphIfNeeded() {
+        guard !isGraphInstalled else { return }
+
+        let defaultFormat = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
+        engine.attach(phrasePlayer)
+        engine.attach(clickPlayer)
+        engine.attach(phraseMixer)
+        engine.connect(phrasePlayer, to: phraseMixer, format: defaultFormat)
+        engine.connect(clickPlayer, to: phraseMixer, format: defaultFormat)
+        engine.connect(phraseMixer, to: engine.mainMixerNode, format: nil)
+
+        lastPhraseFormat = defaultFormat
+        rebuildClickBuffer(for: defaultFormat)
+        phraseMixer.outputVolume = phraseVolume
+
+        isGraphInstalled = true
+    }
+
+    private func ensureGraph(for format: AVAudioFormat) {
+        installGraphIfNeeded()
+
+        if lastPhraseFormat?.isEqual(format) == true {
+            phraseMixer.outputVolume = phraseVolume
             return
         }
-        preparedForImmediatePlaybackURL = nil
-        removeObservers()
+
+        let wasRunning = engine.isRunning
+        if wasRunning {
+            engine.stop()
+        }
+
+        engine.disconnectNodeInput(phraseMixer)
+        engine.connect(phrasePlayer, to: phraseMixer, format: format)
+        engine.connect(clickPlayer, to: phraseMixer, format: format)
+
+        lastPhraseFormat = format
+        rebuildClickBuffer(for: format)
+        phraseMixer.outputVolume = phraseVolume
+
+        if wasRunning || isPhraseEngineRunning {
+            try? engine.start()
+        }
+    }
+
+    private func startPhraseEngineIfNeeded() {
+        guard !engine.isRunning else { return }
+        do {
+            try engine.start()
+            isPhraseEngineRunning = true
+            phraseMixer.outputVolume = phraseVolume
+            engine.mainMixerNode.outputVolume = 1.0
+        } catch {
+            isPhraseEngineRunning = false
+        }
+    }
+
+    private func stopPhrasePlaybackOnly() {
+        phrasePlayer.stop()
+        stopTimeTicker()
         currentTimeSec = 0
-        loadedPhraseURL = url
-        let item: AVPlayerItem
-        if let preloadedAsset, preloadedAssetURL == url {
-            item = AVPlayerItem(asset: preloadedAsset)
-        } else {
-            item = AVPlayerItem(url: url)
-        }
-        currentItem = item
-        player.replaceCurrentItem(with: item)
-        addObservers(for: item)
     }
 
-    private func seekToZeroAsync() async -> Bool {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { finished in
-                continuation.resume(returning: finished)
+    private func schedulePhrase(file: AVAudioFile, scheduleToken: Int, onStarted: (() -> Void)?) {
+        startPhraseEngineIfNeeded()
+
+        phrasePlayer.stop()
+        currentTimeSec = 0
+
+        phrasePlayer.scheduleFile(file, at: nil, completionHandler: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard self.playbackToken == scheduleToken else { return }
+                self.currentTimeSec = 0
+                self.stopTimeTicker()
+                self.phrasePlayer.stop()
+                self.onEnded?()
+            }
+        })
+
+        phrasePlayer.play()
+        startTimeTickerIfNeeded()
+
+        let cb = onStarted
+        if let cb {
+            if Thread.isMainThread {
+                cb()
+            } else {
+                DispatchQueue.main.async(execute: cb)
             }
         }
     }
 
-    private func waitForItemReadyToPlay(_ item: AVPlayerItem) async -> Bool {
-        if item.status == .readyToPlay { return true }
-        if item.status == .failed { return false }
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            var resumed = false
-            var observation: NSKeyValueObservation?
-            observation = item.observe(\.status, options: [.initial, .new]) { observedItem, _ in
-                guard !resumed else { return }
-                switch observedItem.status {
-                case .readyToPlay, .failed:
-                    resumed = true
-                    observation?.invalidate()
-                    observation = nil
-                    continuation.resume()
-                default:
-                    break
-                }
+    private func startTimeTickerIfNeeded() {
+        guard timeTicker == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now(), repeating: 1.0 / 30.0)
+        timer.setEventHandler { [weak self] in
+            self?.emitPhraseTimeIfPlaying()
+        }
+        timer.resume()
+        timeTicker = timer
+    }
+
+    private func stopTimeTicker() {
+        timeTicker?.cancel()
+        timeTicker = nil
+    }
+
+    private func emitPhraseTimeIfPlaying() {
+        guard phrasePlayer.isPlaying else { return }
+        guard let nodeTime = phrasePlayer.lastRenderTime,
+              let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)
+        else {
+            return
+        }
+        let sec = Double(playerTime.sampleTime) / playerTime.sampleRate
+        guard sec.isFinite else { return }
+        currentTimeSec = max(0, sec)
+        onTimeUpdate?(currentTimeSec)
+    }
+
+    private func rebuildClickBuffer(for format: AVAudioFormat) {
+        let sampleRate = format.sampleRate
+        let channelCount = Int(format.channelCount)
+        let durationSec = 0.045
+        let frameCount = AVAudioFrameCount(max(1, min(Int(Double(sampleRate) * durationSec), 96_000)))
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            clickPCM = nil
+            return
+        }
+        buffer.frameLength = frameCount
+
+        guard let data = buffer.floatChannelData else {
+            clickPCM = nil
+            return
+        }
+
+        let n = Int(frameCount)
+        let freq = 2_200.0
+        for ch in 0..<channelCount {
+            let channel = data[ch]
+            for i in 0..<n {
+                let t = Double(i) / sampleRate
+                let env = exp(-t * 100)
+                let s = sin(2.0 * Double.pi * freq * t) * env * 0.28
+                channel[i] = Float(s)
             }
         }
-        return item.status == .readyToPlay
-    }
-
-    private func addObservers(for item: AVPlayerItem) {
-        endObservation = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: item,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-            self.onEnded?()
-        }
-
-        // 30Hz で currentTime を通知する。
-        let interval = CMTime(seconds: 1.0 / 30.0, preferredTimescale: 600)
-        timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self else { return }
-            let seconds = CMTimeGetSeconds(time)
-            self.currentTimeSec = seconds.isFinite ? max(0, seconds) : 0
-            self.onTimeUpdate?(self.currentTimeSec)
-        }
-    }
-
-    private func removeObservers() {
-        if let token = timeObserverToken {
-            player.removeTimeObserver(token)
-            timeObserverToken = nil
-        }
-        if let obs = endObservation {
-            NotificationCenter.default.removeObserver(obs)
-            endObservation = nil
-        }
-        statusObservation?.invalidate()
-        statusObservation = nil
+        clickPCM = buffer
     }
 
     // MARK: - Piano bridge (Survival サンプラー再利用)
 
-    /// 鍵盤タップ / MIDI ノート ON。Web の `playNote` と同じ Salamander 音色になる。
     func pianoNoteOn(midi: Int, velocity: Int = 100) {
         SurvivalGameAudio.shared.pianoNoteOn(midi: midi, velocity: velocity)
     }
@@ -301,5 +389,70 @@ final class EarTrainingAudio: NSObject {
 
     func pianoNoteOffRealtime(midi: Int) {
         SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: midi)
+    }
+}
+
+// MARK: - File cache
+
+private final class EarTrainingPhraseFileCache {
+    private var inflight: [URL: Task<URL, Error>] = [:]
+    private let lock = NSLock()
+
+    func localFileURL(for remote: URL) async throws -> URL {
+        if remote.isFileURL {
+            guard FileManager.default.fileExists(atPath: remote.path) else {
+                throw URLError(.fileDoesNotExist)
+            }
+            return remote
+        }
+
+        let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("EarTrainingPhraseAudio", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let destination = root.appendingPathComponent(Self.cacheFileName(for: remote))
+
+        if FileManager.default.fileExists(atPath: destination.path) {
+            return destination
+        }
+
+        lock.lock()
+        if let existing = inflight[remote] {
+            lock.unlock()
+            return try await existing.value
+        }
+
+        let task = Task {
+            let (data, response) = try await URLSession.shared.data(from: remote)
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                throw URLError(.badServerResponse)
+            }
+            try data.write(to: destination, options: .atomic)
+            return destination
+        }
+
+        inflight[remote] = task
+        lock.unlock()
+
+        do {
+            let url = try await task.value
+            lock.lock()
+            inflight[remote] = nil
+            lock.unlock()
+            return url
+        } catch {
+            lock.lock()
+            inflight[remote] = nil
+            lock.unlock()
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
+    }
+
+    private static func cacheFileName(for url: URL) -> String {
+        let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        let ext = url.pathExtension.lowercased()
+        let suffix = ext.isEmpty ? "mp3" : ext
+        return "\(hex).\(suffix)"
     }
 }
