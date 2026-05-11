@@ -113,6 +113,11 @@ final class EarTrainingAudio: NSObject {
         currentTimeSec = 0
     }
 
+    /// コードヴォイシングバトルのカウントイン（1拍メトロノーム相当の短いクリック）。
+    func playCountInClick() {
+        SurvivalGameAudio.shared.playNote(76, velocity: 88, duration: 0.065, asPiano: false)
+    }
+
     // MARK: - Internals
 
     private func prepareItem(url: URL) {

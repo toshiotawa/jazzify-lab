@@ -494,9 +494,9 @@ struct ChordVoicingStaffView: View {
             parsedNotes.contains { $0.staff == staff }
         }
         let staffCount = max(activeStaves.count, 1)
-        let verticalUnits = staffCount == 1 ? CGFloat(4) : CGFloat(11)
+        let verticalUnits = staffCount == 1 ? CGFloat(4) : CGFloat(13)
         let staffSpacing = min(CGFloat(18), max(CGFloat(10), (size.height - 18) / verticalUnits))
-        let staffGap = staffSpacing * 3
+        let staffGap = staffSpacing * 5
         let groupHeight = staffCount == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
         let firstTopY = max(CGFloat(8), (size.height - groupHeight) / 2)
         let leftMargin = max(CGFloat(18), size.width * 0.06)
@@ -530,7 +530,12 @@ struct ChordVoicingStaffView: View {
 
             let hasKeySignature = keyFifths != 0
             let baseX = size.width * (hasKeySignature ? 0.68 : 0.63)
-            for positioned in layoutNotes(notes: notes, staffTopY: topY, staffSpacing: staffSpacing) {
+            for positioned in layoutNotes(
+                notes: notes,
+                staffTopY: topY,
+                staffSpacing: staffSpacing,
+                baseX: baseX
+            ) {
                 drawWholeNote(
                     context: &context,
                     staffTopY: topY,
@@ -601,7 +606,8 @@ struct ChordVoicingStaffView: View {
     private func layoutNotes(
         notes: [ParsedVoicingNote],
         staffTopY: CGFloat,
-        staffSpacing: CGFloat
+        staffSpacing: CGFloat,
+        baseX: CGFloat
     ) -> [PositionedVoicingNote] {
         guard !notes.isEmpty else { return [] }
 
@@ -654,6 +660,23 @@ struct ChordVoicingStaffView: View {
                 occupiedColumnY[column] = yCenters[index]
             }
             accidentalColumns[index] = column
+        }
+
+        let sortedAcc = accidentalIndices.sorted {
+            let ax = baseX + offsets[$0]
+            let bx = baseX + offsets[$1]
+            if ax != bx { return ax < bx }
+            return yCenters[$0] < yCenters[$1]
+        }
+        for idx in sortedAcc {
+            var col = accidentalColumns[idx]
+            for prev in sortedAcc {
+                if prev == idx { break }
+                if abs(yCenters[prev] - yCenters[idx]) >= accidentalCollisionHeight { continue }
+                if abs((baseX + offsets[prev]) - (baseX + offsets[idx])) >= noteWidth * 1.3 { continue }
+                col = max(col, accidentalColumns[prev] + 1)
+            }
+            accidentalColumns[idx] = col
         }
 
         return notes.indices.map { index in
@@ -724,17 +747,20 @@ struct ChordVoicingStaffView: View {
         let bottomLineY = staffTopY + staffSpacing * 4
         let lineWidth = noteWidth * 1.25
         let half: CGFloat = lineWidth / 2
+        let noteHeight = staffSpacing * 0.86
+        let noteTop = yCenter - noteHeight / 2
+        let noteBottom = yCenter + noteHeight / 2
 
         if yCenter < topLineY {
             var stepY = topLineY - staffSpacing
-            while stepY >= yCenter - 0.1 {
+            while stepY >= noteTop - 0.05 {
                 drawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY)
                 stepY -= staffSpacing
             }
         }
         if yCenter > bottomLineY {
             var stepY = bottomLineY + staffSpacing
-            while stepY <= yCenter + 0.1 {
+            while stepY <= noteBottom + 0.05 {
                 drawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY)
                 stepY += staffSpacing
             }
@@ -1240,9 +1266,9 @@ struct ChordVoicingStaffGroupsView: View {
         let availableStaffHeight = max(CGFloat(0), size.height - reservedTop - ledgerLinePadding)
         let staffSpacing = min(
             14,
-            max(8, (availableStaffHeight - sp * 8) / CGFloat(max(13, activeStaves.count * 9 + 5)))
+            max(8, (availableStaffHeight - sp * 8) / CGFloat(max(15, activeStaves.count * 11 + 5)))
         )
-        let staffGap = staffSpacing * 5
+        let staffGap = staffSpacing * 7
         let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
         let firstTopY = reservedTop + max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
         return StaffSystemGeometry(
@@ -1299,7 +1325,12 @@ struct ChordVoicingStaffGroupsView: View {
             let topY = firstTopY + CGFloat(staffIndex) * (staffSpacing * 4 + staffGap)
             let baseX = groupBaseX(group: activeItem.group, slotIndex: activeItem.slotIndex, slotCount: activeItem.slotCount, layout: layout)
             let staffNotes = sortStaffNotesForVoicing(activeItem.notes.filter { $0.staff == staff })
-            for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: staffSpacing) {
+            for positioned in groupsLayoutNotes(
+                notes: staffNotes,
+                staffTopY: topY,
+                staffSpacing: staffSpacing,
+                baseX: baseX
+            ) {
                 let xCenter = baseX + positioned.xOffset
                 let row = Row(
                     voicingIndex: positioned.note.voicingIndex,
@@ -1339,10 +1370,11 @@ struct ChordVoicingStaffGroupsView: View {
         let triH = staffSpacing * 0.55
         let halfW = staffSpacing * 0.42
         let topEdgeY = yCenter - noteHeight / 2
-        let tipY = topEdgeY - staffSpacing * 0.35
-        let baseY = tipY - triH
+        /// 逆三角形：頂点を音符側（下）、底辺を上に（Web `TopNotePointer` の上下と揃える）
+        let apexY = topEdgeY - staffSpacing * 0.18
+        let baseY = apexY - triH
         var path = Path()
-        path.move(to: CGPoint(x: xCenter, y: tipY))
+        path.move(to: CGPoint(x: xCenter, y: apexY))
         path.addLine(to: CGPoint(x: xCenter - halfW, y: baseY))
         path.addLine(to: CGPoint(x: xCenter + halfW, y: baseY))
         path.closeSubpath()
@@ -1429,12 +1461,16 @@ struct ChordVoicingStaffGroupsView: View {
                 }
                 let staffNotes = sortStaffNotesForVoicing(item.notes.filter { $0.staff == staff })
                 let correctSet = correctByGroup[item.group.id] ?? []
-                for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: geo.staffSpacing) {
+                for positioned in groupsLayoutNotes(
+                    notes: staffNotes,
+                    staffTopY: topY,
+                    staffSpacing: geo.staffSpacing,
+                    baseX: baseX
+                ) {
                     let isCorrect = correctSet.contains(positioned.note.pitchClass)
-                    let isNextHint =
-                        !isCorrect
+                    let isNextHint = !isCorrect
                         && item.group.id == activeGroupId
-                        && battleHints.nextHintVoicingIndex == positioned.note.voicingIndex
+                        && item.group.measureOffset == 0
                     let noteColor: Color = isCorrect ? correctColor : (isNextHint ? nextTargetColor : notationColor)
                     groupsDrawWholeNote(
                         context: &context,
@@ -1599,7 +1635,8 @@ struct ChordVoicingStaffGroupsView: View {
     private static func groupsLayoutNotes(
         notes: [ParsedVoicingNote],
         staffTopY: CGFloat,
-        staffSpacing: CGFloat
+        staffSpacing: CGFloat,
+        baseX: CGFloat
     ) -> [PositionedVoicingNote] {
         guard !notes.isEmpty else { return [] }
         let noteWidth = staffSpacing * 1.45
@@ -1647,6 +1684,22 @@ struct ChordVoicingStaffGroupsView: View {
                 occupiedColumnY[column] = yCenters[index]
             }
             accidentalColumns[index] = column
+        }
+        let sortedAcc = accidentalIndices.sorted {
+            let ax = baseX + offsets[$0]
+            let bx = baseX + offsets[$1]
+            if ax != bx { return ax < bx }
+            return yCenters[$0] < yCenters[$1]
+        }
+        for idx in sortedAcc {
+            var col = accidentalColumns[idx]
+            for prev in sortedAcc {
+                if prev == idx { break }
+                if abs(yCenters[prev] - yCenters[idx]) >= accidentalCollisionHeight { continue }
+                if abs((baseX + offsets[prev]) - (baseX + offsets[idx])) >= noteWidth * 1.3 { continue }
+                col = max(col, accidentalColumns[prev] + 1)
+            }
+            accidentalColumns[idx] = col
         }
         return notes.indices.map { index in
             PositionedVoicingNote(
@@ -1716,16 +1769,19 @@ struct ChordVoicingStaffGroupsView: View {
         let bottomLineY = staffTopY + staffSpacing * 4
         let lineWidth = noteWidth * 1.25
         let half = lineWidth / 2
+        let noteHeight = staffSpacing * 0.86
+        let noteTop = yCenter - noteHeight / 2
+        let noteBottom = yCenter + noteHeight / 2
         if yCenter < topLineY {
             var stepY = topLineY - staffSpacing
-            while stepY >= yCenter - 0.1 {
+            while stepY >= noteTop - 0.05 {
                 groupsDrawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY, color: color)
                 stepY -= staffSpacing
             }
         }
         if yCenter > bottomLineY {
             var stepY = bottomLineY + staffSpacing
-            while stepY <= yCenter + 0.1 {
+            while stepY <= noteBottom + 0.05 {
                 groupsDrawLedgerLine(context: &context, xCenter: xCenter, halfWidth: half, y: stepY, color: color)
                 stepY += staffSpacing
             }
@@ -1828,7 +1884,12 @@ struct ChordVoicingStaffGroupsView: View {
                 guard !correctSet.isEmpty else { continue }
                 let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
                 let staffNotes = sortStaffNotesForVoicing(item.notes.filter { $0.staff == staff })
-                for positioned in groupsLayoutNotes(notes: staffNotes, staffTopY: topY, staffSpacing: geo.staffSpacing) {
+                for positioned in groupsLayoutNotes(
+                    notes: staffNotes,
+                    staffTopY: topY,
+                    staffSpacing: geo.staffSpacing,
+                    baseX: baseX
+                ) {
                     guard correctSet.contains(positioned.note.pitchClass) else { continue }
                     let xCenter = baseX + positioned.xOffset
                     let info = PulseNoteInfo(

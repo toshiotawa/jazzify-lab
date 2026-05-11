@@ -96,8 +96,8 @@ const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 696;
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
-/** 上下五線の縦オフセット。ト音譜の下端〜ヘ音譜の上端のあいだの余白は SP*9 に拡張済み（要望6）。 */
-const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 9;
+/** 上下五線の縦オフセット。ト音譜の下端〜ヘ音譜の上端のあいだの余白（ト／ヘの離間）。 */
+const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 12;
 /** 上下加線3本ぶん（+0.5SP の安全マージン込み）の余白。要望1。 */
 const LEDGER_LINE_PADDING = SP * 3.5;
 const CLEF_FONT_SIZE = SP * 4;
@@ -394,6 +394,7 @@ const compareNotesForDisplay = (
 const layoutNotes = (
   notes: readonly ParsedVoicingNoteWithStaff[],
   staffTopY: number,
+  baseX: number,
 ): PositionedVoicingNote[] => {
   if (notes.length === 0) {
     return [];
@@ -444,6 +445,32 @@ const layoutNotes = (
       occupiedColumnY[column] = yCenters[index];
     }
     accidentalColumns[index] = column;
+  });
+
+  const noteWidthForAcc = SP * 1.45;
+  const sortedAcc = [...accidentalIndices].sort((a, b) => {
+    const ax = baseX + offsets[a.index];
+    const bx = baseX + offsets[b.index];
+    if (ax !== bx) {
+      return ax - bx;
+    }
+    return yCenters[a.index] - yCenters[b.index];
+  });
+  sortedAcc.forEach(({ index: idx }) => {
+    let col = accidentalColumns[idx];
+    for (const { index: prev } of sortedAcc) {
+      if (prev === idx) {
+        break;
+      }
+      if (Math.abs(yCenters[prev] - yCenters[idx]) >= accidentalCollisionHeight) {
+        continue;
+      }
+      if (Math.abs((baseX + offsets[prev]) - (baseX + offsets[idx])) >= noteWidthForAcc * 1.3) {
+        continue;
+      }
+      col = Math.max(col, accidentalColumns[prev] + 1);
+    }
+    accidentalColumns[idx] = col;
   });
 
   return sortedNotes.map((note, index) => ({
@@ -545,15 +572,18 @@ const LedgerLines: React.FC<{
 }> = ({ xCenter, yCenter, staffTopY, noteWidth, color }) => {
   const topLineY = staffTopY;
   const bottomLineY = staffTopY + STAFF_HEIGHT;
+  const noteHeight = SP * 0.86;
+  const noteTop = yCenter - noteHeight / 2;
+  const noteBottom = yCenter + noteHeight / 2;
   const ledgerLineYs: number[] = [];
 
   if (yCenter < topLineY) {
-    for (let y = topLineY - SP; y >= yCenter - 0.1; y -= SP) {
+    for (let y = topLineY - SP; y >= noteTop - 0.05; y -= SP) {
       ledgerLineYs.push(y);
     }
   }
   if (yCenter > bottomLineY) {
-    for (let y = bottomLineY + SP; y <= yCenter + 0.1; y += SP) {
+    for (let y = bottomLineY + SP; y <= noteBottom + 0.05; y += SP) {
       ledgerLineYs.push(y);
     }
   }
@@ -887,7 +917,7 @@ const computeVoicingBattleHints = (
     const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
     const baseX = getVoicingGroupBaseX(group, layout);
     const staffNotes = group.notes.filter(note => note.staff === staff);
-    const positioned = layoutNotes(staffNotes, staffTopY);
+    const positioned = layoutNotes(staffNotes, staffTopY, baseX);
     positioned.forEach(p => {
       const xCenter = baseX + p.xOffset;
       const row: Candidate = {
@@ -981,7 +1011,7 @@ const PulseOverlayLayer: React.FC<{
         return;
       }
       const baseX = getVoicingGroupBaseX(group, layout);
-      const positioned = layoutNotes(group.notes.filter(n => n.staff === staff), staffTopY);
+      const positioned = layoutNotes(group.notes.filter(n => n.staff === staff), staffTopY, baseX);
       positioned.forEach(p => {
         if (!correctSet.has(p.note.pitchClass)) {
           return;
@@ -1016,14 +1046,14 @@ const TopNotePointer: React.FC<{
   const triH = SP * 0.55;
   const halfW = SP * 0.42;
   const topEdgeY = yCenter - noteHeight / 2;
-  const tipY = topEdgeY - SP * 0.35;
-  const baseY = tipY - triH;
+  const apexY = topEdgeY - SP * 0.18;
+  const baseY = apexY - triH;
   return (
     <polygon
       aria-hidden
       data-voicing-top-pointer="true"
       fill={TOP_POINTER_COLOR}
-      points={`${xCenter},${tipY} ${xCenter - halfW},${baseY} ${xCenter + halfW},${baseY}`}
+      points={`${xCenter},${apexY} ${xCenter - halfW},${baseY} ${xCenter + halfW},${baseY}`}
     />
   );
 };
@@ -1036,14 +1066,17 @@ const RenderedStaff: React.FC<{
   keyFifths: number;
   layout: StaffLayoutMetrics;
   activeGroupId: string | null | undefined;
-  nextHintVoicingIndex: number | null;
-}> = ({ staff, groups, correctPitchClassSets, staffTopY, keyFifths, layout, activeGroupId, nextHintVoicingIndex }) => {
+}> = ({ staff, groups, correctPitchClassSets, staffTopY, keyFifths, layout, activeGroupId }) => {
   const marks = keySignatureMarks(staff, keyFifths);
   const positionedGroups = useMemo(() => (
     groups.map(group => ({
       group,
       noteBaseX: getVoicingGroupBaseX(group, layout),
-      positionedNotes: layoutNotes(group.notes.filter(note => note.staff === staff), staffTopY),
+      positionedNotes: layoutNotes(
+        group.notes.filter(note => note.staff === staff),
+        staffTopY,
+        getVoicingGroupBaseX(group, layout),
+      ),
     }))
   ), [groups, layout, staff, staffTopY]);
 
@@ -1085,8 +1118,8 @@ const RenderedStaff: React.FC<{
               activeGroupId !== undefined
               && activeGroupId !== null
               && group.id === activeGroupId
-              && nextHintVoicingIndex !== null
-              && positioned.note.voicingIndex === nextHintVoicingIndex
+              && group.measureOffset === 0
+              && !(correctPitchClassSet?.has(positioned.note.pitchClass) ?? false)
             }
           />
         ));
@@ -1375,7 +1408,6 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               keyFifths={keyFifths}
               layout={layout}
               activeGroupId={activeGroupId}
-              nextHintVoicingIndex={battleHints.nextHintVoicingIndex}
             />
           ))}
           {activeStaves.length > 0 && [layout.measureDividerX, STAFF_LINE_RIGHT_X].map(x => (

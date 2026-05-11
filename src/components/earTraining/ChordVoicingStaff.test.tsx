@@ -27,9 +27,11 @@ describe('ChordVoicingStaff', () => {
       />,
     );
 
-    const hintEllipse = container.querySelector('ellipse[data-next-voicing-hint="true"]');
-    expect(hintEllipse?.getAttribute('data-voicing-index')).toBe('0');
-    expect(hintEllipse?.getAttribute('stroke')).toBe(NEXT_TARGET_COLOR);
+    const hints = container.querySelectorAll('ellipse[data-next-voicing-hint="true"]');
+    expect(hints.length).toBe(4);
+    hints.forEach(node => {
+      expect(node.getAttribute('stroke')).toBe(NEXT_TARGET_COLOR);
+    });
 
     const highestNoteEllipse = container.querySelector('ellipse[data-voicing-index="3"]');
     const pointer = container.querySelector('polygon[data-voicing-top-pointer="true"]');
@@ -93,7 +95,7 @@ describe('ChordVoicingStaff', () => {
     expect(container.querySelector('polygon[data-voicing-top-pointer="true"]')).toBeNull();
   });
 
-  it('sp基準で2段譜の五線間に9spの余白を確保する', () => {
+  it('sp基準で2段譜の五線間に12spの余白を確保する', () => {
     const { container } = render(
       <ChordVoicingStaff
         voicing={['D3', 'F3', 'A3', 'C4']}
@@ -107,7 +109,7 @@ describe('ChordVoicingStaff', () => {
 
     expect(trebleBottomLine).not.toBeNull();
     expect(bassTopLine).not.toBeNull();
-    expect(Number(bassTopLine?.getAttribute('y1')) - Number(trebleBottomLine?.getAttribute('y1'))).toBeCloseTo(90, 10);
+    expect(Number(bassTopLine?.getAttribute('y1')) - Number(trebleBottomLine?.getAttribute('y1'))).toBeCloseTo(120, 10);
   });
 
   it('voicing_staves が無い場合はDBの音域から譜表を推定する', () => {

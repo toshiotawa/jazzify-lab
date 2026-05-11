@@ -65,6 +65,7 @@ import {
   getEarTrainingGameCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { playEarTrainingCountInMeasure } from '@/utils/earTrainingCountInClick';
 import {
   DEFAULT_AVATAR_URL,
   EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
@@ -701,15 +702,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     syncAudioTimelineRef.current = syncAudioTimeline;
   }, [syncAudioTimeline]);
 
-  const startPhrase = useCallback((nextPhraseIndex: number) => {
+  const beginPhrasePlayback = useCallback((nextPhraseIndex: number) => {
     const phrase = phrases[nextPhraseIndex];
     if (!phrase) {
       finishGameOver(copy.noPhrases);
       return;
     }
-    clearFailTimer();
-    clearChordSyncTimer();
-    clearTransitionTimer();
     setPhraseIndex(nextPhraseIndex);
     phraseIndexRef.current = nextPhraseIndex;
     setPhraseRunId(current => current + 1);
@@ -758,6 +756,51 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         });
     }
   }, [
+    copy,
+    finishGameOver,
+    phrases,
+    settings.masterVolume,
+    settings.musicVolume,
+    setEnemyAttackGaugePercent,
+    stage.bpm,
+    stage.loop_measures,
+  ]);
+
+  const startPhrase = useCallback((nextPhraseIndex: number, playsCountIn = true) => {
+    const phrase = phrases[nextPhraseIndex];
+    if (!phrase) {
+      finishGameOver(copy.noPhrases);
+      return;
+    }
+    clearFailTimer();
+    clearChordSyncTimer();
+    clearTransitionTimer();
+    if (playsCountIn) {
+      void (async () => {
+        gameStateRef.current = 'countIn';
+        setGameState('countIn');
+        setStatusText(copy.countIn);
+        const beats = Math.max(1, Math.min(32, stage.beats_per_measure));
+        setCountInValue(beats);
+        try {
+          await playEarTrainingCountInMeasure({
+            bpm: stage.bpm,
+            beatsPerMeasure: beats,
+            gain: settings.masterVolume * settings.musicVolume,
+            onBeat: remaining => {
+              setCountInValue(remaining);
+            },
+          });
+        } catch {
+          // クリック生成失敗時はそのままフレーズへ進む
+        }
+        beginPhrasePlayback(nextPhraseIndex);
+      })();
+      return;
+    }
+    beginPhrasePlayback(nextPhraseIndex);
+  }, [
+    beginPhrasePlayback,
     clearChordSyncTimer,
     clearFailTimer,
     clearTransitionTimer,
@@ -766,7 +809,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     phrases,
     settings.masterVolume,
     settings.musicVolume,
-    setEnemyAttackGaugePercent,
+    stage.beats_per_measure,
     stage.bpm,
   ]);
 
@@ -854,18 +897,26 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearTimeLimitTimer();
     stopPhraseAudio();
 
-    let remaining = stage.count_in_beats;
-    countdownTimerRef.current = setInterval(() => {
-      remaining -= 1;
-      setCountInValue(Math.max(remaining, 0));
-      if (remaining <= 0) {
-        clearCountdownTimer();
-        startTimeLimit();
-        startPhrase(0);
+    const beats = Math.max(1, Math.min(32, stage.beats_per_measure));
+    setCountInValue(beats);
+    void (async () => {
+      try {
+        await playEarTrainingCountInMeasure({
+          bpm: stage.bpm,
+          beatsPerMeasure: beats,
+          gain: settings.masterVolume * settings.musicVolume,
+          onBeat: remaining => {
+            setCountInValue(remaining);
+          },
+        });
+      } catch {
+        // 無音では続行
       }
-    }, Math.max(100, (60 / stage.bpm) * 1000));
+      startTimeLimit();
+      beginPhrasePlayback(0);
+    })();
   }, [
-    clearCountdownTimer,
+    beginPhrasePlayback,
     clearBattleEffectTimers,
     clearChordSyncTimer,
     clearFailTimer,
@@ -873,15 +924,16 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearTransitionTimer,
     copy,
     finishGameOver,
-    phrases.length,
+    phrases,
     primePhraseAudio,
     setEnemyAttackGaugePercent,
+    settings.masterVolume,
+    settings.musicVolume,
+    stage.beats_per_measure,
     stage.bpm,
-    stage.count_in_beats,
     stage.enemy_hp,
     stage.player_hp,
     stage.time_limit_sec,
-    startPhrase,
     startTimeLimit,
     stopPhraseAudio,
   ]);

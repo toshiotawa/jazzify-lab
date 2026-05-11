@@ -486,7 +486,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             self.audio.stopPhrase()
             try? await Task.sleep(nanoseconds: 420_000_000)
             let next = (self.phraseIndex + 1) % max(1, self.phrases.count)
-            self.startPhrase(at: next)
+            self.startPhrase(at: next, playsCountIn: true)
         }
     }
 
@@ -502,7 +502,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         timeRemaining = stage.timeLimitSec
         phraseIndex = 0
         phraseRunId = 0
-        countInValue = stage.countInBeats
+        countInValue = max(1, min(32, stage.beatsPerMeasure))
         lastLoopAttackApplied = 0
         pendingImpactHandlers.removeAll()
         enemyAttackGaugePercent = 0
@@ -516,20 +516,53 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         countdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            var remaining = self.stage.countInBeats
-            let beatDurationNs = UInt64(max(0.1, 60.0 / Double(self.stage.bpm)) * 1_000_000_000)
-            while remaining > 0 {
-                try? await Task.sleep(nanoseconds: beatDurationNs)
-                remaining -= 1
-                self.countInValue = max(remaining, 0)
-            }
+            await self.runMeasureCountIn()
+            if Task.isCancelled { return }
             self.startTimeLimit()
-            self.startPhrase(at: 0)
+            self.beginPhrasePlayback(at: 0)
         }
         publishSnapshot()
     }
 
-    private func startPhrase(at nextIndex: Int) {
+    /// 拍子の1小節分、BPM に同期したクリックを鳴らす（ループ再生中の再突入では呼ばない）。
+    private func runMeasureCountIn() async {
+        let beats = max(1, min(32, stage.beatsPerMeasure))
+        let beatDurationNs = UInt64(max(0.1, 60.0 / Double(stage.bpm)) * 1_000_000_000)
+        countInValue = beats
+        publishSnapshot()
+        for beatIndex in 0..<beats {
+            audio.playCountInClick()
+            countInValue = max(beats - beatIndex - 1, 0)
+            publishSnapshot()
+            try? await Task.sleep(nanoseconds: beatDurationNs)
+            if Task.isCancelled { return }
+        }
+    }
+
+    private func startPhrase(at nextIndex: Int, playsCountIn: Bool = true) {
+        guard phrases.indices.contains(nextIndex) else {
+            finishGameOver(message: copy.noPhrases)
+            return
+        }
+        cancelFailTimer()
+        cancelTransitionTimer()
+        cancelChordSyncTask()
+        if playsCountIn {
+            countdownTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.gameState = .countIn
+                self.statusText = self.copy.countIn
+                await self.runMeasureCountIn()
+                if Task.isCancelled { return }
+                self.beginPhrasePlayback(at: nextIndex)
+            }
+            publishSnapshot()
+            return
+        }
+        beginPhrasePlayback(at: nextIndex)
+    }
+
+    private func beginPhrasePlayback(at nextIndex: Int) {
         guard let phrase = phrases.indices.contains(nextIndex) ? phrases[nextIndex] : nil else {
             finishGameOver(message: copy.noPhrases)
             return
