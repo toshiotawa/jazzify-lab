@@ -517,28 +517,23 @@ final class EarTrainingBattleController: ObservableObject {
         cancelCountdownTimer()
         audio.stopPhrase()
 
-        // 最初のフレーズの AVPlayerItem を先読みする（無音 play は行わない）
-        if let first = phrases.first, let url = URL(string: first.audioUrl) {
-            audio.prefetchPhraseItem(url: url)
-        }
-
         let beatIntervalMs = max(100.0, (60.0 / Double(stage.bpm)) * 1000)
         let initialBeats = stage.countInBeats
-        countdownTask = Task { [weak self] in
+        countdownTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let first = self.phrases.first, let url = URL(string: first.audioUrl) {
+                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+            }
+            if Task.isCancelled { return }
             var remaining = initialBeats
             while remaining > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(beatIntervalMs * 1_000_000))
                 if Task.isCancelled { return }
                 remaining -= 1
-                await MainActor.run {
-                    self?.countInValue = max(0, remaining)
-                }
+                self.countInValue = max(0, remaining)
             }
-            await MainActor.run {
-                guard let self else { return }
-                self.startTimeLimit()
-                self.startPhrase(at: 0)
-            }
+            if Task.isCancelled { return }
+            self.startPhrase(at: 0, startsTimeLimit: true)
         }
         publishSnapshot()
     }
@@ -565,7 +560,7 @@ final class EarTrainingBattleController: ObservableObject {
         }
     }
 
-    private func startPhrase(at index: Int) {
+    private func startPhrase(at index: Int, startsTimeLimit: Bool = false) {
         guard index >= 0 && index < phrases.count else {
             finishGameOver(message: copy.noPhrases)
             return
@@ -576,6 +571,7 @@ final class EarTrainingBattleController: ObservableObject {
         let phrase = phrases[index]
         phraseIndex = index
         phraseRunId += 1
+        let runId = phraseRunId
         attempt = EarTrainingEngine.createPhraseAttempt(phrase)
         lastRank = nil
         activeLoop = 1
@@ -586,7 +582,18 @@ final class EarTrainingBattleController: ObservableObject {
         gameState = .playingPhrase
 
         if let url = URL(string: phrase.audioUrl) {
-            audio.playPhrase(url: url)
+            let onStarted: () -> Void = { [weak self] in
+                Task { @MainActor in
+                    guard let self else { return }
+                    guard self.phraseRunId == runId else { return }
+                    if startsTimeLimit {
+                        self.startTimeLimit()
+                    }
+                }
+            }
+            if !audio.playPreparedPhrase(url: url, onStarted: onStarted) {
+                audio.playPhrase(url: url, onStarted: onStarted)
+            }
         }
         publishSnapshot()
     }
@@ -627,7 +634,7 @@ final class EarTrainingBattleController: ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     let next = EarTrainingEngine.nextPhraseIndex(currentIndex: self.phraseIndex, totalPhrases: self.phrases.count)
-                    self.startPhrase(at: next)
+                    self.startPhrase(at: next, startsTimeLimit: false)
                 }
             }
         }
@@ -644,24 +651,15 @@ final class EarTrainingBattleController: ObservableObject {
         lastRank = rank
         statusText = copy.transitionNextBar(rank: completionDisplayRank(rank: rank, phrase: phrase))
 
-        transitionTimerTask = Task { [weak self] in
+        transitionTimerTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
             if Task.isCancelled { return }
-            await MainActor.run {
-                guard let self else { return }
-                self.audio.stopPhrase()
-                self.gameState = .transitionToNextPhrase
-                self.transitionTimerTask = nil
-                self.transitionTimerTask = Task { [weak self] in
-                    try? await Task.sleep(nanoseconds: 420_000_000)
-                    if Task.isCancelled { return }
-                    await MainActor.run {
-                        guard let self else { return }
-                        let next = EarTrainingEngine.nextPhraseIndex(currentIndex: self.phraseIndex, totalPhrases: self.phrases.count)
-                        self.startPhrase(at: next)
-                    }
-                }
-            }
+            self.audio.stopPhrase()
+            self.gameState = .transitionToNextPhrase
+            self.transitionTimerTask = nil
+            let next = EarTrainingEngine.nextPhraseIndex(currentIndex: self.phraseIndex, totalPhrases: self.phrases.count)
+            self.startPhrase(at: next, startsTimeLimit: false)
         }
     }
 
