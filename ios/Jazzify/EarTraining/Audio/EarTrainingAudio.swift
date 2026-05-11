@@ -121,7 +121,7 @@ final class EarTrainingAudio: NSObject {
     }
 
     /// フレーズ MP3 を頭から再生する。
-    func playPhrase(url: URL) {
+    func playPhrase(url: URL, onStarted: (() -> Void)? = nil) {
         playbackToken += 1
         let token = playbackToken
 
@@ -141,6 +141,7 @@ final class EarTrainingAudio: NSObject {
                 self.currentTimeSec = 0
                 self.player.volume = self.phraseVolume
                 self.player.play()
+                onStarted?()
             }
         }
     }

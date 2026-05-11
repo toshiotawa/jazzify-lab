@@ -521,8 +521,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             guard let self else { return }
             await self.runMeasureCountIn()
             if Task.isCancelled { return }
-            self.startTimeLimit()
-            self.beginPhrasePlayback(at: 0)
+            self.beginPhrasePlayback(at: 0, startsTimeLimit: true)
         }
         publishSnapshot()
     }
@@ -573,15 +572,15 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 self.statusText = self.copy.countIn
                 await self.runMeasureCountIn()
                 if Task.isCancelled { return }
-                self.beginPhrasePlayback(at: nextIndex)
+                self.beginPhrasePlayback(at: nextIndex, startsTimeLimit: false)
             }
             publishSnapshot()
             return
         }
-        beginPhrasePlayback(at: nextIndex)
+        beginPhrasePlayback(at: nextIndex, startsTimeLimit: false)
     }
 
-    private func beginPhrasePlayback(at nextIndex: Int) {
+    private func beginPhrasePlayback(at nextIndex: Int, startsTimeLimit: Bool = false) {
         guard let phrase = phrases.indices.contains(nextIndex) ? phrases[nextIndex] : nil else {
             finishGameOver(message: copy.noPhrases)
             return
@@ -592,6 +591,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         completionPulse = nil
         phraseIndex = nextIndex
         phraseRunId += 1
+        let runId = phraseRunId
         lastLoopAttackApplied = 0
         enemyAttackGaugePercent = 0
         activeLoop = 1
@@ -622,12 +622,24 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             activeMeasureNumber = 1
         }
         statusText = copy.phraseLabel(indexOneBased: nextIndex + 1)
-        gameState = .playingPhrase
-        if let url = URL(string: phrase.audioUrl) {
-            audio.playPhrase(url: url)
+        guard let url = URL(string: phrase.audioUrl) else {
+            finishGameOver(message: copy.audioFailed)
+            return
         }
+        gameState = .playingPhrase
         publishSnapshot()
         syncChordTimeline(scheduleNext: true)
+        audio.playPhrase(url: url) { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                guard self.phraseRunId == runId else { return }
+
+                if startsTimeLimit {
+                    self.startTimeLimit()
+                }
+                self.syncChordTimeline(scheduleNext: true)
+            }
+        }
     }
 
     private func startTimeLimit() {
