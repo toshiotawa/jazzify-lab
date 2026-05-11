@@ -71,7 +71,6 @@ import {
 } from '@/utils/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
-import { FantasySoundManager } from '@/utils/FantasySoundManager';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -1047,9 +1046,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setAttempt(acknowledgedAttempt);
     attemptRef.current = acknowledgedAttempt;
 
-    if (result.rootNoteName) {
-      void FantasySoundManager.playRootNote(result.rootNoteName);
-    }
 
     setStatusText(copy.chordCompleted(currentChord.chord_name));
     triggerCompletionPulse(currentChord.id, 'harmonyComplete');

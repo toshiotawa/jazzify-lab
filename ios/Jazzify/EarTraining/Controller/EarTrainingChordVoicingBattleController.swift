@@ -350,9 +350,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         )
         attempt = acknowledged
 
-        if let rootName = result.rootNoteName {
-            playRootNoteIfPossible(rootName: rootName)
-        }
 
         statusText = copy.chordCompleted(chordName: chord.chordName)
         triggerCompletionPulse(groupId: chord.id, kind: .harmonyComplete)
@@ -947,12 +944,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         if next != voicingHintsByMidi {
             voicingHintsByMidi = next
         }
-    }
-
-    private func playRootNoteIfPossible(rootName: String) {
-        guard let pc = EarTrainingChordVoicingEngine.noteNameToPitchClass(rootName) else { return }
-        let midi = 36 + pc
-        SurvivalGameAudio.shared.playSynthBassRoot(midi: midi)
     }
 
     static func avatarAssetName(stageId: UUID, enemyId: String) -> String {

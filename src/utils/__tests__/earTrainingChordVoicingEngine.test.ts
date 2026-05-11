@@ -61,7 +61,6 @@ describe('earTrainingChordVoicingEngine', () => {
 
     expect(results[0].chordJustCompleted).toBe(false);
     expect(results[3].chordJustCompleted).toBe(true);
-    expect(results[3].rootNoteName).toBe('D');
     expect(results[3].enemyDamage).toBe(damage.perCorrectNote);
     expect(attempt.completedChordIds.has('c1')).toBe(true);
   });
@@ -92,7 +91,6 @@ describe('earTrainingChordVoicingEngine', () => {
     const extra = handleChordVoicingNoteOn(attempt, chord, 50, damage);
     expect(extra.attempt).toBe(attempt);
     expect(extra.chordJustCompleted).toBe(false);
-    expect(extra.rootNoteName).toBe(null);
   });
 
   it('全コード完成検知 isAllChordsCompleted', () => {

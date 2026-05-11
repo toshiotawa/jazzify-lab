@@ -4,7 +4,6 @@ import type {
   EarTrainingPhrase,
   EarTrainingPhraseChord,
 } from '@/types';
-import { resolveChord } from '@/utils/chord-utils';
 import {
   midiToPitchClass,
   type EarTrainingDamageConfig,
@@ -16,7 +15,6 @@ export interface ChordVoicingEvaluationResult {
   attempt: EarTrainingChordVoicingAttempt;
   hitPitchClass: number | null;
   chordJustCompleted: boolean;
-  rootNoteName: string | null;
   enemyDamage: number;
   playerDamage: number;
   evaluationMissAdded: boolean;
@@ -48,18 +46,6 @@ export const getVoicingPitchClasses = (chord: EarTrainingPhraseChord): number[] 
     }
   });
   return [...pcs];
-};
-
-const getRootNoteName = (chord: EarTrainingPhraseChord): string | null => {
-  const trimmed = chord.chord_name.trim();
-  if (!trimmed) {
-    return null;
-  }
-  const resolved = resolveChord(trimmed, 4);
-  if (!resolved) {
-    return null;
-  }
-  return resolved.root || null;
 };
 
 export const createChordVoicingAttempt = (phrase: EarTrainingPhrase): EarTrainingChordVoicingAttempt => {
@@ -110,7 +96,6 @@ export const handleChordVoicingNoteOn = (
       attempt,
       hitPitchClass: null,
       chordJustCompleted: false,
-      rootNoteName: null,
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
@@ -123,7 +108,6 @@ export const handleChordVoicingNoteOn = (
       attempt,
       hitPitchClass: null,
       chordJustCompleted: false,
-      rootNoteName: null,
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
@@ -136,7 +120,6 @@ export const handleChordVoicingNoteOn = (
       attempt,
       hitPitchClass: null,
       chordJustCompleted: false,
-      rootNoteName: null,
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
@@ -157,7 +140,6 @@ export const handleChordVoicingNoteOn = (
       attempt: next,
       hitPitchClass: null,
       chordJustCompleted: false,
-      rootNoteName: null,
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded,
@@ -169,7 +151,6 @@ export const handleChordVoicingNoteOn = (
       attempt,
       hitPitchClass: inputPc,
       chordJustCompleted: false,
-      rootNoteName: null,
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
@@ -190,7 +171,6 @@ export const handleChordVoicingNoteOn = (
     attempt: next,
     hitPitchClass: inputPc,
     chordJustCompleted: completed,
-    rootNoteName: completed ? getRootNoteName(activeChord) : null,
     enemyDamage: damage.perCorrectNote,
     playerDamage: 0,
     evaluationMissAdded: false,

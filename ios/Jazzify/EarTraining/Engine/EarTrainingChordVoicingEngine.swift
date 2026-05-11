@@ -121,24 +121,6 @@ enum EarTrainingChordVoicingEngine {
         (chord.voicing?.count ?? 0) > 0
     }
 
-    static func rootNoteName(for chord: EarTrainingPhraseChordDetail) -> String? {
-        let trimmed = chord.chordName.trimmingCharacters(in: .whitespaces)
-        guard let first = trimmed.first else { return nil }
-        var root = String(first).uppercased()
-        var index = trimmed.index(after: trimmed.startIndex)
-        if index < trimmed.endIndex {
-            let next = trimmed[index]
-            if next == "#" || next == "♯" {
-                root += "#"
-                index = trimmed.index(after: index)
-            } else if next == "b" || next == "♭" {
-                root += "b"
-                index = trimmed.index(after: index)
-            }
-        }
-        return root.isEmpty ? nil : root
-    }
-
     static func createAttempt(for phrase: EarTrainingPhraseDetail) -> EarTrainingChordVoicingAttempt {
         var completedChordIds = Set<UUID>()
         for chord in phrase.chords ?? [] where !chordHasVoicingNotes(chord) {
@@ -158,7 +140,6 @@ enum EarTrainingChordVoicingEngine {
         var attempt: EarTrainingChordVoicingAttempt
         var hitPitchClass: Int?
         var chordJustCompleted: Bool
-        var rootNoteName: String?
         var enemyDamage: Int
         var playerDamage: Int
         var evaluationMissAdded: Bool
@@ -175,7 +156,6 @@ enum EarTrainingChordVoicingEngine {
                 attempt: attempt,
                 hitPitchClass: nil,
                 chordJustCompleted: false,
-                rootNoteName: nil,
                 enemyDamage: 0,
                 playerDamage: 0,
                 evaluationMissAdded: false
@@ -187,7 +167,6 @@ enum EarTrainingChordVoicingEngine {
                 attempt: attempt,
                 hitPitchClass: nil,
                 chordJustCompleted: false,
-                rootNoteName: nil,
                 enemyDamage: 0,
                 playerDamage: 0,
                 evaluationMissAdded: false
@@ -199,7 +178,6 @@ enum EarTrainingChordVoicingEngine {
                 attempt: attempt,
                 hitPitchClass: nil,
                 chordJustCompleted: false,
-                rootNoteName: nil,
                 enemyDamage: 0,
                 playerDamage: 0,
                 evaluationMissAdded: false
@@ -219,7 +197,6 @@ enum EarTrainingChordVoicingEngine {
                 attempt: next,
                 hitPitchClass: nil,
                 chordJustCompleted: false,
-                rootNoteName: nil,
                 enemyDamage: 0,
                 playerDamage: 0,
                 evaluationMissAdded: evaluationMissAdded
@@ -230,7 +207,6 @@ enum EarTrainingChordVoicingEngine {
                 attempt: attempt,
                 hitPitchClass: inputPc,
                 chordJustCompleted: false,
-                rootNoteName: nil,
                 enemyDamage: 0,
                 playerDamage: 0,
                 evaluationMissAdded: false
@@ -247,7 +223,6 @@ enum EarTrainingChordVoicingEngine {
             attempt: next,
             hitPitchClass: inputPc,
             chordJustCompleted: completed,
-            rootNoteName: completed ? rootNoteName(for: chord) : nil,
             enemyDamage: damage.perCorrectNote,
             playerDamage: 0,
             evaluationMissAdded: false
