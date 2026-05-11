@@ -508,6 +508,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         enemyAttackGaugePercent = 0
         activeLoop = 1
         activeMeasureNumber = 1
+        completionPulse = nil
         gameState = .countIn
         statusText = copy.countIn
         cancelAllTimers()
@@ -536,6 +537,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelFailTimer()
         cancelTransitionTimer()
         cancelChordSyncTask()
+        completionPulse = nil
         phraseIndex = nextIndex
         phraseRunId += 1
         lastLoopAttackApplied = 0
@@ -609,7 +611,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         let loop = Int(floor(currentTime / loopDurationSec)) + 1
         let clampedLoop = max(1, min(stage.maxLoopsPerPhrase, loop))
-        if activeLoop != clampedLoop { activeLoop = clampedLoop }
+        if clampedLoop > activeLoop {
+            completionPulse = nil
+        }
+        if activeLoop != clampedLoop {
+            activeLoop = clampedLoop
+        }
 
         let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
         let loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
