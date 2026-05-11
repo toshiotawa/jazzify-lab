@@ -141,8 +141,12 @@ describe('earTrainingEngine', () => {
     })).toBe('gameOver');
   });
 
-  it('次小節頭までの待ち時間を計算する', () => {
-    expect(getNextMeasureDelaySec(1.25, 4, 2)).toBeCloseTo(0.75);
+  it('小節終端の 1ms 手前までの待ち時間を計算する', () => {
+    expect(getNextMeasureDelaySec(1.25, 4, 2)).toBeCloseTo(0.749);
+  });
+
+  it('境界直前では待ち時間がほぼ 0（負にならない）', () => {
+    expect(getNextMeasureDelaySec(1.999, 2, 1)).toBeCloseTo(0, 12);
   });
 
   it('次フレーズ番号を末尾と1フレーズ構成で折り返す', () => {

@@ -214,13 +214,16 @@ enum EarTrainingEngine {
         return .input
     }
 
-    /// Web `getNextMeasureDelaySec` 相当。
+    /// Web `NEXT_PHRASE_AT_MEASURE_END_LEAD_SEC` と一致。
+    private static let nextPhraseAtMeasureEndLeadSec: Double = 0.001
+
+    /// Web `getNextMeasureDelaySec` 相当（現在小節終端から `nextPhraseAtMeasureEndLeadSec` 手前）。
     static func nextMeasureDelaySec(currentAudioTimeSec: Double, loopDurationSec: Double, loopMeasures: Int) -> Double {
         let measures = max(1, loopMeasures)
         let measureDurationSec = loopDurationSec / Double(measures)
-        guard measureDurationSec > 0 else { return 0.05 }
+        guard measureDurationSec > 0 else { return 0 }
         let positionInMeasure = currentAudioTimeSec.truncatingRemainder(dividingBy: measureDurationSec)
-        let delay = measureDurationSec - positionInMeasure
-        return delay < 0.05 ? 0.05 : delay
+        let toBoundarySec = measureDurationSec - positionInMeasure
+        return max(0, toBoundarySec - nextPhraseAtMeasureEndLeadSec)
     }
 }

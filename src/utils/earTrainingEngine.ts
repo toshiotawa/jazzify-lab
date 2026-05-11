@@ -208,13 +208,19 @@ export const resolveEarTrainingOutcome = (state: {
   return 'input';
 };
 
+/** フレーズ完了遷移: 現在小節の終端からこの秒だけ手前で次へ進む（Web と iOS で同値） */
+const NEXT_PHRASE_AT_MEASURE_END_LEAD_SEC = 0.001;
+
 export const getNextMeasureDelaySec = (
   currentAudioTimeSec: number,
   loopDurationSec: number,
   loopMeasures: number,
 ): number => {
   const measureDurationSec = loopDurationSec / Math.max(1, loopMeasures);
+  if (measureDurationSec <= 0) {
+    return 0;
+  }
   const positionInMeasure = currentAudioTimeSec % measureDurationSec;
-  const delay = measureDurationSec - positionInMeasure;
-  return delay < 0.05 ? 0.05 : delay;
+  const toBoundarySec = measureDurationSec - positionInMeasure;
+  return Math.max(0, toBoundarySec - NEXT_PHRASE_AT_MEASURE_END_LEAD_SEC);
 };

@@ -947,7 +947,7 @@ struct EarTrainingGameCopy {
                 tryAgain: "Try again",
                 lessonSaved: "Lesson progress saved",
                 lessonSaving: "Saving lesson progress…",
-                _transitionNextBar: { rank in "\(rank) — next phrase at the next bar line" },
+                _transitionNextBar: { rank in "\(rank) — next phrase shortly before the bar line" },
                 _correct: { note in note.map { "Correct: \($0)" } ?? "Correct" },
                 _phraseLabel: { index in "Phrase \(index)" },
                 _chordCompleted: { name in "Chord completed: \(name)" }
@@ -966,7 +966,7 @@ struct EarTrainingGameCopy {
             tryAgain: "もう一度",
             lessonSaved: "レッスン進捗を保存しました",
             lessonSaving: "レッスン進捗を保存中…",
-            _transitionNextBar: { rank in "\(rank): 次の小節頭で次へ" },
+            _transitionNextBar: { rank in "\(rank): 小節末直前で次へ" },
             _correct: { note in note.map { "正解: \($0)" } ?? "正解" },
             _phraseLabel: { index in "フレーズ \(index)" },
             _chordCompleted: { name in "コード完成: \(name)" }
