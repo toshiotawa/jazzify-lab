@@ -1,6 +1,5 @@
 import Foundation
 import AVFoundation
-import Combine
 
 /// 耳コピバトル ゲーム画面のオーディオマネージャ。
 /// - フレーズ MP3 (AVPlayer + AVPlayerItem) のストリーミング再生 + 周期的な currentTime 通知
@@ -22,6 +21,9 @@ final class EarTrainingAudio: NSObject {
     private var statusObservation: NSKeyValueObservation?
     private var preloadedAssetURL: URL?
     private var preloadedAsset: AVURLAsset?
+    /// `player` に現在載っているフレーズ URL（同一 URL では `AVPlayerItem` を作り直さず再利用する）。
+    private var loadedPhraseURL: URL?
+    private var playbackToken: Int = 0
 
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
     private var phraseVolume: Float = 1.0
@@ -86,28 +88,66 @@ final class EarTrainingAudio: NSObject {
     /// フレーズ MP3 をプリロードして無音状態でわずかに再生し、ユーザー操作直後の遅延を緩和する。
     /// Web 版 `primePhraseAudio` 相当。
     func primePhrase(url: URL) {
+        playbackToken += 1
+        let token = playbackToken
         prepareItem(url: url)
         player.volume = 0
-        player.play()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
-            guard let self else { return }
-            self.player.pause()
-            self.player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
-            self.player.volume = self.phraseVolume
+        player.pause()
+        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
+            guard finished else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard self.playbackToken == token, self.loadedPhraseURL == url else { return }
+                self.player.play()
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+                    guard let self else { return }
+                    guard self.playbackToken == token, self.loadedPhraseURL == url else { return }
+
+                    self.player.pause()
+                    self.player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
+                        guard finished else { return }
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self else { return }
+                            guard self.playbackToken == token, self.loadedPhraseURL == url else { return }
+
+                            self.player.volume = self.phraseVolume
+                            self.currentTimeSec = 0
+                        }
+                    }
+                }
+            }
         }
     }
 
     /// フレーズ MP3 を頭から再生する。
     func playPhrase(url: URL) {
+        playbackToken += 1
+        let token = playbackToken
+
         prepareItem(url: url)
-        currentTimeSec = 0
+
+        player.pause()
         player.volume = phraseVolume
-        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
-        player.play()
+        currentTimeSec = 0
+
+        player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
+            guard finished else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard self.playbackToken == token else { return }
+                guard self.loadedPhraseURL == url else { return }
+
+                self.currentTimeSec = 0
+                self.player.volume = self.phraseVolume
+                self.player.play()
+            }
+        }
     }
 
     /// フレーズ MP3 を停止し、再生時刻を 0 に戻す。
     func stopPhrase() {
+        playbackToken += 1
         player.pause()
         player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
         currentTimeSec = 0
@@ -121,8 +161,12 @@ final class EarTrainingAudio: NSObject {
     // MARK: - Internals
 
     private func prepareItem(url: URL) {
+        if loadedPhraseURL == url, currentItem != nil, player.currentItem === currentItem {
+            return
+        }
         removeObservers()
         currentTimeSec = 0
+        loadedPhraseURL = url
         let item: AVPlayerItem
         if let preloadedAsset, preloadedAssetURL == url {
             item = AVPlayerItem(asset: preloadedAsset)
