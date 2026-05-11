@@ -4,6 +4,7 @@
 
 import {
   analyzeSurvivalChordProgression,
+  buildSurvivalProgressionVoicingFormsMap,
   SURVIVAL_PROGRESSION_VOICING_MAP,
   survivalVoicingToNoteNames,
 } from './survivalProgressionVoicings';
@@ -14,11 +15,23 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
     process.stdout.write(`${JSON.stringify(SURVIVAL_PROGRESSION_VOICING_MAP, null, 2)}\n`);
     return;
   }
+  if (args[0] === '--dump-forms-map') {
+    const rows = buildSurvivalProgressionVoicingFormsMap().map(r => ({
+      root: r.root,
+      kind: r.kind,
+      A: [...r.A],
+      B: [...r.B],
+      ...(r.C ? { C: [...r.C] } : {}),
+    }));
+    process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
+    return;
+  }
   const input = args.join(' ').trim();
   if (!input) {
     process.stderr.write(
       'Usage: node scripts/survival-progression-voicings.mjs "Dm7(9) G7(9.13) CM7(9) CM7(9)"\n' +
-        '       node scripts/survival-progression-voicings.mjs --dump-map\n',
+        '       node scripts/survival-progression-voicings.mjs --dump-map\n' +
+        '       node scripts/survival-progression-voicings.mjs --dump-forms-map\n',
     );
     process.exitCode = 1;
     return;

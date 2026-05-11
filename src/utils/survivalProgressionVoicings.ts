@@ -83,7 +83,9 @@ const KIND_RELATIVE_SEMITONES: Record<
   '7_b9_b13': { A: [4, 8, 10, 13], B: [10, 13, 16, 20] },
   m7b5: { A: [3, 6, 10, 14], B: [10, 14, 15, 18] },
   '6_9': { A: [4, 7, 9, 14], B: [9, 14, 16, 19] },
-  dim7: { A: [3, 6, 9, 12], B: [9, 12, 15, 18] },
+  // dim7 は他種と異なり、A=R 3 5 7（R 始まり）、B=5 7 R 3（5th 始まり）。
+  // フォーム選択は「(root-4半音) を 7(b9.b13) のルートと見なした既定」と一致させる。
+  dim7: { A: [0, 3, 6, 9], B: [6, 9, 12, 15] },
   m6_9: { A: [3, 7, 9, 14], B: [9, 14, 15, 19] },
   mM7_9: { A: [3, 7, 11, 14], B: [11, 14, 15, 19] },
   dom7: { A: [4, 7, 10, 13], B: [10, 13, 16, 19] },
@@ -183,18 +185,35 @@ const buildFormMidis = (
   return relativeSemitonesToAscendingMidi(root, rel, oct);
 };
 
-const defaultFormForRoot = (root: string): SurvivalVoicingForm => {
+/**
+ * デフォルトフォームは「ルート音のピッチクラス」で決める。
+ * - A: C, Db/C#, D, Bb/A#, B
+ * - B: Eb/D#, E, F, Gb/F#, G, Ab/G#, A
+ * これにより II-V-I / マイナー II-V-I が全 12 キーで A↔B 交替になる。
+ * - Eb の M7(9) のみ C フォーム（呼び出し側で上書き）
+ * - dim7 はこの関数を使わず、別途 (root-4半音) のピッチクラスで判定する
+ */
+const A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 10, 11]);
+
+const pitchClassOf = (root: string): number => {
   const n = parseNote(root);
-  if (!n.empty && n.pc !== undefined) {
-    const name = n.name;
-    if (typeof name === 'string' && name.length > 0) {
-      const letter = name[0];
-      if (letter === 'C' || letter === 'D' || letter === 'E') return 'A';
-      if (letter === 'F' || letter === 'G' || letter === 'A' || letter === 'B') return 'B';
-    }
-  }
-  return 'B';
+  if (typeof n.chroma === 'number') return n.chroma;
+  throw new Error(`Cannot resolve pitch class for root: ${root}`);
 };
+
+const defaultFormForRoot = (root: string): SurvivalVoicingForm =>
+  A_FORM_PITCH_CLASSES.has(pitchClassOf(root)) ? 'A' : 'B';
+
+/** dim7 のフォーム: (root - 4半音) を 7(b9.b13) のルートと見なした既定と同じ */
+const defaultFormForDim7Root = (root: string): SurvivalVoicingForm => {
+  const pc = ((pitchClassOf(root) - 4) % 12 + 12) % 12;
+  return A_FORM_PITCH_CLASSES.has(pc) ? 'A' : 'B';
+};
+
+const defaultFormForRootByKind = (
+  root: string,
+  kind: SurvivalProgressionVoicingKind,
+): SurvivalVoicingForm => (kind === 'dim7' ? defaultFormForDim7Root(root) : defaultFormForRoot(root));
 
 const parseChordToken = (token: string): { root: string; kind: SurvivalProgressionVoicingKind; name: string } => {
   const t = normalizeChordToken(token);
@@ -224,7 +243,7 @@ const selectFormForProgressionIndex = (
   if (kind === 'M7_9' && root === 'Eb') {
     return 'C';
   }
-  let form = defaultFormForRoot(root);
+  let form = defaultFormForRootByKind(root, kind);
   if (previousForm !== null && form === previousForm) {
     form = form === 'A' ? 'B' : 'A';
   }
@@ -268,7 +287,7 @@ export const SURVIVAL_PROGRESSION_VOICING_MAP: Record<string, SurvivalChordProgr
       const form =
         kind === 'M7_9' && root === 'Eb'
           ? ('C' as const)
-          : defaultFormForRoot(root);
+          : defaultFormForRootByKind(root, kind);
       const voicing =
         form === 'C'
           ? buildFormMidis(root, 'M7_9', 'C')
@@ -311,12 +330,6 @@ export const analyzeSurvivalChordProgression = (input: string): SurvivalProgress
 
   return { entries, progression, warnings: globalWarnings };
 };
-
-export const buildSurvivalChordProgression = (input: string): SurvivalChordProgressionEntry[] =>
-  analyzeSurvivalChordProgression(input).progression.map(e => ({
-    name: e.name,
-    voicing: [...e.voicing],
-  }));
 
 const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 
