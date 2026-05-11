@@ -139,6 +139,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         gameState == .countIn ? countInDisplay : statusText
     }
 
+    private var sanitizedCountInBeats: Int {
+        max(0, min(32, stage.countInBeats))
+    }
+
     var resultRankLine: String? {
         guard gameState == .stageClear, let rank = lastRank else { return nil }
         let letter = EarTrainingEngine.lessonRank(from: rank)
@@ -502,7 +506,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         timeRemaining = stage.timeLimitSec
         phraseIndex = 0
         phraseRunId = 0
-        countInValue = max(1, min(32, stage.beatsPerMeasure))
+        countInValue = sanitizedCountInBeats
         lastLoopAttackApplied = 0
         pendingImpactHandlers.removeAll()
         enemyAttackGaugePercent = 0
@@ -519,17 +523,22 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         countdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.runMeasureCountIn()
+            await self.runCountIn()
             if Task.isCancelled { return }
             self.beginPhrasePlayback(at: 0, startsTimeLimit: true)
         }
         publishSnapshot()
     }
 
-    /// 拍子の1小節分、BPM に同期したクリックを鳴らす（ループ再生中の再突入では呼ばない）。
-    /// Web 版 `playEarTrainingCountInMeasure` と同様に、基準時刻から絶対時刻で拍を刻み累積ドリフトを抑える。
-    private func runMeasureCountIn() async {
-        let beats = max(1, min(32, stage.beatsPerMeasure))
+    /// ステージ設定の拍数分、BPM に同期したクリックを鳴らす（ループ再生中の再突入では呼ばない）。
+    /// Web 版 `playEarTrainingCountIn` と同様に、基準時刻から絶対時刻で拍を刻み累積ドリフトを抑える。
+    private func runCountIn() async {
+        let beats = sanitizedCountInBeats
+        guard beats > 0 else {
+            countInValue = 0
+            publishSnapshot()
+            return
+        }
         let beatDurationSec = max(0.1, 60.0 / Double(stage.bpm))
         let webLeadInSec = 0.02
         let t0 = CFAbsoluteTimeGetCurrent() + webLeadInSec
@@ -570,7 +579,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 guard let self else { return }
                 self.gameState = .countIn
                 self.statusText = self.copy.countIn
-                await self.runMeasureCountIn()
+                await self.runCountIn()
                 if Task.isCancelled { return }
                 self.beginPhrasePlayback(at: nextIndex, startsTimeLimit: false)
             }

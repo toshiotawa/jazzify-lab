@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { playEarTrainingCountInMeasure } from '@/utils/earTrainingCountInClick';
+import { playEarTrainingCountIn } from '@/utils/earTrainingCountInClick';
 
 const scheduledStarts: number[] = [];
 
@@ -39,7 +39,7 @@ class MockAudioContext {
   createGain = (): MockGainNode => new MockGainNode();
 }
 
-describe('playEarTrainingCountInMeasure', () => {
+describe('playEarTrainingCountIn', () => {
   const originalAudioContext = window.AudioContext;
 
   beforeEach(() => {
@@ -63,9 +63,9 @@ describe('playEarTrainingCountInMeasure', () => {
     const onBeat = vi.fn();
     let resolved = false;
 
-    const promise = playEarTrainingCountInMeasure({
+    const promise = playEarTrainingCountIn({
       bpm: 60,
-      beatsPerMeasure: 4,
+      countInBeats: 4,
       gain: 1,
       onBeat,
     }).then(() => {
@@ -96,5 +96,19 @@ describe('playEarTrainingCountInMeasure', () => {
     await promise;
 
     expect(resolved).toBe(true);
+  });
+
+  it('resolves immediately without scheduling clicks when count-in beats is zero', async () => {
+    const onBeat = vi.fn();
+
+    await playEarTrainingCountIn({
+      bpm: 60,
+      countInBeats: 0,
+      gain: 1,
+      onBeat,
+    });
+
+    expect(scheduledStarts).toEqual([]);
+    expect(onBeat).not.toHaveBeenCalled();
   });
 });

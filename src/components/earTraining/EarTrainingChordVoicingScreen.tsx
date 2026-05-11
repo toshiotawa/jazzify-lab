@@ -65,7 +65,7 @@ import {
   getEarTrainingGameCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { playEarTrainingCountInMeasure } from '@/utils/earTrainingCountInClick';
+import { playEarTrainingCountIn } from '@/utils/earTrainingCountInClick';
 import {
   DEFAULT_AVATAR_URL,
   EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
@@ -810,14 +810,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         gameStateRef.current = 'countIn';
         setGameState('countIn');
         setStatusText(copy.countIn);
-        const beats = Math.max(1, Math.min(32, stage.beats_per_measure));
+        const beats = Math.max(0, Math.min(32, stage.count_in_beats));
         setCountInValue(beats);
         stopPhraseAudio();
         primePhraseAudio(phrase);
         try {
-          await playEarTrainingCountInMeasure({
+          await playEarTrainingCountIn({
             bpm: stage.bpm,
-            beatsPerMeasure: beats,
+            countInBeats: beats,
             gain: settings.masterVolume * settings.musicVolume,
             onBeat: remaining => {
               setCountInValue(remaining);
@@ -841,8 +841,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     phrases,
     settings.masterVolume,
     settings.musicVolume,
-    stage.beats_per_measure,
     stage.bpm,
+    stage.count_in_beats,
     stopPhraseAudio,
     primePhraseAudio,
   ]);
@@ -901,13 +901,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stopPhraseAudio();
     primePhraseAudio(phrases[0]);
 
-    const beats = Math.max(1, Math.min(32, stage.beats_per_measure));
+    const beats = Math.max(0, Math.min(32, stage.count_in_beats));
     setCountInValue(beats);
     void (async () => {
       try {
-        await playEarTrainingCountInMeasure({
+        await playEarTrainingCountIn({
           bpm: stage.bpm,
-          beatsPerMeasure: beats,
+          countInBeats: beats,
           gain: settings.masterVolume * settings.musicVolume,
           onBeat: remaining => {
             setCountInValue(remaining);
@@ -933,8 +933,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setEnemyAttackGaugePercent,
     settings.masterVolume,
     settings.musicVolume,
-    stage.beats_per_measure,
     stage.bpm,
+    stage.count_in_beats,
     stage.enemy_hp,
     stage.player_hp,
     stage.time_limit_sec,

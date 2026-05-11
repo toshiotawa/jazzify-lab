@@ -1,9 +1,9 @@
 /**
- * 耳コピコードヴォイシングバトル用：拍子の1小節分、BPM 同期のクリックを Web Audio API で再生する。
+ * 耳コピコードヴォイシングバトル用：ステージ設定の拍数分、BPM 同期のクリックを Web Audio API で再生する。
  * フレーズ MP3 のループ中には呼ばない（ループ境界ではカウントを挟まない）。
  */
 
-const clampBeats = (beats: number): number => Math.max(1, Math.min(32, Math.trunc(beats)));
+const clampCountInBeats = (beats: number): number => Math.max(0, Math.min(32, Math.trunc(beats)));
 
 /** 短いクリック1発を `when` にスケジュールする（woodblock 風の減衰） */
 const scheduleClick = (ctx: AudioContext, when: number, peakGain: number): void => {
@@ -22,10 +22,10 @@ const scheduleClick = (ctx: AudioContext, when: number, peakGain: number): void 
   osc.stop(when + 0.085);
 };
 
-export interface PlayEarTrainingCountInMeasureParams {
+export interface PlayEarTrainingCountInParams {
   bpm: number;
-  /** `ear_training_stages.beats_per_measure` */
-  beatsPerMeasure: number;
+  /** `ear_training_stages.count_in_beats` */
+  countInBeats: number;
   /** 0..1（マスター×ミュージック相当） */
   gain: number;
   /** 各クリックの直後に残り拍（終了時は0）を通知。任意。 */
@@ -33,12 +33,16 @@ export interface PlayEarTrainingCountInMeasureParams {
 }
 
 /**
- * 1小節分のカウントインを再生し、終了まで await する。
+ * 設定拍数分のカウントインを再生し、終了まで await する。
  */
-export const playEarTrainingCountInMeasure = async (
-  params: PlayEarTrainingCountInMeasureParams,
+export const playEarTrainingCountIn = async (
+  params: PlayEarTrainingCountInParams,
 ): Promise<void> => {
   if (typeof window === 'undefined') {
+    return;
+  }
+  const beats = clampCountInBeats(params.countInBeats);
+  if (beats <= 0) {
     return;
   }
   const AudioContextClass =
@@ -49,7 +53,6 @@ export const playEarTrainingCountInMeasure = async (
   }
 
   const bpm = Math.max(20, Math.min(400, params.bpm));
-  const beats = clampBeats(params.beatsPerMeasure);
   const gain = Math.max(0, Math.min(1, params.gain));
 
   const ctx = new AudioContextClass();
