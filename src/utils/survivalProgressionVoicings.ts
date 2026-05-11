@@ -190,12 +190,14 @@ const buildFormMidis = (
  * 進行中の前コードには依存させず、コードマップとして固定する。
  * II-V-I / マイナー II-V-I は ii / V / I それぞれの固定フォームで A↔B 交替になる。
  * - Eb の M7(9) のみ C フォーム（呼び出し側で上書き）
- * - dim7 はこの関数を使わず、別途 (root-4半音) のピッチクラスで判定する
+ * - dim7 はこの関数を使わず、別途 (root-4半音) を 7(b9.b13) と同じ基準で判定する
  */
-const A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 10, 11]);
-const DOMINANT_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 8, 9, 10, 11]);
-const MAJOR_TONIC_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 8, 9, 10, 11]);
-const MINOR_TONIC_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 8, 9, 10, 11]);
+const MINOR_SEVENTH_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 3, 4]);
+const HALF_DIMINISHED_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 3, 4, 5]);
+const MAJOR_DOMINANT_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 3, 4, 10, 11]);
+const MINOR_DOMINANT_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 3, 4, 11]);
+const MAJOR_TONIC_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 10, 11]);
+const MINOR_TONIC_A_FORM_PITCH_CLASSES: ReadonlySet<number> = new Set<number>([0, 1, 2, 3, 10, 11]);
 
 const pitchClassOf = (root: string): number => {
   const n = parseNote(root);
@@ -203,16 +205,13 @@ const pitchClassOf = (root: string): number => {
   throw new Error(`Cannot resolve pitch class for root: ${root}`);
 };
 
-const defaultFormForRoot = (root: string): SurvivalVoicingForm =>
-  A_FORM_PITCH_CLASSES.has(pitchClassOf(root)) ? 'A' : 'B';
-
 const formFromPitchClassSet = (root: string, aFormPitchClasses: ReadonlySet<number>): SurvivalVoicingForm =>
   aFormPitchClasses.has(pitchClassOf(root)) ? 'A' : 'B';
 
 /** dim7 のフォーム: (root - 4半音) を 7(b9.b13) のルートと見なした既定と同じ */
 const defaultFormForDim7Root = (root: string): SurvivalVoicingForm => {
   const pc = ((pitchClassOf(root) - 4) % 12 + 12) % 12;
-  return A_FORM_PITCH_CLASSES.has(pc) ? 'A' : 'B';
+  return MINOR_DOMINANT_A_FORM_PITCH_CLASSES.has(pc) ? 'A' : 'B';
 };
 
 const defaultFormForRootByKind = (
@@ -222,10 +221,11 @@ const defaultFormForRootByKind = (
   switch (kind) {
     case '7_9_13':
     case '7_9':
-    case '7_b9_b13':
     case 'dom7':
     case 'aug7':
-      return formFromPitchClassSet(root, DOMINANT_A_FORM_PITCH_CLASSES);
+      return formFromPitchClassSet(root, MAJOR_DOMINANT_A_FORM_PITCH_CLASSES);
+    case '7_b9_b13':
+      return formFromPitchClassSet(root, MINOR_DOMINANT_A_FORM_PITCH_CLASSES);
     case 'M7_9':
     case '6_9':
       return formFromPitchClassSet(root, MAJOR_TONIC_A_FORM_PITCH_CLASSES);
@@ -235,8 +235,9 @@ const defaultFormForRootByKind = (
     case 'dim7':
       return defaultFormForDim7Root(root);
     case 'm7':
+      return formFromPitchClassSet(root, MINOR_SEVENTH_A_FORM_PITCH_CLASSES);
     case 'm7b5':
-      return defaultFormForRoot(root);
+      return formFromPitchClassSet(root, HALF_DIMINISHED_A_FORM_PITCH_CLASSES);
   }
 };
 

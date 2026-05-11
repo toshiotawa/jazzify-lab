@@ -43,23 +43,24 @@ describe('survivalProgressionVoicings', () => {
     // Cdim7 → C-4=Ab(pc8) → B フォーム → 5 7 R 3 → Gb A C Eb = pc [6,9,0,3]
     expect(cDim.form).toBe('B');
     expect(pcs(cDim.voicing)).toEqual([6, 9, 0, 3]);
-    // Ddim7 → D-4=Bb(pc10) → A フォーム → R 3 5 7 → D F Ab B = pc [2,5,8,11]
-    expect(dDim.form).toBe('A');
-    expect(pcs(dDim.voicing)).toEqual([2, 5, 8, 11]);
+    // Ddim7 → D-4=Bb(pc10) → B フォーム → 5 7 R 3 → Ab B D F = pc [8,11,2,5]
+    expect(dDim.form).toBe('B');
+    expect(pcs(dDim.voicing)).toEqual([8, 11, 2, 5]);
   });
 
-  it('メジャー II-V-I 全 12 キーで A-B 交替（Eb は B-A-C）', () => {
+  it('メジャー II-V-I 全キーで指定フォーム表に従う（Eb は B-A-C）', () => {
     const KEYS: ReadonlyArray<{ key: string; input: string; expected: ReadonlyArray<'A' | 'B' | 'C'> }> = [
       { key: 'C',  input: 'Dm7(9) G7(9.13) CM7(9)',   expected: ['A', 'B', 'A'] },
-      { key: 'Db', input: 'Ebm7(9) Ab7(9.13) DbM7(9)', expected: ['B', 'A', 'B'] },
-      { key: 'D',  input: 'Em7(9) A7(9.13) DM7(9)',   expected: ['B', 'A', 'B'] },
+      { key: 'Db', input: 'Ebm7(9) Ab7(9.13) DbM7(9)', expected: ['A', 'B', 'A'] },
+      { key: 'D',  input: 'Em7(9) A7(9.13) DM7(9)',   expected: ['A', 'B', 'A'] },
       { key: 'Eb', input: 'Fm7(9) Bb7(9.13) EbM7(9)', expected: ['B', 'A', 'C'] },
       { key: 'E',  input: 'F#m7(9) B7(9.13) EM7(9)',  expected: ['B', 'A', 'B'] },
       { key: 'F',  input: 'Gm7(9) C7(9.13) FM7(9)',   expected: ['B', 'A', 'B'] },
+      { key: 'F#', input: 'G#m7(9) C#7(9.13) F#M7(9)', expected: ['B', 'A', 'B'] },
       { key: 'Gb', input: 'Abm7(9) Db7(9.13) GbM7(9)', expected: ['B', 'A', 'B'] },
       { key: 'G',  input: 'Am7(9) D7(9.13) GM7(9)',   expected: ['B', 'A', 'B'] },
-      { key: 'Ab', input: 'Bbm7(9) Eb7(9.13) AbM7(9)', expected: ['A', 'B', 'A'] },
-      { key: 'A',  input: 'Bm7(9) E7(9.13) AM7(9)',   expected: ['A', 'B', 'A'] },
+      { key: 'Ab', input: 'Bbm7(9) Eb7(9.13) AbM7(9)', expected: ['B', 'A', 'B'] },
+      { key: 'A',  input: 'Bm7(9) E7(9.13) AM7(9)',   expected: ['B', 'A', 'B'] },
       { key: 'Bb', input: 'Cm7(9) F7(9.13) BbM7(9)',  expected: ['A', 'B', 'A'] },
       { key: 'B',  input: 'C#m7(9) F#7(9.13) BM7(9)', expected: ['A', 'B', 'A'] },
     ];
@@ -69,20 +70,20 @@ describe('survivalProgressionVoicings', () => {
     }
   });
 
-  it('マイナー II-V-I 全 12 キー（i = m6(9)）で A-B 交替', () => {
+  it('マイナー II-V-I 全 12 キー（i = mM7(9)）で指定フォーム表に従う', () => {
     const KEYS: ReadonlyArray<{ key: string; input: string; expected: ReadonlyArray<'A' | 'B'> }> = [
-      { key: 'Cm',  input: 'Dm7(b5) G7(b9.b13) Cm6(9)',  expected: ['A', 'B', 'A'] },
-      { key: 'C#m', input: 'D#m7(b5) G#7(b9.b13) C#m6(9)', expected: ['B', 'A', 'B'] },
-      { key: 'Dm',  input: 'Em7(b5) A7(b9.b13) Dm6(9)',  expected: ['B', 'A', 'B'] },
-      { key: 'Ebm', input: 'Fm7(b5) Bb7(b9.b13) Ebm6(9)', expected: ['B', 'A', 'B'] },
-      { key: 'Em',  input: 'F#m7(b5) B7(b9.b13) Em6(9)', expected: ['B', 'A', 'B'] },
-      { key: 'Fm',  input: 'Gm7(b5) C7(b9.b13) Fm6(9)',  expected: ['B', 'A', 'B'] },
-      { key: 'F#m', input: 'G#m7(b5) C#7(b9.b13) F#m6(9)', expected: ['B', 'A', 'B'] },
-      { key: 'Gm',  input: 'Am7(b5) D7(b9.b13) Gm6(9)',  expected: ['B', 'A', 'B'] },
-      { key: 'G#m', input: 'A#m7(b5) D#7(b9.b13) G#m6(9)', expected: ['A', 'B', 'A'] },
-      { key: 'Am',  input: 'Bm7(b5) E7(b9.b13) Am6(9)',  expected: ['A', 'B', 'A'] },
-      { key: 'Bbm', input: 'Cm7(b5) F7(b9.b13) Bbm6(9)', expected: ['A', 'B', 'A'] },
-      { key: 'Bm',  input: 'C#m7(b5) F#7(b9.b13) Bm6(9)', expected: ['A', 'B', 'A'] },
+      { key: 'Cm',  input: 'Dm7(b5) G7(b9.b13) CmM7(9)',  expected: ['A', 'B', 'A'] },
+      { key: 'Dbm', input: 'Ebm7(b5) Ab7(b9.b13) DbmM7(9)', expected: ['A', 'B', 'A'] },
+      { key: 'Dm',  input: 'Em7(b5) A7(b9.b13) DmM7(9)',  expected: ['A', 'B', 'A'] },
+      { key: 'Ebm', input: 'Fm7(b5) Bb7(b9.b13) EbmM7(9)', expected: ['A', 'B', 'A'] },
+      { key: 'Em',  input: 'F#m7(b5) B7(b9.b13) EmM7(9)', expected: ['B', 'A', 'B'] },
+      { key: 'Fm',  input: 'Gm7(b5) C7(b9.b13) FmM7(9)',  expected: ['B', 'A', 'B'] },
+      { key: 'F#m', input: 'G#m7(b5) C#7(b9.b13) F#mM7(9)', expected: ['B', 'A', 'B'] },
+      { key: 'Gm',  input: 'Am7(b5) D7(b9.b13) GmM7(9)',  expected: ['B', 'A', 'B'] },
+      { key: 'Abm', input: 'Bbm7(b5) Eb7(b9.b13) AbmM7(9)', expected: ['B', 'A', 'B'] },
+      { key: 'Am',  input: 'Bm7(b5) E7(b9.b13) AmM7(9)',  expected: ['B', 'A', 'B'] },
+      { key: 'Bbm', input: 'Cm7(b5) F7(b9.b13) BbmM7(9)', expected: ['A', 'B', 'A'] },
+      { key: 'Bm',  input: 'C#m7(b5) F#7(b9.b13) BmM7(9)', expected: ['A', 'B', 'A'] },
     ];
     for (const { key, input, expected } of KEYS) {
       const r = analyzeSurvivalChordProgression(input);
@@ -91,7 +92,7 @@ describe('survivalProgressionVoicings', () => {
   });
 
   it('マイナー II-V-I（i = mM7(9)）でも同じ A-B 交替になる', () => {
-    const r = analyzeSurvivalChordProgression('Dm7(b5) G7(b9.b13) CmM7(9)');
+    const r = analyzeSurvivalChordProgression('Fm7(b5) Bb7(b9.b13) EbmM7(9)');
     expect(r.entries.map(e => e.form)).toEqual(['A', 'B', 'A']);
   });
 
