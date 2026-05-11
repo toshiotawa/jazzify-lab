@@ -47,10 +47,12 @@ import {
   createChordVoicingAttempt,
   handleChordVoicingNoteOn,
   isAllChordsCompleted,
+  selectChordVoicingJudgmentChord,
 } from '@/utils/earTrainingChordVoicingEngine';
 import { computeVoicingKeyboardHints } from '@/utils/earTrainingChordVoicingHints';
 import {
   getEarTrainingChordDisplayAtTime,
+  getEarTrainingChordJudgmentTargetsAtTime,
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
   getHarmonyRowForChordId,
@@ -596,6 +598,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       loopTimeSec,
       stage.bpm,
       currentAttempt.completedChordIds,
+      loopDurationSec,
     );
     let nextAudioSyncTimeSec = nextLoopBoundarySec === null
       ? (loopIndex + 1) * loopDurationSec
@@ -660,6 +663,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       loopTime,
       stage.bpm,
       currentAttempt.completedChordIds,
+      loopDurationSec,
     );
     const nextActiveMeasureNumber = nextChord !== null
       ? getChordMeasureNumber(nextChord, loopDurationSec, stage.loop_measures)
@@ -718,8 +722,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     lastLoopAttackAppliedRef.current = 0;
     setEnemyAttackGaugePercent(0);
     allChordsCompletedAtRef.current = false;
-    const initialChord = getEarTrainingChordDisplayAtTime(phrase, 0, stage.bpm, nextAttempt.completedChordIds);
     const phraseLoopDuration = getFinitePhraseLoopDuration(phrase);
+    const initialChord = getEarTrainingChordDisplayAtTime(
+      phrase,
+      0,
+      stage.bpm,
+      nextAttempt.completedChordIds,
+      phraseLoopDuration ?? undefined,
+    );
     const initialMeasureNumber = initialChord !== null && phraseLoopDuration !== null
       ? getChordMeasureNumber(initialChord, phraseLoopDuration, stage.loop_measures)
       : 1;
@@ -1009,11 +1019,31 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
     const phrase = phrases[phraseIndex];
     const currentAttempt = attemptRef.current;
-    const currentChord = activeChordRef.current;
-    if (!phrase || !currentAttempt || !currentChord) {
+    const displayChord = activeChordRef.current;
+    const audio = audioRef.current;
+    const loopDurationSec = getFinitePhraseLoopDuration(phrase);
+    if (!phrase || !currentAttempt || !audio || loopDurationSec === null) {
       return;
     }
-    const result = handleChordVoicingNoteOn(currentAttempt, currentChord, note, activeDamageConfig);
+    const loopTimeSec = getLoopTimeSec(audio.currentTime, loopDurationSec);
+    const targets = getEarTrainingChordJudgmentTargetsAtTime(
+      phrase,
+      loopTimeSec,
+      stage.bpm,
+      currentAttempt.completedChordIds,
+      displayChord,
+      loopDurationSec,
+    );
+    const judgmentChord = selectChordVoicingJudgmentChord(
+      currentAttempt,
+      targets.primary,
+      targets.overlap,
+      note,
+    );
+    if (!judgmentChord) {
+      return;
+    }
+    const result = handleChordVoicingNoteOn(currentAttempt, judgmentChord, note, activeDamageConfig);
     if (result.attempt !== currentAttempt) {
       setAttempt(result.attempt);
       attemptRef.current = result.attempt;
@@ -1033,22 +1063,21 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return;
     }
 
-    const harmonyRow = getHarmonyRowForChordId(phrase, currentChord.id);
+    const harmonyRow = getHarmonyRowForChordId(phrase, judgmentChord.id);
     if (harmonyRow !== null && !isHarmonySegmentFullyCompleted(result.attempt, harmonyRow)) {
-      triggerCompletionPulse(currentChord.id, 'voicingPartial');
+      triggerCompletionPulse(judgmentChord.id, 'voicingPartial');
       triggerBattleEffect('voicingCast');
       syncAudioTimelineRef.current();
       return;
     }
 
-    const awardKey = harmonyRow?.representativeId ?? currentChord.id;
+    const awardKey = harmonyRow?.representativeId ?? judgmentChord.id;
     const acknowledgedAttempt = acknowledgeChordAward(result.attempt, awardKey);
     setAttempt(acknowledgedAttempt);
     attemptRef.current = acknowledgedAttempt;
 
-
-    setStatusText(copy.chordCompleted(currentChord.chord_name));
-    triggerCompletionPulse(currentChord.id, 'harmonyComplete');
+    setStatusText(copy.chordCompleted(judgmentChord.chord_name));
+    triggerCompletionPulse(judgmentChord.id, 'harmonyComplete');
 
     // フレーズ最後のコード完了時は Skill (complete) 演出のみで完結させる。
     // ここで `correct` を発火すると火の玉と Skill 演出が二重に走り、Skill 演出が埋もれてしまう。
@@ -1058,7 +1087,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return;
     }
 
-    const correctOriginPoint = computeChordLabelOriginPoint(currentChord.id);
+    const correctOriginPoint = computeChordLabelOriginPoint(judgmentChord.id);
     const correctEffectId = triggerBattleEffect(
       'correct',
       undefined,

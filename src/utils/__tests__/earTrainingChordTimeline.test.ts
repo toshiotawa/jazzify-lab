@@ -4,6 +4,7 @@ import { createChordVoicingAttempt } from '@/utils/earTrainingChordVoicingEngine
 import {
   getEarTrainingChordDisplayAtTime,
   getEarTrainingHalfBeatSec,
+  getEarTrainingChordJudgmentTargetsAtTime,
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
   getHarmonyRowForChordId,
@@ -108,6 +109,19 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 1, bpm, completed)).toBeCloseTo(4 - half, 10);
   });
 
+  it('ループ最終 harmony 完成後は次ループ先頭へ半拍早く表示を切り替える', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'G7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+    const bpm = 120;
+    const half = getEarTrainingHalfBeatSec(bpm);
+    const completed = new Set(['c2']);
+    expect(getEarTrainingChordDisplayAtTime(phrase, 8 - half - 0.02, bpm, completed, 8)?.id).toBe('c2');
+    expect(getEarTrainingChordDisplayAtTime(phrase, 8 - half + 0.02, bpm, completed, 8)?.id).toBe('c1');
+    expect(getEarTrainingNextChordDisplayBoundarySec(phrase, 6, bpm, completed, 8)).toBeCloseTo(8 - half, 10);
+  });
+
   it('未完成時は半拍オフセットをかけず標準の時間境界で次グループへ移る', () => {
     const phrase = buildPhrase([
       buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
@@ -116,6 +130,39 @@ describe('earTrainingChordTimeline', () => {
     const bpm = 120;
     expect(getEarTrainingChordDisplayAtTime(phrase, 3.9, bpm, new Set())?.id).toBe('c1');
     expect(getEarTrainingChordDisplayAtTime(phrase, 4.05, bpm, new Set())?.id).toBe('c2');
+  });
+
+  it('未完成時も次 harmony 半拍前から判定候補だけを重ねる', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'G7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+    const bpm = 120;
+    const half = getEarTrainingHalfBeatSec(bpm);
+    const completed = new Set<string>();
+    const display = getEarTrainingChordDisplayAtTime(phrase, 4 - half + 0.02, bpm, completed, 8);
+    const before = getEarTrainingChordJudgmentTargetsAtTime(
+      phrase,
+      4 - half - 0.02,
+      bpm,
+      completed,
+      getEarTrainingChordDisplayAtTime(phrase, 4 - half - 0.02, bpm, completed, 8),
+      8,
+    );
+    const during = getEarTrainingChordJudgmentTargetsAtTime(
+      phrase,
+      4 - half + 0.02,
+      bpm,
+      completed,
+      display,
+      8,
+    );
+
+    expect(display?.id).toBe('c1');
+    expect(before.primary?.id).toBe('c1');
+    expect(before.overlap).toBeNull();
+    expect(during.primary?.id).toBe('c1');
+    expect(during.overlap?.id).toBe('c2');
   });
 
   it('次の表示境界はharmony終端など次にアクティブが変わり得る時刻', () => {

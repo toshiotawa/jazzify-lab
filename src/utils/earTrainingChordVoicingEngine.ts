@@ -48,6 +48,38 @@ export const getVoicingPitchClasses = (chord: EarTrainingPhraseChord): number[] 
   return [...pcs];
 };
 
+const chordNeedsPitchClass = (
+  attempt: EarTrainingChordVoicingAttempt,
+  chord: EarTrainingPhraseChord | null,
+  pitchClass: number,
+): boolean => {
+  if (!chord || attempt.completedChordIds.has(chord.id)) {
+    return false;
+  }
+  const targetPcs = getVoicingPitchClasses(chord);
+  if (!targetPcs.includes(pitchClass)) {
+    return false;
+  }
+  const pressed = attempt.pressedByChord.get(chord.id);
+  return !pressed?.has(pitchClass);
+};
+
+export const selectChordVoicingJudgmentChord = (
+  attempt: EarTrainingChordVoicingAttempt,
+  primaryChord: EarTrainingPhraseChord | null,
+  overlapChord: EarTrainingPhraseChord | null,
+  midiNote: number,
+): EarTrainingPhraseChord | null => {
+  const inputPc = midiToPitchClass(midiNote);
+  if (chordNeedsPitchClass(attempt, primaryChord, inputPc)) {
+    return primaryChord;
+  }
+  if (chordNeedsPitchClass(attempt, overlapChord, inputPc)) {
+    return overlapChord;
+  }
+  return primaryChord;
+};
+
 export const createChordVoicingAttempt = (phrase: EarTrainingPhrase): EarTrainingChordVoicingAttempt => {
   const completedChordIds = new Set<string>();
   (phrase.chords ?? []).forEach(chord => {

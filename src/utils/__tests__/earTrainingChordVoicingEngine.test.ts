@@ -7,6 +7,7 @@ import {
   getVoicingPitchClasses,
   handleChordVoicingNoteOn,
   isAllChordsCompleted,
+  selectChordVoicingJudgmentChord,
 } from '@/utils/earTrainingChordVoicingEngine';
 
 const damage = {
@@ -134,5 +135,24 @@ describe('earTrainingChordVoicingEngine', () => {
     expect(result.evaluationMissAdded).toBe(false);
     expect(result.chordJustCompleted).toBe(false);
     expect(countChordVoicingMisses(result.attempt)).toBe(0);
+  });
+
+  it('重ね合わせ判定では同じピッチクラスなら現在voicingの未正解音を優先する', () => {
+    const current = buildChord({ id: 'current', chord_name: 'C', voicing: ['C4', 'E4', 'G4'] });
+    const overlap = buildChord({ id: 'overlap', chord_name: 'G7', voicing: ['G3', 'B3', 'D4'] });
+    const phrase = buildPhrase([current, overlap]);
+    const attempt = createChordVoicingAttempt(phrase);
+
+    expect(selectChordVoicingJudgmentChord(attempt, current, overlap, 67)?.id).toBe('current');
+  });
+
+  it('現在voicing側で同じピッチクラスが正解済みなら重ね合わせ先を判定する', () => {
+    const current = buildChord({ id: 'current', chord_name: 'C', voicing: ['C4', 'E4', 'G4'] });
+    const overlap = buildChord({ id: 'overlap', chord_name: 'G7', voicing: ['G3', 'B3', 'D4'] });
+    const phrase = buildPhrase([current, overlap]);
+    const attempt = createChordVoicingAttempt(phrase);
+    attempt.pressedByChord.set(current.id, new Set([7]));
+
+    expect(selectChordVoicingJudgmentChord(attempt, current, overlap, 67)?.id).toBe('overlap');
   });
 });

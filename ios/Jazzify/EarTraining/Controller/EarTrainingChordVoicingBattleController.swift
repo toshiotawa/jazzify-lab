@@ -306,7 +306,26 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         guard gameState == .playingPhrase else { return }
         syncChordTimeline(scheduleNext: false)
         guard gameState == .playingPhrase else { return }
-        guard let phrase = currentPhrase, let current = attempt, let chord = activeChord else { return }
+        guard let phrase = currentPhrase, let current = attempt else { return }
+        let loopDurationSec = phrase.loopDurationSec
+        guard loopDurationSec > 0 else { return }
+        let currentTime = audio.currentTimeSec
+        let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
+        let loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
+        let targets = EarTrainingChordVoicingEngine.judgmentTargetsAt(
+            phrase: phrase,
+            loopTime: loopTimeSafe,
+            bpm: stage.bpm,
+            completedChordIds: current.completedChordIds,
+            displayChord: activeChord,
+            loopDurationSec: loopDurationSec
+        )
+        guard let chord = EarTrainingChordVoicingEngine.selectJudgmentChord(
+            attempt: current,
+            primaryChord: targets.primary,
+            overlapChord: targets.overlap,
+            midiNote: midi
+        ) else { return }
 
         let result = EarTrainingChordVoicingEngine.handleNoteOn(
             attempt: current,
@@ -530,7 +549,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             phrase: phrase,
             loopTime: 0,
             bpm: stage.bpm,
-            completedChordIds: next.completedChordIds
+            completedChordIds: next.completedChordIds,
+            loopDurationSec: phrase.loopDurationSec
         )
         activeChord = initialChord
         let ld = phrase.loopDurationSec
@@ -599,7 +619,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             phrase: phrase,
             loopTime: loopTimeSafe,
             bpm: stage.bpm,
-            completedChordIds: completedSet
+            completedChordIds: completedSet,
+            loopDurationSec: loopDurationSec
         )
         let measureNum: Int
         if let chord = nextChord {
@@ -674,7 +695,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             phrase: phrase,
             loopTimeSec: loopTimeSafe,
             bpm: stage.bpm,
-            completedChordIds: attempt?.completedChordIds ?? []
+            completedChordIds: attempt?.completedChordIds ?? [],
+            loopDurationSec: loopDurationSec
         )
         var nextSync = (Double(loopIndex) + 1) * loopDurationSec
         if let boundary = nextBoundary {

@@ -104,6 +104,11 @@ interface HarmonyTimelineGroup {
   readonly segmentEnd: number;
 }
 
+export interface EarTrainingChordJudgmentTargets {
+  readonly primary: EarTrainingPhraseChord | null;
+  readonly overlap: EarTrainingPhraseChord | null;
+}
+
 const firstPlayableChord = (
   chords: readonly TimedEarTrainingPhraseChord[],
 ): TimedEarTrainingPhraseChord | null => (
@@ -117,15 +122,33 @@ const groupPlayablesCompleted = (
   chord => !chordHasVoicingNotes(chord) || completedChordIds.has(chord.id),
 );
 
+const firstIncompletePlayableChord = (
+  group: HarmonyTimelineGroup,
+  completedChordIds: ReadonlySet<string>,
+): TimedEarTrainingPhraseChord | null => (
+  group.chords.find(chord => chordHasVoicingNotes(chord) && !completedChordIds.has(chord.id)) ?? null
+);
+
+const isPositiveFinite = (value: number | undefined): value is number => (
+  value !== undefined && Number.isFinite(value) && value > 0
+);
+
 /** 指定グループより後ろにある、最初のプレイアブル・コードの開始時刻 */
 const nextPlayableChordStartAfterGroup = (
   groups: readonly HarmonyTimelineGroup[],
   groupIndex: number,
+  loopDurationSec?: number,
 ): number | null => {
   for (let j = groupIndex + 1; j < groups.length; j += 1) {
     const fp = firstPlayableChord(groups[j].chords);
     if (fp && fp.start_time_sec !== undefined && fp.start_time_sec !== null) {
       return fp.start_time_sec;
+    }
+  }
+  if (isPositiveFinite(loopDurationSec)) {
+    const fp = firstPlayableChord(groups[0]?.chords ?? []);
+    if (fp && fp.start_time_sec !== undefined && fp.start_time_sec !== null) {
+      return loopDurationSec + fp.start_time_sec;
     }
   }
   return null;
@@ -212,10 +235,14 @@ const computeGroupEffectiveWindowSec = (
   groupIndex: number,
   halfSec: number,
   completedChordIds: ReadonlySet<string>,
+  loopDurationSec?: number,
 ): { effStart: number; effEnd: number } => {
   const { chords: groupChords, segmentStart, segmentEnd } = groups[groupIndex];
   const prevCompleted = groupIndex > 0
-    && groupPlayablesCompleted(groups[groupIndex - 1], completedChordIds);
+    ? groupPlayablesCompleted(groups[groupIndex - 1], completedChordIds)
+    : isPositiveFinite(loopDurationSec)
+      && groups.length > 1
+      && groupPlayablesCompleted(groups[groups.length - 1], completedChordIds);
   const thisCompleted = groupPlayablesCompleted(groups[groupIndex], completedChordIds);
   const playable = firstPlayableChord(groupChords);
   const thisFirstStart = playable?.start_time_sec ?? segmentStart;
@@ -226,13 +253,55 @@ const computeGroupEffectiveWindowSec = (
 
   let effEnd = segmentEnd;
   if (thisCompleted && halfSec > 0) {
-    const nextPlayStart = nextPlayableChordStartAfterGroup(groups, groupIndex);
+    const nextPlayStart = nextPlayableChordStartAfterGroup(groups, groupIndex, loopDurationSec);
     if (nextPlayStart !== null) {
       effEnd = Math.min(segmentEnd, nextPlayStart - halfSec);
     }
   }
 
   return { effStart, effEnd };
+};
+
+const containsLoopTime = (
+  loopTimeSec: number,
+  effStart: number,
+  effEnd: number,
+  loopDurationSec: number | undefined,
+): boolean => {
+  const EPS = HARMONY_TIME_WINDOW_EPSILON_SEC;
+  if (loopTimeSec + EPS >= effStart && loopTimeSec + EPS < effEnd) {
+    return true;
+  }
+  if (isPositiveFinite(loopDurationSec) && effStart < 0) {
+    const wrappedStart = loopDurationSec + effStart;
+    return loopTimeSec + EPS >= wrappedStart && loopTimeSec + EPS < loopDurationSec;
+  }
+  return false;
+};
+
+const chordGroupIndex = (
+  groups: readonly HarmonyTimelineGroup[],
+  chordId: string,
+): number => groups.findIndex(group => group.chords.some(chord => chord.id === chordId));
+
+const nextGroupIndex = (
+  groups: readonly HarmonyTimelineGroup[],
+  groupIndex: number,
+  loopDurationSec?: number,
+): { index: number; firstStart: number } | null => {
+  for (let j = groupIndex + 1; j < groups.length; j += 1) {
+    const fp = firstPlayableChord(groups[j].chords);
+    if (fp?.start_time_sec !== undefined && fp.start_time_sec !== null) {
+      return { index: j, firstStart: fp.start_time_sec };
+    }
+  }
+  if (isPositiveFinite(loopDurationSec)) {
+    const fp = firstPlayableChord(groups[0]?.chords ?? []);
+    if (fp?.start_time_sec !== undefined && fp.start_time_sec !== null) {
+      return { index: 0, firstStart: loopDurationSec + fp.start_time_sec };
+    }
+  }
+  return null;
 };
 
 /**
@@ -246,6 +315,7 @@ export const getEarTrainingChordDisplayAtTime = (
   loopTimeSec: number,
   bpm: number,
   completedChordIds: ReadonlySet<string>,
+  loopDurationSec?: number,
 ): EarTrainingPhraseChord | null => {
   const chords = phrase?.chords ?? [];
   if (chords.length === 0) {
@@ -268,12 +338,10 @@ export const getEarTrainingChordDisplayAtTime = (
       groupIndex,
       halfSec,
       completedChordIds,
+      loopDurationSec,
     );
 
-    if (loopTimeSec + EPS < effStart) {
-      continue;
-    }
-    if (loopTimeSec + EPS >= effEnd) {
+    if (!containsLoopTime(loopTimeSec, effStart, effEnd, loopDurationSec)) {
       continue;
     }
 
@@ -299,6 +367,7 @@ export const getEarTrainingNextChordDisplayBoundarySec = (
   loopTimeSec: number,
   bpm: number,
   completedChordIds: ReadonlySet<string>,
+  loopDurationSec?: number,
 ): number | null => {
   const timed = getTimedChords(phrase);
   if (timed.length === 0) {
@@ -316,8 +385,15 @@ export const getEarTrainingNextChordDisplayBoundarySec = (
       groupIndex,
       halfSec,
       completedChordIds,
+      loopDurationSec,
     );
-    if (effStart > threshold && effStart < nextBoundary) {
+    const wrappedEffStart = isPositiveFinite(loopDurationSec) && effStart < 0
+      ? loopDurationSec + effStart
+      : effStart;
+    if (wrappedEffStart > threshold && wrappedEffStart < nextBoundary) {
+      nextBoundary = wrappedEffStart;
+    }
+    if (effStart >= 0 && effStart > threshold && effStart < nextBoundary) {
       nextBoundary = effStart;
     }
     if (effEnd > threshold && effEnd < nextBoundary) {
@@ -326,6 +402,58 @@ export const getEarTrainingNextChordDisplayBoundarySec = (
   }
 
   return Number.isFinite(nextBoundary) ? nextBoundary : null;
+};
+
+export const getEarTrainingChordJudgmentTargetsAtTime = (
+  phrase: EarTrainingPhrase | undefined,
+  loopTimeSec: number,
+  bpm: number,
+  completedChordIds: ReadonlySet<string>,
+  displayChord: EarTrainingPhraseChord | null,
+  loopDurationSec?: number,
+): EarTrainingChordJudgmentTargets => {
+  const primary = displayChord ?? getEarTrainingChordDisplayAtTime(
+    phrase,
+    loopTimeSec,
+    bpm,
+    completedChordIds,
+    loopDurationSec,
+  );
+  const timed = getTimedChords(phrase);
+  if (timed.length === 0 || !primary) {
+    return { primary, overlap: null };
+  }
+
+  const groups = buildHarmonyTimelineGroups(timed);
+  const currentGroupIndex = chordGroupIndex(groups, primary.id);
+  const halfSec = getEarTrainingHalfBeatSec(bpm);
+  if (currentGroupIndex < 0 || halfSec <= 0) {
+    return { primary, overlap: null };
+  }
+
+  const next = nextGroupIndex(groups, currentGroupIndex, loopDurationSec);
+  if (!next) {
+    return { primary, overlap: null };
+  }
+
+  const nextGroup = groups[next.index];
+  if (groupPlayablesCompleted(nextGroup, completedChordIds)) {
+    return { primary, overlap: null };
+  }
+
+  const overlapStart = next.firstStart - halfSec;
+  const inOverlap = isPositiveFinite(loopDurationSec) && next.firstStart > loopDurationSec
+    ? loopTimeSec >= overlapStart && loopTimeSec < loopDurationSec
+    : loopTimeSec >= overlapStart && loopTimeSec < next.firstStart;
+  if (!inOverlap) {
+    return { primary, overlap: null };
+  }
+
+  const overlap = firstIncompletePlayableChord(nextGroup, completedChordIds);
+  if (!overlap || overlap.id === primary.id) {
+    return { primary, overlap: null };
+  }
+  return { primary, overlap };
 };
 
 /** `chord_name` をピッチクラス集合に解決（オクターブ非依存の判定用）。 */

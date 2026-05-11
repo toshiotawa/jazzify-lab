@@ -121,6 +121,33 @@ enum EarTrainingChordVoicingEngine {
         (chord.voicing?.count ?? 0) > 0
     }
 
+    private static func chordNeedsPitchClass(
+        attempt: EarTrainingChordVoicingAttempt,
+        chord: EarTrainingPhraseChordDetail?,
+        pitchClass: Int
+    ) -> Bool {
+        guard let chord, !attempt.completedChordIds.contains(chord.id) else { return false }
+        let targetPcs = voicingPitchClasses(for: chord)
+        guard targetPcs.contains(pitchClass) else { return false }
+        return !(attempt.pressedByChord[chord.id]?.contains(pitchClass) ?? false)
+    }
+
+    static func selectJudgmentChord(
+        attempt: EarTrainingChordVoicingAttempt,
+        primaryChord: EarTrainingPhraseChordDetail?,
+        overlapChord: EarTrainingPhraseChordDetail?,
+        midiNote: Int
+    ) -> EarTrainingPhraseChordDetail? {
+        let inputPc = midiToPitchClass(midiNote)
+        if chordNeedsPitchClass(attempt: attempt, chord: primaryChord, pitchClass: inputPc) {
+            return primaryChord
+        }
+        if chordNeedsPitchClass(attempt: attempt, chord: overlapChord, pitchClass: inputPc) {
+            return overlapChord
+        }
+        return primaryChord
+    }
+
     static func createAttempt(for phrase: EarTrainingPhraseDetail) -> EarTrainingChordVoicingAttempt {
         var completedChordIds = Set<UUID>()
         for chord in phrase.chords ?? [] where !chordHasVoicingNotes(chord) {
@@ -263,6 +290,11 @@ enum EarTrainingChordVoicingEngine {
         let voicingIds: [UUID]
     }
 
+    struct JudgmentTargets: Sendable {
+        let primary: EarTrainingPhraseChordDetail?
+        let overlap: EarTrainingPhraseChordDetail?
+    }
+
     private struct HarmonyTimelineGroup {
         let chords: [EarTrainingPhraseChordDetail]
         let segmentStart: Double
@@ -359,6 +391,20 @@ enum EarTrainingChordVoicingEngine {
         chords.first { chordHasVoicingNotes($0) }
     }
 
+    private static func firstIncompletePlayableChord(
+        in group: HarmonyTimelineGroup,
+        completedChordIds: Set<UUID>
+    ) -> EarTrainingPhraseChordDetail? {
+        group.chords.first { chord in
+            chordHasVoicingNotes(chord) && !completedChordIds.contains(chord.id)
+        }
+    }
+
+    private static func isPositiveFinite(_ value: Double?) -> Bool {
+        guard let value else { return false }
+        return value.isFinite && value > 0
+    }
+
     private static func halfBeatSec(bpm: Int) -> Double {
         guard bpm > 0 else { return 0 }
         return 30 / Double(bpm)
@@ -376,7 +422,8 @@ enum EarTrainingChordVoicingEngine {
     /// `groupIndex` より後のグループにある最初のプレイアブル・コードの開始時刻。
     private static func nextPlayableChordStartAfterGroup(
         groups: [HarmonyTimelineGroup],
-        groupIndex: Int
+        groupIndex: Int,
+        loopDurationSec: Double? = nil
     ) -> Double? {
         var j = groupIndex + 1
         while j < groups.count {
@@ -386,6 +433,14 @@ enum EarTrainingChordVoicingEngine {
             }
             j += 1
         }
+        if isPositiveFinite(loopDurationSec),
+           let firstGroup = groups.first,
+           let fp = firstPlayableChord(in: firstGroup.chords),
+           let start = fp.startTimeSec,
+           start.isFinite,
+           let loopDurationSec {
+            return loopDurationSec + start
+        }
         return nil
     }
 
@@ -393,10 +448,18 @@ enum EarTrainingChordVoicingEngine {
         groups: [HarmonyTimelineGroup],
         groupIndex: Int,
         halfSec: Double,
-        completedChordIds: Set<UUID>
+        completedChordIds: Set<UUID>,
+        loopDurationSec: Double? = nil
     ) -> (effStart: Double, effEnd: Double) {
         let group = groups[groupIndex]
-        let prevCompleted = groupIndex > 0 && groupPlayablesCompleted(groups[groupIndex - 1], completedChordIds: completedChordIds)
+        let prevCompleted: Bool
+        if groupIndex > 0 {
+            prevCompleted = groupPlayablesCompleted(groups[groupIndex - 1], completedChordIds: completedChordIds)
+        } else {
+            prevCompleted = isPositiveFinite(loopDurationSec)
+                && groups.count > 1
+                && groupPlayablesCompleted(groups[groups.count - 1], completedChordIds: completedChordIds)
+        }
         let thisCompleted = groupPlayablesCompleted(group, completedChordIds: completedChordIds)
         let playable = firstPlayableChord(in: group.chords)
         let thisFirstStart: Double = {
@@ -414,11 +477,65 @@ enum EarTrainingChordVoicingEngine {
         }
 
         var effEnd = group.segmentEnd
-        if thisCompleted, halfSec > 0, let nextPlayStart = nextPlayableChordStartAfterGroup(groups: groups, groupIndex: groupIndex) {
+        if thisCompleted,
+           halfSec > 0,
+           let nextPlayStart = nextPlayableChordStartAfterGroup(
+            groups: groups,
+            groupIndex: groupIndex,
+            loopDurationSec: loopDurationSec
+           ) {
             effEnd = min(group.segmentEnd, nextPlayStart - halfSec)
         }
 
         return (effStart, effEnd)
+    }
+
+    private static func containsLoopTime(
+        loopTime: Double,
+        effStart: Double,
+        effEnd: Double,
+        loopDurationSec: Double?
+    ) -> Bool {
+        let eps = harmonyTimeWindowEpsilonSec
+        if loopTime + eps >= effStart && loopTime + eps < effEnd {
+            return true
+        }
+        if isPositiveFinite(loopDurationSec), effStart < 0, let loopDurationSec {
+            let wrappedStart = loopDurationSec + effStart
+            return loopTime + eps >= wrappedStart && loopTime + eps < loopDurationSec
+        }
+        return false
+    }
+
+    private static func chordGroupIndex(
+        groups: [HarmonyTimelineGroup],
+        chordId: UUID
+    ) -> Int? {
+        groups.firstIndex { group in group.chords.contains { $0.id == chordId } }
+    }
+
+    private static func nextGroupIndex(
+        groups: [HarmonyTimelineGroup],
+        groupIndex: Int,
+        loopDurationSec: Double?
+    ) -> (index: Int, firstStart: Double)? {
+        var j = groupIndex + 1
+        while j < groups.count {
+            if let fp = firstPlayableChord(in: groups[j].chords),
+               let start = fp.startTimeSec, start.isFinite {
+                return (j, start)
+            }
+            j += 1
+        }
+        if isPositiveFinite(loopDurationSec),
+           let firstGroup = groups.first,
+           let fp = firstPlayableChord(in: firstGroup.chords),
+           let start = fp.startTimeSec,
+           start.isFinite,
+           let loopDurationSec {
+            return (0, loopDurationSec + start)
+        }
+        return nil
     }
 
     /// Web `getEarTrainingChordDisplayAtTime` と同じ表示対象を返す。
@@ -427,7 +544,8 @@ enum EarTrainingChordVoicingEngine {
         phrase: EarTrainingPhraseDetail,
         loopTime: Double,
         bpm: Int,
-        completedChordIds: Set<UUID>
+        completedChordIds: Set<UUID>,
+        loopDurationSec: Double? = nil
     ) -> EarTrainingPhraseChordDetail? {
         let chords = phrase.chords ?? []
         guard !chords.isEmpty else { return nil }
@@ -439,7 +557,6 @@ enum EarTrainingChordVoicingEngine {
 
         let groups = buildHarmonyTimelineGroups(from: timed)
         let halfSec = halfBeatSec(bpm: bpm)
-        let eps = harmonyTimeWindowEpsilonSec
 
         for groupIndex in groups.indices {
             let group = groups[groupIndex]
@@ -447,13 +564,16 @@ enum EarTrainingChordVoicingEngine {
                 groups: groups,
                 groupIndex: groupIndex,
                 halfSec: halfSec,
-                completedChordIds: completedChordIds
+                completedChordIds: completedChordIds,
+                loopDurationSec: loopDurationSec
             )
 
-            if loopTime + eps < window.effStart {
-                continue
-            }
-            if loopTime + eps >= window.effEnd {
+            if !containsLoopTime(
+                loopTime: loopTime,
+                effStart: window.effStart,
+                effEnd: window.effEnd,
+                loopDurationSec: loopDurationSec
+            ) {
                 continue
             }
 
@@ -475,7 +595,8 @@ enum EarTrainingChordVoicingEngine {
         phrase: EarTrainingPhraseDetail,
         loopTimeSec: Double,
         bpm: Int,
-        completedChordIds: Set<UUID>
+        completedChordIds: Set<UUID>,
+        loopDurationSec: Double? = nil
     ) -> Double? {
         let timed = timedChords(for: phrase)
         guard !timed.isEmpty else { return nil }
@@ -490,9 +611,19 @@ enum EarTrainingChordVoicingEngine {
                 groups: groups,
                 groupIndex: groupIndex,
                 halfSec: halfSec,
-                completedChordIds: completedChordIds
+                completedChordIds: completedChordIds,
+                loopDurationSec: loopDurationSec
             )
-            if window.effStart > threshold && window.effStart < nextBoundary {
+            let wrappedStart: Double = {
+                if isPositiveFinite(loopDurationSec), window.effStart < 0, let loopDurationSec {
+                    return loopDurationSec + window.effStart
+                }
+                return window.effStart
+            }()
+            if wrappedStart > threshold && wrappedStart < nextBoundary {
+                nextBoundary = wrappedStart
+            }
+            if window.effStart >= 0 && window.effStart > threshold && window.effStart < nextBoundary {
                 nextBoundary = window.effStart
             }
             if window.effEnd > threshold && window.effEnd < nextBoundary {
@@ -500,5 +631,61 @@ enum EarTrainingChordVoicingEngine {
             }
         }
         return nextBoundary.isFinite ? nextBoundary : nil
+    }
+
+    static func judgmentTargetsAt(
+        phrase: EarTrainingPhraseDetail,
+        loopTime: Double,
+        bpm: Int,
+        completedChordIds: Set<UUID>,
+        displayChord: EarTrainingPhraseChordDetail?,
+        loopDurationSec: Double? = nil
+    ) -> JudgmentTargets {
+        let primary = displayChord ?? chordDisplayAt(
+            phrase: phrase,
+            loopTime: loopTime,
+            bpm: bpm,
+            completedChordIds: completedChordIds,
+            loopDurationSec: loopDurationSec
+        )
+        let timed = timedChords(for: phrase)
+        guard !timed.isEmpty, let primary else {
+            return JudgmentTargets(primary: primary, overlap: nil)
+        }
+
+        let groups = buildHarmonyTimelineGroups(from: timed)
+        guard let currentGroupIndex = chordGroupIndex(groups: groups, chordId: primary.id) else {
+            return JudgmentTargets(primary: primary, overlap: nil)
+        }
+        let halfSec = halfBeatSec(bpm: bpm)
+        guard halfSec > 0,
+              let next = nextGroupIndex(
+                groups: groups,
+                groupIndex: currentGroupIndex,
+                loopDurationSec: loopDurationSec
+              )
+        else {
+            return JudgmentTargets(primary: primary, overlap: nil)
+        }
+
+        let nextGroup = groups[next.index]
+        guard !groupPlayablesCompleted(nextGroup, completedChordIds: completedChordIds) else {
+            return JudgmentTargets(primary: primary, overlap: nil)
+        }
+
+        let overlapStart = next.firstStart - halfSec
+        let inOverlap: Bool
+        if isPositiveFinite(loopDurationSec), let loopDurationSec, next.firstStart > loopDurationSec {
+            inOverlap = loopTime >= overlapStart && loopTime < loopDurationSec
+        } else {
+            inOverlap = loopTime >= overlapStart && loopTime < next.firstStart
+        }
+        guard inOverlap,
+              let overlap = firstIncompletePlayableChord(in: nextGroup, completedChordIds: completedChordIds),
+              overlap.id != primary.id
+        else {
+            return JudgmentTargets(primary: primary, overlap: nil)
+        }
+        return JudgmentTargets(primary: primary, overlap: overlap)
     }
 }
