@@ -6,15 +6,14 @@
  */
 
 import React from 'react';
-import { BlockKey } from '../../SurvivalStageDefinitions';
-import { getBossTypeForBlock } from '../../SurvivalStageDefinitions';
+import { SurvivalBossType } from '../../SurvivalStageDefinitions';
 import { BOSS_SPRITE_PATH } from '../../boss/SurvivalBossTypes';
 
 interface BlockBossFigureProps {
   xPx: number;
   yPx: number;
   scale: number;
-  blockKey: BlockKey;
+  bossType: SurvivalBossType;
   opened?: boolean;
   dim?: boolean;
 }
@@ -25,11 +24,10 @@ export const BlockBossFigure: React.FC<BlockBossFigureProps> = ({
   xPx,
   yPx,
   scale,
-  blockKey,
+  bossType,
   opened,
   dim,
 }) => {
-  const bossType = getBossTypeForBlock(blockKey);
   const sizePx = LOGICAL_SIZE * scale;
   const src = BOSS_SPRITE_PATH[bossType];
   // クリア済み (opened) は撃破痕としてシルエットを残すため薄く表示、

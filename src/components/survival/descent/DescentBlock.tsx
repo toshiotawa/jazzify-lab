@@ -161,7 +161,7 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
         xPx={lastStage.x * scale}
         yPx={(lastStage.y - 8) * scale}
         scale={scale}
-        blockKey={layout.blockKey}
+        bossType={block?.bossType ?? 'A'}
         opened={doorOpened}
         dim={dim}
       />

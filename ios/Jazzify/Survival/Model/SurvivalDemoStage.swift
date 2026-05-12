@@ -71,7 +71,7 @@ enum SurvivalDemoStage {
         rootPatternJa: SurvivalRootPattern.cde.nameJa,
         rootPatternEn: SurvivalRootPattern.cde.nameEn,
         allowedChords: allowedChords,
-        blockKey: .major,
+        blockKey: "major",
         isMixedStage: false,
         chordProgression: nil
     )

@@ -74,8 +74,8 @@ import {
   STAGE_KILL_QUOTA,
   getSurvivalStageBattleKind,
   isBlockLastStage,
-  getBossTypeForBlock,
 } from './SurvivalStageDefinitions';
+import { getBlockForStage } from './descent/descentBlocks';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
 import type { ChordDefinition as SurvivalChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import {
@@ -293,7 +293,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // `getSurvivalStageBattleKind` は isBlockLast を優先して 'boss' を返すため、ここで
   // 出題ロジック判定だけは `stageType === 'progression'` を直接見る。
   const isProgressionStage = stageDefinition?.stageType === 'progression';
-  const bossType = isBossStage && stageDefinition ? getBossTypeForBlock(stageDefinition.blockKey) : null;
+  const bossType = isBossStage && stageDefinition
+    ? (getBlockForStage(stageDefinition.stageNumber, stageDefinition.mapCategory)?.bossType ?? null)
+    : null;
 
   // Progression（コード進行）モード: B列のみで進行を循環。
   // DB の `chord_progression` から事前構築済みの ChordDefinition 配列を保持する。

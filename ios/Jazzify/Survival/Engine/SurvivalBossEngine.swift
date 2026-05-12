@@ -248,20 +248,14 @@ enum SurvivalBossEngine {
 
     // MARK: - ブロックキー → ボスタイプ
 
-    /// ブロック順 (SurvivalStageCatalog.blocks の blockIndex) に沿って A → B → C を
-    /// ローテーションで割り当てる。Web 版 `getBossTypeForBlock` と同一実装。
-    /// 既存の固定マッピングでは、扉アイコン (ブロック毎のボス画像) と実戦で出現するボスが
-    /// ずれていた (例: `M7` ブロックの扉は C ボスなのに A ボスが出現する等) 不具合を解消する。
+    /// ブロック並び順 (SurvivalStageCatalog.blocks の blockIndex) に沿って A → B → C を
+    /// ローテーションで割り当てる。並び順は Supabase `survival_stage_blocks.sort_order` から決まる。
+    /// Web 版 `BlockMeta.bossType` と同一仕様。
     static func bossType(
         for blockKey: SurvivalBlockKey,
         in mapCategory: SurvivalMapCategory = .basic
     ) -> SurvivalBossType {
-        let index = SurvivalStageCatalog.block(byKey: blockKey, in: mapCategory)?.blockIndex ?? 0
-        switch ((index % 3) + 3) % 3 {
-        case 0: return .A
-        case 1: return .B
-        default: return .C
-        }
+        SurvivalStageCatalog.block(byKey: blockKey, in: mapCategory)?.bossType ?? .A
     }
 
     /// ブロック末尾 (= Mixed を含む最後のステージ番号) かどうか

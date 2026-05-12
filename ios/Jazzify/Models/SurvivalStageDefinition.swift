@@ -95,23 +95,31 @@ enum SurvivalRootPattern: String, Sendable {
     }
 }
 
-enum SurvivalBlockKey: String, Sendable, Hashable {
-    case major, minor
-    case M7, m7
-    case seven = "7"
-    case m7b5
-    case mM7, dim7, aug7
-    case six = "6"
-    case m6
-    case M7_9, m7_9
-    case seven_9_13 = "7_9_13"
-    case seven_b9_b13 = "7_b9_b13"
-    case six_9 = "6_9"
-    case m6_9
-    case seven_b9_13 = "7_b9_13"
-    case seven_sharp9_b13 = "7_sharp9_b13"
-    case m7b5_11
-    case dimM7
+/// ブロックキーは Supabase `survival_stage_blocks.block_key` の値そのまま。
+/// クライアント側で固定列挙はせず、DB に追加された任意のキーを受け入れる。
+struct SurvivalBlockKey: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    init(stringLiteral value: String) {
+        self.rawValue = value
+    }
+}
+
+/// ブロック並び順 (blockIndex) からボス A→B→C をローテーションするヘルパー。
+/// `SurvivalBossType` 自体の宣言は `SurvivalBossEngine.swift` 側にある。
+extension SurvivalBossType {
+    static func forBlockIndex(_ index: Int) -> SurvivalBossType {
+        let mod = ((index % 3) + 3) % 3
+        switch mod {
+        case 0: return .A
+        case 1: return .B
+        default: return .C
+        }
+    }
 }
 
 /// Progression ステージで出題する 1 コード分のエントリ。
@@ -149,12 +157,13 @@ struct SurvivalStageRow: Decodable, Sendable {
     let chord_progression: [SurvivalChordProgressionEntry]?
 }
 
-/// `survival_stage_blocks` テーブル 1 行。降下マップのブロックヘッダー表示名。
+/// `survival_stage_blocks` テーブル 1 行。降下マップのブロックヘッダー表示名と並び順。
 struct SurvivalStageBlockRow: Decodable, Sendable {
     let map_category: String
     let block_key: String
     let label: String
     let label_en: String
+    let sort_order: Int?
 }
 
 struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
@@ -202,6 +211,8 @@ struct SurvivalBlockMeta: Identifiable, Sendable {
     let stageNumbers: [Int]
     let mixedStageNumber: Int?
     let difficulty: SurvivalDifficulty
+    /// ブロック並び順 (blockIndex) から決まるボスタイプ。
+    let bossType: SurvivalBossType
 
     var id: String { blockKey.rawValue }
     var firstStage: Int { stageNumbers.first ?? 0 }
@@ -227,7 +238,7 @@ enum SurvivalStageCatalog {
         .songs: []
     ]
     nonisolated(unsafe) private static var _blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [
-        .basic: Self.generateBlocks(from: Self.generateStages(), labelOverrides: [:]),
+        .basic: Self.generateBlocks(from: Self.generateStages(), blockOverrides: [:]),
         .songs: []
     ]
 
@@ -302,28 +313,30 @@ enum SurvivalStageCatalog {
     /// - random ステージは Web 版同様、`root_pattern + chord_suffix` から実行時に allowed_chords を再生成する。
     /// - progression ステージは `allowedChords = []` で、MusicXML を後段の XMLパーサで処理する。
     static func load(rows: [SurvivalStageRow], blockLabelRows: [SurvivalStageBlockRow] = []) {
-        let labelOverridesByCategory = Self.blockLabelOverrides(from: blockLabelRows)
+        let blockOverridesByCategory = Self.blockOverrides(from: blockLabelRows)
         let mixedConfigs: [MixedGroupKey: MixedGroupConfig] = [
-            .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: .minor),
-            .normalA: MixedGroupConfig(suffixes: ["M7", "m7", "7", "m7b5"], difficulty: .normal, blockKey: .m7b5),
-            .normalB: MixedGroupConfig(suffixes: ["mM7", "dim7", "aug7", "6", "m6"], difficulty: .normal, blockKey: .m6),
+            .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: "minor"),
+            .normalA: MixedGroupConfig(suffixes: ["M7", "m7", "7", "m7b5"], difficulty: .easy, blockKey: "m7b5"),
+            .normalB: MixedGroupConfig(suffixes: ["mM7", "dim7", "aug7", "6", "m6"], difficulty: .easy, blockKey: "m6"),
             .hard: MixedGroupConfig(
                 suffixes: ["M7(9)", "m7(9)", "7(9.6th)", "7(b9.b6th)", "6(9)", "m6(9)"],
-                difficulty: .hard,
-                blockKey: .m6_9
+                difficulty: .easy,
+                blockKey: "m6_9"
             ),
             .extreme: MixedGroupConfig(
                 suffixes: ["7(b9.6th)", "7(#9.b6th)", "m7(b5)(11)", "dim(M7)"],
-                difficulty: .extreme,
-                blockKey: .dimM7
+                difficulty: .easy,
+                blockKey: "dimM7"
             )
         ]
 
         let definitions: [SurvivalStageDefinition] = rows.compactMap { row in
             let mapCategory = SurvivalMapCategory(rawValue: row.map_category ?? "") ?? .basic
             let stageType = SurvivalStageType(rawValue: row.stage_type) ?? .random
-            let blockKey = SurvivalBlockKey(rawValue: row.block_key) ?? .major
-            let difficulty = SurvivalDifficulty(rawValue: row.difficulty) ?? .normal
+            let blockKeyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !blockKeyRaw.isEmpty else { return nil }
+            let blockKey = SurvivalBlockKey(rawValue: blockKeyRaw)
+            let difficulty = SurvivalDifficulty(rawValue: row.difficulty) ?? .easy
             let rootPattern = SurvivalRootPattern(dbValue: row.root_pattern)
             let isMixedStage = row.is_mixed_stage ?? false
 
@@ -388,28 +401,39 @@ enum SurvivalStageCatalog {
 
         var blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [:]
         for (category, stages) in stagesByCategory {
-            let overrides = labelOverridesByCategory[category] ?? [:]
-            blocksByCategory[category] = generateBlocks(from: stages, labelOverrides: overrides)
+            let overrides = blockOverridesByCategory[category] ?? [:]
+            blocksByCategory[category] = generateBlocks(from: stages, blockOverrides: overrides)
         }
 
         _stagesByCategory = stagesByCategory
         _blocksByCategory = blocksByCategory
     }
 
-    private static func blockLabelOverrides(
+    fileprivate struct BlockOverride: Sendable {
+        let labelJa: String
+        let labelEn: String
+        let sortOrder: Int
+    }
+
+    private static func blockOverrides(
         from rows: [SurvivalStageBlockRow]
-    ) -> [SurvivalMapCategory: [SurvivalBlockKey: (ja: String, en: String)]] {
-        var result: [SurvivalMapCategory: [SurvivalBlockKey: (ja: String, en: String)]] = [:]
+    ) -> [SurvivalMapCategory: [SurvivalBlockKey: BlockOverride]] {
+        var result: [SurvivalMapCategory: [SurvivalBlockKey: BlockOverride]] = [:]
         for row in rows {
             let catRaw = row.map_category.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let category = SurvivalMapCategory(rawValue: catRaw) else { continue }
             let keyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let blockKey = SurvivalBlockKey(rawValue: keyRaw) else { continue }
+            guard !keyRaw.isEmpty else { continue }
+            let blockKey = SurvivalBlockKey(rawValue: keyRaw)
             let ja = row.label.trimmingCharacters(in: .whitespacesAndNewlines)
             let en = row.label_en.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !ja.isEmpty, !en.isEmpty else { continue }
             var inner = result[category] ?? [:]
-            inner[blockKey] = (ja, en)
+            inner[blockKey] = BlockOverride(
+                labelJa: ja,
+                labelEn: en,
+                sortOrder: row.sort_order ?? Int.max
+            )
             result[category] = inner
         }
         return result
@@ -437,48 +461,50 @@ enum SurvivalStageCatalog {
         let blockKey: SurvivalBlockKey
     }
 
+    /// DB 取得前の Basic マップ用ローカルフォールバック。
+    /// 難易度は全ブロック `.easy` に統一し、敵強度カーブを揃える。
     private static let chordTypes: [ChordTypeDef] = [
         // Easy (2 blocks)
-        ChordTypeDef(blockKey: .major, suffix: "", displayJa: "メジャー", displayEn: "Major", difficulty: .easy, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .minor, suffix: "m", displayJa: "マイナー", displayEn: "Minor", difficulty: .easy, trailingMixedGroup: .easy),
+        ChordTypeDef(blockKey: "major", suffix: "", displayJa: "メジャー", displayEn: "Major", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "minor", suffix: "m", displayJa: "マイナー", displayEn: "Minor", difficulty: .easy, trailingMixedGroup: .easy),
         // Normal 前半 (4 blocks)
-        ChordTypeDef(blockKey: .M7, suffix: "M7", displayJa: "M7", displayEn: "M7", difficulty: .normal, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .m7, suffix: "m7", displayJa: "m7", displayEn: "m7", difficulty: .normal, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .seven, suffix: "7", displayJa: "7", displayEn: "7", difficulty: .normal, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .m7b5, suffix: "m7b5", displayJa: "m7b5", displayEn: "m7b5", difficulty: .normal, trailingMixedGroup: .normalA),
+        ChordTypeDef(blockKey: "M7", suffix: "M7", displayJa: "M7", displayEn: "M7", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "m7", suffix: "m7", displayJa: "m7", displayEn: "m7", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "7", suffix: "7", displayJa: "7", displayEn: "7", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "m7b5", suffix: "m7b5", displayJa: "m7b5", displayEn: "m7b5", difficulty: .easy, trailingMixedGroup: .normalA),
         // Normal 後半 (5 blocks)
-        ChordTypeDef(blockKey: .mM7, suffix: "mM7", displayJa: "mM7", displayEn: "mM7", difficulty: .normal, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .dim7, suffix: "dim7", displayJa: "dim7", displayEn: "dim7", difficulty: .normal, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .aug7, suffix: "aug7", displayJa: "aug7", displayEn: "aug7", difficulty: .normal, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .six, suffix: "6", displayJa: "6", displayEn: "6", difficulty: .normal, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .m6, suffix: "m6", displayJa: "m6", displayEn: "m6", difficulty: .normal, trailingMixedGroup: .normalB),
+        ChordTypeDef(blockKey: "mM7", suffix: "mM7", displayJa: "mM7", displayEn: "mM7", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "dim7", suffix: "dim7", displayJa: "dim7", displayEn: "dim7", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "aug7", suffix: "aug7", displayJa: "aug7", displayEn: "aug7", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "6", suffix: "6", displayJa: "6", displayEn: "6", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "m6", suffix: "m6", displayJa: "m6", displayEn: "m6", difficulty: .easy, trailingMixedGroup: .normalB),
         // Hard (6 blocks)
-        ChordTypeDef(blockKey: .M7_9, suffix: "M7(9)", displayJa: "M7(9)", displayEn: "M7(9)", difficulty: .hard, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .m7_9, suffix: "m7(9)", displayJa: "m7(9)", displayEn: "m7(9)", difficulty: .hard, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .seven_9_13, suffix: "7(9.6th)", displayJa: "7(9.13)", displayEn: "7(9.13)", difficulty: .hard, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .seven_b9_b13, suffix: "7(b9.b6th)", displayJa: "7(b9.b13)", displayEn: "7(b9.b13)", difficulty: .hard, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .six_9, suffix: "6(9)", displayJa: "6(9)", displayEn: "6(9)", difficulty: .hard, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .m6_9, suffix: "m6(9)", displayJa: "m6(9)", displayEn: "m6(9)", difficulty: .hard, trailingMixedGroup: .hard),
+        ChordTypeDef(blockKey: "M7_9", suffix: "M7(9)", displayJa: "M7(9)", displayEn: "M7(9)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "m7_9", suffix: "m7(9)", displayJa: "m7(9)", displayEn: "m7(9)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "7_9_13", suffix: "7(9.6th)", displayJa: "7(9.13)", displayEn: "7(9.13)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "7_b9_b13", suffix: "7(b9.b6th)", displayJa: "7(b9.b13)", displayEn: "7(b9.b13)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "6_9", suffix: "6(9)", displayJa: "6(9)", displayEn: "6(9)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "m6_9", suffix: "m6(9)", displayJa: "m6(9)", displayEn: "m6(9)", difficulty: .easy, trailingMixedGroup: .hard),
         // Extreme (4 blocks)
-        ChordTypeDef(blockKey: .seven_b9_13, suffix: "7(b9.6th)", displayJa: "7(b9.13)", displayEn: "7(b9.13)", difficulty: .extreme, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .seven_sharp9_b13, suffix: "7(#9.b6th)", displayJa: "7(#9.b13)", displayEn: "7(#9.b13)", difficulty: .extreme, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .m7b5_11, suffix: "m7(b5)(11)", displayJa: "m7(b5)(11)", displayEn: "m7(b5)(11)", difficulty: .extreme, trailingMixedGroup: nil),
-        ChordTypeDef(blockKey: .dimM7, suffix: "dim(M7)", displayJa: "dim(M7)", displayEn: "dim(M7)", difficulty: .extreme, trailingMixedGroup: .extreme)
+        ChordTypeDef(blockKey: "7_b9_13", suffix: "7(b9.6th)", displayJa: "7(b9.13)", displayEn: "7(b9.13)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "7_sharp9_b13", suffix: "7(#9.b6th)", displayJa: "7(#9.b13)", displayEn: "7(#9.b13)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "m7b5_11", suffix: "m7(b5)(11)", displayJa: "m7(b5)(11)", displayEn: "m7(b5)(11)", difficulty: .easy, trailingMixedGroup: nil),
+        ChordTypeDef(blockKey: "dimM7", suffix: "dim(M7)", displayJa: "dim(M7)", displayEn: "dim(M7)", difficulty: .easy, trailingMixedGroup: .extreme)
     ]
 
     private static let mixedGroups: [MixedGroup: MixedGroupConfig] = [
-        .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: .minor),
-        .normalA: MixedGroupConfig(suffixes: ["M7", "m7", "7", "m7b5"], difficulty: .normal, blockKey: .m7b5),
-        .normalB: MixedGroupConfig(suffixes: ["mM7", "dim7", "aug7", "6", "m6"], difficulty: .normal, blockKey: .m6),
+        .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: "minor"),
+        .normalA: MixedGroupConfig(suffixes: ["M7", "m7", "7", "m7b5"], difficulty: .easy, blockKey: "m7b5"),
+        .normalB: MixedGroupConfig(suffixes: ["mM7", "dim7", "aug7", "6", "m6"], difficulty: .easy, blockKey: "m6"),
         .hard: MixedGroupConfig(
             suffixes: ["M7(9)", "m7(9)", "7(9.6th)", "7(b9.b6th)", "6(9)", "m6(9)"],
-            difficulty: .hard,
-            blockKey: .m6_9
+            difficulty: .easy,
+            blockKey: "m6_9"
         ),
         .extreme: MixedGroupConfig(
             suffixes: ["7(b9.6th)", "7(#9.b6th)", "m7(b5)(11)", "dim(M7)"],
-            difficulty: .extreme,
-            blockKey: .dimM7
+            difficulty: .easy,
+            blockKey: "dimM7"
         )
     ]
 
@@ -554,64 +580,76 @@ enum SurvivalStageCatalog {
         return result
     }
 
-    private static let blockLabels: [SurvivalBlockKey: (ja: String, en: String)] = [
-        .major: ("メジャー", "Major"),
-        .minor: ("マイナー", "Minor"),
-        .M7: ("M7", "M7"),
-        .m7: ("m7", "m7"),
-        .seven: ("7", "7"),
-        .m7b5: ("m7b5", "m7b5"),
-        .mM7: ("mM7", "mM7"),
-        .dim7: ("dim7", "dim7"),
-        .aug7: ("aug7", "aug7"),
-        .six: ("6", "6"),
-        .m6: ("m6", "m6"),
-        .M7_9: ("M7(9)", "M7(9)"),
-        .m7_9: ("m7(9)", "m7(9)"),
-        .seven_9_13: ("7(9.13)", "7(9.13)"),
-        .seven_b9_b13: ("7(b9.b13)", "7(b9.b13)"),
-        .six_9: ("6(9)", "6(9)"),
-        .m6_9: ("m6(9)", "m6(9)"),
-        .seven_b9_13: ("7(b9.13)", "7(b9.13)"),
-        .seven_sharp9_b13: ("7(#9.b13)", "7(#9.b13)"),
-        .m7b5_11: ("m7(b5)(11)", "m7(b5)(11)"),
-        .dimM7: ("dim(M7)", "dim(M7)")
-    ]
-
-    private static let blockOrder: [SurvivalBlockKey] = [
-        .major, .minor,
-        .M7, .m7, .seven, .m7b5,
-        .mM7, .dim7, .aug7, .six, .m6,
-        .M7_9, .m7_9, .seven_9_13, .seven_b9_b13, .six_9, .m6_9,
-        .seven_b9_13, .seven_sharp9_b13, .m7b5_11, .dimM7
-    ]
-
+    /// `survival_stage_blocks.sort_order` を最優先、なければ最小 `stage_number` でブロックを並べ、
+     /// ラベルは DB 値を使う (未登録時は block_key そのもの)。
     private static func generateBlocks(
         from stages: [SurvivalStageDefinition],
-        labelOverrides: [SurvivalBlockKey: (ja: String, en: String)]
+        blockOverrides: [SurvivalBlockKey: BlockOverride]
     ) -> [SurvivalBlockMeta] {
-        var bucket: [SurvivalBlockKey: (stages: [Int], mixed: Int?, difficulty: SurvivalDifficulty)] = [:]
+        struct Bucket {
+            var stages: [Int]
+            var mixed: Int?
+            var difficulty: SurvivalDifficulty
+            var firstStageNumber: Int
+        }
+        var bucket: [SurvivalBlockKey: Bucket] = [:]
         for stage in stages {
-            var entry = bucket[stage.blockKey] ?? (stages: [], mixed: nil, difficulty: stage.difficulty)
-            entry.stages.append(stage.stageNumber)
-            if stage.isMixedStage { entry.mixed = stage.stageNumber }
-            entry.difficulty = stage.difficulty
-            bucket[stage.blockKey] = entry
+            if var entry = bucket[stage.blockKey] {
+                entry.stages.append(stage.stageNumber)
+                if stage.isMixedStage { entry.mixed = stage.stageNumber }
+                entry.difficulty = stage.difficulty
+                if stage.stageNumber < entry.firstStageNumber {
+                    entry.firstStageNumber = stage.stageNumber
+                }
+                bucket[stage.blockKey] = entry
+            } else {
+                bucket[stage.blockKey] = Bucket(
+                    stages: [stage.stageNumber],
+                    mixed: stage.isMixedStage ? stage.stageNumber : nil,
+                    difficulty: stage.difficulty,
+                    firstStageNumber: stage.stageNumber
+                )
+            }
         }
 
-        return blockOrder.enumerated().compactMap { index, key in
-            guard let entry = bucket[key] else { return nil }
-            let resolvedLabels = labelOverrides[key] ?? blockLabels[key]
-            guard let resolvedLabels else { return nil }
-            return SurvivalBlockMeta(
-                blockKey: key,
-                blockIndex: index,
-                labelJa: resolvedLabels.ja,
-                labelEn: resolvedLabels.en,
-                stageNumbers: entry.stages.sorted(),
-                mixedStageNumber: entry.mixed,
-                difficulty: entry.difficulty
+        let sortedKeys: [SurvivalBlockKey] = bucket.keys.sorted { lhs, rhs in
+            let lo = blockOverrides[lhs]?.sortOrder
+            let ro = blockOverrides[rhs]?.sortOrder
+            switch (lo, ro) {
+            case let (l?, r?) where l != r:
+                return l < r
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            default:
+                let lf = bucket[lhs]?.firstStageNumber ?? Int.max
+                let rf = bucket[rhs]?.firstStageNumber ?? Int.max
+                if lf != rf { return lf < rf }
+                return lhs.rawValue < rhs.rawValue
+            }
+        }
+
+        var result: [SurvivalBlockMeta] = []
+        result.reserveCapacity(sortedKeys.count)
+        for (index, key) in sortedKeys.enumerated() {
+            guard let entry = bucket[key] else { continue }
+            let override = blockOverrides[key]
+            let labelJa = override?.labelJa ?? key.rawValue
+            let labelEn = override?.labelEn ?? key.rawValue
+            result.append(
+                SurvivalBlockMeta(
+                    blockKey: key,
+                    blockIndex: index,
+                    labelJa: labelJa,
+                    labelEn: labelEn,
+                    stageNumbers: entry.stages.sorted(),
+                    mixedStageNumber: entry.mixed,
+                    difficulty: entry.difficulty,
+                    bossType: SurvivalBossType.forBlockIndex(index)
+                )
             )
         }
+        return result
     }
 }

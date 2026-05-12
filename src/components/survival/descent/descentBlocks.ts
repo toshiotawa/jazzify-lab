@@ -1,11 +1,21 @@
 /**
  * 魔王城降下マップ: ブロック（コードタイプ）メタデータ
- * 1ブロック = 5 ステージ、Mixed を含むブロックのみ 6 ステージ。
  * Web版は survival_stages テーブルと survival_stage_blocks でメタを取得。fetchAllStages 完了後に rebuildDescentBlocks を呼ぶ。
  * Basic / Songs マップごとに別々のブロックリストを管理する。
+ *
+ * ブロック並びとラベルは Supabase `survival_stage_blocks` の値が正。
+ * - 並び: `sort_order` 昇順 (未登録のブロックは最小 stage_number 順で末尾に並べる)
+ * - ラベル: `label` / `label_en` (未登録時は block_key 文字列をそのまま表示)
  */
 
-import { BlockKey, getStagesByCategory, resolveSurvivalBlockLabel } from '../SurvivalStageDefinitions';
+import {
+  BlockKey,
+  bossTypeForBlockIndex,
+  getStagesByCategory,
+  resolveSurvivalBlockLabel,
+  resolveSurvivalBlockSortOrder,
+  SurvivalBossType,
+} from '../SurvivalStageDefinitions';
 import {
   SurvivalMapCategory,
   DEFAULT_SURVIVAL_MAP_CATEGORY,
@@ -27,88 +37,73 @@ export interface BlockMeta {
   mixedStageNumber: number | null;
   hasMixed: boolean;
   stageCount: number;
+  /** ブロック index に基づくボスタイプ (A/B/C ローテーション) */
+  bossType: SurvivalBossType;
 }
 
-const BLOCK_ORDER: BlockKey[] = [
-  'major',
-  'minor',
-  'M7',
-  'm7',
-  '7',
-  'm7b5',
-  'mM7',
-  'dim7',
-  'aug7',
-  '6',
-  'm6',
-  'M7_9',
-  'm7_9',
-  '7_9_13',
-  '7_b9_b13',
-  '6_9',
-  'm6_9',
-  '7_b9_13',
-  '7_sharp9_b13',
-  'm7b5_11',
-  'dimM7',
-];
-
-const BLOCK_LABELS: Record<BlockKey, { ja: string; en: string }> = {
-  major: { ja: 'メジャー', en: 'Major' },
-  minor: { ja: 'マイナー', en: 'Minor' },
-  M7: { ja: 'M7', en: 'M7' },
-  m7: { ja: 'm7', en: 'm7' },
-  '7': { ja: '7', en: '7' },
-  m7b5: { ja: 'm7b5', en: 'm7b5' },
-  mM7: { ja: 'mM7', en: 'mM7' },
-  dim7: { ja: 'dim7', en: 'dim7' },
-  aug7: { ja: 'aug7', en: 'aug7' },
-  '6': { ja: '6', en: '6' },
-  m6: { ja: 'm6', en: 'm6' },
-  M7_9: { ja: 'M7(9)', en: 'M7(9)' },
-  m7_9: { ja: 'm7(9)', en: 'm7(9)' },
-  '7_9_13': { ja: '7(9.13)', en: '7(9.13)' },
-  '7_b9_b13': { ja: '7(b9.b13)', en: '7(b9.b13)' },
-  '6_9': { ja: '6(9)', en: '6(9)' },
-  m6_9: { ja: 'm6(9)', en: 'm6(9)' },
-  '7_b9_13': { ja: '7(b9.13)', en: '7(b9.13)' },
-  '7_sharp9_b13': { ja: '7(#9.b13)', en: '7(#9.b13)' },
-  m7b5_11: { ja: 'm7(b5)(11)', en: 'm7(b5)(11)' },
-  dimM7: { ja: 'dim(M7)', en: 'dim(M7)' },
-};
+interface BlockBucket {
+  stageNumbers: number[];
+  mixedStageNumber: number | null;
+  firstStageNumber: number;
+}
 
 function buildBlocksForCategory(category: SurvivalMapCategory): BlockMeta[] {
   const stages = getStagesByCategory(category);
   if (stages.length === 0) return [];
-  const byKey: Map<BlockKey, { stageNumbers: number[]; mixedStageNumber: number | null }> = new Map();
+  const byKey: Map<BlockKey, BlockBucket> = new Map();
   for (const stage of stages) {
-    const entry = byKey.get(stage.blockKey) ?? { stageNumbers: [], mixedStageNumber: null };
-    entry.stageNumbers.push(stage.stageNumber);
-    if (stage.isMixedStage) entry.mixedStageNumber = stage.stageNumber;
-    byKey.set(stage.blockKey, entry);
+    const existing = byKey.get(stage.blockKey);
+    if (existing) {
+      existing.stageNumbers.push(stage.stageNumber);
+      if (stage.isMixedStage) existing.mixedStageNumber = stage.stageNumber;
+      if (stage.stageNumber < existing.firstStageNumber) {
+        existing.firstStageNumber = stage.stageNumber;
+      }
+    } else {
+      byKey.set(stage.blockKey, {
+        stageNumbers: [stage.stageNumber],
+        mixedStageNumber: stage.isMixedStage ? stage.stageNumber : null,
+        firstStageNumber: stage.stageNumber,
+      });
+    }
   }
 
+  const blockKeys = Array.from(byKey.keys());
+  blockKeys.sort((a, b) => {
+    const sa = resolveSurvivalBlockSortOrder(category, a);
+    const sb = resolveSurvivalBlockSortOrder(category, b);
+    if (sa !== undefined && sb !== undefined) {
+      if (sa !== sb) return sa - sb;
+    } else if (sa !== undefined) {
+      return -1;
+    } else if (sb !== undefined) {
+      return 1;
+    }
+    const fa = byKey.get(a)?.firstStageNumber ?? Number.MAX_SAFE_INTEGER;
+    const fb = byKey.get(b)?.firstStageNumber ?? Number.MAX_SAFE_INTEGER;
+    return fa - fb;
+  });
+
   const result: BlockMeta[] = [];
-  let blockIndex = 0;
-  for (const blockKey of BLOCK_ORDER) {
+  for (let blockIndex = 0; blockIndex < blockKeys.length; blockIndex += 1) {
+    const blockKey = blockKeys[blockIndex];
     const entry = byKey.get(blockKey);
     if (!entry) continue;
     const sorted = [...entry.stageNumbers].sort((a, b) => a - b);
-    const fallback = BLOCK_LABELS[blockKey];
     const fromDb = resolveSurvivalBlockLabel(category, blockKey);
     result.push({
       blockKey,
       blockIndex,
-      label: fromDb?.ja ?? fallback.ja,
-      labelEn: fromDb?.en ?? fallback.en,
+      label: fromDb?.ja ?? blockKey,
+      labelEn: fromDb?.en ?? blockKey,
       stageNumbers: sorted,
       firstStage: sorted[0],
       lastStage: sorted[sorted.length - 1],
       mixedStageNumber: entry.mixedStageNumber,
       hasMixed: entry.mixedStageNumber !== null,
       stageCount: sorted.length,
+      bossType: bossTypeForBlockIndex(blockIndex),
     });
-    blockIndex += 1;
   }
   return result;
 }
