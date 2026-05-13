@@ -184,27 +184,14 @@ struct SurvivalDescentView: View {
         // 論理座標 0..logicalWidth を worldWidth の中央に寄せるための横オフセット
         let horizontalOffset = (worldWidth - SurvivalDescentLayoutConstants.logicalWidth * scale) / 2
 
-        let bands: [(startY: CGFloat, endY: CGFloat, filter: SurvivalDescentBlockFilter)] = visibleBlocks.map { b in
-            (b.startY, b.endY, SurvivalDescentThemeCatalog.filter(for: b.blockIndex))
-        }
-
         ZStack(alignment: .topLeading) {
-            SurvivalDescentBackgroundView(widthPx: worldWidth, heightPx: worldHeight, blockBands: bands, scale: scale)
-
-            // ブロック区間のテーマ色オーバーレイ (全ブロック)
-            ForEach(Array(visibleBlocks.enumerated()), id: \.element.blockKey) { idx, blockLayout in
-                let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
-                let locked = blockLayout.blockIndex > accessibleBlockIndex
-                SurvivalDescentBlockTintOverlay(
-                    startY: blockLayout.startY,
-                    endY: blockLayout.endY,
-                    widthPx: worldWidth,
-                    scale: scale,
-                    theme: theme,
-                    dim: locked
-                )
-                .id("tint-\(idx)")
-            }
+            SurvivalDescentBackgroundView(
+                widthPx: worldWidth,
+                heightPx: worldHeight,
+                scale: scale,
+                blocks: layout.blocks,
+                accessibleBlockIndex: accessibleBlockIndex
+            )
 
             // 装飾＋踊り場＋階段＋ステージノード
             ForEach(visibleBlocks) { blockLayout in

@@ -6,27 +6,47 @@ import SwiftUI
 
 // MARK: - Background
 
-/// マップの縦長背景。石壁画像 (`background` in Asset Catalog) をタイル貼りし、
-/// ブロック区間ごとに hue/saturation/brightness を変えて 21 ブロック分の雰囲気を出す。
+/// マップの縦長背景。レンガは世界全体を 1 枚のタイルパターンで連続させ、スクロール・カテゴリ切替で縞模様がずれないようにする。
+/// ブロックごとの雰囲気は、`SurvivalDescentThemeCatalog.theme` の tint グラデーションを全区間常時重ねて表現する（旧 `SurvivalDescentBlockTintOverlay` と同等の blend/opacity）。
 struct SurvivalDescentBackgroundView: View {
     let widthPx: CGFloat
     let heightPx: CGFloat
-    /// ブロック (startY, endY, filter) のタプル一覧。
-    let blockBands: [(startY: CGFloat, endY: CGFloat, filter: SurvivalDescentBlockFilter)]
     let scale: CGFloat
+    /// マップ全体のブロックレイアウト（常時描画。視野カリングの対象外）。
+    let blocks: [SurvivalDescentBlockLayout]
+    let accessibleBlockIndex: Int
 
     var body: some View {
+        let tile = max(160, 256 * scale)
         ZStack(alignment: .topLeading) {
             Rectangle()
                 .fill(Color(hex: "09070f"))
                 .frame(width: widthPx, height: heightPx)
 
-            ForEach(Array(blockBands.enumerated()), id: \.offset) { _, band in
-                let bandHeight = max(0, (band.endY - band.startY) * scale)
-                brickTile(filter: band.filter)
+            TiledPatternImage(
+                imageName: "SurvivalMap/background",
+                tileSize: tile
+            )
+            .frame(width: widthPx, height: heightPx)
+            .clipped()
+            .allowsHitTesting(false)
+
+            ForEach(blocks, id: \.blockKey) { blockLayout in
+                let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
+                let dim = blockLayout.blockIndex > accessibleBlockIndex
+                let bandHeight = max(0, (blockLayout.endY - blockLayout.startY) * scale)
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [theme.tintTop, theme.tintBottom],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .frame(width: widthPx, height: bandHeight)
-                    .clipped()
-                    .offset(y: band.startY * scale)
+                    .position(x: widthPx / 2, y: (blockLayout.startY + blockLayout.endY) / 2 * scale)
+                    .opacity(dim ? 0.12 : 0.55)
+                    .blendMode(.screen)
                     .allowsHitTesting(false)
             }
 
@@ -58,30 +78,6 @@ struct SurvivalDescentBackgroundView: View {
         .frame(width: widthPx, height: heightPx)
         .clipped()
         .allowsHitTesting(false)
-    }
-
-    @ViewBuilder
-    private func brickTile(filter: SurvivalDescentBlockFilter) -> some View {
-        let tile = max(160, 256 * scale)
-        TiledPatternImage(
-            imageName: "SurvivalMap/background",
-            tileSize: tile
-        )
-        .hueRotation(.degrees(filter.backgroundHueDeg))
-        .saturation(filter.backgroundSaturation)
-        .brightness(filter.backgroundBrightness)
-        .overlay(
-            // ブロックのテーマ色をオーバーレイで混ぜる (Web 版の mix-blend-mode: overlay 相当)
-            LinearGradient(
-                colors: [
-                    Color(red: 80 / 255, green: 60 / 255, blue: 120 / 255).opacity(0.25),
-                    Color(red: 20 / 255, green: 10 / 255, blue: 40 / 255).opacity(0.35),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .blendMode(.overlay)
-        )
     }
 }
 
@@ -134,35 +130,6 @@ final class TiledPatternView: UIView {
         return UIGraphicsImageRenderer(size: size, format: format).image { _ in
             src.draw(in: CGRect(origin: .zero, size: size))
         }
-    }
-}
-
-// MARK: - Block tint overlay
-
-/// ブロック区間にテーマ色をうっすら被せるオーバーレイ
-struct SurvivalDescentBlockTintOverlay: View {
-    let startY: CGFloat
-    let endY: CGFloat
-    let widthPx: CGFloat
-    let scale: CGFloat
-    let theme: SurvivalDescentBlockTheme
-    let dim: Bool
-
-    var body: some View {
-        let height = max(0, (endY - startY) * scale)
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [theme.tintTop, theme.tintBottom],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: widthPx, height: height)
-            .position(x: widthPx / 2, y: (startY + endY) / 2 * scale)
-            .opacity(dim ? 0.12 : 0.55)
-            .blendMode(.screen)
-            .allowsHitTesting(false)
     }
 }
 
