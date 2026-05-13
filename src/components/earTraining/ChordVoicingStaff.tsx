@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
-import './bravuraClefFont.css';
+import { BRAVURA_WOFF2_PUBLIC_HREF } from './bravuraStaffDocumentFonts';
 import './chordVoicingStaffEffects.css';
 
 export interface ChordVoicingStaffGroup {
@@ -111,11 +111,9 @@ const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 696;
 /** viewBox 右端は五線終端よりやや広い（従来座標との互換） */
 const VIEWBOX_EDGE_PAD_X = STAFF_WIDTH - STAFF_LINE_RIGHT_X;
-/** Safari: SVG<text> が HTML と別のフォント解決になり Emoji に落ちるのを抑止する defs 内用 */
-const BRAVURA_WOFF_HREF = `${import.meta.env.BASE_URL}fonts/Bravura.woff2`;
-/** defs 直下の stylesheet。BravuraSvgStaff は SVG コンテキスト専用。 */
-const STAFF_SVG_SMUFL_CSS = `@font-face{font-family:BravuraSvgStaff;src:url("${BRAVURA_WOFF_HREF}") format("woff2");font-display:block;font-weight:normal;font-style:normal;unicode-range:U+E000-U+F8FF;}`
-  + '.bravura-staff-glyphs{font-family:BravuraSvgStaff,BravuraSMuFL,sans-serif;font-synthesis:none;font-variant-emoji:text;}';
+/** defs 直下。ドキュメント側も `bravuraStaffDocumentFonts` で同名フェイスを登録済み（Safari 対策）。 */
+const STAFF_SVG_SMUFL_CSS = `@font-face{font-family:BravuraSvgStaff;src:url("${BRAVURA_WOFF2_PUBLIC_HREF}") format("woff2");font-display:block;font-weight:normal;font-style:normal;unicode-range:U+E000-U+F8FF;}`
+  + '.bravura-staff-glyphs{font-family:BravuraSvgStaff,BravuraSMuFL,Bravura,serif;font-synthesis:none;font-variant-emoji:text;}';
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
 /** 上下五線の縦オフセット。ト音譜の下端〜ヘ音譜の上端のあいだの余白（ト／ヘの離間）。 */
@@ -561,7 +559,7 @@ const SmuflForeignGlyph: React.FC<{
       display: 'flex',
       alignItems,
       justifyContent,
-      fontFamily: 'BravuraSMuFL, Bravura, sans-serif',
+      fontFamily: 'BravuraSvgStaff, BravuraSMuFL, Bravura, serif',
       fontSize: fontPx,
       fontSynthesis: 'none',
       fontVariantEmoji: 'text',
@@ -1473,11 +1471,18 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       try {
         await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_G_CLEF);
         await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_F_CLEF);
+        await document.fonts.load(`${sizePx}px BravuraSvgStaff`, SMUFL_G_CLEF);
+        await document.fonts.load(`${sizePx}px BravuraSvgStaff`, SMUFL_F_CLEF);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_SHARP);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_NATURAL);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_FLAT);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_NATURAL);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_FLAT);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
         await document.fonts.ready;
       } catch {
         // Font Loading API 非対応時はブラウザのフォールバック描画に任せる
