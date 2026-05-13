@@ -8,7 +8,12 @@ import { Interval, transpose, note as parseNote } from 'tonal';
 import type { SurvivalChordProgressionEntry } from '@/components/survival/SurvivalStageDefinitions';
 import { ALL_17_ROOTS } from './chord-templates';
 
-export const SURVIVAL_VOICING_MIDDLE_C = 60;
+/**
+ * 鍵盤 HINT の reconstructHintMidisByPitchClass（HINT_BASE_MIDI）と整合。
+ * @see survivalProgressionChords.ts の HINT_BASE_MIDI
+ */
+const VOICING_LOWEST_MIDI_MIN = 48;
+const VOICING_LOWEST_MIDI_MAX = 59;
 
 /** プランで対象となったコード種別（内部キー） */
 export type SurvivalProgressionVoicingKind =
@@ -144,26 +149,45 @@ const relativeSemitonesToAscendingMidi = (
   return midis;
 };
 
-const computeMiddleCrossingWarning = (midis: readonly number[]): string | null => {
+/** 昇順 MIDI 列の最低音が C3..B3 外なら警告（鍵盤 HINT と食い違う可能性）。 */
+const computeVoicingOctaveWarning = (midis: readonly number[]): string | null => {
   if (midis.length === 0) return null;
-  let min = midis[0];
-  let max = midis[0];
-  for (let i = 1; i < midis.length; i += 1) {
-    const v = midis[i];
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  if (min < SURVIVAL_VOICING_MIDDLE_C && max > SURVIVAL_VOICING_MIDDLE_C) return null;
-  return `middleC: voicing does not straddle MIDI ${SURVIVAL_VOICING_MIDDLE_C} (min=${min}, max=${max}); review octave visually`;
+  const min = midis[0];
+  if (min >= VOICING_LOWEST_MIDI_MIN && min <= VOICING_LOWEST_MIDI_MAX) return null;
+  return `hintOctave: lowest MIDI ${min} outside [${VOICING_LOWEST_MIDI_MIN},${VOICING_LOWEST_MIDI_MAX}] (C3..B3 base); review octave`;
 };
 
+/**
+ * 最低音が C3..B3 に収まる最大のルートオクターブを採用し、鍵盤 HINT と同じ register に揃える。
+ */
 const choosePreferredRootOctave = (root: string, relative: readonly number[]): number => {
-  for (let oct = 2; oct <= 4; oct += 1) {
+  let bestInRange: number | null = null;
+  for (let oct = 1; oct <= 5; oct += 1) {
     const v = relativeSemitonesToAscendingMidi(root, relative, oct);
-    const w = computeMiddleCrossingWarning(v);
-    if (!w) return oct;
+    const min = v[0];
+    if (min >= VOICING_LOWEST_MIDI_MIN && min <= VOICING_LOWEST_MIDI_MAX) {
+      bestInRange = oct;
+    }
   }
-  return 3;
+  if (bestInRange !== null) return bestInRange;
+
+  let fallback = 3;
+  let bestDist = Infinity;
+  for (let oct = 1; oct <= 6; oct += 1) {
+    const v = relativeSemitonesToAscendingMidi(root, relative, oct);
+    const min = v[0];
+    const dist =
+      min < VOICING_LOWEST_MIDI_MIN
+        ? VOICING_LOWEST_MIDI_MIN - min
+        : min > VOICING_LOWEST_MIDI_MAX
+          ? min - VOICING_LOWEST_MIDI_MAX
+          : 0;
+    if (dist < bestDist) {
+      bestDist = dist;
+      fallback = oct;
+    }
+  }
+  return fallback;
 };
 
 const buildFormMidis = (
@@ -351,7 +375,7 @@ export const analyzeSurvivalChordProgression = (input: string): SurvivalProgress
     const { root, kind, name } = parseChordToken(tokens[i]);
     const form = selectFormForProgressionIndex(root, kind);
     const voicing = buildFormMidis(root, kind, form === 'C' ? 'C' : form);
-    const w = computeMiddleCrossingWarning(voicing);
+    const w = computeVoicingOctaveWarning(voicing);
     const warnings = w ? [w] : [];
     if (w) globalWarnings.push(`${name}: ${w}`);
     entries.push({ name, kind, root, form, voicing, warnings });

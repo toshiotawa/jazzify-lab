@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildProgressionChordDefinition } from '@/utils/survivalProgressionChords';
+import {
+  analyzeSurvivalChordProgression,
+  SURVIVAL_PROGRESSION_VOICING_MAP,
+} from '@/utils/survivalProgressionVoicings';
+
+const HINT_LOWEST_MIDI_MIN = 48;
+const HINT_LOWEST_MIDI_MAX = 59;
 
 describe('survivalProgressionChords', () => {
   it('buildProgressionChordDefinition の root はコード記号ルート（rootless voicing の最低音ではない）', () => {
@@ -74,6 +81,34 @@ describe('survivalProgressionChords', () => {
       -3,
     );
     expect(def.progressionStaffVoicingNames).toEqual(['Eb3', 'G3', 'Bb3', 'D4']);
+  });
+
+  it('SURVIVAL_PROGRESSION_VOICING_MAP: 旧フォールバックで高かったコードの最低音が HINT 基準 C3..B3 内（※m7 のマップキーは m7(9) 表記ではなく m7 接尾辞）', () => {
+    const mapChecks: { readonly mapKey: string; readonly expectedMin: number }[] = [
+      { mapKey: 'FM7(9)', expectedMin: 52 },
+      { mapKey: 'EM7(9)', expectedMin: 51 },
+      { mapKey: 'BbM7(9)', expectedMin: 50 },
+      { mapKey: 'Bb7(9.13)', expectedMin: 50 },
+      { mapKey: 'Fm7', expectedMin: 51 },
+      { mapKey: 'Fm6(9)', expectedMin: 50 },
+    ];
+    for (const { mapKey, expectedMin } of mapChecks) {
+      const entry = SURVIVAL_PROGRESSION_VOICING_MAP[mapKey];
+      expect(entry).toBeDefined();
+      const min = Math.min(...entry.voicing);
+      expect(min).toBeGreaterThanOrEqual(HINT_LOWEST_MIDI_MIN);
+      expect(min).toBeLessThanOrEqual(HINT_LOWEST_MIDI_MAX);
+      expect(min).toBe(expectedMin);
+    }
+  });
+
+  it('analyzeSurvivalChordProgression の FM7(9) / EM7(9) / Fm7(9) が鍵盤 HINT と同じ register の MIDI', () => {
+    const fm = analyzeSurvivalChordProgression('FM7(9)');
+    expect(fm.progression[0]?.voicing).toEqual([52, 55, 57, 60]);
+    const em = analyzeSurvivalChordProgression('EM7(9)');
+    expect(em.progression[0]?.voicing).toEqual([51, 54, 56, 59]);
+    const fmi = analyzeSurvivalChordProgression('Fm7(9)');
+    expect(fmi.progression[0]?.voicing).toEqual([51, 55, 56, 60]);
   });
 
   it('Gb スペル（GbM7(9)）の異名同音表記を維持したままオクターブを揃える', () => {
