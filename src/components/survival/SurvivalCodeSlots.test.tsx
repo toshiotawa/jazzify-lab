@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot, SlotType } from './SurvivalTypes';
-import SurvivalCodeSlots from './SurvivalCodeSlots';
+import SurvivalCodeSlots, { type SurvivalProgressionStaffSnapshot } from './SurvivalCodeSlots';
+
+const SMUFL_ACCIDENTAL_SHARP = '\uE262';
 
 const buildChord = (displayName: string): ChordDefinition => ({
   id: displayName,
@@ -95,5 +97,54 @@ describe('SurvivalCodeSlots progression layout', () => {
     expect(screen.queryByText(/Shot/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Magic/)).not.toBeInTheDocument();
     expect(screen.queryByText('---')).not.toBeInTheDocument();
+  });
+
+  it('progression のスタッフは SMuFL を foreignObject 内 HTML で描画する（調号などが svg text でない）', async () => {
+    const progressionStaffSnapshot: SurvivalProgressionStaffSnapshot = {
+      chordDisplayName: 'Cmaj7',
+      voicingNames: ['C3', 'E3', 'G3', 'B3'],
+      keyFifths: 1,
+      correctPitchClasses: [],
+    };
+
+    const currentSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      buildSlot('A', null, false),
+      buildSlot('B', buildChord('Cmaj7'), true),
+      buildSlot('C', null, false),
+      buildSlot('D', null, false),
+    ];
+    const nextSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      buildSlot('A', null, false),
+      buildSlot('B', buildChord('Dm7'), true),
+      buildSlot('C', null, false),
+      buildSlot('D', null, false),
+    ];
+
+    const { container } = render(
+      <SurvivalCodeSlots
+        currentSlots={currentSlots}
+        nextSlots={nextSlots}
+        hintSlotIndex={null}
+        aSlotCooldown={0}
+        bSlotCooldown={0}
+        cSlotCooldown={0}
+        dSlotCooldown={0}
+        hasMagic={false}
+        isStageMode
+        isProgressionStage
+        progressionStaffSnapshot={progressionStaffSnapshot}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('foreignObject[data-smufl-foreign-object="true"]')).not.toBeNull();
+    });
+
+    expect(
+      container.querySelector(
+        'div[data-key-signature-index="0"][data-key-signature-staff="2"]',
+      )?.textContent,
+    ).toBe(SMUFL_ACCIDENTAL_SHARP);
+    expect(container.querySelector('text[data-key-signature-index="0"]')).toBeNull();
   });
 });

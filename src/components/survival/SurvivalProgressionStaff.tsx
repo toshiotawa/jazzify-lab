@@ -2,7 +2,8 @@
  * Progression + HINT 用の単一和弦スタッフ。バトル用 `ChordVoicingStaff` をラップして常にヘ（bass clef）。
  *
  * - ヴォイシングバトルと同様に `voicingGroups` 経由でグループ単位入力（レイアウト・ラベル帯経路を揃える）。
- * - `compactSingleMeasure` で単位譜幅を詰めつつ、バトル譜面と同じ SVG `<text>` + Bravura で音部・調号を描画する。
+ * - `compactSingleMeasure` で単位譜幅を詰める。WEB で Safari の SVG `<text>` が SMuFL に乗らないことがあるため、
+ *   音部・調号・臨時記号は `smuflUseForeignObject`（`ChordVoicingStaff` 内 HTML / foreignObject）で描画する。
  */
 import React, { useMemo } from 'react';
 
@@ -48,6 +49,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
           keyFifths={keyFifths}
           showTargetHints={false}
           activeGroupId="single"
+          smuflUseForeignObject
           voicingGroups={voicingGroups}
         />
       </div>
