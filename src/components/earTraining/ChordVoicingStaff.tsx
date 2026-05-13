@@ -541,9 +541,9 @@ const StaffClefGlyph: React.FC<{
       ) : null}
       {clefFontsLoaded ? (
         <text
+          className="bravura-smufl-text"
           dominantBaseline="alphabetic"
           fill={NOTATION_COLOR}
-          fontFamily="Bravura, serif"
           fontSize={CLEF_FONT_SIZE}
           textAnchor="start"
           x={CLEF_LEFT_X}
@@ -678,6 +678,7 @@ const WholeNote: React.FC<{
     <g>
       {clefFontsLoaded && accidental ? (
         <text
+          className="bravura-smufl-text"
           data-accidental-group-id={groupId}
           data-accidental-voicing-index={positioned.note.voicingIndex}
           data-voicing-pitch-class={positioned.note.pitchClass}
@@ -685,7 +686,6 @@ const WholeNote: React.FC<{
           y={positioned.yCenter}
           dominantBaseline="central"
           fill={notationColor}
-          fontFamily="Bravura, serif"
           fontSize={ACCIDENTAL_FONT_SIZE}
           textAnchor="middle"
         >
@@ -1154,13 +1154,13 @@ const RenderedStaff: React.FC<{
         ? marks.map((mark, index) => (
             <text
               key={`${mark.alter}-${index}`}
+              className="bravura-smufl-text"
               data-key-signature-index={index}
               data-key-signature-staff={staff}
               x={KEY_SIGNATURE_LEFT_X + index * KEY_SIGNATURE_GAP_X}
               y={yForDegree(staffTopY, staff, mark.degree)}
               dominantBaseline="central"
               fill={NOTATION_COLOR}
-              fontFamily="Bravura, serif"
               fontSize={ACCIDENTAL_FONT_SIZE}
               textAnchor="middle"
             >
