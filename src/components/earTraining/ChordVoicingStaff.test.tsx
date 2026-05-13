@@ -189,7 +189,7 @@ describe('ChordVoicingStaff', () => {
     expect(container.querySelector('line[data-staff-number="2"][data-staff-line="0"]')).not.toBeNull();
   });
 
-  it('正解済み構成音と臨時記号を緑で表示する', () => {
+  it('正解済み構成音と臨時記号を緑で表示する', async () => {
     const { container } = render(
       <ChordVoicingStaff
         voicing={['F#4', 'A4']}
@@ -201,6 +201,9 @@ describe('ChordVoicingStaff', () => {
 
     const correctNotehead = container.querySelector('ellipse[data-voicing-index="0"]');
     const defaultNotehead = container.querySelector('ellipse[data-voicing-index="1"]');
+    await waitFor(() => {
+      expect(container.querySelector('text[data-accidental-voicing-index="0"]')).not.toBeNull();
+    });
     const correctAccidental = container.querySelector('text[data-accidental-voicing-index="0"]');
 
     expect(correctNotehead?.getAttribute('stroke')).toBe('#22c55e');
@@ -279,7 +282,7 @@ describe('ChordVoicingStaff', () => {
     expect(labelXs[1] - labelXs[0]).toBeCloseTo(labelXs[2] - labelXs[1]);
   });
 
-  it('丸め込み後の表示小節内では F# の後の F natural にナチュラルを表示する', () => {
+  it('丸め込み後の表示小節内では F# の後の F natural にナチュラルを表示する', async () => {
     const { container } = render(
       <ChordVoicingStaff
         chordName="F line"
@@ -302,11 +305,14 @@ describe('ChordVoicingStaff', () => {
       />,
     );
 
+    await waitFor(() => {
+      expect(container.querySelector('text[data-accidental-group-id="sharp"]')).not.toBeNull();
+    });
     expect(container.querySelector('text[data-accidental-group-id="sharp"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
     expect(container.querySelector('text[data-accidental-group-id="natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
   });
 
-  it('表示小節が変わると臨時記号状態を調号基準に戻す', () => {
+  it('表示小節が変わると臨時記号状態を調号基準に戻す', async () => {
     const { container } = render(
       <ChordVoicingStaff
         chordName="F line"
@@ -329,11 +335,14 @@ describe('ChordVoicingStaff', () => {
       />,
     );
 
+    await waitFor(() => {
+      expect(container.querySelector('text[data-accidental-group-id="measure-1-sharp"]')).not.toBeNull();
+    });
     expect(container.querySelector('text[data-accidental-group-id="measure-1-sharp"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
     expect(container.querySelector('text[data-accidental-group-id="measure-2-natural"]')).toBeNull();
   });
 
-  it('調号の状態から臨時記号を判定し、同じ表示小節で調号音に戻る時は記号を出す', () => {
+  it('調号の状態から臨時記号を判定し、同じ表示小節で調号音に戻る時は記号を出す', async () => {
     const { container } = render(
       <ChordVoicingStaff
         chordName="G major"
@@ -364,13 +373,16 @@ describe('ChordVoicingStaff', () => {
       />,
     );
 
+    await waitFor(() => {
+      expect(container.querySelectorAll('text[data-key-signature-index]')).toHaveLength(1);
+    });
     expect(container.querySelectorAll('text[data-key-signature-index]')).toHaveLength(1);
     expect(container.querySelector('text[data-accidental-group-id="key-f-sharp"]')).toBeNull();
     expect(container.querySelector('text[data-accidental-group-id="f-natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
     expect(container.querySelector('text[data-accidental-group-id="f-sharp-again"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
   });
 
-  it('タイ継続音は臨時記号表示を抑制しつつ状態更新には使う', () => {
+  it('タイ継続音は臨時記号表示を抑制しつつ状態更新には使う', async () => {
     const { container } = render(
       <ChordVoicingStaff
         chordName="Tie"
@@ -394,6 +406,9 @@ describe('ChordVoicingStaff', () => {
       />,
     );
 
+    await waitFor(() => {
+      expect(container.querySelector('text[data-accidental-group-id="after-tie-natural"]')).not.toBeNull();
+    });
     expect(container.querySelector('text[data-accidental-group-id="tied-sharp"]')).toBeNull();
     expect(container.querySelector('text[data-accidental-group-id="after-tie-natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
   });

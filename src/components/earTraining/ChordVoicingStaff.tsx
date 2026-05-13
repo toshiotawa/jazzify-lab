@@ -568,6 +568,7 @@ const SmuflForeignGlyph: React.FC<{
       boxSizing: 'border-box',
       overflow: 'visible',
       ...divProps?.style,
+      pointerEvents: 'none',
     },
   };
   return (
@@ -576,6 +577,7 @@ const SmuflForeignGlyph: React.FC<{
     data-smufl-foreign-object="true"
     height={height}
     overflow="visible"
+    pointerEvents="none"
     width={width}
     x={x}
     y={y}
@@ -1468,6 +1470,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     let cancelled = false;
     const loadClefFont = async () => {
       const sizePx = SP * 4;
+      let loaded = false;
       try {
         await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_G_CLEF);
         await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_F_CLEF);
@@ -1484,11 +1487,15 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
         await document.fonts.ready;
+
+        loaded =
+          document.fonts.check(`${sizePx}px BravuraSMuFL`, SMUFL_G_CLEF) &&
+          document.fonts.check(`${sizePx}px BravuraSvgStaff`, SMUFL_G_CLEF);
       } catch {
-        // Font Loading API 非対応時はブラウザのフォールバック描画に任せる
+        loaded = false;
       }
       if (!cancelled) {
-        setClefFontsLoaded(true);
+        setClefFontsLoaded(loaded);
       }
     };
     void loadClefFont();

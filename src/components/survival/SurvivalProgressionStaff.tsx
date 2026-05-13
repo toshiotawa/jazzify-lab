@@ -8,6 +8,7 @@
 import React, { useMemo } from 'react';
 
 import ChordVoicingStaff, { type ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoicingStaff';
+import { cn } from '@/utils/cn';
 
 export interface SurvivalProgressionStaffProps {
   readonly chordDisplayName: string;
@@ -37,10 +38,11 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
 
     return (
       <div
-        className={
-          className
-          ?? 'min-w-0 flex-1 max-w-[min(360px,72vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.4] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.28]'
-        }
+        className={cn(
+          'min-w-0 flex-1 max-w-[min(360px,72vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.4] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.28]',
+          className,
+          'pointer-events-none',
+        )}
         aria-hidden
       >
         <ChordVoicingStaff
