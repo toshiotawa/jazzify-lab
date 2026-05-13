@@ -13,14 +13,18 @@ struct SurvivalCodeSlotsView: View {
 
     var body: some View {
         let isProgression = uiSnapshot.stageType == .progression
-        let visibleIndices: [Int] = isProgression ? [1] : [0, 1]
+        /// ランダム + HINT 時も Progression と同様、パンチ列のみ（譜面は B のみ・A 列は非表示）。
+        let randomHintPunchOnly = !isProgression && uiSnapshot.hintMode
+        let visibleIndices: [Int] = (isProgression || randomHintPunchOnly) ? [1] : [0, 1]
+        let wideSlotLayout = isBossStage || isProgression || randomHintPunchOnly
 
         return HStack(alignment: .center, spacing: isBossStage ? 14 : 10) {
             ForEach(visibleIndices, id: \.self) { idx in
                 progressionSlotRow(
                     index: idx,
-                    isWide: isBossStage || isProgression,
-                    isProgression: isProgression
+                    isWide: wideSlotLayout,
+                    isProgression: isProgression,
+                    punchOnlyCenteredLayout: isProgression || randomHintPunchOnly
                 )
             }
         }
@@ -28,7 +32,12 @@ struct SurvivalCodeSlotsView: View {
     }
 
     @ViewBuilder
-    private func progressionSlotRow(index idx: Int, isWide: Bool, isProgression: Bool) -> some View {
+    private func progressionSlotRow(
+        index idx: Int,
+        isWide: Bool,
+        isProgression: Bool,
+        punchOnlyCenteredLayout: Bool
+    ) -> some View {
         let slot = uiSnapshot.slots[idx]
         let hinted = uiSnapshot.hintMode && uiSnapshot.hintSlotIndex == idx
 
@@ -56,7 +65,37 @@ struct SurvivalCodeSlotsView: View {
                     chordDisplayName: chord.displayName,
                     voicingNames: staffNames,
                     keyFifths: keyFf,
-                    correctPitchClasses: correctPc
+                    correctPitchClasses: correctPc,
+                    staffClef: 2
+                )
+                .frame(width: 200, height: 132)
+            }
+            .frame(maxWidth: 640)
+        } else if !isProgression,
+                  uiSnapshot.hintMode,
+                  idx == 1,
+                  let chord = slot.chord,
+                  chord.quality != .progression,
+                  let hintVoicing = SurvivalRandomHintStaff.voicing(forChordId: chord.id) {
+            let correctPc = SurvivalChordResolver.correctNotes(
+                inputPitchClasses: slot.inputPitchClasses,
+                target: chord
+            )
+            HStack(alignment: .center, spacing: 10) {
+                SlotCell(
+                    slot: slot,
+                    style: SurvivalCodeSlotsView.slotStyle(for: idx),
+                    isWide: isWide,
+                    isHintTarget: hinted
+                )
+                .frame(maxWidth: .infinity)
+
+                SurvivalProgressionStaffView(
+                    chordDisplayName: chord.displayName,
+                    voicingNames: hintVoicing.names,
+                    keyFifths: hintVoicing.keyFifths,
+                    correctPitchClasses: correctPc,
+                    staffClef: 1
                 )
                 .frame(width: 200, height: 132)
             }
@@ -68,7 +107,7 @@ struct SurvivalCodeSlotsView: View {
                 isWide: isWide,
                 isHintTarget: hinted
             )
-            .frame(maxWidth: isProgression ? 360 : .infinity)
+            .frame(maxWidth: punchOnlyCenteredLayout ? 360 : .infinity)
         }
     }
 

@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// Progression + HINT 時の単一和弦（ヘ音のみ）。バトル用 `ChordVoicingStaffGroupsView` を再利用する。
+/// Progression + HINT 時の単一和弦。バトル用 `ChordVoicingStaffGroupsView` を再利用する。
+/// - `staffClef`: 1 = ト音、2 = ヘ音（WEB / MusicXML の staves 番号と一致）
 struct SurvivalProgressionStaffView: View {
     let chordDisplayName: String
     let voicingNames: [String]
     let keyFifths: Int
     let correctPitchClasses: [Int]
+    /// 既定はヘ音（Progression）。ランダム HINT は 1（ト音）。
+    var staffClef: Int = 2
 
     private static let staffGroupId = UUID(uuidString: "A0B99C62-1111-4222-A333-D44444444101")!
 
@@ -14,7 +17,7 @@ struct SurvivalProgressionStaffView: View {
             id: Self.staffGroupId,
             chordName: chordDisplayName,
             voicing: voicingNames,
-            voicingStaves: voicingNames.map { _ in 2 },
+            voicingStaves: voicingNames.map { _ in staffClef },
             measureOffset: 0,
             isRest: false
         )

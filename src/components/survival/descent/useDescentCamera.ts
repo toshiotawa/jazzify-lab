@@ -1,14 +1,13 @@
 /**
  * 魔王城降下マップ用: 仮想カメラフック
  * transform: translate3d(0, -cameraY, 0) でマップを縦に動かす。
- * ブラウザスクロールは使用しない。次ブロック(未解放)は先頭だけチラ見せして下限クランプ。
+ * ブラウザスクロールは使用しない。未解放エリアは暗幕(dim)のみ。スクロールはマップ下端まで許可する。
  * Basic / Songs マップ別のレイアウトを参照する。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { platform } from '@/platform';
-import { getBlockLayoutsByCategory, getMapLogicalHeightByCategory } from './descentLayout';
-import { getAccessibleBlockIndex } from './descentBlocks';
+import { getMapLogicalHeightByCategory } from './descentLayout';
 import { SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY } from '../SurvivalTypes';
 
 interface UseDescentCameraParams {
@@ -33,8 +32,8 @@ interface CameraState {
 export const useDescentCamera = ({
   viewportHeight,
   scale,
-  frontierStageNumber,
-  clearedStages,
+  frontierStageNumber: _frontierStageNumber,
+  clearedStages: _clearedStages,
   mapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 }: UseDescentCameraParams): CameraState => {
   const [cameraY, setCameraY] = useState(0);
@@ -46,17 +45,10 @@ export const useDescentCamera = ({
   const lastTimeRef = useRef<number | null>(null);
   const maxCameraYRef = useRef(0);
 
-  const layouts = getBlockLayoutsByCategory(mapCategory);
   const mapLogicalHeight = getMapLogicalHeightByCategory(mapCategory);
-  const accessibleIndex = getAccessibleBlockIndex(frontierStageNumber, clearedStages, mapCategory);
-  const accessibleBlock = layouts[accessibleIndex];
-  const nextBlock = layouts[accessibleIndex + 1];
-  const peekDepth = 180;
-  const maxLogicalY = nextBlock
-    ? Math.min(nextBlock.startY + peekDepth, mapLogicalHeight)
-    : mapLogicalHeight;
-  const visibleBottom = Math.max(accessibleBlock?.endY ?? 0, maxLogicalY);
-  const maxCameraY = Math.max(0, visibleBottom * scale - viewportHeight);
+  // 未解放ブロックは DescentBlock 側の dim で示す。カメラ下限はマップ全体まで許可し、
+  // Web でも iOS（UIScrollView）と同様に最下段フロアまで閲覧・検証できるようにする。
+  const maxCameraY = Math.max(0, mapLogicalHeight * scale - viewportHeight);
   maxCameraYRef.current = maxCameraY;
 
   const clampCameraY = useCallback((valuePx: number): number => {

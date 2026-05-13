@@ -476,12 +476,13 @@ final class SupabaseService: Sendable {
 
     // MARK: - Survival
 
-    /// `survival_stages` テーブル全件を `stage_number` 昇順で取得する。
-    /// Web 版 `fetchAllStages()` の iOS 移植経路。
+    /// `survival_stages` テーブル全件を Web 版 `fetchAllStages()` と同様に取得する。
+    /// `map_category` → `stage_number` で並べ、`stage_number` だけの ORDER だと行の欠落順序になるのを避ける。
     func fetchSurvivalStages() async throws -> [SurvivalStageRow] {
         try await client
             .from("survival_stages")
             .select()
+            .order("map_category")
             .order("stage_number")
             .execute()
             .value

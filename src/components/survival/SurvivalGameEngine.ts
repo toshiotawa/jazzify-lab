@@ -463,6 +463,8 @@ export const initializeCodeSlots = (
   hasMagic: boolean,
   isStageMode: boolean = false,
   progressionChords?: ChordDefinition[] | null,
+  /** ランダム + HINT（練習）時: Shot 列を出題・入力対象から外す（B のみ）。 */
+  randomHintShotDisabled?: boolean,
 ): SurvivalGameState['codeSlots'] => {
   // Progression（コード進行）モード: B列のみ使用し、A/C/D列は無効化
   if (progressionChords) {
@@ -483,17 +485,27 @@ export const initializeCodeSlots = (
     return { current, next };
   }
 
+  const shotEnabled = randomHintShotDisabled !== true;
+
   const cEnabled = hasMagic && (!isStageMode || hasMagic);
   const dEnabled = hasMagic && !isStageMode;
   const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
-    { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords) },
+    {
+      ...createEmptyCodeSlot('A'),
+      chord: shotEnabled ? selectRandomChord(allowedChords) : null,
+      isEnabled: shotEnabled,
+    },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords) },
     { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords) : null, isEnabled: cEnabled },
     { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords) : null, isEnabled: dEnabled },
   ];
 
   const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
-    { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords, current[0].chord?.id) },
+    {
+      ...createEmptyCodeSlot('A'),
+      chord: shotEnabled ? selectRandomChord(allowedChords, current[0].chord?.id) : null,
+      isEnabled: shotEnabled,
+    },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id) },
     { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: cEnabled },
     { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: dEnabled },

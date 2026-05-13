@@ -4,12 +4,12 @@ import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot, SlotType } from './SurvivalTypes';
 import SurvivalCodeSlots, { type SurvivalProgressionStaffSnapshot } from './SurvivalCodeSlots';
 
-const buildChord = (displayName: string): ChordDefinition => ({
+const buildChord = (displayName: string, quality: string = 'progression'): ChordDefinition => ({
   id: displayName,
   displayName,
   notes: [60, 64, 67],
   noteNames: ['C', 'E', 'G'],
-  quality: 'progression',
+  quality,
   root: 'C',
 });
 
@@ -143,5 +143,52 @@ describe('SurvivalCodeSlots progression layout', () => {
     });
 
     expect(container.querySelector('text[data-key-signature-index="0"]')).toBeNull();
+  });
+
+  it('ランダム + HINT: Punch 行のみト音記号（staff=1）のスタッフを表示する', async () => {
+    const progressionStaffSnapshot: SurvivalProgressionStaffSnapshot = {
+      chordDisplayName: 'Cmaj7',
+      voicingNames: ['C4', 'E4', 'G4', 'B4'],
+      keyFifths: 0,
+      correctPitchClasses: [],
+      staffClef: 'treble',
+    };
+
+    const currentSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      buildSlot('A', null, false),
+      buildSlot('B', buildChord('Cmaj7', 'maj7'), true),
+      buildSlot('C', null, false),
+      buildSlot('D', null, false),
+    ];
+    const nextSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
+      buildSlot('A', null, false),
+      buildSlot('B', buildChord('Fmaj7', 'maj7'), true),
+      buildSlot('C', null, false),
+      buildSlot('D', null, false),
+    ];
+
+    const { container } = render(
+      <SurvivalCodeSlots
+        currentSlots={currentSlots}
+        nextSlots={nextSlots}
+        hintSlotIndex={1}
+        aSlotCooldown={0}
+        bSlotCooldown={0}
+        cSlotCooldown={0}
+        dSlotCooldown={0}
+        hasMagic={false}
+        isStageMode
+        isProgressionStage={false}
+        randomHintPunchOnly
+        progressionStaffSnapshot={progressionStaffSnapshot}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('g[data-staff-clef="1"]')).not.toBeNull();
+    });
+
+    expect(container.querySelector('g[data-staff-clef="2"]')).toBeNull();
+    expect(screen.queryByText(/Shot/)).not.toBeInTheDocument();
   });
 });

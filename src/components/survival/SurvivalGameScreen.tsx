@@ -98,6 +98,7 @@ import SurvivalCanvas from './SurvivalCanvas';
 import SurvivalCodeSlots, {
   type SurvivalProgressionStaffSnapshot,
 } from './SurvivalCodeSlots';
+import { buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -1138,7 +1139,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const progressionChords = isProgressionStage ? progressionChordsRef.current : null;
       // Progression 起動時は index を 0 から開始
       if (isProgressionStage) progressionIndexRef.current = 0;
-      const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic, isStageMode, progressionChords);
+      const randomHintShotDisabled =
+        !isProgressionStage &&
+        (hintMode || prev.player.statusEffects.some(e => e.type === 'hint'));
+      const codeSlots = initializeCodeSlots(
+        config.allowedChords,
+        hasMagic,
+        isStageMode,
+        progressionChords,
+        randomHintShotDisabled,
+      );
       if (isBossStage) {
         codeSlots.current[2].isEnabled = false;
         codeSlots.current[3].isEnabled = false;
@@ -1161,7 +1171,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, hintMode]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
@@ -3390,6 +3400,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       keyFifths: kf,
       correctPitchClasses: slot.correctNotes,
       chordDisplayName: ch.displayName,
+      staffClef: 'bass',
     };
   }, [
     hintMode,
@@ -3403,6 +3414,35 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.chord?.progressionStaffKeyFifths,
     progressionPunchSlot.chord?.quality,
   ]);
+
+  const randomPunchStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    if ((!hintMode && !playerHasHintBuff) || isProgressionStage) return null;
+    const slot = progressionPunchSlot;
+    const ch = slot.chord;
+    if (!slot.isEnabled || !ch || ch.quality === 'progression') return null;
+
+    const built = buildSurvivalRandomHintStaffVoicing(ch.id);
+    if (!built) return null;
+
+    return {
+      voicingNames: built.voicingNames,
+      keyFifths: built.keyFifths,
+      correctPitchClasses: slot.correctNotes,
+      chordDisplayName: ch.displayName,
+      staffClef: 'treble',
+    };
+  }, [
+    hintMode,
+    playerHasHintBuff,
+    isProgressionStage,
+    progressionPunchSlot.isEnabled,
+    progressionStaffCorrectNotesSig,
+    progressionPunchSlot.chord?.id,
+    progressionPunchSlot.chord?.displayName,
+    progressionPunchSlot.chord?.quality,
+  ]);
+
+  const punchStaffSnapshot = progressionStaffSnapshot ?? randomPunchStaffSnapshot;
   
   // HINT 鍵盤: 未押下構成音はマリーゴールド、押下済みは緑（`PIXINotesRenderer.setVoicingHints`）
   useEffect(() => {
@@ -3913,7 +3953,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           isStageMode={isStageMode}
           isBossStage={isBossStage}
           isProgressionStage={isProgressionStage}
-          progressionStaffSnapshot={progressionStaffSnapshot}
+          randomHintPunchOnly={!isProgressionStage && (hintMode || playerHasHintBuff)}
+          progressionStaffSnapshot={punchStaffSnapshot}
         />
       </div>
       

@@ -63,7 +63,11 @@ enum SurvivalGameEngine {
     /// allowedChords からコードスロットを 4 個生成。
     /// - 通常ステージ / ボスステージ共に A/B のみ有効 (Shot / Punch の 2 列構成)
     /// - C 列 (Magic) / D 列はステージモードでは常に無効
-    static func createStageInitialSlots(allowedChords: [String], isBossStage: Bool = false) -> [SurvivalCodeSlot] {
+    static func createStageInitialSlots(
+        allowedChords: [String],
+        isBossStage: Bool = false,
+        punchOnlyForRandomHint: Bool = false
+    ) -> [SurvivalCodeSlot] {
         _ = isBossStage // 現行仕様ではボス/通常どちらも A/B のみ
         let resolved = allowedChords.compactMap { SurvivalChordResolver.resolve(id: $0) }
         let random: () -> SurvivalResolvedChord? = {
@@ -72,7 +76,8 @@ enum SurvivalGameEngine {
         return SurvivalSlotIndex.allCases.map { idx in
             let enabled: Bool
             switch idx {
-            case .A, .B: enabled = true
+            case .A: enabled = !punchOnlyForRandomHint
+            case .B: enabled = true
             case .C, .D: enabled = false
             }
             return SurvivalCodeSlot(

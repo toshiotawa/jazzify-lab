@@ -10,17 +10,22 @@ import React, { useMemo } from 'react';
 import ChordVoicingStaff, { type ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoicingStaff';
 import { cn } from '@/utils/cn';
 
+export type SurvivalStaffClef = 'bass' | 'treble';
+
 export interface SurvivalProgressionStaffProps {
   readonly chordDisplayName: string;
   readonly voicingNames: readonly string[];
   readonly keyFifths: number;
   readonly correctPitchClasses: readonly number[];
+  /** 既定はヘ音（Progression）。ランダム HINT はト音。 */
+  readonly staffClef?: SurvivalStaffClef;
   readonly className?: string;
 }
 
 export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps>(
-  ({ chordDisplayName, voicingNames, keyFifths, correctPitchClasses, className }) => {
-    const bassStaves = useMemo(() => voicingNames.map(() => 2 as const), [voicingNames]);
+  ({ chordDisplayName, voicingNames, keyFifths, correctPitchClasses, staffClef = 'bass', className }) => {
+    const staffNumber = staffClef === 'treble' ? (1 as const) : (2 as const);
+    const voicingStaves = useMemo(() => voicingNames.map(() => staffNumber), [voicingNames, staffNumber]);
 
     const voicingGroups = useMemo(
       (): readonly ChordVoicingStaffGroup[] => [
@@ -28,12 +33,12 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
           id: 'single',
           chordName: chordDisplayName,
           voicing: voicingNames,
-          voicingStaves: bassStaves,
+          voicingStaves,
           correctPitchClasses,
           measureOffset: 0,
         },
       ],
-      [bassStaves, chordDisplayName, correctPitchClasses, voicingNames],
+      [voicingStaves, chordDisplayName, correctPitchClasses, voicingNames],
     );
 
     return (

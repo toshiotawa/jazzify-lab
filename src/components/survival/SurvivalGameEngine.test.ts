@@ -55,6 +55,17 @@ describe('survival progression code slots', () => {
     expect(slots.current[3].isEnabled).toBe(false);
   });
 
+  it('random + HINT 練習時は Shot を無効化し Punch のみコードを載せる', () => {
+    const slots = initializeCodeSlots(['CM7', 'Dm7'], false, true, null, true);
+
+    expect(slots.current.map(s => s.isEnabled)).toEqual([false, true, false, false]);
+    expect(slots.next.map(s => s.isEnabled)).toEqual([false, true, false, false]);
+    expect(slots.current[0].chord).toBeNull();
+    expect(slots.next[0].chord).toBeNull();
+    expect(slots.current[1].chord).not.toBeNull();
+    expect(slots.next[1].chord).not.toBeNull();
+  });
+
   it('selects progression chords sequentially with wraparound', () => {
     expect(selectProgressionChord(progressionChords, 0)?.displayName).toBe('Cmaj7');
     expect(selectProgressionChord(progressionChords, 1)?.displayName).toBe('Dm7');

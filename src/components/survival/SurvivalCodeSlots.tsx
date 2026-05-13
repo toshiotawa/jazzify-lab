@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { cn } from '@/utils/cn';
-import { SurvivalProgressionStaff } from './SurvivalProgressionStaff';
+import { SurvivalProgressionStaff, type SurvivalStaffClef } from './SurvivalProgressionStaff';
 import { CodeSlot, SLOT_TIMEOUT } from './SurvivalTypes';
 
 /** HINT ON の Progression 時、Punch（B）右にスタッフを出すために GameScreen が渡すスナップショット */
@@ -14,6 +14,7 @@ export interface SurvivalProgressionStaffSnapshot {
   readonly keyFifths: number;
   readonly correctPitchClasses: readonly number[];
   readonly chordDisplayName: string;
+  readonly staffClef?: SurvivalStaffClef;
 }
 
 const progressionStaffSnapshotEqual = (
@@ -24,6 +25,7 @@ const progressionStaffSnapshotEqual = (
   if (!a || !b) return false;
   return (
     a.chordDisplayName === b.chordDisplayName &&
+    a.staffClef === b.staffClef &&
     a.keyFifths === b.keyFifths &&
     a.correctPitchClasses.length === b.correctPitchClasses.length &&
     a.correctPitchClasses.every((pc, ix) => pc === b.correctPitchClasses[ix]) &&
@@ -48,6 +50,8 @@ interface SurvivalCodeSlotsProps {
   isBossStage?: boolean;
   /** Progression（コード進行）ステージ時は B 列のみ拡大表示する */
   isProgressionStage?: boolean;
+  /** ランダム + HINT 時も B 列のみ表示（Shot 行は非表示。ゲーム側で A 列は無効化すること） */
+  randomHintPunchOnly?: boolean;
   /** Progression + HINT 時、Punch 右側のヘ音スタッフ用（欠落時は非表示） */
   progressionStaffSnapshot?: SurvivalProgressionStaffSnapshot | null;
 }
@@ -260,6 +264,7 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
   isStageMode = false,
   isBossStage = false,
   isProgressionStage = false,
+  randomHintPunchOnly = false,
   progressionStaffSnapshot = null,
 }) => {
   // 各スロットのクールダウン状態を判定
@@ -284,13 +289,13 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
       {/* スロット行 */}
       <div className="flex gap-1 md:gap-2 w-full justify-center">
         {currentSlots.map((slot, index) => {
-          // Progression ステージは B 列(index=1)のみ表示し、中央寄せ・拡大表示
-          if (isProgressionStage && index !== 1) return null;
+          // Progression・ランダム+HINT 練習とも B 列(index=1)のみ表示
+          if ((isProgressionStage || randomHintPunchOnly) && index !== 1) return null;
           if (!isProgressionStage && isStageMode && index >= 3) return null;
           // ボス戦では C/D 列を完全非表示（A/B 列のみ）
           if (!isProgressionStage && isBossStage && index >= 2) return null;
           const rowWithStaff =
-            isProgressionStage &&
+            index === 1 &&
             progressionStaffSnapshot &&
             progressionStaffSnapshot.voicingNames.length > 0;
 
@@ -301,7 +306,7 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
                 'flex',
                 rowWithStaff
                   ? 'flex-row flex-1 gap-3 items-center justify-center w-full max-w-[min(60rem,calc(100vw-1rem))] mx-auto'
-                  : isProgressionStage
+                  : isProgressionStage || randomHintPunchOnly
                     ? 'flex-1 max-w-[24rem] mx-auto'
                     : 'flex-1 min-w-0'
               )}
@@ -313,7 +318,7 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
                   isHinted={hintSlotIndex === index}
                   isMagicOnCooldown={getSlotCooldown(index)}
                   isMagicSlot={isSlotMagic(index)}
-                  isWide={isBossStage || isProgressionStage}
+                  isWide={isBossStage || isProgressionStage || randomHintPunchOnly}
                 />
               </div>
               {rowWithStaff && (
@@ -321,6 +326,7 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
                   chordDisplayName={progressionStaffSnapshot.chordDisplayName}
                   correctPitchClasses={progressionStaffSnapshot.correctPitchClasses}
                   keyFifths={progressionStaffSnapshot.keyFifths}
+                  staffClef={progressionStaffSnapshot.staffClef ?? 'bass'}
                   voicingNames={progressionStaffSnapshot.voicingNames}
                 />
               )}
@@ -346,6 +352,7 @@ const SurvivalCodeSlots = React.memo(SurvivalCodeSlotsComponent, (prev, next) =>
   prev.isStageMode === next.isStageMode &&
   prev.isBossStage === next.isBossStage &&
   prev.isProgressionStage === next.isProgressionStage &&
+  prev.randomHintPunchOnly === next.randomHintPunchOnly &&
   progressionStaffSnapshotEqual(prev.progressionStaffSnapshot, next.progressionStaffSnapshot) &&
   // クールダウンは「> 0 か否か」だけが表示に影響するため真偽値で比較する
   (prev.aSlotCooldown > 0) === (next.aSlotCooldown > 0) &&
