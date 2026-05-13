@@ -99,9 +99,11 @@ const KIND_RELATIVE_SEMITONES: Record<
 
 /** 最長一致用: 入力サフィックス → 種別 */
 const SUFFIX_MATCHERS: ReadonlyArray<{ readonly suffix: string; readonly kind: SurvivalProgressionVoicingKind }> = [
+  { suffix: 'M7(9.13)', kind: 'M7_9' },
   { suffix: 'M7(9)', kind: 'M7_9' },
   { suffix: 'mM7(9)', kind: 'mM7_9' },
   { suffix: 'm7(b5)', kind: 'm7b5' },
+  { suffix: 'm7(b9.b13)', kind: 'm7' },
   { suffix: '7(9.13)', kind: '7_9_13' },
   { suffix: '7(b9.b13)', kind: '7_b9_b13' },
   { suffix: 'm6(9)', kind: 'm6_9' },
@@ -115,7 +117,15 @@ const SUFFIX_MATCHERS: ReadonlyArray<{ readonly suffix: string; readonly kind: S
   { suffix: '7', kind: 'dom7' },
 ];
 
-const normalizeChordToken = (raw: string): string => raw.trim();
+const normalizeChordToken = (raw: string): string => {
+  const t = raw.trim();
+  if (!t) return t;
+  const compact = t.match(/^([A-G](?:bb|##|b|#|x)?)(.*)$/);
+  if (compact && compact[2] === 'm7b5') {
+    return `${compact[1]}m7(b5)`;
+  }
+  return t;
+};
 
 const assertFourUniquePitchClasses = (midis: readonly number[], label: string): void => {
   if (midis.length !== 4) {

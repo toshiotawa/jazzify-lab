@@ -1,0 +1,48 @@
+# DONNA LEE
+
+# corpus: Donna Lee
+# key (DBKeySig): Ab
+
+Key of Ab
+AbM7(9)
+F7(b9.b13)
+Bb7(9.13)
+Bb7(9.13)
+Bbm7(9)
+Bbm7(9)
+Eb7(b9.b13)
+AbM7(9)
+Ebm7(9)
+Ab7(b9.b13)
+DbM7(9)
+Gb7(9.13)
+Cm7
+F7(b9.b13)
+Bb7(9.13)
+Bb7(9.13)
+Bbm7(9)
+Eb7(b9.b13)
+
+
+
+AbM7(9)
+F7(b9.b13)
+Bb7(9.13)
+Bb7(9.13)
+Gm7b5
+C7(b9.b13)
+Fm6(9)
+C7(b9.b13)
+Fm6(9)
+Gm7b5
+C7(b9.b13)
+Fm7(9)
+Bdim7
+Cm7
+F7(b9.b13)
+Bbm7(9)
+Eb7(9.13)
+AbM7(9)
+Bbm7(9)
+Eb7(9.13)
+

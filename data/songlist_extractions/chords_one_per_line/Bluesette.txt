@@ -1,0 +1,30 @@
+# BLUESETTE
+
+# corpus: Bluesette
+# key (DBKeySig): Bb
+
+Key of Bb
+BbM7(9)
+BbM7(9)
+Am7b5
+D7(b9.b13)
+Gm7(9)
+C7(9.13)
+Fm7(9)
+Bb7(9.13)
+EbM7(9)
+EbM7(9)
+Ebm7(9)
+Ab7(9.13)
+DbM7(9)
+DbM7(9)
+Dbm7(9)
+Gb7(9.13)
+BM7(9)
+BM7(9)
+Cm7b5
+F7(9.13)
+Dm7
+Db7(9.13)
+Cm7(9)
+F7(9.13)

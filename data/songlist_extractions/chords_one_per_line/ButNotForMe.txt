@@ -1,0 +1,51 @@
+# BUT NOT FOR ME
+
+# corpus: But Not For Me
+# key (DBKeySig): Eb
+
+Key of Eb
+F7(9.13)
+Fm7(9)
+Bb7(9.13)
+EbM7(9)
+C7(b9.b13)
+F7(9.13)
+Fm7(9)
+Bb7(9.13)
+EbM7(9)
+Eb7(9.13)
+Abdim7
+AbM7(9)
+AbM7(9)
+Abm7(9)
+Ebdim7
+EbM7(9)
+Cm7(9)
+F7(9.13)
+Fm7(9)
+Bb7(9.13)
+
+
+F7(9.13)
+Fm7(9)
+Bb7(9.13)
+EbM7(9)
+C7(b9.b13)
+F7(9.13)
+Fm7(9)
+Bb7(9.13)
+EbM7(9)
+Eb7(9.13)
+Abdim7
+AbM7(9)
+AbM7(9)
+Abm7(9)
+Ebdim7
+EbM7(9)
+Cm7(9)
+F7(9.13)
+Fm7(9)
+Bb7(9.13)
+EbM7(9)
+Gm7
+C7(b9.b13)

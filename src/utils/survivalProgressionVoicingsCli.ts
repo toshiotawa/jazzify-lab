@@ -2,12 +2,18 @@
  * CLI エントリ（esbuild bundle 用）。ゲームバンドルには含めない。
  */
 
+import { readFileSync } from 'node:fs';
+
 import {
   analyzeSurvivalChordProgression,
   buildSurvivalProgressionVoicingFormsMap,
   SURVIVAL_PROGRESSION_VOICING_MAP,
   survivalVoicingToNoteNames,
 } from './survivalProgressionVoicings';
+import {
+  buildMergedKeyFifthsForChordsOnePerLineSections,
+  parseChordsOnePerLineSections,
+} from './survivalProgressionChordsOnePerLine';
 import { buildProgressionChordDefinitions } from './survivalProgressionChords';
 import { buildSurvivalProgressionMigrationSql } from './survivalProgressionMigrationGenerator';
 import { SURVIVAL_PROGRESSION_MIGRATION_INPUTS } from './survivalProgressionMigrationData';
@@ -41,10 +47,32 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
     process.stdout.write(sql);
     return;
   }
-  const input = args.join(' ').trim();
+
+  let input: string;
+  let keyFifthsOverride: readonly number[] | null = null;
+  let chordsTxtMeta: { readonly path: string; readonly sectionsCount: number } | null = null;
+
+  if (args[0] === '--from-chords-txt') {
+    const filePath = args[1]?.trim();
+    if (!filePath) {
+      process.stderr.write('Error: --from-chords-txt にはファイルパスが必要です。\n');
+      process.exitCode = 1;
+      return;
+    }
+    const content = readFileSync(filePath, 'utf8');
+    const sections = parseChordsOnePerLineSections(content);
+    const tokens = sections.flatMap(s => [...s.chordTokens]);
+    input = tokens.join(' ');
+    keyFifthsOverride = buildMergedKeyFifthsForChordsOnePerLineSections(sections);
+    chordsTxtMeta = { path: filePath, sectionsCount: sections.length };
+  } else {
+    input = args.join(' ').trim();
+  }
+
   if (!input) {
     process.stderr.write(
       'Usage: node scripts/survival-progression-voicings.mjs "Dm7(9) G7(9.13) CM7(9) CM7(9)"\n' +
+        '       node scripts/survival-progression-voicings.mjs --from-chords-txt path/to/chords_one_per_line.txt\n' +
         '       node scripts/survival-progression-voicings.mjs --dump-map\n' +
         '       node scripts/survival-progression-voicings.mjs --dump-forms-map\n' +
         '       node scripts/survival-progression-voicings.mjs --gen-migration\n' +
@@ -56,6 +84,13 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
   const result = analyzeSurvivalChordProgression(input);
 
   const built = buildProgressionChordDefinitions(result.progression);
+  if (keyFifthsOverride && keyFifthsOverride.length !== built.length) {
+    process.stderr.write(
+      `Error: key_fifths 件数 (${keyFifthsOverride.length}) がコード数 (${built.length}) と一致しません。\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   const chordProgressionForDb = built.map((def, ix) => {
     const row: Record<string, unknown> = {
       name: result.progression[ix]?.name ?? def.displayName,
@@ -65,7 +100,9 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
     if (names && names.length > 0) {
       row.voicing_names = [...names];
     }
-    if (typeof def.progressionStaffKeyFifths === 'number') {
+    if (keyFifthsOverride) {
+      row.key_fifths = keyFifthsOverride[ix];
+    } else if (typeof def.progressionStaffKeyFifths === 'number') {
       row.key_fifths = def.progressionStaffKeyFifths;
     }
     return row;
@@ -73,6 +110,7 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
 
   const payload = {
     progression: result.progression,
+    chordsTxt: chordsTxtMeta,
     chordProgressionForDb,
     detail: result.entries.map(e => ({
       name: e.name,

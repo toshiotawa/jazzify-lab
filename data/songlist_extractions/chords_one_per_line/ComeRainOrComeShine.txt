@@ -1,0 +1,53 @@
+# COME RAIN OR COME SHINE
+
+# corpus: Come Rain Or Come Shine
+# key (DBKeySig): F
+
+Key of F
+FM7(9)
+Em7b5
+A7(b9.b13)
+Dm7(9)
+Dm7(9)
+
+
+G7(9.13)
+C7(9.13)
+FM7(9.13)
+Cm7(9)
+F7(9.13)
+
+Bbm7(9)
+Fm7(9)
+Bbm7(9)
+Abm7(9)
+Gm7b5
+C7(b9.b13)
+Bm7b5
+E7(b9.b13)
+Am7b5
+D7(b9.b13)
+Am7b5
+D7(b9.b13)
+Gm7(9)
+C7(9.13)
+
+FM7(9)
+Em7b5
+A7(b9.b13)
+Dm7(9)
+Dm7(9)
+Bm7(9)
+E7(b9.b13)
+A7(9.13)
+D7(9.13)
+D7(9.13)
+G7(9.13)
+G7(9.13)
+Dm7(9)
+Bm7b5
+Em7b5
+A7(b9.b13)
+Dm6(9)
+Gm7(9)
+C7(b9.b13)

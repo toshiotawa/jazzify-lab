@@ -1,0 +1,43 @@
+# Bye Bye Blackbird
+
+# corpus: Bye Bye Blackbird
+# key (DBKeySig): F
+
+Key of F
+FM7(9)
+Gm7(9)
+C7(9.13)
+FM7(9)
+Abdim7
+Gm7(9)
+C7(9.13)
+Gm7(9)
+GmM7(9)
+Gm7(9)
+C7(9.13)
+Gm7(9)
+C7(9.13)
+F6(9)
+F6(9)
+F7(9.13)
+E7(9.13)
+Eb7(9.13)
+D7(b9.b13)
+Gm7(9)
+Gm7(9)
+Abm7(9)
+Db7(9.13)
+Gm7(9)
+C7(9.13)
+FM7(9)
+Gm7(9)
+C7(9.13)
+F6(9)
+Am7b5
+D7(b9.b13)
+Gm7(9)
+C7(9.13)
+F6(9)
+Gm7(9)
+C7(9.13)
+

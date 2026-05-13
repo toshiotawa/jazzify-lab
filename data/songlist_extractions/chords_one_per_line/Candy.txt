@@ -1,0 +1,40 @@
+# Candy
+
+# corpus: Candy
+# key (DBKeySig): Bb
+
+Key of Bb
+EbM7(9)
+EbmM7(9)
+Dm7
+Dbdim7
+Cm7(9)
+F7(9.13)
+Bb6(9)
+Fm7(9)
+Bb7(9.13)
+
+EbM7(9)
+EbmM7(9)
+Dm7
+Dbdim7
+Cm7(9)
+F7(9.13)
+Bb6(9)
+Bb6(9)
+
+D7(9.13)
+G7(9.13)
+C7(9.13)
+F7(9.13)
+Bb7(9.13)
+
+EbM7(9)
+EbmM7(9)
+Dm7
+Dbdim7
+Cm7(9)
+F7(9.13)
+Bb6(9)
+Fm7(9)
+Bb7(9.13)

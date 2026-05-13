@@ -1,0 +1,43 @@
+# Beautiful Love
+
+# corpus: Beautiful Love
+# key (DBKeySig): F
+
+Key of F
+Em7b5
+A7(b9.b13)
+Dm6(9)
+Dm7(b9.b13)
+Gm7(9)
+C7(9.13)
+FM7(9)
+Em7b5
+A7(b9.b13)
+Dm7(9)
+Gm7(9)
+Bb7(9.13)
+Em7b5
+A7(b9.b13)
+Dm7(9)
+G7(9.13)
+Bb7(b9.b13)
+A7(b9.b13)
+Em7b5
+A7(b9.b13)
+Dm6(9)
+Dm7(b9.b13)
+Gm7(9)
+C7(9.13)
+FM7(9)
+Em7b5
+A7(b9.b13)
+Dm6(9)
+Gm7(9)
+Bb7(9.13)
+Em7b5
+A7(b9.b13)
+Dm7(9)
+Em7(b5)
+A7(b9.b13)
+Dm6(9)
+Dm6(9)

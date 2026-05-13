@@ -6,7 +6,7 @@
  *
  * - 5 II-V-I ステージは `inferred`（II→V→I 検出 + chroma 6→Gb）。
  * - 4 Blues ステージは `fixed`（曲の Home key を全コードに適用）。
- * - 6 Jazz Standards 1 ステージは `fixed`（曲の Home key を全コードに適用）。
+ * - 6 Standards 1 ステージは `fixed`（曲の Home key を全コードに適用）。
  *
  * 実行時には使われない（CLI 専用）。
  */

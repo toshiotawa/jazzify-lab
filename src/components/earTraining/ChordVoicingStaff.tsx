@@ -41,6 +41,10 @@ interface ChordVoicingStaffProps {
   singleMeasureLayout?: boolean;
   /** コード名ラベル帯と上部余白を畳む（既定: false）。 */
   hideChordLabels?: boolean;
+  /**
+   * 1 和弦・単一小節向けに五線横幅を縮める。単位譜のみのため `singleMeasureLayout` を内部で許容済みとして扱う。
+   */
+  compactSingleMeasure?: boolean;
   className?: string;
 }
 
@@ -100,6 +104,8 @@ const SP = 10;
 const STAFF_WIDTH = 720;
 const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 696;
+/** viewBox 右端は五線終端よりやや広い（従来座標との互換） */
+const VIEWBOX_EDGE_PAD_X = STAFF_WIDTH - STAFF_LINE_RIGHT_X;
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
 /** 上下五線の縦オフセット。ト音譜の下端〜ヘ音譜の上端のあいだの余白（ト／ヘの離間）。 */
@@ -131,7 +137,6 @@ const EMPTY_PITCH_CLASSES: readonly number[] = [];
 const EMPTY_TIED_INDICES: readonly number[] = [];
 const EMPTY_GROUPS: readonly ChordVoicingStaffGroup[] = [];
 const EMPTY_CORRECT_PITCH_CLASS_MAP = new Map<string, readonly number[]>();
-const MEASURE_DIVIDER_X = STAFF_WIDTH / 2;
 const MEASURE_ONE_NOTE_LEFT_X = 138;
 const KEY_SIGNATURE_LEFT_X = 88;
 const KEY_SIGNATURE_GAP_X = SP * 1.05;
@@ -245,28 +250,42 @@ const keySignatureAlter = (step: string, keyFifths: number): number => {
   return 0;
 };
 
+/** 単一和弦コンパクト表示用の五線終端 X（調号〜転回和弦クラスタぶん）。 */
+function compactChordStaffLineRightX(keyFifths: number): number {
+  const fifthsAbs = Math.abs(clampKeyFifths(keyFifths));
+  const keySignatureEndX = fifthsAbs > 0
+    ? KEY_SIGNATURE_LEFT_X + (fifthsAbs - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.4
+    : KEY_SIGNATURE_LEFT_X;
+  const measureOneNoteLeftX = Math.max(MEASURE_ONE_NOTE_LEFT_X, keySignatureEndX + SP * 3.1);
+  const chordClusterReserve = SP * 16;
+  const barlineMargin = SP * 2;
+  return Math.ceil(measureOneNoteLeftX + chordClusterReserve + barlineMargin);
+}
+
 const getStaffLayoutMetrics = (
   keyFifths: number,
   wideFirstMeasure: boolean,
   singleMeasureLayout: boolean,
+  staffLineRightX: number,
 ): StaffLayoutMetrics => {
   const fifths = Math.abs(clampKeyFifths(keyFifths));
   const keySignatureEndX = fifths > 0
     ? KEY_SIGNATURE_LEFT_X + (fifths - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.4
     : KEY_SIGNATURE_LEFT_X;
+  const staffMidX = (STAFF_LINE_LEFT_X + staffLineRightX) / 2;
   const dividerX = singleMeasureLayout
-    ? STAFF_LINE_RIGHT_X
+    ? staffLineRightX
     : wideFirstMeasure
-      ? STAFF_LINE_LEFT_X + (STAFF_LINE_RIGHT_X - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO
-      : MEASURE_DIVIDER_X;
+      ? STAFF_LINE_LEFT_X + (staffLineRightX - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO
+      : staffMidX;
   const measureOneNoteLeftX = Math.max(MEASURE_ONE_NOTE_LEFT_X, keySignatureEndX + SP * 3.1);
 
   return {
     measureDividerX: dividerX,
     measureOneNoteLeftX,
     measureOneNoteRightX: Math.max(measureOneNoteLeftX + SP * 3, dividerX - SP * 2.5),
-    measureTwoNoteLeftX: Math.min(dividerX + SP * 2.1, STAFF_LINE_RIGHT_X - SP * 2.2),
-    measureTwoNoteRightX: STAFF_LINE_RIGHT_X - SP * 2.5,
+    measureTwoNoteLeftX: Math.min(dividerX + SP * 2.1, staffLineRightX - SP * 2.2),
+    measureTwoNoteRightX: staffLineRightX - SP * 2.5,
   };
 };
 
@@ -499,7 +518,9 @@ const StaffClefGlyph: React.FC<{
   staff: StaffNumber;
   staffTopY: number;
   showAnchorDebug: boolean;
-}> = ({ staff, staffTopY, showAnchorDebug }) => {
+  staffLineRightX: number;
+  clefFontsLoaded: boolean;
+}> = ({ staff, staffTopY, showAnchorDebug, staffLineRightX, clefFontsLoaded }) => {
   const anchorLineY = staff === 1 ? staffTopY + 3 * SP : staffTopY + SP;
   const glyph = staff === 1 ? SMUFL_G_CLEF : SMUFL_F_CLEF;
 
@@ -509,7 +530,7 @@ const StaffClefGlyph: React.FC<{
         <g aria-hidden>
           <line
             x1={STAFF_LINE_LEFT_X}
-            x2={STAFF_LINE_RIGHT_X}
+            x2={staffLineRightX}
             y1={anchorLineY}
             y2={anchorLineY}
             stroke="#ef4444"
@@ -518,17 +539,19 @@ const StaffClefGlyph: React.FC<{
           <circle cx={CLEF_LEFT_X} cy={anchorLineY} fill="#ef4444" r={4} />
         </g>
       ) : null}
-      <text
-        dominantBaseline="alphabetic"
-        fill={NOTATION_COLOR}
-        fontFamily="Bravura, serif"
-        fontSize={CLEF_FONT_SIZE}
-        textAnchor="start"
-        x={CLEF_LEFT_X}
-        y={anchorLineY}
-      >
-        {glyph}
-      </text>
+      {clefFontsLoaded ? (
+        <text
+          dominantBaseline="alphabetic"
+          fill={NOTATION_COLOR}
+          fontFamily="Bravura, serif"
+          fontSize={CLEF_FONT_SIZE}
+          textAnchor="start"
+          x={CLEF_LEFT_X}
+          y={anchorLineY}
+        >
+          {glyph}
+        </text>
+      ) : null}
     </g>
   );
 };
@@ -536,7 +559,8 @@ const StaffClefGlyph: React.FC<{
 const StaffLines: React.FC<{
   staff: StaffNumber;
   topY: number;
-}> = ({ staff, topY }) => (
+  staffLineRightX: number;
+}> = ({ staff, topY, staffLineRightX }) => (
   <g>
     {Array.from({ length: 5 }, (_, line) => {
       const y = topY + line * SP;
@@ -546,7 +570,7 @@ const StaffLines: React.FC<{
           data-staff-line={line}
           data-staff-number={staff}
           x1={STAFF_LINE_LEFT_X}
-          x2={STAFF_LINE_RIGHT_X}
+          x2={staffLineRightX}
           y1={y}
           y2={y}
           stroke={NOTATION_COLOR}
@@ -624,7 +648,16 @@ const WholeNote: React.FC<{
   staffTopY: number;
   isCorrect: boolean;
   isNextHint: boolean;
-}> = ({ groupId, positioned, baseX, staffTopY, isCorrect, isNextHint }) => {
+  clefFontsLoaded: boolean;
+}> = ({
+  groupId,
+  positioned,
+  baseX,
+  staffTopY,
+  isCorrect,
+  isNextHint,
+  clefFontsLoaded,
+}) => {
   const noteWidth = SP * 1.45;
   const noteHeight = SP * 0.86;
   const xCenter = baseX + positioned.xOffset;
@@ -643,7 +676,7 @@ const WholeNote: React.FC<{
 
   return (
     <g>
-      {accidental && (
+      {clefFontsLoaded && accidental ? (
         <text
           data-accidental-group-id={groupId}
           data-accidental-voicing-index={positioned.note.voicingIndex}
@@ -658,7 +691,7 @@ const WholeNote: React.FC<{
         >
           {accidental}
         </text>
-      )}
+      ) : null}
       <ellipse
         data-next-voicing-hint={isNextHint ? 'true' : undefined}
         data-voicing-group-id={groupId}
@@ -851,6 +884,7 @@ const computeBattleStaffSystemLayout = (
   layout: StaffLayoutMetrics,
   activeGroupId: string | null | undefined,
   hideChordLabels: boolean,
+  staffLineRightX: number,
 ): StaffSystemVerticalLayout => {
   const labelTopPadding = SP * 0.4;
   const labelBandCore = Math.min(34, Math.max(24, SP * 2.6));
@@ -863,7 +897,7 @@ const computeBattleStaffSystemLayout = (
   const svgHeight = firstStaffTopY + staffBlockHeight + LEDGER_LINE_PADDING + SP * 0.5;
   const margin = SP * 0.35;
   const leftBound = STAFF_LINE_LEFT_X + margin;
-  const rightBound = STAFF_LINE_RIGHT_X - margin;
+  const rightBound = staffLineRightX - margin;
   const chordLabels = hideChordLabels
     ? []
     : layoutBattleChordLabels(
@@ -1080,7 +1114,19 @@ const RenderedStaff: React.FC<{
   keyFifths: number;
   layout: StaffLayoutMetrics;
   activeGroupId: string | null | undefined;
-}> = ({ staff, groups, correctPitchClassSets, staffTopY, keyFifths, layout, activeGroupId }) => {
+  staffLineRightX: number;
+  clefFontsLoaded: boolean;
+}> = ({
+  staff,
+  groups,
+  correctPitchClassSets,
+  staffTopY,
+  keyFifths,
+  layout,
+  activeGroupId,
+  staffLineRightX,
+  clefFontsLoaded,
+}) => {
   const marks = keySignatureMarks(staff, keyFifths);
   const positionedGroups = useMemo(() => (
     groups.map(group => ({
@@ -1096,28 +1142,32 @@ const RenderedStaff: React.FC<{
 
   return (
     <g>
-      <StaffLines staff={staff} topY={staffTopY} />
+      <StaffLines staff={staff} topY={staffTopY} staffLineRightX={staffLineRightX} />
       <StaffClefGlyph
         showAnchorDebug={import.meta.env.DEV}
         staff={staff}
         staffTopY={staffTopY}
+        staffLineRightX={staffLineRightX}
+        clefFontsLoaded={clefFontsLoaded}
       />
-      {marks.map((mark, index) => (
-        <text
-          key={`${mark.alter}-${index}`}
-          data-key-signature-index={index}
-          data-key-signature-staff={staff}
-          x={KEY_SIGNATURE_LEFT_X + index * KEY_SIGNATURE_GAP_X}
-          y={yForDegree(staffTopY, staff, mark.degree)}
-          dominantBaseline="central"
-          fill={NOTATION_COLOR}
-          fontFamily="Bravura, serif"
-          fontSize={ACCIDENTAL_FONT_SIZE}
-          textAnchor="middle"
-        >
-          {accidentalGlyph(mark.alter)}
-        </text>
-      ))}
+      {clefFontsLoaded
+        ? marks.map((mark, index) => (
+            <text
+              key={`${mark.alter}-${index}`}
+              data-key-signature-index={index}
+              data-key-signature-staff={staff}
+              x={KEY_SIGNATURE_LEFT_X + index * KEY_SIGNATURE_GAP_X}
+              y={yForDegree(staffTopY, staff, mark.degree)}
+              dominantBaseline="central"
+              fill={NOTATION_COLOR}
+              fontFamily="Bravura, serif"
+              fontSize={ACCIDENTAL_FONT_SIZE}
+              textAnchor="middle"
+            >
+              {accidentalGlyph(mark.alter)}
+            </text>
+          ))
+        : null}
       {positionedGroups.map(({ group, noteBaseX, positionedNotes }) => {
         const correctPitchClassSet = correctPitchClassSets.get(group.id);
         const notes = positionedNotes.map(positioned => (
@@ -1135,6 +1185,7 @@ const RenderedStaff: React.FC<{
               && group.measureOffset === 0
               && !(correctPitchClassSet?.has(positioned.note.pitchClass) ?? false)
             }
+            clefFontsLoaded={clefFontsLoaded}
           />
         ));
         if (!group.isRest) {
@@ -1168,6 +1219,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   completionPulse,
   showTargetHints = true,
   singleMeasureLayout = false,
+  compactSingleMeasure = false,
   hideChordLabels = false,
   className,
 }) => {
@@ -1265,6 +1317,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         await document.fonts.load(`${sizePx}px Bravura`, SMUFL_F_CLEF);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_SHARP);
         await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_NATURAL);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_FLAT);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
         await document.fonts.ready;
       } catch {
         // Font Loading API 非対応時はブラウザのフォールバック描画に任せる
@@ -1293,7 +1348,12 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   const wideFirstMeasure = typeof denseCurrentMeasureLayout === 'boolean'
     ? denseCurrentMeasureLayout
     : inferredDenseLayout;
-  const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure, singleMeasureLayout);
+  const effectiveSingleMeasureLayout = singleMeasureLayout || compactSingleMeasure;
+  const staffLineRightX = compactSingleMeasure
+    ? compactChordStaffLineRightX(keyFifths)
+    : STAFF_LINE_RIGHT_X;
+  const viewBoxWidth = staffLineRightX + VIEWBOX_EDGE_PAD_X;
+  const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure, effectiveSingleMeasureLayout, staffLineRightX);
   const effectiveActiveGroupId = showTargetHints ? activeGroupId : null;
   const systemLayout = useMemo(
     () => computeBattleStaffSystemLayout(
@@ -1302,8 +1362,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       layout,
       effectiveActiveGroupId,
       hideChordLabels,
+      staffLineRightX,
     ),
-    [effectiveActiveGroupId, activeStaves, hideChordLabels, layout, renderState.groups],
+    [effectiveActiveGroupId, activeStaves, hideChordLabels, layout, renderState.groups, staffLineRightX],
   );
   const battleHints = useMemo(
     () => computeVoicingBattleHints(
@@ -1378,7 +1439,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           aria-label={chordName ? `${chordName} battle mode staff` : 'Battle mode staff'}
           className="h-auto w-full overflow-visible drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]"
           role="img"
-          viewBox={`0 0 ${STAFF_WIDTH} ${svgHeight}`}
+          viewBox={`0 0 ${viewBoxWidth} ${svgHeight}`}
         >
           {activePulse?.kind === 'harmonyComplete' && measureFramePulseGeometry ? (
             <rect
@@ -1427,9 +1488,11 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               keyFifths={keyFifths}
               layout={layout}
               activeGroupId={effectiveActiveGroupId}
+              staffLineRightX={staffLineRightX}
+              clefFontsLoaded={clefFontsLoaded}
             />
           ))}
-          {activeStaves.length > 0 && Array.from(new Set([layout.measureDividerX, STAFF_LINE_RIGHT_X])).map(x => (
+          {activeStaves.length > 0 && Array.from(new Set([layout.measureDividerX, staffLineRightX])).map(x => (
             <line
               key={`system-barline-${x}`}
               data-staff-barline={x}

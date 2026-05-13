@@ -1,0 +1,51 @@
+# All The Things You Are
+
+# corpus: All the Things You Are
+# key (DBKeySig): Ab
+
+Key of Ab
+Fm7(9)
+Bbm7(9)
+Eb7(9.13)
+AbM7(9)
+DbM7(9)
+Dm7(9)
+G7(9.13)
+CM7(9)
+CM7(9)
+
+Key of Eb
+Cm7(9)
+Fm7(9)
+Bb7(9)
+EbM7(9)
+AbM7(9)
+Am7(9)
+D7(b9.b13)
+
+Key of G
+GM7(9)
+E7(b9.b13)
+Am7(9)
+D7(9.13)
+GM7(9)
+GM7(9)
+F#m7(9)
+B7(b9.b13)
+EM7(9)
+C7(b9.b13)
+
+Key of Ab
+Fm7(9)
+Bbm7(9)
+Eb7(9.13)
+AbM7(9)
+DbM7(9)
+Dbm6(9)
+Cm7(9)
+Bm7(9)
+Bbm7(9)
+Eb7(9.13)
+AbM7(9)
+Gm7b5
+C7(b9.b13)

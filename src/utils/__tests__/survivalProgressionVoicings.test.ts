@@ -129,6 +129,19 @@ describe('survivalProgressionVoicings', () => {
     expect(survivalVoicingToNoteNames([60])).toEqual(['C4']);
   });
 
+  it('m7b5 トークンを m7(b5) に正規化してパースする', () => {
+    const r = analyzeSurvivalChordProgression('Bm7b5 E7(b9.b13)');
+    expect(r.entries.map(e => e.name)).toEqual(['Bm7(b5)', 'E7(b9.b13)']);
+  });
+
+  it('M7(9.13) / m7(b9.b13) をパースする', () => {
+    const r = analyzeSurvivalChordProgression('FM7(9.13) Dm7(b9.b13)');
+    expect(r.entries.map(e => `${e.name}:${e.kind}`)).toEqual([
+      'FM7(9.13):M7_9',
+      'Dm7(b9.b13):m7',
+    ]);
+  });
+
   it('runSurvivalProgressionVoicingsCli が progression JSON を出力する', () => {
     const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     runSurvivalProgressionVoicingsCli(['Dm7(9)', 'CM7(9)']);

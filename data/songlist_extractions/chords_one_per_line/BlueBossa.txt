@@ -1,0 +1,23 @@
+# BLUE BOSSA
+
+# corpus: Blue Bossa
+# key (DBKeySig): Eb
+
+Key of Eb
+Cm6(9)
+Cm6(9)
+Fm7(9)
+Fm7(9)
+Dm7b5
+G7(b9.b13)
+Cm6(9)
+Cm6(9)
+Ebm7(9)
+Ab7(9.13)
+DbM7(9)
+DbM7(9)
+Dm7b5
+G7(b9.b13)
+Cm6(9)
+Dm7b5
+G7(b9.b13)
