@@ -8,11 +8,14 @@
 }
 
 /*
- * Safari 等で SMuFL（Private Use）が Apple Color Emoji 側に振られ、
- * 記号の代わりに絵文字が出るのを防ぐ。Bravura でテキスト体裁を固定する。
+ * BMP の Private Use（SMuFL 既定レンジ）にだけ効くフェイス。
+ * `document.fonts.load` と HTML コンテキスト用。SMuFL 描画優先順位は SVG 内 `BravuraSvgStaff` と併用。
  */
-.bravura-smufl-text {
-  font-family: Bravura, serif;
-  font-synthesis: none;
-  font-variant-emoji: text;
+@font-face {
+  font-family: BravuraSMuFL;
+  src: url('/fonts/Bravura.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+  unicode-range: U+E000-U+F8FF;
 }

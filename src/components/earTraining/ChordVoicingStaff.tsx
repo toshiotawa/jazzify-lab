@@ -106,6 +106,11 @@ const STAFF_LINE_LEFT_X = 24;
 const STAFF_LINE_RIGHT_X = 696;
 /** viewBox 右端は五線終端よりやや広い（従来座標との互換） */
 const VIEWBOX_EDGE_PAD_X = STAFF_WIDTH - STAFF_LINE_RIGHT_X;
+/** Safari: SVG<text> が HTML と別のフォント解決になり Emoji に落ちるのを抑止する defs 内用 */
+const BRAVURA_WOFF_HREF = `${import.meta.env.BASE_URL}fonts/Bravura.woff2`;
+/** defs 直下の stylesheet。BravuraSvgStaff は SVG コンテキスト専用。 */
+const STAFF_SVG_SMUFL_CSS = `@font-face{font-family:BravuraSvgStaff;src:url("${BRAVURA_WOFF_HREF}") format("woff2");font-display:block;font-weight:normal;font-style:normal;unicode-range:U+E000-U+F8FF;}`
+  + '.bravura-staff-glyphs{font-family:BravuraSvgStaff,BravuraSMuFL,sans-serif;font-synthesis:none;font-variant-emoji:text;}';
 const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
 const STAFF_HEIGHT = SP * 4;
 /** 上下五線の縦オフセット。ト音譜の下端〜ヘ音譜の上端のあいだの余白（ト／ヘの離間）。 */
@@ -541,7 +546,7 @@ const StaffClefGlyph: React.FC<{
       ) : null}
       {clefFontsLoaded ? (
         <text
-          className="bravura-smufl-text"
+          className="bravura-staff-glyphs"
           dominantBaseline="alphabetic"
           fill={NOTATION_COLOR}
           fontSize={CLEF_FONT_SIZE}
@@ -678,7 +683,7 @@ const WholeNote: React.FC<{
     <g>
       {clefFontsLoaded && accidental ? (
         <text
-          className="bravura-smufl-text"
+          className="bravura-staff-glyphs"
           data-accidental-group-id={groupId}
           data-accidental-voicing-index={positioned.note.voicingIndex}
           data-voicing-pitch-class={positioned.note.pitchClass}
@@ -1154,7 +1159,7 @@ const RenderedStaff: React.FC<{
         ? marks.map((mark, index) => (
             <text
               key={`${mark.alter}-${index}`}
-              className="bravura-smufl-text"
+              className="bravura-staff-glyphs"
               data-key-signature-index={index}
               data-key-signature-staff={staff}
               x={KEY_SIGNATURE_LEFT_X + index * KEY_SIGNATURE_GAP_X}
@@ -1313,13 +1318,13 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     const loadClefFont = async () => {
       const sizePx = SP * 4;
       try {
-        await document.fonts.load(`${sizePx}px Bravura`, SMUFL_G_CLEF);
-        await document.fonts.load(`${sizePx}px Bravura`, SMUFL_F_CLEF);
-        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_SHARP);
-        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_NATURAL);
-        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_FLAT);
-        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
-        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px Bravura`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
+        await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_G_CLEF);
+        await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_F_CLEF);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_NATURAL);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_FLAT);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
         await document.fonts.ready;
       } catch {
         // Font Loading API 非対応時はブラウザのフォールバック描画に任せる
@@ -1441,6 +1446,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           role="img"
           viewBox={`0 0 ${viewBoxWidth} ${svgHeight}`}
         >
+          <defs>
+            <style type="text/css">{STAFF_SVG_SMUFL_CSS}</style>
+          </defs>
           {activePulse?.kind === 'harmonyComplete' && measureFramePulseGeometry ? (
             <rect
               key={`measure-frame-pulse-${activePulse.eventKey}`}
