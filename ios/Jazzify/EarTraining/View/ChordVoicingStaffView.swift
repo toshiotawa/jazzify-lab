@@ -444,6 +444,19 @@ private func applyRequiredAccidentals(
     return updated
 }
 
+/// Web `ChordVoicingStaff` の `noteCollisionLayout` に対応。
+enum ChordVoicingStaffNoteCollisionLayout {
+    /// 従来: 左右交互にずらす
+    case symmetric
+    /// 低音を基準位置に残し、高い音だけ右へ（既定）
+    case anchorLow
+}
+
+/// Web `CHORD_VOICING_ADJACENT_CLUSTER_OFFSET_RATIO`（`ChordVoicingStaff.tsx`）と一致。
+private enum ChordVoicingStaffAdjacentCluster {
+    static let noteWidthOffsetRatio: CGFloat = 0.72
+}
+
 /// コード演奏バトル専用の最小譜面ビュー。
 /// 調号、全音符、変化記号、音部記号、五線、コードネームだけを描画する。
 struct ChordVoicingStaffView: View {
@@ -451,6 +464,7 @@ struct ChordVoicingStaffView: View {
     let voicingStaves: [Int]
     let chordName: String
     let keyFifths: Int = 0
+    let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
 
     private static let notationColor = Color.white
     private static let labelHeight: CGFloat = 28
@@ -534,7 +548,8 @@ struct ChordVoicingStaffView: View {
                 notes: notes,
                 staffTopY: topY,
                 staffSpacing: staffSpacing,
-                baseX: baseX
+                baseX: baseX,
+                collisionLayout: noteCollisionLayout
             ) {
                 drawWholeNote(
                     context: &context,
@@ -607,12 +622,13 @@ struct ChordVoicingStaffView: View {
         notes: [ParsedVoicingNote],
         staffTopY: CGFloat,
         staffSpacing: CGFloat,
-        baseX: CGFloat
+        baseX: CGFloat,
+        collisionLayout: ChordVoicingStaffNoteCollisionLayout
     ) -> [PositionedVoicingNote] {
         guard !notes.isEmpty else { return [] }
 
         let noteWidth = staffSpacing * 1.45
-        let adjacentOffset = noteWidth * 0.5
+        let adjacentOffset = noteWidth * ChordVoicingStaffAdjacentCluster.noteWidthOffsetRatio
         var offsets = Array(repeating: CGFloat.zero, count: notes.count)
 
         var clusterStart = 0
@@ -622,9 +638,13 @@ struct ChordVoicingStaffView: View {
                 let clusterCount = index - clusterStart
                 if clusterCount > 1 {
                     for noteIndex in clusterStart..<index {
-                        offsets[noteIndex] = (noteIndex - clusterStart).isMultiple(of: 2)
-                            ? -adjacentOffset
-                            : adjacentOffset
+                        let rel = noteIndex - clusterStart
+                        switch collisionLayout {
+                        case .symmetric:
+                            offsets[noteIndex] = rel.isMultiple(of: 2) ? -adjacentOffset : adjacentOffset
+                        case .anchorLow:
+                            offsets[noteIndex] = rel.isMultiple(of: 2) ? 0 : adjacentOffset
+                        }
                     }
                 }
                 clusterStart = index
@@ -886,6 +906,8 @@ struct ChordVoicingStaffGroupsView: View {
     let singleMeasureLayout: Bool
     /// サバイバル Progression HINT 用: コード名ラベル帯を描画せず、譜面領域に配分する。
     let hideChordLabels: Bool
+    /// Web `ChordVoicingStaff.noteCollisionLayout` と同等。
+    let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
 
     init(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
@@ -896,7 +918,8 @@ struct ChordVoicingStaffGroupsView: View {
         completionPulse: ChordVoicingCompletionPulse? = nil,
         showTargetHints: Bool = true,
         singleMeasureLayout: Bool = false,
-        hideChordLabels: Bool = false
+        hideChordLabels: Bool = false,
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -907,6 +930,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.showTargetHints = showTargetHints
         self.singleMeasureLayout = singleMeasureLayout
         self.hideChordLabels = hideChordLabels
+        self.noteCollisionLayout = noteCollisionLayout
     }
 
     static let notationColor = Color.white
@@ -931,7 +955,8 @@ struct ChordVoicingStaffGroupsView: View {
                 keyFifths: keyFifths,
                 correctByGroup: correctPitchClassesByGroupId,
                 singleMeasureLayout: singleMeasureLayout,
-                hideChordLabels: hideChordLabels
+                hideChordLabels: hideChordLabels,
+                noteCollisionLayout: noteCollisionLayout
             )
             let activeLabelGlobalFrame = activeLabelGlobalRect(
                 proxy: proxy,
@@ -949,7 +974,8 @@ struct ChordVoicingStaffGroupsView: View {
                         activeGroupId: hintGroupId,
                         correctByGroup: correctPitchClassesByGroupId,
                         singleMeasureLayout: singleMeasureLayout,
-                        hideChordLabels: hideChordLabels
+                        hideChordLabels: hideChordLabels,
+                        noteCollisionLayout: noteCollisionLayout
                     )
                 }
                 .frame(width: w, height: h)
@@ -1338,7 +1364,8 @@ struct ChordVoicingStaffGroupsView: View {
         activeStaves: [Int],
         firstTopY: CGFloat,
         staffSpacing: CGFloat,
-        staffGap: CGFloat
+        staffGap: CGFloat,
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
     ) -> VoicingBattleHints {
         guard let aid = activeGroupId,
               let activeItem = parsedGroups.first(where: { $0.group.id == aid }),
@@ -1365,7 +1392,8 @@ struct ChordVoicingStaffGroupsView: View {
                 notes: staffNotes,
                 staffTopY: topY,
                 staffSpacing: staffSpacing,
-                baseX: baseX
+                baseX: baseX,
+                collisionLayout: noteCollisionLayout
             ) {
                 let xCenter = baseX + positioned.xOffset
                 let row = Row(
@@ -1426,7 +1454,8 @@ struct ChordVoicingStaffGroupsView: View {
         activeGroupId: UUID?,
         correctByGroup: [UUID: Set<Int>],
         singleMeasureLayout: Bool,
-        hideChordLabels: Bool
+        hideChordLabels: Bool,
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
     ) {
         guard !groups.isEmpty else { return }
         let w = size.width
@@ -1472,7 +1501,8 @@ struct ChordVoicingStaffGroupsView: View {
             activeStaves: activeStaves,
             firstTopY: geo.firstTopY,
             staffSpacing: geo.staffSpacing,
-            staffGap: geo.staffGap
+            staffGap: geo.staffGap,
+            noteCollisionLayout: noteCollisionLayout
         )
 
         let leftX = w * (24 / 720)
@@ -1515,7 +1545,8 @@ struct ChordVoicingStaffGroupsView: View {
                     notes: staffNotes,
                     staffTopY: topY,
                     staffSpacing: geo.staffSpacing,
-                    baseX: baseX
+                    baseX: baseX,
+                    collisionLayout: noteCollisionLayout
                 ) {
                     let isCorrect = correctSet.contains(positioned.note.pitchClass)
                     let isNextHint = !isCorrect
@@ -1690,11 +1721,12 @@ struct ChordVoicingStaffGroupsView: View {
         notes: [ParsedVoicingNote],
         staffTopY: CGFloat,
         staffSpacing: CGFloat,
-        baseX: CGFloat
+        baseX: CGFloat,
+        collisionLayout: ChordVoicingStaffNoteCollisionLayout
     ) -> [PositionedVoicingNote] {
         guard !notes.isEmpty else { return [] }
         let noteWidth = staffSpacing * 1.45
-        let adjacentOffset = noteWidth * 0.5
+        let adjacentOffset = noteWidth * ChordVoicingStaffAdjacentCluster.noteWidthOffsetRatio
         var offsets = Array(repeating: CGFloat.zero, count: notes.count)
         var clusterStart = 0
         for index in 1...notes.count {
@@ -1703,9 +1735,13 @@ struct ChordVoicingStaffGroupsView: View {
                 let clusterCount = index - clusterStart
                 if clusterCount > 1 {
                     for noteIndex in clusterStart..<index {
-                        offsets[noteIndex] = (noteIndex - clusterStart).isMultiple(of: 2)
-                            ? -adjacentOffset
-                            : adjacentOffset
+                        let rel = noteIndex - clusterStart
+                        switch collisionLayout {
+                        case .symmetric:
+                            offsets[noteIndex] = rel.isMultiple(of: 2) ? -adjacentOffset : adjacentOffset
+                        case .anchorLow:
+                            offsets[noteIndex] = rel.isMultiple(of: 2) ? 0 : adjacentOffset
+                        }
                     }
                 }
                 clusterStart = index
@@ -1894,7 +1930,8 @@ struct ChordVoicingStaffGroupsView: View {
         keyFifths: Int,
         correctByGroup: [UUID: Set<Int>],
         singleMeasureLayout: Bool = false,
-        hideChordLabels: Bool = false
+        hideChordLabels: Bool = false,
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
     ) -> OverlayLayout {
         guard !groups.isEmpty, size.width > 0, size.height > 0 else {
             return OverlayLayout(
@@ -1956,7 +1993,8 @@ struct ChordVoicingStaffGroupsView: View {
                     notes: staffNotes,
                     staffTopY: topY,
                     staffSpacing: geo.staffSpacing,
-                    baseX: baseX
+                    baseX: baseX,
+                    collisionLayout: noteCollisionLayout
                 ) {
                     guard correctSet.contains(positioned.note.pitchClass) else { continue }
                     let xCenter = baseX + positioned.xOffset

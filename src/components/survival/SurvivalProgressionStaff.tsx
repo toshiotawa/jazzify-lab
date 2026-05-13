@@ -7,7 +7,10 @@
  */
 import React, { useMemo } from 'react';
 
-import ChordVoicingStaff, { type ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoicingStaff';
+import ChordVoicingStaff, {
+  type ChordVoicingStaffGroup,
+  type ChordVoicingStaffNoteCollisionLayout,
+} from '@/components/earTraining/ChordVoicingStaff';
 import { cn } from '@/utils/cn';
 
 export type SurvivalStaffClef = 'bass' | 'treble';
@@ -19,11 +22,21 @@ export interface SurvivalProgressionStaffProps {
   readonly correctPitchClasses: readonly number[];
   /** 既定はヘ音（Progression）。ランダム HINT はト音。 */
   readonly staffClef?: SurvivalStaffClef;
+  /** 隣接符頭の横ずらし。未指定時は低音基準（`anchor-low`） */
+  readonly noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
   readonly className?: string;
 }
 
 export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps>(
-  ({ chordDisplayName, voicingNames, keyFifths, correctPitchClasses, staffClef = 'bass', className }) => {
+  ({
+    chordDisplayName,
+    voicingNames,
+    keyFifths,
+    correctPitchClasses,
+    staffClef = 'bass',
+    noteCollisionLayout = 'anchor-low',
+    className,
+  }) => {
     const staffNumber = staffClef === 'treble' ? (1 as const) : (2 as const);
     const voicingStaves = useMemo(() => voicingNames.map(() => staffNumber), [voicingNames, staffNumber]);
 
@@ -54,6 +67,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
           compactSingleMeasure
           completionPulse={null}
           keyFifths={keyFifths}
+          noteCollisionLayout={noteCollisionLayout}
           showTargetHints={false}
           activeGroupId="single"
           smuflUseForeignObject

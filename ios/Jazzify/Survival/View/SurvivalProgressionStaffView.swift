@@ -8,7 +8,25 @@ struct SurvivalProgressionStaffView: View {
     let keyFifths: Int
     let correctPitchClasses: [Int]
     /// 既定はヘ音（Progression）。ランダム HINT は 1（ト音）。
-    var staffClef: Int = 2
+    let staffClef: Int
+    /// Web `ChordVoicingStaff.noteCollisionLayout` と同等。
+    let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
+
+    init(
+        chordDisplayName: String,
+        voicingNames: [String],
+        keyFifths: Int,
+        correctPitchClasses: [Int],
+        staffClef: Int = 2,
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
+    ) {
+        self.chordDisplayName = chordDisplayName
+        self.voicingNames = voicingNames
+        self.keyFifths = keyFifths
+        self.correctPitchClasses = correctPitchClasses
+        self.staffClef = staffClef
+        self.noteCollisionLayout = noteCollisionLayout
+    }
 
     private static let staffGroupId = UUID(uuidString: "A0B99C62-1111-4222-A333-D44444444101")!
 
@@ -32,7 +50,8 @@ struct SurvivalProgressionStaffView: View {
             completionPulse: nil,
             showTargetHints: false,
             singleMeasureLayout: true,
-            hideChordLabels: false
+            hideChordLabels: false,
+            noteCollisionLayout: noteCollisionLayout
         )
     }
 }

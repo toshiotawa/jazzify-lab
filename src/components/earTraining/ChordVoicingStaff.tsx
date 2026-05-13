@@ -27,6 +27,13 @@ export interface ChordVoicingCompletionPulse {
   eventKey: number;
 }
 
+/**
+ * 同一スタッフ上で degree が隣接する音符（譜上で2度相当）の符頭が重なるときの横ずらし方。
+ * - `anchor-low`: 低い音を baseX に固定し、高い音だけ右へ（既定）
+ * - `symmetric`: 従来どおり左右交互（後方互換用）
+ */
+export type ChordVoicingStaffNoteCollisionLayout = 'symmetric' | 'anchor-low';
+
 interface ChordVoicingStaffProps {
   voicing?: readonly string[];
   voicingStaves?: readonly number[] | null;
@@ -55,6 +62,8 @@ interface ChordVoicingStaffProps {
    * 音部・調号・臨時記号は Bravura に依存しない SVG ベクターで描画する（バトル既定は false）。
    */
   smuflUseForeignObject?: boolean;
+  /** 隣接 degree の符頭重なり回避。既定は低音基準（`anchor-low`） */
+  noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
   className?: string;
 }
 
@@ -157,6 +166,11 @@ const ACCIDENTAL_FONT_SIZE = SP * 2.9;
 const PARSED_NOTE_CACHE_LIMIT = 96;
 /** 現在小節の同一ハーモニー内の横並びヴォイシング合計がこれ以上なら密集レイアウト（親と共有） */
 export const CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD = 5;
+/**
+ * 隣接 degree（譜上で重なる2度クラスタ）の符頭横ずらし量 = (SP×1.45 の noteWidth) × この比率。
+ * 0.5 付近だと楕円符頭が見た目で重なるため広げる。
+ */
+export const CHORD_VOICING_ADJACENT_CLUSTER_OFFSET_RATIO = 0.72;
 const DENSE_CURRENT_MEASURE_RATIO = 0.9;
 const SHARP_KEY_SIGNATURE_STEPS: readonly string[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 const FLAT_KEY_SIGNATURE_STEPS: readonly string[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
@@ -435,10 +449,11 @@ const compareNotesForDisplay = (
   return a.voicingIndex - b.voicingIndex;
 };
 
-const layoutNotes = (
+export const layoutChordVoicingStaffNotes = (
   notes: readonly ParsedVoicingNoteWithStaff[],
   staffTopY: number,
   baseX: number,
+  collisionLayout: ChordVoicingStaffNoteCollisionLayout = 'anchor-low',
 ): PositionedVoicingNote[] => {
   if (notes.length === 0) {
     return [];
@@ -446,7 +461,7 @@ const layoutNotes = (
 
   const sortedNotes = [...notes].sort(compareNotesForDisplay);
   const noteWidth = SP * 1.45;
-  const adjacentOffset = noteWidth * 0.5;
+  const adjacentOffset = noteWidth * CHORD_VOICING_ADJACENT_CLUSTER_OFFSET_RATIO;
   const offsets = Array.from({ length: sortedNotes.length }, () => 0);
 
   let clusterStart = 0;
@@ -457,9 +472,12 @@ const layoutNotes = (
       const clusterCount = index - clusterStart;
       if (clusterCount > 1) {
         for (let noteIndex = clusterStart; noteIndex < index; noteIndex += 1) {
-          offsets[noteIndex] = (noteIndex - clusterStart) % 2 === 0
-            ? -adjacentOffset
-            : adjacentOffset;
+          const rel = noteIndex - clusterStart;
+          if (collisionLayout === 'symmetric') {
+            offsets[noteIndex] = rel % 2 === 0 ? -adjacentOffset : adjacentOffset;
+          } else {
+            offsets[noteIndex] = rel % 2 === 0 ? 0 : adjacentOffset;
+          }
         }
       }
       clusterStart = index;
@@ -981,6 +999,7 @@ const computeVoicingBattleHints = (
   correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>,
   activeStaves: readonly StaffNumber[],
   firstStaffTopY: number,
+  noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
 ): VoicingBattleHintsResult => {
   if (activeGroupId === undefined || activeGroupId === null) {
     return { nextHintVoicingIndex: null, topPointer: null };
@@ -1010,7 +1029,7 @@ const computeVoicingBattleHints = (
     const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
     const baseX = getVoicingGroupBaseX(group, layout);
     const staffNotes = group.notes.filter(note => note.staff === staff);
-    const positioned = layoutNotes(staffNotes, staffTopY, baseX);
+    const positioned = layoutChordVoicingStaffNotes(staffNotes, staffTopY, baseX, noteCollisionLayout);
     positioned.forEach(p => {
       const xCenter = baseX + p.xOffset;
       const row: Candidate = {
@@ -1077,7 +1096,7 @@ const computeVoicingBattleHints = (
   };
 };
 
-/** ハーモニー完成 / 部分完成の発光オーバーレイ。eventKey で再マウントして CSS アニメーションを再起動する */
+/** 完成エフェクトの発光オーバーレイ。eventKey で再マウントして CSS アニメーションを再起動する */
 const PulseOverlayLayer: React.FC<{
   pulse: ChordVoicingCompletionPulse;
   groups: readonly ParsedVoicingStaffGroup[];
@@ -1086,7 +1105,8 @@ const PulseOverlayLayer: React.FC<{
   activeStaves: readonly StaffNumber[];
   firstStaffTopY: number;
   pulseGroupIds: ReadonlySet<string>;
-}> = ({ pulse, groups, correctPitchClassSets, layout, activeStaves, firstStaffTopY, pulseGroupIds }) => {
+  noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout;
+}> = ({ pulse, groups, correctPitchClassSets, layout, activeStaves, firstStaffTopY, pulseGroupIds, noteCollisionLayout }) => {
   const haloClass = pulse.kind === 'harmonyComplete'
     ? 'voicing-halo-pulse-complete'
     : 'voicing-halo-pulse-partial';
@@ -1104,7 +1124,7 @@ const PulseOverlayLayer: React.FC<{
         return;
       }
       const baseX = getVoicingGroupBaseX(group, layout);
-      const positioned = layoutNotes(group.notes.filter(n => n.staff === staff), staffTopY, baseX);
+      const positioned = layoutChordVoicingStaffNotes(group.notes.filter(n => n.staff === staff), staffTopY, baseX, noteCollisionLayout);
       positioned.forEach(p => {
         if (!correctSet.has(p.note.pitchClass)) {
           return;
@@ -1163,6 +1183,7 @@ const RenderedStaff: React.FC<{
   staffLineRightX: number;
   clefFontsLoaded: boolean;
   smuflUseForeignObject: boolean;
+  noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout;
 }> = ({
   staff,
   groups,
@@ -1174,19 +1195,21 @@ const RenderedStaff: React.FC<{
   staffLineRightX,
   clefFontsLoaded,
   smuflUseForeignObject,
+  noteCollisionLayout,
 }) => {
   const marks = keySignatureMarks(staff, keyFifths);
   const positionedGroups = useMemo(() => (
     groups.map(group => ({
       group,
       noteBaseX: getVoicingGroupBaseX(group, layout),
-      positionedNotes: layoutNotes(
+      positionedNotes: layoutChordVoicingStaffNotes(
         group.notes.filter(note => note.staff === staff),
         staffTopY,
         getVoicingGroupBaseX(group, layout),
+        noteCollisionLayout,
       ),
     }))
-  ), [groups, layout, staff, staffTopY]);
+  ), [groups, layout, noteCollisionLayout, staff, staffTopY]);
 
   return (
     <g>
@@ -1291,6 +1314,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   compactSingleMeasure = false,
   smuflUseForeignObject = false,
   hideChordLabels = false,
+  noteCollisionLayout = 'anchor-low',
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
@@ -1461,12 +1485,14 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       correctPitchClassSets,
       activeStaves,
       systemLayout.firstStaffTopY,
+      noteCollisionLayout,
     ),
     [
       effectiveActiveGroupId,
       activeStaves,
       correctPitchClassSets,
       layout,
+      noteCollisionLayout,
       renderState.groups,
       systemLayout.firstStaffTopY,
     ],
@@ -1581,6 +1607,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               staffLineRightX={staffLineRightX}
               clefFontsLoaded={clefFontsLoaded}
               smuflUseForeignObject={smuflUseForeignObject}
+              noteCollisionLayout={noteCollisionLayout}
             />
           ))}
           {activeStaves.length > 0 && Array.from(new Set([layout.measureDividerX, staffLineRightX])).map(x => (
@@ -1606,6 +1633,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
                 activeStaves={activeStaves}
                 firstStaffTopY={systemLayout.firstStaffTopY}
                 pulseGroupIds={pulseGroupIds}
+                noteCollisionLayout={noteCollisionLayout}
               />
             </g>
           ) : null}
