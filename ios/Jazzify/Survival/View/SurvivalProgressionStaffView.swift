@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Progression + HINT 時の単一和弦（ヘ音のみ）。バトル用 `ChordVoicingStaffGroupsView` を再利用する。
 struct SurvivalProgressionStaffView: View {
+    let chordDisplayName: String
     let voicingNames: [String]
     let keyFifths: Int
     let correctPitchClasses: [Int]
@@ -11,7 +12,7 @@ struct SurvivalProgressionStaffView: View {
     var body: some View {
         let group = EarTrainingChordVoicingStaffLayout.GroupInput(
             id: Self.staffGroupId,
-            chordName: "",
+            chordName: chordDisplayName,
             voicing: voicingNames,
             voicingStaves: voicingNames.map { _ in 2 },
             measureOffset: 0,
@@ -28,7 +29,7 @@ struct SurvivalProgressionStaffView: View {
             completionPulse: nil,
             showTargetHints: false,
             singleMeasureLayout: true,
-            hideChordLabels: true
+            hideChordLabels: false
         )
     }
 }

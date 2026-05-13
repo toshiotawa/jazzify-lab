@@ -3386,6 +3386,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       voicingNames: names,
       keyFifths: kf,
       correctPitchClasses: slot.correctNotes,
+      chordDisplayName: ch.displayName,
     };
   }, [
     hintMode,
@@ -3393,6 +3394,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.isEnabled,
     progressionStaffCorrectNotesSig,
     progressionPunchSlot.chord?.id,
+    progressionPunchSlot.chord?.displayName,
     progressionStaffVoicingNamesSig,
     progressionPunchSlot.chord?.progressionStaffKeyFifths,
     progressionPunchSlot.chord?.quality,

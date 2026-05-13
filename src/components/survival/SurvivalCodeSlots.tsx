@@ -13,6 +13,7 @@ export interface SurvivalProgressionStaffSnapshot {
   readonly voicingNames: readonly string[];
   readonly keyFifths: number;
   readonly correctPitchClasses: readonly number[];
+  readonly chordDisplayName: string;
 }
 
 const progressionStaffSnapshotEqual = (
@@ -22,6 +23,7 @@ const progressionStaffSnapshotEqual = (
   if (a === b) return true;
   if (!a || !b) return false;
   return (
+    a.chordDisplayName === b.chordDisplayName &&
     a.keyFifths === b.keyFifths &&
     a.correctPitchClasses.length === b.correctPitchClasses.length &&
     a.correctPitchClasses.every((pc, ix) => pc === b.correctPitchClasses[ix]) &&
@@ -316,6 +318,7 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
               </div>
               {rowWithStaff && (
                 <SurvivalProgressionStaff
+                  chordDisplayName={progressionStaffSnapshot.chordDisplayName}
                   correctPitchClasses={progressionStaffSnapshot.correctPitchClasses}
                   keyFifths={progressionStaffSnapshot.keyFifths}
                   voicingNames={progressionStaffSnapshot.voicingNames}

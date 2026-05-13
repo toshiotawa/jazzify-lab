@@ -53,11 +53,12 @@ struct SurvivalCodeSlotsView: View {
                 .frame(maxWidth: .infinity)
 
                 SurvivalProgressionStaffView(
+                    chordDisplayName: chord.displayName,
                     voicingNames: staffNames,
                     keyFifths: keyFf,
                     correctPitchClasses: correctPc
                 )
-                .frame(width: 200, height: 118)
+                .frame(width: 200, height: 132)
             }
             .frame(maxWidth: 640)
         } else {
