@@ -127,10 +127,23 @@ extension SurvivalBossType {
 public struct SurvivalChordProgressionEntry: Codable, Sendable, Hashable {
     public let name: String
     public let voicing: [Int]
+    /// Web / DB と同様の事前計算綴り（`voicing` と同じ長さ）。
+    public let voicingNames: [String]?
+    /// MusicXML の fifths と同じ -7…7。
+    public let keyFifths: Int?
 
-    public init(name: String, voicing: [Int]) {
+    enum CodingKeys: String, CodingKey {
+        case name
+        case voicing
+        case voicingNames = "voicing_names"
+        case keyFifths = "key_fifths"
+    }
+
+    public init(name: String, voicing: [Int], voicingNames: [String]? = nil, keyFifths: Int? = nil) {
         self.name = name
         self.voicing = voicing
+        self.voicingNames = voicingNames
+        self.keyFifths = keyFifths
     }
 }
 
@@ -241,6 +254,19 @@ enum SurvivalStageCatalog {
         .basic: Self.generateBlocks(from: Self.generateStages(), blockOverrides: [:]),
         .songs: []
     ]
+
+    /// `chord_progression` の `voicing_names` が `voicing` と同じ長さのときだけ採用。
+    private static func sanitizedProgressionVoicingNames(_ raw: [String]?, voicingCount: Int) -> [String]? {
+        guard let raw else { return nil }
+        let trimmed = raw.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard trimmed.count == voicingCount else { return nil }
+        return trimmed
+    }
+
+    private static func clampProgressionKeyFifths(_ raw: Int?) -> Int? {
+        guard let raw else { return nil }
+        return min(7, max(-7, raw))
+    }
 
     // MARK: - Backward compatible (basic 固定) アクセサ
 
@@ -361,7 +387,12 @@ enum SurvivalStageCatalog {
                 let cleaned = entries.compactMap { entry -> SurvivalChordProgressionEntry? in
                     let trimmed = entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty, !entry.voicing.isEmpty else { return nil }
-                    return SurvivalChordProgressionEntry(name: trimmed, voicing: entry.voicing)
+                    return SurvivalChordProgressionEntry(
+                        name: trimmed,
+                        voicing: entry.voicing,
+                        voicingNames: Self.sanitizedProgressionVoicingNames(entry.voicingNames, voicingCount: entry.voicing.count),
+                        keyFifths: Self.clampProgressionKeyFifths(entry.keyFifths)
+                    )
                 }
                 return cleaned.isEmpty ? nil : cleaned
             }()

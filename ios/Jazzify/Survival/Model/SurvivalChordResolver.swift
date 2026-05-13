@@ -41,14 +41,29 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
     /// 0-11 のピッチクラス (重複除去済み)
     public let pitchClasses: [Int]
     public let displayName: String
+    /// HINT スタッフ用（DB の `voicing_names` と MIDI を対応させて昇順、無ければ nil）。
+    public let progressionStaffVoicingNames: [String]?
+    /// 調号 -7…7。DB 未取得時でも綴りがあれば 0 とみなしてスタッフを表示可能。
+    public let progressionStaffKeyFifths: Int?
 
-    public init(id: String, root: String, quality: SurvivalChordQuality, midiNotes: [Int], pitchClasses: [Int], displayName: String) {
+    public init(
+        id: String,
+        root: String,
+        quality: SurvivalChordQuality,
+        midiNotes: [Int],
+        pitchClasses: [Int],
+        displayName: String,
+        progressionStaffVoicingNames: [String]? = nil,
+        progressionStaffKeyFifths: Int? = nil,
+    ) {
         self.id = id
         self.root = root
         self.quality = quality
         self.midiNotes = midiNotes
         self.pitchClasses = pitchClasses
         self.displayName = displayName
+        self.progressionStaffVoicingNames = progressionStaffVoicingNames
+        self.progressionStaffKeyFifths = progressionStaffKeyFifths
     }
 
     /// 正解時ルート音用。Progression はコード記号ルート（`displayName`）を、それ以外は最低 MIDI のピッチクラスを使う。
@@ -74,6 +89,9 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             let pc = ((note % 12) + 12) % 12
             if seen.insert(pc).inserted { pcs.append(pc) }
         }
+        let staffNames = Self.ascendingProgressionStaffNames(entry: entry)
+        let storedKey = entry.keyFifths.map { min(7, max(-7, $0)) }
+        let keyForStaff: Int? = storedKey ?? (staffNames != nil ? 0 : nil)
         let id = "prog:\(index):\(entry.name):\(sortedMidi.map(String.init).joined(separator: ","))"
         return SurvivalResolvedChord(
             id: id,
@@ -81,8 +99,29 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             quality: .progression,
             midiNotes: sortedMidi,
             pitchClasses: pcs,
-            displayName: entry.name
+            displayName: entry.name,
+            progressionStaffVoicingNames: staffNames,
+            progressionStaffKeyFifths: keyForStaff
         )
+    }
+
+    /// `voicing` の各 MIDI と並列の綴りを昇順 MIDI に並べる。重複ピッチクラスや綴り不足時は nil。
+    private static func ascendingProgressionStaffNames(entry: SurvivalChordProgressionEntry) -> [String]? {
+        let voices = entry.voicing
+        guard !voices.isEmpty else { return nil }
+        let pitchClasses = Set(voices.map { (($0 % 12) + 12) % 12 })
+        guard pitchClasses.count == voices.count else { return nil }
+
+        guard let parallel = entry.voicingNames, parallel.count == voices.count else { return nil }
+        let pairs = zip(voices, parallel)
+            .map { tuple -> (midi: Int, nm: String) in
+                let trimmed = tuple.1.trimmingCharacters(in: .whitespacesAndNewlines)
+                return (midi: tuple.0, nm: trimmed)
+            }
+            .sorted { $0.midi < $1.midi }
+        let names = pairs.map(\.nm)
+        guard names.allSatisfy({ !$0.isEmpty }) else { return nil }
+        return names
     }
 }
 

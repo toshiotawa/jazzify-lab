@@ -15,18 +15,60 @@ struct SurvivalCodeSlotsView: View {
         let isProgression = uiSnapshot.stageType == .progression
         let visibleIndices: [Int] = isProgression ? [1] : [0, 1]
 
-        return HStack(spacing: isBossStage ? 14 : 10) {
+        return HStack(alignment: .center, spacing: isBossStage ? 14 : 10) {
             ForEach(visibleIndices, id: \.self) { idx in
-                SlotCell(
-                    slot: uiSnapshot.slots[idx],
-                    style: SurvivalCodeSlotsView.slotStyle(for: idx),
+                progressionSlotRow(
+                    index: idx,
                     isWide: isBossStage || isProgression,
-                    isHintTarget: uiSnapshot.hintMode && uiSnapshot.hintSlotIndex == idx
+                    isProgression: isProgression
                 )
-                .frame(maxWidth: isProgression ? 360 : .infinity)
             }
         }
         .padding(.horizontal, 12)
+    }
+
+    @ViewBuilder
+    private func progressionSlotRow(index idx: Int, isWide: Bool, isProgression: Bool) -> some View {
+        let slot = uiSnapshot.slots[idx]
+        let hinted = uiSnapshot.hintMode && uiSnapshot.hintSlotIndex == idx
+
+        if isProgression,
+           uiSnapshot.hintMode,
+           let chord = slot.chord,
+           let staffNames = chord.progressionStaffVoicingNames,
+           !staffNames.isEmpty {
+            let keyFf = chord.progressionStaffKeyFifths ?? 0
+            let correctPc = SurvivalChordResolver.correctNotes(
+                inputPitchClasses: slot.inputPitchClasses,
+                target: chord
+            )
+
+            HStack(alignment: .center, spacing: 10) {
+                SlotCell(
+                    slot: slot,
+                    style: SurvivalCodeSlotsView.slotStyle(for: idx),
+                    isWide: isWide,
+                    isHintTarget: hinted
+                )
+                .frame(maxWidth: .infinity)
+
+                SurvivalProgressionStaffView(
+                    voicingNames: staffNames,
+                    keyFifths: keyFf,
+                    correctPitchClasses: correctPc
+                )
+                .frame(width: 200, height: 118)
+            }
+            .frame(maxWidth: 640)
+        } else {
+            SlotCell(
+                slot: slot,
+                style: SurvivalCodeSlotsView.slotStyle(for: idx),
+                isWide: isWide,
+                isHintTarget: hinted
+            )
+            .frame(maxWidth: isProgression ? 360 : .infinity)
+        }
     }
 
     // MARK: - Styling

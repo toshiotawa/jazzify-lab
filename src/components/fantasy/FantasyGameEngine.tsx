@@ -168,6 +168,9 @@ export interface ChordDefinition {
   noteNames: string[]; // 表示用（オクターブなし、ボイシング順）
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
+  /** サバイバル Progression + HINT 譜面用（DB の voicing_names / 生成綴り、MIDI 昇順）。 */
+  progressionStaffVoicingNames?: readonly string[];
+  progressionStaffKeyFifths?: number;
 }
 
 // 本番モード用の転調設定の型

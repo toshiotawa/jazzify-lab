@@ -629,12 +629,16 @@ final class SurvivalGameLoop {
         )
 
         // プレイヤー接触ダメ (WEB 版準拠: 無敵時間 / ノックバック無し / DOT 型)
-        contactDamageAccumulator += SurvivalGameEngine.enemyContactDamageDOT(
+        let contactContribution = SurvivalGameEngine.enemyContactDamageDOT(
             runtime.player,
             enemies: runtime.enemies,
             defenderDef: effectiveStats.def,
             deltaTime: deltaTime
         )
+        contactDamageAccumulator += contactContribution
+        if contactContribution > 0 {
+            runtime.player.damageFlashUntil = now + SurvivalConstants.playerDamageFlashSec
+        }
         while contactDamageAccumulator >= 1 {
             let dmg = Int(contactDamageAccumulator)
             contactDamageAccumulator -= Double(dmg)

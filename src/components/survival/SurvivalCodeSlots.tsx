@@ -5,7 +5,30 @@
 
 import React from 'react';
 import { cn } from '@/utils/cn';
+import { SurvivalProgressionStaff } from './SurvivalProgressionStaff';
 import { CodeSlot, SLOT_TIMEOUT } from './SurvivalTypes';
+
+/** HINT ON の Progression 時、Punch（B）右にスタッフを出すために GameScreen が渡すスナップショット */
+export interface SurvivalProgressionStaffSnapshot {
+  readonly voicingNames: readonly string[];
+  readonly keyFifths: number;
+  readonly correctPitchClasses: readonly number[];
+}
+
+const progressionStaffSnapshotEqual = (
+  a: SurvivalProgressionStaffSnapshot | null | undefined,
+  b: SurvivalProgressionStaffSnapshot | null | undefined,
+): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.keyFifths === b.keyFifths &&
+    a.correctPitchClasses.length === b.correctPitchClasses.length &&
+    a.correctPitchClasses.every((pc, ix) => pc === b.correctPitchClasses[ix]) &&
+    a.voicingNames.length === b.voicingNames.length &&
+    a.voicingNames.every((n, ix) => n === b.voicingNames[ix])
+  );
+};
 
 interface SurvivalCodeSlotsProps {
   currentSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
@@ -23,6 +46,8 @@ interface SurvivalCodeSlotsProps {
   isBossStage?: boolean;
   /** Progression（コード進行）ステージ時は B 列のみ拡大表示する */
   isProgressionStage?: boolean;
+  /** Progression + HINT 時、Punch 右側のヘ音スタッフ用（欠落時は非表示） */
+  progressionStaffSnapshot?: SurvivalProgressionStaffSnapshot | null;
 }
 
 // ===== スロットタイプの色設定 =====
@@ -233,6 +258,7 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
   isStageMode = false,
   isBossStage = false,
   isProgressionStage = false,
+  progressionStaffSnapshot = null,
 }) => {
   // 各スロットのクールダウン状態を判定
   const getSlotCooldown = (index: number): boolean => {
@@ -261,22 +287,40 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
           if (!isProgressionStage && isStageMode && index >= 3) return null;
           // ボス戦では C/D 列を完全非表示（A/B 列のみ）
           if (!isProgressionStage && isBossStage && index >= 2) return null;
+          const rowWithStaff =
+            isProgressionStage &&
+            progressionStaffSnapshot &&
+            progressionStaffSnapshot.voicingNames.length > 0;
+
           return (
             <div
               key={slot.type}
               className={cn(
                 'flex',
-                isProgressionStage ? 'flex-1 max-w-[24rem] mx-auto' : 'flex-1 min-w-0'
+                rowWithStaff
+                  ? 'flex-row flex-1 gap-2 items-center justify-center w-full max-w-[min(42rem,calc(100vw-2rem))] mx-auto'
+                  : isProgressionStage
+                    ? 'flex-1 max-w-[24rem] mx-auto'
+                    : 'flex-1 min-w-0'
               )}
             >
-              <SlotDisplay
-                slot={slot}
-                nextSlot={nextSlots[index]}
-                isHinted={hintSlotIndex === index}
-                isMagicOnCooldown={getSlotCooldown(index)}
-                isMagicSlot={isSlotMagic(index)}
-                isWide={isBossStage || isProgressionStage}
-              />
+              <div className={rowWithStaff ? 'min-w-0 flex-1' : undefined}>
+                <SlotDisplay
+                  slot={slot}
+                  nextSlot={nextSlots[index]}
+                  isHinted={hintSlotIndex === index}
+                  isMagicOnCooldown={getSlotCooldown(index)}
+                  isMagicSlot={isSlotMagic(index)}
+                  isWide={isBossStage || isProgressionStage}
+                />
+              </div>
+              {rowWithStaff && (
+                <SurvivalProgressionStaff
+                  correctPitchClasses={progressionStaffSnapshot.correctPitchClasses}
+                  keyFifths={progressionStaffSnapshot.keyFifths}
+                  voicingNames={progressionStaffSnapshot.voicingNames}
+                />
+              )}
             </div>
           );
         })}
@@ -299,6 +343,7 @@ const SurvivalCodeSlots = React.memo(SurvivalCodeSlotsComponent, (prev, next) =>
   prev.isStageMode === next.isStageMode &&
   prev.isBossStage === next.isBossStage &&
   prev.isProgressionStage === next.isProgressionStage &&
+  progressionStaffSnapshotEqual(prev.progressionStaffSnapshot, next.progressionStaffSnapshot) &&
   // クールダウンは「> 0 か否か」だけが表示に影響するため真偽値で比較する
   (prev.aSlotCooldown > 0) === (next.aSlotCooldown > 0) &&
   (prev.bSlotCooldown > 0) === (next.bSlotCooldown > 0) &&

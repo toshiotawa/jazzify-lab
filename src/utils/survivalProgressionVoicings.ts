@@ -3,9 +3,9 @@
  * ゲーム実行時には使わず、DB 投入・AI Agent 下書き用の事前生成のみ。
  */
 
-import { note as parseNote } from 'tonal';
+import { Interval, transpose, note as parseNote } from 'tonal';
 
-import type { SurvivalChordProgressionEntry } from '../components/survival/SurvivalStageDefinitions';
+import type { SurvivalChordProgressionEntry } from '@/components/survival/SurvivalStageDefinitions';
 import { ALL_17_ROOTS } from './chord-templates';
 
 export const SURVIVAL_VOICING_MIDDLE_C = 60;
@@ -261,6 +261,17 @@ const parseChordToken = (token: string): { root: string; kind: SurvivalProgressi
   throw new Error(`Unsupported chord type for survival voicing helper: "${t}"`);
 };
 
+export const classifySurvivalProgressionChordName = (
+  name: string,
+): { root: string; kind: SurvivalProgressionVoicingKind } | null => {
+  try {
+    const parsed = parseChordToken(name.trim());
+    return { root: parsed.root, kind: parsed.kind };
+  } catch {
+    return null;
+  }
+};
+
 const selectFormForProgressionIndex = (
   root: string,
   kind: SurvivalProgressionVoicingKind,
@@ -359,3 +370,88 @@ export const survivalVoicingToNoteNames = (voicing: readonly number[]): string[]
     const oct = Math.trunc(midi / 12) - 1;
     return `${SHARP_NAMES[pc]}${oct}`;
   });
+
+const alignSpelledNoteToMidi = (spelledNote: string, targetMidi: number): string => {
+  let candidate = spelledNote;
+  let m = parseNote(candidate)?.midi ?? null;
+
+  while (typeof m === 'number' && m < targetMidi) {
+    candidate = transpose(candidate, '8P');
+    m = parseNote(candidate)?.midi ?? null;
+  }
+
+  while (typeof m === 'number' && m > targetMidi) {
+    candidate = transpose(candidate, '-8P');
+    m = parseNote(candidate)?.midi ?? null;
+  }
+
+  return candidate;
+};
+
+/** DB の voicing と完全整合する staff 用文字列へ（MIDI 昇順）。無理合成なら null。 */
+export const buildStaffVoicingNamesForProgressionChord = (entry: {
+  readonly name: string;
+  readonly voicing: readonly number[];
+}): string[] | null => {
+  assertFourUniquePitchClasses(entry.voicing, entry.name);
+
+  let classified: { readonly root: string; readonly kind: SurvivalProgressionVoicingKind };
+  try {
+    classified = parseChordToken(normalizeChordToken(entry.name));
+  } catch {
+    return null;
+  }
+
+  const form =
+    classified.kind === 'M7_9' && classified.root === 'Eb'
+      ? ('C' as SurvivalVoicingForm)
+      : selectFormForProgressionIndex(classified.root, classified.kind);
+
+  const relatives =
+    classified.kind === 'M7_9' && classified.root === 'Eb' && form === 'C'
+      ? KIND_RELATIVE_SEMITONES.M7_9.B
+      : form === 'A'
+        ? KIND_RELATIVE_SEMITONES[classified.kind].A
+        : KIND_RELATIVE_SEMITONES[classified.kind].B;
+
+  const oct = choosePreferredRootOctave(classified.root, relatives);
+  const built = buildFormMidis(classified.root, classified.kind, form);
+
+  const entrySortedPc = [...new Set(entry.voicing)].map(m => ((m % 12) + 12) % 12).sort((a, b) => a - b);
+
+  const builtPc = [...built].map(m => ((m % 12) + 12) % 12).sort((a, b) => a - b);
+
+  if (entrySortedPc.length !== builtPc.length || entrySortedPc.some((v, ix) => v !== builtPc[ix])) {
+    return null;
+  }
+
+  const spelled = relatives.map(off => transpose(`${classified.root}${oct}`, Interval.fromSemitones(off)));
+
+  const adjusted = spelled.map((n, ix) => alignSpelledNoteToMidi(n, built[ix]));
+  const paired = adjusted.map((name, ix) => ({ midi: built[ix], name }));
+  paired.sort((p, q) => p.midi - q.midi);
+
+  const entryAscending = [...new Set(entry.voicing)].sort((a, b) => a - b);
+  if (paired.length !== entryAscending.length) {
+    return null;
+  }
+
+  const outNames: string[] = [];
+
+  for (const midiTarget of entryAscending) {
+    const tgtPc = ((midiTarget % 12) + 12) % 12;
+    const row = paired.find(p => ((p.midi % 12) + 12) % 12 === tgtPc);
+    if (!row) return null;
+    outNames.push(alignSpelledNoteToMidi(row.name, midiTarget));
+
+
+  }
+
+
+
+  return outNames;
+
+
+};
+
+

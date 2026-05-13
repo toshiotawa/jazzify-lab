@@ -95,7 +95,9 @@ import {
   HEALING_AMOUNT,
 } from './boss/SurvivalBossTypes';
 import SurvivalCanvas from './SurvivalCanvas';
-import SurvivalCodeSlots from './SurvivalCodeSlots';
+import SurvivalCodeSlots, {
+  type SurvivalProgressionStaffSnapshot,
+} from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -3361,6 +3363,40 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     return lastHintSlotRef.current;
   };
+
+  const progressionPunchSlot = gameState.codeSlots.current[1];
+  const progressionStaffCorrectNotesSig = progressionPunchSlot.correctNotes.join(',');
+
+  const progressionStaffVoicingNamesSig =
+    progressionPunchSlot.chord?.progressionStaffVoicingNames?.join('|') ?? '';
+
+  const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    if (!hintMode || !isProgressionStage) return null;
+    const slot = progressionPunchSlot;
+    const ch = slot.chord;
+
+    if (!slot.isEnabled || !ch || ch.quality !== 'progression') return null;
+
+    const names = ch.progressionStaffVoicingNames;
+    const kf = ch.progressionStaffKeyFifths;
+
+    if (!names || names.length === 0 || typeof kf !== 'number') return null;
+
+    return {
+      voicingNames: names,
+      keyFifths: kf,
+      correctPitchClasses: slot.correctNotes,
+    };
+  }, [
+    hintMode,
+    isProgressionStage,
+    progressionPunchSlot.isEnabled,
+    progressionStaffCorrectNotesSig,
+    progressionPunchSlot.chord?.id,
+    progressionStaffVoicingNamesSig,
+    progressionPunchSlot.chord?.progressionStaffKeyFifths,
+    progressionPunchSlot.chord?.quality,
+  ]);
   
   // HINT鍵盤ハイライト（緑色のガイドハイライトを使用）
   useEffect(() => {
@@ -3862,6 +3898,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           isStageMode={isStageMode}
           isBossStage={isBossStage}
           isProgressionStage={isProgressionStage}
+          progressionStaffSnapshot={progressionStaffSnapshot}
         />
       </div>
       

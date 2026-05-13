@@ -53,10 +53,13 @@ export interface StageDefinition {
  * - `name`: 表示用コード名（例: "FM7", "G7"）
  * - `voicing`: 演奏する MIDI ノート番号（実音域。練習モードの鍵盤ハイライト用）
  *   正解判定はオクターブ無視（mod 12）で行う。
+ * - `voicingNames` / `keyFifths`: DB の `voicing_names` / `key_fifths`。旧クライアントは ignore、未設定時は生成フォールバック。
  */
 export interface SurvivalChordProgressionEntry {
   name: string;
   voicing: number[];
+  voicingNames?: readonly string[];
+  keyFifths?: number;
 }
 
 type SurvivalStageBattleKind = 'random' | 'progression' | 'boss';
@@ -187,7 +190,35 @@ function parseChordProgression(raw: unknown): SurvivalChordProgressionEntry[] | 
       if (Number.isFinite(num)) voicing.push(Math.round(num));
     }
     if (voicing.length === 0) continue;
-    entries.push({ name, voicing });
+
+    let voicingNames: string[] | undefined;
+    const vn = record.voicing_names;
+    if (Array.isArray(vn)) {
+      const acc: string[] = [];
+      for (const item of vn) {
+        const s = typeof item === 'string' ? item.trim() : '';
+        if (s) acc.push(s);
+      }
+      if (acc.length === voicing.length) {
+        voicingNames = acc;
+      }
+    }
+
+    const keyFifthsRaw = record.key_fifths;
+    let keyFifths: number | undefined;
+    if (typeof keyFifthsRaw === 'number' && Number.isFinite(keyFifthsRaw)) {
+      keyFifths = Math.trunc(keyFifthsRaw);
+    } else if (typeof keyFifthsRaw === 'string' && keyFifthsRaw.trim() !== '') {
+      const parsed = Number(keyFifthsRaw);
+      if (Number.isFinite(parsed)) keyFifths = Math.trunc(parsed);
+    }
+
+    entries.push({
+      name,
+      voicing,
+      ...(voicingNames !== undefined ? { voicingNames } : {}),
+      ...(keyFifths !== undefined ? { keyFifths } : {}),
+    });
   }
   return entries.length > 0 ? entries : undefined;
 }
