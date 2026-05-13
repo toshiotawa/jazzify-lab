@@ -24,7 +24,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
       <div
         className={
           className
-          ?? 'min-w-0 flex-1 max-w-[26rem] [&_svg]:h-auto [&_svg]:w-full'
+          ?? 'min-w-0 flex-1 [&_svg]:h-auto [&_svg]:w-full'
         }
         aria-hidden
       >
@@ -33,6 +33,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
           completionPulse={null}
           hideChordLabels
           singleMeasureLayout
+          compactSingleMeasure
           keyFifths={keyFifths}
           showTargetHints={false}
           activeGroupId="single"

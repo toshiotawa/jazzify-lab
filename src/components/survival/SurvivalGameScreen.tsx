@@ -3398,36 +3398,45 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.chord?.quality,
   ]);
   
-  // HINT鍵盤ハイライト（緑色のガイドハイライトを使用）
+  // HINT 鍵盤: 未押下構成音はマリーゴールド、押下済みは緑（`PIXINotesRenderer.setVoicingHints`）
   useEffect(() => {
     const hintSlotIndex = getHintSlotIndex();
     const renderer = pixiRendererRef.current;
-    
-    if (hintSlotIndex !== null && renderer) {
-      const slot = gameState.codeSlots.current[hintSlotIndex];
-      if (slot.chord?.notes) {
-        const highlightNotes: number[] = [];
-        const baseOctave = 4;
-        
-        const uniqueNoteMod12 = [...new Set(slot.chord.notes.map(n => n % 12))];
-        
-        let lastMidi = 0;
-        for (const noteMod12 of uniqueNoteMod12) {
-          let midiNote = noteMod12 + baseOctave * 12;
-          while (midiNote <= lastMidi) {
-            midiNote += 12;
-          }
-          highlightNotes.push(midiNote);
-          lastMidi = midiNote;
-        }
-        
-        renderer.setGuideHighlightsByMidiNotes(highlightNotes);
-      } else {
-        renderer?.setGuideHighlightsByMidiNotes([]);
-      }
-    } else {
-      pixiRendererRef.current?.setGuideHighlightsByMidiNotes([]);
+
+    if (hintSlotIndex === null || renderer === null) {
+      pixiRendererRef.current?.clearVoicingHints();
+      return;
     }
+
+    const slot = gameState.codeSlots.current[hintSlotIndex];
+    const notes = slot.chord?.notes;
+    if (!notes || notes.length === 0) {
+      renderer.clearVoicingHints();
+      return;
+    }
+
+    const pendingMidi: number[] = [];
+    const completedMidi: number[] = [];
+    const baseOctave = 4;
+
+    const uniqueNoteMod12 = [...new Set(notes.map((n) => ((n % 12) + 12) % 12))];
+
+    let lastMidi = 0;
+    for (let i = 0; i < uniqueNoteMod12.length; i += 1) {
+      const noteMod12 = uniqueNoteMod12[i];
+      let midiNote = noteMod12 + baseOctave * 12;
+      while (midiNote <= lastMidi) {
+        midiNote += 12;
+      }
+      lastMidi = midiNote;
+      if (slot.correctNotes.includes(noteMod12)) {
+        completedMidi.push(midiNote);
+      } else {
+        pendingMidi.push(midiNote);
+      }
+    }
+
+    renderer.setVoicingHints(pendingMidi, completedMidi);
   }, [gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // バッファー/デバッファーレベル取得ヘルパー
