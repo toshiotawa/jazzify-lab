@@ -4,8 +4,6 @@ import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot, SlotType } from './SurvivalTypes';
 import SurvivalCodeSlots, { type SurvivalProgressionStaffSnapshot } from './SurvivalCodeSlots';
 
-const SMUFL_ACCIDENTAL_SHARP = '\uE262';
-
 const buildChord = (displayName: string): ChordDefinition => ({
   id: displayName,
   displayName,
@@ -99,7 +97,7 @@ describe('SurvivalCodeSlots progression layout', () => {
     expect(screen.queryByText('---')).not.toBeInTheDocument();
   });
 
-  it('progression のスタッフは SMuFL を foreignObject 内 HTML で描画する（調号などが svg text でない）', async () => {
+  it('progression のスタッフは調号などを SVG ベクターで描画し svg text に載せない', async () => {
     const progressionStaffSnapshot: SurvivalProgressionStaffSnapshot = {
       chordDisplayName: 'Cmaj7',
       voicingNames: ['C3', 'E3', 'G3', 'B3'],
@@ -137,14 +135,13 @@ describe('SurvivalCodeSlots progression layout', () => {
     );
 
     await waitFor(() => {
-      expect(container.querySelector('foreignObject[data-smufl-foreign-object="true"]')).not.toBeNull();
+      expect(
+        container.querySelector(
+          '[data-key-signature-staff="2"][data-key-signature-index="0"] [data-smufl-vector-glyph="sharp"]',
+        ),
+      ).not.toBeNull();
     });
 
-    expect(
-      container.querySelector(
-        'div[data-key-signature-index="0"][data-key-signature-staff="2"]',
-      )?.textContent,
-    ).toBe(SMUFL_ACCIDENTAL_SHARP);
     expect(container.querySelector('text[data-key-signature-index="0"]')).toBeNull();
   });
 });

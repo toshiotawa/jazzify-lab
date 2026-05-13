@@ -530,7 +530,7 @@ describe('ChordVoicingStaff', () => {
     expect(Number(firstBarline?.getAttribute('x1'))).toBe(360);
   });
 
-  it('smuflUseForeignObject が true のとき臨時記号は svg text ではなく foreignObject 内 div に載る', async () => {
+  it('smuflUseForeignObject が true のとき臨時記号は svg text ではなくベクターグリフで描く', async () => {
     const { container } = render(
       <ChordVoicingStaff
         smuflUseForeignObject
@@ -555,11 +555,14 @@ describe('ChordVoicingStaff', () => {
     );
 
     await waitFor(() => {
-      expect(container.querySelector('foreignObject[data-smufl-foreign-object="true"]')).not.toBeNull();
+      expect(
+        container.querySelector('[data-accidental-group-id="sharp"] [data-smufl-vector-glyph="sharp"]'),
+      ).not.toBeNull();
     });
 
     expect(container.querySelector('text[data-accidental-group-id="sharp"]')).toBeNull();
-    expect(container.querySelector('div[data-accidental-group-id="sharp"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
-    expect(container.querySelector('div[data-accidental-group-id="natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
+    expect(
+      container.querySelector('[data-accidental-group-id="natural"] [data-smufl-vector-glyph="natural"]'),
+    ).not.toBeNull();
   });
 });

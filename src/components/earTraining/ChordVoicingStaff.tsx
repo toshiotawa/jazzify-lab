@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import { BRAVURA_WOFF2_PUBLIC_HREF } from './bravuraStaffDocumentFonts';
+import {
+  MusicNotationVectorAccidental,
+  MusicNotationVectorBassClef,
+  MusicNotationVectorTrebleClef,
+} from './musicNotationVectorStaff';
 import './chordVoicingStaffEffects.css';
 
 export interface ChordVoicingStaffGroup {
@@ -46,8 +51,8 @@ interface ChordVoicingStaffProps {
    */
   compactSingleMeasure?: boolean;
   /**
-   * Safari 等で SVG の `<text>` が Bravura ではなく絵文字フォントに化ける場合、
-   * 音部・調号・臨時記号を `foreignObject` 内の HTML で描画する（バトル既定は false）。
+   * Safari 等で SVG の `<text>`／foreignObject 内の PUA が絵文字フォントに化ける場合に true。
+   * 音部・調号・臨時記号は Bravura に依存しない SVG ベクターで描画する（バトル既定は false）。
    */
   smuflUseForeignObject?: boolean;
   className?: string;
@@ -522,73 +527,6 @@ const layoutNotes = (
 
 const CLEF_LEFT_X = STAFF_LINE_LEFT_X + SP * 0.8;
 
-/** SMuFL を HTML  subtree で描画（Safari の SVG text + PUA 絵文字化回避） */
-const SmuflForeignGlyph: React.FC<{
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  fontPx: number;
-  fill: string;
-  justifyContent: 'flex-start' | 'center';
-  alignItems: 'flex-start' | 'center';
-  children: string;
-  /** `data-*` 等、`HTMLAttributes` の型に載らない属性（テスト検索用） */
-  extraDivAttrs?: Readonly<Record<string, string>>;
-  divProps?: React.HTMLAttributes<HTMLDivElement>;
-}> = ({
-  x,
-  y,
-  width,
-  height,
-  fontPx,
-  fill,
-  justifyContent,
-  alignItems,
-  children,
-  extraDivAttrs,
-  divProps,
-}) => {
-  const mergedDivProps: React.HTMLAttributes<HTMLDivElement> = {
-    ...divProps,
-    style: {
-      width: '100%',
-      height: '100%',
-      margin: 0,
-      padding: 0,
-      display: 'flex',
-      alignItems,
-      justifyContent,
-      fontFamily: 'BravuraSvgStaff, BravuraSMuFL, Bravura, serif',
-      fontSize: fontPx,
-      fontSynthesis: 'none',
-      fontVariantEmoji: 'text',
-      color: fill,
-      lineHeight: 1,
-      boxSizing: 'border-box',
-      overflow: 'visible',
-      ...divProps?.style,
-      pointerEvents: 'none',
-    },
-  };
-  return (
-  <foreignObject
-    aria-hidden
-    data-smufl-foreign-object="true"
-    height={height}
-    overflow="visible"
-    pointerEvents="none"
-    width={width}
-    x={x}
-    y={y}
-  >
-    <div {...mergedDivProps} {...extraDivAttrs}>
-      {children}
-    </div>
-  </foreignObject>
-  );
-};
-
 const StaffClefGlyph: React.FC<{
   staff: StaffNumber;
   staffTopY: number;
@@ -606,10 +544,6 @@ const StaffClefGlyph: React.FC<{
 }) => {
   const anchorLineY = staff === 1 ? staffTopY + 3 * SP : staffTopY + SP;
   const glyph = staff === 1 ? SMUFL_G_CLEF : SMUFL_F_CLEF;
-  const foW = SP * 5.6;
-  const foH = SP * 8.6;
-  const foX = CLEF_LEFT_X - SP * 0.15;
-  const foY = anchorLineY - CLEF_FONT_SIZE * 0.92;
 
   return (
     <g data-staff-clef={staff}>
@@ -626,19 +560,14 @@ const StaffClefGlyph: React.FC<{
           <circle cx={CLEF_LEFT_X} cy={anchorLineY} fill="#ef4444" r={4} />
         </g>
       ) : null}
-      {clefFontsLoaded && smuflUseForeignObject ? (
-        <SmuflForeignGlyph
-          alignItems="flex-start"
-          fill={NOTATION_COLOR}
-          fontPx={CLEF_FONT_SIZE}
-          height={foH}
-          justifyContent="flex-start"
-          width={foW}
-          x={foX}
-          y={foY}
-        >
-          {glyph}
-        </SmuflForeignGlyph>
+      {smuflUseForeignObject ? (
+        <g pointerEvents="none" transform={`translate(${CLEF_LEFT_X}, ${anchorLineY})`}>
+          {staff === 1 ? (
+            <MusicNotationVectorTrebleClef s={SP} stroke={NOTATION_COLOR} />
+          ) : (
+            <MusicNotationVectorBassClef s={SP} stroke={NOTATION_COLOR} />
+          )}
+        </g>
       ) : null}
       {clefFontsLoaded && !smuflUseForeignObject ? (
         <text
@@ -777,29 +706,21 @@ const WholeNote: React.FC<{
     baseX - noteWidth * 1.25 - positioned.accidentalColumn * SP * 0.95,
   );
 
-  const accidentalFoW = ACCIDENTAL_FONT_SIZE * 1.35;
-  const accidentalFoH = ACCIDENTAL_FONT_SIZE * 1.5;
+  const displayAlter = positioned.note.displayAccidentalAlter;
 
   return (
     <g>
-      {clefFontsLoaded && accidental && smuflUseForeignObject ? (
-        <SmuflForeignGlyph
-          alignItems="center"
-          extraDivAttrs={{
-            'data-accidental-group-id': groupId,
-            'data-accidental-voicing-index': String(positioned.note.voicingIndex),
-            'data-voicing-pitch-class': String(positioned.note.pitchClass),
-          }}
-          fill={notationColor}
-          fontPx={ACCIDENTAL_FONT_SIZE}
-          height={accidentalFoH}
-          justifyContent="center"
-          width={accidentalFoW}
-          x={accidentalX - accidentalFoW / 2}
-          y={positioned.yCenter - accidentalFoH / 2}
+      {smuflUseForeignObject && displayAlter !== null ? (
+        <g
+          data-accidental-group-id={groupId}
+          data-accidental-voicing-index={String(positioned.note.voicingIndex)}
+          data-smufl-vector-glyph="note-accidental"
+          data-voicing-pitch-class={String(positioned.note.pitchClass)}
+          pointerEvents="none"
+          transform={`translate(${accidentalX}, ${positioned.yCenter})`}
         >
-          {accidental}
-        </SmuflForeignGlyph>
+          <MusicNotationVectorAccidental alter={displayAlter} s={SP} stroke={notationColor} />
+        </g>
       ) : null}
       {clefFontsLoaded && accidental && !smuflUseForeignObject ? (
         <text
@@ -1278,34 +1199,25 @@ const RenderedStaff: React.FC<{
         clefFontsLoaded={clefFontsLoaded}
         smuflUseForeignObject={smuflUseForeignObject}
       />
-      {clefFontsLoaded
+      {(clefFontsLoaded || smuflUseForeignObject)
         ? marks.map((mark, index) => {
             const cx = KEY_SIGNATURE_LEFT_X + index * KEY_SIGNATURE_GAP_X;
             const cy = yForDegree(staffTopY, staff, mark.degree);
-            const glyph = accidentalGlyph(mark.alter);
-            const ksW = ACCIDENTAL_FONT_SIZE * 1.35;
-            const ksH = ACCIDENTAL_FONT_SIZE * 1.5;
             if (smuflUseForeignObject) {
               return (
-                <SmuflForeignGlyph
+                <g
                   key={`${mark.alter}-${index}`}
-                  alignItems="center"
-                  extraDivAttrs={{
-                    'data-key-signature-index': String(index),
-                    'data-key-signature-staff': String(staff),
-                  }}
-                  fill={NOTATION_COLOR}
-                  fontPx={ACCIDENTAL_FONT_SIZE}
-                  height={ksH}
-                  justifyContent="center"
-                  width={ksW}
-                  x={cx - ksW / 2}
-                  y={cy - ksH / 2}
+                  data-key-signature-index={String(index)}
+                  data-key-signature-staff={String(staff)}
+                  data-smufl-vector-glyph="key-signature-accidental"
+                  pointerEvents="none"
+                  transform={`translate(${cx}, ${cy})`}
                 >
-                  {glyph}
-                </SmuflForeignGlyph>
+                  <MusicNotationVectorAccidental alter={mark.alter} s={SP} stroke={NOTATION_COLOR} />
+                </g>
               );
             }
+            const glyph = accidentalGlyph(mark.alter);
             return (
               <text
                 key={`${mark.alter}-${index}`}
@@ -1468,6 +1380,11 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   const [clefFontsLoaded, setClefFontsLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    if (smuflUseForeignObject) {
+      setClefFontsLoaded(true);
+      return () => {};
+    }
+    setClefFontsLoaded(false);
     const loadClefFont = async () => {
       const sizePx = SP * 4;
       let loaded = false;
@@ -1502,7 +1419,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [smuflUseForeignObject]);
 
   const hasRestGroups = renderState.groups.some(group => group.isRest);
   const activeStaves = hasRestGroups ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (

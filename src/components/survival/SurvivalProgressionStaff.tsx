@@ -2,8 +2,8 @@
  * Progression + HINT 用の単一和弦スタッフ。バトル用 `ChordVoicingStaff` をラップして常にヘ（bass clef）。
  *
  * - ヴォイシングバトルと同様に `voicingGroups` 経由でグループ単位入力（レイアウト・ラベル帯経路を揃える）。
- * - `compactSingleMeasure` で単位譜幅を詰める。WEB で Safari の SVG `<text>` が SMuFL に乗らないことがあるため、
- *   音部・調号・臨時記号は `smuflUseForeignObject`（`ChordVoicingStaff` 内 HTML / foreignObject）で描画する。
+ * - `compactSingleMeasure` で単位譜幅を詰める。Safari の PUA 問題回避のため `smuflUseForeignObject` で
+ *   音部・調号・臨時記号を Bravura 非依存の SVG ベクター（iOS Canvas と同系のパス）で描画する。
  */
 import React, { useMemo } from 'react';
 
