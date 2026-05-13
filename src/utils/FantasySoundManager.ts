@@ -511,9 +511,9 @@ export class FantasySoundManager {
 
       const currentTime = ctx.currentTime;
       const safeDuration = 0.42;
-      const eff = Math.max(this.gmPianoVolume, this.bassVolume);
+      const eff = this.bassVolume;
       const velocity = Math.max(0.22, Math.min(1, 0.28 + eff * 0.92));
-      const volumeBoost = 15.0;
+      const volumeBoost = 9.0;
       const baseGain = velocity * volumeBoost * Math.max(eff, 0.09);
       const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
       const electricGain = this.gmElectricPiano ? baseGain * this.gmMixBalance : 0;
@@ -683,10 +683,10 @@ export class FantasySoundManager {
     } catch { /* ignore */ }
   }
 
-  // ルート音ベースの音量を同期（三角波フォールバック用マスター: ピアノ相当 `0.42+eff*0.58` の線形 1.5 倍。GM ルートは _playCorrectRootGMOneShot 側）
+  // ルート音ベースの音量を同期（三角波フォールバック用マスター: `0.42+bassVol*0.58` を線形 1.5 倍へ。GM ルートは _playCorrectRootGMOneShot 側）
   private _syncRootBassVolume(): void {
     if (this.rootMasterGain && this.rootAudioContext) {
-      const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
+      const effectiveVolume = this.bassVolume;
       const pianoRefLinear = 0.42 + effectiveVolume * 0.58;
       const normalizedVolume =
         pianoRefLinear * FantasySoundManager.ROOT_TRIANGLE_VS_PIANO_REF_LINEAR;
@@ -699,7 +699,7 @@ export class FantasySoundManager {
     
     // 旧Tone.jsシンセがある場合も同期（互換性維持）
     if (this.rootBassSynth) {
-      const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
+      const effectiveVolume = this.bassVolume;
       const dbValue = effectiveVolume === 0 ? -Infinity : Math.log10(effectiveVolume) * 20 + 6;
       try {
         (this.rootBassSynth.volume as any).value = dbValue;
@@ -1021,8 +1021,6 @@ export class FantasySoundManager {
   // GM音源のピアノ音量を設定（0-1）
   private _setGMPianoVolume(volume: number) {
     this.gmPianoVolume = Math.max(0, Math.min(1, volume));
-    // ルート音用ベースシンセの音量も同期
-    this._syncRootBassVolume();
   }
 
   private _createReverbImpulse(context: AudioContext, duration = 1.8, decay = 2.5): AudioBuffer {

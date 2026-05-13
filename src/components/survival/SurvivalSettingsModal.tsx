@@ -86,6 +86,10 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   }, [settings.midiVolume]);
 
   useEffect(() => {
+    setRootVolume(settings.rootSoundVolume ?? 0.7);
+  }, [settings.rootSoundVolume]);
+
+  useEffect(() => {
     if (bgmVolumeProp !== undefined) setLocalBgmVolume(bgmVolumeProp);
   }, [bgmVolumeProp]);
 
