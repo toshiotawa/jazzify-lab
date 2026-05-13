@@ -2,7 +2,7 @@
  * Progression + HINT 用の単一和弦スタッフ。バトル用 `ChordVoicingStaff` をラップして常にヘ（bass clef）。
  *
  * - ヴォイシングバトルと同様に `voicingGroups` 経由でグループ単位入力（レイアウト・ラベル帯経路を揃える）。
- * - `singleMeasureLayout` はサバイバル Progression が 1 小節のためのみ指定。
+ * - `compactSingleMeasure` で単位譜幅を詰めつつ、バトル譜面と同じ SVG `<text>` + Bravura で音部・調号を描画する。
  */
 import React, { useMemo } from 'react';
 
@@ -38,13 +38,13 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
       <div
         className={
           className
-          ?? 'min-w-0 flex-1 max-w-[min(720px,82vw)] [&_svg]:h-auto [&_svg]:w-full'
+          ?? 'min-w-0 flex-1 max-w-[min(360px,72vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.4] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.28]'
         }
         aria-hidden
       >
         <ChordVoicingStaff
+          compactSingleMeasure
           completionPulse={null}
-          singleMeasureLayout
           keyFifths={keyFifths}
           showTargetHints={false}
           activeGroupId="single"

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ChordVoicingStaff from './ChordVoicingStaff';
 
@@ -513,5 +513,38 @@ describe('ChordVoicingStaff', () => {
 
     const firstBarline = container.querySelector('line[data-staff-barline]');
     expect(Number(firstBarline?.getAttribute('x1'))).toBe(360);
+  });
+
+  it('smuflUseForeignObject が true のとき臨時記号は svg text ではなく foreignObject 内 div に載る', async () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        smuflUseForeignObject
+        chordName="F line"
+        voicingGroups={[
+          {
+            id: 'sharp',
+            chordName: 'F#',
+            voicing: ['F#4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+          {
+            id: 'natural',
+            chordName: '',
+            voicing: ['F4'],
+            voicingStaves: [1],
+            measureOffset: 0,
+          },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('foreignObject[data-smufl-foreign-object="true"]')).not.toBeNull();
+    });
+
+    expect(container.querySelector('text[data-accidental-group-id="sharp"]')).toBeNull();
+    expect(container.querySelector('div[data-accidental-group-id="sharp"]')?.textContent).toBe(SMUFL_ACCIDENTAL_SHARP);
+    expect(container.querySelector('div[data-accidental-group-id="natural"]')?.textContent).toBe(SMUFL_ACCIDENTAL_NATURAL);
   });
 });

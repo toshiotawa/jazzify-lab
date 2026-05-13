@@ -267,7 +267,7 @@ function compactChordStaffLineRightX(keyFifths: number): number {
     ? KEY_SIGNATURE_LEFT_X + (fifthsAbs - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.4
     : KEY_SIGNATURE_LEFT_X;
   const measureOneNoteLeftX = Math.max(MEASURE_ONE_NOTE_LEFT_X, keySignatureEndX + SP * 3.1);
-  const chordClusterReserve = SP * 16;
+  const chordClusterReserve = SP * 6;
   const barlineMargin = SP * 2;
   return Math.ceil(measureOneNoteLeftX + chordClusterReserve + barlineMargin);
 }
@@ -535,6 +535,8 @@ const SmuflForeignGlyph: React.FC<{
   justifyContent: 'flex-start' | 'center';
   alignItems: 'flex-start' | 'center';
   children: string;
+  /** `data-*` 等、`HTMLAttributes` の型に載らない属性（テスト検索用） */
+  extraDivAttrs?: Readonly<Record<string, string>>;
   divProps?: React.HTMLAttributes<HTMLDivElement>;
 }> = ({
   x,
@@ -546,8 +548,31 @@ const SmuflForeignGlyph: React.FC<{
   justifyContent,
   alignItems,
   children,
+  extraDivAttrs,
   divProps,
-}) => (
+}) => {
+  const mergedDivProps: React.HTMLAttributes<HTMLDivElement> = {
+    ...divProps,
+    style: {
+      width: '100%',
+      height: '100%',
+      margin: 0,
+      padding: 0,
+      display: 'flex',
+      alignItems,
+      justifyContent,
+      fontFamily: 'BravuraSMuFL, Bravura, sans-serif',
+      fontSize: fontPx,
+      fontSynthesis: 'none',
+      fontVariantEmoji: 'text',
+      color: fill,
+      lineHeight: 1,
+      boxSizing: 'border-box',
+      overflow: 'visible',
+      ...divProps?.style,
+    },
+  };
+  return (
   <foreignObject
     aria-hidden
     data-smufl-foreign-object="true"
@@ -557,33 +582,12 @@ const SmuflForeignGlyph: React.FC<{
     x={x}
     y={y}
   >
-    <div
-      {...divProps}
-      style={{
-        width: '100%',
-        height: '100%',
-        margin: 0,
-        padding: 0,
-        display: 'flex',
-        alignItems,
-        justifyContent,
-        fontFamily: 'BravuraSMuFL, Bravura, sans-serif',
-        fontSize: fontPx,
-        fontSynthesis: 'none',
-        fontVariantEmoji: 'text',
-        color: fill,
-        lineHeight: 1,
-        boxSizing: 'border-box',
-        overflow: 'visible',
-        ...divProps?.style,
-      }}
-      // eslint-disable-next-line react/no-unknown-property -- SVG foreignObject 内の HTML
-      xmlns="http://www.w3.org/1999/xhtml"
-    >
+    <div {...mergedDivProps} {...extraDivAttrs}>
       {children}
     </div>
   </foreignObject>
-);
+  );
+};
 
 const StaffClefGlyph: React.FC<{
   staff: StaffNumber;
@@ -781,7 +785,7 @@ const WholeNote: React.FC<{
       {clefFontsLoaded && accidental && smuflUseForeignObject ? (
         <SmuflForeignGlyph
           alignItems="center"
-          divProps={{
+          extraDivAttrs={{
             'data-accidental-group-id': groupId,
             'data-accidental-voicing-index': String(positioned.note.voicingIndex),
             'data-voicing-pitch-class': String(positioned.note.pitchClass),
@@ -1286,7 +1290,7 @@ const RenderedStaff: React.FC<{
                 <SmuflForeignGlyph
                   key={`${mark.alter}-${index}`}
                   alignItems="center"
-                  divProps={{
+                  extraDivAttrs={{
                     'data-key-signature-index': String(index),
                     'data-key-signature-staff': String(staff),
                   }}

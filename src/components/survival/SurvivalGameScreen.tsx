@@ -3370,8 +3370,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const progressionStaffVoicingNamesSig =
     progressionPunchSlot.chord?.progressionStaffVoicingNames?.join('|') ?? '';
 
+  const playerHasHintBuff =
+    gameState.player.statusEffects.some(effect => effect.type === 'hint');
+
   const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
-    if (!hintMode || !isProgressionStage) return null;
+    if ((!hintMode && !playerHasHintBuff) || !isProgressionStage) return null;
     const slot = progressionPunchSlot;
     const ch = slot.chord;
 
@@ -3390,6 +3393,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     };
   }, [
     hintMode,
+    playerHasHintBuff,
     isProgressionStage,
     progressionPunchSlot.isEnabled,
     progressionStaffCorrectNotesSig,
