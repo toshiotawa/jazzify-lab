@@ -11,6 +11,24 @@ private let kRootTriangleFallbackPeakScale: Double = 1.25
 private let kRootTriangleFallbackSustainLevel: Double = 0.42
 /// 三角波フォールバックの振幅を、同一 `rootBassMixer` 上の GM ルート相当に対して何倍にするか
 private let kRootTriangleLinearGainVsPianoReference: Double = 1.5
+/// 1 オクターブ上の三角波を混ぜる量（内蔵スピーカー以外。イヤホン等で中高域が強くなり過ぎないよう控えめ）
+private let kRootTriangleOctaveBlend: Double = 0.30
+/// 内蔵スピーカー時は倍音をわずかに強める
+private let kRootTriangleOctaveBlendSpeaker: Double = 0.40
+/// GM 正解ルートに +12 MIDI を重ねるときのベロシティ（グランド / エレピ）
+private let kRootGmOctaveVelGrand: UInt8 = 54
+private let kRootGmOctaveVelElectric: UInt8 = 46
+private let kRootGmOctaveVelGrandSpeaker: UInt8 = 68
+private let kRootGmOctaveVelElectricSpeaker: UInt8 = 58
+
+private struct SynthBassBufferCacheKey: Hashable {
+    let midi: Int
+    let speakerBoost: Bool
+}
+
+private func survivalAudioRouteUsesBuiltInSpeaker() -> Bool {
+    AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .builtInSpeaker }
+}
 
 /// サバイバル ゲーム画面専用の軽量オーディオマネージャ。
 /// - AVAudioEngine + AVAudioUnitSampler (SoundFont 無しの内蔵音色) で SE 用 MIDI ノート再生
@@ -70,7 +88,7 @@ final class SurvivalGameAudio {
     /// MIDI ノートごとに 1 度だけ生成して使い回すシンセ ルート音バッファ。
     /// プリウォーム (バックグラウンドスレッド) と再生 (main) の両方からアクセスされるため、
     /// `synthBassCacheLock` で排他制御する。
-    private var synthBassBufferCache: [Int: AVAudioPCMBuffer] = [:]
+    private var synthBassBufferCache: [SynthBassBufferCacheKey: AVAudioPCMBuffer] = [:]
     private let synthBassCacheLock = NSLock()
     private var isEngineStarted = false
     /// `stop()` 中 / 停止後のフラグ。MIDI コールバック (背景スレッド) から
@@ -141,7 +159,7 @@ final class SurvivalGameAudio {
         synthBassQueue.async { [weak self] in
             guard let self else { return }
             for midi in 36...47 {
-                _ = self.synthBassBuffer(midi: midi)
+                _ = self.synthBassBuffer(midi: midi, speakerBoost: false)
             }
         }
     }
@@ -337,9 +355,10 @@ final class SurvivalGameAudio {
         if playRootGMBlendOneShot(midi: clamped) {
             return
         }
+        let speakerBoostTriangle = survivalAudioRouteUsesBuiltInSpeaker()
         synthBassQueue.async { [weak self] in
             guard let self else { return }
-            guard let buffer = self.synthBassBuffer(midi: clamped) else { return }
+            guard let buffer = self.synthBassBuffer(midi: clamped, speakerBoost: speakerBoostTriangle) else { return }
             guard self.engine.isRunning else { return }
             if !self.synthBassPlayer.isPlaying {
                 self.synthBassPlayer.play()
@@ -372,16 +391,31 @@ final class SurvivalGameAudio {
     /// GM 混合ワンショット。成功したら true。
     private func playRootGMBlendOneShot(midi: Int) -> Bool {
         guard rootBlendGMReady, !isStopping, isEngineStarted, engine.isRunning else { return false }
-        let n = UInt8(midi)
+        let n = UInt8(clamping: midi)
         let velGrand: UInt8 = 118
         let velElectric: UInt8 = 100
         rootGrandSampler.startNote(n, withVelocity: velGrand, onChannel: 0)
         rootElectricSampler.startNote(n, withVelocity: velElectric, onChannel: 0)
+        var octaveStop: UInt8?
+        let octaveRaw = midi + 12
+        if octaveRaw <= 127 {
+            let no = UInt8(truncatingIfNeeded: octaveRaw)
+            octaveStop = no
+            let speaker = survivalAudioRouteUsesBuiltInSpeaker()
+            let velOctGrand = speaker ? kRootGmOctaveVelGrandSpeaker : kRootGmOctaveVelGrand
+            let velOctElectric = speaker ? kRootGmOctaveVelElectricSpeaker : kRootGmOctaveVelElectric
+            rootGrandSampler.startNote(no, withVelocity: velOctGrand, onChannel: 0)
+            rootElectricSampler.startNote(no, withVelocity: velOctElectric, onChannel: 0)
+        }
         let stopDelay: TimeInterval = 0.45
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + stopDelay) { [weak self] in
             guard let self, self.rootBlendGMReady else { return }
             self.rootGrandSampler.stopNote(n, onChannel: 0)
             self.rootElectricSampler.stopNote(n, onChannel: 0)
+            if let no = octaveStop {
+                self.rootGrandSampler.stopNote(no, onChannel: 0)
+                self.rootElectricSampler.stopNote(no, onChannel: 0)
+            }
         }
         return true
     }
@@ -391,9 +425,10 @@ final class SurvivalGameAudio {
     /// 生成結果はキャッシュし、以降の同じノートでは再計算しない。
     /// - Note: `preWarmSynthBassBuffers` のバックグラウンド生成と main からの再生が
     ///   競合し得るため `synthBassCacheLock` で保護する。
-    private func synthBassBuffer(midi: Int) -> AVAudioPCMBuffer? {
+    private func synthBassBuffer(midi: Int, speakerBoost: Bool) -> AVAudioPCMBuffer? {
+        let cacheKey = SynthBassBufferCacheKey(midi: midi, speakerBoost: speakerBoost)
         synthBassCacheLock.lock()
-        if let cached = synthBassBufferCache[midi] {
+        if let cached = synthBassBufferCache[cacheKey] {
             synthBassCacheLock.unlock()
             return cached
         }
@@ -413,12 +448,18 @@ final class SurvivalGameAudio {
         let decayEnd = Int(sampleRate * 0.12)
         let releaseEnd = Int(sampleRate * 0.40)
         let phaseInc = 2.0 * .pi * freq / sampleRate
+        let phaseIncOctave = phaseInc * 2.0
         var phase: Double = 0
+        var phaseOctave: Double = 0
+        let octaveBlend = speakerBoost ? kRootTriangleOctaveBlendSpeaker : kRootTriangleOctaveBlend
         let data = buffer.floatChannelData![0]
         let peakScale = kRootTriangleFallbackPeakScale
         let sustainLevel = kRootTriangleFallbackSustainLevel
         for i in 0..<Int(frameCount) {
-            let sample = 2.0 / .pi * asin(sin(phase))
+            let fundamental = 2.0 / .pi * asin(sin(phase))
+            let octaveUp = 2.0 / .pi * asin(sin(phaseOctave))
+            let mixed = fundamental + octaveBlend * octaveUp
+            let sample = max(-1.0, min(1.0, mixed))
             let env: Double
             if i < attackEnd {
                 env = Double(i) / Double(max(1, attackEnd))
@@ -433,10 +474,12 @@ final class SurvivalGameAudio {
             }
             data[i] = Float(sample * env * peakScale * kRootTriangleLinearGainVsPianoReference)
             phase += phaseInc
+            phaseOctave += phaseIncOctave
             if phase > 2.0 * .pi { phase -= 2.0 * .pi }
+            if phaseOctave > 2.0 * .pi { phaseOctave -= 2.0 * .pi }
         }
         synthBassCacheLock.lock()
-        synthBassBufferCache[midi] = buffer
+        synthBassBufferCache[cacheKey] = buffer
         synthBassCacheLock.unlock()
         return buffer
     }
