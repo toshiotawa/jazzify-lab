@@ -430,8 +430,9 @@ final class SurvivalGameLoop {
             }
         } else {
             upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
-            newNextChord = SurvivalChordResolver.resolve(
-                id: stage.allowedChords.randomElement() ?? chord.id
+            newNextChord = SurvivalGameEngine.pickRandomResolvedChord(
+                allowedChordIds: stage.allowedChords,
+                excludingId: upcomingChord.id
             ) ?? upcomingChord
         }
         var slotUpdate = runtime.slots[slotIndex]

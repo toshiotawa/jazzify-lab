@@ -66,6 +66,18 @@ describe('survival progression code slots', () => {
     expect(slots.next[1].chord).not.toBeNull();
   });
 
+  it('random + HINT 時は Punch の current と next が同一 ID にならない（複数コードがある限り）', () => {
+    const allowed = ['CM7', 'Dm7', 'Gm7'];
+    for (let i = 0; i < 100; i += 1) {
+      const slots = initializeCodeSlots(allowed, false, true, null, true);
+      const cur = slots.current[1].chord?.id;
+      const nex = slots.next[1].chord?.id;
+      expect(cur, `trial ${i}`).toBeDefined();
+      expect(nex, `trial ${i}`).toBeDefined();
+      expect(cur, `trial ${i}`).not.toBe(nex);
+    }
+  });
+
   it('selects progression chords sequentially with wraparound', () => {
     expect(selectProgressionChord(progressionChords, 0)?.displayName).toBe('Cmaj7');
     expect(selectProgressionChord(progressionChords, 1)?.displayName).toBe('Dm7');

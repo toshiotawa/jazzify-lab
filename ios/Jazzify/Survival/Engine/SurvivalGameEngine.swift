@@ -35,6 +35,19 @@ enum SurvivalGameEngine {
 
     // MARK: - 初期値ファクトリ (ステージモード専用)
 
+    /// Web `selectRandomChord` と同様、`excludingId` があり除外後も候補が残るときだけ直前コードを選ばない。
+    static func pickRandomResolvedChord(allowedChordIds: [String], excludingId: String?) -> SurvivalResolvedChord? {
+        let resolved = allowedChordIds.compactMap { SurvivalChordResolver.resolve(id: $0) }
+        guard !resolved.isEmpty else { return nil }
+        if let excludingId {
+            let available = resolved.filter { $0.id != excludingId }
+            if !available.isEmpty {
+                return available.randomElement()
+            }
+        }
+        return resolved.randomElement()
+    }
+
     /// キャラクタープロフィールからステージ初期プレイヤーを構築する。
     /// - Parameter profile: Supabase `survival_characters` の取得結果 (nil 時はデフォルト ファイ)
     /// - Parameter hintMode: ヒントモード中は HP 回復等を無効化しない
@@ -69,10 +82,6 @@ enum SurvivalGameEngine {
         punchOnlyForRandomHint: Bool = false
     ) -> [SurvivalCodeSlot] {
         _ = isBossStage // 現行仕様ではボス/通常どちらも A/B のみ
-        let resolved = allowedChords.compactMap { SurvivalChordResolver.resolve(id: $0) }
-        let random: () -> SurvivalResolvedChord? = {
-            resolved.randomElement()
-        }
         return SurvivalSlotIndex.allCases.map { idx in
             let enabled: Bool
             switch idx {
@@ -80,10 +89,14 @@ enum SurvivalGameEngine {
             case .B: enabled = true
             case .C, .D: enabled = false
             }
+            let chord = enabled ? pickRandomResolvedChord(allowedChordIds: allowedChords, excludingId: nil) : nil
+            let nextChord = enabled
+                ? pickRandomResolvedChord(allowedChordIds: allowedChords, excludingId: chord?.id)
+                : nil
             return SurvivalCodeSlot(
                 label: idx.label,
-                chord: enabled ? random() : nil,
-                nextChord: enabled ? random() : nil,
+                chord: chord,
+                nextChord: nextChord,
                 timer: SurvivalConstants.slotTimeoutSec,
                 isEnabled: enabled
             )
