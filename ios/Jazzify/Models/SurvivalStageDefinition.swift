@@ -263,9 +263,10 @@ enum SurvivalStageCatalog {
         return trimmed
     }
 
+    /// 採用範囲は -6..+5（F# キーは Gb で表現する方針）。
     private static func clampProgressionKeyFifths(_ raw: Int?) -> Int? {
         guard let raw else { return nil }
-        return min(7, max(-7, raw))
+        return min(5, max(-6, raw))
     }
 
     // MARK: - Backward compatible (basic 固定) アクセサ

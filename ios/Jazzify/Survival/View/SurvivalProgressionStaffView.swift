@@ -26,7 +26,9 @@ struct SurvivalProgressionStaffView: View {
             activeGroupId: nil,
             correctPitchClassesByGroupId: [Self.staffGroupId: correctSet],
             completionPulse: nil,
-            showTargetHints: false
+            showTargetHints: false,
+            singleMeasureLayout: true,
+            hideChordLabels: true
         )
     }
 }

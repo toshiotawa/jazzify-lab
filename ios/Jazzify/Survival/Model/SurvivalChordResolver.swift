@@ -90,7 +90,8 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             if seen.insert(pc).inserted { pcs.append(pc) }
         }
         let staffNames = Self.ascendingProgressionStaffNames(entry: entry)
-        let storedKey = entry.keyFifths.map { min(7, max(-7, $0)) }
+        // 採用範囲は -6..+5（F# キーは Gb で表現する方針）。
+        let storedKey = entry.keyFifths.map { min(5, max(-6, $0)) }
         let keyForStaff: Int? = storedKey ?? (staffNames != nil ? 0 : nil)
         let id = "prog:\(index):\(entry.name):\(sortedMidi.map(String.init).joined(separator: ","))"
         return SurvivalResolvedChord(
@@ -106,6 +107,8 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
     }
 
     /// `voicing` の各 MIDI と並列の綴りを昇順 MIDI に並べる。重複ピッチクラスや綴り不足時は nil。
+    /// オクターブは鍵盤 HINT の単一オクターブ再構築（baseMidi=48 / C3 起点・厳密昇順）に揃え、
+    /// `SurvivalGameLoop.hintHighlightMidis` と完全一致させる。例: `FM7(9) [E4,G4,A4,C5]` → `[E3,G3,A3,C4]`。
     private static func ascendingProgressionStaffNames(entry: SurvivalChordProgressionEntry) -> [String]? {
         let voices = entry.voicing
         guard !voices.isEmpty else { return nil }
@@ -113,15 +116,74 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         guard pitchClasses.count == voices.count else { return nil }
 
         guard let parallel = entry.voicingNames, parallel.count == voices.count else { return nil }
-        let pairs = zip(voices, parallel)
-            .map { tuple -> (midi: Int, nm: String) in
-                let trimmed = tuple.1.trimmingCharacters(in: .whitespacesAndNewlines)
-                return (midi: tuple.0, nm: trimmed)
+
+        let sortedVoicing = voices.sorted()
+        let hintMidiByPc = reconstructHintMidisByPitchClass(sortedVoicing: sortedVoicing)
+
+        var pairs: [(midi: Int, nm: String)] = []
+        pairs.reserveCapacity(voices.count)
+        for (rawMidi, rawName) in zip(voices, parallel) {
+            let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let pc = ((rawMidi % 12) + 12) % 12
+            let aligned = hintMidiByPc[pc] ?? rawMidi
+            let nm = alignNameOctaveToMidi(name: trimmed, targetMidi: aligned)
+            pairs.append((midi: aligned, nm: nm))
+        }
+        pairs.sort { $0.midi < $1.midi }
+        return pairs.map(\.nm)
+    }
+
+    private static let hintBaseMidi = 48
+
+    private static func reconstructHintMidisByPitchClass(
+        sortedVoicing: [Int]
+    ) -> [Int: Int] {
+        var orderedPcs: [Int] = []
+        var seenPc = Set<Int>()
+        for midi in sortedVoicing {
+            let pc = ((midi % 12) + 12) % 12
+            if seenPc.insert(pc).inserted {
+                orderedPcs.append(pc)
             }
-            .sorted { $0.midi < $1.midi }
-        let names = pairs.map(\.nm)
-        guard names.allSatisfy({ !$0.isEmpty }) else { return nil }
-        return names
+        }
+        var out: [Int: Int] = [:]
+        var last = -1
+        for pc in orderedPcs {
+            var m = pc + hintBaseMidi
+            while m <= last { m += 12 }
+            out[pc] = m
+            last = m
+        }
+        return out
+    }
+
+    private static let stepSemitone: [Character: Int] = [
+        "C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11,
+    ]
+
+    /// 綴り（step + accidental）を保ったまま、オクターブだけ targetMidi に揃えた表記へ。
+    /// パース不能のときは入力をそのまま返す。
+    private static func alignNameOctaveToMidi(name: String, targetMidi: Int) -> String {
+        let chars = Array(name)
+        guard let first = chars.first, let stepSemi = stepSemitone[first] else { return name }
+        var idx = 1
+        var alter = 0
+        while idx < chars.count {
+            let ch = chars[idx]
+            if ch == "x" { alter = 2; idx += 1; break }
+            if ch == "#" || ch == "♯" { alter += 1; idx += 1; continue }
+            if ch == "b" || ch == "♭" { alter -= 1; idx += 1; continue }
+            break
+        }
+        let octString = String(chars[idx...])
+        guard let octave = Int(octString) else { return name }
+        let currentMidi = (octave + 1) * 12 + stepSemi + alter
+        let diffSemi = Double(targetMidi - currentMidi)
+        let diffOct = Int((diffSemi / 12.0).rounded())
+        if diffOct == 0 { return name }
+        let prefix = String(chars[0..<idx])
+        return "\(prefix)\(octave + diffOct)"
     }
 }
 

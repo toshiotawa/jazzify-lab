@@ -21,7 +21,14 @@ const MAJOR_TONIC_KINDS: ReadonlySet<SurvivalProgressionVoicingKind> = new Set([
   'M7_9', 'mM7_9', '6_9',
 ]);
 
-/** メジャー tonic のクロマ → key fifths */
+/**
+ * メジャー tonic のクロマ → key fifths（-6..+5 の範囲で返す）
+ *
+ * 仕様メモ:
+ * - F#（chroma 6）は採用せず、Gb（-6）に固定する。これにより AI Agent に
+ *   「Key of Gb」を依頼した結果が誤って +6 と解釈されるリスクを排除する。
+ * - したがって戻り値の取り得る範囲は -6..+5（12 キー）。
+ */
 export const chromaMajorKeyFifths = (chromaPitchClass: number): number => {
   const chr = ((Math.trunc(chromaPitchClass) % 12) + 12) % 12;
   const chromaMap: Record<number, number> = {
@@ -31,7 +38,7 @@ export const chromaMajorKeyFifths = (chromaPitchClass: number): number => {
     3: -3,
     4: 4,
     5: -1,
-    6: 6,
+    6: -6,
     7: 1,
     8: -4,
     9: 3,
@@ -56,7 +63,8 @@ export const tonicRootMajorKeyFifths = (majorLikeRoot: string): number => {
   return chromaMajorKeyFifths(n.chroma);
 };
 
-const clampFifths = (k: number): number => Math.max(-7, Math.min(7, Math.trunc(k)));
+/** 採用範囲は -6..+5（F# キーは Gb で表現する方針） */
+const clampFifths = (k: number): number => Math.max(-6, Math.min(5, Math.trunc(k)));
 
 /** 並び順はコード配列と同じ長さ。null は分類不能。 */
 export const buildProgressionChordKeyFifths = (

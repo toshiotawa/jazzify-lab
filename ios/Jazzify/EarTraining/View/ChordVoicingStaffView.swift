@@ -882,6 +882,10 @@ struct ChordVoicingStaffGroupsView: View {
     let correctPitchClassesByGroupId: [UUID: Set<Int>]
     let completionPulse: ChordVoicingCompletionPulse?
     var showTargetHints: Bool
+    /// サバイバル Progression HINT 用: 1 小節のみ描画し小節区切りを右端へ吸収する。
+    let singleMeasureLayout: Bool
+    /// サバイバル Progression HINT 用: コード名ラベル帯を描画せず、譜面領域に配分する。
+    let hideChordLabels: Bool
 
     init(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
@@ -890,7 +894,9 @@ struct ChordVoicingStaffGroupsView: View {
         activeGroupId: UUID?,
         correctPitchClassesByGroupId: [UUID: Set<Int>],
         completionPulse: ChordVoicingCompletionPulse? = nil,
-        showTargetHints: Bool = true
+        showTargetHints: Bool = true,
+        singleMeasureLayout: Bool = false,
+        hideChordLabels: Bool = false
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -899,6 +905,8 @@ struct ChordVoicingStaffGroupsView: View {
         self.correctPitchClassesByGroupId = correctPitchClassesByGroupId
         self.completionPulse = completionPulse
         self.showTargetHints = showTargetHints
+        self.singleMeasureLayout = singleMeasureLayout
+        self.hideChordLabels = hideChordLabels
     }
 
     static let notationColor = Color.white
@@ -921,7 +929,9 @@ struct ChordVoicingStaffGroupsView: View {
                 groups: groups,
                 dense: denseCurrentMeasureLayout,
                 keyFifths: keyFifths,
-                correctByGroup: correctPitchClassesByGroupId
+                correctByGroup: correctPitchClassesByGroupId,
+                singleMeasureLayout: singleMeasureLayout,
+                hideChordLabels: hideChordLabels
             )
             let activeLabelGlobalFrame = activeLabelGlobalRect(
                 proxy: proxy,
@@ -937,7 +947,9 @@ struct ChordVoicingStaffGroupsView: View {
                         dense: denseCurrentMeasureLayout,
                         keyFifths: keyFifths,
                         activeGroupId: hintGroupId,
-                        correctByGroup: correctPitchClassesByGroupId
+                        correctByGroup: correctPitchClassesByGroupId,
+                        singleMeasureLayout: singleMeasureLayout,
+                        hideChordLabels: hideChordLabels
                     )
                 }
                 .frame(width: w, height: h)
@@ -1043,7 +1055,12 @@ struct ChordVoicingStaffGroupsView: View {
         let sp: CGFloat
     }
 
-    private static func staffLayoutMetrics(width: CGFloat, keyFifths: Int, wideFirstMeasure: Bool) -> StaffLayoutMetrics {
+    private static func staffLayoutMetrics(
+        width: CGFloat,
+        keyFifths: Int,
+        wideFirstMeasure: Bool,
+        singleMeasureLayout: Bool
+    ) -> StaffLayoutMetrics {
         let sp = max(8, width * (12 / 720))
         let staffLineLeft = width * (24 / 720)
         let staffLineRight = width * (696 / 720)
@@ -1054,9 +1071,15 @@ struct ChordVoicingStaffGroupsView: View {
         let keySignatureEndX = fifths > 0
             ? keySigLeft + CGFloat(fifths - 1) * keySigGap + accFont * 0.4
             : keySigLeft
-        let dividerX = wideFirstMeasure
-            ? staffLineLeft + (staffLineRight - staffLineLeft) * 0.9
-            : width / 2
+        let dividerX: CGFloat
+        if singleMeasureLayout {
+            // 1 小節レイアウト: 区切りを譜面右端と一致させ、Punch スロット隣で 1 小節幅をフルに使う。
+            dividerX = staffLineRight
+        } else if wideFirstMeasure {
+            dividerX = staffLineLeft + (staffLineRight - staffLineLeft) * 0.9
+        } else {
+            dividerX = width / 2
+        }
         let measureOneLeft = max(width * (138 / 720), keySignatureEndX + sp * 3.1)
         let measureOneRight = max(measureOneLeft + sp * 3, dividerX - sp * 2.5)
         let measureTwoLeft = min(dividerX + sp * 2.1, staffLineRight - sp * 2.2)
@@ -1259,17 +1282,21 @@ struct ChordVoicingStaffGroupsView: View {
 
     /// 2. コード名レーンを先に確保し、その下に五線ブロックが収まる縦レイアウトを計算する。
     /// 上下に加線3本ぶんの余白を確保し（要望1）、ト音とヘ音の間隔も拡張（要望6）。
+    /// `hideChordLabels=true` のときはラベル帯の高さを 0 にし、譜面領域へ全て配分する。
     private static func computeStaffSystemGeometry(
         size: CGSize,
         width: CGFloat,
-        activeStaves: [Int]
+        activeStaves: [Int],
+        hideChordLabels: Bool
     ) -> StaffSystemGeometry {
         let sp = max(8, width * (12 / 720))
-        let labelTopPadding = sp * 0.4
-        let labelBandCoreHeight = min(CGFloat(34), max(CGFloat(24), sp * 2.6))
+        let labelTopPadding: CGFloat = hideChordLabels ? 0 : sp * 0.4
+        let labelBandCoreHeight: CGFloat = hideChordLabels
+            ? 0
+            : min(CGFloat(34), max(CGFloat(24), sp * 2.6))
         let reservedLabelTop = labelTopPadding + labelBandCoreHeight
-        let labelCenterY = labelTopPadding + labelBandCoreHeight / 2
-        let labelBottomGap = sp * 0.9
+        let labelCenterY = hideChordLabels ? 0 : labelTopPadding + labelBandCoreHeight / 2
+        let labelBottomGap: CGFloat = hideChordLabels ? 0 : sp * 0.9
         let ledgerLinePadding = sp * 3.5
         let reservedTop = reservedLabelTop + labelBottomGap + ledgerLinePadding
         let availableStaffHeight = max(CGFloat(0), size.height - reservedTop - ledgerLinePadding)
@@ -1397,31 +1424,45 @@ struct ChordVoicingStaffGroupsView: View {
         dense: Bool,
         keyFifths: Int,
         activeGroupId: UUID?,
-        correctByGroup: [UUID: Set<Int>]
+        correctByGroup: [UUID: Set<Int>],
+        singleMeasureLayout: Bool,
+        hideChordLabels: Bool
     ) {
         guard !groups.isEmpty else { return }
         let w = size.width
-        let layout = staffLayoutMetrics(width: w, keyFifths: keyFifths, wideFirstMeasure: dense)
+        let layout = staffLayoutMetrics(
+            width: w,
+            keyFifths: keyFifths,
+            wideFirstMeasure: dense,
+            singleMeasureLayout: singleMeasureLayout
+        )
         let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
 
         let hasRest = parsedGroups.contains { $0.group.isRest }
         let activeStaves = hasRest ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
         }
-        let geo = computeStaffSystemGeometry(size: size, width: w, activeStaves: activeStaves)
+        let geo = computeStaffSystemGeometry(
+            size: size,
+            width: w,
+            activeStaves: activeStaves,
+            hideChordLabels: hideChordLabels
+        )
         let margin = geo.sp * 0.35
         let leftBound = w * (24 / 720) + margin
         let rightBound = w * (696 / 720) - margin
-        let labelFrames = makeChordLabelFrames(
-            context: &context,
-            parsedItems: parsedGroups,
-            layout: layout,
-            labelCenterY: geo.labelCenterY,
-            leftBound: leftBound,
-            rightBound: rightBound,
-            sp: geo.sp,
-            activeGroupId: activeGroupId
-        )
+        let labelFrames: [ChordLabelFrame] = hideChordLabels
+            ? []
+            : makeChordLabelFrames(
+                context: &context,
+                parsedItems: parsedGroups,
+                layout: layout,
+                labelCenterY: geo.labelCenterY,
+                leftBound: leftBound,
+                rightBound: rightBound,
+                sp: geo.sp,
+                activeGroupId: activeGroupId
+            )
 
         let battleHints = computeVoicingBattleHints(
             parsedGroups: parsedGroups,
@@ -1551,6 +1592,7 @@ struct ChordVoicingStaffGroupsView: View {
     }
 
     /// 全活性五線をまたぐ小節区切り＋右端線を1度だけ描画（要望5）。
+    /// `singleMeasureLayout` 時は dividerX が rightX に吸収されるため、重複描画を避ける。
     private static func groupsDrawSystemBarlines(
         context: inout GraphicsContext,
         firstTopY: CGFloat,
@@ -1562,7 +1604,10 @@ struct ChordVoicingStaffGroupsView: View {
     ) {
         guard staffCount > 0 else { return }
         let bottomY = firstTopY + CGFloat(staffCount - 1) * (staffSpacing * 4 + staffGap) + staffSpacing * 4
+        var seenX: [CGFloat] = []
         for x in [dividerX, rightX] {
+            if seenX.contains(where: { abs($0 - x) < 0.5 }) { continue }
+            seenX.append(x)
             var barline = Path()
             barline.move(to: CGPoint(x: x, y: firstTopY))
             barline.addLine(to: CGPoint(x: x, y: bottomY))
@@ -1847,7 +1892,9 @@ struct ChordVoicingStaffGroupsView: View {
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
         dense: Bool,
         keyFifths: Int,
-        correctByGroup: [UUID: Set<Int>]
+        correctByGroup: [UUID: Set<Int>],
+        singleMeasureLayout: Bool = false,
+        hideChordLabels: Bool = false
     ) -> OverlayLayout {
         guard !groups.isEmpty, size.width > 0, size.height > 0 else {
             return OverlayLayout(
@@ -1857,18 +1904,30 @@ struct ChordVoicingStaffGroupsView: View {
             )
         }
         let w = size.width
-        let layout = staffLayoutMetrics(width: w, keyFifths: keyFifths, wideFirstMeasure: dense)
+        let layout = staffLayoutMetrics(
+            width: w,
+            keyFifths: keyFifths,
+            wideFirstMeasure: dense,
+            singleMeasureLayout: singleMeasureLayout
+        )
         let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
         let hasRest = parsedGroups.contains { $0.group.isRest }
         let activeStaves = hasRest ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
         }
-        let geo = computeStaffSystemGeometry(size: size, width: w, activeStaves: activeStaves)
+        let geo = computeStaffSystemGeometry(
+            size: size,
+            width: w,
+            activeStaves: activeStaves,
+            hideChordLabels: hideChordLabels
+        )
 
         var labelCenters: [UUID: CGPoint] = [:]
-        for item in parsedGroups where !item.group.chordName.isEmpty {
-            let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
-            labelCenters[item.group.id] = CGPoint(x: baseX, y: geo.labelCenterY)
+        if !hideChordLabels {
+            for item in parsedGroups where !item.group.chordName.isEmpty {
+                let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
+                labelCenters[item.group.id] = CGPoint(x: baseX, y: geo.labelCenterY)
+            }
         }
 
         var measureFrame: CGRect? = nil

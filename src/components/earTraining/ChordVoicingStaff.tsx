@@ -37,6 +37,10 @@ interface ChordVoicingStaffProps {
   completionPulse?: ChordVoicingCompletionPulse | null;
   /** false のとき、次ガイド色・三角・コード名強調など「入力許可」を示す強調のみ抑止する */
   showTargetHints?: boolean;
+  /** 1 小節のみ表示。中央バーラインを廃し第 1 小節を右端まで広げる（既定: 2 小節）。 */
+  singleMeasureLayout?: boolean;
+  /** コード名ラベル帯と上部余白を畳む（既定: false）。 */
+  hideChordLabels?: boolean;
   className?: string;
 }
 
@@ -241,14 +245,20 @@ const keySignatureAlter = (step: string, keyFifths: number): number => {
   return 0;
 };
 
-const getStaffLayoutMetrics = (keyFifths: number, wideFirstMeasure: boolean): StaffLayoutMetrics => {
+const getStaffLayoutMetrics = (
+  keyFifths: number,
+  wideFirstMeasure: boolean,
+  singleMeasureLayout: boolean,
+): StaffLayoutMetrics => {
   const fifths = Math.abs(clampKeyFifths(keyFifths));
   const keySignatureEndX = fifths > 0
     ? KEY_SIGNATURE_LEFT_X + (fifths - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.4
     : KEY_SIGNATURE_LEFT_X;
-  const dividerX = wideFirstMeasure
-    ? STAFF_LINE_LEFT_X + (STAFF_LINE_RIGHT_X - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO
-    : MEASURE_DIVIDER_X;
+  const dividerX = singleMeasureLayout
+    ? STAFF_LINE_RIGHT_X
+    : wideFirstMeasure
+      ? STAFF_LINE_LEFT_X + (STAFF_LINE_RIGHT_X - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO
+      : MEASURE_DIVIDER_X;
   const measureOneNoteLeftX = Math.max(MEASURE_ONE_NOTE_LEFT_X, keySignatureEndX + SP * 3.1);
 
   return {
@@ -840,12 +850,13 @@ const computeBattleStaffSystemLayout = (
   groups: readonly ParsedVoicingStaffGroup[],
   layout: StaffLayoutMetrics,
   activeGroupId: string | null | undefined,
+  hideChordLabels: boolean,
 ): StaffSystemVerticalLayout => {
   const labelTopPadding = SP * 0.4;
   const labelBandCore = Math.min(34, Math.max(24, SP * 2.6));
-  const reservedLabelTop = labelTopPadding + labelBandCore;
-  const labelCenterY = labelTopPadding + labelBandCore / 2;
-  const labelBottomGap = SP * 0.9;
+  const reservedLabelTop = hideChordLabels ? 0 : labelTopPadding + labelBandCore;
+  const labelCenterY = hideChordLabels ? 0 : labelTopPadding + labelBandCore / 2;
+  const labelBottomGap = hideChordLabels ? 0 : SP * 0.9;
   const firstStaffTopY = reservedLabelTop + labelBottomGap + LEDGER_LINE_PADDING;
   const staffCount = activeStaves.length;
   const staffBlockHeight = (staffCount - 1) * STAFF_TOP_STEP + STAFF_HEIGHT;
@@ -853,15 +864,17 @@ const computeBattleStaffSystemLayout = (
   const margin = SP * 0.35;
   const leftBound = STAFF_LINE_LEFT_X + margin;
   const rightBound = STAFF_LINE_RIGHT_X - margin;
-  const chordLabels = layoutBattleChordLabels(
-    groups,
-    layout,
-    activeGroupId,
-    labelCenterY,
-    leftBound,
-    rightBound,
-    SP,
-  );
+  const chordLabels = hideChordLabels
+    ? []
+    : layoutBattleChordLabels(
+        groups,
+        layout,
+        activeGroupId,
+        labelCenterY,
+        leftBound,
+        rightBound,
+        SP,
+      );
   return {
     firstStaffTopY,
     labelCenterY,
@@ -1154,6 +1167,8 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   denseCurrentMeasureLayout,
   completionPulse,
   showTargetHints = true,
+  singleMeasureLayout = false,
+  hideChordLabels = false,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
@@ -1278,7 +1293,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   const wideFirstMeasure = typeof denseCurrentMeasureLayout === 'boolean'
     ? denseCurrentMeasureLayout
     : inferredDenseLayout;
-  const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure);
+  const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure, singleMeasureLayout);
   const effectiveActiveGroupId = showTargetHints ? activeGroupId : null;
   const systemLayout = useMemo(
     () => computeBattleStaffSystemLayout(
@@ -1286,8 +1301,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       renderState.groups,
       layout,
       effectiveActiveGroupId,
+      hideChordLabels,
     ),
-    [effectiveActiveGroupId, activeStaves, layout, renderState.groups],
+    [effectiveActiveGroupId, activeStaves, hideChordLabels, layout, renderState.groups],
   );
   const battleHints = useMemo(
     () => computeVoicingBattleHints(
@@ -1413,7 +1429,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               activeGroupId={effectiveActiveGroupId}
             />
           ))}
-          {activeStaves.length > 0 && [layout.measureDividerX, STAFF_LINE_RIGHT_X].map(x => (
+          {activeStaves.length > 0 && Array.from(new Set([layout.measureDividerX, STAFF_LINE_RIGHT_X])).map(x => (
             <line
               key={`system-barline-${x}`}
               data-staff-barline={x}

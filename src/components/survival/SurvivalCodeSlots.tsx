@@ -298,13 +298,13 @@ const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
               className={cn(
                 'flex',
                 rowWithStaff
-                  ? 'flex-row flex-1 gap-2 items-center justify-center w-full max-w-[min(42rem,calc(100vw-2rem))] mx-auto'
+                  ? 'flex-row flex-1 gap-3 items-center justify-center w-full max-w-[min(56rem,calc(100vw-2rem))] mx-auto'
                   : isProgressionStage
                     ? 'flex-1 max-w-[24rem] mx-auto'
                     : 'flex-1 min-w-0'
               )}
             >
-              <div className={rowWithStaff ? 'min-w-0 flex-1' : undefined}>
+              <div className={rowWithStaff ? 'shrink-0 w-[10rem] md:w-[12rem]' : undefined}>
                 <SlotDisplay
                   slot={slot}
                   nextSlot={nextSlots[index]}

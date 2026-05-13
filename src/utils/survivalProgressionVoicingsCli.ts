@@ -9,6 +9,12 @@ import {
   survivalVoicingToNoteNames,
 } from './survivalProgressionVoicings';
 import { buildProgressionChordDefinitions } from './survivalProgressionChords';
+import { buildSurvivalProgressionMigrationSql } from './survivalProgressionMigrationGenerator';
+import { SURVIVAL_PROGRESSION_MIGRATION_INPUTS } from './survivalProgressionMigrationData';
+
+const MIGRATION_HEADER =
+  '-- Augment survival_stages.chord_progression with voicing_names + key_fifths.\n'
+  + '-- 自動生成（scripts/survival-progression-voicings.mjs --gen-migration）。';
 
 export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void => {
   const args = argv.filter(a => a !== '--');
@@ -27,12 +33,21 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
     process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
     return;
   }
+  if (args[0] === '--gen-migration') {
+    const sql = buildSurvivalProgressionMigrationSql(
+      SURVIVAL_PROGRESSION_MIGRATION_INPUTS,
+      MIGRATION_HEADER,
+    );
+    process.stdout.write(sql);
+    return;
+  }
   const input = args.join(' ').trim();
   if (!input) {
     process.stderr.write(
       'Usage: node scripts/survival-progression-voicings.mjs "Dm7(9) G7(9.13) CM7(9) CM7(9)"\n' +
         '       node scripts/survival-progression-voicings.mjs --dump-map\n' +
         '       node scripts/survival-progression-voicings.mjs --dump-forms-map\n' +
+        '       node scripts/survival-progression-voicings.mjs --gen-migration\n' +
         '  JSON に chordProgressionForDb（voicing_names / key_fifths 付き）を含めます。\n',
     );
     process.exitCode = 1;
