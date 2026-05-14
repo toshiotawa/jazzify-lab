@@ -112,17 +112,18 @@ enum LessonJourneyLayoutBuilder {
         logicalWidth: CGFloat,
         locale: AppLocale
     ) -> String {
-        let lessonKey = lessons.map { lesson in
-            [
-                lesson.id.uuidString,
-                String(lesson.blockNumber),
-                lesson.blockName ?? "",
-                lesson.blockNameEn ?? "",
-                String(lesson.orderIndex)
-            ].joined(separator: ":")
+        var hasher = Hasher()
+        hasher.combine(logicalWidth)
+        hasher.combine(locale.rawValue)
+        hasher.combine(lessons.count)
+        for lesson in lessons {
+            hasher.combine(lesson.id)
+            hasher.combine(lesson.blockNumber)
+            hasher.combine(lesson.orderIndex)
+            hasher.combine(lesson.blockName ?? "")
+            hasher.combine(lesson.blockNameEn ?? "")
         }
-        .joined(separator: "|")
-        return "\(logicalWidth):\(locale.rawValue):\(lessonKey)"
+        return String(hasher.finalize())
     }
 
     static func build(

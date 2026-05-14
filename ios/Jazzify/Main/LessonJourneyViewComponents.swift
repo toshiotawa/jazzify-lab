@@ -26,7 +26,7 @@ struct LessonJourneyBackgroundView: View {
         self.heightPx = heightPx
         // Web 実装と同じ密度感に揃える: base (widthPx * heightPx) / 16000
         let area = max(0, Double(widthPx) * Double(heightPx))
-        let baseCount = Int(min(180, max(60, area / 16000)))
+        let baseCount = Int(min(120, max(60, area / 16000)))
         self.farStars = Star.generate(
             count: baseCount,
             width: widthPx,
@@ -35,7 +35,7 @@ struct LessonJourneyBackgroundView: View {
             breath: false
         )
         self.nearStars = Star.generate(
-            count: max(16, baseCount / 4),
+            count: min(16, max(8, baseCount / 6)),
             width: widthPx,
             height: heightPx,
             seed: 104_729,
@@ -157,14 +157,12 @@ private struct StarDotView: View {
             .opacity(opacityValue)
             .position(x: star.x, y: star.y)
             .onAppear {
-                // 初期相をずらして全星が同時に瞬かないようにする
-                DispatchQueue.main.asyncAfter(deadline: .now() + star.phaseOffset * 0.25) {
-                    withAnimation(
-                        .easeInOut(duration: star.duration)
-                            .repeatForever(autoreverses: true)
-                    ) {
-                        animate = true
-                    }
+                withAnimation(
+                    .easeInOut(duration: star.duration)
+                        .repeatForever(autoreverses: true)
+                        .delay(star.phaseOffset * 0.25)
+                ) {
+                    animate = true
                 }
             }
     }

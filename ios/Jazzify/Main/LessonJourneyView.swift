@@ -11,9 +11,17 @@ struct LessonJourneyView: View {
     let course: Course
     let initialLessons: [Lesson]
     let initialCompletedLessonIds: Set<UUID>
+    let onCompletedIdsChanged: ((Set<UUID>) -> Void)?
+    let onLessonsUpdated: (([Lesson]) -> Void)?
 
     @State private var lessons: [Lesson]
     @State private var completedLessonIds: Set<UUID>
+    @State private var layout: LessonJourneyLayout
+    @State private var accessGraph: LessonJourneyAccessGraph
+    @State private var frontierLessonId: UUID?
+    @State private var accessibleBlockIndex: Int
+    @State private var allCleared: Bool
+    @State private var isLoadingLessons = false
     @State private var selectedLesson: Lesson?
     @State private var launchLesson: Lesson?
     @State private var showSheet = false
@@ -25,18 +33,44 @@ struct LessonJourneyView: View {
 
     private var locale: AppLocale { appState.locale }
 
-    init(course: Course, lessons: [Lesson], completedLessonIds: Set<UUID>) {
+    init(
+        course: Course,
+        lessons: [Lesson],
+        completedLessonIds: Set<UUID>,
+        onCompletedIdsChanged: ((Set<UUID>) -> Void)? = nil,
+        onLessonsUpdated: (([Lesson]) -> Void)? = nil
+    ) {
         self.course = course
         self.initialLessons = lessons
         self.initialCompletedLessonIds = completedLessonIds
+        self.onCompletedIdsChanged = onCompletedIdsChanged
+        self.onLessonsUpdated = onLessonsUpdated
         self._lessons = State(initialValue: lessons)
         self._completedLessonIds = State(initialValue: completedLessonIds)
+        let derived = Self.computeDerived(
+            lessons: lessons,
+            completedLessonIds: completedLessonIds,
+            locale: .ja
+        )
+        self._layout = State(initialValue: derived.layout)
+        self._accessGraph = State(initialValue: derived.accessGraph)
+        self._frontierLessonId = State(initialValue: derived.frontierLessonId)
+        self._accessibleBlockIndex = State(initialValue: derived.accessibleBlockIndex)
+        self._allCleared = State(initialValue: derived.allCleared)
     }
 
-    // MARK: - Derived
-
-    private var journeyInputs: [LessonJourneyInput] {
-        lessons.map {
+    private static func computeDerived(
+        lessons: [Lesson],
+        completedLessonIds: Set<UUID>,
+        locale: AppLocale
+    ) -> (
+         layout: LessonJourneyLayout,
+         accessGraph: LessonJourneyAccessGraph,
+         frontierLessonId: UUID?,
+         accessibleBlockIndex: Int,
+         allCleared: Bool
+     ) {
+        let inputs: [LessonJourneyInput] = lessons.map {
             LessonJourneyInput(
                 id: $0.id,
                 blockNumber: $0.blockNumber ?? 1,
@@ -45,30 +79,38 @@ struct LessonJourneyView: View {
                 orderIndex: $0.orderIndex
             )
         }
-    }
-
-    private var layout: LessonJourneyLayout {
-        LessonJourneyLayoutBuilder.build(lessons: journeyInputs, locale: locale)
-    }
-
-    private var accessGraph: LessonJourneyAccessGraph {
-        LessonJourneyAccessGraph.build(lessons: lessons, completedIds: completedLessonIds)
-    }
-
-    private var frontierLessonId: UUID? {
-        LessonJourneyFrontier.compute(
-            lessons: journeyInputs,
+        let layout = LessonJourneyLayoutBuilder.build(lessons: inputs, locale: locale)
+        let accessGraph = LessonJourneyAccessGraph.build(lessons: lessons, completedIds: completedLessonIds)
+        let frontierLessonId = LessonJourneyFrontier.compute(
+            lessons: inputs,
             isUnlocked: { id in accessGraph.lessonStates[id]?.isUnlocked ?? false },
             isCompleted: { id in accessGraph.lessonStates[id]?.isCompleted ?? false }
         )
+        var accessibleBlockIndex = 0
+        for block in layout.blocks {
+            if let bs = accessGraph.blockStates[block.blockNumber], bs.isUnlocked {
+                accessibleBlockIndex = max(accessibleBlockIndex, block.blockIndex)
+            }
+        }
+        let allCleared = !lessons.isEmpty && lessons.allSatisfy { completedLessonIds.contains($0.id) }
+        return (layout, accessGraph, frontierLessonId, accessibleBlockIndex, allCleared)
+    }
+
+    private func recomputeJourney() {
+        let d = Self.computeDerived(
+            lessons: lessons,
+            completedLessonIds: completedLessonIds,
+            locale: locale
+        )
+        layout = d.layout
+        accessGraph = d.accessGraph
+        frontierLessonId = d.frontierLessonId
+        accessibleBlockIndex = d.accessibleBlockIndex
+        allCleared = d.allCleared
     }
 
     private var completedCount: Int {
         lessons.filter { completedLessonIds.contains($0.id) }.count
-    }
-
-    private var progressPercent: Int {
-        lessons.isEmpty ? 0 : Int((Double(completedCount) / Double(lessons.count)) * 100.0)
     }
 
     /// iPad のみ 2 カラム (リスト + マップ) にする。
@@ -137,6 +179,11 @@ struct LessonJourneyView: View {
             } else {
                 mapContent
             }
+
+            if isLoadingLessons && lessons.isEmpty {
+                ProgressView()
+                    .tint(.purple)
+            }
         }
         .navigationTitle(course.localizedTitle(locale))
         .navigationBarTitleDisplayMode(.inline)
@@ -164,6 +211,14 @@ struct LessonJourneyView: View {
         }
         .onDisappear {
             LessonMapAudio.shared.stop()
+            onCompletedIdsChanged?(completedLessonIds)
+        }
+        .task {
+            await loadCourseContentIfNeeded()
+            recomputeJourney()
+        }
+        .onChange(of: appState.locale) { _ in
+            recomputeJourney()
         }
         .sheet(isPresented: $showSheet) {
             if let lesson = selectedLesson {
@@ -365,24 +420,6 @@ struct LessonJourneyView: View {
 
     // MARK: - Helpers
 
-    private var accessibleBlockIndex: Int {
-        var idx = 0
-        for block in layout.blocks {
-            if let bs = accessGraph.blockStates[block.blockNumber], bs.isUnlocked {
-                idx = max(idx, block.blockIndex)
-            }
-        }
-        return idx
-    }
-
-    private var allCleared: Bool {
-        !lessons.isEmpty && lessons.allSatisfy { completedLessonIds.contains($0.id) }
-    }
-
-    private func isBlockCleared(block: LessonJourneyBlockLayout) -> Bool {
-        accessGraph.blockStates[block.blockNumber]?.isCompleted ?? false
-    }
-
     private func accessState(for node: LessonJourneyNode) -> LessonJourneyAccessGraph.LessonState {
         guard let id = node.lessonId else {
             return LessonJourneyAccessGraph.LessonState(isUnlocked: false, isCompleted: false)
@@ -460,8 +497,41 @@ struct LessonJourneyView: View {
             let progress = try await SupabaseService.shared.fetchLessonProgress(courseId: course.id, userId: userId)
             let done = Set(progress.filter(\.completed).map(\.lessonId))
             completedLessonIds = done
+            recomputeJourney()
+            onCompletedIdsChanged?(done)
         } catch {
             // keep existing
+        }
+    }
+
+    private func loadCourseContentIfNeeded() async {
+        guard lessons.isEmpty else { return }
+        isLoadingLessons = true
+        defer { isLoadingLessons = false }
+        do {
+            let raw = try await SupabaseService.shared.fetchLessons(courseId: course.id)
+            let sorted = raw.sorted { lhs, rhs in
+                let leftBlock = lhs.blockNumber ?? 1
+                let rightBlock = rhs.blockNumber ?? 1
+                if leftBlock != rightBlock {
+                    return leftBlock < rightBlock
+                }
+                return lhs.orderIndex < rhs.orderIndex
+            }
+            var done = Set<UUID>()
+            if let userId = appState.profile?.id {
+                if let progress = try? await SupabaseService.shared.fetchLessonProgress(
+                    courseId: course.id,
+                    userId: userId
+                ) {
+                    done = Set(progress.filter(\.completed).map(\.lessonId))
+                }
+            }
+            lessons = sorted
+            completedLessonIds = done
+            onLessonsUpdated?(sorted)
+        } catch {
+            lessons = []
         }
     }
 }

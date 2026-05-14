@@ -11,6 +11,8 @@ struct LessonListView: View {
     @State private var showLessonInfo = false
     @State private var showSubscription = false
     @State private var journeyCourse: JourneyCourseLaunch?
+    /// マップを閉じたあと進捗を同期する対象（一覧で再 fetch するコース）
+    @State private var lastJourneyCourseId: UUID?
 
     private var locale: AppLocale { appState.locale }
 
@@ -79,14 +81,20 @@ struct LessonListView: View {
                     LessonJourneyView(
                         course: launch.course,
                         lessons: lessonsMap[launch.course.id] ?? [],
-                        completedLessonIds: progressMap[launch.course.id] ?? []
+                        completedLessonIds: progressMap[launch.course.id] ?? [],
+                        onCompletedIdsChanged: { ids in
+                            progressMap[launch.course.id] = ids
+                        },
+                        onLessonsUpdated: { lessons in
+                            lessonsMap[launch.course.id] = lessons
+                        }
                     )
                 }
             }
             .onChange(of: journeyCourse == nil) { isNil in
-                if isNil {
-                    Task { await reloadAllProgress() }
-                }
+                guard isNil, let courseId = lastJourneyCourseId else { return }
+                lastJourneyCourseId = nil
+                Task { await reloadProgressForCourse(courseId: courseId) }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -157,11 +165,12 @@ struct LessonListView: View {
                         .foregroundStyle(.gray)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
+            .background(Color(hex: "1e293b"), in: RoundedRectangle(cornerRadius: 12))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
-        .background(Color(hex: "1e293b"))
-        .cornerRadius(12)
     }
 
     private func handleCourseTap(_ course: Course) {
@@ -173,18 +182,15 @@ struct LessonListView: View {
                     showSubscription = true
                     return
                 }
-                await openJourney(for: course)
+                openJourney(for: course)
             }
             return
         }
-        Task { await openJourney(for: course) }
+        openJourney(for: course)
     }
 
-    @MainActor
-    private func openJourney(for course: Course) async {
-        if lessonsMap[course.id] == nil {
-            await loadLessons(for: course.id)
-        }
+    private func openJourney(for course: Course) {
+        lastJourneyCourseId = course.id
         journeyCourse = JourneyCourseLaunch(id: course.id, course: course)
     }
 
@@ -215,24 +221,16 @@ struct LessonListView: View {
     private func prefetchAllCourseProgress() async {
         let userId = appState.profile?.id
         let targetCourses = courses
-        await withTaskGroup(of: (UUID, [Lesson], Set<UUID>?).self) { group in
+
+        await withTaskGroup(of: (UUID, [Lesson]).self) { group in
             for course in targetCourses {
                 group.addTask {
                     let lessons = (try? await SupabaseService.shared.fetchLessons(courseId: course.id)) ?? []
-                    var completed: Set<UUID>? = nil
-                    if let userId {
-                        if let progress = try? await SupabaseService.shared.fetchLessonProgress(
-                            courseId: course.id,
-                            userId: userId
-                        ) {
-                            completed = Set(progress.filter(\.completed).map(\.lessonId))
-                        }
-                    }
-                    return (course.id, lessons, completed)
+                    return (course.id, lessons)
                 }
             }
 
-            for await (courseId, lessons, completed) in group {
+            for await (courseId, lessons) in group {
                 let sorted = lessons.sorted { lhs, rhs in
                     let leftBlock = lhs.blockNumber ?? 1
                     let rightBlock = rhs.blockNumber ?? 1
@@ -242,10 +240,36 @@ struct LessonListView: View {
                     return lhs.orderIndex < rhs.orderIndex
                 }
                 lessonsMap[courseId] = sorted
-                if let completed {
-                    progressMap[courseId] = completed
-                } else if progressMap[courseId] == nil {
-                    progressMap[courseId] = []
+            }
+        }
+
+        guard let userId else { return }
+
+        let priorityCount = min(8, targetCourses.count)
+        let prioritySlice = Array(targetCourses.prefix(priorityCount))
+        let restSlice = Array(targetCourses.dropFirst(priorityCount))
+
+        for course in prioritySlice {
+            if let progress = try? await SupabaseService.shared.fetchLessonProgress(
+                courseId: course.id,
+                userId: userId
+            ) {
+                progressMap[course.id] = Set(progress.filter(\.completed).map(\.lessonId))
+            }
+        }
+
+        let rest = restSlice
+        let backgroundUserId = userId
+        Task(priority: .background) {
+            for course in rest {
+                if let progress = try? await SupabaseService.shared.fetchLessonProgress(
+                    courseId: course.id,
+                    userId: backgroundUserId
+                ) {
+                    let completed = Set(progress.filter(\.completed).map(\.lessonId))
+                    await MainActor.run {
+                        progressMap[course.id] = completed
+                    }
                 }
             }
         }
@@ -257,39 +281,14 @@ struct LessonListView: View {
         return .gray
     }
 
-    private func reloadAllProgress() async {
+    private func reloadProgressForCourse(courseId: UUID) async {
         guard let userId = appState.profile?.id else { return }
-        for courseId in lessonsMap.keys {
-            do {
-                let progress = try await SupabaseService.shared.fetchLessonProgress(courseId: courseId, userId: userId)
-                let completedIds = Set(progress.filter(\.completed).map(\.lessonId))
-                progressMap[courseId] = completedIds
-            } catch {
-                // keep existing progress on failure
-            }
-        }
-    }
-
-    private func loadLessons(for courseId: UUID) async {
         do {
-            let lessons = try await SupabaseService.shared.fetchLessons(courseId: courseId)
-                .sorted { lhs, rhs in
-                    let leftBlock = lhs.blockNumber ?? 1
-                    let rightBlock = rhs.blockNumber ?? 1
-                    if leftBlock != rightBlock {
-                        return leftBlock < rightBlock
-                    }
-                    return lhs.orderIndex < rhs.orderIndex
-                }
-            lessonsMap[courseId] = lessons
-
-            if let userId = appState.profile?.id {
-                let progress = try await SupabaseService.shared.fetchLessonProgress(courseId: courseId, userId: userId)
-                let completedIds = Set(progress.filter(\.completed).map(\.lessonId))
-                progressMap[courseId] = completedIds
-            }
+            let progress = try await SupabaseService.shared.fetchLessonProgress(courseId: courseId, userId: userId)
+            let completedIds = Set(progress.filter(\.completed).map(\.lessonId))
+            progressMap[courseId] = completedIds
         } catch {
-            lessonsMap[courseId] = []
+            // keep existing progress on failure
         }
     }
 }
