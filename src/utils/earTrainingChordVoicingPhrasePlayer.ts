@@ -116,6 +116,11 @@ export class EarTrainingChordVoicingPhrasePlayer {
     }
   }
 
+  /** `prepare`/`playPrepared` が内部で用意したコンテキスト。ドラムループ等と共有する。 */
+  getAudioContext(): AudioContext | null {
+    return this.ctx;
+  }
+
   async prepare(url: string): Promise<PreparedChordVoicingPhrase> {
     const ctx = this.createCtx();
     let promise = this.decodeByUrl.get(url);

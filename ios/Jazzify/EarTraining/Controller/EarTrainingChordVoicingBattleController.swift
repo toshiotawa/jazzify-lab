@@ -14,6 +14,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
 
+    private static let chordVoicingSelfPacedDrumLoopURL =
+        URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
+
     /// カウントイン中に組み立て、終了直後は適用＋再生だけに寄せる。
     private struct PreparedPhraseStart {
         let phraseIndex: Int
@@ -125,6 +128,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var progressSaveStarted: Bool = false
     private var allChordsCompletedFlag: Bool = false
     private var lastLoopAttackApplied: Int = 0
+    /// self-paced でドラム BGM が既に開始済みか（フレーズ遷移で二重開始しない）。
+    private var selfPacedDrumLoopPlaybackStarted = false
 
     var damageConfig: EarTrainingDamageConfig {
         if practiceMode { return Self.zeroDamage }
@@ -321,6 +326,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     func handleBack() {
         cancelAllTimers()
+        audio.stopDrumLoop()
         audio.stopPhrase()
         onExitCallback()
     }
@@ -632,6 +638,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         activeMeasureNumber = 1
         completionPulse = nil
         cancelAllTimers()
+        selfPacedDrumLoopPlaybackStarted = false
+        audio.stopDrumLoop()
         audio.stopPhrase()
 
         if stage.resolvedChordVoicingSelfPaced {
@@ -645,7 +653,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                     self.finishGameOver(message: self.copy.audioFailed)
                     return
                 }
-                _ = await self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
+                async let phraseReady = self.audio.preparePhraseForImmediatePlayback(url: prepared.url)
+                async let drumReady = self.audio.prepareDrumLoop(url: Self.chordVoicingSelfPacedDrumLoopURL)
+                _ = await phraseReady
+                _ = await drumReady
                 if Task.isCancelled { return }
                 self.beginPhrasePlayback(
                     prepared: prepared,
@@ -783,6 +794,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             self.gameState = .playingPhrase
             if startsTimeLimit {
                 self.startTimeLimit()
+            }
+            if self.stage.resolvedChordVoicingSelfPaced, !self.selfPacedDrumLoopPlaybackStarted {
+                self.selfPacedDrumLoopPlaybackStarted = true
+                self.audio.startDrumLoop()
             }
             self.syncChordTimeline(scheduleNext: true)
         }
@@ -1063,6 +1078,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         gameState = .stageClear
         lastRank = rank
         statusText = copy.stageClear
+        audio.stopDrumLoop()
         audio.stopPhrase()
         triggerFeedback(.clear)
         publishSnapshot()
@@ -1088,6 +1104,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelAllTimers()
         gameState = .gameOver
         statusText = message
+        audio.stopDrumLoop()
         audio.stopPhrase()
         publishSnapshot()
     }

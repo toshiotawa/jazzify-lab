@@ -32,13 +32,17 @@ final class EarTrainingAudio: NSObject {
     private let phrasePlayer = AVAudioPlayerNode()
     private let clickPlayer = AVAudioPlayerNode()
     private let phraseMixer = AVAudioMixerNode()
+    private let drumPlayer = AVAudioPlayerNode()
+    private let drumMixer = AVAudioMixerNode()
 
     private let cache = EarTrainingPhraseFileCache()
     private var timeTicker: DispatchSourceTimer?
 
     private var isGraphInstalled = false
     private var lastPhraseFormat: AVAudioFormat?
+    private var lastDrumFormat: AVAudioFormat?
     private var clickPCM: AVAudioPCMBuffer?
+    private var drumPCM: AVAudioPCMBuffer?
 
     /// リモート先読み重複排除用（ロビー `preloadPhrase`）。
     private var preloadDedupeURL: URL?
@@ -83,6 +87,7 @@ final class EarTrainingAudio: NSObject {
 
     /// 終了時に呼ぶ。フレーズを完全停止し、ピアノ発音停止 + Survival のオーディオセッションを閉じる。
     func stop() {
+        stopDrumLoop()
         stopPhrase()
         if engine.isRunning {
             engine.stop()
@@ -97,6 +102,7 @@ final class EarTrainingAudio: NSObject {
         let m = clampedFloat(master)
         phraseVolume = clampedFloat(music) * m
         phraseMixer.outputVolume = phraseVolume
+        drumMixer.outputVolume = phraseVolume
         SurvivalGameAudio.shared.setPianoVolume(clampedFloat(piano))
         SurvivalGameAudio.shared.setSfxVolume(clampedFloat(sfx))
     }
@@ -104,10 +110,43 @@ final class EarTrainingAudio: NSObject {
     func setPhraseVolume(_ value: Float) {
         phraseVolume = max(0, min(1, value))
         phraseMixer.outputVolume = phraseVolume
+        drumMixer.outputVolume = phraseVolume
     }
 
     private func clampedFloat(_ value: Double) -> Float {
         Float(max(0, min(1, value)))
+    }
+
+    // MARK: - Self-paced drum loop
+
+    /// セルフペース用ドラムループをダウンロード・デコードして保持する。
+    func prepareDrumLoop(url: URL) async -> Bool {
+        do {
+            let local = try await cache.localFileURL(for: url)
+            let file = try AVAudioFile(forReading: local)
+            guard file.length > 0 else { return false }
+            guard let pcm = Self.decodeEntireFile(file: file) else { return false }
+            await MainActor.run {
+                self.ensureDrumGraph(for: file.processingFormat)
+                self.drumPCM = pcm
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// 事前に `prepareDrumLoop` で用意した PCM を `.loops` で再生する。
+    func startDrumLoop() {
+        guard let pcm = drumPCM else { return }
+        startPhraseEngineIfNeeded()
+        drumPlayer.stop()
+        drumPlayer.scheduleBuffer(pcm, at: nil, options: [.loops], completionHandler: nil)
+        drumPlayer.play()
+    }
+
+    func stopDrumLoop() {
+        drumPlayer.stop()
     }
 
     // MARK: - Phrase playback
@@ -349,13 +388,19 @@ final class EarTrainingAudio: NSObject {
         engine.attach(phrasePlayer)
         engine.attach(clickPlayer)
         engine.attach(phraseMixer)
+        engine.attach(drumPlayer)
+        engine.attach(drumMixer)
         engine.connect(phrasePlayer, to: phraseMixer, format: defaultFormat)
         engine.connect(clickPlayer, to: phraseMixer, format: defaultFormat)
         engine.connect(phraseMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(drumPlayer, to: drumMixer, format: defaultFormat)
+        engine.connect(drumMixer, to: engine.mainMixerNode, format: nil)
 
         lastPhraseFormat = defaultFormat
+        lastDrumFormat = defaultFormat
         rebuildClickBuffer(for: defaultFormat)
         phraseMixer.outputVolume = phraseVolume
+        drumMixer.outputVolume = phraseVolume
 
         isGraphInstalled = true
     }
@@ -386,12 +431,52 @@ final class EarTrainingAudio: NSObject {
         }
     }
 
+    private func ensureDrumGraph(for format: AVAudioFormat) {
+        installGraphIfNeeded()
+
+        if lastDrumFormat?.isEqual(format) == true {
+            drumMixer.outputVolume = phraseVolume
+            return
+        }
+
+        let wasRunning = engine.isRunning
+        if wasRunning {
+            engine.stop()
+        }
+
+        engine.disconnectNodeInput(drumMixer)
+        engine.connect(drumPlayer, to: drumMixer, format: format)
+
+        lastDrumFormat = format
+        drumMixer.outputVolume = phraseVolume
+
+        if wasRunning || isPhraseEngineRunning {
+            try? engine.start()
+        }
+    }
+
+    /// フレーズファイル全体を PCM に読み込む（短いドラムループ前提）。
+    private static func decodeEntireFile(file: AVAudioFile) -> AVAudioPCMBuffer? {
+        let frames = file.length
+        guard frames > 0, frames <= Int64(AVAudioFrameCount.max) else { return nil }
+        let capacity = AVAudioFrameCount(truncatingIfNeeded: frames)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: capacity) else { return nil }
+        file.framePosition = 0
+        do {
+            try file.read(into: buffer)
+            return buffer.frameLength > 0 ? buffer : nil
+        } catch {
+            return nil
+        }
+    }
+
     private func startPhraseEngineIfNeeded() {
         guard !engine.isRunning else { return }
         do {
             try engine.start()
             isPhraseEngineRunning = true
             phraseMixer.outputVolume = phraseVolume
+            drumMixer.outputVolume = phraseVolume
             engine.mainMixerNode.outputVolume = 1.0
         } catch {
             isPhraseEngineRunning = false

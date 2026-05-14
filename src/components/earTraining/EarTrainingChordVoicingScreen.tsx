@@ -66,6 +66,10 @@ import {
   getEarTrainingGameCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import {
+  CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
+  EarTrainingChordVoicingDrumLoop,
+} from '@/utils/earTrainingChordVoicingDrumLoop';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
 import { getChordVoicingQuoteDisplayText } from '@/utils/earTrainingChordVoicingQuote';
 import {
@@ -256,6 +260,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const [completionPulse, setCompletionPulse] = useState<ChordVoicingCompletionPulse | null>(null);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
+  const selfPacedDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
   const phaserContainerRef = useRef<HTMLDivElement | null>(null);
@@ -321,9 +326,27 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     return phrasePlayerRef.current;
   }, []);
 
+  const ensureSelfPacedDrumLoop = useCallback((): EarTrainingChordVoicingDrumLoop => {
+    if (!selfPacedDrumLoopRef.current) {
+      selfPacedDrumLoopRef.current = new EarTrainingChordVoicingDrumLoop();
+    }
+    return selfPacedDrumLoopRef.current;
+  }, []);
+
+  const stopSelfPacedDrumLoop = useCallback(() => {
+    selfPacedDrumLoopRef.current?.stop();
+  }, []);
+
   useEffect(() => {
     phrasePlayerRef.current?.setVolume(settings.musicVolume * settings.masterVolume);
   }, [settings.masterVolume, settings.musicVolume]);
+
+  useEffect(() => {
+    if (!chordVoicingSelfPaced) {
+      return;
+    }
+    selfPacedDrumLoopRef.current?.setVolume(settings.musicVolume * settings.masterVolume);
+  }, [chordVoicingSelfPaced, settings.masterVolume, settings.musicVolume]);
 
   const clearFailTimer = useCallback(() => {
     if (failTimerRef.current) {
@@ -463,6 +486,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearTimeLimitTimer();
     gameStateRef.current = 'stageClear';
     stopPhraseAudio();
+    stopSelfPacedDrumLoop();
     setLastRank(rank);
     setGameState('stageClear');
     setStatusText(copy.stageClear);
@@ -484,6 +508,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     onLessonStageClear,
     practiceMode,
     stopPhraseAudio,
+    stopSelfPacedDrumLoop,
     triggerFeedback,
   ]);
 
@@ -494,9 +519,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearTimeLimitTimer();
     gameStateRef.current = 'gameOver';
     stopPhraseAudio();
+    stopSelfPacedDrumLoop();
     setGameState('gameOver');
     setStatusText(message);
-  }, [clearFailTimer, clearTimeLimitTimer, clearTransitionTimer, stopPhraseAudio]);
+  }, [clearFailTimer, clearTimeLimitTimer, clearTransitionTimer, stopPhraseAudio, stopSelfPacedDrumLoop]);
 
   const failCurrentPhrase = useCallback(() => {
     const currentAttempt = attemptRef.current;
@@ -975,6 +1001,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearTransitionTimer();
     clearTimeLimitTimer();
     stopPhraseAudio();
+    if (chordVoicingSelfPaced) {
+      stopSelfPacedDrumLoop();
+    }
 
     if (chordVoicingSelfPaced) {
       setCountInValue(0);
@@ -999,6 +1028,16 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           setStatusText(copy.audioFailed);
           return;
         }
+        const phraseCtx = player.getAudioContext();
+        if (phraseCtx) {
+          try {
+            const drum = ensureSelfPacedDrumLoop();
+            await drum.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL, phraseCtx);
+            drum.setVolume(settings.masterVolume * settings.musicVolume);
+          } catch {
+            // ドラム取得失敗時はフレーズ時計のみ
+          }
+        }
         if (!practiceMode) {
           startTimeLimit();
         }
@@ -1006,6 +1045,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           prepared,
           phraseGain: 0,
           onPhraseStarted: () => {
+            ensureSelfPacedDrumLoop().start();
             syncAudioTimelineRef.current();
           },
           onEnded: () => {
@@ -1086,6 +1126,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     copy,
     copy.audioFailed,
     ensurePhrasePlayer,
+    ensureSelfPacedDrumLoop,
     finishGameOver,
     phrases,
     prepareChordVoicingPhrasePlayback,
@@ -1101,6 +1142,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     practiceMode,
     startTimeLimit,
     stopPhraseAudio,
+    stopSelfPacedDrumLoop,
   ]);
 
   const transitionToNextPhrase = useCallback((rank: EarTrainingRank, phrase: EarTrainingPhrase) => {
@@ -1433,6 +1475,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       clearTimeLimitTimer();
       clearTransitionTimer();
       stopPhraseAudio();
+      selfPacedDrumLoopRef.current?.dispose();
+      selfPacedDrumLoopRef.current = null;
       phrasePlayerRef.current?.dispose();
       phrasePlayerRef.current = null;
     };

@@ -150,6 +150,14 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     player.dispose();
   });
 
+  it('getAudioContext は prepare 前は null、prepare 後は注入したコンテキスト', async () => {
+    const { player, mockCtx } = makePlayer();
+    expect(player.getAudioContext()).toBeNull();
+    await player.prepare('https://example.com/e.mp3');
+    expect(player.getAudioContext()).toBe(mockCtx as unknown as AudioContext);
+    player.dispose();
+  });
+
   it('getCurrentTime はフレーズ頭までは 0、再生後は経過秒を返す', async () => {
     vi.useFakeTimers();
     const { player, mockCtx } = makePlayer();
