@@ -24,7 +24,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let url: URL
     }
 
-    @Published private(set) var gameState: EarTrainingGameState = .idle
+    @Published private(set) var gameState: EarTrainingGameState = .idle {
+        didSet {
+            if oldValue != gameState {
+                updatePlayerQuoteBubble()
+            }
+        }
+    }
     @Published private(set) var phraseIndex: Int = 0
     @Published private(set) var phraseRunId: Int = 0
     @Published private(set) var attempt: EarTrainingChordVoicingAttempt? {
@@ -35,12 +41,18 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var timeRemaining: Int
     @Published private(set) var countInValue: Int
     @Published private(set) var activeChord: EarTrainingPhraseChordDetail? {
-        didSet { recomputeVoicingHints() }
+        didSet {
+            recomputeVoicingHints()
+            if oldValue?.id != activeChord?.id {
+                updatePlayerQuoteBubble()
+            }
+        }
     }
     @Published private(set) var countInEarlyInputActive = false {
         didSet {
             if oldValue != countInEarlyInputActive {
                 recomputeVoicingHints()
+                updatePlayerQuoteBubble()
             }
         }
     }
@@ -1008,6 +1020,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             isEnglishCopy: isEnglishCopy
         )
         scene?.applySnapshot(snapshot)
+        updatePlayerQuoteBubble()
+    }
+
+    /// `activeChord` / `gameState` / `countInEarlyInputActive` のいずれかが変わるたびに
+    /// シーンの吹き出しを最新化する。
+    private func updatePlayerQuoteBubble() {
         scene?.setPlayerQuote(Self.playerQuoteBubbleTextForScene(
             gameState: gameState,
             activeChord: activeChord,

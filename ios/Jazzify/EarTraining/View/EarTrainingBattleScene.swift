@@ -1265,7 +1265,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         if playerQuoteBubbleRoot == nil || playerQuoteBubbleRoot?.parent !== footContainer {
             playerQuoteBubbleRoot?.removeFromParent()
             let root = SKNode()
-            root.zPosition = 6
+            // 五線譜オーバーレイ (`phraseLayer.zPosition = 20`) より奥に配置。
+            // 親 `characterLayer (10) + container (5)` に対し負値で打ち消すことで
+            // 累積 zPosition を 12 にし、phraseLayer の譜面より下のレイヤーに描画する。
+            root.zPosition = -3
             root.position = CGPoint(x: 0, y: Self.characterDisplaySize + 12)
             footContainer.addChild(root)
             playerQuoteBubbleRoot = root
