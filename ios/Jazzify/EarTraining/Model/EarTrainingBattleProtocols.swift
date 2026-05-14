@@ -44,6 +44,8 @@ protocol EarTrainingLobbyPresentable: ObservableObject {
     var hudLabels: EarTrainingBattleHudLabels { get }
     var stageTitleForLobby: String { get }
     var isEnglishCopy: Bool { get }
+    /// コードクイズ: ロビーモーダルに常時表示するルール文（他モードは nil）
+    var quizRulesLine: String? { get }
 
     func startBattle()
     func handleBack()

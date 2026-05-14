@@ -886,6 +886,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     statusText,
     hudLabels,
     phraseIntroLine,
+    quizRulesLine: chordQuizBannerLine,
     resultRankLine,
     timeLabel,
     practiceMode,
@@ -930,6 +931,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }), [
     activeChord,
     canChangePracticeMode,
+    chordQuizBannerLine,
     countInValue,
     enemyAttackGaugePercent,
     enemyAvatar,

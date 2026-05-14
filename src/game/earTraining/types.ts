@@ -79,6 +79,8 @@ export interface EarTrainingBattleSnapshot {
   canChangePracticeMode: boolean;
   startButtonLabel: string;
   lessonProgressText: string | null;
+  /** コードクイズ: ロビーモーダルに常時表示するルール文 */
+  quizRulesLine?: string;
 }
 
 export interface EarTrainingBattleCallbacks {

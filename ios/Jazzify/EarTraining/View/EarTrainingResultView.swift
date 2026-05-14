@@ -10,6 +10,13 @@ struct EarTrainingResultView<Host: EarTrainingLobbyPresentable>: View {
                 Color.black.opacity(0.55).ignoresSafeArea()
                 VStack(spacing: 14) {
                     titleLine
+                    if let rules = host.quizRulesLine?.trimmingCharacters(in: .whitespacesAndNewlines), !rules.isEmpty {
+                        Text(rules)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.88))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if let rankLine = host.resultRankLine {
                         Text(rankLine)
                             .font(.system(size: 16, weight: .heavy))

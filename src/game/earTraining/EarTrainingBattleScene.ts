@@ -6,6 +6,7 @@ import type {
   EarTrainingBattleSnapshot,
 } from './types';
 import { EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS } from '@/utils/constants';
+import { playEarTrainingBattleMagicSfx } from '@/utils/earTrainingBattleSfx';
 import {
   clampBattleCharacterX,
   getBattleCharacterMinDistance,
@@ -782,16 +783,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const barColor = isPlayer
       ? colorForHp(percent, 0x34d399, 0xfbbf24, 0xef4444)
       : colorForHp(percent, 0xfb7185, 0xf59e0b, 0xbe123c);
-    const labelText = this.add.text(x, y, `${hp}/${maxHp}`, {
-      color: isPlayer ? '#bbf7d0' : '#ffe4e6',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '12px',
-      fontStyle: '900',
-    }).setOrigin(0, 0);
-    const frame = this.add.rectangle(x, y + 24, width, 12, 0x020617, 0.9).setOrigin(0, 0);
+    const frame = this.add.rectangle(x, y, width, 12, 0x020617, 0.9).setOrigin(0, 0);
     frame.setStrokeStyle(1, 0xffffff, 0.14);
-    const fill = this.add.rectangle(x + 2, y + 26, Math.max(0, (width - 4) * percent), 8, barColor, 1).setOrigin(0, 0);
-    this.hudLayer.add([labelText, frame, fill]);
+    const fill = this.add.rectangle(x + 2, y + 2, Math.max(0, (width - 4) * percent), 8, barColor, 1).setOrigin(0, 0);
+    this.hudLayer.add([frame, fill]);
   }
 
   private drawChordHud(width: number, y: number): void {
@@ -1076,6 +1071,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
+    playEarTrainingBattleMagicSfx('quota');
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
     const cx = width / 2;
@@ -1206,6 +1202,20 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const overlay = this.add.rectangle(0, 0, width, height, 0x020617, 0.62).setOrigin(0, 0);
     this.hudLayer.add(overlay);
 
+    const rulesTrimmed = snapshot.quizRulesLine?.trim() ?? '';
+    if (rulesTrimmed) {
+      const rulesY = snapshot.resultState ? height * 0.42 : height * 0.34;
+      const rules = this.add.text(width / 2, rulesY, rulesTrimmed, {
+        color: '#e2e8f0',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '16px',
+        fontStyle: '700',
+        align: 'center',
+        wordWrap: { width: Math.min(520, width - 48) },
+      }).setOrigin(0.5, 0.5);
+      this.hudLayer.add(rules);
+    }
+
     const resultLabel = this.getResultLabel(snapshot.resultState);
     if (resultLabel) {
       const result = this.add.text(width / 2, height * 0.3, resultLabel, {
@@ -1333,6 +1343,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
+    playEarTrainingBattleMagicSfx('fireball');
     this.holdCharacterForAction('player', 'cast', 720);
     this.showCorrectPlayerPose();
     const width = Math.max(320, this.scale.width);
@@ -1524,6 +1535,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playSnowflakeEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
+    playEarTrainingBattleMagicSfx('snowflake');
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.6);
     const snowflakeGuide = this.createSnowflake(anchors.player.x + 42, anchors.player.castY, 38);
     const snowflake = this.createEffectSprite('snowflake', anchors.player.x + 42, anchors.player.castY, 72);
@@ -1563,6 +1575,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playLightningEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
+    playEarTrainingBattleMagicSfx('lightning');
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.9);
     const cloudBase = this.createCloud(anchors.enemy.x, anchors.enemy.headY - 28);
     const cloud = this.createEffectSprite('cloud', anchors.enemy.x, anchors.enemy.headY - 32, 148);
@@ -1598,6 +1611,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
+    playEarTrainingBattleMagicSfx('meteor');
     this.zoomToPlayer(
       anchors,
       1080,

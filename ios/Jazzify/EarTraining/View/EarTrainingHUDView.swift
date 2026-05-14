@@ -98,11 +98,6 @@ struct EarTrainingHUDView: View {
         VStack(alignment: horizontalAlignment, spacing: 2) {
             HpBar(currentHp: current, maxHp: max, isEnemy: isEnemy)
                 .frame(height: 8)
-            Text("\(current) / \(max)")
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.84))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
         }
         .frame(maxWidth: .infinity, alignment: frameAlignment)
     }
@@ -293,19 +288,28 @@ struct EarTrainingHUDView: View {
 
     private var attackGauge: some View {
         let percent = hud.enemyAttackGaugePercent
-        return HStack(spacing: 0) {
+        let labelColor = percent >= 0.92 ? Color(hex: "fecaca") : Color(hex: "fda4af")
+        return HStack(alignment: .center, spacing: 8) {
+            Text("ATTACK")
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundColor(labelColor)
+                .frame(width: 52, alignment: .leading)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.white.opacity(0.14))
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(Color(hex: "fb7185").opacity(0.78), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color(hex: "fb7185"))
-                        .frame(width: proxy.size.width * CGFloat(max(0, min(1, percent))))
+                        .frame(width: max(0, proxy.size.width - 4) * CGFloat(max(0, min(1, percent))))
+                        .padding(.leading, 2)
+                        .padding(.vertical, 2)
                 }
             }
-            .frame(height: 5)
+            .frame(height: 10)
         }
-        .frame(height: 8)
+        .frame(height: 14)
         .padding(.horizontal, 14)
     }
 }

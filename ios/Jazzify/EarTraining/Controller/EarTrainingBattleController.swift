@@ -904,6 +904,8 @@ extension EarTrainingBattleController: EarTrainingLobbyPresentable {
     var stageTitleForLobby: String {
         stage.localizedTitle(isEnglishCopy ? .en : .ja)
     }
+
+    var quizRulesLine: String? { nil }
 }
 
 // MARK: - Avatar catalog (Web `EAR_TRAINING_ENEMY_AVATAR_URLS` 相当)

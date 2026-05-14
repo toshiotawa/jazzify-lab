@@ -876,4 +876,8 @@ extension EarTrainingChordQuizBattleController: EarTrainingLobbyPresentable {
     var stageTitleForLobby: String {
         stage.localizedTitle(isEnglishCopy ? .en : .ja)
     }
+
+    var quizRulesLine: String? {
+        phraseIntroSummary()
+    }
 }

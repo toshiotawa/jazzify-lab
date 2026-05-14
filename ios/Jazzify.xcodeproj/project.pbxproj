@@ -39,6 +39,7 @@
 		4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */; };
 		4B3D81798B36AE658E36B28E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B4665837C213B33E7EA39A7E /* Assets.xcassets */; };
 		4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */; };
+		A1E2F3D409E611EE00112202 /* EarTrainingBattleSfx.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E2F3D409E611EE00112201 /* EarTrainingBattleSfx.swift */; };
 		4EE732EF69290F9B474AB3AF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */; };
 		4F0DD4129C5C5D5B6EDEE76D /* AnnouncementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C1C28DE06B5FB9224DDE130 /* AnnouncementListView.swift */; };
 		4F9D6961758AF400ED975795 /* SurvivalGameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */; };
@@ -201,6 +202,7 @@
 		99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordResolver.swift; sourceTree = "<group>"; };
 		FCAF770000EE11EE00000001 /* SurvivalRandomHintStaff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalRandomHintStaff.swift; sourceTree = "<group>"; };
 		9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAudio.swift; sourceTree = "<group>"; };
+		A1E2F3D409E611EE00112201 /* EarTrainingBattleSfx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleSfx.swift; sourceTree = "<group>"; };
 		9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyView.swift; sourceTree = "<group>"; };
 		9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		9C1C28DE06B5FB9224DDE130 /* AnnouncementListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementListView.swift; sourceTree = "<group>"; };
@@ -458,6 +460,7 @@
 			isa = PBXGroup;
 			children = (
 				9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */,
+				A1E2F3D409E611EE00112201 /* EarTrainingBattleSfx.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -733,6 +736,7 @@
 				7630C3DB245018D47061B814 /* ContactView.swift in Sources */,
 				54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */,
 				4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */,
+				A1E2F3D409E611EE00112202 /* EarTrainingBattleSfx.swift in Sources */,
 				B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */,
 				F1EE770000AA11EE0000AAA2 /* EarTrainingBattleProtocols.swift in Sources */,
 				4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */,
