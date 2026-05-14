@@ -1426,7 +1426,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playQuotaReachedEffect() {
-        EarTrainingBattleSfx.shared.play(.quotaReached)
         let w = max(320, size.width)
         let h = max(320, size.height)
         let cx = w / 2
@@ -1453,7 +1452,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     // MARK: - Effects
 
     private func playCorrectEffect(_ command: EarTrainingBattleEffectCommand) {
-        EarTrainingBattleSfx.shared.play(.fireball)
         holdCharacterForAction(.player, state: .cast, durationMs: 720)
         showCorrectPlayerPose()
         let anchors = battleAnchors()
@@ -1611,7 +1609,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playSnowflakeEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        EarTrainingBattleSfx.shared.play(.snowflake)
         let snowflake = makeEffectSprite(name: "ear-training-effect-snowflake", size: Self.battleLayoutPt(72))
         snowflake.position = CGPoint(x: anchors.player.x + Self.battleLayoutPt(42), y: anchors.player.castY)
         effectLayer.addChild(snowflake)
@@ -1636,7 +1633,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playLightningEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        EarTrainingBattleSfx.shared.play(.lightning)
         let cloud = makeEffectSprite(name: "ear-training-effect-cloud", size: Self.battleLayoutPt(148))
         cloud.position = CGPoint(x: anchors.enemy.x, y: anchors.enemy.headY + Self.battleLayoutPt(32))
         cloud.alpha = 0.9
@@ -1682,7 +1678,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playMeteorEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        EarTrainingBattleSfx.shared.play(.meteor)
         zoomToPlayer(
             anchors: anchors,
             holdMs: 1080,

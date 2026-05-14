@@ -94,7 +94,6 @@ struct EarTrainingChordQuizGameView: View {
                 return
             }
             let audioInstance = EarTrainingAudio()
-            EarTrainingBattleSfx.shared.prefetch()
             let prefetchDrum = URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
             audioInstance.prefetchPhraseItem(url: prefetchDrum)
 

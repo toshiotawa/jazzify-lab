@@ -6,7 +6,6 @@ import type {
   EarTrainingBattleSnapshot,
 } from './types';
 import { EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS } from '@/utils/constants';
-import { playEarTrainingBattleMagicSfx } from '@/utils/earTrainingBattleSfx';
 import {
   clampBattleCharacterX,
   getBattleCharacterMinDistance,
@@ -1071,7 +1070,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
-    playEarTrainingBattleMagicSfx('quota');
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
     const cx = width / 2;
@@ -1343,7 +1341,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
-    playEarTrainingBattleMagicSfx('fireball');
     this.holdCharacterForAction('player', 'cast', 720);
     this.showCorrectPlayerPose();
     const width = Math.max(320, this.scale.width);
@@ -1535,7 +1532,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playSnowflakeEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    playEarTrainingBattleMagicSfx('snowflake');
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.6);
     const snowflakeGuide = this.createSnowflake(anchors.player.x + 42, anchors.player.castY, 38);
     const snowflake = this.createEffectSprite('snowflake', anchors.player.x + 42, anchors.player.castY, 72);
@@ -1575,7 +1571,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playLightningEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    playEarTrainingBattleMagicSfx('lightning');
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.9);
     const cloudBase = this.createCloud(anchors.enemy.x, anchors.enemy.headY - 28);
     const cloud = this.createEffectSprite('cloud', anchors.enemy.x, anchors.enemy.headY - 32, 148);
@@ -1611,7 +1606,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    playEarTrainingBattleMagicSfx('meteor');
     this.zoomToPlayer(
       anchors,
       1080,
