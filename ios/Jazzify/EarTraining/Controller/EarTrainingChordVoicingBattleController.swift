@@ -13,6 +13,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private static let kAwesomeBattleEffectMs: Double = 4_500
     private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
+    /// Web `MEASURE_SHIFT_DELAY_MS`：セルフペース時のみ、譜面の現在小節表示更新を遅らせる。
+    private static let measureShiftDelayNs: UInt64 = 100_000_000
 
     private static let chordVoicingSelfPacedDrumLoopURL =
         URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
@@ -78,6 +80,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var statusText: String
     @Published private(set) var activeLoop: Int = 1
     @Published private(set) var activeMeasureNumber: Int = 1
+    /// セルフペース時、譜面の 2 小節オーバーレイ用（`activeMeasureNumber` より遅れて更新）。
+    @Published private(set) var displayedActiveMeasureNumber: Int = 1
     @Published private(set) var enemyAttackGaugePercent: Double = 0
     @Published private(set) var feedback: EarTrainingBattleController.Feedback?
     @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
@@ -131,6 +135,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var lastLoopAttackApplied: Int = 0
     /// self-paced でドラム BGM が既に開始済みか（フレーズ遷移で二重開始しない）。
     private var selfPacedDrumLoopPlaybackStarted = false
+    private var measureShiftQueue: [Int] = []
+    private var measureShiftConsumerTask: Task<Void, Never>?
 
     var damageConfig: EarTrainingDamageConfig {
         if practiceMode { return Self.zeroDamage }
@@ -645,6 +651,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         enemyAttackGaugePercent = 0
         activeLoop = 1
         activeMeasureNumber = 1
+        displayedActiveMeasureNumber = 1
         completionPulse = nil
         cancelAllTimers()
         selfPacedDrumLoopPlaybackStarted = false
@@ -793,7 +800,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         lastRank = nil
         allChordsCompletedFlag = false
         activeChord = prepared.initialChord
+        clearMeasureDisplayShiftQueue()
         activeMeasureNumber = prepared.activeMeasureNumber
+        displayedActiveMeasureNumber = prepared.activeMeasureNumber
         statusText = copy.phraseLabel(indexOneBased: prepared.phraseIndex + 1)
 
         let onStarted: () -> Void = { [weak self] in
@@ -914,6 +923,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
         if activeMeasureNumber != measureNum {
             activeMeasureNumber = measureNum
+            if stage.resolvedChordVoicingSelfPaced {
+                enqueueMeasureDisplayShift(measureNum)
+            } else {
+                clearMeasureDisplayShiftQueue()
+                displayedActiveMeasureNumber = measureNum
+            }
         }
 
         let gaugeDuration = loopDurationSec * Double(Self.attackGaugeTargetLoops)
@@ -1188,6 +1203,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
+            if kind == .correct || kind == .voicingCast || kind == .complete {
+                audio.playFireMagicSe()
+            }
             scene?.runEffect(command)
         }
         let effectTimeoutMs = Self.effectDurationMs(kind: kind, label: label, phraseNoteCount: phraseNoteCount)
@@ -1266,6 +1284,38 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         feedbackTask = nil
         battleEffectClearTask?.cancel()
         battleEffectClearTask = nil
+        clearMeasureDisplayShiftQueue()
+    }
+
+    private func clearMeasureDisplayShiftQueue() {
+        measureShiftConsumerTask?.cancel()
+        measureShiftConsumerTask = nil
+        measureShiftQueue.removeAll()
+    }
+
+    private func enqueueMeasureDisplayShift(_ targetMeasure: Int) {
+        measureShiftQueue.append(targetMeasure)
+        guard measureShiftConsumerTask == nil else { return }
+        measureShiftConsumerTask = Task { @MainActor [weak self] in
+            while true {
+                try? await Task.sleep(nanoseconds: Self.measureShiftDelayNs)
+                guard let self else { return }
+                if Task.isCancelled {
+                    self.measureShiftConsumerTask = nil
+                    return
+                }
+                guard !self.measureShiftQueue.isEmpty else {
+                    self.measureShiftConsumerTask = nil
+                    return
+                }
+                let next = self.measureShiftQueue.removeFirst()
+                self.displayedActiveMeasureNumber = next
+                if self.measureShiftQueue.isEmpty {
+                    self.measureShiftConsumerTask = nil
+                    return
+                }
+            }
+        }
     }
 
     private func cancelFailTimer() { failTimerTask?.cancel(); failTimerTask = nil }

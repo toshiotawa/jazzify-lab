@@ -5,7 +5,12 @@
 
 const FILENAME_ENC = encodeURIComponent('火炎魔法1.mp3');
 const PLAY_THROTTLE_MS = 60;
-const DEFAULT_GAIN = 0.9;
+/**
+ * SFX スライダーや呼び出し側のゲイン指定にかかわらず必ず掛かる固定減衰。
+ * 「魔法演出 SE は他の効果音より控えめに」という UX 要望（スライダー非依存）。
+ */
+const FIRE_SE_BASE_GAIN = 0.45;
+const DEFAULT_GAIN = 1.0;
 
 let audioContext: AudioContext | null = null;
 let cachedBuffer: AudioBuffer | null = null;
@@ -111,8 +116,9 @@ export const playFireMagicSe = (linearGain?: number): void => {
 
       const source = ctx.createBufferSource();
       const gainNode = ctx.createGain();
-      const gain = linearGain ?? DEFAULT_GAIN;
-      gainNode.gain.value = Math.min(1, Math.max(0, Number.isFinite(gain) ? gain : DEFAULT_GAIN));
+      const requestedGain = linearGain ?? DEFAULT_GAIN;
+      const safeRequested = Math.min(1, Math.max(0, Number.isFinite(requestedGain) ? requestedGain : DEFAULT_GAIN));
+      gainNode.gain.value = safeRequested * FIRE_SE_BASE_GAIN;
       source.buffer = buf;
       source.connect(gainNode);
       gainNode.connect(ctx.destination);

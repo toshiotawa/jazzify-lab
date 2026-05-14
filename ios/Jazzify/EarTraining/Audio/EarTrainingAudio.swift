@@ -34,6 +34,10 @@ final class EarTrainingAudio: NSObject {
     private let phraseMixer = AVAudioMixerNode()
     private let drumPlayer = AVAudioPlayerNode()
     private let drumMixer = AVAudioMixerNode()
+    /// 火炎魔法 SE（コードヴォイシング正解の火の玉 / Skill キャスト演出と同期）。
+    /// SFX 音量スライダーに連動。
+    private let fireSePlayer = AVAudioPlayerNode()
+    private let fireSeMixer = AVAudioMixerNode()
 
     private let cache = EarTrainingPhraseFileCache()
     private var timeTicker: DispatchSourceTimer?
@@ -41,8 +45,17 @@ final class EarTrainingAudio: NSObject {
     private var isGraphInstalled = false
     private var lastPhraseFormat: AVAudioFormat?
     private var lastDrumFormat: AVAudioFormat?
+    private var lastFireSeFormat: AVAudioFormat?
     private var clickPCM: AVAudioPCMBuffer?
     private var drumPCM: AVAudioPCMBuffer?
+    private var fireSePCM: AVAudioPCMBuffer?
+    /// `playFireMagicSe` の連打抑止（mach 時間ベース秒）。
+    private var lastFireSePlayMs: Double = 0
+    private static let fireSeThrottleMs: Double = 60
+    /// 魔法演出 SE はスライダーに加えて常にこの倍率で減衰させる（UX 要望: スライダー非依存で控えめ）。
+    private static let fireSeBaseGain: Float = 0.45
+    /// `setVolumes(sfx:)` で更新される SFX 音量（0...1）。
+    private var sfxVolume: Float = 1.0
 
     /// リモート先読み重複排除用（ロビー `preloadPhrase`）。
     private var preloadDedupeURL: URL?
@@ -67,6 +80,7 @@ final class EarTrainingAudio: NSObject {
 
     override init() {
         super.init()
+        sfxVolume = max(0, min(1, SurvivalGameAudio.shared.sfxVolume))
     }
 
     deinit {
@@ -83,12 +97,14 @@ final class EarTrainingAudio: NSObject {
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         installGraphIfNeeded()
         startPhraseEngineIfNeeded()
+        prepareFireMagicSeIfNeeded()
     }
 
     /// 終了時に呼ぶ。フレーズを完全停止し、ピアノ発音停止 + Survival のオーディオセッションを閉じる。
     func stop() {
         stopDrumLoop()
         stopPhrase()
+        fireSePlayer.stop()
         if engine.isRunning {
             engine.stop()
         }
@@ -103,8 +119,10 @@ final class EarTrainingAudio: NSObject {
         phraseVolume = clampedFloat(music) * m
         phraseMixer.outputVolume = phraseVolume
         drumMixer.outputVolume = phraseVolume
+        sfxVolume = clampedFloat(sfx)
+        fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
         SurvivalGameAudio.shared.setPianoVolume(clampedFloat(piano))
-        SurvivalGameAudio.shared.setSfxVolume(clampedFloat(sfx))
+        SurvivalGameAudio.shared.setSfxVolume(sfxVolume)
     }
 
     func setPhraseVolume(_ value: Float) {
@@ -390,17 +408,23 @@ final class EarTrainingAudio: NSObject {
         engine.attach(phraseMixer)
         engine.attach(drumPlayer)
         engine.attach(drumMixer)
+        engine.attach(fireSePlayer)
+        engine.attach(fireSeMixer)
         engine.connect(phrasePlayer, to: phraseMixer, format: defaultFormat)
         engine.connect(clickPlayer, to: phraseMixer, format: defaultFormat)
         engine.connect(phraseMixer, to: engine.mainMixerNode, format: nil)
         engine.connect(drumPlayer, to: drumMixer, format: defaultFormat)
         engine.connect(drumMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(fireSePlayer, to: fireSeMixer, format: defaultFormat)
+        engine.connect(fireSeMixer, to: engine.mainMixerNode, format: nil)
 
         lastPhraseFormat = defaultFormat
         lastDrumFormat = defaultFormat
+        lastFireSeFormat = defaultFormat
         rebuildClickBuffer(for: defaultFormat)
         phraseMixer.outputVolume = phraseVolume
         drumMixer.outputVolume = phraseVolume
+        fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
 
         isGraphInstalled = true
     }
@@ -429,6 +453,73 @@ final class EarTrainingAudio: NSObject {
         if wasRunning || isPhraseEngineRunning {
             try? engine.start()
         }
+    }
+
+    /// 火炎 SE 用バッファをバンドルから読み込む。失敗してもサイレントで無視する。
+    private func prepareFireMagicSeIfNeeded() {
+        if fireSePCM != nil { return }
+        guard let url = Bundle.main.url(forResource: "fire_magic_1", withExtension: "mp3") else {
+            return
+        }
+        do {
+            let file = try AVAudioFile(forReading: url)
+            guard file.length > 0 else { return }
+            guard let pcm = Self.decodeEntireFile(file: file) else { return }
+            ensureFireSeGraph(for: file.processingFormat)
+            fireSePCM = pcm
+        } catch {
+            // 失敗時は再生コール側で no-op。
+        }
+    }
+
+    private func ensureFireSeGraph(for format: AVAudioFormat) {
+        installGraphIfNeeded()
+
+        if lastFireSeFormat?.isEqual(format) == true {
+            fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
+            return
+        }
+
+        let wasRunning = engine.isRunning
+        if wasRunning {
+            engine.stop()
+        }
+
+        engine.disconnectNodeInput(fireSeMixer)
+        engine.connect(fireSePlayer, to: fireSeMixer, format: format)
+
+        lastFireSeFormat = format
+        fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
+
+        if wasRunning || isPhraseEngineRunning {
+            try? engine.start()
+        }
+    }
+
+    /// 火炎魔法 SE を発射する。連打抑止 60ms。SFX スライダーに連動した `fireSeMixer` で再生。
+    func playFireMagicSe() {
+        let now = Self.machSecondsSinceReference() * 1000
+        if now - lastFireSePlayMs < Self.fireSeThrottleMs {
+            return
+        }
+        lastFireSePlayMs = now
+
+        prepareFireMagicSeIfNeeded()
+        guard let pcm = fireSePCM else { return }
+        startPhraseEngineIfNeeded()
+        guard engine.isRunning else { return }
+
+        if !fireSePlayer.isPlaying {
+            fireSePlayer.play()
+        }
+        fireSePlayer.scheduleBuffer(pcm, at: nil, options: [.interrupts], completionHandler: nil)
+    }
+
+    private static func machSecondsSinceReference() -> Double {
+        let now = mach_absolute_time()
+        let info = machTimebaseInfo
+        let nanos = Double(now) * Double(info.numer) / Double(info.denom)
+        return nanos / 1_000_000_000
     }
 
     private func ensureDrumGraph(for format: AVAudioFormat) {

@@ -15,6 +15,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     /// アタックゲージが満タンになるまでの秒数（満了ごとに敵が `quizStrikeDamage`）。
     private static let quizAttackGaugeSeconds: TimeInterval = 5
     private static let quizStrikeDamage: Int = 5
+    /// Web `MEASURE_SHIFT_DELAY_MS`：正解直後に譜面の左右スロット更新を遅らせる。
+    private static let measureShiftDelayNs: UInt64 = 100_000_000
 
     private static let chordVoicingSelfPacedDrumLoopURL =
         URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
@@ -35,6 +37,11 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published private(set) var quizPhraseDetail: EarTrainingPhraseDetail?
+    /// 譜面の左右スロット表示用（論理の `activeQuizIndex` / `previewQuizIndex` より遅れて更新）。
+    @Published private(set) var displayedStaffActiveQuizIndex: Int = 0
+    @Published private(set) var displayedStaffPreviewQuizIndex: Int = 0
+    /// Web `completionPulse` 相当。現在小節（左）の完成ハイライト。
+    @Published private(set) var staffCompletionPulse: ChordVoicingCompletionPulse?
     /// 五線コード名フレーム（エフェクト起点）。親ビューが Preference で供給する。
     var activeChordLabelGlobalFrame: CGRect?
     /// SpriteKit のグローバルフレーム。親ビューが Preference で供給する。
@@ -61,6 +68,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private var lastInputAt: TimeInterval = 0
     private var phraseIntroSeq: Int = 0
     private var quotaCelebrationFired: Bool = false
+    private var staffShiftQueue: [(Int, Int)] = []
+    private var staffShiftConsumerTask: Task<Void, Never>?
+    private var staffCompletionPulseEventKey: Int = 0
     private var quizTickerTask: Task<Void, Never>?
     private var countdownTask: Task<Void, Never>?
     private var drumPrepareTask: Task<Void, Never>?
@@ -95,6 +105,17 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     /// HUD / スタッフレイアウト用プレビュー出題。
     var currentPreviewQuizItem: EarTrainingChordQuizItem? {
         previewItem
+    }
+
+    /// 譜面オーバーレイ用（表示は論理より遅れることがある）。
+    var displayedStaffActiveItem: EarTrainingChordQuizItem? {
+        guard displayedStaffActiveQuizIndex >= 0 && displayedStaffActiveQuizIndex < quizItems.count else { return nil }
+        return quizItems[displayedStaffActiveQuizIndex]
+    }
+
+    var displayedStaffPreviewItem: EarTrainingChordQuizItem? {
+        guard displayedStaffPreviewQuizIndex >= 0 && displayedStaffPreviewQuizIndex < quizItems.count else { return nil }
+        return quizItems[displayedStaffPreviewQuizIndex]
     }
 
     var activeChord: EarTrainingPhraseChordDetail? {
@@ -153,6 +174,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     func tearDown() {
         cancelQuizTicker()
         cancelCountdownTask()
+        clearStaffShiftQueue()
         drumPrepareTask?.cancel()
         drumPrepareTask = nil
         feedbackTask?.cancel()
@@ -170,12 +192,50 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     func handleBack() {
         cancelQuizTicker()
         cancelCountdownTask()
+        clearStaffShiftQueue()
         audio.stopDrumLoop()
         onExitCallback()
     }
 
     func handleOpenSettings() { isSettingsOpen = true }
     func handleCloseSettings() { isSettingsOpen = false }
+
+    private func clearStaffShiftQueue() {
+        staffShiftConsumerTask?.cancel()
+        staffShiftConsumerTask = nil
+        staffShiftQueue.removeAll()
+    }
+
+    private func syncDisplayedStaffToLogical() {
+        displayedStaffActiveQuizIndex = activeQuizIndex
+        displayedStaffPreviewQuizIndex = previewQuizIndex
+    }
+
+    private func enqueueStaffDisplayShift(active: Int, preview: Int) {
+        staffShiftQueue.append((active, preview))
+        guard staffShiftConsumerTask == nil else { return }
+        staffShiftConsumerTask = Task { @MainActor [weak self] in
+            while true {
+                try? await Task.sleep(nanoseconds: Self.measureShiftDelayNs)
+                guard let self else { return }
+                if Task.isCancelled {
+                    self.staffShiftConsumerTask = nil
+                    return
+                }
+                guard !self.staffShiftQueue.isEmpty else {
+                    self.staffShiftConsumerTask = nil
+                    return
+                }
+                let pair = self.staffShiftQueue.removeFirst()
+                self.displayedStaffActiveQuizIndex = pair.0
+                self.displayedStaffPreviewQuizIndex = pair.1
+                if self.staffShiftQueue.isEmpty {
+                    self.staffShiftConsumerTask = nil
+                    return
+                }
+            }
+        }
+    }
 
     func setPracticeMode(_ value: Bool) {
         guard canChangePracticeMode else { return }
@@ -224,6 +284,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         phraseIntroSeq += 1
         quotaCelebrationFired = false
         pendingImpactHandlers.removeAll()
+        clearStaffShiftQueue()
         lastEmittedEffectId = -1
 
         enemyHp = Self.quizEnemyHpFixed
@@ -249,6 +310,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         activeQuizIndex = firstActive
         previewQuizIndex = firstPreview
         bootstrapPhraseAndAttempt()
+        syncDisplayedStaffToLogical()
 
         let beats = max(0, min(32, stage.countInBeats))
         let bpm = max(30, stage.bpm)
@@ -431,6 +493,13 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         attempt = result.attempt
         correctCount += 1
 
+        staffCompletionPulseEventKey &+= 1
+        staffCompletionPulse = ChordVoicingCompletionPulse(
+            groupId: judged.id,
+            kind: .harmonyComplete,
+            eventKey: staffCompletionPulseEventKey
+        )
+
         if correctCount >= requiredCorrectCount, !quotaCelebrationFired {
             quotaCelebrationFired = true
             _ = triggerBattleEffect(
@@ -538,12 +607,14 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             cancelQuizTicker()
             cancelCountdownTask()
             pendingImpactHandlers.removeAll()
+            clearStaffShiftQueue()
             finishQuizSuccess()
         case .gameOver:
             quizEnded = true
             cancelQuizTicker()
             cancelCountdownTask()
             pendingImpactHandlers.removeAll()
+            clearStaffShiftQueue()
             finishQuizFail()
         default:
             break
@@ -560,6 +631,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             rand: randomUnit
         )
         bootstrapPhraseAndAttempt()
+        enqueueStaffDisplayShift(active: activeQuizIndex, preview: previewQuizIndex)
     }
 
     private func tickQuizClock() {
@@ -582,6 +654,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         guard !practiceMode, !quizEnded else { return }
         quizEnded = true
         pendingImpactHandlers.removeAll()
+        clearStaffShiftQueue()
         let ok = EarTrainingChordQuiz.isQuizClear(correct: correctCount, required: requiredCorrectCount)
         if ok {
             finishQuizSuccess()
@@ -594,6 +667,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     private func finishQuizSuccess() {
         cancelCountdownTask()
+        clearStaffShiftQueue()
         gameState = .stageClear
         statusText = isEnglishCopy ? "CLEAR!" : "クリア!"
         audio.stopDrumLoop()
@@ -621,6 +695,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     private func finishQuizFail() {
         cancelCountdownTask()
+        clearStaffShiftQueue()
         gameState = .gameOver
         statusText = isEnglishCopy ? "Try again" : "残念…"
         audio.stopDrumLoop()
@@ -720,6 +795,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
+            if kind == .correct || kind == .voicingCast || kind == .complete {
+                audio.playFireMagicSe()
+            }
             scene?.runEffect(command)
         }
         battleEffectClearTask?.cancel()

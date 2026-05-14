@@ -97,7 +97,11 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
     if (!effectCommand) {
       return;
     }
-    if (effectCommand.kind === 'correct' || effectCommand.kind === 'voicingCast') {
+    if (
+      effectCommand.kind === 'correct' ||
+      effectCommand.kind === 'voicingCast' ||
+      effectCommand.kind === 'complete'
+    ) {
       playFireMagicSe();
     }
     sceneRef.current?.triggerEffect(effectCommand);
