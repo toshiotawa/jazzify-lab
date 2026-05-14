@@ -1,6 +1,7 @@
 import { EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA } from '@/utils/earTrainingUiCopy';
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
 import type {
+  EarTrainingChordQuizItem,
   EarTrainingPhrase,
   EarTrainingPhraseChord,
   EarTrainingPhraseChordQuote,
@@ -22,12 +23,16 @@ const EAR_TRAINING_STAGE_RELATIONS_SELECT = `
       quote:ear_training_phrase_chord_quotes (*)
     ),
     demo_loops:ear_training_phrase_demo_loops (*)
-  )
+  ),
+  chord_quiz_items:ear_training_chord_quiz_items (*)
 `;
 
 const EAR_TRAINING_STAGE_SELECT = EAR_TRAINING_STAGE_RELATIONS_SELECT;
 
-type EarTrainingStagePayload = Omit<EarTrainingStage, 'id' | 'created_at' | 'updated_at' | 'phrases'>;
+type EarTrainingStagePayload = Omit<
+  EarTrainingStage,
+  'id' | 'created_at' | 'updated_at' | 'phrases' | 'chord_quiz_items'
+>;
 type EarTrainingStageUpdate = Partial<EarTrainingStagePayload>;
 type EarTrainingPhrasePayload = Omit<EarTrainingPhrase, 'id' | 'created_at' | 'updated_at' | 'notes' | 'chords' | 'demo_loops'>;
 type EarTrainingPhraseUpdate = Partial<Omit<EarTrainingPhrasePayload, 'stage_id'>>;
@@ -54,9 +59,19 @@ const normalizePhraseChordQuote = (raw: unknown): EarTrainingPhraseChordQuote | 
   return null;
 };
 
+const normalizeEarTrainingMode = (raw: unknown): EarTrainingStage['mode'] => {
+  if (raw === 'chord_voicing') {
+    return 'chord_voicing';
+  }
+  if (raw === 'chord_quiz') {
+    return 'chord_quiz';
+  }
+  return 'phrase';
+};
+
 const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
   ...stage,
-  mode: stage.mode === 'chord_voicing' ? 'chord_voicing' : 'phrase',
+  mode: normalizeEarTrainingMode(stage.mode),
   phrases: (stage.phrases ?? [])
     .map(phrase => ({
       ...phrase,
@@ -68,6 +83,12 @@ const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
       demo_loops: (phrase.demo_loops ?? []).slice().sort((a, b) => a.loop_number - b.loop_number),
     }))
     .sort((a, b) => a.order_index - b.order_index),
+  chord_quiz_items: (stage.chord_quiz_items ?? [])
+    .map(item => ({
+      ...item,
+      voicing_staves: (item.voicing_staves ?? []).map(n => Number(n)),
+    }))
+    .sort((a, b) => a.order_index - b.order_index) as EarTrainingChordQuizItem[],
 });
 
 const invalidateEarTrainingCache = (): void => {

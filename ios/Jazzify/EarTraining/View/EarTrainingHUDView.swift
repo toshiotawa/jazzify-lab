@@ -23,7 +23,9 @@ struct EarTrainingHUDView: View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 3) {
                 healthTimeRow
-                attackGauge
+                if !hud.hideEnemyAttackGauge {
+                    attackGauge
+                }
                 chordChips
                 if showsSlotsRow {
                     slotsRow

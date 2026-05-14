@@ -908,6 +908,8 @@ struct ChordVoicingStaffGroupsView: View {
     let hideChordLabels: Bool
     /// Web `ChordVoicingStaff.noteCollisionLayout` と同等。
     let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
+    /// 本番コードクイズ: 現在出題の未押下音符を非表示（五線・調号・コード名は維持）。
+    var hideUnpressedNotes: Bool
 
     init(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
@@ -919,7 +921,8 @@ struct ChordVoicingStaffGroupsView: View {
         showTargetHints: Bool = true,
         singleMeasureLayout: Bool = false,
         hideChordLabels: Bool = false,
-        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
+        hideUnpressedNotes: Bool = false
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -931,6 +934,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.singleMeasureLayout = singleMeasureLayout
         self.hideChordLabels = hideChordLabels
         self.noteCollisionLayout = noteCollisionLayout
+        self.hideUnpressedNotes = hideUnpressedNotes
     }
 
     static let notationColor = Color.white
@@ -944,7 +948,7 @@ struct ChordVoicingStaffGroupsView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let hintGroupId = showTargetHints ? activeGroupId : nil
+            let hintGroupId: UUID? = (showTargetHints && !hideUnpressedNotes) ? activeGroupId : nil
             let w = max(1, proxy.size.width)
             let h = max(1, proxy.size.height)
             let canvasSize = CGSize(width: w, height: h)
@@ -975,7 +979,8 @@ struct ChordVoicingStaffGroupsView: View {
                         correctByGroup: correctPitchClassesByGroupId,
                         singleMeasureLayout: singleMeasureLayout,
                         hideChordLabels: hideChordLabels,
-                        noteCollisionLayout: noteCollisionLayout
+                        noteCollisionLayout: noteCollisionLayout,
+                        hideUnpressedNotes: hideUnpressedNotes
                     )
                 }
                 .frame(width: w, height: h)
@@ -1365,8 +1370,12 @@ struct ChordVoicingStaffGroupsView: View {
         firstTopY: CGFloat,
         staffSpacing: CGFloat,
         staffGap: CGFloat,
-        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
+        hideUnpressedNotes: Bool
     ) -> VoicingBattleHints {
+        if hideUnpressedNotes {
+            return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
+        }
         guard let aid = activeGroupId,
               let activeItem = parsedGroups.first(where: { $0.group.id == aid }),
               activeItem.group.measureOffset == 0,
@@ -1455,7 +1464,8 @@ struct ChordVoicingStaffGroupsView: View {
         correctByGroup: [UUID: Set<Int>],
         singleMeasureLayout: Bool,
         hideChordLabels: Bool,
-        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
+        hideUnpressedNotes: Bool
     ) {
         guard !groups.isEmpty else { return }
         let w = size.width
@@ -1502,7 +1512,8 @@ struct ChordVoicingStaffGroupsView: View {
             firstTopY: geo.firstTopY,
             staffSpacing: geo.staffSpacing,
             staffGap: geo.staffGap,
-            noteCollisionLayout: noteCollisionLayout
+            noteCollisionLayout: noteCollisionLayout,
+            hideUnpressedNotes: hideUnpressedNotes
         )
 
         let leftX = w * (24 / 720)
@@ -1549,6 +1560,9 @@ struct ChordVoicingStaffGroupsView: View {
                     collisionLayout: noteCollisionLayout
                 ) {
                     let isCorrect = correctSet.contains(positioned.note.pitchClass)
+                    if hideUnpressedNotes, item.group.measureOffset == 0, !isCorrect {
+                        continue
+                    }
                     let isNextHint = !isCorrect
                         && item.group.id == activeGroupId
                         && item.group.measureOffset == 0

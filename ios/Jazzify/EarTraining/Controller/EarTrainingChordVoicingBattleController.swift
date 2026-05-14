@@ -243,6 +243,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
             enemyAttackGaugePercent: enemyAttackGaugePercent,
+            hideEnemyAttackGauge: false,
             hudLabels: hudLabels,
             gameState: gameState,
             phraseRunId: phraseRunId,

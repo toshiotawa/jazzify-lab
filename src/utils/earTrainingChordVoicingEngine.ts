@@ -122,6 +122,7 @@ export const handleChordVoicingNoteOn = (
   activeChord: EarTrainingPhraseChord | null,
   midiNote: number,
   damage: EarTrainingDamageConfig,
+  options?: { readonly suppressMissRecording?: boolean },
 ): ChordVoicingEvaluationResult => {
   if (!activeChord) {
     return {
@@ -162,6 +163,16 @@ export const handleChordVoicingNoteOn = (
   const isTargetTone = targetPcs.includes(inputPc);
 
   if (!isTargetTone) {
+    if (options?.suppressMissRecording === true) {
+      return {
+        attempt,
+        hitPitchClass: null,
+        chordJustCompleted: false,
+        enemyDamage: 0,
+        playerDamage: 0,
+        evaluationMissAdded: false,
+      };
+    }
     const next = cloneAttempt(attempt);
     const currentMiss = next.missByChord.get(chordId) ?? 0;
     const evaluationMissAdded = currentMiss < MAX_MISSES_PER_CHORD;

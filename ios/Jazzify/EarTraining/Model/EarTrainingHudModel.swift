@@ -17,6 +17,8 @@ struct EarTrainingHudModel: Equatable {
     let timeRemaining: Int
     let timeLabel: String
     let enemyAttackGaugePercent: Double
+    /// chord_quiz 等: 敵アタックゲージ行を HUD から省略する。
+    let hideEnemyAttackGauge: Bool
     let hudLabels: EarTrainingBattleHudLabels
     let gameState: EarTrainingGameState
     let phraseRunId: Int

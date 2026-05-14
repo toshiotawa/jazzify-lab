@@ -5,6 +5,25 @@ import Foundation
 enum EarTrainingMode: String, Codable, Sendable {
     case phrase
     case chordVoicing = "chord_voicing"
+    case chordQuiz = "chord_quiz"
+}
+
+struct EarTrainingChordQuizItem: Codable, Identifiable, Sendable {
+    let id: UUID
+    let stageId: UUID
+    let orderIndex: Int
+    let chordName: String
+    let voicing: [String]
+    let voicingStaves: [Int]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case stageId = "stage_id"
+        case orderIndex = "order_index"
+        case chordName = "chord_name"
+        case voicing
+        case voicingStaves = "voicing_staves"
+    }
 }
 
 struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
@@ -39,10 +58,37 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let phrases: [EarTrainingPhraseDetail]?
     /// Web `chord_voicing_self_paced` — セルフペース（無音・カウントイン省略）。
     let chordVoicingSelfPaced: Bool?
+    let quizDurationSeconds: Int?
+    let quizQuestionOrder: String?
+    let quizShowNotationInBattle: Bool?
+    let quizRequiredCorrectCount: Int?
+    let chordQuizItems: [EarTrainingChordQuizItem]?
 
     var resolvedMode: EarTrainingMode { mode ?? .phrase }
 
     var resolvedChordVoicingSelfPaced: Bool { chordVoicingSelfPaced == true }
+
+    var resolvedQuizDurationSeconds: Int {
+        let raw = quizDurationSeconds ?? 90
+        return max(10, min(600, raw))
+    }
+
+    var resolvedQuizRequiredCorrectCount: Int {
+        max(1, quizRequiredCorrectCount ?? 80)
+    }
+
+    var resolvedQuizQuestionOrderSequential: Bool {
+        quizQuestionOrder == "sequential"
+    }
+
+    func resolvedQuizHideUnpressedNotationInBattle(practiceMode: Bool) -> Bool {
+        guard practiceMode != true else { return false }
+        return quizShowNotationInBattle == false
+    }
+
+    func sortedChordQuizItems() -> [EarTrainingChordQuizItem] {
+        (chordQuizItems ?? []).sorted { $0.orderIndex < $1.orderIndex }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, slug, title, description, bpm, mode, phrases
@@ -68,6 +114,11 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         case backgroundTheme = "background_theme"
         case isActive = "is_active"
         case chordVoicingSelfPaced = "chord_voicing_self_paced"
+        case quizDurationSeconds = "quiz_duration_seconds"
+        case quizQuestionOrder = "quiz_question_order"
+        case quizShowNotationInBattle = "quiz_show_notation_in_battle"
+        case quizRequiredCorrectCount = "quiz_required_correct_count"
+        case chordQuizItems = "chord_quiz_items"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -245,6 +296,34 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
         case voicing
         case voicingStaves = "voicing_staves"
         case quote
+    }
+
+    init(
+        id: UUID,
+        phraseId: UUID,
+        orderIndex: Int,
+        chordName: String,
+        measureNumber: Int? = nil,
+        beatOffset: Double? = nil,
+        durationBeats: Double? = nil,
+        startTimeSec: Double? = nil,
+        endTimeSec: Double? = nil,
+        voicing: [String]?,
+        voicingStaves: [Int]?,
+        quote: EarTrainingPhraseChordQuoteDetail? = nil
+    ) {
+        self.id = id
+        self.phraseId = phraseId
+        self.orderIndex = orderIndex
+        self.chordName = chordName
+        self.measureNumber = measureNumber
+        self.beatOffset = beatOffset
+        self.durationBeats = durationBeats
+        self.startTimeSec = startTimeSec
+        self.endTimeSec = endTimeSec
+        self.voicing = voicing
+        self.voicingStaves = voicingStaves
+        self.quote = quote
     }
 
     init(from decoder: Decoder) throws {

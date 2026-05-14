@@ -176,7 +176,8 @@ enum EarTrainingChordVoicingEngine {
         attempt: EarTrainingChordVoicingAttempt,
         activeChord: EarTrainingPhraseChordDetail?,
         midiNote: Int,
-        damage: EarTrainingDamageConfig
+        damage: EarTrainingDamageConfig,
+        suppressMissRecording: Bool = false
     ) -> InputResult {
         guard let chord = activeChord else {
             return InputResult(
@@ -214,6 +215,16 @@ enum EarTrainingChordVoicingEngine {
         var pressed = attempt.pressedByChord[chordId] ?? Set<Int>()
         let isTargetTone = targetPcs.contains(inputPc)
         if !isTargetTone {
+            if suppressMissRecording {
+                return InputResult(
+                    attempt: attempt,
+                    hitPitchClass: nil,
+                    chordJustCompleted: false,
+                    enemyDamage: 0,
+                    playerDamage: 0,
+                    evaluationMissAdded: false
+                )
+            }
             var next = attempt
             let currentMiss = next.missByChord[chordId] ?? 0
             let evaluationMissAdded = currentMiss < maxMissesPerChord

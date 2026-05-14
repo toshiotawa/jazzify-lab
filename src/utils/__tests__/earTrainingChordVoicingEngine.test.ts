@@ -80,6 +80,17 @@ describe('earTrainingChordVoicingEngine', () => {
     expect(countChordVoicingMisses(attempt)).toBe(5);
   });
 
+  it('suppressMissRecording でミスの記録のみ抑止できる', () => {
+    const chord = buildChord({ id: 'c1' });
+    const phrase = buildPhrase([chord]);
+    const attempt = createChordVoicingAttempt(phrase);
+    const r = handleChordVoicingNoteOn(attempt, chord, 61, damage, {
+      suppressMissRecording: true,
+    });
+    expect(r.attempt).toBe(attempt);
+    expect(countChordVoicingMisses(r.attempt)).toBe(0);
+  });
+
   it('完成済みコードに対する追加入力は無視される', () => {
     const chord = buildChord({ id: 'c1' });
     const phrase = buildPhrase([chord]);

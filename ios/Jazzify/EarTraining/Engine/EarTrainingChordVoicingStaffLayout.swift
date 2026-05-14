@@ -137,3 +137,42 @@ enum EarTrainingChordVoicingStaffLayout {
         return min(safeLoopMeasures, Int(floor(loopTimeSec / measureDurationSec)) + 1)
     }
 }
+
+// MARK: - Chord quiz（`mode: chord_quiz`）
+
+extension EarTrainingChordVoicingStaffLayout {
+    /// アクティブ出題 + 次プレビューを 2 小節レイアウトで返す（Web `staffVoicingGroups` 相当）。
+    static func buildQuizGroups(
+        active: EarTrainingChordQuizItem?,
+        preview: EarTrainingChordQuizItem?,
+    ) -> (groups: [GroupInput], denseCurrentMeasureLayout: Bool) {
+        var groups: [GroupInput] = []
+        if let active {
+            groups.append(
+                GroupInput(
+                    id: active.id,
+                    chordName: active.chordName,
+                    voicing: active.voicing,
+                    voicingStaves: active.voicingStaves,
+                    measureOffset: 0,
+                    isRest: active.voicing.isEmpty
+                )
+            )
+        }
+        if let preview, preview.id != active?.id {
+            groups.append(
+                GroupInput(
+                    id: preview.id,
+                    chordName: preview.chordName,
+                    voicing: preview.voicing,
+                    voicingStaves: preview.voicingStaves,
+                    measureOffset: 1,
+                    isRest: preview.voicing.isEmpty
+                )
+            )
+        }
+        let currentCount = active?.voicing.count ?? 0
+        let dense = currentCount >= Self.denseNoteTotalThreshold
+        return (groups, dense)
+    }
+}

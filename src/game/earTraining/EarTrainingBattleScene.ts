@@ -928,6 +928,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!snapshot) {
       return;
     }
+    if (snapshot.attackGaugeHidden) {
+      return;
+    }
     const floorY = getFloorY(height);
     this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, floorY - 166));
     if (snapshot.demoLoopActive) {
@@ -1171,7 +1174,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.hudLayer.add(result);
     }
 
-    if (snapshot.resultState === 'win' && snapshot.resultRankLine) {
+    if (snapshot.resultRankLine && snapshot.resultState) {
       const rank = this.add.text(width / 2, height * 0.38, snapshot.resultRankLine, {
         color: '#fde68a',
         fontFamily: 'Arial, sans-serif',

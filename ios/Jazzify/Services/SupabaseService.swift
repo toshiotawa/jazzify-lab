@@ -772,7 +772,8 @@ final class SupabaseService: Sendable {
             quote:ear_training_phrase_chord_quotes (*)
         ),
         demo_loops:ear_training_phrase_demo_loops (*)
-    )
+    ),
+    chord_quiz_items:ear_training_chord_quiz_items (*)
     """
 
     private static func normalizeStageDetail(_ raw: EarTrainingStageDetail) -> EarTrainingStageDetail {
@@ -805,7 +806,12 @@ final class SupabaseService: Sendable {
             mode: raw.mode,
             keyFifths: raw.keyFifths,
             phrases: raw.sortedPhrases(),
-            chordVoicingSelfPaced: raw.chordVoicingSelfPaced
+            chordVoicingSelfPaced: raw.chordVoicingSelfPaced,
+            quizDurationSeconds: raw.quizDurationSeconds,
+            quizQuestionOrder: raw.quizQuestionOrder,
+            quizShowNotationInBattle: raw.quizShowNotationInBattle,
+            quizRequiredCorrectCount: raw.quizRequiredCorrectCount,
+            chordQuizItems: raw.sortedChordQuizItems()
         )
     }
 

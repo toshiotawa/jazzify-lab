@@ -20,7 +20,10 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
           *,
           songs (id, title, artist),
           fantasy_stage:fantasy_stages (*),
-          ear_training_stage:ear_training_stages (*)
+          ear_training_stage:ear_training_stages (
+            *,
+            chord_quiz_items:ear_training_chord_quiz_items (*)
+          )
         )
       `)
       .eq('course_id', courseId)
@@ -87,7 +90,10 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
         *,
         songs (id, title, artist),
         fantasy_stage:fantasy_stages (*),
-        ear_training_stage:ear_training_stages (*)
+        ear_training_stage:ear_training_stages (
+          *,
+          chord_quiz_items:ear_training_chord_quiz_items (*)
+        )
       )
     `)
     .eq('id', lessonId)
@@ -407,7 +413,10 @@ export async function addEarTrainingStageToLesson(data: EarTrainingLessonSongDat
     })
     .select(`
       *,
-      ear_training_stage:ear_training_stages (*)
+      ear_training_stage:ear_training_stages (
+        *,
+        chord_quiz_items:ear_training_chord_quiz_items (*)
+      )
     `)
     .single();
 

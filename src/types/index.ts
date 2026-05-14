@@ -711,7 +711,19 @@ export interface EarTrainingPhraseChord {
   created_at?: string;
 }
 
-export type EarTrainingMode = 'phrase' | 'chord_voicing';
+export type EarTrainingMode = 'phrase' | 'chord_voicing' | 'chord_quiz';
+
+/** chord_quiz モードの出題行（ステージ直下） */
+export interface EarTrainingChordQuizItem {
+  id: string;
+  stage_id: string;
+  order_index: number;
+  chord_name: string;
+  voicing: string[];
+  voicing_staves: number[];
+  created_at?: string;
+  updated_at?: string;
+}
 
 export interface EarTrainingPhraseDemoLoop {
   phrase_id: string;
@@ -769,9 +781,18 @@ export interface EarTrainingStage {
   /** chord_voicing: 時間で進行せず正解で次コードへ（無音カウントイン省略） */
   chord_voicing_self_paced?: boolean;
   mode: EarTrainingMode;
+  /** chord_quiz: 制限時間（秒） */
+  quiz_duration_seconds?: number;
+  /** chord_quiz: 出題順 */
+  quiz_question_order?: 'random' | 'sequential';
+  /** chord_quiz: バトル本番で五線の音符を表示する（false=未押下音を隠す） */
+  quiz_show_notation_in_battle?: boolean;
+  /** chord_quiz: クリアに必要な正答数（UI 分母・成否判定） */
+  quiz_required_correct_count?: number;
   created_at?: string;
   updated_at?: string;
   phrases?: EarTrainingPhrase[];
+  chord_quiz_items?: EarTrainingChordQuizItem[];
 }
 
 export interface EarTrainingPhraseAttempt {

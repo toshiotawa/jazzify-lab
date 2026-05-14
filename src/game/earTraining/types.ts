@@ -61,6 +61,8 @@ export interface EarTrainingBattleSnapshot {
   maxLoops: number;
   demoLoopActive: boolean;
   enemyAttackGaugePercent: number;
+  /** true のとき敵アタックゲージを描画せず、ミス系の敵攻撃演出も出さない想定 */
+  attackGaugeHidden?: boolean;
   chords: EarTrainingBattleChordView[];
   phraseSlots: string[];
   revealedNotes: string[];

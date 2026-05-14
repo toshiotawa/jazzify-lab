@@ -49,6 +49,11 @@ interface ChordVoicingStaffProps {
   completionPulse?: ChordVoicingCompletionPulse | null;
   /** false のとき、次ガイド色・三角・コード名強調など「入力許可」を示す強調のみ抑止する */
   showTargetHints?: boolean;
+  /**
+   * true のとき、現在小節（measureOffset===0）で未正解の符頭を描画しない（五線・コード名は維持）。
+   * 次小節プレビューは従来どおり表示する。
+   */
+  hideUnpressedNotes?: boolean;
   /** 1 小節のみ表示。中央バーラインを廃し第 1 小節を右端まで広げる（既定: 2 小節）。 */
   singleMeasureLayout?: boolean;
   /** コード名ラベル帯と上部余白を畳む（既定: false）。 */
@@ -1180,6 +1185,7 @@ const RenderedStaff: React.FC<{
   keyFifths: number;
   layout: StaffLayoutMetrics;
   activeGroupId: string | null | undefined;
+  hideUnpressedNotes: boolean;
   staffLineRightX: number;
   clefFontsLoaded: boolean;
   smuflUseForeignObject: boolean;
@@ -1192,6 +1198,7 @@ const RenderedStaff: React.FC<{
   keyFifths,
   layout,
   activeGroupId,
+  hideUnpressedNotes,
   staffLineRightX,
   clefFontsLoaded,
   smuflUseForeignObject,
@@ -1261,25 +1268,32 @@ const RenderedStaff: React.FC<{
         : null}
       {positionedGroups.map(({ group, noteBaseX, positionedNotes }) => {
         const correctPitchClassSet = correctPitchClassSets.get(group.id);
-        const notes = positionedNotes.map(positioned => (
-          <WholeNote
-            key={`${group.id}-${positioned.note.voicingIndex}`}
-            groupId={group.id}
-            positioned={positioned}
-            baseX={noteBaseX}
-            staffTopY={staffTopY}
-            isCorrect={correctPitchClassSet?.has(positioned.note.pitchClass) ?? false}
-            isNextHint={
-              activeGroupId !== undefined
-              && activeGroupId !== null
-              && group.id === activeGroupId
-              && group.measureOffset === 0
-              && !(correctPitchClassSet?.has(positioned.note.pitchClass) ?? false)
-            }
-            clefFontsLoaded={clefFontsLoaded}
-            smuflUseForeignObject={smuflUseForeignObject}
-          />
-        ));
+        const notes = positionedNotes.flatMap(positioned => {
+          const isCorrect = correctPitchClassSet?.has(positioned.note.pitchClass) ?? false;
+          if (hideUnpressedNotes && group.measureOffset === 0 && !isCorrect) {
+            return [];
+          }
+          const node = (
+            <WholeNote
+              key={`${group.id}-${positioned.note.voicingIndex}`}
+              groupId={group.id}
+              positioned={positioned}
+              baseX={noteBaseX}
+              staffTopY={staffTopY}
+              isCorrect={isCorrect}
+              isNextHint={
+                activeGroupId !== undefined
+                && activeGroupId !== null
+                && group.id === activeGroupId
+                && group.measureOffset === 0
+                && !(correctPitchClassSet?.has(positioned.note.pitchClass) ?? false)
+              }
+              clefFontsLoaded={clefFontsLoaded}
+              smuflUseForeignObject={smuflUseForeignObject}
+            />
+          );
+          return [node];
+        });
         if (!group.isRest) {
           return notes;
         }
@@ -1310,6 +1324,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   denseCurrentMeasureLayout,
   completionPulse,
   showTargetHints = true,
+  hideUnpressedNotes = false,
   singleMeasureLayout = false,
   compactSingleMeasure = false,
   smuflUseForeignObject = false,
@@ -1465,7 +1480,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     : STAFF_LINE_RIGHT_X;
   const viewBoxWidth = staffLineRightX + VIEWBOX_EDGE_PAD_X;
   const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure, effectiveSingleMeasureLayout, staffLineRightX);
-  const effectiveActiveGroupId = showTargetHints ? activeGroupId : null;
+  const effectiveActiveGroupId = showTargetHints && !hideUnpressedNotes ? activeGroupId : null;
   const systemLayout = useMemo(
     () => computeBattleStaffSystemLayout(
       activeStaves,
@@ -1604,6 +1619,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               keyFifths={keyFifths}
               layout={layout}
               activeGroupId={effectiveActiveGroupId}
+              hideUnpressedNotes={hideUnpressedNotes}
               staffLineRightX={staffLineRightX}
               clefFontsLoaded={clefFontsLoaded}
               smuflUseForeignObject={smuflUseForeignObject}
