@@ -1404,10 +1404,15 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     gameState === 'playingPhrase'
     || (gameState === 'countIn' && countInEarlyInputActive);
 
-  const playerQuoteBubbleText = useMemo(
-    () => (showVoicingTargetHints ? getChordVoicingQuoteDisplayText(activeChord) : null),
-    [showVoicingTargetHints, activeChord],
-  );
+  const playerQuoteBubbleText = useMemo(() => {
+    if (!showVoicingTargetHints || !activeChord) {
+      return null;
+    }
+    if (attempt?.completedChordIds.has(activeChord.id)) {
+      return null;
+    }
+    return getChordVoicingQuoteDisplayText(activeChord);
+  }, [showVoicingTargetHints, activeChord, attempt]);
 
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyAvatar = useMemo(() => {

@@ -34,7 +34,21 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     @Published private(set) var phraseIndex: Int = 0
     @Published private(set) var phraseRunId: Int = 0
     @Published private(set) var attempt: EarTrainingChordVoicingAttempt? {
-        didSet { recomputeVoicingHints() }
+        didSet {
+            recomputeVoicingHints()
+            if Self.didCompletedChordIdsChange(oldValue, attempt) {
+                updatePlayerQuoteBubble()
+            }
+        }
+    }
+
+    /// `attempt` の更新で `completedChordIds` の集合が変わったかを判定する純関数。
+    /// 同じインスタンス内 mutate ではなく struct 値型の置き換え前提のため等価比較で十分。
+    private static func didCompletedChordIdsChange(
+        _ previous: EarTrainingChordVoicingAttempt?,
+        _ next: EarTrainingChordVoicingAttempt?
+    ) -> Bool {
+        previous?.completedChordIds != next?.completedChordIds
     }
     @Published private(set) var enemyHp: Int
     @Published private(set) var playerHp: Int
@@ -1025,22 +1039,28 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     /// `activeChord` / `gameState` / `countInEarlyInputActive` のいずれかが変わるたびに
     /// シーンの吹き出しを最新化する。
+    /// 既に `attempt.completedChordIds` に含まれているヴォイシング（次ループで戻ってきた小節など、
+    /// もう判定対象でないもの）の場合は表示しない。
     private func updatePlayerQuoteBubble() {
         scene?.setPlayerQuote(Self.playerQuoteBubbleTextForScene(
             gameState: gameState,
             activeChord: activeChord,
-            countInEarlyInputActive: countInEarlyInputActive
+            countInEarlyInputActive: countInEarlyInputActive,
+            completedChordIds: attempt?.completedChordIds ?? []
         ))
     }
 
     private static func playerQuoteBubbleTextForScene(
         gameState: EarTrainingGameState,
         activeChord: EarTrainingPhraseChordDetail?,
-        countInEarlyInputActive: Bool
+        countInEarlyInputActive: Bool,
+        completedChordIds: Set<UUID>
     ) -> String? {
         let showTargets = gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive)
         guard showTargets else { return nil }
-        guard let raw = activeChord?.quote?.text else { return nil }
+        guard let chord = activeChord else { return nil }
+        if completedChordIds.contains(chord.id) { return nil }
+        guard let raw = chord.quote?.text else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
