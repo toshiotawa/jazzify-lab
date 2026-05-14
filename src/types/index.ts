@@ -766,6 +766,8 @@ export interface EarTrainingStage {
   background_theme: string;
   is_active: boolean;
   is_demo?: boolean;
+  /** chord_voicing: 時間で進行せず正解で次コードへ（無音カウントイン省略） */
+  chord_voicing_self_paced?: boolean;
   mode: EarTrainingMode;
   created_at?: string;
   updated_at?: string;

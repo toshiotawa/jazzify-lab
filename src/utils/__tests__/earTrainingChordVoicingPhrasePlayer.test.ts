@@ -173,6 +173,24 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     player.dispose();
   });
 
+  it('playPrepared: phraseGain 0 でフレーズ用 Gain の値が 0', async () => {
+    const { player, mockCtx } = makePlayer();
+    const createdGains: MockGainNode[] = [];
+    mockCtx.createGain = vi.fn((): MockGainNode => {
+      const g = new MockGainNode();
+      createdGains.push(g);
+      return g;
+    });
+    mockCtx.currentTime = 0;
+    const prepared = { url: 'https://example.com/a.mp3', buffer: fakeBuffer };
+    player.playPrepared({ prepared, phraseGain: 0 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(createdGains.length).toBeGreaterThanOrEqual(1);
+    expect(createdGains[0].gain.value).toBe(0);
+    player.dispose();
+  });
+
   it('stop 後は getCurrentTime が 0', () => {
     const { player } = makePlayer();
     player.stop();

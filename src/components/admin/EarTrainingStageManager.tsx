@@ -67,6 +67,7 @@ const defaultStageForm: StageForm = {
   background_theme: 'blue_club',
   is_active: true,
   mode: 'phrase',
+  chord_voicing_self_paced: false,
 };
 
 const defaultPhraseForm: PhraseForm = {
@@ -160,6 +161,7 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
   background_theme: stage.background_theme,
   is_active: stage.is_active,
   mode: stage.mode ?? 'phrase',
+  chord_voicing_self_paced: stage.chord_voicing_self_paced ?? false,
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -645,6 +647,20 @@ const EarTrainingStageManager: React.FC = () => {
                   <option value="chord_voicing">バトルモード (chord_voicing)</option>
                 </select>
               </label>
+              {stageForm.mode === 'chord_voicing' && (
+                <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm"
+                    checked={Boolean(stageForm.chord_voicing_self_paced)}
+                    onChange={event => setStageForm(prev => ({
+                      ...prev,
+                      chord_voicing_self_paced: event.target.checked,
+                    }))}
+                  />
+                  セルフペース進行（時間で進めず正解で次へ・無音・カウントインなし）
+                </label>
+              )}
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />
               <NumberInput label="拍/小節" value={stageForm.beats_per_measure} onChange={value => setStageForm(prev => ({ ...prev, beats_per_measure: value }))} />
               <NumberInput label="拍子分母" value={stageForm.beat_type} onChange={value => setStageForm(prev => ({ ...prev, beat_type: value }))} />

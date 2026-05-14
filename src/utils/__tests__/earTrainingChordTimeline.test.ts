@@ -7,6 +7,7 @@ import {
   getEarTrainingChordJudgmentTargetsAtTime,
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
+  getFirstIncompleteVoicingChord,
   getHarmonyRowForChordId,
   isHarmonySegmentFullyCompleted,
 } from '@/utils/earTrainingChordTimeline';
@@ -237,5 +238,17 @@ describe('earTrainingChordTimeline', () => {
     full.completedChordIds.add('c1');
     full.completedChordIds.add('c2');
     expect(isHarmonySegmentFullyCompleted(full, row!)).toBe(true);
+  });
+
+  it('getFirstIncompleteVoicingChord は harmony 順で最初の未完成プレイアブルを返す', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'C', start_time_sec: 1, end_time_sec: 4 }),
+      buildChord({ id: 'c3', chord_name: 'G7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+    expect(getFirstIncompleteVoicingChord(phrase, new Set())?.id).toBe('c1');
+    expect(getFirstIncompleteVoicingChord(phrase, new Set(['c1']))?.id).toBe('c2');
+    expect(getFirstIncompleteVoicingChord(phrase, new Set(['c1', 'c2']))?.id).toBe('c3');
+    expect(getFirstIncompleteVoicingChord(phrase, new Set(['c1', 'c2', 'c3']))).toBeNull();
   });
 });

@@ -538,6 +538,27 @@ enum EarTrainingChordVoicingEngine {
         return nil
     }
 
+    /// Web `getFirstIncompleteVoicingChord` — セルフペース進行の表示・判定用。
+    static func firstIncompleteVoicingChord(
+        phrase: EarTrainingPhraseDetail,
+        completedChordIds: Set<UUID>
+    ) -> EarTrainingPhraseChordDetail? {
+        let chords = phrase.chords ?? []
+        if chords.isEmpty { return nil }
+        let timed = timedChords(for: phrase)
+        if timed.isEmpty {
+            let sorted = chords.sorted { $0.orderIndex < $1.orderIndex }
+            return sorted.first { chordHasVoicingNotes($0) && !completedChordIds.contains($0.id) }
+        }
+        let groups = buildHarmonyTimelineGroups(from: timed)
+        for group in groups {
+            if let chord = firstIncompletePlayableChord(in: group, completedChordIds: completedChordIds) {
+                return chord
+            }
+        }
+        return nil
+    }
+
     /// Web `getEarTrainingChordDisplayAtTime` と同じ表示対象を返す。
     /// 同一 harmony では未完成の先頭 voicing を保持し、グループ完成後は次プレイアブル開始の半拍前までラベルを維持する。
     static func chordDisplayAt(

@@ -38,6 +38,8 @@ interface ScheduleChordVoicingCountInParams {
   bpm: number;
   /** クリックのピークゲイン係数（0..1、マスター×ミュージック相当を掛けた値を渡す） */
   beatGain: number;
+  /** フレーズ MP3 のみ（0=無音。クリックは beatGain のまま） */
+  phraseGain?: number;
   onBeat?: (beatsRemaining: number) => void;
   /** フレーズ頭の半拍前（beats>0 のときのみ） */
   onInputWindowStart?: () => void;
@@ -47,6 +49,8 @@ interface ScheduleChordVoicingCountInParams {
 
 interface PlayPreparedChordVoicingPhraseParams {
   prepared: PreparedChordVoicingPhrase;
+  /** フレーズ MP3 のゲイン係数（0..1、既定 1） */
+  phraseGain?: number;
   onPhraseStarted?: () => void;
   onEnded?: () => void;
 }
@@ -69,7 +73,10 @@ const defaultAudioContextFactory = (): AudioContext => {
 export class EarTrainingChordVoicingPhrasePlayer {
   private readonly options: EarTrainingChordVoicingPhrasePlayerOptions;
   private ctx: AudioContext | null = null;
+  /** クリック用。destination へは phraseGain → masterGain の順 */
   private masterGain: GainNode | null = null;
+  /** フレーズバッファのみ。クリックは masterGain 直入力のまま */
+  private phraseGain: GainNode | null = null;
   private volume = 1;
   private readonly decodeByUrl = new Map<string, Promise<AudioBuffer>>();
   private generation = 0;
@@ -89,10 +96,14 @@ export class EarTrainingChordVoicingPhrasePlayer {
     }
     const factory = this.options.createAudioContext ?? defaultAudioContextFactory;
     const ctx = factory();
+    const phraseGainNode = ctx.createGain();
+    phraseGainNode.gain.value = 1;
     const masterGain = ctx.createGain();
     masterGain.gain.value = this.volume;
+    phraseGainNode.connect(masterGain);
     masterGain.connect(ctx.destination);
     this.ctx = ctx;
+    this.phraseGain = phraseGainNode;
     this.masterGain = masterGain;
     return ctx;
   }
@@ -161,6 +172,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
     }
     this.ctx = null;
     this.masterGain = null;
+    this.phraseGain = null;
     this.decodeByUrl.clear();
   }
 
@@ -191,18 +203,28 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
   playPrepared(params: PlayPreparedChordVoicingPhraseParams): void {
     const ctx = this.createCtx();
-    const master = this.masterGain;
-    if (!master) {
+    const phraseOut = this.phraseGain;
+    if (!phraseOut) {
       return;
     }
     this.stop();
     const gen = this.generation;
+    const phraseGainLinear = Math.max(0, Math.min(1, params.phraseGain ?? 1));
     void ctx.resume().then(() => {
       if (gen !== this.generation) {
         return;
       }
+      phraseOut.gain.value = phraseGainLinear;
       const when = ctx.currentTime + LEAD_IN_SEC;
-      this.startPhraseBufferAt(ctx, master, params.prepared.buffer, when, gen, params.onPhraseStarted, params.onEnded);
+      this.startPhraseBufferAt(
+        ctx,
+        phraseOut,
+        params.prepared.buffer,
+        when,
+        gen,
+        params.onPhraseStarted,
+        params.onEnded,
+      );
     }).catch(() => undefined);
   }
 
@@ -217,6 +239,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
     if (beats <= 0) {
       this.playPrepared({
         prepared: params.prepared,
+        phraseGain: params.phraseGain,
         onPhraseStarted: params.onPhraseStarted,
         onEnded: params.onEnded,
       });
@@ -225,11 +248,17 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
     this.stop();
     const gen = this.generation;
+    const phraseGainLinear = Math.max(0, Math.min(1, params.phraseGain ?? 1));
+    const phraseOut = this.phraseGain;
+    if (!phraseOut) {
+      return;
+    }
 
     void ctx.resume().then(() => {
       if (gen !== this.generation) {
         return;
       }
+      phraseOut.gain.value = phraseGainLinear;
 
       const bpm = Math.max(20, Math.min(400, params.bpm));
       const safeGain = Math.max(0, Math.min(1, params.beatGain));
@@ -281,7 +310,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
       this.startPhraseBufferAt(
         ctx,
-        master,
+        phraseOut,
         params.prepared.buffer,
         phraseStart,
         gen,
@@ -293,7 +322,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
   private startPhraseBufferAt(
     ctx: AudioContext,
-    master: GainNode,
+    phraseOutput: GainNode,
     buffer: AudioBuffer,
     when: number,
     scheduleGen: number,
@@ -306,7 +335,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(master);
+    source.connect(phraseOutput);
 
     this.phraseStartCtxTime = when;
     this.phraseBufferDurationSec = buffer.duration;

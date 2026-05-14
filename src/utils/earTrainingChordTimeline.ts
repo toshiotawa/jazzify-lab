@@ -310,6 +310,36 @@ const nextGroupIndex = (
  * - harmony をすべてプレイ済みにすると、そのグループの表示終端は「次のプレイアブル・コード開始 − 半拍」とグループ終端のうち早い方まで延伸する。
  * - 次グループへの入室も、そのグループ先頭プレイアブル開始 − 半拍から（前グループが完了済みのとき）。
  */
+/** セルフペース: 未完了の最初のヴォイシング行（時間に依存しない） */
+export const getFirstIncompleteVoicingChord = (
+  phrase: EarTrainingPhrase | undefined,
+  completedChordIds: ReadonlySet<string>,
+): EarTrainingPhraseChord | null => {
+  const timed = getTimedChords(phrase);
+  if (timed.length === 0) {
+    const chords = phrase?.chords ?? [];
+    if (chords.length === 0) {
+      return null;
+    }
+    const sorted = sortChordsByTime(chords);
+    for (const chord of sorted) {
+      if (chordHasVoicingNotes(chord) && !completedChordIds.has(chord.id)) {
+        return chord;
+      }
+    }
+    return null;
+  }
+
+  const groups = buildHarmonyTimelineGroups(timed);
+  for (const group of groups) {
+    const incomplete = firstIncompletePlayableChord(group, completedChordIds);
+    if (incomplete) {
+      return incomplete;
+    }
+  }
+  return null;
+};
+
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,

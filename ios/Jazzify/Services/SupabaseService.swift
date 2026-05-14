@@ -804,7 +804,8 @@ final class SupabaseService: Sendable {
             isActive: raw.isActive,
             mode: raw.mode,
             keyFifths: raw.keyFifths,
-            phrases: raw.sortedPhrases()
+            phrases: raw.sortedPhrases(),
+            chordVoicingSelfPaced: raw.chordVoicingSelfPaced
         )
     }
 

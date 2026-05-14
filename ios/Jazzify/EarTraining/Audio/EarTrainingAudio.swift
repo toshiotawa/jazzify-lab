@@ -157,7 +157,8 @@ final class EarTrainingAudio: NSObject {
     }
 
     /// `preparePhraseForImmediatePlayback` 済みの同一 URL ならファイル頭からスケジュールして再生する。
-    func playPreparedPhrase(url: URL, onStarted: (() -> Void)? = nil) -> Bool {
+    /// - Parameter phraseMuted: `true` のときフレーズ MP3 のみ無音（同一ミキサ経路のクリックは別経路で鳴らさない想定）。
+    func playPreparedPhrase(url: URL, phraseMuted: Bool = false, onStarted: (() -> Void)? = nil) -> Bool {
         guard preparedForImmediatePlaybackURL == url,
               loadedPhraseURL == url,
               let local = preparedLocalFileURL
@@ -174,7 +175,7 @@ final class EarTrainingAudio: NSObject {
             let file = try AVAudioFile(forReading: local)
             stopPhrasePlaybackOnly()
             ensureGraph(for: file.processingFormat)
-            schedulePhrase(file: file, scheduleToken: scheduleToken, onStarted: onStarted)
+            schedulePhrase(file: file, scheduleToken: scheduleToken, onStarted: onStarted, phraseMuted: phraseMuted)
             return true
         } catch {
             return false
@@ -313,6 +314,7 @@ final class EarTrainingAudio: NSObject {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
         playbackToken += 1
+        phraseMixer.outputVolume = phraseVolume
         phrasePlayer.stop()
         clickPlayer.stop()
         stopTimeTicker()
@@ -397,6 +399,7 @@ final class EarTrainingAudio: NSObject {
     }
 
     private func stopPhrasePlaybackOnly() {
+        phraseMixer.outputVolume = phraseVolume
         phrasePlayer.stop()
         clickPlayer.stop()
         stopTimeTicker()
@@ -404,17 +407,27 @@ final class EarTrainingAudio: NSObject {
         phrasePlaybackAnchorHostTime = 0
     }
 
-    private func schedulePhrase(file: AVAudioFile, scheduleToken: Int, onStarted: (() -> Void)?) {
+    private func schedulePhrase(
+        file: AVAudioFile,
+        scheduleToken: Int,
+        onStarted: (() -> Void)?,
+        phraseMuted: Bool = false
+    ) {
         startPhraseEngineIfNeeded()
 
         phrasePlayer.stop()
         currentTimeSec = 0
         phrasePlaybackAnchorHostTime = 0
 
+        if phraseMuted {
+            phraseMixer.outputVolume = 0
+        }
+
         phrasePlayer.scheduleFile(file, at: nil, completionHandler: { [weak self] in
             DispatchQueue.main.async {
                 guard let self else { return }
                 guard self.playbackToken == scheduleToken else { return }
+                self.phraseMixer.outputVolume = self.phraseVolume
                 self.currentTimeSec = 0
                 self.stopTimeTicker()
                 self.phrasePlayer.stop()

@@ -37,8 +37,12 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     /// MusicXML-style key signature fifths (-7…7) for staff when phrase has no override.
     let keyFifths: Int?
     let phrases: [EarTrainingPhraseDetail]?
+    /// Web `chord_voicing_self_paced` — セルフペース（無音・カウントイン省略）。
+    let chordVoicingSelfPaced: Bool?
 
     var resolvedMode: EarTrainingMode { mode ?? .phrase }
+
+    var resolvedChordVoicingSelfPaced: Bool { chordVoicingSelfPaced == true }
 
     enum CodingKeys: String, CodingKey {
         case id, slug, title, description, bpm, mode, phrases
@@ -63,6 +67,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         case greatMaxMisses = "great_max_misses"
         case backgroundTheme = "background_theme"
         case isActive = "is_active"
+        case chordVoicingSelfPaced = "chord_voicing_self_paced"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
