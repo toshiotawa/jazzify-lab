@@ -361,6 +361,7 @@
 		25F1FE436717D9B1D982DE79 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				F2EE770001DD11EE0000DD01 /* EarTrainingChordQuiz.swift */,
 				D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */,
 				F1EE770000CC11EE0000CCC1 /* EarTrainingChordVoicingStaffLayout.swift */,
 				3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */,
