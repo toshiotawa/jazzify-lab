@@ -22,6 +22,8 @@ const CHARACTER_SHADOW_WIDTH = 104;
 const CHARACTER_SHADOW_HEIGHT = 22;
 const PLAYER_QUOTE_PAD_X = 10;
 const PLAYER_QUOTE_PAD_Y = 6;
+/** 足元コンテナ直上のキャラ表示下端から吹き出しルートまでの余白（大きくすると画面上で吹き出しが上がる）。 */
+const PLAYER_QUOTE_GAP_BELOW_SPRITE_PX = 12 + 18;
 const PLAYER_QUOTE_CORNER_RADIUS = 8;
 const PLAYER_QUOTE_TAIL_HEIGHT = 10;
 const PLAYER_QUOTE_BG_ALPHA = 0.7;
@@ -878,7 +880,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const existingRoot = this.playerQuoteBubbleRoot;
     if (!existingRoot || existingRoot.parentContainer !== footContainer) {
       existingRoot?.destroy(true);
-      const root = this.make.container({ x: 0, y: -CHARACTER_DISPLAY_SIZE - 12, add: false });
+      const root = this.make.container({ x: 0, y: -CHARACTER_DISPLAY_SIZE - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX, add: false });
       footContainer.add(root);
       this.playerQuoteBubbleRoot = root;
     }
