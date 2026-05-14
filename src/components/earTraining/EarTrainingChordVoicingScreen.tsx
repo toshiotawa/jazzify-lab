@@ -71,6 +71,7 @@ import {
   EarTrainingChordVoicingDrumLoop,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
+import { unlockFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 import { getChordVoicingQuoteDisplayText } from '@/utils/earTrainingChordVoicingQuote';
 import {
   DEFAULT_AVATAR_URL,
@@ -1034,6 +1035,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
     markAudioUserInteraction();
     void initializeAudioSystem().catch(() => undefined);
+    unlockFireMagicSe();
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     countInEarlyInputRef.current = false;

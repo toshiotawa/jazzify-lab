@@ -7,6 +7,7 @@ import type {
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
+import { playFireMagicSe, preloadFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 
 interface EarTrainingPhaserGameProps {
   snapshot: EarTrainingBattleSnapshot;
@@ -81,6 +82,10 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
   }, []);
 
   useEffect(() => {
+    preloadFireMagicSe();
+  }, []);
+
+  useEffect(() => {
     sceneRef.current?.setCallbacks(callbacks);
   }, [callbacks]);
 
@@ -91,6 +96,9 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
   useEffect(() => {
     if (!effectCommand) {
       return;
+    }
+    if (effectCommand.kind === 'correct' || effectCommand.kind === 'voicingCast') {
+      playFireMagicSe();
     }
     sceneRef.current?.triggerEffect(effectCommand);
   }, [effectCommand]);
