@@ -66,6 +66,7 @@ import {
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
+import { getChordVoicingQuoteDisplayText } from '@/utils/earTrainingChordVoicingQuote';
 import {
   DEFAULT_AVATAR_URL,
   EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
@@ -1403,6 +1404,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     gameState === 'playingPhrase'
     || (gameState === 'countIn' && countInEarlyInputActive);
 
+  const playerQuoteBubbleText = useMemo(
+    () => (showVoicingTargetHints ? getChordVoicingQuoteDisplayText(activeChord) : null),
+    [showVoicingTargetHints, activeChord],
+  );
+
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyAvatar = useMemo(() => {
     const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
@@ -1650,6 +1656,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
     overlay.setVoicingHints(voicingKeyboardHints.pendingMidis, voicingKeyboardHints.completedMidis);
   }, [voicingKeyboardHints]);
+
+  useEffect(() => {
+    phaserGameRef.current?.setPlayerQuote(playerQuoteBubbleText);
+  }, [playerQuoteBubbleText]);
 
   return (
     <div className={cn(

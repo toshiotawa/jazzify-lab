@@ -686,6 +686,14 @@ export interface EarTrainingPhraseNote {
   created_at?: string;
 }
 
+export interface EarTrainingPhraseChordQuote {
+  id: string;
+  phrase_chord_id: string;
+  text: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface EarTrainingPhraseChord {
   id: string;
   phrase_id: string;
@@ -698,6 +706,8 @@ export interface EarTrainingPhraseChord {
   end_time_sec?: number | null;
   voicing?: string[] | null;
   voicing_staves?: number[] | null;
+  /** コード演奏バトル吹き出し（`ear_training_phrase_chord_quotes`、0..1） */
+  quote?: EarTrainingPhraseChordQuote | null;
   created_at?: string;
 }
 

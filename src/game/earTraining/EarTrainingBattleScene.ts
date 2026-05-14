@@ -20,6 +20,12 @@ const FLOOR_CLEARANCE_FROM_PIANO = 100;
 const CHARACTER_DISPLAY_SIZE = 116;
 const CHARACTER_SHADOW_WIDTH = 104;
 const CHARACTER_SHADOW_HEIGHT = 22;
+const PLAYER_QUOTE_PAD_X = 10;
+const PLAYER_QUOTE_PAD_Y = 6;
+const PLAYER_QUOTE_CORNER_RADIUS = 8;
+const PLAYER_QUOTE_TAIL_HEIGHT = 10;
+const PLAYER_QUOTE_BG_ALPHA = 0.7;
+const PLAYER_QUOTE_FONT_PX = 16;
 const JAZZ_BACKDROP_EDGE_COLOR = 0x0e0705;
 const JAZZ_GOLD_TRIM = 0xd58a2a;
 const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
@@ -225,6 +231,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private phraseLayer: Phaser.GameObjects.Container | null = null;
   private playerView: CharacterView | null = null;
   private enemyView: CharacterView | null = null;
+  private cachedPlayerQuoteText: string | null = null;
+  private playerQuoteBubbleRoot: Phaser.GameObjects.Container | null = null;
   private phraseIntroText: Phaser.GameObjects.Text | null = null;
   private lastPhraseIntroKey: string | null = null;
   private lastEffectId: number | null = null;
@@ -317,6 +325,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   highlightKey(_midiNote: number, _active: boolean): void {
     void _midiNote;
     void _active;
+  }
+
+  setPlayerQuote(text: string | null): void {
+    const normalized = text?.trim() ? text.trim() : null;
+    if (normalized === this.cachedPlayerQuoteText) {
+      return;
+    }
+    this.cachedPlayerQuoteText = normalized;
+    this.layoutPlayerQuoteBubble();
   }
 
   private handleResize = (): void => {
@@ -437,6 +454,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.characterLayer = null;
     this.playerView = null;
     this.enemyView = null;
+    this.playerQuoteBubbleRoot = null;
     this.lastCharacterBuildKey = null;
   }
 
@@ -839,6 +857,58 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.enemyView = this.createCharacter(width * 0.77, floorY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
     this.startCharacterAutoMotion(this.playerView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
     this.startCharacterAutoMotion(this.enemyView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+    this.layoutPlayerQuoteBubble();
+  }
+
+  private layoutPlayerQuoteBubble(): void {
+    if (!this.isReady) {
+      return;
+    }
+    const view = this.playerView;
+    if (!view) {
+      return;
+    }
+    const text = this.cachedPlayerQuoteText;
+    if (!text) {
+      this.playerQuoteBubbleRoot?.setVisible(false);
+      return;
+    }
+
+    const footContainer = view.container;
+    if (!this.playerQuoteBubbleRoot || !this.playerQuoteBubbleRoot.active) {
+      this.playerQuoteBubbleRoot?.destroy(true);
+      const root = this.add.container(0, -CHARACTER_DISPLAY_SIZE - 12);
+      root.setDepth(24);
+      footContainer.add(root);
+      this.playerQuoteBubbleRoot = root;
+    }
+
+    const root = this.playerQuoteBubbleRoot;
+    root.removeAll(true);
+
+    const label = this.add.text(0, 0, text, {
+      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+      fontSize: `${PLAYER_QUOTE_FONT_PX}px`,
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0.5, 0.5);
+
+    const bubbleWidth = label.width + PLAYER_QUOTE_PAD_X * 2;
+    const bubbleHeight = label.height + PLAYER_QUOTE_PAD_Y * 2;
+    const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
+
+    const bubble = this.add.graphics();
+    bubble.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
+    bubble.fillRoundedRect(-bubbleWidth / 2, -tailH - bubbleHeight, bubbleWidth, bubbleHeight, PLAYER_QUOTE_CORNER_RADIUS);
+
+    const tail = this.add.graphics();
+    tail.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
+    tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
+
+    root.add([tail, bubble, label]);
+    label.setY(-tailH - bubbleHeight / 2);
+
+    root.setVisible(true);
   }
 
   private drawCharacterStatus(width: number, height: number): void {

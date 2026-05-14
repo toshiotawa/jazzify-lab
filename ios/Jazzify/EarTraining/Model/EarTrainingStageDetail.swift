@@ -200,6 +200,18 @@ struct EarTrainingPhraseNoteDetail: Codable, Identifiable, Sendable {
     }
 }
 
+struct EarTrainingPhraseChordQuoteDetail: Codable, Sendable, Hashable {
+    let id: UUID
+    let phraseChordId: UUID
+    let text: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case phraseChordId = "phrase_chord_id"
+        case text
+    }
+}
+
 struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
     let id: UUID
     let phraseId: UUID
@@ -212,6 +224,8 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
     let endTimeSec: Double?
     let voicing: [String]?
     let voicingStaves: [Int]?
+    /// `ear_training_phrase_chord_quotes`（0..1）。PostgREST のネストが配列になる場合も許容。
+    let quote: EarTrainingPhraseChordQuoteDetail?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -225,6 +239,49 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
         case endTimeSec = "end_time_sec"
         case voicing
         case voicingStaves = "voicing_staves"
+        case quote
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        phraseId = try c.decode(UUID.self, forKey: .phraseId)
+        orderIndex = try c.decode(Int.self, forKey: .orderIndex)
+        chordName = try c.decode(String.self, forKey: .chordName)
+        measureNumber = try c.decodeIfPresent(Int.self, forKey: .measureNumber)
+        beatOffset = try c.decodeIfPresent(Double.self, forKey: .beatOffset)
+        durationBeats = try c.decodeIfPresent(Double.self, forKey: .durationBeats)
+        startTimeSec = try c.decodeIfPresent(Double.self, forKey: .startTimeSec)
+        endTimeSec = try c.decodeIfPresent(Double.self, forKey: .endTimeSec)
+        voicing = try c.decodeIfPresent([String].self, forKey: .voicing)
+        voicingStaves = try c.decodeIfPresent([Int].self, forKey: .voicingStaves)
+        quote = Self.decodeQuote(container: c)
+    }
+
+    private static func decodeQuote(container c: KeyedDecodingContainer<CodingKeys>) -> EarTrainingPhraseChordQuoteDetail? {
+        if let q = try? c.decode(EarTrainingPhraseChordQuoteDetail.self, forKey: .quote) {
+            return q
+        }
+        if let arr = try? c.decode([EarTrainingPhraseChordQuoteDetail].self, forKey: .quote) {
+            return arr.first
+        }
+        return nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(phraseId, forKey: .phraseId)
+        try c.encode(orderIndex, forKey: .orderIndex)
+        try c.encode(chordName, forKey: .chordName)
+        try c.encodeIfPresent(measureNumber, forKey: .measureNumber)
+        try c.encodeIfPresent(beatOffset, forKey: .beatOffset)
+        try c.encodeIfPresent(durationBeats, forKey: .durationBeats)
+        try c.encodeIfPresent(startTimeSec, forKey: .startTimeSec)
+        try c.encodeIfPresent(endTimeSec, forKey: .endTimeSec)
+        try c.encodeIfPresent(voicing, forKey: .voicing)
+        try c.encodeIfPresent(voicingStaves, forKey: .voicingStaves)
+        try c.encodeIfPresent(quote, forKey: .quote)
     }
 }
 

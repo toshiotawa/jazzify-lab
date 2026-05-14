@@ -89,4 +89,6 @@ export interface EarTrainingBattleSceneHandle {
   updateSnapshot: (snapshot: EarTrainingBattleSnapshot) => void;
   triggerEffect: (command: EarTrainingBattleEffectCommand) => void;
   highlightKey: (midiNote: number, active: boolean) => void;
+  /** 主人公頭上のヴォイシング台詞吹き出し。null で非表示。 */
+  setPlayerQuote: (text: string | null) => void;
 }

@@ -767,7 +767,10 @@ final class SupabaseService: Sendable {
     phrases:ear_training_phrases (
         *,
         notes:ear_training_phrase_notes (*),
-        chords:ear_training_phrase_chords (*),
+        chords:ear_training_phrase_chords (
+            *,
+            quote:ear_training_phrase_chord_quotes (*)
+        ),
         demo_loops:ear_training_phrase_demo_loops (*)
     )
     """

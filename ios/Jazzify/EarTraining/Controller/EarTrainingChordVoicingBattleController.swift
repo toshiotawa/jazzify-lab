@@ -1008,6 +1008,23 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             isEnglishCopy: isEnglishCopy
         )
         scene?.applySnapshot(snapshot)
+        scene?.setPlayerQuote(Self.playerQuoteBubbleTextForScene(
+            gameState: gameState,
+            activeChord: activeChord,
+            countInEarlyInputActive: countInEarlyInputActive
+        ))
+    }
+
+    private static func playerQuoteBubbleTextForScene(
+        gameState: EarTrainingGameState,
+        activeChord: EarTrainingPhraseChordDetail?,
+        countInEarlyInputActive: Bool
+    ) -> String? {
+        let showTargets = gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive)
+        guard showTargets else { return nil }
+        guard let raw = activeChord?.quote?.text else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func triggerBattleEffect(

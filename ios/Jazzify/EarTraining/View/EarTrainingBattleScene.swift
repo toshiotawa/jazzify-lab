@@ -178,6 +178,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var enemyNode: CharacterView?
     private var phraseIntroLabel: SKLabelNode?
     private var demoBubbleNode: SKSpriteNode?
+    private var cachedPlayerQuoteText: String?
+    private var playerQuoteBubbleRoot: SKNode?
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
 
@@ -258,6 +260,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
+    func setPlayerQuote(_ text: String?) {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next: String? = (trimmed?.isEmpty == false) ? trimmed : nil
+        if next == cachedPlayerQuoteText { return }
+        cachedPlayerQuoteText = next
+        layoutPlayerQuoteBubble()
+    }
+
     // MARK: - Scene rebuild
 
     private func rebuildScene() {
@@ -270,6 +280,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         phraseLayer.removeAllChildren()
         playerNode = nil
         enemyNode = nil
+        playerQuoteBubbleRoot = nil
         // effectLayer は残す（進行中エフェクトを破壊しない）
 
         let width = max(320, size.width)
@@ -1240,6 +1251,69 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         )
         startCharacterAutoMotion(playerNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
         startCharacterAutoMotion(enemyNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
+        layoutPlayerQuoteBubble()
+    }
+
+    private func layoutPlayerQuoteBubble() {
+        guard let player = playerNode else { return }
+        let footContainer = player.container
+        guard let quoteText = cachedPlayerQuoteText else {
+            playerQuoteBubbleRoot?.isHidden = true
+            return
+        }
+
+        if playerQuoteBubbleRoot == nil || playerQuoteBubbleRoot?.parent !== footContainer {
+            playerQuoteBubbleRoot?.removeFromParent()
+            let root = SKNode()
+            root.zPosition = 6
+            root.position = CGPoint(x: 0, y: Self.characterDisplaySize + 12)
+            footContainer.addChild(root)
+            playerQuoteBubbleRoot = root
+        }
+
+        guard let root = playerQuoteBubbleRoot else { return }
+        root.removeAllChildren()
+        root.isHidden = false
+
+        let label = SKLabelNode(text: quoteText)
+        label.fontName = "AvenirNext-Heavy"
+        label.fontSize = Self.battleLayoutPt(15)
+        label.fontColor = .white
+        label.horizontalAlignmentMode = .center
+        label.verticalAlignmentMode = .center
+
+        let padX = Self.battleLayoutPt(10)
+        let padY = Self.battleLayoutPt(6)
+        let corner = Self.battleLayoutPt(8)
+        let tailH = Self.battleLayoutPt(10)
+
+        let textFrame = label.calculateAccumulatedFrame()
+        let bubbleWidth = textFrame.width + padX * 2
+        let bubbleHeight = textFrame.height + padY * 2
+
+        let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
+        let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
+        let bubbleNode = SKShapeNode(path: bubblePath)
+        bubbleNode.fillColor = UIColor.black.withAlphaComponent(0.7)
+        bubbleNode.strokeColor = .clear
+        bubbleNode.lineWidth = 0
+        bubbleNode.zPosition = 0
+
+        let tailPath = CGMutablePath()
+        tailPath.move(to: CGPoint(x: -Self.battleLayoutPt(7), y: tailH))
+        tailPath.addLine(to: CGPoint(x: Self.battleLayoutPt(7), y: tailH))
+        tailPath.addLine(to: CGPoint(x: 0, y: -Self.battleLayoutPt(2)))
+        tailPath.closeSubpath()
+        let tailNode = SKShapeNode(path: tailPath)
+        tailNode.fillColor = UIColor.black.withAlphaComponent(0.7)
+        tailNode.strokeColor = .clear
+        tailNode.zPosition = -0.25
+
+        label.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
+
+        root.addChild(tailNode)
+        root.addChild(bubbleNode)
+        root.addChild(label)
     }
 
     private func createCharacter(x: CGFloat, footY: CGFloat, isPlayer: Bool, avatarAssetName: String, flipX: Bool) -> CharacterView {

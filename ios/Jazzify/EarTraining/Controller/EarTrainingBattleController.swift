@@ -11,6 +11,8 @@ protocol EarTrainingBattleSceneHandle: AnyObject {
     /// 攻撃 / 完了 / 被弾 / Fail のエフェクトを発火する。
     /// 着弾タイミングで `EarTrainingBattleController.handleEffectImpact(_:)` を呼ぶ実装にする。
     func runEffect(_ command: EarTrainingBattleEffectCommand)
+    /// 主人公頭上のコードヴォイシング台詞（吹き出し）。nil で非表示。
+    func setPlayerQuote(_ text: String?)
 }
 
 /// 耳コピバトル ゲーム画面の状態ハブ。Web 版 `EarTrainingGameScreen.tsx` と同等の状態機械を保持する。
@@ -808,6 +810,7 @@ final class EarTrainingBattleController: ObservableObject {
             isEnglishCopy: isEnglishCopy
         )
         scene?.applySnapshot(snapshot)
+        scene?.setPlayerQuote(nil)
     }
 
     // MARK: - Timer helpers

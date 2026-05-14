@@ -3,34 +3,56 @@ import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supaba
 import type {
   EarTrainingPhrase,
   EarTrainingPhraseChord,
+  EarTrainingPhraseChordQuote,
   EarTrainingPhraseDemoLoop,
   EarTrainingPhraseNote,
   EarTrainingStage,
 } from '@/types';
 
 const EAR_TRAINING_CACHE_PREFIX = 'ear_training';
-const EAR_TRAINING_STAGE_SELECT = `
+
+/** ステージ取得のネスト。`quote` は `ear_training_phrase_chord_quotes` 0..1。 */
+const EAR_TRAINING_STAGE_RELATIONS_SELECT = `
   *,
   phrases:ear_training_phrases (
     *,
     notes:ear_training_phrase_notes (*),
-    chords:ear_training_phrase_chords (*),
+    chords:ear_training_phrase_chords (
+      *,
+      quote:ear_training_phrase_chord_quotes (*)
+    ),
     demo_loops:ear_training_phrase_demo_loops (*)
   )
 `;
+
+const EAR_TRAINING_STAGE_SELECT = EAR_TRAINING_STAGE_RELATIONS_SELECT;
 
 type EarTrainingStagePayload = Omit<EarTrainingStage, 'id' | 'created_at' | 'updated_at' | 'phrases'>;
 type EarTrainingStageUpdate = Partial<EarTrainingStagePayload>;
 type EarTrainingPhrasePayload = Omit<EarTrainingPhrase, 'id' | 'created_at' | 'updated_at' | 'notes' | 'chords' | 'demo_loops'>;
 type EarTrainingPhraseUpdate = Partial<Omit<EarTrainingPhrasePayload, 'stage_id'>>;
 type EarTrainingPhraseNotePayload = Omit<EarTrainingPhraseNote, 'id' | 'created_at'>;
-type EarTrainingPhraseChordPayload = Omit<EarTrainingPhraseChord, 'id' | 'created_at'>;
+type EarTrainingPhraseChordPayload = Omit<EarTrainingPhraseChord, 'id' | 'created_at' | 'quote'>;
 
 export interface EarTrainingPhraseImportPayload extends Omit<EarTrainingPhrasePayload, 'stage_id'> {
   notes: Omit<EarTrainingPhraseNotePayload, 'phrase_id'>[];
   chords: Omit<EarTrainingPhraseChordPayload, 'phrase_id'>[];
   demoLoopNumbers: number[];
 }
+
+const normalizePhraseChordQuote = (raw: unknown): EarTrainingPhraseChordQuote | null => {
+  if (raw == null) {
+    return null;
+  }
+  if (Array.isArray(raw)) {
+    const row = raw[0];
+    return row && typeof row === 'object' ? (row as EarTrainingPhraseChordQuote) : null;
+  }
+  if (typeof raw === 'object') {
+    return raw as EarTrainingPhraseChordQuote;
+  }
+  return null;
+};
 
 const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
   ...stage,
@@ -39,7 +61,10 @@ const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
     .map(phrase => ({
       ...phrase,
       notes: (phrase.notes ?? []).slice().sort((a, b) => a.note_index - b.note_index),
-      chords: (phrase.chords ?? []).slice().sort((a, b) => a.order_index - b.order_index),
+      chords: (phrase.chords ?? []).slice().sort((a, b) => a.order_index - b.order_index).map(chord => ({
+        ...chord,
+        quote: normalizePhraseChordQuote((chord as EarTrainingPhraseChord & { quote?: unknown }).quote),
+      })),
       demo_loops: (phrase.demo_loops ?? []).slice().sort((a, b) => a.loop_number - b.loop_number),
     }))
     .sort((a, b) => a.order_index - b.order_index),
