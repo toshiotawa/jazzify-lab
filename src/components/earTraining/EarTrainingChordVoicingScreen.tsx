@@ -103,6 +103,8 @@ const AUDIO_END_EPSILON_SEC = 0.03;
 const AUDIO_SYNC_EPSILON_SEC = 0.012;
 const MIN_AUDIO_SYNC_TIMER_MS = 8;
 const SELF_PACED_TIMELINE_SYNC_MS = 200;
+/** セルフペース時、譜面の「次小節→現在小節」の表示切替を遅らせる（完成パルスが見えるようにする） */
+const MEASURE_SHIFT_DELAY_MS = 100;
 const BATTLE_EFFECT_DURATION_MS = 720;
 const ATTACK_GAUGE_TARGET_LOOPS = 6;
 const ENEMY_ATTACK_GAUGE_STEP = 0.02;
@@ -250,6 +252,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const [countInValue, setCountInValue] = useState(stage.count_in_beats);
   const [activeLoop, setActiveLoop] = useState(1);
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
+  const [displayedActiveMeasureNumber, setDisplayedActiveMeasureNumber] = useState(1);
   const [activeChord, setActiveChord] = useState<EarTrainingPhraseChord | null>(null);
   const [lastRank, setLastRank] = useState<EarTrainingRank | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -285,6 +288,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const failTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chordSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const measureShiftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const measureShiftQueueRef = useRef<number[]>([]);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -370,6 +375,36 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
   }, []);
 
+  const clearMeasureShiftQueue = useCallback(() => {
+    if (measureShiftTimerRef.current !== null) {
+      clearTimeout(measureShiftTimerRef.current);
+      measureShiftTimerRef.current = null;
+    }
+    measureShiftQueueRef.current = [];
+  }, []);
+
+  const runMeasureShiftQueue = useCallback(() => {
+    if (measureShiftTimerRef.current !== null) {
+      return;
+    }
+    const step = () => {
+      measureShiftTimerRef.current = null;
+      const next = measureShiftQueueRef.current.shift();
+      if (next !== undefined) {
+        setDisplayedActiveMeasureNumber(next);
+      }
+      if (measureShiftQueueRef.current.length > 0) {
+        measureShiftTimerRef.current = setTimeout(step, MEASURE_SHIFT_DELAY_MS);
+      }
+    };
+    measureShiftTimerRef.current = setTimeout(step, MEASURE_SHIFT_DELAY_MS);
+  }, []);
+
+  const enqueueMeasureDisplayShift = useCallback((targetMeasure: number) => {
+    measureShiftQueueRef.current.push(targetMeasure);
+    runMeasureShiftQueue();
+  }, [runMeasureShiftQueue]);
+
   const clearCountdownTimer = useCallback(() => {
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
@@ -404,6 +439,17 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearChordSyncTimer();
     phrasePlayerRef.current?.stop();
   }, [clearChordSyncTimer]);
+
+  useEffect(() => {
+    if (!chordVoicingSelfPaced) {
+      clearMeasureShiftQueue();
+      setDisplayedActiveMeasureNumber(activeMeasureNumber);
+    }
+  }, [activeMeasureNumber, chordVoicingSelfPaced, clearMeasureShiftQueue]);
+
+  useEffect(() => () => {
+    clearMeasureShiftQueue();
+  }, [clearMeasureShiftQueue]);
 
   const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
     setFeedback(value);
@@ -518,12 +564,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearFailTimer();
     clearTransitionTimer();
     clearTimeLimitTimer();
+    clearMeasureShiftQueue();
     gameStateRef.current = 'gameOver';
     stopPhraseAudio();
     stopSelfPacedDrumLoop();
     setGameState('gameOver');
     setStatusText(message);
-  }, [clearFailTimer, clearTimeLimitTimer, clearTransitionTimer, stopPhraseAudio, stopSelfPacedDrumLoop]);
+  }, [clearFailTimer, clearMeasureShiftQueue, clearTimeLimitTimer, clearTransitionTimer, stopPhraseAudio, stopSelfPacedDrumLoop]);
 
   const failCurrentPhrase = useCallback(() => {
     const currentAttempt = attemptRef.current;
@@ -738,6 +785,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     if (nextActiveMeasureNumber !== activeMeasureNumberRef.current) {
       activeMeasureNumberRef.current = nextActiveMeasureNumber;
       setActiveMeasureNumber(nextActiveMeasureNumber);
+      if (chordVoicingSelfPaced) {
+        enqueueMeasureDisplayShift(nextActiveMeasureNumber);
+      }
     }
     const completedLoop = Math.min(
       stage.max_loops_per_phrase,
@@ -755,6 +805,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       scheduleNextAudioTimelineSync();
     }
   }, [
+    enqueueMeasureDisplayShift,
     failCurrentPhrase,
     phrases,
     scheduleNextAudioTimelineSync,
@@ -776,6 +827,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       finishGameOver(copy.noPhrases);
       return false;
     }
+    clearMeasureShiftQueue();
     setPhraseIndex(nextPhraseIndex);
     phraseIndexRef.current = nextPhraseIndex;
     setPhraseRunId(current => current + 1);
@@ -808,12 +860,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       : 1;
     activeMeasureNumberRef.current = initialMeasureNumber;
     setActiveMeasureNumber(initialMeasureNumber);
+    setDisplayedActiveMeasureNumber(initialMeasureNumber);
     setActiveChord(initialChord);
     activeChordRef.current = initialChord;
     setStatusText(copy.phraseLabel(nextPhraseIndex + 1));
     return true;
   }, [
     chordVoicingSelfPaced,
+    clearMeasureShiftQueue,
     copy,
     finishGameOver,
     phrases,
@@ -994,6 +1048,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     activeMeasureNumberRef.current = 1;
     lastLoopAttackAppliedRef.current = 0;
     setActiveMeasureNumber(1);
+    setDisplayedActiveMeasureNumber(1);
     setBattleEffectCommand(null);
     pendingImpactHandlersRef.current.clear();
     setEnemyAttackGaugePercent(0);
@@ -1002,6 +1057,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearFailTimer();
     clearChordSyncTimer();
     clearTransitionTimer();
+    clearMeasureShiftQueue();
     clearTimeLimitTimer();
     stopPhraseAudio();
     if (chordVoicingSelfPaced) {
@@ -1124,6 +1180,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearBattleEffectTimers,
     clearChordSyncTimer,
     clearFailTimer,
+    clearMeasureShiftQueue,
     clearTimeLimitTimer,
     clearTransitionTimer,
     copy,
@@ -1693,7 +1750,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       };
     }
 
-    const currentMeasureNumber = normalizeMeasureNumber(activeMeasureNumber, stage.loop_measures);
+    const currentMeasureNumber = normalizeMeasureNumber(displayedActiveMeasureNumber, stage.loop_measures);
     const nextMeasureNumber = normalizeMeasureNumber(currentMeasureNumber + 1, stage.loop_measures);
     const slotIndexByMeasure = new Map<number, number>();
 
@@ -1752,8 +1809,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     };
   }, [
     activeChord?.id,
-    activeMeasureNumber,
     currentPhrase,
+    displayedActiveMeasureNumber,
     stage.loop_measures,
   ]);
 

@@ -4,6 +4,7 @@ import EarTrainingPhaserGame from './EarTrainingPhaserGame';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
 import ChordVoicingStaff, {
   CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD,
+  type ChordVoicingCompletionPulse,
   type ChordVoicingStaffGroup,
 } from './ChordVoicingStaff';
 import type {
@@ -53,6 +54,7 @@ import {
 } from '@/utils/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -71,6 +73,8 @@ interface EarTrainingChordQuizScreenProps {
 
 const INPUT_COOLDOWN_MS = 20;
 const QUIZ_EFFECT_MS = 820;
+/** 正解後、譜面の次小節→現在小節の表示切替を遅らせる（CSS 完成パルスが見えるようにする） */
+const MEASURE_SHIFT_DELAY_MS = 100;
 /** コードクイズ本番の敵 HP（演出・クリア条件用。DB の enemy_hp とは独立） */
 const QUIZ_BATTLE_ENEMY_HP = 10_000;
 const QUIZ_ATTACK_GAUGE_FILL_MS = 5000;
@@ -91,6 +95,18 @@ const clampGaugeRatio = (value: number): number => Math.min(1, Math.max(0, value
 const randomIntInclusive = (min: number, max: number, rand: () => number): number => (
   Math.floor(rand() * (max - min + 1)) + min
 );
+
+const voicingToPitchClasses = (voicing: readonly string[]): readonly number[] => {
+  const pcs: number[] = [];
+  for (const noteName of voicing) {
+    try {
+      pcs.push(parseVoicingNoteName(noteName).midi % 12);
+    } catch {
+      /* 無効な音名はスキップ */
+    }
+  }
+  return pcs;
+};
 
 const formatTime = (seconds: number): string => {
   const safe = Math.max(0, Math.ceil(seconds));
@@ -158,6 +174,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [previewItemIndex, setPreviewItemIndex] = useState(0);
+  const [displayedActiveItemIndex, setDisplayedActiveItemIndex] = useState(0);
+  const [displayedPreviewItemIndex, setDisplayedPreviewItemIndex] = useState(0);
   const [attempt, setAttempt] = useState<EarTrainingChordVoicingAttempt | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(quizDurationSec);
@@ -168,6 +186,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [feedback, setFeedback] = useState<'clear' | null>(null);
+  const [completionPulse, setCompletionPulse] = useState<ChordVoicingCompletionPulse | null>(null);
+  const completionPulseEventKeyRef = useRef(0);
   const [battleEffectCommand, setBattleEffectCommand] = useState<{
     id: number;
     kind: EarTrainingBattleEffectKind;
@@ -196,6 +216,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
   const pendingImpactHandlersRef = useRef<Map<number, () => void>>(new Map());
+  const staffShiftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const staffShiftQueueRef = useRef<Array<{ active: number; preview: number }>>([]);
   const quizStartedAtRef = useRef<number | null>(null);
   const quizEndedRef = useRef(false);
   const phraseRunNonceRef = useRef(0);
@@ -217,6 +239,44 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     setEnemyAttackGaugePercentState(next);
   }, []);
 
+  const clearStaffShiftQueue = useCallback(() => {
+    if (staffShiftTimerRef.current !== null) {
+      clearTimeout(staffShiftTimerRef.current);
+      staffShiftTimerRef.current = null;
+    }
+    staffShiftQueueRef.current = [];
+  }, []);
+
+  const runStaffShiftQueue = useCallback(() => {
+    if (staffShiftTimerRef.current !== null) {
+      return;
+    }
+    const step = () => {
+      staffShiftTimerRef.current = null;
+      const next = staffShiftQueueRef.current.shift();
+      if (next) {
+        setDisplayedActiveItemIndex(next.active);
+        setDisplayedPreviewItemIndex(next.preview);
+      }
+      if (staffShiftQueueRef.current.length > 0) {
+        staffShiftTimerRef.current = setTimeout(step, MEASURE_SHIFT_DELAY_MS);
+      }
+    };
+    staffShiftTimerRef.current = setTimeout(step, MEASURE_SHIFT_DELAY_MS);
+  }, []);
+
+  const triggerCompletionPulse = useCallback((
+    groupId: string,
+    kind: 'voicingPartial' | 'harmonyComplete',
+  ) => {
+    completionPulseEventKeyRef.current += 1;
+    setCompletionPulse({
+      groupId,
+      kind,
+      eventKey: completionPulseEventKeyRef.current,
+    });
+  }, []);
+
   const activeItem = quizItems[activeItemIndex] ?? null;
   const previewItem = quizItems[previewItemIndex] ?? null;
   const activeChord = useMemo(
@@ -226,6 +286,16 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const previewChord = useMemo(
     () => (previewItem ? itemToPhraseChord(previewItem) : null),
     [previewItem],
+  );
+  const displayedActiveItem = quizItems[displayedActiveItemIndex] ?? null;
+  const displayedPreviewItem = quizItems[displayedPreviewItemIndex] ?? null;
+  const displayedActiveChord = useMemo(
+    () => (displayedActiveItem ? itemToPhraseChord(displayedActiveItem) : null),
+    [displayedActiveItem],
+  );
+  const displayedPreviewChord = useMemo(
+    () => (displayedPreviewItem ? itemToPhraseChord(displayedPreviewItem) : null),
+    [displayedPreviewItem],
   );
   useEffect(() => { attemptRef.current = attempt; }, [attempt]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
@@ -279,12 +349,13 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     clearQuizTimer();
     clearCountdownTimer();
     clearBattleEffectTimers();
+    clearStaffShiftQueue();
     chordVoicingPhrasePlayerStubRef.current?.dispose();
     chordVoicingPhrasePlayerStubRef.current = null;
     selfPacedDrumLoopRef.current?.dispose();
     selfPacedDrumLoopRef.current = null;
     return () => undefined;
-  }, [clearBattleEffectTimers, clearCountdownTimer, clearQuizTimer]);
+  }, [clearBattleEffectTimers, clearCountdownTimer, clearQuizTimer, clearStaffShiftQueue]);
 
   const triggerBattleEffect = useCallback((
     kind: EarTrainingBattleEffectKind,
@@ -337,6 +408,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
   const finishQuizSuccess = useCallback(async () => {
     pendingImpactHandlersRef.current.clear();
+    clearStaffShiftQueue();
     clearQuizTimer();
     clearCountdownTimer();
     gameStateRef.current = 'stageClear';
@@ -360,17 +432,19 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     practiceMode,
     stopSelfPacedDrumLoop,
     clearCountdownTimer,
+    clearStaffShiftQueue,
   ]);
 
   const finishQuizFail = useCallback(() => {
     pendingImpactHandlersRef.current.clear();
+    clearStaffShiftQueue();
     clearQuizTimer();
     clearCountdownTimer();
     gameStateRef.current = 'gameOver';
     stopSelfPacedDrumLoop();
     setGameState('gameOver');
     setStatusText(isEnglishCopy ? 'Try again' : '残念…');
-  }, [clearCountdownTimer, clearQuizTimer, isEnglishCopy, stopSelfPacedDrumLoop]);
+  }, [clearCountdownTimer, clearQuizTimer, clearStaffShiftQueue, isEnglishCopy, stopSelfPacedDrumLoop]);
 
   const evaluateTimeUp = useCallback(() => {
     if (practiceMode || quizEndedRef.current) {
@@ -447,13 +521,16 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     attemptRef.current = nextAttempt;
     attackGaugeEpochMsRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
     setEnemyAttackGaugePercent(0);
-  }, [previewItemIndex, quizItems, quizOrder, setEnemyAttackGaugePercent, stage.id]);
+    staffShiftQueueRef.current.push({ active: nextActiveIdx, preview: nextPreviewIdx });
+    runStaffShiftQueue();
+  }, [previewItemIndex, quizItems, quizOrder, runStaffShiftQueue, setEnemyAttackGaugePercent, stage.id]);
 
   const startQuizInternal = useCallback(() => {
     if (quizItems.length === 0) {
       setStatusText(isEnglishCopy ? 'No quiz items in stage' : '出題がありません');
       return;
     }
+    clearStaffShiftQueue();
     clearCountdownTimer();
     quizEndedRef.current = false;
     progressSaveStartedRef.current = false;
@@ -476,6 +553,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     const firstPreview = pickNextQuizIndex(quizItems, quizOrder, firstActive, randRef.current);
     setActiveItemIndex(firstActive);
     setPreviewItemIndex(firstPreview);
+    setDisplayedActiveItemIndex(firstActive);
+    setDisplayedPreviewItemIndex(firstPreview);
     setPhraseRunId(0);
     const chord = quizItems[firstActive];
     if (!chord) {
@@ -573,6 +652,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     stage.count_in_beats,
     stage.id,
     stage.player_hp,
+    clearStaffShiftQueue,
   ]);
 
   const startQuiz = useCallback(() => {
@@ -613,6 +693,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     if (!result.chordJustCompleted) {
       return;
     }
+
+    triggerCompletionPulse(activeChord.id, 'harmonyComplete');
 
     const nextCorrect = correctCountRef.current + 1;
     correctCountRef.current = nextCorrect;
@@ -678,6 +760,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     registerPlayerHpImpactDamage,
     requiredCorrect,
     triggerBattleEffect,
+    triggerCompletionPulse,
   ]);
 
   useEffect(() => {
@@ -771,30 +854,30 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const showVoicingTargetHints = gameState === 'playingPhrase' || gameState === 'countIn';
 
   const staffVoicingGroups = useMemo((): ChordVoicingStaffGroup[] => {
-    if (!activeChord || !previewChord) {
+    if (!displayedActiveChord || !displayedPreviewChord) {
       return [];
     }
-    const currentNoteTotal = activeChord.voicing?.length ?? 0;
+    const currentNoteTotal = displayedActiveChord.voicing?.length ?? 0;
     const denseCurrentMeasureLayout = currentNoteTotal >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
     return [
       {
-        id: activeChord.id,
-        chordName: activeChord.chord_name,
-        voicing: activeChord.voicing ?? [],
-        voicingStaves: activeChord.voicing_staves ?? EMPTY_STAVES,
+        id: displayedActiveChord.id,
+        chordName: displayedActiveChord.chord_name,
+        voicing: displayedActiveChord.voicing ?? [],
+        voicingStaves: displayedActiveChord.voicing_staves ?? EMPTY_STAVES,
         measureOffset: 0,
         isRest: false,
       },
       {
-        id: previewChord.id,
-        chordName: previewChord.chord_name,
-        voicing: previewChord.voicing ?? [],
-        voicingStaves: previewChord.voicing_staves ?? EMPTY_STAVES,
+        id: displayedPreviewChord.id,
+        chordName: displayedPreviewChord.chord_name,
+        voicing: displayedPreviewChord.voicing ?? [],
+        voicingStaves: displayedPreviewChord.voicing_staves ?? EMPTY_STAVES,
         measureOffset: 1,
         isRest: false,
       },
     ];
-  }, [activeChord, previewChord]);
+  }, [displayedActiveChord, displayedPreviewChord]);
 
   const staffDenseCurrentMeasureLayout = useMemo(() => {
     if (!activeChord) {
@@ -810,12 +893,19 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     }
     staffVoicingGroups.forEach(group => {
       const pressed = attempt.pressedByChord.get(group.id);
-      if (pressed) {
+      if (pressed && pressed.size > 0) {
         correctPitchClassesByGroupId.set(group.id, Array.from(pressed));
+        return;
+      }
+      if (group.measureOffset === 0 && activeChord && group.id !== activeChord.id) {
+        const pcs = voicingToPitchClasses(group.voicing);
+        if (pcs.length > 0) {
+          correctPitchClassesByGroupId.set(group.id, pcs);
+        }
       }
     });
     return correctPitchClassesByGroupId;
-  }, [attempt, staffVoicingGroups]);
+  }, [attempt, activeChord, staffVoicingGroups]);
 
   const voicingKeyboardHints = useMemo(() => {
     if (!practiceMode || !activeChord || !showVoicingTargetHints) {
@@ -1020,7 +1110,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
             keyFifths={stage.key_fifths ?? 0}
-            completionPulse={null}
+            completionPulse={completionPulse}
           />
         </div>
       )}
