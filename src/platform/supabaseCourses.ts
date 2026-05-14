@@ -460,9 +460,9 @@ export async function manualUnlockCourse(courseId: string): Promise<void> {
 }
 
 /**
- * チュートリアルコースのID・レッスン一覧・ユーザー進捗を一括取得
+ * メインクエスト用コース（is_main_course=true）の ID・クエスト一覧・ユーザー進捗を一括取得
  */
-export interface TutorialProgress {
+export interface MainQuestProgress {
   courseId: string;
   courseTitle: string;
   totalLessons: number;
@@ -470,16 +470,16 @@ export interface TutorialProgress {
   nextLesson: { id: string; title: string; title_en: string | null; order_index: number } | null;
 }
 
-/** チュートリアルは audience によらず1コース（is_tutorial=true） */
-export async function fetchTutorialProgress(): Promise<TutorialProgress | null> {
+/** audience によらずメインクエストは1コース（is_main_course=true） */
+export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null> {
   const supabase = getSupabaseClient();
 
   const { data: courseData, error: courseError } = await fetchWithCache(
-    'tutorial_course',
+    'main_quest_course',
     async () => await supabase
       .from('courses')
       .select('id, title')
-      .eq('is_tutorial', true)
+      .eq('is_main_course', true)
       .eq('is_visible', true)
       .eq('is_developer_only', false)
       .order('order_index', { ascending: true })
@@ -491,7 +491,7 @@ export async function fetchTutorialProgress(): Promise<TutorialProgress | null> 
   if (courseError || !courseData) return null;
 
   const { data: lessons, error: lessonsError } = await fetchWithCache(
-    `tutorial_lessons_${courseData.id}`,
+    `main_quest_lessons_${courseData.id}`,
     async () => await supabase
       .from('lessons')
       .select('id, title, title_en, order_index, block_number')

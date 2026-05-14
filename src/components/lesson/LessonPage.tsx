@@ -133,10 +133,10 @@ const LessonPage: React.FC = () => {
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
           <h4 className="text-lg font-bold text-center">
-            {isEnglishCopy ? 'Lessons require login' : 'レッスンはログインユーザー専用です'}
+            {isEnglishCopy ? 'Quests require login' : 'クエストはログインユーザー専用です'}
           </h4>
           <p className="text-center text-gray-300">
-            {isEnglishCopy ? 'Please log in to access lessons.' : 'レッスン機能を利用するにはログインが必要です。'}
+            {isEnglishCopy ? 'Please log in to access quests.' : 'クエスト機能を利用するにはログインが必要です。'}
           </p>
           <div className="flex flex-col gap-3">
             <button
@@ -246,7 +246,7 @@ const LessonPage: React.FC = () => {
         <div className="mt-auto">
           <div className="flex justify-between items-center text-xs text-gray-400 mb-1.5">
             <span>
-              {count} {isEnglishCopy ? 'lessons' : 'レッスン'}
+              {count} {isEnglishCopy ? 'quests' : 'クエスト'}
             </span>
             <span className={isCompleted ? 'text-emerald-400 font-medium' : ''}>
               {progress}%
@@ -276,7 +276,7 @@ const LessonPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold">
-                {isEnglishCopy ? 'Lessons' : 'レッスン'}
+                {isEnglishCopy ? 'Quests' : 'クエスト'}
               </h1>
               <p className="text-sm text-gray-400">
                 {isEnglishCopy

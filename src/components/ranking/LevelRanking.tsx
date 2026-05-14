@@ -238,7 +238,7 @@ const LevelRanking: React.FC = () => {
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-3 px-2 min-w-[3rem]">#</th>
                 <th className="py-3 px-2 min-w-[12rem] sm:min-w-[10rem]">{userColumnText}</th>
-                <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Lessons' : 'レッスン'}</th>
+                <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Quests' : 'クエスト'}</th>
                 <th className="py-3 px-2 min-w-[4rem]">{fantasyColumnText}</th>
                 <th className="py-3 px-2 min-w-[5rem]">{survivalColumnText}</th>
                 <th className="py-3 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>

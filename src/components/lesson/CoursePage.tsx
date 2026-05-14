@@ -186,7 +186,7 @@ const CoursePage: React.FC = () => {
     const state = lessonAccessGraph.lessonStates[lessonId];
     if (!state?.isUnlocked) {
       toast.warning(
-        isEnglishCopy ? 'This lesson is not yet unlocked' : 'このレッスンはまだ解放されていません',
+        isEnglishCopy ? 'This quest is not yet unlocked' : 'このクエストはまだ解放されていません',
       );
       return;
     }
@@ -235,7 +235,7 @@ const CoursePage: React.FC = () => {
               onClick={() => { window.location.hash = '#lessons'; }}
             >
               <FaArrowLeft className="text-xs" />
-              {isEnglishCopy ? 'Lessons' : 'レッスン'}
+              {isEnglishCopy ? 'Quests' : 'クエスト'}
             </button>
             <span className="opacity-50">/</span>
             <span className="text-violet-50 truncate">

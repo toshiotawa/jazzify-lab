@@ -34,7 +34,7 @@ struct LessonListView: View {
                         Image(systemName: "book.closed")
                             .font(.system(size: 48))
                             .foregroundStyle(.gray)
-                        Text(locale == .ja ? "レッスンがありません" : "No lessons available")
+                        Text(locale == .ja ? "クエストがありません" : "No quests available")
                             .foregroundStyle(.gray)
                     }
                 } else {
@@ -62,7 +62,7 @@ struct LessonListView: View {
                     }
                 }
             }
-            .navigationTitle(locale == .ja ? "レッスン" : "Lessons")
+            .navigationTitle(locale == .ja ? "クエスト" : "Quests")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
@@ -111,10 +111,10 @@ struct LessonListView: View {
                 FeatureInfoModal(
                     icon: "book.fill",
                     iconColor: .purple,
-                    title: locale == .ja ? "レッスン" : "Lessons",
+                    title: locale == .ja ? "クエスト" : "Quests",
                     description: locale == .ja
-                        ? "コース形式のレッスンで体系的にジャズを学べます。各レッスンには動画解説と実習課題があり、課題をクリアすると次のレッスンがアンロックされます。ブロックごとに進捗を管理し、段階的にスキルアップできます。"
-                        : "Learn jazz systematically through structured course lessons. Each lesson includes video explanations and practice tasks. Complete tasks to unlock the next lesson. Progress is tracked by blocks, allowing you to level up step by step.",
+                        ? "コース形式のクエストで体系的にジャズを学べます。各クエストには動画解説と実習課題があり、課題をクリアすると次のクエストがアンロックされます。ブロックごとに進捗を管理し、段階的にスキルアップできます。"
+                        : "Learn jazz systematically through structured course quests. Each quest includes video explanations and practice tasks. Complete tasks to unlock the next quest. Progress is tracked by blocks, allowing you to level up step by step.",
                     locale: locale
                 )
                 .presentationDetents([.medium])
@@ -411,7 +411,7 @@ struct LessonDetailView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 42))
                         .foregroundStyle(.orange)
-                    Text(locale == .ja ? "レッスン詳細の読み込みに失敗しました" : "Failed to load lesson details")
+                    Text(locale == .ja ? "クエスト詳細の読み込みに失敗しました" : "Failed to load quest details")
                         .foregroundStyle(.white)
                     Button(locale == .ja ? "再読み込み" : "Retry") {
                         Task { await loadLessonDetail() }
@@ -998,8 +998,8 @@ struct LessonDetailView: View {
                     }
                     Text(
                         isLessonCompleted
-                        ? (locale == .ja ? "レッスン完了済み" : "Lesson completed")
-                        : (locale == .ja ? "レッスン完了" : "Complete lesson")
+                        ? (locale == .ja ? "クエスト完了済み" : "Quest completed")
+                        : (locale == .ja ? "クエスト完了" : "Complete quest")
                     )
                     Spacer()
                 }
@@ -1015,8 +1015,8 @@ struct LessonDetailView: View {
 
             Text(
                 allRequirementsCompleted
-                ? (locale == .ja ? "すべての課題を完了済みです。" : "All lesson tasks are complete.")
-                : (locale == .ja ? "すべての実習課題を完了してから押してください。" : "Complete all lesson tasks before marking this lesson complete.")
+                ? (locale == .ja ? "すべての課題を完了済みです。" : "All practice tasks are complete.")
+                : (locale == .ja ? "すべての実習課題を完了してから押してください。" : "Complete all practice tasks before marking this quest complete.")
             )
             .font(.caption)
             .foregroundStyle(allRequirementsCompleted ? .green : .gray)
@@ -1090,8 +1090,8 @@ struct LessonDetailView: View {
         }
         guard allRequirementsCompleted else {
             alertMessage = locale == .ja
-                ? "すべての実習課題を完了してからレッスンを完了してください。"
-                : "Complete all tasks before marking this lesson complete."
+                ? "すべての実習課題を完了してからクエストを完了してください。"
+                : "Complete all practice tasks before marking this quest complete."
             return
         }
 
@@ -1106,7 +1106,7 @@ struct LessonDetailView: View {
                 completed: true
             )
             isLessonCompleted = true
-            alertMessage = locale == .ja ? "レッスンを完了しました。" : "Lesson completed."
+            alertMessage = locale == .ja ? "クエストを完了しました。" : "Quest completed."
         } catch {
             alertMessage = error.localizedDescription
         }

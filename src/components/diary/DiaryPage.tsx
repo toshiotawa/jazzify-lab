@@ -303,9 +303,9 @@ const DiaryPage: React.FC = () => {
                             <span className="text-gray-400">{isEnglishCopy ? 'Missions' : 'ミッション完了'}</span>
                             <span className="font-semibold text-white">{userStats?.missionCompletedCount ?? 0}</span>
                           </div>
-                          <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Lessons Cleared' : 'レッスンクリア数'}>
+                          <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Quests Cleared' : 'クエストクリア数'}>
                             <FaGraduationCap className="text-blue-400" aria-hidden="true" />
-                            <span className="text-gray-400">{isEnglishCopy ? 'Lessons' : 'レッスンクリア'}</span>
+                            <span className="text-gray-400">{isEnglishCopy ? 'Quests' : 'クエストクリア'}</span>
                             <span className="font-semibold text-white">{userStats?.lessonCompletedCount ?? 0}</span>
                           </div>
                           <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'}>

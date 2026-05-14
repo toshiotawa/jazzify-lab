@@ -84,7 +84,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
       },
     },
     {
-      label: isEnglishCopy ? 'Lessons' : 'レッスン',
+      label: isEnglishCopy ? 'Quests' : 'クエスト',
       values: {
         free: isEnglishCopy ? 'Tutorial' : 'チュートリアル',
         premium: isEnglishCopy ? 'Unlimited' : '無制限',

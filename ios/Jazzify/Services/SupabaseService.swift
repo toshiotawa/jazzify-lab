@@ -319,20 +319,20 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
-    // MARK: - Tutorial Progress
+    // MARK: - Main Quest Progress
 
-    struct TutorialProgressResult: Sendable {
+    struct MainQuestProgressResult: Sendable {
         let courseId: UUID
         let totalLessons: Int
         let completedLessons: Int
         let nextLesson: Lesson?
     }
 
-    func fetchTutorialProgress(userId: UUID) async throws -> TutorialProgressResult? {
+    func fetchMainQuestProgress(userId: UUID) async throws -> MainQuestProgressResult? {
         let courses: [Course] = try await client
             .from("courses")
             .select()
-            .eq("is_tutorial", value: true)
+            .eq("is_main_course", value: true)
             .eq("is_visible", value: true)
             .eq("is_developer_only", value: false)
             .order("order_index")
@@ -362,7 +362,7 @@ final class SupabaseService: Sendable {
         let completedIds = Set(progressRows.map(\.lessonId))
         let nextLesson = lessons.first { !completedIds.contains($0.id) }
 
-        return TutorialProgressResult(
+        return MainQuestProgressResult(
             courseId: course.id,
             totalLessons: lessons.count,
             completedLessons: completedIds.count,

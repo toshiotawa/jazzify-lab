@@ -16,7 +16,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
-import TutorialProgressSection from '@/components/dashboard/TutorialProgressSection';
+import MainQuestProgressSection from '@/components/dashboard/MainQuestProgressSection';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 /**
@@ -118,6 +118,7 @@ const Dashboard: React.FC = () => {
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
+          <MainQuestProgressSection />
           {!isPremiumMember && (
             <button
               type="button"
@@ -134,8 +135,8 @@ const Dashboard: React.FC = () => {
                   </h3>
                   <p className="text-sm text-gray-400 mt-0.5">
                     {isEnglishCopy
-                      ? 'Unlock all lessons, modes, and features. 7-day free trial available.'
-                      : 'すべてのレッスン・モード・機能を解放。7日間無料トライアルあり。'}
+                      ? 'Unlock all quests, modes, and features. 7-day free trial available.'
+                      : 'すべてのクエスト・モード・機能を解放。7日間無料トライアルあり。'}
                   </p>
                 </div>
                 <span className="text-amber-400 text-sm font-semibold shrink-0">
@@ -144,7 +145,6 @@ const Dashboard: React.FC = () => {
               </div>
             </button>
           )}
-          <TutorialProgressSection />
           <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
@@ -171,7 +171,7 @@ const Dashboard: React.FC = () => {
                   ) : userStats ? (
                     <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
                       <span>
-                        {isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}
+                        {isEnglishCopy ? 'Quests cleared' : 'クエストクリア数'} {userStats.lessonCompletedCount}
                       </span>
                       <span>
                         {isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'}{' '}

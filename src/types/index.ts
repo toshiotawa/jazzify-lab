@@ -852,6 +852,9 @@ export interface Lesson {
   block_number?: number;
   block_name?: string | null;
   block_name_en?: string | null;
+  /** ブロック説明（日本語）。同一ブロック内で block_name と同様に同一値を想定 */
+  block_description?: string | null;
+  block_description_en?: string | null;
   nav_links?: NavLinkKey[];
   created_at: string;
   updated_at: string;
@@ -901,6 +904,8 @@ export interface Course {
   is_visible?: boolean;
   /** 開発者向けテストコース（本番クライアントでは一覧から除外） */
   is_developer_only?: boolean;
+  /** メインクエスト用コース（サブクエストと区別。DB: is_main_course） */
+  is_main_course?: boolean;
   prerequisites?: CoursePrerequisite[];
 }
 

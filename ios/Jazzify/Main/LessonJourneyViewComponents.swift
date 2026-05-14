@@ -699,8 +699,8 @@ struct LessonJourneyDetailSheet: View {
                 HStack {
                     Image(systemName: isCompleted ? "checkmark.circle.fill" : "play.fill")
                     Text(isCompleted
-                        ? (locale == .ja ? "もう一度挑戦する" : "Review lesson")
-                        : (locale == .ja ? "レッスンを開始" : "Start lesson"))
+                        ? (locale == .ja ? "もう一度挑戦する" : "Review quest")
+                        : (locale == .ja ? "クエストを開始" : "Start quest"))
                         .font(.headline)
                 }
                 .frame(maxWidth: .infinity)
@@ -750,7 +750,7 @@ struct LessonJourneyListPanel: View {
         let percent = totalCount > 0 ? Int((Double(completedCount) / Double(totalCount)) * 100.0) : 0
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(locale == .ja ? "レッスン一覧" : "Lessons")
+                Text(locale == .ja ? "クエスト一覧" : "Quests")
                     .font(.subheadline.bold())
                     .tracking(1.2)
                     .foregroundStyle(Color(hex: "c4b5fd"))

@@ -431,13 +431,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lessons"
+            "value" : "Quests"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "レッスン"
+            "value" : "クエスト"
           }
         }
       }
@@ -664,13 +664,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Access all lessons, stages, and features"
+            "value" : "Access all quests, stages, and features"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全レッスン・全ステージ・全機能が使い放題"
+            "value" : "全クエスト・全ステージ・全機能が使い放題"
           }
         }
       }

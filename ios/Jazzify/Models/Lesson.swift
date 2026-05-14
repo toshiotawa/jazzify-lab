@@ -51,6 +51,7 @@ struct Course: Codable, Identifiable, Sendable {
     let audience: String?
     let difficultyTier: String?
     let isDeveloperOnly: Bool?
+    let isMainCourse: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description, audience
@@ -61,6 +62,7 @@ struct Course: Codable, Identifiable, Sendable {
         case isTutorial = "is_tutorial"
         case difficultyTier = "difficulty_tier"
         case isDeveloperOnly = "is_developer_only"
+        case isMainCourse = "is_main_course"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -88,6 +90,8 @@ struct Lesson: Codable, Identifiable, Sendable {
     let blockNumber: Int?
     let blockName: String?
     let blockNameEn: String?
+    let blockDescription: String?
+    let blockDescriptionEn: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -99,6 +103,8 @@ struct Lesson: Codable, Identifiable, Sendable {
         case blockNumber = "block_number"
         case blockName = "block_name"
         case blockNameEn = "block_name_en"
+        case blockDescription = "block_description"
+        case blockDescriptionEn = "block_description_en"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -121,6 +127,11 @@ struct LessonDetail: Codable, Identifiable, Sendable {
     let assignmentDescriptionEn: String?
     let navLinks: [String]?
     let lessonSongs: [LessonSong]
+    let blockNumber: Int?
+    let blockName: String?
+    let blockNameEn: String?
+    let blockDescription: String?
+    let blockDescriptionEn: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -131,6 +142,11 @@ struct LessonDetail: Codable, Identifiable, Sendable {
         case assignmentDescriptionEn = "assignment_description_en"
         case navLinks = "nav_links"
         case lessonSongs = "lesson_songs"
+        case blockNumber = "block_number"
+        case blockName = "block_name"
+        case blockNameEn = "block_name_en"
+        case blockDescription = "block_description"
+        case blockDescriptionEn = "block_description_en"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

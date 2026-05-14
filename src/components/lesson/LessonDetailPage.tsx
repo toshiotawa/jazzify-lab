@@ -79,7 +79,7 @@ const getNavLinkLabel = (key: NavLinkKey, isEnglishCopy: boolean): string => {
   const labels: Record<NavLinkKey, { en: string; ja: string }> = {
     dashboard: { en: 'Dashboard', ja: 'ダッシュボード' },
     legend: { en: 'Dashboard', ja: 'ダッシュボード' },
-    lesson: { en: 'Lessons', ja: 'レッスン' },
+    lesson: { en: 'Quests', ja: 'クエスト' },
     fantasy: { en: 'Fantasy', ja: 'ファンタジー' },
     survival: { en: 'Survival', ja: 'サバイバル' },
     ranking: { en: 'Ranking', ja: 'ランキング' },
@@ -324,7 +324,7 @@ const LessonDetailPage: React.FC = () => {
     } catch (e: unknown) {
       if (!isStale()) {
         pushToast(
-          isEnglishCopy ? 'Failed to load lesson data.' : 'レッスンデータの読み込みに失敗しました',
+          isEnglishCopy ? 'Failed to load quest data.' : 'クエストデータの読み込みに失敗しました',
           'error',
         );
       }
@@ -351,8 +351,8 @@ const LessonDetailPage: React.FC = () => {
     if (!allRequirementsCompleted) {
       toast.warning(
         isEnglishCopy
-          ? 'Complete all practice tasks before marking the lesson complete.'
-          : '全ての実習課題を完了してからレッスンを完了してください。',
+          ? 'Complete all practice tasks before marking the quest complete.'
+          : '全ての実習課題を完了してからクエストを完了してください。',
       );
       return;
     }
@@ -373,7 +373,7 @@ const LessonDetailPage: React.FC = () => {
       });
 
       toast.success(
-        isEnglishCopy ? 'Lesson marked complete.' : 'レッスンを完了しました！',
+        isEnglishCopy ? 'Quest marked complete.' : 'クエストを完了しました！',
         {
           title: isEnglishCopy ? '🎉 Done' : '🎉 完了',
           duration: 3000,
@@ -410,7 +410,7 @@ const LessonDetailPage: React.FC = () => {
         }
       }
     } catch {
-      toast.error(isEnglishCopy ? 'Could not complete the lesson.' : '完了処理に失敗しました');
+      toast.error(isEnglishCopy ? 'Could not complete the quest.' : '完了処理に失敗しました');
     } finally {
       setCompleting(false);
     }
@@ -506,7 +506,7 @@ const LessonDetailPage: React.FC = () => {
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
-        title={`レッスン動画`}
+        title={isEnglishCopy ? 'Quest video' : 'クエスト動画'}
       />
     );
   };
@@ -545,14 +545,14 @@ const LessonDetailPage: React.FC = () => {
                       ? (isEnglishCopy ? 'Working…' : '処理中...')
                       : (navigationInfo.previousLesson
                         ? lessonDisplayTitle(navigationInfo.previousLesson, isEnglishCopy)
-                        : (isEnglishCopy ? 'No previous lesson' : '前のレッスンはありません'))
+                        : (isEnglishCopy ? 'No previous quest' : '前のクエストはありません'))
                   }
                 >
                   <FaChevronLeft className="w-4 h-4" />
                   <span className="hidden sm:inline">
                     {isNavigating
                       ? (isEnglishCopy ? 'Working…' : '処理中...')
-                      : (isEnglishCopy ? 'Previous lesson' : '手前のレッスンに戻る')}
+                      : (isEnglishCopy ? 'Previous quest' : '手前のクエストに戻る')}
                   </span>
                   <span className="sm:hidden">{isNavigating ? (isEnglishCopy ? 'Wait' : '処理中') : (isEnglishCopy ? 'Back' : '前へ')}</span>
                 </button>
@@ -560,7 +560,7 @@ const LessonDetailPage: React.FC = () => {
                   <button
                     onClick={handleBackToCourse}
                     className="flex items-center justify-center px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-                    title={isEnglishCopy ? 'Back to lesson list' : 'レッスン一覧に戻る'}
+                    title={isEnglishCopy ? 'Back to quest list' : 'クエスト一覧に戻る'}
                     aria-label={isEnglishCopy ? 'Back to lessons' : 'コースに戻る'}
                   >
                     <FaHome className="w-5 h-5 text-slate-100" aria-hidden="true" />
@@ -579,13 +579,13 @@ const LessonDetailPage: React.FC = () => {
                       ? (isEnglishCopy ? 'Working…' : '処理中...')
                       : (navigationInfo.nextLesson
                         ? lessonDisplayTitle(navigationInfo.nextLesson, isEnglishCopy)
-                        : (isEnglishCopy ? 'No next lesson' : '次のレッスンはありません'))
+                        : (isEnglishCopy ? 'No next quest' : '次のクエストはありません'))
                   }
                 >
                   <span className="hidden sm:inline">
                     {isNavigating
                       ? (isEnglishCopy ? 'Working…' : '処理中...')
-                      : (isEnglishCopy ? 'Next lesson' : '次のレッスンに進む')}
+                      : (isEnglishCopy ? 'Next quest' : '次のクエストに進む')}
                   </span>
                   <span className="sm:hidden">{isNavigating ? (isEnglishCopy ? 'Wait' : '処理中') : (isEnglishCopy ? 'Next' : '次へ')}</span>
                   <FaChevronRight className="w-4 h-4" />
@@ -1245,8 +1245,8 @@ const LessonDetailPage: React.FC = () => {
               <p className="text-xs text-gray-400 text-center mt-2">
                 {lessonProgress?.completed
                   ? isEnglishCopy
-                    ? 'You have already completed this lesson.'
-                    : 'このレッスンは既に完了しています'
+                    ? 'You have already completed this quest.'
+                    : 'このクエストは既に完了しています'
                   : isEnglishCopy
                     ? 'Tap after you have watched the videos and finished the practice tasks.'
                     : '動画視聴と実習課題を完了したら押してください'}
@@ -1254,17 +1254,17 @@ const LessonDetailPage: React.FC = () => {
 
             </div>
 
-            {/* 次のレッスンへ進むポップアップ */}
+            {/* 次のクエストへ進むポップアップ */}
             {showNextLessonPrompt && navigationInfo?.nextLesson && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setShowNextLessonPrompt(false)}>
                 <div className="bg-slate-800 rounded-xl p-6 max-w-sm mx-4 border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
                   <div className="text-center mb-4">
                     <div className="text-4xl mb-2">🎉</div>
                     <h3 className="text-xl font-bold text-white">
-                      {isEnglishCopy ? 'Lesson complete!' : 'レッスン完了！'}
+                      {isEnglishCopy ? 'Quest complete!' : 'クエスト完了！'}
                     </h3>
                     <p className="text-gray-300 text-sm mt-2">
-                      {isEnglishCopy ? 'Go to the next lesson?' : '次のレッスンに進みますか？'}
+                      {isEnglishCopy ? 'Go to the next quest?' : '次のクエストに進みますか？'}
                     </p>
                     <p className="text-blue-300 text-sm mt-1 font-medium">
                       {navigationInfo.nextLesson.title}

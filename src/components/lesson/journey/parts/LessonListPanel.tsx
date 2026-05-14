@@ -57,7 +57,7 @@ export const LessonListPanel: React.FC<LessonListPanelProps> = ({
     >
       <div className="px-4 pt-4 pb-3 border-b border-violet-400/15">
         <h3 className="text-sm font-bold tracking-wider text-violet-100/90 uppercase">
-          {isEnglishCopy ? 'Lessons' : 'レッスン一覧'}
+          {isEnglishCopy ? 'Quests' : 'クエスト一覧'}
         </h3>
         <div className="mt-2 flex items-center justify-between text-xs text-violet-200/75">
           <span>

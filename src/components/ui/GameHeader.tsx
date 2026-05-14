@@ -36,7 +36,7 @@ const GameHeader: React.FC = () => {
               {isEnglishCopy ? 'Home' : 'トップ'}
           </button>
 
-            <HashButton hash="#lessons">{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>
+            <HashButton hash="#lessons">{isEnglishCopy ? 'Quests' : 'クエスト'}</HashButton>
             <HashButton hash="#survival">{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>
         </div>
 

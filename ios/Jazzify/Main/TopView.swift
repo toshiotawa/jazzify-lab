@@ -14,9 +14,8 @@ struct TopView: View {
     @State private var weekChoice: WeekChoice = .thisWeek
     @State private var selectedYearMonth: String?
 
-    @State private var tutorialProgress: SupabaseService.TutorialProgressResult?
-    @State private var showTutorialLesson = false
-    @State private var tutorialLessonToOpen: Lesson?
+    @State private var mainQuestProgress: SupabaseService.MainQuestProgressResult?
+    @State private var mainQuestLessonToOpen: Lesson?
     @State private var showDCInfo = false
     @State private var showSubscription = false
 
@@ -44,13 +43,13 @@ struct TopView: View {
                         if let bannerKind = appState.paymentIssueBannerKind {
                             PaymentIssueBannerView(kind: bannerKind, locale: locale)
                         }
+                        mainQuestCard
                         profileCard
                         if !appState.isPremium {
                             Button { showSubscription = true } label: {
                                 membershipBanner
                             }
                         }
-                        tutorialCard
                         statsCard
                         dailyChallengeCard
                         announcementCard
@@ -79,15 +78,15 @@ struct TopView: View {
             }
             .navigationDestination(
                 isPresented: Binding(
-                    get: { tutorialLessonToOpen != nil },
-                    set: { if !$0 { tutorialLessonToOpen = nil } }
+                    get: { mainQuestLessonToOpen != nil },
+                    set: { if !$0 { mainQuestLessonToOpen = nil } }
                 )
             ) {
-                if let lesson = tutorialLessonToOpen {
+                if let lesson = mainQuestLessonToOpen {
                     LessonDetailView(lesson: lesson)
                 }
             }
-            .onChange(of: tutorialLessonToOpen == nil) { isNil in
+            .onChange(of: mainQuestLessonToOpen == nil) { isNil in
                 if isNil {
                     Task { await loadData() }
                 }
@@ -177,8 +176,8 @@ struct TopView: View {
                 .foregroundStyle(.white)
 
             Text(locale == .ja
-                 ? "全レッスン・全ステージ・全機能が使い放題"
-                 : "Access all lessons, stages, and features")
+                 ? "全クエスト・全ステージ・全機能が使い放題"
+                 : "Access all quests, stages, and features")
                 .font(.caption)
                 .foregroundStyle(.gray)
         }
@@ -198,18 +197,16 @@ struct TopView: View {
         )
     }
 
-    // MARK: - Tutorial
+    // MARK: - Main Quest
 
     @ViewBuilder
-    private var tutorialCard: some View {
-        if let progress = tutorialProgress,
-           progress.completedLessons < progress.totalLessons,
-           let nextLesson = progress.nextLesson {
+    private var mainQuestCard: some View {
+        if let progress = mainQuestProgress, progress.totalLessons > 0 {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Image(systemName: "graduationcap.fill")
+                    Image(systemName: "star.fill")
                         .foregroundStyle(.cyan)
-                    Text(locale == .ja ? "チュートリアル" : "Tutorial")
+                    Text(locale == .ja ? "メインクエスト" : "Main Quest")
                         .font(.headline)
                         .foregroundStyle(.white)
                 }
@@ -226,7 +223,10 @@ struct TopView: View {
                                     ? CGFloat(progress.completedLessons) / CGFloat(progress.totalLessons)
                                     : 0
                             )
-                            .stroke(.cyan, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                            .stroke(
+                                progress.completedLessons >= progress.totalLessons ? Color.green : Color.cyan,
+                                style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                            )
                             .frame(width: 56, height: 56)
                             .rotationEffect(.degrees(-90))
                         Text("\(progress.completedLessons)/\(progress.totalLessons)")
@@ -234,28 +234,40 @@ struct TopView: View {
                             .foregroundStyle(.white)
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(locale == .ja
-                             ? "レッスン\(nextLesson.orderIndex + 1)：\(nextLesson.localizedTitle(locale))"
-                             : "Lesson \(nextLesson.orderIndex + 1): \(nextLesson.localizedTitle(locale))")
-                            .font(.subheadline)
-                            .foregroundStyle(.cyan)
-                            .lineLimit(2)
+                    Group {
+                        if progress.completedLessons >= progress.totalLessons {
+                            Text(locale == .ja
+                                 ? "メインクエストをすべて完了しました！"
+                                 : "Main Quest complete!")
+                                .font(.subheadline)
+                                .foregroundStyle(.green)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else if let nextLesson = progress.nextLesson {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(locale == .ja
+                                     ? "クエスト\(nextLesson.orderIndex + 1)：\(nextLesson.localizedTitle(locale))"
+                                     : "Quest \(nextLesson.orderIndex + 1): \(nextLesson.localizedTitle(locale))")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.cyan)
+                                    .lineLimit(2)
 
-                        Button {
-                            tutorialLessonToOpen = nextLesson
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "play.fill")
-                                    .font(.caption2)
-                                Text(locale == .ja ? "レッスンを始める" : "Start Lesson")
-                                    .font(.subheadline.bold())
+                                Button {
+                                    mainQuestLessonToOpen = nextLesson
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "play.fill")
+                                            .font(.caption2)
+                                        Text(locale == .ja ? "クエストを始める" : "Start Quest")
+                                            .font(.subheadline.bold())
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(.cyan.opacity(0.8))
+                                    .cornerRadius(20)
+                                }
                             }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(.cyan.opacity(0.8))
-                            .cornerRadius(20)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
 
@@ -282,7 +294,7 @@ struct TopView: View {
                         StatItem(
                             icon: "checkmark.circle.fill",
                             value: "\(stats.lessonCompletedCount)",
-                            label: locale == .ja ? "レッスンクリア" : "Lessons cleared",
+                            label: locale == .ja ? "クエストクリア" : "Quests cleared",
                             color: .green
                         )
                         StatItem(
@@ -709,9 +721,9 @@ struct TopView: View {
             }
         }()
 
-        async let tutorialTask: SupabaseService.TutorialProgressResult? = {
+        async let mainQuestTask: SupabaseService.MainQuestProgressResult? = {
             do {
-                return try await SupabaseService.shared.fetchTutorialProgress(userId: userId)
+                return try await SupabaseService.shared.fetchMainQuestProgress(userId: userId)
             } catch {
                 return nil
             }
@@ -719,15 +731,15 @@ struct TopView: View {
 
         async let dcTask: () = loadDailyChallengeRecords()
 
-        let (loadedAnnouncements, loadedStats, loadedTutorialProgress, _) = await (
+        let (loadedAnnouncements, loadedStats, loadedMainQuestProgress, _) = await (
             announcementsTask,
             statsTask,
-            tutorialTask,
+            mainQuestTask,
             dcTask
         )
         announcements = loadedAnnouncements
         userStats = loadedStats
-        tutorialProgress = loadedTutorialProgress
+        mainQuestProgress = loadedMainQuestProgress
     }
 
     private func loadDailyChallengeRecords() async {

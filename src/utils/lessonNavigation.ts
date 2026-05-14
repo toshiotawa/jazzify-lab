@@ -184,19 +184,19 @@ export function getNavigationErrorMessage(
   if (direction === 'previous') {
     if (!navigationInfo.previousLesson) {
       return isEnglishCopy
-        ? 'This is the first lesson in the course.'
-        : 'これがコースの最初のレッスンです。';
+        ? 'This is the first quest in the course.'
+        : 'これがコースの最初のクエストです。';
     }
     if (!navigationInfo.course.hasAccessToPrevious) {
       return isEnglishCopy
-        ? 'You cannot open the previous lesson. It may still be locked.'
-        : '前のレッスンにアクセスできません。レッスンが解放されていない可能性があります。';
+        ? 'You cannot open the previous quest. It may still be locked.'
+        : '前のクエストにアクセスできません。クエストが解放されていない可能性があります。';
     }
   } else {
     if (!navigationInfo.nextLesson) {
       return isEnglishCopy
-        ? 'This is the last lesson. You have finished the course!'
-        : 'これがコースの最後のレッスンです。すべてのレッスンを完了されました！';
+        ? 'This is the last quest. You have finished the course!'
+        : 'これがコースの最後のクエストです。すべてのクエストを完了されました！';
     }
     if (!navigationInfo.course.hasAccessToNext) {
       const blockInfo = navigationInfo.nextLesson
@@ -204,12 +204,12 @@ export function getNavigationErrorMessage(
         : null;
       if (blockInfo) {
         return isEnglishCopy
-          ? `The next lesson (${blockInfo.displayText}) is still locked. Complete every lesson in the previous block first.`
-          : `次のレッスン（${blockInfo.displayText}）はまだ解放されていません。前のブロックの全レッスンを完了してください。`;
+          ? `The next quest (${blockInfo.displayText}) is still locked. Complete every quest in the previous block first.`
+          : `次のクエスト（${blockInfo.displayText}）はまだ解放されていません。前のブロックの全クエストを完了してください。`;
       }
       return isEnglishCopy
-        ? 'The next lesson is still locked. Complete every lesson in the current block first.'
-        : '次のレッスンはまだ解放されていません。現在のブロックの全レッスンを完了してください。';
+        ? 'The next quest is still locked. Complete every quest in the current block first.'
+        : '次のクエストはまだ解放されていません。現在のブロックの全クエストを完了してください。';
     }
   }
   return '';
@@ -258,6 +258,6 @@ export function getLessonBlockInfo(
     blockName,
     lessonNumber,
     displayText: blockName,
-    lessonDisplayText: isEnglishCopy ? `Lesson ${lessonNumber}` : `レッスン ${lessonNumber}`,
+    lessonDisplayText: isEnglishCopy ? `Quest ${lessonNumber}` : `クエスト ${lessonNumber}`,
   };
 } 

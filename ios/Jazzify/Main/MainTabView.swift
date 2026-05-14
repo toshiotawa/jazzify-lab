@@ -20,7 +20,7 @@ struct MainTabView: View {
             LessonListView()
                 .tabItem {
                     Label(
-                        locale == .ja ? "レッスン" : "Lessons",
+                        locale == .ja ? "クエスト" : "Quests",
                         systemImage: "book.fill"
                     )
                 }
