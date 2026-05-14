@@ -39,6 +39,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let actionResumeIdleSec: TimeInterval = 0.9
     private static let playerHomeXRatio: CGFloat = 0.23
     private static let enemyHomeXRatio: CGFloat = 0.77
+    private static let enemyAttackHammerAssetName = "ear-training-effect-hammer"
     private static let walkRangeXRatio: CGFloat = 0.052
     private static let minWalkRangeX: CGFloat = 28
     private static let maxWalkRangeX: CGFloat = 84
@@ -1520,27 +1521,22 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             showFloatingResultText(label: command.label ?? "Fail", x: anchors.player.x, y: anchors.player.resultTextY, color: UIColor(red: 0.996, green: 0.792, blue: 0.792, alpha: 1.0))
         }
 
-        let slashWidth: CGFloat = heavy ? Self.battleLayoutPt(128) : Self.battleLayoutPt(78)
-        let slashHeight: CGFloat = heavy ? Self.battleLayoutPt(22) : Self.battleLayoutPt(15)
-        let slash = SKShapeNode(rect: CGRect(x: -slashWidth / 2, y: -slashHeight / 2, width: slashWidth, height: slashHeight), cornerRadius: 4)
-        slash.fillColor = UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0)
-        slash.strokeColor = UIColor(red: 0.992, green: 0.949, blue: 0.969, alpha: 0.82)
-        slash.lineWidth = 2
-        slash.position = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
-        slash.zRotation = -0.18
-        effectLayer.addChild(slash)
+        let hammerSize: CGFloat = heavy ? Self.battleLayoutPt(104) : Self.battleLayoutPt(76)
+        let hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: hammerSize)
+        hammer.position = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
+        hammer.zRotation = -18 * (.pi / 180)
+        effectLayer.addChild(hammer)
 
         cameraShake(amplitude: heavy ? Self.battleLayoutPt(12) : Self.battleLayoutPt(7), durationMs: heavy ? 240 : 150)
 
-        let dx = anchors.player.x - slash.position.x
-        let dy = anchors.player.bodyY - slash.position.y
+        let dx = anchors.player.x - hammer.position.x
+        let dy = anchors.player.bodyY - hammer.position.y
         let move = SKAction.moveBy(x: dx, y: dy, duration: heavy ? 0.7 : 0.52)
-        move.timingMode = .easeIn
-        let scale = SKAction.scaleX(to: 1.6, duration: heavy ? 0.7 : 0.52)
-        let fade = SKAction.fadeOut(withDuration: heavy ? 0.7 : 0.52)
-        slash.run(SKAction.group([move, scale, fade])) { [weak self, weak slash] in
+        move.timingMode = .linear
+        let spin = SKAction.rotate(byAngle: (heavy ? 1080 : 720) * (.pi / 180), duration: heavy ? 0.7 : 0.52)
+        hammer.run(SKAction.group([move, spin])) { [weak self, weak hammer] in
             guard let self else { return }
-            slash?.removeFromParent()
+            hammer?.removeFromParent()
             self.flashCharacter(.player)
             self.showImpactBurst(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0), large: heavy)
             self.onEffectImpact?(command.id)

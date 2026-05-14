@@ -253,22 +253,28 @@ private struct EarTrainingChordQuizContent: View {
     @ViewBuilder
     private func staffOverlay(size: CGSize) -> some View {
         let layout = EarTrainingChordVoicingStaffLayout.buildQuizGroups(
-            active: controller.currentActiveItem,
-            preview: controller.currentPreviewQuizItem
+            active: controller.displayedStaffActiveItem,
+            preview: controller.displayedStaffPreviewItem
         )
         let hideNotes = controller.stage.resolvedQuizHideUnpressedNotationInBattle(practiceMode: controller.practiceMode)
         let keyFifths = controller.stage.keyFifths ?? 0
         let showHints = controller.practiceMode
             && (controller.gameState == .playingPhrase || controller.gameState == .countIn)
-        let correctMap = EarTrainingChordVoicingStaffLayout.correctPitchClassesByGroupId(attempt: controller.attempt)
+        let denseLogical = (controller.currentActiveItem?.voicing.count ?? 0)
+            >= EarTrainingChordVoicingStaffLayout.denseNoteTotalThreshold
+        let correctMap = EarTrainingChordVoicingStaffLayout.quizStaffCorrectPitchClassesByGroupId(
+            attempt: controller.attempt,
+            logicalActiveChordId: controller.activeChord?.id,
+            groups: layout.groups
+        )
         if !layout.groups.isEmpty {
             ChordVoicingStaffGroupsView(
                 groups: layout.groups,
-                denseCurrentMeasureLayout: layout.denseCurrentMeasureLayout,
+                denseCurrentMeasureLayout: denseLogical,
                 keyFifths: keyFifths,
                 activeGroupId: controller.activeChord?.id,
                 correctPitchClassesByGroupId: correctMap,
-                completionPulse: nil,
+                completionPulse: controller.staffCompletionPulse,
                 showTargetHints: showHints,
                 hideUnpressedNotes: hideNotes
             )

@@ -36,6 +36,8 @@ const FUKIDASHI_ASSET_KEY = 'ear-training-fukidashi';
 const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.webp`;
 const MAGIC_CIRCLE_ASSET_KEY = 'ear-training-effect-magic-circle';
 const MAGIC_CIRCLE_ASSET_URL = '/data/27304123.webp';
+const ENEMY_ATTACK_HAMMER_ASSET_KEY = 'ear-training-enemy-attack-hammer';
+const ENEMY_ATTACK_HAMMER_ASSET_URL = '/hammer.svg';
 const ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS = 16;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
@@ -357,6 +359,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
     if (!this.textures.exists(MAGIC_CIRCLE_ASSET_KEY)) {
       this.load.image(MAGIC_CIRCLE_ASSET_KEY, MAGIC_CIRCLE_ASSET_URL);
+    }
+    if (!this.textures.exists(ENEMY_ATTACK_HAMMER_ASSET_KEY)) {
+      this.load.image(ENEMY_ATTACK_HAMMER_ASSET_KEY, ENEMY_ATTACK_HAMMER_ASSET_URL);
     }
     Object.values(JAZZ_STAGE_PROP_ASSETS).forEach(asset => {
       if (this.textures.exists(asset.key)) {
@@ -1430,21 +1435,24 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (heavy) {
       this.showFloatingResultText(command.label ?? 'Fail', anchors.player.x, anchors.player.resultTextY, '#fecaca');
     }
-    const slash = this.add.rectangle(anchors.enemy.x - 28, anchors.enemy.bodyY, heavy ? 128 : 78, heavy ? 22 : 15, 0xfb7185, 1);
-    slash.setStrokeStyle(2, 0xfdf2f8, 0.82);
-    slash.setRotation(-0.18);
-    this.effectLayer.add(slash);
+    const hammerSize = heavy ? 104 : 76;
+    const hammer = this.add.image(
+      anchors.enemy.x - 28,
+      anchors.enemy.bodyY,
+      ENEMY_ATTACK_HAMMER_ASSET_KEY,
+    ).setOrigin(0.5, 0.5).setDisplaySize(hammerSize, hammerSize);
+    hammer.setAngle(-18);
+    this.effectLayer.add(hammer);
     this.cameras.main.shake(heavy ? 240 : 150, heavy ? 0.012 : 0.007);
     this.tweens.add({
-      targets: slash,
+      targets: hammer,
       x: anchors.player.x,
       y: anchors.player.bodyY,
-      scaleX: 1.6,
-      alpha: 0,
+      angle: heavy ? 1062 : 702,
       duration: heavy ? 700 : 520,
-      ease: 'Cubic.easeIn',
+      ease: 'Linear',
       onComplete: () => {
-        slash.destroy();
+        hammer.destroy();
         this.flashPlayer();
         this.showImpactBurst(anchors.player.x, anchors.player.bodyY, 0xfb7185, heavy);
         this.callbacks.onEffectImpact(command.id);

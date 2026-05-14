@@ -175,4 +175,39 @@ extension EarTrainingChordVoicingStaffLayout {
         let dense = currentCount >= Self.denseNoteTotalThreshold
         return (groups, dense)
     }
+
+    /// クイズで譜面表示だけ遅延している間、左スロットの完成済みコードを `attempt` に載せず正解色で描画する（Web `EarTrainingChordQuizScreen` 相当）。
+    static func quizStaffCorrectPitchClassesByGroupId(
+        attempt: EarTrainingChordVoicingAttempt?,
+        logicalActiveChordId: UUID?,
+        groups: [GroupInput]
+    ) -> [UUID: Set<Int>] {
+        guard let attempt else { return [:] }
+        var map: [UUID: Set<Int>] = [:]
+        for group in groups {
+            if let pressed = attempt.pressedByChord[group.id], !pressed.isEmpty {
+                map[group.id] = pressed
+                continue
+            }
+            if group.measureOffset == 0,
+               let logicalId = logicalActiveChordId,
+               group.id != logicalId {
+                let pcs = pitchClassSetFromVoicingNoteNames(group.voicing)
+                if !pcs.isEmpty {
+                    map[group.id] = pcs
+                }
+            }
+        }
+        return map
+    }
+
+    private static func pitchClassSetFromVoicingNoteNames(_ voicing: [String]) -> Set<Int> {
+        var out = Set<Int>()
+        for name in voicing {
+            if let pc = EarTrainingChordVoicingEngine.noteNameToPitchClass(name) {
+                out.insert(pc)
+            }
+        }
+        return out
+    }
 }

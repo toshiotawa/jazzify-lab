@@ -260,7 +260,7 @@ private struct EarTrainingChordVoicingContent: View {
                 input: EarTrainingChordVoicingStaffLayout.BuildInput(
                     phrase: phrase,
                     stageLoopMeasures: controller.stage.loopMeasures,
-                    activeMeasureNumber: controller.activeMeasureNumber,
+                    activeMeasureNumber: controller.displayedActiveMeasureNumber,
                     activeChordId: controller.activeChord?.id,
                     attempt: controller.attempt
                 )
