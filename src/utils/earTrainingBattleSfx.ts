@@ -1,5 +1,6 @@
 /**
- * 耳コピバトル魔法演出用 SE（R2 / jazzify-cdn 配信。開発時は Vite `/cdn-proxy` 経由）
+ * 耳コピバトル魔法演出用 SE。
+ * `public/sfx/ear-training-battle/fire-magic-1.mp3` を同一オリジンで配信（CDN 未配置・Vite dev の cdn-proxy 無しでも再生可能）
  */
 type EarTrainingBattleMagicSfxKind =
   | 'fireball'
@@ -8,17 +9,7 @@ type EarTrainingBattleMagicSfxKind =
   | 'meteor'
   | 'quota';
 
-const CDN_HOST = 'https://jazzify-cdn.com';
-const MAGIC_SFX_PATH = '/sfx/ear-training-battle/fire-magic-1.mp3';
-
-const toPlaybackUrl = (absoluteUrl: string): string => {
-  if (absoluteUrl.startsWith(CDN_HOST)) {
-    return `/cdn-proxy${absoluteUrl.slice(CDN_HOST.length)}`;
-  }
-  return absoluteUrl;
-};
-
-const magicUrl = (): string => toPlaybackUrl(`${CDN_HOST}${MAGIC_SFX_PATH}`);
+const MAGIC_SFX_SAME_ORIGIN = '/sfx/ear-training-battle/fire-magic-1.mp3';
 
 let sharedAudio: HTMLAudioElement | null = null;
 
@@ -27,7 +18,7 @@ const ensureAudio = (): HTMLAudioElement | null => {
     return null;
   }
   if (!sharedAudio) {
-    const el = new Audio(magicUrl());
+    const el = new Audio(MAGIC_SFX_SAME_ORIGIN);
     el.preload = 'auto';
     void el.load();
     sharedAudio = el;
@@ -44,8 +35,10 @@ export const playEarTrainingBattleMagicSfx = (kind: EarTrainingBattleMagicSfxKin
   }
   try {
     audio.currentTime = 0;
-    void audio.play();
+    void audio.play().catch(() => {
+      // 自動再生制限など
+    });
   } catch {
-    // ブラウザの自動再生制限などは無視
+    // 同期エラーのみ
   }
 };

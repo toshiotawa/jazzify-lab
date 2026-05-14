@@ -83,8 +83,16 @@ export default defineConfig(({ mode }) => {
     server: {
       headers: {
         'Cross-Origin-Embedder-Policy': 'require-corp',
-        'Cross-Origin-Opener-Policy': 'same-origin'
-      }
+        'Cross-Origin-Opener-Policy': 'same-origin',
+      },
+      // Netlify の `/cdn-proxy/*` と同様（ローカルで BGM 等の jazzify-cdn を読むため）
+      proxy: {
+        '/cdn-proxy': {
+          target: 'https://jazzify-cdn.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/cdn-proxy/, ''),
+        },
+      },
     },
     optimizeDeps: {
       include: [

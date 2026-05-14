@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 
-/// 魔法エフェクト発火用 SE（R2 `jazzify-cdn.com`）。現状は全種で同一 mp3 を共用。
+/// 魔法エフェクト発火用 SE。バンドル `ear-training-battle/fire-magic-1.mp3` を優先し、無い場合のみ CDN から取得。
 enum EarTrainingBattleMagicSfxKind: Sendable {
     case fireball
     case snowflake
@@ -53,9 +53,17 @@ final class EarTrainingBattleSfx {
         if let cachedLocalURL {
             return cachedLocalURL
         }
+        if let bundled = Self.bundledMagicURL() {
+            cachedLocalURL = bundled
+            return bundled
+        }
         let local: URL? = await Self.downloadIfNeeded()
         cachedLocalURL = local
         return local
+    }
+
+    private nonisolated static func bundledMagicURL() -> URL? {
+        Bundle.main.url(forResource: "fire-magic-1", withExtension: "mp3", subdirectory: "ear-training-battle")
     }
 
     private nonisolated static func downloadIfNeeded() async -> URL? {
