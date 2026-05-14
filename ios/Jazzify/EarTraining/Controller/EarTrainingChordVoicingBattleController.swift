@@ -604,6 +604,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         phrase: EarTrainingPhraseDetail
     ) {
         cancelTransitionTimer()
+        if stage.resolvedChordVoicingSelfPaced {
+            audio.stopPhrase()
+            let next = (phraseIndex + 1) % max(1, phrases.count)
+            startPhrase(at: next, playsCountIn: false)
+            return
+        }
         let delaySec = EarTrainingEngine.nextMeasureDelaySec(
             currentAudioTimeSec: audio.currentTimeSec,
             loopDurationSec: phrase.loopDurationSec,

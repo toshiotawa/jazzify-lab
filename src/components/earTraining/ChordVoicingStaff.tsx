@@ -1270,7 +1270,7 @@ const RenderedStaff: React.FC<{
         const correctPitchClassSet = correctPitchClassSets.get(group.id);
         const notes = positionedNotes.flatMap(positioned => {
           const isCorrect = correctPitchClassSet?.has(positioned.note.pitchClass) ?? false;
-          if (hideUnpressedNotes && group.measureOffset === 0 && !isCorrect) {
+          if (hideUnpressedNotes && !isCorrect) {
             return [];
           }
           const node = (

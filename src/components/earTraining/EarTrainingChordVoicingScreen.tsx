@@ -1148,6 +1148,17 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const transitionToNextPhrase = useCallback((rank: EarTrainingRank, phrase: EarTrainingPhrase) => {
     clearTransitionTimer();
     clearChordSyncTimer();
+    if (chordVoicingSelfPaced) {
+      gameStateRef.current = 'phraseComplete';
+      setGameState('phraseComplete');
+      setLastRank(rank);
+      stopPhraseAudio();
+      gameStateRef.current = 'transitionToNextPhrase';
+      setGameState('transitionToNextPhrase');
+      const nextIndexSelfPaced = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+      startPhraseRef.current(nextIndexSelfPaced);
+      return;
+    }
     const player = phrasePlayerRef.current;
     const currentAudioTimeSec = player?.getCurrentTime() ?? 0;
     const delaySec = getNextMeasureDelaySec(
@@ -1186,6 +1197,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       Math.max(MIN_AUDIO_SYNC_TIMER_MS, (delaySec - AUDIO_SYNC_EPSILON_SEC) * 1000),
     );
   }, [
+    chordVoicingSelfPaced,
     clearChordSyncTimer,
     clearTransitionTimer,
     copy,

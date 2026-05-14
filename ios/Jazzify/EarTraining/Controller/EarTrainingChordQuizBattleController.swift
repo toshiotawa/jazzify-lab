@@ -314,13 +314,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
         let origin = chordLabelOriginInScene()
 
-        let applyAfterEffect: () -> Void = { [weak self] in
-            guard let self else { return }
-            self.advanceAfterCorrect()
-            self.publishSnapshot()
-            self.updatePlayerQuoteBubble()
-        }
-
         if correctCount % 5 == 0 && correctCount > 0 {
             let cycle = (correctCount / 5 - 1) % 3
             let label: String?
@@ -336,25 +329,24 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
                 label = "Perfect"
                 phraseNoteCount = 6
             }
-            let effectId = triggerBattleEffect(
+            _ = triggerBattleEffect(
                 kind: .complete,
                 label: label,
                 damage: 0,
                 phraseNoteCount: phraseNoteCount,
                 originPoint: origin
             )
-            registerImpact(effectId: effectId, handler: applyAfterEffect)
         } else {
-            let effectId = triggerBattleEffect(
+            _ = triggerBattleEffect(
                 kind: .correct,
                 label: nil,
                 damage: 0,
                 phraseNoteCount: nil,
                 originPoint: origin
             )
-            registerImpact(effectId: effectId, handler: applyAfterEffect)
         }
 
+        advanceAfterCorrect()
         publishSnapshot()
         updatePlayerQuoteBubble()
     }
@@ -522,10 +514,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             }
         }
         return id
-    }
-
-    private func registerImpact(effectId: Int, handler: @escaping () -> Void) {
-        pendingImpactHandlers[effectId] = handler
     }
 
     private static func effectDurationMs(

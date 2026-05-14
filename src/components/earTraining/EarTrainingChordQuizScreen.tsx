@@ -65,8 +65,6 @@ interface EarTrainingChordQuizScreenProps {
   onBack: () => void;
 }
 
-type PendingImpactHandler = () => void;
-
 const INPUT_COOLDOWN_MS = 20;
 const QUIZ_EFFECT_MS = 820;
 const NO_DAMAGE = {
@@ -176,7 +174,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const quizTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
-  const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
+  const pendingImpactHandlersRef = useRef<Map<number, () => void>>(new Map());
   const quizStartedAtRef = useRef<number | null>(null);
   const quizEndedRef = useRef(false);
   const phraseRunNonceRef = useRef(0);
@@ -277,10 +275,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return undefined;
     }
     return { x, y };
-  }, []);
-
-  const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
-    pendingImpactHandlersRef.current.set(effectId, handler);
   }, []);
 
   const handleBattleEffectImpact = useCallback((effectId: number) => {
@@ -482,25 +476,19 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
     const origin = computeChordLabelOriginPoint(activeChord.id);
 
-    const applyAfterEffect = () => {
-      advanceToNextQuestion();
-    };
-
     if (nextCorrect > 0 && nextCorrect % 5 === 0) {
       const cycle = (nextCorrect / 5 - 1) % 3;
       const label = cycle === 0 ? 'Great' : 'Perfect';
       const phraseNoteCount = cycle === 2 ? 6 : 0;
-      const effectId = triggerBattleEffect('complete', label, 0, phraseNoteCount, origin);
-      registerBattleEffectImpact(effectId, applyAfterEffect);
+      triggerBattleEffect('complete', label, 0, phraseNoteCount, origin);
     } else {
-      const effectId = triggerBattleEffect('correct', undefined, 0, undefined, origin);
-      registerBattleEffectImpact(effectId, applyAfterEffect);
+      triggerBattleEffect('correct', undefined, 0, undefined, origin);
     }
+    advanceToNextQuestion();
   }, [
     activeChord,
     advanceToNextQuestion,
     computeChordLabelOriginPoint,
-    registerBattleEffectImpact,
     triggerBattleEffect,
   ]);
 

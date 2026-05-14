@@ -1560,7 +1560,7 @@ struct ChordVoicingStaffGroupsView: View {
                     collisionLayout: noteCollisionLayout
                 ) {
                     let isCorrect = correctSet.contains(positioned.note.pitchClass)
-                    if hideUnpressedNotes, item.group.measureOffset == 0, !isCorrect {
+                    if hideUnpressedNotes, !isCorrect {
                         continue
                     }
                     let isNextHint = !isCorrect
