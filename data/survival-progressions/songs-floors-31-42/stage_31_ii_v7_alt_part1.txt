@@ -1,0 +1,9 @@
+# II-V7(alt)-I Part 1 (C F Bb Eb × II-V-I ×2)
+Key of C
+Dm7(9) G7(b9.b13) CM7(9) Dm7(9) G7(b9.b13) CM7(9)
+Key of F
+Gm7(9) C7(b9.b13) FM7(9) Gm7(9) C7(b9.b13) FM7(9)
+Key of Bb
+Cm7(9) F7(b9.b13) BbM7(9) Cm7(9) F7(b9.b13) BbM7(9)
+Key of Eb
+Fm7(9) Bb7(b9.b13) EbM7(9) Fm7(9) Bb7(b9.b13) EbM7(9)

@@ -1,0 +1,9 @@
+# Minor II-V-I Part 1 — i を m6(9)
+Key of C minor
+Dm7(b5) G7(b9.b13) Cm6(9) Dm7(b5) G7(b9.b13) Cm6(9)
+Key of F minor
+Gm7(b5) C7(b9.b13) Fm6(9) Gm7(b5) C7(b9.b13) Fm6(9)
+Key of Bb minor
+Cm7(b5) F7(b9.b13) Bbm6(9) Cm7(b5) F7(b9.b13) Bbm6(9)
+Key of Eb minor
+Fm7(b5) Bb7(b9.b13) Ebm6(9) Fm7(b5) Bb7(b9.b13) Ebm6(9)

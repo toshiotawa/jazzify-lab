@@ -1,0 +1,9 @@
+# Minor II-V-I Part 3
+Key of E minor
+F#m7(b5) B7(b9.b13) Em6(9) F#m7(b5) B7(b9.b13) Em6(9)
+Key of A minor
+Bm7(b5) E7(b9.b13) Am6(9) Bm7(b5) E7(b9.b13) Am6(9)
+Key of D minor
+Em7(b5) A7(b9.b13) Dm6(9) Em7(b5) A7(b9.b13) Dm6(9)
+Key of G minor
+Am7(b5) D7(b9.b13) Gm6(9) Am7(b5) D7(b9.b13) Gm6(9)

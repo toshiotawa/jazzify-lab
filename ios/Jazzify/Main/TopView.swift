@@ -113,6 +113,14 @@ struct TopView: View {
 
     // MARK: - Profile
 
+    private var dashboardDefaultAvatar: some View {
+        Image("default-avater")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 56, height: 56)
+            .clipShape(Circle())
+    }
+
     private var profileCard: some View {
         VStack(spacing: 12) {
             HStack {
@@ -121,18 +129,12 @@ struct TopView: View {
                     AsyncImage(url: url) { image in
                         image.resizable().scaledToFill()
                     } placeholder: {
-                        Circle().fill(Color(hex: "374151"))
+                        dashboardDefaultAvatar
                     }
                     .frame(width: 56, height: 56)
                     .clipShape(Circle())
                 } else {
-                    Circle()
-                        .fill(Color(hex: "374151"))
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .foregroundStyle(.gray)
-                        )
+                    dashboardDefaultAvatar
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

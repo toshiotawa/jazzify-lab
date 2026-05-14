@@ -1,0 +1,25 @@
+# Turn Around All Keys（各調4コード×1）
+Key of C
+Em7(9) A7(b9.b13) Dm7(9) G7(9.13)
+Key of F
+Am7(9) D7(b9.b13) Gm7(9) C7(9.13)
+Key of Bb
+Dm7(9) G7(b9.b13) Cm7(9) F7(9.13)
+Key of Eb
+Gm7(9) C7(b9.b13) Fm7(9) Bb7(9.13)
+Key of Ab
+Cm7(9) F7(b9.b13) Bbm7(9) Eb7(9.13)
+Key of Db
+Fm7(9) Bb7(b9.b13) Ebm7(9) Ab7(9.13)
+Key of Gb
+Bbm7(9) Eb7(b9.b13) Abm7(9) Db7(9.13)
+Key of B
+D#m7(9) G#7(b9.b13) C#m7(9) F#7(9.13)
+Key of E
+G#m7(9) C#7(b9.b13) F#m7(9) B7(9.13)
+Key of A
+C#m7(9) F#7(b9.b13) Bm7(9) E7(9.13)
+Key of D
+F#m7(9) B7(b9.b13) Em7(9) A7(9.13)
+Key of G
+Bm7(9) E7(b9.b13) Am7(9) D7(9.13)

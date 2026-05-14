@@ -1,0 +1,9 @@
+# II-V7(alt)-I Part 2 (Ab Db Gb B)
+Key of Ab
+Bbm7(9) Eb7(b9.b13) AbM7(9) Bbm7(9) Eb7(b9.b13) AbM7(9)
+Key of Db
+Ebm7(9) Ab7(b9.b13) DbM7(9) Ebm7(9) Ab7(b9.b13) DbM7(9)
+Key of Gb
+Abm7(9) Db7(b9.b13) GbM7(9) Abm7(9) Db7(b9.b13) GbM7(9)
+Key of B
+C#m7(9) F#7(b9.b13) BM7(9) C#m7(9) F#7(b9.b13) BM7(9)

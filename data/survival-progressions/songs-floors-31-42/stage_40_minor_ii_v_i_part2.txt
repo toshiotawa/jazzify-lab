@@ -1,0 +1,9 @@
+# Minor II-V-I Part 2
+Key of Ab minor
+Bbm7(b5) Eb7(b9.b13) Abm6(9) Bbm7(b5) Eb7(b9.b13) Abm6(9)
+Key of Db minor
+Ebm7(b5) Ab7(b9.b13) Dbm6(9) Ebm7(b5) Ab7(b9.b13) Dbm6(9)
+Key of Gb minor
+Abm7(b5) Db7(b9.b13) Gbm6(9) Abm7(b5) Db7(b9.b13) Gbm6(9)
+Key of B minor
+C#m7(b5) F#7(b9.b13) Bm6(9) C#m7(b5) F#7(b9.b13) Bm6(9)

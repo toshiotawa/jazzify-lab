@@ -1,0 +1,25 @@
+# Minor II-V-I All Keys
+Key of C minor
+Dm7(b5) G7(b9.b13) Cm6(9)
+Key of F minor
+Gm7(b5) C7(b9.b13) Fm6(9)
+Key of Bb minor
+Cm7(b5) F7(b9.b13) Bbm6(9)
+Key of Eb minor
+Fm7(b5) Bb7(b9.b13) Ebm6(9)
+Key of Ab minor
+Bbm7(b5) Eb7(b9.b13) Abm6(9)
+Key of Db minor
+Ebm7(b5) Ab7(b9.b13) Dbm6(9)
+Key of Gb minor
+Abm7(b5) Db7(b9.b13) Gbm6(9)
+Key of B minor
+C#m7(b5) F#7(b9.b13) Bm6(9)
+Key of E minor
+F#m7(b5) B7(b9.b13) Em6(9)
+Key of A minor
+Bm7(b5) E7(b9.b13) Am6(9)
+Key of D minor
+Em7(b5) A7(b9.b13) Dm6(9)
+Key of G minor
+Am7(b5) D7(b9.b13) Gm6(9)

@@ -1,0 +1,9 @@
+# II-V7(alt)-I Part 3 (E A D G) — I は M7(9) 表記
+Key of E
+F#m7(9) B7(b9.b13) EM7(9) F#m7(9) B7(b9.b13) EM7(9)
+Key of A
+Bm7(9) E7(b9.b13) AM7(9) Bm7(9) E7(b9.b13) AM7(9)
+Key of D
+Em7(9) A7(b9.b13) DM7(9) Em7(9) A7(b9.b13) DM7(9)
+Key of G
+Am7(9) D7(b9.b13) GM7(9) Am7(9) D7(b9.b13) GM7(9)

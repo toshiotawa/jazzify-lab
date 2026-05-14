@@ -1,0 +1,9 @@
+# Turn Around Part 2
+Key of Ab
+Cm7(9) F7(b9.b13) Bbm7(9) Eb7(9.13) Cm7(9) F7(b9.b13) Bbm7(9) Eb7(9.13)
+Key of Db
+Fm7(9) Bb7(b9.b13) Ebm7(9) Ab7(9.13) Fm7(9) Bb7(b9.b13) Ebm7(9) Ab7(9.13)
+Key of Gb
+Bbm7(9) Eb7(b9.b13) Abm7(9) Db7(9.13) Bbm7(9) Eb7(b9.b13) Abm7(9) Db7(9.13)
+Key of B
+D#m7(9) G#7(b9.b13) C#m7(9) F#7(9.13) D#m7(9) G#7(b9.b13) C#m7(9) F#7(9.13)

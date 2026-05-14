@@ -1,0 +1,9 @@
+# Turn Around Part 1 — III–VI–II–V（Em7–A7alt–Dm7–G7）×2 / key
+Key of C
+Em7(9) A7(b9.b13) Dm7(9) G7(9.13) Em7(9) A7(b9.b13) Dm7(9) G7(9.13)
+Key of F
+Am7(9) D7(b9.b13) Gm7(9) C7(9.13) Am7(9) D7(b9.b13) Gm7(9) C7(9.13)
+Key of Bb
+Dm7(9) G7(b9.b13) Cm7(9) F7(9.13) Dm7(9) G7(b9.b13) Cm7(9) F7(9.13)
+Key of Eb
+Gm7(9) C7(b9.b13) Fm7(9) Bb7(9.13) Gm7(9) C7(b9.b13) Fm7(9) Bb7(9.13)

@@ -1,0 +1,25 @@
+# II-V7(alt)-I All Keys（12調・各1周）
+Key of C
+Dm7(9) G7(b9.b13) CM7(9)
+Key of F
+Gm7(9) C7(b9.b13) FM7(9)
+Key of Bb
+Cm7(9) F7(b9.b13) BbM7(9)
+Key of Eb
+Fm7(9) Bb7(b9.b13) EbM7(9)
+Key of Ab
+Bbm7(9) Eb7(b9.b13) AbM7(9)
+Key of Db
+Ebm7(9) Ab7(b9.b13) DbM7(9)
+Key of Gb
+Abm7(9) Db7(b9.b13) GbM7(9)
+Key of B
+C#m7(9) F#7(b9.b13) BM7(9)
+Key of E
+F#m7(9) B7(b9.b13) EM7(9)
+Key of A
+Bm7(9) E7(b9.b13) AM7(9)
+Key of D
+Em7(9) A7(b9.b13) DM7(9)
+Key of G
+Am7(9) D7(b9.b13) GM7(9)
