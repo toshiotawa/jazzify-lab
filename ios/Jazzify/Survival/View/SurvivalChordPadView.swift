@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 鍵盤 UI に閉じた入力 (`hintMidis` / `completedHintMidis` / `midiHeldKeys` / `isEnabled`)。親が差分のみで構築し `.equatable()` で再評価を抑える。
 struct SurvivalChordPadSnapshot: Equatable, Sendable {
@@ -9,7 +10,7 @@ struct SurvivalChordPadSnapshot: Equatable, Sendable {
     let isEnabled: Bool
 }
 
-/// 画面右下のピアノ鍵盤（WEB モバイル版と同様に A0〜C8 の 52 白鍵をスクロール表示、14 鍵程度が見える）。
+/// 画面右下のピアノ鍵盤。A0〜C8 の 88 鍵を持ち、iPhone は横スクロール、iPad は全体を幅に収めて表示する。
 /// - `@ObservedObject` は使わず `SurvivalChordPadSnapshot` とコールバックのみ受け取る（controller 全体の publish から隔離）。
 /// - ヒント MIDI / 入力済みハイライトは親が `SurvivalViewModel` で組み立てて渡す。
 struct SurvivalChordPadView: View, Equatable {
@@ -21,26 +22,34 @@ struct SurvivalChordPadView: View, Equatable {
         lhs.snapshot == rhs.snapshot
     }
 
-    private let firstMidi: Int = 21
-    private let lastMidi: Int = 108
-    private let visibleWhiteKeys: CGFloat = 14
+    private static let firstMidi: Int = 21
+    private static let lastMidi: Int = 108
+    private static let scrollVisibleWhiteKeys: CGFloat = 14
+    private static let scrollMinWhiteKeyWidth: CGFloat = 24
+    private static let whiteNotes = whiteMidiNotes(first: firstMidi, last: lastMidi)
+    private static let blackNotes = blackMidiNotes(first: firstMidi, last: lastMidi)
+    private static let whiteMidiIndexByMidi = buildWhiteMidiIndexByMidi(whiteNotes)
+
     private let keyboardHeight: CGFloat = 120
     private let blackKeyHeightRatio: CGFloat = 0.62
     private let blackKeyWidthRatio: CGFloat = 0.6
 
     var body: some View {
         GeometryReader { proxy in
-            let whiteKeyWidth = max(24, proxy.size.width / visibleWhiteKeys)
+            let fitsFullKeyboard = Self.fitsFullKeyboard
+            let whites = Self.whiteNotes
+            let visibleWhiteKeys = fitsFullKeyboard ? CGFloat(whites.count) : Self.scrollVisibleWhiteKeys
+            let minWhiteKeyWidth = fitsFullKeyboard ? 1 : Self.scrollMinWhiteKeyWidth
+            let whiteKeyWidth = max(minWhiteKeyWidth, proxy.size.width / visibleWhiteKeys)
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
-            let whites = Self.whiteMidiNotes(first: firstMidi, last: lastMidi)
             let totalWidth = CGFloat(whites.count) * whiteKeyWidth
 
             ScrollViewReader { scrollProxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     ZStack(alignment: .topLeading) {
                         HStack(spacing: 0) {
-                            ForEach(Array(whites.enumerated()), id: \.offset) { _, midi in
+                            ForEach(whites, id: \.self) { midi in
                                 PianoKeyButton(
                                     label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                                     isBlack: false,
@@ -63,8 +72,8 @@ struct SurvivalChordPadView: View, Equatable {
                         }
                         .frame(width: totalWidth, height: keyboardHeight)
 
-                        ForEach(Self.blackMidiNotes(first: firstMidi, last: lastMidi), id: \.self) { midi in
-                            let x = Self.blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth, firstMidi: firstMidi, lastMidi: lastMidi)
+                        ForEach(Self.blackNotes, id: \.self) { midi in
+                            let x = Self.blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth)
                             PianoKeyButton(
                                 label: "",
                                 isBlack: true,
@@ -89,7 +98,9 @@ struct SurvivalChordPadView: View, Equatable {
                 }
                 .frame(height: keyboardHeight)
                 .onAppear {
-                    scrollProxy.scrollTo(60, anchor: .center)
+                    if !fitsFullKeyboard {
+                        scrollProxy.scrollTo(60, anchor: .center)
+                    }
                 }
             }
             .background(Color.black.opacity(0.55))
@@ -105,18 +116,34 @@ struct SurvivalChordPadView: View, Equatable {
         (first...last).filter { Self.isBlackKey($0) }
     }
 
-    private static func blackKeyCenterX(midi: Int, whiteKeyWidth: CGFloat, firstMidi: Int, lastMidi: Int) -> CGFloat {
+    private static func buildWhiteMidiIndexByMidi(_ notes: [Int]) -> [Int: Int] {
+        var indexByMidi: [Int: Int] = [:]
+        indexByMidi.reserveCapacity(notes.count)
+        for (index, midi) in notes.enumerated() {
+            indexByMidi[midi] = index
+        }
+        return indexByMidi
+    }
+
+    private static func blackKeyCenterX(midi: Int, whiteKeyWidth: CGFloat) -> CGFloat {
         let leftWhite = midi - 1
-        let whites = whiteMidiNotes(first: firstMidi, last: lastMidi)
-        guard let idx = whites.firstIndex(of: leftWhite) else { return 0 }
+        guard let idx = whiteMidiIndexByMidi[leftWhite] else { return 0 }
         return (CGFloat(idx) + 1) * whiteKeyWidth
+    }
+
+    private static var fitsFullKeyboard: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
     }
 
     private static let labels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
     private static func isBlackKey(_ midi: Int) -> Bool {
-        let pc = ((midi % 12) + 12) % 12
-        return [1, 3, 6, 8, 10].contains(pc)
+        switch ((midi % 12) + 12) % 12 {
+        case 1, 3, 6, 8, 10:
+            return true
+        default:
+            return false
+        }
     }
 
     private static func shouldLabelC(midi: Int) -> Bool {

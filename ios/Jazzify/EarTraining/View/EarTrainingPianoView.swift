@@ -1,23 +1,58 @@
 import SwiftUI
+import UIKit
 
 private let earTrainingPianoNoteNameLabels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
+private func earTrainingPianoIsBlackKey(_ midi: Int) -> Bool {
+    switch ((midi % 12) + 12) % 12 {
+    case 1, 3, 6, 8, 10:
+        return true
+    default:
+        return false
+    }
+}
+
+private struct EarTrainingPianoKeyboardLayout {
+    let whiteMidiNotes: [Int]
+    let blackMidiNotes: [Int]
+    let whiteMidiIndexByMidi: [Int: Int]
+
+    static let phone = EarTrainingPianoKeyboardLayout(firstMidi: 48, lastMidi: 83)
+    static let tablet = EarTrainingPianoKeyboardLayout(firstMidi: 21, lastMidi: 108)
+
+    static var current: EarTrainingPianoKeyboardLayout {
+        UIDevice.current.userInterfaceIdiom == .pad ? tablet : phone
+    }
+
+    private init(firstMidi: Int, lastMidi: Int) {
+        let midiRange = firstMidi...lastMidi
+        let whites = midiRange.filter { !earTrainingPianoIsBlackKey($0) }
+        var indexByMidi: [Int: Int] = [:]
+        indexByMidi.reserveCapacity(whites.count)
+        for (index, midi) in whites.enumerated() {
+            indexByMidi[midi] = index
+        }
+
+        self.whiteMidiNotes = whites
+        self.blackMidiNotes = midiRange.filter { earTrainingPianoIsBlackKey($0) }
+        self.whiteMidiIndexByMidi = indexByMidi
+    }
+}
+
 /// 耳コピバトル ゲーム画面の鍵盤。`SurvivalChordPadView` のレイアウト/インタラクションを踏襲しつつ、
 /// ヒント (緑グロー) は無効化し、押下時に `handleNoteOn/Off` を呼ぶ。
-/// iOS 版は 36 鍵 (連続 36 音 = C3〜B5 / MIDI 48〜83) に固定。
+/// iPhone は 36 鍵 (C3〜B5 / MIDI 48〜83)、iPad は 88 鍵 (A0〜C8 / MIDI 21〜108)。
 struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     @ObservedObject var player: Player
 
-    /// C3 (48) 〜 B5 (83) の 36 鍵。
-    private let firstMidi: Int = 48
-    private let lastMidi: Int = 83
     private let keyboardHeight: CGFloat = 76
     private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6
 
     var body: some View {
         GeometryReader { proxy in
-            let whites = whiteMidiNotes
+            let keyboardLayout = EarTrainingPianoKeyboardLayout.current
+            let whites = keyboardLayout.whiteMidiNotes
             let whiteKeyWidth = proxy.size.width / CGFloat(max(whites.count, 1))
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
@@ -25,7 +60,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
 
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
-                    ForEach(Array(whites.enumerated()), id: \.offset) { _, midi in
+                    ForEach(whites, id: \.self) { midi in
                         EarTrainingPianoKeyButton(
                             midi: midi,
                             label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
@@ -41,8 +76,8 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                 }
                 .frame(width: totalWidth, height: keyboardHeight)
 
-                ForEach(blackKeyMidiNotes, id: \.self) { midi in
-                    let x = blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth)
+                ForEach(keyboardLayout.blackMidiNotes, id: \.self) { midi in
+                    let x = blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth, keyboardLayout: keyboardLayout)
                     EarTrainingPianoKeyButton(
                         midi: midi,
                         label: "",
@@ -63,24 +98,14 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
         .frame(height: keyboardHeight)
     }
 
-    private var whiteMidiNotes: [Int] {
-        (firstMidi...lastMidi).filter { !Self.isBlackKey($0) }
-    }
-
-    private var blackKeyMidiNotes: [Int] {
-        (firstMidi...lastMidi).filter { Self.isBlackKey($0) }
-    }
-
-    private func blackKeyCenterX(midi: Int, whiteKeyWidth: CGFloat) -> CGFloat {
+    private func blackKeyCenterX(
+        midi: Int,
+        whiteKeyWidth: CGFloat,
+        keyboardLayout: EarTrainingPianoKeyboardLayout
+    ) -> CGFloat {
         let leftWhite = midi - 1
-        let whites = whiteMidiNotes
-        guard let idx = whites.firstIndex(of: leftWhite) else { return 0 }
+        guard let idx = keyboardLayout.whiteMidiIndexByMidi[leftWhite] else { return 0 }
         return (CGFloat(idx) + 1) * whiteKeyWidth
-    }
-
-    private static func isBlackKey(_ midi: Int) -> Bool {
-        let pc = ((midi % 12) + 12) % 12
-        return [1, 3, 6, 8, 10].contains(pc)
     }
 
     private static func shouldLabelC(midi: Int) -> Bool {
