@@ -875,33 +875,43 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
 
     const footContainer = view.container;
-    if (!this.playerQuoteBubbleRoot || !this.playerQuoteBubbleRoot.active) {
-      this.playerQuoteBubbleRoot?.destroy(true);
-      const root = this.add.container(0, -CHARACTER_DISPLAY_SIZE - 12);
-      root.setDepth(24);
+    const existingRoot = this.playerQuoteBubbleRoot;
+    if (!existingRoot || existingRoot.parentContainer !== footContainer) {
+      existingRoot?.destroy(true);
+      const root = this.make.container({ x: 0, y: -CHARACTER_DISPLAY_SIZE - 12, add: false });
       footContainer.add(root);
       this.playerQuoteBubbleRoot = root;
     }
 
     const root = this.playerQuoteBubbleRoot;
+    if (!root) {
+      return;
+    }
     root.removeAll(true);
 
-    const label = this.add.text(0, 0, text, {
-      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-      fontSize: `${PLAYER_QUOTE_FONT_PX}px`,
-      fontStyle: 'bold',
-      color: '#ffffff',
-    }).setOrigin(0.5, 0.5);
+    const label = this.make.text({
+      x: 0,
+      y: 0,
+      text,
+      style: {
+        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+        fontSize: `${PLAYER_QUOTE_FONT_PX}px`,
+        fontStyle: 'bold',
+        color: '#ffffff',
+      },
+      add: false,
+    });
+    label.setOrigin(0.5, 0.5);
 
     const bubbleWidth = label.width + PLAYER_QUOTE_PAD_X * 2;
     const bubbleHeight = label.height + PLAYER_QUOTE_PAD_Y * 2;
     const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
 
-    const bubble = this.add.graphics();
+    const bubble = this.make.graphics({ x: 0, y: 0 }, false);
     bubble.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
     bubble.fillRoundedRect(-bubbleWidth / 2, -tailH - bubbleHeight, bubbleWidth, bubbleHeight, PLAYER_QUOTE_CORNER_RADIUS);
 
-    const tail = this.add.graphics();
+    const tail = this.make.graphics({ x: 0, y: 0 }, false);
     tail.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
     tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
 
