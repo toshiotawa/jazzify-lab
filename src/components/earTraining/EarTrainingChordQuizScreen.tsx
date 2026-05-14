@@ -31,7 +31,11 @@ import {
   stopNote,
   updateGlobalVolume,
 } from '@/utils/MidiController';
-import { createChordVoicingAttempt, handleChordVoicingNoteOn } from '@/utils/earTrainingChordVoicingEngine';
+import {
+  createChordVoicingAttempt,
+  handleChordVoicingNoteOn,
+} from '@/utils/earTrainingChordVoicingEngine';
+import { resolveEarTrainingOutcome } from '@/utils/earTrainingEngine';
 import { computeVoicingKeyboardHints } from '@/utils/earTrainingChordVoicingHints';
 import { getEarTrainingBattleHudLabels, getEarTrainingGameCopy, formatEarTrainingChordQuizIntroLine } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -67,7 +71,12 @@ interface EarTrainingChordQuizScreenProps {
 
 const INPUT_COOLDOWN_MS = 20;
 const QUIZ_EFFECT_MS = 820;
-const NO_DAMAGE = {
+/** コードクイズ本番の敵 HP（演出・クリア条件用。DB の enemy_hp とは独立） */
+const QUIZ_BATTLE_ENEMY_HP = 10_000;
+const QUIZ_ATTACK_GAUGE_FILL_MS = 5000;
+const QUIZ_ENEMY_STRIKE_DAMAGE = 5;
+
+const QUIZ_ZERO_NOTE_DAMAGE = {
   perCorrectNote: 0,
   good: 0,
   great: 0,
@@ -76,6 +85,12 @@ const NO_DAMAGE = {
   fail: 0,
 };
 const EMPTY_STAVES: readonly number[] = [];
+
+const clampGaugeRatio = (value: number): number => Math.min(1, Math.max(0, value));
+
+const randomIntInclusive = (min: number, max: number, rand: () => number): number => (
+  Math.floor(rand() * (max - min + 1)) + min
+);
 
 const formatTime = (seconds: number): string => {
   const safe = Math.max(0, Math.ceil(seconds));
@@ -146,6 +161,10 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [attempt, setAttempt] = useState<EarTrainingChordVoicingAttempt | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(quizDurationSec);
+  const [enemyHp, setEnemyHp] = useState(QUIZ_BATTLE_ENEMY_HP);
+  const [playerHp, setPlayerHp] = useState(stage.player_hp);
+  const [countInValue, setCountInValue] = useState(0);
+  const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [feedback, setFeedback] = useState<'clear' | null>(null);
@@ -173,6 +192,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const lastInputAtRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
   const quizTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
   const pendingImpactHandlersRef = useRef<Map<number, () => void>>(new Map());
@@ -181,6 +201,21 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const phraseRunNonceRef = useRef(0);
   const quotaCelebrationFiredRef = useRef(false);
   const randRef = useRef(() => Math.random());
+  const enemyHpRef = useRef(enemyHp);
+  const playerHpRef = useRef(playerHp);
+  const timeRemainingRef = useRef(timeRemaining);
+  const practiceModeRef = useRef(practiceMode);
+  const attackGaugeEpochMsRef = useRef<number | null>(null);
+  const enemyAttackGaugePercentRef = useRef(0);
+
+  const setEnemyAttackGaugePercent = useCallback((value: number) => {
+    const next = clampGaugeRatio(value);
+    if (Math.abs(next - enemyAttackGaugePercentRef.current) < 0.004 && next !== 0 && next !== 1) {
+      return;
+    }
+    enemyAttackGaugePercentRef.current = next;
+    setEnemyAttackGaugePercentState(next);
+  }, []);
 
   const activeItem = quizItems[activeItemIndex] ?? null;
   const previewItem = quizItems[previewItemIndex] ?? null;
@@ -195,6 +230,10 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   useEffect(() => { attemptRef.current = attempt; }, [attempt]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
+  useEffect(() => { enemyHpRef.current = enemyHp; }, [enemyHp]);
+  useEffect(() => { playerHpRef.current = playerHp; }, [playerHp]);
+  useEffect(() => { timeRemainingRef.current = timeRemaining; }, [timeRemaining]);
+  useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
 
   useEffect(() => {
     updateGlobalVolume(settings.midiVolume * settings.masterVolume);
@@ -222,6 +261,13 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     }
   }, []);
 
+  const clearCountdownTimer = useCallback(() => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  }, []);
+
   const clearBattleEffectTimers = useCallback(() => {
     if (battleEffectClearTimerRef.current) {
       clearTimeout(battleEffectClearTimerRef.current);
@@ -231,13 +277,14 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
   useEffect(() => {
     clearQuizTimer();
+    clearCountdownTimer();
     clearBattleEffectTimers();
     chordVoicingPhrasePlayerStubRef.current?.dispose();
     chordVoicingPhrasePlayerStubRef.current = null;
     selfPacedDrumLoopRef.current?.dispose();
     selfPacedDrumLoopRef.current = null;
     return () => undefined;
-  }, [clearBattleEffectTimers, clearQuizTimer]);
+  }, [clearBattleEffectTimers, clearCountdownTimer, clearQuizTimer]);
 
   const triggerBattleEffect = useCallback((
     kind: EarTrainingBattleEffectKind,
@@ -291,6 +338,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const finishQuizSuccess = useCallback(async () => {
     pendingImpactHandlersRef.current.clear();
     clearQuizTimer();
+    clearCountdownTimer();
     gameStateRef.current = 'stageClear';
     stopSelfPacedDrumLoop();
     setGameState('stageClear');
@@ -311,16 +359,18 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     onLessonStageClear,
     practiceMode,
     stopSelfPacedDrumLoop,
+    clearCountdownTimer,
   ]);
 
   const finishQuizFail = useCallback(() => {
     pendingImpactHandlersRef.current.clear();
     clearQuizTimer();
+    clearCountdownTimer();
     gameStateRef.current = 'gameOver';
     stopSelfPacedDrumLoop();
     setGameState('gameOver');
     setStatusText(isEnglishCopy ? 'Try again' : '残念…');
-  }, [clearQuizTimer, isEnglishCopy, stopSelfPacedDrumLoop]);
+  }, [clearCountdownTimer, clearQuizTimer, isEnglishCopy, stopSelfPacedDrumLoop]);
 
   const evaluateTimeUp = useCallback(() => {
     if (practiceMode || quizEndedRef.current) {
@@ -334,6 +384,47 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       finishQuizFail();
     }
   }, [finishQuizFail, finishQuizSuccess, practiceMode, requiredCorrect]);
+
+  const applyQuizHpOutcome = useCallback((nextEnemyHp: number, nextPlayerHp: number) => {
+    if (practiceModeRef.current || quizEndedRef.current) {
+      return;
+    }
+    const outcome = resolveEarTrainingOutcome({
+      enemyHp: nextEnemyHp,
+      playerHp: nextPlayerHp,
+      timeRemainingSec: Math.max(0, timeRemainingRef.current),
+      phraseCompleted: false,
+      phraseFailed: false,
+    });
+    if (outcome === 'stageClear') {
+      quizEndedRef.current = true;
+      clearQuizTimer();
+      clearCountdownTimer();
+      void finishQuizSuccess();
+      return;
+    }
+    if (outcome === 'gameOver') {
+      quizEndedRef.current = true;
+      clearQuizTimer();
+      clearCountdownTimer();
+      finishQuizFail();
+    }
+  }, [clearCountdownTimer, clearQuizTimer, finishQuizFail, finishQuizSuccess]);
+
+  const registerPlayerHpImpactDamage = useCallback((damageAmount: number) => {
+    if (practiceModeRef.current || quizEndedRef.current) {
+      return;
+    }
+    const effectId = triggerBattleEffect('miss', undefined, damageAmount);
+    pendingImpactHandlersRef.current.set(effectId, () => {
+      setPlayerHp(prev => {
+        const next = Math.max(0, prev - damageAmount);
+        playerHpRef.current = next;
+        applyQuizHpOutcome(enemyHpRef.current, next);
+        return next;
+      });
+    });
+  }, [applyQuizHpOutcome, triggerBattleEffect]);
 
   const advanceToNextQuestion = useCallback(() => {
     if (quizItems.length === 0) {
@@ -354,13 +445,16 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     setPreviewItemIndex(nextPreviewIdx);
     setAttempt(nextAttempt);
     attemptRef.current = nextAttempt;
-  }, [previewItemIndex, quizItems, quizOrder, stage.id]);
+    attackGaugeEpochMsRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    setEnemyAttackGaugePercent(0);
+  }, [previewItemIndex, quizItems, quizOrder, setEnemyAttackGaugePercent, stage.id]);
 
   const startQuizInternal = useCallback(() => {
     if (quizItems.length === 0) {
       setStatusText(isEnglishCopy ? 'No quiz items in stage' : '出題がありません');
       return;
     }
+    clearCountdownTimer();
     quizEndedRef.current = false;
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
@@ -369,6 +463,15 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     setCorrectCount(0);
     phraseRunNonceRef.current = 0;
     setPhraseIntroSeq(c => c + 1);
+
+    setEnemyHp(QUIZ_BATTLE_ENEMY_HP);
+    setPlayerHp(stage.player_hp);
+    enemyHpRef.current = QUIZ_BATTLE_ENEMY_HP;
+    playerHpRef.current = stage.player_hp;
+
+    attackGaugeEpochMsRef.current = null;
+    setEnemyAttackGaugePercent(0);
+
     const firstActive = pickNextQuizIndex(quizItems, quizOrder, null, randRef.current);
     const firstPreview = pickNextQuizIndex(quizItems, quizOrder, firstActive, randRef.current);
     setActiveItemIndex(firstActive);
@@ -382,52 +485,81 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     const nextAttempt = createChordVoicingAttempt(phrase);
     setAttempt(nextAttempt);
     attemptRef.current = nextAttempt;
-    gameStateRef.current = 'playingPhrase';
-    setGameState('playingPhrase');
-    setStatusText(isEnglishCopy ? 'Go!' : 'スタート!');
 
-    if (!practiceMode) {
-      quizStartedAtRef.current = Date.now();
-      setTimeRemaining(quizDurationSec);
-      clearQuizTimer();
-      quizTimerRef.current = setInterval(() => {
-        const startAt = quizStartedAtRef.current;
-        if (startAt === null) {
-          return;
-        }
-        const elapsed = (Date.now() - startAt) / 1000;
-        const rem = Math.max(0, Math.ceil(quizDurationSec - elapsed));
-        setTimeRemaining(rem);
-        if (rem <= 0 && gameStateRef.current === 'playingPhrase') {
-          clearQuizTimer();
-          evaluateTimeUp();
-        }
-      }, 250);
-    } else {
-      setTimeRemaining(quizDurationSec);
-    }
+    const beats = Math.max(0, Math.min(32, stage.count_in_beats));
+    const bpmSafe = Math.max(30, stage.bpm);
+    const beatMs = Math.max(100, (60 / bpmSafe) * 1000);
 
-    void (async () => {
-      const drum = ensureSelfPacedDrumLoop();
-      try {
-        if (!chordVoicingPhrasePlayerStubRef.current) {
-          chordVoicingPhrasePlayerStubRef.current = new EarTrainingChordVoicingPhrasePlayer();
-        }
-        const stubPlayer = chordVoicingPhrasePlayerStubRef.current;
-        await stubPlayer.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL);
-        const phraseCtx = stubPlayer.getAudioContext();
-        if (!phraseCtx) {
-          return;
-        }
-        await drum.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL, phraseCtx);
-        drum.setVolume(settings.musicVolume * settings.masterVolume);
-        drum.start();
-      } catch {
-        /* BGM が無くてもプレイ続行 */
+    const beginQuizPlayingPhrase = () => {
+      gameStateRef.current = 'playingPhrase';
+      setGameState('playingPhrase');
+      setStatusText(isEnglishCopy ? 'Go!' : 'スタート!');
+      attackGaugeEpochMsRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      setEnemyAttackGaugePercent(0);
+
+      if (!practiceMode) {
+        quizStartedAtRef.current = Date.now();
+        setTimeRemaining(quizDurationSec);
+        clearQuizTimer();
+        quizTimerRef.current = setInterval(() => {
+          const startAt = quizStartedAtRef.current;
+          if (startAt === null) {
+            return;
+          }
+          const elapsed = (Date.now() - startAt) / 1000;
+          const rem = Math.max(0, Math.ceil(quizDurationSec - elapsed));
+          setTimeRemaining(rem);
+          if (rem <= 0 && gameStateRef.current === 'playingPhrase') {
+            clearQuizTimer();
+            evaluateTimeUp();
+          }
+        }, 250);
+      } else {
+        setTimeRemaining(quizDurationSec);
       }
-    })();
+
+      void (async () => {
+        const drum = ensureSelfPacedDrumLoop();
+        try {
+          if (!chordVoicingPhrasePlayerStubRef.current) {
+            chordVoicingPhrasePlayerStubRef.current = new EarTrainingChordVoicingPhrasePlayer();
+          }
+          const stubPlayer = chordVoicingPhrasePlayerStubRef.current;
+          await stubPlayer.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL);
+          const phraseCtx = stubPlayer.getAudioContext();
+          if (!phraseCtx) {
+            return;
+          }
+          await drum.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL, phraseCtx);
+          drum.setVolume(settings.musicVolume * settings.masterVolume);
+          drum.start();
+        } catch {
+          /* BGM が無くてもプレイ続行 */
+        }
+      })();
+    };
+
+    if (beats > 0) {
+      gameStateRef.current = 'countIn';
+      setGameState('countIn');
+      setCountInValue(beats);
+      setStatusText(copy.countIn);
+      let remaining = beats;
+      countdownTimerRef.current = setInterval(() => {
+        remaining -= 1;
+        setCountInValue(Math.max(remaining, 0));
+        if (remaining <= 0) {
+          clearCountdownTimer();
+          beginQuizPlayingPhrase();
+        }
+      }, beatMs);
+    } else {
+      beginQuizPlayingPhrase();
+    }
   }, [
+    clearCountdownTimer,
     clearQuizTimer,
+    copy.countIn,
     ensureSelfPacedDrumLoop,
     evaluateTimeUp,
     isEnglishCopy,
@@ -436,14 +568,19 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     quizItems,
     quizOrder,
     settings.musicVolume,
+    setEnemyAttackGaugePercent,
+    stage.bpm,
+    stage.count_in_beats,
     stage.id,
+    stage.player_hp,
   ]);
 
   const startQuiz = useCallback(() => {
     stopSelfPacedDrumLoop();
     clearQuizTimer();
+    clearCountdownTimer();
     startQuizInternal();
-  }, [clearQuizTimer, startQuizInternal, stopSelfPacedDrumLoop]);
+  }, [clearCountdownTimer, clearQuizTimer, startQuizInternal, stopSelfPacedDrumLoop]);
 
   const handleNoteInput = useCallback((midiNote: number) => {
     const nowTs = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -462,17 +599,20 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       currentAttempt,
       activeChord,
       midiNote,
-      NO_DAMAGE,
-      { suppressMissRecording: true },
+      QUIZ_ZERO_NOTE_DAMAGE,
+      { wrongNotesPolicy: 'first_only_per_chord' },
     );
-    if (!result.chordJustCompleted) {
-      setAttempt(result.attempt);
-      attemptRef.current = result.attempt;
-      return;
+
+    if (!practiceModeRef.current && result.firstWrongJustHappened) {
+      registerPlayerHpImpactDamage(QUIZ_ENEMY_STRIKE_DAMAGE);
     }
 
     setAttempt(result.attempt);
     attemptRef.current = result.attempt;
+
+    if (!result.chordJustCompleted) {
+      return;
+    }
 
     const nextCorrect = correctCountRef.current + 1;
     correctCountRef.current = nextCorrect;
@@ -483,21 +623,59 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       triggerBattleEffect('quotaReached');
     }
 
+    const completionDamage = practiceModeRef.current
+      ? 0
+      : randomIntInclusive(40, 50, randRef.current);
+
     const origin = computeChordLabelOriginPoint(activeChord.id);
 
-    if (nextCorrect > 0 && nextCorrect % 5 === 0) {
-      const cycle = (nextCorrect / 5 - 1) % 3;
-      const label = cycle === 0 ? 'Great' : 'Perfect';
-      const phraseNoteCount = cycle === 2 ? 6 : 0;
-      triggerBattleEffect('complete', label, 0, phraseNoteCount, origin);
+    const registerEnemyDamageImpact = () => {
+      if (practiceModeRef.current || completionDamage <= 0) {
+        return;
+      }
+      const attachEnemyDamage = (effectId: number, dmg: number) => {
+        pendingImpactHandlersRef.current.set(effectId, () => {
+          setEnemyHp(prev => {
+            const next = Math.max(0, prev - dmg);
+            enemyHpRef.current = next;
+            applyQuizHpOutcome(next, playerHpRef.current);
+            return next;
+          });
+        });
+      };
+
+      if (nextCorrect > 0 && nextCorrect % 5 === 0) {
+        const cycle = (nextCorrect / 5 - 1) % 3;
+        const label = cycle === 0 ? 'Great' : 'Perfect';
+        const phraseNoteCount = cycle === 2 ? 6 : 0;
+        const effectId = triggerBattleEffect('complete', label, completionDamage, phraseNoteCount, origin);
+        attachEnemyDamage(effectId, completionDamage);
+      } else {
+        const effectId = triggerBattleEffect('correct', undefined, completionDamage, undefined, origin);
+        attachEnemyDamage(effectId, completionDamage);
+      }
+    };
+
+    if (practiceModeRef.current) {
+      if (nextCorrect > 0 && nextCorrect % 5 === 0) {
+        const cycle = (nextCorrect / 5 - 1) % 3;
+        const label = cycle === 0 ? 'Great' : 'Perfect';
+        const phraseNoteCount = cycle === 2 ? 6 : 0;
+        triggerBattleEffect('complete', label, 0, phraseNoteCount, origin);
+      } else {
+        triggerBattleEffect('correct', undefined, 0, undefined, origin);
+      }
     } else {
-      triggerBattleEffect('correct', undefined, 0, undefined, origin);
+      registerEnemyDamageImpact();
     }
+
     advanceToNextQuestion();
   }, [
     activeChord,
     advanceToNextQuestion,
+    applyQuizHpOutcome,
     computeChordLabelOriginPoint,
+    registerPlayerHpImpactDamage,
     requiredCorrect,
     triggerBattleEffect,
   ]);
@@ -505,6 +683,43 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
   }, [handleNoteInput]);
+
+  useEffect(() => {
+    if (gameState !== 'playingPhrase' || practiceMode) {
+      attackGaugeEpochMsRef.current = null;
+      setEnemyAttackGaugePercent(0);
+      return undefined;
+    }
+    let frameId = 0;
+    const tick = () => {
+      if (
+        gameStateRef.current !== 'playingPhrase'
+        || practiceModeRef.current
+        || quizEndedRef.current
+      ) {
+        return;
+      }
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      let epoch = attackGaugeEpochMsRef.current;
+      if (epoch === null) {
+        attackGaugeEpochMsRef.current = now;
+        epoch = now;
+      }
+      const elapsed = now - epoch;
+      const pct = Math.min(1, elapsed / QUIZ_ATTACK_GAUGE_FILL_MS);
+      setEnemyAttackGaugePercent(pct);
+      if (pct >= 1) {
+        attackGaugeEpochMsRef.current = now;
+        setEnemyAttackGaugePercent(0);
+        registerPlayerHpImpactDamage(QUIZ_ENEMY_STRIKE_DAMAGE);
+      }
+      frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [gameState, practiceMode, registerPlayerHpImpactDamage, setEnemyAttackGaugePercent]);
 
   useEffect(() => {
     if (!midiControllerRef.current) {
@@ -553,7 +768,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     void stopNote(midiNote);
   }, []);
 
-  const showVoicingTargetHints = gameState === 'playingPhrase';
+  const showVoicingTargetHints = gameState === 'playingPhrase' || gameState === 'countIn';
 
   const staffVoicingGroups = useMemo((): ChordVoicingStaffGroup[] => {
     if (!activeChord || !previewChord) {
@@ -657,11 +872,12 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     ? (progressSaved ? copy.lessonSaved : copy.lessonSaving)
     : null;
 
-  const phraseIntroLine = formatEarTrainingChordQuizIntroLine(
-    isEnglishCopy,
-    quizDurationSec,
-    requiredCorrect,
+  const chordQuizBannerLine = useMemo(
+    () => formatEarTrainingChordQuizIntroLine(isEnglishCopy, quizDurationSec, requiredCorrect),
+    [isEnglishCopy, quizDurationSec, requiredCorrect],
   );
+
+  const phraseIntroLine = gameState === 'countIn' ? chordQuizBannerLine : '';
 
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
@@ -674,10 +890,10 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     timeLabel,
     practiceMode,
     isMidiConnected,
-    playerHp: stage.player_hp,
+    playerHp,
     playerMaxHp: stage.player_hp,
-    enemyHp: stage.enemy_hp,
-    enemyMaxHp: stage.enemy_hp,
+    enemyHp,
+    enemyMaxHp: QUIZ_BATTLE_ENEMY_HP,
     enemyName,
     enemyAvatarUrl: enemyAvatar,
     enemyAvatarFlipX,
@@ -685,13 +901,13 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     phraseIndex: 0,
     phraseRunId,
     phraseIntroSeq,
-    phraseIntroEmphasis: true,
+    phraseIntroEmphasis: gameState === 'countIn',
     totalPhrases: 1,
     activeLoop: 1,
     maxLoops: 1,
     demoLoopActive: false,
-    enemyAttackGaugePercent: 0,
-    attackGaugeHidden: true,
+    enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,
+    attackGaugeHidden: practiceMode,
     chords: [
       ...(activeChord
         ? [{ id: activeChord.id, name: activeChord.chord_name, active: showVoicingTargetHints }]
@@ -705,7 +921,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     currentNoteIndex: 0,
     slotKind: 'circle',
     chordCompleted: [false, false],
-    countInValue: 0,
+    countInValue,
     lastRank: null,
     showLobbyControls,
     canChangePracticeMode,
@@ -714,9 +930,11 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }), [
     activeChord,
     canChangePracticeMode,
-    correctCount,
+    countInValue,
+    enemyAttackGaugePercent,
     enemyAvatar,
     enemyAvatarFlipX,
+    enemyHp,
     enemyName,
     gameState,
     hudLabels,
@@ -725,6 +943,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     phraseIntroLine,
     phraseIntroSeq,
     phraseRunId,
+    playerHp,
     practiceMode,
     previewChord,
     progressSaved,
@@ -733,7 +952,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     resultState,
     showLobbyControls,
     showVoicingTargetHints,
-    stage.enemy_hp,
     stage.player_hp,
     stage.title,
     startButtonLabel,

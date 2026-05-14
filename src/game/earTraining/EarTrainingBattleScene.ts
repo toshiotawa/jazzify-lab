@@ -1027,6 +1027,14 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
+    const introTrimmed = snapshot.phraseIntroLine.trim();
+    if (!introTrimmed) {
+      this.phraseIntroText?.destroy();
+      this.phraseIntroText = null;
+      this.lastPhraseIntroKey = null;
+      return;
+    }
+
     const emphasis = Boolean(snapshot.phraseIntroEmphasis);
     const introKey = `${snapshot.phraseIntroSeq}:${snapshot.phraseIndex}:${snapshot.totalPhrases}`;
     if (this.lastPhraseIntroKey === introKey) {
@@ -1038,7 +1046,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     // 中央のコード譜オーバーレイ（画面高の約42%付近）と重ならないよう、HUD直下〜画面上部寄りに固定
     const y = Math.max(HUD_HEIGHT + 20, Math.round(height * 0.3));
     const fadeMs = emphasis ? PHRASE_INTRO_EMPHASIS_FADE_MS : PHRASE_INTRO_FADE_MS;
-    const text = this.add.text(width / 2, y, snapshot.phraseIntroLine, {
+    const text = this.add.text(width / 2, y, introTrimmed, {
       color: '#fef3c7',
       fontFamily: 'Arial, sans-serif',
       fontSize: emphasis ? '34px' : '22px',

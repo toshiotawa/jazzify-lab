@@ -2,13 +2,19 @@ import Foundation
 import QuartzCore
 import CoreGraphics
 
-/// Web `EarTrainingChordQuizScreen.tsx` と同等のコードクイズ状態機械（敵ゲージ無し・クイズ専用）。
+/// Web `EarTrainingChordQuizScreen.tsx` と同等のコードクイズ状態機械（HP・敵アタックゲージ・カウントイン対応）。
 @MainActor
 final class EarTrainingChordQuizBattleController: ObservableObject {
     private static let inputCooldownMs: Double = 20
     private static let zeroDamage = EarTrainingDamageConfig.zero
     private static let kBattleEffectMs: Double = 1_600
     private static let kAwesomeBattleEffectMs: Double = 4_500
+
+    /// コードクイズ本番の敵 HP（DB の enemyHp とは独立）。
+    private static let quizEnemyHpFixed: Int = 10_000
+    /// アタックゲージが満タンになるまでの秒数（満了ごとに敵が `quizStrikeDamage`）。
+    private static let quizAttackGaugeSeconds: TimeInterval = 5
+    private static let quizStrikeDamage: Int = 5
 
     private static let chordVoicingSelfPacedDrumLoopURL =
         URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
@@ -20,6 +26,10 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     @Published private(set) var timeRemaining: Int
     @Published private(set) var statusText: String
     @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
+    @Published private(set) var enemyHp: Int = 10_000
+    @Published private(set) var playerHp: Int = 0
+    @Published private(set) var enemyAttackGaugePercent: Double = 0
+    @Published private(set) var countInValue: Int = 0
     @Published var practiceMode: Bool = false
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
@@ -52,11 +62,14 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private var phraseIntroSeq: Int = 0
     private var quotaCelebrationFired: Bool = false
     private var quizTickerTask: Task<Void, Never>?
+    private var countdownTask: Task<Void, Never>?
     private var drumPrepareTask: Task<Void, Never>?
     private var battleEffectClearTask: Task<Void, Never>?
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
+    /// `quizAttackGaugeSeconds` 周期の開始時刻（Mono）。
+    private var attackGaugeStartMono: TimeInterval?
     @Published private(set) var feedback: EarTrainingBattleController.Feedback?
     private var feedbackTask: Task<Void, Never>?
 
@@ -111,6 +124,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         self.timeRemaining = stage.resolvedQuizDurationSeconds
         self.statusText = copy.idlePrompt
         self.practiceMode = false
+        self.playerHp = stage.playerHp
+        self.enemyHp = Self.quizEnemyHpFixed
     }
 
     // MARK: - Scene bridge
@@ -137,6 +152,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     func tearDown() {
         cancelQuizTicker()
+        cancelCountdownTask()
         drumPrepareTask?.cancel()
         drumPrepareTask = nil
         feedbackTask?.cancel()
@@ -153,6 +169,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     func handleBack() {
         cancelQuizTicker()
+        cancelCountdownTask()
         audio.stopDrumLoop()
         onExitCallback()
     }
@@ -164,6 +181,33 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         guard canChangePracticeMode else { return }
         practiceMode = value
         publishSnapshot()
+    }
+
+    /// CADisplayLink などから毎フレーム呼ぶ。ゲージ進行と満了時の敵攻撃。
+    func tickQuizAttackGauge(now: TimeInterval) {
+        guard gameState == .playingPhrase, !practiceMode, !quizEnded else {
+            if enemyAttackGaugePercent != 0 {
+                enemyAttackGaugePercent = 0
+            }
+            attackGaugeStartMono = nil
+            return
+        }
+        var start = attackGaugeStartMono
+        if start == nil {
+            attackGaugeStartMono = now
+            start = now
+        }
+        guard let startSafe = start else { return }
+        let elapsed = now - startSafe
+        let pct = min(1, elapsed / Self.quizAttackGaugeSeconds)
+        if abs(pct - enemyAttackGaugePercent) > 0.004 || pct <= 0.002 || pct >= 1 - 0.000_001 {
+            enemyAttackGaugePercent = pct
+        }
+        if pct >= 1 - 0.000_001 {
+            attackGaugeStartMono = now
+            enemyAttackGaugePercent = 0
+            scheduleEnemyStrikeFromGauge()
+        }
     }
 
     func startBattle() {
@@ -182,13 +226,13 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         pendingImpactHandlers.removeAll()
         lastEmittedEffectId = -1
 
-        drumPrepareTask?.cancel()
-        drumPrepareTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let ok = await self.audio.prepareDrumLoop(url: Self.chordVoicingSelfPacedDrumLoopURL)
-            guard ok else { return }
-            self.audio.startDrumLoop()
-        }
+        enemyHp = Self.quizEnemyHpFixed
+        playerHp = stage.playerHp
+        enemyAttackGaugePercent = 0
+        attackGaugeStartMono = nil
+
+        cancelQuizTicker()
+        cancelCountdownTask()
 
         let firstActive = EarTrainingChordQuiz.pickNextQuizIndex(
             items: quizItems,
@@ -206,8 +250,55 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         previewQuizIndex = firstPreview
         bootstrapPhraseAndAttempt()
 
-        statusText = isEnglishCopy ? "Go!" : "スタート!"
+        let beats = max(0, min(32, stage.countInBeats))
+        let bpm = max(30, stage.bpm)
+        let beatSec = max(0.1, 60.0 / Double(bpm))
+
+        if beats > 0 {
+            gameState = .countIn
+            countInValue = beats
+            statusText = copy.countIn
+            countdownTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                var remaining = beats
+                while remaining > 0 {
+                    let delayNs = UInt64(beatSec * 1_000_000_000)
+                    try? await Task.sleep(nanoseconds: delayNs)
+                    if Task.isCancelled { return }
+                    remaining -= 1
+                    self.countInValue = max(0, remaining)
+                    self.publishSnapshot()
+                }
+                if Task.isCancelled { return }
+                self.beginQuizPlayingPhrase()
+            }
+        } else {
+            beginQuizPlayingPhrase()
+        }
+
+        publishSnapshot()
+        updatePlayerQuoteBubble()
+    }
+
+    private func cancelCountdownTask() {
+        countdownTask?.cancel()
+        countdownTask = nil
+    }
+
+    private func beginQuizPlayingPhrase() {
+        cancelCountdownTask()
         gameState = .playingPhrase
+        statusText = isEnglishCopy ? "Go!" : "スタート!"
+        attackGaugeStartMono = CACurrentMediaTime()
+        enemyAttackGaugePercent = 0
+
+        drumPrepareTask?.cancel()
+        drumPrepareTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let ok = await self.audio.prepareDrumLoop(url: Self.chordVoicingSelfPacedDrumLoopURL)
+            guard ok else { return }
+            self.audio.startDrumLoop()
+        }
 
         if practiceMode {
             timeRemaining = quizDurationSec
@@ -265,6 +356,12 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         )
         quizPhraseDetail = phraseDetail
         attempt = EarTrainingChordVoicingEngine.createAttempt(for: phraseDetail)
+        resetAttackGaugeEpochForCurrentQuestion()
+    }
+
+    private func resetAttackGaugeEpochForCurrentQuestion() {
+        attackGaugeStartMono = CACurrentMediaTime()
+        enemyAttackGaugePercent = 0
     }
 
     func handleNoteOn(midi: Int, velocity: Int = 100, playAudio: Bool = true) {
@@ -302,14 +399,32 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             activeChord: judged,
             midiNote: midi,
             damage: Self.zeroDamage,
-            suppressMissRecording: true
+            suppressMissRecording: false,
+            wrongNotesPolicy: .firstOnlyPerChord
         )
+
+        if !practiceMode, result.firstWrongJustHappened {
+            let wrongEffectId = triggerBattleEffect(
+                kind: .miss,
+                label: nil,
+                damage: Self.quizStrikeDamage,
+                phraseNoteCount: nil,
+                originPoint: nil
+            )
+            registerBattleEffectImpact(effectId: wrongEffectId) { [weak self] in
+                guard let self else { return }
+                let nextPlayer = max(0, self.playerHp - Self.quizStrikeDamage)
+                self.playerHp = nextPlayer
+                self.applyQuizHpOutcome(nextEnemyHp: self.enemyHp, nextPlayerHp: nextPlayer)
+            }
+        }
 
         if result.attempt != currentAttempt {
             attempt = result.attempt
         }
 
         guard result.chordJustCompleted else {
+            publishSnapshot()
             return
         }
 
@@ -328,7 +443,20 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
 
         let origin = chordLabelOriginInScene()
+        let completionDamage = practiceMode ? 0 : Int.random(in: 40...50)
 
+        if practiceMode {
+            emitChordCompletionVisualEffects(origin: origin)
+        } else {
+            emitChordCompletionVisualEffects(origin: origin, completionDamage: completionDamage)
+        }
+
+        advanceAfterCorrect()
+        publishSnapshot()
+        updatePlayerQuoteBubble()
+    }
+
+    private func emitChordCompletionVisualEffects(origin: CGPoint?, completionDamage: Int = 0) {
         if correctCount % 5 == 0 && correctCount > 0 {
             let cycle = (correctCount / 5 - 1) % 3
             let label: String?
@@ -344,26 +472,82 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
                 label = "Perfect"
                 phraseNoteCount = 6
             }
-            _ = triggerBattleEffect(
+            let effectId = triggerBattleEffect(
                 kind: .complete,
                 label: label,
-                damage: 0,
+                damage: completionDamage,
                 phraseNoteCount: phraseNoteCount,
                 originPoint: origin
             )
+            if completionDamage > 0 {
+                registerBattleEffectImpact(effectId: effectId) { [weak self] in
+                    guard let self else { return }
+                    let nextEnemy = max(0, self.enemyHp - completionDamage)
+                    self.enemyHp = nextEnemy
+                    self.applyQuizHpOutcome(nextEnemyHp: nextEnemy, nextPlayerHp: self.playerHp)
+                }
+            }
         } else {
-            _ = triggerBattleEffect(
+            let effectId = triggerBattleEffect(
                 kind: .correct,
                 label: nil,
-                damage: 0,
+                damage: completionDamage,
                 phraseNoteCount: nil,
                 originPoint: origin
             )
+            if completionDamage > 0 {
+                registerBattleEffectImpact(effectId: effectId) { [weak self] in
+                    guard let self else { return }
+                    let nextEnemy = max(0, self.enemyHp - completionDamage)
+                    self.enemyHp = nextEnemy
+                    self.applyQuizHpOutcome(nextEnemyHp: nextEnemy, nextPlayerHp: self.playerHp)
+                }
+            }
         }
+    }
 
-        advanceAfterCorrect()
-        publishSnapshot()
-        updatePlayerQuoteBubble()
+    private func scheduleEnemyStrikeFromGauge() {
+        guard !practiceMode, !quizEnded else { return }
+        let effectId = triggerBattleEffect(
+            kind: .miss,
+            label: nil,
+            damage: Self.quizStrikeDamage,
+            phraseNoteCount: nil,
+            originPoint: nil
+        )
+        registerBattleEffectImpact(effectId: effectId) { [weak self] in
+            guard let self else { return }
+            let nextPlayer = max(0, self.playerHp - Self.quizStrikeDamage)
+            self.playerHp = nextPlayer
+            self.applyQuizHpOutcome(nextEnemyHp: self.enemyHp, nextPlayerHp: nextPlayer)
+        }
+    }
+
+    private func applyQuizHpOutcome(nextEnemyHp: Int, nextPlayerHp: Int) {
+        guard !practiceMode, !quizEnded else { return }
+        let outcome = EarTrainingEngine.resolveOutcome(
+            enemyHp: nextEnemyHp,
+            playerHp: nextPlayerHp,
+            timeRemainingSec: max(0, timeRemaining),
+            phraseCompleted: false,
+            phraseFailed: false
+        )
+        switch outcome {
+        case .stageClear:
+            quizEnded = true
+            cancelQuizTicker()
+            cancelCountdownTask()
+            pendingImpactHandlers.removeAll()
+            finishQuizSuccess()
+        case .gameOver:
+            quizEnded = true
+            cancelQuizTicker()
+            cancelCountdownTask()
+            pendingImpactHandlers.removeAll()
+            finishQuizFail()
+        default:
+            break
+        }
     }
 
     private func advanceAfterCorrect() {
@@ -409,6 +593,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func finishQuizSuccess() {
+        cancelCountdownTask()
         gameState = .stageClear
         statusText = isEnglishCopy ? "CLEAR!" : "クリア!"
         audio.stopDrumLoop()
@@ -435,6 +620,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func finishQuizFail() {
+        cancelCountdownTask()
         gameState = .gameOver
         statusText = isEnglishCopy ? "Try again" : "残念…"
         audio.stopDrumLoop()
@@ -446,7 +632,15 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func publishSnapshot() {
-        let phraseIntroLine = phraseIntroSummary()
+        let phraseIntroLine: String
+        let phraseIntroEmphasis: Bool
+        if gameState == .countIn {
+            phraseIntroLine = phraseIntroSummary()
+            phraseIntroEmphasis = true
+        } else {
+            phraseIntroLine = ""
+            phraseIntroEmphasis = false
+        }
         let snapshot = EarTrainingBattleSceneSnapshot(
             gameState: gameState,
             stageId: stage.id,
@@ -454,7 +648,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             phraseIndex: 0,
             phraseRunId: phraseRunId,
             phraseIntroSeq: phraseIntroSeq,
-            phraseIntroEmphasis: true,
+            phraseIntroEmphasis: phraseIntroEmphasis,
             totalPhrases: 1,
             phraseIntroLine: phraseIntroLine,
             demoLoopActive: false,
@@ -501,6 +695,10 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         } else {
             scene?.setPlayerQuote(nil)
         }
+    }
+
+    private func registerBattleEffectImpact(effectId: Int, handler: @escaping () -> Void) {
+        pendingImpactHandlers[effectId] = handler
     }
 
     private func triggerBattleEffect(
@@ -571,7 +769,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     var hudModel: EarTrainingHudModel {
         var chips: [EarTrainingChordChip] = []
-        if let a = currentActiveItem, gameState == .playingPhrase, !quizEnded {
+        let chipActive = (gameState == .playingPhrase || gameState == .countIn) && !quizEnded
+        if let a = currentActiveItem, chipActive {
             chips.append(EarTrainingChordChip(id: a.id, name: a.chordName, active: resolvedShowVoicingHints))
         }
         if let p = previewItem {
@@ -582,15 +781,15 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
         let slotCompleted = quizItems.indices.map { _ in false }
         return EarTrainingHudModel(
-            playerHp: stage.playerHp,
+            playerHp: practiceMode ? stage.playerHp : playerHp,
             playerMaxHp: stage.playerHp,
-            enemyHp: stage.enemyHp,
-            enemyMaxHp: stage.enemyHp,
+            enemyHp: practiceMode ? Self.quizEnemyHpFixed : enemyHp,
+            enemyMaxHp: Self.quizEnemyHpFixed,
             practiceMode: practiceMode,
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
-            enemyAttackGaugePercent: 0,
-            hideEnemyAttackGauge: true,
+            enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,
+            hideEnemyAttackGauge: practiceMode,
             hudLabels: hudLabels,
             gameState: gameState,
             phraseRunId: phraseRunId,
@@ -601,12 +800,13 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     /// コード名ラベルを譜側で「ターゲット」として強調できるよう、ヒント状態を返す。
     private var resolvedShowVoicingHints: Bool {
-        if practiceMode { return gameState == .playingPhrase && !quizEnded }
-        /// 音符を隠す本番レイアウトではコードラベルをアクティブ表示しない（見た目のブレ回避）。
+        if practiceMode {
+            return (gameState == .playingPhrase || gameState == .countIn) && !quizEnded
+        }
         if stage.resolvedQuizHideUnpressedNotationInBattle(practiceMode: practiceMode) {
             return false
         }
-        return gameState == .playingPhrase && !quizEnded
+        return (gameState == .playingPhrase || gameState == .countIn) && !quizEnded
     }
 
     var canChangePracticeMode: Bool {
@@ -632,7 +832,7 @@ extension EarTrainingChordQuizBattleController: EarTrainingBattleSceneDriving {}
 extension EarTrainingChordQuizBattleController: EarTrainingPianoPlayable {
     var voicingHintsByMidi: [Int: VoicingHintState] {
         guard practiceMode else { return [:] }
-        guard gameState == .playingPhrase, !quizEnded,
+        guard gameState == .playingPhrase || gameState == .countIn, !quizEnded,
               let chord = activeChord,
               !(attempt?.completedChordIds.contains(chord.id) ?? false) else { return [:] }
         let pressed = attempt?.pressedByChord[chord.id] ?? []

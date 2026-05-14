@@ -1392,12 +1392,19 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             lastPhraseIntroKey = nil
             return
         }
+        let trimmed = snapshot.phraseIntroLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            phraseIntroLabel?.removeFromParent()
+            phraseIntroLabel = nil
+            lastPhraseIntroKey = nil
+            return
+        }
         let key = "\(snapshot.phraseIntroSeq):\(snapshot.phraseIndex):\(snapshot.totalPhrases)"
         if lastPhraseIntroKey == key { return }
         lastPhraseIntroKey = key
         phraseIntroLabel?.removeFromParent()
         let emphasis = snapshot.phraseIntroEmphasis
-        let label = SKLabelNode(text: snapshot.phraseIntroLine)
+        let label = SKLabelNode(text: trimmed)
         label.fontName = "AvenirNext-Heavy"
         label.fontSize = emphasis ? 36 : 24
         label.fontColor = UIColor(red: 0.996, green: 0.953, blue: 0.780, alpha: 1.0)

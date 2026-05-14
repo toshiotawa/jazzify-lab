@@ -170,6 +170,13 @@ enum EarTrainingChordVoicingEngine {
         var enemyDamage: Int
         var playerDamage: Int
         var evaluationMissAdded: Bool
+        /// Web `firstWrongJustHappened`。構成音外の「そのコードで最初の1回」のみ true。
+        var firstWrongJustHappened: Bool
+    }
+
+    enum WrongNotesPolicy {
+        case `default`
+        case firstOnlyPerChord
     }
 
     static func handleNoteOn(
@@ -177,7 +184,8 @@ enum EarTrainingChordVoicingEngine {
         activeChord: EarTrainingPhraseChordDetail?,
         midiNote: Int,
         damage: EarTrainingDamageConfig,
-        suppressMissRecording: Bool = false
+        suppressMissRecording: Bool = false,
+        wrongNotesPolicy: WrongNotesPolicy = .default
     ) -> InputResult {
         guard let chord = activeChord else {
             return InputResult(
@@ -186,7 +194,8 @@ enum EarTrainingChordVoicingEngine {
                 chordJustCompleted: false,
                 enemyDamage: 0,
                 playerDamage: 0,
-                evaluationMissAdded: false
+                evaluationMissAdded: false,
+                firstWrongJustHappened: false
             )
         }
         let chordId = chord.id
@@ -197,7 +206,8 @@ enum EarTrainingChordVoicingEngine {
                 chordJustCompleted: false,
                 enemyDamage: 0,
                 playerDamage: 0,
-                evaluationMissAdded: false
+                evaluationMissAdded: false,
+                firstWrongJustHappened: false
             )
         }
         let targetPcs = voicingPitchClasses(for: chord)
@@ -208,7 +218,8 @@ enum EarTrainingChordVoicingEngine {
                 chordJustCompleted: false,
                 enemyDamage: 0,
                 playerDamage: 0,
-                evaluationMissAdded: false
+                evaluationMissAdded: false,
+                firstWrongJustHappened: false
             )
         }
         let inputPc = midiToPitchClass(midiNote)
@@ -222,7 +233,33 @@ enum EarTrainingChordVoicingEngine {
                     chordJustCompleted: false,
                     enemyDamage: 0,
                     playerDamage: 0,
-                    evaluationMissAdded: false
+                    evaluationMissAdded: false,
+                    firstWrongJustHappened: false
+                )
+            }
+            if wrongNotesPolicy == .firstOnlyPerChord {
+                let currentMiss = attempt.missByChord[chordId] ?? 0
+                if currentMiss >= 1 {
+                    return InputResult(
+                        attempt: attempt,
+                        hitPitchClass: nil,
+                        chordJustCompleted: false,
+                        enemyDamage: 0,
+                        playerDamage: 0,
+                        evaluationMissAdded: false,
+                        firstWrongJustHappened: false
+                    )
+                }
+                var next = attempt
+                next.missByChord[chordId] = 1
+                return InputResult(
+                    attempt: next,
+                    hitPitchClass: nil,
+                    chordJustCompleted: false,
+                    enemyDamage: 0,
+                    playerDamage: 0,
+                    evaluationMissAdded: true,
+                    firstWrongJustHappened: true
                 )
             }
             var next = attempt
@@ -237,7 +274,8 @@ enum EarTrainingChordVoicingEngine {
                 chordJustCompleted: false,
                 enemyDamage: 0,
                 playerDamage: 0,
-                evaluationMissAdded: evaluationMissAdded
+                evaluationMissAdded: evaluationMissAdded,
+                firstWrongJustHappened: evaluationMissAdded && currentMiss == 0
             )
         }
         if pressed.contains(inputPc) {
@@ -247,7 +285,8 @@ enum EarTrainingChordVoicingEngine {
                 chordJustCompleted: false,
                 enemyDamage: 0,
                 playerDamage: 0,
-                evaluationMissAdded: false
+                evaluationMissAdded: false,
+                firstWrongJustHappened: false
             )
         }
         pressed.insert(inputPc)
@@ -263,7 +302,8 @@ enum EarTrainingChordVoicingEngine {
             chordJustCompleted: completed,
             enemyDamage: damage.perCorrectNote,
             playerDamage: 0,
-            evaluationMissAdded: false
+            evaluationMissAdded: false,
+            firstWrongJustHappened: false
         )
     }
 

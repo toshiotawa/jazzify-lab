@@ -18,6 +18,8 @@ export interface ChordVoicingEvaluationResult {
   enemyDamage: number;
   playerDamage: number;
   evaluationMissAdded: boolean;
+  /** 構成音外で、この入力で初めてミスが記録されたときのみ true（コードクイズの初回ペナルティ用） */
+  firstWrongJustHappened: boolean;
 }
 
 const noteNameToPitchClassSafe = (name: string): number | null => {
@@ -117,12 +119,17 @@ const isChordCompleted = (
   return targetPcs.every(pc => pressed.has(pc));
 };
 
+export type ChordVoicingNoteOnWrongNotesPolicy = 'default' | 'first_only_per_chord';
+
 export const handleChordVoicingNoteOn = (
   attempt: EarTrainingChordVoicingAttempt,
   activeChord: EarTrainingPhraseChord | null,
   midiNote: number,
   damage: EarTrainingDamageConfig,
-  options?: { readonly suppressMissRecording?: boolean },
+  options?: {
+    readonly suppressMissRecording?: boolean;
+    readonly wrongNotesPolicy?: ChordVoicingNoteOnWrongNotesPolicy;
+  },
 ): ChordVoicingEvaluationResult => {
   if (!activeChord) {
     return {
@@ -132,6 +139,7 @@ export const handleChordVoicingNoteOn = (
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
+      firstWrongJustHappened: false,
     };
   }
 
@@ -144,6 +152,7 @@ export const handleChordVoicingNoteOn = (
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
+      firstWrongJustHappened: false,
     };
   }
 
@@ -156,6 +165,7 @@ export const handleChordVoicingNoteOn = (
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
+      firstWrongJustHappened: false,
     };
   }
   const inputPc = midiToPitchClass(midiNote);
@@ -171,6 +181,32 @@ export const handleChordVoicingNoteOn = (
         enemyDamage: 0,
         playerDamage: 0,
         evaluationMissAdded: false,
+        firstWrongJustHappened: false,
+      };
+    }
+    if (options?.wrongNotesPolicy === 'first_only_per_chord') {
+      const currentMiss = attempt.missByChord.get(chordId) ?? 0;
+      if (currentMiss >= 1) {
+        return {
+          attempt,
+          hitPitchClass: null,
+          chordJustCompleted: false,
+          enemyDamage: 0,
+          playerDamage: 0,
+          evaluationMissAdded: false,
+          firstWrongJustHappened: false,
+        };
+      }
+      const next = cloneAttempt(attempt);
+      next.missByChord.set(chordId, 1);
+      return {
+        attempt: next,
+        hitPitchClass: null,
+        chordJustCompleted: false,
+        enemyDamage: 0,
+        playerDamage: 0,
+        evaluationMissAdded: true,
+        firstWrongJustHappened: true,
       };
     }
     const next = cloneAttempt(attempt);
@@ -186,6 +222,7 @@ export const handleChordVoicingNoteOn = (
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded,
+      firstWrongJustHappened: evaluationMissAdded && currentMiss === 0,
     };
   }
 
@@ -197,6 +234,7 @@ export const handleChordVoicingNoteOn = (
       enemyDamage: 0,
       playerDamage: 0,
       evaluationMissAdded: false,
+      firstWrongJustHappened: false,
     };
   }
 
@@ -217,6 +255,7 @@ export const handleChordVoicingNoteOn = (
     enemyDamage: damage.perCorrectNote,
     playerDamage: 0,
     evaluationMissAdded: false,
+    firstWrongJustHappened: false,
   };
 };
 

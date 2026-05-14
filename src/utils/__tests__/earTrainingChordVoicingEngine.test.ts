@@ -61,8 +61,10 @@ describe('earTrainingChordVoicingEngine', () => {
     });
 
     expect(results[0].chordJustCompleted).toBe(false);
+    expect(results[0].firstWrongJustHappened).toBe(false);
     expect(results[3].chordJustCompleted).toBe(true);
     expect(results[3].enemyDamage).toBe(damage.perCorrectNote);
+    expect(results[3].firstWrongJustHappened).toBe(false);
     expect(attempt.completedChordIds.has('c1')).toBe(true);
   });
 
@@ -76,6 +78,7 @@ describe('earTrainingChordVoicingEngine', () => {
       attempt = result.attempt;
       expect(result.evaluationMissAdded).toBe(index < 5);
       expect(result.playerDamage).toBe(0);
+      expect(result.firstWrongJustHappened).toBe(index === 0);
     }
     expect(countChordVoicingMisses(attempt)).toBe(5);
   });
@@ -88,7 +91,29 @@ describe('earTrainingChordVoicingEngine', () => {
       suppressMissRecording: true,
     });
     expect(r.attempt).toBe(attempt);
+    expect(r.firstWrongJustHappened).toBe(false);
     expect(countChordVoicingMisses(r.attempt)).toBe(0);
+  });
+
+  it('wrongNotesPolicy first_only_per_chord は1コードにつき1回だけミス記録する', () => {
+    const chord = buildChord({ id: 'c1' });
+    const phrase = buildPhrase([chord]);
+    let attempt = createChordVoicingAttempt(phrase);
+
+    const first = handleChordVoicingNoteOn(attempt, chord, 61, damage, {
+      wrongNotesPolicy: 'first_only_per_chord',
+    });
+    expect(first.firstWrongJustHappened).toBe(true);
+    expect(first.evaluationMissAdded).toBe(true);
+    attempt = first.attempt;
+
+    const second = handleChordVoicingNoteOn(attempt, chord, 63, damage, {
+      wrongNotesPolicy: 'first_only_per_chord',
+    });
+    expect(second.attempt).toBe(attempt);
+    expect(second.firstWrongJustHappened).toBe(false);
+    expect(second.evaluationMissAdded).toBe(false);
+    expect(countChordVoicingMisses(second.attempt)).toBe(1);
   });
 
   it('完成済みコードに対する追加入力は無視される', () => {
@@ -144,6 +169,7 @@ describe('earTrainingChordVoicingEngine', () => {
     const result = handleChordVoicingNoteOn(attempt, restChord, 60, damage);
     expect(result.attempt).toBe(attempt);
     expect(result.evaluationMissAdded).toBe(false);
+    expect(result.firstWrongJustHappened).toBe(false);
     expect(result.chordJustCompleted).toBe(false);
     expect(countChordVoicingMisses(result.attempt)).toBe(0);
   });

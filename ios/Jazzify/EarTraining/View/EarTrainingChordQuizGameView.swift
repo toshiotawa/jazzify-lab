@@ -1,6 +1,7 @@
 import SwiftUI
 import SpriteKit
 import UIKit
+import QuartzCore
 
 /// コードクイズバトル（`mode == chord_quiz`）ネイティブ画面。
 struct EarTrainingChordQuizGameView: View {
@@ -152,6 +153,7 @@ private struct EarTrainingChordQuizContent: View {
     private static let pianoOverlayHeight: CGFloat = 80
 
     @State private var hudHorizontalPadding: CGFloat = 16
+    @State private var gaugeTicker = EarTrainingChordQuizGaugeTicker()
 
     var body: some View {
         GeometryReader { proxy in
@@ -170,6 +172,10 @@ private struct EarTrainingChordQuizContent: View {
         .ignoresSafeArea()
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
+            gaugeTicker.start(controller: controller)
+        }
+        .onDisappear {
+            gaugeTicker.stop()
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
             EarTrainingSettingsSheet(
@@ -252,7 +258,8 @@ private struct EarTrainingChordQuizContent: View {
         )
         let hideNotes = controller.stage.resolvedQuizHideUnpressedNotationInBattle(practiceMode: controller.practiceMode)
         let keyFifths = controller.stage.keyFifths ?? 0
-        let showHints = controller.practiceMode && controller.gameState == .playingPhrase
+        let showHints = controller.practiceMode
+            && (controller.gameState == .playingPhrase || controller.gameState == .countIn)
         let correctMap = EarTrainingChordVoicingStaffLayout.correctPitchClassesByGroupId(attempt: controller.attempt)
         if !layout.groups.isEmpty {
             ChordVoicingStaffGroupsView(
@@ -370,6 +377,34 @@ private struct EarTrainingChordQuizSceneContainer<Driver: EarTrainingBattleScene
             view = nil
             scene = nil
             driver = nil
+        }
+    }
+}
+
+/// `tickQuizAttackGauge` を main で駆動（コードクイズ専用）。
+private final class EarTrainingChordQuizGaugeTicker: NSObject {
+    weak var controller: EarTrainingChordQuizBattleController?
+    private var link: CADisplayLink?
+
+    func start(controller: EarTrainingChordQuizBattleController) {
+        self.controller = controller
+        stop()
+        let l = CADisplayLink(target: self, selector: #selector(step))
+        l.add(to: .main, forMode: .common)
+        link = l
+    }
+
+    func stop() {
+        link?.invalidate()
+        link = nil
+        controller = nil
+    }
+
+    @objc private func step() {
+        guard let controller else { return }
+        let now = CACurrentMediaTime()
+        DispatchQueue.main.async {
+            controller.tickQuizAttackGauge(now: now)
         }
     }
 }
