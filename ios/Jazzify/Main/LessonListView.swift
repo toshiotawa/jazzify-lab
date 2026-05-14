@@ -673,7 +673,10 @@ struct LessonDetailView: View {
                 if requirement.isEarTraining == true {
                     badge(locale == .ja ? "バトル" : "Battle mode", color: .cyan)
                 }
-                if let rank = requirement.clearConditions?.rank {
+                if isChordQuizEarTraining(requirement), let et = requirement.earTrainingStage {
+                    let q = max(1, et.quizRequiredCorrectCount ?? 80)
+                    badge(locale == .ja ? "\(q)問" : "\(q)", color: .orange)
+                } else if let rank = requirement.clearConditions?.rank {
                     badge(rank, color: .orange)
                 }
                 badge(displayProgress, color: isCompleted ? .green : .blue)
@@ -767,6 +770,10 @@ struct LessonDetailView: View {
         .cornerRadius(14)
     }
 
+    private func isChordQuizEarTraining(_ requirement: LessonSong) -> Bool {
+        requirement.isEarTraining == true && requirement.earTrainingStage?.mode == .chordQuiz
+    }
+
     @ViewBuilder
     private func clearConditionsGrid(_ requirement: LessonSong) -> some View {
         if let cc = requirement.clearConditions {
@@ -797,10 +804,18 @@ struct LessonDetailView: View {
                         )
                     }
                     if !isSurvival {
-                        conditionItem(
-                            locale == .ja ? "ランク" : "Rank",
-                            value: "\(cc.rank ?? "B")\(locale == .ja ? "以上" : "+")"
-                        )
+                        if isChordQuizEarTraining(requirement), let et = requirement.earTrainingStage {
+                            let q = max(1, et.quizRequiredCorrectCount ?? 80)
+                            conditionItem(
+                                locale == .ja ? "ノルマ" : "Quota",
+                                value: locale == .ja ? "\(q)問" : "\(q) correct"
+                            )
+                        } else {
+                            conditionItem(
+                                locale == .ja ? "ランク" : "Rank",
+                                value: "\(cc.rank ?? "B")\(locale == .ja ? "以上" : "+")"
+                            )
+                        }
                     }
                     conditionItem(
                         locale == .ja ? "回数" : "Count",

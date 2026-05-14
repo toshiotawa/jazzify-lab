@@ -33,7 +33,7 @@ import {
 } from '@/utils/MidiController';
 import { createChordVoicingAttempt, handleChordVoicingNoteOn } from '@/utils/earTrainingChordVoicingEngine';
 import { computeVoicingKeyboardHints } from '@/utils/earTrainingChordVoicingHints';
-import { getEarTrainingBattleHudLabels, getEarTrainingGameCopy } from '@/utils/earTrainingUiCopy';
+import { getEarTrainingBattleHudLabels, getEarTrainingGameCopy, formatEarTrainingChordQuizIntroLine } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import {
   CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
@@ -140,6 +140,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
   const [phraseRunId, setPhraseRunId] = useState(0);
+  const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [previewItemIndex, setPreviewItemIndex] = useState(0);
   const [attempt, setAttempt] = useState<EarTrainingChordVoicingAttempt | null>(null);
@@ -178,6 +179,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const quizStartedAtRef = useRef<number | null>(null);
   const quizEndedRef = useRef(false);
   const phraseRunNonceRef = useRef(0);
+  const quotaCelebrationFiredRef = useRef(false);
   const randRef = useRef(() => Math.random());
 
   const activeItem = quizItems[activeItemIndex] ?? null;
@@ -362,9 +364,11 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     quizEndedRef.current = false;
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
+    quotaCelebrationFiredRef.current = false;
     correctCountRef.current = 0;
     setCorrectCount(0);
     phraseRunNonceRef.current = 0;
+    setPhraseIntroSeq(c => c + 1);
     const firstActive = pickNextQuizIndex(quizItems, quizOrder, null, randRef.current);
     const firstPreview = pickNextQuizIndex(quizItems, quizOrder, firstActive, randRef.current);
     setActiveItemIndex(firstActive);
@@ -474,6 +478,11 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     correctCountRef.current = nextCorrect;
     setCorrectCount(nextCorrect);
 
+    if (nextCorrect >= requiredCorrect && !quotaCelebrationFiredRef.current) {
+      quotaCelebrationFiredRef.current = true;
+      triggerBattleEffect('quotaReached');
+    }
+
     const origin = computeChordLabelOriginPoint(activeChord.id);
 
     if (nextCorrect > 0 && nextCorrect % 5 === 0) {
@@ -489,6 +498,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     activeChord,
     advanceToNextQuestion,
     computeChordLabelOriginPoint,
+    requiredCorrect,
     triggerBattleEffect,
   ]);
 
@@ -647,9 +657,11 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     ? (progressSaved ? copy.lessonSaved : copy.lessonSaving)
     : null;
 
-  const phraseIntroLine = isEnglishCopy
-    ? `Chord quiz · ${quizItems.length} chords`
-    : `コードクイズ · 全${quizItems.length}種`;
+  const phraseIntroLine = formatEarTrainingChordQuizIntroLine(
+    isEnglishCopy,
+    quizDurationSec,
+    requiredCorrect,
+  );
 
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
@@ -672,6 +684,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
     phraseIndex: 0,
     phraseRunId,
+    phraseIntroSeq,
+    phraseIntroEmphasis: true,
     totalPhrases: 1,
     activeLoop: 1,
     maxLoops: 1,
@@ -709,6 +723,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     isMidiConnected,
     lessonContext,
     phraseIntroLine,
+    phraseIntroSeq,
     phraseRunId,
     practiceMode,
     previewChord,

@@ -36,6 +36,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
     @Published private(set) var phraseIndex: Int = 0
     @Published private(set) var phraseRunId: Int = 0
+    private var phraseIntroSeq: Int = 0
     @Published private(set) var attempt: EarTrainingChordVoicingAttempt? {
         didSet {
             recomputeVoicingHints()
@@ -637,6 +638,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         timeRemaining = stage.timeLimitSec
         phraseIndex = 0
         phraseRunId = 0
+        phraseIntroSeq = 0
         countInValue = sanitizedCountInBeats
         lastLoopAttackApplied = 0
         pendingImpactHandlers.removeAll()
@@ -782,6 +784,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         countInEarlyInputActive = false
         phraseIndex = prepared.phraseIndex
         phraseRunId += 1
+        phraseIntroSeq += 1
         let runId = phraseRunId
         lastLoopAttackApplied = 0
         enemyAttackGaugePercent = 0
@@ -1123,6 +1126,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             stageTitle: stage.localizedTitle(isEnglishCopy ? .en : .ja),
             phraseIndex: phraseIndex,
             phraseRunId: phraseRunId,
+            phraseIntroSeq: phraseIntroSeq,
+            phraseIntroEmphasis: false,
             totalPhrases: phrases.count,
             phraseIntroLine: phraseIntroLine,
             demoLoopActive: false,
@@ -1231,6 +1236,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         label: String?,
         phraseNoteCount: Int?
     ) -> Double {
+        if kind == .quotaReached { return 700 }
         let isAwesome = kind == .complete
             && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
         return isAwesome ? kAwesomeBattleEffectMs : kBattleEffectMs

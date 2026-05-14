@@ -242,6 +242,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [phraseRunId, setPhraseRunId] = useState(0);
+  const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
   const [attempt, setAttempt] = useState<EarTrainingChordVoicingAttempt | null>(null);
   const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
@@ -778,6 +779,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setPhraseIndex(nextPhraseIndex);
     phraseIndexRef.current = nextPhraseIndex;
     setPhraseRunId(current => current + 1);
+    setPhraseIntroSeq(current => current + 1);
     const nextAttempt = createChordVoicingAttempt(phrase);
     setAttempt(nextAttempt);
     attemptRef.current = nextAttempt;
@@ -987,6 +989,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setTimeRemaining(stage.time_limit_sec);
     setPhraseIndex(0);
     setPhraseRunId(0);
+    setPhraseIntroSeq(0);
     activeLoopRef.current = 1;
     activeMeasureNumberRef.current = 1;
     lastLoopAttackAppliedRef.current = 0;
@@ -1596,6 +1599,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
     phraseIndex,
     phraseRunId,
+    phraseIntroSeq,
     totalPhrases: phrases.length,
     activeLoop,
     maxLoops: stage.max_loops_per_phrase,
@@ -1638,6 +1642,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     lastRank,
     lessonProgressText,
     phraseIndex,
+    phraseIntroSeq,
     phraseRunId,
     phraseIntroLine,
     phrases.length,

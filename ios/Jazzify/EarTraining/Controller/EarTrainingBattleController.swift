@@ -33,6 +33,7 @@ final class EarTrainingBattleController: ObservableObject {
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseIndex: Int = 0
     @Published private(set) var phraseRunId: Int = 0
+    private var phraseIntroSeq: Int = 0
     @Published private(set) var attempt: EarTrainingPhraseAttempt?
     @Published private(set) var enemyHp: Int
     @Published private(set) var playerHp: Int
@@ -472,6 +473,7 @@ final class EarTrainingBattleController: ObservableObject {
         label: String?,
         phraseNoteCount: Int?
     ) -> Double {
+        if kind == .quotaReached { return 700 }
         let isAwesome = kind == .complete
             && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
         return isAwesome ? awesomeBattleEffectDurationMs : battleEffectDurationMs
@@ -506,6 +508,7 @@ final class EarTrainingBattleController: ObservableObject {
         timeRemaining = stage.timeLimitSec
         phraseIndex = 0
         phraseRunId = 0
+        phraseIntroSeq = 0
         countInValue = stage.countInBeats
         pendingImpactHandlers.removeAll()
         enemyAttackGaugePercent = 0
@@ -576,6 +579,7 @@ final class EarTrainingBattleController: ObservableObject {
         let phrase = phrases[index]
         phraseIndex = index
         phraseRunId += 1
+        phraseIntroSeq += 1
         let runId = phraseRunId
         attempt = EarTrainingEngine.createPhraseAttempt(phrase)
         lastRank = nil
@@ -800,6 +804,8 @@ final class EarTrainingBattleController: ObservableObject {
             stageTitle: stage.localizedTitle(isEnglishCopy ? .en : .ja),
             phraseIndex: phraseIndex,
             phraseRunId: phraseRunId,
+            phraseIntroSeq: phraseIntroSeq,
+            phraseIntroEmphasis: false,
             totalPhrases: phrases.count,
             phraseIntroLine: phraseIntroLine,
             demoLoopActive: demoBubbleVisible && gameState == .playingPhrase,

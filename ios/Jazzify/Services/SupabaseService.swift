@@ -244,7 +244,9 @@ final class SupabaseService: Sendable {
                     description,
                     description_en,
                     bpm,
-                    time_limit_sec
+                    time_limit_sec,
+                    mode,
+                    quiz_required_correct_count
                 )
             )
             """)

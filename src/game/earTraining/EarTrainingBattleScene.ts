@@ -16,6 +16,7 @@ import {
 const PIANO_OVERLAY_HEIGHT = 88;
 const HUD_HEIGHT = 150;
 const PHRASE_INTRO_FADE_MS = 2600;
+const PHRASE_INTRO_EMPHASIS_FADE_MS = 3900;
 const FLOOR_CLEARANCE_FROM_PIANO = 100;
 const CHARACTER_DISPLAY_SIZE = 116;
 const CHARACTER_SHADOW_WIDTH = 104;
@@ -307,6 +308,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     if (command.kind === 'correct') {
       this.playCorrectEffect(command);
+      return;
+    }
+    if (command.kind === 'quotaReached') {
+      this.playQuotaReachedEffect();
       return;
     }
     if (command.kind === 'voicingCast') {
@@ -1022,7 +1027,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    const introKey = `${snapshot.phraseRunId}:${snapshot.phraseIndex}:${snapshot.totalPhrases}`;
+    const emphasis = Boolean(snapshot.phraseIntroEmphasis);
+    const introKey = `${snapshot.phraseIntroSeq}:${snapshot.phraseIndex}:${snapshot.totalPhrases}`;
     if (this.lastPhraseIntroKey === introKey) {
       return;
     }
@@ -1031,22 +1037,23 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.phraseIntroText?.destroy();
     // 中央のコード譜オーバーレイ（画面高の約42%付近）と重ならないよう、HUD直下〜画面上部寄りに固定
     const y = Math.max(HUD_HEIGHT + 20, Math.round(height * 0.3));
+    const fadeMs = emphasis ? PHRASE_INTRO_EMPHASIS_FADE_MS : PHRASE_INTRO_FADE_MS;
     const text = this.add.text(width / 2, y, snapshot.phraseIntroLine, {
       color: '#fef3c7',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '22px',
+      fontSize: emphasis ? '34px' : '22px',
       fontStyle: '900',
       stroke: '#020617',
-      strokeThickness: 5,
+      strokeThickness: emphasis ? 7 : 5,
     }).setOrigin(0.5, 0.5);
     text.setAlpha(0.95);
     this.phraseIntroText = text;
     this.effectLayer.add(text);
     this.tweens.add({
       targets: text,
-      y: y - 24,
+      y: y - (emphasis ? 12 : 24),
       alpha: 0,
-      duration: PHRASE_INTRO_FADE_MS,
+      duration: fadeMs,
       ease: 'Cubic.easeOut',
       onComplete: () => {
         text.destroy();
@@ -1055,6 +1062,36 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         }
       },
     });
+  }
+
+  private playQuotaReachedEffect(): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    const cx = width / 2;
+    const cy = Math.max(HUD_HEIGHT + 40, Math.round(height * 0.35));
+    const duration = 700;
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (Math.PI * 2 * index) / 8;
+      const dot = this.add.circle(cx, cy, 6, 0xfacc15, 1);
+      dot.setStrokeStyle(0, 0x000000, 0);
+      this.effectLayer.add(dot);
+      this.tweens.add({
+        targets: dot,
+        x: cx + Math.cos(angle) * 80,
+        y: cy + Math.sin(angle) * 80,
+        alpha: 0,
+        scaleX: 0.4,
+        scaleY: 0.4,
+        duration,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          dot.destroy();
+        },
+      });
+    }
   }
 
   private drawPhraseSlots(width: number, height: number): void {

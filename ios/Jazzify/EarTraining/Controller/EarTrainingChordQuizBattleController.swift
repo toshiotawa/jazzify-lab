@@ -49,6 +49,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private var progressSaveStarted: Bool = false
     private var quizStartDate: Date?
     private var lastInputAt: TimeInterval = 0
+    private var phraseIntroSeq: Int = 0
+    private var quotaCelebrationFired: Bool = false
     private var quizTickerTask: Task<Void, Never>?
     private var drumPrepareTask: Task<Void, Never>?
     private var battleEffectClearTask: Task<Void, Never>?
@@ -175,6 +177,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         quizEnded = false
         correctCount = 0
         phraseRunId = 0
+        phraseIntroSeq += 1
+        quotaCelebrationFired = false
         pendingImpactHandlers.removeAll()
         lastEmittedEffectId = -1
 
@@ -312,6 +316,17 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         attempt = result.attempt
         correctCount += 1
 
+        if correctCount >= requiredCorrectCount, !quotaCelebrationFired {
+            quotaCelebrationFired = true
+            _ = triggerBattleEffect(
+                kind: .quotaReached,
+                label: nil,
+                damage: nil,
+                phraseNoteCount: nil,
+                originPoint: nil
+            )
+        }
+
         let origin = chordLabelOriginInScene()
 
         if correctCount % 5 == 0 && correctCount > 0 {
@@ -438,6 +453,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             stageTitle: stage.localizedTitle(isEnglishCopy ? .en : .ja),
             phraseIndex: 0,
             phraseRunId: phraseRunId,
+            phraseIntroSeq: phraseIntroSeq,
+            phraseIntroEmphasis: true,
             totalPhrases: 1,
             phraseIntroLine: phraseIntroLine,
             demoLoopActive: false,
@@ -452,10 +469,12 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func phraseIntroSummary() -> String {
+        let n = requiredCorrectCount
+        let sec = quizDurationSec
         if isEnglishCopy {
-            return "Chord quiz · \(quizItems.count) chords"
+            return "Get \(n)+ correct in \(sec)s to clear!"
         }
-        return "コードクイズ · 全\(quizItems.count)種"
+        return "\(sec)秒で\(n)問正解でクリア！"
     }
 
     private func enemyAvatarAssetName() -> String {
@@ -521,6 +540,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         label: String?,
         phraseNoteCount: Int?
     ) -> Double {
+        if kind == .quotaReached { return 700 }
         let isAwesome = kind == .complete
             && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
         return isAwesome ? kAwesomeBattleEffectMs : kBattleEffectMs

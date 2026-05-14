@@ -236,6 +236,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [phraseRunId, setPhraseRunId] = useState(0);
+  const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
   const [attempt, setAttempt] = useState<EarTrainingPhraseAttempt | null>(null);
   const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
@@ -506,6 +507,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setPhraseIndex(nextPhraseIndex);
     phraseIndexRef.current = nextPhraseIndex;
     setPhraseRunId(current => current + 1);
+    setPhraseIntroSeq(current => current + 1);
     const nextAttempt = createPhraseAttempt(phrase);
     setAttempt(nextAttempt);
     setLastRank(null);
@@ -609,6 +611,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setTimeRemaining(stage.time_limit_sec);
     setPhraseIndex(0);
     setPhraseRunId(0);
+    setPhraseIntroSeq(0);
     setCountInValue(stage.count_in_beats);
     setBattleEffectCommand(null);
     pendingImpactHandlersRef.current.clear();
@@ -959,6 +962,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
     phraseIndex,
     phraseRunId,
+    phraseIntroSeq,
     totalPhrases: phrases.length,
     activeLoop,
     maxLoops: stage.max_loops_per_phrase,
@@ -1000,6 +1004,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     lastRank,
     lessonProgressText,
     phraseIndex,
+    phraseIntroSeq,
     phraseRunId,
     phraseIntroLine,
     phrases.length,

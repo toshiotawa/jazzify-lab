@@ -201,12 +201,15 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
     let descriptionEn: String?
     let bpm: Int?
     let timeLimitSec: Int?
+    let mode: EarTrainingMode?
+    let quizRequiredCorrectCount: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, slug, title, description, bpm
+        case id, slug, title, description, bpm, mode
         case titleEn = "title_en"
         case descriptionEn = "description_en"
         case timeLimitSec = "time_limit_sec"
+        case quizRequiredCorrectCount = "quiz_required_correct_count"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

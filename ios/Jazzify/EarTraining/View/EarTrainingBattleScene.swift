@@ -255,6 +255,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         case .correct: playCorrectEffect(command)
         case .voicingCast: playVoicingCastEffect()
         case .complete: playCompleteEffect(command)
+        case .quotaReached: playQuotaReachedEffect()
         case .miss: playEnemyAttackEffect(command, heavy: false)
         case .fail: playEnemyAttackEffect(command, heavy: true)
         }
@@ -1391,13 +1392,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             lastPhraseIntroKey = nil
             return
         }
-        let key = "\(snapshot.phraseRunId):\(snapshot.phraseIndex):\(snapshot.totalPhrases)"
+        let key = "\(snapshot.phraseIntroSeq):\(snapshot.phraseIndex):\(snapshot.totalPhrases)"
         if lastPhraseIntroKey == key { return }
         lastPhraseIntroKey = key
         phraseIntroLabel?.removeFromParent()
+        let emphasis = snapshot.phraseIntroEmphasis
         let label = SKLabelNode(text: snapshot.phraseIntroLine)
         label.fontName = "AvenirNext-Heavy"
-        label.fontSize = 24
+        label.fontSize = emphasis ? 36 : 24
         label.fontColor = UIColor(red: 0.996, green: 0.953, blue: 0.780, alpha: 1.0)
         label.zPosition = 30
         let y = min(height - 190, max(floorY + 150, height * 0.55))
@@ -1405,12 +1407,38 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         label.alpha = 0.95
         effectLayer.addChild(label)
         phraseIntroLabel = label
-        let move = SKAction.moveBy(x: 0, y: 24, duration: Self.phraseIntroFadeMs)
-        let fade = SKAction.fadeOut(withDuration: Self.phraseIntroFadeMs)
+        let fadeSec = Self.phraseIntroFadeMs * (emphasis ? 1.5 : 1.0)
+        let moveY: CGFloat = emphasis ? 12 : 24
+        let move = SKAction.moveBy(x: 0, y: moveY, duration: fadeSec)
+        let fade = SKAction.fadeOut(withDuration: fadeSec)
         let group = SKAction.group([move, fade])
         label.run(SKAction.sequence([group, SKAction.removeFromParent()])) { [weak self, weak label] in
             guard let self else { return }
             if self.phraseIntroLabel === label { self.phraseIntroLabel = nil }
+        }
+    }
+
+    private func playQuotaReachedEffect() {
+        let w = max(320, size.width)
+        let h = max(320, size.height)
+        let cx = w / 2
+        let cy = max(150, h * 0.42)
+        let duration: TimeInterval = 0.7
+        for i in 0..<8 {
+            let angle = CGFloat(i) * (.pi * 2 / 8)
+            let dot = SKShapeNode(circleOfRadius: 6)
+            dot.fillColor = UIColor(red: 0.98, green: 0.8, blue: 0.09, alpha: 1.0)
+            dot.strokeColor = .clear
+            dot.position = CGPoint(x: cx, y: cy)
+            dot.zPosition = 120
+            effectLayer.addChild(dot)
+            let dx = cos(angle) * 80
+            let dy = sin(angle) * 80
+            let move = SKAction.moveBy(x: dx, y: dy, duration: duration)
+            move.timingMode = .easeOut
+            let fade = SKAction.fadeOut(withDuration: duration)
+            let scale = SKAction.scale(to: 0.4, duration: duration)
+            dot.run(SKAction.sequence([SKAction.group([move, fade, scale]), SKAction.removeFromParent()]))
         }
     }
 

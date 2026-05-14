@@ -144,6 +144,9 @@ const LessonDetailPage: React.FC = () => {
       speedLabel: isEnglishCopy ? 'Speed:' : '速度:',
       rankLabel: isEnglishCopy ? 'Rank:' : 'ランク:',
       rankOrHigher: isEnglishCopy ? 'or higher' : '以上',
+      quotaLabel: isEnglishCopy ? 'Quota:' : 'ノルマ:',
+      chordQuizClearedLabel: isEnglishCopy ? 'Cleared' : 'クリア済み',
+      chordQuizClearStatusLabel: isEnglishCopy ? 'Status:' : '達成:',
       timesLabel: isEnglishCopy ? 'Times:' : '回数:',
       daysUnit: isEnglishCopy ? 'days' : '日間',
       clearsUnit: isEnglishCopy ? 'clears' : '回',
@@ -669,6 +672,12 @@ const LessonDetailPage: React.FC = () => {
                     const isFantasy = req.is_fantasy || false;
                     const isSurvival = req.is_survival || false;
                     const isEarTraining = req.is_ear_training || false;
+                    const isChordQuizEarTraining =
+                      isEarTraining && req.ear_training_stage?.mode === 'chord_quiz';
+                    const chordQuizQuota = Math.max(
+                      1,
+                      req.ear_training_stage?.quiz_required_correct_count ?? 80,
+                    );
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -927,9 +936,15 @@ const LessonDetailPage: React.FC = () => {
                             )}
                             {!isSurvival && (
                               <div>
-                                <span className="text-gray-400">{practiceCopy.rankLabel}</span>
+                                <span className="text-gray-400">
+                                  {isChordQuizEarTraining ? practiceCopy.quotaLabel : practiceCopy.rankLabel}
+                                </span>
                                 <span className="ml-2 font-semibold">
-                                  {req.clear_conditions?.rank || 'B'} {practiceCopy.rankOrHigher}
+                                  {isChordQuizEarTraining
+                                    ? isEnglishCopy
+                                      ? `${chordQuizQuota} correct`
+                                      : `${chordQuizQuota}問`
+                                    : `${req.clear_conditions?.rank || 'B'} ${practiceCopy.rankOrHigher}`}
                                 </span>
                               </div>
                             )}
@@ -959,7 +974,15 @@ const LessonDetailPage: React.FC = () => {
                             )}
                           
                           {/* 最高ランク表示 */}
-                          {progress?.best_rank && (
+                          {isChordQuizEarTraining && isCompleted && (
+                            <div className="mt-2 pt-2 border-t border-slate-600">
+                              <span className="text-gray-400">{practiceCopy.chordQuizClearStatusLabel}</span>
+                              <span className="ml-2 font-semibold text-yellow-400">
+                                {practiceCopy.chordQuizClearedLabel}
+                              </span>
+                            </div>
+                          )}
+                          {!isChordQuizEarTraining && progress?.best_rank && (
                             <div className="mt-2 pt-2 border-t border-slate-600">
                               <span className="text-gray-400">{practiceCopy.bestRankLabel}</span>
                               <span className="ml-2 font-semibold text-yellow-400">{progress.best_rank}</span>

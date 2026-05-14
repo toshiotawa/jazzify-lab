@@ -28,6 +28,7 @@ enum EarTrainingBattleEffectKind: String, Sendable {
     case complete
     case fail
     case voicingCast
+    case quotaReached
 }
 
 /// Web `EarTrainingBattleEffectCommand` と同等。
@@ -156,6 +157,10 @@ struct EarTrainingBattleSceneSnapshot: Sendable, Equatable {
     let stageTitle: String
     let phraseIndex: Int
     let phraseRunId: Int
+    /// フレーズ紹介テキストの再フェード制御用（コードクイズは正解のたびに phraseRunId が変わるため分離）
+    let phraseIntroSeq: Int
+    /// コードクイズ開始バナーなど、イントロを大きく長く表示する
+    let phraseIntroEmphasis: Bool
     let totalPhrases: Int
     let phraseIntroLine: String
     let demoLoopActive: Bool

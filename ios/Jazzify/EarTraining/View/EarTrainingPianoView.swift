@@ -4,13 +4,13 @@ private let earTrainingPianoNoteNameLabels = ["C", "C#", "D", "D#", "E", "F", "F
 
 /// 耳コピバトル ゲーム画面の鍵盤。`SurvivalChordPadView` のレイアウト/インタラクションを踏襲しつつ、
 /// ヒント (緑グロー) は無効化し、押下時に `handleNoteOn/Off` を呼ぶ。
-/// iOS 版は 36 鍵 (連続 36 音 = C2〜B4 / MIDI 36〜71) に固定し、従来の C4 付近中心より低音域をカバーする。
+/// iOS 版は 36 鍵 (連続 36 音 = C3〜B5 / MIDI 48〜83) に固定。
 struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     @ObservedObject var player: Player
 
-    /// C2 (36) 〜 B4 (71) の 36 鍵。Salamander サンプラーの下限付近からメロディ域まで。
-    private let firstMidi: Int = 36
-    private let lastMidi: Int = 71
+    /// C3 (48) 〜 B5 (83) の 36 鍵。
+    private let firstMidi: Int = 48
+    private let lastMidi: Int = 83
     private let keyboardHeight: CGFloat = 76
     private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6

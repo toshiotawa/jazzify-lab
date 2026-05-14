@@ -1,6 +1,6 @@
 import type { EarTrainingGameState, EarTrainingRank } from '@/types';
 
-export type EarTrainingBattleEffectKind = 'correct' | 'miss' | 'complete' | 'fail' | 'voicingCast';
+export type EarTrainingBattleEffectKind = 'correct' | 'miss' | 'complete' | 'fail' | 'voicingCast' | 'quotaReached';
 
 export interface EarTrainingBattleEffectOriginPoint {
   x: number;
@@ -56,6 +56,10 @@ export interface EarTrainingBattleSnapshot {
   playerAvatarUrl: string;
   phraseIndex: number;
   phraseRunId: number;
+  /** フレーズ紹介テキストの再フェード制御用（コードクイズは正解のたびに phraseRunId が変わるため分離） */
+  phraseIntroSeq: number;
+  /** コードクイズ開始バナーなど、イントロ文言を大きく長く表示する */
+  phraseIntroEmphasis?: boolean;
   totalPhrases: number;
   activeLoop: number;
   maxLoops: number;

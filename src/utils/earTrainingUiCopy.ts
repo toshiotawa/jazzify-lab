@@ -186,6 +186,18 @@ export const formatEarTrainingPhraseIntroLine = (
     : `フレーズ ${current} / ${totalPhrases}`;
 };
 
+/** コードクイズ開始時の大バナー文言（制限時間・必要正解数はステージ値をそのまま表示） */
+export const formatEarTrainingChordQuizIntroLine = (
+  isEnglish: boolean,
+  durationSec: number,
+  requiredCorrectCount: number,
+): string => {
+  if (isEnglish) {
+    return `Get ${requiredCorrectCount}+ correct in ${durationSec}s to clear!`;
+  }
+  return `${durationSec}秒で${requiredCorrectCount}問正解でクリア！`;
+};
+
 export const formatEarTrainingCountInDisplay = (isEnglish: boolean, countValue: number): string => (
   isEnglish ? `Count ${countValue}` : `カウント ${countValue}`
 );
