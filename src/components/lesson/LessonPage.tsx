@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
@@ -633,13 +633,18 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = journeyRef.current;
     if (!container || !currentBlock) return;
-    const target = container.querySelector(`[data-quest-block="${currentBlock.blockNumber}"]`);
-    if (target instanceof HTMLElement) {
-      container.scrollTop = target.offsetTop;
-    }
+    const target = container.querySelector<HTMLElement>(
+      `[data-quest-block="${currentBlock.blockNumber}"]`,
+    );
+    if (!target) return;
+    const cRect = container.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+    const next = container.scrollTop + (tRect.top - cRect.top);
+    const max = container.scrollHeight - container.clientHeight;
+    container.scrollTop = Math.max(0, Math.min(next, max));
   }, [currentBlock]);
 
   useEffect(() => {
@@ -652,19 +657,29 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     });
   }, [currentBlock, summary.blocks]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const fid = selectedBlockStartLessonId;
     const container = lessonQuestListRef.current;
     if (!fid || !container || selectedBlockNumber == null) return;
-    const block = summary.blocks.find(b => b.blockNumber === selectedBlockNumber && b.isUnlocked);
+    const block = summary.blocks.find(
+      b => b.blockNumber === selectedBlockNumber && b.isUnlocked,
+    );
     if (!block) return;
     const idx = block.lessons.findIndex(lesson => lesson.id === fid);
     if (idx < 0) return;
     const lastIdx = block.lessons.length - 1;
-    const target = container.querySelector(`[data-quest-lesson="${fid}"]`);
-    if (!(target instanceof HTMLElement)) return;
-    const blockAlign: ScrollLogicalPosition = idx === 0 ? 'start' : idx === lastIdx ? 'end' : 'center';
-    target.scrollIntoView({ behavior: 'smooth', block: blockAlign });
+    const target = container.querySelector<HTMLElement>(`[data-quest-lesson="${fid}"]`);
+    if (!target) return;
+    const cRect = container.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+    let next = container.scrollTop + (tRect.top - cRect.top);
+    if (idx === lastIdx) {
+      next = container.scrollTop + (tRect.bottom - cRect.bottom);
+    } else if (idx !== 0) {
+      next = container.scrollTop + (tRect.top - cRect.top) - (cRect.height - tRect.height) / 2;
+    }
+    const max = container.scrollHeight - container.clientHeight;
+    container.scrollTop = Math.max(0, Math.min(next, max));
   }, [selectedBlockNumber, selectedBlockStartLessonId, summary.blocks]);
 
   const handleStartSelectedBlock = useCallback(() => {
@@ -735,7 +750,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
           />
           <div
             ref={journeyRef}
-            className="mt-3 max-h-[248px] overflow-y-auto pr-1 md:max-h-[420px]"
+            className="relative mt-3 max-h-[248px] overflow-y-auto pr-1 md:max-h-[420px]"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div className="space-y-2">
@@ -820,7 +835,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
 
           <div
             ref={lessonQuestListRef}
-            className="mt-3 max-h-[280px] space-y-1.5 overflow-y-auto pr-0.5"
+            className="relative mt-3 max-h-[280px] space-y-1.5 overflow-y-auto pr-0.5"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             {selectedBlock.lessons.map((lesson, index) => {

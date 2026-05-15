@@ -18,6 +18,8 @@ struct LessonListView: View {
     /// マップを閉じたあと進捗を同期する対象（一覧で再 fetch するコース）
     @State private var lastJourneyCourseId: UUID?
     @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
+    @State private var chapterScrollTargetY: CGFloat?
+    @State private var chapterScrollAnimated = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -465,48 +467,48 @@ struct LessonListView: View {
     }
 
     private func journeyPanel(_ state: MainQuestViewState, scrollToChapterDetail: @escaping () -> Void) -> some View {
+        let rowH = MainQuestChapterListLayout.rowHeight
+        let spacing = MainQuestChapterListLayout.rowSpacing
+        let count = state.blocks.count
+        let totalH = CGFloat(count) * rowH + CGFloat(max(0, count - 1)) * spacing
+        let selectedBlockForScroll = selectedBlock(in: state)
+        let targetIndex = state.blocks.firstIndex { $0.blockNumber == selectedBlockForScroll.blockNumber } ?? 0
+        let targetY = CGFloat(targetIndex) * (rowH + spacing) + rowH / 2
+
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "book",
                 title: locale == .ja ? "チャプター" : "Chapters"
             )
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: MainQuestChapterListLayout.rowSpacing) {
+            GeometryReader { geo in
+                UIKitVerticalScrollView(
+                    contentSize: CGSize(width: max(1, geo.size.width), height: totalH),
+                    scrollTargetY: $chapterScrollTargetY,
+                    animated: chapterScrollAnimated
+                ) {
+                    VStack(spacing: spacing) {
                         ForEach(state.blocks) { block in
                             chapterRow(block, state: state, scrollToChapterDetail: scrollToChapterDetail)
-                                .id(block.blockNumber)
                         }
                     }
                 }
-                .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
-                .onAppear {
-                    scrollMainQuestChapterList(proxy: proxy, state: state, animated: false)
-                }
-                .onChange(of: state.currentBlock.blockNumber) { _ in
-                    scrollMainQuestChapterList(proxy: proxy, state: state, animated: true)
-                }
-                .onChange(of: selectedMainQuestBlockNumber) { _ in
-                    scrollMainQuestChapterList(proxy: proxy, state: state, animated: true)
-                }
+            }
+            .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
+            .onAppear {
+                chapterScrollAnimated = false
+                chapterScrollTargetY = targetY
+            }
+            .onChange(of: state.currentBlock.blockNumber) { _ in
+                chapterScrollAnimated = true
+                chapterScrollTargetY = targetY
+            }
+            .onChange(of: selectedMainQuestBlockNumber) { _ in
+                chapterScrollAnimated = true
+                chapterScrollTargetY = targetY
             }
         }
         .padding(12)
         .background(questPanelBackground)
-    }
-
-    private func scrollMainQuestChapterList(proxy: ScrollViewProxy, state: MainQuestViewState, animated: Bool) {
-        let target = selectedBlock(in: state).blockNumber
-        let run: () -> Void = {
-            if animated {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    proxy.scrollTo(target, anchor: .top)
-                }
-            } else {
-                proxy.scrollTo(target, anchor: .top)
-            }
-        }
-        DispatchQueue.main.async(execute: run)
     }
 
     private func chapterRow(
