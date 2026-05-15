@@ -14,6 +14,8 @@ interface EarTrainingPhaserGameProps {
   effectCommand: EarTrainingBattleEffectCommand | null;
   callbacks: EarTrainingBattleCallbacks;
   className?: string;
+  /** true のとき炎魔法 SE のプリロード・再生を行わない（OSMD リズムバトル等） */
+  disableCorrectSe?: boolean;
 }
 
 const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTrainingPhaserGameProps>(({
@@ -21,6 +23,7 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
   effectCommand,
   callbacks,
   className,
+  disableCorrectSe = false,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -82,8 +85,11 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
   }, []);
 
   useEffect(() => {
+    if (disableCorrectSe) {
+      return;
+    }
     preloadFireMagicSe();
-  }, []);
+  }, [disableCorrectSe]);
 
   useEffect(() => {
     sceneRef.current?.setCallbacks(callbacks);
@@ -98,16 +104,18 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
       return;
     }
     if (
-      effectCommand.kind === 'correct' ||
-      effectCommand.kind === 'voicingCast' ||
-      effectCommand.kind === 'complete' ||
-      effectCommand.kind === 'osmdHammerReflect' ||
-      effectCommand.kind === 'osmdMeteor'
+      !disableCorrectSe && (
+        effectCommand.kind === 'correct' ||
+        effectCommand.kind === 'voicingCast' ||
+        effectCommand.kind === 'complete' ||
+        effectCommand.kind === 'osmdHammerReflect' ||
+        effectCommand.kind === 'osmdMeteor'
+      )
     ) {
       playFireMagicSe();
     }
     sceneRef.current?.triggerEffect(effectCommand);
-  }, [effectCommand]);
+  }, [disableCorrectSe, effectCommand]);
 
   return <div ref={containerRef} className={className} />;
 });

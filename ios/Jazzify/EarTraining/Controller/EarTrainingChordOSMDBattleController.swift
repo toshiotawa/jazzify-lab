@@ -35,6 +35,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
+    /// 練習モード時のみ、判定窓内の未押下構成音（プレビュー用マリーゴールド鍵盤）。
+    @Published private(set) var voicingHintMidis: Set<Int> = []
 
     let stage: EarTrainingStageDetail
     let phrases: [EarTrainingPhraseDetail]
@@ -144,6 +146,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         audio.onEnded = nil
         audio.stopPhrase()
         midiHeldKeys.removeAll()
+        voicingHintMidis = []
         scene = nil
     }
 
@@ -184,6 +187,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     func setPracticeMode(_ value: Bool) {
         guard canChangePracticeMode else { return }
         practiceMode = value
+        if !value {
+            voicingHintMidis = []
+        }
         publishSnapshot()
     }
 
@@ -204,10 +210,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 break
             }
         }
-        guard let matchedIndex else { return }
+        guard let matchedIndex else {
+            refreshPracticeVoicingHints()
+            return
+        }
         if targets[matchedIndex].isComplete {
             completeTarget(at: matchedIndex)
         }
+        refreshPracticeVoicingHints()
     }
 
     func handleNoteOff(midi: Int, playAudio: Bool = true) {
@@ -380,11 +390,53 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         openJudgmentWindows(at: phraseTime)
         throwDueHammers(at: phraseTime)
         failExpiredTargets(at: phraseTime)
+        refreshPracticeVoicingHints()
 
         guard gameState == .playingPhrase else { return }
         let phrase = phrases[phraseIndex]
         if phraseTime >= max(0.05, phrase.loopDurationSec - 0.025) {
             finishCurrentPhraseIfNeeded()
+        }
+    }
+
+    private func refreshPracticeVoicingHints() {
+        guard practiceMode else {
+            if !voicingHintMidis.isEmpty {
+                voicingHintMidis = []
+            }
+            return
+        }
+        guard gameState == .countIn || gameState == .playingPhrase else {
+            if !voicingHintMidis.isEmpty {
+                voicingHintMidis = []
+            }
+            return
+        }
+        let phraseTime: Double
+        if gameState == .countIn {
+            phraseTime = audio.currentTimeSec
+        } else {
+            phraseTime = max(0, audio.currentTimeSec)
+        }
+        var union = Set<Int>()
+        for target in targets {
+            if target.completed || target.failed {
+                continue
+            }
+            let windowStart = target.targetTimeSec - Self.judgmentWindowSec
+            let windowEnd = target.targetTimeSec + Self.judgmentWindowSec
+            if phraseTime + 0.0001 < windowStart {
+                continue
+            }
+            if phraseTime > windowEnd {
+                continue
+            }
+            for (midi, count) in target.remainingMidiCounts where count > 0 {
+                union.insert(midi)
+            }
+        }
+        if union != voicingHintMidis {
+            voicingHintMidis = union
         }
     }
 
@@ -730,9 +782,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
-            if kind == .osmdHammerReflect || kind == .osmdMeteor {
-                audio.playFireMagicSe()
-            }
             scene?.runEffect(command)
         }
         let ms = Self.effectDurationMs(kind: kind, travelDurationSec: travelDurationSec)
@@ -953,7 +1002,14 @@ private extension EarTrainingPhraseDetail {
 extension EarTrainingChordOSMDBattleController: EarTrainingBattleSceneDriving {}
 
 extension EarTrainingChordOSMDBattleController: EarTrainingPianoPlayable {
-    var voicingHintsByMidi: [Int: VoicingHintState] { [:] }
+    var voicingHintsByMidi: [Int: VoicingHintState] {
+        guard practiceMode else { return [:] }
+        var dict: [Int: VoicingHintState] = [:]
+        for midi in voicingHintMidis {
+            dict[midi] = .pending
+        }
+        return dict
+    }
 }
 
 extension EarTrainingChordOSMDBattleController: EarTrainingLobbyPresentable {

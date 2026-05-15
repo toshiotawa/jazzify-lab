@@ -459,6 +459,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         snapshot.enemyAvatarUrl,
         enemyTextureReady,
         snapshot.enemyAvatarFlipX ? 1 : 0,
+        snapshot.fixedCharacterPositions ? 1 : 0,
       ].join(':');
     }
     if (this.characterLayer && this.lastCharacterBuildKey === nextBuildKey) {
@@ -879,8 +880,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const floorY = getFloorY(height);
     this.playerView = this.createCharacter(width * 0.23, floorY, true, snapshot.playerAvatarUrl, false);
     this.enemyView = this.createCharacter(width * 0.77, floorY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
-    this.startCharacterAutoMotion(this.playerView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
-    this.startCharacterAutoMotion(this.enemyView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+    if (!snapshot.fixedCharacterPositions) {
+      this.startCharacterAutoMotion(this.playerView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+      this.startCharacterAutoMotion(this.enemyView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+    }
     this.layoutPlayerQuoteBubble();
   }
 
@@ -2319,7 +2322,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     if (view.motion.state === 'dead') {
       view.motion.state = 'idle';
-      this.startCharacterAutoMotion(view, RECOVER_IDLE_MIN_MS, RECOVER_IDLE_MAX_MS);
+      if (!this.snapshot?.fixedCharacterPositions) {
+        this.startCharacterAutoMotion(view, RECOVER_IDLE_MIN_MS, RECOVER_IDLE_MAX_MS);
+      }
     }
   }
 
@@ -2343,6 +2348,16 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     if (view.motion.state === 'dead') {
+      onComplete?.();
+      return;
+    }
+    if (this.snapshot?.fixedCharacterPositions) {
+      this.stopCharacterMotion(view);
+      view.motion.state = 'idle';
+      const floorY = getFloorY(Math.max(480, this.scale.height));
+      const homeX = clampBattleCharacterX(view.motion.range.homeX, view.motion.range);
+      view.container.setPosition(homeX, floorY);
+      view.container.setAngle(0);
       onComplete?.();
       return;
     }

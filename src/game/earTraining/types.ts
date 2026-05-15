@@ -94,6 +94,8 @@ export interface EarTrainingBattleSnapshot {
   lessonProgressText: string | null;
   /** コードクイズ: ロビーモーダルに常時表示するルール文 */
   quizRulesLine?: string;
+  /** true のときキャラの自動歩行・ノックバックを行わない（OSMD リズムバトル等） */
+  fixedCharacterPositions?: boolean;
 }
 
 export interface EarTrainingBattleCallbacks {

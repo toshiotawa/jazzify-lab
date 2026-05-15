@@ -241,12 +241,14 @@ private struct EarTrainingChordOSMDContent: View {
     private func scoreOverlay(size: CGSize) -> some View {
         let width = min(size.width * 0.66, 720)
         let height = min(size.height * 0.48, 280)
+        let osmdZoom: Double = UIDevice.current.userInterfaceIdiom == .phone ? 0.7 : 1.0
         ZStack {
             if let musicXMLText = controller.musicXMLText {
                 EarTrainingOSMDScoreWebView(
                     musicXMLText: musicXMLText,
                     activeMeasureNumber: controller.activeMeasureNumber,
-                    renderKey: controller.phraseRunId
+                    renderKey: controller.phraseRunId,
+                    zoom: osmdZoom
                 )
             } else {
                 VStack(spacing: 10) {
@@ -290,6 +292,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     let musicXMLText: String
     let activeMeasureNumber: Int
     let renderKey: Int
+    /// OSMD の描画倍率。コンテナ高さを変えずに譜面を縮小する（主に iPhone）。
+    let zoom: Double
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -319,7 +323,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             webView: webView,
             musicXMLText: musicXMLText,
             renderKey: renderKey,
-            activeMeasureNumber: activeMeasureNumber
+            activeMeasureNumber: activeMeasureNumber,
+            zoom: zoom
         )
     }
 
@@ -329,8 +334,10 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var pendingMusicXMLText: String?
         private var pendingRenderKey: Int?
         private var pendingMeasureNumber: Int?
+        private var pendingZoom: Double = 1.0
         private var lastRenderedMusicXMLText: String?
         private var lastRenderedKey: Int?
+        private var lastRenderedZoom: Double?
         private var lastMeasureNumber: Int?
 
         func attach(_ webView: WKWebView) {
@@ -342,10 +349,11 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             flushPending(webView: webView)
         }
 
-        func update(webView: WKWebView, musicXMLText: String, renderKey: Int, activeMeasureNumber: Int) {
+        func update(webView: WKWebView, musicXMLText: String, renderKey: Int, activeMeasureNumber: Int, zoom: Double) {
             pendingMusicXMLText = musicXMLText
             pendingRenderKey = renderKey
             pendingMeasureNumber = activeMeasureNumber
+            pendingZoom = zoom
             guard htmlReady else { return }
             flushPending(webView: webView)
         }
@@ -355,14 +363,19 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             guard let xml = pendingMusicXMLText,
                   let key = pendingRenderKey,
                   let measure = pendingMeasureNumber else { return }
-            let needsRender = lastRenderedMusicXMLText != xml || lastRenderedKey != key
+            let nextZoom = pendingZoom
+            let needsRender = lastRenderedMusicXMLText != xml
+                || lastRenderedKey != key
+                || lastRenderedZoom.map { abs($0 - nextZoom) > 0.000_1 } ?? true
             if needsRender {
                 lastRenderedMusicXMLText = xml
                 lastRenderedKey = key
+                lastRenderedZoom = nextZoom
                 lastMeasureNumber = measure
                 let literal = Self.javaScriptStringLiteral(xml)
+                let z = Self.javascriptNumber(nextZoom)
                 let script = """
-                window.JazzifyOSMD.renderMusicXML(\(literal)).then(function() {
+                window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
@@ -373,6 +386,13 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 lastMeasureNumber = measure
                 webView.evaluateJavaScript("window.JazzifyOSMD.setActiveMeasure(\(measure));")
             }
+        }
+
+        private static func javascriptNumber(_ value: Double) -> String {
+            if !value.isFinite {
+                return "1"
+            }
+            return String(value)
         }
 
         private static func javaScriptStringLiteral(_ value: String) -> String {
@@ -487,7 +507,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             score.style.width = scoreWidth + 'px';
           }
 
-          async function renderMusicXML(xmlText) {
+          async function renderMusicXML(xmlText, zoomValue) {
             status.textContent = 'Rendering...';
             status.style.display = 'grid';
             score.replaceChildren();
@@ -500,6 +520,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               return;
             }
             const displayXml = xmlText;
+            const z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
             osmd = new OpenSheetMusicDisplay(score, {
               backend: 'canvas',
               autoResize: false,
@@ -514,6 +535,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               defaultColorTitle: '#ffffff',
               defaultColorLyrics: '#ffffff'
             });
+            osmd.zoom = z;
             await osmd.load(displayXml);
             osmd.render();
             collectMeasureCenters();
