@@ -281,22 +281,35 @@ struct TopView: View {
             }
 
             if let latest = announcements.first {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(latest.localizedTitle(locale))
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.white)
-                    Text(latest.localizedContent(locale))
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .lineLimit(3)
-                    Text(latest.createdAt.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption2)
-                        .foregroundStyle(.gray.opacity(0.6))
+                NavigationLink(destination: AnnouncementDetailView(announcement: latest)) {
+                    HStack(alignment: .top, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(latest.localizedTitle(locale))
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.leading)
+                            Text(latest.localizedContent(locale))
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
+                            Text(latest.createdAt.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption2)
+                                .foregroundStyle(.gray.opacity(0.6))
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.gray.opacity(0.7))
+                            .padding(.top, 2)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "334155"))
+                    .cornerRadius(8)
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(hex: "334155"))
-                .cornerRadius(8)
+                .buttonStyle(.plain)
+                .accessibilityHint(locale == .ja ? "タップして全文を表示" : "Tap to read full announcement")
             } else {
                 Text(locale == .ja ? "お知らせはありません" : "No announcements")
                     .font(.subheadline)
