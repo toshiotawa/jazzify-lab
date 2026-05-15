@@ -177,6 +177,27 @@ describe('buildLessonAccessGraph', () => {
     expect(graph.lessonStates[block2Lesson2.id].isUnlocked).toBe(true);
   });
 
+  it('メインクエストではブロック内も順番に解放できる', () => {
+    const first = createLesson({ id: 'block1-1', block_number: 1, order_index: 0 });
+    const second = createLesson({ id: 'block1-2', block_number: 1, order_index: 1 });
+    const third = createLesson({ id: 'block1-3', block_number: 1, order_index: 2 });
+
+    const progressMap = {
+      [first.id]: createProgress({ lesson_id: first.id, completed: true }),
+    } satisfies Record<string, LessonProgress>;
+
+    const graph = buildLessonAccessGraph({
+      lessons: [first, second, third],
+      progressMap,
+      userRank: 'standard',
+      enforceSequentialWithinBlocks: true,
+    });
+
+    expect(graph.lessonStates[first.id].isUnlocked).toBe(true);
+    expect(graph.lessonStates[second.id].isUnlocked).toBe(true);
+    expect(graph.lessonStates[third.id].isUnlocked).toBe(false);
+  });
+
   it('前ブロックが未完了なら後続ブロックはロックされる', () => {
     const block1Lesson = createLesson({ id: 'block1-1', block_number: 1, order_index: 0 });
     const block2Lesson = createLesson({ id: 'block2-1', block_number: 2, order_index: 1 });

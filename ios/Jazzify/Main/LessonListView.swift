@@ -5,12 +5,15 @@ import WebKit
 struct LessonListView: View {
     @EnvironmentObject var appState: AppState
     @State private var courses: [Course] = []
+    @State private var mainQuestCourse: Course?
     @State private var lessonsMap: [UUID: [Lesson]] = [:]
     @State private var progressMap: [UUID: Set<UUID>] = [:]
     @State private var isLoading = true
     @State private var showLessonInfo = false
     @State private var showSubscription = false
+    @State private var showingAllCourses = false
     @State private var journeyCourse: JourneyCourseLaunch?
+    @State private var lessonToOpen: Lesson?
     /// マップを閉じたあと進捗を同期する対象（一覧で再 fetch するコース）
     @State private var lastJourneyCourseId: UUID?
 
@@ -29,7 +32,7 @@ struct LessonListView: View {
                 if isLoading {
                     ProgressView()
                         .tint(.purple)
-                } else if courses.isEmpty {
+                } else if courses.isEmpty && mainQuestCourse == nil {
                     VStack(spacing: 12) {
                         Image(systemName: "book.closed")
                             .font(.system(size: 48))
@@ -43,19 +46,14 @@ struct LessonListView: View {
                             if let bannerKind = appState.paymentIssueBannerKind {
                                 PaymentIssueBannerView(kind: bannerKind, locale: locale)
                             }
-                            ForEach(CourseDifficultyTier.displayOrder, id: \.rawValue) { tier in
-                                let tierCourses = courses.filter { $0.resolvedDifficultyTier == tier }
-                                if !tierCourses.isEmpty {
-                                    Text(tier.sectionTitle(locale: locale))
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(Color.purple.opacity(0.9))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 4)
-                                        .padding(.top, 4)
-                                    ForEach(tierCourses) { course in
-                                        courseRow(course)
-                                    }
+
+                            if showingAllCourses {
+                                allSpecificCoursesContent
+                            } else {
+                                if let mainQuest = mainQuestState {
+                                    mainQuestDashboard(mainQuest)
                                 }
+                                specificCoursesPreview
                             }
                         }
                         .padding()
@@ -91,6 +89,16 @@ struct LessonListView: View {
                     )
                 }
             }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { lessonToOpen != nil },
+                    set: { if !$0 { lessonToOpen = nil } }
+                )
+            ) {
+                if let lesson = lessonToOpen {
+                    LessonDetailView(lesson: lesson)
+                }
+            }
             .onChange(of: journeyCourse == nil) { isNil in
                 guard isNil, let courseId = lastJourneyCourseId else { return }
                 lastJourneyCourseId = nil
@@ -123,9 +131,500 @@ struct LessonListView: View {
         }
     }
 
+    private struct MainQuestBlockState: Identifiable {
+        let id: Int
+        let blockNumber: Int
+        let title: String
+        let description: String?
+        let lessons: [Lesson]
+        let completedCount: Int
+        let totalCount: Int
+        let isUnlocked: Bool
+        let isCompleted: Bool
+        let isCurrent: Bool
+        let stageNumber: Int
+    }
+
+    private struct MainQuestViewState {
+        let course: Course
+        let lessons: [Lesson]
+        let accessGraph: LessonJourneyAccessGraph
+        let blocks: [MainQuestBlockState]
+        let currentBlock: MainQuestBlockState
+        let frontierLesson: Lesson?
+        let continueLesson: Lesson?
+        let completedLessons: Int
+        let totalLessons: Int
+    }
+
+    private var mainQuestState: MainQuestViewState? {
+        guard let course = mainQuestCourse else { return nil }
+        let lessons = sortedLessons(lessonsMap[course.id] ?? [])
+        guard !lessons.isEmpty else { return nil }
+
+        let completedIds = progressMap[course.id] ?? []
+        let accessGraph = LessonJourneyAccessGraph.build(
+            lessons: lessons,
+            completedIds: completedIds,
+            enforceSequentialWithinBlocks: true
+        )
+        let frontierLesson = lessons.first { lesson in
+            let state = accessGraph.lessonStates[lesson.id]
+            return state?.isUnlocked == true && state?.isCompleted != true
+        }
+        let fallbackLesson = lessons.last
+        let currentLesson = frontierLesson ?? fallbackLesson
+        let currentBlockNumber = currentLesson?.blockNumber ?? lessons.first?.blockNumber ?? 1
+
+        var groups: [Int: [Lesson]] = [:]
+        var order: [Int] = []
+        for lesson in lessons {
+            let blockNumber = lesson.blockNumber ?? 1
+            if groups[blockNumber] == nil { order.append(blockNumber) }
+            groups[blockNumber, default: []].append(lesson)
+        }
+
+        let blocks: [MainQuestBlockState] = order.enumerated().map { index, blockNumber in
+            let blockLessons = groups[blockNumber] ?? []
+            let first = blockLessons.first
+            let completed = blockLessons.filter { completedIds.contains($0.id) }.count
+            let blockState = accessGraph.blockStates[blockNumber]
+            return MainQuestBlockState(
+                id: blockNumber,
+                blockNumber: blockNumber,
+                title: blockTitle(first, blockNumber: blockNumber),
+                description: blockDescription(first),
+                lessons: blockLessons,
+                completedCount: completed,
+                totalCount: blockLessons.count,
+                isUnlocked: (blockState?.isUnlocked) ?? (index == 0),
+                isCompleted: blockState?.isCompleted ?? false,
+                isCurrent: blockNumber == currentBlockNumber,
+                stageNumber: index + 1
+            )
+        }
+        guard let currentBlock = blocks.first(where: { $0.isCurrent }) ?? blocks.first else { return nil }
+        let continueLesson = frontierLesson ?? currentBlock.lessons.last ?? lessons.last
+
+        return MainQuestViewState(
+            course: course,
+            lessons: lessons,
+            accessGraph: accessGraph,
+            blocks: blocks,
+            currentBlock: currentBlock,
+            frontierLesson: frontierLesson,
+            continueLesson: continueLesson,
+            completedLessons: completedIds.intersection(Set(lessons.map(\.id))).count,
+            totalLessons: lessons.count
+        )
+    }
+
+    private var allSpecificCoursesContent: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Button {
+                    showingAllCourses = false
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Color(hex: "c4b5fd"))
+                        .frame(width: 34, height: 34)
+                        .background(Color.black.opacity(0.25), in: Circle())
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(locale == .ja ? "目的別コース" : "Specific Courses")
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                    Text(locale == .ja ? "メインクエスト以外のコース" : "Focused courses outside the main quest")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "c4b5fd").opacity(0.8))
+                }
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            ForEach(CourseDifficultyTier.displayOrder, id: \.rawValue) { tier in
+                let tierCourses = courses.filter { $0.resolvedDifficultyTier == tier }
+                if !tierCourses.isEmpty {
+                    Text(tier.sectionTitle(locale: locale))
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Color.purple.opacity(0.9))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 4)
+                    ForEach(tierCourses) { course in
+                        courseRow(course)
+                    }
+                }
+            }
+        }
+    }
+
+    private var specificCoursesPreview: some View {
+        Group {
+            if !courses.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        sectionHeader(
+                            icon: "sparkles",
+                            title: locale == .ja ? "Specific Courses /" : "Specific Courses /",
+                            subtitle: locale == .ja ? "目的別コース" : "Focused courses"
+                        )
+                        Spacer()
+                        Button {
+                            showingAllCourses = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("See all")
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.caption.bold())
+                            .foregroundStyle(Color(hex: "c4b5fd"))
+                        }
+                    }
+
+                    ForEach(Array(courses.prefix(3))) { course in
+                        courseRow(course, compact: true)
+                    }
+                }
+                .padding(12)
+                .background(questPanelBackground)
+            }
+        }
+    }
+
+    private func mainQuestDashboard(_ state: MainQuestViewState) -> some View {
+        VStack(spacing: 12) {
+            continueCard(state)
+
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                HStack(alignment: .top, spacing: 12) {
+                    journeyPanel(state)
+                    currentChapterDetailPanel(state)
+                }
+            } else {
+                VStack(spacing: 12) {
+                    journeyPanel(state)
+                    currentChapterDetailPanel(state)
+                }
+            }
+        }
+    }
+
+    private func continueCard(_ state: MainQuestViewState) -> some View {
+        Button {
+            continueMainQuest(state)
+        } label: {
+            ZStack(alignment: .leading) {
+                QuestStageArtwork(stageNumber: state.currentBlock.stageNumber, rectangular: true)
+                LinearGradient(
+                    colors: [.black.opacity(0.86), .black.opacity(0.52), .black.opacity(0.12)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color(hex: "c4b5fd"))
+                        Text(locale == .ja ? "続きから始める" : "Continue")
+                            .font(.title3.bold())
+                            .foregroundStyle(.white)
+                    }
+                    Text("\(locale == .ja ? "チャプター" : "Chapter") \(state.currentBlock.blockNumber): \(state.currentBlock.title)")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(hex: "e9d5ff"))
+                    Text("Stage \(state.currentBlock.completedCount) / \(state.currentBlock.totalCount)")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "c4b5fd"))
+                    progressBar(done: state.currentBlock.completedCount, total: state.currentBlock.totalCount)
+                        .frame(maxWidth: 320)
+                    if let next = state.continueLesson {
+                        Text("Next: \(next.localizedTitle(locale))")
+                            .font(.caption)
+                            .foregroundStyle(Color(hex: "fde68a"))
+                            .lineLimit(1)
+                    }
+                }
+                .padding(18)
+                .frame(maxWidth: 560, alignment: .leading)
+            }
+            .frame(minHeight: 138)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.purple.opacity(0.55), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func journeyPanel(_ state: MainQuestViewState) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader(
+                icon: "book",
+                title: "Your Journey /",
+                subtitle: locale == .ja ? "チャプター一覧" : "Chapters"
+            )
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(state.blocks) { block in
+                            chapterRow(block, state: state)
+                                .id(block.blockNumber)
+                        }
+                    }
+                }
+                .frame(height: UIDevice.current.userInterfaceIdiom == .pad ? 420 : 236)
+                .onAppear {
+                    proxy.scrollTo(state.currentBlock.blockNumber, anchor: .top)
+                }
+                .onChange(of: state.currentBlock.blockNumber) { blockNumber in
+                    proxy.scrollTo(blockNumber, anchor: .top)
+                }
+            }
+        }
+        .padding(12)
+        .background(questPanelBackground)
+    }
+
+    private func chapterRow(_ block: MainQuestBlockState, state: MainQuestViewState) -> some View {
+        Button {
+            if let firstPlayable = block.lessons.first(where: { state.accessGraph.lessonStates[$0.id]?.isUnlocked == true }) {
+                lessonToOpen = firstPlayable
+            }
+        } label: {
+            HStack(spacing: 10) {
+                QuestStageArtwork(stageNumber: block.stageNumber, rectangular: false)
+                    .frame(width: 46, height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(locale == .ja ? "チャプター" : "Chapter") \(block.blockNumber)")
+                        .font(.caption2)
+                        .foregroundStyle(Color(hex: "c4b5fd").opacity(0.8))
+                    Text(block.title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                Spacer()
+                if block.isCompleted {
+                    Text("Cleared")
+                        .font(.caption2.bold())
+                        .foregroundStyle(Color(hex: "86efac"))
+                } else if block.isCurrent {
+                    Text("Current")
+                        .font(.caption2.bold())
+                        .foregroundStyle(Color(hex: "c4b5fd"))
+                } else if !block.isUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "c4b5fd"))
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(block.isCurrent ? Color.green.opacity(0.10) : Color.white.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(block.isCurrent ? Color.green.opacity(0.65) : Color.purple.opacity(0.18), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!block.isUnlocked)
+        .opacity(block.isUnlocked ? 1 : 0.58)
+    }
+
+    private func currentChapterDetailPanel(_ state: MainQuestViewState) -> some View {
+        let block = state.currentBlock
+        return VStack(alignment: .leading, spacing: 10) {
+            sectionHeader(
+                icon: "flag.checkered",
+                title: "Current Chapter Detail /",
+                subtitle: locale == .ja ? "現在の章の詳細" : "Current chapter detail"
+            )
+            ZStack(alignment: .leading) {
+                QuestStageArtwork(stageNumber: block.stageNumber, rectangular: true)
+                LinearGradient(
+                    colors: [.black.opacity(0.84), .black.opacity(0.5), .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(locale == .ja ? "チャプター" : "Chapter") \(block.blockNumber)")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "c4b5fd"))
+                    Text(block.title)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    if let description = block.description, !description.isEmpty {
+                        Text(description)
+                            .font(.caption)
+                            .foregroundStyle(Color(hex: "e9d5ff").opacity(0.86))
+                            .lineLimit(2)
+                    }
+                    progressBar(done: block.completedCount, total: block.totalCount)
+                        .frame(maxWidth: 260)
+                }
+                .padding(14)
+                .frame(maxWidth: 520, alignment: .leading)
+            }
+            .frame(minHeight: 120)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+            )
+
+            VStack(spacing: 6) {
+                ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in
+                    lessonRow(lesson, index: index, state: state)
+                }
+            }
+        }
+        .padding(12)
+        .background(questPanelBackground)
+    }
+
+    private func lessonRow(_ lesson: Lesson, index: Int, state: MainQuestViewState) -> some View {
+        let accessState = state.accessGraph.lessonStates[lesson.id]
+        let isUnlocked = accessState?.isUnlocked ?? false
+        let isCompleted = accessState?.isCompleted ?? false
+        let isFrontier = state.frontierLesson?.id == lesson.id
+
+        return Button {
+            lessonToOpen = lesson
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(isCompleted ? Color.green.opacity(0.22) : Color.purple.opacity(0.22))
+                        .frame(width: 28, height: 28)
+                    if isCompleted {
+                        Image(systemName: "checkmark")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color(hex: "86efac"))
+                    } else if isUnlocked {
+                        Text("\(index + 1)")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                    } else {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                    }
+                }
+                Text(lesson.localizedTitle(locale))
+                    .font(.subheadline.bold())
+                    .foregroundStyle(isUnlocked ? .white : .gray)
+                    .lineLimit(1)
+                Spacer()
+                if isFrontier {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(Color(hex: "fde68a"))
+                }
+                if isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color(hex: "86efac"))
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 11)
+                    .fill(Color.purple.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 11)
+                            .stroke(isFrontier ? Color.green.opacity(0.85) : Color.purple.opacity(0.20), lineWidth: isFrontier ? 1.5 : 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isUnlocked)
+        .opacity(isUnlocked ? 1 : 0.58)
+    }
+
+    private var questPanelBackground: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .fill(Color(hex: "0a061c").opacity(0.86))
+            .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+    }
+
+    private func sectionHeader(icon: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(Color(hex: "fde68a"))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title)
+                    .font(.caption.bold())
+                    .foregroundStyle(Color(hex: "fde68a"))
+                Text(subtitle)
+                    .font(.caption2.bold())
+                    .foregroundStyle(Color(hex: "fde68a").opacity(0.9))
+            }
+        }
+    }
+
+    private func progressBar(done: Int, total: Int) -> some View {
+        GeometryReader { geometry in
+            let percent = total > 0 ? CGFloat(done) / CGFloat(total) : 0
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.black.opacity(0.48))
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "c4b5fd"), Color(hex: "a855f7")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: geometry.size.width * min(max(percent, 0), 1))
+            }
+        }
+        .frame(height: 5)
+    }
+
+    private func continueMainQuest(_ state: MainQuestViewState) {
+        if UIDevice.current.userInterfaceIdiom == .pad, let lesson = state.continueLesson {
+            lessonToOpen = lesson
+        } else {
+            openJourney(for: state.course)
+        }
+    }
+
+    private func sortedLessons(_ lessons: [Lesson]) -> [Lesson] {
+        lessons.sorted { lhs, rhs in
+            let leftBlock = lhs.blockNumber ?? 1
+            let rightBlock = rhs.blockNumber ?? 1
+            if leftBlock != rightBlock { return leftBlock < rightBlock }
+            return lhs.orderIndex < rhs.orderIndex
+        }
+    }
+
+    private func blockTitle(_ lesson: Lesson?, blockNumber: Int) -> String {
+        if locale == .en, let en = lesson?.blockNameEn, !en.isEmpty { return en }
+        if let name = lesson?.blockName, !name.isEmpty { return name }
+        return locale == .ja ? "チャプター \(blockNumber)" : "Chapter \(blockNumber)"
+    }
+
+    private func blockDescription(_ lesson: Lesson?) -> String? {
+        guard let lesson else { return nil }
+        let primary = locale == .en ? lesson.blockDescriptionEn : lesson.blockDescription
+        let fallback = locale == .en ? lesson.blockDescription : lesson.blockDescriptionEn
+        let value = primary ?? fallback ?? lesson.localizedDescription(locale)
+        return value?.replacingOccurrences(of: "\n", with: " ")
+    }
+
     // MARK: - Course Row
 
-    private func courseRow(_ course: Course) -> some View {
+    private func courseRow(_ course: Course, compact: Bool = false) -> some View {
         Button {
             handleCourseTap(course)
         } label: {
@@ -166,7 +665,7 @@ struct LessonListView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
+            .padding(compact ? 12 : 16)
             .background(Color(hex: "1e293b"), in: RoundedRectangle(cornerRadius: 12))
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
@@ -205,7 +704,8 @@ struct LessonListView: View {
                 let a = course.audience ?? "both"
                 return a == "both" || a == audienceFilter
             }
-            courses = filtered.sorted { a, b in
+            mainQuestCourse = allCourses.first(where: { $0.isMainCourse == true })
+            courses = filtered.filter { $0.isMainCourse != true }.sorted { a, b in
                 let ta = a.resolvedDifficultyTier.sortIndex
                 let tb = b.resolvedDifficultyTier.sortIndex
                 if ta != tb { return ta < tb }
@@ -213,6 +713,7 @@ struct LessonListView: View {
             }
         } catch {
             courses = []
+            mainQuestCourse = nil
         }
         isLoading = false
         await prefetchAllCourseProgress()
@@ -220,7 +721,7 @@ struct LessonListView: View {
 
     private func prefetchAllCourseProgress() async {
         let userId = appState.profile?.id
-        let targetCourses = courses
+        let targetCourses = ([mainQuestCourse].compactMap { $0 } + courses)
 
         await withTaskGroup(of: (UUID, [Lesson]).self) { group in
             for course in targetCourses {
@@ -290,6 +791,99 @@ struct LessonListView: View {
         } catch {
             // keep existing progress on failure
         }
+    }
+}
+
+private struct QuestStageArtwork: View {
+    let stageNumber: Int
+    let rectangular: Bool
+
+    private static let stageAssetNames = [
+        "stage_01_cave",
+        "stage_02_forest",
+        "stage_03_mountain_cliff",
+        "stage_04_desert_ruins",
+        "stage_05_snowy_mountain",
+        "stage_06_dungeon",
+        "stage_07_volcano",
+        "stage_08_temple_ruins",
+        "stage_09_underwater",
+        "stage_10_crystal_cave",
+        "stage_11_sky_castle",
+        "stage_12_graveyard",
+        "stage_13_bamboo_forest",
+        "stage_14_space_station",
+        "stage_15_candy_land",
+        "stage_16_autumn_forest",
+        "stage_17_magic_library",
+        "stage_18_pyramid",
+        "stage_19_steampunk_factory",
+        "stage_20_shrine",
+        "stage_21_castle_interior",
+        "stage_22_shipwreck",
+        "stage_23_mushroom_kingdom",
+        "stage_24_sandstorm",
+        "stage_25_ice_palace",
+        "stage_26_sakura_garden",
+        "stage_27_carnival",
+        "stage_28_windmill",
+        "stage_29_bioluminescent_cave",
+        "stage_30_forge",
+        "stage_31_scroll_library",
+        "stage_32_botanical_lab",
+        "stage_33_moonlit_rooftop",
+        "stage_34_treasure_vault",
+        "stage_35_waterfall",
+        "stage_36_crystal_ball",
+        "stage_37_puppet_theater",
+        "stage_38_fairy_tower",
+        "stage_39_bathhouse",
+        "stage_40_observatory",
+        "stage_41_lantern_festival",
+        "stage_42_stone_bridge",
+        "stage_43_frozen_waterfall",
+        "stage_44_map_room",
+        "stage_45_rope_bridge",
+        "stage_46_stone_circle",
+        "stage_47_kelp_forest",
+        "stage_48_firefly_meadow",
+        "stage_49_armor_hall",
+        "stage_50_ice_dragon_lair"
+    ]
+
+    private var assetName: String {
+        let count = Self.stageAssetNames.count
+        let index = stageNumber > 0 ? (stageNumber - 1) % count : 0
+        let baseName = Self.stageAssetNames[index]
+        return rectangular
+            ? "\(baseName)_card"
+            : "\(baseName)_bg"
+    }
+
+    var body: some View {
+        ZStack {
+            if let image = UIImage(named: assetName) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                LinearGradient(
+                    colors: [
+                        Color(hex: "171033"),
+                        Color(hex: "2f145a"),
+                        Color(hex: "050315")
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                Image(systemName: rectangular ? "door.left.hand.open" : "sparkles")
+                    .font(.system(size: rectangular ? 42 : 20, weight: .bold))
+                    .foregroundStyle(Color(hex: "c4b5fd").opacity(0.65))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: rectangular ? .trailing : .center)
+                    .padding(rectangular ? 20 : 0)
+            }
+        }
+        .clipped()
     }
 }
 

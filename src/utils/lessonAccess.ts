@@ -11,21 +11,21 @@ const PREMIUM_RANKS: ReadonlySet<MembershipRank> = new Set([
 
 const DEFAULT_RANK: MembershipRank = 'free';
 
-export const isPremiumRank = (rank?: MembershipRank | null): boolean => {
+const isPremiumRank = (rank?: MembershipRank | null): boolean => {
   if (!rank) {
     return false;
   }
   return PREMIUM_RANKS.has(rank);
 };
 
-export const normalizeRank = (rank?: MembershipRank | null): MembershipRank => {
+const normalizeRank = (rank?: MembershipRank | null): MembershipRank => {
   if (!rank) {
     return DEFAULT_RANK;
   }
   return rank;
 };
 
-export interface CourseAccessOptions {
+interface CourseAccessOptions {
   course: Course;
   userRank?: MembershipRank | null;
   completedCourseIds: string[];
@@ -33,7 +33,7 @@ export interface CourseAccessOptions {
   isEnglishCopy?: boolean;
 }
 
-export interface CourseAccessResult {
+interface CourseAccessResult {
   canAccess: boolean;
   reason?: string;
   prerequisitesMet: boolean;
@@ -111,12 +111,12 @@ export const resolveCourseAccess = ({
   };
 };
 
-export interface LessonAccessState {
+interface LessonAccessState {
   isUnlocked: boolean;
   isCompleted: boolean;
 }
 
-export interface BlockAccessState {
+interface BlockAccessState {
   blockNumber: number;
   isUnlocked: boolean;
   isCompleted: boolean;
@@ -127,10 +127,15 @@ export interface LessonAccessGraph {
   blockStates: Record<number, BlockAccessState>;
 }
 
-export interface LessonAccessOptions {
+interface LessonAccessOptions {
   lessons: Lesson[];
-  progressMap: Record<string, LessonProgress | undefined>;
+  progressMap: Record<string, Pick<LessonProgress, 'completed'> | undefined>;
   userRank?: MembershipRank | null;
+  /**
+   * メインクエスト用。true の場合は同一ブロック内も前のレッスン完了まで次をロックする。
+   * 通常コースは従来通り、解放済みブロック内を自由に選べる。
+   */
+  enforceSequentialWithinBlocks?: boolean;
 }
 
 const sortLessonsForAccess = (lessons: Lesson[]): Lesson[] => {
@@ -157,7 +162,7 @@ const groupLessonsByBlock = (sortedLessons: Lesson[]): Map<number, Lesson[]> => 
 
 const isBlockCompleted = (
   lessons: Lesson[],
-  progressMap: Record<string, LessonProgress | undefined>,
+  progressMap: Record<string, Pick<LessonProgress, 'completed'> | undefined>,
 ): boolean => {
   if (lessons.length === 0) {
     return false;
@@ -168,6 +173,7 @@ const isBlockCompleted = (
 export const buildLessonAccessGraph = ({
   lessons,
   progressMap,
+  enforceSequentialWithinBlocks = false,
 }: LessonAccessOptions): LessonAccessGraph => {
   const sortedLessons = sortLessonsForAccess(lessons);
   const blockMap = groupLessonsByBlock(sortedLessons);
@@ -190,10 +196,14 @@ export const buildLessonAccessGraph = ({
       isCompleted: completed,
     };
 
-    blockLessons.forEach((lesson) => {
+    blockLessons.forEach((lesson, lessonIndex) => {
       const completedLesson = progressMap[lesson.id]?.completed === true;
+      const previousLesson = blockLessons[lessonIndex - 1];
+      const previousLessonCompleted = previousLesson
+        ? progressMap[previousLesson.id]?.completed === true
+        : true;
       lessonStates[lesson.id] = {
-        isUnlocked: blockUnlocked,
+        isUnlocked: blockUnlocked && (!enforceSequentialWithinBlocks || previousLessonCompleted || completedLesson),
         isCompleted: completedLesson,
       };
     });

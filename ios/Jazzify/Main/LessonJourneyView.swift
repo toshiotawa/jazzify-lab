@@ -50,7 +50,8 @@ struct LessonJourneyView: View {
         let derived = Self.computeDerived(
             lessons: lessons,
             completedLessonIds: completedLessonIds,
-            locale: .ja
+            locale: .ja,
+            enforceSequentialWithinBlocks: course.isMainCourse == true
         )
         self._layout = State(initialValue: derived.layout)
         self._accessGraph = State(initialValue: derived.accessGraph)
@@ -62,7 +63,8 @@ struct LessonJourneyView: View {
     private static func computeDerived(
         lessons: [Lesson],
         completedLessonIds: Set<UUID>,
-        locale: AppLocale
+        locale: AppLocale,
+        enforceSequentialWithinBlocks: Bool
     ) -> (
          layout: LessonJourneyLayout,
          accessGraph: LessonJourneyAccessGraph,
@@ -80,7 +82,11 @@ struct LessonJourneyView: View {
             )
         }
         let layout = LessonJourneyLayoutBuilder.build(lessons: inputs, locale: locale)
-        let accessGraph = LessonJourneyAccessGraph.build(lessons: lessons, completedIds: completedLessonIds)
+        let accessGraph = LessonJourneyAccessGraph.build(
+            lessons: lessons,
+            completedIds: completedLessonIds,
+            enforceSequentialWithinBlocks: enforceSequentialWithinBlocks
+        )
         let frontierLessonId = LessonJourneyFrontier.compute(
             lessons: inputs,
             isUnlocked: { id in accessGraph.lessonStates[id]?.isUnlocked ?? false },
@@ -100,7 +106,8 @@ struct LessonJourneyView: View {
         let d = Self.computeDerived(
             lessons: lessons,
             completedLessonIds: completedLessonIds,
-            locale: locale
+            locale: locale,
+            enforceSequentialWithinBlocks: course.isMainCourse == true
         )
         layout = d.layout
         accessGraph = d.accessGraph
@@ -553,7 +560,11 @@ struct LessonJourneyAccessGraph {
     let lessonStates: [UUID: LessonState]
     let blockStates: [Int: BlockState]
 
-    static func build(lessons: [Lesson], completedIds: Set<UUID>) -> LessonJourneyAccessGraph {
+    static func build(
+        lessons: [Lesson],
+        completedIds: Set<UUID>,
+        enforceSequentialWithinBlocks: Bool = false
+    ) -> LessonJourneyAccessGraph {
         let sorted = lessons.sorted { lhs, rhs in
             let lb = lhs.blockNumber ?? 1
             let rb = rhs.blockNumber ?? 1
@@ -577,10 +588,13 @@ struct LessonJourneyAccessGraph {
             let blockLessons = groups[bn] ?? []
             let completed = !blockLessons.isEmpty && blockLessons.allSatisfy { completedIds.contains($0.id) }
             blockStates[bn] = BlockState(blockNumber: bn, isUnlocked: unlocked, isCompleted: completed)
-            for lesson in blockLessons {
+            for (lessonIndex, lesson) in blockLessons.enumerated() {
+                let previousLesson = lessonIndex > 0 ? blockLessons[lessonIndex - 1] : nil
+                let previousLessonCompleted = previousLesson.map { completedIds.contains($0.id) } ?? true
+                let completedLesson = completedIds.contains(lesson.id)
                 lessonStates[lesson.id] = LessonState(
-                    isUnlocked: unlocked,
-                    isCompleted: completedIds.contains(lesson.id)
+                    isUnlocked: unlocked && (!enforceSequentialWithinBlocks || previousLessonCompleted || completedLesson),
+                    isCompleted: completedLesson
                 )
             }
         }

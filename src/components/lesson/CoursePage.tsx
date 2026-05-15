@@ -23,6 +23,7 @@ import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapeProm
 const CoursePage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [focusLessonId, setFocusLessonId] = useState<string | null>(null);
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
@@ -47,8 +48,10 @@ const CoursePage: React.FC = () => {
         setOpen(true);
         const params = new URLSearchParams(hash.split('?')[1] || '');
         setCourseId(params.get('id'));
+        setFocusLessonId(params.get('focus'));
       } else {
         setOpen(false);
+        setFocusLessonId(null);
       }
     };
     checkHash();
@@ -99,8 +102,16 @@ const CoursePage: React.FC = () => {
           progressMap[p.lesson_id] = p;
         });
 
-        const block1Lessons = lessonsData.filter(l => (l.block_number || 1) === 1);
-        for (const lesson of block1Lessons) {
+        const sortedForUnlock = [...lessonsData].sort((a, b) => {
+          const blockA = a.block_number ?? 1;
+          const blockB = b.block_number ?? 1;
+          if (blockA !== blockB) return blockA - blockB;
+          return a.order_index - b.order_index;
+        });
+        const firstUnlockLessons = courseData.is_main_course
+          ? sortedForUnlock.slice(0, 1)
+          : lessonsData.filter(l => (l.block_number || 1) === 1);
+        for (const lesson of firstUnlockLessons) {
           if (!progressMap[lesson.id]) {
             try {
               await unlockLesson(lesson.id, courseId);
@@ -179,8 +190,9 @@ const CoursePage: React.FC = () => {
       lessons,
       progressMap: progress as Record<string, LessonProgress | undefined>,
       userRank: effectiveRank,
+      enforceSequentialWithinBlocks: course?.is_main_course === true,
     });
-  }, [lessons, progress, effectiveRank]);
+  }, [lessons, progress, effectiveRank, course?.is_main_course]);
 
   const handleStartLesson = useCallback((lessonId: string) => {
     const state = lessonAccessGraph.lessonStates[lessonId];
@@ -302,6 +314,7 @@ const CoursePage: React.FC = () => {
                 accessGraph={lessonAccessGraph}
                 requirementsProgress={lessonRequirementsProgress}
                 isEnglishCopy={isEnglishCopy}
+                focusLessonId={focusLessonId}
                 onStartLesson={handleStartLesson}
               />
             </>

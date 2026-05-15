@@ -37,6 +37,7 @@ interface LessonJourneyMapProps {
   accessGraph: LessonAccessGraph;
   requirementsProgress: Record<string, LessonRequirementProgress[]>;
   isEnglishCopy: boolean;
+  focusLessonId?: string | null;
   onStartLesson: (lessonId: string) => void;
 }
 
@@ -48,6 +49,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
   accessGraph,
   requirementsProgress,
   isEnglishCopy,
+  focusLessonId,
   onStartLesson,
 }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -215,6 +217,17 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
     viewport.height,
     setCamera,
   ]);
+
+  useEffect(() => {
+    if (!focusLessonId || !didMeasureViewport) return;
+    const node = nodeByLessonId.get(focusLessonId);
+    if (!node) return;
+    setSelectedLessonId(focusLessonId);
+    focusCamera(node.y);
+    if (isMobileLayout) {
+      setIsMobileDetailOpen(true);
+    }
+  }, [didMeasureViewport, focusCamera, focusLessonId, isMobileLayout, nodeByLessonId]);
 
   // --- 操作 --------------------------------------------------------------
   const handleSelectLesson = useCallback(
