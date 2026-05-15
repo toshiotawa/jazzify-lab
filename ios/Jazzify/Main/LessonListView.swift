@@ -1,5 +1,6 @@
 import AVKit
 import SwiftUI
+import UIKit
 import WebKit
 
 struct LessonListView: View {
@@ -1038,28 +1039,21 @@ struct LessonListView: View {
 
 /// `UIKitVerticalScrollView`（UIKit `UIScrollView`）内に配置するタップ行。
 ///
-/// SwiftUI `Button` をそのまま入れると、UIScrollView の pan が始まっても
-/// タップジェスチャーがキャンセルされず、軽くドラッグしただけで `action` が
-/// 発火してしまうケースがある（特に Chapters / Current Chapter 詳細）。
+/// SwiftUI `Button` や SwiftUI の `DragGesture` をそのまま使うと、UIScrollView の pan が
+/// 始まってもジェスチャーが残り、`touchesEnded` で誤発火することがあるため、UIKit の生の
+/// `touchesBegan/Moved/Ended/Cancelled` で判定する透明オーバーレイを重ねる。
 ///
-/// - `simultaneousGesture(DragGesture(minimumDistance: 0))` で押下と移動を観測し、
-///   親の `UIScrollView` の pan を阻害せずに共存する。
-/// - 状態は `@GestureState` のみで保持するので、スクロール開始等で SwiftUI 側に
-///   ジェスチャーがキャンセルされた場合も自動でリセットされる（押下中の見た目も復帰）。
-/// - 8pt を超えるドラッグでタップ判定をキャンセルし、指を離しても `action` を
-///   発火させない（Specific Courses と同じ体感）。発火可否はジェスチャー終了時の
-///   `value.translation` を見て決定する。
+/// `UIScrollView.canCancelContentTouches` と `touchesShouldCancel(in:)` が有効な場合、
+/// パン開始で `touchesCancelled` が来るため、`action()` は発火しない（Specific Courses と同体感）。
+///
+/// 8pt を超える移動でドラッグ扱いにし、その間は押下表示を終える。
 private struct DragCancellableTapRow<Label: View>: View {
-    struct PressState: Equatable {
-        var isPressing: Bool = false
-        var dragCancelled: Bool = false
-    }
-
     let isEnabled: Bool
     let action: () -> Void
     let label: Label
 
-    @GestureState private var press: PressState = PressState()
+    @State private var isPressing = false
+    @State private var dragExceededWhilePressing = false
 
     private static var cancelThreshold: CGFloat { 8 }
     private static var pressedOpacity: Double { 0.55 }
@@ -1075,43 +1069,121 @@ private struct DragCancellableTapRow<Label: View>: View {
     }
 
     private var isVisuallyPressed: Bool {
-        isEnabled && press.isPressing && !press.dragCancelled
+        isEnabled && isPressing && !dragExceededWhilePressing
     }
 
     var body: some View {
-        label
-            .opacity(isVisuallyPressed ? Self.pressedOpacity : 1.0)
-            .animation(.easeOut(duration: 0.12), value: isVisuallyPressed)
-            .contentShape(Rectangle())
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($press) { value, state, _ in
-                        if !state.isPressing {
-                            state.isPressing = true
-                        }
-                        let distance = max(
-                            abs(value.translation.width),
-                            abs(value.translation.height)
-                        )
-                        if distance > Self.cancelThreshold && !state.dragCancelled {
-                            state.dragCancelled = true
-                        }
-                    }
-                    .onEnded { value in
-                        guard isEnabled else { return }
-                        let movedDistance = max(
-                            abs(value.translation.width),
-                            abs(value.translation.height)
-                        )
-                        if movedDistance <= Self.cancelThreshold {
-                            action()
-                        }
-                    }
+        ZStack {
+            label
+                .opacity(isVisuallyPressed ? Self.pressedOpacity : 1.0)
+                .animation(.easeOut(duration: 0.12), value: isVisuallyPressed)
+                .allowsHitTesting(false)
+
+            DragCancellableTapTouchOverlay(
+                cancelThreshold: Self.cancelThreshold,
+                onPressBegin: {
+                    dragExceededWhilePressing = false
+                    isPressing = true
+                },
+                onDragExceededThreshold: {
+                    dragExceededWhilePressing = true
+                },
+                onPressEnd: { shouldPerform in
+                    isPressing = false
+                    dragExceededWhilePressing = false
+                    guard shouldPerform, isEnabled else { return }
+                    action()
+                },
+                onPressCancel: {
+                    isPressing = false
+                    dragExceededWhilePressing = false
+                }
             )
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction {
-                if isEnabled { action() }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(isEnabled)
+        }
+        .contentShape(Rectangle())
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            if isEnabled {
+                action()
             }
+        }
+    }
+}
+
+/// 行サイズ全体を覆い、ヒット判定のみ UIKit が担う透明ビュー。
+private struct DragCancellableTapTouchOverlay: UIViewRepresentable {
+    let cancelThreshold: CGFloat
+    let onPressBegin: () -> Void
+    let onDragExceededThreshold: () -> Void
+    let onPressEnd: (_ shouldPerformAction: Bool) -> Void
+    let onPressCancel: () -> Void
+
+    func makeUIView(context _: Context) -> TapTouchTrackingView {
+        let view = TapTouchTrackingView()
+        view.backgroundColor = .clear
+        view.isMultipleTouchEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: TapTouchTrackingView, context _: Context) {
+        uiView.cancelThresholdPoints = cancelThreshold
+        uiView.onBegin = onPressBegin
+        uiView.onDragExceeded = onDragExceededThreshold
+        uiView.onEnded = onPressEnd
+        uiView.onCancelled = onPressCancel
+    }
+}
+
+private final class TapTouchTrackingView: UIView {
+    var cancelThresholdPoints: CGFloat = 8
+    var onBegin: () -> Void = {}
+    var onDragExceeded: () -> Void = {}
+    var onEnded: (_ shouldPerformAction: Bool) -> Void = { _ in }
+    var onCancelled: () -> Void = {}
+
+    private var trackingStartLocation: CGPoint?
+    private var localDragExceeded = false
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        guard let touch = touches.first else { return }
+        trackingStartLocation = touch.location(in: self)
+        localDragExceeded = false
+        onBegin()
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesMoved(touches, with: event)
+        guard localDragExceeded == false,
+              let start = trackingStartLocation,
+              let touch = touches.first
+        else {
+            return
+        }
+        let current = touch.location(in: self)
+        let dx = abs(current.x - start.x)
+        let dy = abs(current.y - start.y)
+        if max(dx, dy) > cancelThresholdPoints {
+            localDragExceeded = true
+            onDragExceeded()
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesEnded(touches, with: event)
+        trackingStartLocation = nil
+        let shouldPerformAction = !localDragExceeded
+        localDragExceeded = false
+        onEnded(shouldPerformAction)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesCancelled(touches, with: event)
+        trackingStartLocation = nil
+        localDragExceeded = false
+        onCancelled()
     }
 }
 
