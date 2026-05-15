@@ -599,16 +599,15 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     block.blockNumber === selectedBlockNumber && block.isUnlocked
   )) ?? currentBlock;
   const nextLesson = nextLessonForContinue(summary);
-  const selectedBlockStartLesson = useMemo(
-    () => selectedBlock
+  const selectedBlockStartLessonId = useMemo(() => {
+    const lesson = selectedBlock
       ? findDeepestUnlockedLesson(
         selectedBlock.lessons,
-        lesson => summary.accessGraph.lessonStates[lesson.id]?.isUnlocked === true,
+        l => summary.accessGraph.lessonStates[l.id]?.isUnlocked === true,
       )
-      : null,
-    [selectedBlock, summary.accessGraph.lessonStates],
-  );
-  const selectedBlockStartLessonId = selectedBlockStartLesson?.id ?? null;
+      : null;
+    return lesson?.id ?? null;
+  }, [selectedBlock, summary.accessGraph.lessonStates]);
 
   const scrollChapterDetailIntoView = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -681,11 +680,6 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     const max = container.scrollHeight - container.clientHeight;
     container.scrollTop = Math.max(0, Math.min(next, max));
   }, [selectedBlockNumber, selectedBlockStartLessonId, summary.blocks]);
-
-  const handleStartSelectedBlock = useCallback(() => {
-    if (!selectedBlockStartLessonId) return;
-    onOpenLesson(selectedBlockStartLessonId);
-  }, [onOpenLesson, selectedBlockStartLessonId]);
 
   if (!currentBlock || !selectedBlock) {
     return null;
@@ -888,28 +882,6 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
           </div>
         </div>
       </div>
-      {selectedBlockStartLesson && (
-        <button
-          type="button"
-          onClick={handleStartSelectedBlock}
-          className={cn(
-            'fixed right-3 z-50 w-36 touch-manipulation border-0 bg-transparent p-0',
-            'transition-transform duration-150 hover:scale-[1.04] active:scale-95',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
-            'sm:right-5 sm:w-44 md:w-48',
-          )}
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
-          aria-label={isEnglishCopy ? 'Start selected chapter lesson' : '選択中チャプターのレッスンを始める'}
-        >
-          <img
-            src="/Start_Button.png"
-            alt=""
-            className="block h-auto w-full select-none"
-            draggable={false}
-            loading="eager"
-          />
-        </button>
-      )}
     </section>
   );
 };

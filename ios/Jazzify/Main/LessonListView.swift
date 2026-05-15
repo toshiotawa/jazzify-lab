@@ -90,16 +90,6 @@ struct LessonListView: View {
                         }
                     }
                 }
-
-                if !isLoading,
-                   !showingAllCourses,
-                   let mainQuest = mainQuestState,
-                   let startLesson = chapterDetailTargetLesson(in: selectedBlock(in: mainQuest), state: mainQuest) {
-                    floatingMainQuestStartButton(lesson: startLesson)
-                        .padding(.trailing, UIDevice.current.userInterfaceIdiom == .pad ? 24 : 14)
-                        .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 24 : 14)
-                        .zIndex(10)
-                }
             }
             .navigationTitle(locale == .ja ? "クエスト" : "Quests")
             .navigationBarTitleDisplayMode(.large)
@@ -635,21 +625,6 @@ struct LessonListView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(questPanelBackground)
-    }
-
-    private func floatingMainQuestStartButton(lesson: Lesson) -> some View {
-        let buttonWidth: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 188 : 156
-        return Button {
-            lessonToOpen = lesson
-        } label: {
-            Image("Start_Button")
-                .resizable()
-                .scaledToFit()
-                .frame(width: buttonWidth)
-                .shadow(color: .black.opacity(0.48), radius: 12, y: 6)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(locale == .ja ? "選択中チャプターのレッスンを始める" : "Start selected chapter lesson")
     }
 
     /// Current Chapter のレッスン一覧: 固定行高に基づき `UIKitVerticalScrollView` でスクロール位置を制御。
