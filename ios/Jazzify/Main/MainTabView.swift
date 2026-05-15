@@ -45,6 +45,11 @@ struct MainTabView: View {
                 .tag(Tab.settings)
         }
         .tint(.purple)
+        .onChange(of: selectedTab) { newTab in
+            if newTab != .lessons {
+                LessonMapAudio.shared.stop()
+            }
+        }
     }
 }
 

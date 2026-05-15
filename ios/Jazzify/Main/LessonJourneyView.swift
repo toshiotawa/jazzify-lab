@@ -81,7 +81,11 @@ struct LessonJourneyView: View {
                 orderIndex: $0.orderIndex
             )
         }
-        let layout = LessonJourneyLayoutBuilder.build(lessons: inputs, locale: locale)
+        let layout = LessonJourneyLayoutBuilder.build(
+            lessons: inputs,
+            locale: locale,
+            phoneInlineTitles: Self.phoneInlineTitlesPreferred()
+        )
         let accessGraph = LessonJourneyAccessGraph.build(
             lessons: lessons,
             completedIds: completedLessonIds,
@@ -124,6 +128,11 @@ struct LessonJourneyView: View {
     /// iPhone は Max 系の横向き (hSize == .regular) でも 1 カラムで固定。
     private var useSplitLayout: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    /// iPhone のみインラインタイトル用レイアウト（iPad は従来の中心波形）。
+    private static func phoneInlineTitlesPreferred() -> Bool {
+        UIDevice.current.userInterfaceIdiom != .pad
     }
 
     // MARK: - Body
@@ -217,7 +226,6 @@ struct LessonJourneyView: View {
             }
         }
         .onDisappear {
-            LessonMapAudio.shared.stop()
             onCompletedIdsChanged?(completedLessonIds)
         }
         .task {
@@ -402,6 +410,30 @@ struct LessonJourneyView: View {
                                 }
                             }
                         )
+                    }
+                }
+
+                if !useSplitLayout {
+                    ForEach(layout.blocks) { block in
+                        ForEach(block.lessonNodes) { node in
+                            if let lessonId = node.lessonId,
+                               let lesson = lessons.first(where: { $0.id == lessonId }) {
+                                let dimBlock = block.blockIndex > accessibleBlockIndex
+                                let titleMaxLogical = max(84, layout.logicalWidth - node.x - 8)
+                                let titleMaxPx = titleMaxLogical * scale
+                                let nodeRadiusPx = 24 * scale
+                                let gapPx: CGFloat = 8
+                                let titleCenterX = node.x * scale + nodeRadiusPx + gapPx + titleMaxPx / 2
+                                Text(lesson.localizedTitle(locale))
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.white.opacity(dimBlock ? 0.38 : 0.92))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(width: titleMaxPx, alignment: .leading)
+                                    .position(x: titleCenterX, y: node.y * scale)
+                                    .allowsHitTesting(false)
+                            }
+                        }
                     }
                 }
 

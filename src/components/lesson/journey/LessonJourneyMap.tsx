@@ -76,8 +76,8 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
   }, [lessons, isEnglishCopy]);
 
   const layout = useMemo(
-    () => buildJourneyLayout(journeyInputs, { isEnglish: isEnglishCopy }),
-    [journeyInputs, isEnglishCopy],
+    () => buildJourneyLayout(journeyInputs, { isEnglish: isEnglishCopy, phoneLeftLessonColumn: isMobileLayout }),
+    [journeyInputs, isEnglishCopy, isMobileLayout],
   );
 
   const scale = Math.min(Math.max(0.7, viewport.width / JOURNEY_LOGICAL_WIDTH), 2.2);

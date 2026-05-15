@@ -31,6 +31,8 @@ import {
   FaFlagCheckered,
   FaLock,
   FaPlay,
+  FaVolumeMute,
+  FaVolumeUp,
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
@@ -588,12 +590,38 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
   onOpenLesson,
 }) => {
   const journeyRef = useRef<HTMLDivElement>(null);
+  const mainQuestDetailRef = useRef<HTMLDivElement>(null);
+  const lessonQuestListRef = useRef<HTMLDivElement>(null);
   const currentBlock = summary.currentBlock;
   const [selectedBlockNumber, setSelectedBlockNumber] = useState<number | null>(null);
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => LessonMapAudio.isMuted());
   const selectedBlock = summary.blocks.find(block => (
     block.blockNumber === selectedBlockNumber && block.isUnlocked
   )) ?? currentBlock;
   const nextLesson = nextLessonForContinue(summary);
+
+  const scrollChapterDetailIntoView = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const el = mainQuestDetailRef.current;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }, []);
+
+  const handleSelectChapter = useCallback((blockNumber: number) => {
+    setSelectedBlockNumber(blockNumber);
+    scrollChapterDetailIntoView();
+  }, [scrollChapterDetailIntoView]);
+
+  const handleToggleQuestBgm = useCallback(() => {
+    const next = LessonMapAudio.toggleMuted();
+    setSoundMuted(next);
+    if (!next) {
+      void LessonMapAudio.unlock().catch(() => { /* ignore */ });
+      void LessonMapAudio.playBgm(LESSON_MAP_BGM_URL).catch(() => { /* ignore */ });
+    }
+  }, []);
 
   useEffect(() => {
     const container = journeyRef.current;
@@ -614,15 +642,45 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     });
   }, [currentBlock, summary.blocks]);
 
+  useEffect(() => {
+    const fid = summary.frontierLesson?.id;
+    const container = lessonQuestListRef.current;
+    if (!fid || !container || selectedBlockNumber == null) return;
+    const block = summary.blocks.find(b => b.blockNumber === selectedBlockNumber && b.isUnlocked);
+    if (!block) return;
+    const idx = block.lessons.findIndex(lesson => lesson.id === fid);
+    if (idx < 0) return;
+    const lastIdx = block.lessons.length - 1;
+    const target = container.querySelector(`[data-quest-lesson="${fid}"]`);
+    if (!(target instanceof HTMLElement)) return;
+    const blockAlign: ScrollLogicalPosition = idx === 0 ? 'start' : idx === lastIdx ? 'end' : 'center';
+    target.scrollIntoView({ behavior: 'smooth', block: blockAlign });
+  }, [selectedBlockNumber, summary.blocks, summary.frontierLesson?.id]);
+
   if (!currentBlock || !selectedBlock) {
     return null;
   }
 
   return (
     <section className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={handleToggleQuestBgm}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-violet-400/35 bg-white/[0.06] text-violet-100 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+          aria-label={soundMuted
+            ? (isEnglishCopy ? 'Unmute quest BGM' : 'クエストBGMをオン')
+            : (isEnglishCopy ? 'Mute quest BGM' : 'クエストBGMをオフ')}
+        >
+          {soundMuted ? <FaVolumeMute className="text-sm" /> : <FaVolumeUp className="text-sm" />}
+        </button>
+      </div>
       <button
         type="button"
-        onClick={() => setSelectedBlockNumber(currentBlock.blockNumber)}
+        onClick={() => {
+          setSelectedBlockNumber(currentBlock.blockNumber);
+          scrollChapterDetailIntoView();
+        }}
         className="group relative min-h-[132px] w-full overflow-hidden rounded-lg border border-violet-400/45 bg-slate-950 text-left shadow-[0_12px_40px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
       >
         <img
@@ -679,7 +737,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                       : 'border-violet-400/15 bg-white/[0.035] hover:bg-white/[0.06]',
                     !block.isUnlocked && 'opacity-55 cursor-not-allowed',
                   )}
-                  onClick={() => setSelectedBlockNumber(block.blockNumber)}
+                  onClick={() => handleSelectChapter(block.blockNumber)}
                 >
                   <img
                     src={stageCardSquarePath(block.stageNumber)}
@@ -710,7 +768,11 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
           </div>
         </div>
 
-        <div className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3">
+        <div
+          id="mainQuestDetail"
+          ref={mainQuestDetailRef}
+          className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3"
+        >
           <SectionTitle
             icon={<FaFlagCheckered />}
             title={isEnglishCopy ? 'Current Chapter Detail' : '現在の章の詳細'}
@@ -741,7 +803,11 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
             </div>
           </div>
 
-          <div className="mt-3 space-y-1.5">
+          <div
+            ref={lessonQuestListRef}
+            className="mt-3 max-h-[280px] space-y-1.5 overflow-y-auto pr-0.5"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             {selectedBlock.lessons.map((lesson, index) => {
               const state = summary.accessGraph.lessonStates[lesson.id] ?? { isUnlocked: false, isCompleted: false };
               const isFrontier = summary.frontierLesson?.id === lesson.id;
@@ -749,6 +815,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                 <button
                   key={lesson.id}
                   type="button"
+                  data-quest-lesson={lesson.id}
                   disabled={!state.isUnlocked}
                   onClick={() => onOpenLesson(lesson.id)}
                   className={cn(
@@ -839,8 +906,8 @@ const SpecificCoursesSection: React.FC<SpecificCoursesSectionProps> = ({
   }
 
   return (
-    <section className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3 sm:p-4">
+      <div className="mb-3 flex flex-col gap-3 sm:mb-4">
         <SectionTitle
           icon={<FaBookOpen />}
           title={isEnglishCopy ? 'Specific Courses' : '目的別コース'}
@@ -848,10 +915,23 @@ const SpecificCoursesSection: React.FC<SpecificCoursesSectionProps> = ({
         <button
           type="button"
           onClick={onSeeAll}
-          className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-violet-200 hover:bg-white/10"
+          className={cn(
+            'group flex w-full flex-col items-stretch gap-1 rounded-xl border-2 border-amber-200/35 bg-gradient-to-r from-violet-600/25 via-fuchsia-600/20 to-amber-500/15',
+            'px-4 py-3.5 text-left shadow-[0_8px_28px_rgba(0,0,0,0.35)] transition-colors',
+            'hover:border-amber-200/55 hover:from-violet-600/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/80',
+          )}
         >
-          See all
-          <FaChevronRight className="text-[10px]" />
+          <span className="flex items-center justify-between gap-2">
+            <span className="text-base font-bold text-violet-50 sm:text-lg">
+              {isEnglishCopy ? 'Browse all courses' : 'すべてのコースを見る'}
+            </span>
+            <FaChevronRight className="mt-0.5 shrink-0 text-amber-200 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </span>
+          <span className="text-xs font-medium text-violet-200/85 sm:text-sm">
+            {isEnglishCopy
+              ? 'Open the full catalog of topic-based quests by level.'
+              : 'レベル別・テーマ別のコース一覧へ進みます。'}
+          </span>
         </button>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

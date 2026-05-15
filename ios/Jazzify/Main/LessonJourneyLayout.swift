@@ -19,6 +19,8 @@ enum LessonJourneyLayoutConstants {
     static let goalTopPad: CGFloat = 240
     static let topMargin: CGFloat = 120
     static let bottomMargin: CGFloat = 180
+    /// iPhone 1 カラム: レッスンノード中心の X（論理座標）。左一列で縦揃え。
+    static let phoneLessonColumnCenterX: CGFloat = 48
 }
 
 enum LessonJourneyNodeKind {
@@ -110,11 +112,13 @@ enum LessonJourneyLayoutBuilder {
     private static func cacheKey(
         lessons: [LessonJourneyInput],
         logicalWidth: CGFloat,
-        locale: AppLocale
+        locale: AppLocale,
+        phoneInlineTitles: Bool
     ) -> String {
         var hasher = Hasher()
         hasher.combine(logicalWidth)
         hasher.combine(locale.rawValue)
+        hasher.combine(phoneInlineTitles)
         hasher.combine(lessons.count)
         for lesson in lessons {
             hasher.combine(lesson.id)
@@ -126,19 +130,25 @@ enum LessonJourneyLayoutBuilder {
         return String(hasher.finalize())
     }
 
+    /// - Parameter phoneInlineTitles: iPhone 1 カラム時のみ true。レッスン波形を左寄せし、右にタイトル余地を空ける。
     static func build(
         lessons: [LessonJourneyInput],
         logicalWidth: CGFloat = LessonJourneyLayoutConstants.logicalWidth,
-        locale: AppLocale = .ja
+        locale: AppLocale = .ja,
+        phoneInlineTitles: Bool = false
     ) -> LessonJourneyLayout {
-        let key = cacheKey(lessons: lessons, logicalWidth: logicalWidth, locale: locale)
+        let key = cacheKey(
+            lessons: lessons,
+            logicalWidth: logicalWidth,
+            locale: locale,
+            phoneInlineTitles: phoneInlineTitles
+        )
         if let cached = layoutCache[key] {
             return cached
         }
 
-        let c = LessonJourneyLayoutConstants.self
-
         let grouped = groupByBlock(lessons: lessons, locale: locale)
+        let c = LessonJourneyLayoutConstants.self
         if grouped.isEmpty {
             let goalNode = LessonJourneyNode(
                 id: "__goal__",
@@ -182,11 +192,14 @@ enum LessonJourneyLayoutBuilder {
             var lessonNodes: [LessonJourneyNode] = []
             for (i, lesson) in group.lessons.enumerated() {
                 let y = firstLessonY - CGFloat(i) * c.nodeSpacing
-                let x = computeX(
-                    globalIndex: globalIndex,
-                    blockIndex: blockIndex,
-                    logicalWidth: logicalWidth
-                )
+                let x: CGFloat = phoneInlineTitles
+                    ? LessonJourneyLayoutConstants.phoneLessonColumnCenterX
+                    : computeX(
+                        globalIndex: globalIndex,
+                        blockIndex: blockIndex,
+                        logicalWidth: logicalWidth,
+                        lessonCenterXFraction: 0.5
+                    )
                 globalIndex += 1
                 let node = LessonJourneyNode(
                     id: lesson.id.uuidString,
@@ -274,8 +287,13 @@ enum LessonJourneyLayoutBuilder {
         }
     }
 
-    private static func computeX(globalIndex: Int, blockIndex: Int, logicalWidth: CGFloat) -> CGFloat {
-        let centerX = logicalWidth / 2
+    private static func computeX(
+        globalIndex: Int,
+        blockIndex: Int,
+        logicalWidth: CGFloat,
+        lessonCenterXFraction: CGFloat
+    ) -> CGFloat {
+        let centerX = logicalWidth * lessonCenterXFraction
         let c = LessonJourneyLayoutConstants.self
         let phase = (blockIndex % 2 == 0 ? CGFloat(0) : CGFloat.pi / 2) + CGFloat(blockIndex) * 0.35
         let raw = sin(CGFloat(globalIndex) * c.sineFrequency + phase) * c.amplitude

@@ -11,6 +11,9 @@
 
 export const JOURNEY_LOGICAL_WIDTH = 360;
 
+/** モバイル1列レイアウト時のレッスンノード中心 X（論理座標）。左一列で縦揃え。 */
+export const JOURNEY_PHONE_LESSON_COLUMN_CENTER_X = 48;
+
 /** レイアウトチューニング定数 */
 export const JOURNEY_CONSTANTS = {
   /** ノード同士の最小間隔 */
@@ -160,7 +163,15 @@ const groupByBlock = (lessons: JourneyLessonInput[], isEnglish: boolean): Groupe
  * グローバル index から X 座標を導出。
  * block ごとに位相をずらして、ブロック間で軌道が単調にならないようにする。
  */
-const computeX = (globalIndex: number, blockIndex: number, logicalWidth: number): number => {
+const computeX = (
+  globalIndex: number,
+  blockIndex: number,
+  logicalWidth: number,
+  phoneLeftLessonColumn: boolean,
+): number => {
+  if (phoneLeftLessonColumn) {
+    return JOURNEY_PHONE_LESSON_COLUMN_CENTER_X;
+  }
   const centerX = logicalWidth / 2;
   const { AMPLITUDE, SINE_FREQUENCY } = JOURNEY_CONSTANTS;
   const phase = (blockIndex % 2 === 0 ? 0 : Math.PI / 2) + blockIndex * 0.35;
@@ -171,6 +182,8 @@ const computeX = (globalIndex: number, blockIndex: number, logicalWidth: number)
 export interface BuildJourneyOptions {
   logicalWidth?: number;
   isEnglish?: boolean;
+  /** 狭いビューでレッスンを左の縦一列に揃える */
+  phoneLeftLessonColumn?: boolean;
 }
 
 /**
@@ -184,6 +197,7 @@ export const buildJourneyLayout = (
 ): JourneyLayout => {
   const logicalWidth = options.logicalWidth ?? JOURNEY_LOGICAL_WIDTH;
   const isEnglish = options.isEnglish ?? false;
+  const phoneLeftLessonColumn = options.phoneLeftLessonColumn ?? false;
 
   const {
     NODE_SPACING,
@@ -238,7 +252,7 @@ export const buildJourneyLayout = (
 
     const lessonNodes: JourneyNode[] = group.lessons.map((lesson, i) => {
       const y = firstLessonY - i * NODE_SPACING;
-      const x = computeX(globalIndex, blockIndex, logicalWidth);
+      const x = computeX(globalIndex, blockIndex, logicalWidth, phoneLeftLessonColumn);
       globalIndex += 1;
       const node: JourneyNode = {
         id: lesson.id,

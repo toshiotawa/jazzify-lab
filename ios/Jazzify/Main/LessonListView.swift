@@ -17,8 +17,16 @@ struct LessonListView: View {
     @State private var lessonToOpen: Lesson?
     /// マップを閉じたあと進捗を同期する対象（一覧で再 fetch するコース）
     @State private var lastJourneyCourseId: UUID?
+    @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
 
     private var locale: AppLocale { appState.locale }
+
+    /// クエスト一覧・マップ画面でのみ BGM を再開（詳細・マップ push 中は鳴らさない）。
+    private func resumeQuestBgmIfEligible() {
+        guard journeyCourse == nil, lessonToOpen == nil else { return }
+        guard !LessonMapAudio.shared.isMuted else { return }
+        LessonMapAudio.shared.play()
+    }
 
     private struct JourneyCourseLaunch: Identifiable {
         let id: UUID
@@ -53,14 +61,22 @@ struct LessonListView: View {
                                     allSpecificCoursesContent
                                 } else {
                                     if let mainQuest = mainQuestState {
-                                        mainQuestDashboard(mainQuest) {
-                                            continueMainQuest(mainQuest)
-                                            if UIDevice.current.userInterfaceIdiom != .pad {
+                                        mainQuestDashboard(
+                                            mainQuest,
+                                            scrollToChapterDetail: {
                                                 withAnimation(.easeInOut(duration: 0.24)) {
                                                     pageProxy.scrollTo("mainQuestDetail", anchor: .top)
                                                 }
+                                            },
+                                            onContinue: {
+                                                continueMainQuest(mainQuest)
+                                                if UIDevice.current.userInterfaceIdiom != .pad {
+                                                    withAnimation(.easeInOut(duration: 0.24)) {
+                                                        pageProxy.scrollTo("mainQuestDetail", anchor: .top)
+                                                    }
+                                                }
                                             }
-                                        }
+                                        )
                                     }
                                     specificCoursesPreview
                                 }
@@ -78,12 +94,8 @@ struct LessonListView: View {
             .task { await loadCourses() }
             .onAppear {
                 Task { await appState.ensureFreshBilling() }
-                if !LessonMapAudio.shared.isMuted {
-                    LessonMapAudio.shared.play()
-                }
-            }
-            .onDisappear {
-                LessonMapAudio.shared.stop()
+                isSoundMuted = LessonMapAudio.shared.isMuted
+                resumeQuestBgmIfEligible()
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -120,8 +132,24 @@ struct LessonListView: View {
                 lastJourneyCourseId = nil
                 Task { await reloadProgressForCourse(courseId: courseId) }
             }
+            .onChange(of: lessonToOpen?.id) { _ in
+                resumeQuestBgmIfEligible()
+            }
+            .onChange(of: journeyCourse?.id) { _ in
+                resumeQuestBgmIfEligible()
+            }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        let muted = LessonMapAudio.shared.toggleMuted()
+                        isSoundMuted = muted
+                        if !muted {
+                            resumeQuestBgmIfEligible()
+                        }
+                    } label: {
+                        Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .foregroundStyle(.white)
+                    }
                     Button { showLessonInfo = true } label: {
                         Image(systemName: "info.circle")
                             .foregroundStyle(.gray)
@@ -279,24 +307,56 @@ struct LessonListView: View {
     private var specificCoursesPreview: some View {
         Group {
             if !courses.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        sectionHeader(
-                            icon: "sparkles",
-                            title: locale == .ja ? "目的別コース" : "Specific Courses"
-                        )
-                        Spacer()
-                        Button {
-                            showingAllCourses = true
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text("See all")
-                                Image(systemName: "chevron.right")
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionHeader(
+                        icon: "sparkles",
+                        title: locale == .ja ? "目的別コース" : "Specific Courses"
+                    )
+
+                    Button {
+                        showingAllCourses = true
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .center, spacing: 8) {
+                                Text(locale == .ja ? "すべてのコースを見る" : "Browse all courses")
+                                    .font(.headline.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(Color(hex: "fde68a"))
                             }
-                            .font(.caption.bold())
-                            .foregroundStyle(Color(hex: "c4b5fd"))
+                            Text(locale == .ja
+                                 ? "レベル別・テーマ別のコース一覧へ進みます。"
+                                 : "Open the full catalog of topic-based quests by level.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color(hex: "e9d5ff").opacity(0.9))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(hex: "5b21b6").opacity(0.45),
+                                            Color(hex: "86198f").opacity(0.35),
+                                            Color(hex: "b45309").opacity(0.22),
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color(hex: "fde68a").opacity(0.42), lineWidth: 2)
+                                )
+                        )
+                        .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
                     }
+                    .buttonStyle(.plain)
 
                     ForEach(Array(courses.prefix(3))) { course in
                         courseRow(course, compact: true)
@@ -308,19 +368,23 @@ struct LessonListView: View {
         }
     }
 
-    private func mainQuestDashboard(_ state: MainQuestViewState, onContinue: @escaping () -> Void) -> some View {
+    private func mainQuestDashboard(
+        _ state: MainQuestViewState,
+        scrollToChapterDetail: @escaping () -> Void,
+        onContinue: @escaping () -> Void
+    ) -> some View {
         VStack(spacing: 12) {
             continueCard(state, onContinue: onContinue)
 
             if UIDevice.current.userInterfaceIdiom == .pad {
                 HStack(alignment: .top, spacing: 12) {
-                    journeyPanel(state)
+                    journeyPanel(state, scrollToChapterDetail: scrollToChapterDetail)
                     currentChapterDetailPanel(state)
                         .id("mainQuestDetail")
                 }
             } else {
                 VStack(spacing: 12) {
-                    journeyPanel(state)
+                    journeyPanel(state, scrollToChapterDetail: scrollToChapterDetail)
                     currentChapterDetailPanel(state)
                         .id("mainQuestDetail")
                 }
@@ -376,7 +440,7 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
-    private func journeyPanel(_ state: MainQuestViewState) -> some View {
+    private func journeyPanel(_ state: MainQuestViewState, scrollToChapterDetail: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "book",
@@ -386,7 +450,7 @@ struct LessonListView: View {
                 ScrollView {
                     VStack(spacing: 8) {
                         ForEach(state.blocks) { block in
-                            chapterRow(block, state: state)
+                            chapterRow(block, state: state, scrollToChapterDetail: scrollToChapterDetail)
                                 .id(block.blockNumber)
                         }
                     }
@@ -404,10 +468,15 @@ struct LessonListView: View {
         .background(questPanelBackground)
     }
 
-    private func chapterRow(_ block: MainQuestBlockState, state: MainQuestViewState) -> some View {
+    private func chapterRow(
+        _ block: MainQuestBlockState,
+        state: MainQuestViewState,
+        scrollToChapterDetail: @escaping () -> Void
+    ) -> some View {
         let isSelected = selectedBlock(in: state).blockNumber == block.blockNumber
         return Button {
             selectedMainQuestBlockNumber = block.blockNumber
+            scrollToChapterDetail()
         } label: {
             HStack(spacing: 10) {
                 QuestStageArtwork(stageNumber: block.stageNumber, rectangular: false)
@@ -497,14 +566,78 @@ struct LessonListView: View {
                     .stroke(Color.purple.opacity(0.35), lineWidth: 1)
             )
 
-            VStack(spacing: 6) {
-                ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in
-                    lessonRow(lesson, index: index, state: state)
-                }
-            }
+            chapterDetailLessonScroll(state: state, block: block)
         }
         .padding(12)
         .background(questPanelBackground)
+    }
+
+    /// Current Chapter のレッスン一覧: 約5件分の高さでスクロールし、フロンティアを中央付近へ（先頭・末尾は除外）。
+    private func chapterDetailLessonScroll(state: MainQuestViewState, block: MainQuestBlockState) -> some View {
+        let rowHeight: CGFloat = 52
+        let rowGap: CGFloat = 6
+        let viewportHeight = 5 * rowHeight + 4 * rowGap
+
+        return ScrollViewReader { lessonProxy in
+            ScrollView {
+                VStack(spacing: rowGap) {
+                    ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in
+                        lessonRow(lesson, index: index, state: state)
+                            .id(lesson.id)
+                    }
+                }
+            }
+            .frame(height: viewportHeight)
+            .onAppear {
+                scrollMainQuestLessonList(
+                    proxy: lessonProxy,
+                    block: block,
+                    frontier: state.frontierLesson,
+                    animated: false
+                )
+            }
+            .onChange(of: block.blockNumber) { _ in
+                scrollMainQuestLessonList(
+                    proxy: lessonProxy,
+                    block: block,
+                    frontier: state.frontierLesson,
+                    animated: true
+                )
+            }
+            .onChange(of: state.frontierLesson?.id) { _ in
+                scrollMainQuestLessonList(
+                    proxy: lessonProxy,
+                    block: block,
+                    frontier: state.frontierLesson,
+                    animated: true
+                )
+            }
+        }
+    }
+
+    private func scrollMainQuestLessonList(
+        proxy: ScrollViewProxy,
+        block: MainQuestBlockState,
+        frontier: Lesson?,
+        animated: Bool
+    ) {
+        guard let fid = frontier?.id,
+              let idx = block.lessons.firstIndex(where: { $0.id == fid }),
+              block.lessons.contains(where: { $0.id == fid })
+        else { return }
+        let lastIdx = block.lessons.count - 1
+        let anchor: UnitPoint = {
+            if idx == 0 { return .top }
+            if idx == lastIdx { return .bottom }
+            return .center
+        }()
+        if animated {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                proxy.scrollTo(fid, anchor: anchor)
+            }
+        } else {
+            proxy.scrollTo(fid, anchor: anchor)
+        }
     }
 
     private func lessonRow(_ lesson: Lesson, index: Int, state: MainQuestViewState) -> some View {
@@ -1037,6 +1170,9 @@ struct LessonDetailView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .onAppear {
+            LessonMapAudio.shared.stop()
+        }
         .task { await loadLessonDetail() }
         .onChange(of: appState.locale) { _ in
             Task { await loadLessonDetail() }

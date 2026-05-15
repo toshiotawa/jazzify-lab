@@ -4,6 +4,7 @@ import {
   computeFrontierLessonId,
   JOURNEY_CONSTANTS,
   JOURNEY_LOGICAL_WIDTH,
+  JOURNEY_PHONE_LESSON_COLUMN_CENTER_X,
   JourneyLessonInput,
 } from '../journeyLayout';
 
@@ -62,6 +63,17 @@ describe('buildJourneyLayout', () => {
       const gap = prev.y - curr.y;
       expect(gap).toBeCloseTo(JOURNEY_CONSTANTS.NODE_SPACING, 5);
     }
+  });
+
+  it('phoneLeftLessonColumn では全レッスンが左一列 (同一 X) に揃う', () => {
+    const lessons: JourneyLessonInput[] = [
+      makeLesson('l0', 1, 0, 0),
+      makeLesson('l1', 1, 1, 1),
+      makeLesson('l2', 2, 0, 2),
+    ];
+    const layout = buildJourneyLayout(lessons, { phoneLeftLessonColumn: true });
+    const xs = layout.blocks.flatMap(b => b.lessonNodes.map(n => n.x));
+    expect(xs.every(x => x === JOURNEY_PHONE_LESSON_COLUMN_CENTER_X)).toBe(true);
   });
 
   it('N=12 のブロックでも X が論理幅内に収まる', () => {
