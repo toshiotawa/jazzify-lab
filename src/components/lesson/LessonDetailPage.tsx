@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
 import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
+import { awardPlayerXp } from '@/platform/supabasePlayerXp';
 import { 
   fetchDetailedRequirementsProgress, 
   checkAllRequirementsCompleted,
@@ -27,6 +28,7 @@ import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
+import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
@@ -379,7 +381,14 @@ const LessonDetailPage: React.FC = () => {
           duration: 3000,
         },
       );
-      
+
+      try {
+        const xpAward = await awardPlayerXp('lesson_first_clear', lessonId, 100);
+        showPlayerXpToasts(toast, xpAward, isEnglishCopy);
+      } catch {
+        /* RPC 失敗でもクエスト完了は維持 */
+      }
+
       // 完了状態を即座に反映（ページに留まる）
       setLessonProgress(prev => prev 
         ? { ...prev, completed: true, completion_date: new Date().toISOString() } 

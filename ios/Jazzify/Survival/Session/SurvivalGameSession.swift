@@ -176,6 +176,19 @@ final class SurvivalGameSession: ObservableObject {
                     totalStages: SurvivalStageCatalog.totalStages(in: mapCategory),
                     mapCategory: mapCategory
                 )
+                do {
+                    let sourceId = "\(mapCategory.rawValue):\(stageNumber)"
+                    let award = try await self.supabase.awardPlayerXp(
+                        reason: "survival_stage_first_clear",
+                        sourceId: sourceId,
+                        amount: 80
+                    )
+                    await MainActor.run {
+                        PlayerLevelHub.shared.ingestAwardResponse(award)
+                    }
+                } catch {
+                    /* 初回クリア進捗は保存済み。XP が取れなくても致命ではない */
+                }
                 await MainActor.run { self.viewModel.endSupabaseClearReport(error: nil) }
             } catch {
                 await MainActor.run { self.viewModel.endSupabaseClearReport(error: error.localizedDescription) }

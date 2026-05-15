@@ -16,6 +16,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import MainQuestProgressSection from '@/components/dashboard/MainQuestProgressSection';
+import PlayerLevelSection from '@/components/dashboard/PlayerLevelSection';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 /**
@@ -178,6 +179,7 @@ const Dashboard: React.FC = () => {
                       </span>
                     </div>
                   ) : null}
+                  <PlayerLevelSection profile={profile} />
                 </div>
               </div>
             </div>

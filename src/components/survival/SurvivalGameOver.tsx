@@ -10,6 +10,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore, upsertSurvivalStageClear } from '@/platform/supabaseSurvival';
+import { awardPlayerXp } from '@/platform/supabasePlayerXp';
+import { showPlayerXpToasts } from '@/utils/playerXpToast';
+import { useToast } from '@/stores/toastStore';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 import {
   StageDefinition,
@@ -57,6 +60,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
   const [stageSaved, setStageSaved] = useState(false);
+  const toast = useToast();
 
   const isStageMode = !!stageDefinition;
   const isStageClear = result.isStageClear === true && isStageMode && !hintMode;
@@ -92,6 +96,16 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             getTotalStagesByCategory(stageCategory),
             stageCategory,
           );
+          try {
+            const xpAward = await awardPlayerXp(
+              'survival_stage_first_clear',
+              `${stageCategory}:${stageDefinition!.stageNumber}`,
+              80,
+            );
+            showPlayerXpToasts(toast, xpAward, isEnglishCopy);
+          } catch {
+            /* XP は非致命（初回のみ付与済みでも握りつぶさないとクリア進捗は保存済み） */
+          }
           setStageSaved(true);
           clearUserStatsCache(profile.id);
         } catch {
@@ -119,7 +133,19 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
     };
 
     saveResults();
-  }, [profile, difficulty, result, fetchProfile, characterId, isStageClear, stageDefinition, stageSaved]);
+  }, [
+    profile,
+    difficulty,
+    result,
+    fetchProfile,
+    characterId,
+    isStageClear,
+    stageDefinition,
+    stageSaved,
+    isLessonMode,
+    toast,
+    isEnglishCopy,
+  ]);
 
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);

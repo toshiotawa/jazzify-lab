@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TopView: View {
     @EnvironmentObject var appState: AppState
+    @ObservedObject private var playerXpHub = PlayerLevelHub.shared
     @State private var announcements: [AnnouncementRow] = []
     @State private var userStats: UserStats?
 
@@ -114,6 +115,41 @@ struct TopView: View {
                         .cornerRadius(12)
                     Spacer()
                 }
+            }
+
+            if let snap = playerXpHub.snapshot {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(locale == .ja ? "レベル" : "Level")
+                            .font(.caption.bold())
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        Text("Lv.\(snap.level)")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.cyan)
+                    }
+                    ProgressView(
+                        value: {
+                            let cap = max(snap.nextLevelXp, 1)
+                            return Double(min(snap.inLevelXp, cap))
+                        }(),
+                        total: Double(max(snap.nextLevelXp, 1))
+                    )
+                        .progressViewStyle(.linear)
+                        .tint(.cyan)
+                    Text(
+                        {
+                            let cap = max(snap.nextLevelXp, 1)
+                            let rem = max(cap - snap.inLevelXp, 0)
+                            return locale == .ja
+                                ? "次のレベルまで あと \(rem) EXP（\(snap.inLevelXp)/\(cap)）"
+                                : "\(rem) EXP to next (\(snap.inLevelXp)/\(cap))"
+                        }()
+                    )
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                .padding(.top, 4)
             }
         }
         .padding(20)
@@ -382,6 +418,7 @@ struct TopView: View {
         let (loadedStats, loadedMainQuestProgress) = await (statsTask, mainQuestTask)
         userStats = loadedStats
         mainQuestProgress = loadedMainQuestProgress
+        await playerXpHub.refreshFromServer()
     }
 }
 

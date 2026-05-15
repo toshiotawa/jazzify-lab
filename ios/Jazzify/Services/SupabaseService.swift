@@ -857,6 +857,106 @@ final class SupabaseService: Sendable {
         return result
     }
 
+    // MARK: - Player track XP (separate from diary `profiles.xp` / `profiles.level`)
+
+    struct PlayerXpLevelPayload: Equatable {
+        let level: Int
+        let totalXp: Int64
+        let inLevelXp: Int
+        let nextLevelXp: Int
+    }
+
+    private struct PlayerXpStateRaw: Decodable {
+        let error: String?
+        let total_xp: Int64?
+        let level: Int?
+        let in_level_xp: Int?
+        let next_level_xp: Int?
+    }
+
+    private struct PlayerXpAwardRaw: Decodable {
+        let error: String?
+        let gained_xp: Int?
+        let duplicate: Bool?
+        let previous_level: Int?
+        let new_level: Int?
+        let leveled_up: Bool?
+        let total_xp: Int64?
+        let in_level_xp: Int?
+        let next_level_xp: Int?
+    }
+
+    private struct AwardPlayerXpParams: Encodable {
+        let p_reason: String
+        let p_source_id: String
+        let p_amount: Int
+    }
+
+    private struct EmptyRpcParams: Encodable {}
+
+    func fetchPlayerLevelState() async throws -> PlayerXpLevelPayload {
+        let raw: PlayerXpStateRaw = try await client
+            .rpc("get_player_level_state", params: EmptyRpcParams())
+            .execute()
+            .value
+
+        if let err = raw.error, !err.isEmpty {
+            throw SupabaseServiceError.serverError(statusCode: 400, message: err)
+        }
+        guard let level = raw.level, let total = raw.total_xp, let inLv = raw.in_level_xp, let next = raw.next_level_xp else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        return PlayerXpLevelPayload(level: level, totalXp: total, inLevelXp: inLv, nextLevelXp: next)
+    }
+
+    func awardPlayerXp(reason: String, sourceId: String, amount: Int) async throws -> PlayerXpAwardPayload {
+        let params = AwardPlayerXpParams(
+            p_reason: reason,
+            p_source_id: sourceId.trimmingCharacters(in: .whitespacesAndNewlines),
+            p_amount: amount
+        )
+        let raw: PlayerXpAwardRaw = try await client
+            .rpc("award_player_xp", params: params)
+            .execute()
+            .value
+
+        if let err = raw.error, !err.isEmpty {
+            throw SupabaseServiceError.serverError(statusCode: 400, message: err)
+        }
+        guard
+            let gained = raw.gained_xp,
+            let prev = raw.previous_level,
+            let newLv = raw.new_level,
+            let total = raw.total_xp,
+            let inLv = raw.in_level_xp,
+            let next = raw.next_level_xp
+        else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        return PlayerXpAwardPayload(
+            gainedXp: gained,
+            duplicate: raw.duplicate ?? false,
+            previousLevel: prev,
+            newLevel: newLv,
+            leveledUp: raw.leveled_up ?? false,
+            totalXp: total,
+            inLevelXp: inLv,
+            nextLevelXp: next
+        )
+    }
+
+    /// Award payload already validated (no `error` field).
+    struct PlayerXpAwardPayload: Equatable {
+        let gainedXp: Int
+        let duplicate: Bool
+        let previousLevel: Int
+        let newLevel: Int
+        let leveledUp: Bool
+        let totalXp: Int64
+        let inLevelXp: Int
+        let nextLevelXp: Int
+    }
+
     // MARK: - Account Deletion
 
     func deleteAccount() async throws {

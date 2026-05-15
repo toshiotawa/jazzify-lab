@@ -941,6 +941,9 @@ export interface Profile {
   stripe_trial_end?: string;
   level?: number;
   xp?: number;
+  /** サバイバル・クエスト経路のプレイヤー用レベル（日記ランキング用 level/xp とは別） */
+  player_level?: number;
+  player_xp?: number;
   selected_title?: string;
 }
 

@@ -44,6 +44,10 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
                     self?.onScoreReport?(score)
                 }
             }
+        case "playerXpChanged":
+            Task {
+                await PlayerLevelHub.shared.refreshFromServer()
+            }
         default:
             break
         }
