@@ -1149,6 +1149,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
             enemyAvatarName: Self.avatarAssetName(stageId: stage.id, enemyId: enemyId),
             enemyAvatarFlipX: Self.shouldFlipEnemyAvatar(name: Self.avatarAssetName(stageId: stage.id, enemyId: enemyId)),
+            fixedCharacterPositions: false,
             showLobbyControls: showLobbyControls,
             isEnglishCopy: isEnglishCopy
         )

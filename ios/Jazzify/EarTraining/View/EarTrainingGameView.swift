@@ -35,6 +35,13 @@ struct EarTrainingGameView: View {
                     locale: locale,
                     onClose: onClose
                 )
+            } else if resolvedMode == .chordOSMD {
+                EarTrainingChordOSMDGameView(
+                    source: .id(stageId),
+                    lessonContext: lessonContext,
+                    locale: locale,
+                    onClose: onClose
+                )
             } else if let controller = controller, let audio = audio {
                 EarTrainingGameContent(
                     controller: controller,
@@ -106,6 +113,11 @@ struct EarTrainingGameView: View {
             }
             if stageDetail.resolvedMode == .chordQuiz {
                 self.resolvedMode = .chordQuiz
+                self.isLoading = false
+                return
+            }
+            if stageDetail.resolvedMode == .chordOSMD {
+                self.resolvedMode = .chordOSMD
                 self.isLoading = false
                 return
             }

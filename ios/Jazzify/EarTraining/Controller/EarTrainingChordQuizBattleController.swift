@@ -413,6 +413,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             keyFifths: question.keyFifths,
             title: nil,
             titleEn: nil,
+            musicXmlUrl: nil,
             audioUrl: Self.chordVoicingSelfPacedDrumLoopURL.absoluteString,
             loopDurationSec: 2,
             audioDurationSec: 2,
@@ -753,6 +754,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
             enemyAvatarName: enemyAvatarAssetName(),
             enemyAvatarFlipX: EarTrainingBattleController.shouldFlipEnemyAvatar(name: enemyAvatarAssetName()),
+            fixedCharacterPositions: false,
             showLobbyControls: showLobbyControls,
             isEnglishCopy: isEnglishCopy
         )

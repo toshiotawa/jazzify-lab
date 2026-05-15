@@ -815,6 +815,7 @@ final class EarTrainingBattleController: ObservableObject {
             playerAvatarName: Self.playerAvatarAssetName,
             enemyAvatarName: enemyAvatarName,
             enemyAvatarFlipX: enemyAvatarFlipX,
+            fixedCharacterPositions: false,
             showLobbyControls: showLobbyControls,
             isEnglishCopy: isEnglishCopy
         )

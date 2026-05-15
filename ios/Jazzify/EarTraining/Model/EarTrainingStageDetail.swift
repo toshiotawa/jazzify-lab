@@ -6,6 +6,7 @@ enum EarTrainingMode: String, Codable, Sendable {
     case phrase
     case chordVoicing = "chord_voicing"
     case chordQuiz = "chord_quiz"
+    case chordOSMD = "chord_osmd"
 }
 
 struct EarTrainingChordQuizItem: Codable, Identifiable, Sendable {
@@ -147,6 +148,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
                 keyFifths: phrase.keyFifths,
                 title: phrase.title,
                 titleEn: phrase.titleEn,
+                musicXmlUrl: phrase.musicXmlUrl,
                 audioUrl: phrase.audioUrl,
                 loopDurationSec: phrase.loopDurationSec,
                 audioDurationSec: phrase.audioDurationSec,
@@ -214,6 +216,7 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
     let keyFifths: Int?
     let title: String?
     let titleEn: String?
+    let musicXmlUrl: String?
     let audioUrl: String
     let loopDurationSec: Double
     let audioDurationSec: Double
@@ -228,6 +231,7 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
         case stageId = "stage_id"
         case orderIndex = "order_index"
         case titleEn = "title_en"
+        case musicXmlUrl = "music_xml_url"
         case audioUrl = "audio_url"
         case loopDurationSec = "loop_duration_sec"
         case audioDurationSec = "audio_duration_sec"

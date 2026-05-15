@@ -29,6 +29,9 @@ enum EarTrainingBattleEffectKind: String, Sendable {
     case fail
     case voicingCast
     case quotaReached
+    case osmdHammer
+    case osmdHammerReflect
+    case osmdMeteor
 }
 
 /// Web `EarTrainingBattleEffectCommand` と同等。
@@ -40,6 +43,8 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
     let damage: Int?
     let phraseNoteCount: Int?
     let originPoint: CGPoint?
+    let relatedEffectId: Int?
+    let travelDurationSec: Double?
 
     init(
         id: Int,
@@ -47,7 +52,9 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         label: String? = nil,
         damage: Int? = nil,
         phraseNoteCount: Int? = nil,
-        originPoint: CGPoint? = nil
+        originPoint: CGPoint? = nil,
+        relatedEffectId: Int? = nil,
+        travelDurationSec: Double? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -55,6 +62,8 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         self.damage = damage
         self.phraseNoteCount = phraseNoteCount
         self.originPoint = originPoint
+        self.relatedEffectId = relatedEffectId
+        self.travelDurationSec = travelDurationSec
     }
 }
 
@@ -167,6 +176,7 @@ struct EarTrainingBattleSceneSnapshot: Sendable, Equatable {
     let playerAvatarName: String
     let enemyAvatarName: String
     let enemyAvatarFlipX: Bool
+    let fixedCharacterPositions: Bool
     let showLobbyControls: Bool
     let isEnglishCopy: Bool
 }

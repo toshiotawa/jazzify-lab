@@ -183,6 +183,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var playerQuoteBubbleRoot: SKNode?
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
+    private var osmdHammerNodesByEffectId: [Int: SKSpriteNode] = [:]
 
     // MARK: - Init
 
@@ -257,6 +258,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         case .voicingCast: playVoicingCastEffect()
         case .complete: playCompleteEffect(command)
         case .quotaReached: playQuotaReachedEffect()
+        case .osmdHammer: playOSMDHammerEffect(command)
+        case .osmdHammerReflect: playOSMDHammerReflectEffect(command)
+        case .osmdMeteor: playOSMDMeteorEffect(command)
         case .miss: playEnemyAttackEffect(command, heavy: false)
         case .fail: playEnemyAttackEffect(command, heavy: true)
         }
@@ -1251,8 +1255,17 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             avatarAssetName: snapshot.enemyAvatarName,
             flipX: snapshot.enemyAvatarFlipX
         )
-        startCharacterAutoMotion(playerNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
-        startCharacterAutoMotion(enemyNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
+        if snapshot.fixedCharacterPositions {
+            if let playerNode {
+                playerNode.motion.state = .idle
+            }
+            if let enemyNode {
+                enemyNode.motion.state = .idle
+            }
+        } else {
+            startCharacterAutoMotion(playerNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
+            startCharacterAutoMotion(enemyNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
+        }
         layoutPlayerQuoteBubble()
     }
 
@@ -1541,6 +1554,95 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.showImpactBurst(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0), large: heavy)
             self.onEffectImpact?(command.id)
             self.knockCharacter(.player, distance: heavy ? -Self.battleLayoutPt(52) : -Self.battleLayoutPt(32), durationMs: heavy ? 290 : 210)
+        }
+    }
+
+    private func playOSMDHammerEffect(_ command: EarTrainingBattleEffectCommand) {
+        let travelDuration = max(0.12, min(4.2, command.travelDurationSec ?? 3.2))
+        holdCharacterForAction(.enemy, state: .attack, durationMs: min(980, travelDuration * 1000))
+        let anchors = battleAnchors()
+        let hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
+        hammer.position = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
+        hammer.zRotation = -18 * (.pi / 180)
+        osmdHammerNodesByEffectId[command.id] = hammer
+        effectLayer.addChild(hammer)
+
+        let move = SKAction.move(to: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), duration: travelDuration)
+        move.timingMode = .linear
+        let spin = SKAction.rotate(byAngle: 900 * (.pi / 180), duration: travelDuration)
+        hammer.run(SKAction.group([move, spin])) { [weak self, weak hammer] in
+            guard let self, let hammer else { return }
+            guard let active = self.osmdHammerNodesByEffectId[command.id], active === hammer else { return }
+            self.osmdHammerNodesByEffectId[command.id] = nil
+            hammer.removeFromParent()
+            self.flashCharacter(.player)
+            self.showImpactBurst(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0), large: false)
+            self.onEffectImpact?(command.id)
+        }
+    }
+
+    private func playOSMDHammerReflectEffect(_ command: EarTrainingBattleEffectCommand) {
+        holdCharacterForAction(.player, state: .cast, durationMs: Self.correctPlayerPoseDurationMs)
+        showPlayerPose(assetName: PlayerAvatarPoseAsset.castName, durationMs: Self.correctPlayerPoseDurationMs)
+        let anchors = battleAnchors()
+        let hammer: SKSpriteNode
+        if let relatedId = command.relatedEffectId,
+           let existing = osmdHammerNodesByEffectId.removeValue(forKey: relatedId) {
+            existing.removeAllActions()
+            hammer = existing
+        } else {
+            hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
+            hammer.position = CGPoint(x: anchors.player.x + Self.battleLayoutPt(26), y: anchors.player.castY)
+            effectLayer.addChild(hammer)
+        }
+        if hammer.parent == nil {
+            effectLayer.addChild(hammer)
+        }
+        hammer.zPosition = 55
+
+        let target = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY)
+        let move = SKAction.move(to: target, duration: 0.22)
+        move.timingMode = .easeIn
+        let spin = SKAction.rotate(byAngle: -900 * (.pi / 180), duration: 0.22)
+        hammer.run(SKAction.group([move, spin])) { [weak self, weak hammer] in
+            guard let self else { return }
+            hammer?.removeFromParent()
+            self.flashCharacter(.enemy)
+            self.showImpactBurst(at: target, color: UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1.0), large: false)
+            self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
+            self.onEffectImpact?(command.id)
+        }
+    }
+
+    private func playOSMDMeteorEffect(_ command: EarTrainingBattleEffectCommand) {
+        holdCharacterForAction(.player, state: .attack, durationMs: 1_380)
+        let anchors = battleAnchors()
+        showPlayerPoseSequence(
+            assetNames: PlayerAvatarPoseAsset.skillNames,
+            frameDurationMs: Self.skillPlayerPoseFrameMs,
+            restoreOnCompletion: false
+        )
+        showMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + Self.battleLayoutPt(12)), size: Self.battleLayoutPt(190))
+
+        let meteor = makeEffectSprite(name: "ear-training-effect-meteor", size: Self.battleLayoutPt(210))
+        let start = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(148), y: anchors.enemy.headY + Self.battleLayoutPt(230))
+        meteor.position = start
+        meteor.zRotation = -8 * (.pi / 180)
+        effectLayer.addChild(meteor)
+        let move = SKAction.move(to: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), duration: 0.82)
+        move.timingMode = .easeIn
+        let resize = SKAction.resize(toWidth: Self.battleLayoutPt(330), height: Self.battleLayoutPt(330), duration: 0.82)
+        let rotate = SKAction.rotate(toAngle: 10 * (.pi / 180), duration: 0.82, shortestUnitArc: false)
+        meteor.run(SKAction.group([move, resize, rotate])) { [weak self, weak meteor] in
+            guard let self else { return }
+            meteor?.removeFromParent()
+            self.flashCharacter(.enemy)
+            self.tintEnemy(color: UIColor(red: 1.000, green: 0.929, blue: 0.835, alpha: 1.0), durationMs: 720)
+            self.showImpactBurst(at: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), color: UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 1.0), large: true)
+            self.showScreenFlash(color: UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 1.0), alpha: 0.16)
+            self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
+            self.onEffectImpact?(command.id)
+            self.restorePlayerPose()
         }
     }
 
@@ -2092,7 +2194,16 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                     currentView.motion.token == token,
                     currentView.motion.state == state
                 else { return }
-                self.startCharacterAutoMotion(currentView, idleMinSec: Self.actionResumeIdleSec, idleMaxSec: Self.actionResumeIdleSec)
+                if self.snapshot?.fixedCharacterPositions == true {
+                    currentView.motion.state = .idle
+                    currentView.container.position = CGPoint(
+                        x: Self.clampCharacterX(currentView.motion.range.homeX, range: currentView.motion.range),
+                        y: self.floorYForHeight(max(320, self.size.height))
+                    )
+                    currentView.container.zRotation = 0
+                } else {
+                    self.startCharacterAutoMotion(currentView, idleMinSec: Self.actionResumeIdleSec, idleMaxSec: Self.actionResumeIdleSec)
+                }
             },
         ]), withKey: CharacterActionKey.actionHold)
     }
@@ -2114,7 +2225,16 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                     currentView.motion.token == token,
                     currentView.motion.state == .recover
                 else { return }
-                self.startCharacterAutoMotion(currentView, idleMinSec: Self.recoverIdleMinSec, idleMaxSec: Self.recoverIdleMaxSec)
+                if self.snapshot?.fixedCharacterPositions == true {
+                    currentView.motion.state = .idle
+                    currentView.container.position = CGPoint(
+                        x: Self.clampCharacterX(currentView.motion.range.homeX, range: currentView.motion.range),
+                        y: self.floorYForHeight(max(320, self.size.height))
+                    )
+                    currentView.container.zRotation = 0
+                } else {
+                    self.startCharacterAutoMotion(currentView, idleMinSec: Self.recoverIdleMinSec, idleMaxSec: Self.recoverIdleMaxSec)
+                }
             },
         ]), withKey: CharacterActionKey.recover)
     }
@@ -2134,6 +2254,17 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             return
         }
         guard view.motion.state != .dead else {
+            completion?()
+            return
+        }
+        if snapshot?.fixedCharacterPositions == true {
+            stopCharacterMotion(view)
+            view.motion.state = .idle
+            view.container.position = CGPoint(
+                x: Self.clampCharacterX(view.motion.range.homeX, range: view.motion.range),
+                y: floorYForHeight(max(320, size.height))
+            )
+            view.container.zRotation = 0
             completion?()
             return
         }
