@@ -12,6 +12,7 @@ struct LessonListView: View {
     @State private var showLessonInfo = false
     @State private var showSubscription = false
     @State private var showingAllCourses = false
+    @State private var selectedMainQuestBlockNumber: Int?
     @State private var journeyCourse: JourneyCourseLaunch?
     @State private var lessonToOpen: Lesson?
     /// マップを閉じたあと進捗を同期する対象（一覧で再 fetch するコース）
@@ -41,22 +42,31 @@ struct LessonListView: View {
                             .foregroundStyle(.gray)
                     }
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if let bannerKind = appState.paymentIssueBannerKind {
-                                PaymentIssueBannerView(kind: bannerKind, locale: locale)
-                            }
-
-                            if showingAllCourses {
-                                allSpecificCoursesContent
-                            } else {
-                                if let mainQuest = mainQuestState {
-                                    mainQuestDashboard(mainQuest)
+                    ScrollViewReader { pageProxy in
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                if let bannerKind = appState.paymentIssueBannerKind {
+                                    PaymentIssueBannerView(kind: bannerKind, locale: locale)
                                 }
-                                specificCoursesPreview
+
+                                if showingAllCourses {
+                                    allSpecificCoursesContent
+                                } else {
+                                    if let mainQuest = mainQuestState {
+                                        mainQuestDashboard(mainQuest) {
+                                            continueMainQuest(mainQuest)
+                                            if UIDevice.current.userInterfaceIdiom != .pad {
+                                                withAnimation(.easeInOut(duration: 0.24)) {
+                                                    pageProxy.scrollTo("mainQuestDetail", anchor: .top)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    specificCoursesPreview
+                                }
                             }
+                            .padding()
                         }
-                        .padding()
                     }
                 }
             }
@@ -68,6 +78,12 @@ struct LessonListView: View {
             .task { await loadCourses() }
             .onAppear {
                 Task { await appState.ensureFreshBilling() }
+                if !LessonMapAudio.shared.isMuted {
+                    LessonMapAudio.shared.play()
+                }
+            }
+            .onDisappear {
+                LessonMapAudio.shared.stop()
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -267,8 +283,7 @@ struct LessonListView: View {
                     HStack {
                         sectionHeader(
                             icon: "sparkles",
-                            title: locale == .ja ? "Specific Courses /" : "Specific Courses /",
-                            subtitle: locale == .ja ? "目的別コース" : "Focused courses"
+                            title: locale == .ja ? "目的別コース" : "Specific Courses"
                         )
                         Spacer()
                         Button {
@@ -293,27 +308,29 @@ struct LessonListView: View {
         }
     }
 
-    private func mainQuestDashboard(_ state: MainQuestViewState) -> some View {
+    private func mainQuestDashboard(_ state: MainQuestViewState, onContinue: @escaping () -> Void) -> some View {
         VStack(spacing: 12) {
-            continueCard(state)
+            continueCard(state, onContinue: onContinue)
 
             if UIDevice.current.userInterfaceIdiom == .pad {
                 HStack(alignment: .top, spacing: 12) {
                     journeyPanel(state)
                     currentChapterDetailPanel(state)
+                        .id("mainQuestDetail")
                 }
             } else {
                 VStack(spacing: 12) {
                     journeyPanel(state)
                     currentChapterDetailPanel(state)
+                        .id("mainQuestDetail")
                 }
             }
         }
     }
 
-    private func continueCard(_ state: MainQuestViewState) -> some View {
+    private func continueCard(_ state: MainQuestViewState, onContinue: @escaping () -> Void) -> some View {
         Button {
-            continueMainQuest(state)
+            onContinue()
         } label: {
             ZStack(alignment: .leading) {
                 QuestStageArtwork(stageNumber: state.currentBlock.stageNumber, rectangular: true)
@@ -363,8 +380,7 @@ struct LessonListView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "book",
-                title: "Your Journey /",
-                subtitle: locale == .ja ? "チャプター一覧" : "Chapters"
+                title: locale == .ja ? "チャプター" : "Chapters"
             )
             ScrollViewReader { proxy in
                 ScrollView {
@@ -389,10 +405,9 @@ struct LessonListView: View {
     }
 
     private func chapterRow(_ block: MainQuestBlockState, state: MainQuestViewState) -> some View {
-        Button {
-            if let firstPlayable = block.lessons.first(where: { state.accessGraph.lessonStates[$0.id]?.isUnlocked == true }) {
-                lessonToOpen = firstPlayable
-            }
+        let isSelected = selectedBlock(in: state).blockNumber == block.blockNumber
+        return Button {
+            selectedMainQuestBlockNumber = block.blockNumber
         } label: {
             HStack(spacing: 10) {
                 QuestStageArtwork(stageNumber: block.stageNumber, rectangular: false)
@@ -430,10 +445,10 @@ struct LessonListView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(block.isCurrent ? Color.green.opacity(0.10) : Color.white.opacity(0.04))
+                    .fill(isSelected ? Color.green.opacity(0.10) : Color.white.opacity(0.04))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(block.isCurrent ? Color.green.opacity(0.65) : Color.purple.opacity(0.18), lineWidth: 1)
+                            .stroke(isSelected ? Color.green.opacity(0.65) : Color.purple.opacity(0.18), lineWidth: 1)
                     )
             )
         }
@@ -443,12 +458,11 @@ struct LessonListView: View {
     }
 
     private func currentChapterDetailPanel(_ state: MainQuestViewState) -> some View {
-        let block = state.currentBlock
+        let block = selectedBlock(in: state)
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "flag.checkered",
-                title: "Current Chapter Detail /",
-                subtitle: locale == .ja ? "現在の章の詳細" : "Current chapter detail"
+                title: locale == .ja ? "現在の章の詳細" : "Current Chapter Detail"
             )
             ZStack(alignment: .leading) {
                 QuestStageArtwork(stageNumber: block.stageNumber, rectangular: true)
@@ -527,8 +541,11 @@ struct LessonListView: View {
                     .lineLimit(1)
                 Spacer()
                 if isFrontier {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(Color(hex: "fde68a"))
+                    Image("default-avater")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
                 }
                 if isCompleted {
                     Image(systemName: "checkmark.circle.fill")
@@ -557,18 +574,13 @@ struct LessonListView: View {
             .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
     }
 
-    private func sectionHeader(icon: String, title: String, subtitle: String) -> some View {
+    private func sectionHeader(icon: String, title: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .foregroundStyle(Color(hex: "fde68a"))
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title)
-                    .font(.caption.bold())
-                    .foregroundStyle(Color(hex: "fde68a"))
-                Text(subtitle)
-                    .font(.caption2.bold())
-                    .foregroundStyle(Color(hex: "fde68a").opacity(0.9))
-            }
+            Text(title)
+                .font(.caption.bold())
+                .foregroundStyle(Color(hex: "fde68a"))
         }
     }
 
@@ -592,11 +604,15 @@ struct LessonListView: View {
     }
 
     private func continueMainQuest(_ state: MainQuestViewState) {
-        if UIDevice.current.userInterfaceIdiom == .pad, let lesson = state.continueLesson {
-            lessonToOpen = lesson
-        } else {
-            openJourney(for: state.course)
+        selectedMainQuestBlockNumber = state.currentBlock.blockNumber
+    }
+
+    private func selectedBlock(in state: MainQuestViewState) -> MainQuestBlockState {
+        if let selectedMainQuestBlockNumber,
+           let block = state.blocks.first(where: { $0.blockNumber == selectedMainQuestBlockNumber && $0.isUnlocked }) {
+            return block
         }
+        return state.currentBlock
     }
 
     private func sortedLessons(_ lessons: [Lesson]) -> [Lesson] {

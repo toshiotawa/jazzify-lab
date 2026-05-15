@@ -22,6 +22,7 @@ import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment'
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 import { stageCardRectangularPath, stageCardSquarePath } from '@/utils/stageCardAssets';
 import { LessonMapAudio, LESSON_MAP_BGM_URL } from '@/utils/LessonMapAudio';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import {
   FaArrowLeft,
   FaBookOpen,
@@ -30,7 +31,6 @@ import {
   FaFlagCheckered,
   FaLock,
   FaPlay,
-  FaStar,
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
@@ -324,12 +324,6 @@ const LessonPage: React.FC = () => {
     window.location.hash = `#course?id=${courseId}`;
   }, []);
 
-  const openMainQuestContinue = useCallback((summary: MainQuestSummary) => {
-    const lesson = nextLessonForContinue(summary);
-    const focus = lesson ? `&focus=${lesson.id}` : '';
-    window.location.hash = `#course?id=${summary.course.id}${focus}`;
-  }, []);
-
   const openLesson = useCallback((lessonId: string) => {
     window.location.hash = `#lesson-detail?id=${lessonId}`;
   }, []);
@@ -485,7 +479,6 @@ const LessonPage: React.FC = () => {
                 <MainQuestDashboard
                   summary={mainQuestSummary}
                   isEnglishCopy={isEnglishCopy}
-                  onContinue={openMainQuestContinue}
                   onOpenLesson={openLesson}
                 />
               )}
@@ -586,18 +579,20 @@ const AllSpecificCoursesView: React.FC<AllSpecificCoursesViewProps> = ({
 interface MainQuestDashboardProps {
   summary: MainQuestSummary;
   isEnglishCopy: boolean;
-  onContinue: (summary: MainQuestSummary) => void;
   onOpenLesson: (lessonId: string) => void;
 }
 
 const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
   summary,
   isEnglishCopy,
-  onContinue,
   onOpenLesson,
 }) => {
   const journeyRef = useRef<HTMLDivElement>(null);
   const currentBlock = summary.currentBlock;
+  const [selectedBlockNumber, setSelectedBlockNumber] = useState<number | null>(null);
+  const selectedBlock = summary.blocks.find(block => (
+    block.blockNumber === selectedBlockNumber && block.isUnlocked
+  )) ?? currentBlock;
   const nextLesson = nextLessonForContinue(summary);
 
   useEffect(() => {
@@ -609,7 +604,17 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     }
   }, [currentBlock]);
 
-  if (!currentBlock) {
+  useEffect(() => {
+    if (!currentBlock) return;
+    setSelectedBlockNumber(previous => {
+      if (previous !== null && summary.blocks.some(block => block.blockNumber === previous && block.isUnlocked)) {
+        return previous;
+      }
+      return currentBlock.blockNumber;
+    });
+  }, [currentBlock, summary.blocks]);
+
+  if (!currentBlock || !selectedBlock) {
     return null;
   }
 
@@ -617,7 +622,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     <section className="space-y-3">
       <button
         type="button"
-        onClick={() => onContinue(summary)}
+        onClick={() => setSelectedBlockNumber(currentBlock.blockNumber)}
         className="group relative min-h-[132px] w-full overflow-hidden rounded-lg border border-violet-400/45 bg-slate-950 text-left shadow-[0_12px_40px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
       >
         <img
@@ -653,8 +658,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
         <div className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3">
           <SectionTitle
             icon={<FaBookOpen />}
-            title={isEnglishCopy ? 'Your Journey' : 'Your Journey'}
-            subtitle={isEnglishCopy ? 'Chapters' : 'チャプター一覧'}
+            title={isEnglishCopy ? 'Chapters' : 'チャプター'}
           />
           <div
             ref={journeyRef}
@@ -670,17 +674,12 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                   disabled={!block.isUnlocked}
                   className={cn(
                     'flex w-full items-center gap-3 rounded-lg border p-2 text-left transition-colors',
-                    block.isCurrent
+                    block.blockNumber === selectedBlock.blockNumber
                       ? 'border-emerald-300/55 bg-emerald-500/10'
                       : 'border-violet-400/15 bg-white/[0.035] hover:bg-white/[0.06]',
                     !block.isUnlocked && 'opacity-55 cursor-not-allowed',
                   )}
-                  onClick={() => {
-                    const firstPlayable = block.lessons.find(lesson => summary.accessGraph.lessonStates[lesson.id]?.isUnlocked);
-                    if (firstPlayable) {
-                      onOpenLesson(firstPlayable.id);
-                    }
-                  }}
+                  onClick={() => setSelectedBlockNumber(block.blockNumber)}
                 >
                   <img
                     src={stageCardSquarePath(block.stageNumber)}
@@ -714,13 +713,12 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
         <div className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3">
           <SectionTitle
             icon={<FaFlagCheckered />}
-            title={isEnglishCopy ? 'Current Chapter Detail' : 'Current Chapter Detail'}
-            subtitle={isEnglishCopy ? 'Current chapter detail' : '現在の章の詳細'}
+            title={isEnglishCopy ? 'Current Chapter Detail' : '現在の章の詳細'}
           />
           <div className="mt-3 overflow-hidden rounded-lg border border-violet-400/20">
             <div className="relative min-h-[116px]">
               <img
-                src={stageCardRectangularPath(currentBlock.stageNumber)}
+                src={stageCardRectangularPath(selectedBlock.stageNumber)}
                 alt=""
                 className="absolute inset-0 h-full w-full object-cover opacity-65"
                 loading="lazy"
@@ -728,23 +726,23 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
               <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-transparent" />
               <div className="relative z-10 max-w-[560px] p-4">
                 <p className="text-xs text-violet-200/80">
-                  {isEnglishCopy ? `Chapter ${currentBlock.blockNumber}` : `チャプター ${currentBlock.blockNumber}`}
+                  {isEnglishCopy ? `Chapter ${selectedBlock.blockNumber}` : `チャプター ${selectedBlock.blockNumber}`}
                 </p>
-                <h2 className="mt-1 text-base font-bold text-violet-50">{currentBlock.title}</h2>
-                {currentBlock.description && (
+                <h2 className="mt-1 text-base font-bold text-violet-50">{selectedBlock.title}</h2>
+                {selectedBlock.description && (
                   <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-violet-100/78">
-                    {currentBlock.description}
+                    {selectedBlock.description}
                   </p>
                 )}
                 <div className="mt-3 max-w-[280px]">
-                  <ProgressBar percent={currentBlock.totalCount > 0 ? (currentBlock.completedCount / currentBlock.totalCount) * 100 : 0} />
+                  <ProgressBar percent={selectedBlock.totalCount > 0 ? (selectedBlock.completedCount / selectedBlock.totalCount) * 100 : 0} />
                 </div>
               </div>
             </div>
           </div>
 
           <div className="mt-3 space-y-1.5">
-            {currentBlock.lessons.map((lesson, index) => {
+            {selectedBlock.lessons.map((lesson, index) => {
               const state = summary.accessGraph.lessonStates[lesson.id] ?? { isUnlocked: false, isCompleted: false };
               const isFrontier = summary.frontierLesson?.id === lesson.id;
               return (
@@ -779,7 +777,12 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                     </span>
                   </span>
                   {isFrontier && (
-                    <FaStar className="shrink-0 text-amber-200" aria-hidden />
+                    <img
+                      src={DEFAULT_AVATAR_URL}
+                      alt=""
+                      className="h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)]"
+                      draggable={false}
+                    />
                   )}
                   {state.isCompleted && <FaCheck className="shrink-0 text-emerald-300" />}
                 </button>
@@ -795,17 +798,13 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
 interface SectionTitleProps {
   icon: React.ReactNode;
   title: string;
-  subtitle: string;
 }
 
-const SectionTitle: React.FC<SectionTitleProps> = ({ icon, title, subtitle }) => {
+const SectionTitle: React.FC<SectionTitleProps> = ({ icon, title }) => {
   return (
     <div className="flex items-center gap-2">
       <span className="text-amber-200">{icon}</span>
-      <div>
-        <h2 className="text-sm font-bold text-amber-100">{title} /</h2>
-        <p className="text-xs font-semibold text-amber-100/90">{subtitle}</p>
-      </div>
+      <h2 className="text-sm font-bold text-amber-100">{title}</h2>
     </div>
   );
 };
@@ -843,9 +842,8 @@ const SpecificCoursesSection: React.FC<SpecificCoursesSectionProps> = ({
     <section className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <SectionTitle
-          icon={<FaStar />}
-          title={isEnglishCopy ? 'Specific Courses' : 'Specific Courses'}
-          subtitle={isEnglishCopy ? 'Focused courses' : '目的別コース'}
+          icon={<FaBookOpen />}
+          title={isEnglishCopy ? 'Specific Courses' : '目的別コース'}
         />
         <button
           type="button"
