@@ -325,7 +325,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         webView.scrollView.bounces = false
         webView.scrollView.contentInset = .zero
         context.coordinator.attach(webView)
-        webView.loadHTMLString(Self.html, baseURL: nil)
+        webView.loadHTMLString(Self.html, baseURL: Bundle.main.bundleURL)
         return webView
     }
 
@@ -496,7 +496,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           pointer-events: none;
         }
       </style>
-      <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.9.0/build/opensheetmusicdisplay.min.js"></script>
+      <script src="opensheetmusicdisplay.min.js"></script>
     </head>
     <body>
       <div id="viewport">

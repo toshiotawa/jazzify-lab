@@ -1577,7 +1577,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.effectLayer.add(reflected);
     }
     reflected.setAngle(18);
-    this.showCorrectPlayerPose();
+    this.showPlayerPose('cast', CORRECT_PLAYER_POSE_DURATION_MS);
     this.tweens.add({
       targets: reflected,
       x: anchors.enemy.x,

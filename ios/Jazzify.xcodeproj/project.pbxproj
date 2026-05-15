@@ -131,6 +131,7 @@
 		FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F76672005EE666A9B39BC95 /* SurvivalModels.swift */; };
 		FB81F1928B9632D5FF13FC83 /* C4.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 857DD3059AA2EE3BAFAE0DE9 /* C4.mp3 */; };
 		F1FE000000FE11FE000FE002 /* fire_magic_1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */; };
+		E92EE770002DD11EE000DD02 /* opensheetmusicdisplay.min.js in Resources */ = {isa = PBXBuildFile; fileRef = E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -140,6 +141,7 @@
 		0C8428EFA383E2266F3620DD /* MIDIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIManager.swift; sourceTree = "<group>"; };
 		0E7D765BC46E4F868B334BAF /* Bravura.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Bravura.otf; sourceTree = "<group>"; };
 		F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = fire_magic_1.mp3; sourceTree = "<group>"; };
+		E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = opensheetmusicdisplay.min.js; sourceTree = "<group>"; };
 		0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyLayout.swift; sourceTree = "<group>"; };
 		12AAB7776B432313249D043C /* FantasyStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FantasyStage.swift; sourceTree = "<group>"; };
 		1468DBA9C15E0A44DD589ADD /* ContactView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactView.swift; sourceTree = "<group>"; };
@@ -577,6 +579,7 @@
 				4C41E7C1555DBD179FEBC98A /* piano */,
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 				F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */,
+				E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -737,6 +740,7 @@
 				607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */,
 				EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */,
 				F1FE000000FE11FE000FE002 /* fire_magic_1.mp3 in Resources */,
+				E92EE770002DD11EE000DD02 /* opensheetmusicdisplay.min.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
