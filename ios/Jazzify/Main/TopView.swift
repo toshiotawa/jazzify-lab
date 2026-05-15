@@ -281,6 +281,8 @@ struct TopView: View {
             }
 
             if let latest = announcements.first {
+                let bodyMarkdown = latest.localizedContent(locale)
+                let previewText = AnnouncementMarkdownParsing.plainPreview(from: bodyMarkdown)
                 NavigationLink(destination: AnnouncementDetailView(announcement: latest)) {
                     HStack(alignment: .top, spacing: 8) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -288,11 +290,16 @@ struct TopView: View {
                                 .font(.subheadline.bold())
                                 .foregroundStyle(.white)
                                 .multilineTextAlignment(.leading)
-                            Text(latest.localizedContent(locale))
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                                .lineLimit(3)
-                                .multilineTextAlignment(.leading)
+                            if let thumbURL = AnnouncementMarkdownParsing.firstImageURL(in: bodyMarkdown) {
+                                AnnouncementDashboardThumbnail(url: thumbURL)
+                            }
+                            if !previewText.isEmpty {
+                                Text(previewText)
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                    .lineLimit(3)
+                                    .multilineTextAlignment(.leading)
+                            }
                             Text(latest.createdAt.formatted(date: .abbreviated, time: .omitted))
                                 .font(.caption2)
                                 .foregroundStyle(.gray.opacity(0.6))

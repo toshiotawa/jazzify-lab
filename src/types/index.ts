@@ -718,6 +718,9 @@ export interface EarTrainingChordQuizItem {
   id: string;
   stage_id: string;
   order_index: number;
+  measure_number?: number | null;
+  beat_offset?: number | null;
+  duration_beats?: number | null;
   chord_name: string;
   voicing: string[];
   voicing_staves: number[];

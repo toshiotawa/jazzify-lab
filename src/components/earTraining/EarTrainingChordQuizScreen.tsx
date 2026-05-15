@@ -9,7 +9,6 @@ import ChordVoicingStaff, {
 } from './ChordVoicingStaff';
 import type {
   ClearConditions,
-  EarTrainingChordQuizItem,
   EarTrainingChordVoicingAttempt,
   EarTrainingGameState,
   EarTrainingPhrase,
@@ -45,7 +44,14 @@ import {
   EarTrainingChordVoicingDrumLoop,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
-import { isQuizClear, pickNextQuizIndex } from '@/utils/earTrainingChordQuiz';
+import {
+  buildEarTrainingChordQuizQuestions,
+  getActiveChordInQuizQuestion,
+  isChordQuizQuestionCompleted,
+  isQuizClear,
+  pickNextQuizIndex,
+  type EarTrainingChordQuizQuestion,
+} from '@/utils/earTrainingChordQuiz';
 import {
   DEFAULT_AVATAR_URL,
   EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
@@ -115,25 +121,58 @@ const formatTime = (seconds: number): string => {
   return `${minutes}:${rest.toString().padStart(2, '0')}`;
 };
 
-const itemToPhraseChord = (item: EarTrainingChordQuizItem): EarTrainingPhraseChord => ({
-  id: item.id,
-  phrase_id: 'chord-quiz',
-  order_index: item.order_index,
-  chord_name: item.chord_name,
-  voicing: item.voicing,
-  voicing_staves: item.voicing_staves,
-});
+const buildQuizPhrase = (stageId: string, question: EarTrainingChordQuizQuestion, runKey: number): EarTrainingPhrase => {
+  const phraseId = `chord-quiz-${question.id}-${runKey}`;
+  return {
+    id: phraseId,
+    stage_id: stageId,
+    order_index: 0,
+    key_fifths: question.key_fifths,
+    audio_url: CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
+    loop_duration_sec: 2,
+    audio_duration_sec: 2,
+    note_count: 0,
+    chords: question.chords.map(chord => ({
+      ...chord,
+      phrase_id: phraseId,
+    })),
+  };
+};
 
-const buildQuizPhrase = (stageId: string, chord: EarTrainingPhraseChord, runKey: number): EarTrainingPhrase => ({
-  id: `chord-quiz-${chord.id}-${runKey}`,
-  stage_id: stageId,
-  order_index: 0,
-  audio_url: CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
-  loop_duration_sec: 2,
-  audio_duration_sec: 2,
-  note_count: 0,
-  chords: [chord],
-});
+const getQuestionKeyFifths = (
+  question: EarTrainingChordQuizQuestion | null,
+  stage: EarTrainingStage,
+): number => question?.key_fifths ?? stage.key_fifths ?? 0;
+
+const getQuestionNoteTotal = (question: EarTrainingChordQuizQuestion | null): number => (
+  question?.chords.reduce((sum, chord) => sum + (chord.voicing?.length ?? 0), 0) ?? 0
+);
+
+const getQuestionChordViews = (
+  question: EarTrainingChordQuizQuestion | null,
+  activeChordId: string | null,
+  active: boolean,
+): { id: string; name: string; active: boolean }[] => (
+  question?.chords.map(chord => ({
+    id: chord.id,
+    name: chord.chord_name,
+    active: active && chord.id === activeChordId,
+  })) ?? []
+);
+
+const buildQuestionStaffGroups = (
+  question: EarTrainingChordQuizQuestion | null,
+  measureOffset: 0 | 1,
+): ChordVoicingStaffGroup[] => (
+  question?.chords.map((chord, index) => ({
+    id: chord.id,
+    chordName: index === 0 ? chord.chord_name : '',
+    voicing: chord.voicing ?? [],
+    voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
+    measureOffset,
+    isRest: (chord.voicing?.length ?? 0) === 0,
+  })) ?? []
+);
 
 const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   stage,
@@ -158,9 +197,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const copy = useMemo(() => getEarTrainingGameCopy(isEnglishCopy), [isEnglishCopy]);
   const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(isEnglishCopy), [isEnglishCopy]);
 
-  const quizItems = useMemo(
-    () => (stage.chord_quiz_items ?? []).slice().sort((a, b) => a.order_index - b.order_index),
-    [stage.chord_quiz_items],
+  const quizQuestions = useMemo(
+    () => buildEarTrainingChordQuizQuestions(stage),
+    [stage],
   );
   const quizOrder = stage.quiz_question_order === 'sequential' ? 'sequential' : 'random';
   const quizDurationSec = stage.quiz_duration_seconds ?? 90;
@@ -172,10 +211,10 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
   const [phraseRunId, setPhraseRunId] = useState(0);
   const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
-  const [activeItemIndex, setActiveItemIndex] = useState(0);
-  const [previewItemIndex, setPreviewItemIndex] = useState(0);
-  const [displayedActiveItemIndex, setDisplayedActiveItemIndex] = useState(0);
-  const [displayedPreviewItemIndex, setDisplayedPreviewItemIndex] = useState(0);
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  const [previewQuestionIndex, setPreviewQuestionIndex] = useState(0);
+  const [displayedActiveQuestionIndex, setDisplayedActiveQuestionIndex] = useState(0);
+  const [displayedPreviewQuestionIndex, setDisplayedPreviewQuestionIndex] = useState(0);
   const [attempt, setAttempt] = useState<EarTrainingChordVoicingAttempt | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(quizDurationSec);
@@ -255,8 +294,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       staffShiftTimerRef.current = null;
       const next = staffShiftQueueRef.current.shift();
       if (next) {
-        setDisplayedActiveItemIndex(next.active);
-        setDisplayedPreviewItemIndex(next.preview);
+        setDisplayedActiveQuestionIndex(next.active);
+        setDisplayedPreviewQuestionIndex(next.preview);
       }
       if (staffShiftQueueRef.current.length > 0) {
         staffShiftTimerRef.current = setTimeout(step, MEASURE_SHIFT_DELAY_MS);
@@ -277,26 +316,14 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     });
   }, []);
 
-  const activeItem = quizItems[activeItemIndex] ?? null;
-  const previewItem = quizItems[previewItemIndex] ?? null;
+  const activeQuestion = quizQuestions[activeQuestionIndex] ?? null;
+  const previewQuestion = quizQuestions[previewQuestionIndex] ?? null;
   const activeChord = useMemo(
-    () => (activeItem ? itemToPhraseChord(activeItem) : null),
-    [activeItem],
+    () => getActiveChordInQuizQuestion(activeQuestion, attempt?.completedChordIds),
+    [activeQuestion, attempt],
   );
-  const previewChord = useMemo(
-    () => (previewItem ? itemToPhraseChord(previewItem) : null),
-    [previewItem],
-  );
-  const displayedActiveItem = quizItems[displayedActiveItemIndex] ?? null;
-  const displayedPreviewItem = quizItems[displayedPreviewItemIndex] ?? null;
-  const displayedActiveChord = useMemo(
-    () => (displayedActiveItem ? itemToPhraseChord(displayedActiveItem) : null),
-    [displayedActiveItem],
-  );
-  const displayedPreviewChord = useMemo(
-    () => (displayedPreviewItem ? itemToPhraseChord(displayedPreviewItem) : null),
-    [displayedPreviewItem],
-  );
+  const displayedActiveQuestion = quizQuestions[displayedActiveQuestionIndex] ?? null;
+  const displayedPreviewQuestion = quizQuestions[displayedPreviewQuestionIndex] ?? null;
   useEffect(() => { attemptRef.current = attempt; }, [attempt]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
@@ -501,32 +528,32 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, [applyQuizHpOutcome, triggerBattleEffect]);
 
   const advanceToNextQuestion = useCallback(() => {
-    if (quizItems.length === 0) {
+    if (quizQuestions.length === 0) {
       return;
     }
-    const nextActiveIdx = previewItemIndex;
-    const nextChord = quizItems[nextActiveIdx];
-    if (!nextChord) {
+    const nextActiveIdx = previewQuestionIndex;
+    const nextQuestion = quizQuestions[nextActiveIdx];
+    if (!nextQuestion) {
       return;
     }
-    const nextPreviewIdx = pickNextQuizIndex(quizItems, quizOrder, nextActiveIdx, randRef.current);
+    const nextPreviewIdx = pickNextQuizIndex(quizQuestions, quizOrder, nextActiveIdx, randRef.current);
     phraseRunNonceRef.current += 1;
     const runKey = phraseRunNonceRef.current;
-    const phrase = buildQuizPhrase(stage.id, itemToPhraseChord(nextChord), runKey);
+    const phrase = buildQuizPhrase(stage.id, nextQuestion, runKey);
     const nextAttempt = createChordVoicingAttempt(phrase);
     setPhraseRunId(runKey);
-    setActiveItemIndex(nextActiveIdx);
-    setPreviewItemIndex(nextPreviewIdx);
+    setActiveQuestionIndex(nextActiveIdx);
+    setPreviewQuestionIndex(nextPreviewIdx);
     setAttempt(nextAttempt);
     attemptRef.current = nextAttempt;
     attackGaugeEpochMsRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
     setEnemyAttackGaugePercent(0);
     staffShiftQueueRef.current.push({ active: nextActiveIdx, preview: nextPreviewIdx });
     runStaffShiftQueue();
-  }, [previewItemIndex, quizItems, quizOrder, runStaffShiftQueue, setEnemyAttackGaugePercent, stage.id]);
+  }, [previewQuestionIndex, quizQuestions, quizOrder, runStaffShiftQueue, setEnemyAttackGaugePercent, stage.id]);
 
   const startQuizInternal = useCallback(() => {
-    if (quizItems.length === 0) {
+    if (quizQuestions.length === 0) {
       setStatusText(isEnglishCopy ? 'No quiz items in stage' : '出題がありません');
       return;
     }
@@ -549,18 +576,18 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     attackGaugeEpochMsRef.current = null;
     setEnemyAttackGaugePercent(0);
 
-    const firstActive = pickNextQuizIndex(quizItems, quizOrder, null, randRef.current);
-    const firstPreview = pickNextQuizIndex(quizItems, quizOrder, firstActive, randRef.current);
-    setActiveItemIndex(firstActive);
-    setPreviewItemIndex(firstPreview);
-    setDisplayedActiveItemIndex(firstActive);
-    setDisplayedPreviewItemIndex(firstPreview);
+    const firstActive = pickNextQuizIndex(quizQuestions, quizOrder, null, randRef.current);
+    const firstPreview = pickNextQuizIndex(quizQuestions, quizOrder, firstActive, randRef.current);
+    setActiveQuestionIndex(firstActive);
+    setPreviewQuestionIndex(firstPreview);
+    setDisplayedActiveQuestionIndex(firstActive);
+    setDisplayedPreviewQuestionIndex(firstPreview);
     setPhraseRunId(0);
-    const chord = quizItems[firstActive];
-    if (!chord) {
+    const question = quizQuestions[firstActive];
+    if (!question) {
       return;
     }
-    const phrase = buildQuizPhrase(stage.id, itemToPhraseChord(chord), 0);
+    const phrase = buildQuizPhrase(stage.id, question, 0);
     const nextAttempt = createChordVoicingAttempt(phrase);
     setAttempt(nextAttempt);
     attemptRef.current = nextAttempt;
@@ -644,7 +671,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     isEnglishCopy,
     practiceMode,
     quizDurationSec,
-    quizItems,
+    quizQuestions,
     quizOrder,
     settings.musicVolume,
     setEnemyAttackGaugePercent,
@@ -668,16 +695,20 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return;
     }
     lastInputAtRef.current = nowTs;
-    if (gameStateRef.current !== 'playingPhrase' || !activeChord) {
+    if (gameStateRef.current !== 'playingPhrase') {
       return;
     }
     const currentAttempt = attemptRef.current;
     if (!currentAttempt) {
       return;
     }
+    const judgmentChord = getActiveChordInQuizQuestion(activeQuestion, currentAttempt.completedChordIds);
+    if (!judgmentChord) {
+      return;
+    }
     const result = handleChordVoicingNoteOn(
       currentAttempt,
-      activeChord,
+      judgmentChord,
       midiNote,
       QUIZ_ZERO_NOTE_DAMAGE,
       { wrongNotesPolicy: 'first_only_per_chord' },
@@ -694,7 +725,13 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return;
     }
 
-    triggerCompletionPulse(activeChord.id, 'harmonyComplete');
+    const questionCompleted = isChordQuizQuestionCompleted(activeQuestion, result.attempt.completedChordIds);
+    triggerCompletionPulse(judgmentChord.id, questionCompleted ? 'harmonyComplete' : 'voicingPartial');
+
+    if (!questionCompleted) {
+      triggerBattleEffect('voicingCast');
+      return;
+    }
 
     const nextCorrect = correctCountRef.current + 1;
     correctCountRef.current = nextCorrect;
@@ -709,7 +746,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       ? 0
       : randomIntInclusive(40, 50, randRef.current);
 
-    const origin = computeChordLabelOriginPoint(activeChord.id);
+    const origin = computeChordLabelOriginPoint(judgmentChord.id);
 
     const registerEnemyDamageImpact = () => {
       if (practiceModeRef.current || completionDamage <= 0) {
@@ -753,7 +790,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
     advanceToNextQuestion();
   }, [
-    activeChord,
+    activeQuestion,
     advanceToNextQuestion,
     applyQuizHpOutcome,
     computeChordLabelOriginPoint,
@@ -854,37 +891,20 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const showVoicingTargetHints = gameState === 'playingPhrase' || gameState === 'countIn';
 
   const staffVoicingGroups = useMemo((): ChordVoicingStaffGroup[] => {
-    if (!displayedActiveChord || !displayedPreviewChord) {
-      return [];
+    const activeGroups = buildQuestionStaffGroups(displayedActiveQuestion, 0);
+    if (!displayedPreviewQuestion || displayedPreviewQuestion.id === displayedActiveQuestion?.id) {
+      return activeGroups;
     }
-    const currentNoteTotal = displayedActiveChord.voicing?.length ?? 0;
-    const denseCurrentMeasureLayout = currentNoteTotal >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
     return [
-      {
-        id: displayedActiveChord.id,
-        chordName: displayedActiveChord.chord_name,
-        voicing: displayedActiveChord.voicing ?? [],
-        voicingStaves: displayedActiveChord.voicing_staves ?? EMPTY_STAVES,
-        measureOffset: 0,
-        isRest: false,
-      },
-      {
-        id: displayedPreviewChord.id,
-        chordName: displayedPreviewChord.chord_name,
-        voicing: displayedPreviewChord.voicing ?? [],
-        voicingStaves: displayedPreviewChord.voicing_staves ?? EMPTY_STAVES,
-        measureOffset: 1,
-        isRest: false,
-      },
+      ...activeGroups,
+      ...buildQuestionStaffGroups(displayedPreviewQuestion, 1),
     ];
-  }, [displayedActiveChord, displayedPreviewChord]);
+  }, [displayedActiveQuestion, displayedPreviewQuestion]);
 
   const staffDenseCurrentMeasureLayout = useMemo(() => {
-    if (!activeChord) {
-      return false;
-    }
-    return (activeChord.voicing?.length ?? 0) >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
-  }, [activeChord]);
+    const currentNoteTotal = getQuestionNoteTotal(displayedActiveQuestion);
+    return currentNoteTotal >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
+  }, [displayedActiveQuestion]);
 
   const staffCorrectPitchClassesByGroupId = useMemo(() => {
     const correctPitchClassesByGroupId = new Map<string, readonly number[]>();
@@ -1000,18 +1020,16 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,
     attackGaugeHidden: practiceMode,
     chords: [
-      ...(activeChord
-        ? [{ id: activeChord.id, name: activeChord.chord_name, active: showVoicingTargetHints }]
-        : []),
-      ...(previewChord && previewChord.id !== activeChord?.id
-        ? [{ id: previewChord.id, name: previewChord.chord_name, active: false }]
+      ...getQuestionChordViews(activeQuestion, activeChord?.id ?? null, showVoicingTargetHints),
+      ...(previewQuestion && previewQuestion.id !== activeQuestion?.id
+        ? getQuestionChordViews(previewQuestion, null, false)
         : []),
     ],
     phraseSlots: ['◯', '◯'],
     revealedNotes: [],
     currentNoteIndex: 0,
     slotKind: 'circle',
-    chordCompleted: [false, false],
+    chordCompleted: activeQuestion?.chords.map(chord => attempt?.completedChordIds.has(chord.id) ?? false) ?? [],
     countInValue,
     lastRank: null,
     showLobbyControls,
@@ -1020,6 +1038,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     lessonProgressText,
   }), [
     activeChord,
+    activeQuestion,
+    attempt,
     canChangePracticeMode,
     chordQuizBannerLine,
     countInValue,
@@ -1037,7 +1057,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     phraseRunId,
     playerHp,
     practiceMode,
-    previewChord,
+    previewQuestion,
     progressSaved,
     requiredCorrect,
     resultRankLine,
@@ -1109,7 +1129,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
             hideUnpressedNotes={hideStaffNotes}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
-            keyFifths={stage.key_fifths ?? 0}
+            keyFifths={getQuestionKeyFifths(displayedActiveQuestion, stage)}
             completionPulse={completionPulse}
           />
         </div>

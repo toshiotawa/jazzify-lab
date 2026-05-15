@@ -143,35 +143,16 @@ enum EarTrainingChordVoicingStaffLayout {
 extension EarTrainingChordVoicingStaffLayout {
     /// アクティブ出題 + 次プレビューを 2 小節レイアウトで返す（Web `staffVoicingGroups` 相当）。
     static func buildQuizGroups(
-        active: EarTrainingChordQuizItem?,
-        preview: EarTrainingChordQuizItem?,
+        active: EarTrainingChordQuiz.Question?,
+        preview: EarTrainingChordQuiz.Question?,
     ) -> (groups: [GroupInput], denseCurrentMeasureLayout: Bool) {
-        var groups: [GroupInput] = []
-        if let active {
-            groups.append(
-                GroupInput(
-                    id: active.id,
-                    chordName: active.chordName,
-                    voicing: active.voicing,
-                    voicingStaves: active.voicingStaves,
-                    measureOffset: 0,
-                    isRest: active.voicing.isEmpty
-                )
-            )
-        }
+        var groups = quizGroups(for: active, measureOffset: 0)
         if let preview, preview.id != active?.id {
-            groups.append(
-                GroupInput(
-                    id: preview.id,
-                    chordName: preview.chordName,
-                    voicing: preview.voicing,
-                    voicingStaves: preview.voicingStaves,
-                    measureOffset: 1,
-                    isRest: preview.voicing.isEmpty
-                )
-            )
+            groups.append(contentsOf: quizGroups(for: preview, measureOffset: 1))
         }
-        let currentCount = active?.voicing.count ?? 0
+        let currentCount = active?.chords.reduce(0) { sum, chord in
+            sum + (chord.voicing?.count ?? 0)
+        } ?? 0
         let dense = currentCount >= Self.denseNoteTotalThreshold
         return (groups, dense)
     }
@@ -209,5 +190,23 @@ extension EarTrainingChordVoicingStaffLayout {
             }
         }
         return out
+    }
+
+    private static func quizGroups(
+        for question: EarTrainingChordQuiz.Question?,
+        measureOffset: Int
+    ) -> [GroupInput] {
+        guard let question else { return [] }
+        return question.chords.enumerated().map { index, chord in
+            let voicing = chord.voicing ?? []
+            return GroupInput(
+                id: chord.id,
+                chordName: index == 0 ? chord.chordName : "",
+                voicing: voicing,
+                voicingStaves: chord.voicingStaves ?? [],
+                measureOffset: measureOffset,
+                isRest: voicing.isEmpty
+            )
+        }
     }
 }

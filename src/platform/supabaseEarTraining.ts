@@ -86,6 +86,9 @@ const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
   chord_quiz_items: (stage.chord_quiz_items ?? [])
     .map(item => ({
       ...item,
+      measure_number: item.measure_number == null ? null : Number(item.measure_number),
+      beat_offset: item.beat_offset == null ? null : Number(item.beat_offset),
+      duration_beats: item.duration_beats == null ? null : Number(item.duration_beats),
       voicing_staves: (item.voicing_staves ?? []).map(n => Number(n)),
     }))
     .sort((a, b) => a.order_index - b.order_index) as EarTrainingChordQuizItem[],

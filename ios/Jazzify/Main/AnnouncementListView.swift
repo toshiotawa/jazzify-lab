@@ -74,10 +74,14 @@ struct AnnouncementListView: View {
             }
 
             if isExpanded {
-                Text(item.localizedContent(locale))
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                AnnouncementRichContent(
+                    markdown: item.localizedContent(locale),
+                    textColor: .gray,
+                    textFont: .caption,
+                    imageMaxHeight: 400,
+                    imageCornerRadius: 8
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
 
                 if let urlString = item.linkUrl, let url = URL(string: urlString) {
                     let label = {

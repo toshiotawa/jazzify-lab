@@ -55,7 +55,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     /// アバター選択用の論理 ID。
     let enemyId: String
 
-    private let quizItems: [EarTrainingChordQuizItem]
+    private let quizQuestions: [EarTrainingChordQuiz.Question]
     private let questionOrder: EarTrainingChordQuiz.QuestionOrder
     private let requiredCorrectCount: Int
     private let quizDurationSec: Int
@@ -92,34 +92,37 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         Double.random(in: 0..<1)
     }
 
-    var currentActiveItem: EarTrainingChordQuizItem? {
-        guard activeQuizIndex >= 0 && activeQuizIndex < quizItems.count else { return nil }
-        return quizItems[activeQuizIndex]
+    var currentActiveQuestion: EarTrainingChordQuiz.Question? {
+        guard activeQuizIndex >= 0 && activeQuizIndex < quizQuestions.count else { return nil }
+        return quizQuestions[activeQuizIndex]
     }
 
-    private var previewItem: EarTrainingChordQuizItem? {
-        guard previewQuizIndex >= 0 && previewQuizIndex < quizItems.count else { return nil }
-        return quizItems[previewQuizIndex]
+    private var previewQuestion: EarTrainingChordQuiz.Question? {
+        guard previewQuizIndex >= 0 && previewQuizIndex < quizQuestions.count else { return nil }
+        return quizQuestions[previewQuizIndex]
     }
 
     /// HUD / スタッフレイアウト用プレビュー出題。
-    var currentPreviewQuizItem: EarTrainingChordQuizItem? {
-        previewItem
+    var currentPreviewQuestion: EarTrainingChordQuiz.Question? {
+        previewQuestion
     }
 
     /// 譜面オーバーレイ用（表示は論理より遅れることがある）。
-    var displayedStaffActiveItem: EarTrainingChordQuizItem? {
-        guard displayedStaffActiveQuizIndex >= 0 && displayedStaffActiveQuizIndex < quizItems.count else { return nil }
-        return quizItems[displayedStaffActiveQuizIndex]
+    var displayedStaffActiveQuestion: EarTrainingChordQuiz.Question? {
+        guard displayedStaffActiveQuizIndex >= 0 && displayedStaffActiveQuizIndex < quizQuestions.count else { return nil }
+        return quizQuestions[displayedStaffActiveQuizIndex]
     }
 
-    var displayedStaffPreviewItem: EarTrainingChordQuizItem? {
-        guard displayedStaffPreviewQuizIndex >= 0 && displayedStaffPreviewQuizIndex < quizItems.count else { return nil }
-        return quizItems[displayedStaffPreviewQuizIndex]
+    var displayedStaffPreviewQuestion: EarTrainingChordQuiz.Question? {
+        guard displayedStaffPreviewQuizIndex >= 0 && displayedStaffPreviewQuizIndex < quizQuestions.count else { return nil }
+        return quizQuestions[displayedStaffPreviewQuizIndex]
     }
 
     var activeChord: EarTrainingPhraseChordDetail? {
-        quizPhraseDetail?.chords?.first
+        EarTrainingChordQuiz.activeChord(
+            in: currentActiveQuestion,
+            completedChordIds: attempt?.completedChordIds
+        )
     }
 
     init(
@@ -138,7 +141,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         self.onExitCallback = onExit
         self.hudLabels = EarTrainingBattleHudLabels.make(isEnglish: isEnglishCopy)
         self.copy = EarTrainingGameCopy.make(isEnglish: isEnglishCopy)
-        self.quizItems = stage.sortedChordQuizItems()
+        self.quizQuestions = EarTrainingChordQuiz.buildQuestions(stage: stage)
         self.questionOrder = EarTrainingChordQuiz.QuestionOrder(sequential: stage.resolvedQuizQuestionOrderSequential)
         self.requiredCorrectCount = stage.resolvedQuizRequiredCorrectCount
         self.quizDurationSec = stage.resolvedQuizDurationSeconds
@@ -271,7 +274,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     func startBattle() {
-        guard !quizItems.isEmpty else {
+        guard !quizQuestions.isEmpty else {
             statusText = isEnglishCopy ? "No quiz items in stage." : "出題がありません。"
             publishSnapshot()
             return
@@ -296,13 +299,13 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         cancelCountdownTask()
 
         let firstActive = EarTrainingChordQuiz.pickNextQuizIndex(
-            items: quizItems,
+            items: quizQuestions,
             order: questionOrder,
             prevIndex: nil,
             rand: randomUnit
         )
         let firstPreview = EarTrainingChordQuiz.pickNextQuizIndex(
-            items: quizItems,
+            items: quizQuestions,
             order: questionOrder,
             prevIndex: firstActive,
             rand: randomUnit
@@ -381,31 +384,33 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func bootstrapPhraseAndAttempt() {
-        guard let item = currentActiveItem else {
+        guard let question = currentActiveQuestion else {
             quizPhraseDetail = nil
             attempt = nil
             return
         }
         let phraseId = UUID()
-        let chord = EarTrainingPhraseChordDetail(
-            id: item.id,
-            phraseId: phraseId,
-            orderIndex: item.orderIndex,
-            chordName: item.chordName,
-            measureNumber: nil,
-            beatOffset: nil,
-            durationBeats: nil,
-            startTimeSec: nil,
-            endTimeSec: nil,
-            voicing: item.voicing,
-            voicingStaves: item.voicingStaves,
-            quote: nil
-        )
+        let chords = question.chords.map { chord in
+            EarTrainingPhraseChordDetail(
+                id: chord.id,
+                phraseId: phraseId,
+                orderIndex: chord.orderIndex,
+                chordName: chord.chordName,
+                measureNumber: chord.measureNumber,
+                beatOffset: chord.beatOffset,
+                durationBeats: chord.durationBeats,
+                startTimeSec: chord.startTimeSec,
+                endTimeSec: chord.endTimeSec,
+                voicing: chord.voicing,
+                voicingStaves: chord.voicingStaves,
+                quote: chord.quote
+            )
+        }
         let phraseDetail = EarTrainingPhraseDetail(
             id: phraseId,
             stageId: stage.id,
             orderIndex: 0,
-            keyFifths: nil,
+            keyFifths: question.keyFifths,
             title: nil,
             titleEn: nil,
             audioUrl: Self.chordVoicingSelfPacedDrumLoopURL.absoluteString,
@@ -413,7 +418,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             audioDurationSec: 2,
             noteCount: 0,
             notes: [],
-            chords: [chord],
+            chords: chords,
             demoLoops: []
         )
         quizPhraseDetail = phraseDetail
@@ -491,14 +496,32 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
 
         attempt = result.attempt
-        correctCount += 1
+        let questionCompleted = EarTrainingChordQuiz.isQuestionCompleted(
+            currentActiveQuestion,
+            completedChordIds: result.attempt.completedChordIds
+        )
 
         staffCompletionPulseEventKey &+= 1
         staffCompletionPulse = ChordVoicingCompletionPulse(
             groupId: judged.id,
-            kind: .harmonyComplete,
+            kind: questionCompleted ? .harmonyComplete : .voicingPartial,
             eventKey: staffCompletionPulseEventKey
         )
+
+        guard questionCompleted else {
+            _ = triggerBattleEffect(
+                kind: .voicingCast,
+                label: nil,
+                damage: nil,
+                phraseNoteCount: nil,
+                originPoint: nil
+            )
+            publishSnapshot()
+            updatePlayerQuoteBubble()
+            return
+        }
+
+        correctCount += 1
 
         if correctCount >= requiredCorrectCount, !quotaCelebrationFired {
             quotaCelebrationFired = true
@@ -625,7 +648,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         phraseRunId &+= 1
         activeQuizIndex = previewQuizIndex
         previewQuizIndex = EarTrainingChordQuiz.pickNextQuizIndex(
-            items: quizItems,
+            items: quizQuestions,
             order: questionOrder,
             prevIndex: activeQuizIndex,
             rand: randomUnit
@@ -848,16 +871,27 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     var hudModel: EarTrainingHudModel {
         var chips: [EarTrainingChordChip] = []
         let chipActive = (gameState == .playingPhrase || gameState == .countIn) && !quizEnded
-        if let a = currentActiveItem, chipActive {
-            chips.append(EarTrainingChordChip(id: a.id, name: a.chordName, active: resolvedShowVoicingHints))
-        }
-        if let p = previewItem {
-            let dup = !(currentActiveItem.map { $0.id == p.id } ?? false)
-            if dup {
-                chips.append(EarTrainingChordChip(id: p.id, name: p.chordName, active: false))
+        let activeChordId = activeChord?.id
+        if let question = currentActiveQuestion, chipActive {
+            for chord in question.chords {
+                chips.append(
+                    EarTrainingChordChip(
+                        id: chord.id,
+                        name: chord.chordName,
+                        active: resolvedShowVoicingHints && chord.id == activeChordId
+                    )
+                )
             }
         }
-        let slotCompleted = quizItems.indices.map { _ in false }
+        if let preview = previewQuestion, preview.id != currentActiveQuestion?.id {
+            for chord in preview.chords {
+                chips.append(EarTrainingChordChip(id: chord.id, name: chord.chordName, active: false))
+            }
+        }
+        let questionCompleted = EarTrainingChordQuiz.isQuestionCompleted(
+            currentActiveQuestion,
+            completedChordIds: attempt?.completedChordIds ?? []
+        )
         return EarTrainingHudModel(
             playerHp: practiceMode ? stage.playerHp : playerHp,
             playerMaxHp: stage.playerHp,
@@ -872,7 +906,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             gameState: gameState,
             phraseRunId: phraseRunId,
             chordChips: chips,
-            slotRow: .chordVoicing(slotCount: 1, completed: slotCompleted, currentIndex: 0)
+            slotRow: .chordVoicing(slotCount: 1, completed: [questionCompleted], currentIndex: 0)
         )
     }
 

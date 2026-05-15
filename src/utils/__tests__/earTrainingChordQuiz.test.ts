@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { EarTrainingChordQuizItem, EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import {
+  buildEarTrainingChordQuizQuestions,
+  getActiveChordInQuizQuestion,
+  isChordQuizQuestionCompleted,
   pickNextQuizIndex,
   isQuizClear,
 } from '@/utils/earTrainingChordQuiz';
@@ -49,5 +53,98 @@ describe('isQuizClear', () => {
   it('checks threshold', () => {
     expect(isQuizClear(10, 10)).toBe(true);
     expect(isQuizClear(9, 10)).toBe(false);
+  });
+});
+
+const buildQuizItem = (
+  overrides: Partial<EarTrainingChordQuizItem> & { id: string; order_index: number },
+): EarTrainingChordQuizItem => ({
+  id: overrides.id,
+  stage_id: overrides.stage_id ?? 'stage-1',
+  order_index: overrides.order_index,
+  measure_number: overrides.measure_number,
+  beat_offset: overrides.beat_offset,
+  duration_beats: overrides.duration_beats,
+  chord_name: overrides.chord_name ?? 'CM7',
+  voicing: overrides.voicing ?? ['C4', 'E4', 'G4', 'B4'],
+  voicing_staves: overrides.voicing_staves ?? [1, 1, 1, 1],
+});
+
+const buildPhraseChord = (
+  overrides: Partial<EarTrainingPhraseChord> & { id: string; order_index: number },
+): EarTrainingPhraseChord => ({
+  id: overrides.id,
+  phrase_id: overrides.phrase_id ?? 'phrase-1',
+  order_index: overrides.order_index,
+  chord_name: overrides.chord_name ?? 'CM7',
+  measure_number: overrides.measure_number,
+  beat_offset: overrides.beat_offset,
+  duration_beats: overrides.duration_beats,
+  start_time_sec: overrides.start_time_sec,
+  end_time_sec: overrides.end_time_sec,
+  voicing: overrides.voicing ?? ['C4', 'E4', 'G4', 'B4'],
+  voicing_staves: overrides.voicing_staves ?? [1, 1, 1, 1],
+});
+
+const buildPhrase = (
+  chords: EarTrainingPhraseChord[],
+  overrides: Partial<EarTrainingPhrase> = {},
+): EarTrainingPhrase => ({
+  id: overrides.id ?? 'phrase-1',
+  stage_id: overrides.stage_id ?? 'stage-1',
+  order_index: overrides.order_index ?? 0,
+  key_fifths: overrides.key_fifths,
+  audio_url: overrides.audio_url ?? 'https://example.com/phrase.mp3',
+  loop_duration_sec: overrides.loop_duration_sec ?? 4,
+  audio_duration_sec: overrides.audio_duration_sec ?? 4,
+  note_count: overrides.note_count ?? 0,
+  chords,
+});
+
+describe('buildEarTrainingChordQuizQuestions', () => {
+  it('groups quiz items with the same measure_number into one question', () => {
+    const questions = buildEarTrainingChordQuizQuestions({
+      chord_quiz_items: [
+        buildQuizItem({ id: 'm1-b2', order_index: 1, measure_number: 1, beat_offset: 3, chord_name: 'G7' }),
+        buildQuizItem({ id: 'm2-b1', order_index: 2, measure_number: 2, beat_offset: 1, chord_name: 'FM7' }),
+        buildQuizItem({ id: 'm1-b1', order_index: 0, measure_number: 1, beat_offset: 1, chord_name: 'CM7' }),
+      ],
+    });
+
+    expect(questions).toHaveLength(2);
+    expect(questions[0].measure_number).toBe(1);
+    expect(questions[0].chords.map(chord => chord.id)).toEqual(['m1-b1', 'm1-b2']);
+    expect(questions[1].measure_number).toBe(2);
+    expect(questions[1].chords.map(chord => chord.id)).toEqual(['m2-b1']);
+  });
+
+  it('keeps legacy quiz items without measure_number as one chord per question', () => {
+    const questions = buildEarTrainingChordQuizQuestions({
+      chord_quiz_items: [
+        buildQuizItem({ id: 'c1', order_index: 0 }),
+        buildQuizItem({ id: 'c2', order_index: 1 }),
+      ],
+    });
+
+    expect(questions).toHaveLength(2);
+    expect(questions.map(question => question.chords.length)).toEqual([1, 1]);
+  });
+
+  it('falls back to phrase chords and treats a completed measure as one question', () => {
+    const first = buildPhraseChord({ id: 'c1', order_index: 0, measure_number: 1, beat_offset: 1 });
+    const second = buildPhraseChord({ id: 'c2', order_index: 1, measure_number: 1, beat_offset: 3 });
+    const third = buildPhraseChord({ id: 'c3', order_index: 2, measure_number: 2, beat_offset: 1 });
+    const questions = buildEarTrainingChordQuizQuestions({
+      chord_quiz_items: [],
+      phrases: [buildPhrase([third, second, first], { key_fifths: -1 })],
+    });
+
+    expect(questions).toHaveLength(2);
+    expect(questions[0].key_fifths).toBe(-1);
+    expect(getActiveChordInQuizQuestion(questions[0], new Set())).toBe(first);
+    expect(isChordQuizQuestionCompleted(questions[0], new Set(['c1']))).toBe(false);
+    expect(getActiveChordInQuizQuestion(questions[0], new Set(['c1']))).toBe(second);
+    expect(isChordQuizQuestionCompleted(questions[0], new Set(['c1', 'c2']))).toBe(true);
+    expect(questions[1].chords.map(chord => chord.id)).toEqual(['c3']);
   });
 });

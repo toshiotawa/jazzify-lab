@@ -12,6 +12,9 @@ struct EarTrainingChordQuizItem: Codable, Identifiable, Sendable {
     let id: UUID
     let stageId: UUID
     let orderIndex: Int
+    let measureNumber: Int?
+    let beatOffset: Double?
+    let durationBeats: Double?
     let chordName: String
     let voicing: [String]
     let voicingStaves: [Int]
@@ -20,6 +23,9 @@ struct EarTrainingChordQuizItem: Codable, Identifiable, Sendable {
         case id
         case stageId = "stage_id"
         case orderIndex = "order_index"
+        case measureNumber = "measure_number"
+        case beatOffset = "beat_offset"
+        case durationBeats = "duration_beats"
         case chordName = "chord_name"
         case voicing
         case voicingStaves = "voicing_staves"

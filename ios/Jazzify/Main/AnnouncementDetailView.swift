@@ -21,10 +21,7 @@ struct AnnouncementDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(.gray.opacity(0.6))
 
-                    Text(announcement.localizedContent(locale))
-                        .font(.body)
-                        .foregroundStyle(.gray)
-                        .fixedSize(horizontal: false, vertical: true)
+                    AnnouncementRichContent(markdown: announcement.localizedContent(locale))
 
                     if let urlString = announcement.linkUrl, let url = URL(string: urlString) {
                         let label = linkLabel(urlString: urlString)
