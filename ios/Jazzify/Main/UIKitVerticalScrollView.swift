@@ -1,6 +1,32 @@
 import SwiftUI
 import UIKit
 
+fileprivate final class PendingScrollUIScrollView: UIScrollView {
+    var pendingTargetY: CGFloat?
+    var pendingAnimated = false
+    var onApplied: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        applyPendingIfReady()
+    }
+
+    func applyPendingIfReady() {
+        guard let targetY = pendingTargetY else { return }
+        let viewport = bounds.height
+        let contentH = contentSize.height
+        guard viewport > 0, contentH > 0 else { return }
+        let rawOffset = targetY - viewport / 2
+        let maxOffset = max(0, contentH - viewport)
+        let clamped = max(0, min(maxOffset, rawOffset))
+        setContentOffset(CGPoint(x: 0, y: clamped), animated: pendingAnimated)
+        pendingTargetY = nil
+        let cb = onApplied
+        onApplied = nil
+        cb?()
+    }
+}
+
 struct UIKitVerticalViewport: Equatable {
     var offsetY: CGFloat = 0
     var height: CGFloat = 0
@@ -92,7 +118,7 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
+        let scrollView = PendingScrollUIScrollView()
         scrollView.backgroundColor = .clear
         scrollView.showsVerticalScrollIndicator = false
         scrollView.showsHorizontalScrollIndicator = false
@@ -142,28 +168,18 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
 
         context.coordinator.publishViewportIfNeeded(from: uiView)
 
+        guard let targeted = uiView as? PendingScrollUIScrollView else { return }
+
         if let targetY = scrollTargetY {
-            let animated = self.animated
-            let apply: (UIScrollView) -> Void = { sv in
-                let viewport = sv.bounds.height
-                guard viewport > 0 else { return }
-                let contentH = sv.contentSize.height
-                let rawOffset = targetY - viewport / 2
-                let maxOffset = max(0, contentH - viewport)
-                let clamped = max(0, min(maxOffset, rawOffset))
-                sv.setContentOffset(CGPoint(x: 0, y: clamped), animated: animated)
+            targeted.pendingTargetY = targetY
+            targeted.pendingAnimated = animated
+            targeted.onApplied = { [weak coordinator = context.coordinator] in
+                coordinator?.scrollTargetYBinding.wrappedValue = nil
             }
-
+            targeted.applyPendingIfReady()
             DispatchQueue.main.async {
-                apply(uiView)
-                context.coordinator.publishViewportIfNeeded(from: uiView)
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    apply(uiView)
-                    context.coordinator.publishViewportIfNeeded(from: uiView)
-                }
-
-                context.coordinator.scrollTargetYBinding.wrappedValue = nil
+                targeted.applyPendingIfReady()
+                context.coordinator.publishViewportIfNeeded(from: targeted)
             }
         }
     }
