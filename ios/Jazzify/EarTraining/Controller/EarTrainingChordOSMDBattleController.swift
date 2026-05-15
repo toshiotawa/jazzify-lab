@@ -11,8 +11,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private static let hammerLeadSec: Double = 2.4
     private static let hammerImpactOffsetSec: Double = 0.2
     private static let effectClearPaddingMs: Double = 420
-    private static let phraseTransitionDelayNs: UInt64 = 220_000_000
-    private static let phraseTransitionDamageExtraNs: UInt64 = 650_000_000
     /// フレーズ終了検知のセーフティパディング。`loop_duration_sec` の直後ではなく、
     /// 最後のノーツの判定窓と被ダメージ用ハンマーが着弾し終わるまで待つ（WEB の `PHRASE_END_PADDING_SEC` 相当）。
     private static let phraseEndPaddingSec: Double = 0.08
@@ -89,7 +87,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var musicXMLCache: [String: MusicXmlPrepared] = [:]
 
     private var countdownTask: Task<Void, Never>?
-    private var transitionTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
     private var battleEffectClearTasks: [Int: Task<Void, Never>] = [:]
     private var phrasePrepareTask: Task<Void, Never>?
@@ -660,20 +657,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         let nextIndex = (phraseIndex + 1) % max(1, phrases.count)
         guard enemyHp > 0, playerHp > 0 else { return }
-
-        let hasDamageEffect = completionDamageAmount > 0 || playerFailDamage > 0
-        let delayNs = hasDamageEffect
-            ? Self.phraseTransitionDelayNs + Self.phraseTransitionDamageExtraNs
-            : Self.phraseTransitionDelayNs
-        gameState = .transitionToNextPhrase
-        publishSnapshot()
-        transitionTask?.cancel()
-        transitionTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: delayNs)
-            guard let self else { return }
-            guard self.enemyHp > 0, self.playerHp > 0 else { return }
-            self.startPhrase(at: nextIndex)
-        }
+        startPhrase(at: nextIndex)
     }
 
     private func failRemainingTargets() {
@@ -887,18 +871,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             isEnglishCopy: isEnglishCopy
         )
         scene?.applySnapshot(snapshot)
-        scene?.setPlayerQuote(playerQuoteText())
-    }
-
-    private func playerQuoteText() -> String? {
-        guard gameState == .playingPhrase else { return nil }
-        guard targets.isEmpty == false else { return nil }
-        return "\(completedTargetCount)/\(targets.count)"
     }
 
     private func cancelAllTasks(keepsAudio: Bool = false) {
         countdownTask?.cancel(); countdownTask = nil
-        transitionTask?.cancel(); transitionTask = nil
         feedbackTask?.cancel(); feedbackTask = nil
         for (_, task) in battleEffectClearTasks {
             task.cancel()

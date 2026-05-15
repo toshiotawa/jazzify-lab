@@ -91,7 +91,6 @@ type PendingImpactHandler = () => void;
 const INPUT_COOLDOWN_MS = 20;
 const BATTLE_EFFECT_CLEAR_MS = 900;
 const PHRASE_END_PADDING_SEC = 0.08;
-const OSMD_BONUS_ATTACK_DELAY_MS = 220;
 const NO_DAMAGE_CONFIG = {
   perCorrectNote: 0,
   good: 0,
@@ -565,10 +564,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
 
     const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
-    const hasDamageEffect = completionDamage > 0 || playerFailDamage > 0;
-    scheduleTimer(() => {
-      startPhraseRef.current(nextIndex);
-    }, hasDamageEffect ? OSMD_BONUS_ATTACK_DELAY_MS + 650 : OSMD_BONUS_ATTACK_DELAY_MS);
+    startPhraseRef.current(nextIndex);
   }, [
     activeDamageConfig,
     applyEnemyDamage,
@@ -578,7 +574,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     practiceMode,
     publishTargetStates,
     registerBattleEffectImpact,
-    scheduleTimer,
     stopPhraseAudio,
     triggerBattleEffect,
   ]);
@@ -679,7 +674,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
 
     clearScheduledTimers();
-    pendingImpactHandlersRef.current.clear();
     phraseEndingRef.current = false;
     stopPhraseAudio();
 
@@ -782,6 +776,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       finishGameOver(copy.noPhrases);
       return;
     }
+    pendingImpactHandlersRef.current.clear();
     markAudioUserInteraction();
     void initializeAudioSystem().catch(() => undefined);
     progressSaveStartedRef.current = false;
@@ -1050,14 +1045,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     onBack,
     startBattle,
   ]);
-
-  useEffect(() => {
-    phaserGameRef.current?.setPlayerQuote(
-      gameState === 'playingPhrase' || gameState === 'countIn'
-        ? `${completedTargetCount}/${targets.length}`
-        : null,
-    );
-  }, [completedTargetCount, gameState, targets.length]);
 
   return (
     <div className={cn(
