@@ -382,7 +382,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalCacheData
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                musicXMLText = nil
+                scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+                return
+            }
             guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 musicXMLText = nil
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"

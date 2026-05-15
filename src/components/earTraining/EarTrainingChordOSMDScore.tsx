@@ -73,7 +73,9 @@ const collectMeasureCenters = (
       continue;
     }
 
-    const measureNumber = getFiniteNumber(measures[0]?.MeasureNumber) ?? measureIndex + 1;
+    // OSMD の MeasureNumber プロパティが MusicXML の `<measure number=>` と一致しないため、
+    // 表示用のキーは MusicXML の出現順 (1-indexed) を強制する。`activeMeasureNumber` も 1-indexed なのでこれで整合する。
+    const measureNumber = measureIndex + 1;
 
     let noteMinX = Number.POSITIVE_INFINITY;
     let noteMaxX = Number.NEGATIVE_INFINITY;
@@ -142,7 +144,8 @@ const collectMeasureCentersFromStaffLines = (
       for (const staffLine of system.StaffLines ?? []) {
         for (const measure of staffLine.Measures ?? []) {
           measureOrdinal += 1;
-          const mn = getFiniteNumber((measure as { MeasureNumber?: number }).MeasureNumber) ?? measureOrdinal;
+          // MeasureNumber プロパティは信用せず、StaffLines を横断した出現順 (1-indexed) を採用する。
+          const mn = measureOrdinal;
 
           let b = byNumberBounds[mn];
           if (!b) {
@@ -207,7 +210,8 @@ const measureLayoutFromOsmd = (
   viewportWidth: number,
 ): OsmdLayout => {
   const primary = collectMeasureCenters(osmd, surface, viewportWidth);
-  if (Object.keys(primary.measureCentersByNumber).length > 0) {
+  const primaryKeys = Object.keys(primary.measureCentersByNumber);
+  if (primaryKeys.length > 0) {
     return primary;
   }
   return collectMeasureCentersFromStaffLines(osmd, surface, viewportWidth);
@@ -266,7 +270,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       osmd.render();
       const surface = score.querySelector('svg, canvas');
       const viewportWidth = viewportRef.current?.clientWidth ?? 0;
-      setLayout(measureLayoutFromOsmd(osmd, surface, viewportWidth));
+      const nextLayout = measureLayoutFromOsmd(osmd, surface, viewportWidth);
+      setLayout(nextLayout);
     } catch {
       setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
       setLayout(EMPTY_LAYOUT);

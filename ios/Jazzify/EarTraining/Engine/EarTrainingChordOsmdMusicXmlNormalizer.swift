@@ -77,7 +77,10 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             }
         }
 
-        return changed ? ChordOsmdXmlSerializer.stringify(root) : xmlText
+        guard changed else { return xmlText }
+        // `XMLParser` は XML 宣言と DOCTYPE を保持せず、serializer も root 以下しか出力しない。
+        // WebKit の DOMParser は宣言の無い文字列を `invalid document` として弾くため、`<?xml ... ?>` を再付与する。
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
     }
 
     private static func allElements(named target: String, in root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {

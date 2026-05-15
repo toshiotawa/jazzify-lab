@@ -537,8 +537,9 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               const measures = row.filter(Boolean);
               if (measures.length === 0) continue;
 
-              const measureNumber =
-                finiteNum(measures[0].MeasureNumber) === null ? measureIndex + 1 : measures[0].MeasureNumber;
+              // OSMD の MeasureNumber プロパティが MusicXML の `<measure number=>` と一致しないケースがあるため、
+              // 表示用のキーは MusicXML の出現順 (1-indexed) を強制する。`activeMeasureNumber` も 1-indexed のため整合する。
+              const measureNumber = measureIndex + 1;
 
               let noteMinX = Number.POSITIVE_INFINITY;
               let noteMaxX = Number.NEGATIVE_INFINITY;
@@ -625,8 +626,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                   for (let mi = 0; mi < measures.length; mi += 1) {
                     measureOrdinal += 1;
                     const measure = measures[mi];
-                    const mn =
-                      finiteNum(measure.MeasureNumber) === null ? measureOrdinal : measure.MeasureNumber;
+                    // MeasureNumber プロパティは信用せず、StaffLines を横断した出現順 (1-indexed) を採用する。
+                    const mn = measureOrdinal;
                     const b = ensureBounds(mn);
 
                     const measureX = finiteNum(measure.PositionAndShape && measure.PositionAndShape.AbsolutePosition && measure.PositionAndShape.AbsolutePosition.x);
