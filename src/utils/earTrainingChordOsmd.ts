@@ -2,7 +2,8 @@ import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank } from 
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.1;
-export const CHORD_OSMD_HAMMER_LEAD_SEC = 3;
+/** カウントイン中に最初のターゲットのハンマーも投げきれるよう、リードを短めにする */
+export const CHORD_OSMD_HAMMER_LEAD_SEC = 2.4;
 export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.2;
 
 const SAME_TARGET_EPSILON_SEC = 0.0005;
@@ -305,6 +306,58 @@ const normalizeMeasureToExplicitTwoStaffVoices = (
   return true;
 };
 
+/**
+ * OSMD は measure 先頭付近の `<harmony>`（attributes/direction 直後）でピッチ付き音符の描画が崩れることがある。
+ * `<backup>` ありの 2 staff 譜では voice 正規化が走らないため、harmony を先頭の音声イベントの直後へ寄せる。
+ */
+const relocateHarmonyAfterFirstTimedNote = (measure: Element): boolean => {
+  const elementChildren = Array.from(measure.childNodes).filter(isElementNode);
+  const firstTimedNote = elementChildren.find(
+    child => child.localName === 'note' && !getDirectChild(child, 'chord'),
+  );
+  if (!firstTimedNote) {
+    return false;
+  }
+
+  const harmoniesToRelocate: Element[] = [];
+  for (const child of elementChildren) {
+    if (child.localName !== 'harmony') {
+      continue;
+    }
+    if (child.compareDocumentPosition(firstTimedNote) & Node.DOCUMENT_POSITION_FOLLOWING) {
+      harmoniesToRelocate.push(child);
+    }
+  }
+
+  if (harmoniesToRelocate.length === 0) {
+    return false;
+  }
+
+  let insertBefore: Element | null = firstTimedNote.nextElementSibling;
+  while (
+    insertBefore
+    && insertBefore.localName === 'note'
+    && getDirectChild(insertBefore, 'chord')
+  ) {
+    insertBefore = insertBefore.nextElementSibling;
+  }
+
+  for (const harmony of harmoniesToRelocate) {
+    measure.removeChild(harmony);
+  }
+  let anchor: Element | null = insertBefore;
+  for (let index = harmoniesToRelocate.length - 1; index >= 0; index -= 1) {
+    const harmony = harmoniesToRelocate[index];
+    if (anchor) {
+      measure.insertBefore(harmony, anchor);
+    } else {
+      measure.appendChild(harmony);
+    }
+    anchor = harmony;
+  }
+  return true;
+};
+
 export const normalizeChordOsmdMusicXml = (xmlText: string): string => {
   if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
     return xmlText;
@@ -319,6 +372,7 @@ export const normalizeChordOsmdMusicXml = (xmlText: string): string => {
   let timing: MusicXmlTimingState = { divisions: 1, beats: 4, beatType: 4 };
   for (const measure of Array.from(doc.getElementsByTagName('measure'))) {
     timing = readMeasureTiming(measure, timing);
+    changed = relocateHarmonyAfterFirstTimedNote(measure) || changed;
     changed = normalizeMeasureToExplicitTwoStaffVoices(doc, measure, timing) || changed;
   }
 

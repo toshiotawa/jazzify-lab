@@ -1,83 +1,28 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
-import type { ChordOsmdRhythmTarget, ChordOsmdTargetVisualState } from '@/utils/earTrainingChordOsmd';
-import { getChordOsmdTargetNoteCount } from '@/utils/earTrainingChordOsmd';
 import { cn } from '@/utils/cn';
 
 interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
   scoreErrorText: string | null;
   activeMeasureNumber: number;
-  targets: readonly ChordOsmdRhythmTarget[];
-  targetStates: ReadonlyMap<string, ChordOsmdTargetVisualState>;
   renderKeyValue: number;
   isEnglishCopy: boolean;
 }
 
-interface ScoreNotePosition {
-  x: number;
-  y: number;
-}
-
-interface TargetHighlightPosition extends ScoreNotePosition {
-  id: string;
-}
-
 interface OsmdLayout {
   measureCenters: readonly number[];
-  notePositions: readonly ScoreNotePosition[];
   scoreWidth: number;
 }
 
 const EMPTY_LAYOUT: OsmdLayout = {
   measureCenters: [],
-  notePositions: [],
   scoreWidth: 0,
 };
-
-const NOTE_HIGHLIGHT_COLOR = '#f39800';
-const NOTE_COMPLETED_COLOR = '#22c55e';
-const NOTE_FAILED_COLOR = '#ef4444';
-const NOTE_DEFAULT_COLOR = '#ffffff';
-const COLORABLE_NOTEHEAD_SELECTOR = 'path, ellipse, circle, polygon, rect';
 
 const getFiniteNumber = (value: unknown): number | null => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
 );
-
-const collectGraphicalNotes = (osmd: OpenSheetMusicDisplay, scaleFactor: number): ScoreNotePosition[] => {
-  const positions: ScoreNotePosition[] = [];
-  const pages = osmd.GraphicSheet?.MusicPages ?? [];
-  for (const page of pages) {
-    for (const system of page.MusicSystems ?? []) {
-      for (const staffLine of system.StaffLines ?? []) {
-        for (const measure of staffLine.Measures ?? []) {
-          for (const entry of measure.staffEntries ?? []) {
-            for (const voiceEntry of entry.graphicalVoiceEntries ?? []) {
-              for (const note of voiceEntry.notes ?? []) {
-                if (!note.sourceNote?.Pitch && !note.sourceNote?.TransposedPitch) {
-                  continue;
-                }
-                const absolute = note.PositionAndShape?.AbsolutePosition;
-                const x = getFiniteNumber(absolute?.x);
-                const y = getFiniteNumber(absolute?.y);
-                if (x !== null && y !== null) {
-                  positions.push({ x: x * scaleFactor, y: y * scaleFactor });
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return positions.sort((a, b) => {
-    if (Math.abs(a.x - b.x) > 0.5) {
-      return a.x - b.x;
-    }
-    return a.y - b.y;
-  });
-};
 
 const collectMeasureCenters = (
   osmd: OpenSheetMusicDisplay,
@@ -112,83 +57,45 @@ const collectMeasureCenters = (
     measureCenters.push((current + next) / 2);
   }
 
-  const notePositions = collectGraphicalNotes(osmd, scaleFactor);
+  const noteTailX = ((): number => {
+    let maxX = 0;
+    for (const page of pages) {
+      for (const system of page.MusicSystems ?? []) {
+        for (const staffLine of system.StaffLines ?? []) {
+          for (const measure of staffLine.Measures ?? []) {
+            for (const entry of measure.staffEntries ?? []) {
+              for (const voiceEntry of entry.graphicalVoiceEntries ?? []) {
+                for (const note of voiceEntry.notes ?? []) {
+                  if (!note.sourceNote?.Pitch && !note.sourceNote?.TransposedPitch) {
+                    continue;
+                  }
+                  const x = getFiniteNumber(note.PositionAndShape?.AbsolutePosition?.x);
+                  if (x !== null) {
+                    maxX = Math.max(maxX, x * scaleFactor);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return maxX;
+  })();
+
   const scoreWidth = Math.max(
     viewportWidth,
     renderedWidth,
     measureCenters[measureCenters.length - 1] ?? 0,
-    notePositions[notePositions.length - 1]?.x ?? 0,
+    noteTailX,
   );
-  return { measureCenters, notePositions, scoreWidth };
-};
-
-const buildTargetHighlightPositions = (
-  targets: readonly ChordOsmdRhythmTarget[],
-  notePositions: readonly ScoreNotePosition[],
-): TargetHighlightPosition[] => {
-  const highlights: TargetHighlightPosition[] = [];
-  let noteIndex = 0;
-  for (const target of targets) {
-    const count = getChordOsmdTargetNoteCount(target);
-    for (let index = 0; index < count; index += 1) {
-      const position = notePositions[noteIndex];
-      noteIndex += 1;
-      if (position) {
-        highlights.push({ id: target.id, x: position.x, y: position.y });
-      }
-    }
-  }
-  return highlights;
-};
-
-const targetStateColor = (state: ChordOsmdTargetVisualState): string | null => {
-  if (state === 'completed') {
-    return NOTE_COMPLETED_COLOR;
-  }
-  if (state === 'active') {
-    return NOTE_HIGHLIGHT_COLOR;
-  }
-  if (state === 'failed') {
-    return NOTE_FAILED_COLOR;
-  }
-  return null;
-};
-
-const buildNoteheadColors = (
-  targets: readonly ChordOsmdRhythmTarget[],
-  targetStates: ReadonlyMap<string, ChordOsmdTargetVisualState>,
-): string[] => {
-  const colors: string[] = [];
-  for (const target of targets) {
-    const color = targetStateColor(targetStates.get(target.id) ?? 'idle') ?? NOTE_DEFAULT_COLOR;
-    const count = getChordOsmdTargetNoteCount(target);
-    for (let index = 0; index < count; index += 1) {
-      colors.push(color);
-    }
-  }
-  return colors;
-};
-
-const applyNoteheadColors = (
-  score: HTMLElement,
-  colors: readonly string[],
-): void => {
-  const noteheads = Array.from(score.querySelectorAll<SVGGElement>('g.vf-notehead'));
-  noteheads.forEach((notehead, index) => {
-    const color = colors[index] ?? NOTE_DEFAULT_COLOR;
-    notehead.querySelectorAll<SVGElement>(COLORABLE_NOTEHEAD_SELECTOR).forEach(shape => {
-      shape.setAttribute('fill', color);
-      shape.setAttribute('stroke', color);
-    });
-  });
+  return { measureCenters, scoreWidth };
 };
 
 const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   musicXmlText,
   scoreErrorText,
   activeMeasureNumber,
-  targets,
-  targetStates,
   renderKeyValue,
   isEnglishCopy,
 }) => {
@@ -198,7 +105,6 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
-  const [scoreOffset, setScoreOffset] = useState(0);
 
   const renderScore = useCallback(async () => {
     const score = scoreRef.current;
@@ -223,11 +129,9 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       drawingParameters: 'compacttight',
       renderSingleHorizontalStaffline: true,
       pageFormat: 'Endless',
-      pageBackgroundColor: 'transparent',
       defaultColorMusic: '#ffffff',
       defaultColorNotehead: '#ffffff',
       defaultColorStem: '#ffffff',
-      defaultColorRest: '#ffffff',
       defaultColorLabel: '#ffffff',
       defaultColorTitle: '#ffffff',
       defaultColorLyrics: '#ffffff',
@@ -268,32 +172,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     const maxOffset = Math.max(0, layout.scoreWidth - viewport.clientWidth);
     const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
     score.style.transform = `translate3d(${-offset}px, -50%, 0)`;
-    setScoreOffset(offset);
   }, [activeMeasureNumber, layout]);
-
-  const highlights = useMemo(
-    () => buildTargetHighlightPositions(targets, layout.notePositions),
-    [layout.notePositions, targets],
-  );
-  const noteheadColors = useMemo(
-    () => buildNoteheadColors(targets, targetStates),
-    [targetStates, targets],
-  );
-
-  useEffect(() => {
-    const score = scoreRef.current;
-    if (!score) {
-      return;
-    }
-    applyNoteheadColors(score, noteheadColors);
-  }, [layout, noteheadColors]);
-
-  const visibleHighlights = highlights
-    .map(highlight => ({
-      ...highlight,
-      color: targetStateColor(targetStates.get(highlight.id) ?? 'idle'),
-    }))
-    .filter((highlight): highlight is TargetHighlightPosition & { color: string } => highlight.color !== null);
 
   const statusText = renderError ?? scoreErrorText;
 
@@ -309,37 +188,6 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
           '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
         )}
       />
-      <svg
-        aria-hidden="true"
-        className="absolute left-0 top-1/2 overflow-visible transition-transform duration-150 ease-out"
-        style={{ transform: `translate3d(${-scoreOffset}px, -50%, 0)` }}
-        width={Math.max(layout.scoreWidth, viewportRef.current?.clientWidth ?? 0)}
-        height="100%"
-        viewBox={`0 0 ${Math.max(layout.scoreWidth, viewportRef.current?.clientWidth ?? 0)} 280`}
-      >
-        {visibleHighlights.map((highlight, index) => (
-          <g key={`${highlight.id}-${index}`} transform={`translate(${highlight.x}, ${highlight.y})`}>
-            <ellipse
-              cx={0}
-              cy={0}
-              rx={10}
-              ry={7}
-              fill={highlight.color}
-              opacity={0.72}
-            />
-            <ellipse
-              cx={0}
-              cy={0}
-              rx={13}
-              ry={10}
-              fill="none"
-              stroke={highlight.color}
-              strokeWidth={2}
-              opacity={0.95}
-            />
-          </g>
-        ))}
-      </svg>
       {(isRendering || statusText) && (
         <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
           {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}

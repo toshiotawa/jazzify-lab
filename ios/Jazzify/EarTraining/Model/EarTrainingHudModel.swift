@@ -19,6 +19,10 @@ struct EarTrainingHudModel: Equatable {
     let enemyAttackGaugePercent: Double
     /// chord_quiz 等: 敵アタックゲージ行を HUD から省略する。
     let hideEnemyAttackGauge: Bool
+    /// chord_osmd 等: コード名チップ行を隠す。
+    let hideChordChips: Bool
+    /// chord_osmd 等: 下部の解答スロット行を隠す。
+    let hideSlotsRow: Bool
     let hudLabels: EarTrainingBattleHudLabels
     let gameState: EarTrainingGameState
     let phraseRunId: Int

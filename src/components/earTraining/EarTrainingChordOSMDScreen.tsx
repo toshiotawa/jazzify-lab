@@ -33,7 +33,6 @@ import {
   mapEarTrainingRankToLessonRank,
 } from '@/utils/earTrainingEngine';
 import {
-  formatEarTrainingCountInDisplay,
   getEarTrainingBattleHudLabels,
   getEarTrainingGameCopy,
 } from '@/utils/earTrainingUiCopy';
@@ -64,7 +63,6 @@ import {
   getChordOsmdTotalNoteCount,
   normalizeChordOsmdMusicXml,
   type ChordOsmdRhythmTarget,
-  type ChordOsmdTargetVisualState,
 } from '@/utils/earTrainingChordOsmd';
 
 interface EarTrainingLessonContext {
@@ -105,55 +103,6 @@ const NO_DAMAGE_CONFIG = {
 };
 
 const musicXmlCache = new Map<string, string>();
-
-const uniquePhraseTitle = (
-  phrase: EarTrainingPhrase | undefined,
-  phraseIndex: number,
-  isEnglishCopy: boolean,
-): string => {
-  const raw = isEnglishCopy ? (phrase?.title_en ?? phrase?.title) : phrase?.title;
-  const trimmed = raw?.trim();
-  if (trimmed) {
-    return trimmed;
-  }
-  return isEnglishCopy ? `Phrase ${phraseIndex + 1}` : `フレーズ${phraseIndex + 1}`;
-};
-
-const buildVisualStateMap = (
-  targets: readonly ChordOsmdRhythmTarget[],
-  runtime: ReadonlyMap<string, RuntimeTargetState>,
-  activeIds: ReadonlySet<string>,
-): Map<string, ChordOsmdTargetVisualState> => {
-  const next = new Map<string, ChordOsmdTargetVisualState>();
-  for (const target of targets) {
-    const state = runtime.get(target.id);
-    if (state?.completed) {
-      next.set(target.id, 'completed');
-    } else if (activeIds.has(target.id)) {
-      next.set(target.id, 'active');
-    } else if (state?.failed) {
-      next.set(target.id, 'failed');
-    } else {
-      next.set(target.id, 'idle');
-    }
-  }
-  return next;
-};
-
-const mapsHaveSameStates = (
-  a: ReadonlyMap<string, ChordOsmdTargetVisualState>,
-  b: ReadonlyMap<string, ChordOsmdTargetVisualState>,
-): boolean => {
-  if (a.size !== b.size) {
-    return false;
-  }
-  for (const [key, value] of a) {
-    if (b.get(key) !== value) {
-      return false;
-    }
-  }
-  return true;
-};
 
 const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   stage,
@@ -207,12 +156,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
   const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
-  const [countInValue, setCountInValue] = useState(stage.count_in_beats);
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const [scoreErrorText, setScoreErrorText] = useState<string | null>(null);
   const [targets, setTargets] = useState<ChordOsmdRhythmTarget[]>([]);
-  const [targetStates, setTargetStates] = useState<Map<string, ChordOsmdTargetVisualState>>(new Map());
   const [completedTargetCount, setCompletedTargetCount] = useState(0);
   const [lastRank, setLastRank] = useState<EarTrainingRank | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -245,8 +192,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const totalCompletedTargetsRef = useRef(0);
   const totalJudgedTargetsRef = useRef(0);
   const lastRankRef = useRef<EarTrainingRank | null>(null);
-
-  const currentPhrase = phrases[phraseIndex];
 
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { phraseIndexRef.current = phraseIndex; }, [phraseIndex]);
@@ -290,8 +235,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, []);
 
   const publishTargetStates = useCallback(() => {
-    const next = buildVisualStateMap(targetsRef.current, runtimeByTargetIdRef.current, activeTargetIdsRef.current);
-    setTargetStates(previous => (mapsHaveSameStates(previous, next) ? previous : next));
     let completed = 0;
     runtimeByTargetIdRef.current.forEach(state => {
       if (state.completed) {
@@ -466,7 +409,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       const initialTargets = buildChordOsmdRhythmTargets(firstPhrase, stage.bpm, stage.beats_per_measure);
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
-      setTargetStates(buildVisualStateMap(initialTargets, new Map(), new Set()));
+      setCompletedTargetCount(0);
     }
   }, [gameState, loadMusicXml, phrases, stage.bpm, stage.beats_per_measure]);
 
@@ -483,7 +426,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     runtimeByTargetIdRef.current = runtime;
     activeTargetIdsRef.current = new Set();
     setTargets([...nextTargets]);
-    setTargetStates(buildVisualStateMap(nextTargets, runtime, activeTargetIdsRef.current));
     setCompletedTargetCount(0);
   }, []);
 
@@ -711,7 +653,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     setGameState('countIn');
 
     const beats = Math.max(0, Math.min(32, stage.count_in_beats));
-    setCountInValue(beats);
     void loadMusicXml(phrase, runId);
 
     const player = ensurePhrasePlayer();
@@ -737,7 +678,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         if (phraseRunIdRef.current !== runId) {
           return;
         }
-        setCountInValue(0);
         gameStateRef.current = 'playingPhrase';
         setGameState('playingPhrase');
         setStatusText(copy.phraseLabel(nextPhraseIndex + 1));
@@ -760,7 +700,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         bpm: stage.bpm,
         beatGain: settings.masterVolume * settings.musicVolume,
         inputWindowLeadSec: CHORD_OSMD_JUDGMENT_WINDOW_SEC,
-        onBeat: remaining => setCountInValue(remaining),
         onPhraseStarted,
         onEnded,
       });
@@ -944,9 +883,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const showLobbyControls = canChangePracticeMode;
   const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';
-  const stageStatusText = gameState === 'countIn'
-    ? formatEarTrainingCountInDisplay(isEnglishCopy, countInValue)
-    : statusText;
+  const stageStatusText = statusText;
   const resultState = gameState === 'stageClear'
     ? 'win'
     : gameState === 'gameOver'
@@ -955,9 +892,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const lessonProgressText = lessonContext && gameState === 'stageClear'
     ? progressSaved ? copy.lessonSaved : copy.lessonSaving
     : null;
-  const phraseIntroLine = gameState === 'countIn'
-    ? uniquePhraseTitle(currentPhrase, phraseIndex, isEnglishCopy)
-    : '';
+  const phraseIntroLine = '';
   const resultRankLine = gameState === 'stageClear' && lastRank
     ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
     : null;
@@ -972,7 +907,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     statusText: stageStatusText,
     hudLabels,
     phraseIntroLine,
-    phraseIntroEmphasis: gameState === 'countIn',
+    phraseIntroEmphasis: false,
     resultRankLine,
     timeLabel,
     practiceMode,
@@ -1002,7 +937,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     currentNoteIndex: Math.min(completedTargetCount, Math.max(0, targets.length - 1)),
     slotKind: 'circle',
     chordCompleted: [],
-    countInValue,
+    countInValue: 0,
     lastRank,
     showLobbyControls,
     canChangePracticeMode,
@@ -1011,7 +946,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }), [
     canChangePracticeMode,
     completedTargetCount,
-    countInValue,
     enemyAvatar,
     enemyAvatarFlipX,
     enemyHp,
@@ -1087,8 +1021,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         musicXmlText={musicXmlText}
         scoreErrorText={scoreErrorText}
         activeMeasureNumber={activeMeasureNumber}
-        targets={targets}
-        targetStates={targetStates}
         renderKeyValue={phraseRunId}
         isEnglishCopy={isEnglishCopy}
       />

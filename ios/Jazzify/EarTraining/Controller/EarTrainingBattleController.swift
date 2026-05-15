@@ -886,6 +886,8 @@ final class EarTrainingBattleController: ObservableObject {
             timeLabel: timeLabel,
             enemyAttackGaugePercent: enemyAttackGaugePercent,
             hideEnemyAttackGauge: false,
+            hideChordChips: false,
+            hideSlotsRow: false,
             hudLabels: hudLabels,
             gameState: gameState,
             phraseRunId: phraseRunId,

@@ -26,8 +26,10 @@ struct EarTrainingHUDView: View {
                 if !hud.hideEnemyAttackGauge {
                     attackGauge
                 }
-                chordChips
-                if showsSlotsRow {
+                if !hud.hideChordChips {
+                    chordChips
+                }
+                if showsSlotsRow && !hud.hideSlotsRow {
                     slotsRow
                 }
             }

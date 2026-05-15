@@ -27,6 +27,8 @@ final class EarTrainingAudio: NSObject {
     var onEnded: (() -> Void)?
     /// 周期 (≒30Hz) で呼ばれる進捗コールバック。引数は秒。
     var onTimeUpdate: ((Double) -> Void)?
+    /// true のとき、フレーズアンカーより前に `onTimeUpdate` へ負のフレーズ秒を送る（OSMD カウントイン中の先行判定用）。
+    var emitNegativePhraseTimelineBeforeAnchor: Bool = false
 
     private let engine = AVAudioEngine()
     private let phrasePlayer = AVAudioPlayerNode()
@@ -47,6 +49,7 @@ final class EarTrainingAudio: NSObject {
     private var lastDrumFormat: AVAudioFormat?
     private var lastFireSeFormat: AVAudioFormat?
     private var clickPCM: AVAudioPCMBuffer?
+    private var clickPCMFirstBeat: AVAudioPCMBuffer?
     private var drumPCM: AVAudioPCMBuffer?
     private var fireSePCM: AVAudioPCMBuffer?
     /// `playFireMagicSe` の連打抑止（mach 時間ベース秒）。
@@ -256,7 +259,7 @@ final class EarTrainingAudio: NSObject {
         }
 
         let scheduleToken = playbackToken
-        let leadInSec = 0.02
+        let leadInSec = 0.28
         let safeBpm = max(1, bpm)
         let beatDurationSec = max(0.1, 60.0 / Double(safeBpm))
         let safeBeats = max(0, countInBeats)
@@ -289,7 +292,11 @@ final class EarTrainingAudio: NSObject {
             while clickIndex < UInt64(safeBeats) {
                 let hostTime = nowHost &+ leadHost &+ beatHost &* clickIndex
                 let when = AVAudioTime(hostTime: hostTime)
-                clickPlayer.scheduleBuffer(pcm, at: when, options: [], completionHandler: nil)
+                let clickBuf: AVAudioPCMBuffer = {
+                    if clickIndex == 0, let loud = clickPCMFirstBeat { return loud }
+                    return pcm
+                }()
+                clickPlayer.scheduleBuffer(clickBuf, at: when, options: [], completionHandler: nil)
                 clickIndex &+= 1
             }
 
@@ -647,7 +654,14 @@ final class EarTrainingAudio: NSObject {
         if anchor != 0 {
             let now = mach_absolute_time()
             if now < anchor {
-                currentTimeSec = 0
+                if emitNegativePhraseTimelineBeforeAnchor {
+                    let sec = -Self.secondsFromMachHostDifference(from: now, to: anchor)
+                    guard sec.isFinite else { return }
+                    currentTimeSec = sec
+                    onTimeUpdate?(sec)
+                } else {
+                    currentTimeSec = 0
+                }
                 return
             }
             let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
@@ -681,33 +695,37 @@ final class EarTrainingAudio: NSObject {
     }()
 
     private func rebuildClickBuffer(for format: AVAudioFormat) {
+        clickPCM = Self.makeClickPcmBuffer(format: format, peakAmplitude: 0.28)
+        clickPCMFirstBeat = Self.makeClickPcmBuffer(format: format, peakAmplitude: 0.55)
+    }
+
+    private static func makeClickPcmBuffer(format: AVAudioFormat, peakAmplitude: Double) -> AVAudioPCMBuffer? {
         let sampleRate = format.sampleRate
         let channelCount = Int(format.channelCount)
         let durationSec = 0.045
         let frameCount = AVAudioFrameCount(max(1, min(Int(Double(sampleRate) * durationSec), 96_000)))
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            clickPCM = nil
-            return
+            return nil
         }
         buffer.frameLength = frameCount
 
         guard let data = buffer.floatChannelData else {
-            clickPCM = nil
-            return
+            return nil
         }
 
         let n = Int(frameCount)
         let freq = 2_200.0
+        let amp = peakAmplitude
         for ch in 0..<channelCount {
             let channel = data[ch]
             for i in 0..<n {
                 let t = Double(i) / sampleRate
                 let env = exp(-t * 100)
-                let s = sin(2.0 * Double.pi * freq * t) * env * 0.28
+                let s = sin(2.0 * Double.pi * freq * t) * env * amp
                 channel[i] = Float(s)
             }
         }
-        clickPCM = buffer
+        return buffer
     }
 
     // MARK: - Piano bridge (Survival サンプラー再利用)

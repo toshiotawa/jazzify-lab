@@ -7,11 +7,11 @@ import CoreGraphics
 @MainActor
 final class EarTrainingChordOSMDBattleController: ObservableObject {
     private static let judgmentWindowSec: Double = 0.1
-    private static let hammerLeadSec: Double = 3.0
+    private static let hammerLeadSec: Double = 2.4
     private static let hammerImpactOffsetSec: Double = 0.2
     private static let effectClearPaddingMs: Double = 420
-    private static let noteDamageFallback: Int = 10
-    private static let meteorAccuracyThreshold: Double = 0.8
+    private static let phraseTransitionDelayNs: UInt64 = 220_000_000
+    private static let phraseTransitionDamageExtraNs: UInt64 = 650_000_000
 
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseIndex: Int = 0
@@ -57,7 +57,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var nextHammerTargetIndex: Int = 0
     private var phraseEnding: Bool = false
     private var progressSaveStarted: Bool = false
-    private var pendingBonusDamage: Int?
     private var totalCompletedTargets: Int = 0
     private var totalJudgedTargets: Int = 0
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
@@ -179,7 +178,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         totalCompletedTargets = 0
         totalJudgedTargets = 0
         lastRankStorage = nil
-        pendingBonusDamage = nil
         startPhrase(at: 0)
     }
 
@@ -193,7 +191,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
-        guard gameState == .playingPhrase else { return }
+        guard gameState == .playingPhrase || gameState == .countIn else { return }
         handleAudioTimeUpdate(currentTime: audio.currentTimeSec)
         compactActiveTargets()
 
@@ -261,7 +259,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         gameState = .countIn
         statusText = copy.countIn
         publishSnapshot()
-        firePendingBonusIfNeeded()
 
         await loadMusicXML(for: phrase)
         if Task.isCancelled { return }
@@ -269,6 +266,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let prepared = await audio.preparePhraseForImmediatePlayback(url: audioURL)
         if Task.isCancelled { return }
         guard prepared else {
+            audio.emitNegativePhraseTimelineBeforeAnchor = false
             finishGameOver(message: copy.audioFailed)
             return
         }
@@ -276,6 +274,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let onStarted: () -> Void = { [weak self] in
             guard let self else { return }
             guard self.phraseRunId == runId else { return }
+            self.audio.emitNegativePhraseTimelineBeforeAnchor = false
             self.countInValue = 0
             self.gameState = .playingPhrase
             self.statusText = self.copy.phraseLabel(indexOneBased: index + 1)
@@ -284,6 +283,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
 
         let scheduleStart = CACurrentMediaTime()
+        audio.emitNegativePhraseTimelineBeforeAnchor = true
         if let meta = audio.schedulePreparedPhraseWithCountIn(
             url: audioURL,
             countInBeats: sanitizedCountInBeats,
@@ -294,6 +294,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 await self?.runCountInDisplayOnly(scheduleStart: scheduleStart, meta: meta)
             }
         } else if !audio.playPreparedPhrase(url: audioURL, onStarted: onStarted) {
+            audio.emitNegativePhraseTimelineBeforeAnchor = false
             finishGameOver(message: copy.audioFailed)
         }
     }
@@ -318,7 +319,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         countInValue = beats
-        statusText = isEnglishCopy ? "Count \(beats)" : "カウント \(beats)"
+        statusText = copy.countIn
         publishSnapshot()
         for beatIndex in 0..<beats {
             let targetClick = scheduleStart + meta.leadInSec + Double(beatIndex) * meta.beatDurationSec
@@ -329,7 +330,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             if Task.isCancelled { return }
             let next = max(beats - beatIndex - 1, 0)
             countInValue = next
-            statusText = next > 0 ? (isEnglishCopy ? "Count \(next)" : "カウント \(next)") : copy.countIn
+            statusText = copy.countIn
             publishSnapshot()
         }
     }
@@ -352,8 +353,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
                 return
             }
-            musicXMLCache[phrase.id] = text
-            musicXMLText = text
+            let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
+            musicXMLCache[phrase.id] = normalized
+            musicXMLText = normalized
             scoreErrorText = nil
         } catch {
             musicXMLText = nil
@@ -362,15 +364,26 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func handleAudioTimeUpdate(currentTime: Double) {
-        guard gameState == .playingPhrase, !phraseEnding else { return }
-        let time = max(0, currentTime)
-        updateActiveMeasure(for: time)
-        openJudgmentWindows(at: time)
-        throwDueHammers(at: time)
-        failExpiredTargets(at: time)
+        guard !phraseEnding else { return }
+        guard gameState == .countIn || gameState == .playingPhrase else { return }
 
+        let phraseTime: Double
+        if gameState == .countIn {
+            phraseTime = currentTime
+        } else {
+            phraseTime = max(0, currentTime)
+        }
+
+        if phraseTime >= 0 {
+            updateActiveMeasure(for: phraseTime)
+        }
+        openJudgmentWindows(at: phraseTime)
+        throwDueHammers(at: phraseTime)
+        failExpiredTargets(at: phraseTime)
+
+        guard gameState == .playingPhrase else { return }
         let phrase = phrases[phraseIndex]
-        if time >= max(0.05, phrase.loopDurationSec - 0.025) {
+        if phraseTime >= max(0.05, phrase.loopDurationSec - 0.025) {
             finishCurrentPhraseIfNeeded()
         }
     }
@@ -400,7 +413,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func throwDueHammers(at time: Double) {
         while nextHammerTargetIndex < targets.count {
             let target = targets[nextHammerTargetIndex]
-            let throwTime = max(0, target.targetTimeSec - Self.hammerLeadSec)
+            let throwTime = target.targetTimeSec - Self.hammerLeadSec
             guard time >= throwTime else { break }
             let impactTime = target.targetTimeSec + Self.hammerImpactOffsetSec
             let travel = max(0.12, impactTime - time)
@@ -448,7 +461,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             pendingImpactHandlers[hammerEffectId] = nil
         }
         let chordName = targets[index].label
-        let damage = practiceMode ? 0 : max(Self.noteDamageFallback, stage.perCorrectNoteDamage)
+        let damage = practiceMode ? 0 : stage.perCorrectNoteDamage
         let effectId = triggerBattleEffect(
             kind: .osmdHammerReflect,
             label: chordName,
@@ -473,7 +486,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             updateTargetCounters()
         }
         guard practiceMode == false else { return }
-        let damage = max(1, stage.missDamage)
+        let damage = stage.missDamage
+        guard damage > 0 else { return }
         playerHp = max(0, playerHp - damage)
         if playerHp <= 0 {
             finishGameOver(message: copy.gameOver)
@@ -484,39 +498,73 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         guard gameState == .playingPhrase, !phraseEnding else { return }
         phraseEnding = true
         audio.stopPhrase()
+        audio.emitNegativePhraseTimelineBeforeAnchor = false
         failRemainingTargets()
         let phraseTotal = max(1, targets.count)
         let accuracy = Double(completedTargetCount) / Double(phraseTotal)
         phraseAccuracy = accuracy
         totalCompletedTargets += completedTargetCount
         totalJudgedTargets += phraseTotal
-        pendingBonusDamage = (!practiceMode && accuracy >= Self.meteorAccuracyThreshold)
-            ? max(stage.perfectCompletionDamage, stage.greatCompletionDamage, stage.goodCompletionDamage)
-            : nil
 
-        let nextIndex = phraseIndex + 1
-        if phrases.indices.contains(nextIndex), enemyHp > 0 {
-            gameState = .transitionToNextPhrase
-            statusText = isEnglishCopy
-                ? "Phrase accuracy \(Int(round(accuracy * 100)))%"
-                : "フレーズ正解率 \(Int(round(accuracy * 100)))%"
-            publishSnapshot()
-            startPhrase(at: nextIndex)
-            return
-        }
+        let rank = rank(for: accuracy)
+        let completionDamageAmount = practiceMode ? 0 : completionDamage(for: rank)
+        let playerFailDamage = (!practiceMode && rank == .fail) ? stage.failDamage : 0
 
-        if pendingBonusDamage != nil {
-            gameState = .transitionToNextPhrase
-            statusText = isEnglishCopy ? "Bonus attack!" : "ボーナスアタック！"
-            publishSnapshot()
-            firePendingBonusIfNeeded()
-            transitionTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 1_550_000_000)
-                self?.finishStageClear()
+        gameState = .phraseComplete
+        statusText = isEnglishCopy
+            ? "Phrase accuracy \(Int(round(accuracy * 100)))%"
+            : "フレーズ正解率 \(Int(round(accuracy * 100)))%"
+        publishSnapshot()
+
+        if completionDamageAmount > 0 {
+            let phraseNoteCount = Self.totalChordOsmdNoteCount(targets)
+            let effectKind: EarTrainingBattleEffectKind = rank == .perfect ? .osmdMeteor : .complete
+            let effectId = triggerBattleEffect(
+                kind: effectKind,
+                label: rank.rawValue,
+                damage: completionDamageAmount,
+                phraseNoteCount: phraseNoteCount
+            )
+            registerBattleEffectImpact(effectId: effectId) { [weak self] in
+                self?.applyEnemyDamage(completionDamageAmount)
             }
+        }
+
+        if playerFailDamage > 0 {
+            let effectId = triggerBattleEffect(
+                kind: .fail,
+                label: "Fail",
+                damage: playerFailDamage,
+                phraseNoteCount: nil
+            )
+            registerBattleEffectImpact(effectId: effectId) { [weak self] in
+                self?.applyPlayerDamage(playerFailDamage)
+            }
+        }
+
+        if !practiceMode && enemyHp - completionDamageAmount <= 0 {
             return
         }
-        finishStageClear()
+        if !practiceMode && playerHp - playerFailDamage <= 0 {
+            return
+        }
+
+        let nextIndex = (phraseIndex + 1) % max(1, phrases.count)
+        guard enemyHp > 0, playerHp > 0 else { return }
+
+        let hasDamageEffect = completionDamageAmount > 0 || playerFailDamage > 0
+        let delayNs = hasDamageEffect
+            ? Self.phraseTransitionDelayNs + Self.phraseTransitionDamageExtraNs
+            : Self.phraseTransitionDelayNs
+        gameState = .transitionToNextPhrase
+        publishSnapshot()
+        transitionTask?.cancel()
+        transitionTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: delayNs)
+            guard let self else { return }
+            guard self.enemyHp > 0, self.playerHp > 0 else { return }
+            self.startPhrase(at: nextIndex)
+        }
     }
 
     private func failRemainingTargets() {
@@ -532,25 +580,21 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
-    private func firePendingBonusIfNeeded() {
-        guard let damage = pendingBonusDamage else { return }
-        pendingBonusDamage = nil
-        let effectId = triggerBattleEffect(
-            kind: .osmdMeteor,
-            label: "Meteor",
-            damage: damage,
-            phraseNoteCount: targets.count
-        )
-        registerBattleEffectImpact(effectId: effectId) { [weak self] in
-            self?.applyEnemyDamage(damage)
-        }
-    }
-
     private func applyEnemyDamage(_ damage: Int) {
+        guard !practiceMode else { return }
         guard damage > 0 else { return }
         enemyHp = max(0, enemyHp - damage)
         if enemyHp <= 0 {
             finishStageClear()
+        }
+    }
+
+    private func applyPlayerDamage(_ damage: Int) {
+        guard !practiceMode else { return }
+        guard damage > 0 else { return }
+        playerHp = max(0, playerHp - damage)
+        if playerHp <= 0 {
+            finishGameOver(message: copy.gameOver)
         }
     }
 
@@ -613,6 +657,21 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if accuracy >= 0.8 { return .great }
         if accuracy >= 0.4 { return .good }
         return .fail
+    }
+
+    private func completionDamage(for rank: EarTrainingRank) -> Int {
+        switch rank {
+        case .perfect: return stage.perfectCompletionDamage
+        case .great: return stage.greatCompletionDamage
+        case .good: return stage.goodCompletionDamage
+        case .fail: return 0
+        }
+    }
+
+    private static func totalChordOsmdNoteCount(_ targets: [RhythmTarget]) -> Int {
+        targets.reduce(0) { partial, target in
+            partial + target.midiCounts.values.reduce(0, +)
+        }
     }
 
     private func saveLessonProgressIfNeeded(rank: EarTrainingRank) {
@@ -699,15 +758,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func publishSnapshot() {
-        let phraseLine: String
-        if gameState == .countIn {
-            let title = phrases.indices.contains(phraseIndex)
-                ? phrases[phraseIndex].localizedTitle(isEnglish: isEnglishCopy)
-                : nil
-            phraseLine = title ?? copy.phraseLabel(indexOneBased: phraseIndex + 1)
-        } else {
-            phraseLine = ""
-        }
         let snapshot = EarTrainingBattleSceneSnapshot(
             gameState: gameState,
             stageId: stage.id,
@@ -715,9 +765,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             phraseIndex: phraseIndex,
             phraseRunId: phraseRunId,
             phraseIntroSeq: phraseIntroSeq,
-            phraseIntroEmphasis: gameState == .countIn,
+            phraseIntroEmphasis: false,
             totalPhrases: phrases.count,
-            phraseIntroLine: phraseLine,
+            phraseIntroLine: "",
             demoLoopActive: false,
             playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
             enemyAvatarName: EarTrainingBattleController.avatarAssetName(stageId: stage.id, enemyId: enemyId),
@@ -760,6 +810,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             timeLabel: "\(min(phraseIndex + 1, max(1, phrases.count)))/\(max(1, phrases.count))",
             enemyAttackGaugePercent: 0,
             hideEnemyAttackGauge: true,
+            hideChordChips: true,
+            hideSlotsRow: true,
             hudLabels: hudLabels,
             gameState: gameState,
             phraseRunId: phraseRunId,
@@ -841,7 +893,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return max(0, start)
         }
         if let measure = chord.measureNumber, let beatOffset = chord.beatOffset {
-            return (Double(max(0, measure - 1) * max(1, beatsPerMeasure)) + max(0, beatOffset)) * beatDuration
+            let beatIndex = max(0, beatOffset - 1)
+            return (Double(max(0, measure - 1) * max(1, beatsPerMeasure)) + beatIndex) * beatDuration
         }
         return Double(max(0, chord.orderIndex)) * beatDuration
     }

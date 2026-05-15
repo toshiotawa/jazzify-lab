@@ -271,12 +271,7 @@ private struct EarTrainingChordOSMDContent: View {
             }
         }
         .frame(width: width, height: height)
-        .background(Color.black.opacity(0.88))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
         .position(x: size.width / 2, y: size.height * 0.42)
         .allowsHitTesting(false)
     }
@@ -405,7 +400,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           width: 100%;
           height: 100%;
           overflow: hidden;
-          background: #000;
+          background: transparent;
           color: #fff;
           font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
         }
@@ -413,7 +408,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           position: fixed;
           inset: 0;
           overflow: hidden;
-          background: #000;
+          background: transparent;
         }
         #score {
           position: absolute;
@@ -427,7 +422,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
         #score canvas, #score svg {
           display: block;
-          background: #000 !important;
+          background: transparent !important;
         }
         #status {
           position: fixed;
@@ -512,11 +507,9 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               drawingParameters: 'compacttight',
               renderSingleHorizontalStaffline: true,
               pageFormat: 'Endless',
-              pageBackgroundColor: '#000000',
               defaultColorMusic: '#ffffff',
               defaultColorNotehead: '#ffffff',
               defaultColorStem: '#ffffff',
-              defaultColorRest: '#ffffff',
               defaultColorLabel: '#ffffff',
               defaultColorTitle: '#ffffff',
               defaultColorLyrics: '#ffffff'

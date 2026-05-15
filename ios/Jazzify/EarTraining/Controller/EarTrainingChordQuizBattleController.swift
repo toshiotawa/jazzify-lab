@@ -904,6 +904,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             timeLabel: timeLabel,
             enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,
             hideEnemyAttackGauge: practiceMode,
+            hideChordChips: false,
+            hideSlotsRow: false,
             hudLabels: hudLabels,
             gameState: gameState,
             phraseRunId: phraseRunId,

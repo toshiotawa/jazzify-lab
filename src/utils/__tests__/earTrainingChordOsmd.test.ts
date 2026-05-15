@@ -154,10 +154,29 @@ describe('normalizeChordOsmdMusicXml', () => {
     expect(doc.getElementsByTagName('harmony')).toHaveLength(1);
   });
 
-  it('backupを含むMusicXMLは既にvoiceが明示されているため変更しない', () => {
+  it('backup を含むが harmony が無い MusicXML は変更しない', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="3.1"><part id="P1"><measure number="1"><note><rest/><duration>4</duration><voice>1</voice></note><backup><duration>4</duration></backup><note><rest/><duration>4</duration><voice>2</voice></note></measure></part></score-partwise>`;
 
     expect(normalizeChordOsmdMusicXml(xml)).toBe(xml);
+  });
+
+  it('backup を含む小節でも attributes 直後の harmony を最初の timed note 直前へ移す', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1"><measure number="1">
+  <attributes><divisions>1</divisions></attributes>
+  <harmony><root><root-step>C</root-step></root><kind>major</kind></harmony>
+  <note><rest/><duration>4</duration><voice>1</voice></note>
+  <backup><duration>4</duration></backup>
+  <note><rest/><duration>4</duration><voice>2</voice></note>
+</measure></part></score-partwise>`;
+
+    const normalized = normalizeChordOsmdMusicXml(xml);
+    const firstRestEnd = normalized.indexOf('</note>');
+    const harmonyStart = normalized.indexOf('<harmony>');
+    const backupStart = normalized.indexOf('<backup>');
+    expect(firstRestEnd).toBeGreaterThan(-1);
+    expect(harmonyStart).toBeGreaterThan(firstRestEnd);
+    expect(backupStart).toBeGreaterThan(harmonyStart);
   });
 });
