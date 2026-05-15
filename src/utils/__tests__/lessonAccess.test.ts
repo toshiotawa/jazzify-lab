@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLessonAccessGraph, resolveCourseAccess } from '@/utils/lessonAccess';
+import { buildLessonAccessGraph, findDeepestUnlockedLesson, resolveCourseAccess } from '@/utils/lessonAccess';
 import { Course, Lesson, LessonProgress } from '@/types';
 
 let uidCounter = 0;
@@ -220,5 +220,35 @@ describe('buildLessonAccessGraph', () => {
     expect(graph.blockStates[3].isUnlocked).toBe(false);
     expect(graph.lessonStates[block3Lesson1.id].isUnlocked).toBe(false);
     expect(graph.lessonStates[block3Lesson2.id].isUnlocked).toBe(false);
+  });
+});
+
+describe('findDeepestUnlockedLesson', () => {
+  it('配列順で最も深い解放済みレッスンを返す', () => {
+    const first = createLesson({ id: 'lesson-1', order_index: 0 });
+    const second = createLesson({ id: 'lesson-2', order_index: 1 });
+    const third = createLesson({ id: 'lesson-3', order_index: 2 });
+
+    const result = findDeepestUnlockedLesson(
+      [first, second, third],
+      lesson => lesson.id !== third.id,
+    );
+
+    expect(result?.id).toBe(second.id);
+  });
+
+  it('解放済みがない場合は先頭レッスンへフォールバックする', () => {
+    const first = createLesson({ id: 'lesson-1', order_index: 0 });
+    const second = createLesson({ id: 'lesson-2', order_index: 1 });
+
+    const result = findDeepestUnlockedLesson([first, second], () => false);
+
+    expect(result?.id).toBe(first.id);
+  });
+
+  it('レッスンが空なら null を返す', () => {
+    const result = findDeepestUnlockedLesson([], () => true);
+
+    expect(result).toBeNull();
   });
 });

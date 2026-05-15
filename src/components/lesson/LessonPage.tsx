@@ -19,7 +19,7 @@ import type { CourseDifficultyTier } from '@/types';
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
-import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
+import { buildLessonAccessGraph, findDeepestUnlockedLesson, LessonAccessGraph } from '@/utils/lessonAccess';
 import { stageCardRectangularPath, stageCardSquarePath } from '@/utils/stageCardAssets';
 import { LessonMapAudio, LESSON_MAP_BGM_URL } from '@/utils/LessonMapAudio';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
@@ -599,6 +599,16 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     block.blockNumber === selectedBlockNumber && block.isUnlocked
   )) ?? currentBlock;
   const nextLesson = nextLessonForContinue(summary);
+  const selectedBlockStartLesson = useMemo(
+    () => selectedBlock
+      ? findDeepestUnlockedLesson(
+        selectedBlock.lessons,
+        lesson => summary.accessGraph.lessonStates[lesson.id]?.isUnlocked === true,
+      )
+      : null,
+    [selectedBlock, summary.accessGraph.lessonStates],
+  );
+  const selectedBlockStartLessonId = selectedBlockStartLesson?.id ?? null;
 
   const scrollChapterDetailIntoView = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -643,7 +653,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
   }, [currentBlock, summary.blocks]);
 
   useEffect(() => {
-    const fid = summary.frontierLesson?.id;
+    const fid = selectedBlockStartLessonId;
     const container = lessonQuestListRef.current;
     if (!fid || !container || selectedBlockNumber == null) return;
     const block = summary.blocks.find(b => b.blockNumber === selectedBlockNumber && b.isUnlocked);
@@ -655,7 +665,12 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     if (!(target instanceof HTMLElement)) return;
     const blockAlign: ScrollLogicalPosition = idx === 0 ? 'start' : idx === lastIdx ? 'end' : 'center';
     target.scrollIntoView({ behavior: 'smooth', block: blockAlign });
-  }, [selectedBlockNumber, summary.blocks, summary.frontierLesson?.id]);
+  }, [selectedBlockNumber, selectedBlockStartLessonId, summary.blocks]);
+
+  const handleStartSelectedBlock = useCallback(() => {
+    if (!selectedBlockStartLessonId) return;
+    onOpenLesson(selectedBlockStartLessonId);
+  }, [onOpenLesson, selectedBlockStartLessonId]);
 
   if (!currentBlock || !selectedBlock) {
     return null;
@@ -771,7 +786,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
         <div
           id="mainQuestDetail"
           ref={mainQuestDetailRef}
-          className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3"
+          className="relative rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3 pb-28 sm:pb-36 md:pb-40"
         >
           <SectionTitle
             icon={<FaFlagCheckered />}
@@ -810,7 +825,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
           >
             {selectedBlock.lessons.map((lesson, index) => {
               const state = summary.accessGraph.lessonStates[lesson.id] ?? { isUnlocked: false, isCompleted: false };
-              const isFrontier = summary.frontierLesson?.id === lesson.id;
+              const isStartTarget = selectedBlockStartLessonId === lesson.id;
               return (
                 <button
                   key={lesson.id}
@@ -822,7 +837,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                     'relative flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors',
                     'bg-violet-500/10 border-violet-300/15',
                     state.isUnlocked && 'hover:bg-violet-400/15',
-                    isFrontier && 'border-emerald-300/80 shadow-[0_0_18px_rgba(52,211,153,0.22)]',
+                    isStartTarget && 'border-emerald-300/80 shadow-[0_0_18px_rgba(52,211,153,0.22)]',
                     !state.isUnlocked && 'opacity-55 cursor-not-allowed',
                   )}
                 >
@@ -843,7 +858,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                       {lessonDisplayTitle(lesson, isEnglishCopy)}
                     </span>
                   </span>
-                  {isFrontier && (
+                  {isStartTarget && (
                     <img
                       src={DEFAULT_AVATAR_URL}
                       alt=""
@@ -856,6 +871,27 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
               );
             })}
           </div>
+          {selectedBlockStartLesson && (
+            <button
+              type="button"
+              onClick={handleStartSelectedBlock}
+              className={cn(
+                'absolute bottom-2 right-2 z-20 w-32 touch-manipulation border-0 bg-transparent p-0',
+                'transition-transform duration-150 hover:scale-[1.04] active:scale-95',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+                'sm:bottom-3 sm:right-3 sm:w-40 md:w-44',
+              )}
+              aria-label={isEnglishCopy ? 'Start selected chapter lesson' : '選択中チャプターのレッスンを始める'}
+            >
+              <img
+                src="/Start_Button.png"
+                alt=""
+                className="block h-auto w-full select-none"
+                draggable={false}
+                loading="eager"
+              />
+            </button>
+          )}
         </div>
       </div>
     </section>

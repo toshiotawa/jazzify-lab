@@ -214,3 +214,16 @@ export const buildLessonAccessGraph = ({
     blockStates,
   };
 };
+
+export const findDeepestUnlockedLesson = <TLesson extends { id: string }>(
+  lessons: readonly TLesson[],
+  isUnlocked: (lesson: TLesson) => boolean,
+): TLesson | null => {
+  for (let index = lessons.length - 1; index >= 0; index -= 1) {
+    const lesson = lessons[index];
+    if (isUnlocked(lesson)) {
+      return lesson;
+    }
+  }
+  return lessons[0] ?? null;
+};

@@ -560,57 +560,82 @@ struct LessonListView: View {
 
     private func currentChapterDetailPanel(_ state: MainQuestViewState) -> some View {
         let block = selectedBlock(in: state)
-        return VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(
-                icon: "flag.checkered",
-                title: locale == .ja ? "現在の章の詳細" : "Current Chapter Detail"
-            )
-            ZStack(alignment: .leading) {
-                QuestStageArtwork(stageNumber: block.stageNumber, rectangular: true)
-                LinearGradient(
-                    colors: [.black.opacity(0.84), .black.opacity(0.5), .clear],
-                    startPoint: .leading,
-                    endPoint: .trailing
+        let startLesson = deepestUnlockedLesson(in: block, state: state)
+        let startButtonWidth: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 172 : 146
+        let startButtonBottomPadding = startButtonWidth * 0.82
+        return ZStack(alignment: .bottomTrailing) {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeader(
+                    icon: "flag.checkered",
+                    title: locale == .ja ? "現在の章の詳細" : "Current Chapter Detail"
                 )
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(locale == .ja ? "チャプター" : "Chapter") \(block.blockNumber)")
-                        .font(.caption)
-                        .foregroundStyle(Color(hex: "c4b5fd"))
-                    Text(block.title)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                    if let description = block.description, !description.isEmpty {
-                        Text(description)
+                ZStack(alignment: .leading) {
+                    QuestStageArtwork(stageNumber: block.stageNumber, rectangular: true)
+                    LinearGradient(
+                        colors: [.black.opacity(0.84), .black.opacity(0.5), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(locale == .ja ? "チャプター" : "Chapter") \(block.blockNumber)")
                             .font(.caption)
-                            .foregroundStyle(Color(hex: "e9d5ff").opacity(0.86))
-                            .lineLimit(2)
+                            .foregroundStyle(Color(hex: "c4b5fd"))
+                        Text(block.title)
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        if let description = block.description, !description.isEmpty {
+                            Text(description)
+                                .font(.caption)
+                                .foregroundStyle(Color(hex: "e9d5ff").opacity(0.86))
+                                .lineLimit(2)
+                        }
+                        progressBar(done: block.completedCount, total: block.totalCount)
+                            .frame(maxWidth: 260)
                     }
-                    progressBar(done: block.completedCount, total: block.totalCount)
-                        .frame(maxWidth: 260)
+                    .padding(14)
+                    .frame(maxWidth: 520, alignment: .leading)
                 }
-                .padding(14)
-                .frame(maxWidth: 520, alignment: .leading)
-            }
-            .frame(minHeight: 120)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.purple.opacity(0.35), lineWidth: 1)
-            )
+                .frame(minHeight: 120)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+                )
 
-            chapterDetailLessonScroll(state: state, block: block)
+                chapterDetailLessonScroll(state: state, block: block, startLesson: startLesson)
+                    .padding(.bottom, startLesson == nil ? 0 : startButtonBottomPadding)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let startLesson {
+                Button {
+                    lessonToOpen = startLesson
+                } label: {
+                    Image("Start_Button")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: startButtonWidth)
+                        .shadow(color: .black.opacity(0.48), radius: 12, y: 6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(locale == .ja ? "選択中チャプターのレッスンを始める" : "Start selected chapter lesson")
+            }
         }
         .padding(12)
         .background(questPanelBackground)
     }
 
     /// Current Chapter のレッスン一覧: 約3件分の高さでスクロールし、フロンティアを中央付近へ（先頭・末尾は除外）。
-    private func chapterDetailLessonScroll(state: MainQuestViewState, block: MainQuestBlockState) -> some View {
+    private func chapterDetailLessonScroll(
+        state: MainQuestViewState,
+        block: MainQuestBlockState,
+        startLesson: Lesson?
+    ) -> some View {
         return ScrollViewReader { lessonProxy in
             ScrollView {
                 VStack(spacing: MainQuestLessonListLayout.rowSpacing) {
                     ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in
-                        lessonRow(lesson, index: index, state: state)
+                        lessonRow(lesson, index: index, state: state, startLessonId: startLesson?.id)
                             .id(lesson.id)
                     }
                 }
@@ -620,7 +645,7 @@ struct LessonListView: View {
                 scrollMainQuestLessonList(
                     proxy: lessonProxy,
                     block: block,
-                    frontier: state.frontierLesson,
+                    target: startLesson,
                     animated: false
                 )
             }
@@ -628,15 +653,15 @@ struct LessonListView: View {
                 scrollMainQuestLessonList(
                     proxy: lessonProxy,
                     block: block,
-                    frontier: state.frontierLesson,
+                    target: startLesson,
                     animated: true
                 )
             }
-            .onChange(of: state.frontierLesson?.id) { _ in
+            .onChange(of: startLesson?.id) { _ in
                 scrollMainQuestLessonList(
                     proxy: lessonProxy,
                     block: block,
-                    frontier: state.frontierLesson,
+                    target: startLesson,
                     animated: true
                 )
             }
@@ -646,10 +671,10 @@ struct LessonListView: View {
     private func scrollMainQuestLessonList(
         proxy: ScrollViewProxy,
         block: MainQuestBlockState,
-        frontier: Lesson?,
+        target: Lesson?,
         animated: Bool
     ) {
-        guard let fid = frontier?.id,
+        guard let fid = target?.id,
               let idx = block.lessons.firstIndex(where: { $0.id == fid }),
               block.lessons.contains(where: { $0.id == fid })
         else { return }
@@ -671,11 +696,16 @@ struct LessonListView: View {
         DispatchQueue.main.async(execute: run)
     }
 
-    private func lessonRow(_ lesson: Lesson, index: Int, state: MainQuestViewState) -> some View {
+    private func lessonRow(
+        _ lesson: Lesson,
+        index: Int,
+        state: MainQuestViewState,
+        startLessonId: UUID?
+    ) -> some View {
         let accessState = state.accessGraph.lessonStates[lesson.id]
         let isUnlocked = accessState?.isUnlocked ?? false
         let isCompleted = accessState?.isCompleted ?? false
-        let isFrontier = state.frontierLesson?.id == lesson.id
+        let isStartTarget = startLessonId == lesson.id
 
         return Button {
             lessonToOpen = lesson
@@ -704,7 +734,7 @@ struct LessonListView: View {
                     .foregroundStyle(isUnlocked ? .white : .gray)
                     .lineLimit(1)
                 Spacer()
-                if isFrontier {
+                if isStartTarget {
                     Image("default-avater")
                         .resizable()
                         .scaledToFit()
@@ -723,7 +753,7 @@ struct LessonListView: View {
                     .fill(Color.purple.opacity(0.12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 11)
-                            .stroke(isFrontier ? Color.green.opacity(0.85) : Color.purple.opacity(0.20), lineWidth: isFrontier ? 1.5 : 1)
+                            .stroke(isStartTarget ? Color.green.opacity(0.85) : Color.purple.opacity(0.20), lineWidth: isStartTarget ? 1.5 : 1)
                     )
             )
         }
@@ -778,6 +808,15 @@ struct LessonListView: View {
             return block
         }
         return state.currentBlock
+    }
+
+    private func deepestUnlockedLesson(in block: MainQuestBlockState, state: MainQuestViewState) -> Lesson? {
+        for lesson in block.lessons.reversed() {
+            if state.accessGraph.lessonStates[lesson.id]?.isUnlocked == true {
+                return lesson
+            }
+        }
+        return block.lessons.first
     }
 
     private func sortedLessons(_ lessons: [Lesson]) -> [Lesson] {
