@@ -201,6 +201,20 @@ struct LessonListView: View {
         let totalLessons: Int
     }
 
+    /// チャプター一覧の行高さ・ビューポート計算（`scrollTo` と実表示を一致させる）
+    private enum MainQuestChapterListLayout {
+        static let rowHeight: CGFloat = 66
+        static let rowSpacing: CGFloat = 8
+        static var scrollViewportHeight: CGFloat { 2 * rowHeight + rowSpacing }
+    }
+
+    /// Current 章レッスン一覧の行高さ・ビューポート計算（`scrollTo` と実表示を一致させる）
+    private enum MainQuestLessonListLayout {
+        static let rowHeight: CGFloat = 52
+        static let rowSpacing: CGFloat = 6
+        static var scrollViewportHeight: CGFloat { 3 * rowHeight + 2 * rowSpacing }
+    }
+
     private var mainQuestState: MainQuestViewState? {
         guard let course = mainQuestCourse else { return nil }
         let lessons = sortedLessons(lessonsMap[course.id] ?? [])
@@ -441,11 +455,6 @@ struct LessonListView: View {
     }
 
     private func journeyPanel(_ state: MainQuestViewState, scrollToChapterDetail: @escaping () -> Void) -> some View {
-        // chapterRow: サムネ 46 + 上下 padding 10 ずつ ≈ 66。行間は従来の VStack spacing に合わせ 8。
-        let chapterRowHeight: CGFloat = 66
-        let chapterRowGap: CGFloat = 8
-        let chapterListViewportHeight = 2 * chapterRowHeight + chapterRowGap
-
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "book",
@@ -453,24 +462,41 @@ struct LessonListView: View {
             )
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: chapterRowGap) {
+                    VStack(spacing: MainQuestChapterListLayout.rowSpacing) {
                         ForEach(state.blocks) { block in
                             chapterRow(block, state: state, scrollToChapterDetail: scrollToChapterDetail)
                                 .id(block.blockNumber)
                         }
                     }
                 }
-                .frame(height: chapterListViewportHeight)
+                .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
                 .onAppear {
-                    proxy.scrollTo(state.currentBlock.blockNumber, anchor: .top)
+                    scrollMainQuestChapterList(proxy: proxy, state: state, animated: false)
                 }
-                .onChange(of: state.currentBlock.blockNumber) { blockNumber in
-                    proxy.scrollTo(blockNumber, anchor: .top)
+                .onChange(of: state.currentBlock.blockNumber) { _ in
+                    scrollMainQuestChapterList(proxy: proxy, state: state, animated: true)
+                }
+                .onChange(of: selectedMainQuestBlockNumber) { _ in
+                    scrollMainQuestChapterList(proxy: proxy, state: state, animated: true)
                 }
             }
         }
         .padding(12)
         .background(questPanelBackground)
+    }
+
+    private func scrollMainQuestChapterList(proxy: ScrollViewProxy, state: MainQuestViewState, animated: Bool) {
+        let target = selectedBlock(in: state).blockNumber
+        let run: () -> Void = {
+            if animated {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    proxy.scrollTo(target, anchor: .top)
+                }
+            } else {
+                proxy.scrollTo(target, anchor: .top)
+            }
+        }
+        DispatchQueue.main.async(execute: run)
     }
 
     private func chapterRow(
@@ -525,6 +551,7 @@ struct LessonListView: View {
                             .stroke(isSelected ? Color.green.opacity(0.65) : Color.purple.opacity(0.18), lineWidth: 1)
                     )
             )
+            .frame(height: MainQuestChapterListLayout.rowHeight, alignment: .center)
         }
         .buttonStyle(.plain)
         .disabled(!block.isUnlocked)
@@ -579,20 +606,16 @@ struct LessonListView: View {
 
     /// Current Chapter のレッスン一覧: 約3件分の高さでスクロールし、フロンティアを中央付近へ（先頭・末尾は除外）。
     private func chapterDetailLessonScroll(state: MainQuestViewState, block: MainQuestBlockState) -> some View {
-        let rowHeight: CGFloat = 52
-        let rowGap: CGFloat = 6
-        let viewportHeight = 3 * rowHeight + 2 * rowGap
-
         return ScrollViewReader { lessonProxy in
             ScrollView {
-                VStack(spacing: rowGap) {
+                VStack(spacing: MainQuestLessonListLayout.rowSpacing) {
                     ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in
                         lessonRow(lesson, index: index, state: state)
                             .id(lesson.id)
                     }
                 }
             }
-            .frame(height: viewportHeight)
+            .frame(height: MainQuestLessonListLayout.scrollViewportHeight)
             .onAppear {
                 scrollMainQuestLessonList(
                     proxy: lessonProxy,
@@ -636,13 +659,16 @@ struct LessonListView: View {
             if idx == lastIdx { return .bottom }
             return .center
         }()
-        if animated {
-            withAnimation(.easeInOut(duration: 0.22)) {
+        let run: () -> Void = {
+            if animated {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    proxy.scrollTo(fid, anchor: anchor)
+                }
+            } else {
                 proxy.scrollTo(fid, anchor: anchor)
             }
-        } else {
-            proxy.scrollTo(fid, anchor: anchor)
         }
+        DispatchQueue.main.async(execute: run)
     }
 
     private func lessonRow(_ lesson: Lesson, index: Int, state: MainQuestViewState) -> some View {
@@ -701,6 +727,7 @@ struct LessonListView: View {
                     )
             )
         }
+        .frame(height: MainQuestLessonListLayout.rowHeight, alignment: .center)
         .buttonStyle(.plain)
         .disabled(!isUnlocked)
         .opacity(isUnlocked ? 1 : 0.58)
