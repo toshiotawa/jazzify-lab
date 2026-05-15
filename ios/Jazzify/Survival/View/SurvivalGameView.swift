@@ -132,7 +132,8 @@ struct SurvivalGameView: View {
             profile: profile,
             config: config,
             onExit: { _ in onClose() },
-            isDemo: isDemo
+            isDemo: isDemo,
+            usesEnglishToastCopy: locale == .en
         )
         created.start()
 

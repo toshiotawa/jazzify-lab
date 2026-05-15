@@ -14,20 +14,20 @@ export function showPlayerXpToasts(toast: ToastApi, award: AwardPlayerXpResult, 
   if (award.gainedXp <= 0) return;
 
   const gainBody = isEnglishCopy
-    ? `+${award.gainedXp} EXP`
+    ? `You earned +${award.gainedXp} EXP.`
     : `+${award.gainedXp} EXP を獲得しました`;
 
   toast.success(gainBody, {
-    title: isEnglishCopy ? 'Progress' : '経験値',
+    title: isEnglishCopy ? 'Experience' : '経験値',
     duration: 3500,
   });
 
   if (award.leveledUp) {
     const levelBody = isEnglishCopy
-      ? `You reached Level ${award.newLevel}.`
+      ? `You've reached Level ${award.newLevel}!`
       : `レベル ${award.newLevel} にレベルアップ！`;
     toast.info(levelBody, {
-      title: isEnglishCopy ? 'Level up' : 'レベルアップ',
+      title: isEnglishCopy ? 'Level up!' : 'レベルアップ',
       duration: 4500,
     });
   }

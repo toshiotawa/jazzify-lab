@@ -1940,7 +1940,7 @@ struct LessonDetailView: View {
                     amount: 100
                 )
                 await MainActor.run {
-                    PlayerLevelHub.shared.ingestAwardResponse(award)
+                    PlayerLevelHub.shared.ingestAwardResponse(award, usesEnglishUi: locale == .en)
                 }
             } catch {
                 /* XP は初回のみ。RPC 失敗や重複は非致命的 */

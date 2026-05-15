@@ -26,11 +26,6 @@ final class PlayerLevelHub: ObservableObject {
 
     private init() {}
 
-    private var isJapanese: Bool {
-        let code = Locale.current.language.languageCode?.identifier ?? ""
-        return code.hasPrefix("ja") || Locale.current.identifier.hasPrefix("ja")
-    }
-
     func applyLevelPayload(_ dto: SupabaseService.PlayerXpLevelPayload) {
         snapshot = LevelSnapshot(
             level: dto.level,
@@ -49,7 +44,8 @@ final class PlayerLevelHub: ObservableObject {
         }
     }
 
-    func ingestAwardResponse(_ raw: SupabaseService.PlayerXpAwardPayload) {
+    /// - Parameter usesEnglishUi: アプリ設定の表示言語（`AppLocale.en` のとき英語文言）。端末ロケールは使わない。
+    func ingestAwardResponse(_ raw: SupabaseService.PlayerXpAwardPayload, usesEnglishUi: Bool) {
         applyLevelPayload(
             SupabaseService.PlayerXpLevelPayload(
                 level: raw.newLevel,
@@ -61,16 +57,16 @@ final class PlayerLevelHub: ObservableObject {
 
         guard raw.gainedXp > 0 else { return }
 
-        let ja = isJapanese
-        let gainTitle = ja ? "経験値" : "Progress"
-        let gainBody = ja ? "+\(raw.gainedXp) EXP を獲得しました" : "+\(raw.gainedXp) EXP"
+        let ja = !usesEnglishUi
+        let gainTitle = ja ? "経験値" : "Experience"
+        let gainBody = ja ? "+\(raw.gainedXp) EXP を獲得しました" : "You earned +\(raw.gainedXp) EXP."
         enqueueToast(ToastItem(title: gainTitle, subtitle: gainBody))
 
         if raw.leveledUp {
-            let upTitle = ja ? "レベルアップ" : "Level up"
+            let upTitle = ja ? "レベルアップ" : "Level up!"
             let upBody = ja
                 ? "レベル \(raw.newLevel) にレベルアップ！"
-                : "You reached Level \(raw.newLevel)."
+                : "You've reached Level \(raw.newLevel)!"
             enqueueToast(ToastItem(title: upTitle, subtitle: upBody))
         }
     }

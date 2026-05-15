@@ -22,6 +22,7 @@ final class SurvivalGameSession: ObservableObject {
     private let hintMode: Bool
     private let characterId: String
     private let isDemo: Bool
+    private let usesEnglishToastCopy: Bool
     private let onExit: (_ isCleared: Bool) -> Void
     private let supabase = SupabaseService.shared
     private var uiForward: AnyCancellable?
@@ -33,7 +34,8 @@ final class SurvivalGameSession: ObservableObject {
         profile: SurvivalCharacterProfile = .defaultFai,
         config: SurvivalStageConfig = .default,
         onExit: @escaping (_ isCleared: Bool) -> Void,
-        isDemo: Bool = false
+        isDemo: Bool = false,
+        usesEnglishToastCopy: Bool
     ) {
         let loop = SurvivalGameLoop(stage: stage, hintMode: hintMode, profile: profile, config: config)
         self.gameLoop = loop
@@ -53,6 +55,7 @@ final class SurvivalGameSession: ObservableObject {
         self.hintMode = hintMode
         self.characterId = characterId
         self.isDemo = isDemo
+        self.usesEnglishToastCopy = usesEnglishToastCopy
         self.onExit = onExit
 
         uiForward = vm.objectWillChange.sink { [weak self] _ in
@@ -184,7 +187,7 @@ final class SurvivalGameSession: ObservableObject {
                         amount: 80
                     )
                     await MainActor.run {
-                        PlayerLevelHub.shared.ingestAwardResponse(award)
+                        PlayerLevelHub.shared.ingestAwardResponse(award, usesEnglishUi: self.usesEnglishToastCopy)
                     }
                 } catch {
                     /* 初回クリア進捗は保存済み。XP が取れなくても致命ではない */
