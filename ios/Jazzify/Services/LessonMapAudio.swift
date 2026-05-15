@@ -9,7 +9,7 @@ import Foundation
 final class LessonMapAudio {
     static let shared = LessonMapAudio()
 
-    static let bgmURL = URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
+    static let bgmURL = URL(string: "https://jazzify-cdn.com/fantasy-bgm/ab2d7f15-c19f-4222-872c-415dbc3c5638.mp3")!
 
     private let queuePlayer = AVQueuePlayer()
     private var looper: AVPlayerLooper?

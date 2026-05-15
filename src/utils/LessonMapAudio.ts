@@ -19,7 +19,7 @@ const toProxyUrl = (url: string): string => {
 const LS_BGM_VOLUME = 'lesson_map_bgm_volume_v1';
 const LS_BGM_MUTE = 'lesson_map_bgm_mute_v1';
 
-const DEFAULT_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3';
+const DEFAULT_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/ab2d7f15-c19f-4222-872c-415dbc3c5638.mp3';
 const DEFAULT_BGM_VOLUME = 0.3;
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0));
