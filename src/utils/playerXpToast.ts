@@ -1,6 +1,8 @@
 import type { useToast } from '@/stores/toastStore';
+import type { AwardPlayerXpResult, PlayerLevelUiState } from '@/platform/supabasePlayerXp';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
-import type { AwardPlayerXpResult } from '@/platform/supabasePlayerXp';
+
+export const PLAYER_XP_UPDATED_EVENT = 'jazzify:player-xp-updated';
 
 type ToastApi = Pick<ReturnType<typeof useToast>, 'success' | 'info'>;
 
@@ -32,5 +34,17 @@ export function showPlayerXpToasts(toast: ToastApi, award: AwardPlayerXpResult, 
 
   if (isIOSWebView()) {
     sendGameCallback('playerXpChanged');
+  }
+
+  if (typeof window !== 'undefined') {
+    const detail: PlayerLevelUiState = {
+      totalXp: award.totalXp,
+      level: award.newLevel,
+      inLevelXp: award.inLevelXp,
+      nextLevelXp: award.nextLevelXp,
+    };
+    window.dispatchEvent(
+      new CustomEvent<PlayerLevelUiState>(PLAYER_XP_UPDATED_EVENT, { detail }),
+    );
   }
 }

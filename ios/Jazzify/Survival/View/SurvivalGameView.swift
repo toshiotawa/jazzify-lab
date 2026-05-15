@@ -34,6 +34,9 @@ struct SurvivalGameView: View {
             } else {
                 loadingView
             }
+
+            PlayerXpToastOverlay()
+                .allowsHitTesting(false)
         }
         .background(Color.black)
         .task {

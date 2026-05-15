@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { fetchPlayerLevelState, type PlayerLevelUiState } from '@/platform/supabasePlayerXp';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { PLAYER_XP_UPDATED_EVENT } from '@/utils/playerXpToast';
 import type { Profile } from '@/types';
 
 type PlayerLevelProfileInput = {
@@ -49,6 +50,18 @@ const PlayerLevelSection: React.FC<PlayerLevelSectionProps> = ({ profile }) => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const onXpUpdated = (e: Event) => {
+      const ev = e as CustomEvent<PlayerLevelUiState>;
+      if (!ev.detail) return;
+      setError(false);
+      setLoading(false);
+      setState(ev.detail);
+    };
+    window.addEventListener(PLAYER_XP_UPDATED_EVENT, onXpUpdated);
+    return () => window.removeEventListener(PLAYER_XP_UPDATED_EVENT, onXpUpdated);
+  }, []);
+
   if (!profile?.id) return null;
 
   const title = isEnglishCopy ? 'Level' : 'レベル';
@@ -95,13 +108,6 @@ const PlayerLevelSection: React.FC<PlayerLevelSectionProps> = ({ profile }) => {
             />
           </div>
           <p className="text-xs text-gray-400 mt-1.5 tabular-nums">{subline}</p>
-          <button
-            type="button"
-            className="text-xs text-blue-400 hover:text-blue-300 mt-1 underline"
-            onClick={() => void load()}
-          >
-            {isEnglishCopy ? 'Refresh' : '更新'}
-          </button>
         </>
       ) : null}
     </div>

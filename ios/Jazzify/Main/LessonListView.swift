@@ -1241,6 +1241,9 @@ struct LessonDetailView: View {
                 }
                 .padding()
             }
+
+            PlayerXpToastOverlay()
+                .allowsHitTesting(false)
         }
         .navigationTitle(lesson.localizedTitle(locale))
         .navigationBarTitleDisplayMode(.inline)
@@ -1929,6 +1932,20 @@ struct LessonDetailView: View {
                 completed: true
             )
             isLessonCompleted = true
+
+            do {
+                let award = try await SupabaseService.shared.awardPlayerXp(
+                    reason: "lesson_first_clear",
+                    sourceId: lesson.id.uuidString,
+                    amount: 100
+                )
+                await MainActor.run {
+                    PlayerLevelHub.shared.ingestAwardResponse(award)
+                }
+            } catch {
+                /* XP は初回のみ。RPC 失敗や重複は非致命的 */
+            }
+
             alertMessage = locale == .ja ? "クエストを完了しました。" : "Quest completed."
         } catch {
             alertMessage = error.localizedDescription
