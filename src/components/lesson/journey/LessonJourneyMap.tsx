@@ -412,7 +412,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
       <style>{`
         @keyframes journey-breath {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
+          50% { transform: translateY(-2px); }
         }
         @keyframes journey-shadow {
           0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }

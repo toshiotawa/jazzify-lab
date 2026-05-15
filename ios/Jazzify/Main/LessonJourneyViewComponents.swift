@@ -612,33 +612,6 @@ struct LessonJourneyGoalView: View {
     }
 }
 
-// MARK: - Character
-
-struct LessonJourneyCharacterView: View {
-    let xPx: CGFloat
-    let yPx: CGFloat
-    let scale: CGFloat
-
-    @State private var floatOffset: CGFloat = 0
-
-    var body: some View {
-        let size = 60 * scale
-        Image("default-avater")
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .shadow(color: .black.opacity(0.5), radius: 7, y: 5)
-            .offset(y: floatOffset - size * 0.78)
-            .position(x: xPx, y: yPx)
-            .allowsHitTesting(false)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
-                    floatOffset = -6
-                }
-            }
-    }
-}
-
 // MARK: - Detail Sheet
 
 struct LessonJourneyDetailSheet: View {

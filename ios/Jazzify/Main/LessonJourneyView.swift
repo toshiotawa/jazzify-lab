@@ -438,16 +438,18 @@ struct LessonJourneyView: View {
                 }
 
                 if let frontierNode = layout.allNodes.first(where: { $0.lessonId == frontierLessonId }) {
-                    LessonJourneyCharacterView(
+                    SurvivalDescentCharacterView(
                         xPx: frontierNode.x * scale,
                         yPx: frontierNode.y * scale,
-                        scale: scale
+                        scale: scale,
+                        facing: lessonJourneyFrontierFacing(for: frontierNode)
                     )
                 } else if allCleared {
-                    LessonJourneyCharacterView(
+                    SurvivalDescentCharacterView(
                         xPx: layout.goal.x * scale,
                         yPx: layout.goal.y * scale,
-                        scale: scale
+                        scale: scale,
+                        facing: .center
                     )
                 }
             }
@@ -458,6 +460,32 @@ struct LessonJourneyView: View {
     }
 
     // MARK: - Helpers
+
+    /// WEB `LessonJourneyMap` の `frontierFacing` と同値（次ノード方向で左右／ほぼ同じ X は正面）。
+    private func lessonJourneyFrontierFacing(for frontierNode: LessonJourneyNode) -> SurvivalDescentCharacterView.Facing {
+        guard frontierNode.blockIndex >= 0, frontierNode.blockIndex < layout.blocks.count else {
+            return .center
+        }
+        let block = layout.blocks[frontierNode.blockIndex]
+        guard let indexInBlock = block.lessonNodes.firstIndex(where: { $0.id == frontierNode.id }) else {
+            return .center
+        }
+        let nextInBlock: LessonJourneyNode? = {
+            let j = indexInBlock + 1
+            guard j < block.lessonNodes.count else { return nil }
+            return block.lessonNodes[j]
+        }()
+        let nextBlockFirst: LessonJourneyNode? = {
+            let bi = frontierNode.blockIndex + 1
+            guard bi < layout.blocks.count else { return nil }
+            return layout.blocks[bi].lessonNodes.first
+        }()
+        let next = nextInBlock ?? nextBlockFirst ?? layout.goal
+
+        if next.x > frontierNode.x + 1 { return .right }
+        if next.x < frontierNode.x - 1 { return .left }
+        return .center
+    }
 
     private func accessState(for node: LessonJourneyNode) -> LessonJourneyAccessGraph.LessonState {
         guard let id = node.lessonId else {

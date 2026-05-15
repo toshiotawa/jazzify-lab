@@ -1,5 +1,5 @@
 import React from 'react';
-import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { getSurvivalDescentSpriteForFacing, SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 
 interface JourneyCharacterProps {
   xPx: number;
@@ -9,24 +9,26 @@ interface JourneyCharacterProps {
 }
 
 export const JourneyCharacter: React.FC<JourneyCharacterProps> = ({ xPx, yPx, scale, facing }) => {
-  const size = Math.round(60 * scale);
-  const offsetY = Math.round(size * 0.78); // ノードより少し上に浮かせる
-  const flip = facing === 'left' ? 'scaleX(-1)' : 'scaleX(1)';
+  const size = Math.round(88 * scale);
+  const offsetX =
+    facing === 'center' ? 0 : facing === 'right' ? Math.round(28 * scale) : -Math.round(28 * scale);
+  const { variant, flipX } = getSurvivalDescentSpriteForFacing(facing);
+  const src = SURVIVAL_DEFAULT_SPRITE_PATHS[variant];
+  const flip = flipX ? 'scaleX(-1)' : 'scaleX(1)';
 
   return (
     <div
       aria-hidden
       className="absolute pointer-events-none"
       style={{
-        left: xPx - size / 2,
-        top: yPx - offsetY,
+        left: xPx + offsetX - size / 2,
+        top: yPx - size - Math.round(10 * scale),
         width: size,
         height: size,
         zIndex: 27,
-        animation: 'journey-breath 3.2s ease-in-out infinite',
+        animation: 'journey-breath 2.2s ease-in-out infinite',
       }}
     >
-      {/* ふんわり影 */}
       <div
         className="absolute left-1/2 -translate-x-1/2 rounded-full"
         style={{
@@ -35,11 +37,11 @@ export const JourneyCharacter: React.FC<JourneyCharacterProps> = ({ xPx, yPx, sc
           height: Math.max(5, 7 * scale),
           background: 'radial-gradient(ellipse, rgba(0,0,0,0.55), rgba(0,0,0,0) 70%)',
           filter: 'blur(2px)',
-          animation: 'journey-shadow 3.2s ease-in-out infinite',
+          animation: 'journey-shadow 2.2s ease-in-out infinite',
         }}
       />
       <img
-        src={DEFAULT_AVATAR_URL}
+        src={src}
         alt=""
         draggable={false}
         style={{
@@ -47,7 +49,7 @@ export const JourneyCharacter: React.FC<JourneyCharacterProps> = ({ xPx, yPx, sc
           height: '100%',
           objectFit: 'contain',
           transform: flip,
-          filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.55))',
+          filter: 'drop-shadow(0 6px 8px rgba(0,0,0,0.55))',
         }}
       />
     </div>
