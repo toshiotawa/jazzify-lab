@@ -38,6 +38,9 @@ struct AnnouncementListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await loadAnnouncements() }
+        .onChange(of: locale) { _ in
+            Task { await loadAnnouncements() }
+        }
     }
 
     private func announcementItem(_ item: AnnouncementRow) -> some View {

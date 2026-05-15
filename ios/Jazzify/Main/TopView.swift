@@ -42,6 +42,9 @@ struct TopView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .task { await loadData() }
             .refreshable { await loadData() }
+            .onChange(of: locale) { _ in
+                Task { await fetchDashboardAnnouncements() }
+            }
             .navigationDestination(
                 isPresented: Binding(
                     get: { mainQuestLessonToOpen != nil },
@@ -268,67 +271,77 @@ struct TopView: View {
     // MARK: - Announcements
 
     private var announcementCard: some View {
-        Group {
-            if !announcements.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "bell.fill")
-                            .foregroundStyle(.yellow)
-                        Text(locale == .ja ? "お知らせ" : "Announcements")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "bell.fill")
+                    .foregroundStyle(.yellow)
+                Text(locale == .ja ? "お知らせ" : "Announcements")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
 
-                    if let latest = announcements.first {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(latest.localizedTitle(locale))
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.white)
-                            Text(latest.localizedContent(locale))
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                                .lineLimit(3)
-                            Text(latest.createdAt.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption2)
-                                .foregroundStyle(.gray.opacity(0.6))
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(hex: "334155"))
-                        .cornerRadius(8)
-                    }
-
-                    NavigationLink(destination: AnnouncementListView()) {
-                        HStack {
-                            Text(locale == .ja ? "一覧で見る" : "View all")
-                                .font(.subheadline)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.blue)
-                    }
+            if let latest = announcements.first {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(latest.localizedTitle(locale))
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    Text(latest.localizedContent(locale))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .lineLimit(3)
+                    Text(latest.createdAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption2)
+                        .foregroundStyle(.gray.opacity(0.6))
                 }
-                .padding(16)
-                .background(Color(hex: "1e293b"))
-                .cornerRadius(12)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(hex: "334155"))
+                .cornerRadius(8)
+            } else {
+                Text(locale == .ja ? "お知らせはありません" : "No announcements")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color(hex: "334155"))
+                    .cornerRadius(8)
+            }
+
+            NavigationLink(destination: AnnouncementListView()) {
+                HStack {
+                    Text(locale == .ja ? "一覧で見る" : "View all")
+                        .font(.subheadline)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                }
+                .foregroundStyle(.blue)
             }
         }
+        .padding(16)
+        .background(Color(hex: "1e293b"))
+        .cornerRadius(12)
     }
 
     // MARK: - Data Loading
 
-    private func loadData() async {
-        guard let userId = profile?.id else { return }
+    private func fetchDashboardAnnouncements() async {
         let currentLocale = locale
+        do {
+            announcements = try await SupabaseService.shared.fetchActiveAnnouncements(locale: currentLocale)
+        } catch {
+            announcements = []
+        }
+    }
 
-        async let announcementsTask: [AnnouncementRow] = {
-            do {
-                return try await SupabaseService.shared.fetchActiveAnnouncements(locale: currentLocale)
-            } catch {
-                return []
-            }
-        }()
+    private func loadData() async {
+        await fetchDashboardAnnouncements()
+
+        guard let userId = profile?.id else {
+            userStats = nil
+            mainQuestProgress = nil
+            return
+        }
 
         async let statsTask: UserStats? = {
             do {
@@ -346,12 +359,7 @@ struct TopView: View {
             }
         }()
 
-        let (loadedAnnouncements, loadedStats, loadedMainQuestProgress) = await (
-            announcementsTask,
-            statsTask,
-            mainQuestTask
-        )
-        announcements = loadedAnnouncements
+        let (loadedStats, loadedMainQuestProgress) = await (statsTask, mainQuestTask)
         userStats = loadedStats
         mainQuestProgress = loadedMainQuestProgress
     }
