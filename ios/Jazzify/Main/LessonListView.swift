@@ -519,7 +519,7 @@ struct LessonListView: View {
         state: MainQuestViewState
     ) -> some View {
         let isSelected = selectedBlock(in: state).blockNumber == block.blockNumber
-        return Button {
+        return DragCancellableTapRow(isEnabled: block.isUnlocked) {
             selectedMainQuestBlockNumber = block.blockNumber
         } label: {
             HStack(spacing: 10) {
@@ -566,8 +566,6 @@ struct LessonListView: View {
             )
             .frame(height: MainQuestChapterListLayout.rowHeight, alignment: .center)
         }
-        .buttonStyle(.plain)
-        .disabled(!block.isUnlocked)
         .opacity(block.isUnlocked ? 1 : 0.58)
     }
 
@@ -676,7 +674,7 @@ struct LessonListView: View {
         let isCompleted = accessState?.isCompleted ?? false
         let isStartTarget = startLessonId == lesson.id
 
-        return Button {
+        return DragCancellableTapRow(isEnabled: isUnlocked) {
             lessonToOpen = lesson
         } label: {
             HStack(spacing: 10) {
@@ -725,10 +723,8 @@ struct LessonListView: View {
                             .stroke(isStartTarget ? Color.green.opacity(0.85) : Color.purple.opacity(0.20), lineWidth: isStartTarget ? 1.5 : 1)
                     )
             )
+            .frame(height: MainQuestLessonListLayout.rowHeight, alignment: .center)
         }
-        .frame(height: MainQuestLessonListLayout.rowHeight, alignment: .center)
-        .buttonStyle(.plain)
-        .disabled(!isUnlocked)
         .opacity(isUnlocked ? 1 : 0.58)
     }
 
@@ -1037,6 +1033,85 @@ struct LessonListView: View {
         } catch {
             // keep existing progress on failure
         }
+    }
+}
+
+/// `UIKitVerticalScrollView`（UIKit `UIScrollView`）内に配置するタップ行。
+///
+/// SwiftUI `Button` をそのまま入れると、UIScrollView の pan が始まっても
+/// タップジェスチャーがキャンセルされず、軽くドラッグしただけで `action` が
+/// 発火してしまうケースがある（特に Chapters / Current Chapter 詳細）。
+///
+/// - `simultaneousGesture(DragGesture(minimumDistance: 0))` で押下と移動を観測し、
+///   親の `UIScrollView` の pan を阻害せずに共存する。
+/// - 状態は `@GestureState` のみで保持するので、スクロール開始等で SwiftUI 側に
+///   ジェスチャーがキャンセルされた場合も自動でリセットされる（押下中の見た目も復帰）。
+/// - 8pt を超えるドラッグでタップ判定をキャンセルし、指を離しても `action` を
+///   発火させない（Specific Courses と同じ体感）。発火可否はジェスチャー終了時の
+///   `value.translation` を見て決定する。
+private struct DragCancellableTapRow<Label: View>: View {
+    struct PressState: Equatable {
+        var isPressing: Bool = false
+        var dragCancelled: Bool = false
+    }
+
+    let isEnabled: Bool
+    let action: () -> Void
+    let label: Label
+
+    @GestureState private var press: PressState = PressState()
+
+    private static var cancelThreshold: CGFloat { 8 }
+    private static var pressedOpacity: Double { 0.55 }
+
+    init(
+        isEnabled: Bool = true,
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> Label
+    ) {
+        self.isEnabled = isEnabled
+        self.action = action
+        self.label = label()
+    }
+
+    private var isVisuallyPressed: Bool {
+        isEnabled && press.isPressing && !press.dragCancelled
+    }
+
+    var body: some View {
+        label
+            .opacity(isVisuallyPressed ? Self.pressedOpacity : 1.0)
+            .animation(.easeOut(duration: 0.12), value: isVisuallyPressed)
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($press) { value, state, _ in
+                        if !state.isPressing {
+                            state.isPressing = true
+                        }
+                        let distance = max(
+                            abs(value.translation.width),
+                            abs(value.translation.height)
+                        )
+                        if distance > Self.cancelThreshold && !state.dragCancelled {
+                            state.dragCancelled = true
+                        }
+                    }
+                    .onEnded { value in
+                        guard isEnabled else { return }
+                        let movedDistance = max(
+                            abs(value.translation.width),
+                            abs(value.translation.height)
+                        )
+                        if movedDistance <= Self.cancelThreshold {
+                            action()
+                        }
+                    }
+            )
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                if isEnabled { action() }
+            }
     }
 }
 

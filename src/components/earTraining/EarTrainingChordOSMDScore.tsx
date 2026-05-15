@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
+import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
 
 interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
@@ -204,6 +205,11 @@ const collectMeasureCentersFromStaffLines = (
   };
 };
 
+/** OSMD のランタイム設定（型定義に無い `zoom` を安全に触る）。 */
+type OpenSheetMusicDisplayZoomable = OpenSheetMusicDisplay & {
+  zoom: number;
+};
+
 const measureLayoutFromOsmd = (
   osmd: OpenSheetMusicDisplay,
   surface: Element | null,
@@ -231,6 +237,23 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  /** コンテナが低いモバイル横画面。2段譜時のみ OSMD zoom を iOS iPhone と同じ比率（2/3）にする。 */
+  const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const mq = window.matchMedia('(max-height: 500px) and (orientation: landscape)');
+    const apply = (): void => {
+      setMobileLandscapeOsmdShrink(mq.matches);
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => {
+      mq.removeEventListener('change', apply);
+    };
+  }, []);
 
   const renderScore = useCallback(async () => {
     const score = scoreRef.current;
@@ -267,6 +290,10 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       const osmd = new OpenSheetMusicDisplay(score, options);
       osmdRef.current = osmd;
       await osmd.load(musicXmlText);
+      const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
+      const osmdZoom =
+        mobileLandscapeOsmdShrink && maxStaff >= 2 ? 2 / 3 : 1;
+      (osmd as OpenSheetMusicDisplayZoomable).zoom = osmdZoom;
       osmd.render();
       const surface = score.querySelector('svg, canvas');
       const viewportWidth = viewportRef.current?.clientWidth ?? 0;
@@ -278,7 +305,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     } finally {
       setIsRendering(false);
     }
-  }, [isEnglishCopy, musicXmlText]);
+  }, [isEnglishCopy, musicXmlText, mobileLandscapeOsmdShrink]);
 
   useEffect(() => {
     void renderScore();

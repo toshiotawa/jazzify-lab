@@ -32,6 +32,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var countInValue: Int
     @Published private(set) var activeMeasureNumber: Int = 1
     @Published private(set) var musicXMLText: String?
+    /// MusicXML 上の段数の目安（`<staves>` と note 直下 `<staff>` の最大）。OSMD 初期 zoom に使用。
+    @Published private(set) var musicXMLMaxStaffLayers: Int = 1
     @Published private(set) var scoreErrorText: String?
     @Published private(set) var completedTargetCount: Int = 0
     @Published private(set) var failedTargetCount: Int = 0
@@ -79,7 +81,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         "\(phraseId.uuidString)|osmdXml|v\(musicXmlCacheSchemaVersion)"
     }
 
-    private var musicXMLCache: [String: String] = [:]
+    private struct MusicXmlPrepared {
+        let xml: String
+        let maxStaffLayers: Int
+    }
+
+    private var musicXMLCache: [String: MusicXmlPrepared] = [:]
 
     private var countdownTask: Task<Void, Never>?
     private var transitionTask: Task<Void, Never>?
@@ -370,12 +377,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func loadMusicXML(for phrase: EarTrainingPhraseDetail) async {
         let cacheKey = Self.musicXmlCacheKey(phraseId: phrase.id)
         if let cached = musicXMLCache[cacheKey] {
-            musicXMLText = cached
+            musicXMLText = cached.xml
+            musicXMLMaxStaffLayers = cached.maxStaffLayers
             scoreErrorText = nil
             return
         }
         guard let rawURL = phrase.musicXmlUrl, let url = URL(string: rawURL) else {
             musicXMLText = nil
+            musicXMLMaxStaffLayers = 1
             scoreErrorText = isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
             return
         }
@@ -385,20 +394,25 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                 musicXMLText = nil
+                musicXMLMaxStaffLayers = 1
                 scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
                 return
             }
             guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 musicXMLText = nil
+                musicXMLMaxStaffLayers = 1
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
                 return
             }
-            let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
-            musicXMLCache[cacheKey] = normalized
-            musicXMLText = normalized
+            let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
+            let boxed = MusicXmlPrepared(xml: prepared.xml, maxStaffLayers: prepared.maxStaffLayers)
+            musicXMLCache[cacheKey] = boxed
+            musicXMLText = prepared.xml
+            musicXMLMaxStaffLayers = prepared.maxStaffLayers
             scoreErrorText = nil
         } catch {
             musicXMLText = nil
+            musicXMLMaxStaffLayers = 1
             scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
         }
     }

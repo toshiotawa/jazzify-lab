@@ -62,10 +62,54 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         let node: ChordOsmdXmlChild
     }
 
-    static func normalizeChordOsmdMusicXml(_ xmlText: String) -> String {
-        guard let root = ChordOsmdXmlParser.parse(xmlText) else {
-            return xmlText
+    /// `<staves>` の最大値と、`<note>` 直下の `<staff>` 番号の最大値のうち大きい方（いずれも無ければ 1）。
+    private static func maxDetectedStaffLayerCount(from root: ChordOsmdXmlElement) -> Int {
+        var maxFromStaves = 0
+        var maxFromNoteStaff = 0
+        func visit(_ el: ChordOsmdXmlElement) {
+            if el.name == "staves", let n = parsePositiveInt(textContent(of: el)) {
+                maxFromStaves = max(maxFromStaves, n)
+            }
+            if el.name == "note" {
+                for ch in el.children {
+                    if case let .element(child) = ch, child.name == "staff",
+                       let n = parsePositiveInt(textContent(of: child))
+                    {
+                        maxFromNoteStaff = max(maxFromNoteStaff, n)
+                    }
+                }
+            }
+            for ch in el.children {
+                if case let .element(child) = ch {
+                    visit(child)
+                }
+            }
         }
+        visit(root)
+        return max(1, maxFromStaves, maxFromNoteStaff)
+    }
+
+    private static func textContent(of el: ChordOsmdXmlElement) -> String? {
+        var buffer = ""
+        for ch in el.children {
+            if case let .text(t) = ch {
+                buffer.append(t)
+            }
+        }
+        let trimmed = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func normalizeChordOsmdMusicXml(_ xmlText: String) -> String {
+        normalizeChordOsmdMusicXmlWithMeta(xmlText).xml
+    }
+
+    /// 正規化後の XML と、段落譜数の検出結果（読み込み 1 回で両方算出）。
+    static func normalizeChordOsmdMusicXmlWithMeta(_ xmlText: String) -> (xml: String, maxStaffLayers: Int) {
+        guard let root = ChordOsmdXmlParser.parse(xmlText) else {
+            return (xmlText, 1)
+        }
+        let maxStaffLayers = Self.maxDetectedStaffLayerCount(from: root)
 
         var changed = false
         var timing = Timing(divisions: 1, beats: 4, beatType: 4)
@@ -77,10 +121,11 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             }
         }
 
-        guard changed else { return xmlText }
+        guard changed else { return (xmlText, maxStaffLayers) }
         // `XMLParser` は XML 宣言と DOCTYPE を保持せず、serializer も root 以下しか出力しない。
         // WebKit の DOMParser は宣言の無い文字列を `invalid document` として弾くため、`<?xml ... ?>` を再付与する。
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+        let normalized = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+        return (normalized, maxStaffLayers)
     }
 
     private static func allElements(named target: String, in root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {

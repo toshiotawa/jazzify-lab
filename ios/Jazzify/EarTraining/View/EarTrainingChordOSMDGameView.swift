@@ -244,7 +244,10 @@ private struct EarTrainingChordOSMDContent: View {
         let height = min(size.height * 0.48, 280)
         // OSMD コンテナ高さに収めるためのベースズーム。WebView 側でレンダー後に高さを測り、
         // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
-        let osmdZoom: Double = UIDevice.current.userInterfaceIdiom == .phone ? 0.6 : 0.85
+        // 2段譜以上では iPhone のみ明示的に小さく開始（iPad は変更なし）。
+        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
+        let multiStaff = controller.musicXMLMaxStaffLayers >= 2
+        let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
         ZStack {
             if let musicXMLText = controller.musicXMLText {
                 EarTrainingOSMDScoreWebView(

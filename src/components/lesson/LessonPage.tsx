@@ -38,6 +38,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import { cn } from '@/utils/cn';
+import { useTapCancelOnDrag } from '@/hooks/useTapCancelOnDrag';
 
 interface MainQuestBlock {
   blockNumber: number;
@@ -584,6 +585,141 @@ interface MainQuestDashboardProps {
   onOpenLesson: (lessonId: string) => void;
 }
 
+interface ChapterListItemProps {
+  block: MainQuestBlock;
+  isSelected: boolean;
+  isEnglishCopy: boolean;
+  onSelect: (blockNumber: number) => void;
+}
+
+const ChapterListItem: React.FC<ChapterListItemProps> = ({
+  block,
+  isSelected,
+  isEnglishCopy,
+  onSelect,
+}) => {
+  const { pressed, tapHandlers } = useTapCancelOnDrag(
+    () => {
+      onSelect(block.blockNumber);
+    },
+    { disabled: !block.isUnlocked },
+  );
+
+  return (
+    <button
+      type="button"
+      data-quest-block={block.blockNumber}
+      disabled={!block.isUnlocked}
+      className={cn(
+        'flex w-full items-center gap-3 rounded-lg border p-2 text-left transition-colors duration-150',
+        isSelected
+          ? 'border-emerald-300/55 bg-emerald-500/10'
+          : pressed
+            ? 'border-violet-300/40 bg-violet-500/15'
+            : 'border-violet-400/15 bg-white/[0.035] hover:bg-white/[0.06]',
+        !block.isUnlocked && 'opacity-55 cursor-not-allowed',
+      )}
+      {...tapHandlers}
+    >
+      <img
+        src={stageCardSquarePath(block.stageNumber)}
+        alt=""
+        className="h-11 w-11 shrink-0 rounded-md object-cover"
+        loading="lazy"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] text-violet-200/75">
+          {isEnglishCopy ? `Chapter ${block.blockNumber}` : `チャプター ${block.blockNumber}`}
+        </span>
+        <span className="block truncate text-sm font-semibold text-violet-50">{block.title}</span>
+      </span>
+      <span className="shrink-0 text-[11px] font-semibold">
+        {block.isCompleted ? (
+          <span className="text-emerald-300">{isEnglishCopy ? 'Cleared' : 'Cleared'}</span>
+        ) : block.isCurrent ? (
+          <span className="text-violet-200">{isEnglishCopy ? 'Current' : 'Current'}</span>
+        ) : block.isUnlocked ? (
+          <FaChevronRight className="text-violet-300/70" />
+        ) : (
+          <FaLock className="text-slate-500" />
+        )}
+      </span>
+    </button>
+  );
+};
+
+interface LessonListItemProps {
+  lesson: Lesson;
+  lessonIndex: number;
+  isEnglishCopy: boolean;
+  isStartTarget: boolean;
+  isUnlocked: boolean;
+  isCompleted: boolean;
+  onOpenLesson: (lessonId: string) => void;
+}
+
+const LessonListItem: React.FC<LessonListItemProps> = ({
+  lesson,
+  lessonIndex,
+  isEnglishCopy,
+  isStartTarget,
+  isUnlocked,
+  isCompleted,
+  onOpenLesson,
+}) => {
+  const { pressed, tapHandlers } = useTapCancelOnDrag(
+    () => {
+      onOpenLesson(lesson.id);
+    },
+    { disabled: !isUnlocked },
+  );
+
+  return (
+    <button
+      type="button"
+      data-quest-lesson={lesson.id}
+      disabled={!isUnlocked}
+      className={cn(
+        'relative flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors duration-150',
+        'bg-violet-500/10 border-violet-300/15',
+        isUnlocked && !pressed && 'hover:bg-violet-400/15',
+        pressed && !isStartTarget && 'bg-violet-500/22 border-violet-200/35',
+        pressed && isStartTarget && 'bg-emerald-950/25',
+        isStartTarget && 'border-emerald-300/80 shadow-[0_0_18px_rgba(52,211,153,0.22)]',
+        !isUnlocked && 'opacity-55 cursor-not-allowed',
+      )}
+      {...tapHandlers}
+    >
+      <span
+        className={cn(
+          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold',
+          isCompleted
+            ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-100'
+            : isUnlocked
+              ? 'border-violet-200/45 bg-violet-400/20 text-violet-50'
+              : 'border-slate-500/40 bg-slate-800/70 text-slate-400',
+        )}
+      >
+        {isCompleted ? <FaCheck /> : isUnlocked ? lessonIndex + 1 : <FaLock className="text-[10px]" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-violet-50">
+          {lessonDisplayTitle(lesson, isEnglishCopy)}
+        </span>
+      </span>
+      {isStartTarget && (
+        <img
+          src={DEFAULT_AVATAR_URL}
+          alt=""
+          className="h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)]"
+          draggable={false}
+        />
+      )}
+      {isCompleted && <FaCheck className="shrink-0 text-emerald-300" />}
+    </button>
+  );
+};
+
 const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
   summary,
   isEnglishCopy,
@@ -749,44 +885,13 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
           >
             <div className="space-y-2">
               {summary.blocks.map(block => (
-                <button
+                <ChapterListItem
                   key={block.blockNumber}
-                  type="button"
-                  data-quest-block={block.blockNumber}
-                  disabled={!block.isUnlocked}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-lg border p-2 text-left transition-colors',
-                    block.blockNumber === selectedBlock.blockNumber
-                      ? 'border-emerald-300/55 bg-emerald-500/10'
-                      : 'border-violet-400/15 bg-white/[0.035] hover:bg-white/[0.06]',
-                    !block.isUnlocked && 'opacity-55 cursor-not-allowed',
-                  )}
-                  onClick={() => handleSelectChapter(block.blockNumber)}
-                >
-                  <img
-                    src={stageCardSquarePath(block.stageNumber)}
-                    alt=""
-                    className="h-11 w-11 shrink-0 rounded-md object-cover"
-                    loading="lazy"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] text-violet-200/75">
-                      {isEnglishCopy ? `Chapter ${block.blockNumber}` : `チャプター ${block.blockNumber}`}
-                    </span>
-                    <span className="block truncate text-sm font-semibold text-violet-50">{block.title}</span>
-                  </span>
-                  <span className="shrink-0 text-[11px] font-semibold">
-                    {block.isCompleted ? (
-                      <span className="text-emerald-300">{isEnglishCopy ? 'Cleared' : 'Cleared'}</span>
-                    ) : block.isCurrent ? (
-                      <span className="text-violet-200">{isEnglishCopy ? 'Current' : 'Current'}</span>
-                    ) : block.isUnlocked ? (
-                      <FaChevronRight className="text-violet-300/70" />
-                    ) : (
-                      <FaLock className="text-slate-500" />
-                    )}
-                  </span>
-                </button>
+                  block={block}
+                  isSelected={block.blockNumber === selectedBlock.blockNumber}
+                  isEnglishCopy={isEnglishCopy}
+                  onSelect={handleSelectChapter}
+                />
               ))}
             </div>
           </div>
@@ -836,47 +941,16 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
               const state = summary.accessGraph.lessonStates[lesson.id] ?? { isUnlocked: false, isCompleted: false };
               const isStartTarget = selectedBlockStartLessonId === lesson.id;
               return (
-                <button
+                <LessonListItem
                   key={lesson.id}
-                  type="button"
-                  data-quest-lesson={lesson.id}
-                  disabled={!state.isUnlocked}
-                  onClick={() => onOpenLesson(lesson.id)}
-                  className={cn(
-                    'relative flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors',
-                    'bg-violet-500/10 border-violet-300/15',
-                    state.isUnlocked && 'hover:bg-violet-400/15',
-                    isStartTarget && 'border-emerald-300/80 shadow-[0_0_18px_rgba(52,211,153,0.22)]',
-                    !state.isUnlocked && 'opacity-55 cursor-not-allowed',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold',
-                      state.isCompleted
-                        ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-100'
-                        : state.isUnlocked
-                          ? 'border-violet-200/45 bg-violet-400/20 text-violet-50'
-                          : 'border-slate-500/40 bg-slate-800/70 text-slate-400',
-                    )}
-                  >
-                    {state.isCompleted ? <FaCheck /> : state.isUnlocked ? index + 1 : <FaLock className="text-[10px]" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-violet-50">
-                      {lessonDisplayTitle(lesson, isEnglishCopy)}
-                    </span>
-                  </span>
-                  {isStartTarget && (
-                    <img
-                      src={DEFAULT_AVATAR_URL}
-                      alt=""
-                      className="h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)]"
-                      draggable={false}
-                    />
-                  )}
-                  {state.isCompleted && <FaCheck className="shrink-0 text-emerald-300" />}
-                </button>
+                  lesson={lesson}
+                  lessonIndex={index}
+                  isEnglishCopy={isEnglishCopy}
+                  isStartTarget={isStartTarget}
+                  isUnlocked={state.isUnlocked}
+                  isCompleted={state.isCompleted}
+                  onOpenLesson={onOpenLesson}
+                />
               );
             })}
           </div>
