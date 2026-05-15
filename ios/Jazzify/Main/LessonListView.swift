@@ -441,21 +441,26 @@ struct LessonListView: View {
     }
 
     private func journeyPanel(_ state: MainQuestViewState, scrollToChapterDetail: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // chapterRow: サムネ 46 + 上下 padding 10 ずつ ≈ 66。行間は従来の VStack spacing に合わせ 8。
+        let chapterRowHeight: CGFloat = 66
+        let chapterRowGap: CGFloat = 8
+        let chapterListViewportHeight = 2 * chapterRowHeight + chapterRowGap
+
+        return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "book",
                 title: locale == .ja ? "チャプター" : "Chapters"
             )
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 8) {
+                    VStack(spacing: chapterRowGap) {
                         ForEach(state.blocks) { block in
                             chapterRow(block, state: state, scrollToChapterDetail: scrollToChapterDetail)
                                 .id(block.blockNumber)
                         }
                     }
                 }
-                .frame(height: UIDevice.current.userInterfaceIdiom == .pad ? 420 : 236)
+                .frame(height: chapterListViewportHeight)
                 .onAppear {
                     proxy.scrollTo(state.currentBlock.blockNumber, anchor: .top)
                 }
@@ -572,11 +577,11 @@ struct LessonListView: View {
         .background(questPanelBackground)
     }
 
-    /// Current Chapter のレッスン一覧: 約5件分の高さでスクロールし、フロンティアを中央付近へ（先頭・末尾は除外）。
+    /// Current Chapter のレッスン一覧: 約3件分の高さでスクロールし、フロンティアを中央付近へ（先頭・末尾は除外）。
     private func chapterDetailLessonScroll(state: MainQuestViewState, block: MainQuestBlockState) -> some View {
         let rowHeight: CGFloat = 52
         let rowGap: CGFloat = 6
-        let viewportHeight = 5 * rowHeight + 4 * rowGap
+        let viewportHeight = 3 * rowHeight + 2 * rowGap
 
         return ScrollViewReader { lessonProxy in
             ScrollView {
