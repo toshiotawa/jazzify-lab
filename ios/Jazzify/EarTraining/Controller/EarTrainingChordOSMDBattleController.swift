@@ -12,6 +12,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private static let effectClearPaddingMs: Double = 420
     private static let phraseTransitionDelayNs: UInt64 = 220_000_000
     private static let phraseTransitionDamageExtraNs: UInt64 = 650_000_000
+    /// フレーズ終了検知のセーフティパディング。`loop_duration_sec` の直後ではなく、
+    /// 最後のノーツの判定窓と被ダメージ用ハンマーが着弾し終わるまで待つ（WEB の `PHRASE_END_PADDING_SEC` 相当）。
+    private static let phraseEndPaddingSec: Double = 0.08
 
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseIndex: Int = 0
@@ -64,7 +67,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
-    private var musicXMLCache: [UUID: String] = [:]
+    private static let musicXmlCacheSchemaVersion = 2
+
+    private static func musicXmlCacheKey(phraseId: UUID) -> String {
+        "\(phraseId.uuidString)|osmdXml|v\(musicXmlCacheSchemaVersion)"
+    }
+
+    private var musicXMLCache: [String: String] = [:]
+
     private var countdownTask: Task<Void, Never>?
     private var transitionTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
@@ -346,7 +356,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func loadMusicXML(for phrase: EarTrainingPhraseDetail) async {
-        if let cached = musicXMLCache[phrase.id] {
+        let cacheKey = Self.musicXmlCacheKey(phraseId: phrase.id)
+        if let cached = musicXMLCache[cacheKey] {
             musicXMLText = cached
             scoreErrorText = nil
             return
@@ -357,14 +368,17 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, _) = try await URLSession.shared.data(for: request)
             guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 musicXMLText = nil
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
                 return
             }
-            musicXMLCache[phrase.id] = text
-            musicXMLText = text
+            let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
+            musicXMLCache[cacheKey] = normalized
+            musicXMLText = normalized
             scoreErrorText = nil
         } catch {
             musicXMLText = nil
@@ -393,7 +407,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         guard gameState == .playingPhrase else { return }
         let phrase = phrases[phraseIndex]
-        if phraseTime >= max(0.05, phrase.loopDurationSec - 0.025) {
+        let lastTargetEnd = (targets.last?.targetTimeSec ?? 0) + Self.judgmentWindowSec + Self.hammerImpactOffsetSec
+        let safeLoopEnd = max(phrase.loopDurationSec, lastTargetEnd) + Self.phraseEndPaddingSec
+        if phraseTime >= safeLoopEnd {
             finishCurrentPhraseIfNeeded()
         }
     }

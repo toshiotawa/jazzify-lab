@@ -1,7 +1,7 @@
 /**
  * 開発者用 chord_osmd テスト: BPM120・4小節×1ループ分のクリックのみ MP3（8s）を2本出力（同一波形）。
  * マイグレーション [supabase/migrations/20260516180000_developer_course_chord_osmd_test_lesson.sql] の
- * audio_url と同じファイル名に合わせる。
+ * audio_url と同じファイル名に合わせる。MusicXML は repo の `public/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-0[12]-v2.musicxml`（別途編集）。
  *
  * 前提: ffmpeg / ffprobe が PATH にあること。
  *

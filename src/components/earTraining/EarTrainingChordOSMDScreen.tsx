@@ -1075,6 +1075,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         activeMeasureNumber={activeMeasureNumber}
         renderKeyValue={phraseRunId}
         isEnglishCopy={isEnglishCopy}
+        hidden={showLobbyControls}
       />
 
       <EarTrainingPianoOverlay

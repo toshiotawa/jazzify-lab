@@ -304,7 +304,7 @@ final class EarTrainingAudio: NSObject {
             let phraseWhen = AVAudioTime(hostTime: phraseHost)
             phrasePlaybackAnchorHostTime = phraseHost
 
-            phrasePlayer.scheduleFile(file, at: phraseWhen) { [weak self] in
+            phrasePlayer.scheduleFile(file, at: phraseWhen, completionCallbackType: .dataPlayedBack) { [weak self] _ in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     guard self.playbackToken == scheduleToken else { return }
@@ -606,7 +606,7 @@ final class EarTrainingAudio: NSObject {
             phraseMixer.outputVolume = 0
         }
 
-        phrasePlayer.scheduleFile(file, at: nil, completionHandler: { [weak self] in
+        phrasePlayer.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self else { return }
                 guard self.playbackToken == scheduleToken else { return }
@@ -617,7 +617,7 @@ final class EarTrainingAudio: NSObject {
                 self.clickPlayer.stop()
                 self.onEnded?()
             }
-        })
+        }
 
         phrasePlayer.play()
         startTimeTickerIfNeeded()

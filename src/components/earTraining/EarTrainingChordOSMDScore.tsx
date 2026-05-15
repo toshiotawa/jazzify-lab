@@ -8,6 +8,8 @@ interface EarTrainingChordOSMDScoreProps {
   activeMeasureNumber: number;
   renderKeyValue: number;
   isEnglishCopy: boolean;
+  /** ロビーやリザルト表示中など、譜面を裏に隠したい場合に true。マウントは維持する。 */
+  hidden?: boolean;
 }
 
 interface OsmdLayout {
@@ -98,6 +100,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   activeMeasureNumber,
   renderKeyValue,
   isEnglishCopy,
+  hidden = false,
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreRef = useRef<HTMLDivElement | null>(null);
@@ -179,7 +182,11 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   return (
     <div
       ref={viewportRef}
-      className="ear-training-osmd-score pointer-events-none absolute left-1/2 top-[42%] z-10 h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden"
+      aria-hidden={hidden}
+      className={cn(
+        'ear-training-osmd-score pointer-events-none absolute left-1/2 top-[42%] z-10 h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden',
+        hidden && 'invisible',
+      )}
     >
       <div
         ref={scoreRef}

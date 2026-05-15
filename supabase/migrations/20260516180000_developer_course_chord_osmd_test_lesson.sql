@@ -3,7 +3,7 @@
 --
 -- 資産:
 --   node scripts/build-dev-chord-osmd-120-click-mp3.mjs
---   MusicXML: public/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-0[12].musicxml
+--   MusicXML: public/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-0[12]-v2.musicxml（2声部+backup。CDN は 20260516190000 で -v2 URL に統一）
 -- R2: node scripts/upload-dev-chord-osmd-120-assets-to-r2.mjs（要 wrangler / .env.r2）
 --
 -- UUID は uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, '<name>') で固定。
@@ -110,7 +110,7 @@ INSERT INTO public.ear_training_phrases (
     0,
     'フレーズ1',
     'Phrase 1',
-    'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-01.musicxml',
+    'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-01-v2.musicxml',
     'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-01.mp3',
     8,
     8,
@@ -122,7 +122,7 @@ INSERT INTO public.ear_training_phrases (
     1,
     'フレーズ2',
     'Phrase 2',
-    'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-02.musicxml',
+    'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-02-v2.musicxml',
     'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-02.mp3',
     8,
     8,

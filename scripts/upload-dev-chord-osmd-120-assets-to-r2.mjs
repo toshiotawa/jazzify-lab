@@ -1,5 +1,5 @@
 /**
- * 開発者用 chord_osmd 120BPM テスト: クリック MP3（2本）+ MusicXML（2本）を R2 の `fantasy-bgm/` に置く。
+ * 開発者用 chord_osmd 120BPM テスト: クリック MP3（2本）+ MusicXML v2（2本、`*-v2.musicxml`）を R2 の `fantasy-bgm/` に置く。
  * 先に `node scripts/build-dev-chord-osmd-120-click-mp3.mjs` で MP3 を生成すること（XML は repo の public/fantasy-bgm に同梱）。
  *
  * Usage:
@@ -46,11 +46,11 @@ const FILES = [
   { name: 'ear-training-dev-chord-osmd-120-phrase-01.mp3', contentType: 'audio/mpeg' },
   { name: 'ear-training-dev-chord-osmd-120-phrase-02.mp3', contentType: 'audio/mpeg' },
   {
-    name: 'ear-training-dev-chord-osmd-120-phrase-01.musicxml',
+    name: 'ear-training-dev-chord-osmd-120-phrase-01-v2.musicxml',
     contentType: 'application/vnd.recordare.musicxml+xml',
   },
   {
-    name: 'ear-training-dev-chord-osmd-120-phrase-02.musicxml',
+    name: 'ear-training-dev-chord-osmd-120-phrase-02-v2.musicxml',
     contentType: 'application/vnd.recordare.musicxml+xml',
   },
 ];

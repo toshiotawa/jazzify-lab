@@ -241,7 +241,9 @@ private struct EarTrainingChordOSMDContent: View {
     private func scoreOverlay(size: CGSize) -> some View {
         let width = min(size.width * 0.66, 720)
         let height = min(size.height * 0.48, 280)
-        let osmdZoom: Double = UIDevice.current.userInterfaceIdiom == .phone ? 0.7 : 1.0
+        // OSMD コンテナ高さに収めるためのベースズーム。WebView 側でレンダー後に高さを測り、
+        // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
+        let osmdZoom: Double = UIDevice.current.userInterfaceIdiom == .phone ? 0.6 : 0.85
         ZStack {
             if let musicXMLText = controller.musicXMLText {
                 EarTrainingOSMDScoreWebView(
@@ -507,21 +509,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             score.style.width = scoreWidth + 'px';
           }
 
-          async function renderMusicXML(xmlText, zoomValue) {
-            status.textContent = 'Rendering...';
-            status.style.display = 'grid';
-            score.replaceChildren();
-            measureCenters = [];
-            score.style.transform = 'translate3d(0, -50%, 0)';
-
-            const OpenSheetMusicDisplay = window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
-            if (!OpenSheetMusicDisplay) {
-              status.textContent = 'OSMD failed to load';
-              return;
-            }
-            const displayXml = xmlText;
-            const z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
-            osmd = new OpenSheetMusicDisplay(score, {
+          function buildOsmd() {
+            return new OpenSheetMusicDisplay(score, {
               backend: 'canvas',
               autoResize: false,
               drawTitle: false,
@@ -535,9 +524,49 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               defaultColorTitle: '#ffffff',
               defaultColorLyrics: '#ffffff'
             });
+          }
+
+          function measureSurfaceHeight() {
+            const surface = score.querySelector('canvas, svg');
+            if (!surface) return 0;
+            const rect = surface.getBoundingClientRect();
+            return rect.height || surface.height || 0;
+          }
+
+          async function renderMusicXML(xmlText, zoomValue) {
+            status.textContent = 'Rendering...';
+            status.style.display = 'grid';
+            score.replaceChildren();
+            measureCenters = [];
+            score.style.transform = 'translate3d(0, -50%, 0)';
+
+            const OpenSheetMusicDisplay = window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
+            if (!OpenSheetMusicDisplay) {
+              status.textContent = 'OSMD failed to load';
+              return;
+            }
+            const displayXml = xmlText;
+            let z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
+            osmd = buildOsmd();
             osmd.zoom = z;
             await osmd.load(displayXml);
             osmd.render();
+            // 描画後に実際の高さを測り、コンテナ高さに収まらない場合は縮小して再描画する。
+            // viewport は #viewport (= position:fixed; inset:0) でコンテナ高さに一致する。
+            const targetHeight = Math.max(48, viewport.clientHeight * 0.94);
+            const measured = measureSurfaceHeight();
+            if (measured > targetHeight && measured > 0) {
+              const minZoom = 0.32;
+              const fitZoom = Math.max(minZoom, z * (targetHeight / measured));
+              if (Math.abs(fitZoom - z) > 0.01) {
+                z = fitZoom;
+                score.replaceChildren();
+                osmd = buildOsmd();
+                osmd.zoom = z;
+                await osmd.load(displayXml);
+                osmd.render();
+              }
+            }
             collectMeasureCenters();
             status.style.display = 'none';
           }
