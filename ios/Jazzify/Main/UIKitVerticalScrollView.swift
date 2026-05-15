@@ -5,10 +5,18 @@ fileprivate final class PendingScrollUIScrollView: UIScrollView {
     var pendingTargetY: CGFloat?
     var pendingAnimated = false
     var onApplied: (() -> Void)?
+    /// `true` のとき、子ビュー（SwiftUI `Button` など）に既にタッチが渡っていても
+    /// パン開始でキャンセルする。Specific Courses と同じ挙動を再現するために使う。
+    var alwaysCancelContentTouches = false
 
     override func layoutSubviews() {
         super.layoutSubviews()
         applyPendingIfReady()
+    }
+
+    override func touchesShouldCancel(in view: UIView) -> Bool {
+        if alwaysCancelContentTouches { return true }
+        return super.touchesShouldCancel(in: view)
     }
 
     func applyPendingIfReady() {
@@ -45,7 +53,9 @@ struct UIKitVerticalViewport: Equatable {
 /// - `viewport`: 現在の可視領域（重いマップの culling 用）
 /// - `animated`: スクロール時にスプリングアニメーションを行うか。
 /// - `delaysContentTouches`: `true` のとき子ビュー（例: SwiftUI `Button`）のタッチを短時間遅延し、
-///   スクロールパンと誤タップを区別しやすくする。マップ等の即応タップが必要な箇所は `false`（デフォルト）。
+///   スクロールパンと誤タップを区別しやすくする。さらに、押下後のドラッグでも子のタップを
+///   キャンセルする（`touchesShouldCancel(in:)` を常に許可）。マップ等の即応タップが必要な箇所は
+///   `false`（デフォルト）。
 struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
     let contentSize: CGSize
     @Binding var scrollTargetY: CGFloat?
@@ -131,6 +141,8 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
         scrollView.bounces = true
         scrollView.contentInsetAdjustmentBehavior = .never
         scrollView.delaysContentTouches = delaysContentTouches
+        scrollView.canCancelContentTouches = true
+        scrollView.alwaysCancelContentTouches = delaysContentTouches
         scrollView.delegate = context.coordinator
 
         let host = UIHostingController(rootView: content)
@@ -176,6 +188,8 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
         uiView.delaysContentTouches = delaysContentTouches
 
         guard let targeted = uiView as? PendingScrollUIScrollView else { return }
+
+        targeted.alwaysCancelContentTouches = delaysContentTouches
 
         if let targetY = scrollTargetY {
             targeted.pendingTargetY = targetY
