@@ -786,7 +786,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
         <div
           id="mainQuestDetail"
           ref={mainQuestDetailRef}
-          className="relative rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3 pb-28 sm:pb-36 md:pb-40"
+          className="rounded-lg border border-violet-400/25 bg-[rgba(8,5,24,0.78)] p-3"
         >
           <SectionTitle
             icon={<FaFlagCheckered />}
@@ -871,29 +871,30 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
               );
             })}
           </div>
-          {selectedBlockStartLesson && (
-            <button
-              type="button"
-              onClick={handleStartSelectedBlock}
-              className={cn(
-                'absolute bottom-2 right-2 z-20 w-32 touch-manipulation border-0 bg-transparent p-0',
-                'transition-transform duration-150 hover:scale-[1.04] active:scale-95',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
-                'sm:bottom-3 sm:right-3 sm:w-40 md:w-44',
-              )}
-              aria-label={isEnglishCopy ? 'Start selected chapter lesson' : '選択中チャプターのレッスンを始める'}
-            >
-              <img
-                src="/Start_Button.png"
-                alt=""
-                className="block h-auto w-full select-none"
-                draggable={false}
-                loading="eager"
-              />
-            </button>
-          )}
         </div>
       </div>
+      {selectedBlockStartLesson && (
+        <button
+          type="button"
+          onClick={handleStartSelectedBlock}
+          className={cn(
+            'fixed right-3 z-50 w-36 touch-manipulation border-0 bg-transparent p-0',
+            'transition-transform duration-150 hover:scale-[1.04] active:scale-95',
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+            'sm:right-5 sm:w-44 md:w-48',
+          )}
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+          aria-label={isEnglishCopy ? 'Start selected chapter lesson' : '選択中チャプターのレッスンを始める'}
+        >
+          <img
+            src="/Start_Button.png"
+            alt=""
+            className="block h-auto w-full select-none"
+            draggable={false}
+            loading="eager"
+          />
+        </button>
+      )}
     </section>
   );
 };

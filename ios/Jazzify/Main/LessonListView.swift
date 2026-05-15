@@ -35,7 +35,7 @@ struct LessonListView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment: .bottomTrailing) {
                 Color(hex: "0f172a").ignoresSafeArea()
 
                 if isLoading {
@@ -84,6 +84,16 @@ struct LessonListView: View {
                             .padding()
                         }
                     }
+                }
+
+                if !isLoading,
+                   !showingAllCourses,
+                   let mainQuest = mainQuestState,
+                   let startLesson = deepestUnlockedLesson(in: selectedBlock(in: mainQuest), state: mainQuest) {
+                    floatingMainQuestStartButton(lesson: startLesson)
+                        .padding(.trailing, UIDevice.current.userInterfaceIdiom == .pad ? 24 : 14)
+                        .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 24 : 14)
+                        .zIndex(10)
                 }
             }
             .navigationTitle(locale == .ja ? "クエスト" : "Quests")
@@ -561,68 +571,64 @@ struct LessonListView: View {
     private func currentChapterDetailPanel(_ state: MainQuestViewState) -> some View {
         let block = selectedBlock(in: state)
         let startLesson = deepestUnlockedLesson(in: block, state: state)
-        let startButtonWidth: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 172 : 146
-        let startButtonBottomPadding = startButtonWidth * 0.82
-        return ZStack(alignment: .bottomTrailing) {
-            VStack(alignment: .leading, spacing: 10) {
-                sectionHeader(
-                    icon: "flag.checkered",
-                    title: locale == .ja ? "現在の章の詳細" : "Current Chapter Detail"
+        return VStack(alignment: .leading, spacing: 10) {
+            sectionHeader(
+                icon: "flag.checkered",
+                title: locale == .ja ? "現在の章の詳細" : "Current Chapter Detail"
+            )
+            ZStack(alignment: .leading) {
+                QuestStageArtwork(stageNumber: block.stageNumber, rectangular: true)
+                LinearGradient(
+                    colors: [.black.opacity(0.84), .black.opacity(0.5), .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
                 )
-                ZStack(alignment: .leading) {
-                    QuestStageArtwork(stageNumber: block.stageNumber, rectangular: true)
-                    LinearGradient(
-                        colors: [.black.opacity(0.84), .black.opacity(0.5), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("\(locale == .ja ? "チャプター" : "Chapter") \(block.blockNumber)")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(locale == .ja ? "チャプター" : "Chapter") \(block.blockNumber)")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "c4b5fd"))
+                    Text(block.title)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    if let description = block.description, !description.isEmpty {
+                        Text(description)
                             .font(.caption)
-                            .foregroundStyle(Color(hex: "c4b5fd"))
-                        Text(block.title)
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                        if let description = block.description, !description.isEmpty {
-                            Text(description)
-                                .font(.caption)
-                                .foregroundStyle(Color(hex: "e9d5ff").opacity(0.86))
-                                .lineLimit(2)
-                        }
-                        progressBar(done: block.completedCount, total: block.totalCount)
-                            .frame(maxWidth: 260)
+                            .foregroundStyle(Color(hex: "e9d5ff").opacity(0.86))
+                            .lineLimit(2)
                     }
-                    .padding(14)
-                    .frame(maxWidth: 520, alignment: .leading)
+                    progressBar(done: block.completedCount, total: block.totalCount)
+                        .frame(maxWidth: 260)
                 }
-                .frame(minHeight: 120)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.purple.opacity(0.35), lineWidth: 1)
-                )
-
-                chapterDetailLessonScroll(state: state, block: block, startLesson: startLesson)
-                    .padding(.bottom, startLesson == nil ? 0 : startButtonBottomPadding)
+                .padding(14)
+                .frame(maxWidth: 520, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 120)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+            )
 
-            if let startLesson {
-                Button {
-                    lessonToOpen = startLesson
-                } label: {
-                    Image("Start_Button")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: startButtonWidth)
-                        .shadow(color: .black.opacity(0.48), radius: 12, y: 6)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(locale == .ja ? "選択中チャプターのレッスンを始める" : "Start selected chapter lesson")
-            }
+            chapterDetailLessonScroll(state: state, block: block, startLesson: startLesson)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(questPanelBackground)
+    }
+
+    private func floatingMainQuestStartButton(lesson: Lesson) -> some View {
+        let buttonWidth: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 188 : 156
+        return Button {
+            lessonToOpen = lesson
+        } label: {
+            Image("Start_Button")
+                .resizable()
+                .scaledToFit()
+                .frame(width: buttonWidth)
+                .shadow(color: .black.opacity(0.48), radius: 12, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(locale == .ja ? "選択中チャプターのレッスンを始める" : "Start selected chapter lesson")
     }
 
     /// Current Chapter のレッスン一覧: 約3件分の高さでスクロールし、フロンティアを中央付近へ（先頭・末尾は除外）。
