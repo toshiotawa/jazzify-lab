@@ -20,6 +20,9 @@ struct LessonListView: View {
     @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
     @State private var chapterScrollTargetY: CGFloat?
     @State private var chapterScrollAnimated = false
+    @State private var chapterDetailScrollTargetY: CGFloat?
+    @State private var chapterDetailScrollAnimated = false
+    @State private var lessonTabVisibleTick = 0
 
     private var locale: AppLocale { appState.locale }
 
@@ -91,7 +94,7 @@ struct LessonListView: View {
                 if !isLoading,
                    !showingAllCourses,
                    let mainQuest = mainQuestState,
-                   let startLesson = deepestUnlockedLesson(in: selectedBlock(in: mainQuest), state: mainQuest) {
+                   let startLesson = chapterDetailTargetLesson(in: selectedBlock(in: mainQuest), state: mainQuest) {
                     floatingMainQuestStartButton(lesson: startLesson)
                         .padding(.trailing, UIDevice.current.userInterfaceIdiom == .pad ? 24 : 14)
                         .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 24 : 14)
@@ -105,6 +108,7 @@ struct LessonListView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .task { await loadCourses() }
             .onAppear {
+                lessonTabVisibleTick += 1
                 Task { await appState.ensureFreshBilling() }
                 isSoundMuted = LessonMapAudio.shared.isMuted
                 resumeQuestBgmIfEligible()
@@ -213,14 +217,14 @@ struct LessonListView: View {
         let totalLessons: Int
     }
 
-    /// チャプター一覧の行高さ・ビューポート計算（`scrollTo` と実表示を一致させる）
+    /// チャプター一覧の行高さ・ビューポート計算（固定行高スクロールと実表示を一致させる）
     private enum MainQuestChapterListLayout {
         static let rowHeight: CGFloat = 66
         static let rowSpacing: CGFloat = 8
         static var scrollViewportHeight: CGFloat { 2 * rowHeight + rowSpacing }
     }
 
-    /// Current 章レッスン一覧の行高さ・ビューポート計算（`scrollTo` と実表示を一致させる）
+    /// Current 章レッスン一覧の行高さ・ビューポート計算（固定行高スクロールと実表示を一致させる）
     private enum MainQuestLessonListLayout {
         static let rowHeight: CGFloat = 52
         static let rowSpacing: CGFloat = 6
@@ -471,15 +475,13 @@ struct LessonListView: View {
         let spacing = MainQuestChapterListLayout.rowSpacing
         let count = state.blocks.count
         let totalH = CGFloat(count) * rowH + CGFloat(max(0, count - 1)) * spacing
-        let selectedBlockForScroll = selectedBlock(in: state)
-        let targetIndex = state.blocks.firstIndex { $0.blockNumber == selectedBlockForScroll.blockNumber } ?? 0
-        let targetY = CGFloat(targetIndex) * (rowH + spacing) + rowH / 2
 
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "book",
                 title: locale == .ja ? "チャプター" : "Chapters"
             )
+
             GeometryReader { geo in
                 UIKitVerticalScrollView(
                     contentSize: CGSize(width: max(1, geo.size.width), height: totalH),
@@ -492,20 +494,26 @@ struct LessonListView: View {
                         }
                     }
                 }
+                .onAppear {
+                    requestChapterListScroll(for: state, animated: false)
+                }
+                .onChange(of: lessonTabVisibleTick) { _ in
+                    requestChapterListScroll(for: state, animated: false)
+                }
+                .onChange(of: geo.size.height) { _ in
+                    requestChapterListScroll(for: state, animated: false)
+                }
+                .onChange(of: state.blocks.count) { _ in
+                    requestChapterListScroll(for: state, animated: false)
+                }
+                .onChange(of: state.currentBlock.blockNumber) { _ in
+                    requestChapterListScroll(for: state, animated: true)
+                }
+                .onChange(of: selectedMainQuestBlockNumber) { _ in
+                    requestChapterListScroll(for: state, animated: true)
+                }
             }
             .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
-            .onAppear {
-                chapterScrollAnimated = false
-                chapterScrollTargetY = targetY
-            }
-            .onChange(of: state.currentBlock.blockNumber) { _ in
-                chapterScrollAnimated = true
-                chapterScrollTargetY = targetY
-            }
-            .onChange(of: selectedMainQuestBlockNumber) { _ in
-                chapterScrollAnimated = true
-                chapterScrollTargetY = targetY
-            }
         }
         .padding(12)
         .background(questPanelBackground)
@@ -572,7 +580,7 @@ struct LessonListView: View {
 
     private func currentChapterDetailPanel(_ state: MainQuestViewState) -> some View {
         let block = selectedBlock(in: state)
-        let startLesson = deepestUnlockedLesson(in: block, state: state)
+        let startLesson = chapterDetailTargetLesson(in: block, state: state)
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
                 icon: "flag.checkered",
@@ -612,6 +620,7 @@ struct LessonListView: View {
             )
 
             chapterDetailLessonScroll(state: state, block: block, startLesson: startLesson)
+                .id("chapter-detail-\(block.blockNumber)")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -633,75 +642,48 @@ struct LessonListView: View {
         .accessibilityLabel(locale == .ja ? "選択中チャプターのレッスンを始める" : "Start selected chapter lesson")
     }
 
-    /// Current Chapter のレッスン一覧: 約3件分の高さでスクロールし、フロンティアを中央付近へ（先頭・末尾は除外）。
+    /// Current Chapter のレッスン一覧: 固定行高に基づき `UIKitVerticalScrollView` でスクロール位置を制御。
     private func chapterDetailLessonScroll(
         state: MainQuestViewState,
         block: MainQuestBlockState,
         startLesson: Lesson?
     ) -> some View {
-        return ScrollViewReader { lessonProxy in
-            ScrollView {
-                VStack(spacing: MainQuestLessonListLayout.rowSpacing) {
+        let spacing = MainQuestLessonListLayout.rowSpacing
+        let count = block.lessons.count
+        let totalH =
+            CGFloat(count) * MainQuestLessonListLayout.rowHeight
+            + CGFloat(max(0, count - 1)) * spacing
+
+        return GeometryReader { geo in
+            UIKitVerticalScrollView(
+                contentSize: CGSize(width: max(1, geo.size.width), height: totalH),
+                scrollTargetY: $chapterDetailScrollTargetY,
+                animated: chapterDetailScrollAnimated
+            ) {
+                VStack(spacing: spacing) {
                     ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in
                         lessonRow(lesson, index: index, state: state, startLessonId: startLesson?.id)
                             .id(lesson.id)
                     }
                 }
             }
-            .frame(height: MainQuestLessonListLayout.scrollViewportHeight)
             .onAppear {
-                scrollMainQuestLessonList(
-                    proxy: lessonProxy,
-                    block: block,
-                    target: startLesson,
-                    animated: false
-                )
+                requestChapterDetailScroll(for: block, startLesson: startLesson, animated: false)
+            }
+            .onChange(of: lessonTabVisibleTick) { _ in
+                requestChapterDetailScroll(for: block, startLesson: startLesson, animated: false)
+            }
+            .onChange(of: geo.size.height) { _ in
+                requestChapterDetailScroll(for: block, startLesson: startLesson, animated: false)
             }
             .onChange(of: block.blockNumber) { _ in
-                scrollMainQuestLessonList(
-                    proxy: lessonProxy,
-                    block: block,
-                    target: startLesson,
-                    animated: true
-                )
+                requestChapterDetailScroll(for: block, startLesson: startLesson, animated: true)
             }
             .onChange(of: startLesson?.id) { _ in
-                scrollMainQuestLessonList(
-                    proxy: lessonProxy,
-                    block: block,
-                    target: startLesson,
-                    animated: true
-                )
+                requestChapterDetailScroll(for: block, startLesson: startLesson, animated: true)
             }
         }
-    }
-
-    private func scrollMainQuestLessonList(
-        proxy: ScrollViewProxy,
-        block: MainQuestBlockState,
-        target: Lesson?,
-        animated: Bool
-    ) {
-        guard let fid = target?.id,
-              let idx = block.lessons.firstIndex(where: { $0.id == fid }),
-              block.lessons.contains(where: { $0.id == fid })
-        else { return }
-        let lastIdx = block.lessons.count - 1
-        let anchor: UnitPoint = {
-            if idx == 0 { return .top }
-            if idx == lastIdx { return .bottom }
-            return .center
-        }()
-        let run: () -> Void = {
-            if animated {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    proxy.scrollTo(fid, anchor: anchor)
-                }
-            } else {
-                proxy.scrollTo(fid, anchor: anchor)
-            }
-        }
-        DispatchQueue.main.async(execute: run)
+        .frame(height: MainQuestLessonListLayout.scrollViewportHeight)
     }
 
     private func lessonRow(
@@ -810,6 +792,52 @@ struct LessonListView: View {
         selectedMainQuestBlockNumber = state.currentBlock.blockNumber
     }
 
+    private func rowCenterY(index: Int, rowHeight: CGFloat, rowSpacing: CGFloat) -> CGFloat {
+        CGFloat(index) * (rowHeight + rowSpacing) + rowHeight / 2
+    }
+
+    private func chapterListTargetY(for state: MainQuestViewState) -> CGFloat {
+        let block = selectedBlock(in: state)
+        let index = state.blocks.firstIndex { $0.blockNumber == block.blockNumber } ?? 0
+        return rowCenterY(
+            index: index,
+            rowHeight: MainQuestChapterListLayout.rowHeight,
+            rowSpacing: MainQuestChapterListLayout.rowSpacing
+        )
+    }
+
+    private func requestChapterListScroll(for state: MainQuestViewState, animated: Bool) {
+        chapterScrollAnimated = animated
+        chapterScrollTargetY = chapterListTargetY(for: state)
+    }
+
+    private func chapterDetailTargetY(
+        for block: MainQuestBlockState,
+        startLesson: Lesson?
+    ) -> CGFloat? {
+        guard let targetId = startLesson?.id,
+              let index = block.lessons.firstIndex(where: { $0.id == targetId })
+        else {
+            return nil
+        }
+
+        return rowCenterY(
+            index: index,
+            rowHeight: MainQuestLessonListLayout.rowHeight,
+            rowSpacing: MainQuestLessonListLayout.rowSpacing
+        )
+    }
+
+    private func requestChapterDetailScroll(
+        for block: MainQuestBlockState,
+        startLesson: Lesson?,
+        animated: Bool
+    ) {
+        guard let targetY = chapterDetailTargetY(for: block, startLesson: startLesson) else { return }
+        chapterDetailScrollAnimated = animated
+        chapterDetailScrollTargetY = targetY
+    }
+
     private func selectedBlock(in state: MainQuestViewState) -> MainQuestBlockState {
         if let selectedMainQuestBlockNumber,
            let block = state.blocks.first(where: { $0.blockNumber == selectedMainQuestBlockNumber && $0.isUnlocked }) {
@@ -818,13 +846,24 @@ struct LessonListView: View {
         return state.currentBlock
     }
 
-    private func deepestUnlockedLesson(in block: MainQuestBlockState, state: MainQuestViewState) -> Lesson? {
-        for lesson in block.lessons.reversed() {
-            if state.accessGraph.lessonStates[lesson.id]?.isUnlocked == true {
-                return lesson
-            }
+    private func chapterDetailTargetLesson(
+        in block: MainQuestBlockState,
+        state: MainQuestViewState
+    ) -> Lesson? {
+        if block.isCompleted {
+            return block.lessons.last
         }
-        return block.lessons.first
+
+        if let next = block.lessons.first(where: { lesson in
+            let lessonState = state.accessGraph.lessonStates[lesson.id]
+            return lessonState?.isUnlocked == true && lessonState?.isCompleted != true
+        }) {
+            return next
+        }
+
+        return block.lessons.last(where: { lesson in
+            state.accessGraph.lessonStates[lesson.id]?.isUnlocked == true
+        }) ?? block.lessons.first
     }
 
     private func sortedLessons(_ lessons: [Lesson]) -> [Lesson] {

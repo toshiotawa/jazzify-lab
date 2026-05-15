@@ -174,7 +174,14 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
             targeted.pendingTargetY = targetY
             targeted.pendingAnimated = animated
             targeted.onApplied = { [weak coordinator = context.coordinator] in
-                coordinator?.scrollTargetYBinding.wrappedValue = nil
+                // SwiftUI の view update / layout サイクル中に Binding を書き戻すと
+                // "Modifying state during view update" 警告になるので必ず次の runloop に逃がす。
+                DispatchQueue.main.async {
+                    guard let coordinator else { return }
+                    if coordinator.scrollTargetYBinding.wrappedValue != nil {
+                        coordinator.scrollTargetYBinding.wrappedValue = nil
+                    }
+                }
             }
             targeted.applyPendingIfReady()
             DispatchQueue.main.async {
