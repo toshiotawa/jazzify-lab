@@ -68,11 +68,6 @@ struct LessonListView: View {
                                     if let mainQuest = mainQuestState {
                                         mainQuestDashboard(
                                             mainQuest,
-                                            scrollToChapterDetail: {
-                                                withAnimation(.easeInOut(duration: 0.24)) {
-                                                    pageProxy.scrollTo("mainQuestDetail", anchor: .top)
-                                                }
-                                            },
                                             onContinue: {
                                                 continueMainQuest(mainQuest)
                                                 if UIDevice.current.userInterfaceIdiom != .pad {
@@ -390,7 +385,6 @@ struct LessonListView: View {
 
     private func mainQuestDashboard(
         _ state: MainQuestViewState,
-        scrollToChapterDetail: @escaping () -> Void,
         onContinue: @escaping () -> Void
     ) -> some View {
         VStack(spacing: 12) {
@@ -398,13 +392,13 @@ struct LessonListView: View {
 
             if UIDevice.current.userInterfaceIdiom == .pad {
                 HStack(alignment: .top, spacing: 12) {
-                    journeyPanel(state, scrollToChapterDetail: scrollToChapterDetail)
+                    journeyPanel(state)
                     currentChapterDetailPanel(state)
                         .id("mainQuestDetail")
                 }
             } else {
                 VStack(spacing: 12) {
-                    journeyPanel(state, scrollToChapterDetail: scrollToChapterDetail)
+                    journeyPanel(state)
                     currentChapterDetailPanel(state)
                         .id("mainQuestDetail")
                 }
@@ -460,7 +454,7 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
-    private func journeyPanel(_ state: MainQuestViewState, scrollToChapterDetail: @escaping () -> Void) -> some View {
+    private func journeyPanel(_ state: MainQuestViewState) -> some View {
         let rowH = MainQuestChapterListLayout.rowHeight
         let spacing = MainQuestChapterListLayout.rowSpacing
         let count = state.blocks.count
@@ -476,11 +470,12 @@ struct LessonListView: View {
                 UIKitVerticalScrollView(
                     contentSize: CGSize(width: max(1, geo.size.width), height: totalH),
                     scrollTargetY: $chapterScrollTargetY,
-                    animated: chapterScrollAnimated
+                    animated: chapterScrollAnimated,
+                    delaysContentTouches: true
                 ) {
                     VStack(spacing: spacing) {
                         ForEach(state.blocks) { block in
-                            chapterRow(block, state: state, scrollToChapterDetail: scrollToChapterDetail)
+                            chapterRow(block, state: state)
                         }
                     }
                 }
@@ -506,11 +501,11 @@ struct LessonListView: View {
                 }
                 .onChange(of: state.currentBlock.blockNumber) { _ in
                     guard let latest = mainQuestState else { return }
-                    requestChapterListScroll(for: latest, animated: true)
+                    requestChapterListScroll(for: latest, animated: false)
                 }
                 .onChange(of: selectedMainQuestBlockNumber) { _ in
                     guard let latest = mainQuestState else { return }
-                    requestChapterListScroll(for: latest, animated: true)
+                    requestChapterListScroll(for: latest, animated: false)
                 }
             }
             .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
@@ -521,13 +516,11 @@ struct LessonListView: View {
 
     private func chapterRow(
         _ block: MainQuestBlockState,
-        state: MainQuestViewState,
-        scrollToChapterDetail: @escaping () -> Void
+        state: MainQuestViewState
     ) -> some View {
         let isSelected = selectedBlock(in: state).blockNumber == block.blockNumber
         return Button {
             selectedMainQuestBlockNumber = block.blockNumber
-            scrollToChapterDetail()
         } label: {
             HStack(spacing: 10) {
                 QuestStageArtwork(stageNumber: block.stageNumber, rectangular: false)
@@ -643,7 +636,8 @@ struct LessonListView: View {
             UIKitVerticalScrollView(
                 contentSize: CGSize(width: max(1, geo.size.width), height: totalH),
                 scrollTargetY: $chapterDetailScrollTargetY,
-                animated: chapterDetailScrollAnimated
+                animated: chapterDetailScrollAnimated,
+                delaysContentTouches: true
             ) {
                 VStack(spacing: spacing) {
                     ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in

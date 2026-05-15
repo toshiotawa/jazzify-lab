@@ -44,11 +44,14 @@ struct UIKitVerticalViewport: Equatable {
 ///   スクロール完了後は `nil` にリセットされる。
 /// - `viewport`: 現在の可視領域（重いマップの culling 用）
 /// - `animated`: スクロール時にスプリングアニメーションを行うか。
+/// - `delaysContentTouches`: `true` のとき子ビュー（例: SwiftUI `Button`）のタッチを短時間遅延し、
+///   スクロールパンと誤タップを区別しやすくする。マップ等の即応タップが必要な箇所は `false`（デフォルト）。
 struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
     let contentSize: CGSize
     @Binding var scrollTargetY: CGFloat?
     @Binding var viewport: UIKitVerticalViewport
     let animated: Bool
+    let delaysContentTouches: Bool
     let content: Content
 
     init(
@@ -56,12 +59,14 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
         scrollTargetY: Binding<CGFloat?>,
         viewport: Binding<UIKitVerticalViewport> = .constant(.zero),
         animated: Bool,
+        delaysContentTouches: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.contentSize = contentSize
         self._scrollTargetY = scrollTargetY
         self._viewport = viewport
         self.animated = animated
+        self.delaysContentTouches = delaysContentTouches
         self.content = content()
     }
 
@@ -125,7 +130,7 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
         scrollView.alwaysBounceVertical = true
         scrollView.bounces = true
         scrollView.contentInsetAdjustmentBehavior = .never
-        scrollView.delaysContentTouches = false
+        scrollView.delaysContentTouches = delaysContentTouches
         scrollView.delegate = context.coordinator
 
         let host = UIHostingController(rootView: content)
@@ -168,6 +173,8 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
 
         context.coordinator.publishViewportIfNeeded(from: uiView)
 
+        uiView.delaysContentTouches = delaysContentTouches
+
         guard let targeted = uiView as? PendingScrollUIScrollView else { return }
 
         if let targetY = scrollTargetY {
@@ -183,6 +190,7 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
                     }
                 }
             }
+            targeted.layoutIfNeeded()
             targeted.applyPendingIfReady()
             DispatchQueue.main.async {
                 targeted.applyPendingIfReady()
