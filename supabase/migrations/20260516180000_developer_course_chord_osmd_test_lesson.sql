@@ -79,7 +79,7 @@ INSERT INTO public.ear_training_stages (
   180,
   100,
   80,
-  2,
+  0,
   12,
   18,
   24,

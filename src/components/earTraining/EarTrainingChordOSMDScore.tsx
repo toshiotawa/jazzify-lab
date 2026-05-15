@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { OpenSheetMusicDisplay, type GraphicalNote, type IOSMDOptions } from 'opensheetmusicdisplay';
+import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
 import type { ChordOsmdRhythmTarget, ChordOsmdTargetVisualState } from '@/utils/earTrainingChordOsmd';
 import { getChordOsmdTargetNoteCount } from '@/utils/earTrainingChordOsmd';
 import { cn } from '@/utils/cn';
@@ -38,6 +38,8 @@ const EMPTY_LAYOUT: OsmdLayout = {
 const NOTE_HIGHLIGHT_COLOR = '#f39800';
 const NOTE_COMPLETED_COLOR = '#22c55e';
 const NOTE_FAILED_COLOR = '#ef4444';
+const NOTE_DEFAULT_COLOR = '#ffffff';
+const COLORABLE_NOTEHEAD_SELECTOR = 'path, ellipse, circle, polygon, rect';
 
 const getFiniteNumber = (value: unknown): number | null => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -152,6 +154,35 @@ const targetStateColor = (state: ChordOsmdTargetVisualState): string | null => {
   return null;
 };
 
+const buildNoteheadColors = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  targetStates: ReadonlyMap<string, ChordOsmdTargetVisualState>,
+): string[] => {
+  const colors: string[] = [];
+  for (const target of targets) {
+    const color = targetStateColor(targetStates.get(target.id) ?? 'idle') ?? NOTE_DEFAULT_COLOR;
+    const count = getChordOsmdTargetNoteCount(target);
+    for (let index = 0; index < count; index += 1) {
+      colors.push(color);
+    }
+  }
+  return colors;
+};
+
+const applyNoteheadColors = (
+  score: HTMLElement,
+  colors: readonly string[],
+): void => {
+  const noteheads = Array.from(score.querySelectorAll<SVGGElement>('g.vf-notehead'));
+  noteheads.forEach((notehead, index) => {
+    const color = colors[index] ?? NOTE_DEFAULT_COLOR;
+    notehead.querySelectorAll<SVGElement>(COLORABLE_NOTEHEAD_SELECTOR).forEach(shape => {
+      shape.setAttribute('fill', color);
+      shape.setAttribute('stroke', color);
+    });
+  });
+};
+
 const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   musicXmlText,
   scoreErrorText,
@@ -244,6 +275,18 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     () => buildTargetHighlightPositions(targets, layout.notePositions),
     [layout.notePositions, targets],
   );
+  const noteheadColors = useMemo(
+    () => buildNoteheadColors(targets, targetStates),
+    [targetStates, targets],
+  );
+
+  useEffect(() => {
+    const score = scoreRef.current;
+    if (!score) {
+      return;
+    }
+    applyNoteheadColors(score, noteheadColors);
+  }, [layout, noteheadColors]);
 
   const visibleHighlights = highlights
     .map(highlight => ({

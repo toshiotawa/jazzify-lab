@@ -17,7 +17,7 @@ const scheduleClickOsc = (ctx: BaseAudioContext, when: number, peakGain: number,
   osc.type = 'sine';
   osc.frequency.setValueAtTime(880, when);
   const gMin = 0.001;
-  const safePeak = Math.max(gMin, Math.min(0.5, peakGain));
+  const safePeak = Math.max(gMin, Math.min(0.8, peakGain));
   gain.gain.setValueAtTime(gMin, when);
   gain.gain.linearRampToValueAtTime(safePeak, when + 0.004);
   gain.gain.exponentialRampToValueAtTime(gMin, when + 0.07);
@@ -56,8 +56,9 @@ interface PlayPreparedChordVoicingPhraseParams {
   onEnded?: () => void;
 }
 
-export const CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC = 0.08;
-const COUNT_IN_CLICK_GAIN = 0.74;
+export const CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC = 0.18;
+const COUNT_IN_CLICK_GAIN = 0.82;
+const COUNT_IN_FIRST_CLICK_GAIN = 0.95;
 
 type EarTrainingChordVoicingPhrasePlayerOptions = {
   createAudioContext?: () => AudioContext;
@@ -274,7 +275,8 @@ export class EarTrainingChordVoicingPhrasePlayer {
       const phraseStart = firstClick + beats * spb;
 
       for (let i = 0; i < beats; i += 1) {
-        scheduleClickOsc(ctx, firstClick + i * spb, safeGain * COUNT_IN_CLICK_GAIN, master);
+        const clickGain = i === 0 ? COUNT_IN_FIRST_CLICK_GAIN : COUNT_IN_CLICK_GAIN;
+        scheduleClickOsc(ctx, firstClick + i * spb, safeGain * clickGain, master);
       }
 
       if (params.onBeat) {

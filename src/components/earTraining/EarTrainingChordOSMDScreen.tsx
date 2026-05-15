@@ -62,6 +62,7 @@ import {
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
   getChordOsmdTotalNoteCount,
+  normalizeChordOsmdMusicXml,
   type ChordOsmdRhythmTarget,
   type ChordOsmdTargetVisualState,
 } from '@/utils/earTrainingChordOsmd';
@@ -446,8 +447,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         setScoreErrorText(isEnglishCopy ? 'MusicXML is empty.' : 'MusicXMLが空です');
         return;
       }
-      musicXmlCache.set(rawUrl, text);
-      setMusicXmlText(text);
+      const normalizedText = normalizeChordOsmdMusicXml(text);
+      musicXmlCache.set(rawUrl, normalizedText);
+      setMusicXmlText(normalizedText);
       setScoreErrorText(null);
     } catch {
       if (phraseRunIdRef.current === runId) {
@@ -541,6 +543,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     lastRankRef.current = rank;
     setLastRank(rank);
     const completionDamage = practiceMode ? 0 : getCompletionDamage(rank, activeDamageConfig);
+    const playerFailDamage = !practiceMode && rank === 'Fail' ? activeDamageConfig.fail : 0;
 
     gameStateRef.current = 'phraseComplete';
     setGameState('phraseComplete');
@@ -562,20 +565,32 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
     }
 
+    if (playerFailDamage > 0) {
+      const effectId = triggerBattleEffect('fail', {
+        label: 'Fail',
+        damage: playerFailDamage,
+      });
+      registerBattleEffectImpact(effectId, () => {
+        applyPlayerDamage(playerFailDamage);
+      });
+    }
+
     if (!practiceMode && enemyHpRef.current - completionDamage <= 0) {
       return;
     }
-    if (!practiceMode && playerHpRef.current <= 0) {
+    if (!practiceMode && playerHpRef.current - playerFailDamage <= 0) {
       return;
     }
 
     const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+    const hasDamageEffect = completionDamage > 0 || playerFailDamage > 0;
     scheduleTimer(() => {
       startPhraseRef.current(nextIndex);
-    }, completionDamage > 0 ? OSMD_BONUS_ATTACK_DELAY_MS + 650 : OSMD_BONUS_ATTACK_DELAY_MS);
+    }, hasDamageEffect ? OSMD_BONUS_ATTACK_DELAY_MS + 650 : OSMD_BONUS_ATTACK_DELAY_MS);
   }, [
     activeDamageConfig,
     applyEnemyDamage,
+    applyPlayerDamage,
     isEnglishCopy,
     phrases.length,
     practiceMode,
@@ -1077,14 +1092,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         renderKeyValue={phraseRunId}
         isEnglishCopy={isEnglishCopy}
       />
-
-      {gameState === 'countIn' && countInValue > 0 && (
-        <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
-          <div className="rounded-full border border-amber-200/60 bg-slate-950/60 px-9 py-5 text-6xl font-black text-amber-200 shadow-[0_0_32px_rgba(251,191,36,0.25)]">
-            {countInValue}
-          </div>
-        </div>
-      )}
 
       <EarTrainingPianoOverlay
         ref={pianoOverlayRef}

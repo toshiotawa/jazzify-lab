@@ -6,6 +6,7 @@ import {
   chordOsmdTargetIsComplete,
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
+  normalizeChordOsmdMusicXml,
 } from '@/utils/earTrainingChordOsmd';
 
 const chord = (overrides: Partial<EarTrainingPhraseChord> & { id: string; order_index: number }): EarTrainingPhraseChord => ({
@@ -107,5 +108,56 @@ describe('chordOsmdRankForAccuracy', () => {
     expect(chordOsmdRankForAccuracy(0.85)).toBe('Great');
     expect(chordOsmdRankForAccuracy(0.4)).toBe('Good');
     expect(chordOsmdRankForAccuracy(0.39)).toBe('Fail');
+  });
+});
+
+describe('normalizeChordOsmdMusicXml', () => {
+  it('2段譜でstaffを交互に持つ単一voiceを、休符付きの2voice表記へ正規化する', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>2</staves>
+      </attributes>
+      <harmony><root><root-step>D</root-step></root><kind text="m7">minor-seventh</kind></harmony>
+      <note><pitch><step>D</step><octave>3</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>2</staff></note>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+      <note><pitch><step>D</step><octave>3</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>2</staff></note>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+    </measure>
+  </part>
+</score-partwise>`;
+
+    const normalized = normalizeChordOsmdMusicXml(xml);
+    const doc = new DOMParser().parseFromString(normalized, 'application/xml');
+    const notes = Array.from(doc.getElementsByTagName('note'));
+    const rests = notes.filter(noteElement => noteElement.getElementsByTagName('rest').length > 0);
+    const pitches = notes.filter(noteElement => noteElement.getElementsByTagName('pitch').length > 0);
+
+    expect(doc.getElementsByTagName('backup')).toHaveLength(1);
+    expect(rests).toHaveLength(4);
+    expect(pitches).toHaveLength(4);
+    expect(Array.from(doc.getElementsByTagName('voice')).map(element => element.textContent)).toEqual([
+      '1',
+      '1',
+      '1',
+      '1',
+      '2',
+      '2',
+      '2',
+      '2',
+    ]);
+    expect(doc.getElementsByTagName('harmony')).toHaveLength(1);
+  });
+
+  it('backupを含むMusicXMLは既にvoiceが明示されているため変更しない', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1"><measure number="1"><note><rest/><duration>4</duration><voice>1</voice></note><backup><duration>4</duration></backup><note><rest/><duration>4</duration><voice>2</voice></note></measure></part></score-partwise>`;
+
+    expect(normalizeChordOsmdMusicXml(xml)).toBe(xml);
   });
 });

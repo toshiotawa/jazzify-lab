@@ -423,6 +423,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.drawHud(width);
     this.drawCharacterStatus(width, height);
     this.drawPhraseIntro(width, height);
+    this.drawCountInOverlay(width, height);
     this.drawPhraseSlots(width, height);
     this.drawLobbyOverlay(width, height);
     this.children.bringToTop(effectLayer);
@@ -1086,6 +1087,35 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         }
       },
     });
+  }
+
+  private drawCountInOverlay(width: number, height: number): void {
+    const snapshot = this.snapshot;
+    if (
+      !snapshot
+      || !this.effectLayer
+      || snapshot.showLobbyControls
+      || snapshot.gameState !== 'countIn'
+      || snapshot.countInValue <= 0
+    ) {
+      return;
+    }
+
+    const radius = Phaser.Math.Clamp(Math.round(Math.min(width, height) * 0.08), 44, 70);
+    const x = width / 2;
+    const y = Math.round(height * 0.42);
+    const halo = this.add.circle(x, y, radius + 10, 0xf59e0b, 0.18);
+    const circle = this.add.circle(x, y, radius, 0x020617, 0.72);
+    circle.setStrokeStyle(2, 0xfde68a, 0.72);
+    const text = this.add.text(x, y, String(snapshot.countInValue), {
+      color: '#fde68a',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: `${Math.round(radius * 1.08)}px`,
+      fontStyle: '900',
+      stroke: '#020617',
+      strokeThickness: 5,
+    }).setOrigin(0.5, 0.54);
+    this.effectLayer.add([halo, circle, text]);
   }
 
   private playQuotaReachedEffect(): void {
