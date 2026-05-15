@@ -494,23 +494,33 @@ struct LessonListView: View {
                         }
                     }
                 }
+                // SwiftUI の `onChange` ハンドラはクロージャ生成時の `state` をキャプチャするため、
+                // 進捗反映で `mainQuestState` が新しい値に再計算されても古い `state` が使われてしまう。
+                // ここでは常に最新の `mainQuestState` を再参照してスクロール要求を行う。
                 .onAppear {
-                    requestChapterListScroll(for: state, animated: false)
+                    if let latest = mainQuestState {
+                        requestChapterListScroll(for: latest, animated: false)
+                    }
                 }
                 .onChange(of: lessonTabVisibleTick) { _ in
-                    requestChapterListScroll(for: state, animated: false)
+                    guard let latest = mainQuestState else { return }
+                    requestChapterListScroll(for: latest, animated: false)
                 }
                 .onChange(of: geo.size.height) { _ in
-                    requestChapterListScroll(for: state, animated: false)
+                    guard let latest = mainQuestState else { return }
+                    requestChapterListScroll(for: latest, animated: false)
                 }
                 .onChange(of: state.blocks.count) { _ in
-                    requestChapterListScroll(for: state, animated: false)
+                    guard let latest = mainQuestState else { return }
+                    requestChapterListScroll(for: latest, animated: false)
                 }
                 .onChange(of: state.currentBlock.blockNumber) { _ in
-                    requestChapterListScroll(for: state, animated: true)
+                    guard let latest = mainQuestState else { return }
+                    requestChapterListScroll(for: latest, animated: true)
                 }
                 .onChange(of: selectedMainQuestBlockNumber) { _ in
-                    requestChapterListScroll(for: state, animated: true)
+                    guard let latest = mainQuestState else { return }
+                    requestChapterListScroll(for: latest, animated: true)
                 }
             }
             .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
