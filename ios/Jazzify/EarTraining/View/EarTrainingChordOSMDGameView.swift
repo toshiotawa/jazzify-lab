@@ -589,7 +589,6 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return {
               measureCentersByNumber: out,
               scoreWidth: Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2),
-              maxNoteXForWidth: maxX,
             };
           }
 
@@ -723,43 +722,6 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
           }
 
-          function collectMeasureCenters() {
-            measureCenters = [];
-            const surface = score.querySelector('canvas, svg');
-            const graphicSheet = osmd && osmd.GraphicSheet;
-            const boundingBox = graphicSheet && graphicSheet.BoundingBox;
-            let scaleFactor = 10;
-            if (surface && boundingBox && boundingBox.width > 0) {
-              const rectWidth = surface.getBoundingClientRect().width || surface.width || 0;
-              if (rectWidth > 0) {
-                scaleFactor = rectWidth / boundingBox.width;
-              }
-            }
-            const starts = [];
-            if (graphicSheet && graphicSheet.MusicPages) {
-              for (const page of graphicSheet.MusicPages) {
-                for (const system of page.MusicSystems || []) {
-                  const staffLine = (system.StaffLines || [])[0];
-                  if (!staffLine) continue;
-                  for (const measure of staffLine.Measures || []) {
-                    const x = measure?.PositionAndShape?.AbsolutePosition?.x;
-                    if (typeof x === 'number' && Number.isFinite(x)) {
-                      starts.push(x * scaleFactor);
-                    }
-                  }
-                }
-              }
-            }
-            for (let i = 0; i < starts.length; i += 1) {
-              const current = starts[i];
-              const next = starts[i + 1] ?? (current + Math.max(150, current - (starts[i - 1] ?? 0)));
-              measureCenters.push((current + next) / 2);
-            }
-            const rect = surface ? surface.getBoundingClientRect() : null;
-            scoreWidth = Math.max(viewport.clientWidth, rect ? rect.width : 0, measureCenters[measureCenters.length - 1] || 0);
-            score.style.width = scoreWidth + 'px';
-          }
-
           function buildOsmd() {
             const ctor = window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
             if (!ctor) {
@@ -769,6 +731,9 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               backend: 'svg',
               autoResize: false,
               drawTitle: false,
+              drawComposer: false,
+              drawLyricist: false,
+              drawPartNames: false,
               drawingParameters: 'compacttight',
               renderSingleHorizontalStaffline: true,
               pageFormat: 'Endless',
@@ -790,7 +755,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           async function renderMusicXML(xmlText, zoomValue) {
             score.replaceChildren();
-            measureCenters = [];
+            measureCentersByNumber = {};
             score.style.transform = 'translate3d(0, -50%, 0)';
             status.textContent = 'Rendering...';
             status.style.display = 'grid';
@@ -834,7 +799,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 }
               }
 
-              collectMeasureCenters();
+              measureLayoutFromOsmd();
+              score.style.width = scoreWidth + 'px';
               renderSucceeded = true;
               postOsmdMessage('ready', '');
             } catch (err) {
@@ -849,8 +815,16 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function setActiveMeasure(measureNumber) {
-            const index = Math.max(0, Math.floor(Number(measureNumber || 1)) - 1);
-            const center = measureCenters[index] ?? measureCenters[0] ?? (viewport.clientWidth / 2);
+            const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            const dict = measureCentersByNumber;
+            const pick = dict && dict[mn];
+            const pick1 = dict && dict[1];
+            const center =
+              typeof pick === 'number' && Number.isFinite(pick)
+                ? pick
+                : typeof pick1 === 'number' && Number.isFinite(pick1)
+                  ? pick1
+                  : viewport.clientWidth / 2;
             const maxOffset = Math.max(0, scoreWidth - viewport.clientWidth);
             const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
             score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0)';

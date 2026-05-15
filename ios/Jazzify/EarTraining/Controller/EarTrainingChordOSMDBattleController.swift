@@ -73,7 +73,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
-    private static let musicXmlCacheSchemaVersion = 2
+    private static let musicXmlCacheSchemaVersion = 3
 
     private static func musicXmlCacheKey(phraseId: UUID) -> String {
         "\(phraseId.uuidString)|osmdXml|v\(musicXmlCacheSchemaVersion)"
@@ -472,7 +472,18 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let measureDuration = beatDuration * Double(max(1, stage.beatsPerMeasure))
         guard measureDuration > 0 else { return }
         let rawMeasure = Int(floor(time / measureDuration)) + 1
-        let maxMeasure = max(stage.loopMeasures, targets.map(\.measureNumber).max() ?? 1)
+        let targetMaxMeasure = targets.map(\.measureNumber).max() ?? 1
+        /// Web の `tickerMeasureCount`（phrase.loop_duration_sec から算出）と揃える
+        let loopMeasureCapFromPhraseDuration: Int
+        if phrases.indices.contains(phraseIndex), phrases[phraseIndex].loopDurationSec > 0 {
+            loopMeasureCapFromPhraseDuration = min(
+                512,
+                max(1, Int(ceil(phrases[phraseIndex].loopDurationSec / measureDuration)))
+            )
+        } else {
+            loopMeasureCapFromPhraseDuration = stage.loopMeasures
+        }
+        let maxMeasure = max(loopMeasureCapFromPhraseDuration, stage.loopMeasures, targetMaxMeasure)
         let nextMeasure = max(1, min(maxMeasure, rawMeasure))
         if nextMeasure != activeMeasureNumber {
             activeMeasureNumber = nextMeasure
