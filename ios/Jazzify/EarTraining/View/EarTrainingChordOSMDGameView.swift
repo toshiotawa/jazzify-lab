@@ -2,6 +2,7 @@ import SwiftUI
 import SpriteKit
 import UIKit
 import WebKit
+import os.log
 
 /// OSMD リズム判定バトル（`mode == chord_osmd`）ネイティブ画面。
 struct EarTrainingChordOSMDGameView: View {
@@ -291,6 +292,9 @@ private struct EarTrainingChordOSMDContent: View {
 }
 
 private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
+    /// `WKScriptMessageHandler` と JavaScript で共有する名前（`WKUserContentController` に登録）。
+    private static let osmdRenderScriptMessageName = "osmdRender"
+
     let musicXMLText: String
     let activeMeasureNumber: Int
     let renderKey: Int
@@ -306,6 +310,11 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         let preferences = WKWebpagePreferences()
         preferences.allowsContentJavaScript = true
         configuration.defaultWebpagePreferences = preferences
+
+        configuration.userContentController.add(
+            context.coordinator,
+            name: Self.osmdRenderScriptMessageName
+        )
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -330,7 +339,16 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         )
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: Self.osmdRenderScriptMessageName)
+    }
+
+    private enum Log {
+        private static let subsystem = Bundle.main.bundleIdentifier ?? "Jazzify"
+        static let osmd = Logger(subsystem: subsystem, category: "EarTrainingOSMDScoreWebView")
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private weak var webView: WKWebView?
         private var htmlReady = false
         private var pendingMusicXMLText: String?
@@ -344,6 +362,21 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
         func attach(_ webView: WKWebView) {
             self.webView = webView
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == EarTrainingOSMDScoreWebView.osmdRenderScriptMessageName else { return }
+            let body = message.body as? [String: Any]
+            let type = body?["type"] as? String ?? "unknown"
+            let detail = body?["detail"] as? String ?? ""
+            switch type {
+            case "ready":
+                Log.osmd.debug("OSMD score render ready: \(detail, privacy: .public)")
+            case "error":
+                Log.osmd.error("OSMD score render error: \(detail, privacy: .public)")
+            default:
+                Log.osmd.debug("OSMD score message type=\(type, privacy: .public)")
+            }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
@@ -381,12 +414,19 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
-                webView.evaluateJavaScript(script)
+                Self.evaluate(script, on: webView)
                 return
             }
             if lastMeasureNumber != measure {
                 lastMeasureNumber = measure
-                webView.evaluateJavaScript("window.JazzifyOSMD.setActiveMeasure(\(measure));")
+                Self.evaluate("window.JazzifyOSMD.setActiveMeasure(\(measure));", on: webView)
+            }
+        }
+
+        private static func evaluate(_ script: String, on webView: WKWebView) {
+            webView.evaluateJavaScript(script) { _, error in
+                guard let error else { return }
+                Log.osmd.error("evaluateJavaScript failed: \(String(describing: error), privacy: .public)")
             }
         }
 
@@ -469,8 +509,219 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           const score = document.getElementById('score');
           const status = document.getElementById('status');
           let osmd = null;
-          let measureCenters = [];
+          let measureCentersByNumber = {};
           let scoreWidth = 0;
+
+          function finiteNum(value) {
+            return typeof value === 'number' && Number.isFinite(value) ? value : null;
+          }
+
+          function readMeasureList(osmdInst) {
+            const gs = osmdInst && osmdInst.GraphicSheet;
+            if (!gs) return [];
+            const raw = gs.MeasureList || gs.measureList;
+            return Array.isArray(raw) ? raw : [];
+          }
+
+          function collectMeasureCentersFromMeasureList(gs, surface, viewportWidth) {
+            const boundingWidth = finiteNum(gs && gs.BoundingBox && gs.BoundingBox.width) || 0;
+            const renderedWidth =
+              surface && surface.getBoundingClientRect ? surface.getBoundingClientRect().width || 0 : 0;
+            const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
+            const out = {};
+            let maxX = 0;
+
+            const list = readMeasureList({ GraphicSheet: gs });
+            for (let measureIndex = 0; measureIndex < list.length; measureIndex += 1) {
+              const row = list[measureIndex] || [];
+              const measures = row.filter(Boolean);
+              if (measures.length === 0) continue;
+
+              const measureNumber =
+                finiteNum(measures[0].MeasureNumber) === null ? measureIndex + 1 : measures[0].MeasureNumber;
+
+              let noteMinX = Number.POSITIVE_INFINITY;
+              let noteMaxX = Number.NEGATIVE_INFINITY;
+              let measureMinX = Number.POSITIVE_INFINITY;
+              let measureMaxX = Number.NEGATIVE_INFINITY;
+
+              for (let mi = 0; mi < measures.length; mi += 1) {
+                const measure = measures[mi];
+                const measureX = finiteNum(measure.PositionAndShape && measure.PositionAndShape.AbsolutePosition && measure.PositionAndShape.AbsolutePosition.x);
+                const measureWidth = finiteNum(measure.PositionAndShape && measure.PositionAndShape.BorderRight) || 0;
+                if (measureX !== null) {
+                  const scaledMeasureX = measureX * scaleFactor;
+                  measureMinX = Math.min(measureMinX, scaledMeasureX);
+                  measureMaxX = Math.max(measureMaxX, scaledMeasureX + measureWidth * scaleFactor);
+                }
+                const staffEntries = measure.staffEntries || [];
+                for (let si = 0; si < staffEntries.length; si += 1) {
+                  const entry = staffEntries[si];
+                  const gves = entry.graphicalVoiceEntries || [];
+                  for (let gi = 0; gi < gves.length; gi += 1) {
+                    const voiceEntry = gves[gi];
+                    const notes = voiceEntry.notes || [];
+                    for (let ni = 0; ni < notes.length; ni += 1) {
+                      const note = notes[ni];
+                      const src = note.sourceNote;
+                      const hasPitch =
+                        !!(src && (src.Pitch || src.pitch || src.TransposedPitch || src.transposedPitch));
+                      if (!hasPitch) continue;
+                      const nx = finiteNum(note.PositionAndShape && note.PositionAndShape.AbsolutePosition && note.PositionAndShape.AbsolutePosition.x);
+                      if (nx !== null) {
+                        const sx = nx * scaleFactor;
+                        noteMinX = Math.min(noteMinX, sx);
+                        noteMaxX = Math.max(noteMaxX, sx);
+                        maxX = Math.max(maxX, sx);
+                      }
+                    }
+                  }
+                }
+              }
+
+              if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
+                out[measureNumber] = (noteMinX + noteMaxX) / 2;
+              } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
+                out[measureNumber] = (measureMinX + measureMaxX) / 2;
+              }
+            }
+
+            return {
+              measureCentersByNumber: out,
+              scoreWidth: Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2),
+              maxNoteXForWidth: maxX,
+            };
+          }
+
+          function collectMeasureCentersFromStaffLines(gs, surface, viewportWidth) {
+            const boundingWidth = finiteNum(gs && gs.BoundingBox && gs.BoundingBox.width) || 0;
+            const renderedWidth =
+              surface && surface.getBoundingClientRect ? surface.getBoundingClientRect().width || 0 : 0;
+            const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
+            const byNumberBounds = {};
+            let maxX = 0;
+
+            const pages = (gs && gs.MusicPages) || [];
+            let measureOrdinal = 0;
+
+            function ensureBounds(num) {
+              if (!byNumberBounds[num]) {
+                byNumberBounds[num] = {
+                  nMin: Number.POSITIVE_INFINITY,
+                  nMax: Number.NEGATIVE_INFINITY,
+                  mMin: Number.POSITIVE_INFINITY,
+                  mMax: Number.NEGATIVE_INFINITY,
+                };
+              }
+              return byNumberBounds[num];
+            }
+
+            for (let pi = 0; pi < pages.length; pi += 1) {
+              const systems = pages[pi].MusicSystems || [];
+              for (let syi = 0; syi < systems.length; syi += 1) {
+                const staffLines = systems[syi].StaffLines || [];
+                for (let li = 0; li < staffLines.length; li += 1) {
+                  const staffLine = staffLines[li];
+                  const measures = staffLine.Measures || [];
+                  for (let mi = 0; mi < measures.length; mi += 1) {
+                    measureOrdinal += 1;
+                    const measure = measures[mi];
+                    const mn =
+                      finiteNum(measure.MeasureNumber) === null ? measureOrdinal : measure.MeasureNumber;
+                    const b = ensureBounds(mn);
+
+                    const measureX = finiteNum(measure.PositionAndShape && measure.PositionAndShape.AbsolutePosition && measure.PositionAndShape.AbsolutePosition.x);
+                    const measureWidth = finiteNum(measure.PositionAndShape && measure.PositionAndShape.BorderRight) || 0;
+                    if (measureX !== null) {
+                      const smx = measureX * scaleFactor;
+                      b.mMin = Math.min(b.mMin, smx);
+                      b.mMax = Math.max(b.mMax, smx + measureWidth * scaleFactor);
+                    }
+
+                    const staffEntries = measure.staffEntries || [];
+                    for (let sei = 0; sei < staffEntries.length; sei += 1) {
+                      const entry = staffEntries[sei];
+                      const gves = entry.graphicalVoiceEntries || [];
+                      for (let gi = 0; gi < gves.length; gi += 1) {
+                        const voiceEntry = gves[gi];
+                        const notes = voiceEntry.notes || [];
+                        for (let ni = 0; ni < notes.length; ni += 1) {
+                          const note = notes[ni];
+                          const src = note.sourceNote;
+                          const hasPitch =
+                            !!(src && (src.Pitch || src.pitch || src.TransposedPitch || src.transposedPitch));
+                          if (!hasPitch) continue;
+                          const nx = finiteNum(note.PositionAndShape && note.PositionAndShape.AbsolutePosition && note.PositionAndShape.AbsolutePosition.x);
+                          if (nx !== null) {
+                            const sx = nx * scaleFactor;
+                            b.nMin = Math.min(b.nMin, sx);
+                            b.nMax = Math.max(b.nMax, sx);
+                            maxX = Math.max(maxX, sx);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            const out = {};
+            const boundsKeys = Object.keys(byNumberBounds);
+            for (let ki = 0; ki < boundsKeys.length; ki += 1) {
+              const num = Number(boundsKeys[ki]);
+              const b = byNumberBounds[num];
+              if (Number.isFinite(b.nMin) && Number.isFinite(b.nMax)) {
+                out[num] = (b.nMin + b.nMax) / 2;
+              } else if (Number.isFinite(b.mMin) && Number.isFinite(b.mMax)) {
+                out[num] = (b.mMin + b.mMax) / 2;
+              }
+            }
+
+            return {
+              measureCentersByNumber: out,
+              scoreWidth: Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2),
+            };
+          }
+
+          function measureLayoutFromOsmd() {
+            const surface = score.querySelector('canvas, svg');
+            const graphicSheet = osmd && osmd.GraphicSheet;
+            const viewportWidth = viewport.clientWidth || 0;
+            if (!graphicSheet) {
+              measureCentersByNumber = {};
+              scoreWidth = viewportWidth;
+              return;
+            }
+            const primary = collectMeasureCentersFromMeasureList(graphicSheet, surface, viewportWidth);
+            const mnKeys = Object.keys(primary.measureCentersByNumber);
+            if (mnKeys.length > 0) {
+              measureCentersByNumber = primary.measureCentersByNumber;
+              scoreWidth = primary.scoreWidth;
+              return;
+            }
+            const fallback = collectMeasureCentersFromStaffLines(graphicSheet, surface, viewportWidth);
+            measureCentersByNumber = fallback.measureCentersByNumber;
+            scoreWidth = fallback.scoreWidth;
+          }
+
+          function postOsmdMessage(type, detail) {
+            try {
+              var handler =
+                window.webkit &&
+                window.webkit.messageHandlers &&
+                window.webkit.messageHandlers.osmdRender;
+              if (!handler) {
+                return;
+              }
+              handler.postMessage({
+                type: String(type || ''),
+                detail: detail === undefined || detail === null ? '' : String(detail),
+              });
+            } catch (_e) {
+              /* no-op */
+            }
+          }
 
           function collectMeasureCenters() {
             measureCenters = [];
@@ -510,8 +761,12 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function buildOsmd() {
-            return new OpenSheetMusicDisplay(score, {
-              backend: 'canvas',
+            const ctor = window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
+            if (!ctor) {
+              throw new Error('OpenSheetMusicDisplay missing');
+            }
+            return new ctor(score, {
+              backend: 'svg',
               autoResize: false,
               drawTitle: false,
               drawingParameters: 'compacttight',
@@ -534,41 +789,63 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           async function renderMusicXML(xmlText, zoomValue) {
-            status.textContent = 'Rendering...';
-            status.style.display = 'grid';
             score.replaceChildren();
             measureCenters = [];
             score.style.transform = 'translate3d(0, -50%, 0)';
+            status.textContent = 'Rendering...';
+            status.style.display = 'grid';
 
-            const OpenSheetMusicDisplay = window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
-            if (!OpenSheetMusicDisplay) {
-              status.textContent = 'OSMD failed to load';
-              return;
-            }
-            const displayXml = xmlText;
-            let z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
-            osmd = buildOsmd();
-            osmd.zoom = z;
-            await osmd.load(displayXml);
-            osmd.render();
-            // 描画後に実際の高さを測り、コンテナ高さに収まらない場合は縮小して再描画する。
-            // viewport は #viewport (= position:fixed; inset:0) でコンテナ高さに一致する。
-            const targetHeight = Math.max(48, viewport.clientHeight * 0.94);
-            const measured = measureSurfaceHeight();
-            if (measured > targetHeight && measured > 0) {
-              const minZoom = 0.32;
-              const fitZoom = Math.max(minZoom, z * (targetHeight / measured));
-              if (Math.abs(fitZoom - z) > 0.01) {
-                z = fitZoom;
-                score.replaceChildren();
+            let renderSucceeded = false;
+            try {
+              const OpenSheetMusicDisplay =
+                window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
+              if (!OpenSheetMusicDisplay) {
+                status.textContent = 'OSMD failed to load';
+                postOsmdMessage('error', 'OpenSheetMusicDisplay missing');
+                return;
+              }
+
+              const displayXml = xmlText;
+              let z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
+
+              async function layoutOnce(withZoom) {
                 osmd = buildOsmd();
-                osmd.zoom = z;
+                osmd.zoom = withZoom;
                 await osmd.load(displayXml);
                 osmd.render();
+                await new Promise(function (resolve) {
+                  requestAnimationFrame(function () {
+                    requestAnimationFrame(resolve);
+                  });
+                });
+              }
+
+              await layoutOnce(z);
+
+              const targetHeight = Math.max(48, viewport.clientHeight * 0.94);
+              let measured = measureSurfaceHeight();
+              if (measured > targetHeight && measured > 0) {
+                const minZoom = 0.32;
+                const fitZoom = Math.max(minZoom, z * (targetHeight / measured));
+                if (Math.abs(fitZoom - z) > 0.01) {
+                  z = fitZoom;
+                  score.replaceChildren();
+                  await layoutOnce(fitZoom);
+                }
+              }
+
+              collectMeasureCenters();
+              renderSucceeded = true;
+              postOsmdMessage('ready', '');
+            } catch (err) {
+              const msg = err && err.message ? String(err.message) : String(err);
+              status.textContent = 'Could not render MusicXML.';
+              postOsmdMessage('error', msg);
+            } finally {
+              if (renderSucceeded) {
+                status.style.display = 'none';
               }
             }
-            collectMeasureCenters();
-            status.style.display = 'none';
           }
 
           function setActiveMeasure(measureNumber) {

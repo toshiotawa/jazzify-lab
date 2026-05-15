@@ -596,7 +596,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       ? loopDurationSec
       : measureDurationSec * Math.max(1, stage.loop_measures);
 
-    for (let measureIndex = 0; measureIndex < Math.max(1, stage.loop_measures); measureIndex += 1) {
+    const tickerMeasureCount =
+      Number.isFinite(safeLoopDurationSec) && safeLoopDurationSec > 0 && measureDurationSec > 0
+        ? Math.min(512, Math.max(1, Math.ceil(safeLoopDurationSec / measureDurationSec)))
+        : Math.max(1, stage.loop_measures);
+
+    for (let measureIndex = 0; measureIndex < tickerMeasureCount; measureIndex += 1) {
       scheduleTimer(() => {
         if (phraseRunIdRef.current === runId) {
           setActiveMeasureNumber(measureIndex + 1);

@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import QuartzCore
 import CoreGraphics
+import os.log
 
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
@@ -15,6 +16,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     /// フレーズ終了検知のセーフティパディング。`loop_duration_sec` の直後ではなく、
     /// 最後のノーツの判定窓と被ダメージ用ハンマーが着弾し終わるまで待つ（WEB の `PHRASE_END_PADDING_SEC` 相当）。
     private static let phraseEndPaddingSec: Double = 0.08
+
+    private enum Log {
+        private static let subsystem = Bundle.main.bundleIdentifier ?? "Jazzify"
+        static let battle = Logger(subsystem: subsystem, category: "EarTrainingChordOSMDBattle")
+    }
 
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseIndex: Int = 0
@@ -78,7 +84,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var countdownTask: Task<Void, Never>?
     private var transitionTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
-    private var battleEffectClearTask: Task<Void, Never>?
+    private var battleEffectClearTasks: [Int: Task<Void, Never>] = [:]
     private var phrasePrepareTask: Task<Void, Never>?
     private var lastRankStorage: EarTrainingRank?
 
@@ -121,7 +127,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     func handleEffectImpact(effectId: Int) {
-        guard let handler = pendingImpactHandlers.removeValue(forKey: effectId) else { return }
+        battleEffectClearTasks[effectId]?.cancel()
+        battleEffectClearTasks[effectId] = nil
+        guard let handler = pendingImpactHandlers.removeValue(forKey: effectId) else {
+            Log.battle.debug("EarTrainingChordOSMD effectImpact no handler effectId=\(effectId)")
+            return
+        }
+        Log.battle.debug("EarTrainingChordOSMD effectImpact run effectId=\(effectId)")
         handler()
     }
 
@@ -800,11 +812,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             scene?.runEffect(command)
         }
         let ms = Self.effectDurationMs(kind: kind, travelDurationSec: travelDurationSec)
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = Task { @MainActor [weak self] in
+        battleEffectClearTasks[id]?.cancel()
+        let clearedId = id
+        battleEffectClearTasks[id] = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(ms * 1_000_000))
-            self?.pendingImpactHandlers[id] = nil
+            guard let self else { return }
+            self.pendingImpactHandlers.removeValue(forKey: clearedId)
+            self.battleEffectClearTasks[clearedId] = nil
         }
+        Log.battle.debug("EarTrainingChordOSMD battleEffect id=\(id) kind=\(String(describing: kind))")
         return id
     }
 
@@ -854,7 +870,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         countdownTask?.cancel(); countdownTask = nil
         transitionTask?.cancel(); transitionTask = nil
         feedbackTask?.cancel(); feedbackTask = nil
-        battleEffectClearTask?.cancel(); battleEffectClearTask = nil
+        for (_, task) in battleEffectClearTasks {
+            task.cancel()
+        }
+        battleEffectClearTasks.removeAll()
         phrasePrepareTask?.cancel(); phrasePrepareTask = nil
         if !keepsAudio {
             audio.stopPhrase()

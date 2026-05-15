@@ -13,18 +13,44 @@ interface EarTrainingChordOSMDScoreProps {
 }
 
 interface OsmdLayout {
-  measureCenters: readonly number[];
+  /** MusicXML の小節番号 → 画面上の近似中心（px、譜表スクロール用） */
+  measureCentersByNumber: Record<number, number>;
   scoreWidth: number;
 }
 
 const EMPTY_LAYOUT: OsmdLayout = {
-  measureCenters: [],
+  measureCentersByNumber: {},
   scoreWidth: 0,
 };
 
 const getFiniteNumber = (value: unknown): number | null => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
 );
+
+type OsmdGraphicMeasureLike = {
+  MeasureNumber?: number;
+  PositionAndShape?: {
+    AbsolutePosition?: { x?: number };
+    BorderRight?: number;
+  };
+  staffEntries?: Array<{
+    graphicalVoiceEntries?: Array<{
+      notes?: Array<{
+        PositionAndShape?: { AbsolutePosition?: { x?: number } };
+        sourceNote?: { Pitch?: unknown; TransposedPitch?: unknown };
+      }>;
+    }>;
+  }>;
+};
+
+const readMeasureList = (osmd: OpenSheetMusicDisplay): readonly (readonly OsmdGraphicMeasureLike[])[] => {
+  const sheet = osmd.GraphicSheet as { MeasureList?: unknown; measureList?: unknown } | undefined;
+  const raw = sheet?.MeasureList ?? sheet?.measureList;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw as readonly (readonly OsmdGraphicMeasureLike[])[];
+};
 
 const collectMeasureCenters = (
   osmd: OpenSheetMusicDisplay,
@@ -34,47 +60,122 @@ const collectMeasureCenters = (
   const boundingWidth = getFiniteNumber(osmd.GraphicSheet?.BoundingBox?.width) ?? 0;
   const renderedWidth = surface?.getBoundingClientRect().width ?? 0;
   const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
-  const starts: number[] = [];
-  const pages = osmd.GraphicSheet?.MusicPages ?? [];
-  for (const page of pages) {
-    for (const system of page.MusicSystems ?? []) {
-      const staffLine = (system.StaffLines ?? [])[0];
-      if (!staffLine) {
-        continue;
+
+  const measureCentersByNumber: Record<number, number> = {};
+  let maxX = 0;
+
+  const measureList = readMeasureList(osmd);
+  for (let measureIndex = 0; measureIndex < measureList.length; measureIndex += 1) {
+    const row = measureList[measureIndex] ?? [];
+    const measures = row.filter(Boolean) as OsmdGraphicMeasureLike[];
+
+    if (measures.length === 0) {
+      continue;
+    }
+
+    const measureNumber = getFiniteNumber(measures[0]?.MeasureNumber) ?? measureIndex + 1;
+
+    let noteMinX = Number.POSITIVE_INFINITY;
+    let noteMaxX = Number.NEGATIVE_INFINITY;
+    let measureMinX = Number.POSITIVE_INFINITY;
+    let measureMaxX = Number.NEGATIVE_INFINITY;
+
+    for (const measure of measures) {
+      const measureX = getFiniteNumber(measure.PositionAndShape?.AbsolutePosition?.x);
+      const measureWidth = getFiniteNumber(measure.PositionAndShape?.BorderRight) ?? 0;
+
+      if (measureX !== null) {
+        const scaledMeasureX = measureX * scaleFactor;
+        measureMinX = Math.min(measureMinX, scaledMeasureX);
+        measureMaxX = Math.max(measureMaxX, scaledMeasureX + measureWidth * scaleFactor);
       }
-      for (const measure of staffLine.Measures ?? []) {
-        const x = getFiniteNumber(measure.PositionAndShape?.AbsolutePosition?.x);
-        if (x !== null) {
-          starts.push(x * scaleFactor);
+
+      for (const entry of measure.staffEntries ?? []) {
+        for (const voiceEntry of entry.graphicalVoiceEntries ?? []) {
+          for (const note of voiceEntry.notes ?? []) {
+            if (!note.sourceNote?.Pitch && !note.sourceNote?.TransposedPitch) {
+              continue;
+            }
+            const x = getFiniteNumber(note.PositionAndShape?.AbsolutePosition?.x);
+            if (x !== null) {
+              const scaledX = x * scaleFactor;
+              noteMinX = Math.min(noteMinX, scaledX);
+              noteMaxX = Math.max(noteMaxX, scaledX);
+              maxX = Math.max(maxX, scaledX);
+            }
+          }
         }
       }
     }
+
+    if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
+      measureCentersByNumber[measureNumber] = (noteMinX + noteMaxX) / 2;
+    } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
+      measureCentersByNumber[measureNumber] = (measureMinX + measureMaxX) / 2;
+    }
   }
 
-  const measureCenters: number[] = [];
-  for (let index = 0; index < starts.length; index += 1) {
-    const current = starts[index];
-    const previousWidth = current - (starts[index - 1] ?? 0);
-    const next = starts[index + 1] ?? (current + Math.max(150, previousWidth));
-    measureCenters.push((current + next) / 2);
-  }
+  const scoreWidth = Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2);
+  return {
+    measureCentersByNumber,
+    scoreWidth,
+  };
+};
 
-  const noteTailX = ((): number => {
-    let maxX = 0;
-    for (const page of pages) {
-      for (const system of page.MusicSystems ?? []) {
-        for (const staffLine of system.StaffLines ?? []) {
-          for (const measure of staffLine.Measures ?? []) {
-            for (const entry of measure.staffEntries ?? []) {
-              for (const voiceEntry of entry.graphicalVoiceEntries ?? []) {
-                for (const note of voiceEntry.notes ?? []) {
-                  if (!note.sourceNote?.Pitch && !note.sourceNote?.TransposedPitch) {
-                    continue;
-                  }
-                  const x = getFiniteNumber(note.PositionAndShape?.AbsolutePosition?.x);
-                  if (x !== null) {
-                    maxX = Math.max(maxX, x * scaleFactor);
-                  }
+/** MeasureList が使えない OSMD／描画状態向けフォールバック（全 StaffLine の同一小節番号でノート X を統合）。 */
+const collectMeasureCentersFromStaffLines = (
+  osmd: OpenSheetMusicDisplay,
+  surface: Element | null,
+  viewportWidth: number,
+): OsmdLayout => {
+  const boundingWidth = getFiniteNumber(osmd.GraphicSheet?.BoundingBox?.width) ?? 0;
+  const renderedWidth = surface?.getBoundingClientRect().width ?? 0;
+  const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
+
+  const byNumberBounds: Record<number, { nMin: number; nMax: number; mMin: number; mMax: number }> = {};
+  let maxX = 0;
+
+  const pages = osmd.GraphicSheet?.MusicPages ?? [];
+  let measureOrdinal = 0;
+  for (const page of pages) {
+    for (const system of page.MusicSystems ?? []) {
+      for (const staffLine of system.StaffLines ?? []) {
+        for (const measure of staffLine.Measures ?? []) {
+          measureOrdinal += 1;
+          const mn = getFiniteNumber((measure as { MeasureNumber?: number }).MeasureNumber) ?? measureOrdinal;
+
+          let b = byNumberBounds[mn];
+          if (!b) {
+            b = {
+              nMin: Number.POSITIVE_INFINITY,
+              nMax: Number.NEGATIVE_INFINITY,
+              mMin: Number.POSITIVE_INFINITY,
+              mMax: Number.NEGATIVE_INFINITY,
+            };
+            byNumberBounds[mn] = b;
+          }
+
+          const measureLike = measure as OsmdGraphicMeasureLike;
+          const measureX = getFiniteNumber(measureLike.PositionAndShape?.AbsolutePosition?.x);
+          const measureWidth = getFiniteNumber(measureLike.PositionAndShape?.BorderRight) ?? 0;
+          if (measureX !== null) {
+            const smx = measureX * scaleFactor;
+            b.mMin = Math.min(b.mMin, smx);
+            b.mMax = Math.max(b.mMax, smx + measureWidth * scaleFactor);
+          }
+
+          for (const entry of measureLike.staffEntries ?? []) {
+            for (const voiceEntry of entry.graphicalVoiceEntries ?? []) {
+              for (const note of voiceEntry.notes ?? []) {
+                if (!note.sourceNote?.Pitch && !note.sourceNote?.TransposedPitch) {
+                  continue;
+                }
+                const x = getFiniteNumber(note.PositionAndShape?.AbsolutePosition?.x);
+                if (x !== null) {
+                  const sx = x * scaleFactor;
+                  b.nMin = Math.min(b.nMin, sx);
+                  b.nMax = Math.max(b.nMax, sx);
+                  maxX = Math.max(maxX, sx);
                 }
               }
             }
@@ -82,16 +183,34 @@ const collectMeasureCenters = (
         }
       }
     }
-    return maxX;
-  })();
+  }
 
-  const scoreWidth = Math.max(
-    viewportWidth,
-    renderedWidth,
-    measureCenters[measureCenters.length - 1] ?? 0,
-    noteTailX,
-  );
-  return { measureCenters, scoreWidth };
+  const measureCentersByNumber: Record<number, number> = {};
+  for (const [mnStr, b] of Object.entries(byNumberBounds)) {
+    const mn = Number(mnStr);
+    if (Number.isFinite(b.nMin) && Number.isFinite(b.nMax)) {
+      measureCentersByNumber[mn] = (b.nMin + b.nMax) / 2;
+    } else if (Number.isFinite(b.mMin) && Number.isFinite(b.mMax)) {
+      measureCentersByNumber[mn] = (b.mMin + b.mMax) / 2;
+    }
+  }
+
+  return {
+    measureCentersByNumber,
+    scoreWidth: Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2),
+  };
+};
+
+const measureLayoutFromOsmd = (
+  osmd: OpenSheetMusicDisplay,
+  surface: Element | null,
+  viewportWidth: number,
+): OsmdLayout => {
+  const primary = collectMeasureCenters(osmd, surface, viewportWidth);
+  if (Object.keys(primary.measureCentersByNumber).length > 0) {
+    return primary;
+  }
+  return collectMeasureCentersFromStaffLines(osmd, surface, viewportWidth);
 };
 
 const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
@@ -147,7 +266,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       osmd.render();
       const surface = score.querySelector('svg, canvas');
       const viewportWidth = viewportRef.current?.clientWidth ?? 0;
-      setLayout(collectMeasureCenters(osmd, surface, viewportWidth));
+      setLayout(measureLayoutFromOsmd(osmd, surface, viewportWidth));
     } catch {
       setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
       setLayout(EMPTY_LAYOUT);
@@ -170,8 +289,9 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     if (!viewport || !score) {
       return;
     }
-    const index = Math.max(0, Math.floor(activeMeasureNumber) - 1);
-    const center = layout.measureCenters[index] ?? layout.measureCenters[0] ?? viewport.clientWidth / 2;
+    const measureNumber = Math.max(1, Math.floor(activeMeasureNumber));
+    const byNum = layout.measureCentersByNumber;
+    const center = byNum[measureNumber] ?? byNum[1] ?? viewport.clientWidth / 2;
     const maxOffset = Math.max(0, layout.scoreWidth - viewport.clientWidth);
     const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
     score.style.transform = `translate3d(${-offset}px, -50%, 0)`;
