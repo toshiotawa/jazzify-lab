@@ -363,9 +363,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
                 return
             }
-            let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
-            musicXMLCache[phrase.id] = normalized
-            musicXMLText = normalized
+            musicXMLCache[phrase.id] = text
+            musicXMLText = text
             scoreErrorText = nil
         } catch {
             musicXMLText = nil
