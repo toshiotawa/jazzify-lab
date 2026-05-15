@@ -13,10 +13,6 @@ struct LoginView: View {
     @State private var showDemoLP = false
     /// デモサバイバルの起動時 `hintMode`。リザルトからの「ヒントなしで挑戦」等で書き換える。
     @State private var demoSurvivalHintMode: Bool = true
-    @State private var showDemoChordVoicing = false
-
-    /// Web 版 [src/components/earTraining/EarTrainingMain.tsx] の `DEMO_CHORD_VOICING_STAGE_SLUG` と同値。
-    private static let demoChordVoicingStageSlug = "demo-ios-chord-voicing-bpm100"
 
     private var locale: AppLocale { appState.locale }
 
@@ -86,14 +82,6 @@ struct LoginView: View {
                     onClose: { showDemoLP = false },
                     isDemo: true,
                     configOverride: SurvivalDemoStage.config
-                )
-            }
-            .fullScreenCover(isPresented: $showDemoChordVoicing) {
-                EarTrainingChordVoicingGameView(
-                    source: .slug(Self.demoChordVoicingStageSlug),
-                    lessonContext: nil,
-                    locale: locale,
-                    onClose: { showDemoChordVoicing = false }
                 )
             }
         }
@@ -262,34 +250,19 @@ struct LoginView: View {
                 .font(.subheadline)
                 .foregroundStyle(.gray)
 
-            HStack(spacing: 12) {
-                Button {
-                    demoSurvivalHintMode = true
-                    showDemoLP = true
-                } label: {
-                    Label(
-                        locale == .ja ? "サバイバル" : "Survival",
-                        systemImage: "flame.fill"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                }
-                .buttonStyle(.bordered)
-                .tint(.purple)
-
-                Button {
-                    showDemoChordVoicing = true
-                } label: {
-                    Label(
-                        locale == .ja ? "バトル" : "Battle",
-                        systemImage: "pianokeys"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                }
-                .buttonStyle(.bordered)
-                .tint(.pink)
+            Button {
+                demoSurvivalHintMode = true
+                showDemoLP = true
+            } label: {
+                Label(
+                    locale == .ja ? "サバイバル" : "Survival",
+                    systemImage: "flame.fill"
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
             }
+            .buttonStyle(.bordered)
+            .tint(.purple)
         }
     }
 
