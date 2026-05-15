@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
+import {
+  CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC,
+  EarTrainingChordVoicingPhrasePlayer,
+} from '@/utils/earTrainingChordVoicingPhrasePlayer';
 
 const phraseStarts: number[] = [];
 let decodeCallCount = 0;
@@ -107,7 +110,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    const leadIn = 0.02;
+    const leadIn = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
     const spb = 1;
     const firstClick = mockCtx.currentTime + leadIn;
     const expectedPhraseStart = firstClick + 4 * spb;
@@ -134,7 +137,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(20);
+    await vi.advanceTimersByTimeAsync(CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC * 1000);
     expect(onBeat).toHaveBeenLastCalledWith(3);
     await vi.advanceTimersByTimeAsync(3520);
     expect(onInputWindowStart).toHaveBeenCalledTimes(1);
@@ -175,7 +178,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(player.getCurrentTime()).toBe(0);
-    const phraseStart = 0.02 + 1;
+    const phraseStart = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC + 1;
     mockCtx.currentTime = phraseStart + 0.5;
     expect(player.getCurrentTime()).toBeCloseTo(0.5, 5);
     player.dispose();

@@ -455,66 +455,6 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let measureCenters = [];
           let scoreWidth = 0;
 
-          function setText(node, tagName, text) {
-            let child = node.getElementsByTagName(tagName)[0];
-            if (!child) {
-              child = node.ownerDocument.createElement(tagName);
-              node.appendChild(child);
-            }
-            child.textContent = text;
-          }
-
-          function removeChildren(node, tagName) {
-            const children = Array.from(node.getElementsByTagName(tagName));
-            for (const child of children) {
-              if (child.parentNode === node) {
-                node.removeChild(child);
-              }
-            }
-          }
-
-          function ensureNoteheadSlash(note) {
-            let notehead = note.getElementsByTagName('notehead')[0];
-            if (!notehead) {
-              notehead = note.ownerDocument.createElement('notehead');
-              note.appendChild(notehead);
-            }
-            notehead.textContent = 'slash';
-          }
-
-          function convertToRhythmNotation(xmlText) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(xmlText, 'application/xml');
-            if (doc.getElementsByTagName('parsererror').length > 0) {
-              return xmlText;
-            }
-            const notes = Array.from(doc.getElementsByTagName('note'));
-            for (const note of notes) {
-              if (note.getElementsByTagName('chord').length > 0) {
-                note.parentNode && note.parentNode.removeChild(note);
-                continue;
-              }
-              if (note.getElementsByTagName('rest').length > 0) {
-                continue;
-              }
-              const staff = note.getElementsByTagName('staff')[0]?.textContent?.trim();
-              const step = staff === '2' ? 'G' : 'B';
-              const octave = staff === '2' ? '3' : '4';
-              let pitch = note.getElementsByTagName('pitch')[0];
-              if (!pitch) {
-                pitch = doc.createElement('pitch');
-                note.insertBefore(pitch, note.firstChild);
-              }
-              setText(pitch, 'step', step);
-              setText(pitch, 'octave', octave);
-              removeChildren(pitch, 'alter');
-              removeChildren(note, 'accidental');
-              removeChildren(note, 'lyric');
-              ensureNoteheadSlash(note);
-            }
-            return new XMLSerializer().serializeToString(doc);
-          }
-
           function collectMeasureCenters() {
             measureCenters = [];
             const surface = score.querySelector('canvas, svg');
@@ -564,7 +504,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               status.textContent = 'OSMD failed to load';
               return;
             }
-            const displayXml = convertToRhythmNotation(xmlText);
+            const displayXml = xmlText;
             osmd = new OpenSheetMusicDisplay(score, {
               backend: 'canvas',
               autoResize: false,

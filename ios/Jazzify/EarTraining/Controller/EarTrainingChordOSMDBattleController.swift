@@ -127,6 +127,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             }
         }
         publishSnapshot()
+        scheduleLobbyMusicXMLPreload()
+    }
+
+    /// ロビー（`gameState == .idle`）でも OSMD にフレーズ1の譜面を出す。`startBattle` 前は `loadMusicXML` が走らないため、未設定だと楽譜枠に説明テキストのみ表示されていた。
+    private func scheduleLobbyMusicXMLPreload() {
+        guard gameState == .idle, let first = phrases.first, first.musicXmlUrl != nil else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.loadMusicXML(for: first)
+        }
     }
 
     func tearDown() {

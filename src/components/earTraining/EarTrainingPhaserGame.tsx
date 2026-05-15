@@ -100,7 +100,9 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
     if (
       effectCommand.kind === 'correct' ||
       effectCommand.kind === 'voicingCast' ||
-      effectCommand.kind === 'complete'
+      effectCommand.kind === 'complete' ||
+      effectCommand.kind === 'osmdHammerReflect' ||
+      effectCommand.kind === 'osmdMeteor'
     ) {
       playFireMagicSe();
     }

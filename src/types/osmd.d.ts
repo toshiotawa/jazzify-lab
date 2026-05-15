@@ -11,11 +11,13 @@ declare module 'opensheetmusicdisplay' {
     stretchLastSystemLine?: boolean;
     pageFormat?: string;
     pageBackgroundColor?: string;
+    defaultColorMusic?: string;
     defaultColorNotehead?: string;
     defaultColorStem?: string;
     defaultColorRest?: string;
     defaultColorLabel?: string;
     defaultColorTitle?: string;
+    defaultColorLyrics?: string;
   }
 
   export interface GraphicalNote {
@@ -50,6 +52,12 @@ declare module 'opensheetmusicdisplay' {
 
   export interface GraphicalMeasure {
     staffEntries: GraphicalStaffEntry[];
+    PositionAndShape?: {
+      AbsolutePosition?: {
+        x?: number;
+        y?: number;
+      };
+    };
   }
 
   export interface GraphicalStaffLine {
@@ -66,6 +74,10 @@ declare module 'opensheetmusicdisplay' {
 
   export interface GraphicSheet {
     MusicPages: MusicPage[];
+    BoundingBox?: {
+      width?: number;
+      height?: number;
+    };
   }
 
   export interface MusicSheet {

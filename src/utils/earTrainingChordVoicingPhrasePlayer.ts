@@ -41,7 +41,8 @@ interface ScheduleChordVoicingCountInParams {
   /** フレーズ MP3 のみ（0=無音。クリックは beatGain のまま） */
   phraseGain?: number;
   onBeat?: (beatsRemaining: number) => void;
-  /** フレーズ頭の半拍前（beats>0 のときのみ） */
+  /** フレーズ頭の指定秒前（既定は半拍前、beats>0 のときのみ） */
+  inputWindowLeadSec?: number;
   onInputWindowStart?: () => void;
   onPhraseStarted?: () => void;
   onEnded?: () => void;
@@ -55,7 +56,8 @@ interface PlayPreparedChordVoicingPhraseParams {
   onEnded?: () => void;
 }
 
-const LEAD_IN_SEC = 0.02;
+export const CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC = 0.08;
+const COUNT_IN_CLICK_GAIN = 0.74;
 
 type EarTrainingChordVoicingPhrasePlayerOptions = {
   createAudioContext?: () => AudioContext;
@@ -220,7 +222,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
         return;
       }
       phraseOut.gain.value = phraseGainLinear;
-      const when = ctx.currentTime + LEAD_IN_SEC;
+      const when = ctx.currentTime + CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
       this.startPhraseBufferAt(
         ctx,
         phraseOut,
@@ -268,11 +270,11 @@ export class EarTrainingChordVoicingPhrasePlayer {
       const bpm = Math.max(20, Math.min(400, params.bpm));
       const safeGain = Math.max(0, Math.min(1, params.beatGain));
       const spb = 60 / bpm;
-      const firstClick = ctx.currentTime + LEAD_IN_SEC;
+      const firstClick = ctx.currentTime + CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
       const phraseStart = firstClick + beats * spb;
 
       for (let i = 0; i < beats; i += 1) {
-        scheduleClickOsc(ctx, firstClick + i * spb, safeGain * 0.55, master);
+        scheduleClickOsc(ctx, firstClick + i * spb, safeGain * COUNT_IN_CLICK_GAIN, master);
       }
 
       if (params.onBeat) {
@@ -291,7 +293,8 @@ export class EarTrainingChordVoicingPhrasePlayer {
       }
 
       if (params.onInputWindowStart) {
-        const inputAt = phraseStart - halfBeatSecForBpm(bpm);
+        const inputLeadSec = params.inputWindowLeadSec ?? halfBeatSecForBpm(bpm);
+        const inputAt = phraseStart - Math.max(0, inputLeadSec);
         const delayMs = Math.max(0, Math.ceil((inputAt - ctx.currentTime) * 1000));
         const timer = window.setTimeout(() => {
           if (gen !== this.generation) {

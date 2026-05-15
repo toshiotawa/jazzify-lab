@@ -241,6 +241,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private phraseIntroText: Phaser.GameObjects.Text | null = null;
   private lastPhraseIntroKey: string | null = null;
   private lastEffectId: number | null = null;
+  private readonly osmdHammerNodesByEffectId = new Map<number, Phaser.GameObjects.Image>();
   private lastPhraseRunId: number | null = null;
   private playerPoseToken = 0;
   private activePlayerPoseName: PlayerAvatarPoseName | null = null;
@@ -272,6 +273,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   shutdown(): void {
     this.isReady = false;
     this.pendingSceneRebuild = false;
+    this.clearOsmdHammers();
     this.stopAllCharacterMotion();
     this.sceneRebuildTimer?.remove(false);
     this.sceneRebuildTimer = null;
@@ -289,6 +291,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (previousPhraseRunId !== null && previousPhraseRunId !== snapshot.phraseRunId) {
       this.playerPoseToken += 1;
       this.activePlayerPoseName = null;
+      this.clearOsmdHammers();
       this.restorePlayerPose();
     }
     if (!this.isReady) {
@@ -314,6 +317,18 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     if (command.kind === 'quotaReached') {
       this.playQuotaReachedEffect();
+      return;
+    }
+    if (command.kind === 'osmdHammer') {
+      this.playOsmdHammerEffect(command);
+      return;
+    }
+    if (command.kind === 'osmdHammerReflect') {
+      this.playOsmdHammerReflectEffect(command);
+      return;
+    }
+    if (command.kind === 'osmdMeteor') {
+      this.playOsmdMeteorEffect(command);
       return;
     }
     if (command.kind === 'voicingCast') {
@@ -756,7 +771,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       snapshot.hudLabels.backShort,
       () => this.callbacks.onBack(),
     );
-    this.drawChordHud(width, 104);
+    if (!snapshot.chordHudHidden) {
+      this.drawChordHud(width, 104);
+    }
 
     if (snapshot.practiceMode) {
       const practice = this.add.text(width / 2 + 60, 26, snapshot.hudLabels.practiceBadge, {
@@ -1104,6 +1121,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private drawPhraseSlots(width: number, height: number): void {
     const snapshot = this.snapshot;
     if (!snapshot || !this.phraseLayer) {
+      return;
+    }
+    if (snapshot.phraseSlotsHidden) {
       return;
     }
     const slots = snapshot.phraseSlots.length > 0 ? snapshot.phraseSlots : ['_'];
@@ -1459,6 +1479,103 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         this.knockCharacter('player', heavy ? -52 : -32, heavy ? 290 : 210);
       },
     });
+  }
+
+  private playOsmdHammerEffect(command: EarTrainingBattleEffectCommand): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    this.holdCharacterForAction('enemy', 'attack', 760);
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    const anchors = this.getBattleAnchors(width, height);
+    const travelMs = Math.max(120, Math.round((command.travelDurationSec ?? 0.72) * 1000));
+    const hammer = this.add.image(
+      anchors.enemy.x - 28,
+      anchors.enemy.bodyY - 8,
+      ENEMY_ATTACK_HAMMER_ASSET_KEY,
+    ).setOrigin(0.5, 0.5).setDisplaySize(76, 76);
+    hammer.setAngle(-18);
+    this.osmdHammerNodesByEffectId.set(command.id, hammer);
+    this.effectLayer.add(hammer);
+    this.tweens.add({
+      targets: hammer,
+      x: anchors.player.x,
+      y: anchors.player.bodyY,
+      angle: 720,
+      duration: travelMs,
+      ease: 'Linear',
+      onComplete: () => {
+        if (this.osmdHammerNodesByEffectId.get(command.id) !== hammer) {
+          hammer.destroy();
+          return;
+        }
+        this.osmdHammerNodesByEffectId.delete(command.id);
+        hammer.destroy();
+        this.flashPlayer();
+        this.showImpactBurst(anchors.player.x, anchors.player.bodyY, 0xfb7185, false);
+        this.callbacks.onEffectImpact(command.id);
+        this.knockCharacter('player', -28, 180);
+      },
+    });
+  }
+
+  private playOsmdHammerReflectEffect(command: EarTrainingBattleEffectCommand): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    this.holdCharacterForAction('player', 'cast', 620);
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    const anchors = this.getBattleAnchors(width, height);
+    const relatedId = command.relatedEffectId;
+    const hammer = relatedId === undefined ? undefined : this.osmdHammerNodesByEffectId.get(relatedId);
+    if (hammer && relatedId !== undefined) {
+      this.osmdHammerNodesByEffectId.delete(relatedId);
+      this.tweens.killTweensOf(hammer);
+      hammer.setPosition(anchors.player.x, anchors.player.bodyY);
+    }
+    const reflected = hammer ?? this.add.image(
+      anchors.player.x,
+      anchors.player.bodyY,
+      ENEMY_ATTACK_HAMMER_ASSET_KEY,
+    ).setOrigin(0.5, 0.5).setDisplaySize(82, 82);
+    if (!hammer) {
+      this.effectLayer.add(reflected);
+    }
+    reflected.setAngle(18);
+    this.showCorrectPlayerPose();
+    this.tweens.add({
+      targets: reflected,
+      x: anchors.enemy.x,
+      y: anchors.enemy.bodyY,
+      angle: -560,
+      displayWidth: 92,
+      displayHeight: 92,
+      duration: 360,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        reflected.destroy();
+        this.flashEnemy();
+        this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, 0xfacc15, false);
+        this.showEnemyDamageText(command.damage, anchors.enemy);
+        this.callbacks.onEffectImpact(command.id);
+        this.knockEnemyAfterDamage(22, 160);
+      },
+    });
+  }
+
+  private playOsmdMeteorEffect(command: EarTrainingBattleEffectCommand): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    const anchors = this.getBattleAnchors(width, height);
+    this.holdCharacterForAction('player', 'attack', 1320);
+    this.showFloatingResultText(command.label ?? 'Bonus', anchors.player.x, anchors.player.resultTextY, '#fef08a');
+    this.createCastEffect(anchors.player.x, anchors.player.castY, 1.8);
+    this.launchMeteor(command, anchors);
   }
 
   private getBattleAnchors(width: number, height: number): BattleAnchors {
@@ -2012,6 +2129,14 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (this.enemyView) {
       this.stopCharacterMotion(this.enemyView);
     }
+  }
+
+  private clearOsmdHammers(): void {
+    this.osmdHammerNodesByEffectId.forEach(hammer => {
+      this.tweens.killTweensOf(hammer);
+      hammer.destroy();
+    });
+    this.osmdHammerNodesByEffectId.clear();
   }
 
   private stopCharacterMotion(view: CharacterView): void {

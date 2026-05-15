@@ -1,6 +1,15 @@
 import type { EarTrainingGameState, EarTrainingRank } from '@/types';
 
-export type EarTrainingBattleEffectKind = 'correct' | 'miss' | 'complete' | 'fail' | 'voicingCast' | 'quotaReached';
+export type EarTrainingBattleEffectKind =
+  | 'correct'
+  | 'miss'
+  | 'complete'
+  | 'fail'
+  | 'voicingCast'
+  | 'quotaReached'
+  | 'osmdHammer'
+  | 'osmdHammerReflect'
+  | 'osmdMeteor';
 
 export interface EarTrainingBattleEffectOriginPoint {
   x: number;
@@ -14,6 +23,8 @@ export interface EarTrainingBattleEffectCommand {
   damage?: number;
   phraseNoteCount?: number;
   originPoint?: EarTrainingBattleEffectOriginPoint;
+  relatedEffectId?: number;
+  travelDurationSec?: number;
 }
 
 export interface EarTrainingBattleChordView {
@@ -67,7 +78,9 @@ export interface EarTrainingBattleSnapshot {
   enemyAttackGaugePercent: number;
   /** true のとき敵アタックゲージを描画せず、ミス系の敵攻撃演出も出さない想定 */
   attackGaugeHidden?: boolean;
+  chordHudHidden?: boolean;
   chords: EarTrainingBattleChordView[];
+  phraseSlotsHidden?: boolean;
   phraseSlots: string[];
   revealedNotes: string[];
   currentNoteIndex: number;
