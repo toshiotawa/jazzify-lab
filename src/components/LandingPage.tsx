@@ -511,7 +511,7 @@ const LandingPage: React.FC = () => {
               <div className="px-8 py-8">
                 <p className="text-xs font-medium mb-6 tracking-wider" style={{ color: 'var(--lp-gold-dim)' }}>プレミアムで開放される機能</p>
                 <ul className="space-y-5">
-                  {(['全レッスンにアクセス', '全サバイバルステージ', 'デイリーチャレンジの全難易度を解放'] as const).map((text) => (
+                  {(['全レッスンにアクセス', '全サバイバルステージ'] as const).map((text) => (
                     <li key={text} className="flex items-center gap-3">
                       <span className="shrink-0 flex items-center justify-center" aria-hidden="true">
                         <CheckIcon />

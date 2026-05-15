@@ -12,7 +12,6 @@ const FALLBACK_USD_WHOLE = 31;
 const PREMIUM_FEATURES = [
   'Access all lessons',
   'All Survival stages',
-  'Unlock all Daily Challenge difficulty levels',
 ] as const;
 
 /**

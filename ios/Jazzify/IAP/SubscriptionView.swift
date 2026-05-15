@@ -88,7 +88,6 @@ struct SubscriptionView: View {
             VStack(spacing: 4) {
                 featureRow(icon: "music.note.list", text: locale == .ja ? "全クエストにアクセス" : "Access all quests")
                 featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
-                featureRow(icon: "flame.fill", text: locale == .ja ? "デイリーチャレンジの全難易度を解放" : "All Daily Challenge difficulty levels unlocked")
                 featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
             }
         }

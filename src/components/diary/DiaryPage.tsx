@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard, FaCalendarCheck, FaSkull } from 'react-icons/fa';
+import { FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard, FaSkull } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -307,11 +307,6 @@ const DiaryPage: React.FC = () => {
                             <FaGraduationCap className="text-blue-400" aria-hidden="true" />
                             <span className="text-gray-400">{isEnglishCopy ? 'Quests' : 'クエストクリア'}</span>
                             <span className="font-semibold text-white">{userStats?.lessonCompletedCount ?? 0}</span>
-                          </div>
-                          <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'}>
-                            <FaCalendarCheck className="text-yellow-400" aria-hidden="true" />
-                            <span className="text-gray-400">{isEnglishCopy ? 'Daily Challenge' : 'デイリーチャレンジ'}</span>
-                            <span className="font-semibold text-white">{userStats?.dailyChallengeParticipationDays ?? 0}</span>
                           </div>
                           {(userStats?.survivalBestTimeSeconds ?? 0) > 0 && (
                             <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Survival Best Time' : 'サバイバル最高生存時間'}>

@@ -25,7 +25,6 @@ const AdminDashboard = React.lazy(() => import('@/components/admin/AdminDashboar
 const PricingTable = React.lazy(() => import('@/components/subscription/PricingTable'));
 const LazyFantasyMain = React.lazy(() => import('@/components/fantasy/FantasyMain'));
 const LazyStoryPage = React.lazy(() => import('@/components/fantasy/StoryPage'));
-const LazyDailyChallengeMain = React.lazy(() => import('@/components/dailyChallenge/DailyChallengeMain'));
 const LazySurvivalMain = React.lazy(() => import('@/components/survival/SurvivalMain'));
 const LazyGameScreen = React.lazy(() => import('@/components/game/GameScreen'));
 const LazyEarTrainingMain = React.lazy(() => import('@/components/earTraining/EarTrainingMain'));
@@ -121,7 +120,6 @@ const App: React.FC = () => {
         '#course',
         '#lesson-detail',
         '#information',
-        '#daily-challenge',
         '#survival',
         '#survival-lesson',
         '#ear-training-lesson',
@@ -191,8 +189,6 @@ const App: React.FC = () => {
           return <LazyEarTrainingMain />;
         case 'fantasy':
           return <LazyFantasyMain />;
-        case 'daily-challenge':
-          return <LazyDailyChallengeMain />;
         case 'play-lesson':
         case 'play-mission':
           return <LazyGameScreen />;
@@ -235,13 +231,6 @@ const App: React.FC = () => {
         IOSContent = (
           <React.Suspense fallback={<LoadingScreen />}>
             {effectiveMode === 'ear-training-lesson' ? <LazyEarTrainingMain /> : <LazyGameScreen />}
-          </React.Suspense>
-        );
-        break;
-      case 'daily-challenge':
-        IOSContent = (
-          <React.Suspense fallback={<LoadingScreen />}>
-            <LazyDailyChallengeMain iosDifficulty={getIOSParam('difficulty') ?? undefined} />
           </React.Suspense>
         );
         break;
@@ -369,13 +358,6 @@ const App: React.FC = () => {
       MainContent = !isPremiumMember ? <Dashboard /> : (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyFantasyMain />
-        </React.Suspense>
-      );
-      break;
-    case '#daily-challenge':
-      MainContent = (
-        <React.Suspense fallback={<LoadingScreen />}>
-          <LazyDailyChallengeMain />
         </React.Suspense>
       );
       break;

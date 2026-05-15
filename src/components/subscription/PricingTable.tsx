@@ -90,13 +90,6 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
         premium: isEnglishCopy ? 'Unlimited' : '無制限',
       },
     },
-    {
-      label: isEnglishCopy ? 'Daily Challenge' : 'デイリーチャレンジ',
-      values: {
-        free: isEnglishCopy ? 'Super Beginner' : '超初級のみ',
-        premium: isEnglishCopy ? 'All difficulties' : '全難易度',
-      },
-    },
   ], [isEnglishCopy]);
 
   useEffect(() => {
@@ -236,8 +229,8 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               </h2>
               <p className="text-sm sm:text-base text-slate-300 mb-2 max-w-xl mx-auto">
                 {isEnglishCopy
-                  ? 'Free members can explore lessons (tutorial), stats, daily challenge (Super Beginner), and Survival stage mode (view only).'
-                  : 'フリー会員はチュートリアルレッスン・統計・デイリーチャレンジ（超初級）・サバイバル閲覧などをご利用いただけます。'}
+                  ? 'Free members can explore lessons (tutorial), stats, and Survival stage mode (view only).'
+                  : 'フリー会員はチュートリアルレッスン・統計・サバイバル閲覧などをご利用いただけます。'}
               </p>
               <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto">
                 {isEnglishCopy

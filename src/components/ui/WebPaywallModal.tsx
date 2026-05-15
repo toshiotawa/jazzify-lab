@@ -12,13 +12,11 @@ interface WebPaywallModalProps {
 const FEATURES_JA = [
   'すべてのレッスンが無制限',
   'サバイバル ステージモードでプレイ',
-  'デイリーチャレンジ 全難易度',
 ];
 
 const FEATURES_EN = [
   'Unlimited access to all lessons',
   'Play Survival Stage Mode',
-  'Daily Challenge — all difficulties',
 ];
 
 const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy }) => {

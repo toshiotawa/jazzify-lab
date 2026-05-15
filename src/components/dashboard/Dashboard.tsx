@@ -15,7 +15,6 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
 import MainQuestProgressSection from '@/components/dashboard/MainQuestProgressSection';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
@@ -174,10 +173,6 @@ const Dashboard: React.FC = () => {
                         {isEnglishCopy ? 'Quests cleared' : 'クエストクリア数'} {userStats.lessonCompletedCount}
                       </span>
                       <span>
-                        {isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'}{' '}
-                        {userStats.dailyChallengeParticipationDays}
-                      </span>
-                      <span>
                         {isEnglishCopy ? 'Survival cleared' : 'サバイバルクリア'}{' '}
                         {userStats.survivalClearCount}
                       </span>
@@ -250,8 +245,6 @@ const Dashboard: React.FC = () => {
               )}
             </div>
           </div>
-
-          <DailyChallengeRecordsSection />
         </div>
       </div>
     </div>
