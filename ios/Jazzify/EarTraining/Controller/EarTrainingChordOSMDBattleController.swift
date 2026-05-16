@@ -44,7 +44,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
-    /// 練習モード時のみ、判定窓内の未押下構成音（プレビュー用マリーゴールド鍵盤）。
+    /// 設定で有効なとき、判定窓内の未押下構成音（プレビュー用マリーゴールド鍵盤）。
     @Published private(set) var voicingHintMidis: Set<Int> = []
 
     let stage: EarTrainingStageDetail
@@ -443,7 +443,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func refreshPracticeVoicingHints() {
-        guard practiceMode else {
+        guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else {
             if !voicingHintMidis.isEmpty {
                 voicingHintMidis = []
             }
@@ -897,6 +897,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             practiceMode: practiceMode,
             timeRemaining: timeRemaining,
             timeLabel: "\(min(phraseIndex + 1, max(1, phrases.count)))/\(max(1, phrases.count))",
+            hideTimeLabel: true,
             enemyAttackGaugePercent: 0,
             hideEnemyAttackGauge: true,
             hideChordChips: true,
@@ -1043,7 +1044,7 @@ extension EarTrainingChordOSMDBattleController: EarTrainingBattleSceneDriving {}
 
 extension EarTrainingChordOSMDBattleController: EarTrainingPianoPlayable {
     var voicingHintsByMidi: [Int: VoicingHintState] {
-        guard practiceMode else { return [:] }
+        guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else { return [:] }
         var dict: [Int: VoicingHintState] = [:]
         for midi in voicingHintMidis {
             dict[midi] = .pending
@@ -1078,10 +1079,7 @@ extension EarTrainingChordOSMDBattleController: EarTrainingLobbyPresentable {
     }
 
     var resultRankLine: String? {
-        guard resultState != nil else { return nil }
-        let accuracy = totalJudgedTargets == 0 ? phraseAccuracy : Double(totalCompletedTargets) / Double(max(1, totalJudgedTargets))
-        let percent = Int(round(accuracy * 100))
-        return isEnglishCopy ? "Accuracy \(percent)%" : "正解率 \(percent)%"
+        nil
     }
 
     var lessonProgressText: String? {
@@ -1098,8 +1096,6 @@ extension EarTrainingChordOSMDBattleController: EarTrainingLobbyPresentable {
     }
 
     var quizRulesLine: String? {
-        isEnglishCopy
-            ? "Complete every chord within +/-100ms. Octaves are judged exactly."
-            : "±100msで同時和音を完成。オクターブ違いは別判定です。"
+        stage.battleClearConditionText(isEnglish: isEnglishCopy)
     }
 }

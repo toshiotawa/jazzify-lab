@@ -65,8 +65,10 @@ struct EarTrainingHUDView: View {
                 frameAlignment: .leading
             )
 
-            timePill
-                .frame(minWidth: 64)
+            if !hud.hideTimeLabel {
+                timePill
+                    .frame(minWidth: 64)
+            }
 
             hpPanel(
                 current: hud.enemyHp,

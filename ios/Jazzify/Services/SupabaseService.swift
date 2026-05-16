@@ -246,7 +246,8 @@ final class SupabaseService: Sendable {
                     bpm,
                     time_limit_sec,
                     mode,
-                    quiz_required_correct_count
+                    quiz_required_correct_count,
+                    show_keyboard_hints_in_battle
                 )
             )
             """)
@@ -813,6 +814,7 @@ final class SupabaseService: Sendable {
             quizQuestionOrder: raw.quizQuestionOrder,
             quizShowNotationInBattle: raw.quizShowNotationInBattle,
             quizRequiredCorrectCount: raw.quizRequiredCorrectCount,
+            showKeyboardHintsInBattle: raw.showKeyboardHintsInBattle,
             chordQuizItems: raw.sortedChordQuizItems()
         )
     }

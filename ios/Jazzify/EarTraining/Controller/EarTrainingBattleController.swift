@@ -134,9 +134,7 @@ final class EarTrainingBattleController: ObservableObject {
     }
 
     var resultRankLine: String? {
-        guard gameState == .stageClear, let rank = lastRank else { return nil }
-        let letter = EarTrainingEngine.lessonRank(from: rank)
-        return "\(hudLabels.clearGradePrefix) \(letter)"
+        nil
     }
 
     var lessonProgressText: String? {
@@ -884,6 +882,7 @@ final class EarTrainingBattleController: ObservableObject {
             practiceMode: practiceMode,
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
+            hideTimeLabel: false,
             enemyAttackGaugePercent: enemyAttackGaugePercent,
             hideEnemyAttackGauge: false,
             hideChordChips: false,
@@ -911,7 +910,9 @@ extension EarTrainingBattleController: EarTrainingLobbyPresentable {
         stage.localizedTitle(isEnglishCopy ? .en : .ja)
     }
 
-    var quizRulesLine: String? { nil }
+    var quizRulesLine: String? {
+        stage.battleClearConditionText(isEnglish: isEnglishCopy)
+    }
 }
 
 // MARK: - Avatar catalog (Web `EAR_TRAINING_ENEMY_AVATAR_URLS` 相当)

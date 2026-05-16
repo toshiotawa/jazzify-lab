@@ -69,6 +69,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let quizQuestionOrder: String?
     let quizShowNotationInBattle: Bool?
     let quizRequiredCorrectCount: Int?
+    let showKeyboardHintsInBattle: Bool?
     let chordQuizItems: [EarTrainingChordQuizItem]?
 
     var resolvedMode: EarTrainingMode { mode ?? .phrase }
@@ -88,9 +89,30 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         quizQuestionOrder == "sequential"
     }
 
+    var resolvedShowKeyboardHintsInBattle: Bool {
+        showKeyboardHintsInBattle == true
+    }
+
     func resolvedQuizHideUnpressedNotationInBattle(practiceMode: Bool) -> Bool {
         guard practiceMode != true else { return false }
         return quizShowNotationInBattle == false
+    }
+
+    func battleClearConditionText(isEnglish: Bool) -> String {
+        switch resolvedMode {
+        case .chordQuiz:
+            return isEnglish
+                ? "Answer at least 10 questions correctly and survive for 90 seconds."
+                : "10問以上正解かつ、90秒間生存"
+        case .chordOSMD:
+            return isEnglish
+                ? "Reduce the enemy HP to 0."
+                : "敵HPを0にする。"
+        case .chordVoicing, .phrase:
+            return isEnglish
+                ? "Reduce the enemy HP to 0 within the time limit."
+                : "制限時間以内に敵HPを0にする"
+        }
     }
 
     func sortedChordQuizItems() -> [EarTrainingChordQuizItem] {
@@ -125,6 +147,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         case quizQuestionOrder = "quiz_question_order"
         case quizShowNotationInBattle = "quiz_show_notation_in_battle"
         case quizRequiredCorrectCount = "quiz_required_correct_count"
+        case showKeyboardHintsInBattle = "show_keyboard_hints_in_battle"
         case chordQuizItems = "chord_quiz_items"
     }
 

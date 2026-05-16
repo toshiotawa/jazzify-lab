@@ -118,6 +118,26 @@ describe('Chord OSMD target consumption', () => {
     expect(second ? chordOsmdTargetIsComplete(second) : true).toBe(false);
     expect(third ? chordOsmdTargetIsComplete(third) : false).toBe(true);
   });
+
+  it('同じタイミングの和音は1音だけでは完了しない', () => {
+    const [target] = buildChordOsmdRhythmTargets(
+      phrase([
+        chord({ id: 'a', order_index: 0, start_time_sec: 0, voicing: ['C4'] }),
+        chord({ id: 'b', order_index: 1, start_time_sec: 0, voicing: ['E4'] }),
+        chord({ id: 'c', order_index: 2, start_time_sec: 0, voicing: ['G4'] }),
+      ]),
+      120,
+      4,
+    );
+    const first = createChordOsmdRemainingCounts(target);
+    const afterC = consumeChordOsmdMidi(first, 60);
+    const afterE = afterC ? consumeChordOsmdMidi(afterC, 64) : null;
+    const afterG = afterE ? consumeChordOsmdMidi(afterE, 67) : null;
+
+    expect(afterC ? chordOsmdTargetIsComplete(afterC) : true).toBe(false);
+    expect(afterE ? chordOsmdTargetIsComplete(afterE) : true).toBe(false);
+    expect(afterG ? chordOsmdTargetIsComplete(afterG) : false).toBe(true);
+  });
 });
 
 describe('chordOsmdRankForAccuracy', () => {

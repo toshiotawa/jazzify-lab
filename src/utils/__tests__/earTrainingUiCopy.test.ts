@@ -62,14 +62,12 @@ describe('earTrainingUiCopy', () => {
       expect(en.settings).toBe('Settings');
       expect(en.battleMode).toBe('Battle');
       expect(en.resultWin).toContain('win');
-      expect(en.clearGradePrefix).toBe('Clear grade');
     });
 
     it('日本語ではPhaser HUD 用ラベルが日本語になる', () => {
       const ja = getEarTrainingBattleHudLabels(false);
       expect(ja.settings).toBe('設定');
       expect(ja.battleMode).toBe('バトル');
-      expect(ja.clearGradePrefix).toBe('クリア評価');
     });
   });
 

@@ -1666,10 +1666,9 @@ struct LessonDetailView: View {
                 if requirement.isEarTraining == true {
                     badge(locale == .ja ? "バトル" : "Battle mode", color: .cyan)
                 }
-                if isChordQuizEarTraining(requirement), let et = requirement.earTrainingStage {
-                    let q = max(1, et.quizRequiredCorrectCount ?? 80)
-                    badge(locale == .ja ? "\(q)問" : "\(q)", color: .orange)
-                } else if let rank = requirement.clearConditions?.rank {
+                if isChordQuizEarTraining(requirement) {
+                    badge(locale == .ja ? "10問以上" : "10+ correct", color: .orange)
+                } else if requirement.isEarTraining != true, let rank = requirement.clearConditions?.rank {
                     badge(rank, color: .orange)
                 }
                 badge(displayProgress, color: isCompleted ? .green : .blue)
@@ -1777,7 +1776,7 @@ struct LessonDetailView: View {
             let count = cc.count ?? 1
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(locale == .ja ? "クリア条件" : "Clear Conditions")
+                Text(locale == .ja ? "クリア条件" : "Clear condition")
                     .font(.caption2.bold())
                     .foregroundStyle(.gray)
 
@@ -1796,19 +1795,17 @@ struct LessonDetailView: View {
                             value: "\(cc.speed ?? 1.0)x"
                         )
                     }
-                    if !isSurvival {
-                        if isChordQuizEarTraining(requirement), let et = requirement.earTrainingStage {
-                            let q = max(1, et.quizRequiredCorrectCount ?? 80)
-                            conditionItem(
-                                locale == .ja ? "ノルマ" : "Quota",
-                                value: locale == .ja ? "\(q)問" : "\(q) correct"
-                            )
-                        } else {
-                            conditionItem(
-                                locale == .ja ? "ランク" : "Rank",
-                                value: "\(cc.rank ?? "B")\(locale == .ja ? "以上" : "+")"
-                            )
-                        }
+                    if isEarTraining {
+                        conditionItem(
+                            locale == .ja ? "条件" : "Condition",
+                            value: requirement.earTrainingStage?.battleClearConditionText(locale: locale)
+                                ?? (locale == .ja ? "制限時間以内に敵HPを0にする" : "Reduce the enemy HP to 0 within the time limit.")
+                        )
+                    } else if !isSurvival {
+                        conditionItem(
+                            locale == .ja ? "ランク" : "Rank",
+                            value: "\(cc.rank ?? "B")\(locale == .ja ? "以上" : "+")"
+                        )
                     }
                     conditionItem(
                         locale == .ja ? "回数" : "Count",
@@ -1831,13 +1828,14 @@ struct LessonDetailView: View {
     }
 
     private func conditionItem(_ label: String, value: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(label + ":")
                 .font(.caption2)
                 .foregroundStyle(.gray)
             Text(value)
                 .font(.caption2.bold())
                 .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

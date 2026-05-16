@@ -43,7 +43,6 @@ export interface EarTrainingBattleHudLabels {
   resultWin: string;
   resultLose: string;
   resultTimeOver: string;
-  clearGradePrefix: string;
 }
 
 export interface EarTrainingBattleSnapshot {

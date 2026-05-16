@@ -202,9 +202,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var resultRankLine: String? {
-        guard gameState == .stageClear, let rank = lastRank else { return nil }
-        let letter = EarTrainingEngine.lessonRank(from: rank)
-        return "\(hudLabels.clearGradePrefix) \(letter)"
+        nil
     }
 
     var lessonProgressText: String? {
@@ -249,6 +247,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             practiceMode: practiceMode,
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
+            hideTimeLabel: false,
             enemyAttackGaugePercent: enemyAttackGaugePercent,
             hideEnemyAttackGauge: false,
             hideChordChips: false,
@@ -1329,7 +1328,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     private func recomputeVoicingHints() {
         let next: [Int: VoicingHintState]
-        if practiceMode,
+        if (practiceMode || stage.resolvedShowKeyboardHintsInBattle),
            let chord = activeChord,
            !(attempt?.completedChordIds.contains(chord.id) ?? false),
            gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive) {
@@ -1371,5 +1370,7 @@ extension EarTrainingChordVoicingBattleController: EarTrainingLobbyPresentable {
         stage.localizedTitle(isEnglishCopy ? .en : .ja)
     }
 
-    var quizRulesLine: String? { nil }
+    var quizRulesLine: String? {
+        stage.battleClearConditionText(isEnglish: isEnglishCopy)
+    }
 }

@@ -219,6 +219,7 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
     let timeLimitSec: Int?
     let mode: EarTrainingMode?
     let quizRequiredCorrectCount: Int?
+    let showKeyboardHintsInBattle: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, slug, title, description, bpm, mode
@@ -226,6 +227,7 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
         case descriptionEn = "description_en"
         case timeLimitSec = "time_limit_sec"
         case quizRequiredCorrectCount = "quiz_required_correct_count"
+        case showKeyboardHintsInBattle = "show_keyboard_hints_in_battle"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -234,6 +236,24 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
 
     func localizedDescription(_ locale: AppLocale) -> String? {
         locale == .en ? (descriptionEn ?? description) : description
+    }
+
+    func battleClearConditionText(locale: AppLocale) -> String {
+        let isEnglish = locale == .en
+        switch mode ?? .phrase {
+        case .chordQuiz:
+            return isEnglish
+                ? "Answer at least 10 questions correctly and survive for 90 seconds."
+                : "10問以上正解かつ、90秒間生存"
+        case .chordOSMD:
+            return isEnglish
+                ? "Reduce the enemy HP to 0."
+                : "敵HPを0にする。"
+        case .chordVoicing, .phrase:
+            return isEnglish
+                ? "Reduce the enemy HP to 0 within the time limit."
+                : "制限時間以内に敵HPを0にする"
+        }
     }
 }
 

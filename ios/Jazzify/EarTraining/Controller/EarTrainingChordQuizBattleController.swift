@@ -902,6 +902,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             practiceMode: practiceMode,
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
+            hideTimeLabel: false,
             enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,
             hideEnemyAttackGauge: practiceMode,
             hideChordChips: false,
@@ -947,7 +948,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 extension EarTrainingChordQuizBattleController: EarTrainingBattleSceneDriving {}
 extension EarTrainingChordQuizBattleController: EarTrainingPianoPlayable {
     var voicingHintsByMidi: [Int: VoicingHintState] {
-        guard practiceMode else { return [:] }
+        guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else { return [:] }
         guard gameState == .playingPhrase || gameState == .countIn, !quizEnded,
               let chord = activeChord,
               !(attempt?.completedChordIds.contains(chord.id) ?? false) else { return [:] }
@@ -994,6 +995,6 @@ extension EarTrainingChordQuizBattleController: EarTrainingLobbyPresentable {
     }
 
     var quizRulesLine: String? {
-        phraseIntroSummary()
+        stage.battleClearConditionText(isEnglish: isEnglishCopy)
     }
 }
