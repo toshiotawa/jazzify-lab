@@ -436,7 +436,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
         }
       `}</style>
 
-      <div className="mx-auto grid w-full max-w-[1700px] grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="mx-auto grid w-full max-w-[1700px] grid-cols-1 gap-3 md:grid-cols-[minmax(0,6fr)_minmax(0,4fr)]">
         <div
           ref={viewportRef}
           className="relative overflow-hidden touch-none select-none rounded-2xl border border-violet-400/20"

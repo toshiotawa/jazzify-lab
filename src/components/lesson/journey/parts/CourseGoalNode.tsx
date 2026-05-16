@@ -10,7 +10,7 @@ interface CourseGoalNodeProps {
 }
 
 export const CourseGoalNode: React.FC<CourseGoalNodeProps> = ({ xPx, yPx, scale, cleared, label }) => {
-  const size = Math.round(96 * scale);
+  const size = Math.round(72 * scale);
 
   return (
     <div
@@ -78,7 +78,7 @@ export const CourseGoalNode: React.FC<CourseGoalNodeProps> = ({ xPx, yPx, scale,
       >
         <FaCrown
           style={{
-            fontSize: Math.max(20, 32 * scale),
+            fontSize: Math.max(16, 24 * scale),
             color: cleared ? '#7a4a0d' : 'rgba(140,130,180,0.55)',
           }}
         />

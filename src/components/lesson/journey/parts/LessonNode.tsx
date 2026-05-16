@@ -31,7 +31,7 @@ export const LessonNode: React.FC<LessonNodeProps> = ({
   onSelect,
   ariaLabel,
 }) => {
-  const diameter = Math.round(34 * scale);
+  const diameter = Math.round(26 * scale);
 
   const handleClick = useCallback(() => {
     onSelect(lessonId);
@@ -101,16 +101,16 @@ export const LessonNode: React.FC<LessonNodeProps> = ({
           top: yPx - diameter / 2,
           width: diameter,
           height: diameter,
-          fontSize: Math.max(10, 11 * scale),
+          fontSize: Math.max(9, 9 * scale),
           zIndex: selected ? 26 : isFrontier ? 22 : 20,
         }}
         tabIndex={dim ? -1 : 0}
         disabled={state === 'locked'}
       >
         {state === 'cleared' ? (
-          <FaCheck style={{ fontSize: Math.max(10, 11 * scale) }} />
+          <FaCheck style={{ fontSize: Math.max(9, 9 * scale) }} />
         ) : state === 'locked' ? (
-          <FaLock style={{ fontSize: Math.max(10, 10 * scale), opacity: 0.8 }} />
+          <FaLock style={{ fontSize: Math.max(9, 9 * scale), opacity: 0.8 }} />
         ) : (
           <span style={{ lineHeight: 1 }}>{number}</span>
         )}

@@ -23,6 +23,8 @@ struct LessonListView: View {
     @State private var chapterScrollAnimated = false
     @State private var chapterDetailScrollTargetY: CGFloat?
     @State private var chapterDetailScrollAnimated = false
+    /// iPad のチャプター列が伸びたときのビューポート高さ（スクロール中央合わせに使用）
+    @State private var chapterListViewportHeight: CGFloat = 140
     @State private var lessonTabVisibleTick = 0
 
     private var locale: AppLocale { appState.locale }
@@ -394,7 +396,9 @@ struct LessonListView: View {
             if UIDevice.current.userInterfaceIdiom == .pad {
                 HStack(alignment: .top, spacing: 12) {
                     journeyPanel(state)
+                        .frame(maxHeight: .infinity, alignment: .top)
                     currentChapterDetailPanel(state)
+                        .frame(maxHeight: .infinity, alignment: .top)
                         .id("mainQuestDetail")
                 }
             } else {
@@ -455,11 +459,82 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
+    private func mainQuestChapterScrollContent(
+        state: MainQuestViewState,
+        totalH: CGFloat,
+        geo: GeometryProxy
+    ) -> some View {
+        let spacing = MainQuestChapterListLayout.rowSpacing
+        let isPadColumn = UIDevice.current.userInterfaceIdiom == .pad
+        let viewportH = geo.size.height
+        let contentH = isPadColumn ? max(totalH, viewportH) : totalH
+        let padCentered = isPadColumn && contentH > totalH
+
+        UIKitVerticalScrollView(
+            contentSize: CGSize(width: max(1, geo.size.width), height: contentH),
+            scrollTargetY: $chapterScrollTargetY,
+            animated: chapterScrollAnimated,
+            delaysContentTouches: true
+        ) {
+            Group {
+                if padCentered {
+                    VStack(spacing: spacing) {
+                        Spacer(minLength: 0)
+                        ForEach(state.blocks) { block in
+                            chapterRow(block, state: state)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: contentH)
+                } else {
+                    VStack(spacing: spacing) {
+                        ForEach(state.blocks) { block in
+                            chapterRow(block, state: state)
+                        }
+                    }
+                }
+            }
+        }
+        // SwiftUI の `onChange` ハンドラはクロージャ生成時の `state` をキャプチャするため、
+        // 進捗反映で `mainQuestState` が新しい値に再計算されても古い `state` が使われてしまう。
+        // ここでは常に最新の `mainQuestState` を再参照してスクロール要求を行う。
+        .onAppear {
+            chapterListViewportHeight = geo.size.height
+            if let latest = mainQuestState {
+                requestChapterListScroll(for: latest, animated: false)
+            }
+        }
+        .onChange(of: lessonTabVisibleTick) { _ in
+            guard let latest = mainQuestState else { return }
+            requestChapterListScroll(for: latest, animated: false)
+        }
+        .onChange(of: geo.size.height) { _ in
+            chapterListViewportHeight = geo.size.height
+            guard let latest = mainQuestState else { return }
+            requestChapterListScroll(for: latest, animated: false)
+        }
+        .onChange(of: state.blocks.count) { _ in
+            guard let latest = mainQuestState else { return }
+            requestChapterListScroll(for: latest, animated: false)
+        }
+        .onChange(of: state.currentBlock.blockNumber) { _ in
+            guard let latest = mainQuestState else { return }
+            requestChapterListScroll(for: latest, animated: false)
+        }
+        .onChange(of: selectedMainQuestBlockNumber) { _ in
+            guard let latest = mainQuestState else { return }
+            requestChapterListScroll(for: latest, animated: false)
+        }
+    }
+
     private func journeyPanel(_ state: MainQuestViewState) -> some View {
         let rowH = MainQuestChapterListLayout.rowHeight
-        let spacing = MainQuestChapterListLayout.rowSpacing
         let count = state.blocks.count
-        let totalH = CGFloat(count) * rowH + CGFloat(max(0, count - 1)) * spacing
+        let totalH =
+            CGFloat(count) * rowH
+                + CGFloat(max(0, count - 1)) * MainQuestChapterListLayout.rowSpacing
+        let isPadColumn = UIDevice.current.userInterfaceIdiom == .pad
 
         return VStack(alignment: .leading, spacing: 10) {
             sectionHeader(
@@ -467,50 +542,21 @@ struct LessonListView: View {
                 title: locale == .ja ? "チャプター" : "Chapters"
             )
 
-            GeometryReader { geo in
-                UIKitVerticalScrollView(
-                    contentSize: CGSize(width: max(1, geo.size.width), height: totalH),
-                    scrollTargetY: $chapterScrollTargetY,
-                    animated: chapterScrollAnimated,
-                    delaysContentTouches: true
-                ) {
-                    VStack(spacing: spacing) {
-                        ForEach(state.blocks) { block in
-                            chapterRow(block, state: state)
-                        }
+            Group {
+                if isPadColumn {
+                    GeometryReader { geo in
+                        mainQuestChapterScrollContent(state: state, totalH: totalH, geo: geo)
                     }
-                }
-                // SwiftUI の `onChange` ハンドラはクロージャ生成時の `state` をキャプチャするため、
-                // 進捗反映で `mainQuestState` が新しい値に再計算されても古い `state` が使われてしまう。
-                // ここでは常に最新の `mainQuestState` を再参照してスクロール要求を行う。
-                .onAppear {
-                    if let latest = mainQuestState {
-                        requestChapterListScroll(for: latest, animated: false)
+                    .frame(maxHeight: .infinity)
+                } else {
+                    GeometryReader { geo in
+                        mainQuestChapterScrollContent(state: state, totalH: totalH, geo: geo)
                     }
-                }
-                .onChange(of: lessonTabVisibleTick) { _ in
-                    guard let latest = mainQuestState else { return }
-                    requestChapterListScroll(for: latest, animated: false)
-                }
-                .onChange(of: geo.size.height) { _ in
-                    guard let latest = mainQuestState else { return }
-                    requestChapterListScroll(for: latest, animated: false)
-                }
-                .onChange(of: state.blocks.count) { _ in
-                    guard let latest = mainQuestState else { return }
-                    requestChapterListScroll(for: latest, animated: false)
-                }
-                .onChange(of: state.currentBlock.blockNumber) { _ in
-                    guard let latest = mainQuestState else { return }
-                    requestChapterListScroll(for: latest, animated: false)
-                }
-                .onChange(of: selectedMainQuestBlockNumber) { _ in
-                    guard let latest = mainQuestState else { return }
-                    requestChapterListScroll(for: latest, animated: false)
+                    .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
                 }
             }
-            .frame(height: MainQuestChapterListLayout.scrollViewportHeight)
         }
+        .frame(maxHeight: isPadColumn ? .infinity : nil, alignment: .top)
         .padding(12)
         .background(questPanelBackground)
     }
@@ -773,12 +819,26 @@ struct LessonListView: View {
     }
 
     private func chapterListTargetY(for state: MainQuestViewState) -> CGFloat {
+        let rowH = MainQuestChapterListLayout.rowHeight
+        let spacing = MainQuestChapterListLayout.rowSpacing
+        let count = state.blocks.count
+        let totalH = CGFloat(count) * rowH + CGFloat(max(0, count - 1)) * spacing
+
+        let inset: CGFloat
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let vp = chapterListViewportHeight
+            let contentH = max(totalH, vp)
+            inset = contentH > totalH ? (contentH - totalH) / 2 : 0
+        } else {
+            inset = 0
+        }
+
         let block = selectedBlock(in: state)
         let index = state.blocks.firstIndex { $0.blockNumber == block.blockNumber } ?? 0
-        return rowCenterY(
+        return inset + rowCenterY(
             index: index,
-            rowHeight: MainQuestChapterListLayout.rowHeight,
-            rowSpacing: MainQuestChapterListLayout.rowSpacing
+            rowHeight: rowH,
+            rowSpacing: spacing
         )
     }
 
