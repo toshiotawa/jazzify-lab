@@ -159,7 +159,13 @@ private struct EarTrainingChordOSMDContent: View {
     let audio: EarTrainingAudio
     let locale: AppLocale
 
+    /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
+    @State private var scoreSizeStep: Int = 0
+
     @State private var hudHorizontalPadding: CGFloat = 16
+
+    /// 譜面コンテナに対する相対スケール（コンテナサイズ と GPU レイヤでの表示を両方変更）。
+    private static let containerScaleTable: [Double] = [0.80, 0.90, 1.00, 1.15, 1.30]
 
     var body: some View {
         GeometryReader { proxy in
@@ -240,8 +246,18 @@ private struct EarTrainingChordOSMDContent: View {
 
     @ViewBuilder
     private func scoreOverlay(size: CGSize) -> some View {
-        let width = min(size.width * 0.66, 720)
-        let height = min(size.height * 0.48, 280)
+        let baseWidth = min(size.width * 0.66, 720)
+        let baseHeight = min(size.height * 0.48, 280)
+
+        let tableIndex = min(max(scoreSizeStep + 2, 0), Self.containerScaleTable.count - 1)
+        let containerScale = Self.containerScaleTable[tableIndex]
+
+        let scaledWidth = baseWidth * containerScale
+        let scaledHeight = baseHeight * containerScale
+
+        let outerWidth = min(size.width * 0.95, max(size.width * 0.36, scaledWidth))
+        let outerHeight = min(size.height * 0.68, max(size.height * 0.26, scaledHeight))
+
         // OSMD コンテナ高さに収めるためのベースズーム。WebView 側でレンダー後に高さを測り、
         // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
         // 2段譜以上では iPhone のみ明示的に小さく開始（iPad は変更なし）。
@@ -252,40 +268,106 @@ private struct EarTrainingChordOSMDContent: View {
         let maxStaffLayersForZoom = max(controller.musicXMLMaxStaffLayers, maxStaffFromXml)
         let multiStaff = maxStaffLayersForZoom >= 2
         let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
+
+        let shrinkDisabled = scoreSizeStep <= -2
+        let enlargeDisabled = scoreSizeStep >= 2
+
         ZStack {
-            if let musicXMLText = controller.musicXMLText {
-                EarTrainingOSMDScoreWebView(
-                    musicXMLText: musicXMLText,
-                    activeMeasureNumber: controller.activeMeasureNumber,
-                    renderKey: controller.phraseRunId,
-                    zoom: osmdZoom
-                )
-            } else {
-                VStack(spacing: 10) {
-                    if controller.gameState == .idle {
-                        Text(controller.quizRulesLine ?? "")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.72))
-                            .multilineTextAlignment(.center)
-                    } else if let scoreError = controller.scoreErrorText {
-                        Image(systemName: "music.note.list")
-                            .font(.title2)
-                            .foregroundStyle(.white.opacity(0.68))
-                        Text(scoreError)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.72))
-                            .multilineTextAlignment(.center)
-                    } else {
-                        ProgressView().tint(.white)
+            ZStack {
+                if let musicXMLText = controller.musicXMLText {
+                    EarTrainingOSMDScoreWebView(
+                        musicXMLText: musicXMLText,
+                        activeMeasureNumber: controller.activeMeasureNumber,
+                        renderKey: controller.phraseRunId,
+                        zoom: osmdZoom
+                    )
+                } else {
+                    VStack(spacing: 10) {
+                        if controller.gameState == .idle {
+                            Text(controller.quizRulesLine ?? "")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.72))
+                                .multilineTextAlignment(.center)
+                        } else if let scoreError = controller.scoreErrorText {
+                            Image(systemName: "music.note.list")
+                                .font(.title2)
+                                .foregroundStyle(.white.opacity(0.68))
+                            Text(scoreError)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.72))
+                                .multilineTextAlignment(.center)
+                        } else {
+                            ProgressView().tint(.white)
+                        }
                     }
+                    .padding(.horizontal, 18)
                 }
-                .padding(.horizontal, 18)
             }
+            .frame(width: baseWidth, height: baseHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .scaleEffect(containerScale)
+            .frame(width: outerWidth, height: outerHeight)
+            .clipped()
+            .allowsHitTesting(false)
+
+            scoreZoomControlsOuter(
+                enlargeDisabled: enlargeDisabled,
+                shrinkDisabled: shrinkDisabled,
+                outerWidth: outerWidth,
+                outerHeight: outerHeight
+            )
         }
-        .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .position(x: size.width / 2, y: size.height * 0.42)
-        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func scoreZoomControlsOuter(enlargeDisabled: Bool, shrinkDisabled: Bool, outerWidth: CGFloat, outerHeight: CGFloat) -> some View {
+        HStack(spacing: 6) {
+            scoreZoomChipButton(
+                systemName: "minus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
+                disabled: shrinkDisabled,
+                action: {
+                    guard scoreSizeStep > -2 else { return }
+                    scoreSizeStep -= 1
+                }
+            )
+
+            scoreZoomChipButton(
+                systemName: "plus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
+                disabled: enlargeDisabled,
+                action: {
+                    guard scoreSizeStep < 2 else { return }
+                    scoreSizeStep += 1
+                }
+            )
+        }
+        .padding(.trailing, 6)
+        .padding(.bottom, 6)
+        .frame(width: outerWidth, height: outerHeight, alignment: .bottomTrailing)
+    }
+
+    @ViewBuilder
+    private func scoreZoomChipButton(
+        systemName: String,
+        accessibilityLabel label: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(Color.white.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .opacity(disabled ? 0.28 : 1)
+        .disabled(disabled)
+        .accessibilityLabel(label)
     }
 
     private static func resolveHudHorizontalPadding() -> CGFloat {

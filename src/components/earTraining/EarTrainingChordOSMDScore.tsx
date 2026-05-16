@@ -24,6 +24,14 @@ const EMPTY_LAYOUT: OsmdLayout = {
   scoreWidth: 0,
 };
 
+/** CSS scale に掛けるユーザー調整倍率（OSMD の再 render は避ける）。 */
+const USER_ZOOM_MIN = 0.5;
+const USER_ZOOM_MAX = 2;
+const USER_ZOOM_STEP = 0.1;
+
+const clampUserZoom = (value: number): number =>
+  Math.min(USER_ZOOM_MAX, Math.max(USER_ZOOM_MIN, Math.round(value * 10) / 10));
+
 const getFiniteNumber = (value: unknown): number | null => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
 );
@@ -248,6 +256,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [isRendering, setIsRendering] = useState(false);
   /** OSMD 描画後に SVG をビューポート高に合わせるための CSS スケール（1 のとき縮小無し）。 */
   const [cssScale, setCssScale] = useState(1);
+  /** ユーザーが +/− で変更する追加スケール（セッション内のみ保持）。 */
+  const [userZoom, setUserZoom] = useState(1);
   /** コンテナが低いモバイル横画面。2段譜時のみ OSMD zoom を iOS iPhone と同じ比率（2/3）にする。 */
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
 
@@ -361,10 +371,14 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     const measureNumber = Math.max(1, Math.floor(activeMeasureNumber));
     const byNum = layout.measureCentersByNumber;
     const center = byNum[measureNumber] ?? byNum[1] ?? viewport.clientWidth / 2;
-    const maxOffset = Math.max(0, layout.scoreWidth - viewport.clientWidth);
-    const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
-    score.style.transform = `translate3d(${-offset}px, -50%, 0) scale(${cssScale})`;
-  }, [activeMeasureNumber, layout, cssScale]);
+    const effectiveScale = cssScale * userZoom;
+    const maxOffset = Math.max(0, layout.scoreWidth * effectiveScale - viewport.clientWidth);
+    const offset = Math.max(
+      0,
+      Math.min(maxOffset, center * effectiveScale - viewport.clientWidth / 2),
+    );
+    score.style.transform = `translate3d(${-offset}px, -50%, 0) scale(${effectiveScale})`;
+  }, [activeMeasureNumber, cssScale, layout, userZoom]);
 
   const statusText = renderError ?? scoreErrorText;
 
@@ -384,6 +398,49 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
           '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
         )}
       />
+      {!hidden && musicXmlText && (
+        <div
+          className={cn(
+            'pointer-events-auto absolute bottom-1 right-1 flex items-center gap-1 rounded-md',
+            'border border-white/15 bg-slate-900/70 px-1.5 py-0.5 text-xs font-semibold text-white shadow-sm',
+          )}
+        >
+          <button
+            type="button"
+            aria-label={isEnglishCopy ? 'Zoom out' : '縮小'}
+            disabled={userZoom <= USER_ZOOM_MIN}
+            className={cn(
+              'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
+              'disabled:cursor-not-allowed disabled:opacity-40',
+              'hover:bg-white/20 active:bg-white/25',
+            )}
+            onClick={() => {
+              setUserZoom(previous => clampUserZoom(previous - USER_ZOOM_STEP));
+            }}
+          >
+            −
+          </button>
+          <span className="min-w-[2.75rem] select-none text-center tabular-nums text-[11px] text-white/90">
+            {Math.round(userZoom * 100)}
+            %
+          </span>
+          <button
+            type="button"
+            aria-label={isEnglishCopy ? 'Zoom in' : '拡大'}
+            disabled={userZoom >= USER_ZOOM_MAX}
+            className={cn(
+              'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
+              'disabled:cursor-not-allowed disabled:opacity-40',
+              'hover:bg-white/20 active:bg-white/25',
+            )}
+            onClick={() => {
+              setUserZoom(previous => clampUserZoom(previous + USER_ZOOM_STEP));
+            }}
+          >
+            +
+          </button>
+        </div>
+      )}
       {(isRendering || statusText) && (
         <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
           {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
