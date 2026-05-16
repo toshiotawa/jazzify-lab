@@ -210,6 +210,15 @@ type OpenSheetMusicDisplayZoomable = OpenSheetMusicDisplay & {
   zoom: number;
 };
 
+const waitNextPaint = (): Promise<void> =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        resolve();
+      });
+    });
+  });
+
 const measureLayoutFromOsmd = (
   osmd: OpenSheetMusicDisplay,
   surface: Element | null,
@@ -237,6 +246,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  /** OSMD 描画後に SVG をビューポート高に合わせるための CSS スケール（1 のとき縮小無し）。 */
+  const [cssScale, setCssScale] = useState(1);
   /** コンテナが低いモバイル横画面。2段譜時のみ OSMD zoom を iOS iPhone と同じ比率（2/3）にする。 */
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
 
@@ -291,13 +302,39 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       osmdRef.current = osmd;
       await osmd.load(musicXmlText);
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
+      const viewportEl = viewportRef.current;
+      const viewportHeight = viewportEl?.clientHeight ?? 0;
+      const shortScoreViewport = viewportHeight > 0 && viewportHeight <= 320;
       const osmdZoom =
-        mobileLandscapeOsmdShrink && maxStaff >= 2 ? 2 / 3 : 1;
+        maxStaff >= 2 && (mobileLandscapeOsmdShrink || shortScoreViewport) ? 2 / 3 : 1;
       (osmd as OpenSheetMusicDisplayZoomable).zoom = osmdZoom;
+      score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
       osmd.render();
-      const surface = score.querySelector('svg, canvas');
+      await waitNextPaint();
+
+      const readSurface = (): { el: HTMLElement | null; height: number } => {
+        const el = score.querySelector('svg, canvas');
+        if (!el) {
+          return { el: null, height: 0 };
+        }
+        const rect = el.getBoundingClientRect();
+        const height = rect.height || (el instanceof HTMLCanvasElement ? el.height : 0);
+        return { el: el as HTMLElement, height };
+      };
+
+      const aggressiveShrink = maxStaff >= 2;
+      const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.72 : 0.94));
+      const { el: surfaceEl, height: measuredBeforeScale } = readSurface();
+      const nextCssScale =
+        measuredBeforeScale > targetHeight && measuredBeforeScale > 0
+          ? Math.max(0.28, targetHeight / measuredBeforeScale)
+          : 1;
+      score.style.transform = `translate3d(0, -50%, 0) scale(${nextCssScale})`;
+      setCssScale(nextCssScale);
+      await waitNextPaint();
+
       const viewportWidth = viewportRef.current?.clientWidth ?? 0;
-      const nextLayout = measureLayoutFromOsmd(osmd, surface, viewportWidth);
+      const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
       setLayout(nextLayout);
     } catch {
       setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
@@ -326,8 +363,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     const center = byNum[measureNumber] ?? byNum[1] ?? viewport.clientWidth / 2;
     const maxOffset = Math.max(0, layout.scoreWidth - viewport.clientWidth);
     const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
-    score.style.transform = `translate3d(${-offset}px, -50%, 0)`;
-  }, [activeMeasureNumber, layout]);
+    score.style.transform = `translate3d(${-offset}px, -50%, 0) scale(${cssScale})`;
+  }, [activeMeasureNumber, layout, cssScale]);
 
   const statusText = renderError ?? scoreErrorText;
 

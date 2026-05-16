@@ -246,7 +246,11 @@ private struct EarTrainingChordOSMDContent: View {
         // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
         // 2段譜以上では iPhone のみ明示的に小さく開始（iPad は変更なし）。
         let isPhone = UIDevice.current.userInterfaceIdiom == .phone
-        let multiStaff = controller.musicXMLMaxStaffLayers >= 2
+        let maxStaffFromXml = controller.musicXMLText.map {
+            EarTrainingChordOsmdMusicXmlNormalizer.detectMaxStaffLayersFromMusicXmlString($0)
+        } ?? 1
+        let maxStaffLayersForZoom = max(controller.musicXMLMaxStaffLayers, maxStaffFromXml)
+        let multiStaff = maxStaffLayersForZoom >= 2
         let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
         ZStack {
             if let musicXMLText = controller.musicXMLText {
@@ -514,6 +518,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let osmd = null;
           let measureCentersByNumber = {};
           let scoreWidth = 0;
+          let cssScale = 1;
 
           function finiteNum(value) {
             return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -760,7 +765,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           async function renderMusicXML(xmlText, zoomValue) {
             score.replaceChildren();
             measureCentersByNumber = {};
-            score.style.transform = 'translate3d(0, -50%, 0)';
+            cssScale = 1;
+            score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
             status.textContent = 'Rendering...';
             status.style.display = 'grid';
 
@@ -775,33 +781,32 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               }
 
               const displayXml = xmlText;
-              let z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
+              const z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
 
-              async function layoutOnce(withZoom) {
-                osmd = buildOsmd();
-                osmd.zoom = withZoom;
-                await osmd.load(displayXml);
-                osmd.render();
-                await new Promise(function (resolve) {
-                  requestAnimationFrame(function () {
-                    requestAnimationFrame(resolve);
-                  });
+              osmd = buildOsmd();
+              osmd.zoom = z;
+              await osmd.load(displayXml);
+              osmd.render();
+              await new Promise(function (resolve) {
+                requestAnimationFrame(function () {
+                  requestAnimationFrame(resolve);
                 });
-              }
+              });
 
-              await layoutOnce(z);
-
-              const targetHeight = Math.max(48, viewport.clientHeight * 0.94);
-              let measured = measureSurfaceHeight();
+              // 2段譜（iPhone は zoom <= 0.5 で渡されている）のときは積極的に縮小して 1 段譜と同程度の見た目に揃える。
+              const aggressiveShrink =
+                typeof zoomValue === 'number' && Number.isFinite(zoomValue) && zoomValue <= 0.5;
+              const targetHeight = Math.max(48, viewport.clientHeight * (aggressiveShrink ? 0.72 : 0.94));
+              const measured = measureSurfaceHeight();
               if (measured > targetHeight && measured > 0) {
-                const minZoom = 0.32;
-                const fitZoom = Math.max(minZoom, z * (targetHeight / measured));
-                if (Math.abs(fitZoom - z) > 0.01) {
-                  z = fitZoom;
-                  score.replaceChildren();
-                  await layoutOnce(fitZoom);
-                }
+                cssScale = Math.max(0.28, targetHeight / measured);
+              } else {
+                cssScale = 1;
               }
+              score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              await new Promise(function (resolve) {
+                requestAnimationFrame(resolve);
+              });
 
               measureLayoutFromOsmd();
               score.style.width = scoreWidth + 'px';
@@ -831,7 +836,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                   : viewport.clientWidth / 2;
             const maxOffset = Math.max(0, scoreWidth - viewport.clientWidth);
             const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
-            score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0)';
+            score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
           }
 
           window.JazzifyOSMD = {

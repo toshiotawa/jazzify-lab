@@ -104,6 +104,44 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         normalizeChordOsmdMusicXmlWithMeta(xmlText).xml
     }
 
+    /// Web の `detectMaxStaffLayersFromMusicXml` と同一規則。`@Published` の段数と表示 XML のズレがあってもズーム判定を正す。
+    static func detectMaxStaffLayersFromMusicXmlString(_ xml: String) -> Int {
+        var maxFromStaves = 0
+        var maxFromNoteStaff = 0
+
+        if let re = try? NSRegularExpression(pattern: #"<staves>\s*(\d+)\s*</staves>"#, options: .caseInsensitive) {
+            let full = NSRange(xml.startIndex..., in: xml)
+            re.enumerateMatches(in: xml, options: [], range: full) { result, _, _ in
+                guard let result, result.numberOfRanges >= 2,
+                      let cap = Range(result.range(at: 1), in: xml),
+                      let n = Int(xml[cap]), n > maxFromStaves else { return }
+                maxFromStaves = n
+            }
+        }
+
+        guard let noteOuter = try? NSRegularExpression(pattern: #"<note\b[^>]*>[\s\S]*?</note>"#, options: .caseInsensitive),
+              let staffInner = try? NSRegularExpression(pattern: #"<staff>\s*(\d+)\s*</staff>"#, options: .caseInsensitive)
+        else {
+            return max(1, maxFromStaves, maxFromNoteStaff)
+        }
+
+        let full = NSRange(xml.startIndex..., in: xml)
+        noteOuter.enumerateMatches(in: xml, options: [], range: full) { noteMatch, _, _ in
+            guard let noteMatch else { return }
+            guard let blockRange = Range(noteMatch.range, in: xml) else { return }
+            let block = String(xml[blockRange])
+            let blockFull = NSRange(block.startIndex..., in: block)
+            staffInner.enumerateMatches(in: block, options: [], range: blockFull) { sm, _, _ in
+                guard let sm, sm.numberOfRanges >= 2,
+                      let sr = Range(sm.range(at: 1), in: block),
+                      let n = Int(block[sr]), n > maxFromNoteStaff else { return }
+                maxFromNoteStaff = n
+            }
+        }
+
+        return max(1, maxFromStaves, maxFromNoteStaff)
+    }
+
     /// 正規化後の XML と、段落譜数の検出結果（読み込み 1 回で両方算出）。
     static func normalizeChordOsmdMusicXmlWithMeta(_ xmlText: String) -> (xml: String, maxStaffLayers: Int) {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else {
