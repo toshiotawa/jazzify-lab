@@ -405,6 +405,23 @@ const readScoreTimingFromAttributes = (
   return { divisions, beats, beatType, keyFifths };
 };
 
+/** `<tie type="stop"/>` または `<notations>` 直下の `<tied type="stop"/>`。誤検出回避のため直接子のみ走査。 */
+const noteHasTieStop = (noteEl: Element): boolean => {
+  for (let child = noteEl.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.localName === 'tie' && child.getAttribute('type') === 'stop') {
+      return true;
+    }
+    if (child.localName === 'notations') {
+      for (let ne = child.firstElementChild; ne; ne = ne.nextElementSibling) {
+        if (ne.localName === 'tied' && ne.getAttribute('type') === 'stop') {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
 const pitchElementToMidi = (pitch: Element, keyFifths: number): number | null => {
   const stepRaw = getDirectChildText(pitch, 'step');
   const step = stepRaw?.trim();
@@ -441,7 +458,7 @@ const selectMusicXmlMeasures = (doc: Document): Element[] => {
   return Array.from(doc.getElementsByTagName('measure'));
 };
 
-/** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>` を考慮）。OSMD 判定の正とする。 */
+/** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>`・タイ続き `tie/tied type="stop"` を考慮）。OSMD 判定の正とする。 */
 export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmdMusicXmlAttack[] => {
   if (typeof DOMParser === 'undefined') {
     return [];
@@ -527,10 +544,11 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
         continue;
       }
 
+      const headStopTied = noteHasTieStop(noteEl);
       const clusterMidis: number[] = [];
       const clusterDur = duration;
       const midi0 = pitchElementToMidi(pitch, timing.keyFifths);
-      if (midi0 !== null) {
+      if (midi0 !== null && !headStopTied) {
         clusterMidis.push(midi0);
       }
 
@@ -553,8 +571,9 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
         if (!nextPitch) {
           break;
         }
+        const chordToneStopTied = noteHasTieStop(next);
         const mm = pitchElementToMidi(nextPitch, timing.keyFifths);
-        if (mm !== null) {
+        if (mm !== null && !chordToneStopTied) {
           clusterMidis.push(mm);
         }
         ni += 1;

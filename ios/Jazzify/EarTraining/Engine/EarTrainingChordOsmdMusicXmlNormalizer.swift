@@ -413,6 +413,30 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     private static let sharpKeySignatureSteps = ["F", "C", "G", "D", "A", "E", "B"]
     private static let flatKeySignatureSteps = ["B", "E", "A", "D", "G", "C", "F"]
 
+    /// `<tie type="stop"/>` または `<notations>` 直下の `<tied type="stop"/>`（別ツール出力）。
+    /// 同じクラスタの別構成音に誤検出しないよう、`note` の直接子のみを見る。
+    private static func hasTieStop(on noteElement: ChordOsmdXmlElement) -> Bool {
+        for ch in noteElement.children {
+            guard case let .element(el) = ch else { continue }
+            if el.name == "tie", attribute(named: "type", on: el) == "stop" {
+                return true
+            }
+            if el.name == "notations" {
+                for nch in el.children {
+                    guard case let .element(ne) = nch else { continue }
+                    if ne.name == "tied", attribute(named: "type", on: ne) == "stop" {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    private static func attribute(named key: String, on element: ChordOsmdXmlElement) -> String? {
+        element.attributes.first(where: { $0.name == key })?.value
+    }
+
     /// Web `collectChordOsmdMusicXmlAttacks` と同等（`<chord/>`・`<backup>` を考慮）。
     static func collectChordOsmdMusicXmlAttacks(_ xmlText: String) -> [ChordOsmdMusicXmlAttack] {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
@@ -471,9 +495,10 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         continue
                     }
 
+                    let headStopTied = hasTieStop(on: child)
                     var clusterMidis: [Int] = []
                     let clusterDur = duration
-                    if let m0 = midiFromPitchElement(pitch, keyFifths: timing.keyFifths) {
+                    if let m0 = midiFromPitchElement(pitch, keyFifths: timing.keyFifths), !headStopTied {
                         clusterMidis.append(m0)
                     }
 
@@ -490,7 +515,8 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         guard directChild(next, localName: "chord") != nil else { break }
                         guard directChild(next, localName: "rest") == nil else { break }
                         guard let nextPitch = directChild(next, localName: "pitch") else { break }
-                        if let mm = midiFromPitchElement(nextPitch, keyFifths: timing.keyFifths) {
+                        let chordToneStopTied = hasTieStop(on: next)
+                        if let mm = midiFromPitchElement(nextPitch, keyFifths: timing.keyFifths), !chordToneStopTied {
                             clusterMidis.append(mm)
                         }
                         ni += 1

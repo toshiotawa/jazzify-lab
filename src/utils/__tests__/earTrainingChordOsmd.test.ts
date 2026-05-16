@@ -4,6 +4,7 @@ import {
   buildChordOsmdRhythmTargets,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
+  collectChordOsmdMusicXmlAttacks,
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
   normalizeChordOsmdMusicXml,
@@ -210,5 +211,58 @@ describe('normalizeChordOsmdMusicXml', () => {
 <score-partwise version="3.1"><part id="P1"><measure number="1"><note><rest/><duration>4</duration><voice>1</voice></note><backup><duration>4</duration></backup><note><rest/><duration>4</duration><voice>2</voice></note></measure></part></score-partwise>`;
 
     expect(normalizeChordOsmdMusicXml(xml)).toBe(xml);
+  });
+});
+
+const miniChordOsmdScorePartwise = (measureInner: string): string =>
+  `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1"><measure number="1">
+${measureInner}
+</measure></part></score-partwise>`;
+
+describe('collectChordOsmdMusicXmlAttacks — tie handling', () => {
+  it('タイ続きノート（`<tie type="stop"/>`）はアタックに含めず、先頭のみアタックする', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><tie type="start"/></note>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><tie type="stop"/></note>`);
+
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].measureNumber).toBe(1);
+    expect(attacks[0].beatStartInMeasure).toBeCloseTo(1);
+    expect(attacks[0].midis).toEqual([60]);
+  });
+
+  it('`<notations><tied type="stop"/></notations>` のみでもタイ続きとして除外する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><notations><tied type="stop"/></notations></note>`);
+
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].beatStartInMeasure).toBeCloseTo(1);
+    expect(attacks[0].midis).toEqual([60]);
+  });
+
+  it('和音で一部のみタイ続きなら、その構成音だけ MIDI から除外する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><tie type="stop"/></note>
+<note><chord/><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration></note>`);
+
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].beatStartInMeasure).toBeCloseTo(1);
+    expect([...attacks[0].midis].sort((a, b) => a - b)).toEqual([60, 67]);
+  });
+
+  it('クラスタ先頭がタイ続きで続く構成音のみなら、その構成音だけのアタックとする', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><tie type="stop"/></note>
+<note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration></note>`);
+
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].midis).toEqual([64]);
   });
 });
