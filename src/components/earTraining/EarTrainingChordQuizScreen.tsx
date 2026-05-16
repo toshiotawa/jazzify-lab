@@ -61,6 +61,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
+import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -889,6 +890,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, []);
 
   const showVoicingTargetHints = gameState === 'playingPhrase' || gameState === 'countIn';
+  const showKeyboardTargetHints = practiceMode || stage.show_keyboard_hints_in_battle === true;
 
   const staffVoicingGroups = useMemo((): ChordVoicingStaffGroup[] => {
     const activeGroups = buildQuestionStaffGroups(displayedActiveQuestion, 0);
@@ -928,7 +930,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, [attempt, activeChord, staffVoicingGroups]);
 
   const voicingKeyboardHints = useMemo(() => {
-    if (!practiceMode || !activeChord || !showVoicingTargetHints) {
+    if (!showKeyboardTargetHints || !activeChord || !showVoicingTargetHints) {
       return null;
     }
     if (attempt?.completedChordIds.has(activeChord.id)) {
@@ -936,7 +938,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     }
     const pressed = attempt?.pressedByChord.get(activeChord.id);
     return computeVoicingKeyboardHints(activeChord.voicing, pressed);
-  }, [practiceMode, activeChord, attempt, showVoicingTargetHints]);
+  }, [showKeyboardTargetHints, activeChord, attempt, showVoicingTargetHints]);
 
   useEffect(() => {
     const overlay = pianoOverlayRef.current;
@@ -986,6 +988,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     () => formatEarTrainingChordQuizIntroLine(isEnglishCopy, quizDurationSec, requiredCorrect),
     [isEnglishCopy, quizDurationSec, requiredCorrect],
   );
+  const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
 
   const phraseIntroLine = gameState === 'countIn' ? chordQuizBannerLine : '';
 
@@ -996,7 +999,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     statusText,
     hudLabels,
     phraseIntroLine,
-    quizRulesLine: chordQuizBannerLine,
+    quizRulesLine: clearConditionLine,
     resultRankLine,
     timeLabel,
     practiceMode,
@@ -1041,6 +1044,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     activeQuestion,
     attempt,
     canChangePracticeMode,
+    clearConditionLine,
     chordQuizBannerLine,
     countInValue,
     enemyAttackGaugePercent,

@@ -3,6 +3,7 @@ import { FaLock, FaCheck, FaTimes, FaPlay } from 'react-icons/fa';
 import { Lesson } from '@/types';
 import { lessonDisplayDescription, lessonDisplayTitle } from '@/utils/lessonCopy';
 import { cn } from '@/utils/cn';
+import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 
 interface LessonDetailCardProps {
   isEnglishCopy: boolean;
@@ -38,6 +39,11 @@ export const LessonDetailCard: React.FC<LessonDetailCardProps> = ({
 }) => {
   const title = lessonDisplayTitle(lesson, isEnglishCopy);
   const snippet = makeSnippet(lessonDisplayDescription(lesson, isEnglishCopy) ?? '', 180);
+  const earTrainingClearConditions = Array.from(new Set(
+    (lesson.lesson_songs ?? [])
+      .filter(item => item.is_ear_training)
+      .map(item => getEarTrainingLessonClearConditionText(item.ear_training_stage, isEnglishCopy)),
+  ));
   const statusLabel = isCompleted
     ? isEnglishCopy
       ? 'Cleared'
@@ -102,6 +108,18 @@ export const LessonDetailCard: React.FC<LessonDetailCardProps> = ({
             <p className="mt-2 text-xs sm:text-sm text-violet-200/80 leading-relaxed">
               {snippet}
             </p>
+          )}
+          {earTrainingClearConditions.length > 0 && (
+            <div className="mt-3 border-l-2 border-cyan-300/60 pl-3">
+              <div className="text-[10px] font-bold tracking-wider text-cyan-100/80">
+                {isEnglishCopy ? 'Clear condition' : 'クリア条件'}
+              </div>
+              <ul className="mt-1 space-y-1 text-xs text-cyan-50/90">
+                {earTrainingClearConditions.map(condition => (
+                  <li key={condition}>{condition}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 

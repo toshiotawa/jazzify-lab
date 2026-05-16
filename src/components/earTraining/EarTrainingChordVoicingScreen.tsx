@@ -81,6 +81,7 @@ import {
 } from '@/utils/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -1595,6 +1596,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const showVoicingTargetHints =
     gameState === 'playingPhrase'
     || (gameState === 'countIn' && countInEarlyInputActive);
+  const showKeyboardTargetHints = practiceMode || stage.show_keyboard_hints_in_battle === true;
 
   const playerQuoteBubbleText = useMemo(() => {
     if (!showVoicingTargetHints || !activeChord) {
@@ -1633,9 +1635,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     ? progressSaved ? copy.lessonSaved : copy.lessonSaving
     : null;
   const phraseIntroLine = formatEarTrainingPhraseIntroLine(isEnglishCopy, phraseIndex, phrases.length);
-  const resultRankLine = gameState === 'stageClear' && lastRank
-    ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
-    : null;
+  const resultRankLine = null;
+  const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
 
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
@@ -1682,12 +1683,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     canChangePracticeMode,
     startButtonLabel,
     lessonProgressText,
+    quizRulesLine: clearConditionLine,
   }), [
     activeChord?.id,
     activeLoop,
     harmonyHudRowsForHud,
     harmonyCompletedFlags,
     canChangePracticeMode,
+    clearConditionLine,
     countInValue,
     currentChordSlotIndex,
     enemyAvatar,
@@ -1831,7 +1834,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }, [attempt, staffVoicingGroups]);
 
   const voicingKeyboardHints = useMemo(() => {
-    if (!practiceMode || !activeChord) {
+    if (!showKeyboardTargetHints || !activeChord) {
       return null;
     }
     if (!showVoicingTargetHints) {
@@ -1842,7 +1845,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
     const pressed = attempt?.pressedByChord.get(activeChord.id);
     return computeVoicingKeyboardHints(activeChord.voicing, pressed);
-  }, [practiceMode, activeChord, attempt, showVoicingTargetHints]);
+  }, [showKeyboardTargetHints, activeChord, attempt, showVoicingTargetHints]);
 
   useEffect(() => {
     const overlay = pianoOverlayRef.current;

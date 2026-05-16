@@ -69,6 +69,24 @@ describe('buildChordOsmdRhythmTargets', () => {
     ]);
   });
 
+  it('同じ小節・拍の和音は秒タイミングに微小差があっても1ターゲットにまとめる', () => {
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([
+        chord({ id: 'a', order_index: 0, chord_name: 'C', measure_number: 1, beat_offset: 1, start_time_sec: 0, voicing: ['C4'] }),
+        chord({ id: 'b', order_index: 1, chord_name: 'C', measure_number: 1, beat_offset: 1, start_time_sec: 0.002, voicing: ['E4', 'G4'] }),
+      ]),
+      120,
+      4,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].midiCounts).toEqual([
+      { midi: 60, count: 1 },
+      { midi: 64, count: 1 },
+      { midi: 67, count: 1 },
+    ]);
+  });
+
   it('beat_offset のフォールバックは MusicXML 風の1始まりで計算する', () => {
     const targets = buildChordOsmdRhythmTargets(
       phrase([

@@ -743,13 +743,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.drawHpBar(18, 16, Math.max(118, width * 0.29), snapshot.playerHp, snapshot.playerMaxHp, true);
     this.drawHpBar(width - Math.max(118, width * 0.29) - 18, 16, Math.max(118, width * 0.29), snapshot.enemyHp, snapshot.enemyMaxHp, false);
 
-    const time = this.add.text(width / 2, 18, snapshot.timeLabel, {
-      color: snapshot.timeLabel === '∞' ? '#67e8f9' : '#ffffff',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '30px',
-      fontStyle: '900',
-    }).setOrigin(0.5, 0);
-    this.hudLayer.add(time);
+    if (!snapshot.timeLabelHidden) {
+      const time = this.add.text(width / 2, 18, snapshot.timeLabel, {
+        color: snapshot.timeLabel === '∞' ? '#67e8f9' : '#ffffff',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '30px',
+        fontStyle: '900',
+      }).setOrigin(0.5, 0);
+      this.hudLayer.add(time);
+    }
 
     const utilBtnW = 58;
     const utilBtnH = 36;

@@ -31,6 +31,7 @@ import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment'
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
+import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
@@ -146,7 +147,7 @@ const LessonDetailPage: React.FC = () => {
       speedLabel: isEnglishCopy ? 'Speed:' : '速度:',
       rankLabel: isEnglishCopy ? 'Rank:' : 'ランク:',
       rankOrHigher: isEnglishCopy ? 'or higher' : '以上',
-      quotaLabel: isEnglishCopy ? 'Quota:' : 'ノルマ:',
+      clearConditionLabel: isEnglishCopy ? 'Clear condition:' : 'クリア条件:',
       chordQuizClearedLabel: isEnglishCopy ? 'Cleared' : 'クリア済み',
       chordQuizClearStatusLabel: isEnglishCopy ? 'Status:' : '達成:',
       timesLabel: isEnglishCopy ? 'Times:' : '回数:',
@@ -681,12 +682,9 @@ const LessonDetailPage: React.FC = () => {
                     const isFantasy = req.is_fantasy || false;
                     const isSurvival = req.is_survival || false;
                     const isEarTraining = req.is_ear_training || false;
-                    const isChordQuizEarTraining =
-                      isEarTraining && req.ear_training_stage?.mode === 'chord_quiz';
-                    const chordQuizQuota = Math.max(
-                      1,
-                      req.ear_training_stage?.quiz_required_correct_count ?? 80,
-                    );
+                    const earTrainingClearCondition = isEarTraining
+                      ? getEarTrainingLessonClearConditionText(req.ear_training_stage, isEnglishCopy)
+                      : null;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -943,17 +941,20 @@ const LessonDetailPage: React.FC = () => {
                                 </div>
                               </>
                             )}
-                            {!isSurvival && (
+                            {isEarTraining && earTrainingClearCondition ? (
+                              <div className="col-span-2">
+                                <span className="text-gray-400">{practiceCopy.clearConditionLabel}</span>
+                                <span className="ml-2 font-semibold text-cyan-100">
+                                  {earTrainingClearCondition}
+                                </span>
+                              </div>
+                            ) : !isSurvival && (
                               <div>
                                 <span className="text-gray-400">
-                                  {isChordQuizEarTraining ? practiceCopy.quotaLabel : practiceCopy.rankLabel}
+                                  {practiceCopy.rankLabel}
                                 </span>
                                 <span className="ml-2 font-semibold">
-                                  {isChordQuizEarTraining
-                                    ? isEnglishCopy
-                                      ? `${chordQuizQuota} correct`
-                                      : `${chordQuizQuota}問`
-                                    : `${req.clear_conditions?.rank || 'B'} ${practiceCopy.rankOrHigher}`}
+                                  {`${req.clear_conditions?.rank || 'B'} ${practiceCopy.rankOrHigher}`}
                                 </span>
                               </div>
                             )}
@@ -983,7 +984,7 @@ const LessonDetailPage: React.FC = () => {
                             )}
                           
                           {/* 最高ランク表示 */}
-                          {isChordQuizEarTraining && isCompleted && (
+                          {isEarTraining && isCompleted && (
                             <div className="mt-2 pt-2 border-t border-slate-600">
                               <span className="text-gray-400">{practiceCopy.chordQuizClearStatusLabel}</span>
                               <span className="ml-2 font-semibold text-yellow-400">
@@ -991,7 +992,7 @@ const LessonDetailPage: React.FC = () => {
                               </span>
                             </div>
                           )}
-                          {!isChordQuizEarTraining && progress?.best_rank && (
+                          {!isEarTraining && progress?.best_rank && (
                             <div className="mt-2 pt-2 border-t border-slate-600">
                               <span className="text-gray-400">{practiceCopy.bestRankLabel}</span>
                               <span className="ml-2 font-semibold text-yellow-400">{progress.best_rank}</span>

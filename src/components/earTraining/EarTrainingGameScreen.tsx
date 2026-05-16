@@ -55,6 +55,7 @@ import {
 } from '@/utils/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -938,9 +939,8 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     ? progressSaved ? copy.lessonSaved : copy.lessonSaving
     : null;
   const phraseIntroLine = formatEarTrainingPhraseIntroLine(isEnglishCopy, phraseIndex, phrases.length);
-  const resultRankLine = gameState === 'stageClear' && lastRank
-    ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
-    : null;
+  const resultRankLine = null;
+  const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
     resultState,
@@ -984,10 +984,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     canChangePracticeMode,
     startButtonLabel,
     lessonProgressText,
+    quizRulesLine: clearConditionLine,
   }), [
     activeChord?.id,
     activeLoop,
     canChangePracticeMode,
+    clearConditionLine,
     countInValue,
     currentNoteIndex,
     currentNotes,

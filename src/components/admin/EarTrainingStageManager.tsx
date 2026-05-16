@@ -68,6 +68,7 @@ const defaultStageForm: StageForm = {
   is_active: true,
   mode: 'phrase',
   chord_voicing_self_paced: false,
+  show_keyboard_hints_in_battle: false,
 };
 
 const defaultPhraseForm: PhraseForm = {
@@ -162,6 +163,7 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
   is_active: stage.is_active,
   mode: stage.mode ?? 'phrase',
   chord_voicing_self_paced: stage.chord_voicing_self_paced ?? false,
+  show_keyboard_hints_in_battle: stage.show_keyboard_hints_in_battle ?? false,
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -641,10 +643,22 @@ const EarTrainingStageManager: React.FC = () => {
                 <select
                   className="select select-bordered select-sm w-full bg-slate-900"
                   value={stageForm.mode}
-                  onChange={event => setStageForm(prev => ({ ...prev, mode: event.target.value === 'chord_voicing' ? 'chord_voicing' : 'phrase' }))}
+                  onChange={event => {
+                    const nextMode = event.target.value;
+                    if (
+                      nextMode === 'phrase'
+                      || nextMode === 'chord_voicing'
+                      || nextMode === 'chord_quiz'
+                      || nextMode === 'chord_osmd'
+                    ) {
+                      setStageForm(prev => ({ ...prev, mode: nextMode }));
+                    }
+                  }}
                 >
                   <option value="phrase">バトルモード (phrase)</option>
                   <option value="chord_voicing">バトルモード (chord_voicing)</option>
+                  <option value="chord_quiz">バトルモード (chord_quiz)</option>
+                  <option value="chord_osmd">バトルモード (chord_osmd)</option>
                 </select>
               </label>
               {stageForm.mode === 'chord_voicing' && (
@@ -659,6 +673,20 @@ const EarTrainingStageManager: React.FC = () => {
                     }))}
                   />
                   セルフペース進行（時間で進めず正解で次へ・無音・カウントインなし）
+                </label>
+              )}
+              {(stageForm.mode === 'chord_voicing' || stageForm.mode === 'chord_quiz' || stageForm.mode === 'chord_osmd') && (
+                <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm"
+                    checked={Boolean(stageForm.show_keyboard_hints_in_battle)}
+                    onChange={event => setStageForm(prev => ({
+                      ...prev,
+                      show_keyboard_hints_in_battle: event.target.checked,
+                    }))}
+                  />
+                  本番モードでも鍵盤ハイライトを表示
                 </label>
               )}
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />

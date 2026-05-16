@@ -792,6 +792,8 @@ export interface EarTrainingStage {
   quiz_show_notation_in_battle?: boolean;
   /** chord_quiz: クリアに必要な正答数（UI 分母・成否判定） */
   quiz_required_correct_count?: number;
+  /** chord_voicing/chord_quiz/chord_osmd: 本番モードでも鍵盤上に正解候補をハイライトする */
+  show_keyboard_hints_in_battle?: boolean;
   created_at?: string;
   updated_at?: string;
   phrases?: EarTrainingPhrase[];

@@ -55,6 +55,8 @@ export interface EarTrainingBattleSnapshot {
   phraseIntroLine: string;
   resultRankLine: string | null;
   timeLabel: string;
+  /** true のとき中央上の時間/進行表示を描画しない */
+  timeLabelHidden?: boolean;
   practiceMode: boolean;
   isMidiConnected: boolean;
   playerHp: number;

@@ -7,6 +7,7 @@ export const CHORD_OSMD_HAMMER_LEAD_SEC = 2.4;
 export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.2;
 
 const SAME_TARGET_EPSILON_SEC = 0.0005;
+const SAME_TARGET_BEAT_EPSILON = 0.0005;
 const XML_TIMING_EPSILON = 0.0005;
 
 interface ChordOsmdMidiCount {
@@ -365,6 +366,28 @@ const chordMeasureNumber = (
     : 1;
 };
 
+const chordBeatOffset = (chord: EarTrainingPhraseChord): number | null => {
+  if (typeof chord.beat_offset !== 'number' || !Number.isFinite(chord.beat_offset)) {
+    return null;
+  }
+  return chord.beat_offset;
+};
+
+const chordItemsAreSameTiming = (
+  a: { targetTimeSec: number; measureNumber: number; beatOffset: number | null },
+  b: { targetTimeSec: number; measureNumber: number; beatOffset: number | null },
+): boolean => {
+  if (a.measureNumber !== b.measureNumber) {
+    return false;
+  }
+  if (Math.abs(a.targetTimeSec - b.targetTimeSec) <= SAME_TARGET_EPSILON_SEC) {
+    return true;
+  }
+  return a.beatOffset !== null
+    && b.beatOffset !== null
+    && Math.abs(a.beatOffset - b.beatOffset) <= SAME_TARGET_BEAT_EPSILON;
+};
+
 const noteNameToMidi = (noteName: string): number | null => {
   const trimmed = noteName.trim();
   if (!trimmed) {
@@ -410,7 +433,8 @@ export const buildChordOsmdRhythmTargets = (
     .map(chord => {
       const targetTimeSec = chordStartTimeSec(chord, beatDurationSec, beatsPerMeasure);
       const measureNumber = chordMeasureNumber(chord, targetTimeSec, beatDurationSec, beatsPerMeasure);
-      return { chord, targetTimeSec, measureNumber };
+      const beatOffset = chordBeatOffset(chord);
+      return { chord, targetTimeSec, measureNumber, beatOffset };
     })
     .sort((a, b) => {
       if (Math.abs(a.targetTimeSec - b.targetTimeSec) > SAME_TARGET_EPSILON_SEC) {
@@ -419,7 +443,7 @@ export const buildChordOsmdRhythmTargets = (
       return a.chord.order_index - b.chord.order_index;
     });
 
-  const targets: Array<ChordOsmdRhythmTarget & { mutableCounts: Map<number, number> }> = [];
+  const targets: Array<ChordOsmdRhythmTarget & { beatOffset: number | null; mutableCounts: Map<number, number> }> = [];
   for (const item of sorted) {
     const counts = new Map<number, number>();
     addMidiCounts(counts, item.chord.voicing);
@@ -430,8 +454,7 @@ export const buildChordOsmdRhythmTargets = (
     const last = targets[targets.length - 1];
     if (
       last
-      && Math.abs(last.targetTimeSec - item.targetTimeSec) <= SAME_TARGET_EPSILON_SEC
-      && last.measureNumber === item.measureNumber
+      && chordItemsAreSameTiming(last, item)
     ) {
       if (!last.label.split(' / ').includes(item.chord.chord_name)) {
         last.label = `${last.label} / ${item.chord.chord_name}`;
@@ -449,12 +472,13 @@ export const buildChordOsmdRhythmTargets = (
       orderIndex: item.chord.order_index,
       targetTimeSec: item.targetTimeSec,
       measureNumber: item.measureNumber,
+      beatOffset: item.beatOffset,
       midiCounts: midiCountArray(counts),
       mutableCounts: counts,
     });
   }
 
-  return targets.map(({ mutableCounts: _mutableCounts, ...target }) => target);
+  return targets.map(({ beatOffset: _beatOffset, mutableCounts: _mutableCounts, ...target }) => target);
 };
 
 export const createChordOsmdRemainingCounts = (

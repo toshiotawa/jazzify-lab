@@ -31,6 +31,7 @@ import {
   LessonVideo,
   LessonAttachment,
 } from '@/platform/supabaseLessonContent';
+import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number' | 'block_name'>;
 
@@ -1101,7 +1102,7 @@ export const LessonManager: React.FC = () => {
                                       <span className="font-medium">{stage?.title || '不明なバトルモードステージ'}</span>
                                       <span className="text-xs text-cyan-300 ml-2">[バトルモード]</span>
                                       <span className="text-xs text-gray-400 ml-2">
-                                        (ランク: {ls.clear_conditions?.rank || 'B'},
+                                        (クリア条件: {getEarTrainingLessonClearConditionText(stage, false)},
                                         {ls.clear_conditions?.requires_days
                                           ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
                                           : `${ls.clear_conditions?.count || 1}回`})
@@ -1483,6 +1484,9 @@ export const LessonManager: React.FC = () => {
                       <div className="mt-1 text-xs text-gray-400">
                         {selected.bpm} BPM / {selected.phrases?.length || 0}フレーズ / 制限時間 {selected.time_limit_sec}秒
                       </div>
+                      <div className="mt-1 text-xs text-cyan-100">
+                        クリア条件: {getEarTrainingLessonClearConditionText(selected, false)}
+                      </div>
                     </div>
                   );
                 })()}
@@ -1625,7 +1629,7 @@ export const LessonManager: React.FC = () => {
               </>
             )}
             
-            {watchContent && watchContent('content_type') !== 'survival' && (
+            {watchContent && watchContent('content_type') !== 'survival' && watchContent('content_type') !== 'ear_training' && (
               <div>
                 <label className="label"><span className="label-text">最低ランク</span></label>
                 <select {...registerContent('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">

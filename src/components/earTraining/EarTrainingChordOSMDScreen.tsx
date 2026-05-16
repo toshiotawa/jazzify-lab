@@ -45,6 +45,7 @@ import {
 } from '@/utils/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import {
   CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC,
   EarTrainingChordVoicingPhrasePlayer,
@@ -130,6 +131,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   );
   const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
   const practiceModeRef = useRef(initialPracticeMode);
+  const showKeyboardHintsInBattle = stage.show_keyboard_hints_in_battle === true;
+  const showKeyboardHintsInBattleRef = useRef(showKeyboardHintsInBattle);
   const damageConfig = useMemo(
     () => ({
       perCorrectNote: stage.per_correct_note_damage,
@@ -184,7 +187,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
-  const lastInputAtRef = useRef(0);
+  const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
   const battleEffectIdRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
   const phraseEndingRef = useRef(false);
@@ -198,13 +201,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => { enemyHpRef.current = enemyHp; }, [enemyHp]);
   useEffect(() => { playerHpRef.current = playerHp; }, [playerHp]);
   useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
+  useEffect(() => { showKeyboardHintsInBattleRef.current = showKeyboardHintsInBattle; }, [showKeyboardHintsInBattle]);
 
   useEffect(() => {
-    if (!practiceMode) {
+    if (!practiceMode && !showKeyboardHintsInBattle) {
       practiceHintTargetIdsRef.current.clear();
       pianoOverlayRef.current?.clearVoicingHints();
     }
-  }, [practiceMode]);
+  }, [practiceMode, showKeyboardHintsInBattle]);
 
   useEffect(() => {
     updateGlobalVolume(settings.midiVolume * settings.masterVolume);
@@ -253,7 +257,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, []);
 
   const syncPracticeVoicingHints = useCallback(() => {
-    if (!practiceModeRef.current) {
+    if (!practiceModeRef.current && !showKeyboardHintsInBattleRef.current) {
       practiceHintTargetIdsRef.current.clear();
       pianoOverlayRef.current?.clearVoicingHints();
       return;
@@ -615,7 +619,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           return;
         }
         activeTargetIdsRef.current.add(target.id);
-        if (practiceModeRef.current) {
+        if (practiceModeRef.current || showKeyboardHintsInBattleRef.current) {
           practiceHintTargetIdsRef.current.add(target.id);
           syncPracticeVoicingHints();
         }
@@ -781,6 +785,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     void initializeAudioSystem().catch(() => undefined);
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
+    lastInputAtByNoteRef.current.clear();
     totalCompletedTargetsRef.current = 0;
     totalJudgedTargetsRef.current = 0;
     lastRankRef.current = null;
@@ -826,10 +831,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const handleNoteInput = useCallback((note: number) => {
     const now = performance.now();
-    if (now - lastInputAtRef.current < INPUT_COOLDOWN_MS) {
+    const midiNote = Math.round(note);
+    const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
+    if (now - lastInputAt < INPUT_COOLDOWN_MS) {
       return;
     }
-    lastInputAtRef.current = now;
+    lastInputAtByNoteRef.current.set(midiNote, now);
     if (gameStateRef.current !== 'playingPhrase' && gameStateRef.current !== 'countIn') {
       return;
     }
@@ -842,7 +849,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         continue;
       }
-      const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, note);
+      const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
       if (!nextRemaining) {
         continue;
       }
@@ -943,9 +950,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     ? progressSaved ? copy.lessonSaved : copy.lessonSaving
     : null;
   const phraseIntroLine = '';
-  const resultRankLine = gameState === 'stageClear' && lastRank
-    ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
-    : null;
+  const resultRankLine = null;
+  const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
   const timeLabel = practiceMode
     ? '∞'
     : `${Math.min(phraseIndex + 1, Math.max(1, phrases.length))}/${Math.max(1, phrases.length)}`;
@@ -960,6 +966,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     phraseIntroEmphasis: false,
     resultRankLine,
     timeLabel,
+    timeLabelHidden: true,
     practiceMode,
     isMidiConnected,
     playerHp,
@@ -994,8 +1001,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     startButtonLabel,
     lessonProgressText,
     fixedCharacterPositions: true,
+    quizRulesLine: clearConditionLine,
   }), [
     canChangePracticeMode,
+    clearConditionLine,
     completedTargetCount,
     enemyAvatar,
     enemyAvatarFlipX,
