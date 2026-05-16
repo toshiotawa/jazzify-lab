@@ -53,6 +53,7 @@ import {
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   buildChordOsmdRhythmTargets,
+  collectChordOsmdMusicXmlAttacks,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_SEC,
@@ -161,6 +162,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const [scoreErrorText, setScoreErrorText] = useState<string | null>(null);
+  const chordOsmdXmlAttacks = useMemo(
+    () => (musicXmlText ? collectChordOsmdMusicXmlAttacks(musicXmlText) : null),
+    [musicXmlText],
+  );
   const [targets, setTargets] = useState<ChordOsmdRhythmTarget[]>([]);
   const [completedTargetCount, setCompletedTargetCount] = useState(0);
   const [lastRank, setLastRank] = useState<EarTrainingRank | null>(null);
@@ -424,18 +429,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
   }, [copy.gameOver, finishGameOver, practiceMode]);
 
-  const loadMusicXml = useCallback(async (phrase: EarTrainingPhrase, runId: number) => {
+  const loadMusicXml = useCallback(async (phrase: EarTrainingPhrase, runId: number): Promise<string | null> => {
     const rawUrl = phrase.music_xml_url?.trim();
     if (!rawUrl) {
       setMusicXmlText(null);
       setScoreErrorText(isEnglishCopy ? 'MusicXML is not registered.' : 'MusicXMLが登録されていません');
-      return;
+      return null;
     }
     const cached = musicXmlCache.get(rawUrl);
     if (cached) {
       setMusicXmlText(cached);
       setScoreErrorText(null);
-      return;
+      return cached;
     }
     try {
       const response = await fetch(toCdnProxyUrl(rawUrl));
@@ -444,22 +449,24 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
       const text = await response.text();
       if (phraseRunIdRef.current !== runId) {
-        return;
+        return null;
       }
       if (!text.trim()) {
         setMusicXmlText(null);
         setScoreErrorText(isEnglishCopy ? 'MusicXML is empty.' : 'MusicXMLが空です');
-        return;
+        return null;
       }
       const normalizedText = normalizeChordOsmdMusicXml(text);
       musicXmlCache.set(rawUrl, normalizedText);
       setMusicXmlText(normalizedText);
       setScoreErrorText(null);
+      return normalizedText;
     } catch {
       if (phraseRunIdRef.current === runId) {
         setMusicXmlText(null);
         setScoreErrorText(isEnglishCopy ? 'Could not load MusicXML.' : 'MusicXMLを読み込めませんでした');
       }
+      return null;
     }
   }, [isEnglishCopy]);
 
@@ -467,12 +474,17 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const firstPhrase = phrases[0];
     if (gameState === 'idle' && firstPhrase) {
       void loadMusicXml(firstPhrase, phraseRunIdRef.current);
-      const initialTargets = buildChordOsmdRhythmTargets(firstPhrase, stage.bpm, stage.beats_per_measure);
+      const initialTargets = buildChordOsmdRhythmTargets(
+        firstPhrase,
+        stage.bpm,
+        stage.beats_per_measure,
+        chordOsmdXmlAttacks,
+      );
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
       setCompletedTargetCount(0);
     }
-  }, [gameState, loadMusicXml, phrases, stage.bpm, stage.beats_per_measure]);
+  }, [chordOsmdXmlAttacks, gameState, loadMusicXml, phrases, stage.bpm, stage.beats_per_measure]);
 
   const resetPhraseRuntime = useCallback((nextTargets: readonly ChordOsmdRhythmTarget[]) => {
     const runtime = new Map<string, RuntimeTargetState>();
@@ -719,31 +731,44 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     phraseEndingRef.current = false;
     stopPhraseAudio();
 
-    const phraseTargets = buildChordOsmdRhythmTargets(phrase, stage.bpm, stage.beats_per_measure);
-    if (phraseTargets.length === 0) {
-      finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');
-      return;
-    }
-
     phraseRunIdRef.current += 1;
     const runId = phraseRunIdRef.current;
     setPhraseIndex(nextPhraseIndex);
     phraseIndexRef.current = nextPhraseIndex;
     setPhraseRunId(runId);
     setPhraseIntroSeq(current => current + 1);
-    resetPhraseRuntime(phraseTargets);
-    setActiveMeasureNumber(Math.max(1, phraseTargets[0]?.measureNumber ?? 1));
     setLastRank(null);
     setStatusText(copy.countIn);
     gameStateRef.current = 'countIn';
     setGameState('countIn');
 
-    const beats = Math.max(0, Math.min(32, stage.count_in_beats));
-    void loadMusicXml(phrase, runId);
+    resetPhraseRuntime([]);
 
+    const beats = Math.max(0, Math.min(32, stage.count_in_beats));
     const player = ensurePhrasePlayer();
     player.setVolume(settings.musicVolume * settings.masterVolume);
+
     void (async () => {
+      const xmlText = await loadMusicXml(phrase, runId);
+      if (phraseRunIdRef.current !== runId) {
+        return;
+      }
+
+      const attacks = xmlText ? collectChordOsmdMusicXmlAttacks(xmlText) : null;
+      const phraseTargets = buildChordOsmdRhythmTargets(
+        phrase,
+        stage.bpm,
+        stage.beats_per_measure,
+        attacks,
+      );
+      if (phraseTargets.length === 0) {
+        finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');
+        return;
+      }
+
+      resetPhraseRuntime(phraseTargets);
+      setActiveMeasureNumber(Math.max(1, phraseTargets[0]?.measureNumber ?? 1));
+
       let prepared;
       try {
         prepared = await player.prepare(toCdnProxyUrl(phrase.audio_url));

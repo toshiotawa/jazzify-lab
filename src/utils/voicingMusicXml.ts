@@ -92,7 +92,8 @@ const clampKeyFifths = (keyFifths: number): number => (
   Math.max(-7, Math.min(7, Math.trunc(keyFifths)))
 );
 
-const keySignatureAlter = (step: string, keyFifths: number): number => {
+/** MusicXML `<key><fifths>` と音名 step（C…B）から、その調における変位（半音）を返す。 */
+export const musicXmlKeySignatureAlter = (step: string, keyFifths: number): number => {
   const fifths = clampKeyFifths(keyFifths);
   if (fifths > 0) {
     for (let index = 0; index < fifths; index += 1) {
@@ -136,7 +137,7 @@ const compareNotesForDisplay = (a: VoicingNoteWithStaff, b: VoicingNoteWithStaff
 
 const renderNoteXml = (note: VoicingNoteWithStaff, isChordTone: boolean, keyFifths: number): string => {
   const alterLine = note.alter !== 0 ? `        <alter>${note.alter}</alter>\n` : '';
-  const accidentalLine = note.alter !== keySignatureAlter(note.step, keyFifths)
+  const accidentalLine = note.alter !== musicXmlKeySignatureAlter(note.step, keyFifths)
     ? `        <accidental>${accidentalXmlValue(note.alter)}</accidental>`
     : '';
   return [

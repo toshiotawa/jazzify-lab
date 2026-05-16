@@ -273,15 +273,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func prepareAndSchedulePhrase(at index: Int) async {
         guard phrases.indices.contains(index) else { return }
         let phrase = phrases[index]
-        let preparedTargets = Self.makeRhythmTargets(
-            phrase: phrase,
-            bpm: stage.bpm,
-            beatsPerMeasure: stage.beatsPerMeasure
-        )
-        guard !preparedTargets.isEmpty else {
-            finishGameOver(message: isEnglishCopy ? "No chord timings are registered." : "判定用コードタイミングが登録されていません")
-            return
-        }
         guard let audioURL = URL(string: phrase.audioUrl) else {
             finishGameOver(message: copy.audioFailed)
             return
@@ -291,9 +282,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         phraseRunId += 1
         phraseIntroSeq += 1
         let runId = phraseRunId
-        targets = preparedTargets
+        targets = []
         resetPhraseRuntimeState()
-        activeMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
         countInValue = sanitizedCountInBeats
         gameState = .countIn
         statusText = copy.countIn
@@ -301,6 +291,29 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         await loadMusicXML(for: phrase)
         if Task.isCancelled { return }
+
+        let xmlAttacks: [ChordOsmdMusicXmlAttack]
+        if let xml = musicXMLText {
+            xmlAttacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(xml)
+        } else {
+            xmlAttacks = []
+        }
+
+        let preparedTargets = Self.makeRhythmTargets(
+            phrase: phrase,
+            bpm: stage.bpm,
+            beatsPerMeasure: stage.beatsPerMeasure,
+            attacks: xmlAttacks
+        )
+        guard !preparedTargets.isEmpty else {
+            finishGameOver(message: isEnglishCopy ? "No chord timings are registered." : "判定用コードタイミングが登録されていません")
+            return
+        }
+
+        targets = preparedTargets
+        resetPhraseRuntimeState()
+        activeMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
+        publishSnapshot()
 
         let prepared = await audio.preparePhraseForImmediatePlayback(url: audioURL)
         if Task.isCancelled { return }
@@ -936,7 +949,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private static func makeRhythmTargets(
         phrase: EarTrainingPhraseDetail,
         bpm: Int,
-        beatsPerMeasure: Int
+        beatsPerMeasure: Int,
+        attacks: [ChordOsmdMusicXmlAttack]
     ) -> [RhythmTarget] {
         let beatDuration = 60.0 / Double(max(1, bpm))
         let sorted = (phrase.chords ?? []).sorted { lhs, rhs in
@@ -958,6 +972,17 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             guard !midiCounts.isEmpty else { continue }
             let time = chordStartTime(chord, beatDuration: beatDuration, beatsPerMeasure: beatsPerMeasure)
             let measure = max(1, chord.measureNumber ?? Int(floor(time / (beatDuration * Double(max(1, beatsPerMeasure))))) + 1)
+
+            if !attacks.isEmpty, let beatOff = chord.beatOffset,
+               let xmlMerged = EarTrainingChordOsmdMusicXmlNormalizer.mergeMidisFromXmlAttacks(
+                   attacks,
+                   measureNumber: measure,
+                   beatOffset: beatOff
+               )
+            {
+                midiCounts = xmlMerged
+            }
+
             if let lastIndex = result.indices.last,
                abs(result[lastIndex].targetTimeSec - time) <= 0.0005,
                result[lastIndex].measureNumber == measure {

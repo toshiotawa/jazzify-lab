@@ -1,5 +1,13 @@
 import Foundation
 
+/// OSMD リズム判定：MusicXML 上の同時発音クラスタと DB の `(measure_number, beat_offset)` を対応付けるための 1 アタック分。
+struct ChordOsmdMusicXmlAttack: Equatable, Sendable {
+    let measureNumber: Int
+    /// 小節内の拍位置（先頭拍を 1）。四分音符グリッド。
+    let beatStartInMeasure: Double
+    let midis: [Int]
+}
+
 /* Non-nested DOM: XMLParser 用。`XMLDocument` 系は iOS Swift から参照できないため。 */
 
 private final class ChordOsmdXmlElement {
@@ -391,6 +399,264 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         setText(in: copy, localName: "voice", text: String(voice))
         setText(in: copy, localName: "staff", text: String(staff))
         return copy
+    }
+
+    private struct ScoreTimingStateForAttacks {
+        var divisions: Int
+        var beats: Int
+        var beatType: Int
+        var keyFifths: Int
+    }
+
+    private static let xmlAttackBeatMatchEpsilon = 0.01
+
+    private static let sharpKeySignatureSteps = ["F", "C", "G", "D", "A", "E", "B"]
+    private static let flatKeySignatureSteps = ["B", "E", "A", "D", "G", "C", "F"]
+
+    /// Web `collectChordOsmdMusicXmlAttacks` と同等（`<chord/>`・`<backup>` を考慮）。
+    static func collectChordOsmdMusicXmlAttacks(_ xmlText: String) -> [ChordOsmdMusicXmlAttack] {
+        guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
+        let measures = measuresInPartsFirst(from: root)
+        var attacks: [ChordOsmdMusicXmlAttack] = []
+        var timing = ScoreTimingStateForAttacks(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
+
+        for (idx, measure) in measures.enumerated() {
+            let measureNumber = parseMeasureNumberAttribute(measure, ordinalOneBased: idx + 1)
+            var currentTime = 0.0
+            let children = measure.children
+            var ci = 0
+            while ci < children.count {
+                guard case let .element(child) = children[ci] else {
+                    ci += 1
+                    continue
+                }
+
+                switch child.name {
+                case "attributes":
+                    timing = readScoreTimingForAttacks(attributes: child, previous: timing)
+                    ci += 1
+                case "backup":
+                    if let d = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) {
+                        currentTime -= d
+                    }
+                    ci += 1
+                case "forward":
+                    if let d = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) {
+                        currentTime += d
+                    }
+                    ci += 1
+                case "note":
+                    guard directChild(child, localName: "grace") == nil else {
+                        ci += 1
+                        continue
+                    }
+                    guard let duration = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) else {
+                        ci += 1
+                        continue
+                    }
+
+                    if directChild(child, localName: "rest") != nil {
+                        currentTime += duration
+                        ci += 1
+                        continue
+                    }
+
+                    guard let pitch = directChild(child, localName: "pitch") else {
+                        ci += 1
+                        continue
+                    }
+
+                    if directChild(child, localName: "chord") != nil {
+                        ci += 1
+                        continue
+                    }
+
+                    var clusterMidis: [Int] = []
+                    let clusterDur = duration
+                    if let m0 = midiFromPitchElement(pitch, keyFifths: timing.keyFifths) {
+                        clusterMidis.append(m0)
+                    }
+
+                    var ni = ci + 1
+                    while ni < children.count {
+                        guard case let .element(next) = children[ni], next.name == "note" else { break }
+                        guard directChild(next, localName: "grace") == nil else { break }
+                        guard directChild(next, localName: "chord") != nil else { break }
+                        guard directChild(next, localName: "rest") == nil else { break }
+                        guard let nextPitch = directChild(next, localName: "pitch") else { break }
+                        if let mm = midiFromPitchElement(nextPitch, keyFifths: timing.keyFifths) {
+                            clusterMidis.append(mm)
+                        }
+                        ni += 1
+                    }
+
+                    let divisions = max(1, timing.divisions)
+                    let quartersFromMeasureStart = currentTime / Double(divisions)
+                    let beatStartInMeasure = quartersFromMeasureStart + 1
+
+                    if !clusterMidis.isEmpty {
+                        attacks.append(
+                            ChordOsmdMusicXmlAttack(
+                                measureNumber: measureNumber,
+                                beatStartInMeasure: beatStartInMeasure,
+                                midis: clusterMidis
+                            )
+                        )
+                    }
+
+                    currentTime += clusterDur
+                    ci = ni
+                default:
+                    ci += 1
+                }
+            }
+        }
+
+        return attacks
+    }
+
+    /// `(measure_number, beat_offset)` に一致する MusicXML アタックの MIDI をマージ。無ければ nil（voicing フォールバック）。
+    static func mergeMidisFromXmlAttacks(
+        _ attacks: [ChordOsmdMusicXmlAttack],
+        measureNumber: Int,
+        beatOffset: Double
+    ) -> [Int: Int]? {
+        var merged: [Int: Int] = [:]
+        var matched = false
+        for attack in attacks where attack.measureNumber == measureNumber {
+            if abs(attack.beatStartInMeasure - beatOffset) >= xmlAttackBeatMatchEpsilon {
+                continue
+            }
+            matched = true
+            for midi in attack.midis {
+                merged[midi, default: 0] += 1
+            }
+        }
+        guard matched, !merged.isEmpty else { return nil }
+        return merged
+    }
+
+    private static func measuresInPartsFirst(from root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {
+        var fromParts: [ChordOsmdXmlElement] = []
+
+        func collect(_ el: ChordOsmdXmlElement) {
+            if el.name == "part" {
+                for ch in el.children {
+                    if case let .element(m) = ch, m.name == "measure" {
+                        fromParts.append(m)
+                    }
+                }
+                return
+            }
+            for ch in el.children {
+                if case let .element(c) = ch {
+                    collect(c)
+                }
+            }
+        }
+
+        collect(root)
+        if !fromParts.isEmpty {
+            return fromParts
+        }
+        return allElements(named: "measure", in: root)
+    }
+
+    private static func parseMeasureNumberAttribute(_ measure: ChordOsmdXmlElement, ordinalOneBased: Int) -> Int {
+        if let raw = measure.attributes.first(where: { $0.name == "number" })?.value {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            var digits = ""
+            for ch in trimmed where ch.isNumber {
+                digits.append(ch)
+                if digits.count >= 6 { break }
+            }
+            if let parsed = Int(digits), parsed > 0 {
+                return parsed
+            }
+        }
+        return ordinalOneBased
+    }
+
+    private static func readScoreTimingForAttacks(
+        attributes: ChordOsmdXmlElement,
+        previous: ScoreTimingStateForAttacks
+    ) -> ScoreTimingStateForAttacks {
+        var t = previous
+        if let d = parsePositiveInt(text(in: attributes, localName: "divisions")) {
+            t.divisions = d
+        }
+        if let timeEl = directChild(attributes, localName: "time") {
+            if let b = parsePositiveInt(text(in: timeEl, localName: "beats")) {
+                t.beats = b
+            }
+            if let bt = parsePositiveInt(text(in: timeEl, localName: "beat-type")) {
+                t.beatType = bt
+            }
+        }
+        if let keyEl = directChild(attributes, localName: "key"),
+           let fifthsText = text(in: keyEl, localName: "fifths"),
+           let k = Int(fifthsText.trimmingCharacters(in: .whitespacesAndNewlines))
+        {
+            t.keyFifths = k
+        }
+        return t
+    }
+
+    private static func clampKeyFifths(_ value: Int) -> Int {
+        min(7, max(-7, value))
+    }
+
+    private static func keySignatureAlter(step: String, keyFifths: Int) -> Int {
+        let fifths = clampKeyFifths(keyFifths)
+        if fifths > 0 {
+            for index in 0..<fifths where index < sharpKeySignatureSteps.count {
+                if sharpKeySignatureSteps[index] == step {
+                    return 1
+                }
+            }
+            return 0
+        }
+        if fifths < 0 {
+            let flatCount = abs(fifths)
+            for index in 0..<flatCount where index < flatKeySignatureSteps.count {
+                if flatKeySignatureSteps[index] == step {
+                    return -1
+                }
+            }
+            return 0
+        }
+        return 0
+    }
+
+    private static func midiFromPitchElement(_ pitch: ChordOsmdXmlElement, keyFifths: Int) -> Int? {
+        guard let stepRaw = text(in: pitch, localName: "step")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              stepRaw.count == 1
+        else {
+            return nil
+        }
+        let stepUpper = String(stepRaw.prefix(1)).uppercased()
+
+        let baseMap: [String: Int] = [
+            "C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11
+        ]
+        guard let semitoneBase = baseMap[stepUpper] else { return nil }
+
+        guard let octaveStr = text(in: pitch, localName: "octave"),
+              let octave = Int(octaveStr.trimmingCharacters(in: .whitespacesAndNewlines))
+        else {
+            return nil
+        }
+
+        let alter: Int
+        if let alterText = text(in: pitch, localName: "alter"),
+           let parsed = Int(alterText.trimmingCharacters(in: .whitespacesAndNewlines))
+        {
+            alter = parsed
+        } else {
+            alter = keySignatureAlter(step: stepUpper, keyFifths: keyFifths)
+        }
+
+        return (octave + 1) * 12 + semitoneBase + alter
     }
 
     private static func setText(in parent: ChordOsmdXmlElement, localName: String, text: String) {

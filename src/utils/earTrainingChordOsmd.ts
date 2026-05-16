@@ -1,5 +1,5 @@
 import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank } from '@/types';
-import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
+import { musicXmlKeySignatureAlter, parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 /** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 150ms） */
 export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.15;
@@ -10,6 +10,32 @@ export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.2;
 const SAME_TARGET_EPSILON_SEC = 0.0005;
 const SAME_TARGET_BEAT_EPSILON = 0.0005;
 const XML_TIMING_EPSILON = 0.0005;
+/** DB の beat_offset と MusicXML 由来 beatStartInMeasure を対応付ける許容（拍、1-indexed） */
+const XML_ATTACK_BEAT_MATCH_EPS = 0.01;
+
+const MUSIC_XML_STEP_TO_SEMITONE: Readonly<Record<string, number>> = {
+  C: 0,
+  D: 2,
+  E: 4,
+  F: 5,
+  G: 7,
+  A: 9,
+  B: 11,
+};
+
+export interface ChordOsmdMusicXmlAttack {
+  measureNumber: number;
+  /** 小節内の拍位置（先頭拍を 1）。四分音符グリッド。 */
+  beatStartInMeasure: number;
+  midis: readonly number[];
+}
+
+interface MusicXmlScoreTimingState {
+  divisions: number;
+  beats: number;
+  beatType: number;
+  keyFifths: number;
+}
 
 interface ChordOsmdMidiCount {
   midi: number;
@@ -329,6 +355,256 @@ export const normalizeChordOsmdMusicXml = (xmlText: string): string => {
   return changed ? new XMLSerializer().serializeToString(doc) : xmlText;
 };
 
+const parseMusicXmlMeasureNumber = (measure: Element, ordinalOneBased: number): number => {
+  const raw = measure.getAttribute('number')?.trim();
+  if (raw) {
+    const match = /^(\d+)/.exec(raw);
+    if (match) {
+      const parsed = Number.parseInt(match[1], 10);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  }
+  return ordinalOneBased;
+};
+
+const readScoreTimingFromAttributes = (
+  attributes: Element,
+  previous: MusicXmlScoreTimingState,
+): MusicXmlScoreTimingState => {
+  let { divisions, beats, beatType, keyFifths } = previous;
+  const divText = getDirectChildText(attributes, 'divisions');
+  if (divText) {
+    const d = parsePositiveNumber(divText);
+    if (d !== null) {
+      divisions = d;
+    }
+  }
+  const timeEl = getDirectChild(attributes, 'time');
+  if (timeEl) {
+    const bt = parsePositiveNumber(getDirectChildText(timeEl, 'beats'));
+    const bty = parsePositiveNumber(getDirectChildText(timeEl, 'beat-type'));
+    if (bt !== null) {
+      beats = bt;
+    }
+    if (bty !== null) {
+      beatType = bty;
+    }
+  }
+  const keyEl = getDirectChild(attributes, 'key');
+  if (keyEl) {
+    const fifthsText = getDirectChildText(keyEl, 'fifths');
+    if (fifthsText !== null && fifthsText !== '') {
+      const k = Number.parseInt(fifthsText, 10);
+      if (Number.isFinite(k)) {
+        keyFifths = k;
+      }
+    }
+  }
+  return { divisions, beats, beatType, keyFifths };
+};
+
+const pitchElementToMidi = (pitch: Element, keyFifths: number): number | null => {
+  const stepRaw = getDirectChildText(pitch, 'step');
+  const step = stepRaw?.trim();
+  if (!step || step.length !== 1) {
+    return null;
+  }
+  const semitoneBase = MUSIC_XML_STEP_TO_SEMITONE[step];
+  if (semitoneBase === undefined) {
+    return null;
+  }
+  const octaveText = getDirectChildText(pitch, 'octave');
+  if (!octaveText) {
+    return null;
+  }
+  const octave = Number.parseInt(octaveText, 10);
+  if (!Number.isFinite(octave)) {
+    return null;
+  }
+  const alterText = getDirectChildText(pitch, 'alter');
+  let alter = alterText !== null && alterText !== ''
+    ? Number.parseInt(alterText, 10)
+    : Number.NaN;
+  if (!Number.isFinite(alter)) {
+    alter = musicXmlKeySignatureAlter(step, keyFifths);
+  }
+  return (octave + 1) * 12 + semitoneBase + alter;
+};
+
+const selectMusicXmlMeasures = (doc: Document): Element[] => {
+  const fromParts = Array.from(doc.querySelectorAll('part > measure'));
+  if (fromParts.length > 0) {
+    return fromParts;
+  }
+  return Array.from(doc.getElementsByTagName('measure'));
+};
+
+/** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>` を考慮）。OSMD 判定の正とする。 */
+export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmdMusicXmlAttack[] => {
+  if (typeof DOMParser === 'undefined') {
+    return [];
+  }
+  const doc = new DOMParser().parseFromString(musicXmlText, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    return [];
+  }
+
+  const measures = selectMusicXmlMeasures(doc);
+  const attacks: ChordOsmdMusicXmlAttack[] = [];
+  let timing: MusicXmlScoreTimingState = {
+    divisions: 1,
+    beats: 4,
+    beatType: 4,
+    keyFifths: 0,
+  };
+
+  for (let measureIndex = 0; measureIndex < measures.length; measureIndex += 1) {
+    const measure = measures[measureIndex];
+    const measureNumber = parseMusicXmlMeasureNumber(measure, measureIndex + 1);
+    let currentTime = 0;
+    const children = Array.from(measure.children);
+    let ci = 0;
+    while (ci < children.length) {
+      const child = children[ci];
+      if (!isElementNode(child)) {
+        ci += 1;
+        continue;
+      }
+      if (child.localName === 'attributes') {
+        timing = readScoreTimingFromAttributes(child, timing);
+        ci += 1;
+        continue;
+      }
+      if (child.localName === 'backup') {
+        const dur = parsePositiveNumber(getDirectChildText(child, 'duration'));
+        if (dur !== null) {
+          currentTime -= dur;
+        }
+        ci += 1;
+        continue;
+      }
+      if (child.localName === 'forward') {
+        const dur = parsePositiveNumber(getDirectChildText(child, 'duration'));
+        if (dur !== null) {
+          currentTime += dur;
+        }
+        ci += 1;
+        continue;
+      }
+      if (child.localName !== 'note') {
+        ci += 1;
+        continue;
+      }
+
+      const noteEl = child;
+      if (getDirectChild(noteEl, 'grace')) {
+        ci += 1;
+        continue;
+      }
+
+      const duration = parsePositiveNumber(getDirectChildText(noteEl, 'duration'));
+      if (duration === null) {
+        ci += 1;
+        continue;
+      }
+
+      if (getDirectChild(noteEl, 'rest')) {
+        currentTime += duration;
+        ci += 1;
+        continue;
+      }
+
+      const pitch = getDirectChild(noteEl, 'pitch');
+      if (!pitch) {
+        ci += 1;
+        continue;
+      }
+
+      if (getDirectChild(noteEl, 'chord')) {
+        ci += 1;
+        continue;
+      }
+
+      const clusterMidis: number[] = [];
+      const clusterDur = duration;
+      const midi0 = pitchElementToMidi(pitch, timing.keyFifths);
+      if (midi0 !== null) {
+        clusterMidis.push(midi0);
+      }
+
+      let ni = ci + 1;
+      while (ni < children.length) {
+        const next = children[ni];
+        if (!isElementNode(next) || next.localName !== 'note') {
+          break;
+        }
+        if (getDirectChild(next, 'grace')) {
+          break;
+        }
+        if (!getDirectChild(next, 'chord')) {
+          break;
+        }
+        if (getDirectChild(next, 'rest')) {
+          break;
+        }
+        const nextPitch = getDirectChild(next, 'pitch');
+        if (!nextPitch) {
+          break;
+        }
+        const mm = pitchElementToMidi(nextPitch, timing.keyFifths);
+        if (mm !== null) {
+          clusterMidis.push(mm);
+        }
+        ni += 1;
+      }
+
+      const divisions = Math.max(1, timing.divisions);
+      const quartersFromMeasureStart = currentTime / divisions;
+      const beatStartInMeasure = quartersFromMeasureStart + 1;
+
+      if (clusterMidis.length > 0) {
+        attacks.push({
+          measureNumber,
+          beatStartInMeasure,
+          midis: clusterMidis,
+        });
+      }
+
+      currentTime += clusterDur;
+      ci = ni;
+    }
+  }
+
+  return attacks;
+};
+
+const mergeMidisFromXmlAttacks = (
+  attacks: readonly ChordOsmdMusicXmlAttack[],
+  measureNumber: number,
+  beatOffset: number,
+): Map<number, number> | null => {
+  const merged = new Map<number, number>();
+  let matched = false;
+  for (const attack of attacks) {
+    if (attack.measureNumber !== measureNumber) {
+      continue;
+    }
+    if (Math.abs(attack.beatStartInMeasure - beatOffset) >= XML_ATTACK_BEAT_MATCH_EPS) {
+      continue;
+    }
+    matched = true;
+    for (const midi of attack.midis) {
+      merged.set(midi, (merged.get(midi) ?? 0) + 1);
+    }
+  }
+  if (!matched || merged.size === 0) {
+    return null;
+  }
+  return merged;
+};
+
 const chordStartTimeSec = (
   chord: EarTrainingPhraseChord,
   beatDurationSec: number,
@@ -423,6 +699,7 @@ export const buildChordOsmdRhythmTargets = (
   phrase: EarTrainingPhrase | undefined,
   bpm: number,
   beatsPerMeasure: number,
+  attacks?: readonly ChordOsmdMusicXmlAttack[] | null,
 ): ChordOsmdRhythmTarget[] => {
   const chords = phrase?.chords ?? [];
   if (chords.length === 0) {
@@ -448,6 +725,15 @@ export const buildChordOsmdRhythmTargets = (
   for (const item of sorted) {
     const counts = new Map<number, number>();
     addMidiCounts(counts, item.chord.voicing);
+    if (attacks && attacks.length > 0 && item.beatOffset !== null) {
+      const xmlCounts = mergeMidisFromXmlAttacks(attacks, item.measureNumber, item.beatOffset);
+      if (xmlCounts) {
+        counts.clear();
+        xmlCounts.forEach((count, midi) => {
+          counts.set(midi, count);
+        });
+      }
+    }
     if (counts.size === 0) {
       continue;
     }
