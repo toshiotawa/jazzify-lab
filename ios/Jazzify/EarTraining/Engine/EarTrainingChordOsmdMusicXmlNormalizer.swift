@@ -479,6 +479,12 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
 
                     var ni = ci + 1
                     while ni < children.count {
+                        // XMLParser は要素間の改行・インデントを `.text` として保持するため、
+                        // 同じクラスタ内の `<chord/>` 続きノートに到達する前に空白テキストを通り抜ける必要がある。
+                        if case .text = children[ni] {
+                            ni += 1
+                            continue
+                        }
                         guard case let .element(next) = children[ni], next.name == "note" else { break }
                         guard directChild(next, localName: "grace") == nil else { break }
                         guard directChild(next, localName: "chord") != nil else { break }
