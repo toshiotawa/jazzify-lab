@@ -183,7 +183,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const playerHpRef = useRef(stage.player_hp);
   const targetsRef = useRef<ChordOsmdRhythmTarget[]>([]);
   const runtimeByTargetIdRef = useRef<Map<string, RuntimeTargetState>>(new Map());
-  const activeTargetIdsRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
@@ -194,7 +193,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const totalCompletedTargetsRef = useRef(0);
   const totalJudgedTargetsRef = useRef(0);
   const lastRankRef = useRef<EarTrainingRank | null>(null);
-  const practiceHintTargetIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { phraseIndexRef.current = phraseIndex; }, [phraseIndex]);
@@ -205,7 +203,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   useEffect(() => {
     if (!practiceMode && !showKeyboardHintsInBattle) {
-      practiceHintTargetIdsRef.current.clear();
       pianoOverlayRef.current?.clearVoicingHints();
     }
   }, [practiceMode, showKeyboardHintsInBattle]);
@@ -258,28 +255,55 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const syncPracticeVoicingHints = useCallback(() => {
     if (!practiceModeRef.current && !showKeyboardHintsInBattleRef.current) {
-      practiceHintTargetIdsRef.current.clear();
       pianoOverlayRef.current?.clearVoicingHints();
       return;
     }
+    const player = phrasePlayerRef.current;
+    const phraseT = player?.getPhraseTimelineSec();
+    if (phraseT == null || !Number.isFinite(phraseT)) {
+      pianoOverlayRef.current?.clearVoicingHints();
+      return;
+    }
+    const w = CHORD_OSMD_JUDGMENT_WINDOW_SEC;
     const union = new Set<number>();
-    practiceHintTargetIdsRef.current.forEach(targetId => {
-      const state = runtimeByTargetIdRef.current.get(targetId);
+    for (const target of targetsRef.current) {
+      const state = runtimeByTargetIdRef.current.get(target.id);
       if (!state || state.completed || state.failed) {
-        return;
+        continue;
+      }
+      if (Math.abs(phraseT - target.targetTimeSec) > w) {
+        continue;
       }
       state.remainingCounts.forEach((count, midi) => {
         if (count > 0) {
           union.add(midi);
         }
       });
-    });
+    }
     if (union.size === 0) {
       pianoOverlayRef.current?.clearVoicingHints();
     } else {
       pianoOverlayRef.current?.setVoicingHints([...union], []);
     }
   }, []);
+
+  useEffect(() => {
+    if (!practiceMode && !showKeyboardHintsInBattle) {
+      return;
+    }
+    if (gameState !== 'countIn' && gameState !== 'playingPhrase') {
+      return;
+    }
+    let rafId = 0;
+    const tick = (): void => {
+      syncPracticeVoicingHints();
+      rafId = window.requestAnimationFrame(tick);
+    };
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [practiceMode, showKeyboardHintsInBattle, gameState, syncPracticeVoicingHints]);
 
   const stopPhraseAudio = useCallback(() => {
     phrasePlayerRef.current?.stop();
@@ -461,8 +485,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     });
     targetsRef.current = [...nextTargets];
     runtimeByTargetIdRef.current = runtime;
-    activeTargetIdsRef.current = new Set();
-    practiceHintTargetIdsRef.current.clear();
     pianoOverlayRef.current?.clearVoicingHints();
     setTargets([...nextTargets]);
     setCompletedTargetCount(0);
@@ -474,8 +496,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
     state.failed = true;
-    activeTargetIdsRef.current.delete(targetId);
-    practiceHintTargetIdsRef.current.delete(targetId);
     syncPracticeVoicingHints();
     triggerFeedback('miss');
     setStatusText(isEnglishCopy ? 'Miss' : 'ミス');
@@ -514,8 +534,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         state.failed = true;
       }
     });
-    activeTargetIdsRef.current.clear();
-    practiceHintTargetIdsRef.current.clear();
     pianoOverlayRef.current?.clearVoicingHints();
     publishTargetStates();
 
@@ -618,11 +636,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         if (!state || state.completed || state.failed) {
           return;
         }
-        activeTargetIdsRef.current.add(target.id);
-        if (practiceModeRef.current || showKeyboardHintsInBattleRef.current) {
-          practiceHintTargetIdsRef.current.add(target.id);
-          syncPracticeVoicingHints();
-        }
         setActiveMeasureNumber(target.measureNumber);
         publishTargetStates();
       }, openDelayMs);
@@ -666,7 +679,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     stage.beats_per_measure,
     stage.bpm,
     stage.loop_measures,
-    syncPracticeVoicingHints,
     triggerBattleEffect,
   ]);
 
@@ -800,8 +812,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const completeTarget = useCallback((target: ChordOsmdRhythmTarget, state: RuntimeTargetState) => {
     state.completed = true;
-    activeTargetIdsRef.current.delete(target.id);
-    practiceHintTargetIdsRef.current.delete(target.id);
     syncPracticeVoicingHints();
     if (state.hammerEffectId !== undefined) {
       pendingImpactHandlersRef.current.delete(state.hammerEffectId);
@@ -841,12 +851,17 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
 
+    const phraseT = phrasePlayerRef.current?.getPhraseTimelineSec();
+    if (phraseT == null || !Number.isFinite(phraseT)) {
+      return;
+    }
+    const w = CHORD_OSMD_JUDGMENT_WINDOW_SEC;
     for (const target of targetsRef.current) {
-      if (!activeTargetIdsRef.current.has(target.id)) {
-        continue;
-      }
       const state = runtimeByTargetIdRef.current.get(target.id);
       if (!state || state.completed || state.failed) {
+        continue;
+      }
+      if (Math.abs(phraseT - target.targetTimeSec) > w) {
         continue;
       }
       const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);

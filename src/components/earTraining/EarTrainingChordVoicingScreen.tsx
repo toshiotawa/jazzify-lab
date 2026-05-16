@@ -1373,7 +1373,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       if (!player) {
         return;
       }
-      loopTimeSec = getLoopTimeSec(player.getCurrentTime(), loopDurationSec);
+      const phraseElapsed = player.getPhraseTimelineSec();
+      const elapsedSec = phraseElapsed !== null && Number.isFinite(phraseElapsed)
+        ? phraseElapsed
+        : player.getCurrentTime();
+      loopTimeSec = getLoopTimeSec(elapsedSec, loopDurationSec);
     }
     const targets = chordVoicingSelfPaced
       ? {

@@ -7,7 +7,8 @@ import os.log
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
 final class EarTrainingChordOSMDBattleController: ObservableObject {
-    private static let judgmentWindowSec: Double = 0.1
+    /// ターゲット時刻を中心に前後これだけ秒（±150ms）
+    private static let judgmentWindowSec: Double = 0.15
     private static let hammerLeadSec: Double = 2.4
     private static let hammerImpactOffsetSec: Double = 0.2
     private static let effectClearPaddingMs: Double = 420
@@ -224,13 +225,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
         guard gameState == .playingPhrase || gameState == .countIn else { return }
-        handleAudioTimeUpdate(currentTime: audio.currentTimeSec)
+        let phraseTime = audio.phraseJudgmentTimelineSecNow()
+        handleAudioTimeUpdate(currentTime: phraseTime)
         compactActiveTargets()
 
         var matchedIndex: Int?
-        for index in activeTargetIndices {
-            guard targets.indices.contains(index) else { continue }
+        for index in targets.indices {
             guard targets[index].completed == false, targets[index].failed == false else { continue }
+            let delta = phraseTime - targets[index].targetTimeSec
+            guard delta >= -Self.judgmentWindowSec, delta <= Self.judgmentWindowSec else { continue }
             if targets[index].consume(midi: midi) {
                 matchedIndex = index
                 break
@@ -457,9 +460,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
         let phraseTime: Double
         if gameState == .countIn {
-            phraseTime = audio.currentTimeSec
+            phraseTime = audio.phraseJudgmentTimelineSecNow()
         } else {
-            phraseTime = max(0, audio.currentTimeSec)
+            phraseTime = max(0, audio.phraseJudgmentTimelineSecNow())
         }
         var union = Set<Int>()
         for target in targets {

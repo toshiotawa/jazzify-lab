@@ -386,7 +386,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         if allowEarlyCountIn {
             loopTimeSafe = 0
         } else {
-            let currentTime = audio.currentTimeSec
+            let currentTime = audio.phraseJudgmentTimelineSecNow()
             let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
             loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
         }

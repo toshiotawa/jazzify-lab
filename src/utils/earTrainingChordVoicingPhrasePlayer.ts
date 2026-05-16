@@ -198,6 +198,18 @@ export class EarTrainingChordVoicingPhrasePlayer {
     return Math.min(Math.max(0, elapsed), this.phraseBufferDurationSec);
   }
 
+  /**
+   * ノートオン判定用。`getCurrentTime()` とは異なりフレーズ開始前は負の秒を返す。
+   * `AudioContext.currentTime` とスケジュールしたフレーズ頭の差（秒）。
+   */
+  getPhraseTimelineSec(): number | null {
+    if (this.phraseStartCtxTime === null || !this.ctx) {
+      return null;
+    }
+    const delta = this.ctx.currentTime - this.phraseStartCtxTime;
+    return Number.isFinite(delta) ? delta : null;
+  }
+
   hasEnded(): boolean {
     return this.phraseEnded;
   }

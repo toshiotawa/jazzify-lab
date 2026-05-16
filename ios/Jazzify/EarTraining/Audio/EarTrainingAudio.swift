@@ -681,6 +681,35 @@ final class EarTrainingAudio: NSObject {
         onTimeUpdate?(currentTimeSec)
     }
 
+    /// ノートオンなど、ティッカー待ちなしでフレーズ軸の秒を取得する（カウントイン中は負になり得る）。
+    func phraseJudgmentTimelineSecNow() -> Double {
+        guard phrasePlayer.isPlaying else {
+            return currentTimeSec
+        }
+        let anchor = phrasePlaybackAnchorHostTime
+        if anchor != 0 {
+            let now = mach_absolute_time()
+            if now < anchor {
+                if emitNegativePhraseTimelineBeforeAnchor {
+                    let sec = -Self.secondsFromMachHostDifference(from: now, to: anchor)
+                    return sec.isFinite ? sec : currentTimeSec
+                }
+                return 0
+            }
+            let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
+            guard sec.isFinite else { return currentTimeSec }
+            return max(0, sec)
+        }
+        guard let nodeTime = phrasePlayer.lastRenderTime,
+              let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)
+        else {
+            return currentTimeSec
+        }
+        let sec = Double(playerTime.sampleTime) / playerTime.sampleRate
+        guard sec.isFinite else { return currentTimeSec }
+        return max(0, sec)
+    }
+
     private static func secondsFromMachHostDifference(from start: UInt64, to end: UInt64) -> Double {
         let delta = end &- start
         let info = machTimebaseInfo

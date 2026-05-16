@@ -208,4 +208,27 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     expect(player.getCurrentTime()).toBe(0);
     player.dispose();
   });
+
+  it('getPhraseTimelineSec はフレーズ開始前に負の秒を返す（getCurrentTime は 0）', async () => {
+    vi.useFakeTimers();
+    const { player, mockCtx } = makePlayer();
+    mockCtx.currentTime = 0;
+    const prepared = {
+      url: 'https://example.com/timeline.mp3',
+      buffer: fakeBuffer,
+    };
+    player.schedulePreparedPhraseWithCountIn({
+      prepared,
+      countInBeats: 1,
+      bpm: 60,
+      beatGain: 1,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    const phraseStart = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC + 1;
+    mockCtx.currentTime = phraseStart - 0.05;
+    expect(player.getCurrentTime()).toBe(0);
+    expect(player.getPhraseTimelineSec()).toBeCloseTo(-0.05, 5);
+    player.dispose();
+  });
 });
