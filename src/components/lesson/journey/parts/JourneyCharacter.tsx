@@ -9,9 +9,9 @@ interface JourneyCharacterProps {
 }
 
 export const JourneyCharacter: React.FC<JourneyCharacterProps> = ({ xPx, yPx, scale, facing }) => {
-  const size = Math.round(88 * scale);
+  const size = Math.round(62 * scale);
   const offsetX =
-    facing === 'center' ? 0 : facing === 'right' ? Math.round(28 * scale) : -Math.round(28 * scale);
+    facing === 'center' ? 0 : facing === 'right' ? Math.round(20 * scale) : -Math.round(20 * scale);
   const { variant, flipX } = getSurvivalDescentSpriteForFacing(facing);
   const src = SURVIVAL_DEFAULT_SPRITE_PATHS[variant];
   const flip = flipX ? 'scaleX(-1)' : 'scaleX(1)';
