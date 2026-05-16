@@ -2288,6 +2288,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       if (view.motion.token !== token || view.motion.state !== state) {
         return;
       }
+      if (this.snapshot?.fixedCharacterPositions) {
+        this.stopCharacterMotion(view);
+        view.motion.state = 'idle';
+        const floorYFixed = getFloorY(Math.max(480, this.scale.height));
+        const homeXFixed = clampBattleCharacterX(view.motion.range.homeX, view.motion.range);
+        view.container.setPosition(homeXFixed, floorYFixed);
+        view.container.setAngle(0);
+        return;
+      }
       this.startCharacterAutoMotion(view, ACTION_RESUME_IDLE_MS, ACTION_RESUME_IDLE_MS);
     });
   }
@@ -2298,6 +2307,14 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const token = view.motion.token;
     view.motion.resumeEvent = this.time.delayedCall(360, () => {
       if (view.motion.token !== token || view.motion.state !== 'recover') {
+        return;
+      }
+      if (this.snapshot?.fixedCharacterPositions) {
+        view.motion.state = 'idle';
+        const floorYRecover = getFloorY(Math.max(480, this.scale.height));
+        const homeXRecover = clampBattleCharacterX(view.motion.range.homeX, view.motion.range);
+        view.container.setPosition(homeXRecover, floorYRecover);
+        view.container.setAngle(0);
         return;
       }
       this.startCharacterAutoMotion(view, RECOVER_IDLE_MIN_MS, RECOVER_IDLE_MAX_MS);

@@ -60,7 +60,6 @@ struct EarTrainingHUDView: View {
             hpPanel(
                 current: hud.playerHp,
                 max: hud.playerMaxHp,
-                isEnemy: false,
                 horizontalAlignment: .leading,
                 frameAlignment: .leading
             )
@@ -73,7 +72,6 @@ struct EarTrainingHUDView: View {
             hpPanel(
                 current: hud.enemyHp,
                 max: hud.enemyMaxHp,
-                isEnemy: true,
                 horizontalAlignment: .trailing,
                 frameAlignment: .trailing
             )
@@ -95,12 +93,11 @@ struct EarTrainingHUDView: View {
     private func hpPanel(
         current: Int,
         max: Int,
-        isEnemy: Bool,
         horizontalAlignment: HorizontalAlignment,
         frameAlignment: Alignment
     ) -> some View {
         VStack(alignment: horizontalAlignment, spacing: 2) {
-            HpBar(currentHp: current, maxHp: max, isEnemy: isEnemy)
+            HpBar(currentHp: current, maxHp: max)
                 .frame(height: 8)
         }
         .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -321,14 +318,13 @@ struct EarTrainingHUDView: View {
 private struct HpBar: View {
     let currentHp: Int
     let maxHp: Int
-    let isEnemy: Bool
 
     var body: some View {
         GeometryReader { proxy in
             let total = max(1, CGFloat(maxHp))
             let current = max(0, min(CGFloat(currentHp), total))
             let percent = current / total
-            ZStack(alignment: isEnemy ? .trailing : .leading) {
+            ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color.white.opacity(0.14))
                 RoundedRectangle(cornerRadius: 4, style: .continuous)

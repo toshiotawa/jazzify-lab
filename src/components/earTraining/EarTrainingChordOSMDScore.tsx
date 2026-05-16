@@ -257,7 +257,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   /** OSMD 描画後に SVG をビューポート高に合わせるための CSS スケール（1 のとき縮小無し）。 */
   const [cssScale, setCssScale] = useState(1);
   /** ユーザーが +/− で変更する追加スケール（セッション内のみ保持）。 */
-  const [userZoom, setUserZoom] = useState(1);
+  const [userZoom, setUserZoom] = useState(1.9);
   /** コンテナが低いモバイル横画面。2段譜時のみ OSMD zoom を iOS iPhone と同じ比率（2/3）にする。 */
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
 
@@ -401,29 +401,10 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       {!hidden && musicXmlText && (
         <div
           className={cn(
-            'pointer-events-auto absolute bottom-1 right-1 flex items-center gap-1 rounded-md',
-            'border border-white/15 bg-slate-900/70 px-1.5 py-0.5 text-xs font-semibold text-white shadow-sm',
+            'pointer-events-auto absolute right-1 top-1/2 flex -translate-y-1/2 flex-col items-center gap-1 rounded-md py-1',
+            'border border-white/15 bg-slate-900/70 px-1 text-xs font-semibold text-white shadow-sm',
           )}
         >
-          <button
-            type="button"
-            aria-label={isEnglishCopy ? 'Zoom out' : '縮小'}
-            disabled={userZoom <= USER_ZOOM_MIN}
-            className={cn(
-              'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
-              'disabled:cursor-not-allowed disabled:opacity-40',
-              'hover:bg-white/20 active:bg-white/25',
-            )}
-            onClick={() => {
-              setUserZoom(previous => clampUserZoom(previous - USER_ZOOM_STEP));
-            }}
-          >
-            −
-          </button>
-          <span className="min-w-[2.75rem] select-none text-center tabular-nums text-[11px] text-white/90">
-            {Math.round(userZoom * 100)}
-            %
-          </span>
           <button
             type="button"
             aria-label={isEnglishCopy ? 'Zoom in' : '拡大'}
@@ -438,6 +419,25 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
             }}
           >
             +
+          </button>
+          <span className="min-w-[2.75rem] select-none text-center tabular-nums text-[11px] text-white/90">
+            {Math.round(userZoom * 100)}
+            %
+          </span>
+          <button
+            type="button"
+            aria-label={isEnglishCopy ? 'Zoom out' : '縮小'}
+            disabled={userZoom <= USER_ZOOM_MIN}
+            className={cn(
+              'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
+              'disabled:cursor-not-allowed disabled:opacity-40',
+              'hover:bg-white/20 active:bg-white/25',
+            )}
+            onClick={() => {
+              setUserZoom(previous => clampUserZoom(previous - USER_ZOOM_STEP));
+            }}
+          >
+            −
           </button>
         </div>
       )}

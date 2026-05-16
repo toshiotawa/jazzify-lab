@@ -160,7 +160,7 @@ private struct EarTrainingChordOSMDContent: View {
     let locale: AppLocale
 
     /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
-    @State private var scoreSizeStep: Int = 0
+    @State private var scoreSizeStep: Int = 1
 
     @State private var hudHorizontalPadding: CGFloat = 16
 
@@ -322,30 +322,32 @@ private struct EarTrainingChordOSMDContent: View {
 
     @ViewBuilder
     private func scoreZoomControlsOuter(enlargeDisabled: Bool, shrinkDisabled: Bool, outerWidth: CGFloat, outerHeight: CGFloat) -> some View {
-        HStack(spacing: 6) {
-            scoreZoomChipButton(
-                systemName: "minus.magnifyingglass",
-                accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
-                disabled: shrinkDisabled,
-                action: {
-                    guard scoreSizeStep > -2 else { return }
-                    scoreSizeStep -= 1
-                }
-            )
+        HStack {
+            Spacer(minLength: 0)
+            VStack(spacing: 6) {
+                scoreZoomChipButton(
+                    systemName: "plus.magnifyingglass",
+                    accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
+                    disabled: enlargeDisabled,
+                    action: {
+                        guard scoreSizeStep < 2 else { return }
+                        scoreSizeStep += 1
+                    }
+                )
 
-            scoreZoomChipButton(
-                systemName: "plus.magnifyingglass",
-                accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
-                disabled: enlargeDisabled,
-                action: {
-                    guard scoreSizeStep < 2 else { return }
-                    scoreSizeStep += 1
-                }
-            )
+                scoreZoomChipButton(
+                    systemName: "minus.magnifyingglass",
+                    accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
+                    disabled: shrinkDisabled,
+                    action: {
+                        guard scoreSizeStep > -2 else { return }
+                        scoreSizeStep -= 1
+                    }
+                )
+            }
+            .padding(.trailing, 6)
         }
-        .padding(.trailing, 6)
-        .padding(.bottom, 6)
-        .frame(width: outerWidth, height: outerHeight, alignment: .bottomTrailing)
+        .frame(width: outerWidth, height: outerHeight)
     }
 
     @ViewBuilder

@@ -554,6 +554,40 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       ? `Phrase accuracy ${Math.round(accuracy * 100)}%`
       : `フレーズ正解率 ${Math.round(accuracy * 100)}%`);
 
+    const pendingPhraseImpacts =
+      (completionDamage > 0 ? 1 : 0) + (playerFailDamage > 0 ? 1 : 0);
+
+    const advanceAfterPhraseBattleEffects = (): void => {
+      if (!practiceMode && enemyHpRef.current <= 0) {
+        return;
+      }
+      if (!practiceMode && playerHpRef.current <= 0) {
+        return;
+      }
+      const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+      startPhraseRef.current(nextIndex);
+    };
+
+    if (pendingPhraseImpacts === 0) {
+      if (!practiceMode && enemyHpRef.current - completionDamage <= 0) {
+        return;
+      }
+      if (!practiceMode && playerHpRef.current - playerFailDamage <= 0) {
+        return;
+      }
+      advanceAfterPhraseBattleEffects();
+      return;
+    }
+
+    let phraseImpactRemainder = pendingPhraseImpacts;
+    const onPhraseBattleEffectImpactDone = (): void => {
+      phraseImpactRemainder -= 1;
+      if (phraseImpactRemainder > 0) {
+        return;
+      }
+      advanceAfterPhraseBattleEffects();
+    };
+
     if (completionDamage > 0) {
       const effectId = triggerBattleEffect(
         rank === 'Perfect' ? 'osmdMeteor' : 'complete',
@@ -565,6 +599,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       );
       registerBattleEffectImpact(effectId, () => {
         applyEnemyDamage(completionDamage, rank);
+        onPhraseBattleEffectImpactDone();
       });
     }
 
@@ -575,18 +610,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       registerBattleEffectImpact(effectId, () => {
         applyPlayerDamage(playerFailDamage);
+        onPhraseBattleEffectImpactDone();
       });
     }
-
-    if (!practiceMode && enemyHpRef.current - completionDamage <= 0) {
-      return;
-    }
-    if (!practiceMode && playerHpRef.current - playerFailDamage <= 0) {
-      return;
-    }
-
-    const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
-    startPhraseRef.current(nextIndex);
   }, [
     activeDamageConfig,
     applyEnemyDamage,
