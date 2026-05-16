@@ -61,7 +61,8 @@ struct EarTrainingHUDView: View {
                 current: hud.playerHp,
                 max: hud.playerMaxHp,
                 horizontalAlignment: .leading,
-                frameAlignment: .leading
+                frameAlignment: .leading,
+                depleteFromLeading: true
             )
 
             if !hud.hideTimeLabel {
@@ -73,7 +74,8 @@ struct EarTrainingHUDView: View {
                 current: hud.enemyHp,
                 max: hud.enemyMaxHp,
                 horizontalAlignment: .trailing,
-                frameAlignment: .trailing
+                frameAlignment: .trailing,
+                depleteFromLeading: false
             )
         }
         .padding(.trailing, healthRowTrailingReserve)
@@ -94,10 +96,11 @@ struct EarTrainingHUDView: View {
         current: Int,
         max: Int,
         horizontalAlignment: HorizontalAlignment,
-        frameAlignment: Alignment
+        frameAlignment: Alignment,
+        depleteFromLeading: Bool
     ) -> some View {
         VStack(alignment: horizontalAlignment, spacing: 2) {
-            HpBar(currentHp: current, maxHp: max)
+            HpBar(currentHp: current, maxHp: max, depleteFromLeading: depleteFromLeading)
                 .frame(height: 8)
         }
         .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -318,13 +321,15 @@ struct EarTrainingHUDView: View {
 private struct HpBar: View {
     let currentHp: Int
     let maxHp: Int
+    /// true のときダメージで左側から欠け、残り HP は右に寄せて表示する。
+    var depleteFromLeading: Bool = false
 
     var body: some View {
         GeometryReader { proxy in
             let total = max(1, CGFloat(maxHp))
             let current = max(0, min(CGFloat(currentHp), total))
             let percent = current / total
-            ZStack(alignment: .leading) {
+            ZStack(alignment: depleteFromLeading ? .trailing : .leading) {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color.white.opacity(0.14))
                 RoundedRectangle(cornerRadius: 4, style: .continuous)

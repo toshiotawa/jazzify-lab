@@ -219,6 +219,8 @@ private struct EarTrainingChordOSMDContent: View {
 
             scoreOverlay(size: size)
 
+            scoreZoomTrailingOverlay(screenSize: size)
+
             VStack(spacing: 0) {
                 Spacer()
                 EarTrainingPianoView(player: controller)
@@ -269,9 +271,6 @@ private struct EarTrainingChordOSMDContent: View {
         let multiStaff = maxStaffLayersForZoom >= 2
         let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
 
-        let shrinkDisabled = scoreSizeStep <= -2
-        let enlargeDisabled = scoreSizeStep >= 2
-
         ZStack {
             ZStack {
                 if let musicXMLText = controller.musicXMLText {
@@ -309,45 +308,54 @@ private struct EarTrainingChordOSMDContent: View {
             .frame(width: outerWidth, height: outerHeight)
             .clipped()
             .allowsHitTesting(false)
-
-            scoreZoomControlsOuter(
-                enlargeDisabled: enlargeDisabled,
-                shrinkDisabled: shrinkDisabled,
-                outerWidth: outerWidth,
-                outerHeight: outerHeight
-            )
         }
         .position(x: size.width / 2, y: size.height * 0.42)
     }
 
+    /// 虫眼鏡は画面右端に固定（譜面コンテナのズーム／サイズに追従しない）。
     @ViewBuilder
-    private func scoreZoomControlsOuter(enlargeDisabled: Bool, shrinkDisabled: Bool, outerWidth: CGFloat, outerHeight: CGFloat) -> some View {
-        HStack {
-            Spacer(minLength: 0)
-            VStack(spacing: 6) {
-                scoreZoomChipButton(
-                    systemName: "plus.magnifyingglass",
-                    accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
-                    disabled: enlargeDisabled,
-                    action: {
-                        guard scoreSizeStep < 2 else { return }
-                        scoreSizeStep += 1
-                    }
-                )
+    private func scoreZoomTrailingOverlay(screenSize size: CGSize) -> some View {
+        let shrinkDisabled = scoreSizeStep <= -2
+        let enlargeDisabled = scoreSizeStep >= 2
+        let inset = Self.resolveHudHorizontalPadding()
+        let chipHalfWidth: CGFloat = 18
 
-                scoreZoomChipButton(
-                    systemName: "minus.magnifyingglass",
-                    accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
-                    disabled: shrinkDisabled,
-                    action: {
-                        guard scoreSizeStep > -2 else { return }
-                        scoreSizeStep -= 1
-                    }
-                )
-            }
-            .padding(.trailing, 6)
+        VStack(spacing: 6) {
+            scoreZoomChipButton(
+                systemName: "plus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
+                disabled: enlargeDisabled,
+                action: {
+                    guard scoreSizeStep < 2 else { return }
+                    scoreSizeStep += 1
+                }
+            )
+
+            scoreZoomChipButton(
+                systemName: "minus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
+                disabled: shrinkDisabled,
+                action: {
+                    guard scoreSizeStep > -2 else { return }
+                    scoreSizeStep -= 1
+                }
+            )
         }
-        .frame(width: outerWidth, height: outerHeight)
+        .padding(.vertical, 8)
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .background(Color.black.opacity(0.45))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .allowsHitTesting(controller.musicXMLText != nil)
+        .opacity(controller.musicXMLText == nil ? 0 : 1)
+        .position(
+            x: size.width - inset - 12 - chipHalfWidth,
+            y: size.height * 0.42
+        )
     }
 
     @ViewBuilder

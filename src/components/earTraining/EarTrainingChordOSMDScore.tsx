@@ -383,26 +383,32 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const statusText = renderError ?? scoreErrorText;
 
   return (
-    <div
-      ref={viewportRef}
-      aria-hidden={hidden}
-      className={cn(
-        'ear-training-osmd-score pointer-events-none absolute left-1/2 top-[42%] z-10 h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden',
-        hidden && 'invisible',
-      )}
-    >
+    <>
       <div
-        ref={scoreRef}
+        ref={viewportRef}
+        aria-hidden={hidden}
         className={cn(
-          'absolute left-0 top-1/2 min-w-full origin-left transition-transform duration-150 ease-out',
-          '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
+          'ear-training-osmd-score pointer-events-none absolute left-1/2 top-[42%] z-10 h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden',
+          hidden && 'invisible',
         )}
-      />
+      >
+        <div
+          ref={scoreRef}
+          className={cn(
+            'absolute left-0 top-1/2 min-w-full origin-left transition-transform duration-150 ease-out',
+            '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
+          )}
+        />
+        {(isRendering || statusText) && (
+          <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
+            {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
+          </div>
+        )}
+      </div>
       {!hidden && musicXmlText && (
         <div
           className={cn(
-            'pointer-events-auto absolute right-1 top-1/2 flex -translate-y-1/2 flex-col items-center gap-1 rounded-md py-1',
-            'border border-white/15 bg-slate-900/70 px-1 text-xs font-semibold text-white shadow-sm',
+            'pointer-events-auto fixed right-[max(12px,env(safe-area-inset-right))] top-[42%] z-20 flex -translate-y-1/2 flex-col items-center gap-1 rounded-md border border-white/15 bg-slate-900/70 py-1 px-1 text-xs font-semibold text-white shadow-sm',
           )}
         >
           <button
@@ -441,12 +447,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
           </button>
         </div>
       )}
-      {(isRendering || statusText) && (
-        <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
-          {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 

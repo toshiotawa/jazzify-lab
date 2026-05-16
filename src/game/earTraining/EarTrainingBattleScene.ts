@@ -810,7 +810,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       : colorForHp(percent, 0xfb7185, 0xf59e0b, 0xbe123c);
     const frame = this.add.rectangle(x, y, width, 12, 0x020617, 0.9).setOrigin(0, 0);
     frame.setStrokeStyle(1, 0xffffff, 0.14);
-    const fill = this.add.rectangle(x + 2, y + 2, Math.max(0, (width - 4) * percent), 8, barColor, 1).setOrigin(0, 0);
+    const innerWidth = Math.max(0, width - 4);
+    const fillW = Math.max(0, innerWidth * percent);
+    const fillX = isPlayer ? x + 2 + innerWidth - fillW : x + 2;
+    const fill = this.add.rectangle(fillX, y + 2, fillW, 8, barColor, 1).setOrigin(0, 0);
     this.hudLayer.add([frame, fill]);
   }
 
