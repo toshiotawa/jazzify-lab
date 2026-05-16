@@ -1,6 +1,28 @@
 import SwiftUI
 import UIKit
 
+private extension Color {
+    /// `base` から `toward` へ線形補間（`t=1` で toward）。Web の globalAlpha オーバーレイに近い見え方。
+    static func earTrainingLerp(from base: Color, toward: Color, t: CGFloat) -> Color {
+        let u1 = UIColor(base)
+        let u2 = UIColor(toward)
+        var r1: CGFloat = 0
+        var g1: CGFloat = 0
+        var b1: CGFloat = 0
+        var a1: CGFloat = 0
+        var r2: CGFloat = 0
+        var g2: CGFloat = 0
+        var b2: CGFloat = 0
+        var a2: CGFloat = 0
+        u1.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        u2.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        let r = r1 + (r2 - r1) * t
+        let g = g1 + (g2 - g1) * t
+        let b = b1 + (b2 - b1) * t
+        return Color(red: Double(r), green: Double(g), blue: Double(b))
+    }
+}
+
 private let earTrainingPianoNoteNameLabels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 private func earTrainingPianoIsBlackKey(_ midi: Int) -> Bool {
@@ -66,6 +88,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                             label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                             isBlack: false,
                             isMidiHeld: player.midiHeldKeys.contains(midi),
+                            voicingHintIntensity: player.voicingHintIntensitiesByMidi?[midi],
                             voicingHint: player.voicingHintsByMidi[midi],
                             width: whiteKeyWidth,
                             height: keyboardHeight,
@@ -83,6 +106,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                         label: "",
                         isBlack: true,
                         isMidiHeld: player.midiHeldKeys.contains(midi),
+                        voicingHintIntensity: player.voicingHintIntensitiesByMidi?[midi],
                         voicingHint: player.voicingHintsByMidi[midi],
                         width: blackKeyWidth,
                         height: blackKeyHeight,
@@ -125,6 +149,8 @@ private struct EarTrainingPianoKeyButton: View {
     let label: String
     let isBlack: Bool
     let isMidiHeld: Bool
+    /// OSMD バトル: 判定距離別マリーゴールド濃さ。指定時は `voicingHint` より優先。
+    let voicingHintIntensity: VoicingHintIntensity?
     /// 練習モード時のヴォイシング構成音ヒント。`nil` ならヒント表示なし。
     let voicingHint: VoicingHintState?
     let width: CGFloat
@@ -177,6 +203,19 @@ private struct EarTrainingPianoKeyButton: View {
         let held = isPressing || isMidiHeld
         if held {
             return isBlack ? Color(white: 0.35) : Color(white: 0.78)
+        }
+        if let voicingHintIntensity {
+            let alpha: CGFloat
+            switch voicingHintIntensity {
+            case .strong:
+                alpha = 0.85
+            case .medium:
+                alpha = 0.55
+            case .soft:
+                alpha = 0.30
+            }
+            let base = isBlack ? Color.black : Color.white
+            return Color.earTrainingLerp(from: base, toward: Self.voicingHintPendingColor, t: alpha)
         }
         switch voicingHint {
         case .completed:

@@ -91,6 +91,10 @@ interface RuntimeTargetState {
 type PendingImpactHandler = () => void;
 
 const INPUT_COOLDOWN_MS = 20;
+/** OSMD 鍵盤ヒント: |Δ|≤30ms で最濃（alpha 0.85） */
+const OSMD_VOICING_HINT_STRONG_SEC = 0.03;
+/** OSMD 鍵盤ヒント: |Δ|≤70ms で中間（alpha 0.55） */
+const OSMD_VOICING_HINT_MEDIUM_SEC = 0.07;
 const BATTLE_EFFECT_CLEAR_MS = 900;
 const PHRASE_END_PADDING_SEC = 0.08;
 const NO_DAMAGE_CONFIG = {
@@ -270,25 +274,47 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
     const w = CHORD_OSMD_JUDGMENT_WINDOW_SEC;
-    const union = new Set<number>();
+    const tierByMidi = new Map<number, 0 | 1 | 2>();
     for (const target of targetsRef.current) {
       const state = runtimeByTargetIdRef.current.get(target.id);
       if (!state || state.completed || state.failed) {
         continue;
       }
-      if (Math.abs(phraseT - target.targetTimeSec) > w) {
+      const dt = Math.abs(phraseT - target.targetTimeSec);
+      if (dt > w) {
         continue;
       }
+      const tier: 0 | 1 | 2 = dt <= OSMD_VOICING_HINT_STRONG_SEC
+        ? 0
+        : dt <= OSMD_VOICING_HINT_MEDIUM_SEC
+          ? 1
+          : 2;
       state.remainingCounts.forEach((count, midi) => {
-        if (count > 0) {
-          union.add(midi);
+        if (count <= 0) {
+          return;
+        }
+        const prev = tierByMidi.get(midi);
+        if (prev === undefined || tier < prev) {
+          tierByMidi.set(midi, tier);
         }
       });
     }
-    if (union.size === 0) {
+    if (tierByMidi.size === 0) {
       pianoOverlayRef.current?.clearVoicingHints();
     } else {
-      pianoOverlayRef.current?.setVoicingHints([...union], []);
+      const strongMidis: number[] = [];
+      const mediumMidis: number[] = [];
+      const softMidis: number[] = [];
+      tierByMidi.forEach((tier, midi) => {
+        if (tier === 0) {
+          strongMidis.push(midi);
+        } else if (tier === 1) {
+          mediumMidis.push(midi);
+        } else {
+          softMidis.push(midi);
+        }
+      });
+      pianoOverlayRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, []);
     }
   }, []);
 

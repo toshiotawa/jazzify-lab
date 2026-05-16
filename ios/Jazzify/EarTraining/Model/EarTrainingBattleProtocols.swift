@@ -20,9 +20,15 @@ protocol EarTrainingPianoPlayable: ObservableObject {
     /// 耳コピヴォイシング練習モード時の鍵盤ヒント。MIDI → 状態。
     /// 表示が不要なモードでは空辞書を返してよい。
     var voicingHintsByMidi: [Int: VoicingHintState] { get }
+    /// OSMD バトル専用。距離別ヒントを表示するときだけ非 nil。
+    var voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]? { get }
 
     func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool)
     func handleNoteOff(midi: Int, playAudio: Bool)
+}
+
+extension EarTrainingPianoPlayable {
+    var voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]? { nil }
 }
 
 // MARK: - ロビー / 結果オーバーレイ

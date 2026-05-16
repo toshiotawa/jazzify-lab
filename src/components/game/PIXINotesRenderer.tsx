@@ -213,6 +213,10 @@ export class PIXINotesRendererInstance {
   private correctHighlightedKeys = new Set<number>(); // 正解済み鍵盤（赤色で保持）
   private voicingHintPendingKeys = new Set<number>(); // 耳コピヴォイシング: 未押下構成音ヒント
   private voicingHintCompletedKeys = new Set<number>(); // 耳コピヴォイシング: 押下済み構成音ヒント
+  /** OSMD バトル用: 判定距離別の未押下ヒント（単色 pending と排他） */
+  private voicingHintPendingStrongKeys = new Set<number>();
+  private voicingHintPendingMediumKeys = new Set<number>();
+  private voicingHintPendingSoftKeys = new Set<number>();
   private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
   private onKeyRelease?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
@@ -395,6 +399,9 @@ export class PIXINotesRendererInstance {
    * 別オクターブが押されても呼び出し元で completed に振り分けられる。
    */
   setVoicingHints(pendingMidiNotes: readonly number[], completedMidiNotes: readonly number[]): void {
+    this.voicingHintPendingStrongKeys.clear();
+    this.voicingHintPendingMediumKeys.clear();
+    this.voicingHintPendingSoftKeys.clear();
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
     for (let i = 0; i < pendingMidiNotes.length; i += 1) {
@@ -406,12 +413,51 @@ export class PIXINotesRendererInstance {
     this.requestRender();
   }
 
+  /**
+   * OSMD バトル専用: 判定タイミングまでの距離に応じてマリンゴールドの不透明度を 3 段階で切り替える。
+   * 呼び出し時に単色の `voicingHintPendingKeys` はクリアされる。
+   */
+  setVoicingHintsByIntensity(
+    strongMidis: readonly number[],
+    mediumMidis: readonly number[],
+    softMidis: readonly number[],
+    completedMidiNotes: readonly number[],
+  ): void {
+    this.voicingHintPendingKeys.clear();
+    this.voicingHintPendingStrongKeys.clear();
+    this.voicingHintPendingMediumKeys.clear();
+    this.voicingHintPendingSoftKeys.clear();
+    this.voicingHintCompletedKeys.clear();
+    for (let i = 0; i < strongMidis.length; i += 1) {
+      this.voicingHintPendingStrongKeys.add(this.clampMidi(strongMidis[i]));
+    }
+    for (let i = 0; i < mediumMidis.length; i += 1) {
+      this.voicingHintPendingMediumKeys.add(this.clampMidi(mediumMidis[i]));
+    }
+    for (let i = 0; i < softMidis.length; i += 1) {
+      this.voicingHintPendingSoftKeys.add(this.clampMidi(softMidis[i]));
+    }
+    for (let i = 0; i < completedMidiNotes.length; i += 1) {
+      this.voicingHintCompletedKeys.add(this.clampMidi(completedMidiNotes[i]));
+    }
+    this.requestRender();
+  }
+
   clearVoicingHints(): void {
-    if (this.voicingHintPendingKeys.size === 0 && this.voicingHintCompletedKeys.size === 0) {
+    if (
+      this.voicingHintPendingKeys.size === 0
+      && this.voicingHintCompletedKeys.size === 0
+      && this.voicingHintPendingStrongKeys.size === 0
+      && this.voicingHintPendingMediumKeys.size === 0
+      && this.voicingHintPendingSoftKeys.size === 0
+    ) {
       return;
     }
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintPendingStrongKeys.clear();
+    this.voicingHintPendingMediumKeys.clear();
+    this.voicingHintPendingSoftKeys.clear();
     this.requestRender();
   }
 
@@ -421,6 +467,9 @@ export class PIXINotesRendererInstance {
     this.correctHighlightedKeys.clear();
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintPendingStrongKeys.clear();
+    this.voicingHintPendingMediumKeys.clear();
+    this.voicingHintPendingSoftKeys.clear();
     this.requestRender();
   }
 
@@ -448,6 +497,9 @@ export class PIXINotesRendererInstance {
     this.correctHighlightedKeys.clear();
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintPendingStrongKeys.clear();
+    this.voicingHintPendingMediumKeys.clear();
+    this.voicingHintPendingSoftKeys.clear();
     this.pointerStates.clear();
     this.backgroundCanvas = null;
     this.noteRenderSnapshots.clear();
@@ -1336,6 +1388,10 @@ export class PIXINotesRendererInstance {
     };
     // ガイドハイライト（緑色）
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // OSMD: 判定距離別マリーゴールド（不透明度のみ切り替え）
+    this.voicingHintPendingStrongKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintPending, 0.85));
+    this.voicingHintPendingMediumKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintPending, 0.55));
+    this.voicingHintPendingSoftKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintPending, 0.3));
     // 耳コピヴォイシング: 未押下構成音ヒント（マリーゴールド）
     this.voicingHintPendingKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintPending, 0.7));
     // 耳コピヴォイシング: 押下済み構成音ヒント（緑）

@@ -17,6 +17,16 @@ enum VoicingHintState: Sendable, Equatable {
     case completed
 }
 
+/// OSMD バトル鍵盤ヒント: 判定タイミングまでの距離に応じたマリンゴールドの濃さ（不透明度）。
+enum VoicingHintIntensity: Sendable, Equatable {
+    /// |Δ| ≤ 30ms
+    case strong
+    /// 31〜70ms
+    case medium
+    /// 71〜150ms（判定窓いっぱい）
+    case soft
+}
+
 /// Web `earTrainingChordVoicingEngine.ts` を 1:1 で移植する。
 enum EarTrainingChordVoicingEngine {
     static let maxMissesPerChord = 5
