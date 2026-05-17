@@ -22,7 +22,7 @@ import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment'
 import { buildLessonAccessGraph, findDeepestUnlockedLesson, LessonAccessGraph } from '@/utils/lessonAccess';
 import { stageCardRectangularPath, stageCardSquarePath } from '@/utils/stageCardAssets';
 import { LessonMapAudio, LESSON_MAP_BGM_URL } from '@/utils/LessonMapAudio';
-import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import {
   FaArrowLeft,
   FaBookOpen,
@@ -651,6 +651,8 @@ const ChapterListItem: React.FC<ChapterListItemProps> = ({
 interface LessonListItemProps {
   lesson: Lesson;
   lessonIndex: number;
+  isFirst: boolean;
+  isLast: boolean;
   isEnglishCopy: boolean;
   isStartTarget: boolean;
   isUnlocked: boolean;
@@ -661,6 +663,8 @@ interface LessonListItemProps {
 const LessonListItem: React.FC<LessonListItemProps> = ({
   lesson,
   lessonIndex,
+  isFirst,
+  isLast,
   isEnglishCopy,
   isStartTarget,
   isUnlocked,
@@ -680,42 +684,64 @@ const LessonListItem: React.FC<LessonListItemProps> = ({
       data-quest-lesson={lesson.id}
       disabled={!isUnlocked}
       className={cn(
-        'relative flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors duration-150',
-        'bg-violet-500/10 border-violet-300/15',
-        isUnlocked && !pressed && 'hover:bg-violet-400/15',
-        pressed && !isStartTarget && 'bg-violet-500/22 border-violet-200/35',
+        'relative grid w-full grid-cols-[36px_minmax(0,1fr)] items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors duration-150',
+        'bg-transparent',
+        isUnlocked && !pressed && 'hover:bg-violet-400/10',
+        pressed && !isStartTarget && 'bg-violet-500/18',
         pressed && isStartTarget && 'bg-emerald-950/25',
-        isStartTarget && 'border-emerald-300/80 shadow-[0_0_18px_rgba(52,211,153,0.22)]',
+        isStartTarget && 'shadow-[0_0_18px_rgba(52,211,153,0.18)]',
         !isUnlocked && 'opacity-55 cursor-not-allowed',
       )}
       {...tapHandlers}
     >
+      {!isFirst && (
+        <span
+          aria-hidden
+          className="absolute left-[25px] top-0 h-1/2 w-px bg-violet-300/30"
+        />
+      )}
+      {!isLast && (
+        <span
+          aria-hidden
+          className="absolute bottom-0 left-[25px] h-1/2 w-px bg-violet-300/30"
+        />
+      )}
       <span
         className={cn(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold',
+          'relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold',
           isCompleted
-            ? 'border-emerald-300/50 bg-emerald-400/20 text-emerald-100'
+            ? 'border-emerald-200/70 bg-gradient-to-br from-emerald-300/85 to-emerald-500/85 text-emerald-950 shadow-[0_0_14px_rgba(110,220,170,0.32)]'
             : isUnlocked
-              ? 'border-violet-200/45 bg-violet-400/20 text-violet-50'
+              ? isStartTarget
+                ? 'border-amber-100 bg-gradient-to-br from-amber-200 to-amber-400 text-amber-950 shadow-[0_0_18px_rgba(255,210,120,0.45)]'
+                : 'border-violet-100/70 bg-gradient-to-br from-violet-200/85 to-violet-400/85 text-violet-950 shadow-[0_0_14px_rgba(190,150,255,0.30)]'
               : 'border-slate-500/40 bg-slate-800/70 text-slate-400',
         )}
       >
-        {isCompleted ? <FaCheck /> : isUnlocked ? lessonIndex + 1 : <FaLock className="text-[10px]" />}
+        {isUnlocked ? (
+          <>
+            {isCompleted && (
+              <FaCheck className="absolute -right-1 -top-1 z-20 h-3.5 w-3.5 rounded-full bg-emerald-950/95 p-[2px] text-emerald-100 ring-1 ring-emerald-100/80" />
+            )}
+            <span>{lessonIndex + 1}</span>
+          </>
+        ) : (
+          <FaLock className="text-[10px]" />
+        )}
       </span>
+      {isStartTarget && (
+        <img
+          src={SURVIVAL_DEFAULT_SPRITE_PATHS.shita}
+          alt=""
+          className="pointer-events-none absolute left-[25px] top-1/2 z-[30] h-8 w-8 -translate-x-1/2 -translate-y-[74%] object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)]"
+          draggable={false}
+        />
+      )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-violet-50">
           {lessonDisplayTitle(lesson, isEnglishCopy)}
         </span>
       </span>
-      {isStartTarget && (
-        <img
-          src={DEFAULT_AVATAR_URL}
-          alt=""
-          className="h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)]"
-          draggable={false}
-        />
-      )}
-      {isCompleted && <FaCheck className="shrink-0 text-emerald-300" />}
     </button>
   );
 };
@@ -925,7 +951,12 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                     {selectedBlock.description}
                   </p>
                 )}
-                <div className="mt-3 max-w-[280px]">
+                <div className="mt-3 max-w-[280px] space-y-1">
+                  <p className="text-[11px] font-semibold text-emerald-200">
+                    {isEnglishCopy
+                      ? `Cleared lessons ${selectedBlock.completedCount} / ${selectedBlock.totalCount}`
+                      : `クリア済みレッスン ${selectedBlock.completedCount} / ${selectedBlock.totalCount}`}
+                  </p>
                   <ProgressBar percent={selectedBlock.totalCount > 0 ? (selectedBlock.completedCount / selectedBlock.totalCount) * 100 : 0} />
                 </div>
               </div>
@@ -945,6 +976,8 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                   key={lesson.id}
                   lesson={lesson}
                   lessonIndex={index}
+                  isFirst={index === 0}
+                  isLast={index === selectedBlock.lessons.length - 1}
                   isEnglishCopy={isEnglishCopy}
                   isStartTarget={isStartTarget}
                   isUnlocked={state.isUnlocked}

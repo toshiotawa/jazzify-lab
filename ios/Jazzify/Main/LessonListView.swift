@@ -214,7 +214,7 @@ struct LessonListView: View {
 
     /// Current 章レッスン一覧の行高さ・ビューポート計算（固定行高スクロールと実表示を一致させる）
     private enum MainQuestLessonListLayout {
-        static let rowHeight: CGFloat = 52
+        static let rowHeight: CGFloat = 58
         static let rowSpacing: CGFloat = 6
         static var scrollViewportHeight: CGFloat { 3 * rowHeight + 2 * rowSpacing }
     }
@@ -644,8 +644,15 @@ struct LessonListView: View {
                             .foregroundStyle(Color(hex: "e9d5ff").opacity(0.86))
                             .lineLimit(2)
                     }
-                    progressBar(done: block.completedCount, total: block.totalCount)
-                        .frame(maxWidth: 260)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(locale == .ja
+                             ? "クリア済みレッスン \(block.completedCount) / \(block.totalCount)"
+                             : "Cleared lessons \(block.completedCount) / \(block.totalCount)")
+                            .font(.caption2.bold())
+                            .foregroundStyle(Color(hex: "bbf7d0"))
+                        progressBar(done: block.completedCount, total: block.totalCount)
+                    }
+                    .frame(maxWidth: 260, alignment: .leading)
                 }
                 .padding(14)
                 .frame(maxWidth: 520, alignment: .leading)
@@ -686,7 +693,13 @@ struct LessonListView: View {
             ) {
                 VStack(spacing: spacing) {
                     ForEach(Array(block.lessons.enumerated()), id: \.element.id) { index, lesson in
-                        lessonRow(lesson, index: index, state: state, startLessonId: startLesson?.id)
+                        lessonRow(
+                            lesson,
+                            index: index,
+                            count: count,
+                            state: state,
+                            startLessonId: startLesson?.id
+                        )
                             .id(lesson.id)
                     }
                 }
@@ -713,6 +726,7 @@ struct LessonListView: View {
     private func lessonRow(
         _ lesson: Lesson,
         index: Int,
+        count: Int,
         state: MainQuestViewState,
         startLessonId: UUID?
     ) -> some View {
@@ -720,51 +734,117 @@ struct LessonListView: View {
         let isUnlocked = accessState?.isUnlocked ?? false
         let isCompleted = accessState?.isCompleted ?? false
         let isStartTarget = startLessonId == lesson.id
+        let isFirst = index == 0
+        let isLast = index == count - 1
+        let nodeColumnWidth: CGFloat = 42
+        let nodeDiameter: CGFloat = 32
+        let lineColor = Color(hex: "c4b5fd").opacity(0.32)
+        let nodeFill: Color = {
+            if !isUnlocked { return Color(hex: "1e293b").opacity(0.88) }
+            if isCompleted { return Color.green.opacity(0.78) }
+            if isStartTarget { return Color(hex: "fbbf24").opacity(0.90) }
+            return Color(hex: "a78bfa").opacity(0.82)
+        }()
+        let nodeStroke: Color = {
+            if !isUnlocked { return Color.gray.opacity(0.42) }
+            if isCompleted { return Color(hex: "bbf7d0").opacity(0.82) }
+            if isStartTarget { return Color(hex: "fef3c7").opacity(0.95) }
+            return Color(hex: "ddd6fe").opacity(0.72)
+        }()
+        let nodeTextColor: Color = {
+            if !isUnlocked { return .gray }
+            if isCompleted || isStartTarget { return Color(hex: "1f2937") }
+            return Color(hex: "1f1147")
+        }()
 
         return DragCancellableTapRow(isEnabled: isUnlocked) {
             lessonToOpen = lesson
         } label: {
             HStack(spacing: 10) {
                 ZStack {
+                    if count > 1 {
+                        VStack(spacing: 0) {
+                            if isFirst {
+                                Color.clear
+                                    .frame(height: MainQuestLessonListLayout.rowHeight / 2)
+                            }
+                            Rectangle()
+                                .fill(lineColor)
+                                .frame(width: 1.5)
+                                .frame(maxHeight: .infinity)
+                            if isLast {
+                                Color.clear
+                                    .frame(height: MainQuestLessonListLayout.rowHeight / 2)
+                            }
+                        }
+                        .frame(width: nodeColumnWidth, height: MainQuestLessonListLayout.rowHeight)
+                    }
+
+                    if isStartTarget {
+                        Image("survival_muki_shita")
+                            .resizable()
+                            .interpolation(.medium)
+                            .scaledToFit()
+                            .frame(width: 32, height: 32)
+                            .offset(y: -18)
+                            .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
+                            .zIndex(3)
+                    }
+
                     Circle()
-                        .fill(isCompleted ? Color.green.opacity(0.22) : Color.purple.opacity(0.22))
-                        .frame(width: 28, height: 28)
-                    if isCompleted {
-                        Image(systemName: "checkmark")
-                            .font(.caption.bold())
-                            .foregroundStyle(Color(hex: "86efac"))
-                    } else if isUnlocked {
+                        .fill(nodeFill)
+                        .frame(width: nodeDiameter, height: nodeDiameter)
+                        .overlay(
+                            Circle()
+                                .stroke(nodeStroke, lineWidth: 2)
+                        )
+                        .shadow(
+                            color: isStartTarget ? Color(hex: "fbbf24").opacity(0.35) : Color.black.opacity(0.18),
+                            radius: isStartTarget ? 8 : 4,
+                            y: isStartTarget ? 2 : 1
+                        )
+                        .zIndex(1)
+
+                    if isUnlocked {
                         Text("\(index + 1)")
                             .font(.caption.bold())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(nodeTextColor)
+                            .zIndex(2)
+                        if isCompleted {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundStyle(Color(hex: "064e3b"))
+                                .frame(width: 13, height: 13)
+                                .background(
+                                    Circle()
+                                        .fill(Color(hex: "bbf7d0"))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.72), lineWidth: 0.8)
+                                )
+                                .offset(x: 11, y: -11)
+                                .zIndex(2.5)
+                        }
                     } else {
                         Image(systemName: "lock.fill")
                             .font(.caption2)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(nodeTextColor)
+                            .zIndex(2)
                     }
                 }
+                .frame(width: nodeColumnWidth, height: MainQuestLessonListLayout.rowHeight)
+
                 Text(lesson.localizedTitle(locale))
                     .font(.subheadline.bold())
                     .foregroundStyle(isUnlocked ? .white : .gray)
                     .lineLimit(1)
                 Spacer()
-                if isStartTarget {
-                    Image("default-avater")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 32, height: 32)
-                        .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
-                }
-                if isCompleted {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color(hex: "86efac"))
-                }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
             .background(
                 RoundedRectangle(cornerRadius: 11)
-                    .fill(Color.purple.opacity(0.12))
+                    .fill(isStartTarget ? Color.green.opacity(0.10) : Color.purple.opacity(0.08))
                     .overlay(
                         RoundedRectangle(cornerRadius: 11)
                             .stroke(isStartTarget ? Color.green.opacity(0.85) : Color.purple.opacity(0.20), lineWidth: isStartTarget ? 1.5 : 1)
