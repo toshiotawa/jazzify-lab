@@ -16,6 +16,7 @@ import {
   ShockwaveEffect,
   MAP_CONFIG,
   SHOCKWAVE_EXPAND_RATIO,
+  COMBO_GAUGE_MAX,
 } from './SurvivalTypes';
 import {
   BossBattleState,
@@ -740,6 +741,30 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     
     ctx.fillStyle = playerHpPercent > 0.5 ? COLORS.hp.high : playerHpPercent > 0.25 ? COLORS.hp.mid : COLORS.hp.low;
     ctx.fillRect(playerScreenX - playerBarWidth / 2, playerBarY, playerBarWidth * playerHpPercent, playerBarHeight);
+
+    // A/B コンボゲージ（iOS Survival のプレイヤー頭上バーに準拠）
+    const cg = snapshot.comboGauge;
+    const cr = snapshot.comboReady;
+    if (cg > 0 || cr) {
+      const barW = 6;
+      const barH = 3;
+      const gap = 2;
+      const maxG = COMBO_GAUGE_MAX;
+      const totalW = maxG * barW + (maxG - 1) * gap;
+      const gaugeY = playerScreenY - PLAYER_SIZE * 0.85 - 10;
+      ctx.save();
+      if (cr && cg >= maxG) {
+        const pulseMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        ctx.globalAlpha = 0.65 + 0.35 * Math.sin((pulseMs / 1000) * 12);
+      }
+      for (let gi = 0; gi < maxG; gi += 1) {
+        const bx = playerScreenX - totalW / 2 + gi * (barW + gap);
+        const filled = gi < cg;
+        ctx.fillStyle = filled ? '#ffd826' : 'rgba(76,76,76,0.75)';
+        ctx.fillRect(bx, gaugeY, barW, barH);
+      }
+      ctx.restore();
+    }
     
     // プレイヤーステータスアイコン
     const playerEffects = player.statusEffects.filter(e => e.duration > 0);
@@ -1615,7 +1640,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       void bossUiTickRef.current;
     }
 
-    // 衝撃波エフェクト描画（前方向のみ）
+    // 衝撃波エフェクト（通常: 前方扇形 / 必殺: 360°）
     shockwavesSnap.forEach(sw => {
       const elapsed = now - sw.startTime;
       if (elapsed >= sw.duration) return;
@@ -1627,12 +1652,33 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       const screenX = sw.x - camera.x;
       const screenY = sw.y - camera.y;
-      
-      // 方向に基づいて半円の衝撃波を描画
+
+      if (sw.isSpecial) {
+        ctx.globalAlpha = alpha * 0.75;
+        ctx.strokeStyle = sw.color ?? '#f9d332';
+        ctx.lineWidth = 10 * (1 - progress * 0.35);
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, currentRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = alpha;
+        ctx.font = `28px ${EMOJI_FONT_FALLBACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('💥', screenX, screenY);
+        const sparkCount = 10;
+        for (let i = 0; i < sparkCount; i += 1) {
+          const angle = (i / sparkCount) * Math.PI * 2 + (now / 1000) * 8;
+          const rr = currentRadius * (0.88 + 0.08 * Math.sin((now / 60) + i));
+          ctx.font = `14px ${EMOJI_FONT_FALLBACK}`;
+          ctx.fillText('✨', screenX + Math.cos(angle) * rr, screenY + Math.sin(angle) * rr);
+        }
+        ctx.globalAlpha = 1;
+        return;
+      }
+
       const baseAngle = sw.direction ? getDirectionAngle(sw.direction) : 0;
-      const arcSpread = Math.PI * 0.8;  // 前方約144度の扇形
+      const arcSpread = Math.PI * 0.8;
       
-      // 衝撃波リング（前方のみ）
       ctx.globalAlpha = alpha * 0.6;
       ctx.strokeStyle = sw.color ?? '#f97316';
       ctx.lineWidth = 8 * (1 - progress);
@@ -1640,7 +1686,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.arc(screenX, screenY, currentRadius, baseAngle - arcSpread / 2, baseAngle + arcSpread / 2);
       ctx.stroke();
       
-      // 衝撃波アイコン（軽量化のため2個のみ）
       ctx.globalAlpha = alpha;
       ctx.font = `16px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';

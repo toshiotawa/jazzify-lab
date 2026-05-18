@@ -19,6 +19,7 @@ import {
   SLOT_TIMEOUT,
   EXP_PER_MINUTE,
   SHOCKWAVE_DURATION,
+  SPECIAL_ATTACK_RADIUS_MULTIPLIER,
 } from './SurvivalTypes';
 import {
   createInitialGameState,
@@ -67,6 +68,8 @@ import {
   spawnStageEnemy,
   getStageSpawnConfig,
   resetIncompleteOtherSlotCorrectNotes,
+  updateComboOnABHit,
+  expireComboIfTimedOut,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
 import {
@@ -1433,16 +1436,114 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               }
             }
           } else {
-            // 遠距離弾発射 - 時計方向システム
+            const comboAB = updateComboOnABHit(
+              {
+                comboCount: newState.comboCount,
+                comboGauge: newState.comboGauge,
+                comboReady: newState.comboReady,
+                lastComboHitAt: newState.lastComboHitAt,
+              },
+              prev.elapsedTime,
+            );
+            newState.comboCount = comboAB.comboCount;
+            newState.comboGauge = comboAB.comboGauge;
+            newState.comboReady = comboAB.comboReady;
+            newState.lastComboHitAt = comboAB.lastComboHitAt;
+            const triggeredSpecialA = comboAB.triggeredSpecial;
+
             const bulletCount = prev.player.stats.aBulletCount || 1;
             const baseAngle = getDirectionAngle(prev.player.direction);
             const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
-            
-            // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
-            const newProjectiles = bulletAngles.map((angle) => {
-              return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
-            });
+            const newProjectiles = bulletAngles.map((angle) =>
+              createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk)),
+            );
             newState.projectiles = [...newState.projectiles, ...newProjectiles];
+
+            if (triggeredSpecialA) {
+              const baseRange = 80;
+              const bonusRange = prev.player.skills.bRangeBonus * 20;
+              const totalRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER;
+              const attackX = prev.player.x;
+              const attackY = prev.player.y;
+              pendingShockwavesRef.current.push({
+                id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                x: attackX,
+                y: attackY,
+                radius: 0,
+                maxRadius: totalRange,
+                startTime: Date.now(),
+                duration: SHOCKWAVE_DURATION,
+                direction: prev.player.direction,
+                color: '#f9d332',
+                isSpecial: true,
+              });
+              newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
+                const dx = proj.x - attackX;
+                const dy = proj.y - attackY;
+                return Math.sqrt(dx * dx + dy * dy) >= totalRange;
+              });
+              const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+              if (isBossStage && bossBattleRef.current?.active) {
+                const condMultBoss = getConditionalSkillMultipliers(prev.player);
+                const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+                const meleeRes = applyPlayerMeleeToBossBattle(
+                  bossBattleRef.current,
+                  attackX,
+                  attackY,
+                  totalRange,
+                  bossDamage,
+                  prev.player.x,
+                  prev.player.y,
+                  true,
+                );
+                if (meleeRes.bossDamage > 0) {
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(
+                    bossBattleRef.current.boss.x,
+                    bossBattleRef.current.boss.y - 30,
+                    meleeRes.bossDamage,
+                    false,
+                  )];
+                }
+                for (const m of meleeRes.minionKills) {
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
+                }
+                if (meleeRes.drops.length > 0) {
+                  newState.items = [...newState.items, ...meleeRes.drops];
+                }
+              }
+              newState.enemies = newState.enemies.map((enemy) => {
+                const dx = enemy.x - attackX;
+                const dy = enemy.y - attackY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < totalRange) {
+                  const condMultB = getConditionalSkillMultipliers(prev.player);
+                  const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
+                  const luckResultB = checkLuck(prev.player.stats.luck);
+                  const damage = calculateDamage(
+                    baseBDamage, 0, enemy.stats.def,
+                    prev.player.statusEffects.some((e) => e.type === 'buffer'),
+                    enemy.statusEffects.some((e) => e.type === 'debuffer'),
+                    getBufferLevel(prev.player.statusEffects),
+                    getDebufferLevel(enemy.statusEffects),
+                    prev.player.stats.cAtk,
+                    luckResultB.doubleDamage,
+                  );
+                  const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+                  const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(
+                    enemy.x, enemy.y, damage,
+                    luckResultB.doubleDamage,
+                    luckResultB.doubleDamage ? '#ffd700' : undefined,
+                  )];
+                  return {
+                    ...enemy,
+                    stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
+                    knockbackVelocity: { x: knockbackX, y: knockbackY },
+                  };
+                }
+                return enemy;
+              });
+            }
           }
         } else if (slotType === 'B') {
           if (isBMagicSlot) {
@@ -1473,118 +1574,199 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               }
             }
           } else {
-            // 近接攻撃 - ダメージ即時適用 + 衝撃波エフェクト
-          const baseRange = 80;
-          const bonusRange = prev.player.skills.bRangeBonus * 20;
-          const totalRange = baseRange + bonusRange;
-          const dirVec = getDirectionVector(prev.player.direction);
-          const attackX = prev.player.x + dirVec.x * 40;
-          const attackY = prev.player.y + dirVec.y * 40;
-          
-          const newShockwave: ShockwaveEffect = {
-            id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            x: attackX,
-            y: attackY,
-            radius: 0,
-            maxRadius: totalRange,
-            startTime: Date.now(),
-            duration: SHOCKWAVE_DURATION,
-            direction: prev.player.direction,
-            color: B_HIT_COLORS[0],
-          };
-          pendingShockwavesRef.current.push(newShockwave);
-          
-          // 拳でかきけす - B列攻撃で敵弾消去
-          if (prev.player.skills.bDeflect) {
-            newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
-              const dx = proj.x - attackX;
-              const dy = proj.y - attackY;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              return dist >= totalRange;
-            });
-          }
-          
-          const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-
-          // ボス戦時: ボス/雑魚への近接ダメージを同時適用
-          if (isBossStage && bossBattleRef.current?.active) {
-            const condMultBoss = getConditionalSkillMultipliers(prev.player);
-            const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
-            const meleeRes = applyPlayerMeleeToBossBattle(
-              bossBattleRef.current,
-              attackX,
-              attackY,
-              totalRange,
-              bossDamage,
-              prev.player.x,
-              prev.player.y
+            const comboBB = updateComboOnABHit(
+              {
+                comboCount: newState.comboCount,
+                comboGauge: newState.comboGauge,
+                comboReady: newState.comboReady,
+                lastComboHitAt: newState.lastComboHitAt,
+              },
+              prev.elapsedTime,
             );
-            if (meleeRes.bossDamage > 0) {
-              newState.damageTexts = [...newState.damageTexts, createDamageText(
-                bossBattleRef.current.boss.x,
-                bossBattleRef.current.boss.y - 30,
-                meleeRes.bossDamage,
-                false
-              )];
-            }
-            for (const m of meleeRes.minionKills) {
-              newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
-            }
-            if (meleeRes.drops.length > 0) {
-              newState.items = [...newState.items, ...meleeRes.drops];
-            }
-          }
+            newState.comboCount = comboBB.comboCount;
+            newState.comboGauge = comboBB.comboGauge;
+            newState.comboReady = comboBB.comboReady;
+            newState.lastComboHitAt = comboBB.lastComboHitAt;
+            const triggeredSpecialB = comboBB.triggeredSpecial;
 
-          newState.enemies = newState.enemies.map(enemy => {
-            const dx = enemy.x - attackX;
-            const dy = enemy.y - attackY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            const toEnemyX = enemy.x - prev.player.x;
-            const toEnemyY = enemy.y - prev.player.y;
-            const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
-            const isInFront = dotProduct > 0;
-            const effectiveRange = isInFront ? totalRange : baseRange;
-            
-            if (dist < effectiveRange) {
-              const condMultB = getConditionalSkillMultipliers(prev.player);
-              const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
-              const luckResultB = checkLuck(prev.player.stats.luck);
-              
-              const damage = calculateDamage(
-                baseBDamage, 0, enemy.stats.def,
-                prev.player.statusEffects.some(e => e.type === 'buffer'),
-                enemy.statusEffects.some(e => e.type === 'debuffer'),
-                getBufferLevel(prev.player.statusEffects),
-                getDebufferLevel(enemy.statusEffects),
-                prev.player.stats.cAtk,
-                luckResultB.doubleDamage
-              );
-              
-              const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
-              const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
-              
-              newState.damageTexts = [...newState.damageTexts, createDamageText(
-                enemy.x, enemy.y, damage,
-                luckResultB.doubleDamage,
-                luckResultB.doubleDamage ? '#ffd700' : undefined
-              )];
-              
-              return {
-                ...enemy,
-                stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
-                knockbackVelocity: { x: knockbackX, y: knockbackY },
-              };
+            const baseRange = 80;
+            const bonusRange = prev.player.skills.bRangeBonus * 20;
+            const totalRange = baseRange + bonusRange;
+            const dirVec = getDirectionVector(prev.player.direction);
+
+            if (triggeredSpecialB) {
+              const specRange = totalRange * SPECIAL_ATTACK_RADIUS_MULTIPLIER;
+              const attackX = prev.player.x;
+              const attackY = prev.player.y;
+              pendingShockwavesRef.current.push({
+                id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                x: attackX,
+                y: attackY,
+                radius: 0,
+                maxRadius: specRange,
+                startTime: Date.now(),
+                duration: SHOCKWAVE_DURATION,
+                direction: prev.player.direction,
+                color: '#f9d332',
+                isSpecial: true,
+              });
+              newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
+                const dx = proj.x - attackX;
+                const dy = proj.y - attackY;
+                return Math.sqrt(dx * dx + dy * dy) >= specRange;
+              });
+              const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+              if (isBossStage && bossBattleRef.current?.active) {
+                const condMultBoss = getConditionalSkillMultipliers(prev.player);
+                const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+                const meleeRes = applyPlayerMeleeToBossBattle(
+                  bossBattleRef.current,
+                  attackX,
+                  attackY,
+                  specRange,
+                  bossDamage,
+                  prev.player.x,
+                  prev.player.y,
+                  true,
+                );
+                if (meleeRes.bossDamage > 0) {
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(
+                    bossBattleRef.current.boss.x,
+                    bossBattleRef.current.boss.y - 30,
+                    meleeRes.bossDamage,
+                    false,
+                  )];
+                }
+                for (const m of meleeRes.minionKills) {
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
+                }
+                if (meleeRes.drops.length > 0) {
+                  newState.items = [...newState.items, ...meleeRes.drops];
+                }
+              }
+              newState.enemies = newState.enemies.map((enemy) => {
+                const dx = enemy.x - attackX;
+                const dy = enemy.y - attackY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < specRange) {
+                  const condMultB = getConditionalSkillMultipliers(prev.player);
+                  const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
+                  const luckResultB = checkLuck(prev.player.stats.luck);
+                  const damage = calculateDamage(
+                    baseBDamage, 0, enemy.stats.def,
+                    prev.player.statusEffects.some((e) => e.type === 'buffer'),
+                    enemy.statusEffects.some((e) => e.type === 'debuffer'),
+                    getBufferLevel(prev.player.statusEffects),
+                    getDebufferLevel(enemy.statusEffects),
+                    prev.player.stats.cAtk,
+                    luckResultB.doubleDamage,
+                  );
+                  const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+                  const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(
+                    enemy.x, enemy.y, damage,
+                    luckResultB.doubleDamage,
+                    luckResultB.doubleDamage ? '#ffd700' : undefined,
+                  )];
+                  return {
+                    ...enemy,
+                    stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
+                    knockbackVelocity: { x: knockbackX, y: knockbackY },
+                  };
+                }
+                return enemy;
+              });
+            } else {
+              const attackX = prev.player.x + dirVec.x * 40;
+              const attackY = prev.player.y + dirVec.y * 40;
+              pendingShockwavesRef.current.push({
+                id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                x: attackX,
+                y: attackY,
+                radius: 0,
+                maxRadius: totalRange,
+                startTime: Date.now(),
+                duration: SHOCKWAVE_DURATION,
+                direction: prev.player.direction,
+                color: B_HIT_COLORS[0],
+              });
+              if (prev.player.skills.bDeflect) {
+                newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
+                  const dx = proj.x - attackX;
+                  const dy = proj.y - attackY;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  return dist >= totalRange;
+                });
+              }
+              const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+              if (isBossStage && bossBattleRef.current?.active) {
+                const condMultBoss = getConditionalSkillMultipliers(prev.player);
+                const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+                const meleeRes = applyPlayerMeleeToBossBattle(
+                  bossBattleRef.current,
+                  attackX,
+                  attackY,
+                  totalRange,
+                  bossDamage,
+                  prev.player.x,
+                  prev.player.y,
+                );
+                if (meleeRes.bossDamage > 0) {
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(
+                    bossBattleRef.current.boss.x,
+                    bossBattleRef.current.boss.y - 30,
+                    meleeRes.bossDamage,
+                    false,
+                  )];
+                }
+                for (const m of meleeRes.minionKills) {
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
+                }
+                if (meleeRes.drops.length > 0) {
+                  newState.items = [...newState.items, ...meleeRes.drops];
+                }
+              }
+              newState.enemies = newState.enemies.map((enemy) => {
+                const dx = enemy.x - attackX;
+                const dy = enemy.y - attackY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const toEnemyX = enemy.x - prev.player.x;
+                const toEnemyY = enemy.y - prev.player.y;
+                const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
+                const isInFront = dotProduct > 0;
+                const effectiveRange = isInFront ? totalRange : baseRange;
+                if (dist < effectiveRange) {
+                  const condMultB = getConditionalSkillMultipliers(prev.player);
+                  const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
+                  const luckResultB = checkLuck(prev.player.stats.luck);
+                  const damage = calculateDamage(
+                    baseBDamage, 0, enemy.stats.def,
+                    prev.player.statusEffects.some((e) => e.type === 'buffer'),
+                    enemy.statusEffects.some((e) => e.type === 'debuffer'),
+                    getBufferLevel(prev.player.statusEffects),
+                    getDebufferLevel(enemy.statusEffects),
+                    prev.player.stats.cAtk,
+                    luckResultB.doubleDamage,
+                  );
+                  const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+                  const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+                  newState.damageTexts = [...newState.damageTexts, createDamageText(
+                    enemy.x, enemy.y, damage,
+                    luckResultB.doubleDamage,
+                    luckResultB.doubleDamage ? '#ffd700' : undefined,
+                  )];
+                  return {
+                    ...enemy,
+                    stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
+                    knockbackVelocity: { x: knockbackX, y: knockbackY },
+                  };
+                }
+                return enemy;
+              });
             }
-            return enemy;
-          });
-          
-          // 多段攻撃処理（B列）- N回目ごとに色変化
-          // 以前は setTimeout で個別に setGameState + setShockwaves を呼んでいたため、
-          // ヒット回数だけ React コミットが増え、連打中に UI が固まる原因になっていた。
-          // ここでは遅延発火キューへ積み、gameLoop で一括処理する。
-          const bMultiHitLevel = prev.player.skills.multiHitLevel;
-          if (bMultiHitLevel > 0) {
+
+            const bMultiHitLevel = prev.player.skills.multiHitLevel;
+            if (!triggeredSpecialB && bMultiHitLevel > 0) {
             for (let hit = 1; hit <= bMultiHitLevel; hit++) {
               const hitColor = B_HIT_COLORS[Math.min(hit, B_HIT_COLORS.length - 1)];
               pendingMultiHitCallbacksRef.current.push({ scheduledAt: Date.now() + hit * 200, exec: () => {
@@ -1784,7 +1966,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
+  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts, isBossStage, isStageMode]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
@@ -2192,6 +2374,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
           newState.elapsedTime = prev.elapsedTime + deltaTime;
 
+          const bossComboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
+          newState.comboCount = bossComboExpired.comboCount;
+          newState.comboGauge = bossComboExpired.comboGauge;
+          newState.comboReady = bossComboExpired.comboReady;
+
           // プレイヤー移動
           const movedPlayerBoss = updatePlayerPosition(prev.player, combinedKeys, deltaTime, analogForMove);
           newState.player.x = movedPlayerBoss.x;
@@ -2402,6 +2589,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 時間更新
         newState.elapsedTime = prev.elapsedTime + deltaTime;
+
+        const comboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
+        newState.comboCount = comboExpired.comboCount;
+        newState.comboGauge = comboExpired.comboGauge;
+        newState.comboReady = comboExpired.comboReady;
         
         // プレイヤー移動（常に新しいオブジェクトを生成し、shared referenceによるミューテーション汚染を防止）
         const movedPlayer = updatePlayerPosition(prev.player, combinedKeys, deltaTime, analogForMove);
@@ -3820,6 +4012,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             bossBattle={bossBattleRef.current}
             bossUiTick={bossUiTick}
           />
+          {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && (
+            <div
+              className="absolute right-4 bottom-[140px] z-[8] pointer-events-none flex items-center gap-1 rounded-full border border-yellow-500/60 bg-black/55 px-2 py-0.5 font-sans tabular-nums"
+              aria-live="polite"
+              aria-label={`コンボ ${gameState.comboCount}`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wide text-yellow-200 md:text-xs">
+                COMBO
+              </span>
+              <span className="text-sm font-extrabold text-yellow-300 md:text-base">
+                {gameState.comboCount}
+              </span>
+            </div>
+          )}
           {/* コードスロットは非表示。中央に楽譜オーバーレイのみ */}
           {punchStaffSnapshot &&
             punchStaffSnapshot.voicingNames.length > 0 &&

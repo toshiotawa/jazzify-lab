@@ -1028,7 +1028,8 @@ export const applyPlayerMeleeToBossBattle = (
   range: number,
   damage: number,
   playerX: number,
-  playerY: number
+  playerY: number,
+  omnidirectionalMelee = false,
 ): AttackResult => {
   const result: AttackResult = { bossDamage: 0, minionKills: [], drops: [] };
   if (!state.active || state.result !== 'ongoing') return result;
@@ -1037,13 +1038,18 @@ export const applyPlayerMeleeToBossBattle = (
   const dx = boss.x - attackX;
   const dy = boss.y - attackY;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const toBossX = boss.x - playerX;
-  const toBossY = boss.y - playerY;
-  const dirVecX = attackX - playerX;
-  const dirVecY = attackY - playerY;
-  const dirLen = Math.sqrt(dirVecX * dirVecX + dirVecY * dirVecY) || 1;
-  const dot = (toBossX * dirVecX + toBossY * dirVecY) / dirLen;
-  const effectiveRange = dot > 0 ? range : range * 0.6;
+  let effectiveRange: number;
+  if (omnidirectionalMelee) {
+    effectiveRange = range;
+  } else {
+    const toBossX = boss.x - playerX;
+    const toBossY = boss.y - playerY;
+    const dirVecX = attackX - playerX;
+    const dirVecY = attackY - playerY;
+    const dirLen = Math.sqrt(dirVecX * dirVecX + dirVecY * dirVecY) || 1;
+    const dot = (toBossX * dirVecX + toBossY * dirVecY) / dirLen;
+    effectiveRange = dot > 0 ? range : range * 0.6;
+  }
   if (dist < effectiveRange + BOSS_HITBOX_RADIUS) {
     boss.hp = Math.max(0, boss.hp - damage);
     result.bossDamage = damage;

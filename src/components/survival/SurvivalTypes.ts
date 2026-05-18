@@ -278,6 +278,13 @@ export const SHOCKWAVE_EXPAND_RATIO = 0.15;
 // 衝撃波エフェクトの持続時間（ミリ秒）
 export const SHOCKWAVE_DURATION = 350;
 
+/** A/B 正解ベースのコンボゲージの最大（次の正解で必殺技）。iOS Survival と同値 */
+export const COMBO_GAUGE_MAX = 5;
+/** 正解が無いときコンボ／ゲージをリセットするまでの秒数（iOS Survival と同値） */
+export const COMBO_RESET_INTERVAL_SEC = 5;
+/** 必殺衝撃波の半径倍率（通常 B 近接範囲に乗算）。iOS Survival と同値 */
+export const SPECIAL_ATTACK_RADIUS_MULTIPLIER = 1.5;
+
 export interface ShockwaveEffect {
   id: string;
   x: number;
@@ -288,6 +295,8 @@ export interface ShockwaveEffect {
   duration: number;
   direction?: Direction;  // 前方のみエフェクト表示用
   color?: string;         // 衝撃波の色（B列連続ヒットで変化）
+  /** true のとき 360° 近接・必殺描画（iOS の isSpecial 衝撃波） */
+  isSpecial?: boolean;
 }
 
 // ===== 雷エフェクト =====
@@ -370,6 +379,15 @@ export interface SurvivalGameState {
   
   // 難易度
   difficulty: SurvivalDifficulty;
+
+  // A/B 正解ベースのコンボ（iOS Survival 準拠）
+  /** A/B 正解の連続回数。`COMBO_RESET_INTERVAL_SEC` 経過で 0 */
+  comboCount: number;
+  /** 0..`COMBO_GAUGE_MAX`。満タンの次の A/B 正解で必殺技 */
+  comboGauge: number;
+  comboReady: boolean;
+  /** 直近の A/B 正解時の `elapsedTime`（秒） */
+  lastComboHitAt: number;
 }
 
 // ===== 難易度設定 =====

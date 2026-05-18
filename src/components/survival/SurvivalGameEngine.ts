@@ -29,6 +29,8 @@ import {
   MAGIC_MIN_COOLDOWN,
   MAP_CONFIG,
   WAVE_DURATION,
+  COMBO_GAUGE_MAX,
+  COMBO_RESET_INTERVAL_SEC,
 } from './SurvivalTypes';
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
@@ -367,7 +369,66 @@ export const createInitialGameState = (
   damageTexts: [],
   enemiesDefeated: 0,
   difficulty,
+  comboCount: 0,
+  comboGauge: 0,
+  comboReady: false,
+  lastComboHitAt: 0,
 });
+
+/** A/B 通常スロット正解時のコンボ更新（必殺トリガー含む）。iOS `triggerSlot` の該当分岐に準拠 */
+export const updateComboOnABHit = (
+  state: Pick<SurvivalGameState, 'comboCount' | 'comboGauge' | 'comboReady' | 'lastComboHitAt'>,
+  elapsedTime: number,
+): {
+  comboCount: number;
+  comboGauge: number;
+  comboReady: boolean;
+  lastComboHitAt: number;
+  triggeredSpecial: boolean;
+} => {
+  const lastComboHitAt = elapsedTime;
+  const comboCount = state.comboCount + 1;
+  if (state.comboReady) {
+    return {
+      comboCount,
+      comboGauge: 0,
+      comboReady: false,
+      lastComboHitAt,
+      triggeredSpecial: true,
+    };
+  }
+  const comboGauge = Math.min(COMBO_GAUGE_MAX, state.comboGauge + 1);
+  const comboReady = comboGauge >= COMBO_GAUGE_MAX;
+  return {
+    comboCount,
+    comboGauge,
+    comboReady,
+    lastComboHitAt,
+    triggeredSpecial: false,
+  };
+};
+
+/** `COMBO_RESET_INTERVAL_SEC` 無正解でコンボ・ゲージをゼロに。iOS `expireComboIfTimedOut` に準拠 */
+export const expireComboIfTimedOut = (
+  state: Pick<SurvivalGameState, 'comboCount' | 'comboGauge' | 'comboReady' | 'lastComboHitAt'>,
+  elapsedTime: number,
+): Pick<SurvivalGameState, 'comboCount' | 'comboGauge' | 'comboReady'> => {
+  if (state.comboCount === 0 && !state.comboReady && state.comboGauge === 0) {
+    return {
+      comboCount: state.comboCount,
+      comboGauge: state.comboGauge,
+      comboReady: state.comboReady,
+    };
+  }
+  if (elapsedTime - state.lastComboHitAt > COMBO_RESET_INTERVAL_SEC) {
+    return { comboCount: 0, comboGauge: 0, comboReady: false };
+  }
+  return {
+    comboCount: state.comboCount,
+    comboGauge: state.comboGauge,
+    comboReady: state.comboReady,
+  };
+};
 
 // ===== WAVEヘルパー関数 =====
 export const calculateWaveQuota = (waveNumber: number): number => {

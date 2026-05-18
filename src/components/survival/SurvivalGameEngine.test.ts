@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot } from './SurvivalTypes';
-import { initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord } from './SurvivalGameEngine';
+import { initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
 import { getSurvivalStageBattleKind } from './SurvivalStageDefinitions';
 
 vi.mock('@/platform/supabaseClient', () => ({
@@ -152,5 +152,72 @@ describe('resetIncompleteOtherSlotCorrectNotes', () => {
     expect(next[0].correctNotes).toEqual([]);
     expect(next[2].correctNotes).toEqual([]);
     expect(next[1].isCompleted).toBe(true);
+  });
+});
+
+describe('survival combo / special (iOS parity)', () => {
+  it('accumulates combo and gauge for four successive A/B hits; not ready yet', () => {
+    let combo = { comboCount: 0, comboGauge: 0, comboReady: false, lastComboHitAt: 0 };
+    for (let t = 1; t <= 4; t += 1) {
+      const r = updateComboOnABHit(combo, t);
+      expect(r.triggeredSpecial).toBe(false);
+      combo = {
+        comboCount: r.comboCount,
+        comboGauge: r.comboGauge,
+        comboReady: r.comboReady,
+        lastComboHitAt: r.lastComboHitAt,
+      };
+    }
+    expect(combo.comboCount).toBe(4);
+    expect(combo.comboGauge).toBe(4);
+    expect(combo.comboReady).toBe(false);
+  });
+
+  it('fifth hit fills gauge and sets ready without triggering special', () => {
+    let combo = { comboCount: 0, comboGauge: 0, comboReady: false, lastComboHitAt: 0 };
+    for (let t = 1; t <= 5; t += 1) {
+      const r = updateComboOnABHit(combo, t);
+      expect(r.triggeredSpecial).toBe(false);
+      combo = {
+        comboCount: r.comboCount,
+        comboGauge: r.comboGauge,
+        comboReady: r.comboReady,
+        lastComboHitAt: r.lastComboHitAt,
+      };
+    }
+    expect(combo.comboCount).toBe(5);
+    expect(combo.comboGauge).toBe(5);
+    expect(combo.comboReady).toBe(true);
+  });
+
+  it('next hit when ready triggers special and resets gauge', () => {
+    const r = updateComboOnABHit(
+      { comboCount: 5, comboGauge: 5, comboReady: true, lastComboHitAt: 5 },
+      6,
+    );
+    expect(r.triggeredSpecial).toBe(true);
+    expect(r.comboGauge).toBe(0);
+    expect(r.comboReady).toBe(false);
+    expect(r.comboCount).toBe(6);
+  });
+
+  it('expireComboIfTimedOut clears after COMBO_RESET_INTERVAL_SEC', () => {
+    const cleared = expireComboIfTimedOut(
+      { comboCount: 3, comboGauge: 2, comboReady: false, lastComboHitAt: 10 },
+      16,
+    );
+    expect(cleared.comboCount).toBe(0);
+    expect(cleared.comboGauge).toBe(0);
+    expect(cleared.comboReady).toBe(false);
+  });
+
+  it('expireComboIfTimedOut keeps state within interval', () => {
+    const kept = expireComboIfTimedOut(
+      { comboCount: 3, comboGauge: 2, comboReady: false, lastComboHitAt: 10 },
+      14,
+    );
+    expect(kept.comboCount).toBe(3);
+    expect(kept.comboGauge).toBe(2);
+    expect(kept.comboReady).toBe(false);
   });
 });
