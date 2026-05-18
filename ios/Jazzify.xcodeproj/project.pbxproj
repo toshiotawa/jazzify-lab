@@ -8,6 +8,22 @@
 
 /* Begin PBXBuildFile section */
 		0001DB9D114F5FDE7277099C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611CAFDFC9C51C7A54B21C68 /* AppState.swift */; };
+		A1B2C3D4E5F61718293A4B6 /* OnboardingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4B5 /* OnboardingPreferences.swift */; };
+		A1B2C3D4E5F61718293A4B8 /* OnboardingBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4B7 /* OnboardingBootstrap.swift */; };
+		A1B2C3D4E5F61718293A4BA /* OnboardingChords.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4B9 /* OnboardingChords.swift */; };
+		A1B2C3D4E5F61718293A4BC /* OnboardingBgmController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4BB /* OnboardingBgmController.swift */; };
+		A1B2C3D4E5F61718293A4BE /* OnboardingScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4BD /* OnboardingScript.swift */; };
+		A1B2C3D4E5F61718293A4C0 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4BF /* OnboardingView.swift */; };
+		C0A1B2C3D4E5F61718293A02 /* OnboardingCharacterDialogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B2C3D4E5F61718293A01 /* OnboardingCharacterDialogView.swift */; };
+		C0A1B2C3D4E5F61718293A04 /* OnboardingNarrationCaptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B2C3D4E5F61718293A03 /* OnboardingNarrationCaptionView.swift */; };
+		C0A1B2C3D4E5F61718293A08 /* OnboardingDeviceConnectedBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B2C3D4E5F61718293A07 /* OnboardingDeviceConnectedBannerView.swift */; };
+		C0A1B2C3D4E5F61718293A0A /* OnboardingChordCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B2C3D4E5F61718293A09 /* OnboardingChordCarouselView.swift */; };
+		C0A1B2C3D4E5F61718293A0C /* OnboardingPillarCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B2C3D4E5F61718293A0B /* OnboardingPillarCardView.swift */; };
+		C0A1B2C3D4E5F61718293A0E /* OnboardingCtaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B2C3D4E5F61718293A0D /* OnboardingCtaView.swift */; };
+		C0A1B2C3D4E5F61718293A10 /* OnboardingSkipButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A1B2C3D4E5F61718293A0F /* OnboardingSkipButton.swift */; };
+		AA01BB02CC03DD04EE05FF12 /* SurvivalScenarioOverrides.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF11 /* SurvivalScenarioOverrides.swift */; };
+		AA01BB02CC03DD04EE05FF14 /* SurvivalScenarioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF13 /* SurvivalScenarioController.swift */; };
+		A1B2C3D4E5F61718293A4C2 /* DrumLoop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */; };
 		0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18861FA349C6ECEAA2F6CC96 /* WebViewCoordinator.swift */; };
 		03724194B6C8D5BB89CC901D /* PaymentIssueBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */; };
 		07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */; };
@@ -152,6 +168,22 @@
 		16568C6DC2CE0A0353458F62 /* LessonJourneyViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyViewComponents.swift; sourceTree = "<group>"; };
 		1873118CEEB8C7B4341EDE19 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		18861FA349C6ECEAA2F6CC96 /* WebViewCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewCoordinator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F61718293A4B5 /* OnboardingPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPreferences.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F61718293A4B7 /* OnboardingBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBootstrap.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F61718293A4B9 /* OnboardingChords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingChords.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F61718293A4BB /* OnboardingBgmController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBgmController.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F61718293A4BD /* OnboardingScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScript.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F61718293A4BF /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		C0A1B2C3D4E5F61718293A01 /* OnboardingCharacterDialogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCharacterDialogView.swift; sourceTree = "<group>"; };
+		C0A1B2C3D4E5F61718293A03 /* OnboardingNarrationCaptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingNarrationCaptionView.swift; sourceTree = "<group>"; };
+		C0A1B2C3D4E5F61718293A07 /* OnboardingDeviceConnectedBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDeviceConnectedBannerView.swift; sourceTree = "<group>"; };
+		C0A1B2C3D4E5F61718293A09 /* OnboardingChordCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingChordCarouselView.swift; sourceTree = "<group>"; };
+		C0A1B2C3D4E5F61718293A0B /* OnboardingPillarCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPillarCardView.swift; sourceTree = "<group>"; };
+		C0A1B2C3D4E5F61718293A0D /* OnboardingCtaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCtaView.swift; sourceTree = "<group>"; };
+		C0A1B2C3D4E5F61718293A0F /* OnboardingSkipButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSkipButton.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE05FF11 /* SurvivalScenarioOverrides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioOverrides.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE05FF13 /* SurvivalScenarioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioController.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = DrumLoop.mp3; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameLoop.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF03 /* SurvivalFrameEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalFrameEvent.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF05 /* SurvivalInputBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalInputBuffer.swift; sourceTree = "<group>"; };
@@ -291,6 +323,7 @@
 				C48D6B8D97E8A70D77DF8DDE /* SurvivalDemoStage.swift */,
 				7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */,
 				69CB855F4C23E91D831AFA2B /* SurvivalStageConfig.swift */,
+				AA01BB02CC03DD04EE05FF11 /* SurvivalScenarioOverrides.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -309,6 +342,7 @@
 			children = (
 				A1F15DC348C430F50580B7CE /* App */,
 				C5E2C6C7C1C475F5411AD908 /* Auth */,
+				A1B2C3D4E5F61718293A4C4 /* Onboarding */,
 				7EACBB7A3AF4F5D404FF79AD /* Components */,
 				A51FD2B120C3C1FD71578128 /* EarTraining */,
 				6F6BEDF557724C85BE5C4F61 /* Game */,
@@ -439,6 +473,7 @@
 				F102BB02CC03DD04EE05EE01 /* Runtime */,
 				9100C95266822FBC6D3C383F /* Audio */,
 				9CFE12BA8E8D9FBFAD66896C /* Engine */,
+				AA01BB02CC03DD04EE05FF16 /* Scenario */,
 				AA01BB02CC03DD04EE05FF0B /* Input */,
 				0239E829DE976A40355434F7 /* Model */,
 				AA01BB02CC03DD04EE05FF0C /* Session */,
@@ -585,6 +620,7 @@
 				4C41E7C1555DBD179FEBC98A /* piano */,
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 				F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */,
+				A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */,
 				E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */,
 			);
 			path = Resources;
@@ -609,6 +645,34 @@
 				9D2BD5DA49B637FB8C0E889B /* ProfileSetupView.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F61718293A4C4 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F61718293A4B5 /* OnboardingPreferences.swift */,
+				A1B2C3D4E5F61718293A4B7 /* OnboardingBootstrap.swift */,
+				C0A1B2C3D4E5F61718293A09 /* OnboardingChordCarouselView.swift */,
+				A1B2C3D4E5F61718293A4B9 /* OnboardingChords.swift */,
+				A1B2C3D4E5F61718293A4BB /* OnboardingBgmController.swift */,
+				C0A1B2C3D4E5F61718293A01 /* OnboardingCharacterDialogView.swift */,
+				C0A1B2C3D4E5F61718293A0D /* OnboardingCtaView.swift */,
+				C0A1B2C3D4E5F61718293A07 /* OnboardingDeviceConnectedBannerView.swift */,
+				C0A1B2C3D4E5F61718293A03 /* OnboardingNarrationCaptionView.swift */,
+				C0A1B2C3D4E5F61718293A0B /* OnboardingPillarCardView.swift */,
+				A1B2C3D4E5F61718293A4BD /* OnboardingScript.swift */,
+				C0A1B2C3D4E5F61718293A0F /* OnboardingSkipButton.swift */,
+				A1B2C3D4E5F61718293A4BF /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		AA01BB02CC03DD04EE05FF16 /* Scenario */ = {
+			isa = PBXGroup;
+			children = (
+				AA01BB02CC03DD04EE05FF13 /* SurvivalScenarioController.swift */,
+			);
+			path = Scenario;
 			sourceTree = "<group>";
 		};
 		D3C90A55DC4CE468656D6ABD /* Products */ = {
@@ -744,6 +808,7 @@
 				60BCB75E89D7C46F20FEE1A4 /* C7.mp3 in Resources */,
 				B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */,
 				607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */,
+				A1B2C3D4E5F61718293A4C2 /* DrumLoop.mp3 in Resources */,
 				EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */,
 				F1FE000000FE11FE000FE002 /* fire_magic_1.mp3 in Resources */,
 				E92EE770002DD11EE000DD02 /* opensheetmusicdisplay.min.js in Resources */,
@@ -814,6 +879,19 @@
 				D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */,
 				1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */,
 				526A15ED93FC35AA024F047E /* OrientationManager.swift in Sources */,
+				A1B2C3D4E5F61718293A4B6 /* OnboardingPreferences.swift in Sources */,
+				A1B2C3D4E5F61718293A4B8 /* OnboardingBootstrap.swift in Sources */,
+				A1B2C3D4E5F61718293A4BA /* OnboardingChords.swift in Sources */,
+				A1B2C3D4E5F61718293A4BC /* OnboardingBgmController.swift in Sources */,
+				A1B2C3D4E5F61718293A4BE /* OnboardingScript.swift in Sources */,
+				A1B2C3D4E5F61718293A4C0 /* OnboardingView.swift in Sources */,
+				C0A1B2C3D4E5F61718293A02 /* OnboardingCharacterDialogView.swift in Sources */,
+				C0A1B2C3D4E5F61718293A04 /* OnboardingNarrationCaptionView.swift in Sources */,
+				C0A1B2C3D4E5F61718293A08 /* OnboardingDeviceConnectedBannerView.swift in Sources */,
+				C0A1B2C3D4E5F61718293A0A /* OnboardingChordCarouselView.swift in Sources */,
+				C0A1B2C3D4E5F61718293A0C /* OnboardingPillarCardView.swift in Sources */,
+				C0A1B2C3D4E5F61718293A0E /* OnboardingCtaView.swift in Sources */,
+				C0A1B2C3D4E5F61718293A10 /* OnboardingSkipButton.swift in Sources */,
 				03724194B6C8D5BB89CC901D /* PaymentIssueBannerView.swift in Sources */,
 				E748C5310C577DFFCB883B8F /* Profile.swift in Sources */,
 				0C4A607FEC5B7FD7C041477F /* ProfileSetupView.swift in Sources */,
@@ -844,6 +922,8 @@
 				AA01BB02CC03DD04EE05FF08 /* SurvivalGameSession.swift in Sources */,
 				AA01BB02CC03DD04EE05FF06 /* SurvivalInputBuffer.swift in Sources */,
 				AA01BB02CC03DD04EE05FF0A /* SurvivalViewModel.swift in Sources */,
+				AA01BB02CC03DD04EE05FF12 /* SurvivalScenarioOverrides.swift in Sources */,
+				AA01BB02CC03DD04EE05FF14 /* SurvivalScenarioController.swift in Sources */,
 				D092F0BC2C89F78117E0D86F /* SurvivalGameEngine.swift in Sources */,
 				6ABFFD52C6530172AF706CAF /* SurvivalGameResultView.swift in Sources */,
 				4F9D6961758AF400ED975795 /* SurvivalGameState.swift in Sources */,

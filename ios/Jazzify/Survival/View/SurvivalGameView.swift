@@ -14,6 +14,9 @@ struct SurvivalGameView: View {
     let onClose: () -> Void
     var isDemo: Bool = false
     var configOverride: SurvivalStageConfig? = nil
+    var scenarioOverrides: SurvivalScenarioOverrides = .init()
+    var scenarioController: SurvivalScenarioController? = nil
+    var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
 
     @State private var session: SurvivalGameSession?
     @State private var bootstrapTask: Task<Void, Never>?
@@ -133,9 +136,12 @@ struct SurvivalGameView: View {
             config: config,
             onExit: { _ in onClose() },
             isDemo: isDemo,
-            usesEnglishToastCopy: locale == .en
+            usesEnglishToastCopy: locale == .en,
+            scenarioOverrides: scenarioOverrides,
+            scenarioController: scenarioController
         )
         created.start()
+        onSessionReady?(created)
 
         guard !Task.isCancelled, bootstrapID == id else {
             created.dispose()
@@ -192,11 +198,11 @@ private struct SurvivalGameContent: View {
 
             SurvivalJoystickRepresentable(
                 hitMask: .full,
-                isInteractive: vm.uiSnapshot.phase == .playing && !vm.isPaused
+                isInteractive: vm.uiSnapshot.phase == .playing && !vm.isPaused && !vm.uiSnapshot.scenario.disableJoystick
             ) { analog in
                 session.input.setAnalog(analog)
             }
-            .allowsHitTesting(vm.uiSnapshot.phase == .playing && !vm.isPaused)
+            .allowsHitTesting(vm.uiSnapshot.phase == .playing && !vm.isPaused && !vm.uiSnapshot.scenario.disableJoystick)
 
             VStack(spacing: 0) {
                 SurvivalHUDView(
@@ -207,32 +213,47 @@ private struct SurvivalGameContent: View {
                     locale: locale,
                     onTogglePause: { session.togglePause() }
                 )
-                SurvivalCodeSlotsView(uiSnapshot: vm.uiSnapshot, isBossStage: vm.isBossStage)
-                    .padding(.top, 4)
+                if !vm.uiSnapshot.scenario.hideChordSlots {
+                    SurvivalCodeSlotsView(uiSnapshot: vm.uiSnapshot, isBossStage: vm.isBossStage)
+                        .padding(.top, 4)
+                }
                 Spacer()
             }
 
-            VStack {
-                Spacer()
-                HStack {
+            if let staffSnapshot = scenarioStaffSnapshot {
+                VStack(spacing: 0) {
+                    SurvivalScenarioStaffPanel(snapshot: staffSnapshot)
+                        .padding(.top, 48)
                     Spacer()
-                    SurvivalComboBadgeView(comboCount: vm.uiSnapshot.comboCount)
-                        .padding(Edge.Set.trailing, 16)
-                        .padding(Edge.Set.bottom, 140)
+                }
+                .allowsHitTesting(false)
+            }
+
+            if !vm.uiSnapshot.scenario.hideComboBadge {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        SurvivalComboBadgeView(comboCount: vm.uiSnapshot.comboCount)
+                            .padding(Edge.Set.trailing, 16)
+                            .padding(Edge.Set.bottom, 140)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+
+            if !vm.uiSnapshot.scenario.hideChordPad {
+                VStack {
+                    Spacer()
+                    chordPadBar
                 }
             }
-            .allowsHitTesting(false)
 
-            VStack {
-                Spacer()
-                chordPadBar
-            }
-
-            if vm.isPaused && vm.uiSnapshot.phase == .playing {
+            if vm.isPaused && vm.uiSnapshot.phase == .playing && !vm.uiSnapshot.scenario.hidePauseButton {
                 pauseOverlay
             }
 
-            if vm.uiSnapshot.phase != .playing {
+            if vm.uiSnapshot.phase != .playing && !vm.uiSnapshot.scenario.disableResultScreen {
                 resultOverlay
             }
         }
@@ -252,6 +273,28 @@ private struct SurvivalGameContent: View {
         .equatable()
         .ignoresSafeArea(.container, edges: .horizontal)
         .padding(.bottom, 8)
+    }
+
+    private var scenarioStaffSnapshot: SurvivalScenarioStaffPanel.Snapshot? {
+        let sc = vm.uiSnapshot.scenario
+        guard sc.isActive, !sc.hideStaff else { return nil }
+        guard vm.uiSnapshot.slots.indices.contains(1) else { return nil }
+        let slot = vm.uiSnapshot.slots[1]
+        guard let chord = slot.chord,
+              let staffNames = chord.progressionStaffVoicingNames,
+              !staffNames.isEmpty else {
+            return nil
+        }
+        return SurvivalScenarioStaffPanel.Snapshot(
+            chordDisplayName: chord.displayName,
+            voicingNames: staffNames,
+            keyFifths: chord.progressionStaffKeyFifths ?? 0,
+            correctPitchClasses: SurvivalChordResolver.correctNotes(
+                inputPitchClasses: slot.inputPitchClasses,
+                target: chord
+            ),
+            staffClef: sc.scenarioStaffClef
+        )
     }
 
     // MARK: - Overlays
@@ -289,6 +332,30 @@ private struct SurvivalGameContent: View {
                 onExit: { session.requestExit() }
             )
         }
+    }
+}
+
+private struct SurvivalScenarioStaffPanel: View, Equatable {
+    struct Snapshot: Equatable {
+        let chordDisplayName: String
+        let voicingNames: [String]
+        let keyFifths: Int
+        let correctPitchClasses: [Int]
+        let staffClef: Int
+    }
+
+    let snapshot: Snapshot
+
+    var body: some View {
+        SurvivalProgressionStaffView(
+            chordDisplayName: snapshot.chordDisplayName,
+            voicingNames: snapshot.voicingNames,
+            keyFifths: snapshot.keyFifths,
+            correctPitchClasses: snapshot.correctPitchClasses,
+            staffClef: snapshot.staffClef
+        )
+        .frame(width: 220, height: 132)
+        .background(Color.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

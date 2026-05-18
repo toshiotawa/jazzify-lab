@@ -7,8 +7,8 @@ final class SurvivalAudioController {
         SurvivalGameAudio.shared.setBgmUrl(url)
     }
 
-    func start() {
-        SurvivalGameAudio.shared.start()
+    func start(playBackgroundMusic: Bool = true) {
+        SurvivalGameAudio.shared.start(playBackgroundMusic: playBackgroundMusic)
     }
 
     func stop() {
@@ -25,6 +25,10 @@ final class SurvivalAudioController {
 
     func pianoNoteOn(midi: Int, velocity: Int) {
         SurvivalGameAudio.shared.pianoNoteOn(midi: midi, velocity: velocity)
+    }
+
+    func pianoChordOn(midis: [Int], velocity: Int) {
+        SurvivalGameAudio.shared.pianoChordOn(midis: midis, velocity: velocity)
     }
 
     func pianoNoteOff(midi: Int) {

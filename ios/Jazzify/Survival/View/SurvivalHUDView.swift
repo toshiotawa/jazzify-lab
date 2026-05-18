@@ -30,55 +30,67 @@ struct SurvivalHUDView: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            SurvivalHUDTopRow(
-                stageName: stage.localizedName(locale),
-                timeLabel: timeLabel,
-                enemiesDefeated: uiSnapshot.enemiesDefeated,
-                enemyQuota: SurvivalConstants.stageEnemyQuota,
-                isBossBattle: bossHud != nil,
-                hintMode: uiSnapshot.hintMode,
-                isPaused: isPaused,
-                locale: locale,
-                onTogglePause: onTogglePause
+        let sc = uiSnapshot.scenario
+        if sc.hideHud {
+            EmptyView()
+        } else {
+            VStack(spacing: 6) {
+                SurvivalHUDTopRow(
+                    stageName: stage.localizedName(locale),
+                    timeLabel: timeLabel,
+                    enemiesDefeated: uiSnapshot.enemiesDefeated,
+                    enemyQuota: SurvivalConstants.stageEnemyQuota,
+                    isBossBattle: bossHud != nil,
+                    hintMode: uiSnapshot.hintMode,
+                    isPaused: isPaused,
+                    locale: locale,
+                    onTogglePause: onTogglePause,
+                    showStageTitle: !sc.hideStageTitle,
+                    showTimer: !sc.hideTimerDisplay,
+                    showKillCounter: !sc.hideKillCounter,
+                    showHintBadge: !sc.hideHintBadge,
+                    showPauseButton: !sc.hidePauseButton
+                )
+                .equatable()
+
+                if !sc.hideStatusStrip, !uiSnapshot.statusEffectStrip.isEmpty || uiSnapshot.hintMode {
+                    SurvivalHUDStatusStrip(effects: uiSnapshot.statusEffectStrip.map {
+                        .init(id: $0.id, icon: $0.icon, level: $0.level)
+                    })
+                    .equatable()
+                }
+
+                if !sc.hidePlayerHpBar {
+                    if let bossRatio = bossHpRatio {
+                        SurvivalHUDBossHpBar(
+                            ratio: bossRatio,
+                            hp: uiSnapshot.hp,
+                            maxHp: uiSnapshot.maxHp,
+                            hpRatio: hpRatio,
+                            locale: locale
+                        )
+                        .equatable()
+                    } else {
+                        SurvivalHUDPlayerHpBar(
+                            hp: uiSnapshot.hp,
+                            maxHp: uiSnapshot.maxHp,
+                            ratio: hpRatio
+                        )
+                        .equatable()
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+            .background(
+                LinearGradient(
+                    colors: [Color.black.opacity(0.55), Color.black.opacity(0.0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             )
-            .equatable()
-
-            if !uiSnapshot.statusEffectStrip.isEmpty || uiSnapshot.hintMode {
-                SurvivalHUDStatusStrip(effects: uiSnapshot.statusEffectStrip.map {
-                    .init(id: $0.id, icon: $0.icon, level: $0.level)
-                })
-                .equatable()
-            }
-
-            if let bossRatio = bossHpRatio {
-                SurvivalHUDBossHpBar(
-                    ratio: bossRatio,
-                    hp: uiSnapshot.hp,
-                    maxHp: uiSnapshot.maxHp,
-                    hpRatio: hpRatio,
-                    locale: locale
-                )
-                .equatable()
-            } else {
-                SurvivalHUDPlayerHpBar(
-                    hp: uiSnapshot.hp,
-                    maxHp: uiSnapshot.maxHp,
-                    ratio: hpRatio
-                )
-                .equatable()
-            }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.55), Color.black.opacity(0.0)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
     }
 }
 
@@ -94,6 +106,11 @@ private struct SurvivalHUDTopRow: View, Equatable {
     let isPaused: Bool
     let locale: AppLocale
     let onTogglePause: () -> Void
+    var showStageTitle: Bool = true
+    var showTimer: Bool = true
+    var showKillCounter: Bool = true
+    var showHintBadge: Bool = true
+    var showPauseButton: Bool = true
 
     static func == (lhs: SurvivalHUDTopRow, rhs: SurvivalHUDTopRow) -> Bool {
         lhs.stageName == rhs.stageName &&
@@ -103,20 +120,29 @@ private struct SurvivalHUDTopRow: View, Equatable {
             lhs.isBossBattle == rhs.isBossBattle &&
             lhs.hintMode == rhs.hintMode &&
             lhs.isPaused == rhs.isPaused &&
-            lhs.locale == rhs.locale
+            lhs.locale == rhs.locale &&
+            lhs.showStageTitle == rhs.showStageTitle &&
+            lhs.showTimer == rhs.showTimer &&
+            lhs.showKillCounter == rhs.showKillCounter &&
+            lhs.showHintBadge == rhs.showHintBadge &&
+            lhs.showPauseButton == rhs.showPauseButton
     }
 
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(stageName)
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
+                if showStageTitle {
+                    Text(stageName)
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                }
                 HStack(spacing: 10) {
-                    Label(timeLabel, systemImage: "clock.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.yellow)
-                    if !isBossBattle {
+                    if showTimer {
+                        Label(timeLabel, systemImage: "clock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                    }
+                    if showKillCounter, !isBossBattle {
                         Label(
                             "\(enemiesDefeated) / \(enemyQuota)",
                             systemImage: "bolt.fill"
@@ -127,7 +153,7 @@ private struct SurvivalHUDTopRow: View, Equatable {
                 }
             }
             Spacer()
-            if hintMode {
+            if showHintBadge, hintMode {
                 Text(locale == .ja ? "ヒント ON" : "HINT ON")
                     .font(.caption2.bold())
                     .foregroundStyle(.black)
@@ -136,13 +162,15 @@ private struct SurvivalHUDTopRow: View, Equatable {
                     .background(Color.yellow)
                     .clipShape(Capsule())
             }
-            Button(action: onTogglePause) {
-                Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(Circle())
+            if showPauseButton {
+                Button(action: onTogglePause) {
+                    Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(Circle())
+                }
             }
         }
     }

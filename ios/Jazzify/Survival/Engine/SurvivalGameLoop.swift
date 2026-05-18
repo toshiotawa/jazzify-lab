@@ -21,6 +21,7 @@ final class SurvivalGameLoop {
     private let stage: SurvivalStageDefinition
     private let profile: SurvivalCharacterProfile
     private let config: SurvivalStageConfig
+    private let initialScenarioOverrides: SurvivalScenarioOverrides
 
     var stageConfig: SurvivalStageConfig { config }
 
@@ -76,22 +77,25 @@ final class SurvivalGameLoop {
         stage: SurvivalStageDefinition,
         hintMode: Bool,
         profile: SurvivalCharacterProfile = .defaultFai,
-        config: SurvivalStageConfig = .default
+        config: SurvivalStageConfig = .default,
+        scenarioOverrides: SurvivalScenarioOverrides = .init()
     ) {
         let mode = SurvivalMode.resolve(stage: stage, hintMode: hintMode)
-        self.init(mode: mode, stage: stage, profile: profile, config: config)
+        self.init(mode: mode, stage: stage, profile: profile, config: config, scenarioOverrides: scenarioOverrides)
     }
 
     init(
         mode: SurvivalMode,
         stage: SurvivalStageDefinition,
         profile: SurvivalCharacterProfile = .defaultFai,
-        config: SurvivalStageConfig = .default
+        config: SurvivalStageConfig = .default,
+        scenarioOverrides: SurvivalScenarioOverrides = .init()
     ) {
         self.mode = mode
         self.stage = stage
         self.profile = profile
         self.config = config
+        self.initialScenarioOverrides = scenarioOverrides
 
         let isBoss = mode.isBossStage
 
@@ -122,6 +126,7 @@ final class SurvivalGameLoop {
             player: player,
             slots: slots
         )
+        self.runtime.scenario = scenarioOverrides.toRuntimeState()
 
         self.currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: mode.hintMode)
 
@@ -177,6 +182,8 @@ final class SurvivalGameLoop {
             player: player,
             slots: slots
         )
+        runtime.scenario = initialScenarioOverrides.toRuntimeState()
+
         setHintSlotIndexIfChanged(Self.initialHintSlotIndex(slots: slots, hintMode: mode.hintMode))
 
         if isBoss {
@@ -273,6 +280,9 @@ final class SurvivalGameLoop {
     /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
     func currentHintHighlightMidis() -> Set<Int> {
         guard let target = currentHintTargetSlot() else { return [] }
+        if runtime.scenario.useChordMidiNotesForHintHighlights {
+            return Set(target.chord.midiNotes)
+        }
         return Self.hintHighlightMidis(from: target.chord)
     }
 
@@ -280,7 +290,9 @@ final class SurvivalGameLoop {
     /// オクターブ違いの演奏でも、この集合は「元々のヒント MIDI」側に載せる。
     func currentHintCompletedHighlightMidis() -> Set<Int> {
         guard let target = currentHintTargetSlot() else { return [] }
-        let highlights = Self.hintHighlightMidis(from: target.chord)
+        let highlights = runtime.scenario.useChordMidiNotesForHintHighlights
+            ? Set(target.chord.midiNotes)
+            : Self.hintHighlightMidis(from: target.chord)
         let inputPCs = Set(
             runtime.slots[target.index].inputPitchClasses.map { (($0 % 12) + 12) % 12 }
         )
@@ -324,6 +336,13 @@ final class SurvivalGameLoop {
             let pc = ((midi % 12) + 12) % 12
             activePressedPitchClasses.remove(pc)
         }
+        if runtime.scenario.blockSlotEvaluation {
+            for on in frameInput.noteOns {
+                let pc = ((on.midi % 12) + 12) % 12
+                activePressedPitchClasses.insert(pc)
+            }
+            return events
+        }
         for on in frameInput.noteOns {
             let pc = ((on.midi % 12) + 12) % 12
             activePressedPitchClasses.insert(pc)
@@ -333,6 +352,7 @@ final class SurvivalGameLoop {
     }
 
     private func evaluateSlots(for note: Int) -> [SurvivalFrameEvent] {
+        if runtime.scenario.blockSlotEvaluation { return [] }
         var events: [SurvivalFrameEvent] = []
         let pc = ((note % 12) + 12) % 12
         for idx in runtime.slots.indices {
@@ -381,7 +401,7 @@ final class SurvivalGameLoop {
 
         switch SurvivalSlotIndex(rawValue: slotIndex) {
         case .A?, .B?:
-            if runtime.comboReady {
+            if slotIndex == SurvivalSlotIndex.B.rawValue, runtime.scenario.bChordCompletionUseSpecial {
                 let wave = SurvivalGameEngine.createSpecialShockwave(
                     from: runtime.player,
                     effectiveBAtk: effectiveStats.bAtk,
@@ -390,8 +410,28 @@ final class SurvivalGameLoop {
                 runtime.shockwaves.append(wave)
                 runtime.comboGauge = 0
                 runtime.comboReady = false
+                runtime.comboCount += 1
+                runtime.lastComboHitAt = now
+            } else if runtime.comboReady {
+                let wave = SurvivalGameEngine.createSpecialShockwave(
+                    from: runtime.player,
+                    effectiveBAtk: effectiveStats.bAtk,
+                    now: now
+                )
+                runtime.shockwaves.append(wave)
+                runtime.comboGauge = 0
+                runtime.comboReady = false
+                runtime.comboCount += 1
+                runtime.lastComboHitAt = now
             } else {
-                if slotIndex == SurvivalSlotIndex.A.rawValue {
+                let attackSlot: Int = {
+                    if slotIndex == SurvivalSlotIndex.B.rawValue,
+                       let overrideAttack = runtime.scenario.bChordCompletionAttackOverride {
+                        return overrideAttack.rawValue
+                    }
+                    return slotIndex
+                }()
+                if attackSlot == SurvivalSlotIndex.A.rawValue {
                     let projectiles = SurvivalGameEngine.createAProjectiles(
                         from: runtime.player,
                         effectiveAAtk: effectiveStats.aAtk
@@ -423,9 +463,9 @@ final class SurvivalGameLoop {
                 if runtime.comboGauge >= SurvivalConstants.comboGaugeMax {
                     runtime.comboReady = true
                 }
+                runtime.comboCount += 1
+                runtime.lastComboHitAt = now
             }
-            runtime.comboCount += 1
-            runtime.lastComboHitAt = now
         case .C?, .D?:
             if !profile.noMagic {
                 let kind: SurvivalMagicKind = slotIndex == SurvivalSlotIndex.C.rawValue
@@ -486,6 +526,9 @@ final class SurvivalGameLoop {
                     color: .chord
                 )
             )
+        }
+        if slotIndex == SurvivalSlotIndex.B.rawValue, runtime.scenario.hideStaffOnBSlotCompletion {
+            runtime.scenario.hideStaff = true
         }
         runtime.slots[slotIndex] = slotUpdate
 
@@ -583,20 +626,22 @@ final class SurvivalGameLoop {
         tickSlotsTimer(deltaTime: deltaTime)
 
         // 敵スポーン
-        runtime.spawnAccumulator += deltaTime
-        let cfg = SurvivalGameEngine.stageSpawnConfig(elapsed: runtime.elapsedSeconds, config: config)
-        while runtime.spawnAccumulator >= cfg.rate {
-            runtime.spawnAccumulator -= cfg.rate
-            for _ in 0..<cfg.count {
-                let enemy = SurvivalGameEngine.spawnStageEnemy(
-                    playerX: runtime.player.x,
-                    playerY: runtime.player.y,
-                    elapsed: runtime.elapsedSeconds,
-                    isFirstSpawn: !runtime.hasSpawnedAny,
-                    config: config
-                )
-                runtime.enemies.append(enemy)
-                runtime.hasSpawnedAny = true
+        if !runtime.scenario.suppressAutoSpawn {
+            runtime.spawnAccumulator += deltaTime
+            let cfg = SurvivalGameEngine.stageSpawnConfig(elapsed: runtime.elapsedSeconds, config: config)
+            while runtime.spawnAccumulator >= cfg.rate {
+                runtime.spawnAccumulator -= cfg.rate
+                for _ in 0..<cfg.count {
+                    let enemy = SurvivalGameEngine.spawnStageEnemy(
+                        playerX: runtime.player.x,
+                        playerY: runtime.player.y,
+                        elapsed: runtime.elapsedSeconds,
+                        isFirstSpawn: !runtime.hasSpawnedAny,
+                        config: config
+                    )
+                    runtime.enemies.append(enemy)
+                    runtime.hasSpawnedAny = true
+                }
             }
         }
 
@@ -609,13 +654,15 @@ final class SurvivalGameLoop {
         )
 
         // 敵弾の発射 + 更新
-        let newEnemyProjectiles = SurvivalGameEngine.shootEnemyProjectiles(
-            enemies: &runtime.enemies,
-            playerX: runtime.player.x,
-            playerY: runtime.player.y,
-            now: now
-        )
-        runtime.enemyProjectiles.append(contentsOf: newEnemyProjectiles)
+        if !runtime.scenario.disableEnemyAttacks {
+            let newEnemyProjectiles = SurvivalGameEngine.shootEnemyProjectiles(
+                enemies: &runtime.enemies,
+                playerX: runtime.player.x,
+                playerY: runtime.player.y,
+                now: now
+            )
+            runtime.enemyProjectiles.append(contentsOf: newEnemyProjectiles)
+        }
         runtime.enemyProjectiles = SurvivalGameEngine.updateEnemyProjectiles(
             projectiles: runtime.enemyProjectiles,
             deltaTime: deltaTime,
@@ -664,43 +711,47 @@ final class SurvivalGameLoop {
         )
 
         // プレイヤー接触ダメ (WEB 版準拠: 無敵時間 / ノックバック無し / DOT 型)
-        let contactContribution = SurvivalGameEngine.enemyContactDamageDOT(
-            runtime.player,
-            enemies: runtime.enemies,
-            defenderDef: effectiveStats.def,
-            deltaTime: deltaTime
-        )
-        contactDamageAccumulator += contactContribution
-        if contactContribution > 0 {
-            runtime.player.damageFlashUntil = now + SurvivalConstants.playerDamageFlashSec
-        }
-        while contactDamageAccumulator >= 1 {
-            let dmg = Int(contactDamageAccumulator)
-            contactDamageAccumulator -= Double(dmg)
-            runtime.player.hp = max(0, runtime.player.hp - dmg)
+        if !runtime.scenario.playerInvincible {
+            let contactContribution = SurvivalGameEngine.enemyContactDamageDOT(
+                runtime.player,
+                enemies: runtime.enemies,
+                defenderDef: effectiveStats.def,
+                deltaTime: deltaTime
+            )
+            contactDamageAccumulator += contactContribution
+            if contactContribution > 0 {
+                runtime.player.damageFlashUntil = now + SurvivalConstants.playerDamageFlashSec
+            }
+            while contactDamageAccumulator >= 1 {
+                let dmg = Int(contactDamageAccumulator)
+                contactDamageAccumulator -= Double(dmg)
+                runtime.player.hp = max(0, runtime.player.hp - dmg)
+            }
         }
 
         // 敵弾 × プレイヤー (WEB 版準拠: 無敵時間 / ノックバック無し)
-        var _ephemeralPlayer = runtime.player
-        var _ephemeralEnemyProjectiles = runtime.enemyProjectiles
-        let enemyProjDmg = SurvivalGameEngine.resolveEnemyProjectileHits(
-            player: &_ephemeralPlayer,
-            projectiles: &_ephemeralEnemyProjectiles,
-            defenderDef: effectiveStats.def,
-            now: now
-        )
-        runtime.player = _ephemeralPlayer
-        runtime.enemyProjectiles = _ephemeralEnemyProjectiles
-        if enemyProjDmg > 0 {
-            runtime.floatingTexts.append(
-                SurvivalFloatingText(
-                    text: "-\(enemyProjDmg)",
-                    x: runtime.player.x,
-                    y: runtime.player.y - SurvivalConstants.playerSize,
-                    createdAt: now,
-                    color: .warn
-                )
+        if !runtime.scenario.playerInvincible {
+            var _ephemeralPlayer = runtime.player
+            var _ephemeralEnemyProjectiles = runtime.enemyProjectiles
+            let enemyProjDmg = SurvivalGameEngine.resolveEnemyProjectileHits(
+                player: &_ephemeralPlayer,
+                projectiles: &_ephemeralEnemyProjectiles,
+                defenderDef: effectiveStats.def,
+                now: now
             )
+            runtime.player = _ephemeralPlayer
+            runtime.enemyProjectiles = _ephemeralEnemyProjectiles
+            if enemyProjDmg > 0 {
+                runtime.floatingTexts.append(
+                    SurvivalFloatingText(
+                        text: "-\(enemyProjDmg)",
+                        x: runtime.player.x,
+                        y: runtime.player.y - SurvivalConstants.playerSize,
+                        createdAt: now,
+                        color: .warn
+                    )
+                )
+            }
         }
 
         // HP 回復 (hpRegenPerSecond)
@@ -714,16 +765,18 @@ final class SurvivalGameLoop {
         }
 
         // fire DOT (WEB 版 status effect)
-        let fireDot = SurvivalStatusEffectEngine.fireDotPerSecond(
-            effects: runtime.statusEffects,
-            maxHp: runtime.player.maxHp
-        )
-        if fireDot > 0 {
-            fireDotAccumulator += deltaTime * Double(fireDot)
-            if fireDotAccumulator >= 1 {
-                let dmg = Int(fireDotAccumulator)
-                fireDotAccumulator -= Double(dmg)
-                runtime.player.hp = max(0, runtime.player.hp - dmg)
+        if !runtime.scenario.playerInvincible {
+            let fireDot = SurvivalStatusEffectEngine.fireDotPerSecond(
+                effects: runtime.statusEffects,
+                maxHp: runtime.player.maxHp
+            )
+            if fireDot > 0 {
+                fireDotAccumulator += deltaTime * Double(fireDot)
+                if fireDotAccumulator >= 1 {
+                    let dmg = Int(fireDotAccumulator)
+                    fireDotAccumulator -= Double(dmg)
+                    runtime.player.hp = max(0, runtime.player.hp - dmg)
+                }
             }
         }
 
@@ -772,7 +825,7 @@ final class SurvivalGameLoop {
         }
 
         // HP 0 判定
-        if runtime.player.hp <= 0 {
+        if runtime.player.hp <= 0, !runtime.scenario.playerInvincible {
             runtime.phase = .gameOver
             events.append(.playEffect(.stageGameOver))
             events.append(.stageEnded(cleared: false))
@@ -784,10 +837,9 @@ final class SurvivalGameLoop {
         runtime.remainingSeconds = max(0, SurvivalConstants.stageTimeLimitSec - runtime.elapsedSeconds)
 
         // クリア判定 (Web 版 `SurvivalGameScreen` と同じく 90 秒経過時にのみ判定)
-        // - 撃破数が 150 に達してもゲームは止めず、残り時間まで継続させる。
-        // - これにより HUD / リザルトの撃破数分子が 150 で打ち止めにならず、
-        //   151 匹以上倒した場合は実際の撃破数がそのまま表示される。
-        if runtime.remainingSeconds <= 0 {
+        if !runtime.scenario.disableTimeLimitClear
+            && runtime.remainingSeconds <= 0
+            && !runtime.scenario.disableKillQuotaClear {
             let cleared = runtime.enemiesDefeated >= SurvivalConstants.stageEnemyQuota
             runtime.phase = cleared ? .cleared : .gameOver
             events.append(.playEffect(cleared ? .stageClear : .stageGameOver))
@@ -1102,5 +1154,125 @@ final class SurvivalGameLoop {
         runtime.floatingTexts.removeAll { now - $0.createdAt > $0.lifetime }
 
         _ = effectiveStats // 現時点ではボス戦で基礎スタッツを直接使わない
+    }
+
+    // MARK: - Scenario / onboarding (MainActor)
+
+    func applyScenarioMutation(_ body: (inout SurvivalScenarioRuntimeState) -> Void) {
+        body(&runtime.scenario)
+    }
+
+    func scenarioClearEnemies() {
+        runtime.enemies.removeAll()
+    }
+
+    func scenarioSpawnStationaryEnemy(atX x: CGFloat, y: CGFloat) {
+        let clampedX = SurvivalGameEngine.clamp(x, min: 20, max: SurvivalMap.width - 20)
+        let clampedY = SurvivalGameEngine.clamp(y, min: 20, max: SurvivalMap.height - 20)
+        runtime.enemies.append(SurvivalGameEngine.spawnScenarioStationaryEnemy(atX: clampedX, y: clampedY))
+    }
+
+    func scenarioSpawnStationaryRing(count: Int, radius: CGFloat) {
+        guard count > 0 else { return }
+        let px = runtime.player.x
+        let py = runtime.player.y
+        for i in 0..<count {
+            let angle = 2 * CGFloat.pi * CGFloat(i) / CGFloat(count)
+            let x = px + cos(angle) * radius
+            let y = py + sin(angle) * radius
+            scenarioSpawnStationaryEnemy(atX: x, y: y)
+        }
+    }
+
+    /// プレイヤー正面 `distance` に静止敵を 1 体。
+    func scenarioSpawnEnemyInFront(distance: CGFloat) {
+        let p = runtime.player
+        let dir = p.direction.vector
+        let x = p.x + dir.dx * distance
+        let y = p.y + dir.dy * distance
+        scenarioSpawnStationaryEnemy(atX: x, y: y)
+    }
+
+    /// スロット進行・ヒント切替を伴わず、攻撃演出のみ発火（オンボーディング シーン 1）。
+    func scenarioEmitAttackOnly(attack: SurvivalSlotIndex, now: TimeInterval = CACurrentMediaTime()) {
+        let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
+            base: runtime.player.stats,
+            effects: runtime.statusEffects
+        )
+        switch attack {
+        case .A:
+            let projectiles = SurvivalGameEngine.createAProjectiles(
+                from: runtime.player,
+                effectiveAAtk: effectiveStats.aAtk
+            )
+            runtime.projectiles.append(contentsOf: projectiles)
+        case .B:
+            let initialWave = SurvivalGameEngine.createShockwave(
+                from: runtime.player,
+                effectiveBAtk: effectiveStats.bAtk,
+                now: now,
+                colorLevel: 0
+            )
+            runtime.shockwaves.append(initialWave)
+            let multiHitLevel = max(0, runtime.player.skills.multiHitLevel)
+            if multiHitLevel > 0 {
+                let baseDamage = SurvivalGameEngine.calculateBMeleeDamage(bAtk: effectiveStats.bAtk)
+                for hit in 1...multiHitLevel {
+                    runtime.pendingShockwaves.append(
+                        SurvivalPendingShockwave(
+                            fireAt: now + SurvivalConstants.meleeMultiHitIntervalSec * Double(hit),
+                            damage: baseDamage,
+                            colorLevel: min(3, hit)
+                        )
+                    )
+                }
+            }
+        case .C, .D:
+            break
+        }
+    }
+
+    func scenarioEmitSpecialShockwaveOnly(now: TimeInterval = CACurrentMediaTime()) {
+        let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
+            base: runtime.player.stats,
+            effects: runtime.statusEffects
+        )
+        let wave = SurvivalGameEngine.createSpecialShockwave(
+            from: runtime.player,
+            effectiveBAtk: effectiveStats.bAtk,
+            now: now
+        )
+        runtime.shockwaves.append(wave)
+    }
+
+    func scenarioEmitChordNameText(_ chordName: String, now: TimeInterval = CACurrentMediaTime()) {
+        runtime.floatingTexts.append(
+            SurvivalFloatingText(
+                text: chordName,
+                x: runtime.player.x,
+                y: runtime.player.y - SurvivalConstants.playerSize - 12,
+                createdAt: now,
+                lifetime: 1.0,
+                color: .chord
+            )
+        )
+    }
+
+    /// B スロットの和音を差し替え（オンボーディングの出題切替）。
+    func scenarioSetSlotBChord(_ chord: SurvivalResolvedChord?) {
+        guard runtime.slots.indices.contains(1) else { return }
+        runtime.slots[1].chord = chord
+        runtime.slots[1].inputPitchClasses = []
+        runtime.slots[1].triggerPulse &+= 1
+    }
+
+    func scenarioSetSlotBEnabled(_ enabled: Bool) {
+        guard runtime.slots.indices.contains(1) else { return }
+        runtime.slots[1].isEnabled = enabled
+    }
+
+    func scenarioSetSlotAEnabled(_ enabled: Bool) {
+        guard runtime.slots.indices.contains(0) else { return }
+        runtime.slots[0].isEnabled = enabled
     }
 }

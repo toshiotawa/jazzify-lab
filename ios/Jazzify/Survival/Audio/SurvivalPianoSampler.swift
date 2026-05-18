@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import Darwin
 
 /// Salamander Grand Piano の MP3 サンプル (C2, C3, C4, C5, C6, C7) をボイスプール方式で再生する
 /// 軽量ピアノサンプラー。Web 版 `FantasySoundManager._loadPianoSampler` (Tone.Sampler) の挙動に合わせる。
@@ -176,6 +177,13 @@ final class SurvivalPianoSampler {
         }
     }
 
+    func chordOn(midis: [Int], velocity: Int = 100) {
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            self.performChordOn(midis: midis, velocity: velocity)
+        }
+    }
+
     /// 指定 MIDI の発音を止める (リリース: 約 0.5 秒でフェードアウト)。
     func noteOff(midi: Int, release: TimeInterval = 0.5) {
         audioQueue.async { [weak self] in
@@ -231,6 +239,47 @@ final class SurvivalPianoSampler {
         voice.player.scheduleBuffer(buffer, at: nil, options: [.interrupts], completionHandler: nil)
         if !voice.player.isPlaying {
             voice.player.play()
+        }
+    }
+
+    private func performChordOn(midis: [Int], velocity: Int) {
+        guard !isStopping else { return }
+        guard !baseBuffers.isEmpty else { return }
+        guard engine.isRunning else { return }
+
+        var seen = Set<Int>()
+        var uniqueMidis: [Int] = []
+        uniqueMidis.reserveCapacity(midis.count)
+        for midi in midis {
+            let clampedMidi = max(0, min(127, midi))
+            if seen.insert(clampedMidi).inserted {
+                uniqueMidis.append(clampedMidi)
+            }
+        }
+        guard !uniqueMidis.isEmpty else { return }
+
+        for midi in uniqueMidis {
+            stopNoteImmediately(midi: midi)
+        }
+
+        let startHostTime = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: 0.012)
+        let startTime = AVAudioTime(hostTime: startHostTime)
+        let v = max(1, min(127, velocity))
+        let gain = Float(v) / 127.0
+
+        for midi in uniqueMidis {
+            guard let voice = allocateVoice() else { continue }
+            guard let (rootMidi, buffer) = nearestBaseBuffer(for: midi) else { continue }
+
+            let semitones = Double(midi - rootMidi)
+            let rate = Float(pow(2.0, semitones / 12.0))
+            voice.varispeed.rate = max(0.25, min(4.0, rate))
+            voice.cancelFade()
+            voice.mixer.outputVolume = gain
+            voice.midi = midi
+            voice.startedAt = CACurrentMediaTime()
+            voice.player.scheduleBuffer(buffer, at: nil, options: [.interrupts], completionHandler: nil)
+            voice.player.play(at: startTime)
         }
     }
 

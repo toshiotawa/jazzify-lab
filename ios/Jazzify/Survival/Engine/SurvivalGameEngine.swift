@@ -285,6 +285,26 @@ enum SurvivalGameEngine {
         )
     }
 
+    /// オンボーディング用: 指定座標に 1HP の静止敵。
+    static func spawnScenarioStationaryEnemy(
+        atX x: CGFloat,
+        y: CGFloat,
+        type: SurvivalEnemyType = .slime
+    ) -> SurvivalEnemy {
+        let stats = stageEnemyBaseStats(type: type, elapsed: 0, statMultiplier: 0.15)
+        var oneShot = stats
+        oneShot.hp = 1
+        oneShot.maxHp = 1
+        oneShot.atk = 0
+        return SurvivalEnemy(
+            type: type,
+            x: x,
+            y: y,
+            stats: oneShot,
+            isScenarioStationary: true
+        )
+    }
+
     private static func enemyTypeCandidates(elapsed: TimeInterval) -> [SurvivalEnemyType] {
         if elapsed < 20 {
             return [.slime, .goblin, .bat, .slime]
@@ -309,6 +329,20 @@ enum SurvivalGameEngine {
         let dt = CGFloat(deltaTime)
         return enemies.map { enemy in
             var updated = enemy
+            if updated.isScenarioStationary {
+                updated.knockbackVx *= 0.9
+                updated.knockbackVy *= 0.9
+                if abs(updated.knockbackVx) < 0.5 { updated.knockbackVx = 0 }
+                if abs(updated.knockbackVy) < 0.5 { updated.knockbackVy = 0 }
+                var newX = updated.x + updated.knockbackVx * dt
+                var newY = updated.y + updated.knockbackVy * dt
+                let enemyMargin = SurvivalConstants.enemySize * 2
+                newX = clamp(newX, min: -enemyMargin, max: SurvivalMap.width + enemyMargin)
+                newY = clamp(newY, min: -enemyMargin, max: SurvivalMap.height + enemyMargin)
+                updated.x = newX
+                updated.y = newY
+                return updated
+            }
             let dx = playerX - updated.x
             let dy = playerY - updated.y
             let distance = hypot(dx, dy)

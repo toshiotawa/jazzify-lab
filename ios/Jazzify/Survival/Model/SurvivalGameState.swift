@@ -280,6 +280,8 @@ public struct SurvivalEnemy: Identifiable, Sendable {
     public var x: CGFloat
     public var y: CGFloat
     public var stats: SurvivalEnemyStats
+    /// オンボーディング用: AI 移動を行わない（ノックバック減衰のみ）。
+    public var isScenarioStationary: Bool = false
     public var knockbackVx: CGFloat = 0
     public var knockbackVy: CGFloat = 0
     public var lastContactTime: TimeInterval = 0
@@ -517,6 +519,55 @@ public enum SurvivalStagePhase: Sendable, Equatable {
     case gameOver
 }
 
+/// シナリオ／オンボーディング用ランタイムフラグ。`isActive == false` で無効（比較コスト最小化）。
+public struct SurvivalScenarioRuntimeState: Sendable, Equatable {
+    public var isActive: Bool = false
+
+    public var hideHud: Bool = false
+    public var hideStageTitle: Bool = false
+    public var hideHintBadge: Bool = false
+    public var hidePauseButton: Bool = false
+    public var hideKillCounter: Bool = false
+    public var hideTimerDisplay: Bool = false
+    public var hideStatusStrip: Bool = false
+    public var hidePlayerHpBar: Bool = false
+
+    public var hideStaff: Bool = false
+    public var hideChordSlots: Bool = false
+    public var hideChordPad: Bool = false
+    public var hideComboBadge: Bool = false
+    public var scenarioStaffClef: Int = 2
+    public var hideStaffOnBSlotCompletion: Bool = false
+    public var useChordMidiNotesForHintHighlights: Bool = false
+
+    public var disableJoystick: Bool = false
+
+    public var disableTimeLimitClear: Bool = false
+    public var disableKillQuotaClear: Bool = false
+    public var disableResultScreen: Bool = false
+
+    public var playerInvincible: Bool = false
+    public var freezeAllEnemyAi: Bool = false
+    public var disableEnemyAttacks: Bool = false
+
+    public var blockChordPadInput: Bool = false
+    public var blockMidiGameInput: Bool = false
+    public var blockSlotEvaluation: Bool = false
+
+    public var disableSurvivalBgm: Bool = false
+    public var suppressAutoSpawn: Bool = false
+
+    public var bChordCompletionAttackOverride: SurvivalSlotIndex? = nil
+    public var bChordCompletionUseSpecial: Bool = false
+
+    public static let inactive = SurvivalScenarioRuntimeState()
+
+    @inline(__always)
+    public var requiresScenarioTickBranch: Bool {
+        isActive
+    }
+}
+
 /// 通常ステージ全体の状態。ボス戦は別で管理 (SurvivalBossBattleState) するが、
 /// プレイヤー座標や入力は Controller 側で共通管理する。
 struct SurvivalStageRuntime: Sendable {
@@ -552,6 +603,9 @@ struct SurvivalStageRuntime: Sendable {
     public var comboGauge: Int = 0
     public var comboReady: Bool = false
     public var lastComboHitAt: TimeInterval = 0
+    
+    /// オンボーディング等。通常プレイでは `.inactive` のまま。
+    public var scenario: SurvivalScenarioRuntimeState = .inactive
 }
 
 extension SurvivalCodeSlot: Equatable {
@@ -607,6 +661,8 @@ struct SurvivalUISnapshot: Equatable {
     var hintSlotIndex: Int?
     /// A/B 正解ベースのコンボ表示用（必殺発動後も加算し続けるが 5 秒途切れで 0）
     var comboCount: Int
+    /// オンボーディング等の UI 抑制フラグ（毎フレーム同一なら Equatable で弾ける）
+    var scenario: SurvivalScenarioRuntimeState
 
     static func make(from runtime: SurvivalStageRuntime, hintSlotIndex: Int?) -> SurvivalUISnapshot {
         let remaining = max(0, runtime.remainingSeconds)
@@ -625,7 +681,8 @@ struct SurvivalUISnapshot: Equatable {
             statusEffectStrip: strip,
             slots: runtime.slots,
             hintSlotIndex: hintSlotIndex,
-            comboCount: runtime.comboCount
+            comboCount: runtime.comboCount,
+            scenario: runtime.scenario
         )
     }
 }

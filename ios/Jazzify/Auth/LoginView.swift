@@ -3,6 +3,8 @@ import UIKit
 
 struct LoginView: View {
     @EnvironmentObject var appState: AppState
+    var onOnboardingRequested: () -> Void = {}
+
     @StateObject private var midiManager = MIDIManager.shared
     @State private var email = ""
     @State private var password = ""
@@ -11,9 +13,7 @@ struct LoginView: View {
     @State private var errorMessage: String?
     @State private var showOTPVerify = false
     @State private var authMode: AuthMode = .login
-    @State private var showDemoLP = false
-    /// デモサバイバルの起動時 `hintMode`。リザルトからの「ヒントなしで挑戦」等で書き換える。
-    @State private var demoSurvivalHintMode: Bool = true
+    @State private var didRequestAutomaticOnboarding = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -78,16 +78,12 @@ struct LoginView: View {
             .navigationDestination(isPresented: $showOTPVerify) {
                 OTPVerifyView(email: normalizedEmail)
             }
-            .fullScreenCover(isPresented: $showDemoLP) {
-                SurvivalGameView(
-                    stage: SurvivalDemoStage.definition,
-                    hintMode: demoSurvivalHintMode,
-                    characterId: "fai",
-                    locale: locale,
-                    onClose: { showDemoLP = false },
-                    isDemo: true,
-                    configOverride: SurvivalDemoStage.config
-                )
+            .onAppear {
+                guard !didRequestAutomaticOnboarding else { return }
+                didRequestAutomaticOnboarding = true
+                if OnboardingPreferences.shouldShowAutomatically() {
+                    onOnboardingRequested()
+                }
             }
         }
     }
@@ -348,12 +344,11 @@ struct LoginView: View {
                 .foregroundStyle(.gray)
 
             Button {
-                demoSurvivalHintMode = true
-                showDemoLP = true
+                onOnboardingRequested()
             } label: {
                 Label(
-                    locale == .ja ? "サバイバル" : "Survival",
-                    systemImage: "flame.fill"
+                    locale == .ja ? "デモプレイ" : "Demo play",
+                    systemImage: "play.circle.fill"
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)

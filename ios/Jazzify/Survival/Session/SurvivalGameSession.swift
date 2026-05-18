@@ -12,6 +12,7 @@ final class SurvivalGameSession: ObservableObject {
     private let simulation: SurvivalSimulation
 
     @Published private(set) var state: SurvivalSessionState = .ready
+    @Published private(set) var userInputNotePulse: UInt64 = 0
 
     /// SpriteKit watchdog がタイムボックス復旧判定してよいか（実行中のみ。結果オーバーレイや終了後は無効）。
     var allowsGameplayWatchdog: Bool {
@@ -35,9 +36,17 @@ final class SurvivalGameSession: ObservableObject {
         config: SurvivalStageConfig = .default,
         onExit: @escaping (_ isCleared: Bool) -> Void,
         isDemo: Bool = false,
-        usesEnglishToastCopy: Bool
+        usesEnglishToastCopy: Bool,
+        scenarioOverrides: SurvivalScenarioOverrides = .init(),
+        scenarioController: SurvivalScenarioController? = nil
     ) {
-        let loop = SurvivalGameLoop(stage: stage, hintMode: hintMode, profile: profile, config: config)
+        let loop = SurvivalGameLoop(
+            stage: stage,
+            hintMode: hintMode,
+            profile: profile,
+            config: config,
+            scenarioOverrides: scenarioOverrides
+        )
         self.gameLoop = loop
         self.simulation = SurvivalSimulation(gameLoop: loop)
         self.input = SurvivalInputBuffer()
@@ -61,6 +70,8 @@ final class SurvivalGameSession: ObservableObject {
         uiForward = vm.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
+
+        scenarioController?.bind(session: self)
     }
 
     func dispose() {
@@ -83,8 +94,11 @@ final class SurvivalGameSession: ObservableObject {
 
     func start() {
         guard state != .disposed else { return }
-        audioController.setBgmUrl(gameLoop.stageConfig.bgmUrl)
-        audioController.start()
+        let playBackgroundMusic = !gameLoop.runtime.scenario.disableSurvivalBgm
+        if playBackgroundMusic {
+            audioController.setBgmUrl(gameLoop.stageConfig.bgmUrl)
+        }
+        audioController.start(playBackgroundMusic: playBackgroundMusic)
         gameLoop.markAudioClockStarted()
         state = .running
     }
@@ -133,15 +147,36 @@ final class SurvivalGameSession: ObservableObject {
         }
     }
 
+    /// オンボーディングの自動演奏（スロット入力とは独立）。
+    func playOnboardingChord(midis: [Int], durationSec: TimeInterval = 0.42) {
+        guard state != .disposed else { return }
+        audioController.pianoChordOn(midis: midis, velocity: 92)
+        let copy = midis
+        Task { @MainActor in
+            let ns = UInt64(durationSec * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: ns)
+            guard self.state != .disposed else { return }
+            for m in copy { self.audioController.pianoNoteOff(midi: m) }
+        }
+    }
+
+    func playOnboardingRoot(for chord: SurvivalResolvedChord) {
+        guard state != .disposed else { return }
+        audioController.playSynthBassRoot(midi: 36 + chord.rootPitchClass)
+    }
+
     /// タッチ鍵盤: ピアノ音はここで即座に鳴らし、ノートオンは次フレームの `drain` でシミュへ渡す。
     func chordPadNoteOn(_ note: Int, velocity: Int = 100) {
         guard state != .disposed else { return }
+        if gameLoop.runtime.scenario.blockChordPadInput { return }
+        userInputNotePulse &+= 1
         audioController.pianoNoteOn(midi: note, velocity: velocity)
         input.enqueueNoteOn(note, velocity: velocity)
     }
 
     func chordPadNoteOff(_ note: Int) {
         guard state != .disposed else { return }
+        if gameLoop.runtime.scenario.blockChordPadInput { return }
         audioController.pianoNoteOff(midi: note)
         input.enqueueNoteOff(note)
     }
@@ -149,11 +184,14 @@ final class SurvivalGameSession: ObservableObject {
     /// MIDI: リアルタイム発音済み想定。ゲーム入力のみキューへ。
     func midiGameNoteOn(_ note: Int, velocity: Int) {
         guard state != .disposed else { return }
+        if gameLoop.runtime.scenario.blockMidiGameInput { return }
+        userInputNotePulse &+= 1
         input.enqueueNoteOn(note, velocity: velocity)
     }
 
     func midiGameNoteOff(_ note: Int) {
         guard state != .disposed else { return }
+        if gameLoop.runtime.scenario.blockMidiGameInput { return }
         input.enqueueNoteOff(note)
     }
 

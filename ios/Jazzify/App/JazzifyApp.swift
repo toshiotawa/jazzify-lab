@@ -36,6 +36,7 @@ struct JazzifyApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @State private var onboardingLaunch: OnboardingLaunchRequest?
 
     var body: some View {
         Group {
@@ -43,7 +44,9 @@ struct RootView: View {
             case .loading:
                 LaunchScreenView()
             case .unauthenticated:
-                LoginView()
+                LoginView(onOnboardingRequested: {
+                    onboardingLaunch = OnboardingLaunchRequest()
+                })
             case .profileSetupRequired(_, let email):
                 ProfileSetupView(email: email)
             case .authenticated:
@@ -60,7 +63,16 @@ struct RootView: View {
                 }
             )
         }
+        .fullScreenCover(item: $onboardingLaunch) { _ in
+            OnboardingView(locale: appState.locale, onClose: {
+                onboardingLaunch = nil
+            })
+        }
     }
+}
+
+private struct OnboardingLaunchRequest: Identifiable {
+    let id = UUID()
 }
 
 struct LaunchScreenView: View {

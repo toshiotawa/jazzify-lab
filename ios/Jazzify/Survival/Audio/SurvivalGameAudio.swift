@@ -305,6 +305,14 @@ final class SurvivalGameAudio {
         pianoSampler.noteOn(midi: midi, velocity: velocity)
     }
 
+    func pianoChordOn(midis: [Int], velocity: Int = 100) {
+        guard !isStopping else { return }
+        preparePianoIfNeeded()
+        startEngineIfNeeded()
+        guard isEngineStarted, engine.isRunning else { return }
+        pianoSampler.chordOn(midis: midis, velocity: velocity)
+    }
+
     /// ピアノ音の発音を停止する (フェードアウト約 0.5 秒)。
     func pianoNoteOff(midi: Int) {
         guard isPianoPrepared else { return }
