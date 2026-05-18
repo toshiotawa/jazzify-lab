@@ -196,9 +196,34 @@ final class SurvivalScene: SKScene {
         }
         sprite.size = size
         container.addChild(sprite)
+        Self.addComboGauge(to: container)
         entitiesNode.addChild(container)
         playerNode = container
         playerSprite = sprite
+    }
+
+    /// A/B コンボ用ゲージ（5 本）をプレイヤースプライト上端に載せる。
+    private static func addComboGauge(to container: SKNode) {
+        let host = SKNode()
+        host.name = "comboGaugeHost"
+        host.zPosition = 6
+        let barW: CGFloat = 6
+        let barH: CGFloat = 3
+        let gap: CGFloat = 2
+        let maxG = SurvivalConstants.comboGaugeMax
+        let totalW = CGFloat(maxG) * barW + CGFloat(maxG - 1) * gap
+        let left = -totalW / 2 + barW / 2
+        for i in 0..<maxG {
+            let rect = SKShapeNode(rectOf: CGSize(width: barW, height: barH), cornerRadius: 1)
+            rect.name = "g\(i)"
+            rect.position = CGPoint(x: left + CGFloat(i) * (barW + gap), y: 0)
+            rect.fillColor = UIColor(white: 0.3, alpha: 0.75)
+            rect.strokeColor = UIColor(white: 0.85, alpha: 0.35)
+            rect.lineWidth = 0.5
+            host.addChild(rect)
+        }
+        host.position = CGPoint(x: 0, y: SurvivalConstants.playerSize * 0.85 + 10)
+        container.addChild(host)
     }
 
     /// 暗い木床（Web 版と同一見た目）。テクスチャ本体は `SurvivalBackgroundCache` でプロセス共有。
@@ -431,6 +456,29 @@ final class SurvivalScene: SKScene {
             } else {
                 sprite.colorBlendFactor = 0.0
             }
+
+            if let host = playerNode.childNode(withName: "comboGaugeHost") {
+                let gauge = runtime.comboGauge
+                let ready = runtime.comboReady
+                let maxG = SurvivalConstants.comboGaugeMax
+                if gauge == 0, !ready {
+                    host.isHidden = true
+                } else {
+                    host.isHidden = false
+                    if ready, gauge >= maxG {
+                        host.alpha = CGFloat(0.65 + 0.35 * sin(now * 12))
+                    } else {
+                        host.alpha = 1
+                    }
+                    for i in 0..<maxG {
+                        guard let bar = host.childNode(withName: "g\(i)") as? SKShapeNode else { continue }
+                        let filled = i < gauge
+                        bar.fillColor = filled
+                            ? UIColor(red: 1, green: 0.85, blue: 0.15, alpha: 1)
+                            : UIColor(white: 0.3, alpha: 0.75)
+                    }
+                }
+            }
         }
 
         // 敵 (絵文字 + HP リング)
@@ -487,48 +535,41 @@ final class SurvivalScene: SKScene {
             }
         )
 
-        // 衝撃波 (Web 版 `SurvivalCanvas` と揃えて前方 144° の半円アークで描画)
-        // - zPosition 130: プレイヤー (100) / 敵 (90-125) より前面に描画し、
-        //   Web 版同様「殴った拳の先から前方に広がる」見た目にする。
-        // - 半径は作成から 15% の時間 (≒52ms) で maxRadius まで一気に拡大し、
-        //   残りの時間で透明度 / 線幅を減衰させる (Web `SHOCKWAVE_EXPAND_RATIO`)。
-        // - 視覚効果として扇形塗り + 前縁アーク + 中心インパクト 💥 + 放射スパーク を重ね、
-        //   発動時にはカメラを軽く振って打撃感を出す。
+        // 衝撃波: 通常は前方 144° 扇形。必殺技 (`isSpecial`) は 360° 円形・強シェイク。
         syncNodes(
             nodeMap: &shockwaveNodes,
             ids: runtime.shockwaves.map { $0.id },
-            create: { [effectsNode, weak self] _ in
+            create: { [effectsNode, weak self] id in
+                let isSpecial = shockwaveById[id]?.isSpecial ?? false
+                let sparkCount = isSpecial ? 12 : 5
+
                 let container = SKNode()
                 container.zPosition = 130
 
-                // 内部塗り (半透明扇形)
                 let fan = SKShapeNode()
                 fan.strokeColor = .clear
                 fan.name = "fan"
                 fan.zPosition = 0
                 container.addChild(fan)
 
-                // 前縁アーク (ネオンストローク)
                 let arc = SKShapeNode()
                 arc.fillColor = .clear
-                arc.lineWidth = 8
+                arc.lineWidth = isSpecial ? 14 : 8
                 arc.lineCap = .round
                 arc.name = "arc"
                 arc.zPosition = 1
                 container.addChild(arc)
 
-                // 中心インパクト 💥 (瞬間フラッシュ)
                 let impact = SKLabelNode(text: "💥")
-                impact.fontSize = 36
+                impact.fontSize = isSpecial ? 48 : 36
                 impact.verticalAlignmentMode = .center
                 impact.horizontalAlignmentMode = .center
                 impact.name = "impact"
                 impact.zPosition = 3
                 container.addChild(impact)
 
-                // 放射スパーク (小円 × 5)。扇形の前縁に沿って並べ、時間と共に飛び散る。
-                for i in 0..<5 {
-                    let spark = SKShapeNode(circleOfRadius: 3)
+                for i in 0..<sparkCount {
+                    let spark = SKShapeNode(circleOfRadius: isSpecial ? 4 : 3)
                     spark.strokeColor = .white.withAlphaComponent(0.8)
                     spark.lineWidth = 1
                     spark.name = "spark_\(i)"
@@ -538,8 +579,14 @@ final class SurvivalScene: SKScene {
 
                 effectsNode.addChild(container)
 
-                // 新規衝撃波生成時にカメラを軽く揺らして打撃感を出す。
-                self?.triggerCameraShake()
+                if isSpecial {
+                    self?.triggerCameraShake(
+                        intensity: SurvivalConstants.specialCameraShakeIntensity,
+                        duration: SurvivalConstants.specialCameraShakeDuration
+                    )
+                } else {
+                    self?.triggerCameraShake()
+                }
 
                 return container
             },
@@ -549,71 +596,78 @@ final class SurvivalScene: SKScene {
 
                 let rawProgress = CGFloat((now - wave.createdAt) / wave.lifetime)
                 let progress = min(max(rawProgress, 0), 1)
-                // Web 版 SHOCKWAVE_EXPAND_RATIO = 0.15。最初の 15% で一気に広げる。
                 let expandProgress = min(1, progress / 0.15)
                 let currentRadius = max(1, wave.maxRadius * expandProgress)
 
-                // direction.vector は Web 座標系 (Y+ が下) なので、
-                // SpriteKit (Y+ が上) 用に dy を反転してから角度を取る。
                 let gameVec = wave.direction.vector
                 let baseAngle = atan2(-gameVec.dy, gameVec.dx)
-                let arcSpread = CGFloat.pi * 0.8 // 前方 144° の扇形
-                let color = Self.shockwaveFillColor(level: wave.colorLevel)
+                let isSpecial = wave.isSpecial
+                let arcSpread = isSpecial ? CGFloat.pi * 2 : CGFloat.pi * 0.8
+                let color = isSpecial
+                    ? UIColor(red: 0.976, green: 0.827, blue: 0.196, alpha: 1)
+                    : Self.shockwaveFillColor(level: wave.colorLevel)
 
-                // 前縁アーク
+                let arcStart = isSpecial ? baseAngle - .pi / 2 : baseAngle - arcSpread / 2
+                let arcEnd = isSpecial ? baseAngle + .pi * 3 / 2 : baseAngle + arcSpread / 2
+
                 if let arc = node.childNode(withName: "arc") as? SKShapeNode {
                     let path = CGMutablePath()
                     path.addArc(
                         center: .zero,
                         radius: currentRadius,
-                        startAngle: baseAngle - arcSpread / 2,
-                        endAngle: baseAngle + arcSpread / 2,
+                        startAngle: arcStart,
+                        endAngle: arcEnd,
                         clockwise: false
                     )
                     arc.path = path
                     arc.strokeColor = color
-                    arc.lineWidth = max(1, 10 * (1 - progress))
-                    arc.alpha = max(0, 1 - progress) * 0.95
+                    let lw = isSpecial ? max(2, 14 * (1 - progress * 0.85)) : max(1, 10 * (1 - progress))
+                    arc.lineWidth = lw
+                    arc.alpha = max(0, 1 - progress) * (isSpecial ? 1 : 0.95)
                 }
 
-                // 内部塗り扇形 (中心→前縁)
                 if let fan = node.childNode(withName: "fan") as? SKShapeNode {
                     let path = CGMutablePath()
                     path.move(to: .zero)
                     path.addArc(
                         center: .zero,
                         radius: currentRadius,
-                        startAngle: baseAngle - arcSpread / 2,
-                        endAngle: baseAngle + arcSpread / 2,
+                        startAngle: arcStart,
+                        endAngle: arcEnd,
                         clockwise: false
                     )
                     path.closeSubpath()
                     fan.path = path
-                    fan.fillColor = color.withAlphaComponent(0.32)
-                    fan.alpha = max(0, 1 - progress * 1.1) * 0.85
+                    fan.fillColor = color.withAlphaComponent(isSpecial ? 0.38 : 0.32)
+                    fan.alpha = max(0, 1 - progress * 1.05) * (isSpecial ? 0.92 : 0.85)
                 }
 
-                // 中心インパクト: 最初の 25% だけ可視、急拡大 → 消失
                 if let impact = node.childNode(withName: "impact") as? SKLabelNode {
                     let impactProgress = min(1, progress / 0.25)
-                    let scale = 0.6 + impactProgress * 1.3
+                    let scaleMul: CGFloat = isSpecial ? 1.15 : 1
+                    let scale = (0.6 + impactProgress * 1.3) * scaleMul
                     impact.setScale(scale)
                     impact.alpha = max(0, 1 - impactProgress)
-                    // 拳の少し前方にシフトして置く
-                    let forward: CGFloat = 14
+                    let forward: CGFloat = isSpecial ? 0 : 14
                     impact.position = CGPoint(
                         x: cos(baseAngle) * forward,
                         y: sin(baseAngle) * forward
                     )
                 }
 
-                // 放射スパーク: 扇形の前縁に沿って 5 方向に配置 + 時間で外側へ飛ぶ
-                for i in 0..<5 {
+                let sparkCount = isSpecial ? 12 : 5
+                for i in 0..<sparkCount {
                     guard let spark = node.childNode(withName: "spark_\(i)") as? SKShapeNode else { continue }
-                    let angleOffset = (CGFloat(i) - 2) * (arcSpread * 0.33)
-                    let sparkAngle = baseAngle + angleOffset
-                    // 基本位置は前縁。progress に応じてさらに外へ飛ばす。
-                    let fly = currentRadius * (0.82 + CGFloat(i % 3) * 0.08 + progress * 0.35)
+                    let sparkAngle: CGFloat
+                    let fly: CGFloat
+                    if isSpecial {
+                        sparkAngle = baseAngle + (CGFloat(i) / CGFloat(sparkCount)) * 2 * .pi
+                        fly = currentRadius * (0.88 + progress * 0.42)
+                    } else {
+                        let angleOffset = (CGFloat(i) - 2) * (arcSpread * 0.33)
+                        sparkAngle = baseAngle + angleOffset
+                        fly = currentRadius * (0.82 + CGFloat(i % 3) * 0.08 + progress * 0.35)
+                    }
                     spark.position = CGPoint(
                         x: cos(sparkAngle) * fly,
                         y: sin(sparkAngle) * fly

@@ -214,6 +214,18 @@ private struct SurvivalGameContent: View {
 
             VStack {
                 Spacer()
+                HStack {
+                    Spacer()
+                    SurvivalComboBadgeView(comboCount: vm.uiSnapshot.comboCount)
+                        .equatable()
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 140)
+                }
+            }
+            .allowsHitTesting(false)
+
+            VStack {
+                Spacer()
                 chordPadBar
             }
 

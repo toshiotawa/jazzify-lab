@@ -196,6 +196,18 @@ final class SurvivalGameLoop {
         contactDamageAccumulator = 0
     }
 
+    /// A/B 正解から `comboResetIntervalSec` 経過でコンボ・ゲージを 0 に戻す。
+    private func expireComboIfTimedOut(now: TimeInterval) {
+        if runtime.comboCount == 0, !runtime.comboReady, runtime.comboGauge == 0 {
+            return
+        }
+        if now - runtime.lastComboHitAt > SurvivalConstants.comboResetIntervalSec {
+            runtime.comboCount = 0
+            runtime.comboGauge = 0
+            runtime.comboReady = false
+        }
+    }
+
     /// 仮想スティックの生入力をスムージングする。
     /// - デッドゾーン正規化は `SurvivalJoystickHostView` 側で済ませているため、ここでは
     ///   数値ノイズ除去用の極小閾値のみとし、二重デッドゾーンによるモタつきを避ける。
@@ -368,33 +380,52 @@ final class SurvivalGameLoop {
         )
 
         switch SurvivalSlotIndex(rawValue: slotIndex) {
-        case .A?:
-            let projectiles = SurvivalGameEngine.createAProjectiles(
-                from: runtime.player,
-                effectiveAAtk: effectiveStats.aAtk
-            )
-            runtime.projectiles.append(contentsOf: projectiles)
-        case .B?:
-            let initialWave = SurvivalGameEngine.createShockwave(
-                from: runtime.player,
-                effectiveBAtk: effectiveStats.bAtk,
-                now: now,
-                colorLevel: 0
-            )
-            runtime.shockwaves.append(initialWave)
-            let multiHitLevel = max(0, runtime.player.skills.multiHitLevel)
-            if multiHitLevel > 0 {
-                let baseDamage = SurvivalGameEngine.calculateBMeleeDamage(bAtk: effectiveStats.bAtk)
-                for hit in 1...multiHitLevel {
-                    runtime.pendingShockwaves.append(
-                        SurvivalPendingShockwave(
-                            fireAt: now + SurvivalConstants.meleeMultiHitIntervalSec * Double(hit),
-                            damage: baseDamage,
-                            colorLevel: min(3, hit)
-                        )
+        case .A?, .B?:
+            if runtime.comboReady {
+                let wave = SurvivalGameEngine.createSpecialShockwave(
+                    from: runtime.player,
+                    effectiveBAtk: effectiveStats.bAtk,
+                    now: now
+                )
+                runtime.shockwaves.append(wave)
+                runtime.comboGauge = 0
+                runtime.comboReady = false
+            } else {
+                if slotIndex == SurvivalSlotIndex.A.rawValue {
+                    let projectiles = SurvivalGameEngine.createAProjectiles(
+                        from: runtime.player,
+                        effectiveAAtk: effectiveStats.aAtk
                     )
+                    runtime.projectiles.append(contentsOf: projectiles)
+                } else {
+                    let initialWave = SurvivalGameEngine.createShockwave(
+                        from: runtime.player,
+                        effectiveBAtk: effectiveStats.bAtk,
+                        now: now,
+                        colorLevel: 0
+                    )
+                    runtime.shockwaves.append(initialWave)
+                    let multiHitLevel = max(0, runtime.player.skills.multiHitLevel)
+                    if multiHitLevel > 0 {
+                        let baseDamage = SurvivalGameEngine.calculateBMeleeDamage(bAtk: effectiveStats.bAtk)
+                        for hit in 1...multiHitLevel {
+                            runtime.pendingShockwaves.append(
+                                SurvivalPendingShockwave(
+                                    fireAt: now + SurvivalConstants.meleeMultiHitIntervalSec * Double(hit),
+                                    damage: baseDamage,
+                                    colorLevel: min(3, hit)
+                                )
+                            )
+                        }
+                    }
+                }
+                runtime.comboGauge = min(SurvivalConstants.comboGaugeMax, runtime.comboGauge + 1)
+                if runtime.comboGauge >= SurvivalConstants.comboGaugeMax {
+                    runtime.comboReady = true
                 }
             }
+            runtime.comboCount += 1
+            runtime.lastComboHitAt = now
         case .C?, .D?:
             if !profile.noMagic {
                 let kind: SurvivalMagicKind = slotIndex == SurvivalSlotIndex.C.rawValue
@@ -532,6 +563,7 @@ final class SurvivalGameLoop {
     // MARK: - 通常ステージ 1 フレーム
 
     private func tickNormal(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
+        expireComboIfTimedOut(now: now)
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,
@@ -848,6 +880,7 @@ final class SurvivalGameLoop {
     // MARK: - ボスステージ 1 フレーム
 
     private func tickBoss(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
+        expireComboIfTimedOut(now: now)
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,
@@ -944,13 +977,18 @@ final class SurvivalGameLoop {
         // `wave.hitEnemyIds` で「この衝撃波で既にヒット済み」なボス/ミニオンをスキップし、多段ヒットを防ぐ。
         for idx in runtime.shockwaves.indices {
             var wave = runtime.shockwaves[idx]
-            let dirVec = wave.direction.vector
-            let originX = wave.x - dirVec.dx * SurvivalConstants.meleeAttackForwardOffset
-            let originY = wave.y - dirVec.dy * SurvivalConstants.meleeAttackForwardOffset
-            let meleeForwardFilter = SurvivalBossEngine.ForwardFilter(
-                origin: CGPoint(x: originX, y: originY),
-                direction: dirVec
-            )
+            let meleeForwardFilter: SurvivalBossEngine.ForwardFilter?
+            if wave.isSpecial {
+                meleeForwardFilter = nil
+            } else {
+                let dirVec = wave.direction.vector
+                let originX = wave.x - dirVec.dx * SurvivalConstants.meleeAttackForwardOffset
+                let originY = wave.y - dirVec.dy * SurvivalConstants.meleeAttackForwardOffset
+                meleeForwardFilter = SurvivalBossEngine.ForwardFilter(
+                    origin: CGPoint(x: originX, y: originY),
+                    direction: dirVec
+                )
+            }
             let res = SurvivalBossEngine.applyPlayerAttack(
                 state: &boss,
                 damage: Int(Double(wave.damage) * 0.6),

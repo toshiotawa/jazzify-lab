@@ -65,6 +65,15 @@ enum SurvivalConstants {
     static let enemyProjectileSize: CGFloat = 14
     /// 被弾フラッシュ持続秒
     static let playerDamageFlashSec: TimeInterval = 0.18
+    /// A/B 正解ごとに 1 本溜まるコンボゲージの最大（次の正解で必殺技発動）
+    static let comboGaugeMax: Int = 5
+    /// 正解が無いときコンボ／ゲージをリセットするまでの秒数
+    static let comboResetIntervalSec: TimeInterval = 5
+    /// 必殺技の衝撃波半径倍率（通常 maxRadius に乗算）
+    static let specialAttackRadiusMultiplier: CGFloat = 1.5
+    /// 必殺技発動時のカメラ揺れ振幅／時間
+    static let specialCameraShakeIntensity: CGFloat = 12
+    static let specialCameraShakeDuration: TimeInterval = 0.4
 }
 
 // MARK: - Directions
@@ -319,6 +328,8 @@ public struct SurvivalShockwave: Identifiable, Sendable {
     public var hitEnemyIds: Set<UUID> = []
     /// 色バリエーション (多段ヒット時に変化)
     public var colorLevel: Int = 0
+    /// コンボ必殺技の衝撃波（360°・単発・見た目・敵弾消去を特別扱い）
+    public var isSpecial: Bool = false
 }
 
 /// 多段ヒット用に遅延発火される衝撃波のプラン。
@@ -535,6 +546,12 @@ struct SurvivalStageRuntime: Sendable {
     public var spawnAccumulator: TimeInterval = 0
     /// プレイヤーがまだ一度も敵と出会っていない (最初のスポーンを特別にする) 用フラグ
     public var hasSpawnedAny: Bool = false
+    /// A/B 正解の連続回数。`comboResetIntervalSec` 経過で 0。
+    public var comboCount: Int = 0
+    /// 0...`comboGaugeMax`。MAX の次の A/B 正解で必殺技。
+    public var comboGauge: Int = 0
+    public var comboReady: Bool = false
+    public var lastComboHitAt: TimeInterval = 0
 }
 
 extension SurvivalCodeSlot: Equatable {
@@ -588,6 +605,8 @@ struct SurvivalUISnapshot: Equatable {
     var slots: [SurvivalCodeSlot]
     /// HINT 対象のコードスロット index（A=0, B=1）。HINT でないときは nil。
     var hintSlotIndex: Int?
+    /// A/B 正解ベースのコンボ表示用（必殺発動後も加算し続けるが 5 秒途切れで 0）
+    var comboCount: Int
 
     static func make(from runtime: SurvivalStageRuntime, hintSlotIndex: Int?) -> SurvivalUISnapshot {
         let remaining = max(0, runtime.remainingSeconds)
@@ -605,7 +624,8 @@ struct SurvivalUISnapshot: Equatable {
             elapsedSecondsRounded: Int(runtime.elapsedSeconds.rounded()),
             statusEffectStrip: strip,
             slots: runtime.slots,
-            hintSlotIndex: hintSlotIndex
+            hintSlotIndex: hintSlotIndex,
+            comboCount: runtime.comboCount
         )
     }
 }

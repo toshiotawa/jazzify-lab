@@ -546,6 +546,25 @@ enum SurvivalGameEngine {
         )
     }
 
+    /// コンボ MAX 後の必殺技：プレイヤー中心・360°・半径 1.5 倍・単発（多段なし）。`isSpecial` が付与される。
+    static func createSpecialShockwave(
+        from player: SurvivalPlayerState,
+        effectiveBAtk: Int,
+        now: TimeInterval
+    ) -> SurvivalShockwave {
+        var wave = createShockwave(
+            from: player,
+            effectiveBAtk: effectiveBAtk,
+            now: now,
+            colorLevel: 7
+        )
+        wave.maxRadius *= SurvivalConstants.specialAttackRadiusMultiplier
+        wave.isSpecial = true
+        wave.x = player.x
+        wave.y = player.y
+        return wave
+    }
+
     static func updateShockwaves(
         shockwaves: [SurvivalShockwave],
         now: TimeInterval
@@ -633,11 +652,13 @@ enum SurvivalGameEngine {
                 let dy = enemy.y - wave.y
                 let distSq = dx * dx + dy * dy
 
-                // 正面 180°: プレイヤー中心 → 敵 と向きの内積が正のときのみヒット (直角・背面は対象外)
-                let toEnemyX = enemy.x - player.x
-                let toEnemyY = enemy.y - player.y
-                let dot = toEnemyX * dirVec.dx + toEnemyY * dirVec.dy
-                if dot <= 0 { continue }
+                if !wave.isSpecial {
+                    // 正面 180°: プレイヤー中心 → 敵 と向きの内積が正のときのみヒット (直角・背面は対象外)
+                    let toEnemyX = enemy.x - player.x
+                    let toEnemyY = enemy.y - player.y
+                    let dot = toEnemyX * dirVec.dx + toEnemyY * dirVec.dy
+                    if dot <= 0 { continue }
+                }
 
                 let maxR = wave.maxRadius
                 if distSq <= maxR * maxR {
@@ -659,13 +680,14 @@ enum SurvivalGameEngine {
         return hits
     }
 
-    /// 衝撃波による敵弾消去 (`bDeflect=true` の場合のみ)
+    /// 衝撃波による敵弾消去 (`bDeflect=true`、または必殺技衝撃波が存在する場合)
     static func resolveEnemyProjectileDeflect(
         shockwaves: [SurvivalShockwave],
         enemyProjectiles: inout [SurvivalEnemyProjectile],
         bDeflect: Bool
     ) {
-        guard bDeflect, !shockwaves.isEmpty else { return }
+        let hasSpecial = shockwaves.contains { $0.isSpecial }
+        guard ((!shockwaves.isEmpty) && (bDeflect || hasSpecial)) else { return }
         var removeIds: Set<UUID> = []
         for wave in shockwaves {
             let combined = wave.radius + SurvivalConstants.enemyProjectileSize / 2
