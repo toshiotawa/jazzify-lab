@@ -74,12 +74,16 @@ final class OnboardingScript: ObservableObject {
         controller.setSlotBEnabled(true)
 
         characterText = isJa
-            ? "ジャズって難しそう？コードを覚えるのが難しい？"
-            : "Jazz looks hard? Chords feel hard to memorize?"
+            ? "ジャズって難しそう？\nコードを覚えるのが難しい？"
+            : "Jazz looks hard?\nChords feel hard to memorize?"
         await sleep(2)
         characterText = isJa
-            ? "このアプリでは、コードは暗記表ではなく、ゲームのコマンドです。"
-            : "In this app, chords are not flashcards. They are game commands."
+            ? "コードを弾くと、ワザが出る。遊んでいるうちに、ジャズの形が身につく。"
+            : "Play a chord to unleash a move. As you play, jazz starts to stick."
+        await sleep(2)
+        characterText = isJa
+            ? "これがこのアプリの基本です。"
+            : "That's the foundation of this app."
         await sleep(2.2)
         characterText = ""
 
@@ -293,26 +297,30 @@ final class OnboardingScript: ObservableObject {
         await sleep(2)
         characterText = isJa ? "“II-V-I（ツーファイブワン）”。" : "“Two-Five-One” (II-V-I)."
         await sleep(2)
-        characterText = isJa ? "理屈は置いておこう。まずは弾けた、その事実が大事。" : "Set the theory aside for now. What matters is that you played it."
+        characterText = isJa
+            ? "理屈はあとで追いつく。\nまずは、指で覚えよう。"
+            : "Theory will catch up later.\nFirst, let your fingers learn it."
         await sleep(2.2)
 
         // MARK: Scene 5
         controller.setOverrides(scene5Base())
-        characterText = isJa ? "この先は、3つ。" : "From here, three things."
+        characterText = isJa
+            ? "ここから少しずつ、できることが増えていくよ。"
+            : "From here, you'll slowly unlock more and more."
         await sleep(2)
         characterText = ""
         await showPillar(
-            caption: isJa ? "コードを増やす。" : "Grow your chord vocabulary.",
+            caption: isJa ? "使えるコードが増える。" : "You'll grow your usable chords.",
             systemImage: "music.note.list",
             imageAsset: "onboarding_pillar_chords"
         )
         await showPillar(
-            caption: isJa ? "タイミングを鍛える。" : "Sharpen your timing.",
+            caption: isJa ? "リズムに乗れる。" : "You'll ride the rhythm.",
             systemImage: "metronome",
             imageAsset: "onboarding_pillar_timing"
         )
         await showPillar(
-            caption: isJa ? "フレーズで返せるようになる。" : "Answer with real phrases.",
+            caption: isJa ? "自分のフレーズで返せる。" : "You'll answer with your own phrases.",
             systemImage: "waveform",
             imageAsset: "onboarding_pillar_phrase"
         )
