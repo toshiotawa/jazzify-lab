@@ -217,9 +217,8 @@ private struct SurvivalGameContent: View {
                 HStack {
                     Spacer()
                     SurvivalComboBadgeView(comboCount: vm.uiSnapshot.comboCount)
-                        .equatable()
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 140)
+                        .padding(Edge.Set.trailing, 16)
+                        .padding(Edge.Set.bottom, 140)
                 }
             }
             .allowsHitTesting(false)
@@ -288,6 +287,31 @@ private struct SurvivalGameContent: View {
                 isDemo: isDemo,
                 onRetry: { session.restartSameStage() },
                 onExit: { session.requestExit() }
+            )
+        }
+    }
+}
+
+/// 鍵盤付近に重ねる A/B コンボ数表示（途切れで非表示）。
+private struct SurvivalComboBadgeView: View {
+    let comboCount: Int
+
+    var body: some View {
+        if comboCount > 0 {
+            HStack(spacing: 4) {
+                Text("COMBO")
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(0.85))
+                Text("\(comboCount)")
+                    .font(.title2.bold())
+                    .foregroundStyle(.yellow)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.55), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(.yellow.opacity(0.6), lineWidth: 1)
             )
         }
     }
