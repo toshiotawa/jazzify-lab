@@ -130,6 +130,55 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    // MARK: - MIDI Connection Guide
+
+    struct IOSMidiDeviceModelRow: Codable, Sendable {
+        let modelIdentifier: String
+        let deviceFamily: String
+        let marketingName: String
+        let connectorType: String
+        let isDefault: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case modelIdentifier = "model_identifier"
+            case deviceFamily = "device_family"
+            case marketingName = "marketing_name"
+            case connectorType = "connector_type"
+            case isDefault = "is_default"
+        }
+    }
+
+    func fetchIosMidiDeviceModel(
+        modelIdentifier: String,
+        deviceFamily: String
+    ) async throws -> IOSMidiDeviceModelRow? {
+        let selectColumns = "model_identifier, device_family, marketing_name, connector_type, is_default"
+        let exactRows: [IOSMidiDeviceModelRow] = try await client
+            .from("ios_midi_device_models")
+            .select(selectColumns)
+            .eq("model_identifier", value: modelIdentifier)
+            .eq("is_active", value: true)
+            .limit(1)
+            .execute()
+            .value
+
+        if let exact = exactRows.first {
+            return exact
+        }
+
+        let defaultIdentifier = "__default_\(deviceFamily)__"
+        let defaultRows: [IOSMidiDeviceModelRow] = try await client
+            .from("ios_midi_device_models")
+            .select(selectColumns)
+            .eq("model_identifier", value: defaultIdentifier)
+            .eq("is_active", value: true)
+            .limit(1)
+            .execute()
+            .value
+
+        return defaultRows.first
+    }
+
     /// Web の `supabase.auth.updateUser({ email })` と同じ経路（確認コード送信。テンプレートに `{{ .Token }}` が必要）
     func requestEmailChange(newEmail: String) async throws {
         let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
