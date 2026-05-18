@@ -114,16 +114,19 @@ function buildAllLayouts(category: SurvivalMapCategory): BlockLayout[] {
 const LAYOUTS_BY_CATEGORY: Record<SurvivalMapCategory, BlockLayout[]> = {
   basic: [],
   songs: [],
+  phrases: [],
 };
 
 const STAGE_POSITIONS_BY_CATEGORY: Record<SurvivalMapCategory, Map<number, StagePosition>> = {
   basic: new Map(),
   songs: new Map(),
+  phrases: new Map(),
 };
 
 const MAP_LOGICAL_HEIGHT_BY_CATEGORY: Record<SurvivalMapCategory, number> = {
   basic: 0,
   songs: 0,
+  phrases: 0,
 };
 
 /** 互換用: Basic マップのレイアウト一覧 */

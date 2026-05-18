@@ -102,6 +102,22 @@ import {
   SurvivalProgressionStaff,
   type SurvivalProgressionStaffSnapshot,
 } from './SurvivalProgressionStaff';
+import { SurvivalPhraseStaff } from './phrases/SurvivalPhraseStaff';
+import {
+  createInitialPhraseState,
+  evaluatePhraseNoteOn,
+  getPhraseDisplayChords,
+  getPhraseTargetMidi,
+  type SurvivalPhraseRuntimeState,
+} from './phrases/SurvivalPhraseEngine';
+import {
+  fetchSurvivalPhraseByStage,
+  type SurvivalPhraseDefinition,
+} from '@/utils/survivalPhraseDefinitions';
+import {
+  SurvivalPhraseDrumLoop,
+  SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL,
+} from '@/utils/survivalPhraseDrumLoop';
 import { buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
@@ -300,6 +316,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // `getSurvivalStageBattleKind` は isBlockLast を優先して 'boss' を返すため、ここで
   // 出題ロジック判定だけは `stageType === 'progression'` を直接見る。
   const isProgressionStage = stageDefinition?.stageType === 'progression';
+  const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
   const bossType = isBossStage && stageDefinition
     ? (getBlockForStage(stageDefinition.stageNumber, stageDefinition.mapCategory)?.bossType ?? null)
     : null;
@@ -308,6 +325,61 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // DB の `chord_progression` から事前構築済みの ChordDefinition 配列を保持する。
   const progressionChordsRef = useRef<SurvivalChordDefinition[]>([]);
   const progressionIndexRef = useRef(0);
+
+  const phraseDefinitionRef = useRef<SurvivalPhraseDefinition | null>(null);
+  const phraseStateRef = useRef<SurvivalPhraseRuntimeState | null>(null);
+  const [phraseUiTick, setPhraseUiTick] = useState(0);
+  const phraseDrumLoopRef = useRef<SurvivalPhraseDrumLoop | null>(null);
+  const phraseHideNotesAfter30sRef = useRef(false);
+
+  useEffect(() => {
+    if (!isPhraseMode || !stageDefinition) {
+      phraseDefinitionRef.current = null;
+      phraseStateRef.current = null;
+      return;
+    }
+    let cancelled = false;
+    void fetchSurvivalPhraseByStage(stageDefinition.mapCategory, stageDefinition.stageNumber).then((phrase) => {
+      if (cancelled || !phrase) return;
+      phraseDefinitionRef.current = phrase;
+      phraseStateRef.current = createInitialPhraseState(phrase);
+      setPhraseUiTick((t) => t + 1);
+      const phraseDrum = phraseDrumLoopRef.current;
+      const url = phrase.bgmUrl?.trim() || config.bgmUrl?.trim() || SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL;
+      if (phraseDrum) {
+        void (async () => {
+          try {
+            await initializeAudioSystem();
+            if (cancelled) return;
+            const ctx = new AudioContext();
+            await ctx.resume();
+            await phraseDrum.prepare(url, ctx);
+            if (!cancelled) {
+              phraseDrum.start();
+              phraseDrum.setVolume(bgmVolumeRef.current);
+            }
+          } catch {
+            // ignore
+          }
+        })();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isPhraseMode, stageDefinition?.mapCategory, stageDefinition?.stageNumber]);
+
+  useEffect(() => {
+    if (!isPhraseMode || hintMode) {
+      phraseHideNotesAfter30sRef.current = false;
+      return undefined;
+    }
+    const timerId = window.setTimeout(() => {
+      phraseHideNotesAfter30sRef.current = true;
+      setPhraseUiTick((t) => t + 1);
+    }, 30_000);
+    return () => window.clearTimeout(timerId);
+  }, [isPhraseMode, hintMode]);
 
   useEffect(() => {
     if (!isProgressionStage) {
@@ -341,6 +413,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
     const initial = createInitialGameState(difficulty, config, isStageMode);
+    if (isPhraseMode && !isBossStage) {
+      initial.player.stats.hp = 1000;
+      initial.player.stats.maxHp = 1000;
+      for (let si = 0; si < 4; si += 1) {
+        initial.codeSlots.current[si].isEnabled = false;
+        initial.codeSlots.next[si].isEnabled = false;
+      }
+    }
     if (isBossStage) {
       initial.player.stats.hp = BOSS_PLAYER_MAX_HP;
       initial.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
@@ -553,6 +633,32 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const currentBgmUrlRef = useRef<string | null>(null);
   const [bgmVolume, setBgmVolume] = useState<number>(0.3);
   const bgmVolumeRef = useRef<number>(0.3);
+
+  useEffect(() => {
+    if (!isPhraseMode) {
+      return undefined;
+    }
+    const phraseDrum = new SurvivalPhraseDrumLoop();
+    phraseDrumLoopRef.current = phraseDrum;
+    return () => {
+      phraseDrum.stop();
+      phraseDrum.dispose();
+      phraseDrumLoopRef.current = null;
+    };
+  }, [isPhraseMode, stageDefinition?.stageNumber]);
+
+  useEffect(() => {
+    const phraseDrum = phraseDrumLoopRef.current;
+    if (!isPhraseMode || !phraseDrum) {
+      return;
+    }
+    if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
+      phraseDrum.stop();
+      return;
+    }
+    phraseDrum.start();
+    phraseDrum.setVolume(bgmVolumeRef.current);
+  }, [isPhraseMode, gameState.isGameOver, gameState.isPaused, gameState.isPlaying]);
   
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());
@@ -636,6 +742,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // BGM再生制御（ステージ種別ごとに決まる1曲をループ再生）
   useEffect(() => {
+    if (isPhraseMode) {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current = null;
+        currentBgmUrlRef.current = null;
+      }
+      return;
+    }
     // ゲームオーバーまたはポーズ中はBGMを停止
     if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
       if (bgmAudioRef.current) {
@@ -690,7 +804,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       // コンポーネントアンマウント時はBGMを停止
     };
-  }, [gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmUrl]);
+  }, [isPhraseMode, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmUrl]);
   
   // コンポーネントアンマウント時にBGMを停止
   useEffect(() => {
@@ -1290,6 +1404,126 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setGameState(prev => {
       // ゲームオーバーまたはポーズ中は何もしない
       if (prev.isGameOver || prev.isPaused) return prev;
+
+      if (isPhraseMode && phraseStateRef.current) {
+        const noteMod12 = ((note % 12) + 12) % 12;
+        const evaluation = evaluatePhraseNoteOn(phraseStateRef.current, noteMod12);
+        phraseStateRef.current = evaluation.nextState;
+        setPhraseUiTick((t) => t + 1);
+
+        if (evaluation.result === 'miss') {
+          return {
+            ...prev,
+            comboCount: 0,
+            comboGauge: 0,
+            comboReady: false,
+          };
+        }
+
+        const bulletCount = prev.player.stats.aBulletCount || 1;
+        const baseAngle = getDirectionAngle(prev.player.direction);
+        const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
+        const newProjectiles = bulletAngles.map((angle) =>
+          createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk)),
+        );
+
+        const newState: SurvivalGameState = {
+          ...prev,
+          comboCount: prev.comboCount + 1,
+          projectiles: [...prev.projectiles, ...newProjectiles],
+          enemyProjectiles: [...prev.enemyProjectiles],
+          damageTexts: [...prev.damageTexts],
+          enemies: [...prev.enemies],
+        };
+
+        if (evaluation.result === 'measure-complete') {
+          const baseRange = 80;
+          const bonusRange = prev.player.skills.bRangeBonus * 20;
+          const totalRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER;
+          const attackX = prev.player.x;
+          const attackY = prev.player.y;
+          pendingShockwavesRef.current.push({
+            id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            x: attackX,
+            y: attackY,
+            radius: 0,
+            maxRadius: totalRange,
+            startTime: Date.now(),
+            duration: SHOCKWAVE_DURATION,
+            direction: prev.player.direction,
+            color: '#f9d332',
+            isSpecial: true,
+          });
+          newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
+            const dx = proj.x - attackX;
+            const dy = proj.y - attackY;
+            return Math.sqrt(dx * dx + dy * dy) >= totalRange;
+          });
+          const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+          if (isBossStage && bossBattleRef.current?.active) {
+            const condMultBoss = getConditionalSkillMultipliers(prev.player);
+            const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+            const meleeRes = applyPlayerMeleeToBossBattle(
+              bossBattleRef.current,
+              attackX,
+              attackY,
+              totalRange,
+              bossDamage,
+              prev.player.x,
+              prev.player.y,
+              true,
+            );
+            if (meleeRes.bossDamage > 0) {
+              newState.damageTexts = [...newState.damageTexts, createDamageText(
+                bossBattleRef.current.boss.x,
+                bossBattleRef.current.boss.y - 30,
+                meleeRes.bossDamage,
+                false,
+              )];
+            }
+            for (const m of meleeRes.minionKills) {
+              newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
+            }
+            if (meleeRes.drops.length > 0) {
+              newState.items = [...newState.items, ...meleeRes.drops];
+            }
+          }
+          newState.enemies = newState.enemies.map((enemy) => {
+            const dx = enemy.x - attackX;
+            const dy = enemy.y - attackY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < totalRange) {
+              const condMultB = getConditionalSkillMultipliers(prev.player);
+              const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
+              const luckResultB = checkLuck(prev.player.stats.luck);
+              const damage = calculateDamage(
+                baseBDamage, 0, enemy.stats.def,
+                prev.player.statusEffects.some((e) => e.type === 'buffer'),
+                enemy.statusEffects.some((e) => e.type === 'debuffer'),
+                getBufferLevel(prev.player.statusEffects),
+                getDebufferLevel(enemy.statusEffects),
+                prev.player.stats.cAtk,
+                luckResultB.doubleDamage,
+              );
+              const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+              const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+              newState.damageTexts = [...newState.damageTexts, createDamageText(
+                enemy.x, enemy.y, damage,
+                luckResultB.doubleDamage,
+                luckResultB.doubleDamage ? '#ffd700' : undefined,
+              )];
+              return {
+                ...enemy,
+                stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
+                knockbackVelocity: { x: knockbackX, y: knockbackY },
+              };
+            }
+            return enemy;
+          });
+        }
+
+        return newState;
+      }
       
       // レベルアップ中もボーナス選択とABCD攻撃を同時に処理
       // 異名同音対応: 全オプションのcorrectNotesを更新（同じ音で複数マッチ可能に）
@@ -1966,7 +2200,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts, isBossStage, isStageMode]);
+  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts, isBossStage, isStageMode, isPhraseMode]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
@@ -2590,10 +2824,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 時間更新
         newState.elapsedTime = prev.elapsedTime + deltaTime;
 
-        const comboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
-        newState.comboCount = comboExpired.comboCount;
-        newState.comboGauge = comboExpired.comboGauge;
-        newState.comboReady = comboExpired.comboReady;
+        if (!isPhraseMode) {
+          const comboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
+          newState.comboCount = comboExpired.comboCount;
+          newState.comboGauge = comboExpired.comboGauge;
+          newState.comboReady = comboExpired.comboReady;
+        }
         
         // プレイヤー移動（常に新しいオブジェクトを生成し、shared referenceによるミューテーション汚染を防止）
         const movedPlayer = updatePlayerPosition(prev.player, combinedKeys, deltaTime, analogForMove);
@@ -2772,13 +3008,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
         
-        // 敵の射撃処理
+        // 敵の射撃処理（フレーズモードでは無効）
+        if (!isPhraseMode) {
         newState.enemies.forEach(enemy => {
           if (shouldEnemyShoot(enemy, newState.player.x, newState.player.y, newState.elapsedTime)) {
             const proj = createEnemyProjectile(enemy, newState.player.x, newState.player.y);
             newState.enemyProjectiles.push(proj);
           }
         });
+        }
         
         // 敵の弾丸更新
         newState.enemyProjectiles = updateEnemyProjectiles(prev.enemyProjectiles, deltaTime);
@@ -3050,13 +3288,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 敵スポーン（上限チェック付き）
         if (isStageMode) {
           const stageSpawn = getStageSpawnConfig(newState.elapsedTime);
+          const stageSpawnRate = isPhraseMode ? stageSpawn.spawnRate / 0.7 : stageSpawn.spawnRate;
           const isFirstSpawn = newState.enemies.length === 0 && newState.enemiesDefeated === 0;
           if (isFirstSpawn) {
-            spawnTimerRef.current = stageSpawn.spawnRate;
+            spawnTimerRef.current = stageSpawnRate;
           } else {
             spawnTimerRef.current += deltaTime;
           }
-          if (spawnTimerRef.current >= stageSpawn.spawnRate && newState.enemies.length < MAX_ENEMIES) {
+          if (spawnTimerRef.current >= stageSpawnRate && newState.enemies.length < MAX_ENEMIES) {
             spawnTimerRef.current = 0;
             const spawnCount = Math.min(stageSpawn.spawnCount, MAX_ENEMIES - newState.enemies.length);
             for (let i = 0; i < spawnCount; i++) {
@@ -3394,6 +3633,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     stagePowerUpTriggeredRef.current = false;
     bossBattleRef.current = null;
     const initial = createInitialGameState(difficulty, config, isStageMode);
+    if (isPhraseMode && !isBossStage) {
+      initial.player.stats.hp = 1000;
+      initial.player.stats.maxHp = 1000;
+      for (let si = 0; si < 4; si += 1) {
+        initial.codeSlots.current[si].isEnabled = false;
+        initial.codeSlots.next[si].isEnabled = false;
+      }
+    }
     if (isBossStage) {
       initial.player.stats.hp = BOSS_PLAYER_MAX_HP;
       initial.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
@@ -3408,6 +3655,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         ...initial.player.statusEffects,
         { type: 'hint' as never, duration: 999999, startTime: Date.now(), level: 1 },
       ];
+    }
+    if (isPhraseMode && phraseDefinitionRef.current) {
+      phraseStateRef.current = createInitialPhraseState(phraseDefinitionRef.current);
+      setPhraseUiTick((t) => t + 1);
     }
     // キャラクター能力を再適用（ステージモードではスキップ）
     if (character && !isStageMode) {
@@ -3576,7 +3827,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const playerHasHintBuff =
     gameState.player.statusEffects.some(effect => effect.type === 'hint');
 
+  const phraseStaffProps = useMemo(() => {
+    void phraseUiTick;
+    const state = phraseStateRef.current;
+    if (!isPhraseMode || !state) return null;
+    const { current, next } = getPhraseDisplayChords(state);
+    return {
+      currentChord: current,
+      nextChord: next,
+      keyFifths: state.phrase.keyFifths,
+      correctNoteIndices: state.correctNoteIndices,
+      revealedNoteIndices: state.revealedNoteIndices,
+      targetNoteIndex: state.targetNoteIndex,
+      hintMode,
+      hideUnpressedAfter30s: !hintMode && phraseHideNotesAfter30sRef.current,
+    };
+  }, [isPhraseMode, phraseUiTick, hintMode]);
+
   const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    if (isPhraseMode) return null;
     if (!isProgressionStage) return null;
     if (!(isStageMode || hintMode || playerHasHintBuff)) return null;
 
@@ -3612,6 +3881,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   ]);
 
   const randomPunchStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    if (isPhraseMode) return null;
     if (isProgressionStage) return null;
     if (!(isStageMode || hintMode || playerHasHintBuff)) return null;
 
@@ -3652,8 +3922,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     !gameState.isGameOver &&
     gameState.elapsedTime >= 30;
   
-  // 練習(HINT ON)のみ: 未押下構成音はマリーゴールド、押下済みは緑（本番は鍵盤ヒント無し）
+  // フレーズモード: HINT ON 時は判定対象音をオレンジハイライト
   useEffect(() => {
+    if (isPhraseMode) {
+      if (!hintMode) {
+        pixiRendererRef.current?.clearVoicingHints();
+        return undefined;
+      }
+      const renderer = pixiRendererRef.current;
+      const targetMidi = phraseStateRef.current ? getPhraseTargetMidi(phraseStateRef.current) : null;
+      if (!renderer || targetMidi === null) {
+        pixiRendererRef.current?.clearVoicingHints();
+        return undefined;
+      }
+      renderer.setVoicingHints([targetMidi], []);
+      return undefined;
+    }
+
     if (!hintMode) {
       pixiRendererRef.current?.clearVoicingHints();
       return undefined;
@@ -3698,7 +3983,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     renderer.setVoicingHints(pendingMidi, completedMidi);
 
     return undefined;
-  }, [hintMode, gameState.player.statusEffects, gameState.codeSlots.current]);
+  }, [isPhraseMode, hintMode, phraseUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
@@ -4011,6 +4296,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             lightningEffects={lightningEffects}
             bossBattle={bossBattleRef.current}
             bossUiTick={bossUiTick}
+            hideComboGauge={isPhraseMode}
           />
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && (
             <div
@@ -4027,7 +4313,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             </div>
           )}
           {/* コードスロットは非表示。中央に楽譜オーバーレイのみ */}
-          {punchStaffSnapshot &&
+          {phraseStaffProps &&
+            gameState.isPlaying &&
+            !gameState.isGameOver && (
+              <div
+                className="absolute inset-0 z-[5] flex items-center justify-center px-3 pointer-events-none"
+                aria-hidden
+              >
+                <SurvivalPhraseStaff
+                  currentChord={phraseStaffProps.currentChord}
+                  nextChord={phraseStaffProps.nextChord}
+                  keyFifths={phraseStaffProps.keyFifths}
+                  correctNoteIndices={phraseStaffProps.correctNoteIndices}
+                  revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
+                  targetNoteIndex={phraseStaffProps.targetNoteIndex}
+                  hintMode={phraseStaffProps.hintMode}
+                  hideUnpressedAfter30s={phraseStaffProps.hideUnpressedAfter30s}
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                />
+              </div>
+            )}
+          {!isPhraseMode &&
+            punchStaffSnapshot &&
             punchStaffSnapshot.voicingNames.length > 0 &&
             gameState.isPlaying &&
             !gameState.isGameOver && (

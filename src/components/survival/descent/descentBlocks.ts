@@ -111,11 +111,13 @@ function buildBlocksForCategory(category: SurvivalMapCategory): BlockMeta[] {
 const BLOCKS_BY_CATEGORY: Record<SurvivalMapCategory, BlockMeta[]> = {
   basic: [],
   songs: [],
+  phrases: [],
 };
 
 const STAGE_TO_BLOCK_BY_CATEGORY: Record<SurvivalMapCategory, Map<number, BlockMeta>> = {
   basic: new Map(),
   songs: new Map(),
+  phrases: new Map(),
 };
 
 /** 互換用: Basic マップのブロック一覧 */

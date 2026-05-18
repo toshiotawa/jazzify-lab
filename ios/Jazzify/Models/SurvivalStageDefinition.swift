@@ -8,6 +8,7 @@ import Foundation
 enum SurvivalStageType: String, Codable, Sendable {
     case random
     case progression
+    case phrases
 }
 
 /// マップ種別。Web 版 `SurvivalMapCategory` と同義。
@@ -16,6 +17,7 @@ enum SurvivalStageType: String, Codable, Sendable {
 enum SurvivalMapCategory: String, Codable, Sendable, CaseIterable, Hashable {
     case basic
     case songs
+    case phrases
 
     static let `default`: SurvivalMapCategory = .basic
 }
@@ -248,11 +250,13 @@ enum SurvivalStageCatalog {
     /// ロード完了は MainActor 上で行うことで実用上の競合を避ける。
     nonisolated(unsafe) private static var _stagesByCategory: [SurvivalMapCategory: [SurvivalStageDefinition]] = [
         .basic: Self.generateStages(),
-        .songs: []
+        .songs: [],
+        .phrases: []
     ]
     nonisolated(unsafe) private static var _blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [
         .basic: Self.generateBlocks(from: Self.generateStages(), blockOverrides: [:]),
-        .songs: []
+        .songs: [],
+        .phrases: []
     ]
 
     /// `chord_progression` の `voicing_names` が `voicing` と同じ長さのときだけ採用。

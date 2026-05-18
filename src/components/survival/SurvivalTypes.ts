@@ -9,9 +9,9 @@ export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extr
 
 // ===== マップカテゴリ =====
 /** Basic = 既存の魔王城マップ / Songs = 楽曲ベースの新マップ */
-export type SurvivalMapCategory = 'basic' | 'songs';
+export type SurvivalMapCategory = 'basic' | 'songs' | 'phrases';
 
-export const SURVIVAL_MAP_CATEGORIES: readonly SurvivalMapCategory[] = ['basic', 'songs'] as const;
+export const SURVIVAL_MAP_CATEGORIES: readonly SurvivalMapCategory[] = ['basic', 'songs', 'phrases'] as const;
 
 export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
 

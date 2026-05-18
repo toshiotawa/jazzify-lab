@@ -508,6 +508,7 @@ private struct SurvivalMapCategoryToggle: View {
         switch category {
         case .basic: return "Basic"
         case .songs: return "Songs"
+        case .phrases: return "Phrases"
         }
     }
 }

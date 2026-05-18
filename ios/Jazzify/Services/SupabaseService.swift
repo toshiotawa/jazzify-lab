@@ -576,6 +576,93 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    /// Phrases モード用フレーズ定義（ステージ 1 件につき 1 フレーズ）。
+    func fetchSurvivalPhrase(mapCategory: SurvivalMapCategory, stageNumber: Int) async throws -> SurvivalPhraseDefinition? {
+        struct PhraseRow: Decodable {
+            let id: String
+            let map_category: String
+            let stage_number: Int
+            let title: String
+            let bgm_url: String?
+            let key_fifths: Int
+        }
+        struct ChordRow: Decodable {
+            let id: String
+            let phrase_id: String
+            let order_index: Int
+            let chord_name: String
+            let measure_number: Int
+        }
+        struct NoteRow: Decodable {
+            let chord_id: String
+            let order_index: Int
+            let pitch_midi: Int
+            let pitch_class: Int
+            let note_name: String
+            let staff: Int
+        }
+
+        let phrases: [PhraseRow] = try await client
+            .from("survival_phrases")
+            .select("id, map_category, stage_number, title, bgm_url, key_fifths")
+            .eq("map_category", value: mapCategory.rawValue)
+            .eq("stage_number", value: stageNumber)
+            .limit(1)
+            .execute()
+            .value
+        guard let phrase = phrases.first else { return nil }
+
+        let chords: [ChordRow] = try await client
+            .from("survival_phrase_chords")
+            .select("id, phrase_id, order_index, chord_name, measure_number")
+            .eq("phrase_id", value: phrase.id)
+            .order("order_index")
+            .execute()
+            .value
+        guard !chords.isEmpty else { return nil }
+
+        let chordIds = chords.map(\.id)
+        let notes: [NoteRow] = try await client
+            .from("survival_phrase_chord_notes")
+            .select("chord_id, order_index, pitch_midi, pitch_class, note_name, staff")
+            .in("chord_id", values: chordIds)
+            .order("order_index")
+            .execute()
+            .value
+
+        var notesByChord: [String: [SurvivalPhraseChordNote]] = [:]
+        for row in notes {
+            let note = SurvivalPhraseChordNote(
+                orderIndex: row.order_index,
+                pitchMidi: row.pitch_midi,
+                pitchClass: row.pitch_class,
+                noteName: row.note_name,
+                staff: row.staff
+            )
+            notesByChord[row.chord_id, default: []].append(note)
+        }
+
+        let builtChords = chords.map { chord in
+            SurvivalPhraseChord(
+                id: chord.id,
+                orderIndex: chord.order_index,
+                chordName: chord.chord_name,
+                measureNumber: chord.measure_number,
+                notes: notesByChord[chord.id] ?? []
+            )
+        }
+
+        return SurvivalPhraseDefinition(
+            id: phrase.id,
+            mapCategory: phrase.map_category,
+            stageNumber: phrase.stage_number,
+            title: phrase.title,
+            bgmUrl: phrase.bgm_url,
+            keyFifths: phrase.key_fifths,
+            chords: builtChords
+        )
+    }
+
     func fetchSurvivalCharacters() async throws -> [SurvivalCharacterRow] {
         try await client
             .from("survival_characters")

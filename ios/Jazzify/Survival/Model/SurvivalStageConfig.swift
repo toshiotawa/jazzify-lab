@@ -9,12 +9,18 @@ enum SurvivalBgmDefaults {
         string: "https://jazzify-cdn.com/fantasy-bgm/74099219-644e-46c1-b509-bedf9adadf10.mp3"
     )!
 
+    static let phrasesURL = URL(
+        string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3"
+    )!
+
     static func url(for stageType: SurvivalStageType) -> URL {
         switch stageType {
         case .random:
             return randomURL
         case .progression:
             return progressionURL
+        case .phrases:
+            return phrasesURL
         }
     }
 }

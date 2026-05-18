@@ -95,10 +95,29 @@ final class SurvivalGameSession: ObservableObject {
     func start() {
         guard state != .disposed else { return }
         let playBackgroundMusic = !gameLoop.runtime.scenario.disableSurvivalBgm
-        if playBackgroundMusic {
-            audioController.setBgmUrl(gameLoop.stageConfig.bgmUrl)
+        if gameLoop.isPhraseMode {
+            Task {
+                if let phrase = try? await supabase.fetchSurvivalPhrase(
+                    mapCategory: stage.mapCategory,
+                    stageNumber: stage.stageNumber
+                ) {
+                    gameLoop.loadPhraseDefinition(phrase)
+                    viewModel.phraseStaffSnapshot = gameLoop.phraseStaffSnapshot()
+                    if playBackgroundMusic {
+                        let urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
+                        if let urlString, let url = URL(string: urlString) {
+                            audioController.setBgmUrl(url)
+                        }
+                    }
+                }
+                audioController.start(playBackgroundMusic: playBackgroundMusic)
+            }
+        } else {
+            if playBackgroundMusic {
+                audioController.setBgmUrl(gameLoop.stageConfig.bgmUrl)
+            }
+            audioController.start(playBackgroundMusic: playBackgroundMusic)
         }
-        audioController.start(playBackgroundMusic: playBackgroundMusic)
         gameLoop.markAudioClockStarted()
         state = .running
     }

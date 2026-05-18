@@ -120,11 +120,13 @@ const BLOCK_LABELS_FROM_DB: Record<
 > = {
   basic: {},
   songs: {},
+  phrases: {},
 };
 
 const BLOCK_SORT_ORDER_FROM_DB: Record<SurvivalMapCategory, Map<string, number>> = {
   basic: new Map(),
   songs: new Map(),
+  phrases: new Map(),
 };
 
 function applySurvivalStageBlockLabels(rows: SurvivalStageBlockRow[]): void {
@@ -296,6 +298,7 @@ function writeLocalCache(rows: Array<Record<string, unknown>>): void {
 const STAGES_BY_CATEGORY: Record<SurvivalMapCategory, StageDefinition[]> = {
   basic: [],
   songs: [],
+  phrases: [],
 };
 
 /**
@@ -309,6 +312,7 @@ export let TOTAL_STAGES = 0;
 function applyStageCaches(stages: StageDefinition[]): void {
   STAGES_BY_CATEGORY.basic = stages.filter(s => s.mapCategory === 'basic');
   STAGES_BY_CATEGORY.songs = stages.filter(s => s.mapCategory === 'songs');
+  STAGES_BY_CATEGORY.phrases = stages.filter(s => s.mapCategory === 'phrases');
   ALL_STAGES = STAGES_BY_CATEGORY.basic;
   TOTAL_STAGES = STAGES_BY_CATEGORY.basic.length;
 }

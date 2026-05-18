@@ -32,6 +32,15 @@ final class SurvivalGameLoop {
     /// 現在出題中の Progression 配列インデックス。完成のたびに +1 され、配列長で循環。
     private var progressionIndex: Int = 0
 
+    // MARK: - Phrases モード
+
+    private(set) var phraseDefinition: SurvivalPhraseDefinition?
+    private(set) var phraseState: SurvivalPhraseRuntimeState?
+    private(set) var phraseHideNotesAfter30s: Bool = false
+    private var phraseHideTimerStarted: Bool = false
+
+    var isPhraseMode: Bool { stage.mapCategory == .phrases }
+
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。
     /// - `pitchClasses` が空のエントリは `SurvivalChordResolver.isMatch` が常に false を返すため
     ///   B スロットの入力が永久に通らず「動けない」状態を引き起こす。空エントリはフィルタする。
@@ -142,6 +151,45 @@ final class SurvivalGameLoop {
             initialBoss = nil
         }
         self.bossBattle = initialBoss
+
+        if isPhraseMode, !isBoss {
+            runtime.player.stats.hp = 1000
+            runtime.player.stats.maxHp = 1000
+            for idx in runtime.slots.indices {
+                runtime.slots[idx].isEnabled = false
+            }
+        }
+    }
+
+    func loadPhraseDefinition(_ phrase: SurvivalPhraseDefinition) {
+        phraseDefinition = phrase
+        phraseState = SurvivalPhraseEngine.createInitialState(phrase: phrase)
+        phraseHideNotesAfter30s = false
+        phraseHideTimerStarted = false
+    }
+
+    func markPhraseHideTimerStartedIfNeeded(now: TimeInterval) {
+        guard isPhraseMode, !mode.hintMode, !phraseHideTimerStarted else { return }
+        phraseHideTimerStarted = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            phraseHideNotesAfter30s = true
+        }
+    }
+
+    func phraseStaffSnapshot() -> SurvivalPhraseStaffSnapshot? {
+        guard let state = phraseState else { return nil }
+        let pair = SurvivalPhraseEngine.displayChords(state: state)
+        return SurvivalPhraseStaffSnapshot(
+            currentChord: pair.current,
+            nextChord: pair.next,
+            keyFifths: state.phrase.keyFifths,
+            correctNoteIndices: state.correctNoteIndices,
+            revealedNoteIndices: state.revealedNoteIndices,
+            targetNoteIndex: state.targetNoteIndex,
+            hintMode: mode.hintMode,
+            hideUnpressedAfter30s: phraseHideNotesAfter30s
+        )
     }
 
     func markAudioClockStarted() {
@@ -279,6 +327,9 @@ final class SurvivalGameLoop {
     /// 鍵盤ビューは MIDI 完全一致で判定する。
     /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
     func currentHintHighlightMidis() -> Set<Int> {
+        if isPhraseMode, mode.hintMode, let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
+            return [midi]
+        }
         guard let target = currentHintTargetSlot() else { return [] }
         if runtime.scenario.useChordMidiNotesForHintHighlights {
             return Set(target.chord.midiNotes)
@@ -353,6 +404,9 @@ final class SurvivalGameLoop {
 
     private func evaluateSlots(for note: Int) -> [SurvivalFrameEvent] {
         if runtime.scenario.blockSlotEvaluation { return [] }
+        if isPhraseMode {
+            return evaluatePhraseNote(note)
+        }
         var events: [SurvivalFrameEvent] = []
         let pc = ((note % 12) + 12) % 12
         for idx in runtime.slots.indices {
@@ -388,6 +442,48 @@ final class SurvivalGameLoop {
             runtime.slots[idx].inputPitchClasses.removeAll()
         }
 
+        return events
+    }
+
+    private func evaluatePhraseNote(_ note: Int) -> [SurvivalFrameEvent] {
+        guard var state = phraseState else { return [] }
+        let pc = ((note % 12) + 12) % 12
+        let evaluation = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: pc)
+        phraseState = evaluation.nextState
+
+        switch evaluation.result {
+        case .miss:
+            runtime.comboCount = 0
+            runtime.comboGauge = 0
+            runtime.comboReady = false
+            return []
+        case .progress, .measureComplete:
+            runtime.comboCount += 1
+            return firePhraseCombat(measureComplete: evaluation.result == .measureComplete)
+        }
+    }
+
+    private func firePhraseCombat(measureComplete: Bool) -> [SurvivalFrameEvent] {
+        var events: [SurvivalFrameEvent] = []
+        let now = CACurrentMediaTime()
+        let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
+            base: runtime.player.stats,
+            effects: runtime.statusEffects
+        )
+        let projectiles = SurvivalGameEngine.createAProjectiles(
+            from: runtime.player,
+            effectiveAAtk: effectiveStats.aAtk
+        )
+        runtime.projectiles.append(contentsOf: projectiles)
+
+        if measureComplete {
+            let wave = SurvivalGameEngine.createSpecialShockwave(
+                from: runtime.player,
+                effectiveBAtk: effectiveStats.bAtk,
+                now: now
+            )
+            runtime.shockwaves.append(wave)
+        }
         return events
     }
 
@@ -606,7 +702,11 @@ final class SurvivalGameLoop {
     // MARK: - 通常ステージ 1 フレーム
 
     private func tickNormal(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
-        expireComboIfTimedOut(now: now)
+        if !isPhraseMode {
+            expireComboIfTimedOut(now: now)
+        } else {
+            markPhraseHideTimerStartedIfNeeded(now: now)
+        }
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,
@@ -629,8 +729,9 @@ final class SurvivalGameLoop {
         if !runtime.scenario.suppressAutoSpawn {
             runtime.spawnAccumulator += deltaTime
             let cfg = SurvivalGameEngine.stageSpawnConfig(elapsed: runtime.elapsedSeconds, config: config)
-            while runtime.spawnAccumulator >= cfg.rate {
-                runtime.spawnAccumulator -= cfg.rate
+            let spawnRate = isPhraseMode ? cfg.rate / 0.7 : cfg.rate
+            while runtime.spawnAccumulator >= spawnRate {
+                runtime.spawnAccumulator -= spawnRate
                 for _ in 0..<cfg.count {
                     let enemy = SurvivalGameEngine.spawnStageEnemy(
                         playerX: runtime.player.x,
@@ -653,8 +754,8 @@ final class SurvivalGameLoop {
             iceMultiplier: iceMulForEnemies
         )
 
-        // 敵弾の発射 + 更新
-        if !runtime.scenario.disableEnemyAttacks {
+        // 敵弾の発射 + 更新（フレーズモードでは無効）
+        if !runtime.scenario.disableEnemyAttacks, !isPhraseMode {
             let newEnemyProjectiles = SurvivalGameEngine.shootEnemyProjectiles(
                 enemies: &runtime.enemies,
                 playerX: runtime.player.x,

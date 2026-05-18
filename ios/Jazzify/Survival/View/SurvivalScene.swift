@@ -458,10 +458,13 @@ final class SurvivalScene: SKScene {
             }
 
             if let host = playerNode.childNode(withName: "comboGaugeHost") {
+                let hideGauge = (driver as? SurvivalGameSession)?.gameLoop.isPhraseMode == true
                 let gauge = runtime.comboGauge
                 let ready = runtime.comboReady
                 let maxG = SurvivalConstants.comboGaugeMax
-                if gauge == 0, !ready {
+                if hideGauge {
+                    host.isHidden = true
+                } else if gauge == 0, !ready {
                     host.isHidden = true
                 } else {
                     host.isHidden = false

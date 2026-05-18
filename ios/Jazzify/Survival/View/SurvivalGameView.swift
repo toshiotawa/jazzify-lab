@@ -207,6 +207,13 @@ private struct SurvivalGameContent: View {
             if vm.uiSnapshot.phase == .playing,
                !vm.isPaused,
                scenarioStaffSnapshot == nil,
+               let phraseStaff = vm.phraseStaffSnapshot {
+                SurvivalPhraseStaffView(snapshot: phraseStaff)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+            } else if vm.uiSnapshot.phase == .playing,
+               !vm.isPaused,
+               scenarioStaffSnapshot == nil,
                let staffPayload = SurvivalStageCenterStaffPayload.make(from: vm.uiSnapshot),
                !staffPayload.voicingNames.isEmpty {
                 SurvivalStageCenterStaffOverlay(payload: staffPayload, staffPhase: vm.uiSnapshot.staffPhase)

@@ -17,6 +17,7 @@ final class SurvivalViewModel: ObservableObject {
     @Published private(set) var chordPadHintMidis: Set<Int> = []
     /// HINT 構成音のうち、現在のスロット入力で満たされた pitch class に対応するハイライト MIDI。
     @Published private(set) var chordPadCompletedHintMidis: Set<Int> = []
+    @Published private(set) var phraseStaffSnapshot: SurvivalPhraseStaffSnapshot?
 
     private var lastBossHudPublishAt: TimeInterval = 0
 
@@ -88,6 +89,11 @@ final class SurvivalViewModel: ObservableObject {
         let nextCompletedHints = gameLoop.currentHintCompletedHighlightMidis()
         if nextCompletedHints != chordPadCompletedHintMidis {
             chordPadCompletedHintMidis = nextCompletedHints
+        }
+
+        let nextPhraseStaff = gameLoop.phraseStaffSnapshot()
+        if nextPhraseStaff != phraseStaffSnapshot {
+            phraseStaffSnapshot = nextPhraseStaff
         }
 
         let forceBossHud = gameLoop.runtime.phase != .playing || phaseChanged

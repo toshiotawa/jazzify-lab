@@ -4,10 +4,10 @@
 import { getSupabaseClient } from './supabaseClient';
 
 export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
-export type SurvivalStageType = 'random' | 'progression';
+export type SurvivalStageType = 'random' | 'progression' | 'phrases';
 
-/** マップカテゴリ ('basic' | 'songs')。Basic と Songs で進行管理を分離する。 */
-export type SurvivalMapCategory = 'basic' | 'songs';
+/** マップカテゴリ ('basic' | 'songs' | 'phrases')。カテゴリごとに進行管理を分離する。 */
+export type SurvivalMapCategory = 'basic' | 'songs' | 'phrases';
 export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
 export const DEFAULT_SURVIVAL_RANDOM_BGM_URL =
   'https://jazzify-cdn.com/fantasy-bgm/727a4d3b-21b9-4889-933b-ba170c6037bc.mp3';
@@ -16,9 +16,13 @@ const DEFAULT_SURVIVAL_PROGRESSION_BGM_URL =
 
 export type SurvivalBgmSettingsMap = Record<SurvivalStageType, string>;
 
+const DEFAULT_SURVIVAL_PHRASES_BGM_URL =
+  'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3';
+
 export const DEFAULT_SURVIVAL_BGM_SETTINGS: SurvivalBgmSettingsMap = {
   random: DEFAULT_SURVIVAL_RANDOM_BGM_URL,
   progression: DEFAULT_SURVIVAL_PROGRESSION_BGM_URL,
+  phrases: DEFAULT_SURVIVAL_PHRASES_BGM_URL,
 };
 
 export interface SurvivalHighScore {
@@ -87,7 +91,7 @@ const isCharacterConflictTargetError = (error: { code?: string; message?: string
 };
 
 const isSurvivalStageType = (value: unknown): value is SurvivalStageType => {
-  return value === 'random' || value === 'progression';
+  return value === 'random' || value === 'progression' || value === 'phrases';
 };
 
 export const toSurvivalBgmSettingsMap = (

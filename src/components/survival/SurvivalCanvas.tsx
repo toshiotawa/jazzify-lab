@@ -96,6 +96,8 @@ interface SurvivalCanvasProps {
   bossBattle?: BossBattleState | null;
   /** ボス戦 UI の再描画トリガ */
   bossUiTick?: number;
+  /** フレーズモードではプレイヤー上のコンボゲージを非表示 */
+  hideComboGauge?: boolean;
 }
 
 // ===== 色定義 =====
@@ -252,6 +254,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   lightningEffects = [],
   bossBattle = null,
   bossUiTick = 0,
+  hideComboGauge = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const woodPatternRef = useRef<CanvasPattern | null>(null);
@@ -745,7 +748,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     // A/B コンボゲージ（iOS Survival のプレイヤー頭上バーに準拠）
     const cg = snapshot.comboGauge;
     const cr = snapshot.comboReady;
-    if (cg > 0 || cr) {
+    if (!hideComboGauge && (cg > 0 || cr)) {
       const barW = 6;
       const barH = 3;
       const gap = 2;

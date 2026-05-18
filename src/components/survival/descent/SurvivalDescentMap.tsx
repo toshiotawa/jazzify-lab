@@ -7,7 +7,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IconType } from 'react-icons';
-import { FaMap, FaMusic, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaMap, FaMusic, FaQuoteLeft, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -260,6 +260,12 @@ const MapCategoryToggle: React.FC<MapCategoryToggleProps> = ({ value, onChange, 
       label: 'Songs',
       subLabel: isEnglishCopy ? 'Tunes' : '楽曲',
       Icon: FaMusic,
+    },
+    {
+      key: 'phrases',
+      label: 'Phrases',
+      subLabel: isEnglishCopy ? 'Lines' : 'フレーズ',
+      Icon: FaQuoteLeft,
     },
   ];
   const groupClass = compact
@@ -718,7 +724,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     const stageConfig: DifficultyConfig = {
       ...baseConfig,
       allowedChords: selectedStage.allowedChords,
-      bgmUrl: resolveSurvivalBgmUrl(selectedStage.stageType, bgmSettings),
+      bgmUrl:
+        selectedStage.mapCategory === 'phrases'
+          ? resolveSurvivalBgmUrl('phrases', bgmSettings)
+          : resolveSurvivalBgmUrl(selectedStage.stageType, bgmSettings),
     };
 
     const faiChar = characters.find(c => isFaiCharacter(c));
