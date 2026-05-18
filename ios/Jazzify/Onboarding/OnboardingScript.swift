@@ -103,7 +103,7 @@ final class OnboardingScript: ObservableObject {
 
         // MARK: Scene 2
         narrationText = ""
-        characterText = isJa ? "まずは鍵盤を繋ごう。" : "First, let’s connect your keyboard."
+        characterText = isJa ? "キーボードを用意しよう。" : "Let’s get your keyboard ready."
         controller.setOverrides(scene2Base())
         controller.setSlotBChord(nil)
         controller.setSlotBEnabled(false)
@@ -124,6 +124,7 @@ final class OnboardingScript: ObservableObject {
                 connectedDeviceLine = (isJa ? "接続: " : "Connected: ") + name
             }
             narrationText = isJa ? "鍵盤を1つ弾いてください" : "Play one key on your keyboard."
+            characterText = isJa ? "1音弾いてみよう。" : "Try playing one note."
             controller.applyMutation {
                 $0.blockMidiGameInput = false
                 $0.blockChordPadInput = true
@@ -134,6 +135,7 @@ final class OnboardingScript: ObservableObject {
             narrationText = isJa
                 ? "まずは音を鳴らすところから。外部キーボードはあとで接続できます。"
                 : "Start by making sound. You can plug in a keyboard later."
+            characterText = isJa ? "1音弾いてみよう。" : "Try playing one note."
             controller.applyMutation {
                 $0.blockChordPadInput = false
                 $0.blockMidiGameInput = true
