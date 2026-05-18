@@ -36,6 +36,8 @@
 		3A315258049BBB83B6451627 /* C6.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F2219FFC2796FA204F7E68DC /* C6.mp3 */; };
 		3BD0C5691E6107E03BF69BB8 /* EarTrainingStageDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAE352D4750FD9B61D66ACE /* EarTrainingStageDetail.swift */; };
 		42CDF4F3D53A7BBC2AE26E72 /* MIDIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C8428EFA383E2266F3620DD /* MIDIManager.swift */; };
+		A1B2C3D4E5F6071890123452 /* MidiConnectionGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071890123451 /* MidiConnectionGuideView.swift */; };
+		A1B2C3D4E5F6071890123462 /* MidiKeyboardBuyingGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071890123461 /* MidiKeyboardBuyingGuideView.swift */; };
 		4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */; };
 		4B3D81798B36AE658E36B28E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B4665837C213B33E7EA39A7E /* Assets.xcassets */; };
 		4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */; };
@@ -139,6 +141,8 @@
 		0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingHUDView.swift; sourceTree = "<group>"; };
 		0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPauseSettingsSheet.swift; sourceTree = "<group>"; };
 		0C8428EFA383E2266F3620DD /* MIDIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071890123451 /* MidiConnectionGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidiConnectionGuideView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6071890123461 /* MidiKeyboardBuyingGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidiKeyboardBuyingGuideView.swift; sourceTree = "<group>"; };
 		0E7D765BC46E4F868B334BAF /* Bravura.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Bravura.otf; sourceTree = "<group>"; };
 		F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = fire_magic_1.mp3; sourceTree = "<group>"; };
 		E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = opensheetmusicdisplay.min.js; sourceTree = "<group>"; };
@@ -469,6 +473,8 @@
 			children = (
 				74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */,
 				0C8428EFA383E2266F3620DD /* MIDIManager.swift */,
+				A1B2C3D4E5F6071890123451 /* MidiConnectionGuideView.swift */,
+				A1B2C3D4E5F6071890123461 /* MidiKeyboardBuyingGuideView.swift */,
 			);
 			path = MIDI;
 			sourceTree = "<group>";
@@ -803,6 +809,8 @@
 				E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */,
 				EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */,
 				42CDF4F3D53A7BBC2AE26E72 /* MIDIManager.swift in Sources */,
+				A1B2C3D4E5F6071890123452 /* MidiConnectionGuideView.swift in Sources */,
+				A1B2C3D4E5F6071890123462 /* MidiKeyboardBuyingGuideView.swift in Sources */,
 				D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */,
 				1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */,
 				526A15ED93FC35AA024F047E /* OrientationManager.swift in Sources */,

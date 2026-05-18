@@ -8,6 +8,7 @@ const ProtectedAppRoute = React.lazy(() => import('@/routes/ProtectedAppRoute'))
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const VerifyOtpPage = React.lazy(() => import('@/components/auth/VerifyOtpPage'));
 const HelpIosMidi = React.lazy(() => import('@/components/help/HelpIosMidi'));
+const HelpMidiKeyboardChoice = React.lazy(() => import('@/components/help/HelpMidiKeyboardChoice'));
 const ContactPage = React.lazy(() => import('@/components/contact/ContactPage'));
 const TermsPage = React.lazy(() => import('@/components/legal/TermsPage'));
 const PrivacyPage = React.lazy(() => import('@/components/legal/PrivacyPage'));
@@ -18,6 +19,7 @@ const WithdrawalCompletePage = React.lazy(() => import('@/components/auth/Withdr
 const PUBLIC_INFO_PATHS = new Set([
   '/',
   '/help/ios-midi',
+  '/help/midi-keyboard-choice',
   '/contact',
   '/terms',
   '/terms/ios',
@@ -112,6 +114,7 @@ const App: React.FC = () => {
           {/* ========== 公開ルート — 認証完了を待たず即座に表示 ========== */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/help/ios-midi" element={<HelpIosMidi />} />
+          <Route path="/help/midi-keyboard-choice" element={<HelpMidiKeyboardChoice />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/terms" element={<TermsPage variant="web" />} />
           <Route path="/terms/ios" element={<TermsPage variant="ios" />} />

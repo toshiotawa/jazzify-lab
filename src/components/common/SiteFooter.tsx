@@ -19,6 +19,7 @@ const SiteFooter: React.FC = () => {
             <h4 className="text-white font-bold mb-4">サポート</h4>
             <ul className="space-y-2 text-sm text-gray-400">
               <li><Link to="/help/ios-midi" className="hover:text-purple-400 transition">iPhone/iPadでMIDIを使う</Link></li>
+              <li><Link to="/help/midi-keyboard-choice" className="hover:text-purple-400 transition">MIDIキーボードの選び方</Link></li>
               <li><Link to="/contact" className="hover:text-purple-400 transition">お問い合わせ</Link></li>
               <li><Link to="/terms" className="hover:text-purple-400 transition">利用規約</Link></li>
               <li><Link to="/privacy" className="hover:text-purple-400 transition">プライバシーポリシー</Link></li>

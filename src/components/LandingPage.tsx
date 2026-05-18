@@ -757,6 +757,7 @@ const LandingPage: React.FC = () => {
                   <ul className="space-y-2 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
                     <li><a href="#faq" className="transition-colors duration-200 hover:opacity-80" onClick={(e) => handleAnchorClick(e, 'faq')}>FAQ</a></li>
                     <li><Link to="/help/ios-midi" className="transition-colors duration-200 hover:opacity-80">MIDI on iPhone / iPad</Link></li>
+                    <li><Link to="/help/midi-keyboard-choice" className="transition-colors duration-200 hover:opacity-80">Choosing a MIDI keyboard</Link></li>
                     <li><Link to="/contact" className="transition-colors duration-200 hover:opacity-80">Contact</Link></li>
                     <li><Link to="/terms" className="transition-colors duration-200 hover:opacity-80">Terms of Service</Link></li>
                     <li><Link to="/privacy" className="transition-colors duration-200 hover:opacity-80">Privacy Policy</Link></li>
@@ -804,6 +805,7 @@ const LandingPage: React.FC = () => {
                   <ul className="space-y-2 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
                     <li><a href="#faq" className="transition-colors duration-200 hover:opacity-80" onClick={(e) => handleAnchorClick(e, 'faq')}>よくある質問</a></li>
                     <li><Link to="/help/ios-midi" className="transition-colors duration-200 hover:opacity-80">iPhone/iPadでMIDIを使う</Link></li>
+                    <li><Link to="/help/midi-keyboard-choice" className="transition-colors duration-200 hover:opacity-80">MIDIキーボードの選び方</Link></li>
                     <li><Link to="/contact" className="transition-colors duration-200 hover:opacity-80">お問い合わせ</Link></li>
                     <li><Link to="/terms" className="transition-colors duration-200 hover:opacity-80">利用規約</Link></li>
                     <li><Link to="/privacy" className="transition-colors duration-200 hover:opacity-80">プライバシーポリシー</Link></li>

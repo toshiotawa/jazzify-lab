@@ -141,6 +141,32 @@ struct SettingsView: View {
                         .foregroundStyle(.gray)
                 }
             }
+
+            NavigationLink {
+                MidiConnectionGuideView(locale: locale)
+            } label: {
+                HStack {
+                    Label(
+                        locale == .ja ? "MIDIキーボード接続ガイド" : "MIDI Keyboard Connection Guide",
+                        systemImage: "cable.connector"
+                    )
+                    .foregroundStyle(.white)
+                    Spacer()
+                }
+            }
+
+            NavigationLink {
+                MidiKeyboardBuyingGuideView(locale: locale)
+            } label: {
+                HStack {
+                    Label(
+                        locale == .ja ? "MIDIキーボードの選び方" : "Choosing a MIDI Keyboard",
+                        systemImage: "pianokeys"
+                    )
+                    .foregroundStyle(.white)
+                    Spacer()
+                }
+            }
         } header: {
             Text("MIDI")
         }
