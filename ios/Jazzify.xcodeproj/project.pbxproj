@@ -136,7 +136,6 @@
 		E748C5310C577DFFCB883B8F /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EA909F7A24426B48949D2C /* Profile.swift */; };
 		E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E48683B3B737009938D6CE8 /* LoginView.swift */; };
 		EA799676165F54C2B31D2C6C /* GameWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342682E586DCCE6032CF9125 /* GameWebView.swift */; };
-		ECDD4AEEC0BF75CC475742CB /* SurvivalCodeSlotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA30893A906263BFC743A681 /* SurvivalCodeSlotsView.swift */; };
 		BB02CC03DD04EE052002 /* SurvivalProgressionStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB02CC03DD04EE052001 /* SurvivalProgressionStaffView.swift */; };
 		EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */; };
 		EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */ = {isa = PBXBuildFile; fileRef = 0E7D765BC46E4F868B334BAF /* Bravura.otf */; };
@@ -283,7 +282,6 @@
 		D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingEngine.swift; sourceTree = "<group>"; };
 		D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonAttachmentPreview.swift; sourceTree = "<group>"; };
 		D82BC28D5575DEEE8A1AE11E /* SurvivalDescentTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentTheme.swift; sourceTree = "<group>"; };
-		DA30893A906263BFC743A681 /* SurvivalCodeSlotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCodeSlotsView.swift; sourceTree = "<group>"; };
 		BB02CC03DD04EE052001 /* SurvivalProgressionStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalProgressionStaffView.swift; sourceTree = "<group>"; };
 		DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentIssueBannerView.swift; sourceTree = "<group>"; };
 		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -566,7 +564,6 @@
 			children = (
 				8E80A364FA44BA2E07326B46 /* SurvivalBossEffectRenderer.swift */,
 				D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */,
-				DA30893A906263BFC743A681 /* SurvivalCodeSlotsView.swift */,
 				BB02CC03DD04EE052001 /* SurvivalProgressionStaffView.swift */,
 				BF8ECC214ED50933CFC7AC74 /* SurvivalGameResultView.swift */,
 				C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */,
@@ -910,7 +907,6 @@
 				0FD918D7197C061E71DA139C /* SurvivalChordPadView.swift in Sources */,
 				6BB2DD43768BDCC704621AE3 /* SurvivalChordResolver.swift in Sources */,
 				FCAF770000EE11EE00000002 /* SurvivalRandomHintStaff.swift in Sources */,
-				ECDD4AEEC0BF75CC475742CB /* SurvivalCodeSlotsView.swift in Sources */,
 				BB02CC03DD04EE052002 /* SurvivalProgressionStaffView.swift in Sources */,
 				1A3685F8B461FBABFE4C6D1E /* SurvivalDemoStage.swift in Sources */,
 				C486A818677755413CF73152 /* SurvivalDescentLayout.swift in Sources */,

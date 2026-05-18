@@ -638,6 +638,25 @@ struct SurvivalBossHUDSnapshot: Equatable, Sendable {
 
 // MARK: - SwiftUI snapshot (HUD / スロット用)
 
+/// ステージ画面中央楽譜のフェーズ。
+enum SurvivalStaffPhase: Equatable, Sendable {
+    /// 全構成音・記号を表示する（練習・ヒント魔法・または本番開始から約30秒）。
+    case fullHint
+    /// 正しく弾いた構成音のみ（緑）を表示する。本番で経過時間が一定を超えた後。
+    case pressedOnly
+}
+
+extension SurvivalUISnapshot {
+    /// 練習・ヒントバフがあるときは常に `fullHint`。本番は経過時間で切り替え。
+    fileprivate static func deriveStaffPhase(from runtime: SurvivalStageRuntime) -> SurvivalStaffPhase {
+        let hintMagicBuffActive = runtime.statusEffects.contains { $0.kind == .hint }
+        if runtime.hintMode || hintMagicBuffActive {
+            return .fullHint
+        }
+        return runtime.elapsedSeconds >= 30 ? .pressedOnly : .fullHint
+    }
+}
+
 /// `SurvivalStageRuntime` 全体を `@Published` しないため、表示に必要なフィールドだけを束ねる。
 /// SKScene は引き続き `runtime` を直接参照する。
 struct SurvivalUISnapshot: Equatable {
@@ -657,8 +676,10 @@ struct SurvivalUISnapshot: Equatable {
     var elapsedSecondsRounded: Int
     var statusEffectStrip: [StatusStripItem]
     var slots: [SurvivalCodeSlot]
-    /// HINT 対象のコードスロット index（A=0, B=1）。HINT でないときは nil。
+    /// HINT 対象のコードスロット index（A=0, B=1）。練習(HINTモード)の鍵盤ハイライト用。nil のとき非表示。
     var hintSlotIndex: Int?
+    /// ゲーム画面上部コードスロット廃止後の中央楽譜表示モード。
+    var staffPhase: SurvivalStaffPhase
     /// A/B 正解ベースのコンボ表示用（必殺発動後も加算し続けるが 5 秒途切れで 0）
     var comboCount: Int
     /// オンボーディング等の UI 抑制フラグ（毎フレーム同一なら Equatable で弾ける）
@@ -681,6 +702,7 @@ struct SurvivalUISnapshot: Equatable {
             statusEffectStrip: strip,
             slots: runtime.slots,
             hintSlotIndex: hintSlotIndex,
+            staffPhase: Self.deriveStaffPhase(from: runtime),
             comboCount: runtime.comboCount,
             scenario: runtime.scenario
         )

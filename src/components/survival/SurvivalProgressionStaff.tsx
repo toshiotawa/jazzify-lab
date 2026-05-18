@@ -15,6 +15,15 @@ import { cn } from '@/utils/cn';
 
 export type SurvivalStaffClef = 'bass' | 'treble';
 
+/** ゲーム画面が Punch 現ターゲットから構築する中央スタッフ用データ */
+export interface SurvivalProgressionStaffSnapshot {
+  readonly voicingNames: readonly string[];
+  readonly keyFifths: number;
+  readonly correctPitchClasses: readonly number[];
+  readonly chordDisplayName: string;
+  readonly staffClef?: SurvivalStaffClef;
+}
+
 export interface SurvivalProgressionStaffProps {
   readonly chordDisplayName: string;
   readonly voicingNames: readonly string[];
@@ -24,6 +33,8 @@ export interface SurvivalProgressionStaffProps {
   readonly staffClef?: SurvivalStaffClef;
   /** 隣接符頭の横ずらし。未指定時は低音基準（`anchor-low`） */
   readonly noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
+  /** `true` のとき正解済み構成音のみ表示（緑）。本番モード後半の stealth 表示に使用。 */
+  readonly hideUnpressedNotes?: boolean;
   readonly className?: string;
 }
 
@@ -35,6 +46,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
     correctPitchClasses,
     staffClef = 'bass',
     noteCollisionLayout = 'anchor-low',
+    hideUnpressedNotes = false,
     className,
   }) => {
     const staffNumber = staffClef === 'treble' ? (1 as const) : (2 as const);
@@ -66,6 +78,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
         <ChordVoicingStaff
           compactSingleMeasure
           completionPulse={null}
+          hideUnpressedNotes={hideUnpressedNotes}
           keyFifths={keyFifths}
           noteCollisionLayout={noteCollisionLayout}
           showTargetHints={false}

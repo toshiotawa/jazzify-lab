@@ -95,9 +95,10 @@ import {
   HEALING_AMOUNT,
 } from './boss/SurvivalBossTypes';
 import SurvivalCanvas from './SurvivalCanvas';
-import SurvivalCodeSlots, {
+import {
+  SurvivalProgressionStaff,
   type SurvivalProgressionStaffSnapshot,
-} from './SurvivalCodeSlots';
+} from './SurvivalProgressionStaff';
 import { buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
@@ -3384,7 +3385,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.player.statusEffects.some(effect => effect.type === 'hint');
 
   const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
-    if ((!hintMode && !playerHasHintBuff) || !isProgressionStage) return null;
+    if (!isProgressionStage) return null;
+    if (!(isStageMode || hintMode || playerHasHintBuff)) return null;
+
     const slot = progressionPunchSlot;
     const ch = slot.chord;
 
@@ -3403,6 +3406,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       staffClef: 'bass',
     };
   }, [
+    isStageMode,
     hintMode,
     playerHasHintBuff,
     isProgressionStage,
@@ -3416,7 +3420,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   ]);
 
   const randomPunchStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
-    if ((!hintMode && !playerHasHintBuff) || isProgressionStage) return null;
+    if (isProgressionStage) return null;
+    if (!(isStageMode || hintMode || playerHasHintBuff)) return null;
+
     const slot = progressionPunchSlot;
     const ch = slot.chord;
     if (!slot.isEnabled || !ch || ch.quality === 'progression') return null;
@@ -3432,6 +3438,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       staffClef: 'treble',
     };
   }, [
+    isStageMode,
     hintMode,
     playerHasHintBuff,
     isProgressionStage,
@@ -3443,9 +3450,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   ]);
 
   const punchStaffSnapshot = progressionStaffSnapshot ?? randomPunchStaffSnapshot;
+
+  /** ステージ本番: 約30秒経過後のみ未ヒント構成音を隠す。練習・ヒント魔法中は非表示状態にしない */
+  const survivalCenterStaffHideUnpressedNotes =
+    !hintMode &&
+    !playerHasHintBuff &&
+    isStageMode &&
+    gameState.isPlaying &&
+    !gameState.isGameOver &&
+    gameState.elapsedTime >= 30;
   
-  // HINT 鍵盤: 未押下構成音はマリーゴールド、押下済みは緑（`PIXINotesRenderer.setVoicingHints`）
+  // 練習(HINT ON)のみ: 未押下構成音はマリーゴールド、押下済みは緑（本番は鍵盤ヒント無し）
   useEffect(() => {
+    if (!hintMode) {
+      pixiRendererRef.current?.clearVoicingHints();
+      return undefined;
+    }
+
     const hintSlotIndex = getHintSlotIndex();
     const renderer = pixiRendererRef.current;
 
@@ -3483,7 +3504,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
 
     renderer.setVoicingHints(pendingMidi, completedMidi);
-  }, [gameState.player.statusEffects, gameState.codeSlots.current]);
+
+    return undefined;
+  }, [hintMode, gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
@@ -3797,6 +3820,26 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             bossBattle={bossBattleRef.current}
             bossUiTick={bossUiTick}
           />
+          {/* コードスロットは非表示。中央に楽譜オーバーレイのみ */}
+          {punchStaffSnapshot &&
+            punchStaffSnapshot.voicingNames.length > 0 &&
+            gameState.isPlaying &&
+            !gameState.isGameOver && (
+              <div
+                className="absolute inset-0 z-[5] flex items-center justify-center px-3 pointer-events-none"
+                aria-hidden
+              >
+                <SurvivalProgressionStaff
+                  chordDisplayName={punchStaffSnapshot.chordDisplayName}
+                  voicingNames={punchStaffSnapshot.voicingNames}
+                  keyFifths={punchStaffSnapshot.keyFifths}
+                  correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
+                  hideUnpressedNotes={survivalCenterStaffHideUnpressedNotes}
+                  staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)] [&_svg]:scale-[1.55] md:[&_svg]:scale-[1.72]"
+                />
+              </div>
+            )}
           
           {/* ポーズ画面（全画面モーダル・PAUSEDを確実に表示） */}
           {gameState.isPaused && (
@@ -3937,25 +3980,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             </div>
           )}
         </div>
-        
-        {/* コードスロット */}
-        <SurvivalCodeSlots
-          currentSlots={gameState.codeSlots.current}
-          nextSlots={gameState.codeSlots.next}
-          hintSlotIndex={getHintSlotIndex()}
-          aSlotCooldown={gameState.aSlotCooldown}
-          bSlotCooldown={gameState.bSlotCooldown}
-          cSlotCooldown={gameState.cSlotCooldown}
-          dSlotCooldown={gameState.dSlotCooldown}
-          hasMagic={Object.values(gameState.player.magics).some(l => l > 0)}
-          isAMagicSlot={isAMagicSlot}
-          isBMagicSlot={isBMagicSlot}
-          isStageMode={isStageMode}
-          isBossStage={isBossStage}
-          isProgressionStage={isProgressionStage}
-          randomHintPunchOnly={!isProgressionStage && (hintMode || playerHasHintBuff)}
-          progressionStaffSnapshot={punchStaffSnapshot}
-        />
       </div>
       
       {/* ピアノ（PIXINotesRenderer使用） */}

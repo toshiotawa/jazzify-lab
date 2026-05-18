@@ -11,6 +11,8 @@ struct SurvivalProgressionStaffView: View {
     let staffClef: Int
     /// Web `ChordVoicingStaff.noteCollisionLayout` と同等。
     let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
+    /// Web `ChordVoicingStaff.hideUnpressedNotes`。本番30秒経過後の中央楽譜で true。
+    let hideUnpressedNotes: Bool
 
     init(
         chordDisplayName: String,
@@ -18,7 +20,8 @@ struct SurvivalProgressionStaffView: View {
         keyFifths: Int,
         correctPitchClasses: [Int],
         staffClef: Int = 2,
-        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
+        hideUnpressedNotes: Bool = false
     ) {
         self.chordDisplayName = chordDisplayName
         self.voicingNames = voicingNames
@@ -26,6 +29,7 @@ struct SurvivalProgressionStaffView: View {
         self.correctPitchClasses = correctPitchClasses
         self.staffClef = staffClef
         self.noteCollisionLayout = noteCollisionLayout
+        self.hideUnpressedNotes = hideUnpressedNotes
     }
 
     private static let staffGroupId = UUID(uuidString: "A0B99C62-1111-4222-A333-D44444444101")!
@@ -51,7 +55,8 @@ struct SurvivalProgressionStaffView: View {
             showTargetHints: false,
             singleMeasureLayout: true,
             hideChordLabels: false,
-            noteCollisionLayout: noteCollisionLayout
+            noteCollisionLayout: noteCollisionLayout,
+            hideUnpressedNotes: hideUnpressedNotes
         )
     }
 }

@@ -204,6 +204,16 @@ private struct SurvivalGameContent: View {
             }
             .allowsHitTesting(vm.uiSnapshot.phase == .playing && !vm.isPaused && !vm.uiSnapshot.scenario.disableJoystick)
 
+            if vm.uiSnapshot.phase == .playing,
+               !vm.isPaused,
+               scenarioStaffSnapshot == nil,
+               let staffPayload = SurvivalStageCenterStaffPayload.make(from: vm.uiSnapshot),
+               !staffPayload.voicingNames.isEmpty {
+                SurvivalStageCenterStaffOverlay(payload: staffPayload, staffPhase: vm.uiSnapshot.staffPhase)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+            }
+
             VStack(spacing: 0) {
                 SurvivalHUDView(
                     uiSnapshot: vm.uiSnapshot,
@@ -213,10 +223,6 @@ private struct SurvivalGameContent: View {
                     locale: locale,
                     onTogglePause: { session.togglePause() }
                 )
-                if !vm.uiSnapshot.scenario.hideChordSlots {
-                    SurvivalCodeSlotsView(uiSnapshot: vm.uiSnapshot, isBossStage: vm.isBossStage)
-                        .padding(.top, 4)
-                }
                 Spacer()
             }
 
@@ -332,6 +338,78 @@ private struct SurvivalGameContent: View {
                 onExit: { session.requestExit() }
             )
         }
+    }
+}
+
+// MARK: - Stage center staff (slots removed; matches Web SurvivalGameScreen overlay)
+
+private struct SurvivalStageCenterStaffPayload: Equatable {
+    let chordDisplayName: String
+    let voicingNames: [String]
+    let keyFifths: Int
+    let correctPitchClasses: [Int]
+    let staffClef: Int
+
+    static func make(from snapshot: SurvivalUISnapshot) -> Self? {
+        guard snapshot.slots.indices.contains(1) else { return nil }
+        let slot = snapshot.slots[1]
+        guard slot.isEnabled else { return nil }
+
+        if snapshot.stageType == .progression,
+           let chord = slot.chord,
+           chord.quality == .progression,
+           let staffNames = chord.progressionStaffVoicingNames,
+           !staffNames.isEmpty,
+           let keyFf = chord.progressionStaffKeyFifths {
+            let pcs = SurvivalChordResolver.correctNotes(
+                inputPitchClasses: slot.inputPitchClasses,
+                target: chord
+            )
+            return Self(
+                chordDisplayName: chord.displayName,
+                voicingNames: staffNames,
+                keyFifths: keyFf,
+                correctPitchClasses: pcs,
+                staffClef: 2
+            )
+        }
+
+        if snapshot.stageType != .progression,
+           let chord = slot.chord,
+           chord.quality != .progression,
+           let hintVoicing = SurvivalRandomHintStaff.voicing(forChordId: chord.id) {
+            let pcs = SurvivalChordResolver.correctNotes(
+                inputPitchClasses: slot.inputPitchClasses,
+                target: chord
+            )
+            return Self(
+                chordDisplayName: chord.displayName,
+                voicingNames: hintVoicing.names,
+                keyFifths: hintVoicing.keyFifths,
+                correctPitchClasses: pcs,
+                staffClef: 1
+            )
+        }
+
+        return nil
+    }
+}
+
+private struct SurvivalStageCenterStaffOverlay: View {
+    let payload: SurvivalStageCenterStaffPayload
+    let staffPhase: SurvivalStaffPhase
+
+    var body: some View {
+        SurvivalProgressionStaffView(
+            chordDisplayName: payload.chordDisplayName,
+            voicingNames: payload.voicingNames,
+            keyFifths: payload.keyFifths,
+            correctPitchClasses: payload.correctPitchClasses,
+            staffClef: payload.staffClef,
+            hideUnpressedNotes: staffPhase == .pressedOnly
+        )
+        .frame(maxWidth: 560, maxHeight: 260)
+        .padding(.horizontal, 12)
     }
 }
 
