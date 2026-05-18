@@ -382,7 +382,7 @@ enum SurvivalStageCatalog {
                 } else if let suffix = row.chord_suffix, let pattern = rootPattern {
                     allowed = buildAllowed(roots: pattern.roots, suffix: suffix)
                 }
-            case .progression:
+            case .progression, .phrases:
                 allowed = []
             }
 

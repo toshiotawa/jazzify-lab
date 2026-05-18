@@ -102,7 +102,7 @@ final class SurvivalGameSession: ObservableObject {
                     stageNumber: stage.stageNumber
                 ) {
                     gameLoop.loadPhraseDefinition(phrase)
-                    viewModel.phraseStaffSnapshot = gameLoop.phraseStaffSnapshot()
+                    viewModel.syncPhraseStaff(from: gameLoop)
                     if playBackgroundMusic {
                         let urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
                         if let urlString, let url = URL(string: urlString) {

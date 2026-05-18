@@ -62,6 +62,13 @@ final class SurvivalViewModel: ObservableObject {
         clearReportError = nil
     }
 
+    func syncPhraseStaff(from gameLoop: SurvivalGameLoop) {
+        let next = gameLoop.phraseStaffSnapshot()
+        if next != phraseStaffSnapshot {
+            phraseStaffSnapshot = next
+        }
+    }
+
     func beginSupabaseClearReport() -> Bool {
         guard !clearReportInFlight else { return false }
         clearReportInFlight = true
@@ -91,10 +98,7 @@ final class SurvivalViewModel: ObservableObject {
             chordPadCompletedHintMidis = nextCompletedHints
         }
 
-        let nextPhraseStaff = gameLoop.phraseStaffSnapshot()
-        if nextPhraseStaff != phraseStaffSnapshot {
-            phraseStaffSnapshot = nextPhraseStaff
-        }
+        syncPhraseStaff(from: gameLoop)
 
         let forceBossHud = gameLoop.runtime.phase != .playing || phaseChanged
         let nextBossHud = gameLoop.bossBattle.map(Self.makeBossHudSnapshot(from:))
@@ -114,6 +118,7 @@ final class SurvivalViewModel: ObservableObject {
         lastBossHudPublishAt = now
         chordPadHintMidis = gameLoop.currentHintHighlightMidis()
         chordPadCompletedHintMidis = gameLoop.currentHintCompletedHighlightMidis()
+        syncPhraseStaff(from: gameLoop)
         isPaused = false
         clearMidiHeldKeys()
         resetClearReportState()

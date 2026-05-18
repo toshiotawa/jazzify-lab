@@ -384,6 +384,8 @@ struct SurvivalDescentSidePanel: View {
         switch stage.stageType {
         case .progression:
             return isEnglishCopy ? "Progression" : "コード進行"
+        case .phrases:
+            return isEnglishCopy ? "Phrases" : "フレーズ"
         case .random:
             return isEnglishCopy ? "Random" : "ランダム"
         }

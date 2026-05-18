@@ -153,8 +153,8 @@ final class SurvivalGameLoop {
         self.bossBattle = initialBoss
 
         if isPhraseMode, !isBoss {
-            runtime.player.stats.hp = 1000
-            runtime.player.stats.maxHp = 1000
+            runtime.player.hp = 1000
+            runtime.player.maxHp = 1000
             for idx in runtime.slots.indices {
                 runtime.slots[idx].isEnabled = false
             }

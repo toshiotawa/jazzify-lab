@@ -32,6 +32,10 @@
 		113523707C66472EDCE989B7 /* SurvivalStatusEffectEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */; };
 		1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */; };
 		AA01BB02CC03DD04EE05FF02 /* SurvivalGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */; };
+		AA01BB02CC03DD04EE05FF22 /* SurvivalPhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */; };
+		AA01BB02CC03DD04EE05FF24 /* SurvivalPhraseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */; };
+		AA01BB02CC03DD04EE05FF26 /* SurvivalPhraseStaffSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */; };
+		AA01BB02CC03DD04EE05FF28 /* SurvivalPhraseStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */; };
 		AA01BB02CC03DD04EE05FF04 /* SurvivalFrameEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF03 /* SurvivalFrameEvent.swift */; };
 		AA01BB02CC03DD04EE05FF06 /* SurvivalInputBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF05 /* SurvivalInputBuffer.swift */; };
 		AA01BB02CC03DD04EE05FF08 /* SurvivalGameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF07 /* SurvivalGameSession.swift */; };
@@ -186,6 +190,10 @@
 		AA01BB02CC03DD04EE05FF13 /* SurvivalScenarioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioController.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = DrumLoop.mp3; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameLoop.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseEngine.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseModel.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffSnapshot.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffView.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF03 /* SurvivalFrameEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalFrameEvent.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF05 /* SurvivalInputBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalInputBuffer.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF07 /* SurvivalGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameSession.swift; sourceTree = "<group>"; };
@@ -465,6 +473,17 @@
 			path = Runtime;
 			sourceTree = "<group>";
 		};
+		AA01BB02CC03DD04EE05FF20 /* Phrase */ = {
+			isa = PBXGroup;
+			children = (
+				AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */,
+				AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */,
+				AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */,
+				AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */,
+			);
+			path = Phrase;
+			sourceTree = "<group>";
+		};
 		52F3EEB711395BE727225146 /* Survival */ = {
 			isa = PBXGroup;
 			children = (
@@ -473,6 +492,7 @@
 				F102BB02CC03DD04EE05EE01 /* Runtime */,
 				9100C95266822FBC6D3C383F /* Audio */,
 				9CFE12BA8E8D9FBFAD66896C /* Engine */,
+				AA01BB02CC03DD04EE05FF20 /* Phrase */,
 				AA01BB02CC03DD04EE05FF16 /* Scenario */,
 				AA01BB02CC03DD04EE05FF0B /* Input */,
 				0239E829DE976A40355434F7 /* Model */,
@@ -918,6 +938,10 @@
 				EE03BB02CC03DD04EE05AA02 /* SurvivalAudioController.swift in Sources */,
 				AA01BB02CC03DD04EE05FF04 /* SurvivalFrameEvent.swift in Sources */,
 				AA01BB02CC03DD04EE05FF02 /* SurvivalGameLoop.swift in Sources */,
+				AA01BB02CC03DD04EE05FF22 /* SurvivalPhraseEngine.swift in Sources */,
+				AA01BB02CC03DD04EE05FF24 /* SurvivalPhraseModel.swift in Sources */,
+				AA01BB02CC03DD04EE05FF26 /* SurvivalPhraseStaffSnapshot.swift in Sources */,
+				AA01BB02CC03DD04EE05FF28 /* SurvivalPhraseStaffView.swift in Sources */,
 				DD03BB02CC03DD04EE05BB02 /* SurvivalSessionState.swift in Sources */,
 				AA01BB02CC03DD04EE05FF08 /* SurvivalGameSession.swift in Sources */,
 				AA01BB02CC03DD04EE05FF06 /* SurvivalInputBuffer.swift in Sources */,
