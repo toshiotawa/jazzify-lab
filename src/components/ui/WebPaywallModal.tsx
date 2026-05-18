@@ -10,13 +10,15 @@ interface WebPaywallModalProps {
 }
 
 const FEATURES_JA = [
-  'すべてのレッスンが無制限',
-  'サバイバル ステージモードでプレイ',
+  'メインクエスト全チャプター・目的別コースなどプレミアム対象クエストが無制限',
+  'すべてのレッスン・実習が無制限',
+  'サバイバル ステージですべての階層をプレイ',
 ];
 
 const FEATURES_EN = [
-  'Unlimited access to all lessons',
-  'Play Survival Stage Mode',
+  'All Main Quest chapters and Premium topic courses',
+  'Unlimited lessons and practice tasks',
+  'Every Survival Stage tier',
 ];
 
 const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy }) => {

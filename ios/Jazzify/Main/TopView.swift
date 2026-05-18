@@ -52,8 +52,21 @@ struct TopView: View {
                     set: { if !$0 { mainQuestLessonToOpen = nil } }
                 )
             ) {
-                if let lesson = mainQuestLessonToOpen {
-                    LessonDetailView(lesson: lesson)
+                Group {
+                    if let lesson = mainQuestLessonToOpen {
+                        if appState.isPremium || (lesson.blockNumber ?? 1) <= MainQuestFreeTier.maxFreeBlockNumber {
+                            LessonDetailView(lesson: lesson)
+                        } else {
+                            Color.clear
+                                .frame(width: 0, height: 0)
+                                .task {
+                                    await MainActor.run {
+                                        mainQuestLessonToOpen = nil
+                                        showSubscription = true
+                                    }
+                                }
+                        }
+                    }
                 }
             }
             .onChange(of: mainQuestLessonToOpen == nil) { isNil in
@@ -234,7 +247,7 @@ struct TopView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.green)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                        } else if let nextLesson = progress.nextLesson {
+                        } else if let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(locale == .ja
                                      ? "クエスト\(nextLesson.orderIndex + 1)：\(nextLesson.localizedTitle(locale))"
@@ -260,6 +273,35 @@ struct TopView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        } else if !appState.isPremium,
+                                  progress.completedLessons < progress.totalLessons,
+                                  let gatedNext = progress.nextLesson,
+                                  (gatedNext.blockNumber ?? 1) > MainQuestFreeTier.maxFreeBlockNumber {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(locale == .ja
+                                     ? "メインクエスト第2チャプター以降はプレミアムでプレイできます。"
+                                     : "Main Quest chapters 2+ require Premium.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.orange)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                Button {
+                                    showSubscription = true
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "lock.fill")
+                                            .font(.caption2)
+                                        Text(locale == .ja ? "プレミアムを見る" : "View Premium")
+                                            .font(.subheadline.bold())
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.purple.opacity(0.85))
+                                    .cornerRadius(20)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
 
@@ -270,6 +312,13 @@ struct TopView: View {
             .background(Color(hex: "1e293b"))
             .cornerRadius(12)
         }
+    }
+
+    private func mainQuestPlayableNextLesson(progress: SupabaseService.MainQuestProgressResult) -> Lesson? {
+        guard let raw = progress.nextLesson else { return nil }
+        if appState.isPremium { return raw }
+        let bn = raw.blockNumber ?? 1
+        return bn <= MainQuestFreeTier.maxFreeBlockNumber ? raw : nil
     }
 
     // MARK: - Stats

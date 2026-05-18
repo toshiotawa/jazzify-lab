@@ -103,8 +103,8 @@ After signing in with the review account, please check the following flows.
 **B. Lessons tab**
 
 1. Open the Lessons tab.
-2. Free users can access the Tutorial course.
-3. Tapping any course other than Tutorial presents the subscription paywall.
+2. Free users can access **Main Quest Chapter 1** (within the Tutorial course flow).
+3. **Main Quest chapters after Chapter 1** (shown with a lock) and **topic-specific courses** that require Premium present the subscription paywall when tapped.
 4. Lesson content includes multiple task formats. In the **Tutorial** course, **Lessons 6–8** explain each type in the lesson list before play:
    - **Lesson 6:** vertically scrolling rhythm-style exercise
    - **Lesson 7:** horizontal-scrolling RPG-style exercise
@@ -137,7 +137,7 @@ The paywall can be opened from the following entry points for free users:
 
 - tapping **“Unlock all features with Premium”** on the Top tab
 - selecting a locked Daily Challenge difficulty and tapping **Play**
-- tapping any Lessons course other than Tutorial
+- tapping locked **Main Quest** chapters after Chapter 1, or topic-specific courses that require Premium
 - tapping **“Subscribe to Premium”** in the Survival tab
 - tapping **Subscriptions** in the Settings tab
 
@@ -278,8 +278,8 @@ Jazzify は、インタラクティブなゲームプレイとリアルタイム
 **B. Lessons タブ**
 
 1. Lessons タブを開く
-2. 無料ユーザーは Tutorial コースにアクセスできる
-3. Tutorial 以外のコースをタップすると、サブスクリプション paywall が表示される
+2. 無料ユーザーは **メインクエスト第1チャプター**（チュートリアル相当の導線）までプレイできる
+3. **第2チャプター以降のメインクエスト**（ロック表示）や **プレミアム対象の目的別コース** をタップすると、サブスクリプション paywall が表示される
 4. レッスンには複数の課題形式がある。**Tutorial** コースでは **レッスン6〜8** が一覧の説明とあわせて各形式を案内する。
    - **レッスン6:** 縦スクロールのリズムゲーム型課題
    - **レッスン7:** 横スクロール風 RPG 課題
@@ -312,7 +312,7 @@ Jazzify は、インタラクティブなゲームプレイとリアルタイム
 
 - トップタブの **「プレミアムプランで全機能をアンロック」**（英語 UI では “Unlock all features with Premium”）をタップ
 - Daily Challenge のロックされた上位難易度を選んで **プレイ** をタップ
-- Lessons で Tutorial 以外のコースをタップ
+- Lessons で **メインクエスト第2チャプター以降**（ロック表示）または **プレミアム対象の目的別コース** をタップ
 - Survival タブで **プレミアムに登録** / “Subscribe to Premium” をタップ
 - 設定タブで **サブスクリプション**（英語 UI では “Subscriptions”）をタップ
 
@@ -372,14 +372,15 @@ Jazzify Premium
 
 **What Premium unlocks:**
 
-- All Lessons courses beyond Tutorial
+- **Main Quest** chapters after Chapter 1 (Chapter 1 remains playable on the free plan)
+- Topic-specific courses that require Premium
 - Locked Daily Challenge difficulties above the free tier (**Super Beginner** is free; higher difficulties require Premium)
 - Survival gameplay access
 - Detailed statistics and progress tracking
 
 **Free access:**
 
-- Lessons: only the Tutorial course is free
+- Lessons / Main Quest: **Chapter 1** playable on the free plan; later chapters are visible but locked behind Premium
 - Daily Challenge: only **Super Beginner** (free difficulty) is available without Premium
 - Survival: the tab is visible, but gameplay requires Premium
 
@@ -387,7 +388,7 @@ Jazzify Premium
 
 1. Top tab: tap **“Unlock all features with Premium”**
 2. Top tab > Daily Challenge: select a locked higher difficulty than Super Beginner and tap **Play**
-3. Lessons tab: tap any course other than Tutorial
+3. Lessons tab: tap a locked **Main Quest** chapter after Chapter 1, or a Premium topic-specific course
 4. Survival tab: tap **“Subscribe to Premium”**
 5. Settings tab: tap **“Subscriptions”**
 
@@ -471,7 +472,7 @@ Primary (recommended): Settings tab → Billing section → Subscriptions → op
 Other entry points for free users:
 - Top tab → tap the banner “Unlock all features with Premium”
 - Top tab → Daily Challenge → choose a difficulty higher than “Super Beginner” → tap “Play”
-- Lessons tab → tap any course other than “Tutorial”
+- Lessons tab → tap a locked **Main Quest** chapter after Chapter 1, or a Premium topic-specific course
 - Survival tab → tap “Subscribe to Premium”
 
 On the paywall, you should see the subscription name, duration, pricing (from the App Store / StoreKit), auto-renewal text, and links to Terms of Use and Privacy Policy. Tapping “Subscribe to Premium” presents Apple’s In-App Purchase sheet.
@@ -494,7 +495,7 @@ Thank you.
 | App Review の **返信** | **1-D** | 何を直したかの要約、審査アカウント情報。手順は短くてよい。 |
 | **App Review Information → Notes** | **1-E** | 審査担当が迷わないよう **タブ名・ボタン名どおりの導線** を英語UI前提で記載。 |
 
-導線は `MainTabView.swift`（Top / Lessons / Survival / Settings）、`TopView.swift`（バナー・Daily Challenge）、`LessonListView.swift`（Tutorial以外のコース）、`SurvivalView.swift`、`SettingsView.swift`（Billing → Subscriptions）の実装と一致しています。
+導線は `MainTabView.swift`（Top / Lessons / Survival / Settings）、`TopView.swift`（バナー・Daily Challenge）、`LessonListView.swift`（メインクエスト第2チャプター以降・目的別コースのロック）、`SurvivalView.swift`、`SettingsView.swift`（Billing → Subscriptions）の実装と一致しています。
 
 ---
 

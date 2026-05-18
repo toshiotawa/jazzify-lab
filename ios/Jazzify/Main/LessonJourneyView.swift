@@ -51,7 +51,9 @@ struct LessonJourneyView: View {
             lessons: lessons,
             completedLessonIds: completedLessonIds,
             locale: .ja,
-            enforceSequentialWithinBlocks: course.isMainCourse == true
+            enforceSequentialWithinBlocks: course.isMainCourse == true,
+            isMainCourse: course.isMainCourse == true,
+            isPremium: true
         )
         self._layout = State(initialValue: derived.layout)
         self._accessGraph = State(initialValue: derived.accessGraph)
@@ -64,7 +66,9 @@ struct LessonJourneyView: View {
         lessons: [Lesson],
         completedLessonIds: Set<UUID>,
         locale: AppLocale,
-        enforceSequentialWithinBlocks: Bool
+        enforceSequentialWithinBlocks: Bool,
+        isMainCourse: Bool,
+        isPremium: Bool
     ) -> (
          layout: LessonJourneyLayout,
          accessGraph: LessonJourneyAccessGraph,
@@ -86,11 +90,14 @@ struct LessonJourneyView: View {
             locale: locale,
             phoneInlineTitles: Self.phoneInlineTitlesPreferred()
         )
-        let accessGraph = LessonJourneyAccessGraph.build(
+        var accessGraph = LessonJourneyAccessGraph.build(
             lessons: lessons,
             completedIds: completedLessonIds,
             enforceSequentialWithinBlocks: enforceSequentialWithinBlocks
         )
+        if isMainCourse {
+            accessGraph = MainQuestFreeTier.applyLocks(graph: accessGraph, lessons: lessons, isPremium: isPremium)
+        }
         let frontierLessonId = LessonJourneyFrontier.compute(
             lessons: inputs,
             isUnlocked: { id in accessGraph.lessonStates[id]?.isUnlocked ?? false },
@@ -111,7 +118,9 @@ struct LessonJourneyView: View {
             lessons: lessons,
             completedLessonIds: completedLessonIds,
             locale: locale,
-            enforceSequentialWithinBlocks: course.isMainCourse == true
+            enforceSequentialWithinBlocks: course.isMainCourse == true,
+            isMainCourse: course.isMainCourse == true,
+            isPremium: appState.isPremium
         )
         layout = d.layout
         accessGraph = d.accessGraph
@@ -233,6 +242,9 @@ struct LessonJourneyView: View {
             recomputeJourney()
         }
         .onChange(of: appState.locale) { _ in
+            recomputeJourney()
+        }
+        .onChange(of: appState.profile?.rank) { _ in
             recomputeJourney()
         }
         .sheet(isPresented: $showSheet) {

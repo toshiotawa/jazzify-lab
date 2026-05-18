@@ -225,17 +225,29 @@ struct LessonListView: View {
         guard !lessons.isEmpty else { return nil }
 
         let completedIds = progressMap[course.id] ?? []
-        let accessGraph = LessonJourneyAccessGraph.build(
+        let graphBuilt = LessonJourneyAccessGraph.build(
             lessons: lessons,
             completedIds: completedIds,
             enforceSequentialWithinBlocks: true
         )
+        let accessGraph = MainQuestFreeTier.applyLocks(
+            graph: graphBuilt,
+            lessons: lessons,
+            isPremium: appState.isPremium
+        )
+
         let frontierLesson = lessons.first { lesson in
             let state = accessGraph.lessonStates[lesson.id]
             return state?.isUnlocked == true && state?.isCompleted != true
         }
-        let fallbackLesson = lessons.last
-        let currentLesson = frontierLesson ?? fallbackLesson
+
+        let unlockedInOrder = lessons.filter { lesson in
+            accessGraph.lessonStates[lesson.id]?.isUnlocked == true
+        }
+        let currentLesson =
+            frontierLesson
+                ?? unlockedInOrder.last
+                ?? lessons.first
         let currentBlockNumber = currentLesson?.blockNumber ?? lessons.first?.blockNumber ?? 1
 
         var groups: [Int: [Lesson]] = [:]
@@ -393,6 +405,10 @@ struct LessonListView: View {
         VStack(spacing: 12) {
             continueCard(state, onContinue: onContinue)
 
+            if !appState.isPremium {
+                mainQuestFreeTierUpsellBanner()
+            }
+
             if UIDevice.current.userInterfaceIdiom == .pad {
                 HStack(alignment: .top, spacing: 12) {
                     journeyPanel(state)
@@ -455,6 +471,39 @@ struct LessonListView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(Color.purple.opacity(0.55), lineWidth: 1)
             )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func mainQuestFreeTierUpsellBanner() -> some View {
+        Button {
+            showSubscription = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.yellow)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(locale == .ja
+                         ? "フリープランはメインクエスト第1チャプターまでプレイできます"
+                         : "Free plan: Main Quest chapter 1 only")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                    Text(locale == .ja
+                         ? "プレミアムですべてのチャプターと目的別コースを解放 →"
+                         : "Subscribe for all chapters and topic courses →")
+                        .font(.caption2)
+                        .foregroundStyle(Color(hex: "fde68a"))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Color.yellow.opacity(0.08))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.yellow.opacity(0.4), lineWidth: 1)
+            )
+            .cornerRadius(12)
         }
         .buttonStyle(.plain)
     }
@@ -566,7 +615,17 @@ struct LessonListView: View {
         state: MainQuestViewState
     ) -> some View {
         let isSelected = selectedBlock(in: state).blockNumber == block.blockNumber
-        return DragCancellableTapRow(isEnabled: block.isUnlocked) {
+        return DragCancellableTapRow(isEnabled: true) {
+            if !appState.isPremium && block.blockNumber > MainQuestFreeTier.maxFreeBlockNumber {
+                Task {
+                    let premium = await appState.ensureFreshBilling()
+                    if !premium {
+                        await MainActor.run { showSubscription = true }
+                    }
+                }
+                return
+            }
+            guard block.isUnlocked else { return }
             selectedMainQuestBlockNumber = block.blockNumber
         } label: {
             HStack(spacing: 10) {
@@ -758,6 +817,19 @@ struct LessonListView: View {
         }()
 
         return DragCancellableTapRow(isEnabled: isUnlocked) {
+            let bn = lesson.blockNumber ?? 1
+            if let mqId = mainQuestCourse?.id,
+               lesson.courseId == mqId,
+               !appState.isPremium,
+               bn > MainQuestFreeTier.maxFreeBlockNumber {
+                Task {
+                    let premium = await appState.ensureFreshBilling()
+                    if !premium {
+                        await MainActor.run { showSubscription = true }
+                    }
+                }
+                return
+            }
             lessonToOpen = lesson
         } label: {
             HStack(spacing: 10) {
@@ -1465,6 +1537,8 @@ struct LessonDetailView: View {
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
+    @State private var courseIsMainQuest = false
+    @State private var showSubscriptionSheet = false
 
     private var locale: AppLocale { appState.locale }
     private var isPlatinumTier: Bool {
@@ -1631,6 +1705,9 @@ struct LessonDetailView: View {
                 .onDisappear {
                     removeTempAttachmentFile(at: payload.fileURL)
                 }
+        }
+        .sheet(isPresented: $showSubscriptionSheet) {
+            SubscriptionView()
         }
     }
 
@@ -2162,7 +2239,12 @@ struct LessonDetailView: View {
         defer { isLoading = false }
 
         do {
+            courseIsMainQuest = false
             async let detailTask = SupabaseService.shared.fetchLessonDetail(lessonId: lesson.id)
+            async let courseMetaTask: Course? = {
+                guard let cid = lesson.courseId else { return nil }
+                return try? await SupabaseService.shared.fetchCourseVisible(id: cid)
+            }()
             async let videosTask: [LessonVideoResource] = {
                 (try? await SupabaseService.shared.fetchLessonVideos(lessonId: lesson.id)) ?? []
             }()
@@ -2171,6 +2253,8 @@ struct LessonDetailView: View {
             }()
 
             let fetchedDetail = try await detailTask
+            let courseMeta = await courseMetaTask
+            courseIsMainQuest = courseMeta?.isMainCourse == true
             detail = fetchedDetail
             prefetchEarTrainingStageDetails(from: fetchedDetail)
             let rawVideos = await videosTask
@@ -2223,6 +2307,20 @@ struct LessonDetailView: View {
             alertMessage = locale == .ja
                 ? "すべての実習課題を完了してからクエストを完了してください。"
                 : "Complete all practice tasks before marking this quest complete."
+            return
+        }
+
+        let bn = lesson.blockNumber ?? 1
+        if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
+            alertMessage = locale == .ja
+                ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
+                : "Main Quest chapters after Chapter 1 require Premium."
+            Task {
+                let premium = await appState.ensureFreshBilling()
+                if !premium {
+                    await MainActor.run { showSubscriptionSheet = true }
+                }
+            }
             return
         }
 
@@ -2414,6 +2512,20 @@ struct LessonDetailView: View {
     }
 
     private func launchRequirement(_ requirement: LessonSong) {
+        let bn = lesson.blockNumber ?? 1
+        if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
+            alertMessage = locale == .ja
+                ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
+                : "Main Quest chapters after Chapter 1 require Premium."
+            Task {
+                let premium = await appState.ensureFreshBilling()
+                if !premium {
+                    await MainActor.run { showSubscriptionSheet = true }
+                }
+            }
+            return
+        }
+
         if requirement.isSurvival == true {
             guard let stageNumber = requirement.survivalStageNumber else {
                 alertMessage = locale == .ja ? "サバイバルステージ設定がありません。" : "Missing survival stage setting."

@@ -246,6 +246,31 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    /// 単体コース取得（`fetchCourses` と同じ可視性フィルター）
+    func fetchCourseVisible(id: UUID) async throws -> Course? {
+        if Config.includeDeveloperLessonCourses {
+            let rows: [Course] = try await client
+                .from("courses")
+                .select()
+                .eq("id", value: id.uuidString)
+                .eq("is_visible", value: true)
+                .limit(1)
+                .execute()
+                .value
+            return rows.first
+        }
+        let rows: [Course] = try await client
+            .from("courses")
+            .select()
+            .eq("id", value: id.uuidString)
+            .eq("is_visible", value: true)
+            .eq("is_developer_only", value: false)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
     func fetchLessons(courseId: UUID) async throws -> [Lesson] {
         try await client
             .from("lessons")

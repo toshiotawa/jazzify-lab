@@ -20,6 +20,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { buildLessonAccessGraph, findDeepestUnlockedLesson, LessonAccessGraph } from '@/utils/lessonAccess';
+import { applyMainQuestFreeTierLocks, isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import { stageCardRectangularPath, stageCardSquarePath } from '@/utils/stageCardAssets';
 import { LessonMapAudio, LESSON_MAP_BGM_URL } from '@/utils/LessonMapAudio';
 import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
@@ -90,6 +91,7 @@ const buildMainQuestSummary = (
   lessons: Lesson[],
   allProgress: LessonProgressBasic[],
   isEnglishCopy: boolean,
+  isPremiumMember: boolean,
 ): MainQuestSummary | null => {
   if (!course || lessons.length === 0) {
     return null;
@@ -103,20 +105,33 @@ const buildMainQuestSummary = (
     }
   });
 
-  const accessGraph = buildLessonAccessGraph({
+  const accessGraphBuilt = buildLessonAccessGraph({
     lessons: sortedLessons,
     progressMap: completionMap,
     enforceSequentialWithinBlocks: true,
   });
+
+  const accessGraph = applyMainQuestFreeTierLocks(accessGraphBuilt, sortedLessons, isPremiumMember);
 
   const frontierLesson = sortedLessons.find(lesson => {
     const state = accessGraph.lessonStates[lesson.id];
     return state?.isUnlocked === true && state.isCompleted !== true;
   }) ?? null;
 
-  const fallbackLesson = sortedLessons[sortedLessons.length - 1] ?? null;
-  const currentLesson = frontierLesson ?? fallbackLesson;
-  const currentBlockNumber = currentLesson?.block_number ?? sortedLessons[0]?.block_number ?? 1;
+  const unlockedInOrder = sortedLessons.filter(
+    lesson => accessGraph.lessonStates[lesson.id]?.isUnlocked === true,
+  );
+  const currentLesson =
+    frontierLesson ??
+    unlockedInOrder[unlockedInOrder.length - 1] ??
+    sortedLessons[0] ??
+    null;
+
+  if (!currentLesson) {
+    return null;
+  }
+
+  const currentBlockNumber = currentLesson.block_number ?? sortedLessons[0]?.block_number ?? 1;
 
   const groups = new Map<number, Lesson[]>();
   sortedLessons.forEach(lesson => {
@@ -193,7 +208,7 @@ const LessonPage: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
-  const { effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
+  const { effectiveRank, isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
@@ -303,8 +318,9 @@ const LessonPage: React.FC = () => {
       mainQuestCourse ? lessonsByCourse[mainQuestCourse.id] ?? [] : [],
       allProgress,
       isEnglishCopy,
+      isPremiumMember,
     ),
-    [allProgress, isEnglishCopy, lessonsByCourse, mainQuestCourse],
+    [allProgress, isEnglishCopy, isPremiumMember, lessonsByCourse, mainQuestCourse],
   );
 
   const coursesByTier = useMemo(() => {
@@ -328,8 +344,16 @@ const LessonPage: React.FC = () => {
   }, []);
 
   const openLesson = useCallback((lessonId: string) => {
+    if (mainQuestCourse) {
+      const mqLessons = lessonsByCourse[mainQuestCourse.id] ?? [];
+      const found = mqLessons.find(l => l.id === lessonId);
+      if (found !== undefined && !isMainQuestBlockPlayable(found.block_number ?? 1, isPremiumMember)) {
+        setShowPaywall(true);
+        return;
+      }
+    }
     window.location.hash = `#lesson-detail?id=${lessonId}`;
-  }, []);
+  }, [mainQuestCourse, lessonsByCourse, isPremiumMember]);
 
   if (!open) return null;
 
@@ -482,7 +506,9 @@ const LessonPage: React.FC = () => {
                 <MainQuestDashboard
                   summary={mainQuestSummary}
                   isEnglishCopy={isEnglishCopy}
+                  isPremiumMember={isPremiumMember}
                   onOpenLesson={openLesson}
+                  onShowPaywall={() => { setShowPaywall(true); }}
                 />
               )}
 
@@ -582,34 +608,45 @@ const AllSpecificCoursesView: React.FC<AllSpecificCoursesViewProps> = ({
 interface MainQuestDashboardProps {
   summary: MainQuestSummary;
   isEnglishCopy: boolean;
+  isPremiumMember: boolean;
   onOpenLesson: (lessonId: string) => void;
+  onShowPaywall: () => void;
 }
 
 interface ChapterListItemProps {
   block: MainQuestBlock;
   isSelected: boolean;
   isEnglishCopy: boolean;
+  isPremiumMember: boolean;
   onSelect: (blockNumber: number) => void;
+  onShowPaywall: () => void;
 }
 
 const ChapterListItem: React.FC<ChapterListItemProps> = ({
   block,
   isSelected,
   isEnglishCopy,
+  isPremiumMember,
   onSelect,
+  onShowPaywall,
 }) => {
+  const tapsPaywall = !isMainQuestBlockPlayable(block.blockNumber ?? 1, isPremiumMember);
   const { pressed, tapHandlers } = useTapCancelOnDrag(
     () => {
+      if (tapsPaywall) {
+        onShowPaywall();
+        return;
+      }
       onSelect(block.blockNumber);
     },
-    { disabled: !block.isUnlocked },
+    { disabled: !block.isUnlocked && !tapsPaywall },
   );
 
   return (
     <button
       type="button"
       data-quest-block={block.blockNumber}
-      disabled={!block.isUnlocked}
+      disabled={!block.isUnlocked && !tapsPaywall}
       className={cn(
         'flex w-full items-center gap-3 rounded-lg border p-2 text-left transition-colors duration-150',
         isSelected
@@ -617,7 +654,8 @@ const ChapterListItem: React.FC<ChapterListItemProps> = ({
           : pressed
             ? 'border-violet-300/40 bg-violet-500/15'
             : 'border-violet-400/15 bg-white/[0.035] hover:bg-white/[0.06]',
-        !block.isUnlocked && 'opacity-55 cursor-not-allowed',
+        !block.isUnlocked && !tapsPaywall && 'opacity-55 cursor-not-allowed',
+        tapsPaywall && 'cursor-pointer',
       )}
       {...tapHandlers}
     >
@@ -749,7 +787,9 @@ const LessonListItem: React.FC<LessonListItemProps> = ({
 const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
   summary,
   isEnglishCopy,
+  isPremiumMember,
   onOpenLesson,
+  onShowPaywall,
 }) => {
   const journeyRef = useRef<HTMLDivElement>(null);
   const mainQuestDetailRef = useRef<HTMLDivElement>(null);
@@ -849,6 +889,19 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
 
   return (
     <section className="space-y-3">
+      {!isPremiumMember && (
+        <button
+          type="button"
+          className="w-full rounded-xl border border-amber-400/35 bg-amber-500/[0.08] px-3 py-3 text-left text-sm text-amber-100 hover:bg-amber-500/15 transition-colors"
+          onClick={() => onShowPaywall()}
+        >
+          <span className="font-semibold block">
+            {isEnglishCopy
+              ? 'Free plan: Main Quest chapter 1 only. Tap for Premium.'
+              : 'フリープランはメインクエスト第1チャプターまでです。タップしてプレミアムへ →'}
+          </span>
+        </button>
+      )}
       <div className="flex justify-end">
         <button
           type="button"
@@ -916,7 +969,9 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                   block={block}
                   isSelected={block.blockNumber === selectedBlock.blockNumber}
                   isEnglishCopy={isEnglishCopy}
+                  isPremiumMember={isPremiumMember}
                   onSelect={handleSelectChapter}
+                  onShowPaywall={onShowPaywall}
                 />
               ))}
             </div>

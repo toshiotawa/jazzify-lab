@@ -10,7 +10,8 @@ const FRANKFURTER_JPY_USD = 'https://api.frankfurter.dev/v1/latest?base=JPY&symb
 const FALLBACK_USD_WHOLE = 31;
 
 const PREMIUM_FEATURES = [
-  'Access all lessons',
+  'All Main Quest chapters & Premium topic courses',
+  'Unlimited lessons & practice tasks',
   'All Survival stages',
 ] as const;
 

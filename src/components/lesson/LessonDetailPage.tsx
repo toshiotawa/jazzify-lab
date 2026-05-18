@@ -31,6 +31,7 @@ import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment'
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
+import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
@@ -114,6 +115,7 @@ const LessonDetailPage: React.FC = () => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [shouldHideVideos, setShouldHideVideos] = useState(false);
   const [courseDifficultyTier, setCourseDifficultyTier] = useState<CourseDifficultyTier | null>(null);
+  const [lessonCourseIsMainQuest, setLessonCourseIsMainQuest] = useState(false);
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -223,6 +225,7 @@ const LessonDetailPage: React.FC = () => {
     const loadGen = ++lessonLoadGenerationRef.current;
     const isStale = () => loadGen !== lessonLoadGenerationRef.current;
     const pushToast = useToastStore.getState().push;
+    setLessonCourseIsMainQuest(false);
     setLoading(true);
 
     try {
@@ -300,8 +303,21 @@ const LessonDetailPage: React.FC = () => {
             window.location.hash = '#lessons';
             return;
           }
+          const lessonBlockNum = lessonData.block_number ?? 1;
+          if (course.is_main_course === true && !isMainQuestBlockPlayable(lessonBlockNum, isPremiumMember)) {
+            pushToast(
+              isEnglishCopy
+                ? 'Main Quest chapters 2+ require Premium.'
+                : 'メインクエスト第2チャプター以降はプレミアムが必要です。',
+              'warning',
+            );
+            window.location.hash = '#lessons';
+            return;
+          }
+          setLessonCourseIsMainQuest(course.is_main_course === true);
         } else {
           setCourseDifficultyTier(null);
+          setLessonCourseIsMainQuest(false);
         }
       }
       
@@ -337,7 +353,7 @@ const LessonDetailPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [isEnglishCopy, profile?.id, profile?.isAdmin, effectiveRank]);
+  }, [isEnglishCopy, isPremiumMember, profile?.id, profile?.isAdmin, effectiveRank]);
 
   useEffect(() => {
     if (open && lessonId) {
@@ -1005,7 +1021,14 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            if ((isFantasy || isSurvival || isEarTraining) && !isPremiumMember) {
+                            if (
+                              (isFantasy || isSurvival || isEarTraining)
+                              && !isPremiumMember
+                              && !(
+                                lessonCourseIsMainQuest
+                                && isMainQuestBlockPlayable(lesson?.block_number ?? 1, isPremiumMember)
+                              )
+                            ) {
                               toast.warning(
                                 isEnglishCopy
                                   ? 'This task requires Premium.'

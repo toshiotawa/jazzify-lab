@@ -86,7 +86,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     {
       label: isEnglishCopy ? 'Quests' : 'クエスト',
       values: {
-        free: isEnglishCopy ? 'Tutorial' : 'チュートリアル',
+        free: isEnglishCopy ? 'Main Quest chapter 1 only' : 'メインクエスト第1チャプターまで',
         premium: isEnglishCopy ? 'Unlimited' : '無制限',
       },
     },
@@ -229,8 +229,8 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               </h2>
               <p className="text-sm sm:text-base text-slate-300 mb-2 max-w-xl mx-auto">
                 {isEnglishCopy
-                  ? 'Free members can explore lessons (tutorial), stats, and Survival stage mode (view only).'
-                  : 'フリー会員はチュートリアルレッスン・統計・サバイバル閲覧などをご利用いただけます。'}
+                  ? 'Free members can play Main Quest chapter 1, browse stats, and view Survival maps (gameplay Premium-only).'
+                  : 'フリー会員はメインクエスト第1チャプターまで・統計・サバイバル閲覧などをご利用いただけます。'}
               </p>
               <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto">
                 {isEnglishCopy

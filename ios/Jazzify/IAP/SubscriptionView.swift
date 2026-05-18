@@ -86,7 +86,7 @@ struct SubscriptionView: View {
                 .foregroundStyle(.white)
 
             VStack(spacing: 4) {
-                featureRow(icon: "music.note.list", text: locale == .ja ? "全クエストにアクセス" : "Access all quests")
+                featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエスト全チャプター・目的別コースなどすべてのクエスト" : "All Main Quest chapters, topic courses, and quests")
                 featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
                 featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
             }
