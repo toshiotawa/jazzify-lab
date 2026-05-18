@@ -6,7 +6,7 @@
 
 - **サービス名**: Jazzify（Jazz Learning Game）
 - **概要**: ジャズピアノ・コード（和声・コード進行）を、インタラクティブなゲーム形式とレッスンでオンライン学習するウェブアプリ。MIDI やマイク入力に対応。
-- **主なモード**: レジェンド（名演ソロ再現）、ファンタジー（RPG風でコード進行）、レッスン（動画付きカリキュラム）、サバイバル・デイリーチャレンジなど。
+- **主なモード**: レジェンド（名演ソロ再現）、ファンタジー（RPG風でコード進行）、レッスン（動画付きカリキュラム）、サバイバルなど。
 - **料金**: Premium プラン（税込 ¥4,980/月）。初回利用者に 7 日間の無料トライアル。
 - **オフライン**: 不可（インターネット接続が必要）。
 - **公式サイト**: https://jazzify.jp/
@@ -16,7 +16,7 @@
 ## English
 
 - **Product**: Jazzify — a Jazz Learning Game for learning jazz piano, chords, and comping online through interactive gameplay and structured lessons. Supports MIDI and microphone input depending on setup.
-- **Highlights**: Legend-style phrase practice, Fantasy RPG-style chord battles, video-backed lesson courses, survival stages, daily challenges.
+- **Highlights**: Legend-style phrase practice, Fantasy RPG-style chord battles, video-backed lesson courses, survival stages.
 - **Pricing**: Premium subscription; new users receive a 7-day free trial (see site for current pricing in your region).
 - **Offline**: Not supported; an internet connection is required.
 - **Web**: https://jazzify.jp/ (Japanese default) · https://en.jazzify.jp/ (English)
