@@ -146,7 +146,6 @@ struct LessonDetail: Codable, Identifiable, Sendable {
         case descriptionEn = "description_en"
         case assignmentDescription = "assignment_description"
         case assignmentDescriptionEn = "assignment_description_en"
-        case navLinks = "nav_links"
         case lessonSongs = "lesson_songs"
         case blockNumber = "block_number"
         case blockName = "block_name"
