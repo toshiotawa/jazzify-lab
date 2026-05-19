@@ -74,8 +74,8 @@ enum SurvivalConstants {
     /// 必殺技の衝撃波半径倍率（通常 maxRadius に乗算）
     static let specialAttackRadiusMultiplier: CGFloat = 1.5
     /// 必殺技発動時のカメラ揺れ振幅／時間
-    static let specialCameraShakeIntensity: CGFloat = 12
-    static let specialCameraShakeDuration: TimeInterval = 0.4
+    static let specialCameraShakeIntensity: CGFloat = 4
+    static let specialCameraShakeDuration: TimeInterval = 0.22
 }
 
 // MARK: - Directions

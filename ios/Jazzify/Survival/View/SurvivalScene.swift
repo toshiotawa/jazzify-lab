@@ -469,7 +469,7 @@ final class SurvivalScene: SKScene {
                 } else {
                     host.isHidden = false
                     if ready, gauge >= maxG {
-                        host.alpha = CGFloat(0.65 + 0.35 * sin(now * 12))
+                        host.alpha = CGFloat(0.8 + 0.2 * sin(now * 4))
                     } else {
                         host.alpha = 1
                     }
@@ -544,7 +544,7 @@ final class SurvivalScene: SKScene {
             ids: runtime.shockwaves.map { $0.id },
             create: { [effectsNode, weak self] id in
                 let isSpecial = shockwaveById[id]?.isSpecial ?? false
-                let sparkCount = isSpecial ? 12 : 5
+                let sparkCount = 5
 
                 let container = SKNode()
                 container.zPosition = 130
@@ -557,14 +557,14 @@ final class SurvivalScene: SKScene {
 
                 let arc = SKShapeNode()
                 arc.fillColor = .clear
-                arc.lineWidth = isSpecial ? 14 : 8
+                arc.lineWidth = isSpecial ? 7 : 8
                 arc.lineCap = .round
                 arc.name = "arc"
                 arc.zPosition = 1
                 container.addChild(arc)
 
                 let impact = SKLabelNode(text: "💥")
-                impact.fontSize = isSpecial ? 48 : 36
+                impact.fontSize = isSpecial ? 28 : 36
                 impact.verticalAlignmentMode = .center
                 impact.horizontalAlignmentMode = .center
                 impact.name = "impact"
@@ -572,8 +572,9 @@ final class SurvivalScene: SKScene {
                 container.addChild(impact)
 
                 for i in 0..<sparkCount {
-                    let spark = SKShapeNode(circleOfRadius: isSpecial ? 4 : 3)
-                    spark.strokeColor = .white.withAlphaComponent(0.8)
+                    let spark = SKShapeNode(circleOfRadius: 3)
+                    spark.strokeColor = .white.withAlphaComponent(isSpecial ? 0.35 : 0.8)
+                    spark.fillColor = isSpecial ? .clear : .white
                     spark.lineWidth = 1
                     spark.name = "spark_\(i)"
                     spark.zPosition = 2
@@ -624,31 +625,35 @@ final class SurvivalScene: SKScene {
                     )
                     arc.path = path
                     arc.strokeColor = color
-                    let lw = isSpecial ? max(2, 14 * (1 - progress * 0.85)) : max(1, 10 * (1 - progress))
+                    let lw = isSpecial ? max(2, 7 * (1 - progress * 0.85)) : max(1, 10 * (1 - progress))
                     arc.lineWidth = lw
-                    arc.alpha = max(0, 1 - progress) * (isSpecial ? 1 : 0.95)
+                    arc.alpha = max(0, 1 - progress) * (isSpecial ? 0.65 : 0.95)
                 }
 
                 if let fan = node.childNode(withName: "fan") as? SKShapeNode {
-                    let path = CGMutablePath()
-                    path.move(to: .zero)
-                    path.addArc(
-                        center: .zero,
-                        radius: currentRadius,
-                        startAngle: arcStart,
-                        endAngle: arcEnd,
-                        clockwise: false
-                    )
-                    path.closeSubpath()
-                    fan.path = path
-                    fan.fillColor = color.withAlphaComponent(isSpecial ? 0.38 : 0.32)
-                    fan.alpha = max(0, 1 - progress * 1.05) * (isSpecial ? 0.92 : 0.85)
+                    if isSpecial {
+                        fan.path = nil
+                        fan.alpha = 0
+                    } else {
+                        let path = CGMutablePath()
+                        path.move(to: .zero)
+                        path.addArc(
+                            center: .zero,
+                            radius: currentRadius,
+                            startAngle: arcStart,
+                            endAngle: arcEnd,
+                            clockwise: false
+                        )
+                        path.closeSubpath()
+                        fan.path = path
+                        fan.fillColor = color.withAlphaComponent(0.32)
+                        fan.alpha = max(0, 1 - progress * 1.05) * 0.85
+                    }
                 }
 
                 if let impact = node.childNode(withName: "impact") as? SKLabelNode {
                     let impactProgress = min(1, progress / 0.25)
-                    let scaleMul: CGFloat = isSpecial ? 1.15 : 1
-                    let scale = (0.6 + impactProgress * 1.3) * scaleMul
+                    let scale = 0.6 + impactProgress * (isSpecial ? 1.0 : 1.3)
                     impact.setScale(scale)
                     impact.alpha = max(0, 1 - impactProgress)
                     let forward: CGFloat = isSpecial ? 0 : 14
@@ -658,14 +663,14 @@ final class SurvivalScene: SKScene {
                     )
                 }
 
-                let sparkCount = isSpecial ? 12 : 5
+                let sparkCount = 5
                 for i in 0..<sparkCount {
                     guard let spark = node.childNode(withName: "spark_\(i)") as? SKShapeNode else { continue }
                     let sparkAngle: CGFloat
                     let fly: CGFloat
                     if isSpecial {
                         sparkAngle = baseAngle + (CGFloat(i) / CGFloat(sparkCount)) * 2 * .pi
-                        fly = currentRadius * (0.88 + progress * 0.42)
+                        fly = currentRadius * (0.92 + progress * 0.2)
                     } else {
                         let angleOffset = (CGFloat(i) - 2) * (arcSpread * 0.33)
                         sparkAngle = baseAngle + angleOffset
@@ -675,9 +680,9 @@ final class SurvivalScene: SKScene {
                         x: cos(sparkAngle) * fly,
                         y: sin(sparkAngle) * fly
                     )
-                    spark.fillColor = color
+                    spark.fillColor = isSpecial ? .clear : color
                     let fade = max(0, 1 - progress * 1.3)
-                    spark.alpha = fade * 0.95
+                    spark.alpha = fade * (isSpecial ? 0.7 : 0.95)
                     spark.setScale(max(0.35, 1 - progress * 0.7))
                 }
             }
