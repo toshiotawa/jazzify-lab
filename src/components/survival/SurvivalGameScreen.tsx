@@ -3479,7 +3479,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             FantasySoundManager.playStageClear();
             setSkillNotifications(prev => [
               ...prev,
-              { id: `powerup_${Date.now()}`, icon: '⚡', displayName: '全能力強化', startTime: Date.now() },
+              { id: `powerup_${Date.now()}`, icon: '⚡', displayName: isEnglishCopy ? 'All Stats Boost' : '全能力強化', startTime: Date.now() },
             ]);
           }
 
