@@ -8,10 +8,13 @@ import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
 
 // ===== マップカテゴリ =====
-/** Basic = 既存の魔王城マップ / Songs = 楽曲ベースの新マップ */
-export type SurvivalMapCategory = 'basic' | 'songs' | 'phrases';
+/** Basic / Songs / Phrases = 降下マップ。Lesson = レッスン専用（マップ非表示）。 */
+export type SurvivalMapCategory = 'basic' | 'songs' | 'phrases' | 'lesson';
 
-export const SURVIVAL_MAP_CATEGORIES: readonly SurvivalMapCategory[] = ['basic', 'songs', 'phrases'] as const;
+/** 降下マップ UI で使うカテゴリ（lesson は含めない） */
+export const SURVIVAL_DESCENT_MAP_CATEGORIES: readonly SurvivalMapCategory[] = ['basic', 'songs', 'phrases'] as const;
+
+export const SURVIVAL_MAP_CATEGORIES: readonly SurvivalMapCategory[] = ['basic', 'songs', 'phrases', 'lesson'] as const;
 
 export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
 

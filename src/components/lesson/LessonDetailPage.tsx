@@ -76,7 +76,14 @@ import {
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
 import { NavLinkKey } from '@/types';
-import { getStageByNumber, STAGE_KILL_QUOTA, STAGE_TIME_LIMIT_SECONDS } from '@/components/survival/SurvivalStageDefinitions';
+import {
+  getStageByNumber,
+  resolveLessonSurvivalMapCategory,
+  formatSurvivalStageModeLabel,
+  formatSurvivalEncounterLabel,
+  STAGE_KILL_QUOTA,
+  STAGE_TIME_LIMIT_SECONDS,
+} from '@/components/survival/SurvivalStageDefinitions';
 
 const NAV_LINK_CONFIG: Record<NavLinkKey, { hash: string; icon: React.ReactNode; color: string }> = {
   dashboard:   { hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
@@ -267,6 +274,7 @@ const LessonDetailPage: React.FC = () => {
           is_survival: ls.is_survival,
           survival_allowed_chords: ls.survival_allowed_chords,
           survival_stage_number: ls.survival_stage_number,
+          survival_map_category: ls.survival_map_category,
           is_ear_training: ls.is_ear_training,
           ear_training_stage: ls.ear_training_stage,
           ear_training_stage_id: ls.ear_training_stage_id,
@@ -274,7 +282,7 @@ const LessonDetailPage: React.FC = () => {
           fantasy_stage_id: ls.fantasy_stage_id,
           title: ls.title,
           title_en: ls.title_en,
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_ear_training?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; fantasy_stage?: any; fantasy_stage_id?: string; ear_training_stage?: any; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_ear_training?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: any; fantasy_stage_id?: string; ear_training_stage?: any; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -384,6 +392,10 @@ const LessonDetailPage: React.FC = () => {
 
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
+
+    if (lesson.manual_completion_disabled === true) {
+      return;
+    }
     
     // 実習課題が全て完了しているかチェック（全ユーザー対象）
     if (!allRequirementsCompleted) {
@@ -747,7 +759,12 @@ const LessonDetailPage: React.FC = () => {
                         
                         {/* サバイバルステージ情報 */}
                         {isSurvival && (() => {
-                          const stageDef = req.survival_stage_number ? getStageByNumber(req.survival_stage_number) : null;
+                          const mapCat = resolveLessonSurvivalMapCategory(
+                            req.survival_map_category ?? undefined,
+                          );
+                          const stageDef = req.survival_stage_number
+                            ? getStageByNumber(req.survival_stage_number, mapCat)
+                            : null;
                           return (
                             <div className="mb-3 text-sm">
                               <div className="font-medium text-red-300">
@@ -759,12 +776,18 @@ const LessonDetailPage: React.FC = () => {
                                     Stage {stageDef.stageNumber}: {isEnglishCopy ? stageDef.nameEn : stageDef.name}
                                   </div>
                                   <div className="text-gray-400 text-xs mt-1">
+                                    {isEnglishCopy ? 'Mode' : '出題'}: {formatSurvivalStageModeLabel(stageDef, isEnglishCopy)}
+                                    {' · '}
+                                    {isEnglishCopy ? 'Encounter' : '戦闘'}:{' '}
+                                    {formatSurvivalEncounterLabel(stageDef, isEnglishCopy)}
+                                  </div>
+                                  <div className="text-gray-400 text-xs mt-1">
                                     {STAGE_TIME_LIMIT_SECONDS}秒生存 + {STAGE_KILL_QUOTA}体撃破でクリア
                                   </div>
                                 </>
                               ) : (
                                 <div className="text-gray-500 text-xs mt-1">
-                                  ステージ未設定
+                                  ステージ未設定（マップと番号を確認してください）
                                 </div>
                               )}
                             </div>
@@ -1064,6 +1087,10 @@ const LessonDetailPage: React.FC = () => {
                               params.set('lessonId', req.lesson_id);
                               params.set('lessonSongId', req.lesson_song_id);
                               params.set('stageNumber', String(req.survival_stage_number || 0));
+                              params.set(
+                                'mapCategory',
+                                resolveLessonSurvivalMapCategory(req.survival_map_category ?? undefined),
+                              );
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               window.location.hash = `#survival-lesson?${params.toString()}`;
                             } else if (isFantasy) {
@@ -1261,7 +1288,8 @@ const LessonDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* 完了ボタンセクション */}
+            {/* 完了ボタンセクション（manual_completion_disabled 時は非表示） */}
+            {!lesson?.manual_completion_disabled && (
             <div className="bg-slate-800 rounded-lg p-6 space-y-4">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
                 <FaFlagCheckered className="text-amber-400" aria-hidden />
@@ -1309,6 +1337,7 @@ const LessonDetailPage: React.FC = () => {
                 </span>
               </button>
             </div>
+            )}
 
             {/* 次のクエストへ進むポップアップ */}
             {showNextLessonPrompt && navigationInfo?.nextLesson && (

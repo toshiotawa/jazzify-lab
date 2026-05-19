@@ -55,6 +55,11 @@ interface SurvivalSettingsModalProps {
   onDisplaySettingsChange: (settings: SurvivalDisplaySettings) => void;
   bgmVolume?: number;
   onBgmVolumeChange?: (volume: number) => void;
+  /** ステージモード時: HINT/本番の切替と最初から再開 */
+  stageRunMode?: {
+    hintMode: boolean;
+    onApplyHintModeAndRestart: (nextHintMode: boolean) => void;
+  };
 }
 
 const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
@@ -65,6 +70,7 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   onDisplaySettingsChange,
   bgmVolume: bgmVolumeProp,
   onBgmVolumeChange,
+  stageRunMode,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore();
@@ -89,9 +95,13 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
     setRootVolume(settings.rootSoundVolume ?? 0.7);
   }, [settings.rootSoundVolume]);
 
+  const [runHintDraft, setRunHintDraft] = useState(stageRunMode?.hintMode ?? false);
+
   useEffect(() => {
-    if (bgmVolumeProp !== undefined) setLocalBgmVolume(bgmVolumeProp);
-  }, [bgmVolumeProp]);
+    if (isOpen && stageRunMode) {
+      setRunHintDraft(stageRunMode.hintMode);
+    }
+  }, [isOpen, stageRunMode]);
 
   const handleMidiDeviceChange = (deviceId: string | null) => {
     setMidiDeviceId(deviceId);
@@ -154,6 +164,51 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
         </div>
 
         <div className="space-y-4">
+          {stageRunMode ? (
+            <div className="rounded-lg border border-amber-600/40 bg-amber-950/30 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-amber-100">
+                {isEnglishCopy ? 'Practice / Performance' : '練習 / 本番'}
+              </h3>
+              <div className="mb-3 flex flex-col gap-2">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+                  <input
+                    type="radio"
+                    name="survival-settings-run-mode"
+                    checked={!runHintDraft}
+                    onChange={() => setRunHintDraft(false)}
+                    className="radio radio-xs radio-warning"
+                  />
+                  {isEnglishCopy ? 'Performance' : '本番'}
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+                  <input
+                    type="radio"
+                    name="survival-settings-run-mode"
+                    checked={runHintDraft}
+                    onChange={() => setRunHintDraft(true)}
+                    className="radio radio-xs radio-warning"
+                  />
+                  {isEnglishCopy ? 'Practice (HINT)' : '練習（HINT）'}
+                </label>
+              </div>
+              <button
+                type="button"
+                className="btn btn-warning btn-sm w-full font-sans"
+                onClick={() => {
+                  stageRunMode.onApplyHintModeAndRestart(runHintDraft);
+                  onClose();
+                }}
+              >
+                {isEnglishCopy ? 'Restart from beginning' : '最初から挑戦'}
+              </button>
+              <p className="mt-2 text-xs text-gray-400">
+                {isEnglishCopy
+                  ? 'Restarts this stage with the selected mode. Lesson / clear saves follow normal rules.'
+                  : '選択したモードでステージを最初からやり直します。レッスン・クリア保存は通常どおり適用されます。'}
+              </p>
+            </div>
+          ) : null}
+
           {/* 入力方式選択 */}
           <div>
             <label className="block text-sm font-medium text-white mb-1">

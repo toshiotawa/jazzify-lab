@@ -70,6 +70,7 @@ interface EarTrainingGameScreenProps {
   initialPracticeMode: boolean;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
+  onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
 }
 
 type PendingImpactHandler = () => void;
@@ -190,6 +191,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   initialPracticeMode,
   onLessonStageClear,
   onBack,
+  onPracticeModeRestartFromSettings,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
@@ -1074,6 +1076,14 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
+        practiceRunMode={
+          onPracticeModeRestartFromSettings
+            ? {
+                practiceMode,
+                onApplyPracticeModeAndRestart: onPracticeModeRestartFromSettings,
+              }
+            : undefined
+        }
       />
     </div>
   );

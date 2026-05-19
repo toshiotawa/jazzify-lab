@@ -10,7 +10,7 @@ import { BlockKey } from '../SurvivalStageDefinitions';
 import {
   SurvivalMapCategory,
   DEFAULT_SURVIVAL_MAP_CATEGORY,
-  SURVIVAL_MAP_CATEGORIES,
+  SURVIVAL_DESCENT_MAP_CATEGORIES,
 } from '../SurvivalTypes';
 
 /** ロジカル座標系の幅（デザイン基準・横長レイアウト寄り） */
@@ -115,18 +115,21 @@ const LAYOUTS_BY_CATEGORY: Record<SurvivalMapCategory, BlockLayout[]> = {
   basic: [],
   songs: [],
   phrases: [],
+  lesson: [],
 };
 
 const STAGE_POSITIONS_BY_CATEGORY: Record<SurvivalMapCategory, Map<number, StagePosition>> = {
   basic: new Map(),
   songs: new Map(),
   phrases: new Map(),
+  lesson: new Map(),
 };
 
 const MAP_LOGICAL_HEIGHT_BY_CATEGORY: Record<SurvivalMapCategory, number> = {
   basic: 0,
   songs: 0,
   phrases: 0,
+  lesson: 0,
 };
 
 /** 互換用: Basic マップのレイアウト一覧 */
@@ -137,7 +140,7 @@ export let MAP_LOGICAL_HEIGHT = 0;
 
 /** ALL_BLOCKS が更新された後に呼ぶ。全カテゴリを再構築する。 */
 export function rebuildDescentLayouts(): void {
-  for (const category of SURVIVAL_MAP_CATEGORIES) {
+  for (const category of SURVIVAL_DESCENT_MAP_CATEGORIES) {
     const layouts = buildAllLayouts(category);
     LAYOUTS_BY_CATEGORY[category] = layouts;
     const positions = STAGE_POSITIONS_BY_CATEGORY[category];

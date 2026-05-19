@@ -11,7 +11,17 @@ import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClien
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon, FaSkull } from 'react-icons/fa';
 import { FantasyStageSelector } from './FantasyStageSelector';
-import { ALL_STAGES, STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA } from '@/components/survival/SurvivalStageDefinitions';
+import {
+  fetchAllStages,
+  getStagesByCategory,
+  getStageByNumber,
+  rebuildDescentBlocks,
+  rebuildDescentLayouts,
+  resolveLessonSurvivalMapCategory,
+  STAGE_TIME_LIMIT_SECONDS,
+  STAGE_KILL_QUOTA,
+} from '@/components/survival/SurvivalStageDefinitions';
+import { SURVIVAL_MAP_CATEGORIES, type SurvivalMapCategory } from '@/components/survival/SurvivalTypes';
 import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey } from '@/platform/r2Storage';
 import {
   COURSE_DIFFICULTY_LABELS,
@@ -82,7 +92,9 @@ export const LessonManager: React.FC = () => {
   const [videoInputKeyByLesson, setVideoInputKeyByLesson] = useState<Record<string, number>>({});
   const [attachmentInputKeyByLesson, setAttachmentInputKeyByLesson] = useState<Record<string, number>>({});
   const [editNavLinks, setEditNavLinks] = useState<NavLinkKey[]>([]);
-  const [survivalStageNumber, setSurvivalStageNumber] = useState<number>(0);
+  const [survivalCatalogReady, setSurvivalCatalogReady] = useState(false);
+  /** `${mapCategory}:${stageNumber}` — サバイバル課題追加ダイアログ用 */
+  const [survivalPickKey, setSurvivalPickKey] = useState<string>('');
 
   const NAV_LINK_OPTIONS: { key: NavLinkKey; label: string }[] = [
     { key: 'dashboard',   label: 'ダッシュボード' },
@@ -102,6 +114,42 @@ export const LessonManager: React.FC = () => {
     () => sortCoursesByDifficultyThenOrder(courses),
     [courses],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAllStages()
+      .then(() => {
+        rebuildDescentBlocks();
+        rebuildDescentLayouts();
+        if (!cancelled) setSurvivalCatalogReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setSurvivalCatalogReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const survivalPickOptions = useMemo(() => {
+    if (!survivalCatalogReady) return [];
+    const catLabels: Record<SurvivalMapCategory, string> = {
+      basic: 'Basic',
+      songs: 'Songs',
+      phrases: 'Phrases',
+      lesson: 'Lesson',
+    };
+    const out: { key: string; label: string }[] = [];
+    for (const cat of SURVIVAL_MAP_CATEGORIES) {
+      for (const s of getStagesByCategory(cat)) {
+        out.push({
+          key: `${cat}:${s.stageNumber}`,
+          label: `[${catLabels[cat]}] #${s.stageNumber} ${s.name}`,
+        });
+      }
+    }
+    return out;
+  }, [survivalCatalogReady]);
 
   const setAttachmentUpdating = (attachmentId: string, isUpdating: boolean) => {
     setUpdatingAttachmentIds(prev => {
@@ -406,7 +454,7 @@ export const LessonManager: React.FC = () => {
       override_repeat_transposition_mode: null,
       override_start_key: null,
     });
-    setSurvivalStageNumber(0);
+    setSurvivalPickKey('');
     contentDialogRef.current?.showModal();
   };
   
@@ -514,10 +562,22 @@ export const LessonManager: React.FC = () => {
           override_repeat_transposition_mode: formData.override_repeat_transposition_mode,
           override_start_key: formData.override_start_key,
         });
-      } else if (formData.content_type === 'survival' && survivalStageNumber > 0) {
+      } else if (formData.content_type === 'survival' && survivalPickKey) {
+        const colon = survivalPickKey.indexOf(':');
+        const catRaw = survivalPickKey.slice(0, colon);
+        const stageNum = Number(survivalPickKey.slice(colon + 1));
+        if (
+          colon < 1
+          || !SURVIVAL_MAP_CATEGORIES.includes(catRaw as SurvivalMapCategory)
+          || !Number.isFinite(stageNum)
+        ) {
+          throw new Error('サバイバルステージの選択が不正です');
+        }
+        const survivalMapCategory = catRaw as SurvivalMapCategory;
         newLessonSong = await addSurvivalStageToLesson({
           lesson_id: selectedLesson.id,
-          survival_stage_number: survivalStageNumber,
+          survival_stage_number: stageNum,
+          survival_map_category: survivalMapCategory,
           clear_conditions: formData.clear_conditions,
         });
       } else if (formData.content_type === 'ear_training' && formData.ear_training_stage_id) {
@@ -1118,7 +1178,12 @@ export const LessonManager: React.FC = () => {
                                 );
                               }
                               if (ls.is_survival) {
-                                const stageDef = ls.survival_stage_number ? ALL_STAGES.find(s => s.stageNumber === ls.survival_stage_number) : null;
+                                const stageDef = ls.survival_stage_number
+                                  ? getStageByNumber(
+                                      ls.survival_stage_number,
+                                      resolveLessonSurvivalMapCategory(ls.survival_map_category ?? undefined),
+                                    )
+                                  : null;
                                 return (
                                   <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
                                     <div>
@@ -1494,32 +1559,39 @@ export const LessonManager: React.FC = () => {
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">
                 <label className="label"><span className="label-text">ステージを選択 *</span></label>
-                <p className="text-xs text-gray-400">ステージモードのステージを選択してください。キャラはファイ固定、{STAGE_TIME_LIMIT_SECONDS}秒生存+{STAGE_KILL_QUOTA}体撃破でクリアです。レッスンでのクリアはステージモードの進捗に影響しません。</p>
+                <p className="text-xs text-gray-400">マップカテゴリとステージ番号を指定してください。キャラはファイ固定、{STAGE_TIME_LIMIT_SECONDS}秒生存+{STAGE_KILL_QUOTA}体撃破でクリアです。レッスンでのクリアはステージモードの進捗に影響しません。</p>
 
-                <select
-                  className="select select-bordered w-full"
-                  value={survivalStageNumber}
-                  onChange={(e) => setSurvivalStageNumber(Number(e.target.value))}
-                >
-                  <option value={0}>-- ステージを選択 --</option>
-                  {ALL_STAGES.map(stage => (
-                    <option key={stage.stageNumber} value={stage.stageNumber}>
-                      {stage.name}
-                    </option>
-                  ))}
-                </select>
+                {!survivalCatalogReady ? (
+                  <p className="text-sm text-gray-500">ステージ一覧を読み込み中...</p>
+                ) : (
+                  <select
+                    className="select select-bordered w-full"
+                    value={survivalPickKey}
+                    onChange={(e) => setSurvivalPickKey(e.target.value)}
+                  >
+                    <option value="">-- ステージを選択 --</option>
+                    {survivalPickOptions.map((opt) => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-                {survivalStageNumber > 0 && (() => {
-                  const selected = ALL_STAGES.find(s => s.stageNumber === survivalStageNumber);
+                {survivalPickKey !== '' && (() => {
+                  const colon = survivalPickKey.indexOf(':');
+                  const cat = survivalPickKey.slice(0, colon) as SurvivalMapCategory;
+                  const num = Number(survivalPickKey.slice(colon + 1));
+                  const selected = Number.isFinite(num) ? getStageByNumber(num, cat) : undefined;
                   if (!selected) return null;
                   return (
                     <div className="bg-slate-800 rounded-lg p-3 text-sm">
-                      <div className="font-semibold text-red-300">Stage {selected.stageNumber}: {selected.name}</div>
+                      <div className="font-semibold text-red-300">[{cat}] Stage {selected.stageNumber}: {selected.name}</div>
                       <div className="text-gray-400 text-xs mt-1">
-                        難易度: {selected.difficulty} / ルート: {selected.rootPatternName}
+                        難易度: {selected.difficulty} / ルート: {selected.rootPatternName || '—'}
                       </div>
                       <div className="text-gray-500 text-xs mt-1 truncate">
-                        コード: {selected.allowedChords.join(', ')}
+                        コード: {selected.allowedChords.length ? selected.allowedChords.join(', ') : '(コード進行 / Phrases)'}
                       </div>
                     </div>
                   );
@@ -1688,7 +1760,7 @@ export const LessonManager: React.FC = () => {
             
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeContentDialog}>キャンセル</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalStageNumber === 0) || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id'))}>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalPickKey === '') || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id'))}>
                 {isSubmitting ? '追加中...' : '追加'}
               </button>
             </div>

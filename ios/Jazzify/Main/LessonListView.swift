@@ -1603,7 +1603,9 @@ struct LessonDetailView: View {
                         if !visibleAttachments.isEmpty || hiddenAttachmentCount > 0 {
                             attachmentsCard
                         }
-                        completionCard
+                        if !lesson.isManualCompletionDisabled {
+                            completionCard
+                        }
                     }
                     .padding()
                 }
@@ -2416,6 +2418,8 @@ struct LessonDetailView: View {
     }
 
     private func completeLesson() async {
+        guard !lesson.isManualCompletionDisabled else { return }
+
         guard let userId = appState.profile?.id, let courseId = lesson.courseId else {
             alertMessage = locale == .ja ? "ログイン情報を確認できません。" : "Unable to confirm login state."
             return

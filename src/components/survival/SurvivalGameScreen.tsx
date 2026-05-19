@@ -271,6 +271,8 @@ interface SurvivalGameScreenProps {
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
   onNextStage?: () => void;
+  /** 設定から HINT/本番を切り替えてセッションをやり直す（親が key でリマウント） */
+  onSurvivalRunModeRestart?: (nextHintMode: boolean) => void;
   /** LPデモ等で親コンテナに収める場合 true。min-h の代わりに h-full min-h-0 を使用 */
   embeddedFullHeight?: boolean;
 }
@@ -290,6 +292,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   onRetryWithHint,
   onRetryWithoutHint,
   onNextStage,
+  onSurvivalRunModeRestart,
   embeddedFullHeight = false,
 }) => {
   const profile = useAuthStore(state => state.profile);
@@ -4652,6 +4655,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             bgmAudioRef.current.volume = v;
           }
         }}
+        stageRunMode={
+          isStageMode && onSurvivalRunModeRestart
+            ? {
+                hintMode,
+                onApplyHintModeAndRestart: onSurvivalRunModeRestart,
+              }
+            : undefined
+        }
       />
     </div>
   );

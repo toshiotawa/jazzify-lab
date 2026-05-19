@@ -317,6 +317,7 @@ export async function removeFantasyStageFromLesson(lessonId: string, fantasyStag
 type SurvivalLessonSongData = {
   lesson_id: string;
   survival_stage_number: number;
+  survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;
   clear_conditions?: ClearConditions;
 };
 
@@ -350,6 +351,7 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
       is_fantasy: false,
       is_survival: true,
       survival_stage_number: data.survival_stage_number,
+      survival_map_category: data.survival_map_category ?? null,
       clear_conditions: data.clear_conditions,
       order_index: nextOrderIndex,
     })

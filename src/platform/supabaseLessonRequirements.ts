@@ -48,7 +48,7 @@ export async function updateLessonRequirementProgress(
   rank: string,
   clearConditions: any,
   options?: {
-    sourceType?: 'song' | 'fantasy' | 'ear_training';
+    sourceType?: 'song' | 'fantasy' | 'ear_training' | 'survival';
     lessonSongId?: string;
   }
 ): Promise<boolean> {

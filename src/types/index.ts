@@ -657,7 +657,7 @@ export interface LessonContext {
   lessonId: string;
   lessonSongId: string; // lesson_songs.id（進捗記録用）
   clearConditions: ClearConditions;
-  sourceType: 'song' | 'fantasy' | 'ear_training';
+  sourceType: 'song' | 'fantasy' | 'ear_training' | 'survival';
 }
 
 export type EarTrainingGameState =
@@ -830,6 +830,8 @@ export interface LessonSong {
   is_ear_training?: boolean;
   survival_allowed_chords?: string[];
   survival_stage_number?: number;
+  /** survival_stages と組み合わせてステージを一意に特定（NULL は basic とみなす） */
+  survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;
   clear_conditions?: ClearConditions;
   order_index?: number;
   title?: string | null;
@@ -861,6 +863,8 @@ export interface Lesson {
   block_description?: string | null;
   block_description_en?: string | null;
   nav_links?: NavLinkKey[];
+  /** true のときレッスン詳細の手動完了ボタンを非表示（DB: manual_completion_disabled） */
+  manual_completion_disabled?: boolean;
   created_at: string;
   updated_at: string;
   videos?: LessonVideo[];

@@ -6,7 +6,12 @@
  *   `[{ name, voicing }]` 配列をそのままコード列として使う。MusicXML は使用しない。
  */
 
-import { SurvivalDifficulty, SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY, SURVIVAL_MAP_CATEGORIES } from './SurvivalTypes';
+import {
+  SurvivalDifficulty,
+  SurvivalMapCategory,
+  DEFAULT_SURVIVAL_MAP_CATEGORY,
+  SURVIVAL_MAP_CATEGORIES,
+} from './SurvivalTypes';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 
 export type RootPattern = 'cde' | 'fgab' | 'sharp' | 'flat' | 'all';
@@ -44,8 +49,10 @@ export interface StageDefinition {
   mixedGroupKey?: MixedGroupKey;
   /** Progressionタイプ用コード進行（DB `chord_progression` の値）。Random時は undefined。 */
   chordProgression?: SurvivalChordProgressionEntry[];
-  /** マップカテゴリ（'basic' or 'songs'） */
+  /** マップカテゴリ（basic / songs / phrases / lesson） */
   mapCategory: SurvivalMapCategory;
+  /** DB `lesson_only`。マップ非表示のレッスン専用行など */
+  lessonOnly?: boolean;
 }
 
 /**
@@ -121,12 +128,14 @@ const BLOCK_LABELS_FROM_DB: Record<
   basic: {},
   songs: {},
   phrases: {},
+  lesson: {},
 };
 
 const BLOCK_SORT_ORDER_FROM_DB: Record<SurvivalMapCategory, Map<string, number>> = {
   basic: new Map(),
   songs: new Map(),
   phrases: new Map(),
+  lesson: new Map(),
 };
 
 function applySurvivalStageBlockLabels(rows: SurvivalStageBlockRow[]): void {
@@ -236,6 +245,7 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
   const mapCategory: SurvivalMapCategory = SURVIVAL_MAP_CATEGORIES.includes(rawCategory as SurvivalMapCategory)
     ? (rawCategory as SurvivalMapCategory)
     : DEFAULT_SURVIVAL_MAP_CATEGORY;
+  const lessonOnly = Boolean(row.lesson_only);
 
   let allowedChords: string[] = [];
   if (stageType === 'random') {
@@ -264,6 +274,7 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     mixedGroupKey,
     chordProgression: parseChordProgression(row.chord_progression),
     mapCategory,
+    ...(lessonOnly ? { lessonOnly: true } : {}),
   };
 }
 
@@ -299,6 +310,7 @@ const STAGES_BY_CATEGORY: Record<SurvivalMapCategory, StageDefinition[]> = {
   basic: [],
   songs: [],
   phrases: [],
+  lesson: [],
 };
 
 /**
@@ -313,6 +325,7 @@ function applyStageCaches(stages: StageDefinition[]): void {
   STAGES_BY_CATEGORY.basic = stages.filter(s => s.mapCategory === 'basic');
   STAGES_BY_CATEGORY.songs = stages.filter(s => s.mapCategory === 'songs');
   STAGES_BY_CATEGORY.phrases = stages.filter(s => s.mapCategory === 'phrases');
+  STAGES_BY_CATEGORY.lesson = stages.filter(s => s.mapCategory === 'lesson');
   ALL_STAGES = STAGES_BY_CATEGORY.basic;
   TOTAL_STAGES = STAGES_BY_CATEGORY.basic.length;
 }
@@ -390,6 +403,8 @@ export function resetStageCache(): void {
   fetchPromise = null;
   STAGES_BY_CATEGORY.basic = [];
   STAGES_BY_CATEGORY.songs = [];
+  STAGES_BY_CATEGORY.phrases = [];
+  STAGES_BY_CATEGORY.lesson = [];
   ALL_STAGES = [];
   TOTAL_STAGES = 0;
   applySurvivalStageBlockLabels([]);
@@ -430,6 +445,35 @@ export function isBlockLastStage(
   const next = getStageByNumber(stageNumber + 1, mapCategory);
   if (!next) return true;
   return next.blockKey !== current.blockKey;
+}
+
+/** `lesson_songs.survival_map_category` / URL の mapCategory を正規化（不正・欠落時は basic） */
+export function resolveLessonSurvivalMapCategory(raw: string | null | undefined): SurvivalMapCategory {
+  const v = typeof raw === 'string' ? raw.trim() : '';
+  if (v === 'basic' || v === 'songs' || v === 'phrases' || v === 'lesson') return v;
+  return DEFAULT_SURVIVAL_MAP_CATEGORY;
+}
+
+export function findStageForLesson(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): StageDefinition | undefined {
+  return getStageByNumber(stageNumber, mapCategory);
+}
+
+export function formatSurvivalStageModeLabel(stage: StageDefinition, isEnglish: boolean): string {
+  if (stage.mapCategory === 'phrases') {
+    return isEnglish ? 'Phrases' : 'フレーズ';
+  }
+  if (stage.stageType === 'progression') {
+    return isEnglish ? 'Progression' : 'コード進行';
+  }
+  return isEnglish ? 'Random' : 'ランダム';
+}
+
+export function formatSurvivalEncounterLabel(stage: StageDefinition, isEnglish: boolean): string {
+  const boss = isBlockLastStage(stage.stageNumber, stage.mapCategory);
+  return boss ? (isEnglish ? 'Boss' : 'ボス') : (isEnglish ? 'Regular' : '通常');
 }
 
 export type SurvivalBossType = 'A' | 'B' | 'C';

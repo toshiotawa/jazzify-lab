@@ -79,6 +79,7 @@ interface EarTrainingChordOSMDScreenProps {
   initialPracticeMode: boolean;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
+  onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
 }
 
 interface RuntimeTargetState {
@@ -115,6 +116,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   initialPracticeMode,
   onLessonStageClear,
   onBack,
+  onPracticeModeRestartFromSettings,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
@@ -1184,6 +1186,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
+        practiceRunMode={
+          onPracticeModeRestartFromSettings
+            ? {
+                practiceMode,
+                onApplyPracticeModeAndRestart: onPracticeModeRestartFromSettings,
+              }
+            : undefined
+        }
       />
     </div>
   );

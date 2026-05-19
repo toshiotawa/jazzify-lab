@@ -65,6 +65,7 @@ import BackgroundWall from './parts/BackgroundWall';
 import DescentCharacter from './parts/DescentCharacter';
 import DescentSidePanel from './DescentSidePanel';
 import { useDescentCamera } from './useDescentCamera';
+import SurvivalRunPrepModal from '../SurvivalRunPrepModal';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
   id: row.id,
@@ -342,6 +343,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [stageClearCounts, setStageClearCounts] = useState<Map<number, number>>(() => new Map());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
+  const [prepModalOpen, setPrepModalOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(() => {
     return !getWindow().matchMedia('(min-width: 768px)').matches;
@@ -698,6 +700,46 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     setIsMobileDetailOpen(false);
   }, []);
 
+  const runConfirmedStageStart = useCallback(
+    async (startHintMode: boolean) => {
+      if (!selectedStage) return;
+      if (!isIOSWebView()) {
+        try {
+          await Promise.race([
+            (async () => {
+              await FantasySoundManager.unlock();
+              await initializeAudioSystem();
+            })(),
+            new Promise(resolve => platform.setTimeout(resolve, 3000)),
+          ]);
+        } catch { /* ignore */ }
+      }
+
+      void SurvivalMapAudio.stopBgm();
+
+      const baseConfig = getConfig(selectedStage.difficulty);
+      const stageConfig: DifficultyConfig = {
+        ...baseConfig,
+        allowedChords: selectedStage.allowedChords,
+        bgmUrl:
+          selectedStage.mapCategory === 'phrases'
+            ? resolveSurvivalBgmUrl('phrases', bgmSettings)
+            : resolveSurvivalBgmUrl(selectedStage.stageType, bgmSettings),
+      };
+
+      const faiChar = characters.find(c => isFaiCharacter(c));
+      setIsMobileDetailOpen(false);
+      onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, startHintMode);
+    },
+    [
+      selectedStage,
+      getConfig,
+      bgmSettings,
+      characters,
+      onStageSelect,
+    ],
+  );
+
   const handleStart = useCallback(async () => {
     if (!selectedStage) return;
     if (!isStageUnlocked(selectedStage.stageNumber)) return;
@@ -705,44 +747,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       setShowPaywall(true);
       return;
     }
-
-    if (!isIOSWebView()) {
-      try {
-        await Promise.race([
-          (async () => {
-            await FantasySoundManager.unlock();
-            await initializeAudioSystem();
-          })(),
-          new Promise(resolve => platform.setTimeout(resolve, 3000)),
-        ]);
-      } catch { /* ignore */ }
-    }
-
-    void SurvivalMapAudio.stopBgm();
-
-    const baseConfig = getConfig(selectedStage.difficulty);
-    const stageConfig: DifficultyConfig = {
-      ...baseConfig,
-      allowedChords: selectedStage.allowedChords,
-      bgmUrl:
-        selectedStage.mapCategory === 'phrases'
-          ? resolveSurvivalBgmUrl('phrases', bgmSettings)
-          : resolveSurvivalBgmUrl(selectedStage.stageType, bgmSettings),
-    };
-
-    const faiChar = characters.find(c => isFaiCharacter(c));
-    setIsMobileDetailOpen(false);
-    onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, hintMode);
+    setPrepModalOpen(true);
   }, [
     selectedStage,
     isStageUnlocked,
     freeTierAccessOnly,
     freeTierStageNumberSet,
-    getConfig,
-    bgmSettings,
-    characters,
-    onStageSelect,
-    hintMode,
   ]);
 
   const frontierPosition = getStagePosition(frontierStageNumber, mapCategory);
@@ -1041,6 +1051,20 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           </div>
         </div>
       )}
+
+      <SurvivalRunPrepModal
+        isOpen={prepModalOpen}
+        variant="map"
+        stage={selectedStage}
+        isEnglishCopy={isEnglishCopy}
+        initialHintMode={hintMode}
+        onCancel={() => setPrepModalOpen(false)}
+        onConfirm={(h) => {
+          setHintMode(h);
+          setPrepModalOpen(false);
+          void runConfirmedStageStart(h);
+        }}
+      />
 
       <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
     </div>

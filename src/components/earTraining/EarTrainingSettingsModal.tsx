@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
 import { getEarTrainingSettingsModalCopy } from '@/utils/earTrainingUiCopy';
@@ -10,6 +10,10 @@ interface EarTrainingSettingsModalProps {
   midiDeviceId: string | null;
   onMidiDeviceChange: (deviceId: string | null) => void;
   isMidiConnected: boolean;
+  practiceRunMode?: {
+    practiceMode: boolean;
+    onApplyPracticeModeAndRestart: (nextPracticeMode: boolean) => void;
+  };
 }
 
 const SliderRow: React.FC<{
@@ -41,9 +45,17 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   midiDeviceId,
   onMidiDeviceChange,
   isMidiConnected,
+  practiceRunMode,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const ui = useMemo(() => getEarTrainingSettingsModalCopy(isEnglishCopy), [isEnglishCopy]);
+  const [practiceDraft, setPracticeDraft] = useState(practiceRunMode?.practiceMode ?? false);
+
+  useEffect(() => {
+    if (isOpen && practiceRunMode) {
+      setPracticeDraft(practiceRunMode.practiceMode);
+    }
+  }, [isOpen, practiceRunMode]);
 
   if (!isOpen) {
     return null;
@@ -75,6 +87,51 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
         </div>
 
         <div className="max-h-[calc(100dvh-8rem)] space-y-5 overflow-y-auto pr-1">
+          {practiceRunMode ? (
+            <section className="rounded-xl border border-cyan-600/40 bg-cyan-950/30 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-cyan-100">
+                {isEnglishCopy ? 'Practice / Performance' : '練習 / 本番'}
+              </h3>
+              <div className="mb-3 flex flex-col gap-2">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                  <input
+                    type="radio"
+                    name="ear-training-settings-run-mode"
+                    checked={!practiceDraft}
+                    onChange={() => setPracticeDraft(false)}
+                    className="radio radio-xs radio-info"
+                  />
+                  {isEnglishCopy ? 'Performance' : '本番'}
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                  <input
+                    type="radio"
+                    name="ear-training-settings-run-mode"
+                    checked={practiceDraft}
+                    onChange={() => setPracticeDraft(true)}
+                    className="radio radio-xs radio-info"
+                  />
+                  {isEnglishCopy ? 'Practice' : '練習'}
+                </label>
+              </div>
+              <button
+                type="button"
+                className="btn btn-info btn-sm w-full font-sans"
+                onClick={() => {
+                  practiceRunMode.onApplyPracticeModeAndRestart(practiceDraft);
+                  onClose();
+                }}
+              >
+                {isEnglishCopy ? 'Restart from beginning' : '最初から挑戦'}
+              </button>
+              <p className="mt-2 text-xs text-slate-400">
+                {isEnglishCopy
+                  ? 'Practice mode does not save lesson progress.'
+                  : '練習モードではレッスン進捗は保存されません。'}
+              </p>
+            </section>
+          ) : null}
+
           <section className="rounded-xl border border-blue-700/40 bg-blue-950/30 p-4">
             <h3 className="mb-2 text-sm font-semibold text-blue-100">{ui.midiHeading}</h3>
             <MidiDeviceSelector

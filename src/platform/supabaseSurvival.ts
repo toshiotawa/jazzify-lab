@@ -6,8 +6,8 @@ import { getSupabaseClient } from './supabaseClient';
 export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
 export type SurvivalStageType = 'random' | 'progression' | 'phrases';
 
-/** マップカテゴリ ('basic' | 'songs' | 'phrases')。カテゴリごとに進行管理を分離する。 */
-export type SurvivalMapCategory = 'basic' | 'songs' | 'phrases';
+/** マップカテゴリ。lesson はレッスン専用ステージ用。 */
+export type SurvivalMapCategory = 'basic' | 'songs' | 'phrases' | 'lesson';
 export const DEFAULT_SURVIVAL_MAP_CATEGORY: SurvivalMapCategory = 'basic';
 export const DEFAULT_SURVIVAL_RANDOM_BGM_URL =
   'https://jazzify-cdn.com/fantasy-bgm/727a4d3b-21b9-4889-933b-ba170c6037bc.mp3';

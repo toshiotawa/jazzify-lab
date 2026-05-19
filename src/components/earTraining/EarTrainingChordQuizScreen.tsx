@@ -76,6 +76,7 @@ interface EarTrainingChordQuizScreenProps {
   initialPracticeMode: boolean;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
+  onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
 }
 
 const INPUT_COOLDOWN_MS = 20;
@@ -182,6 +183,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   initialPracticeMode,
   onLessonStageClear,
   onBack,
+  onPracticeModeRestartFromSettings,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
@@ -1152,6 +1154,14 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
+        practiceRunMode={
+          onPracticeModeRestartFromSettings
+            ? {
+                practiceMode,
+                onApplyPracticeModeAndRestart: onPracticeModeRestartFromSettings,
+              }
+            : undefined
+        }
       />
     </div>
   );

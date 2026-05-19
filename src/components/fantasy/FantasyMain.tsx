@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { flushSync } from 'react-dom';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen, { type FantasyGameScreenHandle } from './FantasyGameScreen';
+import FantasyLessonRunPrepModal from './FantasyLessonRunPrepModal';
 import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
 import { RepeatKeyChange } from './TaikoNoteSystem';
 import { useAuthStore } from '@/stores/authStore';
@@ -217,6 +218,8 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [playMode, setPlayMode] = useState<FantasyPlayMode>('challenge');
+  const [lessonRunPrepDone, setLessonRunPrepDone] = useState(false);
+  const [lessonPrepInitialPractice, setLessonPrepInitialPractice] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [isLessonMode, setIsLessonMode] = useState(false);
   const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
@@ -419,6 +422,8 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     if (lessonId && lessonSongId && stageId) {
       // レッスンモード（clearConditionsはnull許容）
       setIsLessonMode(true);
+      setLessonRunPrepDone(false);
+      setLessonPrepInitialPractice(params.get('practice') === '1');
       try {
         const clearConditions = clearConditionsStr ? JSON.parse(clearConditionsStr) : {};
         setLessonContext({
@@ -804,7 +809,17 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     setGameResult(null);
     setPlayMode('challenge');
   }, [isMissionMode, isLessonMode, lessonContext]);
-  
+
+  const handleLessonPlayModeRestartFromSettings = useCallback((mode: FantasyPlayMode) => {
+    flushSync(() => {
+      setPlayMode(mode);
+      setGameKey(prevKey => prevKey + 1);
+    });
+    queueMicrotask(() => {
+      fantasyGameRef.current?.beginStartGameFromUserGesture(mode, 1.0);
+    });
+  }, []);
+
   // ★ 追加: 次のステージに待機画面で遷移
   const gotoNextStageWaiting = useCallback(async () => {
     if (!currentStage) return;
@@ -1141,6 +1156,25 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   
   // ゲーム画面
   if (currentStage) {
+    if (isLessonMode && lessonContext && !lessonRunPrepDone) {
+      return (
+        <FantasyLessonRunPrepModal
+          isOpen
+          stage={currentStage}
+          isEnglishCopy={isEnglishCopy}
+          initialPracticeMode={lessonPrepInitialPractice}
+          onCancel={handleBackToStageSelect}
+          onConfirm={mode => {
+            flushSync(() => {
+              setPlayMode(mode);
+              setLessonRunPrepDone(true);
+              setGameKey(prevKey => prevKey + 1);
+            });
+          }}
+        />
+      );
+    }
+
     return (
       <FantasyGameScreen
         ref={fantasyGameRef}
@@ -1155,6 +1189,10 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
           });
           fantasyGameRef.current?.beginStartGameFromUserGesture('challenge', 1.0);
         }}
+        onLessonPlayModeRestartFromSettings={
+          isLessonMode ? handleLessonPlayModeRestartFromSettings : undefined
+        }
+        lessonSkipIdleAutoStart={isLessonMode && lessonRunPrepDone}
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}
         noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}

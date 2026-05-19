@@ -14,9 +14,12 @@ import {
   StageDefinition,
   ALL_STAGES,
   fetchAllStages,
+  findStageForLesson,
   getStagesByCategory,
   getTotalStagesByCategory,
+  resolveLessonSurvivalMapCategory,
 } from './SurvivalStageDefinitions';
+import SurvivalRunPrepModal from './SurvivalRunPrepModal';
 import { getFreeTierStageNumbers } from './descent/descentBlocks';
 import { rebuildDescentBlocks } from './descent/descentBlocks';
 import { rebuildDescentLayouts } from './descent/descentLayout';
@@ -62,7 +65,7 @@ const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacte
   descriptionEn: row.descriptionEn,
 });
 
-type Screen = 'select' | 'game';
+type Screen = 'select' | 'game' | 'lessonPrep';
 
 interface SurvivalMainProps {
   lessonMode?: boolean;
@@ -73,7 +76,7 @@ interface LessonContext {
   lessonId: string;
   lessonSongId: string;
   stageNumber: number;
-  clearConditions: any;
+  clearConditions: Record<string, unknown>;
 }
 
 const isFaiCharacter = (character: SurvivalCharacter): boolean => {
@@ -128,7 +131,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   const [isIOSSurvival] = useState(() => !lessonMode && !demoMode && hasIOSParams());
-  const [screen, setScreen] = useState<Screen>((lessonMode || demoMode || isIOSSurvival) ? 'game' : 'select');
+  const [screen, setScreen] = useState<Screen>(() => {
+    if (demoMode || isIOSSurvival) return 'game';
+    if (lessonMode) return 'lessonPrep';
+    return 'select';
+  });
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
   const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);
@@ -137,6 +144,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [activeHintMode, setActiveHintMode] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
+  const [survivalSessionNonce, setSurvivalSessionNonce] = useState(0);
   const [survivalBgmSettings, setSurvivalBgmSettings] = useState<SurvivalBgmSettingsMap>(DEFAULT_SURVIVAL_BGM_SETTINGS);
 
   const [iosInitialized, setIosInitialized] = useState(false);
@@ -295,14 +303,18 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     const lessonId = lessonParams.get('lessonId') || '';
     const lessonSongId = lessonParams.get('lessonSongId') || '';
     const stageNumber = parseInt(lessonParams.get('stageNumber') || '0', 10);
-    let clearConditions: any = {};
+    let clearConditions: Record<string, unknown> = {};
 
-    try { clearConditions = JSON.parse(lessonParams.get('clearConditions') || '{}'); } catch { /* ignore */ }
+    try {
+      clearConditions = JSON.parse(lessonParams.get('clearConditions') || '{}') as Record<string, unknown>;
+    } catch { /* ignore */ }
 
     if (!lessonId || !lessonSongId || !stageNumber) {
       window.location.hash = '#lessons';
       return;
     }
+
+    const survivalMapCategory = resolveLessonSurvivalMapCategory(lessonParams.get('mapCategory'));
 
     setLessonContext({ lessonId, lessonSongId, stageNumber, clearConditions });
 
@@ -313,7 +325,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         rebuildDescentLayouts();
       } catch { /* ignore */ }
 
-      const stageDef = ALL_STAGES.find(s => s.stageNumber === stageNumber);
+      const stageDef = findStageForLesson(stageNumber, survivalMapCategory);
       if (!stageDef) {
         window.location.hash = '#lessons';
         return;
@@ -343,14 +355,18 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         ...baseConfig,
         difficulty: stageDef.difficulty,
         allowedChords: stageDef.allowedChords,
-        bgmUrl: resolveSurvivalBgmUrl(stageDef.stageType, bgmSettings),
+        bgmUrl:
+          stageDef.mapCategory === 'phrases'
+            ? resolveSurvivalBgmUrl('phrases', bgmSettings)
+            : resolveSurvivalBgmUrl(stageDef.stageType, bgmSettings),
       };
 
       setSelectedDifficulty(stageDef.difficulty);
       setSelectedConfig(lessonConfig);
       setSelectedCharacter(faiChar);
       setActiveStageDefinition(stageDef);
-      setScreen('game');
+      setActiveHintMode(false);
+      setScreen('lessonPrep');
       setLessonInitialized(true);
     };
 
@@ -365,10 +381,15 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         lessonContext.lessonSongId,
         'S',
         lessonContext.clearConditions,
-        { sourceType: 'fantasy', lessonSongId: lessonContext.lessonSongId }
+        { sourceType: 'survival', lessonSongId: lessonContext.lessonSongId }
       );
     } catch { /* ignore */ }
   }, [lessonContext, profile]);
+
+  const handleSurvivalRunModeRestart = useCallback((nextHintMode: boolean) => {
+    setActiveHintMode(nextHintMode);
+    setSurvivalSessionNonce(n => n + 1);
+  }, []);
 
   const handleStageSelect = useCallback((
     difficulty: SurvivalDifficulty,
@@ -422,7 +443,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       description: nextStage.name,
       descriptionEn: nextStage.nameEn,
       allowedChords: nextStage.allowedChords,
-      bgmUrl: resolveSurvivalBgmUrl(nextStage.stageType, survivalBgmSettings),
+      bgmUrl:
+        nextStage.mapCategory === 'phrases'
+          ? resolveSurvivalBgmUrl('phrases', survivalBgmSettings)
+          : resolveSurvivalBgmUrl(nextStage.stageType, survivalBgmSettings),
     };
     setActiveStageDefinition(nextStage);
     setSelectedConfig(nextConfig);
@@ -512,6 +536,46 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     );
   }
 
+  if (
+    lessonMode &&
+    lessonInitialized &&
+    screen === 'lessonPrep' &&
+    lessonContext &&
+    activeStageDefinition &&
+    selectedDifficulty &&
+    selectedConfig
+  ) {
+    return (
+      <>
+        <GameHeader />
+        <div
+          className="relative flex min-h-screen items-center justify-center overflow-hidden fantasy-game-screen"
+          style={{
+            background:
+              'radial-gradient(ellipse at top, #1b1228 0%, #0d0818 45%, #050309 100%)',
+          }}
+        >
+          <SurvivalRunPrepModal
+            isOpen
+            variant="lesson"
+            stage={activeStageDefinition}
+            isEnglishCopy={isEnglishCopy}
+            initialHintMode={activeHintMode}
+            onCancel={() => {
+              window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+            }}
+            onConfirm={(hint) => {
+              setActiveHintMode(hint);
+              setSurvivalSessionNonce(n => n + 1);
+              setScreen('game');
+            }}
+          />
+        </div>
+        <OrientationLandscapePrompt isEnglishCopy={isEnglishCopy} />
+      </>
+    );
+  }
+
   if (screen === 'select') {
     return (
       <>
@@ -538,6 +602,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   if (screen === 'game' && selectedDifficulty && selectedConfig) {
     return (
       <SurvivalGameScreen
+        key={`sv-${activeStageDefinition?.mapCategory ?? 'x'}-${activeStageDefinition?.stageNumber ?? 0}-${activeHintMode}-${survivalSessionNonce}`}
         difficulty={selectedDifficulty}
         config={selectedConfig}
         onBackToSelect={handleBackToSelect}
@@ -551,6 +616,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
         onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}
         onNextStage={survivalOnNextStage}
+        onSurvivalRunModeRestart={
+          activeStageDefinition ? handleSurvivalRunModeRestart : undefined
+        }
       />
     );
   }

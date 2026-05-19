@@ -19,7 +19,7 @@ import {
 import {
   SurvivalMapCategory,
   DEFAULT_SURVIVAL_MAP_CATEGORY,
-  SURVIVAL_MAP_CATEGORIES,
+  SURVIVAL_DESCENT_MAP_CATEGORIES,
 } from '../SurvivalTypes';
 import { getStageNumbersOfFirstBlock } from './survivalFreeTier';
 
@@ -112,12 +112,14 @@ const BLOCKS_BY_CATEGORY: Record<SurvivalMapCategory, BlockMeta[]> = {
   basic: [],
   songs: [],
   phrases: [],
+  lesson: [],
 };
 
 const STAGE_TO_BLOCK_BY_CATEGORY: Record<SurvivalMapCategory, Map<number, BlockMeta>> = {
   basic: new Map(),
   songs: new Map(),
   phrases: new Map(),
+  lesson: new Map(),
 };
 
 /** 互換用: Basic マップのブロック一覧 */
@@ -125,7 +127,7 @@ export let ALL_BLOCKS: BlockMeta[] = [];
 
 /** ALL_STAGES が更新された後に呼ぶ。全カテゴリを再構築する。 */
 export function rebuildDescentBlocks(): void {
-  for (const category of SURVIVAL_MAP_CATEGORIES) {
+  for (const category of SURVIVAL_DESCENT_MAP_CATEGORIES) {
     const blocks = buildBlocksForCategory(category);
     BLOCKS_BY_CATEGORY[category] = blocks;
     const stageMap = STAGE_TO_BLOCK_BY_CATEGORY[category];

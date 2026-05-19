@@ -43,6 +43,10 @@ interface FantasyGameScreenProps {
   onSwitchToChallenge: () => void;
   onGameComplete: (result: 'clear' | 'gameover', score: number, correctAnswers: number, totalQuestions: number, playerHp: number, maxHp: number) => void;
   onBackToStageSelect: () => void;
+  /** レッスン時: 設定から練習/本番を切り替えて最初から */
+  onLessonPlayModeRestartFromSettings?: (mode: FantasyPlayMode) => void;
+  /** レッスンで開始前モーダル確認済みのとき、アイドルを省略して自動開始 */
+  lessonSkipIdleAutoStart?: boolean;
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
   lessonMode?: boolean;                    // レッスンモード
@@ -93,6 +97,8 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
   onSwitchToChallenge,
   onGameComplete,
   onBackToStageSelect,
+  onLessonPlayModeRestartFromSettings,
+  lessonSkipIdleAutoStart = false,
   noteNameLang = 'en',
   simpleNoteName = false,
   lessonMode = false,

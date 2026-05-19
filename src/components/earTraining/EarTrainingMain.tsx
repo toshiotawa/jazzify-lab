@@ -16,6 +16,7 @@ import {
   getEarTrainingMainCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import EarTrainingRunPrepModal from './EarTrainingRunPrepModal';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -92,6 +93,25 @@ const EarTrainingMain: React.FC = () => {
     [params],
   );
 
+  const [lessonPrepDone, setLessonPrepDone] = useState(false);
+  const [confirmedPracticeMode, setConfirmedPracticeMode] = useState(initialPracticeMode);
+  const [earSessionNonce, setEarSessionNonce] = useState(0);
+
+  useEffect(() => {
+    if (lessonContext) {
+      setLessonPrepDone(false);
+      setConfirmedPracticeMode(initialPracticeMode);
+      setEarSessionNonce(0);
+    }
+  }, [lessonContext?.lessonId, lessonContext?.lessonSongId, initialPracticeMode, lessonContext]);
+
+  const effectivePracticeMode = lessonContext ? confirmedPracticeMode : initialPracticeMode;
+
+  const handlePracticeModeRestartFromSettings = useCallback((nextPracticeMode: boolean) => {
+    setConfirmedPracticeMode(nextPracticeMode);
+    setEarSessionNonce(n => n + 1);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -163,6 +183,11 @@ const EarTrainingMain: React.FC = () => {
     );
   }, [lessonContext]);
 
+  const lessonRestartProps =
+    lessonContext !== null
+      ? { onPracticeModeRestartFromSettings: handlePracticeModeRestartFromSettings }
+      : {};
+
   if (loading) {
     return <LoadingScreen message={mainCopy.loading} />;
   }
@@ -211,16 +236,37 @@ const EarTrainingMain: React.FC = () => {
     );
   }
 
+  const stageReadyForLessonRun =
+    !!stage &&
+    (!!params.get('stageId') || stages.length <= 1 || stagePicked);
+
+  if (lessonContext && !lessonPrepDone && stageReadyForLessonRun) {
+    return (
+      <EarTrainingRunPrepModal
+        isOpen
+        stage={stage}
+        isEnglishCopy={isEnglishCopy}
+        initialPracticeMode={initialPracticeMode}
+        onCancel={handleBack}
+        onConfirm={practice => {
+          setConfirmedPracticeMode(practice);
+          setLessonPrepDone(true);
+        }}
+      />
+    );
+  }
+
   if (stage.mode === 'chord_voicing') {
     return (
-      <React.Suspense fallback={<LoadingScreen message={mainCopy.preparing} />}>
+      <React.Suspense key={`${stage.id}-${earSessionNonce}`} fallback={<LoadingScreen message={mainCopy.preparing} />}>
         <EarTrainingChordVoicingScreen
           stage={stage}
           enemy={enemy}
           lessonContext={lessonContext}
-          initialPracticeMode={initialPracticeMode}
+          initialPracticeMode={effectivePracticeMode}
           onLessonStageClear={handleLessonStageClear}
           onBack={handleBack}
+          {...lessonRestartProps}
         />
       </React.Suspense>
     );
@@ -228,14 +274,15 @@ const EarTrainingMain: React.FC = () => {
 
   if (stage.mode === 'chord_quiz') {
     return (
-      <React.Suspense fallback={<LoadingScreen message={mainCopy.preparing} />}>
+      <React.Suspense key={`${stage.id}-${earSessionNonce}`} fallback={<LoadingScreen message={mainCopy.preparing} />}>
         <EarTrainingChordQuizScreen
           stage={stage}
           enemy={enemy}
           lessonContext={lessonContext}
-          initialPracticeMode={initialPracticeMode}
+          initialPracticeMode={effectivePracticeMode}
           onLessonStageClear={handleLessonStageClear}
           onBack={handleBack}
+          {...lessonRestartProps}
         />
       </React.Suspense>
     );
@@ -243,28 +290,30 @@ const EarTrainingMain: React.FC = () => {
 
   if (stage.mode === 'chord_osmd') {
     return (
-      <React.Suspense fallback={<LoadingScreen message={mainCopy.preparing} />}>
+      <React.Suspense key={`${stage.id}-${earSessionNonce}`} fallback={<LoadingScreen message={mainCopy.preparing} />}>
         <EarTrainingChordOSMDScreen
           stage={stage}
           enemy={enemy}
           lessonContext={lessonContext}
-          initialPracticeMode={initialPracticeMode}
+          initialPracticeMode={effectivePracticeMode}
           onLessonStageClear={handleLessonStageClear}
           onBack={handleBack}
+          {...lessonRestartProps}
         />
       </React.Suspense>
     );
   }
 
   return (
-    <React.Suspense fallback={<LoadingScreen message={mainCopy.preparing} />}>
+    <React.Suspense key={`${stage.id}-${earSessionNonce}`} fallback={<LoadingScreen message={mainCopy.preparing} />}>
       <EarTrainingGameScreen
         stage={stage}
         enemy={enemy}
         lessonContext={lessonContext}
-        initialPracticeMode={initialPracticeMode}
+        initialPracticeMode={effectivePracticeMode}
         onLessonStageClear={handleLessonStageClear}
         onBack={handleBack}
+        {...lessonRestartProps}
       />
     </React.Suspense>
   );
