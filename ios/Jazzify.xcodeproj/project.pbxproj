@@ -121,6 +121,7 @@
 		CB19406828C418DB3A880E17 /* SurvivalBossEffectRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E80A364FA44BA2E07326B46 /* SurvivalBossEffectRenderer.swift */; };
 		CCB6491A5865F030BB55F323 /* LessonMapAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C920737F9E2FF2F7DACBD07 /* LessonMapAudio.swift */; };
 		CD3107E623F660267F32BD9A /* SurvivalPauseSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */; };
+		F2EE770003DD11EE0000DD02 /* SurvivalRunPrepSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE770003DD11EE0000DD01 /* SurvivalRunPrepSheet.swift */; };
 		D092F0BC2C89F78117E0D86F /* SurvivalGameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6116747FF78CFB5A21A4FCB6 /* SurvivalGameEngine.swift */; };
 		D204BC856CFE1CE66F44EB8A /* SurvivalGameAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB529DBA6D08CBD90704203E /* SurvivalGameAudio.swift */; };
 		D2083E728F663A949957D7DE /* LessonJourneyViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16568C6DC2CE0A0353458F62 /* LessonJourneyViewComponents.swift */; };
@@ -160,6 +161,7 @@
 		0043E2CB3BFFBDF67BBB17F2 /* SurvivalCharacterProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCharacterProfile.swift; sourceTree = "<group>"; };
 		0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingHUDView.swift; sourceTree = "<group>"; };
 		0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPauseSettingsSheet.swift; sourceTree = "<group>"; };
+		F2EE770003DD11EE0000DD01 /* SurvivalRunPrepSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalRunPrepSheet.swift; sourceTree = "<group>"; };
 		0C8428EFA383E2266F3620DD /* MIDIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071890123451 /* MidiConnectionGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidiConnectionGuideView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071890123461 /* MidiKeyboardBuyingGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidiKeyboardBuyingGuideView.swift; sourceTree = "<group>"; };
@@ -590,6 +592,7 @@
 				748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */,
 				7EF02ACFD14CC587854BC574 /* SurvivalJoystickView.swift */,
 				0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */,
+				F2EE770003DD11EE0000DD01 /* SurvivalRunPrepSheet.swift */,
 				66CAD3695FC2030F5AC34539 /* SurvivalScene.swift */,
 			);
 			path = View;
@@ -959,6 +962,7 @@
 				C87A4F0C57EC675C739B0B8C /* SurvivalMapAudio.swift in Sources */,
 				FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */,
 				CD3107E623F660267F32BD9A /* SurvivalPauseSettingsSheet.swift in Sources */,
+				F2EE770003DD11EE0000DD02 /* SurvivalRunPrepSheet.swift in Sources */,
 				5AB241934D6F4982908B967B /* SurvivalPianoSampler.swift in Sources */,
 				CC03BB02CC03DD04EE05AA04 /* SurvivalAssetPreloader.swift in Sources */,
 				CC03BB02CC03DD04EE05AA02 /* SurvivalBackgroundCache.swift in Sources */,

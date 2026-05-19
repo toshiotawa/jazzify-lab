@@ -192,12 +192,13 @@ final class SurvivalGameLoop {
         lastNow = CACurrentMediaTime()
     }
 
-    func resetForSameStage() {
+    func resetForSameStage(hintMode: Bool? = nil) {
         smoothedAnalogInput = .zero
         lastFrameAnalog = .zero
         activePressedPitchClasses.removeAll()
 
-        mode = SurvivalMode.resolve(stage: stage, hintMode: mode.hintMode)
+        let resolvedHint = hintMode ?? mode.hintMode
+        mode = SurvivalMode.resolve(stage: stage, hintMode: resolvedHint)
         let isBoss = mode.isBossStage
 
         let slots: [SurvivalCodeSlot]

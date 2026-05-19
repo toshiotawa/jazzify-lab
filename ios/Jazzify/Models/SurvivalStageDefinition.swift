@@ -698,3 +698,37 @@ enum SurvivalStageCatalog {
         return result
     }
 }
+
+// MARK: - Run prep UI copy (Web `SurvivalRunPrepModal` / `formatSurvival*` 相当)
+
+extension SurvivalStageDefinition {
+    func runPrepModeLabel(locale: AppLocale) -> String {
+        if mapCategory == .phrases {
+            return locale == .en ? "Phrases" : "フレーズ"
+        }
+        if stageType == .progression {
+            return locale == .en ? "Progression" : "コード進行"
+        }
+        return locale == .en ? "Random" : "ランダム"
+    }
+
+    func runPrepEncounterLabel(locale: AppLocale) -> String {
+        let isBoss = SurvivalBossEngine.isBlockLastStage(
+            stageNumber: stageNumber,
+            in: mapCategory
+        )
+        if isBoss {
+            return locale == .en ? "Boss" : "ボス"
+        }
+        return locale == .en ? "Regular" : "通常"
+    }
+
+    static func runPrepClearSummary(locale: AppLocale) -> String {
+        let sec = Int(SurvivalConstants.stageTimeLimitSec)
+        let quota = SurvivalConstants.stageEnemyQuota
+        if locale == .en {
+            return "Objective: survive \(sec)s and defeat \(quota) enemies (HINT runs do not record clears)."
+        }
+        return "目標: \(sec)秒生存 + \(quota)体撃破（HINT時はクリア記録されません）。"
+    }
+}

@@ -20,7 +20,7 @@ final class SurvivalGameSession: ObservableObject {
     }
 
     private let stage: SurvivalStageDefinition
-    private let hintMode: Bool
+    private var hintMode: Bool
     private let characterId: String
     private let isDemo: Bool
     private let usesEnglishToastCopy: Bool
@@ -140,11 +140,16 @@ final class SurvivalGameSession: ObservableObject {
         onExit(gameLoop.runtime.phase == .cleared)
     }
 
-    func restartSameStage() {
+    var currentHintMode: Bool { hintMode }
+
+    func restartSameStage(hintMode newHintMode: Bool? = nil) {
         guard state != .disposed else { return }
+        if let newHintMode {
+            hintMode = newHintMode
+        }
         stopAudio()
         input.clear()
-        gameLoop.resetForSameStage()
+        gameLoop.resetForSameStage(hintMode: hintMode)
         viewModel.applyFullReset(from: gameLoop, now: CACurrentMediaTime())
         viewModel.prepareForSceneRestart()
         state = .ready

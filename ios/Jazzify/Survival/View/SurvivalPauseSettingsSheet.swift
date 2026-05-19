@@ -8,10 +8,17 @@ import SwiftUI
 /// `SurvivalGameView` の `pauseOverlay` から呼び出され、
 /// スライダー操作は即時反映 (`onEditingChanged` 不要) とするため `@State` で現在値を保持し、
 /// 変更毎に `SurvivalGameAudio` の set API を呼ぶ。
+/// ステージモード時の本番 / HINT 切替＋最初から再開（Web `SurvivalSettingsModal` `stageRunMode` 相当）。
+struct SurvivalStageRunModeConfig {
+    let hintMode: Bool
+    let onApplyHintModeAndRestart: (Bool) -> Void
+}
+
 struct SurvivalPauseSettingsSheet: View {
     let locale: AppLocale
     /// デモプレイ中は「タイトルに戻る」表記にする。
     var isDemo: Bool = false
+    var stageRunMode: SurvivalStageRunModeConfig?
     let onResume: () -> Void
     let onExit: () -> Void
 
@@ -20,6 +27,9 @@ struct SurvivalPauseSettingsSheet: View {
     @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
     @State private var isMuted: Bool = SurvivalGameAudio.shared.isMuted
     @StateObject private var midiManager = MIDIManager.shared
+    @State private var hintDraft: Bool = false
+
+    private var isEnglishCopy: Bool { locale == .en }
 
     var body: some View {
         ScrollView {
@@ -71,6 +81,10 @@ struct SurvivalPauseSettingsSheet: View {
 
                 midiSection
 
+                if let stageRunMode, !isDemo {
+                    stageRunModeSection(stageRunMode)
+                }
+
                 VStack(spacing: 10) {
                     Button(action: onResume) {
                         Text(locale == .ja ? "再開" : "Resume")
@@ -104,9 +118,70 @@ struct SurvivalPauseSettingsSheet: View {
             .padding(.vertical, 20)
         }
         .onAppear {
-            // モーダル表示時に最新のデバイス一覧を取り直す (バックグラウンドで接続変更があった場合の対策)。
             midiManager.refreshDevices()
+            if let stageRunMode {
+                hintDraft = stageRunMode.hintMode
+            }
         }
+        .onChange(of: stageRunMode?.hintMode) { newValue in
+            if let newValue {
+                hintDraft = newValue
+            }
+        }
+    }
+
+    // MARK: - Run mode (HINT)
+
+    private func stageRunModeSection(_ config: SurvivalStageRunModeConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(isEnglishCopy ? "Practice / Performance" : "練習 / 本番")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color(hex: "fde68a"))
+
+            runModeRadio(title: isEnglishCopy ? "Performance" : "本番", selected: !hintDraft) {
+                hintDraft = false
+            }
+            runModeRadio(title: isEnglishCopy ? "Practice (HINT)" : "練習（HINT）", selected: hintDraft) {
+                hintDraft = true
+            }
+
+            Button {
+                config.onApplyHintModeAndRestart(hintDraft)
+            } label: {
+                Text(isEnglishCopy ? "Apply & restart from beginning" : "適用して最初から挑戦")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color(hex: "f59e0b"))
+                    .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.yellow.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.yellow.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private func runModeRadio(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? Color(hex: "f59e0b") : .gray)
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Spacer(minLength: 0)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - MIDI Section

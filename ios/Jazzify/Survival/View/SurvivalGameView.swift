@@ -8,7 +8,6 @@ import UIKit
 /// - `SurvivalGameSession` がゲームループ・入力バッファ・UI 公開を束ねる
 struct SurvivalGameView: View {
     let stage: SurvivalStageDefinition
-    let hintMode: Bool
     let characterId: String
     let locale: AppLocale
     let onClose: () -> Void
@@ -18,7 +17,32 @@ struct SurvivalGameView: View {
     var scenarioController: SurvivalScenarioController? = nil
     var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
 
+    init(
+        stage: SurvivalStageDefinition,
+        hintMode: Bool,
+        characterId: String,
+        locale: AppLocale,
+        onClose: @escaping () -> Void,
+        isDemo: Bool = false,
+        configOverride: SurvivalStageConfig? = nil,
+        scenarioOverrides: SurvivalScenarioOverrides = .init(),
+        scenarioController: SurvivalScenarioController? = nil,
+        onSessionReady: ((SurvivalGameSession) -> Void)? = nil
+    ) {
+        self.stage = stage
+        self.characterId = characterId
+        self.locale = locale
+        self.onClose = onClose
+        self.isDemo = isDemo
+        self.configOverride = configOverride
+        self.scenarioOverrides = scenarioOverrides
+        self.scenarioController = scenarioController
+        self.onSessionReady = onSessionReady
+        _activeHintMode = State(initialValue: hintMode)
+    }
+
     @State private var session: SurvivalGameSession?
+    @State private var activeHintMode: Bool
     @State private var bootstrapTask: Task<Void, Never>?
     @State private var bootstrapID = UUID()
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
@@ -29,7 +53,15 @@ struct SurvivalGameView: View {
     var body: some View {
         ZStack {
             if let session = session {
-                SurvivalGameContent(session: session, stage: stage, hintMode: hintMode, locale: locale, isDemo: isDemo)
+                SurvivalGameContent(
+                    session: session,
+                    stage: stage,
+                    locale: locale,
+                    isDemo: isDemo,
+                    onApplyHintModeAndRestart: isDemo ? nil : { newHint in
+                        applyHintModeRestart(newHint)
+                    }
+                )
             } else if isLoading {
                 loadingView
             } else if loadError != nil {
@@ -130,7 +162,7 @@ struct SurvivalGameView: View {
 
         let created = SurvivalGameSession(
             stage: stage,
-            hintMode: hintMode,
+            hintMode: activeHintMode,
             characterId: characterId,
             profile: profile,
             config: config,
@@ -178,6 +210,13 @@ struct SurvivalGameView: View {
         }
     }
 
+    @MainActor
+    private func applyHintModeRestart(_ newHintMode: Bool) {
+        guard !isDemo else { return }
+        activeHintMode = newHintMode
+        session?.restartSameStage(hintMode: newHintMode)
+    }
+
 }
 
 // MARK: - Session-observing content view
@@ -185,9 +224,9 @@ struct SurvivalGameView: View {
 private struct SurvivalGameContent: View {
     @ObservedObject var session: SurvivalGameSession
     let stage: SurvivalStageDefinition
-    let hintMode: Bool
     let locale: AppLocale
     let isDemo: Bool
+    let onApplyHintModeAndRestart: ((Bool) -> Void)?
 
     @State private var hudHeight: CGFloat = 72
 
@@ -330,6 +369,12 @@ private struct SurvivalGameContent: View {
             SurvivalPauseSettingsSheet(
                 locale: locale,
                 isDemo: isDemo,
+                stageRunMode: onApplyHintModeAndRestart.map { restart in
+                    SurvivalStageRunModeConfig(
+                        hintMode: session.currentHintMode,
+                        onApplyHintModeAndRestart: restart
+                    )
+                },
                 onResume: { session.togglePause() },
                 onExit: { session.requestExit() }
             )
@@ -347,7 +392,7 @@ private struct SurvivalGameContent: View {
                 elapsedSeconds: vm.uiSnapshot.elapsedSecondsRounded,
                 playerHp: vm.uiSnapshot.hp,
                 playerMaxHp: vm.uiSnapshot.maxHp,
-                hintMode: hintMode,
+                hintMode: session.currentHintMode,
                 isBossStage: vm.isBossStage,
                 locale: locale,
                 clearReportInFlight: vm.clearReportInFlight,
