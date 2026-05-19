@@ -33,6 +33,16 @@ import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
+import {
+  lessonCompletionBlockedToastCopy,
+  lessonCompletionButtonCopy,
+  lessonCompletionCalloutCopy,
+  lessonCompletionErrorToastCopy,
+  lessonCompletionSectionTitle,
+  lessonCompletionSuccessToastCopy,
+  lessonCompletionSuccessToastTitleCopy,
+  resolveLessonCompletionState,
+} from '@/utils/lessonCompletionCopy';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
@@ -40,6 +50,7 @@ import {
     FaVideo,
     FaMusic,
     FaCheckCircle,
+    FaFlagCheckered,
     FaChevronLeft,
     FaChevronRight,
     FaDragon,
@@ -363,16 +374,20 @@ const LessonDetailPage: React.FC = () => {
 
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
 
+  const completionState = resolveLessonCompletionState({
+    isCompleted: lessonProgress?.completed === true,
+    isSubmitting: completing,
+    allRequirementsCompleted,
+  });
+  const completionButtonCopy = lessonCompletionButtonCopy(completionState, isEnglishCopy);
+  const completionCalloutCopy = lessonCompletionCalloutCopy(completionState, isEnglishCopy);
+
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
     
     // 実習課題が全て完了しているかチェック（全ユーザー対象）
     if (!allRequirementsCompleted) {
-      toast.warning(
-        isEnglishCopy
-          ? 'Complete all practice tasks before marking the quest complete.'
-          : '全ての実習課題を完了してからクエストを完了してください。',
-      );
+      toast.warning(lessonCompletionBlockedToastCopy(isEnglishCopy));
       return;
     }
     
@@ -391,13 +406,10 @@ const LessonDetailPage: React.FC = () => {
         /* 統計更新失敗は非致命 */
       });
 
-      toast.success(
-        isEnglishCopy ? 'Quest marked complete.' : 'クエストを完了しました！',
-        {
-          title: isEnglishCopy ? '🎉 Done' : '🎉 完了',
-          duration: 3000,
-        },
-      );
+      toast.success(lessonCompletionSuccessToastCopy(isEnglishCopy), {
+        title: lessonCompletionSuccessToastTitleCopy(isEnglishCopy),
+        duration: 3000,
+      });
 
       try {
         const xpAward = await awardPlayerXp('lesson_first_clear', lessonId, 100);
@@ -436,7 +448,7 @@ const LessonDetailPage: React.FC = () => {
         }
       }
     } catch {
-      toast.error(isEnglishCopy ? 'Could not complete the quest.' : '完了処理に失敗しました');
+      toast.error(lessonCompletionErrorToastCopy(isEnglishCopy));
     } finally {
       setCompleting(false);
     }
@@ -1249,42 +1261,53 @@ const LessonDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* 完了・スキップボタンセクション */}
-            <div className="bg-slate-800 rounded-lg p-6">
-              {/* 完了ボタン */}
+            {/* 完了ボタンセクション */}
+            <div className="bg-slate-800 rounded-lg p-6 space-y-4">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
+                <FaFlagCheckered className="text-amber-400" aria-hidden />
+                {lessonCompletionSectionTitle(isEnglishCopy)}
+              </h3>
+
+              <div
+                className={`rounded-lg border px-4 py-3 text-sm leading-relaxed ${
+                  completionState === 'ready'
+                    ? 'border-amber-500/60 bg-amber-950/30 text-amber-100'
+                    : completionState === 'completed'
+                      ? 'border-emerald-500/50 bg-emerald-950/30 text-emerald-100'
+                      : 'border-slate-600 bg-slate-900/50 text-gray-300'
+                }`}
+              >
+                {completionCalloutCopy}
+              </div>
+
               <button
+                type="button"
                 onClick={handleComplete}
                 disabled={completing || lessonProgress?.completed}
-                className={`w-full btn ${
-                  lessonProgress?.completed ? 'btn-disabled' : 'btn-primary'
-                } flex items-center justify-center space-x-2`}
+                className={`w-full flex items-center justify-center gap-3 rounded-xl px-4 py-4 text-white transition-colors ${
+                  completionState === 'ready'
+                    ? 'bg-gradient-to-r from-emerald-600 to-green-600 font-bold shadow-lg ring-2 ring-emerald-400/50 hover:from-emerald-500 hover:to-green-500'
+                    : completionState === 'completed'
+                      ? 'btn btn-disabled cursor-not-allowed'
+                      : 'bg-slate-600 text-slate-300 cursor-not-allowed'
+                }`}
               >
-                <FaCheckCircle />
-                <span>
-                  {lessonProgress?.completed
-                    ? isEnglishCopy
-                      ? 'Lesson completed'
-                      : 'レッスン完了済み'
-                    : completing
-                      ? isEnglishCopy
-                        ? 'Completing…'
-                        : '完了処理中...'
-                      : isEnglishCopy
-                        ? 'Mark lesson complete'
-                        : 'レッスン完了'}
+                {completing ? (
+                  <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : completionState === 'completed' ? (
+                  <FaCheckCircle className="text-lg" aria-hidden />
+                ) : (
+                  <FaFlagCheckered className="text-lg" aria-hidden />
+                )}
+                <span className="flex flex-col items-start text-left">
+                  <span className="text-base font-semibold">{completionButtonCopy.primary}</span>
+                  {completionButtonCopy.secondary ? (
+                    <span className="text-xs font-normal text-emerald-100/90">
+                      {completionButtonCopy.secondary}
+                    </span>
+                  ) : null}
                 </span>
               </button>
-              
-              <p className="text-xs text-gray-400 text-center mt-2">
-                {lessonProgress?.completed
-                  ? isEnglishCopy
-                    ? 'You have already completed this quest.'
-                    : 'このクエストは既に完了しています'
-                  : isEnglishCopy
-                    ? 'Tap after you have watched the videos and finished the practice tasks.'
-                    : '動画視聴と実習課題を完了したら押してください'}
-              </p>
-
             </div>
 
             {/* 次のクエストへ進むポップアップ */}

@@ -2192,46 +2192,163 @@ struct LessonDetailView: View {
         .cornerRadius(16)
     }
 
+    private enum LessonCompletionUiState {
+        case ready
+        case blocked
+        case completed
+        case submitting
+    }
+
+    private var completionUiState: LessonCompletionUiState {
+        if isLessonCompleted { return .completed }
+        if isCompleting { return .submitting }
+        if allRequirementsCompleted { return .ready }
+        return .blocked
+    }
+
     private var completionCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: "flag.checkered")
+                    .foregroundStyle(Color(hex: "fbbf24"))
+                Text(locale == .ja ? "最後のステップ" : "Final step")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
+
+            Text(completionCalloutText)
+                .font(.subheadline)
+                .foregroundStyle(completionCalloutForeground)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(completionCalloutBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(completionCalloutBorder, lineWidth: 1)
+                )
+                .cornerRadius(10)
+
             Button {
                 Task { await completeLesson() }
             } label: {
-                HStack {
+                HStack(spacing: 12) {
                     if isCompleting {
                         ProgressView()
                             .tint(.white)
+                    } else if isLessonCompleted {
+                        Image(systemName: "checkmark.circle.fill")
                     } else {
-                        Image(systemName: isLessonCompleted ? "checkmark.circle.fill" : "flag.checkered")
+                        Image(systemName: "flag.checkered")
                     }
-                    Text(
-                        isLessonCompleted
-                        ? (locale == .ja ? "クエスト完了済み" : "Quest completed")
-                        : (locale == .ja ? "クエスト完了" : "Complete quest")
-                    )
-                    Spacer()
+
+                    VStack(spacing: 2) {
+                        Text(completionButtonPrimaryText)
+                            .font(.subheadline.bold())
+                        if let secondary = completionButtonSecondaryText {
+                            Text(secondary)
+                                .font(.caption)
+                                .opacity(0.9)
+                        }
+                    }
                 }
-                .font(.subheadline.bold())
                 .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
-                .background(isLessonCompleted ? Color.gray : Color.blue)
+                .background(completionButtonBackground)
                 .cornerRadius(12)
+                .overlay {
+                    if completionUiState == .ready {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(hex: "34d399").opacity(0.5), lineWidth: 2)
+                    }
+                }
             }
             .buttonStyle(.plain)
             .disabled(isCompleting || isLessonCompleted)
-
-            Text(
-                allRequirementsCompleted
-                ? (locale == .ja ? "すべての課題を完了済みです。" : "All practice tasks are complete.")
-                : (locale == .ja ? "すべての実習課題を完了してから押してください。" : "Complete all practice tasks before marking this quest complete.")
-            )
-            .font(.caption)
-            .foregroundStyle(allRequirementsCompleted ? .green : .gray)
         }
         .padding(18)
         .background(Color(hex: "1e293b"))
         .cornerRadius(16)
+    }
+
+    private var completionCalloutText: String {
+        switch completionUiState {
+        case .ready:
+            return locale == .ja
+                ? "課題のクリアや動画の視聴だけでは完了になりません。ここを押して初めてクエスト完了となり、次に進めます。"
+                : "Clearing tasks or watching videos alone does not finish the quest. Tap here to mark it complete and move on."
+        case .blocked:
+            return locale == .ja
+                ? "すべての実習課題をクリアしてから、下のボタンで完了してください。"
+                : "Clear all practice tasks first, then tap the button below to finish."
+        case .completed:
+            return locale == .ja
+                ? "このクエストは完了済みです。"
+                : "This quest is already complete."
+        case .submitting:
+            return locale == .ja
+                ? "進捗を保存しています…"
+                : "Saving your progress…"
+        }
+    }
+
+    private var completionButtonPrimaryText: String {
+        switch completionUiState {
+        case .completed:
+            return locale == .ja ? "クエスト完了済み" : "Quest completed"
+        case .submitting:
+            return locale == .ja ? "完了処理中…" : "Completing…"
+        case .ready, .blocked:
+            return locale == .ja ? "クエストを完了する" : "Complete this quest"
+        }
+    }
+
+    private var completionButtonSecondaryText: String? {
+        completionUiState == .ready
+            ? (locale == .ja ? "次のクエストを解放" : "Unlock the next quest")
+            : nil
+    }
+
+    private var completionCalloutForeground: Color {
+        switch completionUiState {
+        case .ready: Color(hex: "fde68a")
+        case .completed: Color(hex: "a7f3d0")
+        default: Color(hex: "d1d5db")
+        }
+    }
+
+    private var completionCalloutBackground: Color {
+        switch completionUiState {
+        case .ready: Color(hex: "451a03").opacity(0.35)
+        case .completed: Color(hex: "064e3b").opacity(0.35)
+        default: Color(hex: "0f172a").opacity(0.5)
+        }
+    }
+
+    private var completionCalloutBorder: Color {
+        switch completionUiState {
+        case .ready: Color(hex: "f59e0b").opacity(0.6)
+        case .completed: Color(hex: "10b981").opacity(0.5)
+        default: Color(hex: "475569")
+        }
+    }
+
+    @ViewBuilder
+    private var completionButtonBackground: some View {
+        switch completionUiState {
+        case .ready:
+            LinearGradient(
+                colors: [Color(hex: "059669"), Color(hex: "16a34a")],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .completed:
+            Color.gray
+        case .submitting, .blocked:
+            Color(hex: "475569")
+        }
     }
 
     private func loadLessonDetail() async {
