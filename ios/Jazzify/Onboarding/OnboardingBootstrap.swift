@@ -5,6 +5,7 @@ enum OnboardingBootstrap {
     static var initial: SurvivalScenarioOverrides {
         var o = SurvivalScenarioOverrides()
         o.isActive = true
+        o.hideStaff = true
         o.hideHud = true
         o.hideChordSlots = true
         o.hideChordPad = true
