@@ -23,6 +23,7 @@ import {
   BOSS_MAX_HP,
   PHRASES_BOSS_HP_MULTIPLIER,
   BOSS_PLAYER_MAX_HP,
+  PHRASES_BOSS_PLAYER_MAX_HP,
   BOSS_HITBOX_RADIUS,
   BOSS_MINION_RADIUS,
   BOSS_MINION_EXPLOSION_RADIUS,
@@ -155,10 +156,14 @@ const initialNextSkillAt = (now: number): Record<BossSkillId, number> => ({
 
 export interface CreateBossBattleStateOptions {
   readonly maxHp?: number;
+  readonly playerMaxHp?: number;
 }
 
 export const resolveBossMaxHp = (isPhraseMode: boolean): number =>
   isPhraseMode ? BOSS_MAX_HP * PHRASES_BOSS_HP_MULTIPLIER : BOSS_MAX_HP;
+
+export const resolveBossPlayerMaxHp = (isPhraseMode: boolean): number =>
+  isPhraseMode ? PHRASES_BOSS_PLAYER_MAX_HP : BOSS_PLAYER_MAX_HP;
 
 export const createBossBattleState = (
   bossType: BossType,
@@ -166,6 +171,7 @@ export const createBossBattleState = (
   options?: CreateBossBattleStateOptions
 ): BossBattleState => {
   const maxHp = options?.maxHp ?? BOSS_MAX_HP;
+  const playerMaxHp = options?.playerMaxHp ?? BOSS_PLAYER_MAX_HP;
   const boss: BossState = {
     id: nextId('boss'),
     bossType,
@@ -187,8 +193,8 @@ export const createBossBattleState = (
     hazards: [],
     projectiles: [],
     player: {
-      hp: BOSS_PLAYER_MAX_HP,
-      maxHp: BOSS_PLAYER_MAX_HP,
+      hp: playerMaxHp,
+      maxHp: playerMaxHp,
       iFramesUntil: 0,
       knockbackVx: 0,
       knockbackVy: 0,

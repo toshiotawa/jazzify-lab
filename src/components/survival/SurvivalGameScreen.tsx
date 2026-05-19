@@ -82,6 +82,7 @@ import type { ChordDefinition as SurvivalChordDefinition } from '@/components/fa
 import {
   createBossBattleState,
   resolveBossMaxHp,
+  resolveBossPlayerMaxHp,
   tickBossBattle,
   applyPlayerProjectileToBoss,
   applyPlayerMeleeToBossBattle,
@@ -92,7 +93,6 @@ import {
 } from './boss/SurvivalBossEngine';
 import {
   BossBattleState,
-  BOSS_PLAYER_MAX_HP,
   BOSS_HITBOX_RADIUS,
   HEALING_AMOUNT,
 } from './boss/SurvivalBossTypes';
@@ -409,8 +409,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
     if (isBossStage) {
-      initial.player.stats.hp = BOSS_PLAYER_MAX_HP;
-      initial.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
+      const bossPlayerMaxHp = resolveBossPlayerMaxHp(isPhraseMode);
+      initial.player.stats.hp = bossPlayerMaxHp;
+      initial.player.stats.maxHp = bossPlayerMaxHp;
       initial.codeSlots.current[2].isEnabled = false;
       initial.codeSlots.current[3].isEnabled = false;
       initial.codeSlots.next[2].isEnabled = false;
@@ -1271,6 +1272,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (isBossStage && bossType) {
       bossBattleRef.current = createBossBattleState(bossType, performance.now(), {
         maxHp: resolveBossMaxHp(isPhraseMode),
+        playerMaxHp: resolveBossPlayerMaxHp(isPhraseMode),
       });
     } else {
       bossBattleRef.current = null;
@@ -2699,7 +2701,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (itemsChanged) newState.items = keptItems;
 
           // プレイヤー HP をボス戦 HP にミラー
-          newState.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
+          newState.player.stats.maxHp = resolveBossPlayerMaxHp(isPhraseMode);
           newState.player.stats.hp = bossState.player.hp;
 
           // スロット状態更新（A/B 列のみ、時間切れによる自動切替えは廃止）
@@ -3637,8 +3639,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
     if (isBossStage) {
-      initial.player.stats.hp = BOSS_PLAYER_MAX_HP;
-      initial.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
+      const bossPlayerMaxHp = resolveBossPlayerMaxHp(isPhraseMode);
+      initial.player.stats.hp = bossPlayerMaxHp;
+      initial.player.stats.maxHp = bossPlayerMaxHp;
       initial.codeSlots.current[2].isEnabled = false;
       initial.codeSlots.current[3].isEnabled = false;
       initial.codeSlots.next[2].isEnabled = false;
@@ -4364,7 +4367,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
-                  className="max-w-[min(360px,72vw)] md:max-w-[min(420px,78vw)]"
+                  className="max-w-[min(280px,60vw)] md:max-w-[min(280px,60vw)]"
                 />
               </div>
             )}

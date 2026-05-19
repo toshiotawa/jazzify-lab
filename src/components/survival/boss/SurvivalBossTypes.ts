@@ -177,6 +177,7 @@ export interface BossBattleState {
 export const BOSS_MAX_HP = 15000;
 export const PHRASES_BOSS_HP_MULTIPLIER = 5;
 export const BOSS_PLAYER_MAX_HP = 1000;
+export const PHRASES_BOSS_PLAYER_MAX_HP = 5000;
 export const BOSS_DISPLAY_SIZE = 140;          // スプライト描画サイズ（通常敵28pxの約5倍）
 export const BOSS_HITBOX_RADIUS = 70;          // 当たり判定の半径
 export const BOSS_MINION_RADIUS = 18;

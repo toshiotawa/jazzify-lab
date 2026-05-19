@@ -425,9 +425,10 @@ private struct SurvivalStageCenterStaffOverlay: View {
             keyFifths: payload.keyFifths,
             correctPitchClasses: payload.correctPitchClasses,
             staffClef: payload.staffClef,
-            unpressedNoteOpacity: unpressedNoteOpacity
+            unpressedNoteOpacity: unpressedNoteOpacity,
+            compactVerticalLayout: true
         )
-        .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
+        .frame(maxWidth: 560, maxHeight: 160, alignment: .top)
     }
 }
 

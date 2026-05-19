@@ -915,6 +915,8 @@ struct ChordVoicingStaffGroupsView: View {
     var unpressedNoteOpacity: CGFloat
     /// サバイバル用: コード名と譜面の間隔を詰める。
     let compactChordLabelGap: Bool
+    /// サバイバル Random/Progression 用: 垂直中央寄せを無効化しコード名を譜面近傍へ配置する。
+    let compactVerticalLayout: Bool
     /// true のとき measureOffset==1（次小節）の未正解符頭にも unpressedNoteOpacity を適用する。
     let fadeAllMeasureNotes: Bool
 
@@ -932,6 +934,7 @@ struct ChordVoicingStaffGroupsView: View {
         hideUnpressedNotes: Bool = false,
         unpressedNoteOpacity: CGFloat = 1,
         compactChordLabelGap: Bool = false,
+        compactVerticalLayout: Bool = false,
         fadeAllMeasureNotes: Bool = false
     ) {
         self.groups = groups
@@ -947,6 +950,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.hideUnpressedNotes = hideUnpressedNotes
         self.unpressedNoteOpacity = unpressedNoteOpacity
         self.compactChordLabelGap = compactChordLabelGap
+        self.compactVerticalLayout = compactVerticalLayout
         self.fadeAllMeasureNotes = fadeAllMeasureNotes
     }
 
@@ -978,7 +982,8 @@ struct ChordVoicingStaffGroupsView: View {
                 singleMeasureLayout: singleMeasureLayout,
                 hideChordLabels: hideChordLabels,
                 noteCollisionLayout: noteCollisionLayout,
-                compactChordLabelGap: compactChordLabelGap
+                compactChordLabelGap: compactChordLabelGap,
+                compactVerticalLayout: compactVerticalLayout
             )
             let activeLabelGlobalFrame = activeLabelGlobalRect(
                 proxy: proxy,
@@ -1000,6 +1005,7 @@ struct ChordVoicingStaffGroupsView: View {
                         noteCollisionLayout: noteCollisionLayout,
                         unpressedNoteOpacity: effectiveUnpressedNoteOpacity,
                         compactChordLabelGap: compactChordLabelGap,
+                        compactVerticalLayout: compactVerticalLayout,
                         fadeAllMeasureNotes: fadeAllMeasureNotes
                     )
                 }
@@ -1339,7 +1345,8 @@ struct ChordVoicingStaffGroupsView: View {
         width: CGFloat,
         activeStaves: [Int],
         hideChordLabels: Bool,
-        compactChordLabelGap: Bool = false
+        compactChordLabelGap: Bool = false,
+        compactVerticalLayout: Bool = false
     ) -> StaffSystemGeometry {
         let sp = max(8, width * (12 / 720))
         let labelTopPadding: CGFloat = hideChordLabels ? 0 : sp * 0.4
@@ -1348,17 +1355,25 @@ struct ChordVoicingStaffGroupsView: View {
             : min(CGFloat(34), max(CGFloat(24), sp * 2.6))
         let reservedLabelTop = labelTopPadding + labelBandCoreHeight
         let labelCenterY = hideChordLabels ? 0 : labelTopPadding + labelBandCoreHeight / 2
-        let labelBottomGap: CGFloat = hideChordLabels ? 0 : (compactChordLabelGap ? sp * 0.6 : sp * 0.9)
-        let ledgerLinePadding = compactChordLabelGap ? sp * 1.6 : sp * 3.5
-        let reservedTop = reservedLabelTop + labelBottomGap + ledgerLinePadding
-        let availableStaffHeight = max(CGFloat(0), size.height - reservedTop - ledgerLinePadding)
+        let labelBottomGap: CGFloat = hideChordLabels
+            ? 0
+            : (compactVerticalLayout ? sp * 0.3 : (compactChordLabelGap ? sp * 0.6 : sp * 0.9))
+        let topLedgerPadding: CGFloat = compactVerticalLayout
+            ? sp * 4.0
+            : (compactChordLabelGap ? sp * 1.6 : sp * 3.5)
+        let bottomLedgerPadding: CGFloat = compactChordLabelGap ? sp * 1.6 : sp * 3.5
+        let reservedTop = reservedLabelTop + labelBottomGap + topLedgerPadding
+        let availableStaffHeight = max(CGFloat(0), size.height - reservedTop - bottomLedgerPadding)
         let staffSpacing = min(
             14,
             max(8, (availableStaffHeight - sp * 8) / CGFloat(max(15, activeStaves.count * 11 + 5)))
         )
         let staffGap = staffSpacing * 7
         let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
-        let firstTopY = reservedTop + max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
+        let verticalCenterOffset = compactVerticalLayout
+            ? CGFloat(0)
+            : max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
+        let firstTopY = reservedTop + verticalCenterOffset
         return StaffSystemGeometry(
             staffSpacing: staffSpacing,
             staffGap: staffGap,
@@ -1488,6 +1503,7 @@ struct ChordVoicingStaffGroupsView: View {
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
         unpressedNoteOpacity: CGFloat,
         compactChordLabelGap: Bool = false,
+        compactVerticalLayout: Bool = false,
         fadeAllMeasureNotes: Bool = false
     ) {
         guard !groups.isEmpty else { return }
@@ -1509,7 +1525,8 @@ struct ChordVoicingStaffGroupsView: View {
             width: w,
             activeStaves: activeStaves,
             hideChordLabels: hideChordLabels,
-            compactChordLabelGap: compactChordLabelGap
+            compactChordLabelGap: compactChordLabelGap,
+            compactVerticalLayout: compactVerticalLayout
         )
         let margin = geo.sp * 0.35
         let leftBound = w * (24 / 720) + margin
@@ -1979,7 +1996,8 @@ struct ChordVoicingStaffGroupsView: View {
         singleMeasureLayout: Bool = false,
         hideChordLabels: Bool = false,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
-        compactChordLabelGap: Bool = false
+        compactChordLabelGap: Bool = false,
+        compactVerticalLayout: Bool = false
     ) -> OverlayLayout {
         guard !groups.isEmpty, size.width > 0, size.height > 0 else {
             return OverlayLayout(
@@ -2005,7 +2023,8 @@ struct ChordVoicingStaffGroupsView: View {
             width: w,
             activeStaves: activeStaves,
             hideChordLabels: hideChordLabels,
-            compactChordLabelGap: compactChordLabelGap
+            compactChordLabelGap: compactChordLabelGap,
+            compactVerticalLayout: compactVerticalLayout
         )
 
         var labelCenters: [UUID: CGPoint] = [:]

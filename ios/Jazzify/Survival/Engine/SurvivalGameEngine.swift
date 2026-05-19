@@ -52,15 +52,24 @@ enum SurvivalGameEngine {
     /// - Parameter profile: Supabase `survival_characters` の取得結果 (nil 時はデフォルト ファイ)
     /// - Parameter hintMode: ヒントモード中は HP 回復等を無効化しない
     /// - Parameter isBossStage: ボスステージは HP を `bossPlayerMaxHp` に拡張
+    /// - Parameter isPhrasesBossStage: Phrases ボス戦は HP を `phrasesBossPlayerMaxHp` に拡張
     static func createStageInitialPlayer(
         profile: SurvivalCharacterProfile?,
         hintMode: Bool,
-        isBossStage: Bool
+        isBossStage: Bool,
+        isPhrasesBossStage: Bool = false
     ) -> SurvivalPlayerState {
         let p = profile ?? SurvivalCharacterProfile.defaultFai
         let stats = p.initialStats
         let skills = SurvivalPlayerSkills.fromJson(p.initialSkillsRaw)
-        let baseHp = isBossStage ? SurvivalConstants.bossPlayerMaxHp : 300
+        let baseHp: Int = {
+            if isBossStage {
+                return isPhrasesBossStage
+                    ? SurvivalConstants.phrasesBossPlayerMaxHp
+                    : SurvivalConstants.bossPlayerMaxHp
+            }
+            return 300
+        }()
         return SurvivalPlayerState(
             x: SurvivalMap.width / 2,
             y: SurvivalMap.height / 2,

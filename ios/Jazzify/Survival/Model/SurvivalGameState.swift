@@ -43,6 +43,8 @@ enum SurvivalConstants {
     static let meleeKnockbackPerLevel: CGFloat = 50
     /// ボスステージのプレイヤー HP
     static let bossPlayerMaxHp: Int = 1000
+    /// Phrases ボス戦のプレイヤー HP
+    static let phrasesBossPlayerMaxHp: Int = 5000
     /// ボス HP 上限
     static let bossMaxHp: Int = 15000
     /// Phrases ボス戦 HP 倍率

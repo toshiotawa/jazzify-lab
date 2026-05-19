@@ -13,6 +13,8 @@ struct SurvivalProgressionStaffView: View {
     let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
     /// 未正解符頭 opacity（0〜1）。本番 HINT OFF フェード用。
     let unpressedNoteOpacity: CGFloat
+    /// サバイバル中央楽譜: コード名を譜面近傍へ寄せる（垂直中央寄せを無効化）。
+    let compactVerticalLayout: Bool
 
     init(
         chordDisplayName: String,
@@ -21,7 +23,8 @@ struct SurvivalProgressionStaffView: View {
         correctPitchClasses: [Int],
         staffClef: Int = 2,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
-        unpressedNoteOpacity: CGFloat = 1
+        unpressedNoteOpacity: CGFloat = 1,
+        compactVerticalLayout: Bool = false
     ) {
         self.chordDisplayName = chordDisplayName
         self.voicingNames = voicingNames
@@ -30,6 +33,7 @@ struct SurvivalProgressionStaffView: View {
         self.staffClef = staffClef
         self.noteCollisionLayout = noteCollisionLayout
         self.unpressedNoteOpacity = unpressedNoteOpacity
+        self.compactVerticalLayout = compactVerticalLayout
     }
 
     private static let staffGroupId = UUID(uuidString: "A0B99C62-1111-4222-A333-D44444444101")!
@@ -57,7 +61,8 @@ struct SurvivalProgressionStaffView: View {
             hideChordLabels: false,
             noteCollisionLayout: noteCollisionLayout,
             unpressedNoteOpacity: unpressedNoteOpacity,
-            compactChordLabelGap: true
+            compactChordLabelGap: true,
+            compactVerticalLayout: compactVerticalLayout
         )
     }
 }

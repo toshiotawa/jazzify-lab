@@ -124,7 +124,8 @@ final class SurvivalGameLoop {
         let player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
             hintMode: mode.hintMode,
-            isBossStage: isBoss
+            isBossStage: isBoss,
+            isPhrasesBossStage: isBoss && stage.mapCategory == .phrases
         )
 
         self.runtime = SurvivalStageRuntime(
@@ -217,7 +218,8 @@ final class SurvivalGameLoop {
         let player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
             hintMode: mode.hintMode,
-            isBossStage: isBoss
+            isBossStage: isBoss,
+            isPhrasesBossStage: isBoss && stage.mapCategory == .phrases
         )
         runtime = SurvivalStageRuntime(
             stage: stage,
