@@ -1,13 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
-import type { ChordOsmdMusicXmlAttack } from '@/utils/earTrainingChordOsmd';
-import {
-  earTrainingOsmdNoteColorForMidiInstance,
-  type EarTrainingOsmdHighlightSnapshot,
-} from '@/utils/earTrainingOsmdHighlight';
-import { chordOsmdAttackLookupKey, matchOsmdClustersToXmlAttacks } from '@/utils/earTrainingOsmdGraphicMatch';
 
 interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
@@ -15,8 +9,6 @@ interface EarTrainingChordOSMDScoreProps {
   activeMeasureNumber: number;
   renderKeyValue: number;
   isEnglishCopy: boolean;
-  highlightSnapshot: EarTrainingOsmdHighlightSnapshot | null;
-  chordOsmdXmlAttacks: readonly ChordOsmdMusicXmlAttack[] | null;
   /** ロビーやリザルト表示中など、譜面を裏に隠したい場合に true。マウントは維持する。 */
   hidden?: boolean;
   /** ロビー時は Phaser より下（`z-0`）、プレイ中は `z-10` など。 */
@@ -26,13 +18,11 @@ interface EarTrainingChordOSMDScoreProps {
 interface OsmdLayout {
   /** MusicXML の小節番号 → 画面上の近似中心（px、譜表スクロール用） */
   measureCentersByNumber: Record<number, number>;
-  measureBoundsByNumber: Record<number, { left: number; right: number }>;
   scoreWidth: number;
 }
 
 const EMPTY_LAYOUT: OsmdLayout = {
   measureCentersByNumber: {},
-  measureBoundsByNumber: {},
   scoreWidth: 0,
 };
 
@@ -83,7 +73,6 @@ const collectMeasureCenters = (
   const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
 
   const measureCentersByNumber: Record<number, number> = {};
-  const measureBoundsByNumber: Record<number, { left: number; right: number }> = {};
   let maxX = 0;
 
   const measureList = readMeasureList(osmd);
@@ -95,6 +84,8 @@ const collectMeasureCenters = (
       continue;
     }
 
+    // OSMD の MeasureNumber プロパティが MusicXML の `<measure number=>` と一致しないため、
+    // 表示用のキーは MusicXML の出現順 (1-indexed) を強制する。`activeMeasureNumber` も 1-indexed なのでこれで整合する。
     const measureNumber = measureIndex + 1;
 
     let noteMinX = Number.POSITIVE_INFINITY;
@@ -132,21 +123,19 @@ const collectMeasureCenters = (
 
     if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
       measureCentersByNumber[measureNumber] = (noteMinX + noteMaxX) / 2;
-      measureBoundsByNumber[measureNumber] = { left: noteMinX, right: noteMaxX };
     } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
       measureCentersByNumber[measureNumber] = (measureMinX + measureMaxX) / 2;
-      measureBoundsByNumber[measureNumber] = { left: measureMinX, right: measureMaxX };
     }
   }
 
   const scoreWidth = Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2);
   return {
     measureCentersByNumber,
-    measureBoundsByNumber,
     scoreWidth,
   };
 };
 
+/** MeasureList が使えない OSMD／描画状態向けフォールバック（全 StaffLine の同一小節番号でノート X を統合）。 */
 const collectMeasureCentersFromStaffLines = (
   osmd: OpenSheetMusicDisplay,
   surface: Element | null,
@@ -166,6 +155,7 @@ const collectMeasureCentersFromStaffLines = (
       for (const staffLine of system.StaffLines ?? []) {
         for (const measure of staffLine.Measures ?? []) {
           measureOrdinal += 1;
+          // MeasureNumber プロパティは信用せず、StaffLines を横断した出現順 (1-indexed) を採用する。
           const mn = measureOrdinal;
 
           let b = byNumberBounds[mn];
@@ -210,25 +200,22 @@ const collectMeasureCentersFromStaffLines = (
   }
 
   const measureCentersByNumber: Record<number, number> = {};
-  const measureBoundsByNumber: Record<number, { left: number; right: number }> = {};
   for (const [mnStr, b] of Object.entries(byNumberBounds)) {
     const mn = Number(mnStr);
     if (Number.isFinite(b.nMin) && Number.isFinite(b.nMax)) {
       measureCentersByNumber[mn] = (b.nMin + b.nMax) / 2;
-      measureBoundsByNumber[mn] = { left: b.nMin, right: b.nMax };
     } else if (Number.isFinite(b.mMin) && Number.isFinite(b.mMax)) {
       measureCentersByNumber[mn] = (b.mMin + b.mMax) / 2;
-      measureBoundsByNumber[mn] = { left: b.mMin, right: b.mMax };
     }
   }
 
   return {
     measureCentersByNumber,
-    measureBoundsByNumber,
     scoreWidth: Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2),
   };
 };
 
+/** OSMD のランタイム設定（型定義に無い `zoom` を安全に触る）。 */
 type OpenSheetMusicDisplayZoomable = OpenSheetMusicDisplay & {
   zoom: number;
 };
@@ -255,63 +242,27 @@ const measureLayoutFromOsmd = (
   return collectMeasureCentersFromStaffLines(osmd, surface, viewportWidth);
 };
 
-const OSMD_NOTE_COLORING: {
-  applyToNoteheads: boolean;
-  applyToStem: boolean;
-  applyToBeams: boolean;
-  applyToFlag: boolean;
-  applyToLedgerLines: boolean;
-  applyToTies: boolean;
-  applyToSlurs: boolean;
-} = {
-  applyToNoteheads: true,
-  applyToStem: true,
-  applyToBeams: true,
-  applyToFlag: true,
-  applyToLedgerLines: true,
-  applyToTies: true,
-  applyToSlurs: true,
-};
-
-type GraphicalNoteColorable = {
-  setColor?: (color: string, opts: typeof OSMD_NOTE_COLORING) => void;
-};
-
 const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   musicXmlText,
   scoreErrorText,
   activeMeasureNumber,
   renderKeyValue,
   isEnglishCopy,
-  highlightSnapshot,
-  chordOsmdXmlAttacks,
   hidden = false,
   scoreZClassName = 'z-10',
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const scoreRef = useRef<HTMLDivElement | null>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
-  const attackIndexRef = useRef<Map<string, Map<number, GraphicalNoteColorable[]>>>(new Map());
-  const coloredNotesRef = useRef<Set<GraphicalNoteColorable>>(new Set());
-  const chordOsmdXmlAttacksRef = useRef(chordOsmdXmlAttacks);
-  chordOsmdXmlAttacksRef.current = chordOsmdXmlAttacks;
-
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  /** OSMD 描画後に SVG をビューポート高に合わせるための CSS スケール（1 のとき縮小無し）。 */
   const [cssScale, setCssScale] = useState(1);
+  /** ユーザーが +/− で変更する追加スケール（セッション内のみ保持）。 */
   const [userZoom, setUserZoom] = useState(1.9);
+  /** コンテナが低いモバイル横画面。2段譜時のみ OSMD zoom を iOS iPhone と同じ比率（2/3）にする。 */
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
-
-  const activeBand = useMemo(() => {
-    const mn = Math.max(1, Math.floor(activeMeasureNumber));
-    const b = layout.measureBoundsByNumber[mn];
-    if (!b) {
-      return null;
-    }
-    return { left: b.left, width: Math.max(4, b.right - b.left) };
-  }, [activeMeasureNumber, layout.measureBoundsByNumber]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -330,13 +281,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
 
   const renderScore = useCallback(async () => {
     const score = scoreRef.current;
-    const wrap = wrapperRef.current;
     if (!score || !musicXmlText) {
       setLayout(EMPTY_LAYOUT);
-      if (wrap) {
-        wrap.style.width = '';
-      }
-      attackIndexRef.current = new Map();
       return;
     }
 
@@ -345,7 +291,6 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     score.replaceChildren();
     osmdRef.current?.clear();
     osmdRef.current = null;
-    attackIndexRef.current = new Map();
 
     const options: IOSMDOptions = {
       backend: 'svg',
@@ -376,9 +321,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       const osmdZoom =
         maxStaff >= 2 && (mobileLandscapeOsmdShrink || shortScoreViewport) ? 2 / 3 : 1;
       (osmd as OpenSheetMusicDisplayZoomable).zoom = osmdZoom;
-      if (wrap) {
-        wrap.style.transform = 'translate3d(0, -50%, 0) scale(1)';
-      }
+      score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
       osmd.render();
       await waitNextPaint();
 
@@ -399,35 +342,16 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
         measuredBeforeScale > targetHeight && measuredBeforeScale > 0
           ? Math.max(0.28, targetHeight / measuredBeforeScale)
           : 1;
-      if (wrap) {
-        wrap.style.transform = `translate3d(0, -50%, 0) scale(${nextCssScale})`;
-      }
+      score.style.transform = `translate3d(0, -50%, 0) scale(${nextCssScale})`;
       setCssScale(nextCssScale);
       await waitNextPaint();
 
       const viewportWidth = viewportRef.current?.clientWidth ?? 0;
       const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
       setLayout(nextLayout);
-      if (wrap && nextLayout.scoreWidth > 0) {
-        wrap.style.width = `${nextLayout.scoreWidth}px`;
-      }
-
-      const attacks = chordOsmdXmlAttacksRef.current;
-      if (attacks && attacks.length > 0) {
-        attackIndexRef.current = matchOsmdClustersToXmlAttacks(osmd, attacks) as Map<
-          string,
-          Map<number, GraphicalNoteColorable[]>
-        >;
-      } else {
-        attackIndexRef.current = new Map();
-      }
     } catch {
       setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
       setLayout(EMPTY_LAYOUT);
-      attackIndexRef.current = new Map();
-      if (wrap) {
-        wrap.style.width = '';
-      }
     } finally {
       setIsRendering(false);
     }
@@ -443,8 +367,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    const wrap = wrapperRef.current;
-    if (!viewport || !wrap) {
+    const score = scoreRef.current;
+    if (!viewport || !score) {
       return;
     }
     const measureNumber = Math.max(1, Math.floor(activeMeasureNumber));
@@ -456,52 +380,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       0,
       Math.min(maxOffset, center * effectiveScale - viewport.clientWidth / 2),
     );
-    wrap.style.transform = `translate3d(${-offset}px, -50%, 0) scale(${effectiveScale})`;
+    score.style.transform = `translate3d(${-offset}px, -50%, 0) scale(${effectiveScale})`;
   }, [activeMeasureNumber, cssScale, layout, userZoom]);
-
-  useEffect(() => {
-    if (isRendering) {
-      return;
-    }
-    for (const gn of coloredNotesRef.current) {
-      gn.setColor?.('#ffffff', OSMD_NOTE_COLORING);
-    }
-    coloredNotesRef.current.clear();
-
-    if (!highlightSnapshot || !osmdRef.current) {
-      return;
-    }
-
-    const index = attackIndexRef.current;
-    for (const row of highlightSnapshot.targets) {
-      if (row.phase === 'idle' || row.beatOffset === null) {
-        continue;
-      }
-      const key = chordOsmdAttackLookupKey(row.measureNumber, row.beatOffset);
-      const byMidi = index.get(key);
-      if (!byMidi) {
-        continue;
-      }
-      const totalByMidi = new Map<number, number>();
-      for (const { midi, count } of row.midiCounts) {
-        totalByMidi.set(midi, count);
-      }
-      for (const [midi, gnotes] of byMidi) {
-        const total = totalByMidi.get(midi) ?? 0;
-        const rem = row.remainingByMidi[String(midi)] ?? 0;
-        gnotes.forEach((gn, instanceIndex) => {
-          const color = earTrainingOsmdNoteColorForMidiInstance(
-            row.phase,
-            instanceIndex,
-            total,
-            rem,
-          );
-          gn.setColor?.(color, OSMD_NOTE_COLORING);
-          coloredNotesRef.current.add(gn);
-        });
-      }
-    }
-  }, [highlightSnapshot, isRendering, renderKeyValue]);
 
   const statusText = renderError ?? scoreErrorText;
 
@@ -517,27 +397,14 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
         )}
       >
         <div
-          ref={wrapperRef}
+          ref={scoreRef}
           className={cn(
             'absolute left-0 top-1/2 min-w-full origin-left transition-transform duration-150 ease-out',
+            '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
           )}
-        >
-          {!hidden && musicXmlText && activeBand !== null && (
-            <div
-              className="pointer-events-none absolute bottom-0 top-0 z-[1] rounded-sm bg-[rgba(243,152,0,0.12)]"
-              style={{ left: activeBand.left, width: activeBand.width }}
-              aria-hidden
-            />
-          )}
-          <div
-            ref={scoreRef}
-            className={cn(
-              'relative z-[2] min-w-full [&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
-            )}
-          />
-        </div>
+        />
         {(isRendering || statusText) && (
-          <div className="absolute inset-0 z-[5] grid place-items-center text-center text-xs font-semibold text-white/75">
+          <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
             {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
           </div>
         )}

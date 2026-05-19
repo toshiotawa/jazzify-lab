@@ -32,10 +32,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var timeRemaining: Int = 0
     @Published private(set) var countInValue: Int
     @Published private(set) var activeMeasureNumber: Int = 1
-    /// WKWebView の `setHighlightSnapshot` 用。Web の `EarTrainingOsmdHighlightSnapshot` と同型 JSON。
-    @Published private(set) var osmdHighlightSnapshotJSON: String = "{\"activeMeasureNumber\":1,\"targets\":[]}"
-    /// `collectChordOsmdMusicXmlAttacks` の JSON（UTF-8）。WKWebView の音符インデックス構築用。
-    @Published private(set) var osmdXmlAttacksJSON: String = "[]"
     @Published private(set) var musicXMLText: String?
     /// MusicXML 上の段数の目安（`<staves>` と note 直下 `<staff>` の最大）。OSMD 初期 zoom に使用。
     @Published private(set) var musicXMLMaxStaffLayers: Int = 1
@@ -409,16 +405,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             musicXMLText = cached.xml
             musicXMLMaxStaffLayers = cached.maxStaffLayers
             scoreErrorText = nil
-            osmdXmlAttacksJSON = Self.encodeChordOsmdXmlAttacksJSON(
-                EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(cached.xml)
-            )
             return
         }
         guard let rawURL = phrase.musicXmlUrl, let url = URL(string: rawURL) else {
             musicXMLText = nil
             musicXMLMaxStaffLayers = 1
             scoreErrorText = isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
-            osmdXmlAttacksJSON = "[]"
             return
         }
         do {
@@ -429,14 +421,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 musicXMLText = nil
                 musicXMLMaxStaffLayers = 1
                 scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
-                osmdXmlAttacksJSON = "[]"
                 return
             }
             guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 musicXMLText = nil
                 musicXMLMaxStaffLayers = 1
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
-                osmdXmlAttacksJSON = "[]"
                 return
             }
             let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
@@ -445,62 +435,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             musicXMLText = prepared.xml
             musicXMLMaxStaffLayers = prepared.maxStaffLayers
             scoreErrorText = nil
-            osmdXmlAttacksJSON = Self.encodeChordOsmdXmlAttacksJSON(EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(prepared.xml))
         } catch {
             musicXMLText = nil
             musicXMLMaxStaffLayers = 1
             scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
-            osmdXmlAttacksJSON = "[]"
-        }
-    }
-
-    private func refreshOsmdHighlightSnapshot(phraseTime: Double) {
-        let w = Self.judgmentWindowSec
-        let rowPayloads: [[String: Any]] = targets.map { target in
-            let phase: String
-            if target.completed {
-                phase = "completed"
-            } else if target.failed {
-                phase = "failed"
-            } else if abs(phraseTime - target.targetTimeSec) <= w {
-                phase = "judgment"
-            } else {
-                phase = "idle"
-            }
-            var rem: [String: Int] = [:]
-            rem.reserveCapacity(target.remainingMidiCounts.count)
-            for (midi, count) in target.remainingMidiCounts {
-                rem[String(midi)] = count
-            }
-            let midiCounts: [[String: Any]] = target.midiCounts.keys.sorted().compactMap { midi -> [String: Any]? in
-                guard let c = target.midiCounts[midi] else { return nil }
-                return ["midi": midi, "count": c]
-            }
-            var row: [String: Any] = [
-                "id": target.id.uuidString,
-                "measureNumber": target.measureNumber,
-                "midiCounts": midiCounts,
-                "remainingByMidi": rem,
-                "phase": phase,
-            ]
-            if let beat = target.beatOffset {
-                row["beatOffset"] = beat
-            } else {
-                row["beatOffset"] = NSNull()
-            }
-            return row
-        }
-        let payload: [String: Any] = [
-            "activeMeasureNumber": activeMeasureNumber,
-            "targets": rowPayloads,
-        ]
-        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []),
-              let json = String(data: data, encoding: .utf8)
-        else {
-            return
-        }
-        if json != osmdHighlightSnapshotJSON {
-            osmdHighlightSnapshotJSON = json
         }
     }
 
@@ -522,7 +460,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         throwDueHammers(at: phraseTime)
         failExpiredTargets(at: phraseTime)
         refreshPracticeVoicingHints()
-        refreshOsmdHighlightSnapshot(phraseTime: phraseTime)
 
         guard gameState == .playingPhrase else { return }
         let phrase = phrases[phraseIndex]
@@ -1092,7 +1029,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                         label: chord.chordName,
                         targetTimeSec: time,
                         measureNumber: measure,
-                        beatOffset: chord.beatOffset,
                         midiCounts: midiCounts
                     )
                 )
@@ -1116,29 +1052,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         return Double(max(0, chord.orderIndex)) * beatDuration
     }
 
-    private static func encodeChordOsmdXmlAttacksJSON(_ attacks: [ChordOsmdMusicXmlAttack]) -> String {
-        let objects: [[String: Any]] = attacks.map { attack in
-            [
-                "measureNumber": attack.measureNumber,
-                "beatStartInMeasure": attack.beatStartInMeasure,
-                "midis": attack.midis,
-            ]
-        }
-        guard let data = try? JSONSerialization.data(withJSONObject: objects, options: []),
-              let text = String(data: data, encoding: .utf8)
-        else {
-            return "[]"
-        }
-        return text
-    }
-
     private struct RhythmTarget {
         let id: UUID
         var label: String
         let targetTimeSec: Double
         let measureNumber: Int
-        /// DB `<beat_offset>`（1 起点）。無いときは OSMD/XML 対応付け不能。
-        let beatOffset: Double?
         var midiCounts: [Int: Int]
         var remainingMidiCounts: [Int: Int]
         var completed: Bool = false
@@ -1146,12 +1064,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var hammerEffectId: Int?
         var reflected: Bool = false
 
-        init(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, beatOffset: Double?, midiCounts: [Int: Int]) {
+        init(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, midiCounts: [Int: Int]) {
             self.id = id
             self.label = label
             self.targetTimeSec = targetTimeSec
             self.measureNumber = measureNumber
-            self.beatOffset = beatOffset
             self.midiCounts = midiCounts
             self.remainingMidiCounts = midiCounts
         }

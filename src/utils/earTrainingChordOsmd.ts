@@ -48,8 +48,6 @@ export interface ChordOsmdRhythmTarget {
   orderIndex: number;
   targetTimeSec: number;
   measureNumber: number;
-  /** MusicXML の `<measure>` 番号に基づく小節内拍（1 起点）。XML attack 突き合わせ用 */
-  beatOffset: number | null;
   midiCounts: readonly ChordOsmdMidiCount[];
 }
 
@@ -742,7 +740,7 @@ export const buildChordOsmdRhythmTargets = (
       return a.chord.order_index - b.chord.order_index;
     });
 
-  const targets: Array<ChordOsmdRhythmTarget & { mutableCounts: Map<number, number> }> = [];
+  const targets: Array<ChordOsmdRhythmTarget & { beatOffset: number | null; mutableCounts: Map<number, number> }> = [];
   for (const item of sorted) {
     const counts = new Map<number, number>();
     addMidiCounts(counts, item.chord.voicing);
@@ -786,7 +784,7 @@ export const buildChordOsmdRhythmTargets = (
     });
   }
 
-  return targets.map(({ mutableCounts, ...rest }) => rest);
+  return targets.map(({ beatOffset: _beatOffset, mutableCounts: _mutableCounts, ...target }) => target);
 };
 
 export const createChordOsmdRemainingCounts = (
