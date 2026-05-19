@@ -12,6 +12,7 @@ export const applyTutorialBattleSnapshot = (
   hideBackButton: ui.hideBackButton,
   hideLobbyControls: ui.hideLobby,
   hideMidiStatus: ui.hideMidiToggle,
+  timeLabelHidden: ui.hideLobby,
   phraseIntroLine: ui.hidePhraseIntroQuota ? '' : snapshot.phraseIntroLine,
   showLobbyControls: ui.hideLobby ? false : snapshot.showLobbyControls,
   attackGaugeHidden: isEarTrainingTutorialNoCombat(ui) || ui.hideLobby

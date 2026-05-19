@@ -38,7 +38,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     var tutorialQuestionTarget: Int = 0
     private var tutorialQuestionsAnswered: Int = 0
-    private var tutorialAutoAnswerTask: Task<Void, Never>?
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
@@ -186,39 +185,20 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     func start() {
         audio.start()
         publishSnapshot()
+        guard tutorialHooks?.ui.hideLobby == true else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, self.gameState == .idle else { return }
+            self.startBattle()
+        }
     }
 
-    private func cancelTutorialAutoAnswerTask() {
-        tutorialAutoAnswerTask?.cancel()
-        tutorialAutoAnswerTask = nil
-    }
-
-    private func scheduleTutorialQuizAutoAnswerIfNeeded() {
+    private func showTutorialQuestionDialogueIfNeeded() {
         guard let quiz = tutorialHooks?.quiz else { return }
-        cancelTutorialAutoAnswerTask()
         tutorialHooks?.onCharacterText(quiz.onQuestionText)
-        let timeoutSec = max(0.1, quiz.answerTimeoutSeconds)
-        tutorialAutoAnswerTask = Task { @MainActor [weak self] in
-            let delayNs = UInt64(timeoutSec * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: delayNs)
-            guard let self, !Task.isCancelled else { return }
-            guard self.gameState == .playingPhrase, !self.quizEnded else { return }
-            self.performTutorialQuizAutoAnswer(autoAnswerText: quiz.onAutoAnswerText)
-        }
-    }
-
-    private func performTutorialQuizAutoAnswer(autoAnswerText: String) {
-        cancelTutorialAutoAnswerTask()
-        guard let chord = activeChord, let voicing = chord.voicing else { return }
-        for noteName in voicing {
-            guard let midi = EarTrainingChordVoicingEngine.noteNameToMidi(noteName) else { continue }
-            handleNoteOn(midi: midi, velocity: 90, playAudio: true)
-        }
-        tutorialHooks?.onCharacterText(autoAnswerText)
     }
 
     func tearDown() {
-        cancelTutorialAutoAnswerTask()
         cancelQuizTicker()
         cancelCountdownTask()
         clearStaffShiftQueue()
@@ -237,7 +217,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     func registerMidiKeyUp(_ midi: Int) { midiHeldKeys.remove(midi) }
 
     func handleBack() {
-        cancelTutorialAutoAnswerTask()
         cancelQuizTicker()
         cancelCountdownTask()
         clearStaffShiftQueue()
@@ -330,6 +309,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             publishSnapshot()
             return
         }
+        if tutorialHooks != nil {
+            tutorialQuestionsAnswered = 0
+        }
         lessonProgressStatus = nil
         progressSaveStarted = false
         quizEnded = false
@@ -416,7 +398,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             self.audio.startDrumLoop()
         }
 
-        if practiceMode {
+        if practiceMode || tutorialHooks != nil {
             timeRemaining = quizDurationSec
         } else {
             quizStartDate = Date()
@@ -432,7 +414,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
         publishSnapshot()
         updatePlayerQuoteBubble()
-        scheduleTutorialQuizAutoAnswerIfNeeded()
+        showTutorialQuestionDialogueIfNeeded()
     }
 
     private func bootstrapPhraseAndAttempt() {
@@ -576,7 +558,11 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
         if let hooks = tutorialHooks {
             tutorialQuestionsAnswered += 1
+            if let quiz = hooks.quiz {
+                hooks.onCharacterText(quiz.onCorrectText)
+            }
             if tutorialQuestionsAnswered >= max(1, tutorialQuestionTarget) {
+                audio.stopDrumLoop()
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 600_000_000)
                     hooks.onSceneComplete()
@@ -713,7 +699,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func advanceAfterCorrect() {
-        cancelTutorialAutoAnswerTask()
         phraseRunId &+= 1
         activeQuizIndex = previewQuizIndex
         previewQuizIndex = EarTrainingChordQuiz.pickNextQuizIndex(
@@ -724,7 +709,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         )
         bootstrapPhraseAndAttempt()
         enqueueStaffDisplayShift(active: activeQuizIndex, preview: previewQuizIndex)
-        scheduleTutorialQuizAutoAnswerIfNeeded()
+        showTutorialQuestionDialogueIfNeeded()
     }
 
     private func tickQuizClock() {
@@ -963,7 +948,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             currentActiveQuestion,
             completedChordIds: attempt?.completedChordIds ?? []
         )
-        return EarTrainingHudModel(
+        let base = EarTrainingHudModel(
             playerHp: practiceMode ? stage.playerHp : playerHp,
             playerMaxHp: stage.playerHp,
             enemyHp: practiceMode ? Self.quizEnemyHpFixed : enemyHp,
@@ -971,9 +956,12 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             practiceMode: practiceMode,
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
-            hideTimeLabel: false,
+            hideTimeLabel: tutorialHooks != nil,
+            hidePlayerHpBar: false,
+            hideSettingsButton: false,
+            hideBackButton: false,
             enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,
-            hideEnemyAttackGauge: practiceMode,
+            hideEnemyAttackGauge: practiceMode || tutorialNoCombat,
             hideChordChips: false,
             hideSlotsRow: false,
             hudLabels: hudLabels,
@@ -982,6 +970,10 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             chordChips: chips,
             slotRow: .chordVoicing(slotCount: 1, completed: [questionCompleted], currentIndex: 0)
         )
+        if let ui = tutorialHooks?.ui {
+            return ui.apply(to: base)
+        }
+        return base
     }
 
     /// コード名ラベルを譜側で「ターゲット」として強調できるよう、ヒント状態を返す。
@@ -1000,7 +992,10 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     var showLobbyControls: Bool {
-        canChangePracticeMode
+        if tutorialHooks?.ui.hideLobby == true {
+            return false
+        }
+        return canChangePracticeMode
     }
 
     var startButtonLabel: String {

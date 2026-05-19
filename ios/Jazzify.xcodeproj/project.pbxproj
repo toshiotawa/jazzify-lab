@@ -34,6 +34,8 @@
 		E1E2F3A4B5C60718293A514 /* EarTrainingTutorialStageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A513 /* EarTrainingTutorialStageBuilder.swift */; };
 		E1E2F3A4B5C60718293A516 /* EarTrainingTutorialScriptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A515 /* EarTrainingTutorialScriptService.swift */; };
 		E1E2F3A4B5C60718293A518 /* EarTrainingTutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A517 /* EarTrainingTutorialView.swift */; };
+		E1E2F3A4B5C60718293A51C /* EarTrainingTutorialDialogueBattleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A51B /* EarTrainingTutorialDialogueBattleView.swift */; };
+		E1E2F3A4B5C60718293A51E /* EarTrainingTutorialHudSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A51D /* EarTrainingTutorialHudSupport.swift */; };
 		E1E2F3A4B5C60718293A51A /* ear-training-developer-full-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A519 /* ear-training-developer-full-v1.script.json */; };
 		0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18861FA349C6ECEAA2F6CC96 /* WebViewCoordinator.swift */; };
 		03724194B6C8D5BB89CC901D /* PaymentIssueBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */; };
@@ -203,6 +205,8 @@
 		E1E2F3A4B5C60718293A513 /* EarTrainingTutorialStageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialStageBuilder.swift; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A515 /* EarTrainingTutorialScriptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialScriptService.swift; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A517 /* EarTrainingTutorialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialView.swift; sourceTree = "<group>"; };
+		E1E2F3A4B5C60718293A51B /* EarTrainingTutorialDialogueBattleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialDialogueBattleView.swift; sourceTree = "<group>"; };
+		E1E2F3A4B5C60718293A51D /* EarTrainingTutorialHudSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialHudSupport.swift; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A519 /* ear-training-developer-full-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ear-training-developer-full-v1.script.json"; sourceTree = "<group>"; };
 		C0A1B2C3D4E5F61718293A01 /* OnboardingCharacterDialogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCharacterDialogView.swift; sourceTree = "<group>"; };
 		C0A1B2C3D4E5F61718293A03 /* OnboardingNarrationCaptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingNarrationCaptionView.swift; sourceTree = "<group>"; };
@@ -670,6 +674,8 @@
 				E1E2F3A4B5C60718293A513 /* EarTrainingTutorialStageBuilder.swift */,
 				E1E2F3A4B5C60718293A515 /* EarTrainingTutorialScriptService.swift */,
 				E1E2F3A4B5C60718293A517 /* EarTrainingTutorialView.swift */,
+				E1E2F3A4B5C60718293A51B /* EarTrainingTutorialDialogueBattleView.swift */,
+				E1E2F3A4B5C60718293A51D /* EarTrainingTutorialHudSupport.swift */,
 				E1E2F3A4B5C60718293A519 /* ear-training-developer-full-v1.script.json */,
 			);
 			path = Tutorial;
@@ -980,6 +986,8 @@
 				E1E2F3A4B5C60718293A514 /* EarTrainingTutorialStageBuilder.swift in Sources */,
 				E1E2F3A4B5C60718293A516 /* EarTrainingTutorialScriptService.swift in Sources */,
 				E1E2F3A4B5C60718293A518 /* EarTrainingTutorialView.swift in Sources */,
+				E1E2F3A4B5C60718293A51C /* EarTrainingTutorialDialogueBattleView.swift in Sources */,
+				E1E2F3A4B5C60718293A51E /* EarTrainingTutorialHudSupport.swift in Sources */,
 				C0A1B2C3D4E5F61718293A02 /* OnboardingCharacterDialogView.swift in Sources */,
 				C0A1B2C3D4E5F61718293A04 /* OnboardingNarrationCaptionView.swift in Sources */,
 				C0A1B2C3D4E5F61718293A08 /* OnboardingDeviceConnectedBannerView.swift in Sources */,

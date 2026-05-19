@@ -177,6 +177,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
         publishSnapshot()
         scheduleLobbyMusicXMLPreload()
+        guard tutorialHooks?.ui.hideLobby == true else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, self.gameState == .idle else { return }
+            self.startBattle()
+        }
     }
 
     /// ロビー（`gameState == .idle`）でも OSMD にフレーズ1の譜面を出す。`startBattle` 前は `loadMusicXML` が走らないため、未設定だと楽譜枠に説明テキストのみ表示されていた。
@@ -1008,7 +1014,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     var hudModel: EarTrainingHudModel {
         let currentIndex = firstUnresolvedTargetIndex()
         let chips = currentChordChips()
-        return EarTrainingHudModel(
+        let base = EarTrainingHudModel(
             playerHp: practiceMode ? stage.playerHp : playerHp,
             playerMaxHp: stage.playerHp,
             enemyHp: practiceMode ? stage.enemyHp : enemyHp,
@@ -1017,6 +1023,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             timeRemaining: timeRemaining,
             timeLabel: "\(min(phraseIndex + 1, max(1, phrases.count)))/\(max(1, phrases.count))",
             hideTimeLabel: true,
+            hidePlayerHpBar: false,
+            hideSettingsButton: false,
+            hideBackButton: false,
             enemyAttackGaugePercent: 0,
             hideEnemyAttackGauge: true,
             hideChordChips: true,
@@ -1031,6 +1040,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 currentIndex: currentIndex
             )
         )
+        if let ui = tutorialHooks?.ui {
+            return ui.apply(to: base)
+        }
+        return base
     }
 
     private func firstUnresolvedTargetIndex() -> Int {
@@ -1188,7 +1201,10 @@ extension EarTrainingChordOSMDBattleController: EarTrainingLobbyPresentable {
     }
 
     var showLobbyControls: Bool {
-        canChangePracticeMode
+        if tutorialHooks?.ui.hideLobby == true {
+            return false
+        }
+        return canChangePracticeMode
     }
 
     var startButtonLabel: String {

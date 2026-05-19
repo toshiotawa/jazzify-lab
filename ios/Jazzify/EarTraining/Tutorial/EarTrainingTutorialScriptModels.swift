@@ -237,13 +237,13 @@ struct EarTrainingTutorialScriptRow: Decodable, Sendable {
 /// コードクイズチュートリアル用（Web `answerTimeoutSeconds` + 自動回答）。
 struct EarTrainingTutorialQuizSceneHooks {
     let useProgressionOrder: Bool
-    let answerTimeoutSeconds: Double
     let onQuestionText: String
-    let onAutoAnswerText: String
+    let onCorrectText: String
 }
 
 /// チュートリアル各シーンからゲームコントローラへ渡すコールバック。
 struct EarTrainingTutorialSceneHooks {
+    let ui: EarTrainingTutorialUiOverrides
     let noCombat: Bool
     let onCharacterText: (String) -> Void
     let onSceneComplete: () -> Void

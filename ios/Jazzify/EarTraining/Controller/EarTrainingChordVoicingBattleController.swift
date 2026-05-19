@@ -169,7 +169,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var showLobbyControls: Bool {
-        gameState == .idle || gameState == .stageClear || gameState == .gameOver
+        if tutorialHooks?.ui.hideLobby == true {
+            return false
+        }
+        return gameState == .idle || gameState == .stageClear || gameState == .gameOver
     }
 
     var startButtonLabel: String {
@@ -244,7 +247,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             let active = showTargets && activeChordMatches
             return EarTrainingChordChip(id: row.representativeId, name: row.chordName, active: active)
         }
-        return EarTrainingHudModel(
+        let base = EarTrainingHudModel(
             playerHp: playerHp,
             playerMaxHp: stage.playerHp,
             enemyHp: enemyHp,
@@ -253,8 +256,11 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
             hideTimeLabel: false,
+            hidePlayerHpBar: false,
+            hideSettingsButton: false,
+            hideBackButton: false,
             enemyAttackGaugePercent: enemyAttackGaugePercent,
-            hideEnemyAttackGauge: false,
+            hideEnemyAttackGauge: tutorialNoCombat,
             hideChordChips: false,
             hideSlotsRow: false,
             hudLabels: hudLabels,
@@ -263,6 +269,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             chordChips: chips,
             slotRow: .chordVoicing(slotCount: max(1, rows.count), completed: completed, currentIndex: slotIndex)
         )
+        if let ui = tutorialHooks?.ui {
+            return ui.apply(to: base)
+        }
+        return base
     }
 
     init(
@@ -325,6 +335,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             }
         }
         publishSnapshot()
+        guard tutorialHooks?.ui.hideLobby == true else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, self.gameState == .idle else { return }
+            self.startBattle()
+        }
     }
 
     func tearDown() {

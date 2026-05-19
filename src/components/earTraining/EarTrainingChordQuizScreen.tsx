@@ -70,7 +70,6 @@ import {
 } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
 import type { EarTrainingTutorialQuizConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
 import { localizedText } from '@/components/earTraining/tutorial/earTrainingTutorialScriptTypes';
-import { autoAnswerChordForQuiz } from '@/components/earTraining/tutorial/earTrainingTutorialQuizAutoAnswer';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -199,7 +198,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const tutorialUi = tutorial?.bindings.ui;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const tutorialQuestionsAnsweredRef = useRef(0);
-  const tutorialQuestionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -289,46 +287,14 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const attackGaugeEpochMsRef = useRef<number | null>(null);
   const enemyAttackGaugePercentRef = useRef(0);
 
-  const clearTutorialQuestionTimer = useCallback(() => {
-    if (tutorialQuestionTimerRef.current !== null) {
-      clearTimeout(tutorialQuestionTimerRef.current);
-      tutorialQuestionTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleTutorialQuestionDialogue = useCallback(() => {
+  const showTutorialQuestionDialogue = useCallback(() => {
     if (!tutorial) {
       return;
     }
-    clearTutorialQuestionTimer();
     tutorial.bindings.setCharacterText(
       localizedText(tutorial.scene.dialogue.onQuestion, isEnglishCopy),
     );
-    const timeoutMs = Math.max(1, tutorial.scene.answerTimeoutSeconds) * 1000;
-    tutorialQuestionTimerRef.current = setTimeout(() => {
-      tutorialQuestionTimerRef.current = null;
-      const currentAttempt = attemptRef.current;
-      const question = quizQuestions[activeQuestionIndex];
-      if (!currentAttempt || !question || gameStateRef.current !== 'playingPhrase') {
-        return;
-      }
-      const judgmentChord = getActiveChordInQuizQuestion(question, currentAttempt.completedChordIds);
-      if (!judgmentChord) {
-        return;
-      }
-      autoAnswerChordForQuiz(judgmentChord, note => handleNoteInputRef.current(note));
-      tutorial.bindings.setCharacterText(
-        localizedText(tutorial.scene.dialogue.onAutoAnswer, isEnglishCopy),
-      );
-    }, timeoutMs);
-  }, [
-    activeQuestionIndex,
-    clearTutorialQuestionTimer,
-    isEnglishCopy,
-    quizQuestions,
-    tutorial,
-    tutorialUi?.playerInvincible,
-  ]);
+  }, [isEnglishCopy, tutorial]);
 
   const setEnemyAttackGaugePercent = useCallback((value: number) => {
     const next = clampGaugeRatio(value);
@@ -674,7 +640,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       setEnemyAttackGaugePercent(0);
 
       if (tutorial) {
-        scheduleTutorialQuestionDialogue();
+        showTutorialQuestionDialogue();
       } else if (!practiceMode) {
         quizStartedAtRef.current = Date.now();
         setTimeRemaining(quizDurationSec);
@@ -806,18 +772,18 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     }
 
     if (tutorial) {
-      clearTutorialQuestionTimer();
       tutorial.bindings.setCharacterText(
         localizedText(tutorial.scene.dialogue.onCorrect, isEnglishCopy),
       );
       tutorialQuestionsAnsweredRef.current += 1;
       if (tutorialQuestionsAnsweredRef.current >= tutorial.scene.questionCount) {
+        stopSelfPacedDrumLoop();
         setTimeout(() => tutorial.onSceneComplete(), 600);
         return;
       }
       setTimeout(() => {
         advanceToNextQuestion();
-        scheduleTutorialQuestionDialogue();
+        showTutorialQuestionDialogue();
       }, 600);
       return;
     }
@@ -883,10 +849,14 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     advanceToNextQuestion,
     applyQuizHpOutcome,
     computeChordLabelOriginPoint,
+    isEnglishCopy,
     registerPlayerHpImpactDamage,
     requiredCorrect,
+    showTutorialQuestionDialogue,
+    stopSelfPacedDrumLoop,
     triggerBattleEffect,
     triggerCompletionPulse,
+    tutorial,
   ]);
 
   useEffect(() => {

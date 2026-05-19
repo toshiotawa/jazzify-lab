@@ -22,7 +22,9 @@ struct EarTrainingHUDView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 3) {
-                healthTimeRow
+                if !hud.hidePlayerHpBar {
+                    healthTimeRow
+                }
                 if !hud.hideEnemyAttackGauge {
                     attackGauge
                 }
@@ -37,9 +39,11 @@ struct EarTrainingHUDView: View {
             .padding(.top, 4)
             .padding(.bottom, 2)
 
-            rightControls
-                .padding(.top, 16)
-                .padding(.trailing, 14)
+            if !hud.hideSettingsButton || !hud.hideBackButton {
+                rightControls
+                    .padding(.top, 16)
+                    .padding(.trailing, 14)
+            }
         }
         .background(
             LinearGradient(
@@ -83,11 +87,15 @@ struct EarTrainingHUDView: View {
 
     private var rightControls: some View {
         HStack(spacing: 4) {
-            iconButton(systemName: "gearshape.fill", label: hud.hudLabels.settings) {
-                onSettings()
+            if !hud.hideSettingsButton {
+                iconButton(systemName: "gearshape.fill", label: hud.hudLabels.settings) {
+                    onSettings()
+                }
             }
-            iconButton(systemName: "xmark", label: hud.hudLabels.backShort) {
-                onBack()
+            if !hud.hideBackButton {
+                iconButton(systemName: "xmark", label: hud.hudLabels.backShort) {
+                    onBack()
+                }
             }
         }
     }

@@ -12,7 +12,6 @@ struct EarTrainingTutorialView: View {
     @State private var sceneIndex: Int = 0
     @State private var characterText: String = ""
     @State private var showFinishCta = false
-    @StateObject private var bgm = OnboardingBgmController()
 
     private enum Gate {
         case loading
@@ -62,6 +61,7 @@ struct EarTrainingTutorialView: View {
         ZStack {
             if let current {
                 sceneView(script: script, scene: current)
+                    .id(sceneIndex)
             }
 
             OnboardingCharacterDialogView(text: characterText)
@@ -95,8 +95,6 @@ struct EarTrainingTutorialView: View {
                 }
             }
         }
-        .onAppear { bgm.start() }
-        .onDisappear { bgm.stop() }
     }
 
     @ViewBuilder
@@ -106,11 +104,11 @@ struct EarTrainingTutorialView: View {
     ) -> some View {
         switch scene {
         case .dialogueOnly(let dialogue):
-            EarTrainingTutorialDialogueSceneView(
-                lines: dialogue.lines,
-                intervalSeconds: dialogue.lineIntervalSeconds ?? 4,
+            EarTrainingTutorialDialogueBattleView(
                 drumLoopUrl: script.audioTracks?.drum_loop?.url,
                 locale: locale,
+                lines: dialogue.lines,
+                intervalSeconds: dialogue.lineIntervalSeconds ?? 4,
                 onLine: { characterText = $0 },
                 onComplete: { advanceScene(script: script) }
             )
@@ -130,9 +128,8 @@ struct EarTrainingTutorialView: View {
                         onLoopSuccess: nil,
                         quiz: EarTrainingTutorialQuizSceneHooks(
                             useProgressionOrder: quizScene.order == "progression",
-                            answerTimeoutSeconds: quizScene.answerTimeoutSeconds,
                             onQuestionText: quizScene.dialogue.onQuestion.localized(locale),
-                            onAutoAnswerText: quizScene.dialogue.onAutoAnswer.localized(locale)
+                            onCorrectText: quizScene.dialogue.onCorrect.localized(locale)
                         )
                     ),
                     tutorialQuestionTarget: quizScene.questionCount,
@@ -198,6 +195,7 @@ struct EarTrainingTutorialView: View {
         osmdDemoAutoplay: Bool = false
     ) -> EarTrainingTutorialSceneHooks {
         EarTrainingTutorialSceneHooks(
+            ui: script.ui,
             noCombat: script.ui.noCombat,
             onCharacterText: { characterText = $0 },
             onSceneComplete: { advanceScene(script: script) },
@@ -210,6 +208,7 @@ struct EarTrainingTutorialView: View {
 
     private func advanceScene(script: EarTrainingTutorialScriptPayload) {
         showFinishCta = false
+        characterText = ""
         let next = sceneIndex + 1
         if next >= script.scenes.count {
             Task {
@@ -219,37 +218,5 @@ struct EarTrainingTutorialView: View {
             return
         }
         sceneIndex = next
-        characterText = ""
-    }
-}
-
-/// セリフのみシーン（ドラムループ BGM + 一定間隔でセリフ送り）。
-private struct EarTrainingTutorialDialogueSceneView: View {
-    let lines: [EarTrainingTutorialLocalizedText]
-    let intervalSeconds: Double
-    let drumLoopUrl: String?
-    let locale: AppLocale
-    let onLine: (String) -> Void
-    let onComplete: () -> Void
-
-    @State private var lineIndex = 0
-
-    var body: some View {
-        Color.black
-            .ignoresSafeArea()
-            .task {
-                onLine(lines.first?.localized(locale) ?? "")
-                guard lines.count > 1 else {
-                    try? await Task.sleep(nanoseconds: UInt64(max(1, intervalSeconds) * 1_000_000_000))
-                    onComplete()
-                    return
-                }
-                for index in 1..<lines.count {
-                    try? await Task.sleep(nanoseconds: UInt64(max(1, intervalSeconds) * 1_000_000_000))
-                    onLine(lines[index].localized(locale))
-                }
-                try? await Task.sleep(nanoseconds: UInt64(max(1, intervalSeconds) * 1_000_000_000))
-                onComplete()
-            }
     }
 }
