@@ -554,7 +554,13 @@ enum SurvivalStageCatalog {
     ]
 
     private static func buildAllowed(roots: [String], suffix: String) -> [String] {
-        roots.map { "\($0)\(suffix)" }
+        if let special = SurvivalQuestionTypes.buildAllowed(roots: roots, suffix: suffix) {
+            return special
+        }
+        if suffix == "_note" {
+            return roots.map { "\($0)_note" }
+        }
+        return roots.map { "\($0)\(suffix)" }
     }
 
     private static func buildMixedAllowed(for group: MixedGroupConfig) -> [String] {

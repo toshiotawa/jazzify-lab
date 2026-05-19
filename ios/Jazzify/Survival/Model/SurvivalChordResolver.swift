@@ -316,6 +316,16 @@ enum SurvivalChordResolver {
     /// コード ID から MIDI ノート番号・ピッチクラス・表示名を解決する。
     /// 解決不能な場合は nil。
     static func resolve(id: String, octave: Int = 4) -> SurvivalResolvedChord? {
+        if let question = SurvivalQuestionTypes.resolve(id: id, octave: octave) {
+            return SurvivalResolvedChord(
+                id: id,
+                root: question.root,
+                quality: .single,
+                midiNotes: [question.midi],
+                pitchClasses: [question.pitchClass],
+                displayName: question.typeDisplayNameEn
+            )
+        }
         guard let parsed = parseChord(id: id) else { return nil }
         let rootSemitone = rootSemitones[parsed.root] ?? 0
         let rootMidi = (octave + 1) * 12 + rootSemitone // C4 = 60

@@ -122,6 +122,9 @@ enum SurvivalRandomHintStaff {
     /// WEB `buildSurvivalRandomHintStaffVoicing` 相当。
     static func voicing(forChordId chordId: String) -> (names: [String], keyFifths: Int)? {
         let trimmed = chordId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let questionNames = SurvivalQuestionTypes.staffVoicingNames(forChordId: trimmed) {
+            return (questionNames, 0)
+        }
         let numerator: String = trimmed.split(separator: "/").first.map(String.init) ?? trimmed
         guard let parsed = SurvivalChordResolver.parseChord(id: numerator) else { return nil }
 
@@ -565,10 +568,17 @@ private enum TonalMini {
     }
 
     static func transpose(noteName: String, intervalName: String) -> String? {
-        guard let nc = noteNameToCoord(noteName),
-              let ic = intervalCoordByName[intervalName],
-              nc.count == 2, ic.count == 2 else { return nil }
-        let tr = [nc[0] + ic[0], nc[1] + ic[1]]
+        let intervalCoord: [Int]
+        if intervalName.hasPrefix("-") {
+            let positive = String(intervalName.dropFirst())
+            guard let ic = intervalCoordByName[positive] else { return nil }
+            intervalCoord = [-ic[0], -ic[1]]
+        } else {
+            guard let ic = intervalCoordByName[intervalName] else { return nil }
+            intervalCoord = ic
+        }
+        guard let nc = noteNameToCoord(noteName), nc.count == 2, intervalCoord.count == 2 else { return nil }
+        let tr = [nc[0] + intervalCoord[0], nc[1] + intervalCoord[1]]
         return coordToNoteName(tr)
     }
 }

@@ -13,6 +13,7 @@ import {
   SURVIVAL_MAP_CATEGORIES,
 } from './SurvivalTypes';
 import { getSupabaseClient } from '@/platform/supabaseClient';
+import { buildAllowedChordsForSuffix } from '@/utils/survivalQuestionTypes';
 
 export type RootPattern = 'cde' | 'fgab' | 'sharp' | 'flat' | 'all';
 
@@ -101,14 +102,10 @@ const MIXED_GROUP_SUFFIXES: Record<MixedGroupKey, string[]> = {
   extreme: ['7(b9.6th)', '7(#9.b6th)', 'm7(b5)(11)', 'dim(M7)'],
 };
 
-function buildAllowedChords(roots: string[], suffix: string): string[] {
-  return roots.map(r => `${r}${suffix}`);
-}
-
 function buildMixedAllowedChords(suffixes: string[]): string[] {
   const combined: string[] = [];
   for (const suffix of suffixes) {
-    combined.push(...buildAllowedChords(ROOT_ALL, suffix));
+    combined.push(...buildAllowedChordsForSuffix(ROOT_ALL, suffix));
   }
   return combined;
 }
@@ -252,7 +249,7 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     if (isMixedStage && mixedGroupKey && MIXED_GROUP_SUFFIXES[mixedGroupKey]) {
       allowedChords = buildMixedAllowedChords(MIXED_GROUP_SUFFIXES[mixedGroupKey]);
     } else if (rootPattern && ROOTS_BY_PATTERN[rootPattern]) {
-      allowedChords = buildAllowedChords(ROOTS_BY_PATTERN[rootPattern], chordSuffix);
+      allowedChords = buildAllowedChordsForSuffix(ROOTS_BY_PATTERN[rootPattern], chordSuffix);
     }
   }
 

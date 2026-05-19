@@ -830,9 +830,9 @@ interface StaffSystemVerticalLayout {
   chordLabels: readonly ChordLabelFrame[];
 }
 
-export const estimateChordNameWidthPx = (chordName: string, fontSize: number): number => {
+const estimateSingleChordNameLineWidthPx = (line: string, fontSize: number): number => {
   let w = 0;
-  for (const ch of chordName) {
+  for (const ch of line) {
     if (/[mwMW#b°Δ]/.test(ch)) {
       w += fontSize * 0.68;
     } else if (/[il1I|]/.test(ch)) {
@@ -843,7 +843,16 @@ export const estimateChordNameWidthPx = (chordName: string, fontSize: number): n
       w += fontSize * 0.56;
     }
   }
-  return Math.min(STAFF_WIDTH * 0.44, w + fontSize * 0.8);
+  return w + fontSize * 0.8;
+};
+
+export const estimateChordNameWidthPx = (chordName: string, fontSize: number): number => {
+  const lines = chordName.split('\n');
+  let maxW = 0;
+  for (const line of lines) {
+    maxW = Math.max(maxW, estimateSingleChordNameLineWidthPx(line, fontSize));
+  }
+  return Math.min(STAFF_WIDTH * 0.44, maxW);
 };
 
 interface ChordLabelLayoutRow {
@@ -1641,7 +1650,19 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
                 fontWeight="800"
                 textAnchor="middle"
               >
-                {label.chordName}
+                {label.chordName.split('\n').map((line, lineIndex, lines) => {
+                  const lineHeight = label.fontSize * 1.12;
+                  const startDy = -((lines.length - 1) * lineHeight) / 2;
+                  return (
+                    <tspan
+                      key={`${label.groupId}-line-${lineIndex}`}
+                      x={label.x}
+                      dy={lineIndex === 0 ? startDy : lineHeight}
+                    >
+                      {line}
+                    </tspan>
+                  );
+                })}
               </text>
             );
           })}

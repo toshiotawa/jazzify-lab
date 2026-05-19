@@ -8,6 +8,7 @@ import { note as parseNote, transpose } from 'tonal';
 import type { ChordQuality } from '@/utils/chord-templates';
 import { CHORD_TEMPLATES } from '@/utils/chord-templates';
 import { parseChordName } from '@/utils/chord-utils';
+import { buildSurvivalQuestionStaffVoicingNames } from '@/utils/survivalQuestionTypes';
 import { SURVIVAL_PROGRESSION_VOICING_MAP, buildStaffVoicingNamesForProgressionChord } from '@/utils/survivalProgressionVoicings';
 
 const PROGRESSION_PARSE_NORMALIZATIONS: ReadonlyArray<{ readonly from: string; readonly to: string }> = [
@@ -111,6 +112,11 @@ export interface SurvivalRandomHintStaffVoicing {
  */
 export const buildSurvivalRandomHintStaffVoicing = (chordId: string): SurvivalRandomHintStaffVoicing | null => {
   const trimmed = chordId.trim();
+  const questionStaff = buildSurvivalQuestionStaffVoicingNames(trimmed);
+  if (questionStaff && questionStaff.length > 0) {
+    return { voicingNames: questionStaff, keyFifths: 0 };
+  }
+
   const numerator = trimmed.includes('/') ? (trimmed.split('/')[0]?.trim() ?? trimmed) : trimmed;
   const parsed = parseChordName(numerator);
   if (!parsed) {

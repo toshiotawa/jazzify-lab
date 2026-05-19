@@ -113,6 +113,7 @@ import {
   fetchSurvivalPhraseByStage,
   type SurvivalPhraseDefinition,
 } from '@/utils/survivalPhraseDefinitions';
+import { parseSurvivalQuestionId } from '@/utils/survivalQuestionTypes';
 import {
   SurvivalPhraseDrumLoop,
   SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL,
@@ -3943,11 +3944,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const built = buildSurvivalRandomHintStaffVoicing(ch.id);
     if (!built) return null;
 
+    const survivalQuestion = parseSurvivalQuestionId(ch.id);
+    const typeLabel = survivalQuestion
+      ? (isEnglishCopy
+          ? (stageDefinition?.chordDisplayNameEn || ch.displayName)
+          : (stageDefinition?.chordDisplayName || ch.displayName))
+      : ch.displayName;
+
     return {
       voicingNames: built.voicingNames,
       keyFifths: built.keyFifths,
       correctPitchClasses: slot.correctNotes,
-      chordDisplayName: ch.displayName,
+      chordDisplayName: typeLabel,
+      rootDisplayName: survivalQuestion ? ch.root : undefined,
       staffClef: 'treble',
     };
   }, [
@@ -3955,11 +3964,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     hintMode,
     playerHasHintBuff,
     isProgressionStage,
+    isEnglishCopy,
+    stageDefinition?.chordDisplayName,
+    stageDefinition?.chordDisplayNameEn,
     progressionPunchSlot.isEnabled,
     progressionStaffCorrectNotesSig,
     progressionPunchSlot.chord?.id,
     progressionPunchSlot.chord?.displayName,
     progressionPunchSlot.chord?.quality,
+    progressionPunchSlot.chord?.root,
   ]);
 
   const punchStaffSnapshot = progressionStaffSnapshot ?? randomPunchStaffSnapshot;
@@ -4396,6 +4409,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               >
                 <SurvivalProgressionStaff
                   chordDisplayName={punchStaffSnapshot.chordDisplayName}
+                  rootDisplayName={punchStaffSnapshot.rootDisplayName}
                   voicingNames={punchStaffSnapshot.voicingNames}
                   keyFifths={punchStaffSnapshot.keyFifths}
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}

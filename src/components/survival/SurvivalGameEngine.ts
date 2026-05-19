@@ -34,6 +34,7 @@ import {
 } from './SurvivalTypes';
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
+import { resolveSurvivalQuestion } from '@/utils/survivalQuestionTypes';
 import { note as parseNote } from 'tonal';
 import {
   STAGE_TIME_LIMIT_SECONDS,
@@ -458,14 +459,25 @@ export const getWaveSpeedMultiplier = (waveNumber: number): number => {
 
 // ===== コード生成 =====
 export const getChordDefinition = (chordId: string): ChordDefinition | null => {
+  const survivalQuestion = resolveSurvivalQuestion(chordId, 4);
+  if (survivalQuestion) {
+    return {
+      id: chordId,
+      displayName: survivalQuestion.typeDisplayNameEn,
+      notes: [survivalQuestion.midi],
+      noteNames: [survivalQuestion.noteName],
+      quality: 'single',
+      root: survivalQuestion.root,
+    };
+  }
+
   const resolved = resolveChord(chordId, 4);
   if (!resolved) return null;
-  
+
   return {
     id: chordId,
     displayName: resolved.displayName,
     notes: resolved.notes.map((n, i) => {
-      // tonalでMIDIノート番号を取得
       const parsed = parseNote(n + '4');
       return parsed?.midi ?? (60 + i);
     }),

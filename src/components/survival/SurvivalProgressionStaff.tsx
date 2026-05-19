@@ -21,11 +21,14 @@ export interface SurvivalProgressionStaffSnapshot {
   readonly keyFifths: number;
   readonly correctPitchClasses: readonly number[];
   readonly chordDisplayName: string;
+  /** 度数・テンション出題時のルート音名（例: C, Db） */
+  readonly rootDisplayName?: string;
   readonly staffClef?: SurvivalStaffClef;
 }
 
 export interface SurvivalProgressionStaffProps {
   readonly chordDisplayName: string;
+  readonly rootDisplayName?: string;
   readonly voicingNames: readonly string[];
   readonly keyFifths: number;
   readonly correctPitchClasses: readonly number[];
@@ -41,6 +44,7 @@ export interface SurvivalProgressionStaffProps {
 export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps>(
   ({
     chordDisplayName,
+    rootDisplayName,
     voicingNames,
     keyFifths,
     correctPitchClasses,
@@ -52,18 +56,25 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
     const staffNumber = staffClef === 'treble' ? (1 as const) : (2 as const);
     const voicingStaves = useMemo(() => voicingNames.map(() => staffNumber), [voicingNames, staffNumber]);
 
+    const staffChordLabel = useMemo(() => {
+      if (rootDisplayName && rootDisplayName.length > 0) {
+        return `${rootDisplayName}\n${chordDisplayName}`;
+      }
+      return chordDisplayName;
+    }, [chordDisplayName, rootDisplayName]);
+
     const voicingGroups = useMemo(
       (): readonly ChordVoicingStaffGroup[] => [
         {
           id: 'single',
-          chordName: chordDisplayName,
+          chordName: staffChordLabel,
           voicing: voicingNames,
           voicingStaves,
           correctPitchClasses,
           measureOffset: 0,
         },
       ],
-      [voicingStaves, chordDisplayName, correctPitchClasses, voicingNames],
+      [voicingStaves, staffChordLabel, correctPitchClasses, voicingNames],
     );
 
     return (
