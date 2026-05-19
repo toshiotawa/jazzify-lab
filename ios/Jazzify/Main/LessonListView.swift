@@ -1909,10 +1909,6 @@ struct LessonDetailView: View {
                     Text(title)
                         .font(.subheadline.bold())
                         .foregroundStyle(.white)
-
-                    Text(requirementSubtitle(requirement))
-                        .font(.caption)
-                        .foregroundStyle(.gray)
                 }
 
                 Spacer()
@@ -2474,50 +2470,6 @@ struct LessonDetailView: View {
             return "\(index + 1). \(earTrainingStage.localizedTitle(locale))"
         }
         return "\(index + 1). \(locale == .ja ? "課題" : "Task")"
-    }
-
-    private func requirementSubtitle(_ requirement: LessonSong) -> String {
-        if requirement.isEarTraining == true {
-            if let stage = requirement.earTrainingStage {
-                var parts = [locale == .ja ? "バトルモード課題" : "Battle mode task"]
-                parts.append(stage.localizedTitle(locale))
-                if let bpm = stage.bpm {
-                    parts.append("BPM \(bpm)")
-                }
-                if let seconds = stage.timeLimitSec {
-                    parts.append(locale == .ja ? "制限 \(seconds)秒" : "\(seconds)s limit")
-                }
-                return parts.joined(separator: " / ")
-            }
-            return locale == .ja ? "バトルモード課題" : "Battle mode task"
-        }
-
-        if requirement.isSurvivalTutorial == true {
-            return locale == .ja ? "サバイバルチュートリアル" : "Survival tutorial"
-        }
-
-        if requirement.isSurvival == true {
-            if let stageNumber = requirement.survivalStageNumber {
-                return locale == .ja ? "サバイバル課題 / Stage \(stageNumber)" : "Survival task / Stage \(stageNumber)"
-            }
-            return locale == .ja ? "サバイバル課題" : "Survival task"
-        }
-
-        if requirement.isFantasy {
-            if let fantasyStage = requirement.fantasyStage {
-                let stageLabel = fantasyStage.stageNumber ?? "-"
-                return locale == .ja
-                    ? "ファンタジー課題 / \(stageLabel)"
-                    : "Fantasy task / \(stageLabel)"
-            }
-            return locale == .ja ? "ファンタジー課題" : "Fantasy task"
-        }
-
-        if let artist = requirement.songs?.artist, !artist.isEmpty {
-            return artist
-        }
-
-        return locale == .ja ? "通常課題" : "Standard task"
     }
 
     private func videoTitle(_ video: LessonVideoResource) -> String {

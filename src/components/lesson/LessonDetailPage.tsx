@@ -17,9 +17,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import {
   earTrainingStageDisplayDescription,
-  earTrainingStageDisplayTitle,
   fantasyStageDisplayDescription,
-  fantasyStageDisplayName,
   lessonDisplayDescription,
   lessonDisplayTitle,
   lessonSongDisplayTitle,
@@ -149,9 +147,6 @@ const LessonDetailPage: React.FC = () => {
     () => ({
       sectionTitle: isEnglishCopy ? 'Practice tasks' : '実習課題',
       taskFallback: (n: number) => (isEnglishCopy ? `Task ${n}` : `課題 ${n}`),
-      tagSurvival: isEnglishCopy ? '[Survival]' : '[サバイバル]',
-      tagFantasy: isEnglishCopy ? '[Fantasy]' : '[ファンタジー]',
-      tagEarTraining: isEnglishCopy ? '[Battle mode]' : '[バトルモード]',
       earTrainingDescriptionFallback: isEnglishCopy ? 'Battle mode task' : 'バトルモード課題',
       progressLabel: isEnglishCopy ? 'Progress' : '進捗',
       dayLabel: (n: number) => (isEnglishCopy ? `Day ${n}` : `${n}日目`),
@@ -726,18 +721,12 @@ const LessonDetailPage: React.FC = () => {
                             {taskTitle
                               ? `${index + 1}. ${taskTitle}`
                               : practiceCopy.taskFallback(index + 1)}
-                            {isSurvival && <span className="ml-2 text-xs text-red-400">{practiceCopy.tagSurvival}</span>}
-                            {isFantasy && !isSurvival && <span className="ml-2 text-xs text-purple-400">{practiceCopy.tagFantasy}</span>}
-                            {isEarTraining && <span className="ml-2 text-xs text-cyan-300">{practiceCopy.tagEarTraining}</span>}
                           </h4>
                         </div>
                         
                         {isSurvivalTutorial && (
                           <div className="mb-3 text-sm">
-                            <div className="font-medium text-red-300">
-                              {isEnglishCopy ? 'Survival tutorial' : 'サバイバルチュートリアル'}
-                            </div>
-                            <p className="text-gray-400 text-xs mt-1">
+                            <p className="text-gray-400 text-xs">
                               {isEnglishCopy
                                 ? 'Complete the guided experience to clear this task.'
                                 : 'ガイド体験を最後まで進めるとクリアになります。'}
@@ -755,9 +744,6 @@ const LessonDetailPage: React.FC = () => {
                             : null;
                           return (
                             <div className="mb-3 text-sm">
-                              <div className="font-medium text-red-300">
-                                サバイバル ステージモード
-                              </div>
                               {stageDef ? (
                                 <>
                                   <div className="text-gray-300 text-xs mt-1">
@@ -785,23 +771,13 @@ const LessonDetailPage: React.FC = () => {
                         {/* ファンタジーステージ情報 */}
                         {isFantasy && !isSurvival && req.fantasy_stage && (() => {
                           const fs = req.fantasy_stage;
-                          const fsName = fantasyStageDisplayName(fs, isEnglishCopy);
                           const fsDesc = fantasyStageDisplayDescription(fs, isEnglishCopy);
-                          const headParts = [fs.stage_number, fsName].filter(
-                            (p): p is string => typeof p === 'string' && p.trim() !== '',
-                          );
-                          const fsHeadline = headParts.join(' - ');
-                          if (!fsHeadline && !fsDesc) {
+                          if (!fsDesc) {
                             return null;
                           }
                           return (
                             <div className="mb-3 text-sm">
-                              {fsHeadline ? (
-                                <div className="font-medium text-purple-300">{fsHeadline}</div>
-                              ) : null}
-                              {fsDesc ? (
-                                <div className={`text-gray-400 text-xs ${fsHeadline ? 'mt-1' : ''}`}>{fsDesc}</div>
-                              ) : null}
+                              <div className="text-gray-400 text-xs">{fsDesc}</div>
                             </div>
                           );
                         })()}
@@ -809,16 +785,12 @@ const LessonDetailPage: React.FC = () => {
                         {/* 耳コピバトル情報 */}
                         {isEarTraining && req.ear_training_stage && (() => {
                           const et = req.ear_training_stage;
-                          const etTitle = earTrainingStageDisplayTitle(et, isEnglishCopy);
                           const etDesc =
                             earTrainingStageDisplayDescription(et, isEnglishCopy) ||
                             practiceCopy.earTrainingDescriptionFallback;
                           return (
                             <div className="mb-3 text-sm">
-                              {etTitle ? (
-                                <div className="font-medium text-cyan-200">{etTitle}</div>
-                              ) : null}
-                              <div className={`text-gray-400 text-xs ${etTitle ? 'mt-1' : ''}`}>{etDesc}</div>
+                              <div className="text-gray-400 text-xs">{etDesc}</div>
                             </div>
                           );
                         })()}
