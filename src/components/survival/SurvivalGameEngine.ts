@@ -1660,6 +1660,17 @@ export const createMagicNameText = (x: number, y: number, magicType: MagicType):
   duration: 1500,
 });
 
+export const createChordNameText = (x: number, y: number, chordName: string): DamageText => ({
+  id: `chord_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  x,
+  y: y - 44,
+  damage: 0,
+  text: chordName,
+  color: '#d9f2ff',
+  startTime: Date.now(),
+  duration: 800,
+});
+
 // ===== 抽選可能な魔法取得（効果継続中の魔法を除外） =====
 export const getAvailableMagics = (player: PlayerState): [string, number][] => {
   const activeEffectTypes = new Set(player.statusEffects.map(e => e.type));

@@ -14,6 +14,7 @@ export interface SurvivalScenarioHandle {
   spawnStationaryRing: (count: number, radius: number) => void;
   /** progression でも A が撃てるようにスロット制約を迂回（iOS `scenarioEmitAttackOnly` と同等） */
   emitAttackOnly: (slot: 'A' | 'B') => void;
+  emitChordNameText: (chordName: string) => void;
   /** 進行方向の垂直方向に複数静止敵を配置（G7 など） */
   spawnTutorialPerpendicularOffsets: (
     distanceForwardPx: number,

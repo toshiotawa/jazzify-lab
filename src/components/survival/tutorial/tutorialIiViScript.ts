@@ -144,7 +144,9 @@ async function playSceneOneChord(
       handle.playChordAudio([root]);
     }
   }
-  await sleep(0.85, signal);
+  await sleep(0.25, signal);
+  handle.emitChordNameText(chord.displayName);
+  await sleep(0.6, signal);
   attack();
   await sleep(0.6, signal);
   handle.clearEnemies();
@@ -322,6 +324,7 @@ export async function runTutorialIiViScript(params: RunTutorialIiViScriptParams)
       });
       const midis = chord.notes;
       handle.playChordAudio(midis);
+      handle.emitChordNameText(chord.displayName);
       assist();
     }
     handle.applyMutation((o) => {

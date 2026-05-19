@@ -22,10 +22,8 @@ function pillarEmoji(systemImage: string | null): string {
   return '〰️';
 }
 
-const DEFAULT_PORTRAIT_SRC = '/default_avater/muki/shita.png';
-
 /**
- * LP オンボーディング用: iOS でのプレイヤー付近よりの吹き出し位置 + キャラ縮約表示。
+ * LP オンボーディング用: iOS と同じくセリフ吹き出しのみをプレイヤー上付近に出す。
  */
 export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
   characterText,
@@ -44,23 +42,16 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
   <>
     {characterText ? (
       <div
-        className="pointer-events-none absolute inset-x-0 z-30 flex justify-center px-4"
+        className="pointer-events-none absolute inset-x-0 z-30 px-4"
         style={{
-          top: `max(calc(env(safe-area-inset-top) + 48px), min(42vh, calc(50vh - 120px)))`,
+          top: 'max(70px, min(max(86px, calc(50% - 92px)), calc(100% - 240px)))',
         }}
       >
-        <div className="flex max-w-[min(380px,calc(100vw-32px))] flex-col items-center gap-1">
-          <img
-            src={DEFAULT_PORTRAIT_SRC}
-            alt=""
-            width={72}
-            height={72}
-            className="h-[72px] w-[72px] select-none object-contain drop-shadow-md"
-          />
+        <div className="mx-auto flex w-[min(380px,calc(100vw-32px))] -translate-y-1/2 flex-col items-center">
           <div
             className={cn(
-              'rounded-xl border border-white/25 bg-black/80 px-4 py-3 text-center',
-              'text-sm font-bold text-white shadow-lg',
+              'w-full rounded-[14px] border border-white/25 bg-black/80 px-3.5 py-3 text-center',
+              'text-sm font-bold leading-snug text-white shadow-lg',
             )}
           >
             {characterText.split('\n').map((line, i) => (
@@ -69,11 +60,11 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
                 {line}
               </span>
             ))}
-            <div
-              className="mx-auto mt-1 h-0 w-0 border-x-[12px] border-t-[12px] border-x-transparent border-t-black/80"
-              aria-hidden
-            />
           </div>
+          <div
+            className="h-0 w-0 border-x-[12px] border-t-[12px] border-x-transparent border-t-black/80"
+            aria-hidden
+          />
         </div>
       </div>
     ) : null}
@@ -87,8 +78,8 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
     ) : null}
 
     {narrationText ? (
-      <div className="pointer-events-none absolute inset-x-0 bottom-28 z-30 flex justify-center px-4 md:bottom-32">
-        <p className="max-w-lg whitespace-pre-line rounded-lg bg-black/75 px-4 py-2 text-center text-sm text-white">
+      <div className="pointer-events-none absolute inset-x-0 bottom-[200px] z-30 flex justify-center px-5">
+        <p className="max-w-lg whitespace-pre-line rounded-xl bg-black/55 px-4 py-4 text-center text-sm text-slate-200">
           {narrationText}
         </p>
       </div>

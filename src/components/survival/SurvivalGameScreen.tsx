@@ -44,6 +44,7 @@ import {
   applyLevel10Bonuses,
   addExp,
   createDamageText,
+  createChordNameText,
   getMagicCooldown,
   castMagic,
   getDirectionVector,
@@ -1728,6 +1729,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         const slotType = ['A', 'B', 'C', 'D'][completedSlotIndex] as 'A' | 'B' | 'C' | 'D';
         const scenarioOnComplete = scenarioOverridesRef.current;
+        const completedChord = prev.codeSlots.current[completedSlotIndex].chord;
+        if (completedChord && scenarioOnComplete.isActive) {
+          newState.damageTexts.push(createChordNameText(prev.player.x, prev.player.y, completedChord.displayName));
+        }
         if (
           completedSlotIndex === 1
           && scenarioOnComplete.isActive
@@ -1746,7 +1751,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         
         // 正解時にルート音を鳴らす（ファンタジーモードと同様）
-        const completedChord = prev.codeSlots.current[completedSlotIndex].chord;
         if (completedChord) {
           const rootNote = completedChord.root || completedChord.noteNames?.[0];
           if (rootNote) {
@@ -2870,6 +2874,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       },
       emitAttackOnly: (slot) => {
         emitScenarioAttackOnlyRef.current(slot);
+      },
+      emitChordNameText: (chordName) => {
+        setGameState((prev) => ({
+          ...prev,
+          damageTexts: [
+            ...prev.damageTexts,
+            createChordNameText(prev.player.x, prev.player.y, chordName),
+          ],
+        }));
       },
       spawnTutorialPerpendicularOffsets: (forward, perpOffsetsPx) => {
         setGameState((prev) => {

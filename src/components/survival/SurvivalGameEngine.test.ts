@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot } from './SurvivalTypes';
-import { initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord, spawnScenarioTutorialEnemyAt, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
+import { createChordNameText, initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord, spawnScenarioTutorialEnemyAt, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
 import { getSurvivalStageBattleKind } from './SurvivalStageDefinitions';
 
 vi.mock('@/platform/supabaseClient', () => ({
@@ -235,5 +235,17 @@ describe('scenario tutorial spawn (slime HP=1)', () => {
     expect(e.isBoss).toBe(false);
     expect(typeof e.id).toBe('string');
     expect(e.id.startsWith('scenario_')).toBe(true);
+  });
+
+  it('createChordNameText emits iOS-style chord floating text', () => {
+    const text = createChordNameText(120, 180, 'Dm7');
+
+    expect(text.text).toBe('Dm7');
+    expect(text.damage).toBe(0);
+    expect(text.x).toBe(120);
+    expect(text.y).toBe(136);
+    expect(text.color).toBe('#d9f2ff');
+    expect(text.duration).toBe(800);
+    expect(text.id.startsWith('chord_')).toBe(true);
   });
 });
