@@ -119,6 +119,15 @@ enum SurvivalRandomHintStaff {
         .dimM7: ["1P", "3m", "5d", "7M"],
     ]
 
+    /// `SurvivalQuestionTypes` などから Tonal 互換 API を利用するための委譲。
+    static func transpose(noteName: String, intervalName: String) -> String? {
+        TonalMini.transpose(noteName: noteName, intervalName: intervalName)
+    }
+
+    static func midi(ofSpelledNote name: String) -> Int? {
+        TonalMini.midi(ofSpelledNote: name)
+    }
+
     /// WEB `buildSurvivalRandomHintStaffVoicing` 相当。
     static func voicing(forChordId chordId: String) -> (names: [String], keyFifths: Int)? {
         let trimmed = chordId.trimmingCharacters(in: .whitespacesAndNewlines)
