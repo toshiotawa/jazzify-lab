@@ -1746,7 +1746,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           && scenarioOnComplete.isActive
           && scenarioOnComplete.bChordCompletionAttackSlot
         ) {
-          emitAttackSlotRef.current(scenarioOnComplete.bChordCompletionAttackSlot);
+          emitScenarioAttackOnlyRef.current(scenarioOnComplete.bChordCompletionAttackSlot);
           continue;
         }
         
@@ -2679,38 +2679,51 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const condMult = getConditionalSkillMultipliers(prev.player);
       const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMult.atkMultiplier);
       const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-      return {
+      const newState = {
         ...prev,
-        enemies: prev.enemies.map((enemy) => {
-          const dx = enemy.x - attackX;
-          const dy = enemy.y - attackY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist >= totalRange) return enemy;
-          const luckResult = checkLuck(prev.player.stats.luck);
-          const damage = calculateDamage(
-            bossDamage,
-            0,
-            enemy.stats.def,
-            prev.player.statusEffects.some((e) => e.type === 'buffer'),
-            enemy.statusEffects.some((e) => e.type === 'debuffer'),
-            getBufferLevel(prev.player.statusEffects),
-            getDebufferLevel(enemy.statusEffects),
-            prev.player.stats.cAtk,
-            luckResult.doubleDamage,
-          );
-          const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
-          const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
-          return {
-            ...enemy,
-            x: enemy.x + knockbackX * 0.15,
-            y: enemy.y + knockbackY * 0.15,
-            stats: {
-              ...enemy.stats,
-              hp: Math.max(0, enemy.stats.hp - damage),
-            },
-          };
-        }),
+        damageTexts: [...prev.damageTexts],
+        enemies: [...prev.enemies],
       };
+      newState.enemies = newState.enemies.map((enemy) => {
+        const dx = enemy.x - attackX;
+        const dy = enemy.y - attackY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist >= totalRange) return enemy;
+        const luckResult = checkLuck(prev.player.stats.luck);
+        const damage = calculateDamage(
+          bossDamage,
+          0,
+          enemy.stats.def,
+          prev.player.statusEffects.some((e) => e.type === 'buffer'),
+          enemy.statusEffects.some((e) => e.type === 'debuffer'),
+          getBufferLevel(prev.player.statusEffects),
+          getDebufferLevel(enemy.statusEffects),
+          prev.player.stats.cAtk,
+          luckResult.doubleDamage,
+        );
+        const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+        const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+        newState.damageTexts = [
+          ...newState.damageTexts,
+          createDamageText(
+            enemy.x,
+            enemy.y,
+            damage,
+            luckResult.doubleDamage,
+            luckResult.doubleDamage ? '#ffd700' : undefined,
+          ),
+        ];
+        return {
+          ...enemy,
+          x: enemy.x + knockbackX * 0.15,
+          y: enemy.y + knockbackY * 0.15,
+          stats: {
+            ...enemy.stats,
+            hp: Math.max(0, enemy.stats.hp - damage),
+          },
+        };
+      });
+      return newState;
     });
   };
 
@@ -3161,6 +3174,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 if (Date.now() - slot.completedTime >= 50) {
                   // Progression（コード進行）モード: B列のみ進行を進める
                   if (isProgressionStage && slotIndex === 1) {
+                    if (scenarioOverridesRef.current.isActive) {
+                      return { ...slot, isCompleted: false, completedTime: undefined };
+                    }
                     const advanced = advanceProgressionPair();
                     newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
                       i === slotIndex ? { ...ns, chord: advanced.next } : ns
@@ -3179,6 +3195,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               }
               if (!slot.chord) {
                 if (isProgressionStage && slotIndex === 1) {
+                  if (scenarioOverridesRef.current.isActive) {
+                    return slot;
+                  }
                   const idx = progressionIndexRef.current;
                   const chord = selectProgressionChord(progressionChordsRef.current, idx);
                   if (chord) {
@@ -3811,6 +3830,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             if (Date.now() - slot.completedTime >= 50) {
               // Progression（コード進行）モード: B列のみ進行を進める
               if (isProgressionStage && slotIndex === 1) {
+                if (scenarioOverridesRef.current.isActive) {
+                  return { ...slot, isCompleted: false, completedTime: undefined };
+                }
                 const advanced = advanceProgressionPair();
                 newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
                   i === slotIndex ? { ...ns, chord: advanced.next } : ns
@@ -3834,6 +3856,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           // コードが空の場合、新しいコードを生成
           if (!slot.chord) {
             if (isProgressionStage && slotIndex === 1) {
+              if (scenarioOverridesRef.current.isActive) {
+                return slot;
+              }
               const idx = progressionIndexRef.current;
               const chord = selectProgressionChord(progressionChordsRef.current, idx);
               if (chord) {
@@ -4549,29 +4574,46 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     const pendingMidi: number[] = [];
     const completedMidi: number[] = [];
-    const baseOctave = 4;
+    const useExactChordMidis =
+      scenarioMode
+      && scenarioOverridesRef.current.isActive
+      && scenarioOverridesRef.current.useChordMidiNotesForHintHighlights;
 
-    const uniqueNoteMod12 = [...new Set(notes.map((n) => ((n % 12) + 12) % 12))];
-
-    let lastMidi = 0;
-    for (let i = 0; i < uniqueNoteMod12.length; i += 1) {
-      const noteMod12 = uniqueNoteMod12[i];
-      let midiNote = noteMod12 + baseOctave * 12;
-      while (midiNote <= lastMidi) {
-        midiNote += 12;
+    if (useExactChordMidis) {
+      for (let i = 0; i < notes.length; i += 1) {
+        const midiNote = notes[i];
+        const noteMod12 = ((midiNote % 12) + 12) % 12;
+        if (slot.correctNotes.includes(noteMod12)) {
+          completedMidi.push(midiNote);
+        } else {
+          pendingMidi.push(midiNote);
+        }
       }
-      lastMidi = midiNote;
-      if (slot.correctNotes.includes(noteMod12)) {
-        completedMidi.push(midiNote);
-      } else {
-        pendingMidi.push(midiNote);
+    } else {
+      const baseOctave = 4;
+
+      const uniqueNoteMod12 = [...new Set(notes.map((n) => ((n % 12) + 12) % 12))];
+
+      let lastMidi = 0;
+      for (let i = 0; i < uniqueNoteMod12.length; i += 1) {
+        const noteMod12 = uniqueNoteMod12[i];
+        let midiNote = noteMod12 + baseOctave * 12;
+        while (midiNote <= lastMidi) {
+          midiNote += 12;
+        }
+        lastMidi = midiNote;
+        if (slot.correctNotes.includes(noteMod12)) {
+          completedMidi.push(midiNote);
+        } else {
+          pendingMidi.push(midiNote);
+        }
       }
     }
 
     renderer.setVoicingHints(pendingMidi, completedMidi);
 
     return undefined;
-  }, [isPhraseMode, hintMode, phraseUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
+  }, [isPhraseMode, hintMode, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
@@ -4895,6 +4937,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             bossBattle={bossBattleRef.current}
             bossUiTick={bossUiTick}
             hideComboGauge={isPhraseMode || scenarioHideComboBadge}
+            hidePlayerHintStatusIcon={scenarioHideHintBadge}
           />
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (
             <div

@@ -135,7 +135,9 @@ async function playDemoOneChord(
       handle.playChordAudio([root]);
     }
   }
-  await sleep(0.85, signal);
+  await sleep(0.25, signal);
+  handle.emitChordNameText(chord.displayName);
+  await sleep(0.6, signal);
   runAttack(handle, attack);
   await sleep(0.6, signal);
   handle.clearEnemies();
@@ -192,6 +194,7 @@ async function runChordFightStep(
       o.hideStaff = true;
     });
     handle.playChordAudio(chord.notes);
+    handle.emitChordNameText(chord.displayName);
     runAttack(handle, step.assistAttack);
     if (step.failCharacter) {
       ui.setCharacterText(localized(step.failCharacter, isEnglishCopy));
@@ -257,6 +260,8 @@ async function runKeyboardSetup(
   await waitForFirstInputNote();
   handle.emitAttackOnly('A');
   await sleep(1.2, signal);
+  ui.setNarrationText('');
+  ui.setCharacterText('');
 }
 
 async function runStep(

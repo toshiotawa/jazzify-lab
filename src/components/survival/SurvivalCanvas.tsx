@@ -98,6 +98,8 @@ interface SurvivalCanvasProps {
   bossUiTick?: number;
   /** フレーズモードではプレイヤー上のコンボゲージを非表示 */
   hideComboGauge?: boolean;
+  /** シナリオ台本 `hideHintBadge` 相当: プレイヤー頭上の 💡 を非表示 */
+  hidePlayerHintStatusIcon?: boolean;
 }
 
 // ===== 色定義 =====
@@ -255,6 +257,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   bossBattle = null,
   bossUiTick = 0,
   hideComboGauge = false,
+  hidePlayerHintStatusIcon = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const woodPatternRef = useRef<CanvasPattern | null>(null);
@@ -769,8 +772,12 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.restore();
     }
     
-    // プレイヤーステータスアイコン
-    const playerEffects = player.statusEffects.filter(e => e.duration > 0);
+    // プレイヤーステータスアイコン（チュートリアル台本 hideHintBadge 時は 💡 を出さない）
+    const playerEffects = player.statusEffects.filter((e) => {
+      if (e.duration <= 0) return false;
+      if (hidePlayerHintStatusIcon && e.type === 'hint') return false;
+      return true;
+    });
     if (playerEffects.length > 0) {
       ctx.font = `14px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
@@ -1806,7 +1813,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (contentScale !== 1) {
       ctx.restore();
     }
-  }, [logicalWidth, logicalHeight, contentScale, getCameraOffset, woodFloorAssetRevision]);
+  }, [logicalWidth, logicalHeight, contentScale, getCameraOffset, woodFloorAssetRevision, hideComboGauge, hidePlayerHintStatusIcon]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

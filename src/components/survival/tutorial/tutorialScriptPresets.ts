@@ -25,6 +25,7 @@ export const TUTORIAL_OVERRIDE_PRESETS: Record<string, Partial<SurvivalScenarioO
   scene2: {
     ...TUTORIAL_BOOTSTRAP_OVERRIDES,
     hideHud: true,
+    hideHintBadge: true,
     hideStaff: true,
     hideChordSlots: true,
     hideComboBadge: true,
@@ -55,6 +56,7 @@ export const TUTORIAL_OVERRIDE_PRESETS: Record<string, Partial<SurvivalScenarioO
     blockMidiGameInput: false,
   },
   scene4Cleanup: {
+    hideHintBadge: true,
     hideChordSlots: true,
     hideStaff: true,
     scenarioStaffClef: 1,
@@ -68,6 +70,7 @@ export const TUTORIAL_OVERRIDE_PRESETS: Record<string, Partial<SurvivalScenarioO
   scene5: {
     ...TUTORIAL_BOOTSTRAP_OVERRIDES,
     hideHud: true,
+    hideHintBadge: true,
     hideStaff: true,
     hideChordSlots: true,
     hideComboBadge: true,

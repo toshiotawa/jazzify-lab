@@ -75,6 +75,7 @@ export const TUTORIAL_BOOTSTRAP_OVERRIDES: SurvivalScenarioOverrides = {
   isActive: true,
   hideStaff: true,
   hideHud: true,
+  hideHintBadge: true,
   hideChordSlots: true,
   hideChordPad: true,
   hideComboBadge: true,
