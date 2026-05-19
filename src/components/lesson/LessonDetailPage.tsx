@@ -32,7 +32,6 @@ import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
-import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import {
   lessonCompletionBlockedToastCopy,
   lessonCompletionButtonCopy,
@@ -53,7 +52,6 @@ import {
     FaFlagCheckered,
     FaChevronLeft,
     FaChevronRight,
-    FaDragon,
     FaDownload,
     FaExternalLinkAlt,
     FaHome,
@@ -163,33 +161,19 @@ const LessonDetailPage: React.FC = () => {
           ? `Today's progress: ${cur}/${req} clears`
           : `本日の進捗: ${cur}/${req}回`,
       remainingClears: (n: number) => (isEnglishCopy ? ` (${n} more)` : ` (あと${n}回)`),
-      keyLabel: isEnglishCopy ? 'Key:' : 'キー:',
-      speedLabel: isEnglishCopy ? 'Speed:' : '速度:',
-      rankLabel: isEnglishCopy ? 'Rank:' : 'ランク:',
-      rankOrHigher: isEnglishCopy ? 'or higher' : '以上',
-      clearConditionLabel: isEnglishCopy ? 'Clear condition:' : 'クリア条件:',
-      chordQuizClearedLabel: isEnglishCopy ? 'Cleared' : 'クリア済み',
-      chordQuizClearStatusLabel: isEnglishCopy ? 'Status:' : '達成:',
-      timesLabel: isEnglishCopy ? 'Times:' : '回数:',
-      daysUnit: isEnglishCopy ? 'days' : '日間',
-      clearsUnit: isEnglishCopy ? 'clears' : '回',
-      bestRankLabel: isEnglishCopy ? 'Best rank:' : '最高ランク:',
       startPractice: isEnglishCopy ? 'Start practice' : '練習開始',
       retry: isEnglishCopy ? 'Retry' : '再挑戦',
       noTasks: isEnglishCopy ? 'No practice tasks yet.' : '実習課題がありません',
-      displaySettingLabel: isEnglishCopy ? 'Display:' : '表示設定:',
-      notesAndChordsLabel: isEnglishCopy ? 'Notes & chords' : 'ノート＆コード',
-      chordsOnlyLabel: isEnglishCopy ? 'Chords only' : 'コードのみ',
       daysProgressFmt: (a: number, b: number, perDay?: number) =>
         perDay !== undefined
           ? isEnglishCopy
-            ? `${a}/${b} days (${perDay}×/day)`
-            : `${a}/${b}日 (${perDay}回/日)`
+            ? `${a} of ${b} days cleared (${perDay} per day)`
+            : `${a}日クリア / 必要${b}日（1日${perDay}回）`
           : isEnglishCopy
-            ? `${a}/${b} days`
-            : `${a}/${b}日`,
+            ? `${a} of ${b} days cleared`
+            : `${a}日クリア / 必要${b}日`,
       countProgressFmt: (a: number, b: number) =>
-        isEnglishCopy ? `${a}/${b} clears` : `${a}/${b}回`,
+        isEnglishCopy ? `${a} of ${b} clears` : `${a}回クリア / 必要${b}回`,
     }),
     [isEnglishCopy],
   );
@@ -725,9 +709,6 @@ const LessonDetailPage: React.FC = () => {
                     const isSurvivalTutorial = req.is_survival_tutorial || false;
                     const isSurvival = req.is_survival || isSurvivalTutorial || false;
                     const isEarTraining = req.is_ear_training || false;
-                    const earTrainingClearCondition = isEarTraining
-                      ? getEarTrainingLessonClearConditionText(req.ear_training_stage, isEnglishCopy)
-                      : null;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -740,7 +721,7 @@ const LessonDetailPage: React.FC = () => {
                           </div>
                         )}
                         
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="mb-3">
                           <h4 className="font-medium">
                             {taskTitle
                               ? `${index + 1}. ${taskTitle}`
@@ -749,15 +730,6 @@ const LessonDetailPage: React.FC = () => {
                             {isFantasy && !isSurvival && <span className="ml-2 text-xs text-purple-400">{practiceCopy.tagFantasy}</span>}
                             {isEarTraining && <span className="ml-2 text-xs text-cyan-300">{practiceCopy.tagEarTraining}</span>}
                           </h4>
-                          {isSurvival ? (
-                            <FaSkull className="w-4 h-4 text-red-400" />
-                          ) : isEarTraining ? (
-                            <FaMusic className="w-4 h-4 text-cyan-300" />
-                          ) : isFantasy ? (
-                            <FaDragon className="w-4 h-4 text-purple-400" />
-                          ) : (
-                            <FaMusic className="w-4 h-4 text-blue-400" />
-                          )}
                         </div>
                         
                         {isSurvivalTutorial && (
@@ -860,7 +832,7 @@ const LessonDetailPage: React.FC = () => {
                         <div className="mb-3">
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-gray-400">{practiceCopy.progressLabel}</span>
-                            <span className={isCompleted ? 'text-emerald-400' : 'text-gray-400'}>
+                            <span className={`font-semibold tabular-nums ${isCompleted ? 'text-emerald-400' : 'text-white'}`}>
                               {requiresDays && req.clear_conditions?.daily_count
                                 ? practiceCopy.daysProgressFmt(
                                     clearDates.length,
@@ -956,21 +928,21 @@ const LessonDetailPage: React.FC = () => {
                                         {todayDone ? (
                                           <div className="space-y-1">
                                             <span className="block text-emerald-400 font-medium">
-                                              ✅ {practiceCopy.todayCleared}
+                                              {practiceCopy.todayCleared}
                                             </span>
                                             <span className="block text-xs text-gray-400">
-                                              ⏳ {resetLabel}
+                                              {resetLabel}
                                             </span>
                                           </div>
                                         ) : (
                                           <div className="space-y-1">
                                             <span className="block text-yellow-300">
-                                              📅 {practiceCopy.todayProgress(todayCount, dailyRequired)}
+                                              {practiceCopy.todayProgress(todayCount, dailyRequired)}
                                               {todayCount > 0 &&
                                                 practiceCopy.remainingClears(dailyRequired - todayCount)}
                                             </span>
                                             <span className="block text-xs text-gray-400">
-                                              ⏳ {resetLabel}
+                                              {resetLabel}
                                             </span>
                                           </div>
                                         )}
@@ -997,80 +969,6 @@ const LessonDetailPage: React.FC = () => {
                           )}
                         </div>
                         
-                        <div className="space-y-2 text-sm">
-                          <div className="grid grid-cols-2 gap-2">
-                            {!isFantasy && !isSurvival && !isEarTraining && (
-                              <>
-                                <div>
-                                  <span className="text-gray-400">{practiceCopy.keyLabel}</span>
-                                  <span className="ml-2 font-mono">
-                                    {(req.clear_conditions?.key || 0) > 0 ? `+${req.clear_conditions?.key}` : req.clear_conditions?.key || 0}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-400">{practiceCopy.speedLabel}</span>
-                                  <span className="ml-2 font-mono">{req.clear_conditions?.speed || 1.0}x</span>
-                                </div>
-                              </>
-                            )}
-                            {isEarTraining && earTrainingClearCondition ? (
-                              <div className="col-span-2">
-                                <span className="text-gray-400">{practiceCopy.clearConditionLabel}</span>
-                                <span className="ml-2 font-semibold text-cyan-100">
-                                  {earTrainingClearCondition}
-                                </span>
-                              </div>
-                            ) : !isSurvival && (
-                              <div>
-                                <span className="text-gray-400">
-                                  {practiceCopy.rankLabel}
-                                </span>
-                                <span className="ml-2 font-semibold">
-                                  {`${req.clear_conditions?.rank || 'B'} ${practiceCopy.rankOrHigher}`}
-                                </span>
-                              </div>
-                            )}
-                            <div>
-                              <span className="text-gray-400">{practiceCopy.timesLabel}</span>
-                              <span className="ml-2">
-                                {requiresDays
-                                  ? `${requiredCount} ${practiceCopy.daysUnit}`
-                                  : `${requiredCount} ${practiceCopy.clearsUnit}`}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {!isFantasy &&
-                            !isSurvival &&
-                            !isEarTraining &&
-                            (req.clear_conditions?.notation_setting === 'notes_chords' ||
-                              req.clear_conditions?.notation_setting === 'chords_only') && (
-                              <div className="mt-3">
-                                <span className="text-gray-400">{practiceCopy.displaySettingLabel}</span>
-                                <span className="ml-2">
-                                  {req.clear_conditions?.notation_setting === 'notes_chords'
-                                    ? practiceCopy.notesAndChordsLabel
-                                    : practiceCopy.chordsOnlyLabel}
-                                </span>
-                              </div>
-                            )}
-                          
-                          {/* 最高ランク表示 */}
-                          {isEarTraining && isCompleted && (
-                            <div className="mt-2 pt-2 border-t border-slate-600">
-                              <span className="text-gray-400">{practiceCopy.chordQuizClearStatusLabel}</span>
-                              <span className="ml-2 font-semibold text-yellow-400">
-                                {practiceCopy.chordQuizClearedLabel}
-                              </span>
-                            </div>
-                          )}
-                          {!isEarTraining && progress?.best_rank && (
-                            <div className="mt-2 pt-2 border-t border-slate-600">
-                              <span className="text-gray-400">{practiceCopy.bestRankLabel}</span>
-                              <span className="ml-2 font-semibold text-yellow-400">{progress.best_rank}</span>
-                            </div>
-                          )}
-                        </div>
                         
                         <button 
                           className={`w-full mt-3 btn btn-sm ${

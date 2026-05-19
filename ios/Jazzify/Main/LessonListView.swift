@@ -1882,14 +1882,22 @@ struct LessonDetailView: View {
         let displayProgress: String
 
         if requirement.clearConditions?.requiresDays == true {
+            let clearedDays = progressRow?.clearDates.count ?? 0
             let dailyCount = requirement.clearConditions?.dailyCount ?? 1
             if dailyCount > 1 {
-                displayProgress = "\(progressRow?.clearDates.count ?? 0)/\(requiredCount)\(locale == .ja ? "日" : " days") (\(dailyCount)\(locale == .ja ? "回/日" : "/day"))"
+                displayProgress = locale == .ja
+                    ? "\(clearedDays)日クリア / 必要\(requiredCount)日（1日\(dailyCount)回）"
+                    : "\(clearedDays) of \(requiredCount) days cleared (\(dailyCount) per day)"
             } else {
-                displayProgress = "\(progressRow?.clearDates.count ?? 0)/\(requiredCount)\(locale == .ja ? "日" : " days")"
+                displayProgress = locale == .ja
+                    ? "\(clearedDays)日クリア / 必要\(requiredCount)日"
+                    : "\(clearedDays) of \(requiredCount) days cleared"
             }
         } else {
-            displayProgress = "\(progressRow?.clearCount ?? 0)/\(requiredCount)"
+            let clearedCount = progressRow?.clearCount ?? 0
+            displayProgress = locale == .ja
+                ? "\(clearedCount)回クリア / 必要\(requiredCount)回"
+                : "\(clearedCount) of \(requiredCount) clears"
         }
 
         return VStack(alignment: .leading, spacing: 10) {
@@ -1912,22 +1920,16 @@ struct LessonDetailView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                if requirement.isEarTraining == true {
-                    badge(locale == .ja ? "バトル" : "Battle mode", color: .cyan)
-                }
-                if isChordQuizEarTraining(requirement) {
-                    badge(locale == .ja ? "10問以上" : "10+ correct", color: .orange)
-                } else if requirement.isEarTraining != true, let rank = requirement.clearConditions?.rank {
-                    badge(rank, color: .orange)
-                }
-                badge(displayProgress, color: isCompleted ? .green : .blue)
-                if let notation = requirement.clearConditions?.notationSetting {
-                    badge(notationLabel(notation), color: .purple)
-                }
+            HStack {
+                Text(locale == .ja ? "進捗" : "Progress")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+                Text(displayProgress)
+                    .font(.caption.bold())
+                    .foregroundStyle(isCompleted ? .green : .white)
+                    .multilineTextAlignment(.trailing)
             }
-
-            clearConditionsGrid(requirement)
 
             // 本日の進捗表示（日数課題の場合）
             if !isCompleted,
@@ -2010,83 +2012,6 @@ struct LessonDetailView: View {
                 .stroke(isCompleted ? Color.green.opacity(0.5) : Color.clear, lineWidth: 1)
         )
         .cornerRadius(14)
-    }
-
-    private func isChordQuizEarTraining(_ requirement: LessonSong) -> Bool {
-        requirement.isEarTraining == true && requirement.earTrainingStage?.mode == .chordQuiz
-    }
-
-    @ViewBuilder
-    private func clearConditionsGrid(_ requirement: LessonSong) -> some View {
-        if let cc = requirement.clearConditions {
-            let isFantasy = requirement.isFantasy
-            let isSurvival = requirement.isSurvival ?? false
-            let isEarTraining = requirement.isEarTraining ?? false
-            let requiresDays = cc.requiresDays ?? false
-            let count = cc.count ?? 1
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(locale == .ja ? "クリア条件" : "Clear condition")
-                    .font(.caption2.bold())
-                    .foregroundStyle(.gray)
-
-                let columns = [GridItem(.flexible()), GridItem(.flexible())]
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
-                    if !isFantasy && !isSurvival && !isEarTraining {
-                        conditionItem(
-                            locale == .ja ? "キー" : "Key",
-                            value: {
-                                let k = cc.key ?? 0
-                                return k > 0 ? "+\(k)" : "\(k)"
-                            }()
-                        )
-                        conditionItem(
-                            locale == .ja ? "速度" : "Speed",
-                            value: "\(cc.speed ?? 1.0)x"
-                        )
-                    }
-                    if isEarTraining {
-                        conditionItem(
-                            locale == .ja ? "条件" : "Condition",
-                            value: requirement.earTrainingStage?.battleClearConditionText(locale: locale)
-                                ?? (locale == .ja ? "制限時間以内に敵HPを0にする" : "Reduce the enemy HP to 0 within the time limit.")
-                        )
-                    } else if !isSurvival {
-                        conditionItem(
-                            locale == .ja ? "ランク" : "Rank",
-                            value: "\(cc.rank ?? "B")\(locale == .ja ? "以上" : "+")"
-                        )
-                    }
-                    conditionItem(
-                        locale == .ja ? "回数" : "Count",
-                        value: requiresDays
-                            ? "\(count)\(locale == .ja ? "日間" : " days")"
-                            : "\(count)\(locale == .ja ? "回" : "x")"
-                    )
-                    if requiresDays, let dailyCount = cc.dailyCount, dailyCount > 1 {
-                        conditionItem(
-                            locale == .ja ? "1日あたり" : "Per day",
-                            value: "\(dailyCount)\(locale == .ja ? "回" : "x")"
-                        )
-                    }
-                }
-            }
-            .padding(10)
-            .background(Color(hex: "0f172a").opacity(0.5))
-            .cornerRadius(8)
-        }
-    }
-
-    private func conditionItem(_ label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(label + ":")
-                .font(.caption2)
-                .foregroundStyle(.gray)
-            Text(value)
-                .font(.caption2.bold())
-                .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
-        }
     }
 
     @ViewBuilder
@@ -2593,27 +2518,6 @@ struct LessonDetailView: View {
         }
 
         return locale == .ja ? "通常課題" : "Standard task"
-    }
-
-    private func badge(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.caption2.bold())
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.18))
-            .cornerRadius(999)
-    }
-
-    private func notationLabel(_ notation: String) -> String {
-        switch notation {
-        case "notes_chords":
-            return locale == .ja ? "ノート&コード" : "Notes + Chords"
-        case "chords_only":
-            return locale == .ja ? "コードのみ" : "Chords only"
-        default:
-            return locale == .ja ? "両方" : "Both"
-        }
     }
 
     private func videoTitle(_ video: LessonVideoResource) -> String {
