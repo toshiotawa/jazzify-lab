@@ -189,6 +189,8 @@ private struct SurvivalGameContent: View {
     let locale: AppLocale
     let isDemo: Bool
 
+    @State private var hudHeight: CGFloat = 72
+
     private var vm: SurvivalViewModel { session.viewModel }
 
     var body: some View {
@@ -209,16 +211,23 @@ private struct SurvivalGameContent: View {
                scenarioStaffSnapshot == nil,
                let phraseStaff = vm.phraseStaffSnapshot {
                 SurvivalPhraseStaffView(snapshot: phraseStaff)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, hudHeight + 4)
+                    .padding(.horizontal, 12)
                     .allowsHitTesting(false)
             } else if vm.uiSnapshot.phase == .playing,
                !vm.isPaused,
                scenarioStaffSnapshot == nil,
                let staffPayload = SurvivalStageCenterStaffPayload.make(from: vm.uiSnapshot),
                !staffPayload.voicingNames.isEmpty {
-                SurvivalStageCenterStaffOverlay(payload: staffPayload, staffPhase: vm.uiSnapshot.staffPhase)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .allowsHitTesting(false)
+                SurvivalStageCenterStaffOverlay(
+                    payload: staffPayload,
+                    unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, hudHeight + 4)
+                .padding(.horizontal, 12)
+                .allowsHitTesting(false)
             }
 
             VStack(spacing: 0) {
@@ -232,6 +241,7 @@ private struct SurvivalGameContent: View {
                 )
                 Spacer()
             }
+            .onPreferenceChange(SurvivalHUDHeightKey.self) { hudHeight = $0 }
 
             if let staffSnapshot = scenarioStaffSnapshot {
                 VStack(spacing: 0) {
@@ -404,7 +414,7 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
 
 private struct SurvivalStageCenterStaffOverlay: View {
     let payload: SurvivalStageCenterStaffPayload
-    let staffPhase: SurvivalStaffPhase
+    let unpressedNoteOpacity: CGFloat
 
     var body: some View {
         SurvivalProgressionStaffView(
@@ -413,10 +423,9 @@ private struct SurvivalStageCenterStaffOverlay: View {
             keyFifths: payload.keyFifths,
             correctPitchClasses: payload.correctPitchClasses,
             staffClef: payload.staffClef,
-            hideUnpressedNotes: staffPhase == .pressedOnly
+            unpressedNoteOpacity: unpressedNoteOpacity
         )
-        .frame(maxWidth: 560, maxHeight: 260)
-        .padding(.horizontal, 12)
+        .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
     }
 }
 

@@ -119,6 +119,7 @@ import {
   SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL,
 } from '@/utils/survivalPhraseDrumLoop';
 import { buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
+import { computeUnpressedNoteOpacity } from '@/utils/survivalStaffHintOpacity';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -330,7 +331,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const phraseStateRef = useRef<SurvivalPhraseRuntimeState | null>(null);
   const [phraseUiTick, setPhraseUiTick] = useState(0);
   const phraseDrumLoopRef = useRef<SurvivalPhraseDrumLoop | null>(null);
-  const phraseHideNotesAfter30sRef = useRef(false);
 
   useEffect(() => {
     if (!isPhraseMode || !stageDefinition) {
@@ -368,18 +368,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       cancelled = true;
     };
   }, [isPhraseMode, stageDefinition?.mapCategory, stageDefinition?.stageNumber]);
-
-  useEffect(() => {
-    if (!isPhraseMode || hintMode) {
-      phraseHideNotesAfter30sRef.current = false;
-      return undefined;
-    }
-    const timerId = window.setTimeout(() => {
-      phraseHideNotesAfter30sRef.current = true;
-      setPhraseUiTick((t) => t + 1);
-    }, 30_000);
-    return () => window.clearTimeout(timerId);
-  }, [isPhraseMode, hintMode]);
 
   useEffect(() => {
     if (!isProgressionStage) {
@@ -3840,9 +3828,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       revealedNoteIndices: state.revealedNoteIndices,
       targetNoteIndex: state.targetNoteIndex,
       hintMode,
-      hideUnpressedAfter30s: !hintMode && phraseHideNotesAfter30sRef.current,
     };
   }, [isPhraseMode, phraseUiTick, hintMode]);
+
+  const elapsedSecondsFloor = Math.floor(gameState.elapsedTime);
+
+  const survivalCenterStaffUnpressedNoteOpacity = useMemo(
+    () => computeUnpressedNoteOpacity(elapsedSecondsFloor, {
+      hintMode,
+      hintBuffActive: playerHasHintBuff,
+      isStageMode,
+      isPlaying: gameState.isPlaying,
+      isGameOver: gameState.isGameOver,
+    }),
+    [
+      elapsedSecondsFloor,
+      hintMode,
+      playerHasHintBuff,
+      isStageMode,
+      gameState.isPlaying,
+      gameState.isGameOver,
+    ],
+  );
 
   const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
     if (isPhraseMode) return null;
@@ -3913,14 +3920,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const punchStaffSnapshot = progressionStaffSnapshot ?? randomPunchStaffSnapshot;
 
-  /** ステージ本番: 約30秒経過後のみ未ヒント構成音を隠す。練習・ヒント魔法中は非表示状態にしない */
-  const survivalCenterStaffHideUnpressedNotes =
-    !hintMode &&
-    !playerHasHintBuff &&
-    isStageMode &&
-    gameState.isPlaying &&
-    !gameState.isGameOver &&
-    gameState.elapsedTime >= 30;
+  const survivalStaffOverlayTopPadding = isBossStage
+    ? 'pt-[calc(max(4px,env(safe-area-inset-top))+80px)]'
+    : 'pt-[calc(max(4px,env(safe-area-inset-top))+52px)]';
   
   // フレーズモード: HINT ON 時は判定対象音をオレンジハイライト
   useEffect(() => {
@@ -4317,7 +4319,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState.isPlaying &&
             !gameState.isGameOver && (
               <div
-                className="absolute inset-0 z-[5] flex items-center justify-center px-3 pointer-events-none"
+                className={cn(
+                  'absolute inset-0 z-[5] flex items-start justify-center px-3 pointer-events-none',
+                  survivalStaffOverlayTopPadding,
+                )}
                 aria-hidden
               >
                 <SurvivalPhraseStaff
@@ -4328,7 +4333,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
                   targetNoteIndex={phraseStaffProps.targetNoteIndex}
                   hintMode={phraseStaffProps.hintMode}
-                  hideUnpressedAfter30s={phraseStaffProps.hideUnpressedAfter30s}
+                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
                 />
               </div>
@@ -4339,7 +4344,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState.isPlaying &&
             !gameState.isGameOver && (
               <div
-                className="absolute inset-0 z-[5] flex items-center justify-center px-3 pointer-events-none"
+                className={cn(
+                  'absolute inset-0 z-[5] flex items-start justify-center px-3 pointer-events-none',
+                  survivalStaffOverlayTopPadding,
+                )}
                 aria-hidden
               >
                 <SurvivalProgressionStaff
@@ -4347,7 +4355,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   voicingNames={punchStaffSnapshot.voicingNames}
                   keyFifths={punchStaffSnapshot.keyFifths}
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
-                  hideUnpressedNotes={survivalCenterStaffHideUnpressedNotes}
+                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
                   className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)] [&_svg]:scale-[1.55] md:[&_svg]:scale-[1.72]"
                 />

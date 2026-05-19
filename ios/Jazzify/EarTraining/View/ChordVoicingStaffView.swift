@@ -909,7 +909,10 @@ struct ChordVoicingStaffGroupsView: View {
     /// Web `ChordVoicingStaff.noteCollisionLayout` と同等。
     let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
     /// 本番コードクイズ: 現在出題の未押下音符を非表示（五線・調号・コード名は維持）。
+    /// @deprecated `unpressedNoteOpacity = 0` を優先。EarTraining 等の後方互換用。
     var hideUnpressedNotes: Bool
+    /// 現在小節の未正解符頭 opacity（0〜1）。
+    var unpressedNoteOpacity: CGFloat
 
     init(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
@@ -922,7 +925,8 @@ struct ChordVoicingStaffGroupsView: View {
         singleMeasureLayout: Bool = false,
         hideChordLabels: Bool = false,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
-        hideUnpressedNotes: Bool = false
+        hideUnpressedNotes: Bool = false,
+        unpressedNoteOpacity: CGFloat = 1
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -935,6 +939,11 @@ struct ChordVoicingStaffGroupsView: View {
         self.hideChordLabels = hideChordLabels
         self.noteCollisionLayout = noteCollisionLayout
         self.hideUnpressedNotes = hideUnpressedNotes
+        self.unpressedNoteOpacity = unpressedNoteOpacity
+    }
+
+    private var effectiveUnpressedNoteOpacity: CGFloat {
+        hideUnpressedNotes ? 0 : unpressedNoteOpacity
     }
 
     static let notationColor = Color.white
@@ -948,7 +957,7 @@ struct ChordVoicingStaffGroupsView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let hintGroupId: UUID? = (showTargetHints && !hideUnpressedNotes) ? activeGroupId : nil
+            let hintGroupId: UUID? = (showTargetHints && effectiveUnpressedNoteOpacity > 0) ? activeGroupId : nil
             let w = max(1, proxy.size.width)
             let h = max(1, proxy.size.height)
             let canvasSize = CGSize(width: w, height: h)
@@ -980,7 +989,7 @@ struct ChordVoicingStaffGroupsView: View {
                         singleMeasureLayout: singleMeasureLayout,
                         hideChordLabels: hideChordLabels,
                         noteCollisionLayout: noteCollisionLayout,
-                        hideUnpressedNotes: hideUnpressedNotes
+                        unpressedNoteOpacity: effectiveUnpressedNoteOpacity
                     )
                 }
                 .frame(width: w, height: h)
@@ -1371,9 +1380,9 @@ struct ChordVoicingStaffGroupsView: View {
         staffSpacing: CGFloat,
         staffGap: CGFloat,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
-        hideUnpressedNotes: Bool
+        unpressedNoteOpacity: CGFloat
     ) -> VoicingBattleHints {
-        if hideUnpressedNotes {
+        if unpressedNoteOpacity == 0 {
             return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
         }
         guard let aid = activeGroupId,
@@ -1465,7 +1474,7 @@ struct ChordVoicingStaffGroupsView: View {
         singleMeasureLayout: Bool,
         hideChordLabels: Bool,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
-        hideUnpressedNotes: Bool
+        unpressedNoteOpacity: CGFloat
     ) {
         guard !groups.isEmpty else { return }
         let w = size.width
@@ -1513,7 +1522,7 @@ struct ChordVoicingStaffGroupsView: View {
             staffSpacing: geo.staffSpacing,
             staffGap: geo.staffGap,
             noteCollisionLayout: noteCollisionLayout,
-            hideUnpressedNotes: hideUnpressedNotes
+            unpressedNoteOpacity: unpressedNoteOpacity
         )
 
         let leftX = w * (24 / 720)
@@ -1560,15 +1569,24 @@ struct ChordVoicingStaffGroupsView: View {
                     collisionLayout: noteCollisionLayout
                 ) {
                     let isCorrect = correctSet.contains(positioned.note.pitchClass)
-                    if hideUnpressedNotes, !isCorrect {
-                        continue
-                    }
                     let isNextHint = !isCorrect
                         && item.group.id == activeGroupId
                         && item.group.measureOffset == 0
+                    let fadeCurrentMeasure = item.group.measureOffset == 0
+                        && !item.group.exemptFromFade
+                        && !isCorrect
+                        && !isNextHint
+                    if fadeCurrentMeasure && unpressedNoteOpacity == 0 {
+                        continue
+                    }
+                    let noteOpacity: CGFloat = fadeCurrentMeasure ? unpressedNoteOpacity : 1
                     let noteColor: Color = isCorrect ? correctColor : (isNextHint ? nextTargetColor : notationColor)
+                    var noteContext = context
+                    if noteOpacity < 1 {
+                        noteContext.opacity = noteOpacity
+                    }
                     groupsDrawWholeNote(
-                        context: &context,
+                        context: &noteContext,
                         staffTopY: topY,
                         staffSpacing: geo.staffSpacing,
                         positioned: positioned,

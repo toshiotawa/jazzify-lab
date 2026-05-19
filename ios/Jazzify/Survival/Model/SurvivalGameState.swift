@@ -646,14 +646,51 @@ enum SurvivalStaffPhase: Equatable, Sendable {
     case pressedOnly
 }
 
+enum SurvivalStaffHintOpacity {
+    /// HINT OFF 本番: 未正解音符 opacity（25秒までは1.0、26〜29秒で0.8→0.2、30秒以降0.0）。
+    static func computeUnpressedNoteOpacity(
+        elapsed: TimeInterval,
+        hintMode: Bool,
+        hintBuffActive: Bool,
+        phase: SurvivalStagePhase
+    ) -> CGFloat {
+        if hintMode || hintBuffActive || phase != .playing {
+            return 1
+        }
+        let t = Int(floor(elapsed))
+        if t < 25 { return 1 }
+        if t >= 30 { return 0 }
+        switch t {
+        case 26: return 0.8
+        case 27: return 0.6
+        case 28: return 0.4
+        case 29: return 0.2
+        default: return 1
+        }
+    }
+}
+
 extension SurvivalUISnapshot {
     /// 練習・ヒントバフがあるときは常に `fullHint`。本番は経過時間で切り替え。
     fileprivate static func deriveStaffPhase(from runtime: SurvivalStageRuntime) -> SurvivalStaffPhase {
         let hintMagicBuffActive = runtime.statusEffects.contains { $0.kind == .hint }
-        if runtime.hintMode || hintMagicBuffActive {
-            return .fullHint
-        }
-        return runtime.elapsedSeconds >= 30 ? .pressedOnly : .fullHint
+        let opacity = SurvivalStaffHintOpacity.computeUnpressedNoteOpacity(
+            elapsed: runtime.elapsedSeconds,
+            hintMode: runtime.hintMode,
+            hintBuffActive: hintMagicBuffActive,
+            phase: runtime.phase
+        )
+        return opacity == 0 ? .pressedOnly : .fullHint
+    }
+
+    fileprivate static func deriveUnpressedNoteOpacity(from runtime: SurvivalStageRuntime) -> CGFloat {
+        let hintMagicBuffActive = runtime.statusEffects.contains { $0.kind == .hint }
+        return SurvivalStaffHintOpacity.computeUnpressedNoteOpacity(
+            elapsed: runtime.elapsedSeconds,
+            hintMode: runtime.hintMode,
+            hintBuffActive: hintMagicBuffActive,
+            phase: runtime.phase
+        )
     }
 }
 
@@ -680,6 +717,8 @@ struct SurvivalUISnapshot: Equatable {
     var hintSlotIndex: Int?
     /// ゲーム画面上部コードスロット廃止後の中央楽譜表示モード。
     var staffPhase: SurvivalStaffPhase
+    /// 現在小節の未正解符頭 opacity（0〜1）。秒境界でのみ変化。
+    var unpressedNoteOpacity: CGFloat
     /// A/B 正解ベースのコンボ表示用（必殺発動後も加算し続けるが 5 秒途切れで 0）
     var comboCount: Int
     /// オンボーディング等の UI 抑制フラグ（毎フレーム同一なら Equatable で弾ける）
@@ -703,6 +742,7 @@ struct SurvivalUISnapshot: Equatable {
             slots: runtime.slots,
             hintSlotIndex: hintSlotIndex,
             staffPhase: Self.deriveStaffPhase(from: runtime),
+            unpressedNoteOpacity: Self.deriveUnpressedNoteOpacity(from: runtime),
             comboCount: runtime.comboCount,
             scenario: runtime.scenario
         )

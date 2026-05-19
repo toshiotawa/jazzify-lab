@@ -12,6 +12,8 @@ enum EarTrainingChordVoicingStaffLayout {
         let voicingStaves: [Int]
         let measureOffset: Int
         let isRest: Bool
+        /// HINT OFF フェード対象から除外（Phrases の reveal 等）
+        var exemptFromFade: Bool = false
     }
 
     struct BuildInput: Sendable {

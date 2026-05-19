@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// HUD の高さを楽譜オーバーレイへ伝播する。
+struct SurvivalHUDHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// 画面上部 HUD: 残り時間・撃破数・プレイヤー HP バー・終了ボタン・ボス HP バー (ボス戦のみ)
 /// WEB 版 `SurvivalGameOverlay` 準拠 (HP を緑/黄/赤で色分け、状態アイコンを横並び、ヒントバッジ)
 ///
@@ -89,6 +98,11 @@ struct SurvivalHUDView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
+            )
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: SurvivalHUDHeightKey.self, value: proxy.size.height)
+                }
             )
         }
     }

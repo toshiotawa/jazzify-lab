@@ -17,7 +17,7 @@ struct SurvivalPhraseStaffView: View {
             singleMeasureLayout: false,
             hideChordLabels: false,
             noteCollisionLayout: .anchorLow,
-            hideUnpressedNotes: snapshot.hideUnpressedAfter30s
+            unpressedNoteOpacity: snapshot.unpressedNoteOpacity
         )
         .scaleEffect(1.35, anchor: .top)
     }
@@ -67,19 +67,18 @@ struct SurvivalPhraseStaffView: View {
             let groupId = UUID()
             let isCorrect = snapshot.correctNoteIndices.contains(index)
             let isRevealed = snapshot.revealedNoteIndices.contains(index)
-            let hide = snapshot.hideUnpressedAfter30s && isCurrent && !isCorrect && !isRevealed
             if isCurrent && snapshot.hintMode && !isCorrect && index == snapshot.targetNoteIndex {
                 activeGroupId = groupId
             }
-            let voicing = hide ? [] : [note.noteName]
             groups.append(
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: groupId,
                     chordName: index == 0 ? chord.chordName : "",
-                    voicing: voicing,
+                    voicing: [note.noteName],
                     voicingStaves: [note.staff],
                     measureOffset: measureOffset,
-                    isRest: false
+                    isRest: false,
+                    exemptFromFade: isCurrent && isRevealed
                 )
             )
             if isCorrect {

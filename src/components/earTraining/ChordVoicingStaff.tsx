@@ -19,6 +19,8 @@ export interface ChordVoicingStaffGroup {
   measureOffset?: 0 | 1;
   isActive?: boolean;
   isRest?: boolean;
+  /** true のとき HINT OFF フェード対象から除外（Phrases の reveal 等） */
+  exemptFromFade?: boolean;
 }
 
 export interface ChordVoicingCompletionPulse {
@@ -52,8 +54,14 @@ interface ChordVoicingStaffProps {
   /**
    * true のとき、現在小節（measureOffset===0）で未正解の符頭を描画しない（五線・コード名は維持）。
    * 次小節プレビューは従来どおり表示する。
+   * @deprecated `unpressedNoteOpacity={0}` を優先。EarTraining 等の後方互換用。
    */
   hideUnpressedNotes?: boolean;
+  /**
+   * 現在小節の未正解符頭 opacity（0〜1）。五線・調号・コード名・正解済み音符は影響しない。
+   * `hideUnpressedNotes` が true のときは 0 相当。
+   */
+  unpressedNoteOpacity?: number;
   /** 1 小節のみ表示。中央バーラインを廃し第 1 小節を右端まで広げる（既定: 2 小節）。 */
   singleMeasureLayout?: boolean;
   /** コード名ラベル帯と上部余白を畳む（既定: false）。 */
@@ -109,6 +117,7 @@ interface ParsedVoicingStaffGroup {
   slotCount: number;
   legacyIsActive: boolean;
   isRest: boolean;
+  exemptFromFade: boolean;
 }
 
 interface KeySignatureMark {
@@ -701,6 +710,7 @@ const WholeNote: React.FC<{
   staffTopY: number;
   isCorrect: boolean;
   isNextHint: boolean;
+  noteOpacity: number;
   clefFontsLoaded: boolean;
   smuflUseForeignObject: boolean;
 }> = ({
@@ -710,6 +720,7 @@ const WholeNote: React.FC<{
   staffTopY,
   isCorrect,
   isNextHint,
+  noteOpacity,
   clefFontsLoaded,
   smuflUseForeignObject,
 }) => {
@@ -731,8 +742,8 @@ const WholeNote: React.FC<{
 
   const displayAlter = positioned.note.displayAccidentalAlter;
 
-  return (
-    <g>
+  const noteContent = (
+    <>
       {smuflUseForeignObject && displayAlter !== null ? (
         <g
           data-accidental-group-id={groupId}
@@ -781,8 +792,14 @@ const WholeNote: React.FC<{
         staffTopY={staffTopY}
         noteWidth={noteWidth}
       />
-    </g>
+    </>
   );
+
+  if (noteOpacity >= 1) {
+    return <g>{noteContent}</g>;
+  }
+
+  return <g opacity={noteOpacity}>{noteContent}</g>;
 };
 
 const getVoicingGroupBaseX = (
@@ -1185,7 +1202,7 @@ const RenderedStaff: React.FC<{
   keyFifths: number;
   layout: StaffLayoutMetrics;
   activeGroupId: string | null | undefined;
-  hideUnpressedNotes: boolean;
+  unpressedNoteOpacity: number;
   staffLineRightX: number;
   clefFontsLoaded: boolean;
   smuflUseForeignObject: boolean;
@@ -1198,7 +1215,7 @@ const RenderedStaff: React.FC<{
   keyFifths,
   layout,
   activeGroupId,
-  hideUnpressedNotes,
+  unpressedNoteOpacity,
   staffLineRightX,
   clefFontsLoaded,
   smuflUseForeignObject,
@@ -1270,9 +1287,21 @@ const RenderedStaff: React.FC<{
         const correctPitchClassSet = correctPitchClassSets.get(group.id);
         const notes = positionedNotes.flatMap(positioned => {
           const isCorrect = correctPitchClassSet?.has(positioned.note.pitchClass) ?? false;
-          if (hideUnpressedNotes && !isCorrect) {
+          const isNextHint =
+            activeGroupId !== undefined
+            && activeGroupId !== null
+            && group.id === activeGroupId
+            && group.measureOffset === 0
+            && !isCorrect;
+          const fadeCurrentMeasure =
+            group.measureOffset === 0
+            && !group.exemptFromFade
+            && !isCorrect
+            && !isNextHint;
+          if (fadeCurrentMeasure && unpressedNoteOpacity === 0) {
             return [];
           }
+          const noteOpacity = fadeCurrentMeasure ? unpressedNoteOpacity : 1;
           const node = (
             <WholeNote
               key={`${group.id}-${positioned.note.voicingIndex}`}
@@ -1281,13 +1310,8 @@ const RenderedStaff: React.FC<{
               baseX={noteBaseX}
               staffTopY={staffTopY}
               isCorrect={isCorrect}
-              isNextHint={
-                activeGroupId !== undefined
-                && activeGroupId !== null
-                && group.id === activeGroupId
-                && group.measureOffset === 0
-                && !(correctPitchClassSet?.has(positioned.note.pitchClass) ?? false)
-              }
+              isNextHint={isNextHint}
+              noteOpacity={noteOpacity}
               clefFontsLoaded={clefFontsLoaded}
               smuflUseForeignObject={smuflUseForeignObject}
             />
@@ -1325,6 +1349,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   completionPulse,
   showTargetHints = true,
   hideUnpressedNotes = false,
+  unpressedNoteOpacity: unpressedNoteOpacityProp,
   singleMeasureLayout = false,
   compactSingleMeasure = false,
   smuflUseForeignObject = false,
@@ -1394,6 +1419,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           slotCount: measureSlotCounts.get(measureOffset) ?? 1,
           legacyIsActive: group.isActive === true,
           isRest: group.isRest === true || group.voicing.length === 0,
+          exemptFromFade: group.exemptFromFade === true,
         };
       });
       return { groups: applyRequiredAccidentals(groups, keyFifths), error: null };
@@ -1480,7 +1506,12 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     : STAFF_LINE_RIGHT_X;
   const viewBoxWidth = staffLineRightX + VIEWBOX_EDGE_PAD_X;
   const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure, effectiveSingleMeasureLayout, staffLineRightX);
-  const effectiveActiveGroupId = showTargetHints && !hideUnpressedNotes ? activeGroupId : null;
+  const effectiveUnpressedNoteOpacity = hideUnpressedNotes
+    ? 0
+    : (unpressedNoteOpacityProp ?? 1);
+  const effectiveActiveGroupId = showTargetHints && effectiveUnpressedNoteOpacity > 0
+    ? activeGroupId
+    : null;
   const systemLayout = useMemo(
     () => computeBattleStaffSystemLayout(
       activeStaves,
@@ -1619,7 +1650,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               keyFifths={keyFifths}
               layout={layout}
               activeGroupId={effectiveActiveGroupId}
-              hideUnpressedNotes={hideUnpressedNotes}
+              unpressedNoteOpacity={effectiveUnpressedNoteOpacity}
               staffLineRightX={staffLineRightX}
               clefFontsLoaded={clefFontsLoaded}
               smuflUseForeignObject={smuflUseForeignObject}

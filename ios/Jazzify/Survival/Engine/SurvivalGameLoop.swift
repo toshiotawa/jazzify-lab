@@ -36,8 +36,6 @@ final class SurvivalGameLoop {
 
     private(set) var phraseDefinition: SurvivalPhraseDefinition?
     private(set) var phraseState: SurvivalPhraseRuntimeState?
-    private(set) var phraseHideNotesAfter30s: Bool = false
-    private var phraseHideTimerStarted: Bool = false
 
     var isPhraseMode: Bool { stage.mapCategory == .phrases }
 
@@ -164,22 +162,18 @@ final class SurvivalGameLoop {
     func loadPhraseDefinition(_ phrase: SurvivalPhraseDefinition) {
         phraseDefinition = phrase
         phraseState = SurvivalPhraseEngine.createInitialState(phrase: phrase)
-        phraseHideNotesAfter30s = false
-        phraseHideTimerStarted = false
-    }
-
-    func markPhraseHideTimerStartedIfNeeded(now: TimeInterval) {
-        guard isPhraseMode, !mode.hintMode, !phraseHideTimerStarted else { return }
-        phraseHideTimerStarted = true
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 30_000_000_000)
-            phraseHideNotesAfter30s = true
-        }
     }
 
     func phraseStaffSnapshot() -> SurvivalPhraseStaffSnapshot? {
         guard let state = phraseState else { return nil }
         let pair = SurvivalPhraseEngine.displayChords(state: state)
+        let hintBuffActive = runtime.statusEffects.contains { $0.kind == .hint }
+        let opacity = SurvivalStaffHintOpacity.computeUnpressedNoteOpacity(
+            elapsed: runtime.elapsedSeconds,
+            hintMode: mode.hintMode,
+            hintBuffActive: hintBuffActive,
+            phase: runtime.phase
+        )
         return SurvivalPhraseStaffSnapshot(
             currentChord: pair.current,
             nextChord: pair.next,
@@ -188,7 +182,7 @@ final class SurvivalGameLoop {
             revealedNoteIndices: state.revealedNoteIndices,
             targetNoteIndex: state.targetNoteIndex,
             hintMode: mode.hintMode,
-            hideUnpressedAfter30s: phraseHideNotesAfter30s
+            unpressedNoteOpacity: opacity
         )
     }
 
@@ -704,8 +698,6 @@ final class SurvivalGameLoop {
     private func tickNormal(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
         if !isPhraseMode {
             expireComboIfTimedOut(now: now)
-        } else {
-            markPhraseHideTimerStartedIfNeeded(now: now)
         }
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
