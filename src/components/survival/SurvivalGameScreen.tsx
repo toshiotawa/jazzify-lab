@@ -4357,7 +4357,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
-                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)] [&_svg]:scale-[1.55] md:[&_svg]:scale-[1.72]"
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
                 />
               </div>
             )}

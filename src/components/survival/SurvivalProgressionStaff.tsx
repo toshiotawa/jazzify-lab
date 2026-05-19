@@ -69,7 +69,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
     return (
       <div
         className={cn(
-          'min-w-0 flex-1 max-w-[min(360px,72vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.4] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.28]',
+          'min-w-0 flex-1 max-w-[min(360px,72vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.35] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.22]',
           className,
           'pointer-events-none',
         )}

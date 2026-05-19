@@ -210,7 +210,7 @@ private struct SurvivalGameContent: View {
                !vm.isPaused,
                scenarioStaffSnapshot == nil,
                let phraseStaff = vm.phraseStaffSnapshot {
-                SurvivalPhraseStaffView(snapshot: phraseStaff)
+                SurvivalPhraseStaffOverlay(snapshot: phraseStaff)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, hudHeight + 4)
                     .padding(.horizontal, 12)
@@ -426,6 +426,15 @@ private struct SurvivalStageCenterStaffOverlay: View {
             unpressedNoteOpacity: unpressedNoteOpacity
         )
         .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
+    }
+}
+
+private struct SurvivalPhraseStaffOverlay: View {
+    let snapshot: SurvivalPhraseStaffSnapshot
+
+    var body: some View {
+        SurvivalPhraseStaffView(snapshot: snapshot)
+            .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
     }
 }
 

@@ -244,6 +244,8 @@ export const SurvivalPhraseStaff = React.memo<SurvivalPhraseStaffProps>(
 
           unpressedNoteOpacity={unpressedNoteOpacity}
 
+          fadeAllMeasureNotes
+
           smuflUseForeignObject
 
         />

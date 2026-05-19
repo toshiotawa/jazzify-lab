@@ -56,7 +56,8 @@ struct SurvivalProgressionStaffView: View {
             singleMeasureLayout: true,
             hideChordLabels: false,
             noteCollisionLayout: noteCollisionLayout,
-            unpressedNoteOpacity: unpressedNoteOpacity
+            unpressedNoteOpacity: unpressedNoteOpacity,
+            compactChordLabelGap: true
         )
     }
 }

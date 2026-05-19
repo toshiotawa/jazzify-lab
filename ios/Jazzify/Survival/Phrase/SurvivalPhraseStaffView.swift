@@ -17,9 +17,10 @@ struct SurvivalPhraseStaffView: View {
             singleMeasureLayout: false,
             hideChordLabels: false,
             noteCollisionLayout: .anchorLow,
-            unpressedNoteOpacity: CGFloat(snapshot.unpressedNoteOpacity)
+            unpressedNoteOpacity: CGFloat(snapshot.unpressedNoteOpacity),
+            compactChordLabelGap: true,
+            fadeAllMeasureNotes: true
         )
-        .scaleEffect(1.35, anchor: .top)
     }
 
     private struct BuiltGroups {
@@ -65,8 +66,8 @@ struct SurvivalPhraseStaffView: View {
 
         for (index, note) in chord.notes.enumerated() {
             let groupId = UUID()
-            let isCorrect = snapshot.correctNoteIndices.contains(index)
-            let isRevealed = snapshot.revealedNoteIndices.contains(index)
+            let isCorrect = isCurrent && snapshot.correctNoteIndices.contains(index)
+            let isRevealed = isCurrent && snapshot.revealedNoteIndices.contains(index)
             if isCurrent && snapshot.hintMode && !isCorrect && index == snapshot.targetNoteIndex {
                 activeGroupId = groupId
             }

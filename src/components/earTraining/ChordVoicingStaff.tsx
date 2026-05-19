@@ -77,6 +77,8 @@ interface ChordVoicingStaffProps {
   smuflUseForeignObject?: boolean;
   /** 隣接 degree の符頭重なり回避。既定は低音基準（`anchor-low`） */
   noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
+  /** true のとき measureOffset===1（次小節）の未正解符頭にも unpressedNoteOpacity を適用する */
+  fadeAllMeasureNotes?: boolean;
   className?: string;
 }
 
@@ -1203,6 +1205,7 @@ const RenderedStaff: React.FC<{
   layout: StaffLayoutMetrics;
   activeGroupId: string | null | undefined;
   unpressedNoteOpacity: number;
+  fadeAllMeasureNotes: boolean;
   staffLineRightX: number;
   clefFontsLoaded: boolean;
   smuflUseForeignObject: boolean;
@@ -1216,6 +1219,7 @@ const RenderedStaff: React.FC<{
   layout,
   activeGroupId,
   unpressedNoteOpacity,
+  fadeAllMeasureNotes,
   staffLineRightX,
   clefFontsLoaded,
   smuflUseForeignObject,
@@ -1294,7 +1298,7 @@ const RenderedStaff: React.FC<{
             && group.measureOffset === 0
             && !isCorrect;
           const fadeCurrentMeasure =
-            group.measureOffset === 0
+            (group.measureOffset === 0 || fadeAllMeasureNotes)
             && !group.exemptFromFade
             && !isCorrect
             && !isNextHint;
@@ -1355,6 +1359,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   smuflUseForeignObject = false,
   hideChordLabels = false,
   noteCollisionLayout = 'anchor-low',
+  fadeAllMeasureNotes = false,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
@@ -1651,6 +1656,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               layout={layout}
               activeGroupId={effectiveActiveGroupId}
               unpressedNoteOpacity={effectiveUnpressedNoteOpacity}
+              fadeAllMeasureNotes={fadeAllMeasureNotes}
               staffLineRightX={staffLineRightX}
               clefFontsLoaded={clefFontsLoaded}
               smuflUseForeignObject={smuflUseForeignObject}
