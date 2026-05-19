@@ -87,7 +87,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
-    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_ear_training, ear_training_stage_id')
+    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_ear_training, ear_training_stage_id')
     .eq('lesson_id', lessonId);
 
   if (reqError || !requirements) return false;
@@ -139,7 +139,7 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   const allCompleted = requirements ? 
     requirements.every(req => 
       progress.some(p => {
-        if (req.is_fantasy || req.is_survival || req.is_ear_training) {
+        if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_ear_training) {
           return p.lesson_song_id === req.id && p.is_completed;
         }
         return p.song_id === req.song_id && p.is_completed;

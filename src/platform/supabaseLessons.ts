@@ -366,6 +366,56 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
   return result as LessonSong;
 }
 
+type SurvivalTutorialLessonSongData = {
+  lesson_id: string;
+  survival_tutorial_script_id: string;
+  clear_conditions?: ClearConditions;
+  title?: string | null;
+  title_en?: string | null;
+};
+
+/**
+ * レッスンにサバイバルチュートリアル課題を追加します。
+ */
+export async function addSurvivalTutorialToLesson(
+  data: SurvivalTutorialLessonSongData,
+): Promise<LessonSong> {
+  const { data: existingItems } = await getSupabaseClient()
+    .from('lesson_songs')
+    .select('order_index')
+    .eq('lesson_id', data.lesson_id)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  const nextOrderIndex = existingItems && existingItems.length > 0
+    ? (existingItems[0].order_index || 0) + 1
+    : 0;
+
+  const { data: result, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .insert({
+      lesson_id: data.lesson_id,
+      song_id: null,
+      fantasy_stage_id: null,
+      is_fantasy: false,
+      is_survival: false,
+      is_survival_tutorial: true,
+      survival_tutorial_script_id: data.survival_tutorial_script_id,
+      clear_conditions: data.clear_conditions,
+      order_index: nextOrderIndex,
+      title: data.title ?? null,
+      title_en: data.title_en ?? null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Error adding survival tutorial to lesson: ${error.message}`);
+  }
+
+  return result as LessonSong;
+}
+
 /**
  * レッスンからサバイバルステージを削除します。
  */

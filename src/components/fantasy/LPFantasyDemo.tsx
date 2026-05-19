@@ -1,63 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react';
-import { Link } from 'react-router-dom';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import '@/app-extra.css';
-import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
-import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
-import { DEFAULT_SURVIVAL_RANDOM_BGM_URL } from '@/platform/supabaseSurvival';
 
 const LPPIXIPiano = React.lazy(() => import('./LPPIXIPiano'));
-const SurvivalGameScreen = React.lazy(() => import('@/components/survival/SurvivalGameScreen'));
-
-const DEMO_TIME_LIMIT_MS = 90 * 1000;
-
-const DEMO_CDE_NOTES = ['C', 'D', 'E'];
-
-const DEMO_BGM_URL = DEFAULT_SURVIVAL_RANDOM_BGM_URL;
-
-const DEMO_STAGE_CONFIG: DifficultyConfig = {
-  difficulty: 'easy',
-  displayName: 'Demo Stage',
-  description: 'デモ: CDE単音',
-  descriptionEn: 'Demo: CDE single notes',
-  allowedChords: DEMO_CDE_NOTES.map(r => `${r}_note`),
-  enemySpawnRate: 3,
-  enemySpawnCount: 2,
-  enemyStatMultiplier: 0.5,
-  expMultiplier: 0.5,
-  itemDropRate: 0.20,
-  bgmUrl: DEMO_BGM_URL,
-};
-
-const DEMO_STAGE_DEFINITION: StageDefinition = {
-  stageNumber: 0,
-  name: 'デモ CDE',
-  nameEn: 'Demo CDE',
-  difficulty: 'easy',
-  stageType: 'random',
-  chordSuffix: '_note',
-  chordDisplayName: '単音 CDE',
-  chordDisplayNameEn: 'Single Notes CDE',
-  rootPattern: 'cde',
-  rootPatternName: 'CDE',
-  rootPatternNameEn: 'CDE',
-  allowedChords: DEMO_CDE_NOTES.map(r => `${r}_note`),
-  blockKey: 'major',
-  mapCategory: 'basic',
-};
+const SurvivalTutorialExperience = React.lazy(
+  () => import('@/components/survival/tutorial/SurvivalTutorialExperience'),
+);
 
 const LPFantasyDemo: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showCta, setShowCta] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const timerRef = useRef<number | null>(null);
   const { settings, updateSettings } = useGameStore();
   const isEnglishCopy = shouldUseEnglishCopy();
 
   const demoTitle = isEnglishCopy ? 'Demo Play' : 'デモプレイ';
-  const fullscreenButtonLabel = isEnglishCopy ? 'Play Demo (90s)' : 'デモプレイ（90秒）';
+  const fullscreenButtonLabel = isEnglishCopy ? 'Start Tutorial Demo' : 'チュートリアルを体験';
   const midiDeviceLabel = isEnglishCopy ? 'Choose a MIDI device' : 'MIDI機器を選択';
   const midiHelperText = isEnglishCopy
     ? 'Selected device will be used in the demo. You can also play with mouse or touch.'
@@ -95,18 +54,10 @@ const LPFantasyDemo: React.FC = () => {
     };
   }, []);
 
-  const clearDemoTimer = useCallback(() => {
-    if (timerRef.current) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
   const dvhCleanupRef = useRef<(() => void) | null>(null);
 
-  const closeDemo = useCallback((showCtaOverlay: boolean) => {
+  const closeDemo = useCallback(() => {
     setIsOpen(false);
-    clearDemoTimer();
     try {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
@@ -120,13 +71,11 @@ const LPFantasyDemo: React.FC = () => {
       document.documentElement.style.removeProperty('--dvh');
     } catch { /* noop */ }
     setSuspendPiano(false);
-    if (showCtaOverlay) setShowCta(true);
-  }, [clearDemoTimer]);
+  }, []);
 
   const openDemo = useCallback(() => {
     setSuspendPiano(true);
     setIsOpen(true);
-    setShowCta(false);
     try {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
@@ -172,17 +121,10 @@ const LPFantasyDemo: React.FC = () => {
       try { window.dispatchEvent(new Event('resize')); } catch { /* noop */ }
     }, 0);
 
-    timerRef.current = window.setTimeout(() => {
-      closeDemo(true);
-    }, DEMO_TIME_LIMIT_MS);
-  }, [closeDemo]);
-
-  useEffect(() => {
-    return () => clearDemoTimer();
-  }, [clearDemoTimer]);
+  }, []);
 
   const handleDemoExit = useCallback(() => {
-    closeDemo(true);
+    closeDemo();
   }, [closeDemo]);
 
   return (
@@ -230,10 +172,12 @@ const LPFantasyDemo: React.FC = () => {
             <div className="p-4 md:p-6 flex flex-col justify-center gap-4" data-animate="text-up">
               <div className="text-center">
                 <p className="text-sm text-purple-200 mb-1">
-                  {isEnglishCopy ? 'Stage Mode — CDE Single Notes' : 'ステージモード — CDE単音'}
+                  {isEnglishCopy ? 'Survival Tutorial — II-V-I' : 'サバイバルチュートリアル — II-V-I'}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {isEnglishCopy ? '90 seconds free play with hints' : '90秒間の無料体験プレイ（ヒント付き）'}
+                  {isEnglishCopy
+                    ? 'Play chords, see the staff, and finish the guided tour.'
+                    : 'コードを弾いて譜面を見ながら、ガイド付き体験を最後まで進めます。'}
                 </p>
               </div>
 
@@ -284,49 +228,18 @@ const LPFantasyDemo: React.FC = () => {
           </div>
           <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden">
             <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white">{modalLoadingText}</div>}>
-              <SurvivalGameScreen
-                difficulty="easy"
-                config={DEMO_STAGE_CONFIG}
-                onBackToSelect={handleDemoExit}
-                onBackToMenu={handleDemoExit}
-                stageDefinition={DEMO_STAGE_DEFINITION}
-                hintMode={true}
-                embeddedFullHeight={true}
+              <SurvivalTutorialExperience
+                scriptId="onboarding-v1"
+                embeddedFullHeight
+                showSignupCtaOnFinish
+                showSkip
+                onComplete={handleDemoExit}
               />
             </Suspense>
           </div>
         </div>
       )}
 
-      {/* CTA overlay after demo ends */}
-      {showCta && (
-        <div className="fixed inset-0 z-[1100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-slate-900 border border-purple-500/40 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl">
-            <h3 className="text-2xl font-bold text-white mb-3">
-              {isEnglishCopy ? 'Thanks for playing!' : 'お疲れさまでした！'}
-            </h3>
-            <p className="text-gray-300 mb-6">
-              {isEnglishCopy
-                ? 'Sign up now and get a 7-day free trial with all features unlocked.'
-                : '無料トライアルに登録すると、7日間すべての機能をお試しいただけます。'}
-            </p>
-            <div className="flex flex-col gap-3">
-              <Link
-                to="/signup"
-                className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 font-bold text-white text-base transition"
-              >
-                {isEnglishCopy ? 'Start Free Trial' : '無料トライアルを始める'}
-              </Link>
-              <button
-                onClick={() => setShowCta(false)}
-                className="text-sm text-gray-400 hover:text-white transition"
-              >
-                {isEnglishCopy ? 'Close' : '閉じる'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 };

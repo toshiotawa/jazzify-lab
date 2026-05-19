@@ -827,6 +827,8 @@ export interface LessonSong {
   ear_training_stage_id?: string | null;
   is_fantasy: boolean;
   is_survival?: boolean;
+  is_survival_tutorial?: boolean;
+  survival_tutorial_script_id?: string | null;
   is_ear_training?: boolean;
   survival_allowed_chords?: string[];
   survival_stage_number?: number;

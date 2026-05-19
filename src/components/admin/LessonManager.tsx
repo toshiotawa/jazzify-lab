@@ -4,7 +4,7 @@ import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode,
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addEarTrainingStageToLesson, removeEarTrainingStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, removeEarTrainingStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
 import { fetchEarTrainingStages } from '@/platform/supabaseEarTraining';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
@@ -51,7 +51,8 @@ type SongFormData = {
 };
 
 type ContentFormData = {
-  content_type: 'song' | 'fantasy' | 'survival' | 'ear_training';
+  content_type: 'song' | 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training';
+  survival_tutorial_script_id?: string;
   song_id?: string;
   fantasy_stage_id?: string;
   ear_training_stage_id?: string;
@@ -580,6 +581,13 @@ export const LessonManager: React.FC = () => {
           survival_map_category: survivalMapCategory,
           clear_conditions: formData.clear_conditions,
         });
+      } else if (formData.content_type === 'survival_tutorial') {
+        const scriptId = formData.survival_tutorial_script_id?.trim() || 'onboarding-v1';
+        newLessonSong = await addSurvivalTutorialToLesson({
+          lesson_id: selectedLesson.id,
+          survival_tutorial_script_id: scriptId,
+          clear_conditions: formData.clear_conditions,
+        });
       } else if (formData.content_type === 'ear_training' && formData.ear_training_stage_id) {
         newLessonSong = await addEarTrainingStageToLesson({
           lesson_id: selectedLesson.id,
@@ -598,7 +606,13 @@ export const LessonManager: React.FC = () => {
         )
       );
       
-      const contentTypeMessages = { song: '楽曲を追加しました。', fantasy: 'ファンタジーステージを追加しました。', survival: 'サバイバルステージを追加しました。', ear_training: 'バトルモードステージを追加しました。' };
+      const contentTypeMessages = {
+        song: '楽曲を追加しました。',
+        fantasy: 'ファンタジーステージを追加しました。',
+        survival: 'サバイバルステージを追加しました。',
+        survival_tutorial: 'サバイバルチュートリアルを追加しました。',
+        ear_training: 'バトルモードステージを追加しました。',
+      };
       toast.success(contentTypeMessages[formData.content_type]);
       
       invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
@@ -1177,6 +1191,28 @@ export const LessonManager: React.FC = () => {
                                   </div>
                                 );
                               }
+                              if (ls.is_survival_tutorial) {
+                                return (
+                                  <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div>
+                                      <FaSkull className="inline-block mr-2 text-purple-400" />
+                                      <span className="font-medium">サバイバルチュートリアル</span>
+                                      <span className="text-xs text-purple-300 ml-2">
+                                        {ls.survival_tutorial_script_id ?? 'onboarding-v1'}
+                                        {ls.clear_conditions?.requires_days
+                                          ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
+                                          : ` (${ls.clear_conditions?.count || 1}回)`}
+                                      </span>
+                                    </div>
+                                    <button
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveContent(lesson.id, ls.id, false, ls.id, false, false)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                );
+                              }
                               if (ls.is_survival) {
                                 const stageDef = ls.survival_stage_number
                                   ? getStageByNumber(
@@ -1509,6 +1545,15 @@ export const LessonManager: React.FC = () => {
                   <input
                     type="radio"
                     {...registerContent('content_type')}
+                    value="survival_tutorial"
+                    className="radio radio-secondary"
+                  />
+                  <span className="ml-2">サバイバルチュートリアル</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    {...registerContent('content_type')}
                     value="ear_training"
                     className="radio radio-info"
                   />
@@ -1555,6 +1600,20 @@ export const LessonManager: React.FC = () => {
                     </div>
                   );
                 })()}
+              </div>
+            ) : watchContent && watchContent('content_type') === 'survival_tutorial' ? (
+              <div className="space-y-3">
+                <label className="label"><span className="label-text">台本 ID *</span></label>
+                <input
+                  type="text"
+                  {...registerContent('survival_tutorial_script_id')}
+                  className="input input-bordered w-full"
+                  placeholder="onboarding-v1"
+                  defaultValue="onboarding-v1"
+                />
+                <p className="text-xs text-gray-400">
+                  オンボーディング式の II-V-I チュートリアル。最後まで進めると課題クリア（ステージモード進捗には影響しません）。
+                </p>
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">

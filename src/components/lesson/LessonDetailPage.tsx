@@ -272,6 +272,8 @@ const LessonDetailPage: React.FC = () => {
           clear_conditions: ls.clear_conditions,
           is_fantasy: ls.is_fantasy,
           is_survival: ls.is_survival,
+          is_survival_tutorial: ls.is_survival_tutorial,
+          survival_tutorial_script_id: ls.survival_tutorial_script_id,
           survival_allowed_chords: ls.survival_allowed_chords,
           survival_stage_number: ls.survival_stage_number,
           survival_map_category: ls.survival_map_category,
@@ -705,7 +707,7 @@ const LessonDetailPage: React.FC = () => {
                 <div className="space-y-4">
                   {requirements.map((req: any, index) => {
                     const progress = requirementsProgress.find(p => {
-                      if (req.is_fantasy || req.is_survival || req.is_ear_training) {
+                      if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_ear_training) {
                         return p.lesson_song_id === req.lesson_song_id;
                       }
                       return p.song_id === req.song_id;
@@ -720,7 +722,8 @@ const LessonDetailPage: React.FC = () => {
                     const clearDates = progress?.clear_dates || [];
                     const requiresDays = req.clear_conditions?.requires_days || false;
                     const isFantasy = req.is_fantasy || false;
-                    const isSurvival = req.is_survival || false;
+                    const isSurvivalTutorial = req.is_survival_tutorial || false;
+                    const isSurvival = req.is_survival || isSurvivalTutorial || false;
                     const isEarTraining = req.is_ear_training || false;
                     const earTrainingClearCondition = isEarTraining
                       ? getEarTrainingLessonClearConditionText(req.ear_training_stage, isEnglishCopy)
@@ -757,8 +760,26 @@ const LessonDetailPage: React.FC = () => {
                           )}
                         </div>
                         
+                        {isSurvivalTutorial && (
+                          <div className="mb-3 text-sm">
+                            <div className="font-medium text-red-300">
+                              {isEnglishCopy ? 'Survival tutorial' : 'サバイバルチュートリアル'}
+                            </div>
+                            <p className="text-gray-400 text-xs mt-1">
+                              {isEnglishCopy
+                                ? 'Complete the guided experience to clear this task.'
+                                : 'ガイド体験を最後まで進めるとクリアになります。'}
+                            </p>
+                            {req.survival_tutorial_script_id ? (
+                              <p className="text-gray-500 text-xs mt-1">
+                                Script: {req.survival_tutorial_script_id}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
+
                         {/* サバイバルステージ情報 */}
-                        {isSurvival && (() => {
+                        {isSurvival && !isSurvivalTutorial && (() => {
                           const mapCat = resolveLessonSurvivalMapCategory(
                             req.survival_map_category ?? undefined,
                           );
@@ -1082,7 +1103,14 @@ const LessonDetailPage: React.FC = () => {
                                 return;
                               }
                             }
-                            if (isSurvival) {
+                            if (isSurvivalTutorial) {
+                              const params = new URLSearchParams();
+                              params.set('lessonId', req.lesson_id);
+                              params.set('lessonSongId', req.lesson_song_id);
+                              params.set('scriptId', req.survival_tutorial_script_id ?? 'onboarding-v1');
+                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
+                              window.location.hash = `#survival-tutorial-lesson?${params.toString()}`;
+                            } else if (isSurvival) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
                               params.set('lessonSongId', req.lesson_song_id);

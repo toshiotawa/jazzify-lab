@@ -186,6 +186,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let earTrainingStageId: UUID?
     let isFantasy: Bool
     let isSurvival: Bool?
+    let isSurvivalTutorial: Bool?
+    let survivalTutorialScriptId: String?
     let isEarTraining: Bool?
     let survivalStageNumber: Int?
     /// Web `lesson_songs.survival_map_category`。nil のときアプリ側では basic。
@@ -207,6 +209,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case earTrainingStageId = "ear_training_stage_id"
         case isFantasy = "is_fantasy"
         case isSurvival = "is_survival"
+        case isSurvivalTutorial = "is_survival_tutorial"
+        case survivalTutorialScriptId = "survival_tutorial_script_id"
         case isEarTraining = "is_ear_training"
         case survivalStageNumber = "survival_stage_number"
         case survivalMapCategory = "survival_map_category"

@@ -1509,6 +1509,14 @@ private struct EarTrainingLaunch: Identifiable {
     var initialPracticeMode: Bool = false
 }
 
+/// サバイバルチュートリアル（ネイティブ OnboardingView）の fullScreenCover 起動コンテキスト。
+private struct SurvivalTutorialLaunch: Identifiable {
+    let id = UUID()
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 struct LessonDetailView: View {
     private struct QuickLookDocument: Identifiable {
         let id = UUID()
@@ -1536,6 +1544,7 @@ struct LessonDetailView: View {
     @State private var alertMessage: String?
     @State private var launchDestination: LessonLaunchDestination?
     @State private var earTrainingLaunch: EarTrainingLaunch?
+    @State private var survivalTutorialLaunch: SurvivalTutorialLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -1662,12 +1671,31 @@ struct LessonDetailView: View {
                 onClose: { earTrainingLaunch = nil }
             )
         }
+        .fullScreenCover(item: $survivalTutorialLaunch) { launch in
+            OnboardingView(
+                locale: locale,
+                onClose: { survivalTutorialLaunch = nil },
+                onLessonComplete: {
+                    _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
+                        lessonId: launch.lessonId,
+                        lessonSongId: launch.lessonSongId,
+                        rank: launch.clearConditions?.rank ?? "S",
+                        clearConditions: launch.clearConditions
+                    )
+                }
+            )
+        }
         .onChange(of: launchDestination == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
             }
         }
         .onChange(of: earTrainingLaunch == nil) { isNil in
+            if isNil {
+                Task { await loadLessonDetail() }
+            }
+        }
+        .onChange(of: survivalTutorialLaunch == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
             }
@@ -2481,7 +2509,7 @@ struct LessonDetailView: View {
 
     private func progress(for requirement: LessonSong) -> LessonRequirementProgressRow? {
         requirementProgress.first { progress in
-            if requirement.isFantasy || requirement.isSurvival == true || requirement.isEarTraining == true {
+            if requirement.isFantasy || requirement.isSurvival == true || requirement.isSurvivalTutorial == true || requirement.isEarTraining == true {
                 return progress.lessonSongId == requirement.id
             }
             return progress.songId == requirement.songId
@@ -2504,6 +2532,9 @@ struct LessonDetailView: View {
         }
         if let songTitle = requirement.songs?.title {
             return "\(index + 1). \(songTitle)"
+        }
+        if requirement.isSurvivalTutorial == true {
+            return "\(index + 1). \(locale == .ja ? "サバイバルチュートリアル" : "Survival Tutorial")"
         }
         if requirement.isSurvival == true, let stageNumber = requirement.survivalStageNumber {
             return "\(index + 1). \(locale == .ja ? "サバイバル ステージ" : "Survival Stage") \(stageNumber)"
@@ -2531,6 +2562,13 @@ struct LessonDetailView: View {
                 return parts.joined(separator: " / ")
             }
             return locale == .ja ? "バトルモード課題" : "Battle mode task"
+        }
+
+        if requirement.isSurvivalTutorial == true {
+            let scriptId = requirement.survivalTutorialScriptId ?? "onboarding-v1"
+            return locale == .ja
+                ? "サバイバルチュートリアル / \(scriptId)"
+                : "Survival tutorial / \(scriptId)"
         }
 
         if requirement.isSurvival == true {
@@ -2652,6 +2690,15 @@ struct LessonDetailView: View {
                     await MainActor.run { showSubscriptionSheet = true }
                 }
             }
+            return
+        }
+
+        if requirement.isSurvivalTutorial == true {
+            survivalTutorialLaunch = SurvivalTutorialLaunch(
+                lessonId: lesson.id,
+                lessonSongId: requirement.id,
+                clearConditions: requirement.clearConditions
+            )
             return
         }
 

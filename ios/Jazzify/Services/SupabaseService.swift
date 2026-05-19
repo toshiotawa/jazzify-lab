@@ -294,6 +294,8 @@ final class SupabaseService: Sendable {
                 ear_training_stage_id,
                 is_fantasy,
                 is_survival,
+                is_survival_tutorial,
+                survival_tutorial_script_id,
                 is_ear_training,
                 survival_stage_number,
                 survival_map_category,

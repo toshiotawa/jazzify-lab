@@ -4,15 +4,21 @@ import SwiftUI
 struct OnboardingView: View {
     let locale: AppLocale
     let onClose: () -> Void
+    var onLessonComplete: (() async -> Void)?
 
     @StateObject private var scenarioController = SurvivalScenarioController()
     @StateObject private var script: OnboardingScript
     @StateObject private var bgm = OnboardingBgmController()
     @State private var fadeOpacity: Double = 0
 
-    init(locale: AppLocale, onClose: @escaping () -> Void) {
+    init(
+        locale: AppLocale,
+        onClose: @escaping () -> Void,
+        onLessonComplete: (() async -> Void)? = nil
+    ) {
         self.locale = locale
         self.onClose = onClose
+        self.onLessonComplete = onLessonComplete
         _script = StateObject(wrappedValue: OnboardingScript(locale: locale))
     }
 
@@ -32,9 +38,13 @@ struct OnboardingView: View {
                 scenarioController: scenarioController,
                 onSessionReady: { session in
                     script.attach(session: session, controller: scenarioController, onFinish: {
-                        withAnimation(.easeInOut(duration: 0.55)) { fadeOpacity = 1 }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-                            onClose()
+                        Task {
+                            await onLessonComplete?()
+                            await MainActor.run {
+                                withAnimation(.easeInOut(duration: 0.55)) { fadeOpacity = 1 }
+                            }
+                            try? await Task.sleep(nanoseconds: 550_000_000)
+                            await MainActor.run { onClose() }
                         }
                     })
                 }

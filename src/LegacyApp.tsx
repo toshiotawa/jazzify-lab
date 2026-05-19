@@ -26,6 +26,9 @@ const PricingTable = React.lazy(() => import('@/components/subscription/PricingT
 const LazyFantasyMain = React.lazy(() => import('@/components/fantasy/FantasyMain'));
 const LazyStoryPage = React.lazy(() => import('@/components/fantasy/StoryPage'));
 const LazySurvivalMain = React.lazy(() => import('@/components/survival/SurvivalMain'));
+const LazySurvivalTutorialMain = React.lazy(
+  () => import('@/components/survival/tutorial/SurvivalTutorialMain'),
+);
 const LazyGameScreen = React.lazy(() => import('@/components/game/GameScreen'));
 const LazyEarTrainingMain = React.lazy(() => import('@/components/earTraining/EarTrainingMain'));
 
@@ -122,6 +125,7 @@ const App: React.FC = () => {
         '#information',
         '#survival',
         '#survival-lesson',
+        '#survival-tutorial-lesson',
         '#ear-training-lesson',
         '#play-lesson',
         '#practice',
@@ -185,6 +189,8 @@ const App: React.FC = () => {
       switch (hashBase) {
         case 'survival-lesson':
           return <LazySurvivalMain lessonMode />;
+        case 'survival-tutorial-lesson':
+          return <LazySurvivalTutorialMain />;
         case 'ear-training-lesson':
           return <LazyEarTrainingMain />;
         case 'fantasy':
@@ -379,6 +385,13 @@ const App: React.FC = () => {
       MainContent = (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazySurvivalMain lessonMode />
+        </React.Suspense>
+      );
+      break;
+    case '#survival-tutorial-lesson':
+      MainContent = (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazySurvivalTutorialMain />
         </React.Suspense>
       );
       break;
