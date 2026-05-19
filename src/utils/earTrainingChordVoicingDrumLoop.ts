@@ -2,6 +2,14 @@
 export const CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL =
   'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3';
 
+/** `audio_url` 空のセルフペースは無音フレーズ用にドラム MP3 をクロックとして流用する（iOS / Web 共通方針）。 */
+export const resolveChordVoicingSelfPacedPhraseClockUrl = (audioUrl: string | null | undefined): string => {
+  if (audioUrl == null || audioUrl.trim() === '') {
+    return CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL;
+  }
+  return audioUrl.trim();
+};
+
 /**
  * self-paced のみ。フレーズ切替とは独立して Web Audio でループ再生（単一コンテキスト内）。
  */

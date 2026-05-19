@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
+import {
+  OnboardingOverlays,
+  type EarTutorialDialogPlacement,
+} from '@/components/onboarding/OnboardingOverlays';
 import { fetchSurvivalCharacters, type SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -12,7 +15,12 @@ import {
   tutorialFinishCtaLabel,
 } from './EarTrainingTutorialSceneHost';
 import { fetchEarTrainingTutorialScript } from './fetchEarTrainingTutorialScript';
-import type { EarTrainingTutorialScene } from './earTrainingTutorialScriptTypes';
+import type {
+  EarTrainingTutorialScene,
+  EarTrainingTutorialScriptPayload,
+} from './earTrainingTutorialScriptTypes';
+import { EarTrainingLandscapeTutorialShell } from './EarTrainingLandscapeTutorialShell';
+import { preloadEarTrainingTutorialBattleChunks } from './preloadEarTrainingTutorialBattleChunks';
 
 export interface EarTrainingLessonTutorialExperienceProps {
   scriptId?: string;
@@ -78,6 +86,27 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const script = scriptRow?.script ?? null;
   const scenes = script?.scenes ?? [];
   const currentScene = scenes[sceneIndex] ?? null;
+
+  const earTutorialDialogPlacement = useMemo((): EarTutorialDialogPlacement => {
+    if (!currentScene) return 'default';
+    switch (currentScene.type) {
+      case 'dialogue_only':
+        return 'dialogueIntroUpperCenter';
+      case 'chord_quiz':
+      case 'chord_osmd':
+        return 'belowChordHud';
+      case 'chord_voicing_self_paced':
+        return 'belowChordHud';
+      default:
+        return 'default';
+    }
+  }, [currentScene]);
+
+  useEffect(() => {
+    if (gate !== 'ready' || !script?.scenes.length) return;
+    if (script.scenes[0]?.type !== 'dialogue_only') return;
+    void preloadEarTrainingTutorialBattleChunks();
+  }, [gate, script]);
 
   const finalizeLesson = useCallback(
     async (kind: 'completed' | 'aborted') => {
@@ -197,42 +226,58 @@ export const EarTrainingLessonTutorialExperience: React.FC<
           : 'fixed inset-0 z-50 bg-black'
       }
     >
-      {showExit ? (
-        <button
-          type="button"
-          onClick={handleExitClick}
-          className="absolute left-3 top-3 z-40 rounded-lg border border-white/20 bg-black/70 px-3 py-1.5 text-xs font-bold text-white hover:bg-black/90"
-        >
-          {isEnglishCopy ? 'Exit' : '退出'}
-        </button>
-      ) : null}
+      <EarTrainingLandscapeTutorialShell>
+        {showExit ? (
+          <button
+            type="button"
+            onClick={handleExitClick}
+            className="absolute right-[max(12px,env(safe-area-inset-right))] top-[max(12px,env(safe-area-inset-top))] z-[45] rounded-lg border border-white/20 bg-black/70 px-3 py-1.5 text-xs font-bold text-white hover:bg-black/90"
+          >
+            {isEnglishCopy ? 'Exit' : '退出'}
+          </button>
+        ) : null}
 
-      {currentScene.type !== 'finish' ? (
-        <EarTrainingTutorialSceneHost
-          key={`scene-${sceneIndex}`}
-          script={script}
-          scene={currentScene}
-          sceneIndex={sceneIndex}
-          enemy={enemy}
-          bindings={bindingsWithAdvance}
-          onSceneComplete={advanceScene}
+        {currentScene.type !== 'finish' ? (
+          <EarTrainingTutorialSceneHost
+            key={`scene-${sceneIndex}`}
+            script={script}
+            scene={currentScene}
+            sceneIndex={sceneIndex}
+            enemy={enemy}
+            bindings={bindingsWithAdvance}
+            isEnglishCopy={isEnglishCopy}
+            onSceneComplete={advanceScene}
+          />
+        ) : null}
+
+        <OnboardingOverlays
+          characterText={characterText}
+          narrationText=""
+          connectedDeviceLine={null}
+          showPillarCard={false}
+          pillarCaption={null}
+          pillarSystemImage={null}
+          showCta={false}
+          showSkip={false}
+          isEnglishCopy={isEnglishCopy}
+          onCta={handleCta}
+          onSkip={() => undefined}
+          ctaLabel={tutorialFinishCtaLabel(isEnglishCopy)}
+          earTutorialDialogPlacement={earTutorialDialogPlacement}
         />
-      ) : null}
+      </EarTrainingLandscapeTutorialShell>
 
-      <OnboardingOverlays
-        characterText={characterText}
-        narrationText=""
-        connectedDeviceLine={null}
-        showPillarCard={false}
-        pillarCaption={null}
-        pillarSystemImage={null}
-        showCta={showCta}
-        showSkip={false}
-        isEnglishCopy={isEnglishCopy}
-        onCta={handleCta}
-        onSkip={() => undefined}
-        ctaLabel={tutorialFinishCtaLabel(isEnglishCopy)}
-      />
+      {showCta ? (
+        <div className="pointer-events-auto absolute inset-0 z-[120] flex items-center justify-center bg-black/50 px-4">
+          <button
+            type="button"
+            onClick={handleCta}
+            className="rounded-xl bg-purple-600 px-8 py-4 text-lg font-bold text-white shadow-lg hover:bg-purple-500"
+          >
+            {tutorialFinishCtaLabel(isEnglishCopy)}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 };

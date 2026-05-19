@@ -11,6 +11,8 @@ struct EarTrainingChordOSMDGameView: View {
     let locale: AppLocale
     var initialPracticeMode: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
+    var hostedLandscapeSize: CGSize?
+    var prewarmOsmdPack: EarTrainingTutorialPrewarmedOsmdPack?
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordOSMDBattleController?
@@ -25,7 +27,8 @@ struct EarTrainingChordOSMDGameView: View {
                 EarTrainingChordOSMDContent(
                     controller: controller,
                     audio: audio,
-                    locale: locale
+                    locale: locale,
+                    fixedLandscapeSize: hostedLandscapeSize
                 )
             } else if isLoading {
                 loadingView
@@ -77,6 +80,15 @@ struct EarTrainingChordOSMDGameView: View {
     @MainActor
     private func bootstrap() async {
         guard controller == nil else { return }
+        if let pack = prewarmOsmdPack {
+            isLoading = true
+            loadError = nil
+            if pack.controller.gameState == .idle {
+                pack.controller.start()
+            }
+            attachMidiFinishOsmdBootstrap(createdController: pack.controller, audioInstance: pack.audio)
+            return
+        }
         isLoading = true
         loadError = nil
         do {
@@ -125,41 +137,48 @@ struct EarTrainingChordOSMDGameView: View {
                 createdController.tutorialHooks = tutorialHooks
             }
 
-            midiSubscriptionHolder.cancel()
-            midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
-                let messageType = status & 0xF0
-                let note = Int(data1)
-                let velocity = Int(data2)
-                let isNoteOn = messageType == 0x90 && velocity > 0
-                let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
-                if isNoteOn {
-                    SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
-                } else if isNoteOff {
-                    SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
-                } else {
-                    return
-                }
-                DispatchQueue.main.async { [weak createdController] in
-                    guard let createdController else { return }
-                    if isNoteOn {
-                        createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
-                        createdController.registerMidiKeyDown(note)
-                    } else {
-                        createdController.handleNoteOff(midi: note, playAudio: false)
-                        createdController.registerMidiKeyUp(note)
-                    }
-                }
-            }
-
             createdController.start()
-            self.audio = audioInstance
-            self.controller = createdController
-            self.isLoading = false
-            createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
+            attachMidiFinishOsmdBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
             isLoading = false
         }
+    }
+
+    @MainActor
+    private func attachMidiFinishOsmdBootstrap(
+        createdController: EarTrainingChordOSMDBattleController,
+        audioInstance: EarTrainingAudio
+    ) {
+        midiSubscriptionHolder.cancel()
+        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
+            let messageType = status & 0xF0
+            let note = Int(data1)
+            let velocity = Int(data2)
+            let isNoteOn = messageType == 0x90 && velocity > 0
+            let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
+            if isNoteOn {
+                SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
+            } else if isNoteOff {
+                SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
+            } else {
+                return
+            }
+            DispatchQueue.main.async { [weak createdController] in
+                guard let createdController else { return }
+                if isNoteOn {
+                    createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
+                    createdController.registerMidiKeyDown(note)
+                } else {
+                    createdController.handleNoteOff(midi: note, playAudio: false)
+                    createdController.registerMidiKeyUp(note)
+                }
+            }
+        }
+        self.audio = audioInstance
+        self.controller = createdController
+        self.isLoading = false
+        createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
     }
 }
 
@@ -167,6 +186,7 @@ private struct EarTrainingChordOSMDContent: View {
     @ObservedObject var controller: EarTrainingChordOSMDBattleController
     let audio: EarTrainingAudio
     let locale: AppLocale
+    let fixedLandscapeSize: CGSize?
 
     /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
     @State private var scoreSizeStep: Int = 1
@@ -177,18 +197,27 @@ private struct EarTrainingChordOSMDContent: View {
     private static let containerScaleTable: [Double] = [0.80, 0.90, 1.00, 1.15, 1.30]
 
     var body: some View {
-        GeometryReader { proxy in
-            let portraitSize = proxy.size
-            let landscapeSize = CGSize(
-                width: max(1, portraitSize.height),
-                height: max(1, portraitSize.width)
-            )
-            landscapeContent(size: landscapeSize)
-                .frame(width: landscapeSize.width, height: landscapeSize.height)
-                .clipped()
-                .rotationEffect(.degrees(90))
-                .frame(width: portraitSize.width, height: portraitSize.height)
-                .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+        Group {
+            if let fixed = fixedLandscapeSize {
+                landscapeContent(size: fixed)
+                    .frame(width: fixed.width, height: fixed.height)
+                    .clipped()
+            } else {
+                GeometryReader { proxy in
+                    let portraitSize = proxy.size
+                    let landscapeSize = CGSize(
+                        width: max(1, portraitSize.height),
+                        height: max(1, portraitSize.width)
+                    )
+                    landscapeContent(size: landscapeSize)
+                        .frame(width: landscapeSize.width, height: landscapeSize.height)
+                        .clipped()
+                        .rotationEffect(.degrees(90))
+                        .frame(width: portraitSize.width, height: portraitSize.height)
+                        .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+                }
+                .ignoresSafeArea()
+            }
         }
         .ignoresSafeArea()
         .onAppear {
@@ -457,6 +486,9 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
+        coordinator.tearDown()
+        uiView.stopLoading()
+        uiView.navigationDelegate = nil
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: Self.osmdRenderScriptMessageName)
     }
 
@@ -468,6 +500,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private weak var webView: WKWebView?
         private var htmlReady = false
+        private var isTornDown = false
+        private var renderGeneration: Int = 0
         private var pendingMusicXMLText: String?
         private var pendingRenderKey: Int?
         private var pendingMeasureNumber: Int?
@@ -479,6 +513,17 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
         func attach(_ webView: WKWebView) {
             self.webView = webView
+        }
+
+        func tearDown() {
+            isTornDown = true
+            renderGeneration += 1
+            htmlReady = false
+            pendingMusicXMLText = nil
+            pendingRenderKey = nil
+            pendingMeasureNumber = nil
+            webView?.stopLoading()
+            webView = nil
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -497,11 +542,13 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
+            guard !isTornDown else { return }
             htmlReady = true
             flushPending(webView: webView)
         }
 
         func update(webView: WKWebView, musicXMLText: String, renderKey: Int, activeMeasureNumber: Int, zoom: Double) {
+            guard !isTornDown else { return }
             pendingMusicXMLText = musicXMLText
             pendingRenderKey = renderKey
             pendingMeasureNumber = activeMeasureNumber
@@ -511,7 +558,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
 
         private func flushPending(webView: WKWebView) {
-            guard htmlReady else { return }
+            guard !isTornDown, htmlReady else { return }
             guard let xml = pendingMusicXMLText,
                   let key = pendingRenderKey,
                   let measure = pendingMeasureNumber else { return }
@@ -520,6 +567,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 || lastRenderedKey != key
                 || lastRenderedZoom.map { abs($0 - nextZoom) > 0.000_1 } ?? true
             if needsRender {
+                renderGeneration += 1
+                let generation = renderGeneration
                 lastRenderedMusicXMLText = xml
                 lastRenderedKey = key
                 lastRenderedZoom = nextZoom
@@ -531,18 +580,31 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
-                Self.evaluate(script, on: webView)
+                Self.evaluate(script, on: webView, generation: generation, coordinator: self)
                 return
             }
             if lastMeasureNumber != measure {
                 lastMeasureNumber = measure
-                Self.evaluate("window.JazzifyOSMD.setActiveMeasure(\(measure));", on: webView)
+                let generation = renderGeneration
+                Self.evaluate(
+                    "window.JazzifyOSMD.setActiveMeasure(\(measure));",
+                    on: webView,
+                    generation: generation,
+                    coordinator: self
+                )
             }
         }
 
-        private static func evaluate(_ script: String, on webView: WKWebView) {
+        private static func evaluate(
+            _ script: String,
+            on webView: WKWebView,
+            generation: Int,
+            coordinator: Coordinator
+        ) {
+            guard !coordinator.isTornDown, coordinator.renderGeneration == generation else { return }
             webView.evaluateJavaScript(script) { _, error in
                 guard let error else { return }
+                guard !coordinator.isTornDown, coordinator.renderGeneration == generation else { return }
                 Log.osmd.error("evaluateJavaScript failed: \(String(describing: error), privacy: .public)")
             }
         }

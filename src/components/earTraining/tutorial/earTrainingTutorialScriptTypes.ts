@@ -30,6 +30,7 @@ export interface EarTrainingTutorialContentChord {
   end_time_sec?: number | null;
   voicing: string[];
   voicing_staves?: number[] | null;
+  quote?: TutorialLocalizedText;
 }
 
 export interface EarTrainingTutorialContentPhrase {
@@ -122,8 +123,8 @@ export interface EarTrainingTutorialSelfPacedScene {
   contentRef: string;
   requiredSuccessfulLoops: number;
   dialogue: {
-    onSceneStart: TutorialLocalizedText;
-    onLoopSuccess: TutorialLocalizedText;
+    onSceneStart?: TutorialLocalizedText;
+    onLoopSuccess?: TutorialLocalizedText;
     timedLines?: EarTrainingTutorialSelfPacedTimedLine[];
   };
 }

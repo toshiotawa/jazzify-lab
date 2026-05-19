@@ -38,6 +38,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     var tutorialQuestionTarget: Int = 0
     private var tutorialQuestionsAnswered: Int = 0
+    /// チュートリアル出題インデックス（正解直後の遷移待ちでは進めない）。
+    private var tutorialCurrentQuestionIndex: Int = 0
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
@@ -126,8 +128,23 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     var displayedStaffPreviewQuestion: EarTrainingChordQuiz.Question? {
+        guard shouldShowQuizPreviewQuestion else { return nil }
         guard displayedStaffPreviewQuizIndex >= 0 && displayedStaffPreviewQuizIndex < quizQuestions.count else { return nil }
         return quizQuestions[displayedStaffPreviewQuizIndex]
+    }
+
+    /// 最終出題では右プレビュー小節（次の問題）を出さない。
+    private var shouldShowQuizPreviewQuestion: Bool {
+        guard let preview = previewQuestion,
+              let active = currentActiveQuestion,
+              preview.id != active.id
+        else { return false }
+        if tutorialHooks != nil {
+            let target = max(1, tutorialQuestionTarget)
+            return tutorialCurrentQuestionIndex + 1 < target
+        }
+        let required = max(1, stage.quizRequiredCorrectCount ?? 10)
+        return correctCount + 1 < required
     }
 
     var activeChord: EarTrainingPhraseChordDetail? {
@@ -209,7 +226,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         battleEffectClearTask?.cancel()
         battleEffectClearTask = nil
         midiHeldKeys.removeAll()
-        audio.stopDrumLoop()
+        audio.stop()
         scene = nil
     }
 
@@ -311,6 +328,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
         if tutorialHooks != nil {
             tutorialQuestionsAnswered = 0
+            tutorialCurrentQuestionIndex = 0
         }
         lessonProgressStatus = nil
         progressSaveStarted = false
@@ -699,6 +717,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func advanceAfterCorrect() {
+        if tutorialHooks != nil {
+            tutorialCurrentQuestionIndex += 1
+        }
         phraseRunId &+= 1
         activeQuizIndex = previewQuizIndex
         previewQuizIndex = EarTrainingChordQuiz.pickNextQuizIndex(
@@ -844,6 +865,10 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func updatePlayerQuoteBubble() {
+        if tutorialHooks != nil {
+            scene?.setPlayerQuote(nil)
+            return
+        }
         if gameState == .playingPhrase, !quizEnded {
             scene?.setPlayerQuote("\(correctCount)/\(requiredCorrectCount)")
         } else {
@@ -939,7 +964,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
                 )
             }
         }
-        if let preview = previewQuestion, preview.id != currentActiveQuestion?.id {
+        if shouldShowQuizPreviewQuestion, let preview = previewQuestion {
             for chord in preview.chords {
                 chips.append(EarTrainingChordChip(id: chord.id, name: chord.chordName, active: false))
             }
@@ -1059,6 +1084,7 @@ extension EarTrainingChordQuizBattleController: EarTrainingLobbyPresentable {
     }
 
     var quizRulesLine: String? {
-        stage.battleClearConditionText(isEnglish: isEnglishCopy)
+        if tutorialHooks != nil { return nil }
+        return stage.battleClearConditionText(isEnglish: isEnglishCopy)
     }
 }

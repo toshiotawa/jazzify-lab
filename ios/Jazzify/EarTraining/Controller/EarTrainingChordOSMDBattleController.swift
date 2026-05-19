@@ -164,6 +164,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     func start() {
+        audio.stopDrumLoop()
+        audio.stopPhrase()
         audio.start()
         audio.onTimeUpdate = { [weak self] currentTime in
             Task { @MainActor in
@@ -198,9 +200,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         cancelAllTasks()
         audio.onTimeUpdate = nil
         audio.onEnded = nil
+        audio.stopDrumLoop()
         audio.stopPhrase()
+        audio.stop()
         midiHeldKeys.removeAll()
         voicingHintIntensities = [:]
+        musicXMLText = nil
         scene = nil
     }
 
@@ -211,6 +216,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
     func handleBack() {
         cancelAllTasks()
+        audio.stopDrumLoop()
         audio.stopPhrase()
         onExitCallback()
     }
@@ -221,6 +227,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         cancelAllTasks()
+        audio.stopDrumLoop()
         audio.stopPhrase()
         progressSaveStarted = false
         lessonProgressStatus = nil
@@ -304,6 +311,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             finishGameOver(message: copy.audioFailed)
             return
         }
+
+        countdownTask?.cancel()
+        audio.stopDrumLoop()
+        audio.stopPhrase()
 
         phraseIndex = index
         phraseRunId += 1
@@ -488,6 +499,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func refreshPracticeVoicingHints() {
+        if tutorialOsmdDemoAutoplay {
+            if !voicingHintIntensities.isEmpty {
+                voicingHintIntensities = [:]
+            }
+            return
+        }
         guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else {
             if !voicingHintIntensities.isEmpty {
                 voicingHintIntensities = [:]
@@ -586,7 +603,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
     /// Web `tutorialDemoAutoplay`：デモではターゲット時刻に判定のみ行い、鍵盤ハイライトのみ（ピアノ音なし）。
     private func autoCompleteDemoTargets(at time: Double) {
-        guard tutorialOsmdDemoAutoplay else { return }
+        guard tutorialOsmdDemoAutoplay, gameState == .playingPhrase else { return }
         while nextDemoAutoplayTargetIndex < targets.count {
             let index = nextDemoAutoplayTargetIndex
             let target = targets[index]
@@ -613,7 +630,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             handleNoteOn(midi: midi, velocity: 90, playAudio: false)
         }
         if targets[index].completed == false, targets[index].failed == false {
-            completeTarget(at: index)
+            let targetIndex = index
+            Task { @MainActor [weak self] in
+                self?.completeTarget(at: targetIndex)
+            }
         }
         let releaseMidis = midis
         Task { @MainActor [weak self] in
@@ -626,14 +646,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func throwDueHammers(at time: Double) {
+        if tutorialOsmdDemoAutoplay { return }
         while nextHammerTargetIndex < targets.count {
             let target = targets[nextHammerTargetIndex]
             let throwTime = target.targetTimeSec - Self.hammerLeadSec
             guard time >= throwTime else { break }
-            if tutorialOsmdDemoAutoplay {
-                nextHammerTargetIndex += 1
-                continue
-            }
             let impactTime = target.targetTimeSec + Self.hammerImpactOffsetSec
             let travel = max(0.12, impactTime - time)
             let effectId = triggerBattleEffect(
@@ -653,6 +670,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func failExpiredTargets(at time: Double) {
+        if tutorialOsmdDemoAutoplay { return }
         var changed = false
         while nextMissTargetIndex < targets.count {
             let target = targets[nextMissTargetIndex]
@@ -676,17 +694,22 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         guard targets[index].completed == false, targets[index].failed == false else { return }
         targets[index].completed = true
         targets[index].reflected = true
-        if let hammerEffectId = targets[index].hammerEffectId {
-            pendingImpactHandlers[hammerEffectId] = nil
+        let incomingHammerEffectId = targets[index].hammerEffectId
+        if let incomingHammerEffectId {
+            pendingImpactHandlers[incomingHammerEffectId] = nil
+            if tutorialOsmdDemoAutoplay {
+                scene?.dismissOsmdHammerEffect(effectId: incomingHammerEffectId)
+            }
         }
         let chordName = targets[index].label
         let damage = practiceMode ? 0 : stage.perCorrectNoteDamage
+        let reflectRelatedId = tutorialOsmdDemoAutoplay ? nil : incomingHammerEffectId
         let effectId = triggerBattleEffect(
             kind: .osmdHammerReflect,
             label: chordName,
             damage: damage,
             phraseNoteCount: nil,
-            relatedEffectId: targets[index].hammerEffectId
+            relatedEffectId: reflectRelatedId
         )
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
             self?.applyEnemyDamage(damage)
@@ -698,6 +721,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func handleHammerImpact(targetIndex: Int) {
+        if tutorialOsmdDemoAutoplay { return }
         guard targets.indices.contains(targetIndex) else { return }
         guard targets[targetIndex].completed == false, targets[targetIndex].reflected == false else { return }
         if targets[targetIndex].failed == false {
@@ -717,6 +741,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         guard gameState == .playingPhrase, !phraseEnding else { return }
         if let hooks = tutorialHooks {
             phraseEnding = true
+            audio.stopDrumLoop()
             audio.stopPhrase()
             tutorialOsmdLoopCount += 1
             if tutorialOsmdLoopCount >= hooks.requiredSuccessfulLoops {
@@ -1190,6 +1215,7 @@ extension EarTrainingChordOSMDBattleController: EarTrainingPianoPlayable {
     var voicingHintsByMidi: [Int: VoicingHintState] { [:] }
 
     var voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]? {
+        if tutorialOsmdDemoAutoplay { return nil }
         guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else { return nil }
         return voicingHintIntensities
     }
@@ -1241,6 +1267,7 @@ extension EarTrainingChordOSMDBattleController: EarTrainingLobbyPresentable {
     }
 
     var quizRulesLine: String? {
-        stage.battleClearConditionText(isEnglish: isEnglishCopy)
+        if tutorialHooks != nil { return nil }
+        return stage.battleClearConditionText(isEnglish: isEnglishCopy)
     }
 }

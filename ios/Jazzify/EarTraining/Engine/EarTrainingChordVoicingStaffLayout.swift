@@ -22,6 +22,8 @@ enum EarTrainingChordVoicingStaffLayout {
         let activeMeasureNumber: Int
         let activeChordId: UUID?
         let attempt: EarTrainingChordVoicingAttempt?
+        /// セルフペース時は次小節をループ先頭へ巻き戻さない（CM7 表示中に Dm7 が混ざるのを防ぐ）。
+        let selfPaced: Bool
     }
 
     static func buildGroups(input: BuildInput) -> (groups: [GroupInput], denseCurrentMeasureLayout: Bool) {
@@ -33,7 +35,24 @@ enum EarTrainingChordVoicingStaffLayout {
 
         let currentMeasureNumber = normalizeMeasureNumber(input.activeMeasureNumber, loopMeasures: input.stageLoopMeasures)
         let safeLoopMeasures = max(1, input.stageLoopMeasures)
-        let nextMeasureNumber = currentMeasureNumber >= safeLoopMeasures ? 1 : currentMeasureNumber + 1
+        let nextMeasureNumber: Int? = {
+            if input.selfPaced {
+                let completed = input.attempt?.completedChordIds ?? []
+                guard let nextChord = EarTrainingChordVoicingEngine.firstIncompleteVoicingChord(
+                    phrase: input.phrase,
+                    completedChordIds: completed
+                ) else {
+                    return nil
+                }
+                let nextM = chordMeasureNumber(
+                    chord: nextChord,
+                    loopDurationSec: loopDurationSec,
+                    loopMeasures: input.stageLoopMeasures
+                )
+                return nextM == currentMeasureNumber ? nil : nextM
+            }
+            return currentMeasureNumber >= safeLoopMeasures ? 1 : currentMeasureNumber + 1
+        }()
         var slotIndexByMeasure: [Int: Int] = [:]
 
         let visibleEntries = chords
@@ -41,7 +60,10 @@ enum EarTrainingChordVoicingStaffLayout {
             .map { chord -> (chord: EarTrainingPhraseChordDetail, measureNumber: Int) in
                 (chord, chordMeasureNumber(chord: chord, loopDurationSec: loopDurationSec, loopMeasures: input.stageLoopMeasures))
             }
-            .filter { $0.measureNumber == currentMeasureNumber || $0.measureNumber == nextMeasureNumber }
+            .filter { entry in
+                entry.measureNumber == currentMeasureNumber
+                    || (nextMeasureNumber.map { entry.measureNumber == $0 } ?? false)
+            }
 
         let harmonyRow: EarTrainingChordVoicingEngine.HarmonyHudRow? = {
             guard let activeId = input.activeChordId else { return nil }

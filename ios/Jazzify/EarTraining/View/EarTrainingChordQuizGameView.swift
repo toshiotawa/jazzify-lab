@@ -11,6 +11,10 @@ struct EarTrainingChordQuizGameView: View {
     var initialPracticeMode: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     var tutorialQuestionTarget: Int = 1
+    /// チュートリアル親が回転ラッパーで包むとき、landscape の実寸。
+    var hostedLandscapeSize: CGSize?
+    /// チュートリアル dialogue 事前ウォーム用（`bootstrap()` で消費して `nil` と同等）。
+    var prewarmQuizPack: EarTrainingTutorialPrewarmedQuizPack?
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordQuizBattleController?
@@ -26,6 +30,7 @@ struct EarTrainingChordQuizGameView: View {
                     controller: controller,
                     audio: audio,
                     locale: locale,
+                    fixedLandscapeSize: hostedLandscapeSize,
                     onClose: onClose
                 )
             } else if isLoading {
@@ -78,6 +83,15 @@ struct EarTrainingChordQuizGameView: View {
     @MainActor
     private func bootstrap() async {
         guard controller == nil else { return }
+        if let pack = prewarmQuizPack {
+            isLoading = true
+            loadError = nil
+            if pack.controller.gameState == .idle {
+                pack.controller.start()
+            }
+            attachMidiAndFinishBootstrap(createdController: pack.controller, audioInstance: pack.audio)
+            return
+        }
         isLoading = true
         loadError = nil
         do {
@@ -117,41 +131,49 @@ struct EarTrainingChordQuizGameView: View {
                 createdController.tutorialQuestionTarget = tutorialQuestionTarget
             }
 
-            midiSubscriptionHolder.cancel()
-            midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
-                let messageType = status & 0xF0
-                let note = Int(data1)
-                let velocity = Int(data2)
-                let isNoteOn = messageType == 0x90 && velocity > 0
-                let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
-                if isNoteOn {
-                    SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
-                } else if isNoteOff {
-                    SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
-                } else {
-                    return
-                }
-                DispatchQueue.main.async { [weak createdController] in
-                    guard let createdController else { return }
-                    if isNoteOn {
-                        createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
-                        createdController.registerMidiKeyDown(note)
-                    } else {
-                        createdController.handleNoteOff(midi: note, playAudio: false)
-                        createdController.registerMidiKeyUp(note)
-                    }
-                }
-            }
-
             createdController.start()
-            self.audio = audioInstance
-            self.controller = createdController
-            self.isLoading = false
-            createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
+            attachMidiAndFinishBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
             isLoading = false
         }
+    }
+
+    /// ウォーム済みまたは新規構築後に MIDI と表示状態を共通で確定させる。
+    @MainActor
+    private func attachMidiAndFinishBootstrap(
+        createdController: EarTrainingChordQuizBattleController,
+        audioInstance: EarTrainingAudio
+    ) {
+        midiSubscriptionHolder.cancel()
+        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
+            let messageType = status & 0xF0
+            let note = Int(data1)
+            let velocity = Int(data2)
+            let isNoteOn = messageType == 0x90 && velocity > 0
+            let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
+            if isNoteOn {
+                SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
+            } else if isNoteOff {
+                SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
+            } else {
+                return
+            }
+            DispatchQueue.main.async { [weak createdController] in
+                guard let createdController else { return }
+                if isNoteOn {
+                    createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
+                    createdController.registerMidiKeyDown(note)
+                } else {
+                    createdController.handleNoteOff(midi: note, playAudio: false)
+                    createdController.registerMidiKeyUp(note)
+                }
+            }
+        }
+        self.audio = audioInstance
+        self.controller = createdController
+        self.isLoading = false
+        createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
     }
 }
 
@@ -159,6 +181,8 @@ private struct EarTrainingChordQuizContent: View {
     @ObservedObject var controller: EarTrainingChordQuizBattleController
     let audio: EarTrainingAudio
     let locale: AppLocale
+    /// 親が landscape コンテナとして回転済みのときのみ指定。
+    let fixedLandscapeSize: CGSize?
     let onClose: () -> Void
 
     private static let pianoOverlayHeight: CGFloat = 80
@@ -167,18 +191,27 @@ private struct EarTrainingChordQuizContent: View {
     @State private var gaugeTicker = EarTrainingChordQuizGaugeTicker()
 
     var body: some View {
-        GeometryReader { proxy in
-            let portraitSize = proxy.size
-            let landscapeSize = CGSize(
-                width: max(1, portraitSize.height),
-                height: max(1, portraitSize.width)
-            )
-            landscapeContent(size: landscapeSize)
-                .frame(width: landscapeSize.width, height: landscapeSize.height)
-                .clipped()
-                .rotationEffect(.degrees(90))
-                .frame(width: portraitSize.width, height: portraitSize.height)
-                .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+        Group {
+            if let fixed = fixedLandscapeSize {
+                landscapeContent(size: fixed)
+                    .frame(width: fixed.width, height: fixed.height)
+                    .clipped()
+            } else {
+                GeometryReader { proxy in
+                    let portraitSize = proxy.size
+                    let landscapeSize = CGSize(
+                        width: max(1, portraitSize.height),
+                        height: max(1, portraitSize.width)
+                    )
+                    landscapeContent(size: landscapeSize)
+                        .frame(width: landscapeSize.width, height: landscapeSize.height)
+                        .clipped()
+                        .rotationEffect(.degrees(90))
+                        .frame(width: portraitSize.width, height: portraitSize.height)
+                        .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+                }
+                .ignoresSafeArea()
+            }
         }
         .ignoresSafeArea()
         .onAppear {

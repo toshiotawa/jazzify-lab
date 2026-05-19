@@ -13,6 +13,12 @@ protocol EarTrainingBattleSceneHandle: AnyObject {
     func runEffect(_ command: EarTrainingBattleEffectCommand)
     /// 主人公頭上のコードヴォイシング台詞（吹き出し）。nil で非表示。
     func setPlayerQuote(_ text: String?)
+    /// OSMD デモ等で飛行中のハンマーを着弾前に破棄する（`relatedEffectId` 再利用クラッシュ防止）。
+    func dismissOsmdHammerEffect(effectId: Int)
+}
+
+extension EarTrainingBattleSceneHandle {
+    func dismissOsmdHammerEffect(effectId: Int) {}
 }
 
 /// 耳コピバトル ゲーム画面の状態ハブ。Web 版 `EarTrainingGameScreen.tsx` と同等の状態機械を保持する。

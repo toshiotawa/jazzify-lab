@@ -13,6 +13,11 @@ struct EarTrainingTutorialView: View {
     @State private var characterText: String = ""
     @State private var showFinishCta = false
 
+    /// `dialogue_only` のあとのアタッチ用（そのシーンのみ消費）。
+    @State private var pendingQuizPrewarm: EarTrainingTutorialPrewarmedQuizPack?
+    @State private var pendingVoicingPrewarm: EarTrainingTutorialPrewarmedVoicingPack?
+    @State private var pendingOsmdPrewarm: EarTrainingTutorialPrewarmedOsmdPack?
+
     private enum Gate {
         case loading
         case ready
@@ -36,6 +41,9 @@ struct EarTrainingTutorialView: View {
             case .ready:
                 if let script {
                     tutorialContent(script: script)
+                        .task(id: sceneIndex) {
+                            await prewarmRunnableAfterDialogueIfNeeded(script: script)
+                        }
                 }
             }
         }
@@ -46,6 +54,9 @@ struct EarTrainingTutorialView: View {
             if let loaded = await EarTrainingTutorialScriptService.fetchScript(scriptId: scriptId) {
                 script = loaded
                 sceneIndex = 0
+                pendingQuizPrewarm = nil
+                pendingVoicingPrewarm = nil
+                pendingOsmdPrewarm = nil
                 gate = .ready
             } else {
                 gate = .failed
@@ -57,40 +68,48 @@ struct EarTrainingTutorialView: View {
     private func tutorialContent(script: EarTrainingTutorialScriptPayload) -> some View {
         let scenes = script.scenes
         let current = scenes.indices.contains(sceneIndex) ? scenes[sceneIndex] : nil
+        let placement = tutorialDialogPlacement(scene: current, script: script)
 
-        ZStack {
-            if let current {
-                sceneView(script: script, scene: current)
-                    .id(sceneIndex)
-            }
+        GeometryReader { portraitProxy in
+            let portraitSize = portraitProxy.size
+            let landscapeSize = CGSize(
+                width: max(1, portraitSize.height),
+                height: max(1, portraitSize.width)
+            )
+            ZStack {
+                ZStack {
+                    if let current {
+                        sceneView(
+                            script: script,
+                            scene: current,
+                            hostedLandscapeSize: landscapeSize,
+                            quizPrewarm: pendingQuizPrewarm,
+                            voicingPrewarm: pendingVoicingPrewarm,
+                            osmdPrewarm: pendingOsmdPrewarm
+                        )
+                    }
+                    EarTrainingLandscapeTutorialOverlay(
+                        landscapeSize: landscapeSize,
+                        showExit: script.ui.showExitButton,
+                        isJapanese: isJa,
+                        dialogueText: characterText,
+                        dialogPlacement: placement,
+                        onExit: onClose
+                    )
+                }
+                .frame(width: landscapeSize.width, height: landscapeSize.height)
+                .clipped()
+                .rotationEffect(.degrees(90))
+                .frame(width: portraitSize.width, height: portraitSize.height)
+                .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+                .id(sceneIndex)
 
-            OnboardingCharacterDialogView(text: characterText)
-
-            if script.ui.showExitButton {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button(isJa ? "Exit" : "Exit") {
+                if showFinishCta {
+                    OnboardingCtaView(isJa: isJa) {
+                        Task {
+                            await onComplete?()
                             onClose()
                         }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Color.white.opacity(0.15))
-                        .clipShape(Capsule())
-                        .padding(.trailing, 16)
-                        .padding(.top, 16)
-                    }
-                    Spacer()
-                }
-            }
-
-            if showFinishCta {
-                OnboardingCtaView(isJa: isJa) {
-                    Task {
-                        await onComplete?()
-                        onClose()
                     }
                 }
             }
@@ -100,8 +119,13 @@ struct EarTrainingTutorialView: View {
     @ViewBuilder
     private func sceneView(
         script: EarTrainingTutorialScriptPayload,
-        scene: EarTrainingTutorialScene
+        scene: EarTrainingTutorialScene,
+        hostedLandscapeSize: CGSize?,
+        quizPrewarm: EarTrainingTutorialPrewarmedQuizPack?,
+        voicingPrewarm: EarTrainingTutorialPrewarmedVoicingPack?,
+        osmdPrewarm: EarTrainingTutorialPrewarmedOsmdPack?
     ) -> some View {
+        let kbHints = script.ui.keyboardHintsDefault
         switch scene {
         case .dialogueOnly(let dialogue):
             EarTrainingTutorialDialogueBattleView(
@@ -109,14 +133,18 @@ struct EarTrainingTutorialView: View {
                 locale: locale,
                 lines: dialogue.lines,
                 intervalSeconds: dialogue.lineIntervalSeconds ?? 4,
+                fixedLandscapeSize: hostedLandscapeSize,
                 onLine: { characterText = $0 },
                 onComplete: { advanceScene(script: script) }
             )
         case .chordQuiz(let quizScene):
             if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
                 content: script.content,
-                contentRef: quizScene.contentRef
+                contentRef: quizScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
             ) {
+                let pack = quizPrewarm
                 EarTrainingChordQuizGameView(
                     source: .embedded(stage),
                     lessonContext: nil,
@@ -133,14 +161,24 @@ struct EarTrainingTutorialView: View {
                         )
                     ),
                     tutorialQuestionTarget: quizScene.questionCount,
+                    hostedLandscapeSize: hostedLandscapeSize,
+                    prewarmQuizPack: pack,
                     onClose: onClose
                 )
+                .onAppear {
+                    if pack != nil {
+                        pendingQuizPrewarm = nil
+                    }
+                }
             }
         case .chordVoicingSelfPaced(let selfScene):
             if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
                 content: script.content,
-                contentRef: selfScene.contentRef
+                contentRef: selfScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
             ) {
+                let pack = voicingPrewarm
                 EarTrainingChordVoicingGameView(
                     source: .embedded(stage),
                     lessonContext: nil,
@@ -149,41 +187,74 @@ struct EarTrainingTutorialView: View {
                     tutorialHooks: makeHooks(
                         script: script,
                         requiredLoops: selfScene.requiredSuccessfulLoops,
-                        onLoopSuccess: {
-                            characterText = selfScene.dialogue.onLoopSuccess.localized(locale)
-                        }
+                        onLoopSuccess: nil
                     ),
+                    hostedLandscapeSize: hostedLandscapeSize,
+                    prewarmVoicingPack: pack,
                     onClose: onClose
                 )
                 .onAppear {
-                    characterText = selfScene.dialogue.onSceneStart.localized(locale)
+                    characterText = ""
+                    if pack != nil {
+                        pendingVoicingPrewarm = nil
+                    }
                 }
             }
         case .chordOsmd(let osmdScene):
             if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
                 content: script.content,
-                contentRef: osmdScene.contentRef
+                contentRef: osmdScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
             ) {
+                let pack = osmdPrewarm
                 EarTrainingChordOSMDGameView(
                     source: .embedded(stage),
                     lessonContext: nil,
                     locale: locale,
-                    initialPracticeMode: osmdScene.playMode == "demo",
+                    initialPracticeMode: false,
                     tutorialHooks: makeHooks(
                         script: script,
                         requiredLoops: osmdScene.requiredLoops,
                         onLoopSuccess: nil,
                         osmdDemoAutoplay: osmdScene.playMode == "demo"
                     ),
+                    hostedLandscapeSize: hostedLandscapeSize,
+                    prewarmOsmdPack: pack,
                     onClose: onClose
                 )
+                .onAppear {
+                    if pack != nil {
+                        pendingOsmdPrewarm = nil
+                    }
+                }
             }
         case .finish:
             Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onAppear {
                     characterText = ""
                     showFinishCta = script.finish?.showCta ?? true
                 }
+        }
+    }
+
+    private func tutorialDialogPlacement(
+        scene: EarTrainingTutorialScene?,
+        script: EarTrainingTutorialScriptPayload
+    ) -> EarTrainingTutorialDialogPlacement? {
+        guard let scene else {
+            return .dialogueIntroUpperCenter
+        }
+        switch scene {
+        case .dialogueOnly:
+            return .dialogueIntroUpperCenter
+        case .chordQuiz, .chordOsmd:
+            return .belowChordHud
+        case .chordVoicingSelfPaced:
+            return .belowChordHud
+        case .finish:
+            return nil
         }
     }
 
@@ -192,7 +263,8 @@ struct EarTrainingTutorialView: View {
         requiredLoops: Int,
         onLoopSuccess: (() -> Void)?,
         quiz: EarTrainingTutorialQuizSceneHooks? = nil,
-        osmdDemoAutoplay: Bool = false
+        osmdDemoAutoplay: Bool = false,
+        selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
     ) -> EarTrainingTutorialSceneHooks {
         EarTrainingTutorialSceneHooks(
             ui: script.ui,
@@ -202,7 +274,8 @@ struct EarTrainingTutorialView: View {
             requiredSuccessfulLoops: max(1, requiredLoops),
             onLoopSuccess: onLoopSuccess,
             quiz: quiz,
-            osmdDemoAutoplay: osmdDemoAutoplay
+            osmdDemoAutoplay: osmdDemoAutoplay,
+            selfPacedTimedLines: selfPacedTimedLines
         )
     }
 
@@ -218,5 +291,137 @@ struct EarTrainingTutorialView: View {
             return
         }
         sceneIndex = next
+    }
+
+    @MainActor
+    private func prewarmRunnableAfterDialogueIfNeeded(script: EarTrainingTutorialScriptPayload) async {
+        let scenes = script.scenes
+        guard scenes.indices.contains(sceneIndex) else { return }
+        guard case .dialogueOnly = scenes[sceneIndex] else { return }
+        guard let nextIx = EarTrainingTutorialBattleWarmup.nextRunnableSceneIndex(scenes: scenes, fromIndex: sceneIndex)
+        else { return }
+
+        pendingQuizPrewarm = nil
+        pendingVoicingPrewarm = nil
+        pendingOsmdPrewarm = nil
+
+        let kbHints = script.ui.keyboardHintsDefault
+
+        switch scenes[nextIx] {
+        case .chordQuiz(let quizScene):
+            guard let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
+                content: script.content,
+                contentRef: quizScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
+            ) else { return }
+            let hooks = makeHooks(
+                script: script,
+                requiredLoops: quizScene.questionCount,
+                onLoopSuccess: nil,
+                quiz: EarTrainingTutorialQuizSceneHooks(
+                    useProgressionOrder: quizScene.order == "progression",
+                    onQuestionText: quizScene.dialogue.onQuestion.localized(locale),
+                    onCorrectText: quizScene.dialogue.onCorrect.localized(locale)
+                )
+            )
+
+            guard let built = try? EarTrainingTutorialBattleWarmup.buildChordQuizPack(
+                stage: stage,
+                locale: locale,
+                lessonContext: nil,
+                tutorialHooks: hooks,
+                tutorialQuestionTarget: quizScene.questionCount,
+                onClose: onClose
+            ) else { return }
+            pendingQuizPrewarm = built
+
+        case .chordVoicingSelfPaced(let selfScene):
+            guard let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
+                content: script.content,
+                contentRef: selfScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
+            ) else { return }
+            let voicingHooks = makeHooks(
+                script: script,
+                requiredLoops: selfScene.requiredSuccessfulLoops,
+                onLoopSuccess: nil
+            )
+            guard let built = try? EarTrainingTutorialBattleWarmup.buildChordVoicingPack(
+                      stage: stage,
+                      locale: locale,
+                      lessonContext: nil,
+                      tutorialHooks: voicingHooks,
+                      onClose: onClose
+                  )
+            else { return }
+            pendingVoicingPrewarm = built
+
+        case .chordOsmd(let osmdScene):
+            guard let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
+                content: script.content,
+                contentRef: osmdScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
+            ) else { return }
+            let osmdHooks = makeHooks(
+                    script: script,
+                    requiredLoops: osmdScene.requiredLoops,
+                    onLoopSuccess: nil,
+                    osmdDemoAutoplay: osmdScene.playMode == "demo"
+                  )
+                  guard let built = try? EarTrainingTutorialBattleWarmup.buildOsmdPack(
+                      stage: stage,
+                      locale: locale,
+                      lessonContext: nil,
+                      tutorialHooks: osmdHooks,
+                      initialPracticeMode: false,
+                      onClose: onClose
+                  )
+            else { return }
+            pendingOsmdPrewarm = built
+
+        default:
+            break
+        }
+    }
+
+}
+
+/// チュートリアルのセリフ・Exit はバトルと同じ landscape 座標で重ね、その塊ごとポートレート内で90°回転する。
+private struct EarTrainingLandscapeTutorialOverlay: View {
+    let landscapeSize: CGSize
+    let showExit: Bool
+    let isJapanese: Bool
+    let dialogueText: String
+    let dialogPlacement: EarTrainingTutorialDialogPlacement?
+    let onExit: () -> Void
+
+    var body: some View {
+        ZStack {
+            if let placement = dialogPlacement {
+                OnboardingCharacterDialogView(
+                    text: dialogueText,
+                    tutorialPlacement: placement,
+                    tutorialLandscapeSize: landscapeSize
+                )
+            }
+        }
+        .frame(width: landscapeSize.width, height: landscapeSize.height)
+        .allowsHitTesting(false)
+        .overlay(alignment: .topTrailing) {
+            if showExit {
+                Button(isJapanese ? "Exit" : "Exit", action: onExit)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(Capsule())
+                    .padding(.top, 12)
+                    .padding(.trailing, 16)
+            }
+        }
     }
 }

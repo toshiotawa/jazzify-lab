@@ -340,6 +340,53 @@ export const getFirstIncompleteVoicingChord = (
   return null;
 };
 
+const normalizeMeasureNumber = (measureNumber: number, loopMeasures: number): number => {
+  const safeLoopMeasures = Math.max(1, loopMeasures);
+  const base = Math.max(1, Math.trunc(measureNumber));
+  return ((base - 1) % safeLoopMeasures) + 1;
+};
+
+const chordMeasureNumberForSelfPaced = (
+  chord: EarTrainingPhraseChord,
+  loopDurationSec: number,
+  loopMeasures: number,
+): number => {
+  if (typeof chord.measure_number === 'number' && Number.isFinite(chord.measure_number)) {
+    return normalizeMeasureNumber(chord.measure_number, loopMeasures);
+  }
+  if (typeof chord.start_time_sec === 'number' && Number.isFinite(chord.start_time_sec)) {
+    const measureDurationSec = loopDurationSec / Math.max(1, loopMeasures);
+    return measureDurationSec > 0
+      ? Math.min(loopMeasures, Math.floor(chord.start_time_sec / measureDurationSec) + 1)
+      : 1;
+  }
+  return 1;
+};
+
+/**
+ * セルフペース時の譜面小節表示用。
+ * 同一 harmony 内に複数 voicing がある間は代表コードの小節を維持し、
+ * 2 つ目以降の voicing の measure_number で先に進まないようにする。
+ */
+export const getSelfPacedActiveMeasureNumber = (
+  phrase: EarTrainingPhrase | undefined,
+  completedChordIds: ReadonlySet<string>,
+  loopDurationSec: number,
+  loopMeasures: number,
+): number => {
+  const next = getFirstIncompleteVoicingChord(phrase, completedChordIds);
+  if (!next) {
+    return 1;
+  }
+  const row = getHarmonyRowForChordId(phrase, next.id);
+  if (row) {
+    const chords = phrase?.chords ?? [];
+    const anchor = chords.find(chord => chord.id === row.representativeId) ?? next;
+    return chordMeasureNumberForSelfPaced(anchor, loopDurationSec, loopMeasures);
+  }
+  return chordMeasureNumberForSelfPaced(next, loopDurationSec, loopMeasures);
+};
+
 export const getEarTrainingChordDisplayAtTime = (
   phrase: EarTrainingPhrase | undefined,
   loopTimeSec: number,

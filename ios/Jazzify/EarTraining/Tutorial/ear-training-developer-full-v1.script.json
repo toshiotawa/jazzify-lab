@@ -104,7 +104,7 @@
         "key_fifths": 0,
         "beats_per_measure": 4,
         "beat_type": 4,
-        "loop_measures": 2,
+        "loop_measures": 4,
         "max_loops_per_phrase": 8,
         "count_in_beats": 0,
         "time_limit_sec": 300,
@@ -130,6 +130,9 @@
               "chord_name": "Dm7",
               "measure_number": 1,
               "beat_offset": 1,
+              "duration_beats": 4,
+              "start_time_sec": 0,
+              "end_time_sec": 2,
               "voicing": [
                 "D3",
                 "F3",
@@ -141,13 +144,20 @@
                 2,
                 2,
                 1
-              ]
+              ],
+              "quote": {
+                "ja": "Dm7（II）。このヴォイシングをドラムに合わせて。",
+                "en": "Dm7 (II). Play this voicing with the drums."
+              }
             },
             {
               "order_index": 1,
               "chord_name": "G7",
               "measure_number": 2,
               "beat_offset": 1,
+              "duration_beats": 4,
+              "start_time_sec": 2,
+              "end_time_sec": 4,
               "voicing": [
                 "G3",
                 "B3",
@@ -159,13 +169,20 @@
                 2,
                 1,
                 1
-              ]
+              ],
+              "quote": {
+                "ja": "G7（V）。次はこちらです。",
+                "en": "G7 (V). Next chord."
+              }
             },
             {
               "order_index": 2,
               "chord_name": "CM7",
               "measure_number": 3,
               "beat_offset": 1,
+              "duration_beats": 4,
+              "start_time_sec": 4,
+              "end_time_sec": 8,
               "voicing": [
                 "C3",
                 "E3",
@@ -177,7 +194,11 @@
                 2,
                 2,
                 2
-              ]
+              ],
+              "quote": {
+                "ja": "CM7（I）。聴き分けて演奏しよう。",
+                "en": "CM7 (I). Hear the voicing and play."
+              }
             }
           ]
         }
@@ -346,25 +367,7 @@
       "type": "chord_voicing_self_paced",
       "contentRef": "self-paced-ii-vi",
       "requiredSuccessfulLoops": 2,
-      "dialogue": {
-        "onSceneStart": {
-          "ja": "セルフペース開始。II-V-I を演奏しよう。",
-          "en": "Self-paced start. Play the II-V-I."
-        },
-        "onLoopSuccess": {
-          "ja": "1 ループ成功！",
-          "en": "One loop cleared!"
-        },
-        "timedLines": [
-          {
-            "afterLoopStartSeconds": 3,
-            "text": {
-              "ja": "途中セリフ：ドラムに合わせて。",
-              "en": "Mid-loop tip: stay with the drums."
-            }
-          }
-        ]
-      }
+      "dialogue": {}
     },
     {
       "type": "chord_osmd",

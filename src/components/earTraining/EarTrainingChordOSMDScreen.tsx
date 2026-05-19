@@ -283,6 +283,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, []);
 
   const syncPracticeVoicingHints = useCallback(() => {
+    if (tutorialDemoAutoplay) {
+      pianoOverlayRef.current?.clearVoicingHints();
+      return;
+    }
     if (!practiceModeRef.current && !showKeyboardHintsInBattleRef.current) {
       pianoOverlayRef.current?.clearVoicingHints();
       return;
@@ -336,9 +340,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       pianoOverlayRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, []);
     }
-  }, []);
+  }, [tutorialDemoAutoplay]);
 
   useEffect(() => {
+    if (tutorialDemoAutoplay) {
+      return;
+    }
     if (!practiceMode && !showKeyboardHintsInBattle) {
       return;
     }
@@ -354,7 +361,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [practiceMode, showKeyboardHintsInBattle, gameState, syncPracticeVoicingHints]);
+  }, [practiceMode, showKeyboardHintsInBattle, gameState, syncPracticeVoicingHints, tutorialDemoAutoplay]);
 
   const stopPhraseAudio = useCallback(() => {
     phrasePlayerRef.current?.stop();
@@ -568,6 +575,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [isEnglishCopy, publishTargetStates, syncPracticeVoicingHints, triggerFeedback]);
 
   const handleHammerImpact = useCallback((targetId: string) => {
+    if (tutorialDemoAutoplay) {
+      return;
+    }
     const state = runtimeByTargetIdRef.current.get(targetId);
     if (!state || state.completed) {
       return;
@@ -579,7 +589,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (!tutorialNoCombat) {
       applyPlayerDamage(activeDamageConfig.miss);
     }
-  }, [activeDamageConfig.miss, applyPlayerDamage, publishTargetStates, tutorialNoCombat]);
+  }, [activeDamageConfig.miss, applyPlayerDamage, publishTargetStates, tutorialDemoAutoplay, tutorialNoCombat]);
 
   const finishCurrentPhrase = useCallback((runId: number) => {
     if (
@@ -769,33 +779,34 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         }, (countInDurationSec + target.targetTimeSec) * 1000 + 180);
       }
 
-      const hammerDelaySec = Math.max(0, countInDurationSec + target.targetTimeSec - CHORD_OSMD_HAMMER_LEAD_SEC);
-      const impactTimeSec = countInDurationSec + target.targetTimeSec + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
-      scheduleTimer(() => {
-        if (phraseRunIdRef.current !== runId) {
-          return;
-        }
-        const state = runtimeByTargetIdRef.current.get(target.id);
-        if (!state || state.completed || state.failed) {
-          return;
-        }
-        if (tutorialDemoAutoplay) {
-          return;
-        }
-        const effectId = triggerBattleEffect('osmdHammer', {
-          travelDurationSec: Math.max(0.12, impactTimeSec - hammerDelaySec),
-        });
-        state.hammerEffectId = effectId;
-        registerBattleEffectImpact(effectId, () => {
-          handleHammerImpact(target.id);
-        });
-      }, hammerDelaySec * 1000);
+      if (!tutorialDemoAutoplay) {
+        const hammerDelaySec = Math.max(0, countInDurationSec + target.targetTimeSec - CHORD_OSMD_HAMMER_LEAD_SEC);
+        const impactTimeSec = countInDurationSec + target.targetTimeSec + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
+        scheduleTimer(() => {
+          if (phraseRunIdRef.current !== runId) {
+            return;
+          }
+          const state = runtimeByTargetIdRef.current.get(target.id);
+          if (!state || state.completed || state.failed) {
+            return;
+          }
+          const effectId = triggerBattleEffect('osmdHammer', {
+            travelDurationSec: Math.max(0.12, impactTimeSec - hammerDelaySec),
+          });
+          state.hammerEffectId = effectId;
+          registerBattleEffectImpact(effectId, () => {
+            handleHammerImpact(target.id);
+          });
+        }, hammerDelaySec * 1000);
+      }
 
-      scheduleTimer(() => {
-        if (phraseRunIdRef.current === runId) {
-          failTargetIfNeeded(target.id);
-        }
-      }, (countInDurationSec + target.targetTimeSec + CHORD_OSMD_JUDGMENT_WINDOW_SEC) * 1000);
+      if (!tutorialDemoAutoplay) {
+        scheduleTimer(() => {
+          if (phraseRunIdRef.current === runId) {
+            failTargetIfNeeded(target.id);
+          }
+        }, (countInDurationSec + target.targetTimeSec + CHORD_OSMD_JUDGMENT_WINDOW_SEC) * 1000);
+      }
     }
 
     scheduleTimer(() => {
@@ -988,7 +999,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
       damage,
-      relatedEffectId: state.hammerEffectId,
+      relatedEffectId: tutorialDemoAutoplay ? undefined : state.hammerEffectId,
     });
     registerBattleEffectImpact(effectId, () => {
       applyEnemyDamage(damage, lastRankRef.current);
@@ -1002,6 +1013,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     syncPracticeVoicingHints,
     triggerBattleEffect,
     triggerFeedback,
+    tutorialDemoAutoplay,
   ]);
 
   const handleNoteInput = useCallback((note: number) => {

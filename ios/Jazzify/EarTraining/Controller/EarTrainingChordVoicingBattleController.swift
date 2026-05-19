@@ -137,6 +137,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var selfPacedDrumLoopPlaybackStarted = false
     private var measureShiftQueue: [Int] = []
     private var measureShiftConsumerTask: Task<Void, Never>?
+    private var lastTutorialVoicingDialogueChordId: UUID?
 
     /// チュートリアル時は敵攻撃・ミス/Fail ダメージを無効化する。
     var tutorialNoCombat: Bool = false
@@ -192,10 +193,20 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var phraseIntroLine: String {
+        if tutorialHooks?.ui.hidePhraseIntroQuota == true {
+            return ""
+        }
         let current = phraseIndex + 1
         return isEnglishCopy
             ? "Phrase \(current) / \(phrases.count)"
             : "フレーズ \(current) / \(phrases.count)"
+    }
+
+    private func phraseStartStatusText(indexOneBased: Int) -> String {
+        if tutorialHooks?.ui.hidePhraseIntroQuota == true {
+            return ""
+        }
+        return copy.phraseLabel(indexOneBased: indexOneBased)
     }
 
     var stageStatusText: String {
@@ -331,7 +342,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
         audio.onEnded = { [weak self] in
             Task { @MainActor in
-                self?.failCurrentPhrase()
+                guard let self else { return }
+                if self.stage.resolvedChordVoicingSelfPaced {
+                    self.replaySelfPacedPhraseClock()
+                } else {
+                    self.failCurrentPhrase()
+                }
             }
         }
         publishSnapshot()
@@ -602,7 +618,14 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private func makePreparedPhraseStart(at index: Int) -> PreparedPhraseStart? {
         guard phrases.indices.contains(index) else { return nil }
         let phrase = phrases[index]
-        guard let url = URL(string: phrase.audioUrl) else { return nil }
+        let rawUrl = phrase.audioUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        let phraseClockURL: URL
+        if rawUrl.isEmpty, stage.resolvedChordVoicingSelfPaced {
+            phraseClockURL = Self.chordVoicingSelfPacedDrumLoopURL
+        } else {
+            guard let u = URL(string: rawUrl), u.scheme != nil else { return nil }
+            phraseClockURL = u
+        }
         let nextAttempt = EarTrainingChordVoicingEngine.createAttempt(for: phrase)
         let initialChord: EarTrainingPhraseChordDetail?
         if stage.resolvedChordVoicingSelfPaced {
@@ -622,11 +645,11 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let ld = phrase.loopDurationSec
         let measureNum: Int
         if stage.resolvedChordVoicingSelfPaced {
-            if let chord = initialChord {
-                measureNum = chordMeasureNumber(chord: chord, loopDurationSec: max(ld, 0.000_001))
-            } else {
-                measureNum = 1
-            }
+            measureNum = selfPacedDisplayMeasureNumber(
+                phrase: phrase,
+                completedChordIds: nextAttempt.completedChordIds,
+                loopDurationSec: max(ld, 0.000_001)
+            )
         } else if ld > 0 {
             if let chord = initialChord {
                 measureNum = chordMeasureNumber(chord: chord, loopDurationSec: ld)
@@ -646,7 +669,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             attempt: nextAttempt,
             initialChord: initialChord,
             activeMeasureNumber: measureNum,
-            url: url
+            url: phraseClockURL
         )
     }
 
@@ -706,7 +729,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             countInValue = 0
             countInEarlyInputActive = false
             gameState = .playingPhrase
-            statusText = copy.phraseLabel(indexOneBased: 1)
+            statusText = phraseStartStatusText(indexOneBased: 1)
             countdownTask = Task { @MainActor [weak self] in
                 guard let self else { return }
                 guard let prepared = self.makePreparedPhraseStart(at: 0) else {
@@ -720,7 +743,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 if Task.isCancelled { return }
                 self.beginPhrasePlayback(
                     prepared: prepared,
-                    startsTimeLimit: true,
+                    startsTimeLimit: false,
                     scheduledCountIn: false,
                     phraseMuted: true
                 )
@@ -822,6 +845,42 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
     }
 
+    /// セルフペースの無音フレーズ時計（ドラム MP3）が 1 周したら進捗を維持したまま再スケジュールする。
+    private func replaySelfPacedPhraseClock() {
+        guard stage.resolvedChordVoicingSelfPaced,
+              gameState == .playingPhrase,
+              phrases.indices.contains(phraseIndex)
+        else { return }
+        let phrase = phrases[phraseIndex]
+        let rawUrl = phrase.audioUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        let phraseClockURL: URL
+        if rawUrl.isEmpty {
+            phraseClockURL = Self.chordVoicingSelfPacedDrumLoopURL
+        } else if let url = URL(string: rawUrl), url.scheme != nil {
+            phraseClockURL = url
+        } else {
+            return
+        }
+        let runId = phraseRunId
+        let onReplayStarted: () -> Void = { [weak self] in
+            guard let self, self.phraseRunId == runId else { return }
+            self.syncChordTimeline(scheduleNext: false)
+        }
+        countdownTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = await self.audio.preparePhraseForImmediatePlayback(url: phraseClockURL)
+            if Task.isCancelled { return }
+            guard self.gameState == .playingPhrase, self.phraseRunId == runId else { return }
+            if !self.audio.playPreparedPhrase(
+                url: phraseClockURL,
+                phraseMuted: true,
+                onStarted: onReplayStarted
+            ) {
+                self.audio.playPhrase(url: phraseClockURL, onStarted: onReplayStarted)
+            }
+        }
+    }
+
     private func beginPhrasePlayback(
         prepared: PreparedPhraseStart,
         startsTimeLimit: Bool,
@@ -847,7 +906,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         clearMeasureDisplayShiftQueue()
         activeMeasureNumber = prepared.activeMeasureNumber
         displayedActiveMeasureNumber = prepared.activeMeasureNumber
-        statusText = copy.phraseLabel(indexOneBased: prepared.phraseIndex + 1)
+        statusText = phraseStartStatusText(indexOneBased: prepared.phraseIndex + 1)
+        if tutorialHooks != nil, stage.resolvedChordVoicingSelfPaced {
+            lastTutorialVoicingDialogueChordId = nil
+        }
 
         let onStarted: () -> Void = { [weak self] in
             guard let self else { return }
@@ -898,7 +960,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     private func startTimeLimit() {
         cancelTimeLimitTimer()
-        if practiceMode { return }
+        if practiceMode || stage.resolvedChordVoicingSelfPaced { return }
         timeLimitTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while self.timeRemaining > 0 {
@@ -922,7 +984,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         let currentTime = audio.currentTimeSec
         let audioDurationSec = phrase.audioDurationSec
-        if audioDurationSec.isFinite, currentTime >= audioDurationSec - Self.audioEndEpsilonSec {
+        if !stage.resolvedChordVoicingSelfPaced,
+           audioDurationSec.isFinite,
+           currentTime >= audioDurationSec - Self.audioEndEpsilonSec {
             failCurrentPhrase()
             return
         }
@@ -956,7 +1020,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             )
         }
         let measureNum: Int
-        if let chord = nextChord {
+        if stage.resolvedChordVoicingSelfPaced {
+            measureNum = selfPacedDisplayMeasureNumber(
+                phrase: phrase,
+                completedChordIds: completedSet,
+                loopDurationSec: loopDurationSec
+            )
+        } else if let chord = nextChord {
             measureNum = chordMeasureNumber(chord: chord, loopDurationSec: loopDurationSec)
         } else {
             measureNum = measureNumberAtLoopTime(
@@ -1008,6 +1078,28 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let safeLoopMeasures = max(1, loopMeasures)
         let base = max(1, measureNumber)
         return ((base - 1) % safeLoopMeasures) + 1
+    }
+
+    /// セルフペースの譜面小節: 同一 harmony 内は代表コードの小節を維持する。
+    private func selfPacedDisplayMeasureNumber(
+        phrase: EarTrainingPhraseDetail,
+        completedChordIds: Set<UUID>,
+        loopDurationSec: Double
+    ) -> Int {
+        guard let next = EarTrainingChordVoicingEngine.firstIncompleteVoicingChord(
+            phrase: phrase,
+            completedChordIds: completedChordIds
+        ) else {
+            return 1
+        }
+        let anchor: EarTrainingPhraseChordDetail
+        if let row = EarTrainingChordVoicingEngine.harmonyRow(containingChordId: next.id, phrase: phrase),
+           let representative = phrase.chords?.first(where: { $0.id == row.representativeId }) {
+            anchor = representative
+        } else {
+            anchor = next
+        }
+        return chordMeasureNumber(chord: anchor, loopDurationSec: loopDurationSec)
     }
 
     private func chordMeasureNumber(chord: EarTrainingPhraseChordDetail, loopDurationSec: Double) -> Int {
@@ -1214,6 +1306,19 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         )
         scene?.applySnapshot(snapshot)
         updatePlayerQuoteBubble()
+        updateTutorialVoicingDialogueIfNeeded()
+    }
+
+    /// セルフペースチュートリアル: ヴォイシング（コード）の `quote` を上部セリフに出す。
+    private func updateTutorialVoicingDialogueIfNeeded() {
+        guard stage.resolvedChordVoicingSelfPaced, tutorialHooks != nil else { return }
+        guard gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive) else { return }
+        guard let chord = activeChord else { return }
+        if attempt?.completedChordIds.contains(chord.id) == true { return }
+        guard chord.id != lastTutorialVoicingDialogueChordId else { return }
+        lastTutorialVoicingDialogueChordId = chord.id
+        guard let raw = chord.quote?.text.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return }
+        tutorialHooks?.onCharacterText(raw)
     }
 
     /// `activeChord` / `gameState` / `countInEarlyInputActive` のいずれかが変わるたびに
@@ -1221,6 +1326,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     /// 既に `attempt.completedChordIds` に含まれているヴォイシング（次ループで戻ってきた小節など、
     /// もう判定対象でないもの）の場合は表示しない。
     private func updatePlayerQuoteBubble() {
+        if tutorialHooks != nil {
+            scene?.setPlayerQuote(nil)
+            return
+        }
         scene?.setPlayerQuote(Self.playerQuoteBubbleTextForScene(
             gameState: gameState,
             activeChord: activeChord,
@@ -1340,6 +1449,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelTimeLimitTimer()
         cancelChordSyncTask()
         countInEarlyInputActive = false
+        lastTutorialVoicingDialogueChordId = nil
         feedbackTask?.cancel()
         feedbackTask = nil
         battleEffectClearTask?.cancel()
@@ -1429,6 +1539,7 @@ extension EarTrainingChordVoicingBattleController: EarTrainingLobbyPresentable {
     }
 
     var quizRulesLine: String? {
-        stage.battleClearConditionText(isEnglish: isEnglishCopy)
+        if tutorialHooks != nil { return nil }
+        return stage.battleClearConditionText(isEnglish: isEnglishCopy)
     }
 }

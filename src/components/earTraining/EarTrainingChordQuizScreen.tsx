@@ -197,7 +197,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 }) => {
   const tutorialUi = tutorial?.bindings.ui;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
-  const tutorialQuestionsAnsweredRef = useRef(0);
+  const [tutorialQuestionsAnswered, setTutorialQuestionsAnswered] = useState(0);
+  /** 正解直後の遷移待ちでは進めない（プレビュー小節の表示制御用）。 */
+  const [tutorialQuestionIndex, setTutorialQuestionIndex] = useState(0);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -345,12 +347,25 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
   const activeQuestion = quizQuestions[activeQuestionIndex] ?? null;
   const previewQuestion = quizQuestions[previewQuestionIndex] ?? null;
+  const shouldShowQuizPreview = useMemo(() => {
+    if (!previewQuestion || !activeQuestion || previewQuestion.id === activeQuestion.id) {
+      return false;
+    }
+    if (tutorial) {
+      const target = Math.max(1, tutorial.scene.questionCount);
+      return tutorialQuestionIndex + 1 < target;
+    }
+    const required = Math.max(1, stage.quiz_required_correct_count ?? 10);
+    return correctCount + 1 < required;
+  }, [activeQuestion, correctCount, previewQuestion, stage.quiz_required_correct_count, tutorial, tutorialQuestionIndex]);
   const activeChord = useMemo(
     () => getActiveChordInQuizQuestion(activeQuestion, attempt?.completedChordIds),
     [activeQuestion, attempt],
   );
   const displayedActiveQuestion = quizQuestions[displayedActiveQuestionIndex] ?? null;
-  const displayedPreviewQuestion = quizQuestions[displayedPreviewQuestionIndex] ?? null;
+  const displayedPreviewQuestion = shouldShowQuizPreview
+    ? (quizQuestions[displayedPreviewQuestionIndex] ?? null)
+    : null;
   useEffect(() => { attemptRef.current = attempt; }, [attempt]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
@@ -564,6 +579,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     if (quizQuestions.length === 0) {
       return;
     }
+    if (tutorial) {
+      setTutorialQuestionIndex((prev) => prev + 1);
+    }
     const nextActiveIdx = previewQuestionIndex;
     const nextQuestion = quizQuestions[nextActiveIdx];
     if (!nextQuestion) {
@@ -591,7 +609,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return;
     }
     if (tutorial) {
-      tutorialQuestionsAnsweredRef.current = 0;
+      setTutorialQuestionsAnswered(0);
+      setTutorialQuestionIndex(0);
     }
     clearStaffShiftQueue();
     clearCountdownTimer();
@@ -775,16 +794,19 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       tutorial.bindings.setCharacterText(
         localizedText(tutorial.scene.dialogue.onCorrect, isEnglishCopy),
       );
-      tutorialQuestionsAnsweredRef.current += 1;
-      if (tutorialQuestionsAnsweredRef.current >= tutorial.scene.questionCount) {
-        stopSelfPacedDrumLoop();
-        setTimeout(() => tutorial.onSceneComplete(), 600);
-        return;
-      }
-      setTimeout(() => {
-        advanceToNextQuestion();
-        showTutorialQuestionDialogue();
-      }, 600);
+      setTutorialQuestionsAnswered(prev => {
+        const next = prev + 1;
+        if (next >= tutorial.scene.questionCount) {
+          stopSelfPacedDrumLoop();
+          setTimeout(() => tutorial.onSceneComplete(), 600);
+        } else {
+          setTimeout(() => {
+            advanceToNextQuestion();
+            showTutorialQuestionDialogue();
+          }, 600);
+        }
+        return next;
+      });
       return;
     }
 
@@ -1011,9 +1033,11 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     overlay.setVoicingHints(voicingKeyboardHints.pendingMidis, voicingKeyboardHints.completedMidis);
   }, [voicingKeyboardHints]);
 
-  const playerBubbleText = gameState === 'playingPhrase'
-    ? `${correctCount}/${requiredCorrect}`
-    : null;
+  const playerBubbleText = tutorial
+    ? null
+    : gameState === 'playingPhrase'
+      ? `${correctCount}/${requiredCorrect}`
+      : null;
   useEffect(() => {
     phaserGameRef.current?.setPlayerQuote(playerBubbleText);
   }, [playerBubbleText]);
@@ -1071,7 +1095,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     statusText,
     hudLabels,
     phraseIntroLine,
-    quizRulesLine: clearConditionLine,
+    quizRulesLine: tutorial ? undefined : clearConditionLine,
     resultRankLine,
     timeLabel,
     practiceMode,
@@ -1096,7 +1120,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     attackGaugeHidden: practiceMode || tutorialNoCombat,
     chords: [
       ...getQuestionChordViews(activeQuestion, activeChord?.id ?? null, showVoicingTargetHints),
-      ...(previewQuestion && previewQuestion.id !== activeQuestion?.id
+      ...(shouldShowQuizPreview && previewQuestion
         ? getQuestionChordViews(previewQuestion, null, false)
         : []),
     ],
@@ -1145,6 +1169,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     playerHp,
     practiceMode,
     previewQuestion,
+    shouldShowQuizPreview,
     progressSaved,
     requiredCorrect,
     resultRankLine,

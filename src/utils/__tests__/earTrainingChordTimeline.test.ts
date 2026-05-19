@@ -8,6 +8,7 @@ import {
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
   getFirstIncompleteVoicingChord,
+  getSelfPacedActiveMeasureNumber,
   getHarmonyRowForChordId,
   isHarmonySegmentFullyCompleted,
 } from '@/utils/earTrainingChordTimeline';
@@ -238,6 +239,35 @@ describe('earTrainingChordTimeline', () => {
     full.completedChordIds.add('c1');
     full.completedChordIds.add('c2');
     expect(isHarmonySegmentFullyCompleted(full, row!)).toBe(true);
+  });
+
+  it('getSelfPacedActiveMeasureNumber は同一 harmony 内で代表小節を維持する', () => {
+    const phrase = buildPhrase([
+      buildChord({
+        id: 'c1',
+        chord_name: 'C',
+        measure_number: 1,
+        start_time_sec: 0,
+        end_time_sec: 4,
+      }),
+      buildChord({
+        id: 'c2',
+        chord_name: 'C',
+        measure_number: 2,
+        start_time_sec: 1,
+        end_time_sec: 4,
+      }),
+      buildChord({
+        id: 'c3',
+        chord_name: 'G7',
+        measure_number: 3,
+        start_time_sec: 4,
+        end_time_sec: 8,
+      }),
+    ]);
+    expect(getSelfPacedActiveMeasureNumber(phrase, new Set(), 8, 4)).toBe(1);
+    expect(getSelfPacedActiveMeasureNumber(phrase, new Set(['c1']), 8, 4)).toBe(1);
+    expect(getSelfPacedActiveMeasureNumber(phrase, new Set(['c1', 'c2']), 8, 4)).toBe(3);
   });
 
   it('getFirstIncompleteVoicingChord は harmony 順で最初の未完成プレイアブルを返す', () => {

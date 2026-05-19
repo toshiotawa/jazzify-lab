@@ -7,6 +7,8 @@ struct EarTrainingTutorialDialogueBattleView: View {
     let locale: AppLocale
     let lines: [EarTrainingTutorialLocalizedText]
     let intervalSeconds: Double
+    /// チュートリアル親と同じ landscape コンテナへ直接載せる場合に指定。
+    var fixedLandscapeSize: CGSize?
     let onLine: (String) -> Void
     let onComplete: () -> Void
 
@@ -18,6 +20,7 @@ struct EarTrainingTutorialDialogueBattleView: View {
         locale: AppLocale,
         lines: [EarTrainingTutorialLocalizedText],
         intervalSeconds: Double,
+        fixedLandscapeSize: CGSize? = nil,
         onLine: @escaping (String) -> Void,
         onComplete: @escaping () -> Void
     ) {
@@ -25,32 +28,41 @@ struct EarTrainingTutorialDialogueBattleView: View {
         self.locale = locale
         self.lines = lines
         self.intervalSeconds = intervalSeconds
+        self.fixedLandscapeSize = fixedLandscapeSize
         self.onLine = onLine
         self.onComplete = onComplete
         _driver = StateObject(wrappedValue: EarTrainingTutorialDialogueBattleDriver(isEnglishCopy: locale == .en))
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let portraitSize = proxy.size
-            let landscapeSize = CGSize(
-                width: max(1, portraitSize.height),
-                height: max(1, portraitSize.width)
-            )
-            EarTrainingTutorialDialogueSceneContainer(driver: driver, sceneSize: landscapeSize)
-                .frame(width: landscapeSize.width, height: landscapeSize.height)
-                .clipped()
-                .rotationEffect(.degrees(90))
-                .frame(width: portraitSize.width, height: portraitSize.height)
-                .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+        Group {
+            if let fixed = fixedLandscapeSize {
+                EarTrainingTutorialDialogueSceneContainer(driver: driver, sceneSize: fixed)
+                    .frame(width: fixed.width, height: fixed.height)
+                    .clipped()
+            } else {
+                GeometryReader { proxy in
+                    let portraitSize = proxy.size
+                    let landscapeSize = CGSize(
+                        width: max(1, portraitSize.height),
+                        height: max(1, portraitSize.width)
+                    )
+                    EarTrainingTutorialDialogueSceneContainer(driver: driver, sceneSize: landscapeSize)
+                        .frame(width: landscapeSize.width, height: landscapeSize.height)
+                        .clipped()
+                        .rotationEffect(.degrees(90))
+                        .frame(width: portraitSize.width, height: portraitSize.height)
+                        .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+                }
+                .ignoresSafeArea()
+            }
         }
-        .ignoresSafeArea()
         .background(Color.black)
         .onAppear { OrientationManager.shared.lock(.portrait) }
         .task { await runDialogue() }
         .onDisappear {
             OrientationManager.shared.lock(.portrait)
-            audio?.stopDrumLoop()
+            audio?.stop()
             driver.detachScene()
         }
     }
@@ -71,7 +83,7 @@ struct EarTrainingTutorialDialogueBattleView: View {
         let interval = max(1, intervalSeconds)
         if lines.count <= 1 {
             try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
-            audioInstance.stopDrumLoop()
+            audioInstance.stop()
             onComplete()
             return
         }
@@ -82,7 +94,7 @@ struct EarTrainingTutorialDialogueBattleView: View {
         }
         try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
         if Task.isCancelled { return }
-        audioInstance.stopDrumLoop()
+        audioInstance.stop()
         onComplete()
     }
 }

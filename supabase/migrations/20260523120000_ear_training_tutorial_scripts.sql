@@ -228,7 +228,7 @@ VALUES (
         "key_fifths": 0,
         "beats_per_measure": 4,
         "beat_type": 4,
-        "loop_measures": 2,
+        "loop_measures": 4,
         "max_loops_per_phrase": 8,
         "count_in_beats": 0,
         "time_limit_sec": 300,
@@ -254,6 +254,9 @@ VALUES (
               "chord_name": "Dm7",
               "measure_number": 1,
               "beat_offset": 1,
+              "duration_beats": 4,
+              "start_time_sec": 0,
+              "end_time_sec": 2,
               "voicing": [
                 "D3",
                 "F3",
@@ -272,6 +275,9 @@ VALUES (
               "chord_name": "G7",
               "measure_number": 2,
               "beat_offset": 1,
+              "duration_beats": 4,
+              "start_time_sec": 2,
+              "end_time_sec": 4,
               "voicing": [
                 "G3",
                 "B3",
@@ -290,6 +296,9 @@ VALUES (
               "chord_name": "CM7",
               "measure_number": 3,
               "beat_offset": 1,
+              "duration_beats": 4,
+              "start_time_sec": 4,
+              "end_time_sec": 8,
               "voicing": [
                 "C3",
                 "E3",

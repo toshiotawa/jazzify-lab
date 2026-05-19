@@ -346,25 +346,7 @@
       "type": "chord_voicing_self_paced",
       "contentRef": "self-paced-ii-vi",
       "requiredSuccessfulLoops": 2,
-      "dialogue": {
-        "onSceneStart": {
-          "ja": "セルフペース開始。II-V-I を演奏しよう。",
-          "en": "Self-paced start. Play the II-V-I."
-        },
-        "onLoopSuccess": {
-          "ja": "1 ループ成功！",
-          "en": "One loop cleared!"
-        },
-        "timedLines": [
-          {
-            "afterLoopStartSeconds": 3,
-            "text": {
-              "ja": "途中セリフ：ドラムに合わせて。",
-              "en": "Mid-loop tip: stay with the drums."
-            }
-          }
-        ]
-      }
+      "dialogue": {}
     },
     {
       "type": "chord_osmd",

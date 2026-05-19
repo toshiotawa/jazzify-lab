@@ -1,6 +1,12 @@
 import React from 'react';
 import { cn } from '@/utils/cn';
 
+export type EarTutorialDialogPlacement =
+  | 'default'
+  | 'belowChordHud'
+  | 'belowVoicingPhraseSlots'
+  | 'dialogueIntroUpperCenter';
+
 interface OnboardingOverlaysProps {
   characterText: string;
   narrationText: string;
@@ -14,6 +20,10 @@ interface OnboardingOverlaysProps {
   onCta: () => void;
   onSkip: () => void;
   ctaLabel?: string;
+  /** 耳コピチュートリアルなど。既定は従来の中央付近。 */
+  earTutorialDialogPlacement?: EarTutorialDialogPlacement;
+  /** `belowVoicingPhraseSlots` 用のコード数近似。 */
+  earTutorialVoicingSlotCount?: number;
 }
 
 function pillarEmoji(systemImage: string | null): string {
@@ -22,8 +32,16 @@ function pillarEmoji(systemImage: string | null): string {
   return '〰️';
 }
 
+const estimateVoicingSlotBandPx = (slotCount: number, viewportShortEdgePx: number): number => {
+  const avail = Math.min(viewportShortEdgePx * 0.52, 260);
+  const count = Math.max(1, slotCount);
+  const gaps = Math.max(0, count - 1) * 6;
+  const slotSize = Math.max(34, Math.floor((avail - gaps) / count));
+  return slotSize + 6;
+};
+
 /**
- * LP オンボーディング用: iOS と同じくセリフ吹き出しのみをプレイヤー上付近に出す。
+ * LP オンボーディング / 耳コピチュートリアル共通。セリフ吹き出し位置は `earTutorialDialogPlacement` で切替。
  */
 export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
   characterText,
@@ -38,20 +56,75 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
   onCta,
   onSkip,
   ctaLabel,
-}) => (
+  earTutorialDialogPlacement = 'default',
+  earTutorialVoicingSlotCount = 4,
+}) => {
+  const viewportShortEdgePx =
+    typeof window !== 'undefined' ? Math.min(window.innerWidth, window.innerHeight) : 400;
+  const tutorialPlacement =
+    characterText !== '' && earTutorialDialogPlacement !== 'default'
+      ? earTutorialDialogPlacement
+      : undefined;
+
+  const characterOuterStyle = ((): React.CSSProperties => {
+    if (!tutorialPlacement) {
+      return {
+        top: 'max(70px, min(max(86px, calc(50% - 92px)), calc(100% - 240px)))',
+      };
+    }
+    if (tutorialPlacement === 'belowChordHud') {
+      return {
+        top: '72px',
+        left: '50%',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'translateX(-50%)',
+      };
+    }
+    if (tutorialPlacement === 'belowVoicingPhraseSlots') {
+      const bandPx = estimateVoicingSlotBandPx(earTutorialVoicingSlotCount, viewportShortEdgePx);
+      const bottomLiftPx = 80 + bandPx + 54 + 14;
+      return {
+        bottom: `${bottomLiftPx}px`,
+        top: 'auto',
+        left: '50%',
+        right: 'auto',
+        transform: 'translateX(-50%)',
+      };
+    }
+    return {
+      top: 'max(56px, 22vh)',
+      left: '50%',
+      right: 'auto',
+      bottom: 'auto',
+      transform: 'translateX(-50%)',
+    };
+  })();
+
+  const characterWidthClass =
+    tutorialPlacement !== undefined
+      ? 'w-[min(300px,calc(100vw-32px))]'
+      : 'w-[min(380px,calc(100vw-32px))]';
+  const characterInnerTypographyClass =
+    tutorialPlacement !== undefined
+      ? 'text-xs leading-snug'
+      : 'text-sm';
+
+  return (
   <>
     {characterText ? (
       <div
-        className="pointer-events-none absolute inset-x-0 z-30 px-4"
-        style={{
-          top: 'max(70px, min(max(86px, calc(50% - 92px)), calc(100% - 240px)))',
-        }}
+        className={cn(
+          'pointer-events-none absolute z-30 px-4',
+          tutorialPlacement !== undefined ? 'left-1/2' : 'inset-x-0',
+        )}
+        style={characterOuterStyle}
       >
-        <div className="mx-auto flex w-[min(380px,calc(100vw-32px))] -translate-y-1/2 flex-col items-center">
+        <div className={cn('mx-auto flex flex-col items-center', characterWidthClass, '-translate-y-1/2')}>
           <div
             className={cn(
-              'w-full rounded-[14px] border border-white/25 bg-black/80 px-3.5 py-3 text-center',
-              'text-sm font-bold leading-snug text-white shadow-lg',
+              'w-full rounded-[12px] border border-white/25 bg-black/80 px-3 py-2.5 text-center font-bold text-white shadow-lg',
+              characterInnerTypographyClass,
             )}
           >
             {characterText.split('\n').map((line, i) => (
@@ -119,3 +192,4 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
     ) : null}
   </>
 );
+};

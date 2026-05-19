@@ -1557,6 +1557,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
+    func dismissOsmdHammerEffect(effectId: Int) {
+        if let hammer = osmdHammerNodesByEffectId.removeValue(forKey: effectId) {
+            hammer.removeAllActions()
+            hammer.removeFromParent()
+        }
+    }
+
     private func playOSMDHammerEffect(_ command: EarTrainingBattleEffectCommand) {
         let travelDuration = max(0.12, min(4.2, command.travelDurationSec ?? 3.2))
         holdCharacterForAction(.enemy, state: .attack, durationMs: min(980, travelDuration * 1000))

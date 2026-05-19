@@ -28,6 +28,7 @@ interface EarTrainingTutorialSceneHostProps {
   sceneIndex: number;
   enemy: SurvivalCharacterRow | null;
   bindings: EarTrainingTutorialBindings;
+  isEnglishCopy: boolean;
   onSceneComplete: () => void;
 }
 
@@ -36,6 +37,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
   scene,
   enemy,
   bindings,
+  isEnglishCopy,
   onSceneComplete,
 }) => {
   const completedRef = useRef(false);
@@ -60,7 +62,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
     if (scene.type === 'dialogue_only' || scene.type === 'finish') {
       return null;
     }
-    const built = resolveTutorialContentStage(script.content, scene.contentRef);
+    const built = resolveTutorialContentStage(script.content, scene.contentRef, isEnglishCopy);
     if (bindings.ui.keyboardHintsDefault) {
       built.show_keyboard_hints_in_battle = true;
     }

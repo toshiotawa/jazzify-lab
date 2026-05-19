@@ -10,6 +10,8 @@ import type {
   EarTrainingTutorialContentQuizItem,
   EarTrainingTutorialContentRef,
 } from './earTrainingTutorialScriptTypes';
+import { fillTutorialPhraseChordTimings } from './fillTutorialPhraseChordTimings';
+import { localizedText } from './earTrainingTutorialScriptTypes';
 
 const tutorialId = (prefix: string, index: number): string => (
   `tutorial-${prefix}-${index}`
@@ -19,26 +21,45 @@ const mapChord = (
   phraseId: string,
   chord: EarTrainingTutorialContentChord,
   index: number,
-): EarTrainingPhraseChord => ({
-  id: chord.id ?? tutorialId(`${phraseId}-ch`, index),
-  phrase_id: phraseId,
-  order_index: chord.order_index,
-  chord_name: chord.chord_name,
-  measure_number: chord.measure_number ?? null,
-  beat_offset: chord.beat_offset ?? null,
-  duration_beats: chord.duration_beats ?? null,
-  start_time_sec: chord.start_time_sec ?? null,
-  end_time_sec: chord.end_time_sec ?? null,
-  voicing: chord.voicing,
-  voicing_staves: chord.voicing_staves ?? undefined,
-});
+  isEnglishCopy: boolean,
+): EarTrainingPhraseChord => {
+  const chordId = chord.id ?? tutorialId(`${phraseId}-ch`, index);
+  const quoteText = chord.quote ? localizedText(chord.quote, isEnglishCopy).trim() : '';
+  return {
+    id: chordId,
+    phrase_id: phraseId,
+    order_index: chord.order_index,
+    chord_name: chord.chord_name,
+    measure_number: chord.measure_number ?? null,
+    beat_offset: chord.beat_offset ?? null,
+    duration_beats: chord.duration_beats ?? null,
+    start_time_sec: chord.start_time_sec ?? null,
+    end_time_sec: chord.end_time_sec ?? null,
+    voicing: chord.voicing,
+    voicing_staves: chord.voicing_staves ?? undefined,
+    quote: quoteText
+      ? { id: tutorialId(`${chordId}-quote`, 0), phrase_chord_id: chordId, text: quoteText }
+      : null,
+  };
+};
 
 const mapPhrase = (
   stageId: string,
   phrase: EarTrainingTutorialContentPhrase,
   index: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  isEnglishCopy: boolean,
 ): EarTrainingPhrase => {
   const phraseId = phrase.id ?? tutorialId(stageId, index);
+  const loopDurationSec = phrase.loop_duration_sec ?? 8;
+  const rawChords = phrase.chords ?? [];
+  const timedChords = fillTutorialPhraseChordTimings(
+    rawChords,
+    bpm,
+    beatsPerMeasure,
+    loopDurationSec,
+  );
   return {
     id: phraseId,
     stage_id: stageId,
@@ -51,7 +72,7 @@ const mapPhrase = (
     audio_duration_sec: phrase.audio_duration_sec ?? 8,
     note_count: phrase.note_count ?? 1,
     key_fifths: phrase.key_fifths ?? null,
-    chords: (phrase.chords ?? []).map((c, ci) => mapChord(phraseId, c, ci)),
+    chords: timedChords.map((c, ci) => mapChord(phraseId, c, ci, isEnglishCopy)),
   };
 };
 
@@ -72,6 +93,7 @@ const mapQuizItem = (
 export const buildTutorialStageFromContent = (
   contentKey: string,
   content: EarTrainingTutorialContentRef,
+  isEnglishCopy = false,
 ): EarTrainingStage => {
   const stageId = `tutorial-stage-${contentKey}`;
   const s = content.stage;
@@ -108,7 +130,7 @@ export const buildTutorialStageFromContent = (
     quiz_show_notation_in_battle: s.quiz_show_notation_in_battle,
     quiz_required_correct_count: s.quiz_required_correct_count,
     show_keyboard_hints_in_battle: s.show_keyboard_hints_in_battle,
-    phrases: (content.phrases ?? []).map((p, i) => mapPhrase(stageId, p, i)),
+    phrases: (content.phrases ?? []).map((p, i) => mapPhrase(stageId, p, i, s.bpm, s.beats_per_measure, isEnglishCopy)),
     chord_quiz_items: (content.chord_quiz_items ?? []).map((q, i) => mapQuizItem(stageId, q, i)),
   };
 };
@@ -116,10 +138,11 @@ export const buildTutorialStageFromContent = (
 export const resolveTutorialContentStage = (
   scriptContent: Record<string, EarTrainingTutorialContentRef>,
   contentRef: string,
+  isEnglishCopy = false,
 ): EarTrainingStage => {
   const ref = scriptContent[contentRef];
   if (!ref) {
     throw new Error(`Tutorial content not found: ${contentRef}`);
   }
-  return buildTutorialStageFromContent(contentRef, ref);
+  return buildTutorialStageFromContent(contentRef, ref, isEnglishCopy);
 };

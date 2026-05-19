@@ -111,6 +111,8 @@ struct EarTrainingTutorialContentChord: Decodable, Sendable {
     let end_time_sec: Double?
     let voicing: [String]
     let voicing_staves: [Int]?
+    /// ヴォイシング（コード）単位のチュートリアルセリフ。
+    let quote: EarTrainingTutorialLocalizedText?
 }
 
 struct EarTrainingTutorialContentQuizItem: Decodable, Sendable {
@@ -178,8 +180,8 @@ struct EarTrainingTutorialSelfPacedScene: Decodable, Sendable {
 }
 
 struct EarTrainingTutorialSelfPacedDialogue: Decodable, Sendable {
-    let onSceneStart: EarTrainingTutorialLocalizedText
-    let onLoopSuccess: EarTrainingTutorialLocalizedText
+    let onSceneStart: EarTrainingTutorialLocalizedText?
+    let onLoopSuccess: EarTrainingTutorialLocalizedText?
     let timedLines: [EarTrainingTutorialSelfPacedTimedLine]?
 }
 
@@ -252,4 +254,6 @@ struct EarTrainingTutorialSceneHooks {
     var quiz: EarTrainingTutorialQuizSceneHooks?
     /// `chord_osmd` の `playMode: demo`（Web `tutorialDemoAutoplay` 相当）。
     var osmdDemoAutoplay: Bool = false
+    /// `chord_voicing_self_paced` の `dialogue.timedLines` をフレーズ再生開始からのオフセットで表示する。
+    var selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
 }

@@ -20,16 +20,41 @@ enum EarTrainingTutorialStageBuilder {
 
     static func buildStageDetail(
         contentKey: String,
-        content: EarTrainingTutorialContentRef
+        content: EarTrainingTutorialContentRef,
+        keyboardHintsScriptDefault: Bool = false,
+        locale: AppLocale = .ja
     ) -> EarTrainingStageDetail {
         let stageId = stableId("tutorial-stage-\(contentKey)")
         let stage = content.stage
         let mode = EarTrainingMode(rawValue: stage.mode) ?? .chordVoicing
         let phrases: [EarTrainingPhraseDetail]? = content.phrases?.map { phrase in
             let phraseId = stableId("tutorial-\(contentKey)-phrase-\(phrase.order_index)")
-            let chords = (phrase.chords ?? []).map { chord in
-                EarTrainingPhraseChordDetail(
-                    id: stableId("tutorial-\(phraseId.uuidString)-ch-\(chord.order_index)"),
+            let loopDurationSec = phrase.loop_duration_sec ?? 8
+            let timedChordPayloads = fillChordTimingsIfNeeded(
+                chords: phrase.chords ?? [],
+                bpm: stage.bpm,
+                beatsPerMeasure: stage.beats_per_measure,
+                loopDurationSec: loopDurationSec
+            )
+            let chords = timedChordPayloads.map { chord in
+                let chordId = stableId("tutorial-\(phraseId.uuidString)-ch-\(chord.order_index)")
+                let quoteDetail: EarTrainingPhraseChordQuoteDetail?
+                if let quote = chord.quote {
+                    let text = quote.localized(locale).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if text.isEmpty {
+                        quoteDetail = nil
+                    } else {
+                        quoteDetail = EarTrainingPhraseChordQuoteDetail(
+                            id: stableId("tutorial-\(chordId.uuidString)-quote"),
+                            phraseChordId: chordId,
+                            text: text
+                        )
+                    }
+                } else {
+                    quoteDetail = nil
+                }
+                return EarTrainingPhraseChordDetail(
+                    id: chordId,
                     phraseId: phraseId,
                     orderIndex: chord.order_index,
                     chordName: chord.chord_name,
@@ -39,7 +64,8 @@ enum EarTrainingTutorialStageBuilder {
                     startTimeSec: chord.start_time_sec,
                     endTimeSec: chord.end_time_sec,
                     voicing: chord.voicing,
-                    voicingStaves: chord.voicing_staves
+                    voicingStaves: chord.voicing_staves,
+                    quote: quoteDetail
                 )
             }
             return EarTrainingPhraseDetail(
@@ -106,20 +132,89 @@ enum EarTrainingTutorialStageBuilder {
             quizQuestionOrder: stage.quiz_question_order,
             quizShowNotationInBattle: stage.quiz_show_notation_in_battle,
             quizRequiredCorrectCount: stage.quiz_required_correct_count,
-            showKeyboardHintsInBattle: stage.show_keyboard_hints_in_battle ?? false,
+            showKeyboardHintsInBattle: (stage.show_keyboard_hints_in_battle == true) || keyboardHintsScriptDefault,
             chordQuizItems: quizItems
         )
     }
 
     static func resolveStage(
         content: [String: EarTrainingTutorialContentRef],
-        contentRef: String
+        contentRef: String,
+        keyboardHintsScriptDefault: Bool = false,
+        locale: AppLocale = .ja
     ) throws -> EarTrainingStageDetail {
         guard let ref = content[contentRef] else {
             throw NSError(domain: "EarTrainingTutorial", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Tutorial content not found: \(contentRef)"
             ])
         }
-        return buildStageDetail(contentKey: contentRef, content: ref)
+        return buildStageDetail(
+            contentKey: contentRef,
+            content: ref,
+            keyboardHintsScriptDefault: keyboardHintsScriptDefault,
+            locale: locale
+        )
+    }
+
+    /// Web `fillTutorialPhraseChordTimings` 相当。measure/beat から start/end を補完する。
+    private static func fillChordTimingsIfNeeded(
+        chords: [EarTrainingTutorialContentChord],
+        bpm: Int,
+        beatsPerMeasure: Int,
+        loopDurationSec: Double
+    ) -> [EarTrainingTutorialContentChord] {
+        guard !chords.isEmpty else { return chords }
+        let beatSec = 60.0 / Double(max(1, bpm))
+        let sorted = chords.sorted { $0.order_index < $1.order_index }
+        var withStart: [EarTrainingTutorialContentChord] = []
+        withStart.reserveCapacity(sorted.count)
+        for (index, chord) in sorted.enumerated() {
+            if let start = chord.start_time_sec, start.isFinite {
+                withStart.append(chord)
+                continue
+            }
+            let measure = chord.measure_number ?? (index + 1)
+            let beat = chord.beat_offset ?? 1
+            let startSec = (Double(max(1, measure) - 1) * Double(max(1, beatsPerMeasure)) + (beat - 1)) * beatSec
+            withStart.append(EarTrainingTutorialContentChord(
+                order_index: chord.order_index,
+                chord_name: chord.chord_name,
+                measure_number: chord.measure_number,
+                beat_offset: chord.beat_offset,
+                duration_beats: chord.duration_beats,
+                start_time_sec: startSec,
+                end_time_sec: chord.end_time_sec,
+                voicing: chord.voicing,
+                voicing_staves: chord.voicing_staves,
+                quote: chord.quote
+            ))
+        }
+        return withStart.enumerated().map { pair in
+            let index = pair.offset
+            var chord = pair.element
+            if let end = chord.end_time_sec, end.isFinite {
+                return chord
+            }
+            let nextStart = index + 1 < withStart.count ? withStart[index + 1].start_time_sec : nil
+            let endSec: Double
+            if let nextStart, nextStart.isFinite {
+                endSec = nextStart
+            } else {
+                endSec = loopDurationSec
+            }
+            chord = EarTrainingTutorialContentChord(
+                order_index: chord.order_index,
+                chord_name: chord.chord_name,
+                measure_number: chord.measure_number,
+                beat_offset: chord.beat_offset,
+                duration_beats: chord.duration_beats,
+                start_time_sec: chord.start_time_sec,
+                end_time_sec: min(loopDurationSec, endSec),
+                voicing: chord.voicing,
+                voicing_staves: chord.voicing_staves,
+                quote: chord.quote
+            )
+            return chord
+        }
     }
 }
