@@ -45,6 +45,8 @@ enum SurvivalConstants {
     static let bossPlayerMaxHp: Int = 1000
     /// ボス HP 上限
     static let bossMaxHp: Int = 15000
+    /// Phrases ボス戦 HP 倍率
+    static let phrasesBossHpMultiplier: Int = 5
     /// ボス判定円半径
     static let bossHitboxRadius: CGFloat = 72
     /// ボスミニオン半径
@@ -301,6 +303,8 @@ public struct SurvivalProjectile: Identifiable, Sendable {
     public var remainingRange: CGFloat
     public var penetrating: Bool
     public var hitEnemyIds: Set<UUID> = []
+    /// ボス戦 A 列: 同一発射で複数弾が当たっても 1 ヒットにする
+    public var attackInstanceId: UUID?
 }
 
 /// 敵からの弾 (WEB 版 `EnemyProjectile`)

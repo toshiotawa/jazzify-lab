@@ -1078,7 +1078,8 @@ export const createProjectile = (
 export const createProjectileFromAngle = (
   player: PlayerState,
   angle: number,
-  damage: number
+  damage: number,
+  attackInstanceId?: string
 ): Projectile & { angle: number } => ({
   id: `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   x: player.x,
@@ -1089,7 +1090,22 @@ export const createProjectileFromAngle = (
   penetrating: player.skills.aPenetration,
   hitEnemies: new Set(),
   angle, // 弾丸の移動方向（ラジアン）
+  ...(attackInstanceId !== undefined ? { attackInstanceId } : {}),
 });
+
+/** A 列弾を時計方向に複数生成。ボス戦では attackInstanceId を共有して 1 発射 = 1 ボスヒットにする。 */
+export const createAProjectilesFromPlayer = (
+  player: PlayerState,
+  damage: number,
+  attackInstanceId?: string
+): (Projectile & { angle: number })[] => {
+  const bulletCount = player.stats.aBulletCount || 1;
+  const baseAngle = getDirectionAngle(player.direction);
+  const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
+  return bulletAngles.map((angle) =>
+    createProjectileFromAngle(player, angle, damage, attackInstanceId)
+  );
+};
 
 export const updateProjectiles = (
   projectiles: Projectile[],

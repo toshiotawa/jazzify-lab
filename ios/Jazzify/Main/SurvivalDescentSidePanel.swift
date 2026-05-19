@@ -157,7 +157,7 @@ struct SurvivalDescentSidePanel: View {
                         value: stageTypeText(stage: stage),
                         valueColor: .white
                     )
-                    if stage.mapCategory != .songs {
+                    if stage.mapCategory == .basic {
                         infoTile(
                             label: isEnglishCopy ? "Chord Type" : "コードタイプ",
                             value: stage.localizedChordDisplay(locale),

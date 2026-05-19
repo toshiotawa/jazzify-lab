@@ -21,6 +21,7 @@ import {
   BossState,
   BossType,
   BOSS_MAX_HP,
+  PHRASES_BOSS_HP_MULTIPLIER,
   BOSS_PLAYER_MAX_HP,
   BOSS_HITBOX_RADIUS,
   BOSS_MINION_RADIUS,
@@ -152,17 +153,26 @@ const initialNextSkillAt = (now: number): Record<BossSkillId, number> => ({
   heal: now + 99999999,
 });
 
+export interface CreateBossBattleStateOptions {
+  readonly maxHp?: number;
+}
+
+export const resolveBossMaxHp = (isPhraseMode: boolean): number =>
+  isPhraseMode ? BOSS_MAX_HP * PHRASES_BOSS_HP_MULTIPLIER : BOSS_MAX_HP;
+
 export const createBossBattleState = (
   bossType: BossType,
-  now: number
+  now: number,
+  options?: CreateBossBattleStateOptions
 ): BossBattleState => {
+  const maxHp = options?.maxHp ?? BOSS_MAX_HP;
   const boss: BossState = {
     id: nextId('boss'),
     bossType,
     x: MAP_CONFIG.width / 2,
     y: MAP_CONFIG.height / 2 - 240,
-    hp: BOSS_MAX_HP,
-    maxHp: BOSS_MAX_HP,
+    hp: maxHp,
+    maxHp,
     facing: 'left',
     phase: 1,
     action: { kind: 'idle', skill: null, startAt: now, durationMs: 0 },
@@ -188,6 +198,7 @@ export const createBossBattleState = (
     pendingBossHealTexts: [],
     result: 'ongoing',
     startedAt: now,
+    hitBossAttackIds: new Set(),
   };
 };
 
@@ -983,17 +994,23 @@ export const applyPlayerProjectileToBoss = (
   projX: number,
   projY: number,
   damage: number,
-  alreadyHitIds?: ReadonlySet<string>
+  alreadyHitIds?: ReadonlySet<string>,
+  attackInstanceId?: string
 ): { hitBoss: boolean; hitMinionId: string | null; drops: DroppedItem[] } => {
   const result = { hitBoss: false, hitMinionId: null as string | null, drops: [] as DroppedItem[] };
   if (!state.active || state.result !== 'ongoing') return result;
 
   const boss = state.boss;
+  const attackAlreadyClaimed =
+    attackInstanceId !== undefined && state.hitBossAttackIds.has(attackInstanceId);
   const bossAlreadyHit = alreadyHitIds?.has(boss.id) ?? false;
-  if (!bossAlreadyHit) {
+  if (!bossAlreadyHit && !attackAlreadyClaimed) {
     const d = distanceBetween(projX, projY, boss.x, boss.y);
     if (d < BOSS_HITBOX_RADIUS) {
       boss.hp = Math.max(0, boss.hp - damage);
+      if (attackInstanceId !== undefined) {
+        state.hitBossAttackIds.add(attackInstanceId);
+      }
       result.hitBoss = true;
       return result;
     }

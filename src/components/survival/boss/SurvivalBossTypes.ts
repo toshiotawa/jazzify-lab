@@ -169,10 +169,13 @@ export interface BossBattleState {
   result: BossBattleResult;
   /** ボスが出現した絶対時刻（ログ/統計用） */
   startedAt: number;
+  /** ボス戦 A 列: 同一発射インスタンスは 1 ヒットのみ */
+  hitBossAttackIds: Set<string>;
 }
 
 // ===== 定数 =====
 export const BOSS_MAX_HP = 15000;
+export const PHRASES_BOSS_HP_MULTIPLIER = 5;
 export const BOSS_PLAYER_MAX_HP = 1000;
 export const BOSS_DISPLAY_SIZE = 140;          // スプライト描画サイズ（通常敵28pxの約5倍）
 export const BOSS_HITBOX_RADIUS = 70;          // 当たり判定の半径

@@ -504,7 +504,8 @@ enum SurvivalGameEngine {
 
     static func createAProjectiles(
         from player: SurvivalPlayerState,
-        effectiveAAtk: Int
+        effectiveAAtk: Int,
+        attackInstanceId: UUID? = nil
     ) -> [SurvivalProjectile] {
         let base = player.direction.angle
         let count = max(1, min(14, player.skills.aBulletCount))
@@ -517,7 +518,8 @@ enum SurvivalGameEngine {
                 angle: angle,
                 damage: damage,
                 remainingRange: SurvivalConstants.projectileMaxRange,
-                penetrating: player.skills.aPenetration
+                penetrating: player.skills.aPenetration,
+                attackInstanceId: attackInstanceId
             )
         }
     }

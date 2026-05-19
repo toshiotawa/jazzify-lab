@@ -33,7 +33,7 @@ import {
   checkChordMatch,
   getCorrectNotes,
   createProjectile,
-  createProjectileFromAngle,
+  createAProjectilesFromPlayer,
   calculateDamage,
   calculateAProjectileDamage,
   calculateBMeleeDamage,
@@ -47,8 +47,6 @@ import {
   getMagicCooldown,
   castMagic,
   getDirectionVector,
-  getClockwiseBulletAngles,
-  getDirectionAngle,
   createCoinsFromEnemy,
   collectCoins,
   cleanupExpiredCoins,
@@ -83,6 +81,7 @@ import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionCho
 import type { ChordDefinition as SurvivalChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import {
   createBossBattleState,
+  resolveBossMaxHp,
   tickBossBattle,
   applyPlayerProjectileToBoss,
   applyPlayerMeleeToBossBattle,
@@ -1270,14 +1269,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     });
 
     if (isBossStage && bossType) {
-      bossBattleRef.current = createBossBattleState(bossType, performance.now());
+      bossBattleRef.current = createBossBattleState(bossType, performance.now(), {
+        maxHp: resolveBossMaxHp(isPhraseMode),
+      });
     } else {
       bossBattleRef.current = null;
     }
 
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, hintMode]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, hintMode, isPhraseMode]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
@@ -1408,11 +1409,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
 
-        const bulletCount = prev.player.stats.aBulletCount || 1;
-        const baseAngle = getDirectionAngle(prev.player.direction);
-        const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
-        const newProjectiles = bulletAngles.map((angle) =>
-          createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk)),
+        const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
+        const newProjectiles = createAProjectilesFromPlayer(
+          prev.player,
+          calculateAProjectileDamage(prev.player.stats.aAtk),
+          attackInstanceId,
         );
 
         const newState: SurvivalGameState = {
@@ -1673,11 +1674,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.lastComboHitAt = comboAB.lastComboHitAt;
             const triggeredSpecialA = comboAB.triggeredSpecial;
 
-            const bulletCount = prev.player.stats.aBulletCount || 1;
-            const baseAngle = getDirectionAngle(prev.player.direction);
-            const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
-            const newProjectiles = bulletAngles.map((angle) =>
-              createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk)),
+            const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
+            const newProjectiles = createAProjectilesFromPlayer(
+              prev.player,
+              calculateAProjectileDamage(prev.player.stats.aAtk),
+              attackInstanceId,
             );
             newState.projectiles = [...newState.projectiles, ...newProjectiles];
 
@@ -2243,13 +2244,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
         } else {
-          const bulletCount = prev.player.stats.aBulletCount || 1;
-          const baseAngle = getDirectionAngle(prev.player.direction);
-          const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
-          
-          const newProjectiles = bulletAngles.map((angle) => {
-            return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
-          });
+          const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
+          const newProjectiles = createAProjectilesFromPlayer(
+            prev.player,
+            calculateAProjectileDamage(prev.player.stats.aAtk),
+            attackInstanceId,
+          );
           newState.projectiles = [...newState.projectiles, ...newProjectiles];
         }
       
@@ -2624,7 +2624,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const condMultBossProj = getConditionalSkillMultipliers(prev.player);
           for (const p of newState.projectiles) {
             const effectiveDamage = Math.floor(p.damage * condMultBossProj.atkMultiplier);
-            const hitBoss = applyPlayerProjectileToBoss(bossState, p.x, p.y, effectiveDamage, p.hitEnemies);
+            const hitBoss = applyPlayerProjectileToBoss(
+              bossState,
+              p.x,
+              p.y,
+              effectiveDamage,
+              p.hitEnemies,
+              p.attackInstanceId,
+            );
             if (hitBoss.hitBoss) {
               newState.damageTexts.push(createDamageText(
                 bossState.boss.x,
@@ -4357,7 +4364,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
-                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                  className="max-w-[min(360px,72vw)] md:max-w-[min(420px,78vw)]"
                 />
               </div>
             )}

@@ -143,7 +143,8 @@ final class SurvivalGameLoop {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
             initialBoss = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
-                now: bossNow
+                now: bossNow,
+                maxHp: SurvivalBossEngine.resolveBossMaxHp(mapCategory: stage.mapCategory)
             )
         } else {
             initialBoss = nil
@@ -232,7 +233,8 @@ final class SurvivalGameLoop {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
             bossBattle = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
-                now: CACurrentMediaTime()
+                now: CACurrentMediaTime(),
+                maxHp: SurvivalBossEngine.resolveBossMaxHp(mapCategory: stage.mapCategory)
             )
         } else {
             bossBattle = nil
@@ -464,9 +466,11 @@ final class SurvivalGameLoop {
             base: runtime.player.stats,
             effects: runtime.statusEffects
         )
+        let attackInstanceId = isBossStage ? UUID() : nil
         let projectiles = SurvivalGameEngine.createAProjectiles(
             from: runtime.player,
-            effectiveAAtk: effectiveStats.aAtk
+            effectiveAAtk: effectiveStats.aAtk,
+            attackInstanceId: attackInstanceId
         )
         runtime.projectiles.append(contentsOf: projectiles)
 
@@ -522,9 +526,11 @@ final class SurvivalGameLoop {
                     return slotIndex
                 }()
                 if attackSlot == SurvivalSlotIndex.A.rawValue {
+                    let attackInstanceId = isBossStage ? UUID() : nil
                     let projectiles = SurvivalGameEngine.createAProjectiles(
                         from: runtime.player,
-                        effectiveAAtk: effectiveStats.aAtk
+                        effectiveAAtk: effectiveStats.aAtk,
+                        attackInstanceId: attackInstanceId
                     )
                     runtime.projectiles.append(contentsOf: projectiles)
                 } else {
@@ -1073,7 +1079,8 @@ final class SurvivalGameLoop {
                 damage: proj.damage,
                 atPoint: CGPoint(x: proj.x, y: proj.y),
                 radius: SurvivalConstants.projectileSize / 2,
-                alreadyHitIds: proj.hitEnemyIds
+                alreadyHitIds: proj.hitEnemyIds,
+                attackInstanceId: proj.attackInstanceId
             )
             if res.bossHitDamage > 0, let p = res.bossHitPoint {
                 runtime.floatingTexts.append(

@@ -164,6 +164,8 @@ export interface Projectile {
   remainingRange: number;    // 残り射程（px）
   penetrating: boolean;
   hitEnemies: Set<string>;   // 貫通時に既にヒットした敵のID
+  /** ボス戦 A 列: 同一発射で複数弾が当たっても 1 ヒットにする */
+  attackInstanceId?: string;
 }
 
 // ===== 敵の弾丸 =====

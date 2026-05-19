@@ -149,6 +149,8 @@ struct SurvivalBossBattleState: Sendable {
     /// C ボス自己回復スキル発動時に積まれる HP 回復イベント。
     /// Scene (`SurvivalScene.renderState`) が反映して floating text を生成する。
     var pendingBossHealEvents: [SurvivalBossHealEvent] = []
+    /// ボス戦 A 列: 同一発射インスタンスは 1 ヒットのみ
+    var hitBossAttackIds: Set<UUID> = []
 }
 
 // MARK: - Boss Engine
@@ -269,13 +271,25 @@ enum SurvivalBossEngine {
 
     // MARK: - 初期化
 
-    static func createBossBattleState(bossType: SurvivalBossType, now: TimeInterval) -> SurvivalBossBattleState {
+    static func resolveBossMaxHp(mapCategory: SurvivalMapCategory) -> Int {
+        if mapCategory == .phrases {
+            return SurvivalConstants.bossMaxHp * SurvivalConstants.phrasesBossHpMultiplier
+        }
+        return SurvivalConstants.bossMaxHp
+    }
+
+    static func createBossBattleState(
+        bossType: SurvivalBossType,
+        now: TimeInterval,
+        maxHp: Int? = nil
+    ) -> SurvivalBossBattleState {
+        let resolvedMaxHp = maxHp ?? SurvivalConstants.bossMaxHp
         let boss = SurvivalBoss(
             bossType: bossType,
             x: SurvivalMap.width / 2,
             y: SurvivalMap.height / 2 - 240,
-            hp: SurvivalConstants.bossMaxHp,
-            maxHp: SurvivalConstants.bossMaxHp,
+            hp: resolvedMaxHp,
+            maxHp: resolvedMaxHp,
             nextSkillAt: initialNextSkillAt(now: now)
         )
         return SurvivalBossBattleState(boss: boss, startedAt: now)
@@ -970,7 +984,8 @@ enum SurvivalBossEngine {
         atPoint point: CGPoint,
         radius: CGFloat,
         alreadyHitIds: Set<UUID> = [],
-        forwardFilter: ForwardFilter? = nil
+        forwardFilter: ForwardFilter? = nil,
+        attackInstanceId: UUID? = nil
     ) -> PlayerAttackResolution {
         var result = PlayerAttackResolution()
         var bossInFront = true
@@ -979,10 +994,15 @@ enum SurvivalBossEngine {
             let toY = state.boss.y - f.origin.y
             bossInFront = toX * f.direction.dx + toY * f.direction.dy > 0
         }
+        let attackAlreadyClaimed = attackInstanceId.map { state.hitBossAttackIds.contains($0) } ?? false
         if bossInFront,
            !alreadyHitIds.contains(state.boss.id),
+           !attackAlreadyClaimed,
            hypot(point.x - state.boss.x, point.y - state.boss.y) <= (radius + SurvivalConstants.bossHitboxRadius) {
             state.boss.hp = max(0, state.boss.hp - damage)
+            if let attackInstanceId {
+                state.hitBossAttackIds.insert(attackInstanceId)
+            }
             result.bossHitDamage = damage
             result.bossHitPoint = CGPoint(x: state.boss.x, y: state.boss.y)
         }

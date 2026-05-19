@@ -134,7 +134,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                     : (isEnglishCopy ? 'Random' : 'ランダム')}
                 </dd>
               </div>
-              {selectedStage.mapCategory !== 'songs' && (
+              {selectedStage.mapCategory === 'basic' && (
                 <>
                   <div className="rounded-md bg-white/5 p-2">
                     <dt className="text-[10px] text-gray-400">
