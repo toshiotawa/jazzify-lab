@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import '@/app-extra.css';
 
 const LPPIXIPiano = React.lazy(() => import('./LPPIXIPiano'));
@@ -74,6 +75,7 @@ const LPFantasyDemo: React.FC = () => {
   }, []);
 
   const openDemo = useCallback(() => {
+    void unlockTutorialAudio();
     setSuspendPiano(true);
     setIsOpen(true);
     try {

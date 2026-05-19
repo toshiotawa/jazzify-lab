@@ -61,7 +61,7 @@ export function buildOnboardingV1Script(): TutorialScriptPayload {
           en: 'Jazz looks hard?\nChords feel hard to memorize?',
         },
       },
-      { type: 'delay', seconds: 2 },
+      { type: 'delay', seconds: 3 },
       {
         type: 'character',
         text: {
@@ -69,12 +69,12 @@ export function buildOnboardingV1Script(): TutorialScriptPayload {
           en: 'Play a chord to unleash a move. As you play, jazz starts to stick.',
         },
       },
-      { type: 'delay', seconds: 2 },
+      { type: 'delay', seconds: 3 },
       {
         type: 'character',
         text: { ja: 'これがこのアプリの基本です。', en: "That's the foundation of this app." },
       },
-      { type: 'delay', seconds: 2.2 },
+      { type: 'delay', seconds: 3.5 },
       { type: 'character', text: { ja: '', en: '' } },
       {
         type: 'demoOneChord',

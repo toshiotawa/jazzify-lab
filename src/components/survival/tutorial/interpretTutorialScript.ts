@@ -228,6 +228,9 @@ async function runKeyboardSetup(
     o.hideChordPad = false;
   });
 
+  const { releaseTutorialPianoAudio } = await import('./tutorialAudioUnlock');
+  releaseTutorialPianoAudio();
+
   const hadDeviceInitially = await hasWebMidiInputDeviceInitially();
   const midiIn5s = await waitForMidiNoteOrTimeout(midiWaitSeconds);
   if (midiIn5s || hadDeviceInitially) {

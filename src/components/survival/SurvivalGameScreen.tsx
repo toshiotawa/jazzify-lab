@@ -136,6 +136,7 @@ import { VoiceInputController } from '@/utils/VoiceInputController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { playTutorialChordPreview } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -331,6 +332,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // MIDI初期化完了状態
   const [isMidiInitialized, setIsMidiInitialized] = useState(false);
   const initPromiseRef = useRef<Promise<void> | null>(null);
+  const survivalPianoHeightRef = useRef(120);
+  survivalPianoHeightRef.current = embeddedFullHeight && !survivalTutorialLayout ? 80 : 120;
   
   const isStageMode = !!stageDefinition;
   const stageBattleKind = stageDefinition
@@ -1131,7 +1134,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         showHitLine: false,
         noteNameStyle: settings.noteNameStyle,
         simpleDisplayMode: settings.simpleDisplayMode,
-        pianoHeight: 120, // 全体の高さと同じにしてノーツエリアをなくす
+        pianoHeight: survivalPianoHeightRef.current,
       });
       
       // タッチ/クリックハンドラー設定（ファンタジーモードと同様）
@@ -2958,10 +2961,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }));
       },
       playChordAudio: (midis) => {
-        for (const m of midis) {
-          playNote(m, 90);
-          window.setTimeout(() => stopNote(m), 420);
-        }
+        void playTutorialChordPreview(midis, initPromiseRef.current ?? undefined);
       },
       getSlotBCompletionPulse: () => scenarioSlotBCompletionPulseRef?.current ?? 0,
       getUserInputPulse: () => scenarioUserInputPulseRef?.current ?? 0,
@@ -4431,6 +4431,32 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const scenarioHideChordPadOverlay =
     scenarioMode && scenarioUi.isActive && scenarioUi.hideChordPad;
 
+  useEffect(() => {
+    if (scenarioHideChordPadOverlay) return;
+    const el = gameAreaRef.current;
+    const renderer = pixiRendererRef.current;
+    if (!el || !renderer) return;
+
+    const syncPianoSize = (): void => {
+      const width = Math.max(1, el.clientWidth || window.innerWidth);
+      const height = survivalPianoHeightRef.current;
+      renderer.resize(width, height);
+      renderer.updateSettings({
+        pianoHeight: height,
+        showHitLine: false,
+      });
+    };
+
+    syncPianoSize();
+    const ro = new ResizeObserver(syncPianoSize);
+    ro.observe(el);
+    const rafId = requestAnimationFrame(syncPianoSize);
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
+  }, [scenarioHideChordPadOverlay, embeddedFullHeight, survivalTutorialLayout]);
+
   const elapsedSecondsFloor = Math.floor(gameState.elapsedTime);
 
   const survivalCenterStaffUnpressedNoteOpacity = useMemo(
@@ -5196,16 +5222,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       {/* ピアノ（PIXINotesRenderer使用） */}
       {!scenarioHideChordPadOverlay &&
       (() => {
-        const pianoHeight = embeddedFullHeight && !survivalTutorialLayout ? 80 : 120;
-        const tutorialPianoOverlay = embeddedFullHeight && survivalTutorialLayout;
+        const pianoHeight = survivalPianoHeightRef.current;
+        const tutorialPianoInFlow = embeddedFullHeight && survivalTutorialLayout;
         return (
       <div
         ref={gameAreaRef}
         className={cn(
-          'bg-black bg-opacity-20 overflow-hidden w-full',
-          tutorialPianoOverlay
-            ? 'fixed bottom-0 left-0 right-0 z-20 mb-0 mx-0 rounded-none'
-            : 'relative mx-2 mb-1 rounded-lg flex-shrink-0',
+          'bg-black bg-opacity-20 overflow-hidden w-full flex-shrink-0',
+          tutorialPianoInFlow
+            ? 'relative z-20 mx-0 mb-0 rounded-none pb-[env(safe-area-inset-bottom)]'
+            : 'relative mx-2 mb-1 rounded-lg',
         )}
         style={{ height: `${pianoHeight}px` }}
       >

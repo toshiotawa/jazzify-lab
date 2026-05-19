@@ -167,6 +167,16 @@ export class FantasySoundManager {
     return this.instance.gmPianoReady && this.instance.gmAcousticPiano !== null;
   }
 
+  /** GM ピアノ用 AudioContext が再生可能な状態か */
+  public static isGmAudioRunning(): boolean {
+    return this.instance.gmAudioContext?.state === 'running';
+  }
+
+  /** チュートリアル遷移などで溜まった GM ノートをすべて解放 */
+  public static releaseAllGmNotes(): void {
+    return this.instance._releaseAllGmNotes();
+  }
+
   // FM合成音フォールバックが利用可能かどうか（CDN不要・即時利用可）
   public static isFMSynthReady(): boolean {
     return this.instance.bassInitialized && this.instance.bassSynth !== null;
@@ -722,10 +732,13 @@ export class FantasySoundManager {
       this.gmPendingStops.delete(midiNote);
 
       if (this.gmAudioContext.state === 'suspended') {
-        await this.gmAudioContext.resume();
+        // await resume すると複数ノートがユーザー操作時に一斉再生されるため、
+        // suspended の間は再生しない（unlock 後にのみ鳴らす）
+        void this.gmAudioContext.resume().catch(() => {});
+        return;
       }
 
-      // resume 待ちの間に stop が呼ばれた場合は再生しない
+      // stop が先に呼ばれた場合は再生しない
       if (this.gmPendingStops.has(midiNote)) {
         this.gmPendingStops.delete(midiNote);
         return;
@@ -773,6 +786,13 @@ export class FantasySoundManager {
     } catch {
       // GM note playback error - ignore
     }
+  }
+
+  private _releaseAllGmNotes(): void {
+    for (const midiNote of [...this.activeGMNotes.keys()]) {
+      this._stopGMNote(midiNote);
+    }
+    this.gmPendingStops.clear();
   }
 
   // GM音源のノートを停止（ゲインを短くランプしてから stop／切断でクリックノイズを低減）

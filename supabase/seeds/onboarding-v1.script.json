@@ -398,7 +398,7 @@
     },
     {
       "type": "delay",
-      "seconds": 2
+      "seconds": 3
     },
     {
       "type": "character",
@@ -409,7 +409,7 @@
     },
     {
       "type": "delay",
-      "seconds": 2
+      "seconds": 3
     },
     {
       "type": "character",
@@ -420,7 +420,7 @@
     },
     {
       "type": "delay",
-      "seconds": 2.2
+      "seconds": 3.5
     },
     {
       "type": "character",

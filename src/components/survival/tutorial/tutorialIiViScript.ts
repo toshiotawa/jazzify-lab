@@ -183,17 +183,17 @@ export async function runTutorialIiViScript(params: RunTutorialIiViScriptParams)
       ? 'ジャズって難しそう？\nコードを覚えるのが難しい？'
       : 'Jazz looks hard?\nChords feel hard to memorize?',
   );
-  await sleep(2, signal);
+  await sleep(3, signal);
   ui.setCharacterText(
     isJa
       ? 'コードを弾くと、ワザが出る。遊んでいるうちに、ジャズの形が身につく。'
       : 'Play a chord to unleash a move. As you play, jazz starts to stick.',
   );
-  await sleep(2, signal);
+  await sleep(3, signal);
   ui.setCharacterText(
     isJa ? 'これがこのアプリの基本です。' : "That's the foundation of this app.",
   );
-  await sleep(2.2, signal);
+  await sleep(3.5, signal);
   ui.setCharacterText('');
 
   await playSceneOneChord(
@@ -237,6 +237,8 @@ export async function runTutorialIiViScript(params: RunTutorialIiViScriptParams)
   handle.setOverrides(scene2Base());
   handle.setSlotBChord(null);
   handle.setSlotBEnabled(false);
+  const { releaseTutorialPianoAudio } = await import('./tutorialAudioUnlock');
+  releaseTutorialPianoAudio();
   await sleep(2, signal);
   ui.setNarrationText(
     isJa

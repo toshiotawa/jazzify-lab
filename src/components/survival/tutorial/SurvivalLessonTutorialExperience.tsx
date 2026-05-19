@@ -21,6 +21,7 @@ import {
 import type { RunTutorialIiViScriptParams } from '@/components/survival/tutorial/tutorialIiViScript';
 import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
 import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
+import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -91,6 +92,17 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const midiNoteReceivedRef = useRef(false);
   const runnerFnRef = useRef<SurvivalBuiltinTutorialRunner | null>(null);
   const finalizedOnceRef = useRef(false);
+  const audioUnlockedRef = useRef(false);
+
+  useEffect(() => {
+    const unlockOnce = (): void => {
+      if (audioUnlockedRef.current) return;
+      audioUnlockedRef.current = true;
+      void unlockTutorialAudio();
+    };
+    window.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
+    return () => window.removeEventListener('pointerdown', unlockOnce);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
