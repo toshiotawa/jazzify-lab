@@ -378,6 +378,37 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionIndexRef.current = 0;
   }, [isProgressionStage, stageDefinition?.chordProgression]);
 
+  // モバイル Safari のアドレスバー表示変化に合わせてレイアウト高さを同期（LP デモと同系）
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const setDvh = (): void => {
+      const vv = window.visualViewport;
+      const vals = [window.innerHeight, document.documentElement.clientHeight];
+      if (vv) vals.push(vv.height);
+      const dvh = Math.min(...vals);
+      document.documentElement.style.setProperty('--dvh', `${dvh}px`);
+    };
+    setDvh();
+    window.addEventListener('resize', setDvh, { passive: true });
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', setDvh, { passive: true });
+      vv.addEventListener('scroll', setDvh, { passive: true });
+    }
+    const t1 = window.setTimeout(setDvh, 200);
+    const t2 = window.setTimeout(setDvh, 500);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.removeEventListener('resize', setDvh);
+      if (vv) {
+        vv.removeEventListener('resize', setDvh);
+        vv.removeEventListener('scroll', setDvh);
+      }
+      document.documentElement.style.removeProperty('--dvh');
+    };
+  }, []);
+
   /** Progression の B 列が完成したときに、進行 index を進めて次の current/next chord を返す。 */
   const advanceProgressionPair = useCallback((): { current: SurvivalChordDefinition | null; next: SurvivalChordDefinition | null } => {
     const chords = progressionChordsRef.current;
@@ -4126,7 +4157,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       {/* メインゲームエリア（Canvasが全高さ・ヘッダーはCanvas上にオーバーレイ） */}
       <div
         className={cn(
-          'flex-1 flex flex-col items-center relative min-h-0',
+          'flex-1 flex flex-col items-center relative min-h-0 w-full max-w-full',
           embeddedFullHeight ? 'justify-start gap-1 px-2' : 'justify-center gap-2 px-4'
         )}
       >
@@ -4367,7 +4398,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
-                  className="max-w-[min(280px,60vw)] md:max-w-[min(280px,60vw)]"
+                  className="max-w-[min(360px,78vw)] md:max-w-[min(400px,75vw)]"
                 />
               </div>
             )}

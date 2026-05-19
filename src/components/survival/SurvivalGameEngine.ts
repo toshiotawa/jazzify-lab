@@ -35,7 +35,11 @@ import {
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
 import { note as parseNote } from 'tonal';
-import { STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
+import {
+  STAGE_TIME_LIMIT_SECONDS,
+  STAGE_KILL_QUOTA,
+  STAGE_PLAYER_MAX_HP,
+} from './SurvivalStageDefinitions';
 
 // ===== 定数 =====
 const PLAYER_SIZE = 32;
@@ -116,8 +120,8 @@ const createStageInitialPlayerState = (): PlayerState => ({
     cAtk: 20,
     speed: 6,
     reloadMagic: 0,
-    hp: 300,
-    maxHp: 300,
+    hp: STAGE_PLAYER_MAX_HP,
+    maxHp: STAGE_PLAYER_MAX_HP,
     def: 10,
     time: 5,
     aBulletCount: 5,
@@ -1889,7 +1893,9 @@ export const cleanupExpiredCoins = (coins: Coin[]): Coin[] => {
 // ===== 敵が弾を撃つタイプかどうか =====
 const SHOOTING_ENEMY_TYPES: EnemyType[] = ['skeleton', 'ghost', 'demon', 'dragon'];
 const ENEMY_PROJECTILE_SPEED = 200;  // 敵弾の速度（px/秒）
-const ENEMY_SHOOT_COOLDOWN = 2;      // 敵の射撃クールダウン（秒）
+const ENEMY_SHOOT_COOLDOWN = 2;      // 敵の射撃クールダウン（秒）（将来の時刻ベース射撃用・現状未使用）
+/** フレームあたりの射撃確率（`shouldEnemyShoot`）。低いほど弾が少ない */
+const ENEMY_SHOOT_PROBABILITY_PER_FRAME = 0.012;
 
 export const canEnemyShoot = (enemyType: EnemyType): boolean => {
   return SHOOTING_ENEMY_TYPES.includes(enemyType);
@@ -1958,6 +1964,6 @@ export const shouldEnemyShoot = (
   
   // 確率で射撃（2秒に1回くらい）
   // フレームごとに呼ばれるので確率を低くする
-  const shootProbability = 0.02;  // 約2%/フレーム（60FPSで約1.2秒に1回）
+  const shootProbability = ENEMY_SHOOT_PROBABILITY_PER_FRAME;
   return Math.random() < shootProbability;
 };

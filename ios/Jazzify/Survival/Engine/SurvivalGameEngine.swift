@@ -68,7 +68,7 @@ enum SurvivalGameEngine {
                     ? SurvivalConstants.phrasesBossPlayerMaxHp
                     : SurvivalConstants.bossPlayerMaxHp
             }
-            return 300
+            return SurvivalConstants.stagePlayerMaxHp
         }()
         return SurvivalPlayerState(
             x: SurvivalMap.width / 2,
@@ -425,10 +425,10 @@ enum SurvivalGameEngine {
 
     private static func shootCooldown(for type: SurvivalEnemyType) -> TimeInterval {
         switch type {
-        case .ghost: return 2.2
-        case .demon: return 3.0
-        case .dragon: return 2.6
-        default: return 3.5
+        case .ghost: return 3.3
+        case .demon: return 4.5
+        case .dragon: return 3.9
+        default: return 5.25
         }
     }
 

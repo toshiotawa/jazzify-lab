@@ -321,6 +321,8 @@ let fetchPromise: Promise<StageDefinition[]> | null = null;
 
 export const STAGE_TIME_LIMIT_SECONDS = 90;
 export const STAGE_KILL_QUOTA = 150;
+/** 通常ステージ（非 Phrases・非ボス）のプレイヤー初期 HP。Phrases 1000・ボス戦は別定数。 */
+export const STAGE_PLAYER_MAX_HP = 800;
 
 /**
  * survival_stages を Supabase から取得し、カテゴリ別キャッシュを更新する。
