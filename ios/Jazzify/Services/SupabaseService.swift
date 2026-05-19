@@ -282,7 +282,34 @@ final class SupabaseService: Sendable {
     }
 
     func fetchLessonDetail(lessonId: UUID) async throws -> LessonDetail {
-        try await client
+        do {
+            return try await fetchLessonDetail(lessonId: lessonId, includeSurvivalTutorialFields: true)
+        } catch {
+            guard Self.isMissingSurvivalTutorialColumnError(error) else {
+                throw error
+            }
+            return try await fetchLessonDetail(lessonId: lessonId, includeSurvivalTutorialFields: false)
+        }
+    }
+
+    /// 本番 DB に `lesson_songs.is_survival_tutorial` 列が未適用のとき PostgREST が返すエラー。
+    private static func isMissingSurvivalTutorialColumnError(_ error: Error) -> Bool {
+        let message = String(describing: error).lowercased()
+        return message.contains("is_survival_tutorial")
+            || message.contains("survival_tutorial_script_id")
+            || message.contains("42703")
+            || message.contains("does not exist")
+    }
+
+    private func fetchLessonDetail(lessonId: UUID, includeSurvivalTutorialFields: Bool) async throws -> LessonDetail {
+        let tutorialFields = includeSurvivalTutorialFields
+            ? """
+                is_survival_tutorial,
+                survival_tutorial_script_id,
+            """
+            : ""
+
+        return try await client
             .from("lessons")
             .select("""
             *,
@@ -294,8 +321,7 @@ final class SupabaseService: Sendable {
                 ear_training_stage_id,
                 is_fantasy,
                 is_survival,
-                is_survival_tutorial,
-                survival_tutorial_script_id,
+                \(tutorialFields)
                 is_ear_training,
                 survival_stage_number,
                 survival_map_category,
