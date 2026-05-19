@@ -282,53 +282,12 @@ final class SupabaseService: Sendable {
     }
 
     func fetchLessonDetail(lessonId: UUID) async throws -> LessonDetail {
-        do {
-            return try await fetchLessonDetail(lessonId: lessonId, includeSurvivalTutorialFields: true)
-        } catch {
-            guard Self.isMissingSurvivalTutorialColumnError(error) else {
-                throw error
-            }
-            return try await fetchLessonDetail(lessonId: lessonId, includeSurvivalTutorialFields: false)
-        }
-    }
-
-    /// 本番 DB に `lesson_songs.is_survival_tutorial` 列が未適用のとき PostgREST が返すエラー。
-    private static func isMissingSurvivalTutorialColumnError(_ error: Error) -> Bool {
-        let message = String(describing: error).lowercased()
-        return message.contains("is_survival_tutorial")
-            || message.contains("survival_tutorial_script_id")
-            || message.contains("42703")
-            || message.contains("does not exist")
-    }
-
-    private func fetchLessonDetail(lessonId: UUID, includeSurvivalTutorialFields: Bool) async throws -> LessonDetail {
-        let tutorialFields = includeSurvivalTutorialFields
-            ? """
-                is_survival_tutorial,
-                survival_tutorial_script_id,
-            """
-            : ""
-
-        return try await client
+        try await client
             .from("lessons")
             .select("""
             *,
             lesson_songs (
-                id,
-                lesson_id,
-                song_id,
-                fantasy_stage_id,
-                ear_training_stage_id,
-                is_fantasy,
-                is_survival,
-                \(tutorialFields)
-                is_ear_training,
-                survival_stage_number,
-                survival_map_category,
-                clear_conditions,
-                order_index,
-                title,
-                title_en,
+                *,
                 songs (id, title, artist),
                 fantasyStage:fantasy_stages (
                     id,
@@ -339,19 +298,7 @@ final class SupabaseService: Sendable {
                     description_en,
                     stage_tier
                 ),
-                earTrainingStage:ear_training_stages (
-                    id,
-                    slug,
-                    title,
-                    title_en,
-                    description,
-                    description_en,
-                    bpm,
-                    time_limit_sec,
-                    mode,
-                    quiz_required_correct_count,
-                    show_keyboard_hints_in_battle
-                )
+                earTrainingStage:ear_training_stages (*)
             )
             """)
             .eq("id", value: lessonId.uuidString)
