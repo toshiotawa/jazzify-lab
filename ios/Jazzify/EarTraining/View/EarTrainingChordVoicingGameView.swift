@@ -6,6 +6,7 @@ import UIKit
 enum EarTrainingStageSource {
     case id(UUID)
     case slug(String)
+    case embedded(EarTrainingStageDetail)
 }
 
 /// コード演奏バトルモード ([src/components/earTraining/EarTrainingChordVoicingScreen.tsx]) の iOS 画面。
@@ -14,6 +15,7 @@ struct EarTrainingChordVoicingGameView: View {
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
     var initialPracticeMode: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordVoicingBattleController?
@@ -90,6 +92,8 @@ struct EarTrainingChordVoicingGameView: View {
                 stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
             case .slug(let slug):
                 stageDetail = try await SupabaseService.shared.fetchEarTrainingStageDetailBySlug(slug: slug)
+            case .embedded(let embedded):
+                stageDetail = embedded
             }
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
@@ -114,6 +118,10 @@ struct EarTrainingChordVoicingGameView: View {
                 initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
+            if let tutorialHooks {
+                createdController.tutorialNoCombat = tutorialHooks.noCombat
+                createdController.tutorialHooks = tutorialHooks
+            }
 
             midiSubscriptionHolder.cancel()
             midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in

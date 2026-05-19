@@ -82,6 +82,20 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
+import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
+import {
+  clampTutorialPlayerHp,
+  isEarTrainingTutorialNoCombat,
+  shouldTutorialBlockGameOver,
+} from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
+import type { EarTrainingTutorialSelfPacedConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import {
+  localizedText,
+} from '@/components/earTraining/tutorial/earTrainingTutorialScriptTypes';
+import {
+  scheduleSelfPacedTimedLines,
+  type DialogueScheduleHandle,
+} from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -97,6 +111,7 @@ interface EarTrainingChordVoicingScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  tutorial?: EarTrainingTutorialSelfPacedConfig & { onSceneComplete: () => void };
 }
 
 type PendingImpactHandler = () => void;
@@ -196,7 +211,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  tutorial,
 }) => {
+  const tutorialUi = tutorial?.bindings.ui;
+  const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
+  const tutorialLoopCountRef = useRef(0);
+  const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -234,8 +254,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     [stage],
   );
   const activeDamageConfig = useMemo(
-    () => (practiceMode ? NO_DAMAGE_CONFIG : damageConfig),
-    [damageConfig, practiceMode],
+    () => (practiceMode || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceMode, tutorialNoCombat],
   );
   const rankRule = useMemo(
     () => ({
@@ -584,11 +604,24 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     gameStateRef.current = 'phraseFail';
     clearChordSyncTimer();
     setLastRank('Fail');
+    if (tutorialNoCombat) {
+      setStatusText(copy.failAdvance);
+      clearTransitionTimer();
+      transitionTimerRef.current = setTimeout(() => {
+        const wrappedIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+        startPhraseRef.current(wrappedIndex);
+      }, 900);
+      return;
+    }
     setEnemyAttackGaugePercent(1);
     triggerFeedback('miss');
     const effectId = triggerBattleEffect('fail', 'Fail', activeDamageConfig.fail);
     registerBattleEffectImpact(effectId, () => {
-      const nextPlayerHp = Math.max(0, playerHpRef.current - activeDamageConfig.fail);
+      const nextPlayerHp = clampTutorialPlayerHp(
+        playerHpRef.current,
+        activeDamageConfig.fail,
+        Boolean(tutorialUi?.playerInvincible),
+      );
       setPlayerHp(nextPlayerHp);
       playerHpRef.current = nextPlayerHp;
 
@@ -599,7 +632,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         phraseCompleted: false,
         phraseFailed: true,
       });
-      if (outcome === 'gameOver') {
+      if (outcome === 'gameOver' && !shouldTutorialBlockGameOver(nextPlayerHp, Boolean(tutorialUi?.playerInvincible))) {
         finishGameOver(copy.gameOver);
         return;
       }
@@ -622,6 +655,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setEnemyAttackGaugePercent,
     triggerBattleEffect,
     triggerFeedback,
+    tutorialNoCombat,
   ]);
 
   useEffect(() => {
@@ -629,6 +663,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }, [failCurrentPhrase]);
 
   const triggerLoopEnemyAttack = useCallback((completedLoop: number) => {
+    if (tutorialNoCombat) {
+      return;
+    }
     if (
       gameStateRef.current !== 'playingPhrase'
       || completedLoop < 2
@@ -644,7 +681,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     triggerFeedback('miss');
     const attackEffectId = triggerBattleEffect('miss', 'ATTACK', activeDamageConfig.miss);
     registerBattleEffectImpact(attackEffectId, () => {
-      const nextPlayerHp = Math.max(0, playerHpRef.current - activeDamageConfig.miss);
+      const nextPlayerHp = clampTutorialPlayerHp(
+        playerHpRef.current,
+        activeDamageConfig.miss,
+        Boolean(tutorialUi?.playerInvincible),
+      );
       setPlayerHp(nextPlayerHp);
       playerHpRef.current = nextPlayerHp;
       const outcome = resolveEarTrainingOutcome({
@@ -667,6 +708,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stage.max_loops_per_phrase,
     triggerBattleEffect,
     triggerFeedback,
+    tutorialNoCombat,
   ]);
 
   const scheduleNextAudioTimelineSync = useCallback(() => {
@@ -751,7 +793,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
 
     const loopDurationForGauge = getFinitePhraseLoopDuration(phrase);
-    if (loopDurationForGauge !== null) {
+    if (!tutorialNoCombat && loopDurationForGauge !== null) {
       const gaugeDurationSec = loopDurationForGauge * ATTACK_GAUGE_TARGET_LOOPS;
       setEnemyAttackGaugePercent(
         Number.isFinite(gaugeDurationSec) && gaugeDurationSec > 0
@@ -1069,6 +1111,22 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       stopSelfPacedDrumLoop();
     }
 
+    if (tutorial && chordVoicingSelfPaced) {
+      tutorialLoopCountRef.current = 0;
+      tutorial.bindings.setCharacterText(
+        localizedText(tutorial.scene.dialogue.onSceneStart, isEnglishCopy),
+      );
+      tutorialDialogueHandleRef.current?.cancel();
+      const timed = tutorial.scene.dialogue.timedLines;
+      if (timed && timed.length > 0) {
+        tutorialDialogueHandleRef.current = scheduleSelfPacedTimedLines({
+          lines: timed,
+          isEnglishCopy,
+          onLine: tutorial.bindings.setCharacterText,
+        });
+      }
+    }
+
     if (chordVoicingSelfPaced) {
       setCountInValue(0);
       gameStateRef.current = 'playingPhrase';
@@ -1319,11 +1377,24 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         phraseCompleted: true,
         phraseFailed: false,
       });
+      if (tutorial && chordVoicingSelfPaced) {
+        tutorialLoopCountRef.current += 1;
+        const required = tutorial.scene.requiredSuccessfulLoops;
+        if (tutorialLoopCountRef.current >= required) {
+          tutorial.onSceneComplete();
+          return;
+        }
+        tutorial.bindings.setCharacterText(
+          localizedText(tutorial.scene.dialogue.onLoopSuccess, isEnglishCopy),
+        );
+        transitionToNextPhrase(rank, phrase);
+        return;
+      }
       if (outcome === 'stageClear') {
         void finishStageClear(rank);
       }
     });
-    if (!willStageClear) {
+    if (!willStageClear && !tutorial) {
       transitionToNextPhrase(rank, phrase);
     }
     void totalChords;
@@ -1644,7 +1715,18 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const resultRankLine = null;
   const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
 
-  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
+  useEffect(() => {
+    if (!tutorial?.bindings.ui.hideLobby) {
+      return undefined;
+    }
+    if (gameStateRef.current !== 'idle') {
+      return undefined;
+    }
+    const timer = setTimeout(() => startCountIn(), 120);
+    return () => clearTimeout(timer);
+  }, [startCountIn, tutorial?.bindings.ui.hideLobby]);
+
+  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
     resultState,
     stageTitle: stage.title,
@@ -1670,7 +1752,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     activeLoop,
     maxLoops: stage.max_loops_per_phrase,
     demoLoopActive: false,
-    enemyAttackGaugePercent,
+    enemyAttackGaugePercent: tutorialNoCombat ? 0 : enemyAttackGaugePercent,
     chords: harmonyHudRowsForHud.map(row => ({
       id: row.representativeId,
       name: row.chordName,
@@ -1689,7 +1771,18 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     canChangePracticeMode,
     startButtonLabel,
     lessonProgressText,
-    quizRulesLine: clearConditionLine,
+    quizRulesLine: tutorial ? undefined : clearConditionLine,
+  }, tutorialUi ?? {
+    hidePlayerHpBar: false,
+    hideSettingsButton: false,
+    hideBackButton: false,
+    hideLobby: false,
+    hideMidiToggle: false,
+    hidePhraseIntroQuota: false,
+    showExitButton: false,
+    playerInvincible: false,
+    disableEnemyAttacks: false,
+    keyboardHintsDefault: false,
   }), [
     activeChord?.id,
     activeLoop,

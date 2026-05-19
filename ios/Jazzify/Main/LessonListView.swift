@@ -1509,6 +1509,15 @@ private struct EarTrainingLaunch: Identifiable {
     var initialPracticeMode: Bool = false
 }
 
+/// 耳コピバトルチュートリアル（DB 駆動 `EarTrainingTutorialView`）の fullScreenCover 起動コンテキスト。
+private struct EarTrainingTutorialLaunch: Identifiable {
+    let id = UUID()
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let scriptId: String
+    let clearConditions: LessonClearConditions?
+}
+
 /// サバイバルチュートリアル（DB 駆動 `SurvivalTutorialView`）の fullScreenCover 起動コンテキスト。
 private struct SurvivalTutorialLaunch: Identifiable {
     let id = UUID()
@@ -1545,6 +1554,7 @@ struct LessonDetailView: View {
     @State private var alertMessage: String?
     @State private var launchDestination: LessonLaunchDestination?
     @State private var earTrainingLaunch: EarTrainingLaunch?
+    @State private var earTrainingTutorialLaunch: EarTrainingTutorialLaunch?
     @State private var survivalTutorialLaunch: SurvivalTutorialLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
@@ -1672,6 +1682,21 @@ struct LessonDetailView: View {
                 onClose: { earTrainingLaunch = nil }
             )
         }
+        .fullScreenCover(item: $earTrainingTutorialLaunch) { launch in
+            EarTrainingTutorialView(
+                scriptId: launch.scriptId,
+                locale: locale,
+                onClose: { earTrainingTutorialLaunch = nil },
+                onComplete: {
+                    _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
+                        lessonId: launch.lessonId,
+                        lessonSongId: launch.lessonSongId,
+                        rank: launch.clearConditions?.rank ?? "S",
+                        clearConditions: launch.clearConditions
+                    )
+                }
+            )
+        }
         .fullScreenCover(item: $survivalTutorialLaunch) { launch in
             SurvivalTutorialView(
                 scriptId: launch.scriptId,
@@ -1694,6 +1719,11 @@ struct LessonDetailView: View {
             }
         }
         .onChange(of: earTrainingLaunch == nil) { isNil in
+            if isNil {
+                Task { await loadLessonDetail() }
+            }
+        }
+        .onChange(of: earTrainingTutorialLaunch == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
             }
@@ -2433,7 +2463,7 @@ struct LessonDetailView: View {
 
     private func progress(for requirement: LessonSong) -> LessonRequirementProgressRow? {
         requirementProgress.first { progress in
-            if requirement.isFantasy || requirement.isSurvival == true || requirement.isSurvivalTutorial == true || requirement.isEarTraining == true {
+            if requirement.isFantasy || requirement.isSurvival == true || requirement.isSurvivalTutorial == true || requirement.isEarTraining == true || requirement.isEarTrainingTutorial == true {
                 return progress.lessonSongId == requirement.id
             }
             return progress.songId == requirement.songId
@@ -2459,6 +2489,9 @@ struct LessonDetailView: View {
         }
         if requirement.isSurvivalTutorial == true {
             return "\(index + 1). \(locale == .ja ? "サバイバルチュートリアル" : "Survival Tutorial")"
+        }
+        if requirement.isEarTrainingTutorial == true {
+            return "\(index + 1). \(locale == .ja ? "耳コピバトルチュートリアル" : "Ear Training Tutorial")"
         }
         if requirement.isSurvival == true, let stageNumber = requirement.survivalStageNumber {
             return "\(index + 1). \(locale == .ja ? "サバイバル ステージ" : "Survival Stage") \(stageNumber)"
@@ -2598,12 +2631,21 @@ struct LessonDetailView: View {
             return
         }
 
+        if requirement.isEarTrainingTutorial == true {
+            earTrainingTutorialLaunch = EarTrainingTutorialLaunch(
+                lessonId: lesson.id,
+                lessonSongId: requirement.id,
+                scriptId: requirement.earTrainingTutorialScriptId ?? "developer-full-v1",
+                clearConditions: requirement.clearConditions
+            )
+            return
+        }
+
         if requirement.isEarTraining == true {
             guard let stageId = requirement.earTrainingStage?.id ?? requirement.earTrainingStageId else {
                 alertMessage = locale == .ja ? "バトルモードステージ設定がありません。" : "Missing battle mode stage setting."
                 return
             }
-            // ネイティブ実装に置き換え。WKWebView 経路は廃止する。
             earTrainingLaunch = EarTrainingLaunch(
                 stageId: stageId,
                 lessonId: lesson.id,

@@ -10,6 +10,7 @@ struct EarTrainingChordOSMDGameView: View {
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
     var initialPracticeMode: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordOSMDBattleController?
@@ -85,6 +86,8 @@ struct EarTrainingChordOSMDGameView: View {
                 stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
             case .slug(let slug):
                 stageDetail = try await SupabaseService.shared.fetchEarTrainingStageDetailBySlug(slug: slug)
+            case .embedded(let embedded):
+                stageDetail = embedded
             }
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
@@ -117,6 +120,10 @@ struct EarTrainingChordOSMDGameView: View {
                 initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
+            if let tutorialHooks {
+                createdController.tutorialNoCombat = tutorialHooks.noCombat
+                createdController.tutorialHooks = tutorialHooks
+            }
 
             midiSubscriptionHolder.cancel()
             midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in

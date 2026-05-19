@@ -62,6 +62,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
+import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
+import {
+  clampTutorialPlayerHp,
+  isEarTrainingTutorialNoCombat,
+  shouldTutorialBlockGameOver,
+} from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
+import type { EarTrainingTutorialQuizConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import { localizedText } from '@/components/earTraining/tutorial/earTrainingTutorialScriptTypes';
+import { autoAnswerChordForQuiz } from '@/components/earTraining/tutorial/earTrainingTutorialQuizAutoAnswer';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -77,6 +86,7 @@ interface EarTrainingChordQuizScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  tutorial?: EarTrainingTutorialQuizConfig & { onSceneComplete: () => void };
 }
 
 const INPUT_COOLDOWN_MS = 20;
@@ -184,7 +194,12 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  tutorial,
 }) => {
+  const tutorialUi = tutorial?.bindings.ui;
+  const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
+  const tutorialQuestionsAnsweredRef = useRef(0);
+  const tutorialQuestionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -204,7 +219,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     () => buildEarTrainingChordQuizQuestions(stage),
     [stage],
   );
-  const quizOrder = stage.quiz_question_order === 'sequential' ? 'sequential' : 'random';
+  const quizOrder = tutorial
+    ? (tutorial.scene.order === 'progression' ? 'sequential' : 'random')
+    : (stage.quiz_question_order === 'sequential' ? 'sequential' : 'random');
   const quizDurationSec = stage.quiz_duration_seconds ?? 90;
   const requiredCorrect = stage.quiz_required_correct_count ?? 80;
   const hideNotationInBattle = stage.quiz_show_notation_in_battle === false;
@@ -271,6 +288,47 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const practiceModeRef = useRef(practiceMode);
   const attackGaugeEpochMsRef = useRef<number | null>(null);
   const enemyAttackGaugePercentRef = useRef(0);
+
+  const clearTutorialQuestionTimer = useCallback(() => {
+    if (tutorialQuestionTimerRef.current !== null) {
+      clearTimeout(tutorialQuestionTimerRef.current);
+      tutorialQuestionTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleTutorialQuestionDialogue = useCallback(() => {
+    if (!tutorial) {
+      return;
+    }
+    clearTutorialQuestionTimer();
+    tutorial.bindings.setCharacterText(
+      localizedText(tutorial.scene.dialogue.onQuestion, isEnglishCopy),
+    );
+    const timeoutMs = Math.max(1, tutorial.scene.answerTimeoutSeconds) * 1000;
+    tutorialQuestionTimerRef.current = setTimeout(() => {
+      tutorialQuestionTimerRef.current = null;
+      const currentAttempt = attemptRef.current;
+      const question = quizQuestions[activeQuestionIndex];
+      if (!currentAttempt || !question || gameStateRef.current !== 'playingPhrase') {
+        return;
+      }
+      const judgmentChord = getActiveChordInQuizQuestion(question, currentAttempt.completedChordIds);
+      if (!judgmentChord) {
+        return;
+      }
+      autoAnswerChordForQuiz(judgmentChord, note => handleNoteInputRef.current(note));
+      tutorial.bindings.setCharacterText(
+        localizedText(tutorial.scene.dialogue.onAutoAnswer, isEnglishCopy),
+      );
+    }, timeoutMs);
+  }, [
+    activeQuestionIndex,
+    clearTutorialQuestionTimer,
+    isEnglishCopy,
+    quizQuestions,
+    tutorial,
+    tutorialUi?.playerInvincible,
+  ]);
 
   const setEnemyAttackGaugePercent = useCallback((value: number) => {
     const next = clampGaugeRatio(value);
@@ -516,19 +574,25 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, [clearCountdownTimer, clearQuizTimer, finishQuizFail, finishQuizSuccess]);
 
   const registerPlayerHpImpactDamage = useCallback((damageAmount: number) => {
-    if (practiceModeRef.current || quizEndedRef.current) {
+    if (tutorialNoCombat || practiceModeRef.current || quizEndedRef.current) {
       return;
     }
     const effectId = triggerBattleEffect('miss', undefined, damageAmount);
     pendingImpactHandlersRef.current.set(effectId, () => {
       setPlayerHp(prev => {
-        const next = Math.max(0, prev - damageAmount);
+        const next = clampTutorialPlayerHp(
+          prev,
+          damageAmount,
+          Boolean(tutorialUi?.playerInvincible),
+        );
         playerHpRef.current = next;
-        applyQuizHpOutcome(enemyHpRef.current, next);
+        if (!shouldTutorialBlockGameOver(next, Boolean(tutorialUi?.playerInvincible))) {
+          applyQuizHpOutcome(enemyHpRef.current, next);
+        }
         return next;
       });
     });
-  }, [applyQuizHpOutcome, triggerBattleEffect]);
+  }, [applyQuizHpOutcome, triggerBattleEffect, tutorialNoCombat, tutorialUi?.playerInvincible]);
 
   const advanceToNextQuestion = useCallback(() => {
     if (quizQuestions.length === 0) {
@@ -559,6 +623,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     if (quizQuestions.length === 0) {
       setStatusText(isEnglishCopy ? 'No quiz items in stage' : '出題がありません');
       return;
+    }
+    if (tutorial) {
+      tutorialQuestionsAnsweredRef.current = 0;
     }
     clearStaffShiftQueue();
     clearCountdownTimer();
@@ -606,7 +673,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       attackGaugeEpochMsRef.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
       setEnemyAttackGaugePercent(0);
 
-      if (!practiceMode) {
+      if (tutorial) {
+        scheduleTutorialQuestionDialogue();
+      } else if (!practiceMode) {
         quizStartedAtRef.current = Date.now();
         setTimeRemaining(quizDurationSec);
         clearQuizTimer();
@@ -736,6 +805,23 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return;
     }
 
+    if (tutorial) {
+      clearTutorialQuestionTimer();
+      tutorial.bindings.setCharacterText(
+        localizedText(tutorial.scene.dialogue.onCorrect, isEnglishCopy),
+      );
+      tutorialQuestionsAnsweredRef.current += 1;
+      if (tutorialQuestionsAnsweredRef.current >= tutorial.scene.questionCount) {
+        setTimeout(() => tutorial.onSceneComplete(), 600);
+        return;
+      }
+      setTimeout(() => {
+        advanceToNextQuestion();
+        scheduleTutorialQuestionDialogue();
+      }, 600);
+      return;
+    }
+
     const nextCorrect = correctCountRef.current + 1;
     correctCountRef.current = nextCorrect;
     setCorrectCount(nextCorrect);
@@ -808,7 +894,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, [handleNoteInput]);
 
   useEffect(() => {
-    if (gameState !== 'playingPhrase' || practiceMode) {
+    if (gameState !== 'playingPhrase' || practiceMode || tutorialNoCombat) {
       attackGaugeEpochMsRef.current = null;
       setEnemyAttackGaugePercent(0);
       return undefined;
@@ -818,6 +904,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       if (
         gameStateRef.current !== 'playingPhrase'
         || practiceModeRef.current
+        || tutorialNoCombat
         || quizEndedRef.current
       ) {
         return;
@@ -842,7 +929,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [gameState, practiceMode, registerPlayerHpImpactDamage, setEnemyAttackGaugePercent]);
+  }, [gameState, practiceMode, registerPlayerHpImpactDamage, setEnemyAttackGaugePercent, tutorialNoCombat]);
 
   useEffect(() => {
     if (!midiControllerRef.current) {
@@ -992,9 +1079,22 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   );
   const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
 
-  const phraseIntroLine = gameState === 'countIn' ? chordQuizBannerLine : '';
+  const phraseIntroLine = tutorial?.bindings.ui.hidePhraseIntroQuota
+    ? ''
+    : (gameState === 'countIn' ? chordQuizBannerLine : '');
 
-  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
+  useEffect(() => {
+    if (!tutorial?.bindings.ui.hideLobby) {
+      return undefined;
+    }
+    if (gameStateRef.current !== 'idle') {
+      return undefined;
+    }
+    const timer = setTimeout(() => startQuiz(), 120);
+    return () => clearTimeout(timer);
+  }, [startQuiz, tutorial?.bindings.ui.hideLobby]);
+
+  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
     resultState,
     stageTitle: stage.title,
@@ -1022,8 +1122,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     activeLoop: 1,
     maxLoops: 1,
     demoLoopActive: false,
-    enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,
-    attackGaugeHidden: practiceMode,
+    enemyAttackGaugePercent: practiceMode || tutorialNoCombat ? 0 : enemyAttackGaugePercent,
+    attackGaugeHidden: practiceMode || tutorialNoCombat,
     chords: [
       ...getQuestionChordViews(activeQuestion, activeChord?.id ?? null, showVoicingTargetHints),
       ...(previewQuestion && previewQuestion.id !== activeQuestion?.id
@@ -1041,6 +1141,17 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     canChangePracticeMode,
     startButtonLabel,
     lessonProgressText,
+  }, tutorialUi ?? {
+    hidePlayerHpBar: false,
+    hideSettingsButton: false,
+    hideBackButton: false,
+    hideLobby: false,
+    hideMidiToggle: false,
+    hidePhraseIntroQuota: false,
+    showExitButton: false,
+    playerInvincible: false,
+    disableEnemyAttacks: false,
+    keyboardHintsDefault: false,
   }), [
     activeChord,
     activeQuestion,

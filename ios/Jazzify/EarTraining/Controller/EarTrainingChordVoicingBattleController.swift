@@ -138,8 +138,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var measureShiftQueue: [Int] = []
     private var measureShiftConsumerTask: Task<Void, Never>?
 
+    /// チュートリアル時は敵攻撃・ミス/Fail ダメージを無効化する。
+    var tutorialNoCombat: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
+    private var tutorialSuccessfulLoopCount: Int = 0
+
     var damageConfig: EarTrainingDamageConfig {
-        if practiceMode { return Self.zeroDamage }
+        if practiceMode || tutorialNoCombat { return Self.zeroDamage }
         return EarTrainingDamageConfig(
             perCorrectNote: stage.perCorrectNoteDamage,
             good: stage.goodCompletionDamage,
@@ -510,6 +515,21 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         phrase: EarTrainingPhraseDetail,
         attempt: EarTrainingChordVoicingAttempt
     ) {
+        if let hooks = tutorialHooks {
+            tutorialSuccessfulLoopCount += 1
+            hooks.onLoopSuccess?()
+            if tutorialSuccessfulLoopCount >= hooks.requiredSuccessfulLoops {
+                hooks.onSceneComplete()
+                return
+            }
+            allChordsCompletedFlag = false
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                guard let self else { return }
+                self.startPhrase(at: self.phraseIndex)
+            }
+            return
+        }
         if allChordsCompletedFlag { return }
         allChordsCompletedFlag = true
         gameState = .phraseComplete
@@ -939,11 +959,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             }
         }
 
-        let gaugeDuration = loopDurationSec * Double(Self.attackGaugeTargetLoops)
-        if gaugeDuration > 0 {
-            let nextGauge = max(0, min(1, currentTime / gaugeDuration))
-            if abs(nextGauge - enemyAttackGaugePercent) > 0.001 {
-                enemyAttackGaugePercent = nextGauge
+        if !tutorialNoCombat {
+            let gaugeDuration = loopDurationSec * Double(Self.attackGaugeTargetLoops)
+            if gaugeDuration > 0 {
+                let nextGauge = max(0, min(1, currentTime / gaugeDuration))
+                if abs(nextGauge - enemyAttackGaugePercent) > 0.001 {
+                    enemyAttackGaugePercent = nextGauge
+                }
             }
         }
 
@@ -1031,6 +1053,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     private func triggerLoopEnemyAttackIfNeeded(completedLoop: Int) {
+        guard !tutorialNoCombat else { return }
         guard gameState == .playingPhrase else { return }
         guard completedLoop >= 2,
               completedLoop < stage.maxLoopsPerPhrase,
@@ -1072,6 +1095,18 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelChordSyncTask()
         gameState = .phraseFail
         lastRank = .fail
+        if tutorialNoCombat {
+            statusText = copy.failAdvance
+            cancelTransitionTimer()
+            transitionTimerTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                guard let self else { return }
+                let next = (self.phraseIndex + 1) % max(1, self.phrases.count)
+                self.startPhrase(at: next)
+            }
+            _ = attempt
+            return
+        }
         enemyAttackGaugePercent = 1
         pendingImpactHandlers.removeAll()
         triggerFeedback(.miss)

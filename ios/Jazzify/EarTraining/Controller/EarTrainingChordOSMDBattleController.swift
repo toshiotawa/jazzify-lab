@@ -44,6 +44,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var feedback: EarTrainingBattleController.Feedback?
     @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
     @Published var practiceMode: Bool
+    /// チュートリアル時は敵攻撃・ミス/Fail ダメージを無効化する。
+    var tutorialNoCombat: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
+    private var tutorialOsmdLoopCount: Int = 0
+
+    private var tutorialOsmdDemoAutoplay: Bool {
+        tutorialHooks?.osmdDemoAutoplay == true
+    }
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
@@ -69,6 +77,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var nextActiveTargetIndex: Int = 0
     private var nextMissTargetIndex: Int = 0
     private var nextHammerTargetIndex: Int = 0
+    private var nextDemoAutoplayTargetIndex: Int = 0
     private var phraseEnding: Bool = false
     private var progressSaveStarted: Bool = false
     private var totalCompletedTargets: Int = 0
@@ -368,6 +377,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         nextActiveTargetIndex = 0
         nextMissTargetIndex = 0
         nextHammerTargetIndex = 0
+        nextDemoAutoplayTargetIndex = 0
         completedTargetCount = 0
         failedTargetCount = 0
         phraseAccuracy = 0
@@ -457,6 +467,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             updateActiveMeasure(for: phraseTime)
         }
         openJudgmentWindows(at: phraseTime)
+        autoCompleteDemoTargets(at: phraseTime)
         throwDueHammers(at: phraseTime)
         failExpiredTargets(at: phraseTime)
         refreshPracticeVoicingHints()
@@ -567,11 +578,56 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         compactActiveTargets(currentTime: time)
     }
 
+    /// Web `tutorialDemoAutoplay`：デモではターゲット時刻に判定のみ行い、鍵盤ハイライトのみ（ピアノ音なし）。
+    private func autoCompleteDemoTargets(at time: Double) {
+        guard tutorialOsmdDemoAutoplay else { return }
+        while nextDemoAutoplayTargetIndex < targets.count {
+            let index = nextDemoAutoplayTargetIndex
+            let target = targets[index]
+            guard time >= target.targetTimeSec else { break }
+            if targets[index].completed == false, targets[index].failed == false {
+                performDemoAutoplayWithoutAudio(for: index, target: target)
+            }
+            nextDemoAutoplayTargetIndex += 1
+        }
+    }
+
+    private func performDemoAutoplayWithoutAudio(for index: Int, target: RhythmTarget) {
+        var midis: [Int] = []
+        midis.reserveCapacity(target.midiCounts.values.reduce(0, +))
+        for (midi, count) in target.midiCounts {
+            for _ in 0..<count {
+                midis.append(midi)
+            }
+        }
+        for midi in midis {
+            registerMidiKeyDown(midi)
+        }
+        for midi in midis {
+            handleNoteOn(midi: midi, velocity: 90, playAudio: false)
+        }
+        if targets[index].completed == false, targets[index].failed == false {
+            completeTarget(at: index)
+        }
+        let releaseMidis = midis
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard let self else { return }
+            for midi in releaseMidis {
+                self.registerMidiKeyUp(midi)
+            }
+        }
+    }
+
     private func throwDueHammers(at time: Double) {
         while nextHammerTargetIndex < targets.count {
             let target = targets[nextHammerTargetIndex]
             let throwTime = target.targetTimeSec - Self.hammerLeadSec
             guard time >= throwTime else { break }
+            if tutorialOsmdDemoAutoplay {
+                nextHammerTargetIndex += 1
+                continue
+            }
             let impactTime = target.targetTimeSec + Self.hammerImpactOffsetSec
             let travel = max(0.12, impactTime - time)
             let effectId = triggerBattleEffect(
@@ -642,7 +698,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             targets[targetIndex].failed = true
             updateTargetCounters()
         }
-        guard practiceMode == false else { return }
+        guard practiceMode == false, tutorialNoCombat == false else { return }
         let damage = stage.missDamage
         guard damage > 0 else { return }
         playerHp = max(0, playerHp - damage)
@@ -653,6 +709,18 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
     private func finishCurrentPhraseIfNeeded() {
         guard gameState == .playingPhrase, !phraseEnding else { return }
+        if let hooks = tutorialHooks {
+            phraseEnding = true
+            audio.stopPhrase()
+            tutorialOsmdLoopCount += 1
+            if tutorialOsmdLoopCount >= hooks.requiredSuccessfulLoops {
+                hooks.onSceneComplete()
+                return
+            }
+            phraseEnding = false
+            startPhrase(at: phraseIndex)
+            return
+        }
         phraseEnding = true
         audio.stopPhrase()
         audio.emitNegativePhraseTimelineBeforeAnchor = false
@@ -665,7 +733,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         let rank = rank(for: accuracy)
         let completionDamageAmount = practiceMode ? 0 : completionDamage(for: rank)
-        let playerFailDamage = (!practiceMode && rank == .fail) ? stage.failDamage : 0
+        let playerFailDamage = (!practiceMode && !tutorialNoCombat && rank == .fail) ? stage.failDamage : 0
 
         gameState = .phraseComplete
         statusText = isEnglishCopy
@@ -734,7 +802,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func applyPlayerDamage(_ damage: Int) {
-        guard !practiceMode else { return }
+        guard !practiceMode, !tutorialNoCombat else { return }
         guard damage > 0 else { return }
         playerHp = max(0, playerHp - damage)
         if playerHp <= 0 {

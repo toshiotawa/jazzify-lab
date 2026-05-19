@@ -789,8 +789,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     hudBg.setStrokeStyle(1, 0xffffff, 0.08);
     this.hudLayer.add(hudBg);
 
-    this.drawHpBar(18, 16, Math.max(118, width * 0.29), snapshot.playerHp, snapshot.playerMaxHp, true);
-    this.drawHpBar(width - Math.max(118, width * 0.29) - 18, 16, Math.max(118, width * 0.29), snapshot.enemyHp, snapshot.enemyMaxHp, false);
+    if (!snapshot.hidePlayerHpBar) {
+      this.drawHpBar(18, 16, Math.max(118, width * 0.29), snapshot.playerHp, snapshot.playerMaxHp, true);
+      this.drawHpBar(width - Math.max(118, width * 0.29) - 18, 16, Math.max(118, width * 0.29), snapshot.enemyHp, snapshot.enemyMaxHp, false);
+    }
 
     if (!snapshot.timeLabelHidden) {
       const time = this.add.text(width / 2, 18, snapshot.timeLabel, {
@@ -808,22 +810,26 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const utilGap = 10;
     const utilBackX = width - utilRightPad - utilBtnW;
     const utilSettingsX = utilBackX - utilGap - utilBtnW;
-    this.drawUtilityButton(
-      utilSettingsX,
-      56,
-      utilBtnW,
-      utilBtnH,
-      snapshot.hudLabels.settings,
-      () => this.callbacks.onOpenSettings(),
-    );
-    this.drawUtilityButton(
-      utilBackX,
-      56,
-      utilBtnW,
-      utilBtnH,
-      snapshot.hudLabels.backShort,
-      () => this.callbacks.onBack(),
-    );
+    if (!snapshot.hideSettingsButton) {
+      this.drawUtilityButton(
+        utilSettingsX,
+        56,
+        utilBtnW,
+        utilBtnH,
+        snapshot.hudLabels.settings,
+        () => this.callbacks.onOpenSettings(),
+      );
+    }
+    if (!snapshot.hideBackButton) {
+      this.drawUtilityButton(
+        utilBackX,
+        56,
+        utilBtnW,
+        utilBtnH,
+        snapshot.hudLabels.backShort,
+        () => this.callbacks.onBack(),
+      );
+    }
     if (!snapshot.chordHudHidden) {
       this.drawChordHud(width, 104);
     }
@@ -840,13 +846,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.hudLayer.add(practice);
     }
 
-    const midiStatus = this.add.text(18, 64, snapshot.isMidiConnected ? 'MIDI ON' : 'MIDI OFF', {
-      color: snapshot.isMidiConnected ? '#bbf7d0' : '#94a3b8',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '10px',
-      fontStyle: '900',
-    }).setOrigin(0, 0);
-    this.hudLayer.add(midiStatus);
+    if (!snapshot.hideMidiStatus) {
+      const midiStatus = this.add.text(18, 64, snapshot.isMidiConnected ? 'MIDI ON' : 'MIDI OFF', {
+        color: snapshot.isMidiConnected ? '#bbf7d0' : '#94a3b8',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '10px',
+        fontStyle: '900',
+      }).setOrigin(0, 0);
+      this.hudLayer.add(midiStatus);
+    }
   }
 
   private drawHpBar(x: number, y: number, width: number, hp: number, maxHp: number, isPlayer: boolean): void {

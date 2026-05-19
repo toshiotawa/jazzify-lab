@@ -217,6 +217,8 @@ const LessonDetailPage: React.FC = () => {
           is_survival: ls.is_survival,
           is_survival_tutorial: ls.is_survival_tutorial,
           survival_tutorial_script_id: ls.survival_tutorial_script_id,
+          is_ear_training_tutorial: ls.is_ear_training_tutorial,
+          ear_training_tutorial_script_id: ls.ear_training_tutorial_script_id,
           survival_allowed_chords: ls.survival_allowed_chords,
           survival_stage_number: ls.survival_stage_number,
           survival_map_category: ls.survival_map_category,
@@ -650,7 +652,7 @@ const LessonDetailPage: React.FC = () => {
                 <div className="space-y-4">
                   {requirements.map((req: any, index) => {
                     const progress = requirementsProgress.find(p => {
-                      if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_ear_training) {
+                      if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_ear_training || req.is_ear_training_tutorial) {
                         return p.lesson_song_id === req.lesson_song_id;
                       }
                       return p.song_id === req.song_id;
@@ -666,8 +668,9 @@ const LessonDetailPage: React.FC = () => {
                     const requiresDays = req.clear_conditions?.requires_days || false;
                     const isFantasy = req.is_fantasy || false;
                     const isSurvivalTutorial = req.is_survival_tutorial || false;
+                    const isEarTrainingTutorial = req.is_ear_training_tutorial || false;
                     const isSurvival = req.is_survival || isSurvivalTutorial || false;
-                    const isEarTraining = req.is_ear_training || false;
+                    const isEarTraining = req.is_ear_training || isEarTrainingTutorial || false;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -688,7 +691,7 @@ const LessonDetailPage: React.FC = () => {
                           </h4>
                         </div>
                         
-                        {isSurvivalTutorial && (
+                        {(isSurvivalTutorial || isEarTrainingTutorial) && (
                           <div className="mb-3 text-sm">
                             <p className="text-gray-400 text-xs">
                               {isEnglishCopy
@@ -747,7 +750,7 @@ const LessonDetailPage: React.FC = () => {
                         })()}
 
                         {/* 耳コピバトル情報 */}
-                        {isEarTraining && req.ear_training_stage && (() => {
+                        {isEarTraining && !isEarTrainingTutorial && req.ear_training_stage && (() => {
                           const et = req.ear_training_stage;
                           const etDesc =
                             earTrainingStageDisplayDescription(et, isEnglishCopy) ||
@@ -958,6 +961,13 @@ const LessonDetailPage: React.FC = () => {
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               const url = `#fantasy?${params.toString()}`;
                               window.location.hash = url;
+                            } else if (isEarTrainingTutorial) {
+                              const params = new URLSearchParams();
+                              params.set('lessonId', req.lesson_id);
+                              params.set('lessonSongId', req.lesson_song_id);
+                              params.set('scriptId', req.ear_training_tutorial_script_id ?? 'developer-full-v1');
+                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
+                              window.location.hash = `#ear-training-tutorial-lesson?${params.toString()}`;
                             } else if (isEarTraining) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);

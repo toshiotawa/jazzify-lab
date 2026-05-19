@@ -9,6 +9,8 @@ struct EarTrainingChordQuizGameView: View {
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
     var initialPracticeMode: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
+    var tutorialQuestionTarget: Int = 1
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordQuizBattleController?
@@ -85,6 +87,8 @@ struct EarTrainingChordQuizGameView: View {
                 stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
             case .slug(let slug):
                 stageDetail = try await SupabaseService.shared.fetchEarTrainingStageDetailBySlug(slug: slug)
+            case .embedded(let embedded):
+                stageDetail = embedded
             }
             let items = stageDetail.sortedChordQuizItems()
             guard !items.isEmpty else {
@@ -107,6 +111,11 @@ struct EarTrainingChordQuizGameView: View {
                 initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
+            if let tutorialHooks {
+                createdController.tutorialNoCombat = tutorialHooks.noCombat
+                createdController.tutorialHooks = tutorialHooks
+                createdController.tutorialQuestionTarget = tutorialQuestionTarget
+            }
 
             midiSubscriptionHolder.cancel()
             midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in

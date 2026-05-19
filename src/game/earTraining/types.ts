@@ -97,6 +97,11 @@ export interface EarTrainingBattleSnapshot {
   quizRulesLine?: string;
   /** true のときキャラの自動歩行・ノックバックを行わない（OSMD リズムバトル等） */
   fixedCharacterPositions?: boolean;
+  hidePlayerHpBar?: boolean;
+  hideSettingsButton?: boolean;
+  hideBackButton?: boolean;
+  hideLobbyControls?: boolean;
+  hideMidiStatus?: boolean;
 }
 
 export interface EarTrainingBattleCallbacks {

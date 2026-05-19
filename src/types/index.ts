@@ -830,6 +830,8 @@ export interface LessonSong {
   is_survival_tutorial?: boolean;
   survival_tutorial_script_id?: string | null;
   is_ear_training?: boolean;
+  is_ear_training_tutorial?: boolean;
+  ear_training_tutorial_script_id?: string | null;
   survival_allowed_chords?: string[];
   survival_stage_number?: number;
   /** survival_stages と組み合わせてステージを一意に特定（NULL は basic とみなす） */

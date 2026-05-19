@@ -4,7 +4,7 @@ import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode,
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, removeEarTrainingStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
 import { fetchEarTrainingStages } from '@/platform/supabaseEarTraining';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
@@ -51,8 +51,9 @@ type SongFormData = {
 };
 
 type ContentFormData = {
-  content_type: 'song' | 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training';
+  content_type: 'song' | 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training' | 'ear_training_tutorial';
   survival_tutorial_script_id?: string;
+  ear_training_tutorial_script_id?: string;
   song_id?: string;
   fantasy_stage_id?: string;
   ear_training_stage_id?: string;
@@ -588,6 +589,13 @@ export const LessonManager: React.FC = () => {
           survival_tutorial_script_id: scriptId,
           clear_conditions: formData.clear_conditions,
         });
+      } else if (formData.content_type === 'ear_training_tutorial') {
+        const scriptId = formData.ear_training_tutorial_script_id?.trim() || 'developer-full-v1';
+        newLessonSong = await addEarTrainingTutorialToLesson({
+          lesson_id: selectedLesson.id,
+          ear_training_tutorial_script_id: scriptId,
+          clear_conditions: formData.clear_conditions,
+        });
       } else if (formData.content_type === 'ear_training' && formData.ear_training_stage_id) {
         newLessonSong = await addEarTrainingStageToLesson({
           lesson_id: selectedLesson.id,
@@ -611,6 +619,7 @@ export const LessonManager: React.FC = () => {
         fantasy: 'ファンタジーステージを追加しました。',
         survival: 'サバイバルステージを追加しました。',
         survival_tutorial: 'サバイバルチュートリアルを追加しました。',
+        ear_training_tutorial: '耳コピバトルチュートリアルを追加しました。',
         ear_training: 'バトルモードステージを追加しました。',
       };
       toast.success(contentTypeMessages[formData.content_type]);
@@ -1167,6 +1176,28 @@ export const LessonManager: React.FC = () => {
                         {lesson.lesson_songs && lesson.lesson_songs.length > 0 ? (
                           <div className="space-y-2">
                             {lesson.lesson_songs.map(ls => {
+                              if (ls.is_ear_training_tutorial) {
+                                return (
+                                  <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div>
+                                      <FaMusic className="inline-block mr-2 text-accent" />
+                                      <span className="font-medium">耳コピバトルチュートリアル</span>
+                                      <span className="text-xs text-accent ml-2">
+                                        {ls.ear_training_tutorial_script_id ?? 'developer-full-v1'}
+                                        {ls.clear_conditions?.requires_days
+                                          ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
+                                          : ` (${ls.clear_conditions?.count || 1}回)`}
+                                      </span>
+                                    </div>
+                                    <button
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveContent(lesson.id, ls.id, false, ls.id, false, false)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                );
+                              }
                               if (ls.is_ear_training) {
                                 const stage = ls.ear_training_stage;
                                 return (
@@ -1559,6 +1590,15 @@ export const LessonManager: React.FC = () => {
                   />
                   <span className="ml-2">バトルモード</span>
                 </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    {...registerContent('content_type')}
+                    value="ear_training_tutorial"
+                    className="radio radio-accent"
+                  />
+                  <span className="ml-2">耳コピチュートリアル</span>
+                </label>
               </div>
             </div>
             
@@ -1613,6 +1653,20 @@ export const LessonManager: React.FC = () => {
                 />
                 <p className="text-xs text-gray-400">
                   オンボーディング式の II-V-I チュートリアル。最後まで進めると課題クリア（ステージモード進捗には影響しません）。
+                </p>
+              </div>
+            ) : watchContent && watchContent('content_type') === 'ear_training_tutorial' ? (
+              <div className="space-y-3">
+                <label className="label"><span className="label-text">台本 ID *</span></label>
+                <input
+                  type="text"
+                  {...registerContent('ear_training_tutorial_script_id')}
+                  className="input input-bordered w-full"
+                  placeholder="developer-full-v1"
+                  defaultValue="developer-full-v1"
+                />
+                <p className="text-xs text-gray-400">
+                  耳コピバトルチュートリアル（セリフ・コードヴォイシング・OSMD・クイズ）。最後まで進めると課題クリア（バトルモード進捗には影響しません）。
                 </p>
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (

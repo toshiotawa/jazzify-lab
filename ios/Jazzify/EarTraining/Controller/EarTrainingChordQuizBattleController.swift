@@ -33,6 +33,12 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     @Published private(set) var enemyAttackGaugePercent: Double = 0
     @Published private(set) var countInValue: Int = 0
     @Published var practiceMode: Bool = false
+    /// チュートリアル時は敵ゲージ・攻撃を無効化する。
+    var tutorialNoCombat: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
+    var tutorialQuestionTarget: Int = 0
+    private var tutorialQuestionsAnswered: Int = 0
+    private var tutorialAutoAnswerTask: Task<Void, Never>?
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
@@ -57,6 +63,13 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     private let quizQuestions: [EarTrainingChordQuiz.Question]
     private let questionOrder: EarTrainingChordQuiz.QuestionOrder
+
+    private var effectiveQuestionOrder: EarTrainingChordQuiz.QuestionOrder {
+        if let quiz = tutorialHooks?.quiz {
+            return quiz.useProgressionOrder ? .sequential : .random
+        }
+        return questionOrder
+    }
     private let requiredCorrectCount: Int
     private let quizDurationSec: Int
 
@@ -175,7 +188,37 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         publishSnapshot()
     }
 
+    private func cancelTutorialAutoAnswerTask() {
+        tutorialAutoAnswerTask?.cancel()
+        tutorialAutoAnswerTask = nil
+    }
+
+    private func scheduleTutorialQuizAutoAnswerIfNeeded() {
+        guard let quiz = tutorialHooks?.quiz else { return }
+        cancelTutorialAutoAnswerTask()
+        tutorialHooks?.onCharacterText(quiz.onQuestionText)
+        let timeoutSec = max(0.1, quiz.answerTimeoutSeconds)
+        tutorialAutoAnswerTask = Task { @MainActor [weak self] in
+            let delayNs = UInt64(timeoutSec * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delayNs)
+            guard let self, !Task.isCancelled else { return }
+            guard self.gameState == .playingPhrase, !self.quizEnded else { return }
+            self.performTutorialQuizAutoAnswer(autoAnswerText: quiz.onAutoAnswerText)
+        }
+    }
+
+    private func performTutorialQuizAutoAnswer(autoAnswerText: String) {
+        cancelTutorialAutoAnswerTask()
+        guard let chord = activeChord, let voicing = chord.voicing else { return }
+        for noteName in voicing {
+            guard let midi = EarTrainingChordVoicingEngine.noteNameToMidi(noteName) else { continue }
+            handleNoteOn(midi: midi, velocity: 90, playAudio: true)
+        }
+        tutorialHooks?.onCharacterText(autoAnswerText)
+    }
+
     func tearDown() {
+        cancelTutorialAutoAnswerTask()
         cancelQuizTicker()
         cancelCountdownTask()
         clearStaffShiftQueue()
@@ -194,6 +237,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     func registerMidiKeyUp(_ midi: Int) { midiHeldKeys.remove(midi) }
 
     func handleBack() {
+        cancelTutorialAutoAnswerTask()
         cancelQuizTicker()
         cancelCountdownTask()
         clearStaffShiftQueue()
@@ -255,7 +299,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     /// CADisplayLink などから毎フレーム呼ぶ。ゲージ進行と満了時の敵攻撃。
     func tickQuizAttackGauge(now: TimeInterval) {
-        guard gameState == .playingPhrase, !practiceMode, !quizEnded else {
+        guard gameState == .playingPhrase, !practiceMode, !tutorialNoCombat, !quizEnded else {
             if enemyAttackGaugePercent != 0 {
                 enemyAttackGaugePercent = 0
             }
@@ -307,13 +351,13 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
         let firstActive = EarTrainingChordQuiz.pickNextQuizIndex(
             items: quizQuestions,
-            order: questionOrder,
+            order: effectiveQuestionOrder,
             prevIndex: nil,
             rand: randomUnit
         )
         let firstPreview = EarTrainingChordQuiz.pickNextQuizIndex(
             items: quizQuestions,
-            order: questionOrder,
+            order: effectiveQuestionOrder,
             prevIndex: firstActive,
             rand: randomUnit
         )
@@ -388,6 +432,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
         publishSnapshot()
         updatePlayerQuoteBubble()
+        scheduleTutorialQuizAutoAnswerIfNeeded()
     }
 
     private func bootstrapPhraseAndAttempt() {
@@ -478,7 +523,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             wrongNotesPolicy: .firstOnlyPerChord
         )
 
-        if !practiceMode, result.firstWrongJustHappened {
+        if !practiceMode, !tutorialNoCombat, result.firstWrongJustHappened {
             let wrongEffectId = triggerBattleEffect(
                 kind: .miss,
                 label: nil,
@@ -524,6 +569,21 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
                 phraseNoteCount: nil,
                 originPoint: nil
             )
+            publishSnapshot()
+            updatePlayerQuoteBubble()
+            return
+        }
+
+        if let hooks = tutorialHooks {
+            tutorialQuestionsAnswered += 1
+            if tutorialQuestionsAnswered >= max(1, tutorialQuestionTarget) {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    hooks.onSceneComplete()
+                }
+            } else {
+                advanceAfterCorrect()
+            }
             publishSnapshot()
             updatePlayerQuoteBubble()
             return
@@ -607,7 +667,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func scheduleEnemyStrikeFromGauge() {
-        guard !practiceMode, !quizEnded else { return }
+        guard !practiceMode, !tutorialNoCombat, !quizEnded else { return }
         let effectId = triggerBattleEffect(
             kind: .miss,
             label: nil,
@@ -653,16 +713,18 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func advanceAfterCorrect() {
+        cancelTutorialAutoAnswerTask()
         phraseRunId &+= 1
         activeQuizIndex = previewQuizIndex
         previewQuizIndex = EarTrainingChordQuiz.pickNextQuizIndex(
             items: quizQuestions,
-            order: questionOrder,
+            order: effectiveQuestionOrder,
             prevIndex: activeQuizIndex,
             rand: randomUnit
         )
         bootstrapPhraseAndAttempt()
         enqueueStaffDisplayShift(active: activeQuizIndex, preview: previewQuizIndex)
+        scheduleTutorialQuizAutoAnswerIfNeeded()
     }
 
     private func tickQuizClock() {

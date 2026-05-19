@@ -65,6 +65,17 @@ import {
   normalizeChordOsmdMusicXml,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
+import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
+import {
+  clampTutorialPlayerHp,
+  isEarTrainingTutorialNoCombat,
+  shouldTutorialBlockGameOver,
+} from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
+import type { EarTrainingTutorialOsmdConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import {
+  scheduleOsmdTimedLinesForLoop,
+  type DialogueScheduleHandle,
+} from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -80,6 +91,7 @@ interface EarTrainingChordOSMDScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  tutorial?: EarTrainingTutorialOsmdConfig & { onSceneComplete: () => void };
 }
 
 interface RuntimeTargetState {
@@ -117,7 +129,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  tutorial,
 }) => {
+  const tutorialUi = tutorial?.bindings.ui;
+  const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
+  const tutorialOsmdLoopRef = useRef(0);
+  const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
+  const tutorialDemoAutoplay = tutorial?.scene.playMode === 'demo';
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -152,8 +170,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     [stage],
   );
   const activeDamageConfig = useMemo(
-    () => (practiceMode ? NO_DAMAGE_CONFIG : damageConfig),
-    [damageConfig, practiceMode],
+    () => (practiceMode || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceMode, tutorialNoCombat],
   );
 
   const [statusText, setStatusText] = useState(
@@ -446,16 +464,23 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [finishStageClear, practiceMode]);
 
   const applyPlayerDamage = useCallback((damage: number) => {
-    if (damage <= 0 || practiceMode) {
+    if (damage <= 0 || practiceMode || tutorialNoCombat) {
       return;
     }
-    const nextPlayerHp = Math.max(0, playerHpRef.current - damage);
+    const nextPlayerHp = clampTutorialPlayerHp(
+      playerHpRef.current,
+      damage,
+      Boolean(tutorialUi?.playerInvincible),
+    );
     playerHpRef.current = nextPlayerHp;
     setPlayerHp(nextPlayerHp);
-    if (nextPlayerHp <= 0) {
+    if (
+      nextPlayerHp <= 0
+      && !shouldTutorialBlockGameOver(nextPlayerHp, Boolean(tutorialUi?.playerInvincible))
+    ) {
       finishGameOver(copy.gameOver);
     }
-  }, [copy.gameOver, finishGameOver, practiceMode]);
+  }, [copy.gameOver, finishGameOver, practiceMode, tutorialNoCombat, tutorialUi?.playerInvincible]);
 
   const loadMusicXml = useCallback(async (phrase: EarTrainingPhrase, runId: number): Promise<string | null> => {
     const rawUrl = phrase.music_xml_url?.trim();
@@ -551,8 +576,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       state.failed = true;
       publishTargetStates();
     }
-    applyPlayerDamage(activeDamageConfig.miss);
-  }, [activeDamageConfig.miss, applyPlayerDamage, publishTargetStates]);
+    if (!tutorialNoCombat) {
+      applyPlayerDamage(activeDamageConfig.miss);
+    }
+  }, [activeDamageConfig.miss, applyPlayerDamage, publishTargetStates, tutorialNoCombat]);
 
   const finishCurrentPhrase = useCallback((runId: number) => {
     if (
@@ -598,6 +625,16 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       (completionDamage > 0 ? 1 : 0) + (playerFailDamage > 0 ? 1 : 0);
 
     const advanceAfterPhraseBattleEffects = (): void => {
+      if (tutorial) {
+        tutorialOsmdLoopRef.current += 1;
+        if (tutorialOsmdLoopRef.current >= tutorial.scene.requiredLoops) {
+          tutorial.onSceneComplete();
+          return;
+        }
+        const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+        startPhraseRef.current(nextIndex);
+        return;
+      }
       if (!practiceMode && enemyHpRef.current <= 0) {
         return;
       }
@@ -706,6 +743,32 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         publishTargetStates();
       }, openDelayMs);
 
+      if (tutorialDemoAutoplay) {
+        scheduleTimer(() => {
+          if (phraseRunIdRef.current !== runId) {
+            return;
+          }
+          const state = runtimeByTargetIdRef.current.get(target.id);
+          if (!state || state.completed || state.failed) {
+            return;
+          }
+          for (const entry of target.midiCounts) {
+            for (let i = 0; i < entry.count; i += 1) {
+              pianoOverlayRef.current?.highlightKey(entry.midi, true);
+              handleNoteInputRef.current(entry.midi);
+            }
+          }
+        }, (countInDurationSec + target.targetTimeSec) * 1000);
+        scheduleTimer(() => {
+          if (phraseRunIdRef.current !== runId) {
+            return;
+          }
+          for (const entry of target.midiCounts) {
+            pianoOverlayRef.current?.highlightKey(entry.midi, false);
+          }
+        }, (countInDurationSec + target.targetTimeSec) * 1000 + 180);
+      }
+
       const hammerDelaySec = Math.max(0, countInDurationSec + target.targetTimeSec - CHORD_OSMD_HAMMER_LEAD_SEC);
       const impactTimeSec = countInDurationSec + target.targetTimeSec + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
       scheduleTimer(() => {
@@ -714,6 +777,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         }
         const state = runtimeByTargetIdRef.current.get(target.id);
         if (!state || state.completed || state.failed) {
+          return;
+        }
+        if (tutorialDemoAutoplay) {
           return;
         }
         const effectId = triggerBattleEffect('osmdHammer', {
@@ -746,6 +812,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     stage.bpm,
     stage.loop_measures,
     triggerBattleEffect,
+    tutorialDemoAutoplay,
   ]);
 
   const startPhrase = useCallback((nextPhraseIndex: number) => {
@@ -812,6 +879,25 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
       const spb = 60 / Math.max(1, stage.bpm);
       const countInDurationSec = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC + beats * spb;
+      if (tutorial) {
+        tutorialDialogueHandleRef.current?.cancel();
+        const loopDurationSec = Number(phrase.loop_duration_sec);
+        const safeLoopDurationSec = Number.isFinite(loopDurationSec) && loopDurationSec > 0
+          ? loopDurationSec
+          : (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.loop_measures);
+        tutorialDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
+          bpm: stage.bpm,
+          beatsPerMeasure: stage.beats_per_measure,
+          countInBeats: stage.count_in_beats,
+          loopMeasures: stage.loop_measures,
+          phraseLoopDurationSec: safeLoopDurationSec,
+          timedLines: tutorial.scene.timedLines,
+          isEnglishCopy,
+          onLine: tutorial.bindings.setCharacterText,
+          loopIndex: tutorialOsmdLoopRef.current,
+          skipCountInForLoop: loopIdx => loopIdx > 0,
+        });
+      }
       schedulePhraseEvents(phrase, phraseTargets, runId, countInDurationSec);
       const onPhraseStarted = (): void => {
         if (phraseRunIdRef.current !== runId) {
@@ -1050,7 +1136,19 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     ? '∞'
     : `${Math.min(phraseIndex + 1, Math.max(1, phrases.length))}/${Math.max(1, phrases.length)}`;
 
-  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
+  useEffect(() => {
+    if (!tutorial?.bindings.ui.hideLobby) {
+      return undefined;
+    }
+    if (gameStateRef.current !== 'idle') {
+      return undefined;
+    }
+    tutorialOsmdLoopRef.current = 0;
+    const timer = setTimeout(() => startBattle(), 120);
+    return () => clearTimeout(timer);
+  }, [startBattle, tutorial?.bindings.ui.hideLobby]);
+
+  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
     resultState,
     stageTitle: stage.title,
@@ -1095,7 +1193,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     startButtonLabel,
     lessonProgressText,
     fixedCharacterPositions: true,
-    quizRulesLine: clearConditionLine,
+    quizRulesLine: tutorial ? undefined : clearConditionLine,
+  }, tutorialUi ?? {
+    hidePlayerHpBar: false,
+    hideSettingsButton: false,
+    hideBackButton: false,
+    hideLobby: false,
+    hideMidiToggle: false,
+    hidePhraseIntroQuota: false,
+    showExitButton: false,
+    playerInvincible: false,
+    disableEnemyAttacks: false,
+    keyboardHintsDefault: false,
   }), [
     canChangePracticeMode,
     clearConditionLine,
