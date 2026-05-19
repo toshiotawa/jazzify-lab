@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 未ログイン向けオンボーディング: 下層が `SurvivalGameView`、上層が台本用オーバーレイ。
+/// 未ログイン向け初回オンボーディング: ハードコード `OnboardingScript`（DB 非参照）。
 struct OnboardingView: View {
     let locale: AppLocale
     let onClose: () -> Void

@@ -1,17 +1,25 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
+import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { SurvivalScenarioHandle } from '@/components/survival/scenario/survivalScenarioHandle';
 import { TUTORIAL_BOOTSTRAP_OVERRIDES } from '@/components/survival/scenario/survivalScenarioTypes';
+import { buildTutorialStageDefinition } from '@/components/survival/tutorial/buildTutorialStageDefinition';
 import {
+  fetchSurvivalTutorialScript,
+  isInterpretedTutorialScript,
+  type SurvivalTutorialScriptPayload,
+} from '@/components/survival/tutorial/fetchSurvivalTutorialScript';
+import {
+  resolveLegacyTutorialRunnerKey,
   resolveSurvivalBuiltinTutorialRunner,
+  runSurvivalTutorialFromScriptPayload,
   type SurvivalBuiltinTutorialRunner,
 } from '@/components/survival/tutorial/tutorialRunnerRegistry';
 import type { RunTutorialIiViScriptParams } from '@/components/survival/tutorial/tutorialIiViScript';
 import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
-import { fetchSurvivalTutorialScript } from '@/components/survival/tutorial/fetchSurvivalTutorialScript';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -63,6 +71,8 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
   const [gate, setGate] = useState<GateState>('loading');
   const [unknownRunnerKey, setUnknownRunnerKey] = useState<string | null>(null);
+  const [loadedScript, setLoadedScript] = useState<SurvivalTutorialScriptPayload | null>(null);
+  const [stageDefinition, setStageDefinition] = useState<StageDefinition>(TUTORIAL_STAGE_DEFINITION);
 
   const [characterText, setCharacterText] = useState('');
   const [narrationText, setNarrationText] = useState('');
@@ -87,29 +97,56 @@ export const SurvivalLessonTutorialExperience: React.FC<
     void (async () => {
       setGate('loading');
       setUnknownRunnerKey(null);
-      let builtinKey = 'onboarding-v1';
+      setLoadedScript(null);
+
       try {
         const row = await fetchSurvivalTutorialScript(scriptId);
-        builtinKey =
-          typeof row.script.builtinRunner === 'string'
-            ? row.script.builtinRunner
-            : scriptId;
-      } catch {
-        builtinKey = scriptId ?? 'onboarding-v1';
-      }
-      const runnerFn = resolveSurvivalBuiltinTutorialRunner(builtinKey);
-      if (!runnerFn) {
-        if (!cancelled) {
-          setUnknownRunnerKey(builtinKey);
-          setGate('unknown_runner');
+        if (isInterpretedTutorialScript(row.script)) {
+          if (!cancelled) {
+            setLoadedScript(row.script);
+            setStageDefinition(buildTutorialStageDefinition(row.script));
+            runnerFnRef.current = null;
+            runnerStartedRef.current = false;
+            finalizedOnceRef.current = false;
+            setGate('ready');
+          }
+          return;
         }
-        return;
-      }
-      runnerFnRef.current = runnerFn;
-      if (!cancelled) {
-        runnerStartedRef.current = false;
-        finalizedOnceRef.current = false;
-        setGate('ready');
+
+        const builtinKey = resolveLegacyTutorialRunnerKey(row.script, scriptId);
+        const runnerFn = resolveSurvivalBuiltinTutorialRunner(builtinKey);
+        if (!runnerFn) {
+          if (!cancelled) {
+            setUnknownRunnerKey(builtinKey);
+            setGate('unknown_runner');
+          }
+          return;
+        }
+        runnerFnRef.current = runnerFn;
+        if (!cancelled) {
+          setLoadedScript(row.script);
+          setStageDefinition(TUTORIAL_STAGE_DEFINITION);
+          runnerStartedRef.current = false;
+          finalizedOnceRef.current = false;
+          setGate('ready');
+        }
+      } catch {
+        const builtinKey = scriptId ?? 'onboarding-v1';
+        const runnerFn = resolveSurvivalBuiltinTutorialRunner(builtinKey);
+        if (!runnerFn) {
+          if (!cancelled) {
+            setUnknownRunnerKey(builtinKey);
+            setGate('unknown_runner');
+          }
+          return;
+        }
+        runnerFnRef.current = runnerFn;
+        if (!cancelled) {
+          setStageDefinition(TUTORIAL_STAGE_DEFINITION);
+          runnerStartedRef.current = false;
+          finalizedOnceRef.current = false;
+          setGate('ready');
+        }
       }
     })();
 
@@ -149,12 +186,6 @@ export const SurvivalLessonTutorialExperience: React.FC<
           }
         } catch {
           /* audio defaults */
-        }
-
-        const runnerFn = runnerFnRef.current;
-        if (!runnerFn) {
-          await finalizeLesson('aborted');
-          return;
         }
 
         const abort = new AbortController();
@@ -241,12 +272,30 @@ export const SurvivalLessonTutorialExperience: React.FC<
           signal: abort.signal,
         };
 
+        if (loadedScript && isInterpretedTutorialScript(loadedScript)) {
+          await runSurvivalTutorialFromScriptPayload({
+            ...params,
+            script: loadedScript,
+          });
+          return;
+        }
+
+        const runnerFn = runnerFnRef.current;
+        if (!runnerFn) {
+          await finalizeLesson('aborted');
+          return;
+        }
         await runnerFn(params);
       };
 
       void run();
     },
-    [finalizeLesson, gate, isEnglishCopy, scriptId],
+    [finalizeLesson, gate, isEnglishCopy, loadedScript, scriptId],
+  );
+
+  const gameScreenKey = useMemo(
+    () => `${scriptId}:${stageDefinition.chordDisplayName}`,
+    [scriptId, stageDefinition.chordDisplayName],
   );
 
   const handleSkip = useCallback(() => {
@@ -271,7 +320,6 @@ export const SurvivalLessonTutorialExperience: React.FC<
         <p className="text-base font-semibold">
           {isEnglishCopy ? 'Tutorial is not available for this lesson yet.' : 'この課題用のガイドはまだ準備中です。'}
         </p>
-        <code className="rounded bg-gray-900 px-2 py-1 text-xs text-orange-300">builtinRunner={unknownRunnerKey}</code>
         <button
           type="button"
           onClick={() => onExit()}
@@ -292,10 +340,10 @@ export const SurvivalLessonTutorialExperience: React.FC<
       }
     >
       <SurvivalGameScreen
-        key={scriptId}
+        key={gameScreenKey}
         difficulty="easy"
         config={TUTORIAL_CONFIG}
-        stageDefinition={TUTORIAL_STAGE_DEFINITION}
+        stageDefinition={stageDefinition}
         hintMode
         embeddedFullHeight={embeddedFullHeight}
         survivalTutorialLayout={embeddedFullHeight}

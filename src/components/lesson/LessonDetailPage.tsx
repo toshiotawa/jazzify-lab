@@ -742,11 +742,6 @@ const LessonDetailPage: React.FC = () => {
                                 ? 'Complete the guided experience to clear this task.'
                                 : 'ガイド体験を最後まで進めるとクリアになります。'}
                             </p>
-                            {req.survival_tutorial_script_id ? (
-                              <p className="text-gray-500 text-xs mt-1">
-                                Script: {req.survival_tutorial_script_id}
-                              </p>
-                            ) : null}
                           </div>
                         )}
 

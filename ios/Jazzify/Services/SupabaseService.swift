@@ -566,6 +566,18 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    /// サバイバルチュートリアル台本（`survival_tutorial_scripts`）。RLS: 全員 SELECT 可。
+    func fetchSurvivalTutorialScript(id: String) async throws -> SurvivalTutorialScriptRow {
+        try await client
+            .from("survival_tutorial_scripts")
+            .select("id, title, title_en, script")
+            .eq("id", value: id)
+            .eq("is_active", value: true)
+            .single()
+            .execute()
+            .value
+    }
+
     /// 降下マップのブロック表示名（ja/en）。RLS: 全員 SELECT 可。
     func fetchSurvivalStageBlocks() async throws -> [SurvivalStageBlockRow] {
         try await client

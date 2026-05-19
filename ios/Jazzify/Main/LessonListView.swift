@@ -1509,11 +1509,12 @@ private struct EarTrainingLaunch: Identifiable {
     var initialPracticeMode: Bool = false
 }
 
-/// サバイバルチュートリアル（ネイティブ OnboardingView）の fullScreenCover 起動コンテキスト。
+/// サバイバルチュートリアル（DB 駆動 `SurvivalTutorialView`）の fullScreenCover 起動コンテキスト。
 private struct SurvivalTutorialLaunch: Identifiable {
     let id = UUID()
     let lessonId: UUID
     let lessonSongId: UUID
+    let scriptId: String
     let clearConditions: LessonClearConditions?
 }
 
@@ -1672,10 +1673,12 @@ struct LessonDetailView: View {
             )
         }
         .fullScreenCover(item: $survivalTutorialLaunch) { launch in
-            OnboardingView(
+            SurvivalTutorialView(
+                scriptId: launch.scriptId,
                 locale: locale,
+                showSkip: false,
                 onClose: { survivalTutorialLaunch = nil },
-                onLessonComplete: {
+                onComplete: {
                     _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
                         lessonId: launch.lessonId,
                         lessonSongId: launch.lessonSongId,
@@ -2490,10 +2493,7 @@ struct LessonDetailView: View {
         }
 
         if requirement.isSurvivalTutorial == true {
-            let scriptId = requirement.survivalTutorialScriptId ?? "onboarding-v1"
-            return locale == .ja
-                ? "サバイバルチュートリアル / \(scriptId)"
-                : "Survival tutorial / \(scriptId)"
+            return locale == .ja ? "サバイバルチュートリアル" : "Survival tutorial"
         }
 
         if requirement.isSurvival == true {
@@ -2601,6 +2601,7 @@ struct LessonDetailView: View {
             survivalTutorialLaunch = SurvivalTutorialLaunch(
                 lessonId: lesson.id,
                 lessonSongId: requirement.id,
+                scriptId: requirement.survivalTutorialScriptId ?? "onboarding-v1",
                 clearConditions: requirement.clearConditions
             )
             return

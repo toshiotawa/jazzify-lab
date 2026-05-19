@@ -1296,6 +1296,18 @@ final class SurvivalGameLoop {
         scenarioSpawnStationaryEnemy(atX: x, y: y)
     }
 
+    /// 進行方向の垂直オフセットに静止敵を配置（チュートリアル G7 等）。
+    func scenarioSpawnTutorialPerpendicularOffsets(distanceForward: CGFloat, perpOffsets: [CGFloat]) {
+        let p = runtime.player
+        let dir = p.direction.vector
+        let perp = CGVector(dx: -dir.dy, dy: dir.dx)
+        for offset in perpOffsets {
+            let x = p.x + dir.dx * distanceForward + perp.dx * offset
+            let y = p.y + dir.dy * distanceForward + perp.dy * offset
+            scenarioSpawnStationaryEnemy(atX: x, y: y)
+        }
+    }
+
     /// スロット進行・ヒント切替を伴わず、攻撃演出のみ発火（オンボーディング シーン 1）。
     func scenarioEmitAttackOnly(attack: SurvivalSlotIndex, now: TimeInterval = CACurrentMediaTime()) {
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(

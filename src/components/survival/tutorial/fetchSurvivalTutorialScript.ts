@@ -1,5 +1,20 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
+import { buildOnboardingV1Script } from './buildOnboardingV1Script';
 import type { TutorialAudioTracksMap } from './TutorialAudioController';
+import {
+  isTutorialScriptPayload,
+  type TutorialScriptPayload,
+} from './tutorialScriptTypes';
+
+export interface SurvivalTutorialLegacyPayload {
+  version: 1;
+  audioTracks?: TutorialAudioTracksMap;
+  builtinRunner?: string;
+}
+
+export type SurvivalTutorialScriptPayload =
+  | TutorialScriptPayload
+  | SurvivalTutorialLegacyPayload;
 
 export interface SurvivalTutorialScriptRow {
   id: string;
@@ -8,42 +23,37 @@ export interface SurvivalTutorialScriptRow {
   script: SurvivalTutorialScriptPayload;
 }
 
-export interface SurvivalTutorialScriptPayload {
-  version: number;
-  audioTracks?: TutorialAudioTracksMap;
-  builtinRunner?: string;
-}
-
 const BUNDLED_ONBOARDING: SurvivalTutorialScriptRow = {
   id: 'onboarding-v1',
   title: 'サバイバルチュートリアル（II-V-I）',
   title_en: 'Survival Tutorial (II-V-I)',
-  script: {
-    version: 1,
-    builtinRunner: 'onboarding-v1',
-    audioTracks: {
-      main_bgm: { resolveFrom: 'progression', defaultLoop: true, defaultVolume: 0.45 },
-      drum_loop: {
-        url: 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3',
-        defaultLoop: true,
-        defaultVolume: 0.35,
-      },
-    },
-  },
+  script: buildOnboardingV1Script(),
 };
+
+function parseLegacyPayload(raw: Record<string, unknown>): SurvivalTutorialLegacyPayload | null {
+  if (raw.version !== 1) return null;
+  const audioTracks =
+    raw.audioTracks && typeof raw.audioTracks === 'object'
+      ? (raw.audioTracks as TutorialAudioTracksMap)
+      : undefined;
+  const builtinRunner =
+    typeof raw.builtinRunner === 'string' ? raw.builtinRunner : undefined;
+  return { version: 1, audioTracks, builtinRunner };
+}
 
 function parsePayload(raw: unknown): SurvivalTutorialScriptPayload | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  const version = o.version;
-  if (typeof version !== 'number') return null;
-  const audioTracks =
-    o.audioTracks && typeof o.audioTracks === 'object'
-      ? (o.audioTracks as TutorialAudioTracksMap)
-      : undefined;
-  const builtinRunner =
-    typeof o.builtinRunner === 'string' ? o.builtinRunner : undefined;
-  return { version, audioTracks, builtinRunner };
+  if (isTutorialScriptPayload(raw)) {
+    return raw;
+  }
+  return parseLegacyPayload(o);
+}
+
+export function isInterpretedTutorialScript(
+  script: SurvivalTutorialScriptPayload,
+): script is TutorialScriptPayload {
+  return isTutorialScriptPayload(script);
 }
 
 export async function fetchSurvivalTutorialScript(

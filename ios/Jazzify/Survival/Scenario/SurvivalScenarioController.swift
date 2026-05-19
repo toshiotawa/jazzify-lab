@@ -34,6 +34,13 @@ final class SurvivalScenarioController: ObservableObject {
         session?.gameLoop.scenarioSpawnEnemyInFront(distance: distance)
     }
 
+    func spawnTutorialPerpendicularOffsets(distanceForward: CGFloat, perpOffsets: [CGFloat]) {
+        session?.gameLoop.scenarioSpawnTutorialPerpendicularOffsets(
+            distanceForward: distanceForward,
+            perpOffsets: perpOffsets
+        )
+    }
+
     func emitAttackOnly(_ slot: SurvivalSlotIndex) {
         session?.gameLoop.scenarioEmitAttackOnly(attack: slot)
     }

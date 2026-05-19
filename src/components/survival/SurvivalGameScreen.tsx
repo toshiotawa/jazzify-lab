@@ -4375,7 +4375,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.codeSlots.current[1].chord?.id,
   ]);
 
-  const scenarioUi = scenarioOverridesRef.current;
+  const scenarioUi = useMemo(() => {
+    void scenarioUiTick;
+    return scenarioOverridesRef.current;
+  }, [scenarioUiTick]);
+
   const scenarioHideHp =
     scenarioMode && scenarioUi.isActive && scenarioUi.hidePlayerHpBar;
   const scenarioHideHud =
@@ -5141,10 +5145,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       {!scenarioHideChordPadOverlay &&
       (() => {
         const pianoHeight = embeddedFullHeight && !survivalTutorialLayout ? 80 : 120;
+        const tutorialPianoOverlay = embeddedFullHeight && survivalTutorialLayout;
         return (
-      <div 
+      <div
         ref={gameAreaRef}
-        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
+        className={cn(
+          'bg-black bg-opacity-20 overflow-hidden w-full',
+          tutorialPianoOverlay
+            ? 'fixed bottom-0 left-0 right-0 z-20 mb-0 mx-0 rounded-none'
+            : 'relative mx-2 mb-1 rounded-lg flex-shrink-0',
+        )}
         style={{ height: `${pianoHeight}px` }}
       >
         {(() => {
