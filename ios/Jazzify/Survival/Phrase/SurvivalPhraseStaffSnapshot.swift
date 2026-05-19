@@ -8,5 +8,5 @@ struct SurvivalPhraseStaffSnapshot: Equatable {
     let revealedNoteIndices: Set<Int>
     let targetNoteIndex: Int
     let hintMode: Bool
-    let unpressedNoteOpacity: CGFloat
+    let unpressedNoteOpacity: Double
 }

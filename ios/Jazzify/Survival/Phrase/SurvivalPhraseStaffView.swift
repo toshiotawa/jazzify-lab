@@ -17,7 +17,7 @@ struct SurvivalPhraseStaffView: View {
             singleMeasureLayout: false,
             hideChordLabels: false,
             noteCollisionLayout: .anchorLow,
-            unpressedNoteOpacity: snapshot.unpressedNoteOpacity
+            unpressedNoteOpacity: CGFloat(snapshot.unpressedNoteOpacity)
         )
         .scaleEffect(1.35, anchor: .top)
     }

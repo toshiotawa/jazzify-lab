@@ -182,7 +182,7 @@ final class SurvivalGameLoop {
             revealedNoteIndices: state.revealedNoteIndices,
             targetNoteIndex: state.targetNoteIndex,
             hintMode: mode.hintMode,
-            unpressedNoteOpacity: opacity
+            unpressedNoteOpacity: Double(opacity)
         )
     }
 
