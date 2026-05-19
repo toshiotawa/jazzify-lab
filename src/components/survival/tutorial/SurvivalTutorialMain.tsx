@@ -1,8 +1,10 @@
 import React, { useCallback, useMemo } from 'react';
+
 import { useAuthStore } from '@/stores/authStore';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import type { ClearConditions } from '@/types';
-import { SurvivalTutorialExperience } from './SurvivalTutorialExperience';
+
+import { SurvivalLessonTutorialExperience } from './SurvivalLessonTutorialExperience';
 
 function parseHashParams(): Record<string, string> {
   const raw = window.location.hash.split('?')[1] ?? '';
@@ -24,7 +26,7 @@ const SurvivalTutorialMain: React.FC = () => {
     }
   }, [params.clearConditions]);
 
-  const handleComplete = useCallback(async () => {
+  const handleTutorialCompleted = useCallback(async () => {
     if (!profile || !lessonId || !lessonSongId) return;
     try {
       await updateLessonRequirementProgress(
@@ -48,15 +50,12 @@ const SurvivalTutorialMain: React.FC = () => {
   }, [lessonId]);
 
   return (
-    <SurvivalTutorialExperience
+    <SurvivalLessonTutorialExperience
       scriptId={scriptId}
       embeddedFullHeight
-      showSkip
-      onComplete={() => {
-        void handleComplete();
-        handleExit();
-      }}
-      ctaLabel={undefined}
+      showSkip={false}
+      onLessonTutorialCompleted={handleTutorialCompleted}
+      onExit={handleExit}
     />
   );
 };

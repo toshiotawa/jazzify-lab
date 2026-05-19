@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/utils/cn';
 
-interface SurvivalTutorialOverlaysProps {
+interface OnboardingOverlaysProps {
   characterText: string;
   narrationText: string;
   connectedDeviceLine: string | null;
@@ -22,7 +22,12 @@ function pillarEmoji(systemImage: string | null): string {
   return '〰️';
 }
 
-export const SurvivalTutorialOverlays: React.FC<SurvivalTutorialOverlaysProps> = ({
+const DEFAULT_PORTRAIT_SRC = '/default_avater/muki/shita.png';
+
+/**
+ * LP オンボーディング用: iOS でのプレイヤー付近よりの吹き出し位置 + キャラ縮約表示。
+ */
+export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
   characterText,
   narrationText,
   connectedDeviceLine,
@@ -38,23 +43,37 @@ export const SurvivalTutorialOverlays: React.FC<SurvivalTutorialOverlaysProps> =
 }) => (
   <>
     {characterText ? (
-      <div className="pointer-events-none absolute inset-x-0 top-[max(12px,env(safe-area-inset-top))] z-30 flex justify-center px-4">
-        <div
-          className={cn(
-            'max-w-[380px] rounded-xl border border-white/25 bg-black/80 px-4 py-3 text-center',
-            'text-sm font-bold text-white shadow-lg',
-          )}
-        >
-          {characterText.split('\n').map((line, i) => (
-            <span key={`${i}-${line}`}>
-              {i > 0 ? <br /> : null}
-              {line}
-            </span>
-          ))}
-          <div
-            className="mx-auto mt-1 h-0 w-0 border-x-[12px] border-t-[12px] border-x-transparent border-t-black/80"
-            aria-hidden
+      <div
+        className="pointer-events-none absolute inset-x-0 z-30 flex justify-center px-4"
+        style={{
+          top: `max(calc(env(safe-area-inset-top) + 48px), min(42vh, calc(50vh - 120px)))`,
+        }}
+      >
+        <div className="flex max-w-[min(380px,calc(100vw-32px))] flex-col items-center gap-1">
+          <img
+            src={DEFAULT_PORTRAIT_SRC}
+            alt=""
+            width={72}
+            height={72}
+            className="h-[72px] w-[72px] select-none object-contain drop-shadow-md"
           />
+          <div
+            className={cn(
+              'rounded-xl border border-white/25 bg-black/80 px-4 py-3 text-center',
+              'text-sm font-bold text-white shadow-lg',
+            )}
+          >
+            {characterText.split('\n').map((line, i) => (
+              <span key={`${i}-${line}`}>
+                {i > 0 ? <br /> : null}
+                {line}
+              </span>
+            ))}
+            <div
+              className="mx-auto mt-1 h-0 w-0 border-x-[12px] border-t-[12px] border-x-transparent border-t-black/80"
+              aria-hidden
+            />
+          </div>
         </div>
       </div>
     ) : null}

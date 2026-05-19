@@ -5,8 +5,8 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import '@/app-extra.css';
 
 const LPPIXIPiano = React.lazy(() => import('./LPPIXIPiano'));
-const SurvivalTutorialExperience = React.lazy(
-  () => import('@/components/survival/tutorial/SurvivalTutorialExperience'),
+const OnboardingExperience = React.lazy(
+  () => import('@/components/onboarding/OnboardingExperience'),
 );
 
 const LPFantasyDemo: React.FC = () => {
@@ -228,8 +228,7 @@ const LPFantasyDemo: React.FC = () => {
           </div>
           <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden">
             <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white">{modalLoadingText}</div>}>
-              <SurvivalTutorialExperience
-                scriptId="onboarding-v1"
+              <OnboardingExperience
                 embeddedFullHeight
                 showSignupCtaOnFinish
                 showSkip

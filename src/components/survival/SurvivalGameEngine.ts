@@ -813,6 +813,23 @@ export const spawnStageEnemy = (
   };
 };
 
+/** オンボーディング／チュートリアルシナリオ用: 種類 slime 固定、HP 1、静止、`disableEnemyAttacks` とセットで利用 */
+export const spawnScenarioTutorialEnemyAt = (x: number, y: number): EnemyState => ({
+  id: `scenario_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+  type: 'slime',
+  x,
+  y,
+  stats: {
+    atk: 0,
+    def: 0,
+    hp: 1,
+    maxHp: 1,
+    speed: 0,
+  },
+  statusEffects: [],
+  isBoss: false,
+});
+
 // ===== ステージモード専用スポーン設定 =====
 export const getStageSpawnConfig = (elapsedTime: number): { spawnRate: number; spawnCount: number } => {
   if (elapsedTime >= 60) {

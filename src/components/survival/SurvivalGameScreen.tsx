@@ -64,6 +64,7 @@ import {
   MAX_PROJECTILES,
   MAX_COINS,
   spawnStageEnemy,
+  spawnScenarioTutorialEnemyAt,
   getStageSpawnConfig,
   resetIncompleteOtherSlotCorrectNotes,
   updateComboOnABHit,
@@ -283,6 +284,8 @@ interface SurvivalGameScreenProps {
   onSurvivalRunModeRestart?: (nextHintMode: boolean) => void;
   /** LPデモ等で親コンテナに収める場合 true。min-h の代わりに h-full min-h-0 を使用 */
   embeddedFullHeight?: boolean;
+  /** チュートリアル／オンボーディング時: embedded でもピアノ 120px と dvh に近い確保を優先する */
+  survivalTutorialLayout?: boolean;
   /** チュートリアル台本用シナリオモード */
   scenarioMode?: boolean;
   initialScenarioOverrides?: SurvivalScenarioOverrides;
@@ -309,6 +312,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   onNextStage,
   onSurvivalRunModeRestart,
   embeddedFullHeight = false,
+  survivalTutorialLayout = false,
   scenarioMode = false,
   initialScenarioOverrides,
   onScenarioHandleReady,
@@ -362,6 +366,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const [scenarioUiTick, setScenarioUiTick] = useState(0);
   const scenarioHandleReadyRef = useRef(false);
   const emitAttackSlotRef = useRef<(slot: 'A' | 'B') => void>(() => undefined);
+  const emitScenarioAttackOnlyRef = useRef<(slot: 'A' | 'B') => void>(() => undefined);
   const emitSpecialShockwaveRef = useRef<() => void>(() => undefined);
 
   const bumpScenarioUi = useCallback(() => {
@@ -2705,18 +2710,123 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     });
   };
 
+  emitScenarioAttackOnlyRef.current = (slot: 'A' | 'B') => {
+    setGameState((prev) => {
+      if (prev.isPaused || prev.isGameOver) return prev;
+      if (slot === 'A') {
+        const attackInstanceId = bossBattleRef.current ? `scenario_a_${performance.now()}` : undefined;
+        const newProjectiles = createAProjectilesFromPlayer(
+          prev.player,
+          calculateAProjectileDamage(prev.player.stats.aAtk),
+          attackInstanceId,
+        );
+        return {
+          ...prev,
+          projectiles: [...prev.projectiles, ...newProjectiles],
+        };
+      }
+
+      const newState = {
+        ...prev,
+        damageTexts: [...prev.damageTexts],
+        enemies: [...prev.enemies],
+        enemyProjectiles: [...prev.enemyProjectiles],
+      };
+
+      const baseRange = 80;
+      const bonusRange = prev.player.skills.bRangeBonus * 20;
+      const totalRange = baseRange + bonusRange;
+      const dirVec = getDirectionVector(prev.player.direction);
+      const attackX = prev.player.x + dirVec.x * 40;
+      const attackY = prev.player.y + dirVec.y * 40;
+
+      pendingShockwavesRef.current.push({
+        id: `scenario_b_only_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        x: attackX,
+        y: attackY,
+        radius: 0,
+        maxRadius: totalRange,
+        startTime: Date.now(),
+        duration: SHOCKWAVE_DURATION,
+        direction: prev.player.direction,
+        color: B_HIT_COLORS[0],
+      });
+
+      if (prev.player.skills.bDeflect) {
+        newState.enemyProjectiles = prev.enemyProjectiles.filter((proj) => {
+          const dx = proj.x - attackX;
+          const dy = proj.y - attackY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          return dist >= totalRange;
+        });
+      }
+
+      const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+
+      newState.enemies = newState.enemies.map((enemy) => {
+        const dx = enemy.x - attackX;
+        const dy = enemy.y - attackY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        const toEnemyX = enemy.x - prev.player.x;
+        const toEnemyY = enemy.y - prev.player.y;
+        const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
+        const isInFront = dotProduct > 0;
+        const effectiveRange = isInFront ? totalRange : baseRange;
+
+        if (dist < effectiveRange) {
+          const condMultScenarioB = getConditionalSkillMultipliers(prev.player);
+          const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultScenarioB.atkMultiplier);
+          const luckResultScenarioB = checkLuck(prev.player.stats.luck);
+
+          const damage = calculateDamage(
+            baseBDamage,
+            0,
+            enemy.stats.def,
+            prev.player.statusEffects.some((e) => e.type === 'buffer'),
+            enemy.statusEffects.some((e) => e.type === 'debuffer'),
+            getBufferLevel(prev.player.statusEffects),
+            getDebufferLevel(enemy.statusEffects),
+            prev.player.stats.cAtk,
+            luckResultScenarioB.doubleDamage,
+          );
+
+          const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+          const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+
+          newState.damageTexts = [
+            ...newState.damageTexts,
+            createDamageText(
+              enemy.x,
+              enemy.y,
+              damage,
+              luckResultScenarioB.doubleDamage,
+              luckResultScenarioB.doubleDamage ? '#ffd700' : undefined,
+            ),
+          ];
+
+          return {
+            ...enemy,
+            stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
+            knockbackVelocity: { x: knockbackX, y: knockbackY },
+          };
+        }
+        return enemy;
+      });
+
+      return newState;
+    });
+  };
+
   useEffect(() => {
     if (!scenarioMode || !onScenarioHandleReady || scenarioHandleReadyRef.current) return;
     if (!gameState.isPlaying || gameState.isGameOver) return;
 
     const spawnStationaryAt = (x: number, y: number) => {
-      setGameState((prev) => {
-        const enemy = spawnStageEnemy(prev.player.x, prev.player.y, prev.elapsedTime);
-        return {
-          ...prev,
-          enemies: [...prev.enemies, { ...enemy, x, y, stats: { ...enemy.stats, speed: 0 } }],
-        };
-      });
+      setGameState((prev) => ({
+        ...prev,
+        enemies: [...prev.enemies, spawnScenarioTutorialEnemyAt(x, y)],
+      }));
     };
 
     const handle: SurvivalScenarioHandle = {
@@ -2739,10 +2849,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const dir = getDirectionVector(prev.player.direction);
           const x = prev.player.x + dir.x * distance;
           const y = prev.player.y + dir.y * distance;
-          const enemy = spawnStageEnemy(prev.player.x, prev.player.y, prev.elapsedTime);
           return {
             ...prev,
-            enemies: [...prev.enemies, { ...enemy, x, y, stats: { ...enemy.stats, speed: 0 } }],
+            enemies: [...prev.enemies, spawnScenarioTutorialEnemyAt(x, y)],
           };
         });
       },
@@ -2754,10 +2863,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const angle = (i / count) * Math.PI * 2;
             const x = prev.player.x + Math.cos(angle) * radius;
             const y = prev.player.y + Math.sin(angle) * radius;
-            const enemy = spawnStageEnemy(prev.player.x, prev.player.y, prev.elapsedTime);
-            added.push({ ...enemy, x, y, stats: { ...enemy.stats, speed: 0 } });
+            added.push(spawnScenarioTutorialEnemyAt(x, y));
           }
           return { ...prev, enemies: [...prev.enemies, ...added] };
+        });
+      },
+      emitAttackOnly: (slot) => {
+        emitScenarioAttackOnlyRef.current(slot);
+      },
+      spawnTutorialPerpendicularOffsets: (forward, perpOffsetsPx) => {
+        setGameState((prev) => {
+          const dir = getDirectionVector(prev.player.direction);
+          const perp = { x: -dir.y, y: dir.x };
+          const extras = perpOffsetsPx.map((t) => {
+            const x = prev.player.x + dir.x * forward + perp.x * t;
+            const y = prev.player.y + dir.y * forward + perp.y * t;
+            return spawnScenarioTutorialEnemyAt(x, y);
+          });
+          return { ...prev, enemies: [...prev.enemies, ...extras] };
         });
       },
       emitAttackSlot: (slot) => emitAttackSlotRef.current(slot),
@@ -3319,8 +3442,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
         
-        // 敵の射撃処理（フレーズモードでは無効）
-        if (!isPhraseMode) {
+        // 敵の射撃処理（フレーズモードまたはシナリオで無効時は発射しない）
+        const scenarioEnemyShootingDisabled =
+          scenarioOverridesRef.current.isActive
+          && scenarioOverridesRef.current.disableEnemyAttacks;
+        if (!isPhraseMode && !scenarioEnemyShootingDisabled) {
         newState.enemies.forEach(enemy => {
           if (shouldEnemyShoot(enemy, newState.player.x, newState.player.y, newState.elapsedTime)) {
             const proj = createEnemyProjectile(enemy, newState.player.x, newState.player.y);
@@ -3776,6 +3902,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         );
         
         if (isStageMode) {
+          const scNoStageTimers =
+            scenarioMode
+            && scenarioOverridesRef.current.isActive
+            && scenarioOverridesRef.current.disableTimeLimitClear
+            && scenarioOverridesRef.current.disableKillQuotaClear;
+          if (!scNoStageTimers) {
           // ステージモード: 残り30秒パワーアップ
           const remainingTime = STAGE_TIME_LIMIT_SECONDS - newState.elapsedTime;
           if (remainingTime <= 30 && !stagePowerUpTriggeredRef.current) {
@@ -3836,6 +3968,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               newState.wave.waveFailedReason = 'quota_failed';
             }
             return newState;
+          }
           }
         } else {
           // フリープレイ: WAVEチェック
@@ -4200,6 +4333,35 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     };
   }, [scenarioMode, scenarioUiTick, gameState.codeSlots.current[1].correctNotes]);
 
+  const scenarioProgressionStaff = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    void scenarioUiTick;
+    const sc = scenarioOverridesRef.current;
+    if (!scenarioMode || !sc.isActive || sc.hideStaff || sc.staffMode !== 'progression') return null;
+
+    const slot = gameState.codeSlots.current[1];
+    const ch = slot.chord;
+    if (!slot.isEnabled || !ch) return null;
+
+    const names = ch.progressionStaffVoicingNames;
+    const kf = ch.progressionStaffKeyFifths;
+
+    if (!names || names.length === 0 || typeof kf !== 'number') return null;
+
+    return {
+      voicingNames: names,
+      keyFifths: kf,
+      correctPitchClasses: slot.correctNotes,
+      chordDisplayName: ch.displayName,
+      staffClef: sc.scenarioStaffClef === 1 ? 'treble' : 'bass',
+    };
+  }, [
+    scenarioMode,
+    scenarioUiTick,
+    gameState.codeSlots.current[1].correctNotes,
+    gameState.codeSlots.current[1].isEnabled,
+    gameState.codeSlots.current[1].chord?.id,
+  ]);
+
   const scenarioUi = scenarioOverridesRef.current;
   const scenarioHideHp =
     scenarioMode && scenarioUi.isActive && scenarioUi.hidePlayerHpBar;
@@ -4211,6 +4373,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     scenarioMode && scenarioUi.isActive && scenarioUi.hideKillCounter;
   const scenarioHidePause =
     scenarioMode && scenarioUi.isActive && scenarioUi.hidePauseButton;
+  const scenarioHideHintBadge =
+    scenarioMode && scenarioUi.isActive && scenarioUi.hideHintBadge;
+  const scenarioHideComboBadge =
+    scenarioMode && scenarioUi.isActive && scenarioUi.hideComboBadge;
+  const scenarioHideChordPadOverlay =
+    scenarioMode && scenarioUi.isActive && scenarioUi.hideChordPad;
 
   const elapsedSecondsFloor = Math.floor(gameState.elapsedTime);
 
@@ -4235,7 +4403,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
     if (isPhraseMode) return null;
     const sc = scenarioOverridesRef.current;
-    if (scenarioMode && sc.isActive && (sc.hideStaff || sc.staffMode === 'phrase')) {
+    if (
+      scenarioMode
+      && sc.isActive
+      && (sc.hideStaff || sc.staffMode === 'phrase' || sc.staffMode === 'progression')
+    ) {
       return null;
     }
     if (!isProgressionStage) return null;
@@ -4455,7 +4627,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     <div
       className={cn(
         'bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen',
-        embeddedFullHeight ? 'flex-1 min-h-0 overflow-hidden' : 'min-h-[var(--dvh,100dvh)]',
+        embeddedFullHeight && survivalTutorialLayout
+          ? 'flex-1 min-h-0 overflow-hidden min-h-[var(--dvh,100dvh)]'
+          : embeddedFullHeight
+            ? 'flex-1 min-h-0 overflow-hidden'
+            : 'min-h-[var(--dvh,100dvh)]',
         isIOSWebView() && 'overflow-x-hidden max-w-full ios-no-backdrop-blur'
       )}
     >
@@ -4514,7 +4690,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       <div
         className={cn(
           'flex-1 flex flex-col items-center relative min-h-0 w-full max-w-full',
-          embeddedFullHeight ? 'justify-start gap-1 px-2' : 'justify-center gap-2 px-4'
+          embeddedFullHeight && !survivalTutorialLayout ? 'justify-start gap-1 px-2' : 'justify-center gap-2 px-4'
         )}
       >
         {/* フローティングスティック（モバイル時のみ・タッチ位置に出現） */}
@@ -4587,6 +4763,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           className="flex-1 min-h-0 w-full relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none flex items-center justify-center"
         >
           {/* ヘッダー（ゲーム画面上部にオーバーレイ・レイアウトを圧迫しない・safe-area対応） */}
+          {!scenarioHideHud ? (
           <div className="absolute top-0 left-0 right-0 z-10 px-2 pt-[max(4px,env(safe-area-inset-top))] pb-1 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
             {/* ボス戦 HP バー（画面最上部） */}
             {isBossStage && bossBattleRef.current && (
@@ -4628,7 +4805,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     <span className="font-bold shrink-0">{formatTime(gameState.elapsedTime)}</span>
                   )}
                   {!isStageMode && <span className="shrink-0">Lv.{gameState.player.level}</span>}
-                  {isStageMode && hintMode && (
+                  {isStageMode && hintMode && !scenarioHideHintBadge && (
                     <span className="bg-yellow-500/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0 text-[9px]">HINT</span>
                   )}
                 </div>
@@ -4690,6 +4867,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               </div>
             </div>
           </div>
+          ) : null}
           <SurvivalCanvas
             gameState={gameState}
             viewportWidth={viewportSize.width}
@@ -4699,9 +4877,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             lightningEffects={lightningEffects}
             bossBattle={bossBattleRef.current}
             bossUiTick={bossUiTick}
-            hideComboGauge={isPhraseMode}
+            hideComboGauge={isPhraseMode || scenarioHideComboBadge}
           />
-          {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && (
+          {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (
             <div
               className="absolute right-4 bottom-[140px] z-[8] pointer-events-none flex items-center gap-1 rounded-full border border-yellow-500/60 bg-black/55 px-2 py-0.5 font-sans tabular-nums"
               aria-live="polite"
@@ -4736,6 +4914,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   hintMode={scenarioPhraseStaff.hintMode}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                />
+              </div>
+            )}
+          {scenarioProgressionStaff &&
+            gameState.isPlaying &&
+            !gameState.isGameOver && (
+              <div
+                className="absolute inset-0 z-[5] flex items-start justify-center px-3 pt-12 pointer-events-none"
+                aria-hidden
+              >
+                <SurvivalProgressionStaff
+                  chordDisplayName={scenarioProgressionStaff.chordDisplayName}
+                  voicingNames={scenarioProgressionStaff.voicingNames}
+                  keyFifths={scenarioProgressionStaff.keyFifths}
+                  correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
+                  staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
+                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                  className="max-w-[220px] [&_svg]:scale-[1] rounded-xl border border-white/26 bg-black/38 px-1 py-0.5"
                 />
               </div>
             )}
@@ -4929,8 +5125,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       </div>
       
       {/* ピアノ（PIXINotesRenderer使用） */}
-      {(() => {
-        const pianoHeight = embeddedFullHeight ? 80 : 120;
+      {!scenarioHideChordPadOverlay &&
+      (() => {
+        const pianoHeight = embeddedFullHeight && !survivalTutorialLayout ? 80 : 120;
         return (
       <div 
         ref={gameAreaRef}

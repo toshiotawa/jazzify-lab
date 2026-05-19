@@ -24,7 +24,7 @@ export interface TutorialRunnerUi {
   setShowCta: (show: boolean) => void;
 }
 
-export interface RunOnboardingTutorialParams {
+export interface RunTutorialIiViScriptParams {
   isEnglishCopy: boolean;
   ui: TutorialRunnerUi;
   handle: SurvivalScenarioHandle;
@@ -36,6 +36,9 @@ export interface RunOnboardingTutorialParams {
   signal: AbortSignal;
 }
 
+/** iOS G7 と同様: forward 95、横方向 (i−2)×52 の 5体 */
+export const ONBOARDING_G7_PERP_OFFSETS_PX = [-104, -52, 0, 52, 104] as const;
+
 function sleep(seconds: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) {
@@ -44,10 +47,14 @@ function sleep(seconds: number, signal: AbortSignal): Promise<void> {
     }
     const ms = Math.max(0, seconds * 1000);
     const t = window.setTimeout(() => resolve(), ms);
-    signal.addEventListener('abort', () => {
-      window.clearTimeout(t);
-      resolve();
-    }, { once: true });
+    signal.addEventListener(
+      'abort',
+      () => {
+        window.clearTimeout(t);
+        resolve();
+      },
+      { once: true },
+    );
   });
 }
 
@@ -97,7 +104,7 @@ function scene3Base(): SurvivalScenarioOverrides {
   o.scenarioStaffClef = 1;
   o.hideStaffOnBSlotCompletion = true;
   o.useChordMidiNotesForHintHighlights = true;
-  o.staffMode = 'phrase';
+  o.staffMode = 'progression';
   o.blockSlotEvaluation = false;
   o.blockChordPadInput = false;
   o.blockMidiGameInput = false;
@@ -143,7 +150,10 @@ async function playSceneOneChord(
   handle.clearEnemies();
 }
 
-export async function runOnboardingTutorial(params: RunOnboardingTutorialParams): Promise<void> {
+/**
+ * onboarding-v1 相当の ii‑V‑I 台本（iOS OnboardingScript 準拠）。
+ */
+export async function runTutorialIiViScript(params: RunTutorialIiViScriptParams): Promise<void> {
   const {
     isEnglishCopy,
     ui,
@@ -186,22 +196,34 @@ export async function runOnboardingTutorial(params: RunOnboardingTutorialParams)
   await playSceneOneChord(
     handle,
     TUTORIAL_DM7,
-    () => handle.spawnEnemyInFront(88),
-    () => handle.emitAttackSlot('A'),
+    () => {
+      handle.spawnEnemyInFront(88);
+    },
+    () => {
+      handle.emitAttackOnly('A');
+    },
     signal,
   );
   await playSceneOneChord(
     handle,
     TUTORIAL_G7,
-    () => handle.spawnEnemyInFront(88),
-    () => handle.emitAttackSlot('A'),
+    () => {
+      handle.spawnEnemyInFront(88);
+    },
+    () => {
+      handle.emitAttackOnly('A');
+    },
     signal,
   );
   await playSceneOneChord(
     handle,
     TUTORIAL_CM7,
-    () => handle.spawnStationaryRing(12, 180),
-    () => handle.emitSpecialShockwave(),
+    () => {
+      handle.spawnStationaryRing(12, 180);
+    },
+    () => {
+      handle.emitSpecialShockwave();
+    },
     signal,
   );
 
@@ -245,7 +267,7 @@ export async function runOnboardingTutorial(params: RunOnboardingTutorialParams)
   }
 
   await waitForFirstInputNote();
-  handle.emitAttackSlot('A');
+  handle.emitAttackOnly('A');
   await sleep(1.2, signal);
   ui.setConnectedDeviceLine(null);
 
@@ -272,10 +294,9 @@ export async function runOnboardingTutorial(params: RunOnboardingTutorialParams)
       o.hideStaff = true;
       o.blockSlotEvaluation = false;
       o.useChordMidiNotesForHintHighlights = true;
-      o.staffMode = 'phrase';
+      o.staffMode = 'progression';
     });
     handle.setSlotBChord(chord);
-    handle.setPhraseStaffChord(chord);
     handle.applyMutation((o) => {
       o.bChordCompletionAttackSlot = attackSlot;
       o.bChordCompletionUseSpecial = useSpecial;
@@ -306,7 +327,6 @@ export async function runOnboardingTutorial(params: RunOnboardingTutorialParams)
     handle.applyMutation((o) => {
       o.hideStaff = true;
     });
-    handle.setPhraseStaffChord(null);
     handle.setSlotBChord(null);
     handle.setSlotBEnabled(true);
     handle.applyMutation((o) => {
@@ -325,8 +345,12 @@ export async function runOnboardingTutorial(params: RunOnboardingTutorialParams)
     TUTORIAL_SCENE3_DM7,
     'B',
     false,
-    () => handle.spawnEnemyInFront(80),
-    () => handle.emitAttackSlot('B'),
+    () => {
+      handle.spawnEnemyInFront(80);
+    },
+    () => {
+      handle.emitAttackOnly('B');
+    },
   );
   ui.setCharacterText(
     dm7Ok
@@ -344,11 +368,11 @@ export async function runOnboardingTutorial(params: RunOnboardingTutorialParams)
     'A',
     false,
     () => {
-      for (let i = 0; i < 5; i += 1) {
-        handle.spawnEnemyInFront(95 + (i - 2) * 52);
-      }
+      handle.spawnTutorialPerpendicularOffsets(95, ONBOARDING_G7_PERP_OFFSETS_PX);
     },
-    () => handle.emitAttackSlot('A'),
+    () => {
+      handle.emitAttackOnly('A');
+    },
   );
   ui.setCharacterText(
     g7Ok
@@ -367,8 +391,12 @@ export async function runOnboardingTutorial(params: RunOnboardingTutorialParams)
     TUTORIAL_SCENE3_CM7,
     null,
     true,
-    () => handle.spawnStationaryRing(12, 190),
-    () => handle.emitSpecialShockwave(),
+    () => {
+      handle.spawnStationaryRing(12, 190);
+    },
+    () => {
+      handle.emitSpecialShockwave();
+    },
   );
   ui.setCharacterText('');
   await sleep(0.4, signal);

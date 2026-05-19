@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot } from './SurvivalTypes';
-import { initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
+import { initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord, spawnScenarioTutorialEnemyAt, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
 import { getSurvivalStageBattleKind } from './SurvivalStageDefinitions';
 
 vi.mock('@/platform/supabaseClient', () => ({
@@ -219,5 +219,21 @@ describe('survival combo / special (iOS parity)', () => {
     expect(kept.comboCount).toBe(3);
     expect(kept.comboGauge).toBe(2);
     expect(kept.comboReady).toBe(false);
+  });
+});
+
+describe('scenario tutorial spawn (slime HP=1)', () => {
+  it('spawnScenarioTutorialEnemyAt uses slime type, atk 0 and HP 1', () => {
+    const e = spawnScenarioTutorialEnemyAt(100, 200);
+    expect(e.type).toBe('slime');
+    expect(e.x).toBe(100);
+    expect(e.y).toBe(200);
+    expect(e.stats.hp).toBe(1);
+    expect(e.stats.maxHp).toBe(1);
+    expect(e.stats.atk).toBe(0);
+    expect(e.stats.speed).toBe(0);
+    expect(e.isBoss).toBe(false);
+    expect(typeof e.id).toBe('string');
+    expect(e.id.startsWith('scenario_')).toBe(true);
   });
 });

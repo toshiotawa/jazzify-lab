@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { SurvivalScenarioHandle } from '@/components/survival/scenario/survivalScenarioHandle';
 import { TUTORIAL_BOOTSTRAP_OVERRIDES } from '@/components/survival/scenario/survivalScenarioTypes';
+import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
+import { runOnboardingScript } from '@/components/onboarding/runOnboardingScript';
+import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { SurvivalTutorialOverlays } from './SurvivalTutorialOverlays';
-import { TutorialAudioController } from './TutorialAudioController';
-import { fetchSurvivalTutorialScript } from './fetchSurvivalTutorialScript';
-import { runOnboardingTutorial } from './runOnboardingTutorial';
-import { TUTORIAL_STAGE_DEFINITION } from './tutorialOnboardingChords';
+
+import { OnboardingOverlays } from './OnboardingOverlays';
 
 const TUTORIAL_CONFIG: DifficultyConfig = {
   difficulty: 'easy',
@@ -26,8 +27,7 @@ const TUTORIAL_CONFIG: DifficultyConfig = {
   bgmUrl: null,
 };
 
-export interface SurvivalTutorialExperienceProps {
-  scriptId?: string;
+export interface OnboardingExperienceProps {
   embeddedFullHeight?: boolean;
   showSignupCtaOnFinish?: boolean;
   showSkip?: boolean;
@@ -36,8 +36,8 @@ export interface SurvivalTutorialExperienceProps {
   ctaLabel?: string;
 }
 
-export const SurvivalTutorialExperience: React.FC<SurvivalTutorialExperienceProps> = ({
-  scriptId = 'onboarding-v1',
+/** LP など向けハードコード台本のみ（DB に依存しない） */
+export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
   embeddedFullHeight = false,
   showSignupCtaOnFinish = false,
   showSkip = true,
@@ -62,7 +62,6 @@ export const SurvivalTutorialExperience: React.FC<SurvivalTutorialExperienceProp
   const [showFinishedOverlay, setShowFinishedOverlay] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
 
-  const handleRef = useRef<SurvivalScenarioHandle | null>(null);
   const audioRef = useRef<TutorialAudioController | null>(null);
   const runnerAbortRef = useRef<AbortController | null>(null);
   const runnerStartedRef = useRef(false);
@@ -77,92 +76,79 @@ export const SurvivalTutorialExperience: React.FC<SurvivalTutorialExperienceProp
     onComplete?.();
   }, [onComplete]);
 
-  const onScenarioHandleReady = useCallback((handle: SurvivalScenarioHandle) => {
-    handleRef.current = handle;
-    if (runnerStartedRef.current) return;
-    runnerStartedRef.current = true;
+  const onScenarioHandleReady = useCallback(
+    (handle: SurvivalScenarioHandle) => {
+      if (runnerStartedRef.current) return;
+      runnerStartedRef.current = true;
 
-    const run = async () => {
-      const audio = new TutorialAudioController();
-      audioRef.current = audio;
-      await audio.ensureBgmSettings();
-      let builtinRunner = 'onboarding-v1';
-      try {
-        const row = await fetchSurvivalTutorialScript(scriptId);
-        if (row.script.audioTracks) {
-          audio.setTracks(row.script.audioTracks);
-        }
-        if (row.script.builtinRunner) {
-          builtinRunner = row.script.builtinRunner;
-        }
-      } catch {
-        /* bundled tracks */
-      }
+      const run = async () => {
+        const audio = new TutorialAudioController();
+        audioRef.current = audio;
+        await audio.ensureBgmSettings();
 
-      const abort = new AbortController();
-      runnerAbortRef.current = abort;
+        const abort = new AbortController();
+        runnerAbortRef.current = abort;
 
-      const waitForMidiNoteOrTimeout = (seconds: number): Promise<boolean> => {
-        midiNoteReceivedRef.current = false;
-        return new Promise((resolve) => {
+        const waitForMidiNoteOrTimeout = (seconds: number): Promise<boolean> => {
+          midiNoteReceivedRef.current = false;
+          return new Promise((resolve) => {
+            const deadline = Date.now() + seconds * 1000;
+            const tick = () => {
+              if (abort.signal.aborted) {
+                resolve(false);
+                return;
+              }
+              if (midiNoteReceivedRef.current) {
+                resolve(true);
+                return;
+              }
+              if (Date.now() >= deadline) {
+                resolve(false);
+                return;
+              }
+              window.setTimeout(tick, 80);
+            };
+            tick();
+          });
+        };
+
+        const waitForFirstInputNote = (): Promise<void> => {
+          const start = userInputPulseRef.current;
+          return new Promise((resolve) => {
+            const check = () => {
+              if (abort.signal.aborted || userInputPulseRef.current !== start) {
+                resolve();
+                return;
+              }
+              window.setTimeout(check, 40);
+            };
+            check();
+          });
+        };
+
+        const waitForSlotBCompletion = (startPulse: number, seconds: number): Promise<boolean> => {
           const deadline = Date.now() + seconds * 1000;
-          const tick = () => {
-            if (abort.signal.aborted) {
-              resolve(false);
-              return;
-            }
-            if (midiNoteReceivedRef.current) {
-              resolve(true);
-              return;
-            }
-            if (Date.now() >= deadline) {
-              resolve(false);
-              return;
-            }
-            window.setTimeout(tick, 80);
-          };
-          tick();
-        });
-      };
+          return new Promise((resolve) => {
+            const tick = () => {
+              if (abort.signal.aborted) {
+                resolve(false);
+                return;
+              }
+              if (slotBCompletionPulseRef.current !== startPulse) {
+                resolve(true);
+                return;
+              }
+              if (Date.now() >= deadline) {
+                resolve(false);
+                return;
+              }
+              window.setTimeout(tick, 40);
+            };
+            tick();
+          });
+        };
 
-      const waitForFirstInputNote = (): Promise<void> => {
-        const start = userInputPulseRef.current;
-        return new Promise((resolve) => {
-          const check = () => {
-            if (abort.signal.aborted || userInputPulseRef.current !== start) {
-              resolve();
-              return;
-            }
-            window.setTimeout(check, 40);
-          };
-          check();
-        });
-      };
-
-      const waitForSlotBCompletion = (startPulse: number, seconds: number): Promise<boolean> => {
-        const deadline = Date.now() + seconds * 1000;
-        return new Promise((resolve) => {
-          const tick = () => {
-            if (abort.signal.aborted) {
-              resolve(false);
-              return;
-            }
-            if (slotBCompletionPulseRef.current !== startPulse) {
-              resolve(true);
-              return;
-            }
-            if (Date.now() >= deadline) {
-              resolve(false);
-              return;
-            }
-            window.setTimeout(tick, 40);
-          };
-          tick();
-        });
-      };
-
-      if (builtinRunner === 'onboarding-v1' || scriptId === 'onboarding-v1') {
-        await runOnboardingTutorial({
+        await runOnboardingScript({
           isEnglishCopy,
           ui: {
             setCharacterText,
@@ -181,16 +167,20 @@ export const SurvivalTutorialExperience: React.FC<SurvivalTutorialExperienceProp
           onFinish: finish,
           signal: abort.signal,
         });
-      }
-    };
+      };
 
-    void run();
-  }, [scriptId, isEnglishCopy, finish]);
+      void run();
+    },
+    [isEnglishCopy, finish],
+  );
 
-  useEffect(() => () => {
-    runnerAbortRef.current?.abort();
-    audioRef.current?.dispose();
-  }, []);
+  useEffect(
+    () => () => {
+      runnerAbortRef.current?.abort();
+      audioRef.current?.dispose();
+    },
+    [],
+  );
 
   const handleSkip = useCallback(() => {
     finish();
@@ -215,6 +205,7 @@ export const SurvivalTutorialExperience: React.FC<SurvivalTutorialExperienceProp
         stageDefinition={TUTORIAL_STAGE_DEFINITION}
         hintMode
         embeddedFullHeight={embeddedFullHeight}
+        survivalTutorialLayout={embeddedFullHeight}
         scenarioMode
         initialScenarioOverrides={TUTORIAL_BOOTSTRAP_OVERRIDES}
         onScenarioHandleReady={onScenarioHandleReady}
@@ -225,7 +216,7 @@ export const SurvivalTutorialExperience: React.FC<SurvivalTutorialExperienceProp
         onBackToMenu={() => finish()}
       />
 
-      <SurvivalTutorialOverlays
+      <OnboardingOverlays
         characterText={characterText}
         narrationText={narrationText}
         connectedDeviceLine={connectedDeviceLine}
@@ -268,4 +259,4 @@ export const SurvivalTutorialExperience: React.FC<SurvivalTutorialExperienceProp
   );
 };
 
-export default SurvivalTutorialExperience;
+export default OnboardingExperience;
