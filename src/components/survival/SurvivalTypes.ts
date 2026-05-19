@@ -262,6 +262,8 @@ export interface DamageText {
   y: number;
   damage: number;
   text?: string;
+  /** コード名 / 魔法名など表示種別（未指定時は damage 数値） */
+  textKind?: 'chord-name' | 'magic-name';
   color: string;
   startTime: number;
   duration: number;

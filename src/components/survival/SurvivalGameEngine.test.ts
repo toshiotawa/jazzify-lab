@@ -241,11 +241,12 @@ describe('scenario tutorial spawn (slime HP=1)', () => {
     const text = createChordNameText(120, 180, 'Dm7');
 
     expect(text.text).toBe('Dm7');
+    expect(text.textKind).toBe('chord-name');
     expect(text.damage).toBe(0);
     expect(text.x).toBe(120);
     expect(text.y).toBe(136);
     expect(text.color).toBe('#d9f2ff');
-    expect(text.duration).toBe(800);
+    expect(text.duration).toBe(1000);
     expect(text.id.startsWith('chord_')).toBe(true);
   });
 });

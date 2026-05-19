@@ -1,5 +1,6 @@
 import type { TutorialScriptPayload } from './tutorialScriptTypes';
 import { TUTORIAL_OVERRIDE_PRESETS } from './tutorialScriptPresets';
+import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from './tutorialDrumLoopBgm';
 
 const ONBOARDING_G7_OFFSETS = [-104, -52, 0, 52, 104] as const;
 
@@ -28,14 +29,7 @@ export function buildOnboardingV1Script(): TutorialScriptPayload {
 
   return {
     version: 2,
-    audioTracks: {
-      main_bgm: { resolveFrom: 'progression', defaultLoop: true, defaultVolume: 0.45 },
-      drum_loop: {
-        url: 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3',
-        defaultLoop: true,
-        defaultVolume: 0.35,
-      },
-    },
+    audioTracks: TUTORIAL_DRUM_LOOP_AUDIO_TRACKS,
     stage: {
       name: 'オンボーディング ii-V-I',
       nameEn: 'Onboarding ii-V-I',

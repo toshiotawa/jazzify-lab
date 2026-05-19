@@ -5,6 +5,7 @@ import {
   type SurvivalScenarioOverrides,
 } from '@/components/survival/scenario/survivalScenarioTypes';
 import { TutorialAudioController } from './TutorialAudioController';
+import { hasWebMidiInputDeviceInitially } from './tutorialMidiSetup';
 import {
   TUTORIAL_CM7,
   TUTORIAL_DM7,
@@ -243,8 +244,9 @@ export async function runTutorialIiViScript(params: RunTutorialIiViScriptParams)
       : 'If you have a MIDI keyboard, connect it.\nNo keyboard yet? You can try with the on-screen one.',
   );
 
+  const hadDeviceInitially = await hasWebMidiInputDeviceInitially();
   const midiIn5s = await waitForMidiNoteOrTimeout(5);
-  if (midiIn5s) {
+  if (midiIn5s || hadDeviceInitially) {
     ui.setNarrationText(isJa ? '接続できました' : 'Connected');
     await sleep(0.6, signal);
     ui.setNarrationText(isJa ? '鍵盤を1つ弾いてください' : 'Play one key on your keyboard.');
@@ -255,7 +257,7 @@ export async function runTutorialIiViScript(params: RunTutorialIiViScriptParams)
     });
   } else {
     ui.setNarrationText(isJa ? '画面鍵盤で試しましょう' : "Let's use the on-screen keyboard.");
-    await sleep(0.8, signal);
+    await sleep(2, signal);
     ui.setNarrationText(
       isJa
         ? 'まずは音を鳴らすところから。外部キーボードはあとで接続できます。'

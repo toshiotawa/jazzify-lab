@@ -1724,9 +1724,26 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       ctx.globalAlpha = alpha;
       const displayText = dmg.text ?? dmg.damage.toString();
-      const isMagicName = dmg.text && dmg.damage === 0;
+      const isChordName = dmg.textKind === 'chord-name';
+      const isMagicName =
+        dmg.textKind === 'magic-name' || (dmg.text && dmg.damage === 0 && !isChordName);
       
-      if (isMagicName) {
+      if (isChordName) {
+        const progress = elapsed / dmg.duration;
+        const alpha = 1 - progress;
+        const offsetY = -40 * progress;
+        const screenX = dmg.x - camera.x;
+        const screenY = dmg.y - camera.y + offsetY;
+        ctx.globalAlpha = alpha;
+        ctx.font = 'bold 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.lineWidth = 3;
+        ctx.strokeText(displayText, screenX + 1.5, screenY - 1.5);
+        ctx.fillStyle = dmg.color;
+        ctx.fillText(displayText, screenX, screenY);
+      } else if (isMagicName) {
         const magicScale = 1 + Math.max(0, 0.3 - progress * 0.6);
         ctx.save();
         ctx.translate(screenX, screenY);

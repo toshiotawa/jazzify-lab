@@ -15,6 +15,7 @@ import type {
   TutorialSpawnStep,
 } from './tutorialScriptTypes';
 import type { TutorialRunnerUi } from './tutorialIiViScript';
+import { hasWebMidiInputDeviceInitially } from './tutorialMidiSetup';
 
 export interface RunInterpretedTutorialScriptParams {
   script: TutorialScriptPayload;
@@ -137,7 +138,6 @@ async function playDemoOneChord(
   }
   await sleep(0.25, signal);
   handle.emitChordNameText(chord.displayName);
-  await sleep(0.6, signal);
   runAttack(handle, attack);
   await sleep(0.6, signal);
   handle.clearEnemies();
@@ -228,8 +228,9 @@ async function runKeyboardSetup(
     o.hideChordPad = false;
   });
 
+  const hadDeviceInitially = await hasWebMidiInputDeviceInitially();
   const midiIn5s = await waitForMidiNoteOrTimeout(midiWaitSeconds);
-  if (midiIn5s) {
+  if (midiIn5s || hadDeviceInitially) {
     ui.setNarrationText(isEnglishCopy ? 'Connected' : '接続できました');
     await sleep(0.6, signal);
     ui.setNarrationText(
@@ -244,7 +245,7 @@ async function runKeyboardSetup(
     ui.setNarrationText(
       isEnglishCopy ? "Let's use the on-screen keyboard." : '画面鍵盤で試しましょう',
     );
-    await sleep(0.8, signal);
+    await sleep(2, signal);
     ui.setNarrationText(
       isEnglishCopy
         ? 'Start by making sound. You can plug in a keyboard later.'

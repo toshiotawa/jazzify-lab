@@ -2,7 +2,7 @@
   "version": 2,
   "audioTracks": {
     "main_bgm": {
-      "resolveFrom": "progression",
+      "url": "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3",
       "defaultLoop": true,
       "defaultVolume": 0.45
     },
@@ -162,7 +162,7 @@
       "isActive": true,
       "hideHud": true,
       "hideStageTitle": false,
-      "hideHintBadge": false,
+      "hideHintBadge": true,
       "hidePauseButton": false,
       "hideKillCounter": false,
       "hideTimerDisplay": false,
@@ -261,7 +261,7 @@
       "isActive": true,
       "hideHud": true,
       "hideStageTitle": false,
-      "hideHintBadge": false,
+      "hideHintBadge": true,
       "hidePauseButton": false,
       "hideKillCounter": false,
       "hideTimerDisplay": false,
@@ -324,6 +324,7 @@
       "bChordCompletionUseSpecial": false
     },
     "scene4Cleanup": {
+      "hideHintBadge": true,
       "hideChordSlots": true,
       "hideStaff": true,
       "scenarioStaffClef": 1,
@@ -338,7 +339,7 @@
       "isActive": true,
       "hideHud": true,
       "hideStageTitle": false,
-      "hideHintBadge": false,
+      "hideHintBadge": true,
       "hidePauseButton": false,
       "hideKillCounter": false,
       "hideTimerDisplay": false,

@@ -1655,6 +1655,7 @@ export const createMagicNameText = (x: number, y: number, magicType: MagicType):
   y: y - 40,
   damage: 0,
   text: MAGIC_DISPLAY_NAMES[magicType],
+  textKind: 'magic-name',
   color: MAGIC_DISPLAY_COLORS[magicType],
   startTime: Date.now(),
   duration: 1500,
@@ -1666,9 +1667,10 @@ export const createChordNameText = (x: number, y: number, chordName: string): Da
   y: y - 44,
   damage: 0,
   text: chordName,
+  textKind: 'chord-name',
   color: '#d9f2ff',
   startTime: Date.now(),
-  duration: 800,
+  duration: 1000,
 });
 
 // ===== 抽選可能な魔法取得（効果継続中の魔法を除外） =====

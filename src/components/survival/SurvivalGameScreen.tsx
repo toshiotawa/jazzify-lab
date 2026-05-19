@@ -1477,8 +1477,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
-    if (scenarioUserInputPulseRef) scenarioUserInputPulseRef.current += 1;
-    if (scenarioMidiNoteReceivedRef) scenarioMidiNoteReceivedRef.current = true;
+    const scenario = scenarioOverridesRef.current;
+    const midiBlocked = scenario.isActive && scenario.blockMidiGameInput;
+    const inputFullyBlocked =
+      scenario.isActive && scenario.blockMidiGameInput && scenario.blockChordPadInput;
+
+    if (!inputFullyBlocked && scenarioUserInputPulseRef) {
+      scenarioUserInputPulseRef.current += 1;
+    }
+    if (!midiBlocked && scenarioMidiNoteReceivedRef) {
+      scenarioMidiNoteReceivedRef.current = true;
+    }
 
     setGameState(prev => {
       // ゲームオーバーまたはポーズ中は何もしない

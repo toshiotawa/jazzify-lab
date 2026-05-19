@@ -20,6 +20,7 @@ import {
 } from '@/components/survival/tutorial/tutorialRunnerRegistry';
 import type { RunTutorialIiViScriptParams } from '@/components/survival/tutorial/tutorialIiViScript';
 import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
+import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -181,11 +182,9 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
         try {
           const row = await fetchSurvivalTutorialScript(scriptId);
-          if (row.script.audioTracks) {
-            audio.setTracks(row.script.audioTracks);
-          }
+          audio.setTracks(row.script.audioTracks ?? TUTORIAL_DRUM_LOOP_AUDIO_TRACKS);
         } catch {
-          /* audio defaults */
+          audio.setTracks(TUTORIAL_DRUM_LOOP_AUDIO_TRACKS);
         }
 
         const abort = new AbortController();

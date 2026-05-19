@@ -6,6 +6,7 @@ import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { SurvivalScenarioHandle } from '@/components/survival/scenario/survivalScenarioHandle';
 import { TUTORIAL_BOOTSTRAP_OVERRIDES } from '@/components/survival/scenario/survivalScenarioTypes';
 import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
+import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
 import { runOnboardingScript } from '@/components/onboarding/runOnboardingScript';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
 import { useAuthStore } from '@/stores/authStore';
@@ -84,6 +85,7 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
       const run = async () => {
         const audio = new TutorialAudioController();
         audioRef.current = audio;
+        audio.setTracks(TUTORIAL_DRUM_LOOP_AUDIO_TRACKS);
         await audio.ensureBgmSettings();
 
         const abort = new AbortController();
