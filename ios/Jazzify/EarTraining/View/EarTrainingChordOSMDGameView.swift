@@ -83,9 +83,6 @@ struct EarTrainingChordOSMDGameView: View {
         if let pack = prewarmOsmdPack {
             isLoading = true
             loadError = nil
-            if pack.controller.gameState == .idle {
-                pack.controller.start()
-            }
             attachMidiFinishOsmdBootstrap(createdController: pack.controller, audioInstance: pack.audio)
             return
         }
@@ -137,7 +134,6 @@ struct EarTrainingChordOSMDGameView: View {
                 createdController.tutorialHooks = tutorialHooks
             }
 
-            createdController.start()
             attachMidiFinishOsmdBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
@@ -178,6 +174,9 @@ struct EarTrainingChordOSMDGameView: View {
         self.audio = audioInstance
         self.controller = createdController
         self.isLoading = false
+        if createdController.gameState == .idle {
+            createdController.start()
+        }
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
     }
 }
@@ -527,6 +526,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard !isTornDown else { return }
             guard message.name == EarTrainingOSMDScoreWebView.osmdRenderScriptMessageName else { return }
             let body = message.body as? [String: Any]
             let type = body?["type"] as? String ?? "unknown"

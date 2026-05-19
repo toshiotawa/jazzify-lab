@@ -65,6 +65,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             recomputeVoicingHints()
             if oldValue?.id != activeChord?.id {
                 updatePlayerQuoteBubble()
+                updateTutorialVoicingDialogueIfNeeded()
             }
         }
     }

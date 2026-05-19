@@ -89,9 +89,6 @@ struct EarTrainingChordVoicingGameView: View {
         if let pack = prewarmVoicingPack {
             isLoading = true
             loadError = nil
-            if pack.controller.gameState == .idle {
-                pack.controller.start()
-            }
             attachMidiFinishVoicingBootstrap(createdController: pack.controller, audioInstance: pack.audio)
             return
         }
@@ -135,7 +132,6 @@ struct EarTrainingChordVoicingGameView: View {
                 createdController.tutorialHooks = tutorialHooks
             }
 
-            createdController.start()
             attachMidiFinishVoicingBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
@@ -176,6 +172,9 @@ struct EarTrainingChordVoicingGameView: View {
         self.audio = audioInstance
         self.controller = createdController
         self.isLoading = false
+        if createdController.gameState == .idle {
+            createdController.start()
+        }
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
     }
 }

@@ -198,8 +198,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const tutorialUi = tutorial?.bindings.ui;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const [tutorialQuestionsAnswered, setTutorialQuestionsAnswered] = useState(0);
-  /** 正解直後の遷移待ちでは進めない（プレビュー小節の表示制御用）。 */
-  const [tutorialQuestionIndex, setTutorialQuestionIndex] = useState(0);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -352,12 +350,12 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return false;
     }
     if (tutorial) {
-      const target = Math.max(1, tutorial.scene.questionCount);
-      return tutorialQuestionIndex + 1 < target;
+      const target = Math.max(1, tutorial.scene.questionCount ?? 1);
+      return tutorialQuestionsAnswered + 1 < target;
     }
     const required = Math.max(1, stage.quiz_required_correct_count ?? 10);
     return correctCount + 1 < required;
-  }, [activeQuestion, correctCount, previewQuestion, stage.quiz_required_correct_count, tutorial, tutorialQuestionIndex]);
+  }, [activeQuestion, correctCount, previewQuestion, stage.quiz_required_correct_count, tutorial, tutorialQuestionsAnswered]);
   const activeChord = useMemo(
     () => getActiveChordInQuizQuestion(activeQuestion, attempt?.completedChordIds),
     [activeQuestion, attempt],
@@ -579,9 +577,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     if (quizQuestions.length === 0) {
       return;
     }
-    if (tutorial) {
-      setTutorialQuestionIndex((prev) => prev + 1);
-    }
     const nextActiveIdx = previewQuestionIndex;
     const nextQuestion = quizQuestions[nextActiveIdx];
     if (!nextQuestion) {
@@ -610,7 +605,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     }
     if (tutorial) {
       setTutorialQuestionsAnswered(0);
-      setTutorialQuestionIndex(0);
     }
     clearStaffShiftQueue();
     clearCountdownTimer();

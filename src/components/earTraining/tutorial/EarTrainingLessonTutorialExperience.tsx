@@ -19,7 +19,6 @@ import type {
   EarTrainingTutorialScene,
   EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
-import { EarTrainingLandscapeTutorialShell } from './EarTrainingLandscapeTutorialShell';
 import { preloadEarTrainingTutorialBattleChunks } from './preloadEarTrainingTutorialBattleChunks';
 
 export interface EarTrainingLessonTutorialExperienceProps {
@@ -226,7 +225,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
           : 'fixed inset-0 z-50 bg-black'
       }
     >
-      <EarTrainingLandscapeTutorialShell>
+      <div className="relative h-full min-h-0 w-full overflow-hidden">
         {showExit ? (
           <button
             type="button"
@@ -265,7 +264,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
           ctaLabel={tutorialFinishCtaLabel(isEnglishCopy)}
           earTutorialDialogPlacement={earTutorialDialogPlacement}
         />
-      </EarTrainingLandscapeTutorialShell>
+      </div>
 
       {showCta ? (
         <div className="pointer-events-auto absolute inset-0 z-[120] flex items-center justify-center bg-black/50 px-4">

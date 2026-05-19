@@ -38,8 +38,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     var tutorialQuestionTarget: Int = 0
     private var tutorialQuestionsAnswered: Int = 0
-    /// チュートリアル出題インデックス（正解直後の遷移待ちでは進めない）。
-    private var tutorialCurrentQuestionIndex: Int = 0
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
@@ -141,7 +139,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         else { return false }
         if tutorialHooks != nil {
             let target = max(1, tutorialQuestionTarget)
-            return tutorialCurrentQuestionIndex + 1 < target
+            return tutorialQuestionsAnswered + 1 < target
         }
         let required = max(1, stage.quizRequiredCorrectCount ?? 10)
         return correctCount + 1 < required
@@ -328,7 +326,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
         if tutorialHooks != nil {
             tutorialQuestionsAnswered = 0
-            tutorialCurrentQuestionIndex = 0
         }
         lessonProgressStatus = nil
         progressSaveStarted = false
@@ -717,9 +714,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     private func advanceAfterCorrect() {
-        if tutorialHooks != nil {
-            tutorialCurrentQuestionIndex += 1
-        }
         phraseRunId &+= 1
         activeQuizIndex = previewQuizIndex
         previewQuizIndex = EarTrainingChordQuiz.pickNextQuizIndex(
