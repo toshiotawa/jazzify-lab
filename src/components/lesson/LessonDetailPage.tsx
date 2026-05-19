@@ -53,13 +53,6 @@ import {
     FaDownload,
     FaExternalLinkAlt,
     FaHome,
-    FaBullseye,
-    FaTrophy,
-    FaMagic,
-    FaSkull,
-    FaList,
-    FaEdit,
-    FaBell
 } from 'react-icons/fa';
 import { useGameActions } from '@/stores/helpers';
 import { 
@@ -71,7 +64,6 @@ import {
   clearNavigationCacheForCourse,
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
-import { NavLinkKey } from '@/types';
 import {
   getStageByNumber,
   resolveLessonSurvivalMapCategory,
@@ -80,34 +72,6 @@ import {
   STAGE_KILL_QUOTA,
   STAGE_TIME_LIMIT_SECONDS,
 } from '@/components/survival/SurvivalStageDefinitions';
-
-const NAV_LINK_CONFIG: Record<NavLinkKey, { hash: string; icon: React.ReactNode; color: string }> = {
-  dashboard:   { hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
-  legend:      { hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
-  lesson:      { hash: '#lessons',      icon: <FaTrophy className="text-sm" />,     color: 'bg-purple-700 hover:bg-purple-600' },
-  fantasy:     { hash: '#fantasy',      icon: <FaMagic className="text-sm" />,      color: 'bg-pink-700 hover:bg-pink-600' },
-  survival:    { hash: '#survival',     icon: <FaSkull className="text-sm" />,      color: 'bg-red-700 hover:bg-red-600' },
-  ranking:     { hash: '#ranking',      icon: <FaList className="text-sm" />,       color: 'bg-yellow-700 hover:bg-yellow-600' },
-  mission:     { hash: '#missions',     icon: <FaBullseye className="text-sm" />,   color: 'bg-orange-700 hover:bg-orange-600' },
-  diary:       { hash: '#diary',        icon: <FaEdit className="text-sm" />,       color: 'bg-pink-600 hover:bg-pink-500' },
-  information: { hash: '#information',  icon: <FaBell className="text-sm" />,       color: 'bg-blue-700 hover:bg-blue-600' },
-};
-
-const getNavLinkLabel = (key: NavLinkKey, isEnglishCopy: boolean): string => {
-  const labels: Record<NavLinkKey, { en: string; ja: string }> = {
-    dashboard: { en: 'Dashboard', ja: 'ダッシュボード' },
-    legend: { en: 'Dashboard', ja: 'ダッシュボード' },
-    lesson: { en: 'Quests', ja: 'クエスト' },
-    fantasy: { en: 'Fantasy', ja: 'ファンタジー' },
-    survival: { en: 'Survival', ja: 'サバイバル' },
-    ranking: { en: 'Ranking', ja: 'ランキング' },
-    mission: { en: 'Missions', ja: 'ミッション' },
-    diary: { en: 'Diary', ja: '日記' },
-    information: { en: 'News', ja: 'お知らせ' },
-  };
-  const row = labels[key];
-  return isEnglishCopy ? row.en : row.ja;
-};
 
 /**
  * レッスン詳細画面
@@ -1154,32 +1118,6 @@ const LessonDetailPage: React.FC = () => {
                   )}
                 </div>
               )}
-
-            {/* ナビゲーションリンクボタン */}
-            {lesson?.nav_links && lesson.nav_links.length > 0 && (
-              <div className="bg-slate-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">
-                  {isEnglishCopy ? 'Quick links' : 'ページ移動'}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {lesson.nav_links.map(key => {
-                    const cfg = NAV_LINK_CONFIG[key];
-                    if (!cfg) return null;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => { window.location.hash = cfg.hash; }}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors ${cfg.color}`}
-                      >
-                        {cfg.icon}
-                        {getNavLinkLabel(key, isEnglishCopy)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* 完了ボタンセクション（manual_completion_disabled 時は非表示） */}
             {!lesson?.manual_completion_disabled && (

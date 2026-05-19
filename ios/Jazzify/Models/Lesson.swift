@@ -131,7 +131,6 @@ struct LessonDetail: Codable, Identifiable, Sendable {
     let descriptionEn: String?
     let assignmentDescription: String?
     let assignmentDescriptionEn: String?
-    let navLinks: [String]?
     let lessonSongs: [LessonSong]
     let blockNumber: Int?
     let blockName: String?
