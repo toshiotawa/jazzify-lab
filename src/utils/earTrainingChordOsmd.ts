@@ -1,8 +1,8 @@
 import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank } from '@/types';
 import { musicXmlKeySignatureAlter, parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
-/** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 150ms） */
-export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.15;
+/** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 250ms） */
+export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.25;
 /** カウントイン中に最初のターゲットのハンマーも投げきれるよう、リードを短めにする */
 export const CHORD_OSMD_HAMMER_LEAD_SEC = 2.4;
 export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.2;
