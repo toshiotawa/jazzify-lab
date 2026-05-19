@@ -183,6 +183,15 @@ private struct EarTrainingChordQuizContent: View {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 audio: audio,
+                stageRunMode: controller.lessonContext.map { _ in
+                    EarTrainingStageRunModeConfig(
+                        practiceMode: controller.practiceMode,
+                        onApplyPracticeModeAndRestart: { mode in
+                            controller.applyPracticeModeAndRestart(mode)
+                            controller.handleCloseSettings()
+                        }
+                    )
+                },
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )

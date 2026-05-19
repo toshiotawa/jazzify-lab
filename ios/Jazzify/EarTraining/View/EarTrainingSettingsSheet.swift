@@ -1,14 +1,23 @@
 import SwiftUI
 
+/// レッスン経由時の本番 / 練習切替＋最初から再開（Web `practiceRunMode` / Survival `SurvivalStageRunModeConfig` 相当）。
+struct EarTrainingStageRunModeConfig {
+    let practiceMode: Bool
+    let onApplyPracticeModeAndRestart: (Bool) -> Void
+}
+
 /// 耳コピバトル ゲーム画面の設定モーダル。Web `EarTrainingSettingsModal.tsx` と項目を一致させる:
+/// - （任意）練習 / 本番 + 最初から挑戦
 /// - MIDI デバイス選択
 /// - マスター / フレーズ音源 / 入力ピアノ / 効果音 のスライダー
 struct EarTrainingSettingsSheet: View {
     let isEnglishCopy: Bool
     let audio: EarTrainingAudio
+    var stageRunMode: EarTrainingStageRunModeConfig?
     let onDismiss: () -> Void
     let onExit: () -> Void
 
+    @State private var practiceDraft: Bool = false
     @State private var masterVolume: Double = Self.loadDouble(key: Self.masterKey, fallback: 1.0)
     @State private var musicVolume: Double = Self.loadDouble(key: Self.musicKey, fallback: 0.7)
     @State private var pianoVolume: Double = Double(SurvivalGameAudio.shared.pianoVolume)
@@ -24,6 +33,10 @@ struct EarTrainingSettingsSheet: View {
                 Text(isEnglishCopy ? "Battle mode settings" : "バトルモード設定")
                     .font(.title3.bold())
                     .foregroundStyle(.white)
+
+                if let stageRunMode {
+                    stageRunModeSection(stageRunMode)
+                }
 
                 volumeBlock
                 midiSection
@@ -61,11 +74,77 @@ struct EarTrainingSettingsSheet: View {
         }
         .onAppear {
             midiManager.refreshDevices()
+            if let stageRunMode {
+                practiceDraft = stageRunMode.practiceMode
+            }
+        }
+        .onChange(of: stageRunMode?.practiceMode) { newValue in
+            if let newValue {
+                practiceDraft = newValue
+            }
         }
         .onDisappear {
             applyAll()
             persistAll()
         }
+    }
+
+    private func stageRunModeSection(_ config: EarTrainingStageRunModeConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(isEnglishCopy ? "Practice / Performance" : "練習 / 本番")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color(hex: "67e8f9"))
+
+            runModeRadio(title: isEnglishCopy ? "Performance" : "本番", selected: !practiceDraft) {
+                practiceDraft = false
+            }
+            runModeRadio(title: isEnglishCopy ? "Practice" : "練習", selected: practiceDraft) {
+                practiceDraft = true
+            }
+
+            Button {
+                config.onApplyPracticeModeAndRestart(practiceDraft)
+            } label: {
+                Text(isEnglishCopy ? "Restart from beginning" : "適用して最初から挑戦")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color(hex: "06b6d4"))
+                    .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+
+            Text(isEnglishCopy
+                 ? "Practice mode does not save lesson progress."
+                 : "練習モードではレッスン進捗は保存されません。")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.55))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.cyan.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.cyan.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private func runModeRadio(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? Color(hex: "06b6d4") : .gray)
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Spacer(minLength: 0)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var volumeBlock: some View {

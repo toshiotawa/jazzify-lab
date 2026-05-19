@@ -65,7 +65,6 @@ import BackgroundWall from './parts/BackgroundWall';
 import DescentCharacter from './parts/DescentCharacter';
 import DescentSidePanel from './DescentSidePanel';
 import { useDescentCamera } from './useDescentCamera';
-import SurvivalRunPrepModal from '../SurvivalRunPrepModal';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
   id: row.id,
@@ -343,7 +342,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [stageClearCounts, setStageClearCounts] = useState<Map<number, number>>(() => new Map());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
-  const [prepModalOpen, setPrepModalOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(() => {
     return !getWindow().matchMedia('(min-width: 768px)').matches;
@@ -747,12 +745,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       setShowPaywall(true);
       return;
     }
-    setPrepModalOpen(true);
+    void runConfirmedStageStart(hintMode);
   }, [
     selectedStage,
     isStageUnlocked,
     freeTierAccessOnly,
     freeTierStageNumberSet,
+    hintMode,
+    runConfirmedStageStart,
   ]);
 
   const frontierPosition = getStagePosition(frontierStageNumber, mapCategory);
@@ -1051,20 +1051,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           </div>
         </div>
       )}
-
-      <SurvivalRunPrepModal
-        isOpen={prepModalOpen}
-        variant="map"
-        stage={selectedStage}
-        isEnglishCopy={isEnglishCopy}
-        initialHintMode={hintMode}
-        onCancel={() => setPrepModalOpen(false)}
-        onConfirm={(h) => {
-          setHintMode(h);
-          setPrepModalOpen(false);
-          void runConfirmedStageStart(h);
-        }}
-      />
 
       <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
     </div>

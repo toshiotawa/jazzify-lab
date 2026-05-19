@@ -247,6 +247,12 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         publishSnapshot()
     }
 
+    func applyPracticeModeAndRestart(_ value: Bool) {
+        guard canChangePracticeMode else { return }
+        practiceMode = value
+        startBattle()
+    }
+
     /// CADisplayLink などから毎フレーム呼ぶ。ゲージ進行と満了時の敵攻撃。
     func tickQuizAttackGauge(now: TimeInterval) {
         guard gameState == .playingPhrase, !practiceMode, !quizEnded else {

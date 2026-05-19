@@ -107,6 +107,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         enemyId: String,
         enemyName: String,
         audio: EarTrainingAudio,
+        initialPracticeMode: Bool = false,
         onExit: @escaping () -> Void
     ) {
         self.stage = stage
@@ -125,7 +126,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         self.statusText = isEnglishCopy
             ? "Press START to begin OSMD rhythm battle."
             : "STARTでOSMDリズムバトルを開始します"
-        self.practiceMode = false
+        self.practiceMode = initialPracticeMode
+    }
+
+    func applyPracticeModeAndRestart(_ value: Bool) {
+        guard canChangePracticeMode else { return }
+        practiceMode = value
+        if !value {
+            voicingHintIntensities = [:]
+        }
+        startBattle()
     }
 
     func attachScene(_ scene: EarTrainingBattleSceneHandle) {

@@ -1186,6 +1186,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     timeLabel,
   ]);
 
+  const practiceRunModeConfig = useMemo(
+    () => (
+      onPracticeModeRestartFromSettings
+        ? {
+            practiceMode,
+            onApplyPracticeModeAndRestart: onPracticeModeRestartFromSettings,
+          }
+        : undefined
+    ),
+    [onPracticeModeRestartFromSettings, practiceMode],
+  );
+
   const battleCallbacks = useMemo(() => ({
     onStart: startBattle,
     onBack,
@@ -1213,14 +1225,16 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       feedback === 'miss' && 'bg-red-950',
       feedback === 'clear' && 'bg-white text-slate-950',
     )}>
-      <EarTrainingPhaserGame
-        ref={phaserGameRef}
-        snapshot={battleSnapshot}
-        effectCommand={battleEffectCommand}
-        callbacks={battleCallbacks}
-        className="h-full w-full"
-        disableCorrectSe
-      />
+      <div className={cn('relative h-full w-full', showLobbyControls ? 'z-30' : 'z-0')}>
+        <EarTrainingPhaserGame
+          ref={phaserGameRef}
+          snapshot={battleSnapshot}
+          effectCommand={battleEffectCommand}
+          callbacks={battleCallbacks}
+          className="h-full w-full"
+          disableCorrectSe
+        />
+      </div>
 
       <EarTrainingChordOSMDScore
         musicXmlText={musicXmlText}
@@ -1231,6 +1245,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         highlightSnapshot={osmdHighlightSnapshot}
         chordOsmdXmlAttacks={chordOsmdXmlAttacks}
         hidden={showLobbyControls}
+        scoreZClassName={showLobbyControls ? 'z-0' : 'z-10'}
       />
 
       <EarTrainingPianoOverlay
@@ -1246,14 +1261,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
-        practiceRunMode={
-          onPracticeModeRestartFromSettings
-            ? {
-                practiceMode,
-                onApplyPracticeModeAndRestart: onPracticeModeRestartFromSettings,
-              }
-            : undefined
-        }
+        practiceRunMode={practiceRunModeConfig}
       />
     </div>
   );

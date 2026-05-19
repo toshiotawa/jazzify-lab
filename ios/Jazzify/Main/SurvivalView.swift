@@ -30,8 +30,6 @@ struct SurvivalView: View {
     /// 同じステージを連続再生したいケースではセッションがリセットされないと状態が残る問題が発生する。
     /// セッションごとに一意の UUID で包んで `fullScreenCover(item:)` を確実に再マウントさせる。
     @State private var stageLaunchSession: StageLaunchSession?
-    /// 開始前の本番 / HINT 確認シート用（Web `SurvivalRunPrepModal` 相当）
-    @State private var runPrepStage: SurvivalStageDefinition?
     @State private var showSubscription: Bool = false
     /// `fetchSurvivalStages` が成功した時刻。Basic/Songs 切替では TTL 内はカタログ再取得を省略する。
     @State private var survivalStagesFetchedAt: Date?
@@ -192,20 +190,6 @@ struct SurvivalView: View {
                 )
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
-            }
-            .sheet(item: $runPrepStage) { stage in
-                SurvivalRunPrepSheet(
-                    stage: stage,
-                    locale: locale,
-                    initialHintMode: hintMode,
-                    onCancel: { runPrepStage = nil },
-                    onConfirm: { selectedHint in
-                        hintMode = selectedHint
-                        runPrepStage = nil
-                        SurvivalMapAudio.shared.stop()
-                        stageLaunchSession = StageLaunchSession(stage: stage, hintMode: selectedHint)
-                    }
-                )
             }
             .fullScreenCover(item: $stageLaunchSession) { session in
                 SurvivalGameView(
@@ -383,7 +367,8 @@ struct SurvivalView: View {
         }
         guard isStageUnlocked(stage.stageNumber) else { return }
         mobileDetailStage = nil
-        runPrepStage = stage
+        SurvivalMapAudio.shared.stop()
+        stageLaunchSession = StageLaunchSession(stage: stage, hintMode: hintMode)
     }
 
     private func loadProgress(showBlockingLoader: Bool = true, forceCatalogFetch: Bool = false) async {

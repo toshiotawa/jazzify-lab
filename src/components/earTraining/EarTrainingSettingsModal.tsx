@@ -55,7 +55,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
     if (isOpen && practiceRunMode) {
       setPracticeDraft(practiceRunMode.practiceMode);
     }
-  }, [isOpen, practiceRunMode]);
+  }, [isOpen, practiceRunMode?.practiceMode]);
 
   if (!isOpen) {
     return null;

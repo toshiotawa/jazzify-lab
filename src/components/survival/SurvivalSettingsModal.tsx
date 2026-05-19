@@ -101,7 +101,7 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
     if (isOpen && stageRunMode) {
       setRunHintDraft(stageRunMode.hintMode);
     }
-  }, [isOpen, stageRunMode]);
+  }, [isOpen, stageRunMode?.hintMode]);
 
   const handleMidiDeviceChange = (deviceId: string | null) => {
     setMidiDeviceId(deviceId);

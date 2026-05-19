@@ -268,6 +268,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         enemyId: String,
         enemyName: String,
         audio: EarTrainingAudio,
+        initialPracticeMode: Bool = false,
         onExit: @escaping () -> Void
     ) {
         self.stage = stage
@@ -280,7 +281,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         self.onExitCallback = onExit
         self.hudLabels = EarTrainingBattleHudLabels.make(isEnglish: isEnglishCopy)
         self.copy = EarTrainingGameCopy.make(isEnglish: isEnglishCopy)
-        self.practiceMode = lessonContext == nil ? false : false
+        self.practiceMode = initialPracticeMode
         self.enemyHp = stage.enemyHp
         self.playerHp = stage.playerHp
         self.timeRemaining = stage.timeLimitSec
@@ -346,6 +347,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     func setPracticeMode(_ value: Bool) {
         guard canChangePracticeMode else { return }
         practiceMode = value
+    }
+
+    func applyPracticeModeAndRestart(_ value: Bool) {
+        guard canChangePracticeMode else { return }
+        practiceMode = value
+        startBattle()
     }
 
     func startBattle() {

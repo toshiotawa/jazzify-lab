@@ -13,6 +13,7 @@ struct EarTrainingChordVoicingGameView: View {
     let source: EarTrainingStageSource
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
+    var initialPracticeMode: Bool = false
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordVoicingBattleController?
@@ -110,6 +111,7 @@ struct EarTrainingChordVoicingGameView: View {
                 enemyId: stageDetail.id.uuidString,
                 enemyName: stageDetail.localizedTitle(locale),
                 audio: audioInstance,
+                initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
 
@@ -183,6 +185,15 @@ private struct EarTrainingChordVoicingContent: View {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 audio: audio,
+                stageRunMode: controller.lessonContext.map { _ in
+                    EarTrainingStageRunModeConfig(
+                        practiceMode: controller.practiceMode,
+                        onApplyPracticeModeAndRestart: { mode in
+                            controller.applyPracticeModeAndRestart(mode)
+                            controller.handleCloseSettings()
+                        }
+                    )
+                },
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )

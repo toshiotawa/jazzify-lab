@@ -43,6 +43,27 @@ const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
 const MIN_SCENE_REBUILD_INTERVAL_MS = 50;
+
+/** レイアウト・ロビー・キャラ構成が変わるときだけフル rebuild するためのキー（HP 等は除外）。 */
+const computeStructuralSnapshotKey = (snapshot: EarTrainingBattleSnapshot): string => [
+  snapshot.gameState,
+  snapshot.showLobbyControls ? 1 : 0,
+  snapshot.practiceMode ? 1 : 0,
+  snapshot.phraseRunId,
+  snapshot.playerAvatarUrl,
+  snapshot.enemyAvatarUrl,
+  snapshot.enemyAvatarFlipX ? 1 : 0,
+  snapshot.fixedCharacterPositions ? 1 : 0,
+  snapshot.resultState ?? '',
+  snapshot.chordHudHidden ? 1 : 0,
+  snapshot.phraseSlotsHidden ? 1 : 0,
+  snapshot.attackGaugeHidden ? 1 : 0,
+  snapshot.timeLabelHidden ? 1 : 0,
+  snapshot.startButtonLabel,
+  snapshot.quizRulesLine ?? '',
+  snapshot.lessonProgressText ?? '',
+  snapshot.demoLoopActive ? 1 : 0,
+].join('|');
 const AUTO_IDLE_MIN_MS = 1000;
 const AUTO_IDLE_MAX_MS = 2500;
 const RECOVER_IDLE_MIN_MS = 500;
@@ -251,6 +272,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private lastCharacterBuildKey: string | null = null;
   private lastSceneRebuildAt = 0;
   private sceneRebuildTimer: Phaser.Time.TimerEvent | null = null;
+  private lastStructuralSnapshotKey: string | null = null;
 
   constructor() {
     super({ key: 'EarTrainingBattleScene' });
@@ -272,6 +294,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   shutdown(): void {
     this.isReady = false;
+    this.lastStructuralSnapshotKey = null;
     this.pendingSceneRebuild = false;
     this.clearOsmdHammers();
     this.stopAllCharacterMotion();
@@ -297,7 +320,13 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.isReady) {
       return;
     }
-    this.queueSceneRebuild();
+    const structuralKey = computeStructuralSnapshotKey(snapshot);
+    if (structuralKey !== this.lastStructuralSnapshotKey) {
+      this.lastStructuralSnapshotKey = structuralKey;
+      this.queueSceneRebuild();
+    } else {
+      this.rebuildHudLayers();
+    }
     this.loadAvatarTextures(snapshot);
     this.syncCharacterLifeState(snapshot);
   }
@@ -420,13 +449,33 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const effectLayer = this.effectLayer ?? this.add.container(0, 0);
     this.effectLayer = effectLayer;
 
+    this.drawHudLayers(width, height);
+    this.children.bringToTop(effectLayer);
+  }
+
+  /** HP・ゲージ・フレーズ進行など。キャラ・ロビー・START は触らない。 */
+  private rebuildHudLayers(): void {
+    if (!this.isReady || !this.snapshot) {
+      return;
+    }
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    this.clearUiScene();
+    this.hudLayer = this.add.container(0, 0);
+    this.phraseLayer = this.add.container(0, 0);
+    this.drawHudLayers(width, height);
+    if (this.effectLayer) {
+      this.children.bringToTop(this.effectLayer);
+    }
+  }
+
+  private drawHudLayers(width: number, height: number): void {
     this.drawHud(width);
     this.drawCharacterStatus(width, height);
     this.drawPhraseIntro(width, height);
     this.drawCountInOverlay(width, height);
     this.drawPhraseSlots(width, height);
     this.drawLobbyOverlay(width, height);
-    this.children.bringToTop(effectLayer);
   }
 
   private queueSceneRebuild(): void {

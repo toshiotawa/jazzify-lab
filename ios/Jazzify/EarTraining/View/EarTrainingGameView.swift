@@ -27,6 +27,7 @@ struct EarTrainingGameView: View {
                     source: .id(stageId),
                     lessonContext: lessonContext,
                     locale: locale,
+                    initialPracticeMode: initialPracticeMode,
                     onClose: onClose
                 )
             } else if resolvedMode == .chordQuiz {
@@ -42,6 +43,7 @@ struct EarTrainingGameView: View {
                     source: .id(stageId),
                     lessonContext: lessonContext,
                     locale: locale,
+                    initialPracticeMode: initialPracticeMode,
                     onClose: onClose
                 )
             } else if let controller = controller, let audio = audio {

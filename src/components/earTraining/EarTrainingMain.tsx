@@ -16,8 +16,6 @@ import {
   getEarTrainingMainCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import EarTrainingRunPrepModal from './EarTrainingRunPrepModal';
-
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -93,13 +91,11 @@ const EarTrainingMain: React.FC = () => {
     [params],
   );
 
-  const [lessonPrepDone, setLessonPrepDone] = useState(false);
   const [confirmedPracticeMode, setConfirmedPracticeMode] = useState(initialPracticeMode);
   const [earSessionNonce, setEarSessionNonce] = useState(0);
 
   useEffect(() => {
     if (lessonContext) {
-      setLessonPrepDone(false);
       setConfirmedPracticeMode(initialPracticeMode);
       setEarSessionNonce(0);
     }
@@ -233,26 +229,6 @@ const EarTrainingMain: React.FC = () => {
           </div>
         </div>
       </div>
-    );
-  }
-
-  const stageReadyForLessonRun =
-    !!stage &&
-    (!!params.get('stageId') || stages.length <= 1 || stagePicked);
-
-  if (lessonContext && !lessonPrepDone && stageReadyForLessonRun) {
-    return (
-      <EarTrainingRunPrepModal
-        isOpen
-        stage={stage}
-        isEnglishCopy={isEnglishCopy}
-        initialPracticeMode={initialPracticeMode}
-        onCancel={handleBack}
-        onConfirm={practice => {
-          setConfirmedPracticeMode(practice);
-          setLessonPrepDone(true);
-        }}
-      />
     );
   }
 

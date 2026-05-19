@@ -19,6 +19,8 @@ interface EarTrainingChordOSMDScoreProps {
   chordOsmdXmlAttacks: readonly ChordOsmdMusicXmlAttack[] | null;
   /** ロビーやリザルト表示中など、譜面を裏に隠したい場合に true。マウントは維持する。 */
   hidden?: boolean;
+  /** ロビー時は Phaser より下（`z-0`）、プレイ中は `z-10` など。 */
+  scoreZClassName?: string;
 }
 
 interface OsmdLayout {
@@ -284,6 +286,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   highlightSnapshot,
   chordOsmdXmlAttacks,
   hidden = false,
+  scoreZClassName = 'z-10',
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -508,7 +511,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
         ref={viewportRef}
         aria-hidden={hidden}
         className={cn(
-          'ear-training-osmd-score pointer-events-none absolute left-1/2 top-[42%] z-10 h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden',
+          'ear-training-osmd-score pointer-events-none absolute left-1/2 top-[42%] h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden',
+          scoreZClassName,
           hidden && 'invisible',
         )}
       >
