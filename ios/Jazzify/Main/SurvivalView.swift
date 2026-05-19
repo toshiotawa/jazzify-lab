@@ -456,7 +456,7 @@ private struct SurvivalMapCategoryToggle: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(SurvivalMapCategory.allCases, id: \.self) { category in
+            ForEach(SurvivalMapCategory.descentDisplayCategories, id: \.self) { category in
                 let selected = category == value
                 Button(action: {
                     if selected { return }
@@ -509,6 +509,7 @@ private struct SurvivalMapCategoryToggle: View {
         case .basic: return "Basic"
         case .songs: return "Songs"
         case .phrases: return "Phrases"
+        case .lesson: return "Lesson"
         }
     }
 }

@@ -28,5 +28,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.BASE_URL': JSON.stringify('/'),
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify('http://localhost'),
+    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify('vitest-anon-key'),
   },
 });

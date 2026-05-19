@@ -18,8 +18,12 @@ enum SurvivalMapCategory: String, Codable, Sendable, CaseIterable, Hashable {
     case basic
     case songs
     case phrases
+    case lesson
 
     static let `default`: SurvivalMapCategory = .basic
+
+    /// 降下マップ UI に載せるカテゴリ（`lesson` はレッスン専用ステージ用ネームスペース）
+    static let descentDisplayCategories: [SurvivalMapCategory] = [.basic, .songs, .phrases]
 }
 
 enum SurvivalDifficulty: String, Codable, Sendable, CaseIterable {
@@ -168,6 +172,8 @@ struct SurvivalStageRow: Decodable, Sendable {
     let block_key: String
     let is_mixed_stage: Bool?
     let mixed_group_key: String?
+    /// DB `lesson_only`。降下マップのカタログから除外する。
+    let lesson_only: Bool?
     /// Progression 用コード進行（`[{"name": "FM7", "voicing": [65, 69, 72, 76]}, ...]`）
     let chord_progression: [SurvivalChordProgressionEntry]?
 }
@@ -362,6 +368,9 @@ enum SurvivalStageCatalog {
         ]
 
         let definitions: [SurvivalStageDefinition] = rows.compactMap { row in
+            if row.lesson_only == true {
+                return nil
+            }
             let mapCategory = SurvivalMapCategory(rawValue: row.map_category ?? "") ?? .basic
             let stageType = SurvivalStageType(rawValue: row.stage_type) ?? .random
             let blockKeyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)

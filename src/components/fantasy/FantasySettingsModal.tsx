@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { useGameStore } from '@/stores/gameStore';
 import type { DisplayLang } from '@/utils/display-note';
+import type { FantasyPlayMode } from './FantasyGameEngine';
 
 /** 鍵盤上の音名表示スタイル */
 type KeyboardNoteNameStyle = 'off' | 'abc' | 'solfege';
@@ -33,6 +34,10 @@ interface FantasySettingsModalProps {
   showKeyboardGuide?: boolean;
   /** 英語UI（プロフィール・ロケール等に連動） */
   isEnglishCopy?: boolean;
+  lessonRunMode?: {
+    playMode: FantasyPlayMode;
+    onApplyPlayModeAndRestart: (next: FantasyPlayMode) => void;
+  };
 }
 
 interface FantasySettings {
@@ -64,7 +69,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   isDailyChallenge = false,
   isPracticeMode = false,
   showKeyboardGuide = false,
-  isEnglishCopy = false
+  isEnglishCopy = false,
+  lessonRunMode,
 }) => {
   const { settings: gameSettings, updateSettings: updateGameSettings } = useGameStore();
   const en = isEnglishCopy;
@@ -125,6 +131,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, showKeyboardGuide: showKeyboardGuide }));
   }, [showKeyboardGuide]);
+
+  const [lessonPlayDraft, setLessonPlayDraft] = useState<FantasyPlayMode>('challenge');
+  useEffect(() => {
+    if (isOpen && lessonRunMode) {
+      setLessonPlayDraft(lessonRunMode.playMode);
+    }
+  }, [isOpen, lessonRunMode]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
@@ -557,6 +570,46 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             </div>
           )}
         </div>
+
+        {lessonRunMode && !isDailyChallenge ? (
+          <div className="mb-5 rounded-xl border border-purple-600/40 bg-purple-950/30 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-purple-100">
+              {en ? 'Practice / Performance' : '練習 / 本番'}
+            </h3>
+            <div className="mb-3 flex flex-col gap-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="radio"
+                  name="fantasy-settings-lesson-run-mode"
+                  checked={lessonPlayDraft === 'challenge'}
+                  onChange={() => setLessonPlayDraft('challenge')}
+                  className="radio radio-xs radio-secondary"
+                />
+                {en ? 'Performance (challenge)' : '本番（チャレンジ）'}
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="radio"
+                  name="fantasy-settings-lesson-run-mode"
+                  checked={lessonPlayDraft === 'practice'}
+                  onChange={() => setLessonPlayDraft('practice')}
+                  className="radio radio-xs radio-secondary"
+                />
+                {en ? 'Practice' : '練習'}
+              </label>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm w-full font-sans"
+              onClick={() => {
+                lessonRunMode.onApplyPlayModeAndRestart(lessonPlayDraft);
+                onClose();
+              }}
+            >
+              {en ? 'Apply & restart from beginning' : '適用して最初から挑戦'}
+            </button>
+          </div>
+        ) : null}
 
         <div className="flex justify-end space-x-3 mt-6">
           <button

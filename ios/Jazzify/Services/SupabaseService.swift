@@ -296,6 +296,7 @@ final class SupabaseService: Sendable {
                 is_survival,
                 is_ear_training,
                 survival_stage_number,
+                survival_map_category,
                 clear_conditions,
                 order_index,
                 title,

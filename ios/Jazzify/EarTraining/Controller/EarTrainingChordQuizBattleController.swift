@@ -131,6 +131,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         isEnglishCopy: Bool,
         enemyId: String,
         audio: EarTrainingAudio,
+        initialPracticeMode: Bool = false,
         onExit: @escaping () -> Void
     ) {
         self.stage = stage
@@ -147,7 +148,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         self.quizDurationSec = stage.resolvedQuizDurationSeconds
         self.timeRemaining = stage.resolvedQuizDurationSeconds
         self.statusText = copy.idlePrompt
-        self.practiceMode = false
+        self.practiceMode = initialPracticeMode
         self.playerHp = stage.playerHp
         self.enemyHp = Self.quizEnemyHpFixed
     }

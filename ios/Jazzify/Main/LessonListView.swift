@@ -1505,6 +1505,8 @@ private struct EarTrainingLaunch: Identifiable {
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
+    /// Web `#ear-training-lesson?practice=1` 相当。
+    var initialPracticeMode: Bool = false
 }
 
 struct LessonDetailView: View {
@@ -1656,6 +1658,7 @@ struct LessonDetailView: View {
                     clearConditions: launch.clearConditions
                 ),
                 locale: locale,
+                initialPracticeMode: launch.initialPracticeMode,
                 onClose: { earTrainingLaunch = nil }
             )
         }
@@ -2632,6 +2635,11 @@ struct LessonDetailView: View {
         return URL(string: "https://iframe.mediadelivery.net/embed/295659/\(video.vimeoUrl)?autoplay=false")
     }
 
+    private func survivalLessonMapCategory(_ requirement: LessonSong) -> String {
+        let raw = requirement.survivalMapCategory?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return raw.isEmpty ? "basic" : raw
+    }
+
     private func launchRequirement(_ requirement: LessonSong) {
         let bn = lesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
@@ -2659,6 +2667,7 @@ struct LessonDetailView: View {
                         "lessonId": lesson.id.uuidString,
                         "lessonSongId": requirement.id.uuidString,
                         "stageNumber": String(stageNumber),
+                        "mapCategory": survivalLessonMapCategory(requirement),
                         "clearConditions": encodeClearConditions(requirement.clearConditions) ?? ""
                     ]
                 )

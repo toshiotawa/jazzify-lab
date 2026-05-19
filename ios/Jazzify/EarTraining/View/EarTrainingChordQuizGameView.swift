@@ -8,6 +8,7 @@ struct EarTrainingChordQuizGameView: View {
     let source: EarTrainingStageSource
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
+    var initialPracticeMode: Bool = false
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordQuizBattleController?
@@ -103,6 +104,7 @@ struct EarTrainingChordQuizGameView: View {
                 isEnglishCopy: locale == .en,
                 enemyId: stageDetail.id.uuidString,
                 audio: audioInstance,
+                initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
 

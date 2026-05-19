@@ -10,6 +10,7 @@ struct EarTrainingGameView: View {
     let stageId: UUID
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
+    var initialPracticeMode: Bool = false
     let onClose: () -> Void
 
     @State private var controller: EarTrainingBattleController?
@@ -33,6 +34,7 @@ struct EarTrainingGameView: View {
                     source: .id(stageId),
                     lessonContext: lessonContext,
                     locale: locale,
+                    initialPracticeMode: initialPracticeMode,
                     onClose: onClose
                 )
             } else if resolvedMode == .chordOSMD {

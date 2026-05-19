@@ -1172,6 +1172,14 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
     },
   }));
 
+  const lessonIdleSkippedRef = useRef(false);
+  useEffect(() => {
+    if (!lessonMode || !lessonSkipIdleAutoStart || lessonIdleSkippedRef.current) return;
+    if (!isInitialized) return;
+    lessonIdleSkippedRef.current = true;
+    void startGame(playMode, 1.0);
+  }, [lessonMode, lessonSkipIdleAutoStart, isInitialized, playMode, startGame]);
+
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
     if (!isDailyChallenge) return;
@@ -2377,6 +2385,14 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
         isPracticeMode={playMode === 'practice'}
         showKeyboardGuide={showKeyboardGuide}
         isEnglishCopy={isEnglishCopy}
+        lessonRunMode={
+          lessonMode && onLessonPlayModeRestartFromSettings
+            ? {
+                playMode,
+                onApplyPlayModeAndRestart: onLessonPlayModeRestartFromSettings,
+              }
+            : undefined
+        }
       />
       
       {/* オーバーレイ表示 */}           {/* ★★★ add */}

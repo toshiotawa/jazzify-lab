@@ -15,12 +15,12 @@ import {
   fetchAllStages,
   getStagesByCategory,
   getStageByNumber,
-  rebuildDescentBlocks,
-  rebuildDescentLayouts,
   resolveLessonSurvivalMapCategory,
   STAGE_TIME_LIMIT_SECONDS,
   STAGE_KILL_QUOTA,
 } from '@/components/survival/SurvivalStageDefinitions';
+import { rebuildDescentBlocks } from '@/components/survival/descent/descentBlocks';
+import { rebuildDescentLayouts } from '@/components/survival/descent/descentLayout';
 import { SURVIVAL_MAP_CATEGORIES, type SurvivalMapCategory } from '@/components/survival/SurvivalTypes';
 import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey } from '@/platform/r2Storage';
 import {
