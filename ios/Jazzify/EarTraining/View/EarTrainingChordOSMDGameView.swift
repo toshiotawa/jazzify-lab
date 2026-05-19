@@ -278,7 +278,9 @@ private struct EarTrainingChordOSMDContent: View {
                         musicXMLText: musicXMLText,
                         activeMeasureNumber: controller.activeMeasureNumber,
                         renderKey: controller.phraseRunId,
-                        zoom: osmdZoom
+                        zoom: osmdZoom,
+                        xmlAttacksJSON: controller.osmdXmlAttacksJSON,
+                        highlightSnapshotJSON: controller.osmdHighlightSnapshotJSON
                     )
                 } else {
                     VStack(spacing: 10) {
@@ -399,6 +401,10 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     let renderKey: Int
     /// OSMD の描画倍率。コンテナ高さを変えずに譜面を縮小する（主に iPhone）。
     let zoom: Double
+    /// Swift `collectChordOsmdMusicXmlAttacks` の JSON 配列（UTF-8）。音符ハイライト突き合わせ用。
+    let xmlAttacksJSON: String
+    /// Swift `refreshOsmdHighlightSnapshot` と同型の JSON（UTF-8）。
+    let highlightSnapshotJSON: String
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -434,7 +440,9 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             musicXMLText: musicXMLText,
             renderKey: renderKey,
             activeMeasureNumber: activeMeasureNumber,
-            zoom: zoom
+            zoom: zoom,
+            xmlAttacksJSON: xmlAttacksJSON,
+            highlightSnapshotJSON: highlightSnapshotJSON
         )
     }
 
@@ -454,10 +462,13 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var pendingRenderKey: Int?
         private var pendingMeasureNumber: Int?
         private var pendingZoom: Double = 1.0
+        private var pendingXmlAttacksJSON: String = "[]"
+        private var pendingHighlightSnapshotJSON: String = "{\"activeMeasureNumber\":1,\"targets\":[]}"
         private var lastRenderedMusicXMLText: String?
         private var lastRenderedKey: Int?
         private var lastRenderedZoom: Double?
         private var lastMeasureNumber: Int?
+        private var lastSentHighlightJSON: String?
 
         func attach(_ webView: WKWebView) {
             self.webView = webView
@@ -483,11 +494,21 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             flushPending(webView: webView)
         }
 
-        func update(webView: WKWebView, musicXMLText: String, renderKey: Int, activeMeasureNumber: Int, zoom: Double) {
+        func update(
+            webView: WKWebView,
+            musicXMLText: String,
+            renderKey: Int,
+            activeMeasureNumber: Int,
+            zoom: Double,
+            xmlAttacksJSON: String,
+            highlightSnapshotJSON: String,
+        ) {
             pendingMusicXMLText = musicXMLText
             pendingRenderKey = renderKey
             pendingMeasureNumber = activeMeasureNumber
             pendingZoom = zoom
+            pendingXmlAttacksJSON = xmlAttacksJSON
+            pendingHighlightSnapshotJSON = highlightSnapshotJSON
             guard htmlReady else { return }
             flushPending(webView: webView)
         }
@@ -498,28 +519,44 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                   let key = pendingRenderKey,
                   let measure = pendingMeasureNumber else { return }
             let nextZoom = pendingZoom
+            let attacksJson = pendingXmlAttacksJSON
+            let highlightJson = pendingHighlightSnapshotJSON
             let needsRender = lastRenderedMusicXMLText != xml
                 || lastRenderedKey != key
                 || lastRenderedZoom.map { abs($0 - nextZoom) > 0.000_1 } ?? true
+
             if needsRender {
                 lastRenderedMusicXMLText = xml
                 lastRenderedKey = key
                 lastRenderedZoom = nextZoom
                 lastMeasureNumber = measure
+                lastSentHighlightJSON = highlightJson
                 let literal = Self.javaScriptStringLiteral(xml)
                 let z = Self.javascriptNumber(nextZoom)
+                let attacksB64 = Self.base64UTF8(attacksJson)
+                let highlightB64 = Self.base64UTF8(highlightJson)
                 let script = """
-                window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
+                window.JazzifyOSMD.renderMusicXML(\(literal), \(z), '\(attacksB64)').then(function() {
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
+                  window.JazzifyOSMD.setHighlightSnapshot('\(highlightB64)');
                 });
                 """
                 Self.evaluate(script, on: webView)
                 return
             }
+            if lastSentHighlightJSON != highlightJson {
+                lastSentHighlightJSON = highlightJson
+                let highlightB64 = Self.base64UTF8(highlightJson)
+                Self.evaluate("window.JazzifyOSMD.setHighlightSnapshot('\(highlightB64)');", on: webView)
+            }
             if lastMeasureNumber != measure {
                 lastMeasureNumber = measure
                 Self.evaluate("window.JazzifyOSMD.setActiveMeasure(\(measure));", on: webView)
             }
+        }
+
+        private static func base64UTF8(_ string: String) -> String {
+            Data(string.utf8).base64EncodedString()
         }
 
         private static func evaluate(_ script: String, on webView: WKWebView) {
@@ -571,7 +608,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           overflow: hidden;
           background: transparent;
         }
-        #score {
+        #scoreWrap {
           position: absolute;
           top: 50%;
           left: 0;
@@ -581,7 +618,22 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           transition: transform 160ms ease-out;
           will-change: transform;
         }
-        #score canvas, #score svg {
+        #measureBand {
+          display: none;
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          z-index: 1;
+          pointer-events: none;
+          background: rgba(243, 152, 0, 0.12);
+          border-radius: 2px;
+        }
+        #osmdHost {
+          position: relative;
+          z-index: 2;
+          min-width: 100%;
+        }
+        #osmdHost canvas, #osmdHost svg {
           display: block;
           background: transparent !important;
         }
@@ -599,18 +651,26 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     </head>
     <body>
       <div id="viewport">
-        <div id="score"></div>
+        <div id="scoreWrap">
+          <div id="measureBand"></div>
+          <div id="osmdHost"></div>
+        </div>
         <div id="status">Loading OSMD...</div>
       </div>
       <script>
         (function() {
           const viewport = document.getElementById('viewport');
-          const score = document.getElementById('score');
+          const scoreWrap = document.getElementById('scoreWrap');
+          const measureBand = document.getElementById('measureBand');
+          const score = document.getElementById('osmdHost');
           const status = document.getElementById('status');
           let osmd = null;
           let measureCentersByNumber = {};
+          let measureBoundsByNumber = {};
           let scoreWidth = 0;
           let cssScale = 1;
+          let attackIndex = new Map();
+          let coloredNotes = [];
 
           function finiteNum(value) {
             return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -623,12 +683,267 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Array.isArray(raw) ? raw : [];
           }
 
+          var OSMD_NOTE_COLORING = {
+            applyToNoteheads: true,
+            applyToStem: true,
+            applyToBeams: true,
+            applyToFlag: true,
+            applyToLedgerLines: true,
+            applyToTies: true,
+            applyToSlurs: true,
+          };
+
+          var COL_DEFAULT = '#ffffff';
+          var COL_JUDGMENT = '#f39800';
+          var COL_CORRECT = '#22c55e';
+          var COL_FAILED = '#ef4444';
+
+          function chordOsmdAttackLookupKey(measureNumber, beatStartInMeasure) {
+            return (
+              String(Math.floor(measureNumber)) +
+              '|' +
+              (typeof beatStartInMeasure === 'number' && Number.isFinite(beatStartInMeasure)
+                ? beatStartInMeasure.toFixed(6)
+                : '0')
+            );
+          }
+
+          function multisetEqualSorted(a, b) {
+            if (!a || !b || a.length !== b.length) return false;
+            var sa = a.slice().sort(function (x, y) {
+              return x - y;
+            });
+            var sb = b.slice().sort(function (x, y) {
+              return x - y;
+            });
+            for (var i = 0; i < sa.length; i += 1) {
+              if (sa[i] !== sb[i]) return false;
+            }
+            return true;
+          }
+
+          function hasPitchHead(gn) {
+            var sn = gn && gn.sourceNote;
+            if (!sn) return false;
+            if (typeof sn.isRest === 'function' && sn.isRest()) return false;
+            if (sn.NoteTie && sn.NoteTie.StartNote === false) return false;
+            return !!(sn.Pitch || sn.pitch || sn.TransposedPitch || sn.transposedPitch);
+          }
+
+          function osmdGraphicalNoteToMidi(gn) {
+            var h = gn && gn.sourceNote && gn.sourceNote.halfTone;
+            if (typeof h !== 'number' || !Number.isFinite(h)) return null;
+            var rounded = Math.round(h);
+            if (rounded < 0 || rounded > 127) return null;
+            return rounded;
+          }
+
+          function collectOsmdGraphicClusters(osmdInst) {
+            var out = [];
+            var list = readMeasureList(osmdInst);
+            for (var measureIndex = 0; measureIndex < list.length; measureIndex += 1) {
+              var row = list[measureIndex] || [];
+              var measureNumber = measureIndex + 1;
+              for (var ri = 0; ri < row.length; ri += 1) {
+                var gm = row[ri];
+                if (!gm) continue;
+                var staffEntries = gm.staffEntries || [];
+                for (var sei = 0; sei < staffEntries.length; sei += 1) {
+                  var se = staffEntries[sei];
+                  var chordNotes = [];
+                  var gves = se.graphicalVoiceEntries || [];
+                  for (var gi = 0; gi < gves.length; gi += 1) {
+                    var gve = gves[gi];
+                    var notes = gve.notes || [];
+                    for (var ni = 0; ni < notes.length; ni += 1) {
+                      var note = notes[ni];
+                      if (hasPitchHead(note)) chordNotes.push(note);
+                    }
+                  }
+                  if (chordNotes.length === 0) continue;
+                  var midis = [];
+                  var notesArr = [];
+                  for (var ci = 0; ci < chordNotes.length; ci += 1) {
+                    var m = osmdGraphicalNoteToMidi(chordNotes[ci]);
+                    if (m !== null) {
+                      midis.push(m);
+                      notesArr.push(chordNotes[ci]);
+                    }
+                  }
+                  if (midis.length === 0) continue;
+                  var seX = finiteNum(se.PositionAndShape && se.PositionAndShape.AbsolutePosition && se.PositionAndShape.AbsolutePosition.x);
+                  if (seX === null) seX = Number.POSITIVE_INFINITY;
+                  out.push({
+                    measureNumber: measureNumber,
+                    minX: seX,
+                    midis: midis,
+                    notes: notesArr,
+                  });
+                }
+              }
+            }
+            return out;
+          }
+
+          function groupAttacksByMeasure(attacks) {
+            var by = new Map();
+            for (var i = 0; i < attacks.length; i += 1) {
+              var a = attacks[i];
+              var m = a.measureNumber;
+              var lst = by.get(m);
+              if (lst) lst.push(a);
+              else by.set(m, [a]);
+            }
+            by.forEach(function (list) {
+              list.sort(function (x, y) {
+                return x.beatStartInMeasure - y.beatStartInMeasure;
+              });
+            });
+            return by;
+          }
+
+          function matchOsmdClustersToXmlAttacks(osmdInst, xmlAttacks) {
+            var result = new Map();
+            if (!xmlAttacks || xmlAttacks.length === 0) return result;
+            var clusters = collectOsmdGraphicClusters(osmdInst);
+            var byMeasureClusters = new Map();
+            for (var ci = 0; ci < clusters.length; ci += 1) {
+              var c = clusters[ci];
+              var lst = byMeasureClusters.get(c.measureNumber);
+              if (lst) lst.push(c);
+              else byMeasureClusters.set(c.measureNumber, [c]);
+            }
+            byMeasureClusters.forEach(function (list) {
+              list.sort(function (a, b) {
+                return a.minX - b.minX;
+              });
+            });
+            var attacksByMeasure = groupAttacksByMeasure(xmlAttacks);
+            attacksByMeasure.forEach(function (attackList, measure) {
+              var clusterList = byMeasureClusters.get(measure) || [];
+              var usedCluster = new Set();
+              for (var ai = 0; ai < attackList.length; ai += 1) {
+                var attack = attackList[ai];
+                var targetMidis = (attack.midis || []).slice();
+                var foundIdx = -1;
+                for (var cj = 0; cj < clusterList.length; cj += 1) {
+                  if (usedCluster.has(cj)) continue;
+                  if (multisetEqualSorted(clusterList[cj].midis, targetMidis)) {
+                    foundIdx = cj;
+                    break;
+                  }
+                }
+                if (foundIdx < 0) continue;
+                usedCluster.add(foundIdx);
+                var cl = clusterList[foundIdx];
+                var notes = cl.notes;
+                var midis = cl.midis;
+                var key = chordOsmdAttackLookupKey(attack.measureNumber, attack.beatStartInMeasure);
+                var byMidi = new Map();
+                for (var k = 0; k < notes.length; k += 1) {
+                  var gn = notes[k];
+                  var mm = midis[k];
+                  var arr = byMidi.get(mm);
+                  if (arr) arr.push(gn);
+                  else byMidi.set(mm, [gn]);
+                }
+                result.set(key, byMidi);
+              }
+            });
+            return result;
+          }
+
+          function earTrainingOsmdNoteColorForMidiInstance(phase, instanceIndex, totalForMidi, remainingForMidi) {
+            if (phase === 'idle') return COL_DEFAULT;
+            if (phase === 'failed') return COL_FAILED;
+            if (phase === 'completed') return COL_CORRECT;
+            var safeTotal = Math.max(0, totalForMidi);
+            var safeRem = Math.max(0, Math.min(safeTotal, remainingForMidi));
+            var consumed = safeTotal - safeRem;
+            var idx = Math.max(0, instanceIndex);
+            if (idx < consumed) return COL_CORRECT;
+            return COL_JUDGMENT;
+          }
+
+          function clearColoredNotes() {
+            for (var i = 0; i < coloredNotes.length; i += 1) {
+              var gn = coloredNotes[i];
+              if (gn && typeof gn.setColor === 'function') {
+                gn.setColor(COL_DEFAULT, OSMD_NOTE_COLORING);
+              }
+            }
+            coloredNotes = [];
+          }
+
+          function updateMeasureBand(measureNumber) {
+            var mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            var b = measureBoundsByNumber[mn];
+            if (!b || typeof b.left !== 'number' || typeof b.right !== 'number') {
+              measureBand.style.display = 'none';
+              return;
+            }
+            measureBand.style.display = 'block';
+            measureBand.style.left = b.left + 'px';
+            measureBand.style.width = Math.max(4, b.right - b.left) + 'px';
+          }
+
+          function setHighlightSnapshot(b64) {
+            clearColoredNotes();
+            if (!b64 || !osmd) return;
+            var jsonText;
+            try {
+              var bin = atob(b64);
+              var bytes = new Uint8Array(bin.length);
+              for (var u = 0; u < bin.length; u += 1) bytes[u] = bin.charCodeAt(u);
+              jsonText = new TextDecoder('utf-8').decode(bytes);
+            } catch (_e) {
+              return;
+            }
+            var snap;
+            try {
+              snap = JSON.parse(jsonText);
+            } catch (_e) {
+              return;
+            }
+            var targets = snap && snap.targets ? snap.targets : [];
+            var index = attackIndex;
+            for (var ti = 0; ti < targets.length; ti += 1) {
+              var row = targets[ti];
+              var phase = typeof row.phase === 'string' ? row.phase : 'idle';
+              if (phase === 'idle' || row.beatOffset === null || row.beatOffset === undefined) continue;
+              var key = chordOsmdAttackLookupKey(row.measureNumber, row.beatOffset);
+              var byMidi = index.get(key);
+              if (!byMidi) continue;
+              var totalByMidi = new Map();
+              var mc = row.midiCounts || [];
+              for (var mi = 0; mi < mc.length; mi += 1) {
+                var entry = mc[mi];
+                if (entry && typeof entry.midi === 'number') totalByMidi.set(entry.midi, entry.count);
+              }
+              byMidi.forEach(function (gnotes, midi) {
+                var total = totalByMidi.get(midi);
+                if (total === undefined) total = 0;
+                var remKey = String(midi);
+                var rem = row.remainingByMidi && row.remainingByMidi[remKey] !== undefined ? row.remainingByMidi[remKey] : 0;
+                for (var gi = 0; gi < gnotes.length; gi += 1) {
+                  var gn = gnotes[gi];
+                  var color = earTrainingOsmdNoteColorForMidiInstance(phase, gi, total, rem);
+                  if (gn && typeof gn.setColor === 'function') {
+                    gn.setColor(color, OSMD_NOTE_COLORING);
+                    coloredNotes.push(gn);
+                  }
+                }
+              });
+            }
+          }
+
           function collectMeasureCentersFromMeasureList(gs, surface, viewportWidth) {
             const boundingWidth = finiteNum(gs && gs.BoundingBox && gs.BoundingBox.width) || 0;
             const renderedWidth =
               surface && surface.getBoundingClientRect ? surface.getBoundingClientRect().width || 0 : 0;
             const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
             const out = {};
+            const boundsOut = {};
             let maxX = 0;
 
             const list = readMeasureList({ GraphicSheet: gs });
@@ -682,13 +997,16 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
               if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
                 out[measureNumber] = (noteMinX + noteMaxX) / 2;
+                boundsOut[measureNumber] = { left: noteMinX, right: noteMaxX };
               } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
                 out[measureNumber] = (measureMinX + measureMaxX) / 2;
+                boundsOut[measureNumber] = { left: measureMinX, right: measureMaxX };
               }
             }
 
             return {
               measureCentersByNumber: out,
+              measureBoundsByNumber: boundsOut,
               scoreWidth: Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2),
             };
           }
@@ -767,19 +1085,23 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
 
             const out = {};
+            const boundsOut = {};
             const boundsKeys = Object.keys(byNumberBounds);
             for (let ki = 0; ki < boundsKeys.length; ki += 1) {
               const num = Number(boundsKeys[ki]);
               const b = byNumberBounds[num];
               if (Number.isFinite(b.nMin) && Number.isFinite(b.nMax)) {
                 out[num] = (b.nMin + b.nMax) / 2;
+                boundsOut[num] = { left: b.nMin, right: b.nMax };
               } else if (Number.isFinite(b.mMin) && Number.isFinite(b.mMax)) {
                 out[num] = (b.mMin + b.mMax) / 2;
+                boundsOut[num] = { left: b.mMin, right: b.mMax };
               }
             }
 
             return {
               measureCentersByNumber: out,
+              measureBoundsByNumber: boundsOut,
               scoreWidth: Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2),
             };
           }
@@ -790,6 +1112,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             const viewportWidth = viewport.clientWidth || 0;
             if (!graphicSheet) {
               measureCentersByNumber = {};
+              measureBoundsByNumber = {};
               scoreWidth = viewportWidth;
               return;
             }
@@ -797,11 +1120,13 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             const mnKeys = Object.keys(primary.measureCentersByNumber);
             if (mnKeys.length > 0) {
               measureCentersByNumber = primary.measureCentersByNumber;
+              measureBoundsByNumber = primary.measureBoundsByNumber || {};
               scoreWidth = primary.scoreWidth;
               return;
             }
             const fallback = collectMeasureCentersFromStaffLines(graphicSheet, surface, viewportWidth);
             measureCentersByNumber = fallback.measureCentersByNumber;
+            measureBoundsByNumber = fallback.measureBoundsByNumber || {};
             scoreWidth = fallback.scoreWidth;
           }
 
@@ -854,11 +1179,17 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return rect.height || surface.height || 0;
           }
 
-          async function renderMusicXML(xmlText, zoomValue) {
+          async function renderMusicXML(xmlText, zoomValue, attacksB64) {
+            attackIndex = new Map();
+            clearColoredNotes();
             score.replaceChildren();
             measureCentersByNumber = {};
+            measureBoundsByNumber = {};
             cssScale = 1;
-            score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+            scoreWrap.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+            scoreWrap.style.width = '';
+            score.style.transform = '';
+            measureBand.style.display = 'none';
             status.textContent = 'Rendering...';
             status.style.display = 'grid';
 
@@ -895,19 +1226,41 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               } else {
                 cssScale = 1;
               }
-              score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              scoreWrap.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
               await new Promise(function (resolve) {
                 requestAnimationFrame(resolve);
               });
 
               measureLayoutFromOsmd();
-              score.style.width = scoreWidth + 'px';
+              scoreWrap.style.width = scoreWidth + 'px';
+
+              var attacks = [];
+              if (attacksB64 && typeof attacksB64 === 'string' && attacksB64.length > 0) {
+                try {
+                  var aBin = atob(attacksB64);
+                  var aBytes = new Uint8Array(aBin.length);
+                  for (var ai = 0; ai < aBin.length; ai += 1) aBytes[ai] = aBin.charCodeAt(ai);
+                  var attacksJson = new TextDecoder('utf-8').decode(aBytes);
+                  var parsed = JSON.parse(attacksJson);
+                  if (Array.isArray(parsed)) attacks = parsed;
+                } catch (_parseErr) {
+                  attacks = [];
+                }
+              }
+              if (attacks.length > 0) {
+                attackIndex = matchOsmdClustersToXmlAttacks(osmd, attacks);
+              } else {
+                attackIndex = new Map();
+              }
+
               renderSucceeded = true;
               postOsmdMessage('ready', '');
             } catch (err) {
               const msg = err && err.message ? String(err.message) : String(err);
               status.textContent = 'Could not render MusicXML.';
               postOsmdMessage('error', msg);
+              attackIndex = new Map();
+              clearColoredNotes();
             } finally {
               if (renderSucceeded) {
                 status.style.display = 'none';
@@ -917,6 +1270,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function setActiveMeasure(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            updateMeasureBand(mn);
             const dict = measureCentersByNumber;
             const pick = dict && dict[mn];
             const pick1 = dict && dict[1];
@@ -926,14 +1280,15 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 : typeof pick1 === 'number' && Number.isFinite(pick1)
                   ? pick1
                   : viewport.clientWidth / 2;
-            const maxOffset = Math.max(0, scoreWidth - viewport.clientWidth);
-            const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
-            score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
+            const maxOffset = Math.max(0, scoreWidth * cssScale - viewport.clientWidth);
+            const offset = Math.max(0, Math.min(maxOffset, center * cssScale - viewport.clientWidth / 2));
+            scoreWrap.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
           }
 
           window.JazzifyOSMD = {
             renderMusicXML,
-            setActiveMeasure
+            setActiveMeasure,
+            setHighlightSnapshot,
           };
         })();
       </script>

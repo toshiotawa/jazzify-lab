@@ -65,6 +65,11 @@ import {
   normalizeChordOsmdMusicXml,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
+import {
+  resolveEarTrainingOsmdHighlightPhase,
+  type EarTrainingOsmdHighlightSnapshot,
+  type EarTrainingOsmdHighlightTargetRow,
+} from '@/utils/earTrainingOsmdHighlight';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -86,6 +91,7 @@ interface RuntimeTargetState {
   remainingCounts: Map<number, number>;
   completed: boolean;
   failed: boolean;
+  inJudgmentWindow: boolean;
   hammerEffectId?: number;
 }
 
@@ -166,6 +172,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
+  const activeMeasureNumberRef = useRef(1);
+  const [osmdHighlightSnapshot, setOsmdHighlightSnapshot] = useState<EarTrainingOsmdHighlightSnapshot>({
+    activeMeasureNumber: 1,
+    targets: [],
+  });
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const [scoreErrorText, setScoreErrorText] = useState<string | null>(null);
   const chordOsmdXmlAttacks = useMemo(
@@ -205,6 +216,43 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const totalJudgedTargetsRef = useRef(0);
   const lastRankRef = useRef<EarTrainingRank | null>(null);
 
+  useEffect(() => {
+    activeMeasureNumberRef.current = activeMeasureNumber;
+  }, [activeMeasureNumber]);
+
+  const buildOsmdHighlightSnapshot = useCallback((): EarTrainingOsmdHighlightSnapshot => {
+    const rows: EarTrainingOsmdHighlightTargetRow[] = [];
+    for (const target of targetsRef.current) {
+      const st = runtimeByTargetIdRef.current.get(target.id);
+      if (!st) {
+        continue;
+      }
+      const remainingByMidi: Record<string, number> = {};
+      st.remainingCounts.forEach((c, m) => {
+        remainingByMidi[String(m)] = c;
+      });
+      rows.push({
+        id: target.id,
+        measureNumber: target.measureNumber,
+        beatOffset: target.beatOffset ?? null,
+        midiCounts: target.midiCounts,
+        remainingByMidi,
+        phase: resolveEarTrainingOsmdHighlightPhase({
+          completed: st.completed,
+          failed: st.failed,
+          inJudgmentWindow: st.inJudgmentWindow,
+        }),
+      });
+    }
+    return {
+      activeMeasureNumber: activeMeasureNumberRef.current,
+      targets: rows,
+    };
+  }, []);
+
+  const refreshOsmdHighlight = useCallback(() => {
+    setOsmdHighlightSnapshot(buildOsmdHighlightSnapshot());
+  }, [buildOsmdHighlightSnapshot]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { phraseIndexRef.current = phraseIndex; }, [phraseIndex]);
   useEffect(() => { enemyHpRef.current = enemyHp; }, [enemyHp]);
@@ -262,7 +310,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
     });
     setCompletedTargetCount(completed);
-  }, []);
+    refreshOsmdHighlight();
+  }, [refreshOsmdHighlight]);
 
   const syncPracticeVoicingHints = useCallback(() => {
     if (!practiceModeRef.current && !showKeyboardHintsInBattleRef.current) {
@@ -521,6 +570,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         remainingCounts: createChordOsmdRemainingCounts(target),
         completed: false,
         failed: false,
+        inJudgmentWindow: false,
       });
     });
     targetsRef.current = [...nextTargets];
@@ -528,7 +578,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     pianoOverlayRef.current?.clearVoicingHints();
     setTargets([...nextTargets]);
     setCompletedTargetCount(0);
-  }, []);
+    refreshOsmdHighlight();
+  }, [refreshOsmdHighlight]);
 
   const failTargetIfNeeded = useCallback((targetId: string) => {
     const state = runtimeByTargetIdRef.current.get(targetId);
@@ -702,6 +753,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         if (!state || state.completed || state.failed) {
           return;
         }
+        state.inJudgmentWindow = true;
         setActiveMeasureNumber(target.measureNumber);
         publishTargetStates();
       }, openDelayMs);
@@ -727,6 +779,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
       scheduleTimer(() => {
         if (phraseRunIdRef.current === runId) {
+          const st = runtimeByTargetIdRef.current.get(target.id);
+          if (st) {
+            st.inJudgmentWindow = false;
+          }
           failTargetIfNeeded(target.id);
         }
       }, (countInDurationSec + target.targetTimeSec + CHORD_OSMD_JUDGMENT_WINDOW_SEC) * 1000);
@@ -891,6 +947,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const completeTarget = useCallback((target: ChordOsmdRhythmTarget, state: RuntimeTargetState) => {
     state.completed = true;
+    state.inJudgmentWindow = false;
     syncPracticeVoicingHints();
     if (state.hammerEffectId !== undefined) {
       pendingImpactHandlersRef.current.delete(state.hammerEffectId);
@@ -951,12 +1008,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (practiceModeRef.current) {
         syncPracticeVoicingHints();
       }
+      refreshOsmdHighlight();
       if (chordOsmdTargetIsComplete(nextRemaining)) {
         completeTarget(target, state);
       }
       return;
     }
-  }, [completeTarget, syncPracticeVoicingHints]);
+  }, [completeTarget, syncPracticeVoicingHints, refreshOsmdHighlight]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
@@ -1170,6 +1228,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         activeMeasureNumber={activeMeasureNumber}
         renderKeyValue={phraseRunId}
         isEnglishCopy={isEnglishCopy}
+        highlightSnapshot={osmdHighlightSnapshot}
+        chordOsmdXmlAttacks={chordOsmdXmlAttacks}
         hidden={showLobbyControls}
       />
 
