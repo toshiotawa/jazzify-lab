@@ -253,6 +253,8 @@ final class TutorialScriptInterpreter: ObservableObject {
         await waitForFirstInputNote()
         controller.emitAttackOnly(.A)
         await sleep(1.2)
+        narrationText = ""
+        characterText = ""
     }
 
     private func runStep(_ step: TutorialScriptStep) async -> Bool {

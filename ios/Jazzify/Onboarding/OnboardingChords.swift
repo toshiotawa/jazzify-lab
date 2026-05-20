@@ -116,23 +116,12 @@ enum OnboardingChords {
         voicing: [Int],
         voicingNames: [String]
     ) -> SurvivalResolvedChord {
-        var pitchClasses: [Int] = []
-        var seen = Set<Int>()
-        for midi in voicing {
-            let pc = ((midi % 12) + 12) % 12
-            if seen.insert(pc).inserted {
-                pitchClasses.append(pc)
-            }
-        }
-        return SurvivalResolvedChord(
+        SurvivalResolvedChord.fromExplicitTutorialVoicing(
             id: "onboarding-scene3:\(index):\(name)",
-            root: name,
-            quality: .progression,
-            midiNotes: voicing,
-            pitchClasses: pitchClasses,
-            displayName: name,
-            progressionStaffVoicingNames: voicingNames,
-            progressionStaffKeyFifths: 0
+            name: name,
+            voicing: voicing,
+            voicingNames: voicingNames,
+            keyFifths: 0
         )
     }
 }

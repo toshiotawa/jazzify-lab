@@ -75,6 +75,35 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         return ((first % 12) + 12) % 12
     }
 
+    /// Web `resolveTutorialChordRef` / `sceneThreeChord` 相当。台本の `voicingNames` をそのまま譜面へ。
+    /// HINT 鍵盤向け C3 起点再構築（`fromProgressionEntry`）は行わない。
+    public static func fromExplicitTutorialVoicing(
+        id: String,
+        name: String,
+        voicing: [Int],
+        voicingNames: [String],
+        keyFifths: Int = 0
+    ) -> SurvivalResolvedChord {
+        var pitchClasses: [Int] = []
+        var seen = Set<Int>()
+        for midi in voicing {
+            let pc = ((midi % 12) + 12) % 12
+            if seen.insert(pc).inserted {
+                pitchClasses.append(pc)
+            }
+        }
+        return SurvivalResolvedChord(
+            id: id,
+            root: name,
+            quality: .progression,
+            midiNotes: voicing,
+            pitchClasses: pitchClasses,
+            displayName: name,
+            progressionStaffVoicingNames: voicingNames,
+            progressionStaffKeyFifths: min(5, max(-6, keyFifths))
+        )
+    }
+
     /// Progression エントリ（DB の `chord_progression` 由来）から `SurvivalResolvedChord` を構築する。
     /// - `midiNotes` は実音域（鍵盤ハイライト用）。
     /// - `pitchClasses` は重複除去した 0..<12 の集合（オクターブ無視判定用）。

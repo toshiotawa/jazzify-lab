@@ -147,12 +147,21 @@ enum TutorialStageBuilder {
         guard let def = script.chords?[ref] else {
             return nil
         }
-        let entry = SurvivalChordProgressionEntry(
+        guard let names = def.voicingNames, names.count == def.voicing.count else {
+            let entry = SurvivalChordProgressionEntry(
+                name: def.name,
+                voicing: def.voicing,
+                voicingNames: def.voicingNames,
+                keyFifths: def.keyFifths ?? 0
+            )
+            return SurvivalResolvedChord.fromProgressionEntry(entry, index: 0)
+        }
+        return SurvivalResolvedChord.fromExplicitTutorialVoicing(
+            id: "tutorial:\(ref):0:\(def.name)",
             name: def.name,
             voicing: def.voicing,
-            voicingNames: def.voicingNames,
+            voicingNames: names,
             keyFifths: def.keyFifths ?? 0
         )
-        return SurvivalResolvedChord.fromProgressionEntry(entry, index: 0)
     }
 }
