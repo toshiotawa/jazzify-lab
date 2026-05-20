@@ -74,10 +74,13 @@ import {
 import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
 import {
   STAGE_TIME_LIMIT_SECONDS,
-  STAGE_KILL_QUOTA,
   getSurvivalStageBattleKind,
   isBlockLastStage,
 } from './SurvivalStageDefinitions';
+import {
+  getStageKillQuotaForStage,
+  hasBeginnerStageAssistForStage,
+} from './survivalFirstBlockStage';
 import { getBlockForStage } from './descent/descentBlocks';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
 import type { ChordDefinition as SurvivalChordDefinition } from '@/components/fantasy/FantasyGameEngine';
@@ -349,6 +352,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // 出題ロジック判定だけは `stageType === 'progression'` を直接見る。
   const isProgressionStage = stageDefinition?.stageType === 'progression';
   const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
+  const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
+  const beginnerAssistActive = stageDefinition
+    ? hasBeginnerStageAssistForStage(stageDefinition)
+    : false;
+  const shouldShowKeyboardHints = hintMode || beginnerAssistActive;
   const bossType = isBossStage && stageDefinition
     ? (getBlockForStage(stageDefinition.stageNumber, stageDefinition.mapCategory)?.bossType ?? null)
     : null;
@@ -3983,8 +3991,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             ]);
           }
 
-          // ステージモード: 90秒生存 + 撃破ノルマ150体
-          if (newState.wave.waveKills >= STAGE_KILL_QUOTA && !newState.wave.waveCompleted) {
+          // ステージモード: 90秒生存 + 撃破ノルマ
+          if (newState.wave.waveKills >= stageKillQuota && !newState.wave.waveCompleted) {
             newState.wave = { ...newState.wave, waveCompleted: true };
           }
 
@@ -3992,7 +4000,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.isGameOver = true;
             newState.isPlaying = false;
             const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
-            const cleared = newState.enemiesDefeated >= STAGE_KILL_QUOTA;
+            const cleared = newState.enemiesDefeated >= stageKillQuota;
             // クリア音は result の変化を監視する useEffect で一括再生（ボス戦と同一経路）
             setResult({
               survivalTime: newState.elapsedTime,
@@ -4125,7 +4133,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
   
   // リトライ
   const handleRetry = useCallback(() => {
@@ -4284,7 +4292,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ヒントスロット判定（A/B列を交互に表示）
   const getHintSlotIndex = (): number | null => {
-    if (!gameState.player.statusEffects.some(e => e.type === 'hint')) return null;
+    if (!shouldShowKeyboardHints && !gameState.player.statusEffects.some(e => e.type === 'hint')) {
+      return null;
+    }
     
     // 有効で未完了のスロットを収集（A=0, B=1のみ、C=2は除外）
     const availableSlots: number[] = [];
@@ -4346,9 +4356,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       correctNoteIndices: state.correctNoteIndices,
       revealedNoteIndices: state.revealedNoteIndices,
       targetNoteIndex: state.targetNoteIndex,
-      hintMode,
+      hintMode: hintMode || beginnerAssistActive,
     };
-  }, [isPhraseMode, phraseUiTick, hintMode]);
+  }, [isPhraseMode, phraseUiTick, hintMode, beginnerAssistActive]);
 
   const scenarioPhraseStaff = useMemo(() => {
     void scenarioUiTick;
@@ -4463,6 +4473,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     () => computeUnpressedNoteOpacity(elapsedSecondsFloor, {
       hintMode,
       hintBuffActive: playerHasHintBuff,
+      beginnerAssistActive,
       isStageMode,
       isPlaying: gameState.isPlaying,
       isGameOver: gameState.isGameOver,
@@ -4471,6 +4482,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       elapsedSecondsFloor,
       hintMode,
       playerHasHintBuff,
+      beginnerAssistActive,
       isStageMode,
       gameState.isPlaying,
       gameState.isGameOver,
@@ -4570,10 +4582,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     ? 'pt-[calc(max(4px,env(safe-area-inset-top))+80px)]'
     : 'pt-[calc(max(4px,env(safe-area-inset-top))+52px)]';
   
-  // フレーズモード: HINT ON 時は判定対象音をオレンジハイライト
+  // フレーズモード: HINT / 第一ブロックアシスト時は判定対象音をオレンジハイライト
   useEffect(() => {
     if (isPhraseMode) {
-      if (!hintMode) {
+      if (!shouldShowKeyboardHints) {
         pixiRendererRef.current?.clearVoicingHints();
         return undefined;
       }
@@ -4587,7 +4599,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return undefined;
     }
 
-    if (!hintMode) {
+    if (!shouldShowKeyboardHints) {
       pixiRendererRef.current?.clearVoicingHints();
       return undefined;
     }
@@ -4648,7 +4660,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     renderer.setVoicingHints(pendingMidi, completedMidi);
 
     return undefined;
-  }, [isPhraseMode, hintMode, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
+  }, [isPhraseMode, shouldShowKeyboardHints, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
@@ -4905,8 +4917,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 </div>
                 <div className="flex items-center gap-1 text-[10px] md:text-xs shrink-0">
                   {isBossStage ? null : isStageMode && !scenarioHideKill ? (
-                    <span className={cn('font-bold', gameState.enemiesDefeated >= STAGE_KILL_QUOTA ? 'text-green-400' : 'text-white')}>
-                      {gameState.enemiesDefeated}/{STAGE_KILL_QUOTA}
+                    <span className={cn('font-bold', gameState.enemiesDefeated >= stageKillQuota ? 'text-green-400' : 'text-white')}>
+                      {gameState.enemiesDefeated}/{stageKillQuota}
                     </span>
                   ) : isStageMode && scenarioHideKill ? null : (
                     <>

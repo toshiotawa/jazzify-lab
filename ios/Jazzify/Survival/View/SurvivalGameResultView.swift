@@ -38,7 +38,7 @@ struct SurvivalGameResultView: View {
                 resultRow(label: locale == .ja ? "ステージ" : "Stage", value: stage.localizedName(locale))
                 // ボス戦は 1 体撃破なので撃破数表示を省略する
                 if !isBossStage {
-                    resultRow(label: locale == .ja ? "撃破数" : "Enemies", value: "\(enemiesDefeated) / \(SurvivalConstants.stageEnemyQuota)")
+                    resultRow(label: locale == .ja ? "撃破数" : "Enemies", value: "\(enemiesDefeated) / \(stage.stageKillQuota)")
                 }
                 resultRow(label: locale == .ja ? "生存時間" : "Survived", value: timeLabel)
                 resultRow(label: "HP", value: "\(playerHp) / \(playerMaxHp)")

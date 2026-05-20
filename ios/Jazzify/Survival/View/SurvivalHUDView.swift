@@ -48,7 +48,7 @@ struct SurvivalHUDView: View {
                     stageName: stage.localizedName(locale),
                     timeLabel: timeLabel,
                     enemiesDefeated: uiSnapshot.enemiesDefeated,
-                    enemyQuota: SurvivalConstants.stageEnemyQuota,
+                    enemyQuota: stage.stageKillQuota,
                     isBossBattle: bossHud != nil,
                     hintMode: uiSnapshot.hintMode,
                     isPaused: isPaused,

@@ -7,9 +7,9 @@ import type { StageDefinition } from './SurvivalStageDefinitions';
 import {
   formatSurvivalEncounterLabel,
   formatSurvivalStageModeLabel,
-  STAGE_KILL_QUOTA,
   STAGE_TIME_LIMIT_SECONDS,
 } from './SurvivalStageDefinitions';
+import { getStageKillQuotaForStage } from './survivalFirstBlockStage';
 
 export type SurvivalRunPrepVariant = 'lesson' | 'map';
 
@@ -64,14 +64,16 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   const cancelLabel = isEnglishCopy ? 'Back' : '戻る';
   const startLabel = isEnglishCopy ? 'Start' : '開始';
 
+  const stageKillQuota = getStageKillQuotaForStage(stage);
+
   const clearSummary =
     variant === 'lesson'
       ? isEnglishCopy
-        ? `Clear: survive ${STAGE_TIME_LIMIT_SECONDS}s and defeat ${STAGE_KILL_QUOTA} enemies (performance mode saves lesson progress).`
-        : `クリア条件: ${STAGE_TIME_LIMIT_SECONDS}秒生存 + ${STAGE_KILL_QUOTA}体撃破（本番時のみレッスン進捗が保存されます）。`
+        ? `Clear: survive ${STAGE_TIME_LIMIT_SECONDS}s and defeat ${stageKillQuota} enemies (performance mode saves lesson progress).`
+        : `クリア条件: ${STAGE_TIME_LIMIT_SECONDS}秒生存 + ${stageKillQuota}体撃破（本番時のみレッスン進捗が保存されます）。`
       : isEnglishCopy
-        ? `Objective: ${STAGE_TIME_LIMIT_SECONDS}s survival + ${STAGE_KILL_QUOTA} defeats (HINT does not record clears).`
-        : `目標: ${STAGE_TIME_LIMIT_SECONDS}秒生存 + ${STAGE_KILL_QUOTA}体撃破（HINT時はクリア記録されません）。`;
+        ? `Objective: ${STAGE_TIME_LIMIT_SECONDS}s survival + ${stageKillQuota} defeats (HINT does not record clears).`
+        : `目標: ${STAGE_TIME_LIMIT_SECONDS}秒生存 + ${stageKillQuota}体撃破（HINT時はクリア記録されません）。`;
 
   return (
     <div

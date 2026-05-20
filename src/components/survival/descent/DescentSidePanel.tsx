@@ -9,6 +9,7 @@ import React from 'react';
 import { cn } from '@/utils/cn';
 import { FaLock, FaCheck, FaPlay } from 'react-icons/fa';
 import { StageDefinition, isBlockLastStage } from '../SurvivalStageDefinitions';
+import { getStageKillQuotaForStage } from '../survivalFirstBlockStage';
 import { BlockMeta } from './descentBlocks';
 
 interface DescentSidePanelProps {
@@ -169,7 +170,9 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                 <dd className="mt-0.5 text-[11px] font-bold text-emerald-300">
                   {isBlockLastStage(selectedStage.stageNumber, selectedStage.mapCategory)
                     ? (isEnglishCopy ? 'Boss x1' : 'ボス x1')
-                    : (isEnglishCopy ? '90s + 150 Kills' : '90秒 + 150体')}
+                    : (isEnglishCopy
+                      ? `90s + ${getStageKillQuotaForStage(selectedStage)} Kills`
+                      : `90秒 + ${getStageKillQuotaForStage(selectedStage)}体`)}
                 </dd>
               </div>
             </dl>

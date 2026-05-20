@@ -44,7 +44,7 @@ struct SurvivalRunPrepSheet: View {
                             label: isEnglishCopy ? "Encounter" : "戦闘",
                             value: stage.runPrepEncounterLabel(locale: locale)
                         )
-                        Text(SurvivalStageDefinition.runPrepClearSummary(locale: locale))
+                        Text(stage.runPrepClearSummary(locale: locale))
                             .font(.caption)
                             .foregroundStyle(.gray)
                             .fixedSize(horizontal: false, vertical: true)

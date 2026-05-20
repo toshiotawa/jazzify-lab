@@ -705,6 +705,31 @@ enum SurvivalStageCatalog {
     }
 }
 
+// MARK: - First block beginner assist (Web `survivalFirstBlockStage.ts` 相当)
+
+extension SurvivalStageDefinition {
+    /// 第一ブロックの通常ステージ（各ブロック末尾のボス戦は除く）。
+    var isFirstBlockRegularStage: Bool {
+        guard !SurvivalBossEngine.isBlockLastStage(stageNumber: stageNumber, in: mapCategory) else {
+            return false
+        }
+        guard let block = SurvivalStageCatalog.block(forStage: stageNumber, in: mapCategory) else {
+            return false
+        }
+        return block.blockIndex == 0
+    }
+
+    /// ステージごとの撃破ノルマ（第一ブロック通常は 10、それ以外は 150）。
+    var stageKillQuota: Int {
+        isFirstBlockRegularStage
+            ? SurvivalConstants.stageFirstBlockEnemyQuota
+            : SurvivalConstants.stageEnemyQuota
+    }
+
+    /// 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロック通常ステージ。
+    var hasBeginnerStageAssist: Bool { isFirstBlockRegularStage }
+}
+
 // MARK: - Run prep UI copy (Web `SurvivalRunPrepModal` / `formatSurvival*` 相当)
 
 extension SurvivalStageDefinition {
@@ -729,9 +754,9 @@ extension SurvivalStageDefinition {
         return locale == .en ? "Regular" : "通常"
     }
 
-    static func runPrepClearSummary(locale: AppLocale) -> String {
+    func runPrepClearSummary(locale: AppLocale) -> String {
         let sec = Int(SurvivalConstants.stageTimeLimitSec)
-        let quota = SurvivalConstants.stageEnemyQuota
+        let quota = stageKillQuota
         if locale == .en {
             return "Objective: survive \(sec)s and defeat \(quota) enemies (HINT runs do not record clears)."
         }

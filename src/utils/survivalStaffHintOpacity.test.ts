@@ -18,6 +18,10 @@ describe('computeUnpressedNoteOpacity', () => {
     expect(computeUnpressedNoteOpacity(29, { ...stageOptions, isGameOver: true })).toBe(1);
   });
 
+  it('第一ブロック通常ステージのアシスト中は常に 1.0', () => {
+    expect(computeUnpressedNoteOpacity(45, { ...stageOptions, beginnerAssistActive: true })).toBe(1);
+  });
+
   it('25秒までは 1.0、26〜29秒で段階的に暗くなり、30秒以降 0.0', () => {
     expect(computeUnpressedNoteOpacity(24.9, stageOptions)).toBe(1);
     expect(computeUnpressedNoteOpacity(25, stageOptions)).toBe(1);

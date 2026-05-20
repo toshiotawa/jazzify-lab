@@ -15,8 +15,10 @@ import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { useToast } from '@/stores/toastStore';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 import {
+  getStageKillQuotaForStage,
+} from './survivalFirstBlockStage';
+import {
   StageDefinition,
-  STAGE_KILL_QUOTA,
   isBlockLastStage,
   getTotalStagesByCategory,
 } from './SurvivalStageDefinitions';
@@ -66,6 +68,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isStageClear = result.isStageClear === true && isStageMode && !hintMode;
   const isStageClearHint = result.isStageClear === true && isStageMode && hintMode;
   const isBossStage = isStageMode && isBlockLastStage(stageDefinition!.stageNumber, stageDefinition!.mapCategory);
+  const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
 
   const handleBackToSelect = () => {
     if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
@@ -244,8 +247,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   </div>
                   <div className="text-sm text-gray-400">
                     {isEnglishCopy
-                      ? `Defeated ${result.enemiesDefeated}/${STAGE_KILL_QUOTA} enemies`
-                      : `撃破数 ${result.enemiesDefeated}/${STAGE_KILL_QUOTA}体`}
+                      ? `Defeated ${result.enemiesDefeated}/${stageKillQuota} enemies`
+                      : `撃破数 ${result.enemiesDefeated}/${stageKillQuota}体`}
                   </div>
                 </div>
               ) : !isStageMode && waveFailedReason === 'quota_failed' ? (

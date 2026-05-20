@@ -4,13 +4,21 @@ export function computeUnpressedNoteOpacity(
   options: {
     readonly hintMode: boolean;
     readonly hintBuffActive: boolean;
+    readonly beginnerAssistActive?: boolean;
     readonly isStageMode: boolean;
     readonly isPlaying: boolean;
     readonly isGameOver: boolean;
   },
 ): number {
-  const { hintMode, hintBuffActive, isStageMode, isPlaying, isGameOver } = options;
-  if (hintMode || hintBuffActive || !isStageMode || !isPlaying || isGameOver) {
+  const {
+    hintMode,
+    hintBuffActive,
+    beginnerAssistActive = false,
+    isStageMode,
+    isPlaying,
+    isGameOver,
+  } = options;
+  if (hintMode || hintBuffActive || beginnerAssistActive || !isStageMode || !isPlaying || isGameOver) {
     return 1;
   }
   const t = Math.floor(elapsedSec);

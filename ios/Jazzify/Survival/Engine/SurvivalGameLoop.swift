@@ -58,8 +58,12 @@ final class SurvivalGameLoop {
 
     /// ヒント鍵盤ハイライトの初期対象スロット（有効な A/B のうち最も若い index）。
     /// Progression は B のみ有効のため `0` 固定だとハイライトが永遠に空になる。
-    private static func initialHintSlotIndex(slots: [SurvivalCodeSlot], hintMode: Bool) -> Int? {
-        guard hintMode else { return nil }
+    private static func initialHintSlotIndex(
+        slots: [SurvivalCodeSlot],
+        hintMode: Bool,
+        beginnerAssistActive: Bool
+    ) -> Int? {
+        guard hintMode || beginnerAssistActive else { return nil }
         if slots.indices.contains(0), slots[0].isEnabled { return 0 }
         if slots.indices.contains(1), slots[1].isEnabled { return 1 }
         return nil
@@ -136,7 +140,11 @@ final class SurvivalGameLoop {
         )
         self.runtime.scenario = scenarioOverrides.toRuntimeState()
 
-        self.currentHintSlotIndex = Self.initialHintSlotIndex(slots: slots, hintMode: mode.hintMode)
+        self.currentHintSlotIndex = Self.initialHintSlotIndex(
+            slots: slots,
+            hintMode: mode.hintMode,
+            beginnerAssistActive: stage.hasBeginnerStageAssist
+        )
 
         let bossNow = CACurrentMediaTime()
         let initialBoss: SurvivalBossBattleState?
@@ -174,6 +182,7 @@ final class SurvivalGameLoop {
             elapsed: runtime.elapsedSeconds,
             hintMode: mode.hintMode,
             hintBuffActive: hintBuffActive,
+            beginnerAssistActive: stage.hasBeginnerStageAssist,
             phase: runtime.phase
         )
         return SurvivalPhraseStaffSnapshot(
@@ -183,7 +192,7 @@ final class SurvivalGameLoop {
             correctNoteIndices: state.correctNoteIndices,
             revealedNoteIndices: state.revealedNoteIndices,
             targetNoteIndex: state.targetNoteIndex,
-            hintMode: mode.hintMode,
+            hintMode: mode.hintMode || stage.hasBeginnerStageAssist,
             unpressedNoteOpacity: Double(opacity)
         )
     }
@@ -230,7 +239,11 @@ final class SurvivalGameLoop {
         )
         runtime.scenario = initialScenarioOverrides.toRuntimeState()
 
-        setHintSlotIndexIfChanged(Self.initialHintSlotIndex(slots: slots, hintMode: mode.hintMode))
+        setHintSlotIndexIfChanged(Self.initialHintSlotIndex(
+            slots: slots,
+            hintMode: mode.hintMode,
+            beginnerAssistActive: stage.hasBeginnerStageAssist
+        ))
 
         if isBoss {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
@@ -288,7 +301,7 @@ final class SurvivalGameLoop {
     // MARK: - ヒント
 
     private func currentHintTargetSlot() -> (index: Int, chord: SurvivalResolvedChord)? {
-        guard runtime.hintMode,
+        guard runtime.hintMode || stage.hasBeginnerStageAssist,
               let idx = currentHintSlotIndex,
               runtime.slots.indices.contains(idx),
               runtime.slots[idx].isEnabled,
@@ -326,7 +339,8 @@ final class SurvivalGameLoop {
     /// 鍵盤ビューは MIDI 完全一致で判定する。
     /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
     func currentHintHighlightMidis() -> Set<Int> {
-        if isPhraseMode, mode.hintMode, let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
+        if isPhraseMode, (mode.hintMode || stage.hasBeginnerStageAssist),
+           let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
             return [midi]
         }
         guard let target = currentHintTargetSlot() else { return [] }
@@ -365,7 +379,7 @@ final class SurvivalGameLoop {
     /// ヒント対象を「A/B のうち有効かつ反対側」へ切り替える。
     /// Progression（B のみ有効）では反対側が無効のため、トリガした側に固定する（Web 版のフォールバック相当）。
     private func advanceHintSlotIndex(triggeredIndex: Int) {
-        guard runtime.hintMode else { return }
+        guard runtime.hintMode || stage.hasBeginnerStageAssist else { return }
         guard triggeredIndex == 0 || triggeredIndex == 1 else { return }
         let preferred = triggeredIndex == 0 ? 1 : 0
         if runtime.slots.indices.contains(preferred), runtime.slots[preferred].isEnabled {
@@ -942,7 +956,7 @@ final class SurvivalGameLoop {
         if !runtime.scenario.disableTimeLimitClear
             && runtime.remainingSeconds <= 0
             && !runtime.scenario.disableKillQuotaClear {
-            let cleared = runtime.enemiesDefeated >= SurvivalConstants.stageEnemyQuota
+            let cleared = runtime.enemiesDefeated >= stage.stageKillQuota
             runtime.phase = cleared ? .cleared : .gameOver
             events.append(.playEffect(cleared ? .stageClear : .stageGameOver))
             events.append(.stageEnded(cleared: cleared))

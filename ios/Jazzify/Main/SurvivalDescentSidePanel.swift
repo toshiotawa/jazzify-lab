@@ -376,7 +376,8 @@ struct SurvivalDescentSidePanel: View {
         if isBossStage(stage) {
             return isEnglishCopy ? "Boss x1" : "ボス x1"
         }
-        return isEnglishCopy ? "90s + 150 Kills" : "90秒 + 150体"
+        let quota = stage.stageKillQuota
+        return isEnglishCopy ? "90s + \(quota) Kills" : "90秒 + \(quota)体"
     }
 
     /// ステージのタイプ表示（Progression / Random）。
