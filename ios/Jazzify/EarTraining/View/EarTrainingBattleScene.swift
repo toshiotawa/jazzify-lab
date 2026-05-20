@@ -22,8 +22,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         base * battleCharacterVisualScale
     }
 
-    /// チュートリアル `dialogue_only` の本文サイズ（標準の約 2 倍）。
-    static var dialogueTutorialQuoteFontPoints: CGFloat { battleLayoutPt(30) }
+    /// チュートリアル `dialogue_only` の本文サイズ（読みやすさと画面幅のバランス）。
+    static var dialogueTutorialQuoteFontPoints: CGFloat { battleLayoutPt(24) }
 
     private static let characterDisplaySize: CGFloat = battleLayoutPt(88)
     private static let characterShadowWidth: CGFloat = battleLayoutPt(82)
@@ -1289,15 +1289,94 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         layoutPlayerQuoteBubble()
     }
 
+    private static func quoteUIFont(forPoints points: CGFloat) -> UIFont {
+        UIFont(name: "AvenirNext-Heavy", size: points) ?? UIFont.systemFont(ofSize: points, weight: .heavy)
+    }
+
+    private static func quoteLineWidth(_ text: String, font: UIFont) -> CGFloat {
+        (text as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    private static func splitOversizedWord(_ word: String, font: UIFont, maxWidth: CGFloat) -> [String] {
+        guard maxWidth > 4 else { return [word] }
+        if quoteLineWidth(word, font: font) <= maxWidth {
+            return [word]
+        }
+        var chunks: [String] = []
+        var chunk = ""
+        for scalar in word {
+            let trial = chunk + String(scalar)
+            if quoteLineWidth(trial, font: font) <= maxWidth {
+                chunk = trial
+            } else {
+                if !chunk.isEmpty {
+                    chunks.append(chunk)
+                }
+                chunk = String(scalar)
+            }
+        }
+        if !chunk.isEmpty {
+            chunks.append(chunk)
+        }
+        return chunks.isEmpty ? [word] : chunks
+    }
+
+    private static func wrapQuoteParagraph(_ paragraph: String, font: UIFont, maxWidth: CGFloat) -> [String] {
+        guard maxWidth > 4 else { return [paragraph] }
+        let words = paragraph.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard !words.isEmpty else { return [] }
+        var lines: [String] = []
+        var current = ""
+        for rawWord in words {
+            let segments = splitOversizedWord(rawWord, font: font, maxWidth: maxWidth)
+            for word in segments {
+                let trial = current.isEmpty ? word : "\(current) \(word)"
+                if quoteLineWidth(trial, font: font) <= maxWidth {
+                    current = trial
+                } else {
+                    if !current.isEmpty {
+                        lines.append(current)
+                    }
+                    current = word
+                }
+            }
+        }
+        if !current.isEmpty {
+            lines.append(current)
+        }
+        return lines
+    }
+
+    private static func wrapQuoteLinesFullText(_ text: String, font: UIFont, maxWidth: CGFloat) -> [String] {
+        let parts = text.components(separatedBy: "\n")
+        var out: [String] = []
+        for part in parts {
+            let trimmed = part.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            out.append(contentsOf: wrapQuoteParagraph(trimmed, font: font, maxWidth: maxWidth))
+        }
+        if !out.isEmpty {
+            return out
+        }
+        let collapsed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return collapsed.isEmpty ? [] : wrapQuoteParagraph(collapsed, font: font, maxWidth: maxWidth)
+    }
+
     private func layoutPlayerQuoteBubble() {
         guard let player = playerNode else { return }
         let footContainer = player.container
-        guard let quoteText = cachedPlayerQuoteText else {
+        guard let quoteTextRaw = cachedPlayerQuoteText else {
+            playerQuoteBubbleRoot?.isHidden = true
+            return
+        }
+        let quoteText = quoteTextRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !quoteText.isEmpty else {
             playerQuoteBubbleRoot?.isHidden = true
             return
         }
 
         let bodyFont = cachedQuoteFontPoints ?? Self.battleLayoutPt(15)
+        let uiFont = Self.quoteUIFont(forPoints: bodyFont)
 
         if playerQuoteBubbleRoot == nil || playerQuoteBubbleRoot?.parent !== footContainer {
             playerQuoteBubbleRoot?.removeFromParent()
@@ -1319,16 +1398,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let tailH = Self.battleLayoutPt(10)
         let cueGap = Self.battleLayoutPt(8)
 
-        let label = SKLabelNode(text: quoteText)
-        label.fontName = "AvenirNext-Heavy"
-        label.fontSize = bodyFont
-        label.fontColor = .white
-        label.horizontalAlignmentMode = .left
-        label.verticalAlignmentMode = .center
+        let sceneWidth = max(320, size.width)
+        let maxBubbleOuter = min(sceneWidth * 0.72, 520)
 
-        let labelFrame = label.calculateAccumulatedFrame()
-        var innerWidth = labelFrame.width
-
+        var cueColumnWidth: CGFloat = 0
         var cueLabel: SKLabelNode?
         if cachedQuoteShowAdvanceCue {
             let cue = SKLabelNode(text: "▶︎")
@@ -1338,14 +1411,30 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             cue.horizontalAlignmentMode = .left
             cue.verticalAlignmentMode = .center
             cue.alpha = 1
-            innerWidth += cueGap + cue.calculateAccumulatedFrame().width
+            cueColumnWidth = cueGap + cue.calculateAccumulatedFrame().width
             cueLabel = cue
         }
 
+        let textMaxWidth = max(Self.battleLayoutPt(96), maxBubbleOuter - padX * 2 - cueColumnWidth)
+        let lines = Self.wrapQuoteLinesFullText(quoteText, font: uiFont, maxWidth: textMaxWidth)
+        guard !lines.isEmpty else {
+            playerQuoteBubbleRoot?.isHidden = true
+            return
+        }
+
+        var textColumnWidth: CGFloat = 0
+        for line in lines {
+            textColumnWidth = max(textColumnWidth, Self.quoteLineWidth(line, font: uiFont))
+        }
+
+        let innerWidth = textColumnWidth + cueColumnWidth
+
+        let lineStep = max(uiFont.lineHeight, bodyFont * 1.12)
+        let lineCount = CGFloat(lines.count)
+        let blockHeight = max(lineStep, lineCount * lineStep)
+
         let bubbleWidth = innerWidth + padX * 2
-        let cueHeight = cueLabel?.calculateAccumulatedFrame().height ?? 0
-        let rowHeight = max(labelFrame.height, cueHeight)
-        let bubbleHeight = rowHeight + padY * 2
+        let bubbleHeight = blockHeight + padY * 2
 
         let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
         let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
@@ -1369,16 +1458,25 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         row.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
         row.zPosition = 0.5
 
-        var xLead = -innerWidth / 2
-        label.position = CGPoint(x: xLead - labelFrame.minX, y: 0)
-        xLead += labelFrame.width
+        let textBlock = SKNode()
+        textBlock.position = CGPoint(x: -innerWidth / 2, y: 0)
 
-        row.addChild(label)
+        let verticalMid = (lineCount - 1) / 2
+        for (i, line) in lines.enumerated() {
+            let lab = SKLabelNode(text: line)
+            lab.fontName = "AvenirNext-Heavy"
+            lab.fontSize = bodyFont
+            lab.fontColor = .white
+            lab.horizontalAlignmentMode = .left
+            lab.verticalAlignmentMode = .center
+            let dy = (verticalMid - CGFloat(i)) * lineStep
+            lab.position = CGPoint(x: 0, y: dy)
+            textBlock.addChild(lab)
+        }
+        row.addChild(textBlock)
 
         if let cue = cueLabel {
-            let cueFrame = cue.calculateAccumulatedFrame()
-            xLead += cueGap
-            cue.position = CGPoint(x: xLead - cueFrame.minX, y: 0)
+            cue.position = CGPoint(x: -innerWidth / 2 + textColumnWidth + cueGap, y: 0)
             let pulse = SKAction.sequence([
                 SKAction.fadeAlpha(to: 0.38, duration: 0.85),
                 SKAction.fadeAlpha(to: 1.0, duration: 0.85),

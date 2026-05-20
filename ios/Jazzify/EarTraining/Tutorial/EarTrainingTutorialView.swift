@@ -92,6 +92,15 @@ struct EarTrainingTutorialView: View {
                         isJapanese: isJa,
                         onExit: onClose
                     )
+
+                    if showGreatInterstitial {
+                        Color.black.opacity(0.35)
+                            .allowsHitTesting(false)
+                        Text("Great!!")
+                            .font(.system(size: 44, weight: .heavy))
+                            .foregroundStyle(Color(red: 0.99, green: 0.92, blue: 0.55))
+                            .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 4)
+                    }
                 }
                 .frame(width: landscapeSize.width, height: landscapeSize.height)
                 .clipped()
@@ -100,17 +109,8 @@ struct EarTrainingTutorialView: View {
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
                 .id(sceneIndex)
 
-                if showGreatInterstitial {
-                    Color.black.opacity(0.35)
-                        .allowsHitTesting(false)
-                    Text("Great!!")
-                        .font(.system(size: 44, weight: .heavy))
-                        .foregroundStyle(Color(red: 0.99, green: 0.92, blue: 0.55))
-                        .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 4)
-                }
-
                 if showFinishCta {
-                    OnboardingCtaView(isJa: isJa) {
+                    OnboardingCtaView(isJa: isJa, buttonTitle: isJa ? "完了する" : "Complete") {
                         Task {
                             await onComplete?()
                             onClose()

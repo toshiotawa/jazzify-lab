@@ -158,5 +158,5 @@ export const showTutorialFinishCta = (
 ): boolean => scene.type === 'finish' && (script.finish?.showCta ?? true);
 
 export const tutorialFinishCtaLabel = (isEnglishCopy: boolean): string => (
-  isEnglishCopy ? 'Continue' : '続ける'
+  isEnglishCopy ? 'Complete' : '完了する'
 );

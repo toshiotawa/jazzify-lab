@@ -21,8 +21,8 @@ import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings'
 import type { EarTrainingTutorialDialogueOnlyScene } from './earTrainingTutorialScriptTypes';
 import { localizedText } from './earTrainingTutorialScriptTypes';
 
-/** Web Phaser `PLAYER_QUOTE_FONT_PX`（16）の約 2 倍 */
-const DIALOGUE_QUOTE_FONT_PX = 32;
+/** dialogue_only 用（標準プレイヤーセリフよりやや大きめ・はみ出しにくいサイズ） */
+const DIALOGUE_QUOTE_FONT_PX = 26;
 const DIALOGUE_LINE_ADVANCE_MS = 5000;
 
 interface EarTrainingTutorialDialogueSceneProps {

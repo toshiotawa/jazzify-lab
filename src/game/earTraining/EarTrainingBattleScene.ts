@@ -1017,11 +1017,39 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     const fontPx = this.cachedPlayerQuoteFontPx;
 
-    const quoteStyle = {
+    const quoteStyleBase = {
       fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
       fontSize: `${fontPx}px`,
       fontStyle: 'bold' as const,
       color: '#ffffff',
+    };
+
+    const sceneW = Math.max(320, this.scale.width);
+    const maxBubbleOuter = Math.min(sceneW * 0.72, 480);
+
+    let cueLabel: Phaser.GameObjects.Text | null = null;
+    let cueColumnWidth = 0;
+    if (this.cachedPlayerQuoteShowCue) {
+      cueLabel = this.make.text({
+        x: 0,
+        y: 0,
+        text: '▶︎',
+        style: quoteStyleBase,
+        add: false,
+      });
+      cueLabel.setOrigin(0, 0.5);
+      cueColumnWidth = PLAYER_QUOTE_CUE_GAP_PX + cueLabel.width;
+    }
+
+    const horizontalPadding = PLAYER_QUOTE_PAD_X * 2;
+    const textWrapWidth = Math.max(
+      96,
+      maxBubbleOuter - horizontalPadding - cueColumnWidth,
+    );
+
+    const quoteStyle = {
+      ...quoteStyleBase,
+      wordWrap: { width: textWrapWidth, useAdvancedWrap: true },
     };
 
     const label = this.make.text({
@@ -1033,20 +1061,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
     label.setOrigin(0, 0.5);
 
-    let cueLabel: Phaser.GameObjects.Text | null = null;
-    let innerWidth = label.width;
-    if (this.cachedPlayerQuoteShowCue) {
-      cueLabel = this.make.text({
-        x: 0,
-        y: 0,
-        text: '▶︎',
-        style: quoteStyle,
-        add: false,
-      });
-      cueLabel.setOrigin(0, 0.5);
-      innerWidth += PLAYER_QUOTE_CUE_GAP_PX + cueLabel.width;
-    }
-
+    const textColumnWidth = label.width;
+    const innerWidth = textColumnWidth + cueColumnWidth;
     const bubbleWidth = innerWidth + PLAYER_QUOTE_PAD_X * 2;
     const rowHeight = Math.max(label.height, cueLabel?.height ?? 0);
     const bubbleHeight = rowHeight + PLAYER_QUOTE_PAD_Y * 2;
@@ -1061,12 +1077,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
 
     const rowY = -tailH - bubbleHeight / 2;
-    let xCursor = -innerWidth / 2;
-    label.setPosition(xCursor, rowY);
-    xCursor += label.width;
+    const textLeft = -innerWidth / 2;
+    label.setPosition(textLeft, rowY);
     if (cueLabel) {
-      xCursor += PLAYER_QUOTE_CUE_GAP_PX;
-      cueLabel.setPosition(xCursor, rowY);
+      cueLabel.setPosition(textLeft + textColumnWidth + PLAYER_QUOTE_CUE_GAP_PX, rowY);
       cueLabel.setAlpha(1);
       this.playerQuoteCueTween = this.tweens.add({
         targets: cueLabel,
