@@ -10,6 +10,7 @@
  */
 
 import { PlayerState, MAP_CONFIG, DroppedItem } from '../SurvivalTypes';
+import { STAGE_FIRST_BLOCK_BOSS_MAX_HP } from '../SurvivalStageDefinitions';
 import {
   BossBattleState,
   BossHazard,
@@ -159,8 +160,15 @@ export interface CreateBossBattleStateOptions {
   readonly playerMaxHp?: number;
 }
 
-export const resolveBossMaxHp = (isPhraseMode: boolean): number =>
-  isPhraseMode ? BOSS_MAX_HP * PHRASES_BOSS_HP_MULTIPLIER : BOSS_MAX_HP;
+export const FIRST_BLOCK_BOSS_MAX_HP = STAGE_FIRST_BLOCK_BOSS_MAX_HP;
+
+export const resolveBossMaxHp = (
+  isPhraseMode: boolean,
+  options?: { readonly isFirstBlockBoss?: boolean },
+): number => {
+  if (options?.isFirstBlockBoss) return FIRST_BLOCK_BOSS_MAX_HP;
+  return isPhraseMode ? BOSS_MAX_HP * PHRASES_BOSS_HP_MULTIPLIER : BOSS_MAX_HP;
+};
 
 export const resolveBossPlayerMaxHp = (isPhraseMode: boolean): number =>
   isPhraseMode ? PHRASES_BOSS_PLAYER_MAX_HP : BOSS_PLAYER_MAX_HP;

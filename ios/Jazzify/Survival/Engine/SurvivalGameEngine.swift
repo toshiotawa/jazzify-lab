@@ -197,12 +197,20 @@ enum SurvivalGameEngine {
 
     static func stageSpawnConfig(
         elapsed: TimeInterval,
-        config: SurvivalStageConfig
+        config: SurvivalStageConfig,
+        beginnerAssist: Bool = false
     ) -> (rate: Double, count: Int) {
-        // 60 秒以降は高難度
         let baseRate: Double
         let baseCount: Int
-        if elapsed >= 60 {
+        if beginnerAssist {
+            if elapsed >= 60 {
+                baseRate = 2.0
+                baseCount = 2
+            } else {
+                baseRate = 2.2
+                baseCount = 1
+            }
+        } else if elapsed >= 60 {
             baseRate = 0.5
             baseCount = max(1, config.enemySpawnCount + 3)
         } else {
@@ -223,9 +231,10 @@ enum SurvivalGameEngine {
     private static func stageEnemyBaseStats(
         type: SurvivalEnemyType,
         elapsed: TimeInterval,
-        statMultiplier: Double
+        statMultiplier: Double,
+        beginnerAssist: Bool = false
     ) -> SurvivalEnemyStats {
-        let speedBoost: CGFloat = elapsed >= 60 ? 1.5 : 1.0
+        let speedBoost: CGFloat = elapsed >= 60 && !beginnerAssist ? 1.5 : 1.0
         let base: (atk: Int, def: Int, hp: Int, speed: CGFloat, exp: Int)
         switch type {
         case .slime:    base = (8, 2, 80, 1.2 * speedBoost, 8)
@@ -254,7 +263,8 @@ enum SurvivalGameEngine {
         playerY: CGFloat,
         elapsed: TimeInterval,
         isFirstSpawn: Bool,
-        config: SurvivalStageConfig
+        config: SurvivalStageConfig,
+        beginnerAssist: Bool = false
     ) -> SurvivalEnemy {
         let margin = SurvivalConstants.enemySize * 0.8
         let x: CGFloat
@@ -284,13 +294,18 @@ enum SurvivalGameEngine {
         }
 
         // elapsed が進むほど強い敵が出やすくなる簡易重み付け
-        let candidates = enemyTypeCandidates(elapsed: elapsed)
+        let candidates = enemyTypeCandidates(elapsed: elapsed, beginnerAssist: beginnerAssist)
         let type = candidates.randomElement() ?? .slime
         return SurvivalEnemy(
             type: type,
             x: x,
             y: y,
-            stats: stageEnemyBaseStats(type: type, elapsed: elapsed, statMultiplier: config.enemyStatMultiplier)
+            stats: stageEnemyBaseStats(
+                type: type,
+                elapsed: elapsed,
+                statMultiplier: config.enemyStatMultiplier,
+                beginnerAssist: beginnerAssist
+            )
         )
     }
 
@@ -314,7 +329,10 @@ enum SurvivalGameEngine {
         )
     }
 
-    private static func enemyTypeCandidates(elapsed: TimeInterval) -> [SurvivalEnemyType] {
+    private static func enemyTypeCandidates(elapsed: TimeInterval, beginnerAssist: Bool) -> [SurvivalEnemyType] {
+        if beginnerAssist {
+            return [.slime, .goblin, .bat, .slime]
+        }
         if elapsed < 20 {
             return [.slime, .goblin, .bat, .slime]
         } else if elapsed < 45 {

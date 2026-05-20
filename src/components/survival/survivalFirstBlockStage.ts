@@ -44,3 +44,17 @@ export function hasBeginnerStageAssist(
 export function hasBeginnerStageAssistForStage(stage: StageDefinition): boolean {
   return hasBeginnerStageAssist(stage.stageNumber, stage.mapCategory);
 }
+
+/** 第一ブロック末尾のボス戦か。 */
+export function isFirstBlockBossStage(
+  stageNumber: number,
+  mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+): boolean {
+  if (!isBlockLastStage(stageNumber, mapCategory)) return false;
+  const block = getBlockForStage(stageNumber, mapCategory);
+  return block?.blockIndex === 0;
+}
+
+export function isFirstBlockBossStageDef(stage: StageDefinition): boolean {
+  return isFirstBlockBossStage(stage.stageNumber, stage.mapCategory);
+}

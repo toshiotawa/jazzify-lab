@@ -335,6 +335,8 @@ export const STAGE_TIME_LIMIT_SECONDS = 90;
 export const STAGE_KILL_QUOTA = 150;
 /** 第一ブロック通常ステージ（ボス除く）の撃破ノルマ。Basic / Songs / Phrases 共通。 */
 export const STAGE_FIRST_BLOCK_KILL_QUOTA = 10;
+/** 第一ブロックボス戦の HP。 */
+export const STAGE_FIRST_BLOCK_BOSS_MAX_HP = 7000;
 /** 通常ステージ（非 Phrases・非ボス）のプレイヤー初期 HP。Phrases 1000・ボス戦は別定数。 */
 export const STAGE_PLAYER_MAX_HP = 800;
 

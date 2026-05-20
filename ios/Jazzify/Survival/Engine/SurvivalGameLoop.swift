@@ -155,7 +155,7 @@ final class SurvivalGameLoop {
             initialBoss = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
                 now: bossNow,
-                maxHp: SurvivalBossEngine.resolveBossMaxHp(mapCategory: stage.mapCategory)
+                maxHp: stage.resolvedBossMaxHp
             )
         } else {
             initialBoss = nil
@@ -253,7 +253,7 @@ final class SurvivalGameLoop {
             bossBattle = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
                 now: CACurrentMediaTime(),
-                maxHp: SurvivalBossEngine.resolveBossMaxHp(mapCategory: stage.mapCategory)
+                maxHp: stage.resolvedBossMaxHp
             )
         } else {
             bossBattle = nil
@@ -757,7 +757,11 @@ final class SurvivalGameLoop {
         // 敵スポーン
         if !runtime.scenario.suppressAutoSpawn {
             runtime.spawnAccumulator += deltaTime
-            let cfg = SurvivalGameEngine.stageSpawnConfig(elapsed: runtime.elapsedSeconds, config: config)
+            let cfg = SurvivalGameEngine.stageSpawnConfig(
+                elapsed: runtime.elapsedSeconds,
+                config: config,
+                beginnerAssist: stage.hasBeginnerStageAssist
+            )
             let spawnRate = isPhraseMode ? cfg.rate / 0.7 : cfg.rate
             while runtime.spawnAccumulator >= spawnRate {
                 runtime.spawnAccumulator -= spawnRate
@@ -767,7 +771,8 @@ final class SurvivalGameLoop {
                         playerY: runtime.player.y,
                         elapsed: runtime.elapsedSeconds,
                         isFirstSpawn: !runtime.hasSpawnedAny,
-                        config: config
+                        config: config,
+                        beginnerAssist: stage.hasBeginnerStageAssist
                     )
                     runtime.enemies.append(enemy)
                     runtime.hasSpawnedAny = true
@@ -784,7 +789,7 @@ final class SurvivalGameLoop {
         )
 
         // 敵弾の発射 + 更新（フレーズモードでは無効）
-        if !runtime.scenario.disableEnemyAttacks, !isPhraseMode {
+        if !runtime.scenario.disableEnemyAttacks, !isPhraseMode, !stage.hasBeginnerStageAssist {
             let newEnemyProjectiles = SurvivalGameEngine.shootEnemyProjectiles(
                 enemies: &runtime.enemies,
                 playerX: runtime.player.x,

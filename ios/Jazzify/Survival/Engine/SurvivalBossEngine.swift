@@ -271,7 +271,13 @@ enum SurvivalBossEngine {
 
     // MARK: - 初期化
 
-    static func resolveBossMaxHp(mapCategory: SurvivalMapCategory) -> Int {
+    static func resolveBossMaxHp(
+        mapCategory: SurvivalMapCategory,
+        isFirstBlockBoss: Bool = false
+    ) -> Int {
+        if isFirstBlockBoss {
+            return SurvivalConstants.firstBlockBossMaxHp
+        }
         if mapCategory == .phrases {
             return SurvivalConstants.bossMaxHp * SurvivalConstants.phrasesBossHpMultiplier
         }

@@ -1,13 +1,15 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { scheduleSurvivalStageIntroLines } from '../scheduleSurvivalStageIntroLines';
 import type { SurvivalStageIntroScript } from '../survivalStageIntroScriptTypes';
 
 describe('scheduleSurvivalStageIntroLines', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   const script: SurvivalStageIntroScript = {
@@ -25,13 +27,13 @@ describe('scheduleSurvivalStageIntroLines', () => {
       },
     });
 
-    jest.advanceTimersByTime(999);
+    vi.advanceTimersByTime(999);
     expect(lines).toEqual([]);
 
-    jest.advanceTimersByTime(1);
+    vi.advanceTimersByTime(1);
     expect(lines).toContain('A');
 
-    jest.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(3000);
     expect(lines[lines.length - 1]).toBe('');
   });
 
@@ -52,16 +54,16 @@ describe('scheduleSurvivalStageIntroLines', () => {
       },
     });
 
-    jest.advanceTimersByTime(0);
+    vi.advanceTimersByTime(0);
     expect(last).toBe('first');
 
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(last).toBe('second');
 
-    jest.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(2000);
     expect(last).toBe('second');
 
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(last).toBe('');
   });
 
@@ -78,9 +80,9 @@ describe('scheduleSurvivalStageIntroLines', () => {
       isEnglishCopy: false,
       setLine: (t) => lines.push(t),
     });
-    jest.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(2000);
     handle.cancel();
-    jest.advanceTimersByTime(99999);
+    vi.advanceTimersByTime(99999);
     expect(lines).not.toContain('遅');
     expect(lines[lines.length - 1]).toBe('');
   });

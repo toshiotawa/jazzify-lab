@@ -86,6 +86,7 @@ import {
 import {
   getStageKillQuotaForStage,
   hasBeginnerStageAssistForStage,
+  isFirstBlockBossStageDef,
 } from './survivalFirstBlockStage';
 import { getBlockForStage } from './descent/descentBlocks';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
@@ -382,6 +383,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
   const beginnerAssistActive = stageDefinition
     ? hasBeginnerStageAssistForStage(stageDefinition)
+    : false;
+  const isFirstBlockBoss = stageDefinition && isBossStage
+    ? isFirstBlockBossStageDef(stageDefinition)
     : false;
   const shouldShowKeyboardHints = hintMode || beginnerAssistActive;
   const bossType = isBossStage && stageDefinition
@@ -1424,7 +1428,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (isBossStage && bossType) {
       bossBattleRef.current = createBossBattleState(bossType, performance.now(), {
-        maxHp: resolveBossMaxHp(isPhraseMode),
+        maxHp: resolveBossMaxHp(isPhraseMode, { isFirstBlockBoss }),
         playerMaxHp: resolveBossPlayerMaxHp(isPhraseMode),
       });
     } else {
@@ -1433,7 +1437,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
@@ -3614,7 +3618,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const scenarioEnemyShootingDisabled =
           scenarioOverridesRef.current.isActive
           && scenarioOverridesRef.current.disableEnemyAttacks;
-        if (!isPhraseMode && !scenarioEnemyShootingDisabled) {
+        if (!isPhraseMode && !scenarioEnemyShootingDisabled && !beginnerAssistActive) {
         newState.enemies.forEach(enemy => {
           if (shouldEnemyShoot(enemy, newState.player.x, newState.player.y, newState.elapsedTime)) {
             const proj = createEnemyProjectile(enemy, newState.player.x, newState.player.y);
@@ -3897,7 +3901,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         ) {
           /* チュートリアル: 台本からのみスポーン */
         } else if (isStageMode) {
-          const stageSpawn = getStageSpawnConfig(newState.elapsedTime);
+          const stageSpawn = getStageSpawnConfig(newState.elapsedTime, beginnerAssistActive);
           const stageSpawnRate = isPhraseMode ? stageSpawn.spawnRate / 0.7 : stageSpawn.spawnRate;
           const isFirstSpawn = newState.enemies.length === 0 && newState.enemiesDefeated === 0;
           if (isFirstSpawn) {
@@ -3913,6 +3917,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 newState.player.x,
                 newState.player.y,
                 newState.elapsedTime,
+                beginnerAssistActive,
               );
               newState.enemies.push(newEnemy);
             }
@@ -4252,7 +4257,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, beginnerAssistActive, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
   
   // リトライ
   const handleRetry = useCallback(() => {

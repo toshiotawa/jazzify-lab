@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   getStageKillQuota,
   hasBeginnerStageAssist,
+  isFirstBlockBossStage,
   isFirstBlockRegularStage,
 } from './survivalFirstBlockStage';
 import { STAGE_FIRST_BLOCK_KILL_QUOTA, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
@@ -43,5 +44,11 @@ describe('survivalFirstBlockStage', () => {
   it('第一ブロックボスは beginner assist 対象外', () => {
     expect(isFirstBlockRegularStage(5, 'basic')).toBe(false);
     expect(hasBeginnerStageAssist(5, 'basic')).toBe(false);
+  });
+
+  it('第一ブロック末尾のみボス HP 7000 対象', () => {
+    expect(isFirstBlockBossStage(5, 'basic')).toBe(true);
+    expect(isFirstBlockBossStage(4, 'basic')).toBe(false);
+    expect(isFirstBlockBossStage(10, 'basic')).toBe(false);
   });
 });

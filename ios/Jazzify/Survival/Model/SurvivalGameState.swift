@@ -29,6 +29,8 @@ enum SurvivalConstants {
     static let stageEnemyQuota: Int = 150
     /// 第一ブロック通常ステージの撃破数 (WEB 版 `STAGE_FIRST_BLOCK_KILL_QUOTA` = 10)
     static let stageFirstBlockEnemyQuota: Int = 10
+    /// 第一ブロックボス戦 HP (WEB 版 `STAGE_FIRST_BLOCK_BOSS_MAX_HP` = 7000)
+    static let firstBlockBossMaxHp: Int = 7000
     /// コードスロット切替タイマー (秒)
     static let slotTimeoutSec: TimeInterval = 10
     /// 近接衝撃波のベース半径 (B 攻撃、Web 版 baseRange = 80 と一致)

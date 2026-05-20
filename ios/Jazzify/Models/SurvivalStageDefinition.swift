@@ -745,6 +745,28 @@ extension SurvivalStageDefinition {
 
     /// 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロック通常ステージ。
     var hasBeginnerStageAssist: Bool { isFirstBlockRegularStage }
+
+    /// 第一ブロック末尾のボス戦か。
+    var isFirstBlockBossStage: Bool {
+        guard SurvivalBossEngine.isBlockLastStage(stageNumber: stageNumber, in: mapCategory) else {
+            return false
+        }
+        guard let block = SurvivalStageCatalog.block(forStage: stageNumber, in: mapCategory) else {
+            return false
+        }
+        return block.blockIndex == 0
+    }
+
+    /// ボス戦 HP（第一ブロックは 7000、Phrases それ以外は x5、通常 15000）。
+    var resolvedBossMaxHp: Int {
+        if isFirstBlockBossStage {
+            return SurvivalConstants.firstBlockBossMaxHp
+        }
+        if mapCategory == .phrases {
+            return SurvivalConstants.bossMaxHp * SurvivalConstants.phrasesBossHpMultiplier
+        }
+        return SurvivalConstants.bossMaxHp
+    }
 }
 
 // MARK: - Run prep UI copy (Web `SurvivalRunPrepModal` / `formatSurvival*` 相当)

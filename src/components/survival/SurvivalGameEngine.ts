@@ -745,12 +745,17 @@ export const spawnEnemy = (
 
 // ===== ステージモード専用敵生成 =====
 const STAGE_ENEMY_TYPES: EnemyType[] = ['slime', 'goblin', 'skeleton', 'bat', 'ghost'];
+const STAGE_BEGINNER_ENEMY_TYPES: EnemyType[] = ['slime', 'goblin', 'bat'];
 
-const getStageEnemyBaseStats = (type: EnemyType, elapsedTime: number): {
+const getStageEnemyBaseStats = (
+  type: EnemyType,
+  elapsedTime: number,
+  beginnerAssist = false,
+): {
   atk: number; def: number; hp: number; maxHp: number; speed: number;
 } => {
   const isLatePhase = elapsedTime >= 60;
-  const speedBoost = isLatePhase ? 1.5 : 1.0;
+  const speedBoost = isLatePhase && !beginnerAssist ? 1.5 : 1.0;
 
   const baseStats: Record<string, { atk: number; def: number; hp: number; speed: number }> = {
     slime:    { atk: 8,  def: 2, hp: 800,  speed: 1.2 * speedBoost },
@@ -774,6 +779,7 @@ export const spawnStageEnemy = (
   playerX: number,
   playerY: number,
   elapsedTime: number,
+  beginnerAssist = false,
 ): EnemyState => {
   const side = Math.floor(Math.random() * 4);
   const margin = ENEMY_SIZE * 0.8;
@@ -799,15 +805,16 @@ export const spawnStageEnemy = (
       break;
   }
 
-  const typeIndex = Math.floor(Math.random() * STAGE_ENEMY_TYPES.length);
-  const type = STAGE_ENEMY_TYPES[typeIndex];
+  const pool = beginnerAssist ? STAGE_BEGINNER_ENEMY_TYPES : STAGE_ENEMY_TYPES;
+  const typeIndex = Math.floor(Math.random() * pool.length);
+  const type = pool[typeIndex];
 
   return {
     id: `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     type,
     x,
     y,
-    stats: getStageEnemyBaseStats(type, elapsedTime),
+    stats: getStageEnemyBaseStats(type, elapsedTime, beginnerAssist),
     statusEffects: [],
     isBoss: false,
   };
@@ -831,7 +838,16 @@ export const spawnScenarioTutorialEnemyAt = (x: number, y: number): EnemyState =
 });
 
 // ===== ステージモード専用スポーン設定 =====
-export const getStageSpawnConfig = (elapsedTime: number): { spawnRate: number; spawnCount: number } => {
+export const getStageSpawnConfig = (
+  elapsedTime: number,
+  beginnerAssist = false,
+): { spawnRate: number; spawnCount: number } => {
+  if (beginnerAssist) {
+    if (elapsedTime >= 60) {
+      return { spawnRate: 2.0, spawnCount: 3 };
+    }
+    return { spawnRate: 2.0, spawnCount: 2 };
+  }
   if (elapsedTime >= 60) {
     return { spawnRate: 0.5, spawnCount: 15 };
   }
