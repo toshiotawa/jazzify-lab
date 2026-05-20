@@ -357,6 +357,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // `getSurvivalStageBattleKind` は isBlockLast を優先して 'boss' を返すため、ここで
   // 出題ロジック判定だけは `stageType === 'progression'` を直接見る。
   const isProgressionStage = stageDefinition?.stageType === 'progression';
+  const isBasicMapStage = stageDefinition?.mapCategory === 'basic';
   const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
   const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
   const beginnerAssistActive = stageDefinition
@@ -1377,7 +1378,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (isProgressionStage) progressionIndexRef.current = 0;
       const randomHintShotDisabled =
         !isProgressionStage &&
-        (hintMode || prev.player.statusEffects.some(e => e.type === 'hint'));
+        (isBasicMapStage ||
+          hintMode ||
+          prev.player.statusEffects.some(e => e.type === 'hint'));
       const codeSlots = initializeCodeSlots(
         config.allowedChords,
         hasMagic,
@@ -1410,7 +1413,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, hintMode, isPhraseMode]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。

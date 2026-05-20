@@ -24,7 +24,7 @@ export class SurvivalPhraseMapPreviewPlayer {
 
   private playCompletion: PlayCompletion | null = null;
 
-  private abortCurrentPlayback(): void {
+  private abortCurrentPlayback(restoreMapBgm: boolean): void {
     const el = this.audio;
     this.audio = null;
     if (el) {
@@ -41,7 +41,9 @@ export class SurvivalPhraseMapPreviewPlayer {
         /* ignore */
       }
     }
-    SurvivalMapAudio.restoreBgmAfterPhrasePreview();
+    if (restoreMapBgm) {
+      SurvivalMapAudio.restoreBgmAfterPhrasePreview();
+    }
   }
 
   /**
@@ -49,7 +51,7 @@ export class SurvivalPhraseMapPreviewPlayer {
    * 呼び出し側はユーザー操作（ボタン onClick）内から呼ぶこと（モバイル自動再生制約）。
    */
   play(url: string): Promise<void> {
-    this.stop();
+    this.stop({ restoreMapBgm: true });
 
     const token = this.playToken;
 
@@ -71,7 +73,7 @@ export class SurvivalPhraseMapPreviewPlayer {
         }
         const c = this.playCompletion;
         this.playCompletion = null;
-        this.abortCurrentPlayback();
+        this.abortCurrentPlayback(true);
         c?.resolve();
       };
 
@@ -81,7 +83,7 @@ export class SurvivalPhraseMapPreviewPlayer {
         }
         const c = this.playCompletion;
         this.playCompletion = null;
-        this.abortCurrentPlayback();
+        this.abortCurrentPlayback(true);
         c?.reject(new Error('Survival phrase preview playback failed'));
       };
 
@@ -101,15 +103,16 @@ export class SurvivalPhraseMapPreviewPlayer {
   /**
    * 試聴を中断（ステージ切替・画面離脱・ゲーム開始時）。
    */
-  stop(): void {
+  stop(options?: { readonly restoreMapBgm?: boolean }): void {
+    const restoreMapBgm = options?.restoreMapBgm ?? true;
     const c = this.playCompletion;
     this.playCompletion = null;
     this.playToken += 1;
-    this.abortCurrentPlayback();
+    this.abortCurrentPlayback(restoreMapBgm);
     c?.resolve();
   }
 
   dispose(): void {
-    this.stop();
+    this.stop({ restoreMapBgm: true });
   }
 }

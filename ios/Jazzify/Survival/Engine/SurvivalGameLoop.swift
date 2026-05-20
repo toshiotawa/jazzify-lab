@@ -124,7 +124,7 @@ final class SurvivalGameLoop {
             slots = SurvivalGameEngine.createStageInitialSlots(
                 allowedChords: allowedChords,
                 isBossStage: isBoss,
-                punchOnlyForRandomHint: mode.hintMode
+                punchOnlyForRandomHint: mode.hintMode || stage.mapCategory == .basic
             )
         }
         let player = SurvivalGameEngine.createStageInitialPlayer(
@@ -225,7 +225,7 @@ final class SurvivalGameLoop {
             slots = SurvivalGameEngine.createStageInitialSlots(
                 allowedChords: allowedChords,
                 isBossStage: isBoss,
-                punchOnlyForRandomHint: mode.hintMode
+                punchOnlyForRandomHint: mode.hintMode || stage.mapCategory == .basic
             )
         }
         let player = SurvivalGameEngine.createStageInitialPlayer(

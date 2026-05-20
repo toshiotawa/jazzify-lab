@@ -722,7 +722,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const runConfirmedStageStart = useCallback(
     async (startHintMode: boolean) => {
       if (!selectedStage) return;
-      stopPhrasePreview();
+      SurvivalMapAudio.stopBgmImmediately();
+      stopPhrasePreview({ restoreMapBgm: false });
       if (!isIOSWebView()) {
         try {
           await Promise.race([
@@ -734,8 +735,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           ]);
         } catch { /* ignore */ }
       }
-
-      void SurvivalMapAudio.stopBgm();
 
       const baseConfig = getConfig(selectedStage.difficulty);
       const stageConfig: DifficultyConfig = {

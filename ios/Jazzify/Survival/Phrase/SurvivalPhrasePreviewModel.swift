@@ -16,10 +16,10 @@ final class SurvivalPhrasePreviewModel: ObservableObject {
     private let player = SurvivalPhraseMapPreviewPlayer()
     private var loadTask: Task<Void, Never>?
 
-    func stopPlayback() {
+    func stopPlayback(restoreMapBgm: Bool = true) {
         loadTask?.cancel()
         loadTask = nil
-        player.stop()
+        player.stop(restoreMapBgm: restoreMapBgm)
         status = .idle
         errorMessage = nil
     }

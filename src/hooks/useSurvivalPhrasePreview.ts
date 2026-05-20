@@ -13,11 +13,15 @@ interface UseSurvivalPhrasePreviewParams {
   readonly isEnglishCopy: boolean;
 }
 
+interface StopPhrasePreviewOptions {
+  readonly restoreMapBgm?: boolean;
+}
+
 interface UseSurvivalPhrasePreviewResult {
   readonly status: SurvivalPhrasePreviewStatus;
   readonly phrasePreviewError: string | null;
   readonly playPhrasePreview: (stage: StageDefinition) => Promise<void>;
-  readonly stopPhrasePreview: () => void;
+  readonly stopPhrasePreview: (options?: StopPhrasePreviewOptions) => void;
 }
 
 export const useSurvivalPhrasePreview = ({
@@ -33,8 +37,8 @@ export const useSurvivalPhrasePreview = ({
     playerRef.current.dispose();
   }, []);
 
-  const stopPhrasePreview = useCallback(() => {
-    playerRef.current.stop();
+  const stopPhrasePreview = useCallback((options?: StopPhrasePreviewOptions) => {
+    playerRef.current.stop(options);
     setStatus('idle');
     setPhrasePreviewError(null);
   }, []);

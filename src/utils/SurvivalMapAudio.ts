@@ -155,9 +155,10 @@ class SurvivalMapAudioImpl {
    */
   restoreBgmAfterPhrasePreview(): void {
     this.bgmPhrasePreviewDucked = false;
-    if (this.bgmAudio) {
-      this.bgmAudio.volume = this.effectiveBgmVolume();
+    if (!this.bgmRequestedPlaying || !this.bgmAudio) {
+      return;
     }
+    this.bgmAudio.volume = this.effectiveBgmVolume();
   }
 
   /**
@@ -213,11 +214,29 @@ class SurvivalMapAudioImpl {
    */
   async stopBgm(): Promise<void> {
     this.bgmRequestedPlaying = false;
+    this.bgmPhrasePreviewDucked = false;
     if (!this.bgmAudio) return;
     const target = this.bgmAudio;
     this.bgmAudio = null;
     this.bgmCurrentUrl = '';
     await this.fadeOutAndDispose(target).catch(() => {});
+  }
+
+  /** ステージ開始など、マップ BGM を即座に止める必要があるとき用 */
+  stopBgmImmediately(): void {
+    this.bgmRequestedPlaying = false;
+    this.bgmPhrasePreviewDucked = false;
+    if (this.bgmFadeRaf !== null) {
+      try { cancelAnimationFrame(this.bgmFadeRaf); } catch { /* ignore */ }
+      this.bgmFadeRaf = null;
+    }
+    const target = this.bgmAudio;
+    this.bgmAudio = null;
+    this.bgmCurrentUrl = '';
+    if (!target) return;
+    try { target.pause(); } catch { /* ignore */ }
+    try { target.src = ''; } catch { /* ignore */ }
+    try { target.load(); } catch { /* ignore */ }
   }
 
   /**

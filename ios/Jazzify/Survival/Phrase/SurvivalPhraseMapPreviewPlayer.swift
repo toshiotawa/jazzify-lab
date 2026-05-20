@@ -9,7 +9,7 @@ final class SurvivalPhraseMapPreviewPlayer {
     private var playContinuation: CheckedContinuation<Void, Never>?
 
     func play(url: URL) async {
-        stop()
+        stop(restoreMapBgm: true)
         SurvivalMapAudio.shared.duckForPhrasePreview()
         let item = AVPlayerItem(url: url)
         let p = AVPlayer(playerItem: item)
@@ -51,7 +51,7 @@ final class SurvivalPhraseMapPreviewPlayer {
         }
     }
 
-    func stop() {
+    func stop(restoreMapBgm: Bool = true) {
         if let c = playContinuation {
             playContinuation = nil
             for o in observers {
@@ -60,7 +60,9 @@ final class SurvivalPhraseMapPreviewPlayer {
             observers.removeAll()
             player?.pause()
             player = nil
-            SurvivalMapAudio.shared.restoreAfterPhrasePreview()
+            if restoreMapBgm {
+                SurvivalMapAudio.shared.restoreAfterPhrasePreview()
+            }
             c.resume()
             return
         }
@@ -70,6 +72,8 @@ final class SurvivalPhraseMapPreviewPlayer {
         observers.removeAll()
         player?.pause()
         player = nil
-        SurvivalMapAudio.shared.restoreAfterPhrasePreview()
+        if restoreMapBgm {
+            SurvivalMapAudio.shared.restoreAfterPhrasePreview()
+        }
     }
 }

@@ -362,8 +362,8 @@ struct SurvivalView: View {
         }
         guard isStageUnlocked(stage.stageNumber) else { return }
         mobileDetailStage = nil
-        phrasePreviewModel.stopPlayback()
         SurvivalMapAudio.shared.stop()
+        phrasePreviewModel.stopPlayback(restoreMapBgm: false)
         stageLaunchSession = StageLaunchSession(stage: stage, hintMode: hintMode)
     }
 

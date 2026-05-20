@@ -113,6 +113,7 @@ final class SurvivalMapAudio {
     func restoreAfterPhrasePreview() {
         fadeTimer?.invalidate()
         fadeTimer = nil
+        guard isRequestedPlaying else { return }
         queuePlayer.volume = effectiveVolume()
     }
 
