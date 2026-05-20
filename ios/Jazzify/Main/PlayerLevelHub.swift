@@ -55,7 +55,7 @@ final class PlayerLevelHub: ObservableObject {
             )
         )
 
-        guard raw.gainedXp > 0 else { return }
+        guard !raw.duplicate, raw.gainedXp > 0 else { return }
 
         let ja = !usesEnglishUi
         let gainTitle = ja ? "経験値" : "Experience"
@@ -85,6 +85,7 @@ final class PlayerLevelHub: ObservableObject {
     }
 }
 
+/// `MainTabView` の ZStack に 1 つだけ載せる。子画面に重ねると同一トーストが二重表示になる。
 struct PlayerXpToastOverlay: View {
     @ObservedObject private var hub = PlayerLevelHub.shared
 

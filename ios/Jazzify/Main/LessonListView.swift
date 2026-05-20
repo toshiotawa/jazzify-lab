@@ -1648,9 +1648,6 @@ struct LessonDetailView: View {
                 }
                 .padding()
             }
-
-            PlayerXpToastOverlay()
-                .allowsHitTesting(false)
         }
         .navigationTitle(lesson.localizedTitle(locale))
         .navigationBarTitleDisplayMode(.inline)
@@ -2406,6 +2403,9 @@ struct LessonDetailView: View {
 
     private func completeLesson() async {
         guard !lesson.isManualCompletionDisabled else { return }
+        guard !isCompleting, !isLessonCompleted else { return }
+        isCompleting = true
+        defer { isCompleting = false }
 
         guard let userId = appState.profile?.id, let courseId = lesson.courseId else {
             alertMessage = locale == .ja ? "ログイン情報を確認できません。" : "Unable to confirm login state."
@@ -2431,9 +2431,6 @@ struct LessonDetailView: View {
             }
             return
         }
-
-        isCompleting = true
-        defer { isCompleting = false }
 
         do {
             try await SupabaseService.shared.updateLessonProgress(
