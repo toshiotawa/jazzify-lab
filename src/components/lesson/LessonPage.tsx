@@ -941,7 +941,9 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
               {currentBlock.title}
             </p>
             <p className="text-xs text-violet-100/75">
-              Stage {currentBlock.completedCount} / {currentBlock.totalCount}
+              {isEnglishCopy
+                ? `Quest ${currentBlock.completedCount} / ${currentBlock.totalCount}`
+                : `クエスト ${currentBlock.completedCount} / ${currentBlock.totalCount}`}
             </p>
             <ProgressBar percent={currentBlock.totalCount > 0 ? (currentBlock.completedCount / currentBlock.totalCount) * 100 : 0} />
           </div>
@@ -1009,8 +1011,8 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
                 <div className="mt-3 max-w-[280px] space-y-1">
                   <p className="text-[11px] font-semibold text-emerald-200">
                     {isEnglishCopy
-                      ? `Cleared lessons ${selectedBlock.completedCount} / ${selectedBlock.totalCount}`
-                      : `クリア済みレッスン ${selectedBlock.completedCount} / ${selectedBlock.totalCount}`}
+                      ? `Quests cleared ${selectedBlock.completedCount} / ${selectedBlock.totalCount}`
+                      : `クリア済みクエスト ${selectedBlock.completedCount} / ${selectedBlock.totalCount}`}
                   </p>
                   <ProgressBar percent={selectedBlock.totalCount > 0 ? (selectedBlock.completedCount / selectedBlock.totalCount) * 100 : 0} />
                 </div>

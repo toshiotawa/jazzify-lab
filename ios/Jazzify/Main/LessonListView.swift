@@ -450,7 +450,9 @@ struct LessonListView: View {
                     Text("\(locale == .ja ? "チャプター" : "Chapter") \(state.currentBlock.blockNumber): \(state.currentBlock.title)")
                         .font(.subheadline)
                         .foregroundStyle(Color(hex: "e9d5ff"))
-                    Text("Stage \(state.currentBlock.completedCount) / \(state.currentBlock.totalCount)")
+                    Text(locale == .ja
+                         ? "クエスト \(state.currentBlock.completedCount) / \(state.currentBlock.totalCount)"
+                         : "Quest \(state.currentBlock.completedCount) / \(state.currentBlock.totalCount)")
                         .font(.caption)
                         .foregroundStyle(Color(hex: "c4b5fd"))
                     progressBar(done: state.currentBlock.completedCount, total: state.currentBlock.totalCount)
@@ -705,8 +707,8 @@ struct LessonListView: View {
                     }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(locale == .ja
-                             ? "クリア済みレッスン \(block.completedCount) / \(block.totalCount)"
-                             : "Cleared lessons \(block.completedCount) / \(block.totalCount)")
+                             ? "クリア済みクエスト \(block.completedCount) / \(block.totalCount)"
+                             : "Quests cleared \(block.completedCount) / \(block.totalCount)")
                             .font(.caption2.bold())
                             .foregroundStyle(Color(hex: "bbf7d0"))
                         progressBar(done: block.completedCount, total: block.totalCount)
