@@ -192,7 +192,8 @@ struct EarTrainingTutorialSelfPacedTimedLine: Decodable, Sendable {
 
 struct EarTrainingTutorialOsmdScene: Decodable, Sendable {
     let contentRef: String
-    let playMode: String
+    /// JSON 後方互換用（未使用）。
+    let playMode: String?
     let requiredLoops: Int
     let timedLines: [EarTrainingTutorialOsmdTimedLine]?
 }
@@ -252,8 +253,6 @@ struct EarTrainingTutorialSceneHooks {
     var requiredSuccessfulLoops: Int = 1
     var onLoopSuccess: (() -> Void)?
     var quiz: EarTrainingTutorialQuizSceneHooks?
-    /// `chord_osmd` の `playMode: demo`（Web `tutorialDemoAutoplay` 相当）。
-    var osmdDemoAutoplay: Bool = false
     /// OSMD `timedLines`（Web の `scheduleOsmdTimedLinesForLoop` と同用途）。
     var osmdTimedLines: [EarTrainingTutorialOsmdTimedLine]? = nil
     /// チュートリアル共通のドラム BGM URL（フレーズと併用）。

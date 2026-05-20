@@ -372,46 +372,6 @@
     {
       "type": "chord_osmd",
       "contentRef": "osmd-lesson7",
-      "playMode": "demo",
-      "requiredLoops": 2,
-      "timedLines": [
-        {
-          "phase": "count_in",
-          "loop": 0,
-          "beat": 2,
-          "text": {
-            "ja": "デモ：カウントイン中のセリフ。",
-            "en": "Demo: dialogue during count-in."
-          }
-        },
-        {
-          "at": {
-            "loop": 0,
-            "measure": 1,
-            "beat": 1
-          },
-          "text": {
-            "ja": "デモ：1 小節目。",
-            "en": "Demo: measure 1."
-          }
-        },
-        {
-          "at": {
-            "loop": 0,
-            "measure": 3,
-            "beat": 1
-          },
-          "text": {
-            "ja": "デモ：3 小節目。",
-            "en": "Demo: measure 3."
-          }
-        }
-      ]
-    },
-    {
-      "type": "chord_osmd",
-      "contentRef": "osmd-lesson7",
-      "playMode": "self",
       "requiredLoops": 1,
       "timedLines": [
         {

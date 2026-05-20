@@ -51,9 +51,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     /// Web `scheduleOsmdTimedLinesForLoop` 相当の `DispatchWorkItem`（フレーズ再開時・終了時にキャンセル）。
     private var tutorialOsmdTimedLineWorks: [DispatchWorkItem] = []
 
-    private var tutorialOsmdDemoAutoplay: Bool {
-        tutorialHooks?.osmdDemoAutoplay == true
-    }
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
@@ -79,7 +76,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var nextActiveTargetIndex: Int = 0
     private var nextMissTargetIndex: Int = 0
     private var nextHammerTargetIndex: Int = 0
-    private var nextDemoAutoplayTargetIndex: Int = 0
     private var phraseEnding: Bool = false
     private var progressSaveStarted: Bool = false
     private var totalCompletedTargets: Int = 0
@@ -518,7 +514,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         nextActiveTargetIndex = 0
         nextMissTargetIndex = 0
         nextHammerTargetIndex = 0
-        nextDemoAutoplayTargetIndex = 0
         completedTargetCount = 0
         failedTargetCount = 0
         phraseAccuracy = 0
@@ -633,7 +628,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             updateActiveMeasure(for: phraseTime)
         }
         openJudgmentWindows(at: phraseTime)
-        autoCompleteDemoTargets(at: phraseTime)
         throwDueHammers(at: phraseTime)
         failExpiredTargets(at: phraseTime)
         refreshPracticeVoicingHints()
@@ -659,12 +653,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func refreshPracticeVoicingHints() {
-        if tutorialOsmdDemoAutoplay {
-            if !voicingHintIntensities.isEmpty {
-                voicingHintIntensities = [:]
-            }
-            return
-        }
         guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else {
             if !voicingHintIntensities.isEmpty {
                 voicingHintIntensities = [:]
@@ -761,50 +749,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         compactActiveTargets(currentTime: time)
     }
 
-    /// Web `tutorialDemoAutoplay`：デモではターゲット時刻に判定のみ行い、鍵盤ハイライトのみ（ピアノ音なし）。
-    private func autoCompleteDemoTargets(at time: Double) {
-        guard tutorialOsmdDemoAutoplay, gameState == .playingPhrase else { return }
-        while nextDemoAutoplayTargetIndex < targets.count {
-            let index = nextDemoAutoplayTargetIndex
-            let target = targets[index]
-            guard time >= target.targetTimeSec else { break }
-            if targets[index].completed == false, targets[index].failed == false {
-                performDemoAutoplayWithoutAudio(for: index, target: target)
-            }
-            nextDemoAutoplayTargetIndex += 1
-        }
-    }
-
-    private func performDemoAutoplayWithoutAudio(for index: Int, target: RhythmTarget) {
-        var midis: [Int] = []
-        midis.reserveCapacity(target.midiCounts.values.reduce(0, +))
-        for (midi, count) in target.midiCounts {
-            for _ in 0..<count {
-                midis.append(midi)
-            }
-        }
-        for midi in midis {
-            registerMidiKeyDown(midi)
-        }
-        for midi in midis {
-            handleNoteOn(midi: midi, velocity: 90, playAudio: false)
-        }
-        if targets[index].completed == false, targets[index].failed == false {
-            let targetIndex = index
-            Task { @MainActor [weak self] in
-                self?.completeTarget(at: targetIndex)
-            }
-        }
-        let releaseMidis = midis
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 180_000_000)
-            guard let self else { return }
-            for midi in releaseMidis {
-                self.registerMidiKeyUp(midi)
-            }
-        }
-    }
-
     private func throwDueHammers(at time: Double) {
         while nextHammerTargetIndex < targets.count {
             let target = targets[nextHammerTargetIndex]
@@ -829,7 +773,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func failExpiredTargets(at time: Double) {
-        if tutorialOsmdDemoAutoplay { return }
         var changed = false
         while nextMissTargetIndex < targets.count {
             let target = targets[nextMissTargetIndex]
@@ -877,7 +820,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func handleHammerImpact(targetIndex: Int) {
-        if tutorialOsmdDemoAutoplay { return }
         guard targets.indices.contains(targetIndex) else { return }
         guard targets[targetIndex].completed == false, targets[targetIndex].reflected == false else { return }
         if targets[targetIndex].failed == false {
@@ -1374,7 +1316,6 @@ extension EarTrainingChordOSMDBattleController: EarTrainingPianoPlayable {
     var voicingHintsByMidi: [Int: VoicingHintState] { [:] }
 
     var voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]? {
-        if tutorialOsmdDemoAutoplay { return nil }
         guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else { return nil }
         return voicingHintIntensities
     }

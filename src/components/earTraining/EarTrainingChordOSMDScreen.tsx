@@ -141,7 +141,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const tutorialOsmdLoopRef = useRef(0);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const tutorialDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
-  const tutorialDemoAutoplay = tutorial?.scene.playMode === 'demo';
   const tutorialOsmdDrumLoopPrepareUrl = useMemo((): string | null => {
     if (!tutorial) {
       return null;
@@ -297,10 +296,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, []);
 
   const syncPracticeVoicingHints = useCallback(() => {
-    if (tutorialDemoAutoplay) {
-      pianoOverlayRef.current?.clearVoicingHints();
-      return;
-    }
     if (!practiceModeRef.current && !showKeyboardHintsInBattleRef.current) {
       pianoOverlayRef.current?.clearVoicingHints();
       return;
@@ -354,12 +349,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       pianoOverlayRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, []);
     }
-  }, [tutorialDemoAutoplay]);
+  }, []);
 
   useEffect(() => {
-    if (tutorialDemoAutoplay) {
-      return;
-    }
     if (!practiceMode && !showKeyboardHintsInBattle) {
       return;
     }
@@ -375,7 +367,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [practiceMode, showKeyboardHintsInBattle, gameState, syncPracticeVoicingHints, tutorialDemoAutoplay]);
+  }, [practiceMode, showKeyboardHintsInBattle, gameState, syncPracticeVoicingHints]);
 
   const stopPhraseAudio = useCallback(() => {
     phrasePlayerRef.current?.stop();
@@ -589,9 +581,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [isEnglishCopy, publishTargetStates, syncPracticeVoicingHints, triggerFeedback]);
 
   const handleHammerImpact = useCallback((targetId: string) => {
-    if (tutorialDemoAutoplay) {
-      return;
-    }
     const state = runtimeByTargetIdRef.current.get(targetId);
     if (!state || state.completed) {
       return;
@@ -603,7 +592,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (!tutorialNoCombat) {
       applyPlayerDamage(activeDamageConfig.miss);
     }
-  }, [activeDamageConfig.miss, applyPlayerDamage, publishTargetStates, tutorialDemoAutoplay, tutorialNoCombat]);
+  }, [activeDamageConfig.miss, applyPlayerDamage, publishTargetStates, tutorialNoCombat]);
 
   const finishCurrentPhrase = useCallback((runId: number) => {
     if (
@@ -777,60 +766,30 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         publishTargetStates();
       }, openDelayMs);
 
-      if (tutorialDemoAutoplay) {
-        scheduleTimer(() => {
-          if (phraseRunIdRef.current !== runId) {
-            return;
-          }
-          const state = runtimeByTargetIdRef.current.get(target.id);
-          if (!state || state.completed || state.failed) {
-            return;
-          }
-          for (const entry of target.midiCounts) {
-            for (let i = 0; i < entry.count; i += 1) {
-              pianoOverlayRef.current?.highlightKey(entry.midi, true);
-              handleNoteInputRef.current(entry.midi);
-            }
-          }
-        }, (countInDurationSec + target.targetTimeSec) * 1000);
-        scheduleTimer(() => {
-          if (phraseRunIdRef.current !== runId) {
-            return;
-          }
-          for (const entry of target.midiCounts) {
-            pianoOverlayRef.current?.highlightKey(entry.midi, false);
-          }
-        }, (countInDurationSec + target.targetTimeSec) * 1000 + 180);
-      }
+      const hammerDelaySec = Math.max(0, countInDurationSec + target.targetTimeSec - CHORD_OSMD_HAMMER_LEAD_SEC);
+      const impactTimeSec = countInDurationSec + target.targetTimeSec + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
+      scheduleTimer(() => {
+        if (phraseRunIdRef.current !== runId) {
+          return;
+        }
+        const state = runtimeByTargetIdRef.current.get(target.id);
+        if (!state || state.completed || state.failed) {
+          return;
+        }
+        const effectId = triggerBattleEffect('osmdHammer', {
+          travelDurationSec: Math.max(0.12, impactTimeSec - hammerDelaySec),
+        });
+        state.hammerEffectId = effectId;
+        registerBattleEffectImpact(effectId, () => {
+          handleHammerImpact(target.id);
+        });
+      }, hammerDelaySec * 1000);
 
-      if (!tutorialDemoAutoplay) {
-        const hammerDelaySec = Math.max(0, countInDurationSec + target.targetTimeSec - CHORD_OSMD_HAMMER_LEAD_SEC);
-        const impactTimeSec = countInDurationSec + target.targetTimeSec + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
-        scheduleTimer(() => {
-          if (phraseRunIdRef.current !== runId) {
-            return;
-          }
-          const state = runtimeByTargetIdRef.current.get(target.id);
-          if (!state || state.completed || state.failed) {
-            return;
-          }
-          const effectId = triggerBattleEffect('osmdHammer', {
-            travelDurationSec: Math.max(0.12, impactTimeSec - hammerDelaySec),
-          });
-          state.hammerEffectId = effectId;
-          registerBattleEffectImpact(effectId, () => {
-            handleHammerImpact(target.id);
-          });
-        }, hammerDelaySec * 1000);
-      }
-
-      if (!tutorialDemoAutoplay) {
-        scheduleTimer(() => {
-          if (phraseRunIdRef.current === runId) {
-            failTargetIfNeeded(target.id);
-          }
-        }, (countInDurationSec + target.targetTimeSec + CHORD_OSMD_JUDGMENT_WINDOW_SEC) * 1000);
-      }
+      scheduleTimer(() => {
+        if (phraseRunIdRef.current === runId) {
+          failTargetIfNeeded(target.id);
+        }
+      }, (countInDurationSec + target.targetTimeSec + CHORD_OSMD_JUDGMENT_WINDOW_SEC) * 1000);
     }
 
     scheduleTimer(() => {
@@ -847,7 +806,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     stage.bpm,
     stage.loop_measures,
     triggerBattleEffect,
-    tutorialDemoAutoplay,
   ]);
 
   const startPhrase = useCallback((nextPhraseIndex: number) => {

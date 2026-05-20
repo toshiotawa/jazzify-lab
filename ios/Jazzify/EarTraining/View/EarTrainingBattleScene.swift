@@ -22,6 +22,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         base * battleCharacterVisualScale
     }
 
+    /// チュートリアル `dialogue_only` の本文サイズ（標準の約 2 倍）。
+    static var dialogueTutorialQuoteFontPoints: CGFloat { battleLayoutPt(30) }
+
     private static let characterDisplaySize: CGFloat = battleLayoutPt(88)
     private static let characterShadowWidth: CGFloat = battleLayoutPt(82)
     private static let characterShadowHeight: CGFloat = battleLayoutPt(18)
@@ -180,6 +183,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var phraseIntroLabel: SKLabelNode?
     private var demoBubbleNode: SKSpriteNode?
     private var cachedPlayerQuoteText: String?
+    /// nil のとき標準サイズ（`battleLayoutPt(15)`）。
+    private var cachedQuoteFontPoints: CGFloat?
+    private var cachedQuoteShowAdvanceCue = false
     private var playerQuoteBubbleRoot: SKNode?
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
@@ -266,11 +272,25 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
-    func setPlayerQuote(_ text: String?) {
+    func setPlayerQuote(_ text: String?, quoteFontPoints: CGFloat?, showAdvanceCue: Bool) {
         let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
         let next: String? = (trimmed?.isEmpty == false) ? trimmed : nil
-        if next == cachedPlayerQuoteText { return }
+        if next == nil {
+            if cachedPlayerQuoteText == nil, cachedQuoteFontPoints == nil, cachedQuoteShowAdvanceCue == false { return }
+            cachedPlayerQuoteText = nil
+            cachedQuoteFontPoints = nil
+            cachedQuoteShowAdvanceCue = false
+            layoutPlayerQuoteBubble()
+            return
+        }
+        if next == cachedPlayerQuoteText,
+           quoteFontPoints == cachedQuoteFontPoints,
+           showAdvanceCue == cachedQuoteShowAdvanceCue {
+            return
+        }
         cachedPlayerQuoteText = next
+        cachedQuoteFontPoints = quoteFontPoints
+        cachedQuoteShowAdvanceCue = showAdvanceCue
         layoutPlayerQuoteBubble()
     }
 
@@ -1277,12 +1297,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             return
         }
 
+        let bodyFont = cachedQuoteFontPoints ?? Self.battleLayoutPt(15)
+
         if playerQuoteBubbleRoot == nil || playerQuoteBubbleRoot?.parent !== footContainer {
             playerQuoteBubbleRoot?.removeFromParent()
             let root = SKNode()
             // 五線譜オーバーレイ (`phraseLayer.zPosition = 20`) より奥に配置。
-            // 親 `characterLayer (10) + container (5)` に対し負値で打ち消すことで
-            // 累積 zPosition を 12 にし、phraseLayer の譜面より下のレイヤーに描画する。
             root.zPosition = -3
             root.position = CGPoint(x: 0, y: Self.characterDisplaySize + 12)
             footContainer.addChild(root)
@@ -1293,21 +1313,39 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         root.removeAllChildren()
         root.isHidden = false
 
-        let label = SKLabelNode(text: quoteText)
-        label.fontName = "AvenirNext-Heavy"
-        label.fontSize = Self.battleLayoutPt(15)
-        label.fontColor = .white
-        label.horizontalAlignmentMode = .center
-        label.verticalAlignmentMode = .center
-
         let padX = Self.battleLayoutPt(10)
         let padY = Self.battleLayoutPt(6)
         let corner = Self.battleLayoutPt(8)
         let tailH = Self.battleLayoutPt(10)
+        let cueGap = Self.battleLayoutPt(8)
 
-        let textFrame = label.calculateAccumulatedFrame()
-        let bubbleWidth = textFrame.width + padX * 2
-        let bubbleHeight = textFrame.height + padY * 2
+        let label = SKLabelNode(text: quoteText)
+        label.fontName = "AvenirNext-Heavy"
+        label.fontSize = bodyFont
+        label.fontColor = .white
+        label.horizontalAlignmentMode = .left
+        label.verticalAlignmentMode = .center
+
+        let labelFrame = label.calculateAccumulatedFrame()
+        var innerWidth = labelFrame.width
+
+        var cueLabel: SKLabelNode?
+        if cachedQuoteShowAdvanceCue {
+            let cue = SKLabelNode(text: "▶︎")
+            cue.fontName = "AvenirNext-Heavy"
+            cue.fontSize = bodyFont
+            cue.fontColor = .white
+            cue.horizontalAlignmentMode = .left
+            cue.verticalAlignmentMode = .center
+            cue.alpha = 1
+            innerWidth += cueGap + cue.calculateAccumulatedFrame().width
+            cueLabel = cue
+        }
+
+        let bubbleWidth = innerWidth + padX * 2
+        let cueHeight = cueLabel?.calculateAccumulatedFrame().height ?? 0
+        let rowHeight = max(labelFrame.height, cueHeight)
+        let bubbleHeight = rowHeight + padY * 2
 
         let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
         let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
@@ -1327,11 +1365,31 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         tailNode.strokeColor = .clear
         tailNode.zPosition = -0.25
 
-        label.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
+        let row = SKNode()
+        row.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
+        row.zPosition = 0.5
+
+        var xLead = -innerWidth / 2
+        label.position = CGPoint(x: xLead - labelFrame.minX, y: 0)
+        xLead += labelFrame.width
+
+        row.addChild(label)
+
+        if let cue = cueLabel {
+            let cueFrame = cue.calculateAccumulatedFrame()
+            xLead += cueGap
+            cue.position = CGPoint(x: xLead - cueFrame.minX, y: 0)
+            let pulse = SKAction.sequence([
+                SKAction.fadeAlpha(to: 0.38, duration: 0.85),
+                SKAction.fadeAlpha(to: 1.0, duration: 0.85),
+            ])
+            cue.run(SKAction.repeatForever(pulse), withKey: "advanceCuePulse")
+            row.addChild(cue)
+        }
 
         root.addChild(tailNode)
         root.addChild(bubbleNode)
-        root.addChild(label)
+        root.addChild(row)
     }
 
     private func createCharacter(x: CGFloat, footY: CGFloat, isPlayer: Bool, avatarAssetName: String, flipX: Bool) -> CharacterView {

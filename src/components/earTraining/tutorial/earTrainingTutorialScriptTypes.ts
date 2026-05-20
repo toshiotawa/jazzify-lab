@@ -148,7 +148,6 @@ export type EarTrainingTutorialOsmdTimedLine =
 export interface EarTrainingTutorialOsmdScene {
   type: 'chord_osmd';
   contentRef: string;
-  playMode: 'demo' | 'self';
   requiredLoops: number;
   timedLines: EarTrainingTutorialOsmdTimedLine[];
 }

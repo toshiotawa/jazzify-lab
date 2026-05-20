@@ -6,7 +6,7 @@ struct EarTrainingTutorialDialogueBattleView: View {
     let drumLoopUrl: String?
     let locale: AppLocale
     let lines: [EarTrainingTutorialLocalizedText]
-    /// 互換維持用（吹き出しは SpriteKit `setPlayerQuote` に統一するため無視）。
+    /// 互換維持用（進行はタップまたは固定秒タイムアウトのため無視）。
     let intervalSeconds: Double
     /// チュートリアル親と同じ landscape コンテナへ直接載せる場合に指定。
     var fixedLandscapeSize: CGSize?
@@ -72,13 +72,6 @@ struct EarTrainingTutorialDialogueBattleView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { driver.userTappedAdvance() }
             }
-            .overlay(alignment: .bottomTrailing) {
-                if driver.awaitsUserAdvance {
-                    DialogueTapAdvanceCue(sessionId: driver.pulseSessionId)
-                        .padding(.trailing, 18)
-                        .padding(.bottom, 18)
-                }
-            }
     }
 
     @MainActor
@@ -102,7 +95,6 @@ struct EarTrainingTutorialDialogueBattleView: View {
             audioInstance.startDrumLoop()
         }
 
-        // レイアウトより先に `task` が走ることがあるため、軽く待ち scene を付けてからセリフを出す。
         try? await Task.sleep(nanoseconds: 32_000_000)
         if Task.isCancelled { return }
 
@@ -119,39 +111,14 @@ struct EarTrainingTutorialDialogueBattleView: View {
     }
 }
 
-/// 右下 ▶ を明滅させる（ゲーム外のチュートリアル UI のみで、ヒットテストしない）。
-private struct DialogueTapAdvanceCue: View {
-    let sessionId: Int
-    @State private var emphasis: CGFloat = 0
-
-    var body: some View {
-        Text("▶︎")
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(Color.white.opacity(0.38 + emphasis * 0.54))
-            .allowsHitTesting(false)
-            .animation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true), value: emphasis)
-            .onAppear {
-                emphasis = 0
-                DispatchQueue.main.async {
-                    emphasis = 1
-                }
-            }
-            .id(sessionId)
-    }
-}
-
 @MainActor
 final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTrainingBattleSceneDriving {
     let isEnglishCopy: Bool
 
-    /// 親がタップ待ち状態（複数線のとき、最後の 1 行のあとも次へ進めるまで維持）。
-    @Published private(set) var awaitsUserAdvance = false
-    /// 明滅アニメをセッション切り替えでリセットする。
-    @Published private(set) var pulseSessionId = 0
-
     private weak var scene: EarTrainingBattleSceneHandle?
     private let stageId = UUID(uuidString: "B0000000-0000-4000-8000-000000000001")!
     private var tapContinuation: CheckedContinuation<Void, Never>?
+    private var advanceDeadlineTask: Task<Void, Never>?
 
     init(isEnglishCopy: Bool) {
         self.isEnglishCopy = isEnglishCopy
@@ -163,9 +130,10 @@ final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTraini
     }
 
     func detachScene() {
+        advanceDeadlineTask?.cancel()
+        advanceDeadlineTask = nil
         tapContinuation?.resume(returning: ())
         tapContinuation = nil
-        awaitsUserAdvance = false
         scene = nil
     }
 
@@ -175,7 +143,11 @@ final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTraini
 
     func presentLine(locale: AppLocale, text: EarTrainingTutorialLocalizedText) {
         publishIdleSnapshot()
-        scene?.setPlayerQuote(text.localized(locale))
+        scene?.setPlayerQuote(
+            text.localized(locale),
+            quoteFontPoints: EarTrainingBattleScene.dialogueTutorialQuoteFontPoints,
+            showAdvanceCue: true
+        )
     }
 
     func clearQuote() {
@@ -183,12 +155,17 @@ final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTraini
     }
 
     func waitForAdvanceTap() async {
-        pulseSessionId &+= 1
-        awaitsUserAdvance = true
         await withCheckedContinuation { continuation in
             tapContinuation = continuation
+            advanceDeadlineTask?.cancel()
+            advanceDeadlineTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { return }
+                userTappedAdvance()
+            }
         }
-        awaitsUserAdvance = false
+        advanceDeadlineTask?.cancel()
+        advanceDeadlineTask = nil
     }
 
     func userTappedAdvance() {

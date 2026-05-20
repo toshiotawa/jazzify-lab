@@ -21,6 +21,10 @@ import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings'
 import type { EarTrainingTutorialDialogueOnlyScene } from './earTrainingTutorialScriptTypes';
 import { localizedText } from './earTrainingTutorialScriptTypes';
 
+/** Web Phaser `PLAYER_QUOTE_FONT_PX`（16）の約 2 倍 */
+const DIALOGUE_QUOTE_FONT_PX = 32;
+const DIALOGUE_LINE_ADVANCE_MS = 5000;
+
 interface EarTrainingTutorialDialogueSceneProps {
   scene: EarTrainingTutorialDialogueOnlyScene;
   bindings: EarTrainingTutorialBindings;
@@ -166,28 +170,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
     };
   }, [drumLoopUrl, scene.lines]);
 
-  useEffect(() => {
-    const lines = scene.lines;
-    if (lines.length === 0 || completedRef.current) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    const quoteText = localizedText(lines[lineIndex], bindings.isEnglishCopy);
-    const rafId = window.requestAnimationFrame(() => {
-      if (cancelled) {
-        return;
-      }
-      phaserRef.current?.setPlayerQuote(quoteText);
-    });
-
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [bindings.isEnglishCopy, lineIndex, scene.lines]);
-
-  const advanceTap = useCallback(() => {
+  const advanceLine = useCallback(() => {
     if (completedRef.current) {
       return;
     }
@@ -196,12 +179,45 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       finalizeComplete();
       return;
     }
-    if (lineIndex < lines.length - 1) {
-      setLineIndex(lineIndex + 1);
-      return;
+    setLineIndex(prev => {
+      if (completedRef.current) {
+        return prev;
+      }
+      if (prev < lines.length - 1) {
+        return prev + 1;
+      }
+      queueMicrotask(() => {
+        finalizeComplete();
+      });
+      return prev;
+    });
+  }, [finalizeComplete, scene.lines]);
+
+  useEffect(() => {
+    const lines = scene.lines;
+    if (lines.length === 0 || completedRef.current) {
+      return undefined;
     }
-    finalizeComplete();
-  }, [finalizeComplete, lineIndex, scene.lines]);
+
+    const quoteText = localizedText(lines[lineIndex], bindings.isEnglishCopy);
+    const rafId = window.requestAnimationFrame(() => {
+      if (!completedRef.current) {
+        phaserRef.current?.setPlayerQuote(quoteText, {
+          fontSizePx: DIALOGUE_QUOTE_FONT_PX,
+          showAdvanceCue: true,
+        });
+      }
+    });
+
+    const timerId = window.setTimeout(() => {
+      advanceLine();
+    }, DIALOGUE_LINE_ADVANCE_MS);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timerId);
+    };
+  }, [advanceLine, bindings.isEnglishCopy, lineIndex, scene.lines]);
 
   return (
     <div className="relative h-full w-full">
@@ -225,14 +241,8 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
         type="button"
         className="absolute inset-0 z-20 cursor-pointer bg-transparent focus:outline-none"
         aria-label={bindings.isEnglishCopy ? 'Next line' : '次のセリフ'}
-        onClick={advanceTap}
+        onClick={advanceLine}
       />
-      <div
-        className="pointer-events-none absolute bottom-[max(16px,env(safe-area-inset-bottom))] right-[max(16px,env(safe-area-inset-right))] z-30 animate-pulse text-2xl font-bold text-white drop-shadow-lg"
-        aria-hidden
-      >
-        ▶︎
-      </div>
     </div>
   );
 };

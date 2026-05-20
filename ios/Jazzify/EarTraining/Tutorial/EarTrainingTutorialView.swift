@@ -11,6 +11,7 @@ struct EarTrainingTutorialView: View {
     @State private var script: EarTrainingTutorialScriptPayload?
     @State private var sceneIndex: Int = 0
     @State private var showFinishCta = false
+    @State private var showGreatInterstitial = false
 
     /// `dialogue_only` のあとのアタッチ用（そのシーンのみ消費）。
     @State private var pendingQuizPrewarm: EarTrainingTutorialPrewarmedQuizPack?
@@ -56,6 +57,7 @@ struct EarTrainingTutorialView: View {
                 pendingQuizPrewarm = nil
                 pendingVoicingPrewarm = nil
                 pendingOsmdPrewarm = nil
+                showGreatInterstitial = false
                 gate = .ready
             } else {
                 gate = .failed
@@ -98,6 +100,15 @@ struct EarTrainingTutorialView: View {
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
                 .id(sceneIndex)
 
+                if showGreatInterstitial {
+                    Color.black.opacity(0.35)
+                        .allowsHitTesting(false)
+                    Text("Great!!")
+                        .font(.system(size: 44, weight: .heavy))
+                        .foregroundStyle(Color(red: 0.99, green: 0.92, blue: 0.55))
+                        .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 4)
+                }
+
                 if showFinishCta {
                     OnboardingCtaView(isJa: isJa) {
                         Task {
@@ -128,7 +139,7 @@ struct EarTrainingTutorialView: View {
                 lines: dialogue.lines,
                 intervalSeconds: dialogue.lineIntervalSeconds ?? 4,
                 fixedLandscapeSize: hostedLandscapeSize,
-                onComplete: { advanceScene(script: script) }
+                onComplete: { handleSceneFinished(script: script) }
             )
         case .chordQuiz(let quizScene):
             if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
@@ -210,7 +221,6 @@ struct EarTrainingTutorialView: View {
                         script: script,
                         requiredLoops: osmdScene.requiredLoops,
                         onLoopSuccess: nil,
-                        osmdDemoAutoplay: osmdScene.playMode == "demo",
                         osmdTimedLines: osmdScene.timedLines
                     ),
                     hostedLandscapeSize: hostedLandscapeSize,
@@ -238,7 +248,6 @@ struct EarTrainingTutorialView: View {
         requiredLoops: Int,
         onLoopSuccess: (() -> Void)?,
         quiz: EarTrainingTutorialQuizSceneHooks? = nil,
-        osmdDemoAutoplay: Bool = false,
         osmdTimedLines: [EarTrainingTutorialOsmdTimedLine]? = nil,
         selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
     ) -> EarTrainingTutorialSceneHooks {
@@ -246,19 +255,38 @@ struct EarTrainingTutorialView: View {
             ui: script.ui,
             noCombat: script.ui.noCombat,
             onCharacterText: { _ in },
-            onSceneComplete: { advanceScene(script: script) },
+            onSceneComplete: { handleSceneFinished(script: script) },
             requiredSuccessfulLoops: max(1, requiredLoops),
             onLoopSuccess: onLoopSuccess,
             quiz: quiz,
-            osmdDemoAutoplay: osmdDemoAutoplay,
             osmdTimedLines: osmdTimedLines,
             tutorialDrumLoopUrl: script.audioTracks?.drum_loop?.url,
             selfPacedTimedLines: selfPacedTimedLines
         )
     }
 
+    private func handleSceneFinished(script: EarTrainingTutorialScriptPayload) {
+        let scenes = script.scenes
+        guard scenes.indices.contains(sceneIndex) else {
+            advanceScene(script: script)
+            return
+        }
+        switch scenes[sceneIndex] {
+        case .dialogueOnly:
+            advanceScene(script: script)
+        default:
+            showGreatInterstitial = true
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                showGreatInterstitial = false
+                advanceScene(script: script)
+            }
+        }
+    }
+
     private func advanceScene(script: EarTrainingTutorialScriptPayload) {
         showFinishCta = false
+        showGreatInterstitial = false
         let next = sceneIndex + 1
         if next >= script.scenes.count {
             Task {
@@ -347,7 +375,6 @@ struct EarTrainingTutorialView: View {
                 script: script,
                 requiredLoops: osmdScene.requiredLoops,
                 onLoopSuccess: nil,
-                osmdDemoAutoplay: osmdScene.playMode == "demo",
                 osmdTimedLines: osmdScene.timedLines
             )
                   guard let built = try? EarTrainingTutorialBattleWarmup.buildOsmdPack(

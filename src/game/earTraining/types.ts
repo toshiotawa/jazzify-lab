@@ -114,10 +114,17 @@ export interface EarTrainingBattleCallbacks {
   onEffectImpact: (effectId: number) => void;
 }
 
+/** `setPlayerQuote` の省略時はデフォルト吹き出し（本文のみ・標準サイズ）。 */
+export interface EarTrainingPlayerQuoteOptions {
+  readonly fontSizePx?: number;
+  /** true のとき本文の右に ▶ を表示し、そのノードのみ点滅させる（チュートリアル dialogue 用）。 */
+  readonly showAdvanceCue?: boolean;
+}
+
 export interface EarTrainingBattleSceneHandle {
   updateSnapshot: (snapshot: EarTrainingBattleSnapshot) => void;
   triggerEffect: (command: EarTrainingBattleEffectCommand) => void;
   highlightKey: (midiNote: number, active: boolean) => void;
   /** 主人公頭上のヴォイシング台詞吹き出し。null で非表示。 */
-  setPlayerQuote: (text: string | null) => void;
+  setPlayerQuote: (text: string | null, options?: EarTrainingPlayerQuoteOptions) => void;
 }
