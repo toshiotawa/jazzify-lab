@@ -10,7 +10,7 @@ import {
 import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/survivalTutorialV3Bindings';
 import {
   mergeSurvivalTutorialV3Baseline,
-  survivalTutorialChordIntroBlockOverrides,
+  survivalTutorialPhraseIntroBlockOverrides,
   survivalTutorialPhraseRevealOverrides,
 } from '@/components/survival/tutorial/survivalTutorialV3Scenario';
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
@@ -160,7 +160,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
       let progressed = false;
 
       try {
-        h.setOverrides(survivalTutorialChordIntroBlockOverrides(baseline));
+        h.setOverrides(survivalTutorialPhraseIntroBlockOverrides(baseline));
         bindingsRef.current.setCharacterLine(
           survivalTutorialLocalized(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
         );

@@ -1399,7 +1399,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let cueGap = Self.battleLayoutPt(8)
 
         let sceneWidth = max(320, size.width)
-        let maxBubbleOuter = min(sceneWidth * 0.72, 520)
+        let sceneShort = min(size.width, size.height)
+        let maxBubbleOuter = min(sceneShort * 0.86, 340)
 
         var cueColumnWidth: CGFloat = 0
         var cueLabel: SKLabelNode?

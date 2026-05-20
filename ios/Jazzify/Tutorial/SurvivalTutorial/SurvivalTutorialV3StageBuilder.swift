@@ -59,22 +59,10 @@ enum SurvivalTutorialV3StageBuilder {
         let base = SurvivalStageCatalog.stage(byNumber: 1) ?? OnboardingChords.stageDefinition
         switch content {
         case let .phraseStage(phraseStage):
-            let phrase0 = phraseStage.phrases.first
-            let chordProg: [SurvivalChordProgressionEntry] = phrase0.map { phrase in
-                phrase.chords.map { ch in
-                    SurvivalChordProgressionEntry(
-                        name: ch.name,
-                        voicing: ch.voicing,
-                        voicingNames: ch.voicingNames,
-                        keyFifths: ch.keyFifths,
-                        voicingStaves: ch.voicing_staves
-                    )
-                }
-            } ?? []
             return SurvivalStageDefinition(
                 mapCategory: .phrases,
                 stageNumber: 0,
-                stageType: .progression,
+                stageType: .random,
                 nameJa: phraseStage.stage.name,
                 nameEn: phraseStage.stage.nameEn,
                 difficulty: base.difficulty,
@@ -87,7 +75,7 @@ enum SurvivalTutorialV3StageBuilder {
                 allowedChords: [],
                 blockKey: "lesson_practice",
                 isMixedStage: false,
-                chordProgression: chordProg.isEmpty ? nil : chordProg
+                chordProgression: nil
             )
         case let .progressionRandom(block):
             let stageTy = SurvivalStageType(rawValue: block.stage.stageType) ?? .progression

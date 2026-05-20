@@ -48,6 +48,15 @@ enum SurvivalTutorialV3Scenario {
         return out
     }
 
+    static func phraseIntroBlock(base: SurvivalScenarioOverrides) -> SurvivalScenarioOverrides {
+        var out = phraseReveal(base: base)
+        out.hideStaff = true
+        out.blockChordPadInput = true
+        out.blockMidiGameInput = true
+        out.blockSlotEvaluation = true
+        return out
+    }
+
     static func phraseReveal(base: SurvivalScenarioOverrides) -> SurvivalScenarioOverrides {
         var out = base
         out.isActive = true

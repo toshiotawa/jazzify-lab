@@ -19,20 +19,24 @@ struct SurvivalTutorialV3LessonView: View {
 
     private var isJapanese: Bool { locale == .ja }
 
-    /// Exit ボタンのみ（横レイアウト用オーバーレイ）。
-    private struct LandscapeExitOverlay: View {
-        let landscapeSize: CGSize
-        let showExit: Bool
-        let label: String
-        let onExit: () -> Void
+    private var showExitButton: Bool {
+        script.ui.showExitButton ?? (!script.ui.hideBackButton)
+    }
 
-        var body: some View {
-            Color.clear
-                .frame(width: landscapeSize.width, height: landscapeSize.height)
-                .allowsHitTesting(false)
-                .overlay(alignment: .topTrailing) {
-                    if showExit {
-                        Button(label, action: onExit)
+    var body: some View {
+        ZStack {
+            if script.scenes.indices.contains(sceneIndex) {
+                sceneHost(scene: script.scenes[sceneIndex])
+                    .id(sceneIndex)
+            }
+
+            OnboardingCharacterDialogView(text: characterLine)
+
+            if showExitButton {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button(isJapanese ? "戻る" : "Exit", action: onClose)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 14)
@@ -41,74 +45,38 @@ struct SurvivalTutorialV3LessonView: View {
                             .clipShape(Capsule())
                             .padding(.top, 12)
                             .padding(.trailing, 16)
-                            .allowsHitTesting(true)
                     }
+                    Spacer()
                 }
-        }
-    }
+                .allowsHitTesting(true)
+            }
 
-    var body: some View {
-        GeometryReader { portraitProxy in
-            let portraitSize = portraitProxy.size
-            let landscapeSize = CGSize(
-                width: max(1, portraitSize.height),
-                height: max(1, portraitSize.width)
-            )
-            let scenes = script.scenes
-            let showExitOverlay = script.ui.showExitButton ?? (!script.ui.hideBackButton)
-
-            ZStack {
-                ZStack {
-                    if scenes.indices.contains(sceneIndex) {
-                        sceneHost(
-                            scene: scenes[sceneIndex],
-                            landscapeSize: landscapeSize,
-                            drumUrl: script.audioTracks?.drum_loop?.url
-                        )
-                        .id(sceneIndex)
-                    }
-                    LandscapeExitOverlay(
-                        landscapeSize: landscapeSize,
-                        showExit: showExitOverlay,
-                        label: isJapanese ? "戻る" : "Exit",
-                        onExit: onClose
-                    )
-
-                    OnboardingCharacterDialogView(text: characterLine)
-
-                    if showFinishCta {
-                        Color.black.opacity(0.42)
-                            .allowsHitTesting(true)
-                            .onTapGesture { }
-                        Button(SurvivalTutorialV3Scenario.finishCtaLabel(isEnglish: locale == .en)) {
-                            Task {
-                                await onComplete?()
-                                onClose()
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
-                .frame(width: landscapeSize.width, height: landscapeSize.height)
-                .clipped()
-                .rotationEffect(.degrees(90))
-                .frame(width: portraitSize.width, height: portraitSize.height)
-                .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
-
-                if showSkip {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            OnboardingSkipButton(isJa: isJapanese) {
-                                onClose()
-                            }
-                            .padding(.trailing, 16)
-                            .padding(.top, 16)
-                        }
-                        Spacer()
-                    }
+            if showFinishCta {
+                Color.black.opacity(0.42)
                     .allowsHitTesting(true)
+                    .onTapGesture { }
+                Button(SurvivalTutorialV3Scenario.finishCtaLabel(isEnglish: locale == .en)) {
+                    Task {
+                        await onComplete?()
+                        onClose()
+                    }
                 }
+                .buttonStyle(.borderedProminent)
+            }
+
+            if showSkip {
+                VStack {
+                    HStack {
+                        Spacer()
+                        OnboardingSkipButton(isJa: isJapanese) {
+                            onClose()
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.top, 16)
+                    }
+                    Spacer()
+                }
+                .allowsHitTesting(true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -135,21 +103,15 @@ struct SurvivalTutorialV3LessonView: View {
     }
 
     @ViewBuilder
-    private func sceneHost(
-        scene: SurvivalTutorialV3Scene,
-        landscapeSize: CGSize,
-        drumUrl: String?
-    ) -> some View {
+    private func sceneHost(scene: SurvivalTutorialV3Scene) -> some View {
         switch scene {
         case let .dialogueOnly(diag):
-            let mapped = diag.lines.map { EarTrainingTutorialLocalizedText(ja: $0.ja, en: $0.en) }
-            EarTrainingTutorialDialogueBattleView(
-                drumLoopUrl: drumUrl,
+            SurvivalTutorialV3DialogueScene(
+                script: script,
+                scene: diag,
                 locale: locale,
-                lines: mapped,
-                intervalSeconds: diag.lineIntervalSeconds ?? 4,
-                fixedLandscapeSize: landscapeSize,
-                onComplete: { advanceScene() }
+                onCharacter: { txt in characterLine = txt },
+                onDone: { advanceScene() }
             )
         case let .finish(fin):
             Color.black.opacity(0.001)
@@ -183,7 +145,6 @@ struct SurvivalTutorialV3LessonView: View {
                 script: script,
                 scene: sceneNode,
                 locale: locale,
-                landscapeSize: landscapeSize,
                 onCharacter: { txt in characterLine = txt },
                 onDone: { advanceScene() }
             )
@@ -429,7 +390,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         script: SurvivalTutorialScriptPayloadV3,
         scene: SurvivalTutorialV3PhraseBattleScene,
         locale: AppLocale,
-        landscapeSize _: CGSize,
         onCharacter: @escaping (String) -> Void,
         onDone: @escaping () -> Void
     ) {
@@ -540,7 +500,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         }
         await SurvivalTutorialSleep.seconds(0.08)
         await MainActor.run {
-            scenarioController.setOverrides(SurvivalTutorialV3Scenario.chordIntroBlock(base: built.baseline))
+            scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseIntroBlock(base: built.baseline))
             onCharacter(localized(scene.dialogue.intro))
         }
         async let introDone: Void = SurvivalTutorialSleep.race(seconds: scene.introDelaySeconds ?? 5, tap: { await introTapAwait() })
@@ -552,6 +512,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         await MainActor.run {
             scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseReveal(base: built.baseline))
             onCharacter(localized(scene.dialogue.onReveal))
+            sess.viewModel.syncPhraseStaff(from: sess.gameLoop)
         }
 
         guard await SurvivalTutorialPhraseWait.waitLoops(

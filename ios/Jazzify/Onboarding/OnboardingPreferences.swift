@@ -9,7 +9,7 @@ enum OnboardingPreferences {
 
     /// `false`: テスト用に「自動表示」を毎回試せる（ゲート無視）。
     /// `true`: 初回起動相当（未完了かつバージョン不一致）のときだけ自動表示。
-    static let respectFirstLaunchGate: Bool = false
+    static let respectFirstLaunchGate: Bool = true
 
     private static var lastCompletedVersion: Int {
         UserDefaults.standard.object(forKey: completedVersionKey) as? Int ?? 0

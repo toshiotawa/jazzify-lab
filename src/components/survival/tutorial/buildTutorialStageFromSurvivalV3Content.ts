@@ -25,15 +25,12 @@ export function buildStageDefinitionFromSurvivalV3Content(
   block: SurvivalTutorialV3ContentRef,
 ): StageDefinition {
   if (survivalTutorialV3ContentIsPhraseBlock(block)) {
-    const phrase0 = block.phrases[0];
-    const chordProg: SurvivalChordProgressionEntry[] =
-      phrase0 ? phrase0.chords.map(v3ChordDefToProgressionEntry) : [];
     return {
       stageNumber: 0,
       name: block.stage.name,
       nameEn: block.stage.nameEn,
       difficulty: 'easy',
-      stageType: 'progression',
+      stageType: 'random',
       chordSuffix: '',
       chordDisplayName: block.stage.chordDisplayName,
       chordDisplayNameEn: block.stage.chordDisplayNameEn,
@@ -44,7 +41,6 @@ export function buildStageDefinitionFromSurvivalV3Content(
       blockKey: 'lesson_practice',
       mapCategory: 'phrases',
       lessonOnly: block.stage.lessonOnly ?? true,
-      chordProgression: chordProg,
     };
   }
 

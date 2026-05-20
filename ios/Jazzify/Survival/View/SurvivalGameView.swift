@@ -346,8 +346,10 @@ private struct SurvivalGameContent: View {
     private var scenarioStaffSnapshot: SurvivalScenarioStaffPanel.Snapshot? {
         let sc = vm.uiSnapshot.scenario
         guard sc.isActive, !sc.hideStaff else { return nil }
+        guard session.gameLoop.phraseStaffSnapshot() == nil else { return nil }
         guard vm.uiSnapshot.slots.indices.contains(1) else { return nil }
         let slot = vm.uiSnapshot.slots[1]
+        guard slot.isEnabled else { return nil }
         guard let chord = slot.chord,
               let staffNames = chord.progressionStaffVoicingNames,
               !staffNames.isEmpty else {

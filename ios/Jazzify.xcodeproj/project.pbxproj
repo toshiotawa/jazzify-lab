@@ -33,6 +33,7 @@
 		B2C3D4E5F61718293B5114 /* SurvivalTutorialV3StageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5113 /* SurvivalTutorialV3StageBuilder.swift */; };
 		B2C3D4E5F61718293B5116 /* SurvivalTutorialV3Scenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5115 /* SurvivalTutorialV3Scenario.swift */; };
 		B2C3D4E5F61718293B5118 /* SurvivalTutorialV3LessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */; };
+		B2C3D4E5F61718293B5121 /* SurvivalTutorialV3DialogueScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5120 /* SurvivalTutorialV3DialogueScene.swift */; };
 		B2C3D4E5F61718293A500E /* onboarding-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A500D /* onboarding-v1.script.json */; };
 		E1E2F3A4B5C60718293A512 /* EarTrainingTutorialScriptModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A511 /* EarTrainingTutorialScriptModels.swift */; };
 		E1E2F3A4B5C60718293A514 /* EarTrainingTutorialStageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A513 /* EarTrainingTutorialStageBuilder.swift */; };
@@ -213,6 +214,7 @@
 		B2C3D4E5F61718293B5113 /* SurvivalTutorialV3StageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3StageBuilder.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5115 /* SurvivalTutorialV3Scenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3Scenario.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LessonView.swift; sourceTree = "<group>"; };
+		B2C3D4E5F61718293B5120 /* SurvivalTutorialV3DialogueScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DialogueScene.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293A500D /* onboarding-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "onboarding-v1.script.json"; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A511 /* EarTrainingTutorialScriptModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialScriptModels.swift; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A513 /* EarTrainingTutorialStageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialStageBuilder.swift; sourceTree = "<group>"; };
@@ -778,6 +780,7 @@
 				B2C3D4E5F61718293B5113 /* SurvivalTutorialV3StageBuilder.swift */,
 				B2C3D4E5F61718293B5115 /* SurvivalTutorialV3Scenario.swift */,
 				B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */,
+				B2C3D4E5F61718293B5120 /* SurvivalTutorialV3DialogueScene.swift */,
 			);
 			path = SurvivalTutorial;
 			sourceTree = "<group>";
@@ -1021,6 +1024,7 @@
 				B2C3D4E5F61718293B5114 /* SurvivalTutorialV3StageBuilder.swift in Sources */,
 				B2C3D4E5F61718293B5116 /* SurvivalTutorialV3Scenario.swift in Sources */,
 				B2C3D4E5F61718293B5118 /* SurvivalTutorialV3LessonView.swift in Sources */,
+				B2C3D4E5F61718293B5121 /* SurvivalTutorialV3DialogueScene.swift in Sources */,
 				E1E2F3A4B5C60718293A512 /* EarTrainingTutorialScriptModels.swift in Sources */,
 				E1E2F3A4B5C60718293A514 /* EarTrainingTutorialStageBuilder.swift in Sources */,
 				E1E2F3A4B5C60718293A516 /* EarTrainingTutorialScriptService.swift in Sources */,

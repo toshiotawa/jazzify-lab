@@ -72,6 +72,20 @@ export function survivalTutorialChordIntroBlockOverrides(
   };
 }
 
+/** フレーズ intro: 入力ブロック・譜面非表示（フレーズ譜は reveal 後）。 */
+export function survivalTutorialPhraseIntroBlockOverrides(
+  base: SurvivalScenarioOverrides,
+): SurvivalScenarioOverrides {
+  return {
+    ...survivalTutorialPhraseRevealOverrides(base),
+    hideStaff: true,
+    staffMode: 'hidden',
+    blockChordPadInput: true,
+    blockMidiGameInput: true,
+    blockSlotEvaluation: true,
+  };
+}
+
 /** フレーズバトル: フレーズ譜は `phraseStaffProps` 経路。コードスロット評価はオフのまま。 */
 export function survivalTutorialPhraseRevealOverrides(
   base: SurvivalScenarioOverrides,
