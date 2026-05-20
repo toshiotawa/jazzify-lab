@@ -8,6 +8,13 @@ struct ChordOsmdMusicXmlAttack: Equatable, Sendable {
     let midis: [Int]
 }
 
+/// MusicXML 1 番歌詞をフレーズ時間軸（秒）に載せた表示イベント（Web `ChordOsmdLyricEvent` と同等）。
+struct ChordOsmdLyricEvent: Equatable, Sendable {
+    let targetTimeSec: Double
+    let measureNumber: Int
+    let text: String
+}
+
 /* Non-nested DOM: XMLParser 用。`XMLDocument` 系は iOS Swift から参照できないため。 */
 
 private final class ChordOsmdXmlElement {
@@ -435,6 +442,187 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
 
     private static func attribute(named key: String, on element: ChordOsmdXmlElement) -> String? {
         element.attributes.first(where: { $0.name == key })?.value
+    }
+
+    // MARK: - Lyric strip & collect (OSMD 表示から除外し Quote 用に抽出)
+
+    private static func stripLyrics(from element: ChordOsmdXmlElement) {
+        for ch in element.children {
+            if case let .element(el) = ch {
+                stripLyrics(from: el)
+            }
+        }
+        element.children.removeAll { ch in
+            if case let .element(el) = ch, el.name == "lyric" {
+                return true
+            }
+            return false
+        }
+    }
+
+    /// 楽譜表示用に `<lyric>` を除去（Web `stripLyricsFromMusicXml` と同等）。
+    static func stripLyricsFromMusicXml(_ xmlText: String) -> String {
+        guard let root = ChordOsmdXmlParser.parse(xmlText) else {
+            return xmlText
+        }
+        stripLyrics(from: root)
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+    }
+
+    private static func lyricElementIsVerseOne(_ lyric: ChordOsmdXmlElement) -> Bool {
+        let raw = attribute(named: "number", on: lyric)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return raw.isEmpty || raw == "1"
+    }
+
+    private static func verseOneLyricText(from note: ChordOsmdXmlElement) -> String? {
+        for ch in note.children {
+            guard case let .element(el) = ch, el.name == "lyric", lyricElementIsVerseOne(el) else { continue }
+            var buffer = ""
+            for lch in el.children {
+                if case let .element(te) = lch, te.name == "text", let t = textContent(of: te) {
+                    buffer += t
+                }
+            }
+            let merged = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !merged.isEmpty {
+                return merged
+            }
+        }
+        return nil
+    }
+
+    private static func verseOneLyricFromCluster(notes: [ChordOsmdXmlElement]) -> String? {
+        for n in notes {
+            if let t = verseOneLyricText(from: n) {
+                return t
+            }
+        }
+        return nil
+    }
+
+    private static func chordOsmdLyricTargetTimeSec(
+        measureNumber: Int,
+        beatStartInMeasure: Double,
+        bpm: Double,
+        beatsPerMeasure: Int
+    ) -> Double {
+        let beatDurationSec = 60 / max(1.0, bpm)
+        let bpmSafe = max(1, beatsPerMeasure)
+        let measureIndex = max(0, measureNumber - 1)
+        let beatIndex = max(0.0, beatStartInMeasure - 1)
+        return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
+    }
+
+    /// Web `collectChordOsmdMusicXmlLyrics` と同等。
+    static func collectChordOsmdMusicXmlLyrics(
+        _ xmlText: String,
+        bpm: Double,
+        beatsPerMeasure: Int
+    ) -> [ChordOsmdLyricEvent] {
+        guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
+        let measures = measuresInPartsFirst(from: root)
+        var events: [ChordOsmdLyricEvent] = []
+        var lastText: String?
+        var timing = ScoreTimingStateForAttacks(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
+
+        for (idx, measure) in measures.enumerated() {
+            let measureNumber = parseMeasureNumberAttribute(measure, ordinalOneBased: idx + 1)
+            var currentTime = 0.0
+            let children = measure.children
+            var ci = 0
+            while ci < children.count {
+                guard case let .element(child) = children[ci] else {
+                    ci += 1
+                    continue
+                }
+
+                switch child.name {
+                case "attributes":
+                    timing = readScoreTimingForAttacks(attributes: child, previous: timing)
+                    ci += 1
+                case "backup":
+                    if let d = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) {
+                        currentTime -= d
+                    }
+                    ci += 1
+                case "forward":
+                    if let d = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) {
+                        currentTime += d
+                    }
+                    ci += 1
+                case "note":
+                    guard directChild(child, localName: "grace") == nil else {
+                        ci += 1
+                        continue
+                    }
+                    guard let duration = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) else {
+                        ci += 1
+                        continue
+                    }
+
+                    if directChild(child, localName: "rest") != nil {
+                        currentTime += duration
+                        ci += 1
+                        continue
+                    }
+
+                    guard directChild(child, localName: "pitch") != nil else {
+                        ci += 1
+                        continue
+                    }
+
+                    if directChild(child, localName: "chord") != nil {
+                        ci += 1
+                        continue
+                    }
+
+                    var clusterNotes: [ChordOsmdXmlElement] = [child]
+                    let clusterDur = duration
+
+                    var ni = ci + 1
+                    while ni < children.count {
+                        if case .text = children[ni] {
+                            ni += 1
+                            continue
+                        }
+                        guard case let .element(next) = children[ni], next.name == "note" else { break }
+                        guard directChild(next, localName: "grace") == nil else { break }
+                        guard directChild(next, localName: "chord") != nil else { break }
+                        guard directChild(next, localName: "rest") == nil else { break }
+                        guard directChild(next, localName: "pitch") != nil else { break }
+                        clusterNotes.append(next)
+                        ni += 1
+                    }
+
+                    let divisions = max(1, timing.divisions)
+                    let quartersFromMeasureStart = currentTime / Double(divisions)
+                    let beatStartInMeasure = quartersFromMeasureStart + 1
+
+                    if let text = verseOneLyricFromCluster(notes: clusterNotes), text != lastText {
+                        lastText = text
+                        events.append(
+                            ChordOsmdLyricEvent(
+                                targetTimeSec: chordOsmdLyricTargetTimeSec(
+                                    measureNumber: measureNumber,
+                                    beatStartInMeasure: beatStartInMeasure,
+                                    bpm: bpm,
+                                    beatsPerMeasure: beatsPerMeasure
+                                ),
+                                measureNumber: measureNumber,
+                                text: text
+                            )
+                        )
+                    }
+
+                    currentTime += clusterDur
+                    ci = ni
+                default:
+                    ci += 1
+                }
+            }
+        }
+
+        return events
     }
 
     /// Web `collectChordOsmdMusicXmlAttacks` と同等（`<chord/>`・`<backup>` を考慮）。

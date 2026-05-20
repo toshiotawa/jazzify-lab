@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  OnboardingOverlays,
-  type EarTutorialDialogPlacement,
-} from '@/components/onboarding/OnboardingOverlays';
+import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
 import { fetchSurvivalCharacters, type SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -53,9 +50,10 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const [enemy, setEnemy] = useState<SurvivalCharacterRow | null>(null);
   const [scriptRow, setScriptRow] = useState<Awaited<ReturnType<typeof fetchEarTrainingTutorialScript>> | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
-  const [characterText, setCharacterText] = useState('');
   const [showCta, setShowCta] = useState(false);
   const finalizedRef = useRef(false);
+
+  const noopSetCharacterText = useCallback((_text: string) => undefined, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,21 +84,6 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const scenes = script?.scenes ?? [];
   const currentScene = scenes[sceneIndex] ?? null;
 
-  const earTutorialDialogPlacement = useMemo((): EarTutorialDialogPlacement => {
-    if (!currentScene) return 'default';
-    switch (currentScene.type) {
-      case 'dialogue_only':
-        return 'dialogueIntroUpperCenter';
-      case 'chord_quiz':
-      case 'chord_osmd':
-        return 'belowChordHud';
-      case 'chord_voicing_self_paced':
-        return 'belowChordHud';
-      default:
-        return 'default';
-    }
-  }, [currentScene]);
-
   useEffect(() => {
     if (gate !== 'ready' || !script?.scenes.length) return;
     if (script.scenes[0]?.type !== 'dialogue_only') return;
@@ -111,7 +94,6 @@ export const EarTrainingLessonTutorialExperience: React.FC<
     async (kind: 'completed' | 'aborted') => {
       if (finalizedRef.current) return;
       finalizedRef.current = true;
-      setCharacterText('');
       if (kind === 'completed') {
         await onLessonTutorialCompleted?.();
       }
@@ -135,13 +117,13 @@ export const EarTrainingLessonTutorialExperience: React.FC<
         keyboardHintsDefault: true,
       },
       isEnglishCopy,
-      setCharacterText,
+      setCharacterText: noopSetCharacterText,
       onSceneComplete: () => undefined,
       onExit: () => {
         void finalizeLesson('aborted');
       },
     }),
-    [finalizeLesson, isEnglishCopy, script?.ui],
+    [finalizeLesson, isEnglishCopy, noopSetCharacterText, script?.ui],
   );
 
   const advanceScene = useCallback(() => {
@@ -155,12 +137,10 @@ export const EarTrainingLessonTutorialExperience: React.FC<
     if (nextScene?.type === 'finish') {
       setSceneIndex(nextIndex);
       setShowCta(showTutorialFinishCta(script, nextScene));
-      setCharacterText('');
       return;
     }
     setSceneIndex(nextIndex);
     setShowCta(false);
-    setCharacterText('');
   }, [finalizeLesson, sceneIndex, script]);
 
   const bindingsWithAdvance: EarTrainingTutorialBindings = useMemo(
@@ -250,7 +230,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
         ) : null}
 
         <OnboardingOverlays
-          characterText={characterText}
+          characterText=""
           narrationText=""
           connectedDeviceLine={null}
           showPillarCard={false}
@@ -262,7 +242,6 @@ export const EarTrainingLessonTutorialExperience: React.FC<
           onCta={handleCta}
           onSkip={() => undefined}
           ctaLabel={tutorialFinishCtaLabel(isEnglishCopy)}
-          earTutorialDialogPlacement={earTutorialDialogPlacement}
         />
       </div>
 

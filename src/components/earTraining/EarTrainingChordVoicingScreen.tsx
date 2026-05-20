@@ -76,11 +76,10 @@ import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoi
 import { unlockFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 import { getChordVoicingQuoteDisplayText } from '@/utils/earTrainingChordVoicingQuote';
 import {
-  DEFAULT_AVATAR_URL,
-  EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
-  EAR_TRAINING_ENEMY_AVATAR_URLS,
+  buildEarTrainingEnemyBattleSourceKey,
   EAR_TRAINING_PLAYER_AVATAR_URL,
-} from '@/utils/constants';
+  resolveEarTrainingEnemyAvatarFromBattleSourceKey,
+} from '@/utils/earTrainingBattleAvatar';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
@@ -893,12 +892,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     if (nextChord?.id !== previousChord?.id) {
       setActiveChord(nextChord);
       activeChordRef.current = nextChord;
-      if (tutorial && chordVoicingSelfPaced) {
-        const quote = getChordVoicingQuoteDisplayText(nextChord);
-        if (quote) {
-          tutorial.bindings.setCharacterText(quote);
-        }
-      }
     }
 
     if (options?.scheduleNext !== false) {
@@ -915,7 +908,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stage.loop_measures,
     stage.max_loops_per_phrase,
     triggerLoopEnemyAttack,
-    tutorial,
   ]);
 
   useEffect(() => {
@@ -973,12 +965,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setDisplayedActiveMeasureNumber(initialMeasureNumber);
     setActiveChord(initialChord);
     activeChordRef.current = initialChord;
-    if (tutorial && chordVoicingSelfPaced) {
-      const quote = getChordVoicingQuoteDisplayText(initialChord);
-      if (quote) {
-        tutorial.bindings.setCharacterText(quote);
-      }
-    }
     setStatusText(
       tutorial?.bindings.ui.hidePhraseIntroQuota
         ? ''
@@ -1743,16 +1729,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }, [showVoicingTargetHints, activeChord, attempt]);
 
   const enemyName = enemy?.name ?? 'Random Rival';
-  const enemyAvatar = useMemo(() => {
-    const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
-    let hash = 0;
-    for (let index = 0; index < source.length; index += 1) {
-      hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
-    }
-    const avatarIndex = Math.abs(hash) % EAR_TRAINING_ENEMY_AVATAR_URLS.length;
-    return EAR_TRAINING_ENEMY_AVATAR_URLS[avatarIndex] ?? DEFAULT_AVATAR_URL;
-  }, [enemy?.id, enemy?.name, stage.id]);
-  const enemyAvatarFlipX = EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(enemyAvatar);
+  const enemyBattleKey = useMemo(
+    () => buildEarTrainingEnemyBattleSourceKey(stage.id, enemy ?? { id: 'enemy', name: null }),
+    [enemy?.id, enemy?.name, stage.id],
+  );
+  const { url: enemyAvatar, flipX: enemyAvatarFlipX } =
+    resolveEarTrainingEnemyAvatarFromBattleSourceKey(enemyBattleKey);
   const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
@@ -1831,6 +1813,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     startButtonLabel,
     lessonProgressText,
     quizRulesLine: tutorial ? undefined : clearConditionLine,
+    ...(tutorial ? { fixedCharacterPositions: true } : {}),
   }, tutorialUi ?? {
     hidePlayerHpBar: false,
     hideSettingsButton: false,
@@ -1879,6 +1862,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     showVoicingTargetHints,
     startButtonLabel,
     timeLabel,
+    tutorial,
   ]);
 
   const battleCallbacks = useMemo(() => ({

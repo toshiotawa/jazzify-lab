@@ -65,7 +65,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             recomputeVoicingHints()
             if oldValue?.id != activeChord?.id {
                 updatePlayerQuoteBubble()
-                updateTutorialVoicingDialogueIfNeeded()
             }
         }
     }
@@ -138,9 +137,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var selfPacedDrumLoopPlaybackStarted = false
     private var measureShiftQueue: [Int] = []
     private var measureShiftConsumerTask: Task<Void, Never>?
-    private var lastTutorialVoicingDialogueChordId: UUID?
-
-    /// チュートリアル時は敵攻撃・ミス/Fail ダメージを無効化する。
     var tutorialNoCombat: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     private var tutorialSuccessfulLoopCount: Int = 0
@@ -908,10 +904,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         activeMeasureNumber = prepared.activeMeasureNumber
         displayedActiveMeasureNumber = prepared.activeMeasureNumber
         statusText = phraseStartStatusText(indexOneBased: prepared.phraseIndex + 1)
-        if tutorialHooks != nil, stage.resolvedChordVoicingSelfPaced {
-            lastTutorialVoicingDialogueChordId = nil
-        }
-
         let onStarted: () -> Void = { [weak self] in
             guard let self else { return }
             guard self.phraseRunId == runId else { return }
@@ -1301,25 +1293,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
             enemyAvatarName: Self.avatarAssetName(stageId: stage.id, enemyId: enemyId),
             enemyAvatarFlipX: Self.shouldFlipEnemyAvatar(name: Self.avatarAssetName(stageId: stage.id, enemyId: enemyId)),
-            fixedCharacterPositions: false,
+            fixedCharacterPositions: tutorialHooks != nil,
             showLobbyControls: showLobbyControls,
             isEnglishCopy: isEnglishCopy
         )
         scene?.applySnapshot(snapshot)
         updatePlayerQuoteBubble()
-        updateTutorialVoicingDialogueIfNeeded()
-    }
-
-    /// セルフペースチュートリアル: ヴォイシング（コード）の `quote` を上部セリフに出す。
-    private func updateTutorialVoicingDialogueIfNeeded() {
-        guard stage.resolvedChordVoicingSelfPaced, tutorialHooks != nil else { return }
-        guard gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive) else { return }
-        guard let chord = activeChord else { return }
-        if attempt?.completedChordIds.contains(chord.id) == true { return }
-        guard chord.id != lastTutorialVoicingDialogueChordId else { return }
-        lastTutorialVoicingDialogueChordId = chord.id
-        guard let raw = chord.quote?.text.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return }
-        tutorialHooks?.onCharacterText(raw)
     }
 
     /// `activeChord` / `gameState` / `countInEarlyInputActive` のいずれかが変わるたびに
@@ -1327,10 +1306,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     /// 既に `attempt.completedChordIds` に含まれているヴォイシング（次ループで戻ってきた小節など、
     /// もう判定対象でないもの）の場合は表示しない。
     private func updatePlayerQuoteBubble() {
-        if tutorialHooks != nil {
-            scene?.setPlayerQuote(nil)
-            return
-        }
         scene?.setPlayerQuote(Self.playerQuoteBubbleTextForScene(
             gameState: gameState,
             activeChord: activeChord,
@@ -1450,7 +1425,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelTimeLimitTimer()
         cancelChordSyncTask()
         countInEarlyInputActive = false
-        lastTutorialVoicingDialogueChordId = nil
         feedbackTask?.cancel()
         feedbackTask = nil
         battleEffectClearTask?.cancel()

@@ -5,6 +5,7 @@ import {
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
   collectChordOsmdMusicXmlAttacks,
+  collectChordOsmdMusicXmlLyrics,
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
   normalizeChordOsmdMusicXml,
@@ -219,6 +220,43 @@ const miniChordOsmdScorePartwise = (measureInner: string): string =>
 <score-partwise version="3.1"><part id="P1"><measure number="1">
 ${measureInner}
 </measure></part></score-partwise>`;
+
+describe('collectChordOsmdMusicXmlLyrics', () => {
+  it('歌詞が無ければ空配列', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>`);
+    expect(collectChordOsmdMusicXmlLyrics(xml, 120, 4)).toEqual([]);
+  });
+
+  it('1番のみ抽出し 2番は無視、拍に応じた targetTimeSec（120BPM・4/4）', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><lyric><text>いち</text></lyric></note>
+<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><lyric number="2"><text>に</text></lyric></note>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><lyric><text>さん</text></lyric></note>`);
+    expect(collectChordOsmdMusicXmlLyrics(xml, 120, 4)).toEqual([
+      { targetTimeSec: 0, measureNumber: 1, text: 'いち' },
+      { targetTimeSec: 1, measureNumber: 1, text: 'さん' },
+    ]);
+  });
+
+  it('同一歌詞が連続するクラスタでは 1 イベントのみ', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><lyric><text>Hi</text></lyric></note>
+<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><lyric><text>Hi</text></lyric></note>`);
+    expect(collectChordOsmdMusicXmlLyrics(xml, 120, 4)).toEqual([
+      { targetTimeSec: 0, measureNumber: 1, text: 'Hi' },
+    ]);
+  });
+
+  it('和音構成音にだけ歌詞が付く場合も拾う', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><lyric><text>CE</text></lyric></note>`);
+    expect(collectChordOsmdMusicXmlLyrics(xml, 120, 4)).toEqual([
+      { targetTimeSec: 0, measureNumber: 1, text: 'CE' },
+    ]);
+  });
+});
 
 describe('collectChordOsmdMusicXmlAttacks — tie handling', () => {
   it('タイ続きノート（`<tie type="stop"/>`）はアタックに含めず、先頭のみアタックする', () => {

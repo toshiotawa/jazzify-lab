@@ -48,6 +48,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     var tutorialNoCombat: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     private var tutorialOsmdLoopCount: Int = 0
+    /// Web `scheduleOsmdTimedLinesForLoop` 相当の `DispatchWorkItem`（フレーズ再開時・終了時にキャンセル）。
+    private var tutorialOsmdTimedLineWorks: [DispatchWorkItem] = []
 
     private var tutorialOsmdDemoAutoplay: Bool {
         tutorialHooks?.osmdDemoAutoplay == true
@@ -85,18 +87,24 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
-    private static let musicXmlCacheSchemaVersion = 3
+    private static let musicXmlCacheSchemaVersion = 4
 
     private static func musicXmlCacheKey(phraseId: UUID) -> String {
         "\(phraseId.uuidString)|osmdXml|v\(musicXmlCacheSchemaVersion)"
     }
 
     private struct MusicXmlPrepared {
-        let xml: String
+        let displayXml: String
+        let rhythmXml: String
         let maxStaffLayers: Int
+        let lyricEvents: [ChordOsmdLyricEvent]
     }
 
     private var musicXMLCache: [String: MusicXmlPrepared] = [:]
+    /// 正規化済み・歌詞付き。`collectChordOsmdMusicXmlAttacks` 用（表示は `musicXMLText` の歌詞除去版）。
+    private var rhythmMusicXmlForAttacks: String?
+    private var phraseLyricEvents: [ChordOsmdLyricEvent] = []
+    private var nextLyricQuoteIndex: Int = 0
 
     private var countdownTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
@@ -206,6 +214,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         midiHeldKeys.removeAll()
         voicingHintIntensities = [:]
         musicXMLText = nil
+        rhythmMusicXmlForAttacks = nil
+        phraseLyricEvents = []
+        nextLyricQuoteIndex = 0
         scene = nil
     }
 
@@ -242,6 +253,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         totalCompletedTargets = 0
         totalJudgedTargets = 0
         lastRankStorage = nil
+        if tutorialHooks != nil {
+            tutorialOsmdLoopCount = 0
+        }
         startPhrase(at: 0)
     }
 
@@ -293,6 +307,108 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         max(0, min(32, stage.countInBeats))
     }
 
+    private func phraseTutorialLoopDurationSec(_ phrase: EarTrainingPhraseDetail) -> Double {
+        let dur = phrase.loopDurationSec
+        if dur.isFinite && dur > 0 {
+            return dur
+        }
+        let beatDuration = 60.0 / Double(max(1, stage.bpm))
+        return beatDuration * Double(max(1, stage.loopMeasures))
+    }
+
+    private func localizedTutorialOsmdTimedText(_ text: EarTrainingTutorialLocalizedText) -> String {
+        isEnglishCopy ? text.en : text.ja
+    }
+
+    private func cancelTutorialOsmdTimedLineWorks() {
+        for work in tutorialOsmdTimedLineWorks {
+            work.cancel()
+        }
+        tutorialOsmdTimedLineWorks.removeAll()
+    }
+
+    private func computeOsmdTimedLineDelayMs(loopIndex: Int, line: EarTrainingTutorialOsmdTimedLine) -> Double? {
+        let bpm = max(1, stage.bpm)
+        let beatDurationSec = 60.0 / Double(bpm)
+        let measureDurationSec = beatDurationSec * Double(max(1, stage.beatsPerMeasure))
+        let countInBeats = sanitizedCountInBeats
+        let countInDurationSec = Double(countInBeats) * beatDurationSec
+        let skipCountIn = loopIndex > 0
+
+        switch line {
+        case let .countIn(loop: optionalLoop, beat: beat, _):
+            if skipCountIn {
+                return nil
+            }
+            let targetLoop = optionalLoop ?? 0
+            if targetLoop != loopIndex {
+                return nil
+            }
+            let clampedBeat = max(1, beat)
+            if clampedBeat > countInBeats {
+                return nil
+            }
+            return Double(clampedBeat - 1) * beatDurationSec * 1000
+        case let .at(loop: atLoop, measure: measure, beat: beat, _):
+            if atLoop != loopIndex {
+                return nil
+            }
+            let countInOffsetSec = skipCountIn ? 0 : countInDurationSec
+            let measureIndex = max(1, measure) - 1
+            let beatIndex = max(1, beat) - 1
+            guard phrases.indices.contains(phraseIndex) else { return nil }
+            let phrase = phrases[phraseIndex]
+            let phraseOffsetSec = Double(measureIndex) * measureDurationSec + Double(beatIndex) * beatDurationSec
+            let loopDur = phraseTutorialLoopDurationSec(phrase)
+            let loopOffsetSec = Double(loopIndex) * loopDur
+            return (loopOffsetSec + countInOffsetSec + phraseOffsetSec) * 1000
+        }
+    }
+
+    private func scheduleTutorialOsmdTimedDialogue(loopIndex: Int, runId: Int) {
+        cancelTutorialOsmdTimedLineWorks()
+        guard tutorialHooks != nil, let rows = tutorialHooks?.osmdTimedLines, !rows.isEmpty else { return }
+
+        let mainQueue = DispatchQueue.main
+        for line in rows {
+            guard let delayMs = computeOsmdTimedLineDelayMs(loopIndex: loopIndex, line: line) else { continue }
+            let text: String
+            switch line {
+            case let .countIn(_, _, loc),
+                 let .at(_, _, _, loc):
+                text = localizedTutorialOsmdTimedText(loc)
+            }
+            let capturedRunId = runId
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                guard self.phraseRunId == capturedRunId else { return }
+                guard self.gameState == .countIn || self.gameState == .playingPhrase else { return }
+                self.tutorialHooks?.onCharacterText(text)
+            }
+            tutorialOsmdTimedLineWorks.append(work)
+            let delaySeconds = delayMs / 1000
+            mainQueue.asyncAfter(deadline: .now() + delaySeconds, execute: work)
+        }
+    }
+
+    private func resolvedTutorialDrumLoopURL() -> URL? {
+        guard let raw = tutorialHooks?.tutorialDrumLoopUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        return URL(string: raw)
+    }
+
+    private func startTutorialDrumIfNeeded() {
+        guard tutorialHooks != nil else { return }
+        guard let url = resolvedTutorialDrumLoopURL() else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let ok = await self.audio.prepareDrumLoop(url: url)
+            guard ok else { return }
+            self.audio.startDrumLoop()
+        }
+    }
+
     private func startPhrase(at index: Int) {
         guard phrases.indices.contains(index) else {
             finishStageClear()
@@ -313,7 +429,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
 
         countdownTask?.cancel()
-        audio.stopDrumLoop()
+        cancelTutorialOsmdTimedLineWorks()
+        if tutorialHooks == nil {
+            audio.stopDrumLoop()
+        }
         audio.stopPhrase()
 
         phraseIndex = index
@@ -331,7 +450,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if Task.isCancelled { return }
 
         let xmlAttacks: [ChordOsmdMusicXmlAttack]
-        if let xml = musicXMLText {
+        if let xml = rhythmMusicXmlForAttacks {
             xmlAttacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(xml)
         } else {
             xmlAttacks = []
@@ -361,6 +480,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
 
+        if tutorialHooks != nil {
+            scheduleTutorialOsmdTimedDialogue(loopIndex: tutorialOsmdLoopCount, runId: runId)
+        }
+
         let onStarted: () -> Void = { [weak self] in
             guard let self else { return }
             guard self.phraseRunId == runId else { return }
@@ -368,6 +491,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             self.countInValue = 0
             self.gameState = .playingPhrase
             self.statusText = self.copy.phraseLabel(indexOneBased: index + 1)
+            self.startTutorialDrumIfNeeded()
             self.handleAudioTimeUpdate(currentTime: 0)
             self.publishSnapshot()
         }
@@ -400,6 +524,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         phraseAccuracy = 0
         phraseEnding = false
         enemyAttackGaugePercent = 0
+        nextLyricQuoteIndex = 0
+        scene?.setPlayerQuote(nil)
     }
 
     private func runCountInDisplayOnly(scheduleStart: TimeInterval, meta: EarTrainingScheduledCountInPhrase) async {
@@ -429,14 +555,18 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func loadMusicXML(for phrase: EarTrainingPhraseDetail) async {
         let cacheKey = Self.musicXmlCacheKey(phraseId: phrase.id)
         if let cached = musicXMLCache[cacheKey] {
-            musicXMLText = cached.xml
+            musicXMLText = cached.displayXml
             musicXMLMaxStaffLayers = cached.maxStaffLayers
+            rhythmMusicXmlForAttacks = cached.rhythmXml
+            phraseLyricEvents = cached.lyricEvents
             scoreErrorText = nil
             return
         }
         guard let rawURL = phrase.musicXmlUrl, let url = URL(string: rawURL) else {
             musicXMLText = nil
             musicXMLMaxStaffLayers = 1
+            rhythmMusicXmlForAttacks = nil
+            phraseLyricEvents = []
             scoreErrorText = isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
             return
         }
@@ -447,24 +577,43 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                 musicXMLText = nil
                 musicXMLMaxStaffLayers = 1
+                rhythmMusicXmlForAttacks = nil
+                phraseLyricEvents = []
                 scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
                 return
             }
             guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 musicXMLText = nil
                 musicXMLMaxStaffLayers = 1
+                rhythmMusicXmlForAttacks = nil
+                phraseLyricEvents = []
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
                 return
             }
             let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
-            let boxed = MusicXmlPrepared(xml: prepared.xml, maxStaffLayers: prepared.maxStaffLayers)
+            let displayXml = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(prepared.xml)
+            let lyricEvents = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
+                prepared.xml,
+                bpm: Double(stage.bpm),
+                beatsPerMeasure: stage.beatsPerMeasure
+            )
+            let boxed = MusicXmlPrepared(
+                displayXml: displayXml,
+                rhythmXml: prepared.xml,
+                maxStaffLayers: prepared.maxStaffLayers,
+                lyricEvents: lyricEvents
+            )
             musicXMLCache[cacheKey] = boxed
-            musicXMLText = prepared.xml
+            musicXMLText = displayXml
             musicXMLMaxStaffLayers = prepared.maxStaffLayers
+            rhythmMusicXmlForAttacks = prepared.xml
+            phraseLyricEvents = lyricEvents
             scoreErrorText = nil
         } catch {
             musicXMLText = nil
             musicXMLMaxStaffLayers = 1
+            rhythmMusicXmlForAttacks = nil
+            phraseLyricEvents = []
             scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
         }
     }
@@ -488,6 +637,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         throwDueHammers(at: phraseTime)
         failExpiredTargets(at: phraseTime)
         refreshPracticeVoicingHints()
+        applyMusicXmlLyricQuotesIfNeeded(phraseTime: phraseTime)
 
         guard gameState == .playingPhrase else { return }
         let phrase = phrases[phraseIndex]
@@ -495,6 +645,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let safeLoopEnd = max(phrase.loopDurationSec, lastTargetEnd) + Self.phraseEndPaddingSec
         if phraseTime >= safeLoopEnd {
             finishCurrentPhraseIfNeeded()
+        }
+    }
+
+    private func applyMusicXmlLyricQuotesIfNeeded(phraseTime: Double) {
+        guard !phraseLyricEvents.isEmpty else { return }
+        while nextLyricQuoteIndex < phraseLyricEvents.count,
+              phraseTime + 1e-9 >= phraseLyricEvents[nextLyricQuoteIndex].targetTimeSec
+        {
+            scene?.setPlayerQuote(phraseLyricEvents[nextLyricQuoteIndex].text)
+            nextLyricQuoteIndex += 1
         }
     }
 
@@ -646,7 +806,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func throwDueHammers(at time: Double) {
-        if tutorialOsmdDemoAutoplay { return }
         while nextHammerTargetIndex < targets.count {
             let target = targets[nextHammerTargetIndex]
             let throwTime = target.targetTimeSec - Self.hammerLeadSec
@@ -697,13 +856,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let incomingHammerEffectId = targets[index].hammerEffectId
         if let incomingHammerEffectId {
             pendingImpactHandlers[incomingHammerEffectId] = nil
-            if tutorialOsmdDemoAutoplay {
-                scene?.dismissOsmdHammerEffect(effectId: incomingHammerEffectId)
-            }
         }
         let chordName = targets[index].label
         let damage = practiceMode ? 0 : stage.perCorrectNoteDamage
-        let reflectRelatedId = tutorialOsmdDemoAutoplay ? nil : incomingHammerEffectId
+        let reflectRelatedId = incomingHammerEffectId
         let effectId = triggerBattleEffect(
             kind: .osmdHammerReflect,
             label: chordName,
@@ -741,14 +897,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         guard gameState == .playingPhrase, !phraseEnding else { return }
         if let hooks = tutorialHooks {
             phraseEnding = true
-            audio.stopDrumLoop()
-            audio.stopPhrase()
             tutorialOsmdLoopCount += 1
             if tutorialOsmdLoopCount >= hooks.requiredSuccessfulLoops {
+                cancelTutorialOsmdTimedLineWorks()
+                audio.stopDrumLoop()
+                audio.stopPhrase()
                 hooks.onSceneComplete()
                 return
             }
             phraseEnding = false
+            audio.stopPhrase()
             startPhrase(at: phraseIndex)
             return
         }
@@ -1024,6 +1182,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func cancelAllTasks(keepsAudio: Bool = false) {
+        cancelTutorialOsmdTimedLineWorks()
         countdownTask?.cancel(); countdownTask = nil
         feedbackTask?.cancel(); feedbackTask = nil
         for (_, task) in battleEffectClearTasks {

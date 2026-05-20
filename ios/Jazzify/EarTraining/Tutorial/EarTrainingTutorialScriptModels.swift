@@ -254,6 +254,10 @@ struct EarTrainingTutorialSceneHooks {
     var quiz: EarTrainingTutorialQuizSceneHooks?
     /// `chord_osmd` の `playMode: demo`（Web `tutorialDemoAutoplay` 相当）。
     var osmdDemoAutoplay: Bool = false
+    /// OSMD `timedLines`（Web の `scheduleOsmdTimedLinesForLoop` と同用途）。
+    var osmdTimedLines: [EarTrainingTutorialOsmdTimedLine]? = nil
+    /// チュートリアル共通のドラム BGM URL（フレーズと併用）。
+    var tutorialDrumLoopUrl: String? = nil
     /// `chord_voicing_self_paced` の `dialogue.timedLines` をフレーズ再生開始からのオフセットで表示する。
     var selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
 }

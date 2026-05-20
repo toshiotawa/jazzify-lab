@@ -30,6 +30,20 @@ export interface ChordOsmdMusicXmlAttack {
   midis: readonly number[];
 }
 
+/** MusicXML 1 番（verse 1）歌詞の表示タイミング（フレーズ冒頭 0 秒基準・Audio と同じ BPM 換算） */
+export interface ChordOsmdLyricEvent {
+  targetTimeSec: number;
+  measureNumber: number;
+  text: string;
+}
+
+interface ChordOsmdNoteClusterContext {
+  measureNumber: number;
+  beatStartInMeasure: number;
+  clusterNotes: readonly Element[];
+  timing: MusicXmlScoreTimingState;
+}
+
 interface MusicXmlScoreTimingState {
   divisions: number;
   beats: number;
@@ -458,18 +472,71 @@ const selectMusicXmlMeasures = (doc: Document): Element[] => {
   return Array.from(doc.getElementsByTagName('measure'));
 };
 
-/** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>`・タイ続き `tie/tied type="stop"` を考慮）。OSMD 判定の正とする。 */
-export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmdMusicXmlAttack[] => {
+/** `number` 未指定・空・1 の lyric のみ 1 番として扱う（MusicXML 既定）。 */
+const lyricElementIsVerseOne = (lyricEl: Element): boolean => {
+  const raw = lyricEl.getAttribute('number')?.trim();
+  return raw === undefined || raw === '' || raw === '1';
+};
+
+/** ノート直下の `<lyric>` のうち 1 番のみ。`<text>` は lyric の直接子のみ連結（ネスト誤検出を避ける）。 */
+const verseOneLyricTextFromNote = (noteEl: Element): string | null => {
+  for (let child = noteEl.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.localName !== 'lyric' || !lyricElementIsVerseOne(child)) {
+      continue;
+    }
+    let buffer = '';
+    for (let lc = child.firstElementChild; lc; lc = lc.nextElementSibling) {
+      if (lc.localName === 'text') {
+        buffer += (lc.textContent ?? '').trim();
+      }
+    }
+    const merged = buffer.trim();
+    if (merged.length > 0) {
+      return merged;
+    }
+  }
+  return null;
+};
+
+const verseOneLyricTextFromCluster = (clusterNotes: readonly Element[]): string | null => {
+  for (const noteEl of clusterNotes) {
+    const t = verseOneLyricTextFromNote(noteEl);
+    if (t !== null) {
+      return t;
+    }
+  }
+  return null;
+};
+
+const chordOsmdLyricTargetTimeSec = (
+  measureNumber: number,
+  beatStartInMeasure: number,
+  bpm: number,
+  beatsPerMeasure: number,
+): number => {
+  const beatDurationSec = 60 / Math.max(1, bpm);
+  const bpmSafe = Math.max(1, beatsPerMeasure);
+  const measureIndex = Math.max(0, Math.trunc(measureNumber) - 1);
+  const beatIndex = Math.max(0, beatStartInMeasure - 1);
+  return (measureIndex * bpmSafe + beatIndex) * beatDurationSec;
+};
+
+/**
+ * ピッチを持つ音符クラスタ（先頭＋`<chord/>`）ごとにコールバック。`collectChordOsmdMusicXmlAttacks` と同一走査。
+ */
+const forEachChordOsmdNoteCluster = (
+  musicXmlText: string,
+  onCluster: (ctx: ChordOsmdNoteClusterContext) => void,
+): void => {
   if (typeof DOMParser === 'undefined') {
-    return [];
+    return;
   }
   const doc = new DOMParser().parseFromString(musicXmlText, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length > 0) {
-    return [];
+    return;
   }
 
   const measures = selectMusicXmlMeasures(doc);
-  const attacks: ChordOsmdMusicXmlAttack[] = [];
   let timing: MusicXmlScoreTimingState = {
     divisions: 1,
     beats: 4,
@@ -545,13 +612,8 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
       }
 
       const headStopTied = noteHasTieStop(noteEl);
-      const clusterMidis: number[] = [];
+      const clusterNotes: Element[] = [noteEl];
       const clusterDur = duration;
-      const midi0 = pitchElementToMidi(pitch, timing.keyFifths);
-      if (midi0 !== null && !headStopTied) {
-        clusterMidis.push(midi0);
-      }
-
       let ni = ci + 1;
       while (ni < children.length) {
         const next = children[ni];
@@ -571,11 +633,7 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
         if (!nextPitch) {
           break;
         }
-        const chordToneStopTied = noteHasTieStop(next);
-        const mm = pitchElementToMidi(nextPitch, timing.keyFifths);
-        if (mm !== null && !chordToneStopTied) {
-          clusterMidis.push(mm);
-        }
+        clusterNotes.push(next);
         ni += 1;
       }
 
@@ -583,20 +641,83 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
       const quartersFromMeasureStart = currentTime / divisions;
       const beatStartInMeasure = quartersFromMeasureStart + 1;
 
-      if (clusterMidis.length > 0) {
-        attacks.push({
-          measureNumber,
-          beatStartInMeasure,
-          midis: clusterMidis,
-        });
-      }
+      onCluster({
+        measureNumber,
+        beatStartInMeasure,
+        clusterNotes,
+        timing,
+      });
 
       currentTime += clusterDur;
       ci = ni;
     }
   }
+};
 
+/** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>`・タイ続き `tie/tied type="stop"` を考慮）。OSMD 判定の正とする。 */
+export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmdMusicXmlAttack[] => {
+  const attacks: ChordOsmdMusicXmlAttack[] = [];
+  forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes, timing }) => {
+    const clusterMidis: number[] = [];
+    const head = clusterNotes[0];
+    const headPitch = head ? getDirectChild(head, 'pitch') : null;
+    if (head && headPitch && !noteHasTieStop(head)) {
+      const midi0 = pitchElementToMidi(headPitch, timing.keyFifths);
+      if (midi0 !== null) {
+        clusterMidis.push(midi0);
+      }
+    }
+    for (let i = 1; i < clusterNotes.length; i += 1) {
+      const next = clusterNotes[i];
+      const nextPitch = getDirectChild(next, 'pitch');
+      if (!nextPitch) {
+        continue;
+      }
+      if (noteHasTieStop(next)) {
+        continue;
+      }
+      const mm = pitchElementToMidi(nextPitch, timing.keyFifths);
+      if (mm !== null) {
+        clusterMidis.push(mm);
+      }
+    }
+    if (clusterMidis.length > 0) {
+      attacks.push({
+        measureNumber,
+        beatStartInMeasure,
+        midis: clusterMidis,
+      });
+    }
+  });
   return attacks;
+};
+
+/**
+ * MusicXML の 1 番歌詞のみ、音符クラスタ先頭から次の変化まで同じ文面としてイベント化。
+ */
+export const collectChordOsmdMusicXmlLyrics = (
+  musicXmlText: string,
+  bpm: number,
+  beatsPerMeasure: number,
+): ChordOsmdLyricEvent[] => {
+  const events: ChordOsmdLyricEvent[] = [];
+  let lastText: string | null = null;
+  forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes }) => {
+    const text = verseOneLyricTextFromCluster(clusterNotes);
+    if (text === null) {
+      return;
+    }
+    if (text === lastText) {
+      return;
+    }
+    lastText = text;
+    events.push({
+      targetTimeSec: chordOsmdLyricTargetTimeSec(measureNumber, beatStartInMeasure, bpm, beatsPerMeasure),
+      measureNumber,
+      text,
+    });
+  });
+  return events;
 };
 
 const mergeMidisFromXmlAttacks = (

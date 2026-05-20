@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
+import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 
 interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
@@ -264,6 +265,11 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   /** コンテナが低いモバイル横画面。2段譜時のみ OSMD zoom を iOS iPhone と同じ比率（2/3）にする。 */
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
 
+  const osmdDisplayMusicXml = useMemo(
+    () => (musicXmlText ? stripLyricsFromMusicXml(musicXmlText) : null),
+    [musicXmlText],
+  );
+
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return;
@@ -281,7 +287,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
 
   const renderScore = useCallback(async () => {
     const score = scoreRef.current;
-    if (!score || !musicXmlText) {
+    if (!score || !musicXmlText || !osmdDisplayMusicXml) {
       setLayout(EMPTY_LAYOUT);
       return;
     }
@@ -313,7 +319,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     try {
       const osmd = new OpenSheetMusicDisplay(score, options);
       osmdRef.current = osmd;
-      await osmd.load(musicXmlText);
+      await osmd.load(osmdDisplayMusicXml);
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
       const viewportEl = viewportRef.current;
       const viewportHeight = viewportEl?.clientHeight ?? 0;
@@ -355,7 +361,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     } finally {
       setIsRendering(false);
     }
-  }, [isEnglishCopy, musicXmlText, mobileLandscapeOsmdShrink]);
+  }, [isEnglishCopy, musicXmlText, mobileLandscapeOsmdShrink, osmdDisplayMusicXml]);
 
   useEffect(() => {
     void renderScore();

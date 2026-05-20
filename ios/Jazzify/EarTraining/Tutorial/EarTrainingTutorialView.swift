@@ -10,7 +10,6 @@ struct EarTrainingTutorialView: View {
     @State private var gate: Gate = .loading
     @State private var script: EarTrainingTutorialScriptPayload?
     @State private var sceneIndex: Int = 0
-    @State private var characterText: String = ""
     @State private var showFinishCta = false
 
     /// `dialogue_only` のあとのアタッチ用（そのシーンのみ消費）。
@@ -66,22 +65,19 @@ struct EarTrainingTutorialView: View {
 
     @ViewBuilder
     private func tutorialContent(script: EarTrainingTutorialScriptPayload) -> some View {
-        let scenes = script.scenes
-        let current = scenes.indices.contains(sceneIndex) ? scenes[sceneIndex] : nil
-        let placement = tutorialDialogPlacement(scene: current, script: script)
-
         GeometryReader { portraitProxy in
             let portraitSize = portraitProxy.size
             let landscapeSize = CGSize(
                 width: max(1, portraitSize.height),
                 height: max(1, portraitSize.width)
             )
+            let scenes = script.scenes
             ZStack {
                 ZStack {
-                    if let current {
+                    if scenes.indices.contains(sceneIndex) {
                         sceneView(
                             script: script,
-                            scene: current,
+                            scene: scenes[sceneIndex],
                             hostedLandscapeSize: landscapeSize,
                             quizPrewarm: pendingQuizPrewarm,
                             voicingPrewarm: pendingVoicingPrewarm,
@@ -92,8 +88,6 @@ struct EarTrainingTutorialView: View {
                         landscapeSize: landscapeSize,
                         showExit: script.ui.showExitButton,
                         isJapanese: isJa,
-                        dialogueText: characterText,
-                        dialogPlacement: placement,
                         onExit: onClose
                     )
                 }
@@ -134,7 +128,6 @@ struct EarTrainingTutorialView: View {
                 lines: dialogue.lines,
                 intervalSeconds: dialogue.lineIntervalSeconds ?? 4,
                 fixedLandscapeSize: hostedLandscapeSize,
-                onLine: { characterText = $0 },
                 onComplete: { advanceScene(script: script) }
             )
         case .chordQuiz(let quizScene):
@@ -187,14 +180,14 @@ struct EarTrainingTutorialView: View {
                     tutorialHooks: makeHooks(
                         script: script,
                         requiredLoops: selfScene.requiredSuccessfulLoops,
-                        onLoopSuccess: nil
+                        onLoopSuccess: nil,
+                        selfPacedTimedLines: selfScene.dialogue.timedLines
                     ),
                     hostedLandscapeSize: hostedLandscapeSize,
                     prewarmVoicingPack: pack,
                     onClose: onClose
                 )
                 .onAppear {
-                    characterText = ""
                     if pack != nil {
                         pendingVoicingPrewarm = nil
                     }
@@ -217,7 +210,8 @@ struct EarTrainingTutorialView: View {
                         script: script,
                         requiredLoops: osmdScene.requiredLoops,
                         onLoopSuccess: nil,
-                        osmdDemoAutoplay: osmdScene.playMode == "demo"
+                        osmdDemoAutoplay: osmdScene.playMode == "demo",
+                        osmdTimedLines: osmdScene.timedLines
                     ),
                     hostedLandscapeSize: hostedLandscapeSize,
                     prewarmOsmdPack: pack,
@@ -233,30 +227,11 @@ struct EarTrainingTutorialView: View {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onAppear {
-                    characterText = ""
                     showFinishCta = script.finish?.showCta ?? true
                 }
         }
     }
 
-    private func tutorialDialogPlacement(
-        scene: EarTrainingTutorialScene?,
-        script: EarTrainingTutorialScriptPayload
-    ) -> EarTrainingTutorialDialogPlacement? {
-        guard let scene else {
-            return .dialogueIntroUpperCenter
-        }
-        switch scene {
-        case .dialogueOnly:
-            return .dialogueIntroUpperCenter
-        case .chordQuiz, .chordOsmd:
-            return .belowChordHud
-        case .chordVoicingSelfPaced:
-            return .belowChordHud
-        case .finish:
-            return nil
-        }
-    }
 
     private func makeHooks(
         script: EarTrainingTutorialScriptPayload,
@@ -264,24 +239,26 @@ struct EarTrainingTutorialView: View {
         onLoopSuccess: (() -> Void)?,
         quiz: EarTrainingTutorialQuizSceneHooks? = nil,
         osmdDemoAutoplay: Bool = false,
+        osmdTimedLines: [EarTrainingTutorialOsmdTimedLine]? = nil,
         selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
     ) -> EarTrainingTutorialSceneHooks {
         EarTrainingTutorialSceneHooks(
             ui: script.ui,
             noCombat: script.ui.noCombat,
-            onCharacterText: { characterText = $0 },
+            onCharacterText: { _ in },
             onSceneComplete: { advanceScene(script: script) },
             requiredSuccessfulLoops: max(1, requiredLoops),
             onLoopSuccess: onLoopSuccess,
             quiz: quiz,
             osmdDemoAutoplay: osmdDemoAutoplay,
+            osmdTimedLines: osmdTimedLines,
+            tutorialDrumLoopUrl: script.audioTracks?.drum_loop?.url,
             selfPacedTimedLines: selfPacedTimedLines
         )
     }
 
     private func advanceScene(script: EarTrainingTutorialScriptPayload) {
         showFinishCta = false
-        characterText = ""
         let next = sceneIndex + 1
         if next >= script.scenes.count {
             Task {
@@ -346,7 +323,8 @@ struct EarTrainingTutorialView: View {
             let voicingHooks = makeHooks(
                 script: script,
                 requiredLoops: selfScene.requiredSuccessfulLoops,
-                onLoopSuccess: nil
+                onLoopSuccess: nil,
+                selfPacedTimedLines: selfScene.dialogue.timedLines
             )
             guard let built = try? EarTrainingTutorialBattleWarmup.buildChordVoicingPack(
                       stage: stage,
@@ -366,11 +344,12 @@ struct EarTrainingTutorialView: View {
                 locale: locale
             ) else { return }
             let osmdHooks = makeHooks(
-                    script: script,
-                    requiredLoops: osmdScene.requiredLoops,
-                    onLoopSuccess: nil,
-                    osmdDemoAutoplay: osmdScene.playMode == "demo"
-                  )
+                script: script,
+                requiredLoops: osmdScene.requiredLoops,
+                onLoopSuccess: nil,
+                osmdDemoAutoplay: osmdScene.playMode == "demo",
+                osmdTimedLines: osmdScene.timedLines
+            )
                   guard let built = try? EarTrainingTutorialBattleWarmup.buildOsmdPack(
                       stage: stage,
                       locale: locale,
@@ -389,39 +368,30 @@ struct EarTrainingTutorialView: View {
 
 }
 
-/// チュートリアルのセリフ・Exit はバトルと同じ landscape 座標で重ね、その塊ごとポートレート内で90°回転する。
+/// Exit ボタンのみチュートリアル本体に載せる（セリフは SpriteKit の吹き出しに統一）。
 private struct EarTrainingLandscapeTutorialOverlay: View {
     let landscapeSize: CGSize
     let showExit: Bool
     let isJapanese: Bool
-    let dialogueText: String
-    let dialogPlacement: EarTrainingTutorialDialogPlacement?
     let onExit: () -> Void
 
     var body: some View {
-        ZStack {
-            if let placement = dialogPlacement {
-                OnboardingCharacterDialogView(
-                    text: dialogueText,
-                    tutorialPlacement: placement,
-                    tutorialLandscapeSize: landscapeSize
-                )
+        Color.clear
+            .frame(width: landscapeSize.width, height: landscapeSize.height)
+            .allowsHitTesting(false)
+            .overlay(alignment: .topTrailing) {
+                if showExit {
+                    Button(isJapanese ? "Exit" : "Exit", action: onExit)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(Capsule())
+                        .padding(.top, 12)
+                        .padding(.trailing, 16)
+                        .allowsHitTesting(true)
+                }
             }
-        }
-        .frame(width: landscapeSize.width, height: landscapeSize.height)
-        .allowsHitTesting(false)
-        .overlay(alignment: .topTrailing) {
-            if showExit {
-                Button(isJapanese ? "Exit" : "Exit", action: onExit)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.15))
-                    .clipShape(Capsule())
-                    .padding(.top, 12)
-                    .padding(.trailing, 16)
-            }
-        }
     }
 }

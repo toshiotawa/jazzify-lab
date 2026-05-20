@@ -38,11 +38,10 @@ import {
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import {
-  DEFAULT_AVATAR_URL,
-  EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
-  EAR_TRAINING_ENEMY_AVATAR_URLS,
+  buildEarTrainingEnemyBattleSourceKey,
   EAR_TRAINING_PLAYER_AVATAR_URL,
-} from '@/utils/constants';
+  resolveEarTrainingEnemyAvatarFromBattleSourceKey,
+} from '@/utils/earTrainingBattleAvatar';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
@@ -50,10 +49,15 @@ import {
   CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC,
   EarTrainingChordVoicingPhrasePlayer,
 } from '@/utils/earTrainingChordVoicingPhrasePlayer';
+import {
+  CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
+  EarTrainingChordVoicingDrumLoop,
+} from '@/utils/earTrainingChordVoicingDrumLoop';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   buildChordOsmdRhythmTargets,
   collectChordOsmdMusicXmlAttacks,
+  collectChordOsmdMusicXmlLyrics,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_SEC,
@@ -63,6 +67,7 @@ import {
   createChordOsmdRemainingCounts,
   getChordOsmdTotalNoteCount,
   normalizeChordOsmdMusicXml,
+  type ChordOsmdLyricEvent,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
 import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
@@ -91,7 +96,7 @@ interface EarTrainingChordOSMDScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
-  tutorial?: EarTrainingTutorialOsmdConfig & { onSceneComplete: () => void };
+  tutorial?: EarTrainingTutorialOsmdConfig & { drumLoopUrl?: string; onSceneComplete: () => void };
 }
 
 interface RuntimeTargetState {
@@ -135,7 +140,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const tutorialOsmdLoopRef = useRef(0);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
+  const tutorialDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const tutorialDemoAutoplay = tutorial?.scene.playMode === 'demo';
+  const tutorialOsmdDrumLoopPrepareUrl = useMemo((): string | null => {
+    if (!tutorial) {
+      return null;
+    }
+    const raw = tutorial.drumLoopUrl?.trim();
+    return raw && raw.length > 0 ? raw : CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL;
+  }, [tutorial]);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -254,6 +267,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const clearScheduledTimers = useCallback(() => {
     timersRef.current.forEach(timer => clearTimeout(timer));
     timersRef.current.clear();
+    phaserGameRef.current?.setPlayerQuote(null);
   }, []);
 
   const scheduleTimer = useCallback((handler: () => void, delayMs: number) => {
@@ -718,6 +732,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     phraseTargets: readonly ChordOsmdRhythmTarget[],
     runId: number,
     countInDurationSec: number,
+    lyricEvents: readonly ChordOsmdLyricEvent[],
   ) => {
     const beatDurationSec = 60 / Math.max(1, stage.bpm);
     const measureDurationSec = beatDurationSec * Math.max(1, stage.beats_per_measure);
@@ -737,6 +752,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           setActiveMeasureNumber(measureIndex + 1);
         }
       }, (countInDurationSec + measureIndex * measureDurationSec) * 1000);
+    }
+
+    for (const lyric of lyricEvents) {
+      scheduleTimer(() => {
+        if (phraseRunIdRef.current !== runId) {
+          return;
+        }
+        phaserGameRef.current?.setPlayerQuote(lyric.text);
+      }, (countInDurationSec + lyric.targetTimeSec) * 1000);
     }
 
     for (const target of phraseTargets) {
@@ -909,7 +933,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           skipCountInForLoop: loopIdx => loopIdx > 0,
         });
       }
-      schedulePhraseEvents(phrase, phraseTargets, runId, countInDurationSec);
+      const phraseLyrics = xmlText
+        ? collectChordOsmdMusicXmlLyrics(xmlText, stage.bpm, stage.beats_per_measure)
+        : [];
+      schedulePhraseEvents(phrase, phraseTargets, runId, countInDurationSec, phraseLyrics);
       const onPhraseStarted = (): void => {
         if (phraseRunIdRef.current !== runId) {
           return;
@@ -917,6 +944,26 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         gameStateRef.current = 'playingPhrase';
         setGameState('playingPhrase');
         setStatusText(copy.phraseLabel(nextPhraseIndex + 1));
+        if (tutorialOsmdDrumLoopPrepareUrl) {
+          void (async () => {
+            try {
+              const ctx = player.getAudioContext();
+              if (!ctx || phraseRunIdRef.current !== runId) {
+                return;
+              }
+              const loop = tutorialDrumLoopRef.current ?? new EarTrainingChordVoicingDrumLoop();
+              tutorialDrumLoopRef.current = loop;
+              await loop.prepare(tutorialOsmdDrumLoopPrepareUrl, ctx);
+              loop.setVolume(settings.musicVolume * settings.masterVolume * 0.35);
+              if (phraseRunIdRef.current !== runId) {
+                return;
+              }
+              loop.start();
+            } catch {
+              // tutorial BGM は補助のみ
+            }
+          })();
+        }
       };
       const onEnded = (): void => {
         finishCurrentPhrase(runId);
@@ -957,6 +1004,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     stage.bpm,
     stage.count_in_beats,
     stopPhraseAudio,
+    tutorial,
+    tutorialOsmdDrumLoopPrepareUrl,
   ]);
 
   useEffect(() => {
@@ -999,7 +1048,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
       damage,
-      relatedEffectId: tutorialDemoAutoplay ? undefined : state.hammerEffectId,
+      relatedEffectId: state.hammerEffectId,
     });
     registerBattleEffectImpact(effectId, () => {
       applyEnemyDamage(damage, lastRankRef.current);
@@ -1013,7 +1062,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     syncPracticeVoicingHints,
     triggerBattleEffect,
     triggerFeedback,
-    tutorialDemoAutoplay,
   ]);
 
   const handleNoteInput = useCallback((note: number) => {
@@ -1109,6 +1157,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   useEffect(() => {
     return () => {
+      tutorialDrumLoopRef.current?.stop();
       pendingImpactHandlersRef.current.clear();
       clearScheduledTimers();
       clearBattleEffectTimers();
@@ -1119,16 +1168,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [clearBattleEffectTimers, clearScheduledTimers, stopPhraseAudio]);
 
   const enemyName = enemy?.name ?? 'Random Rival';
-  const enemyAvatar = useMemo(() => {
-    const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
-    let hash = 0;
-    for (let index = 0; index < source.length; index += 1) {
-      hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
-    }
-    const avatarIndex = Math.abs(hash) % EAR_TRAINING_ENEMY_AVATAR_URLS.length;
-    return EAR_TRAINING_ENEMY_AVATAR_URLS[avatarIndex] ?? DEFAULT_AVATAR_URL;
-  }, [enemy?.id, enemy?.name, stage.id]);
-  const enemyAvatarFlipX = EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(enemyAvatar);
+  const enemyBattleKey = buildEarTrainingEnemyBattleSourceKey(stage.id, enemy ?? { id: 'enemy', name: null });
+  const { url: enemyAvatar, flipX: enemyAvatarFlipX } =
+    resolveEarTrainingEnemyAvatarFromBattleSourceKey(enemyBattleKey);
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const showLobbyControls = canChangePracticeMode;
   const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';

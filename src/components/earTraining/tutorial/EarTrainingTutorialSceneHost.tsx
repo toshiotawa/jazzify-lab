@@ -5,12 +5,11 @@ import type { EarTrainingStage } from '@/types';
 
 import { resolveTutorialContentStage } from './buildTutorialStageFromContent';
 import { EarTrainingTutorialDialogueScene } from './EarTrainingTutorialDialogueScene';
-import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
-import { localizedText } from './earTrainingTutorialScriptTypes';
 import type {
   EarTrainingTutorialScene,
   EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
+import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
 
 const EarTrainingChordVoicingScreen = React.lazy(
   () => import('@/components/earTraining/EarTrainingChordVoicingScreen'),
@@ -75,6 +74,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
         scene={scene}
         bindings={bindings}
         drumLoopUrl={drumLoopUrl}
+        enemy={enemy}
         onComplete={completeOnce}
       />
     );
@@ -142,6 +142,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
             scene,
             bindings,
             onSceneComplete: completeOnce,
+            drumLoopUrl,
           }}
         />
       </React.Suspense>

@@ -53,11 +53,10 @@ import {
   type EarTrainingChordQuizQuestion,
 } from '@/utils/earTrainingChordQuiz';
 import {
-  DEFAULT_AVATAR_URL,
-  EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
-  EAR_TRAINING_ENEMY_AVATAR_URLS,
+  buildEarTrainingEnemyBattleSourceKey,
   EAR_TRAINING_PLAYER_AVATAR_URL,
-} from '@/utils/constants';
+  resolveEarTrainingEnemyAvatarFromBattleSourceKey,
+} from '@/utils/earTrainingBattleAvatar';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
@@ -291,7 +290,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     if (!tutorial) {
       return;
     }
-    tutorial.bindings.setCharacterText(
+    phaserGameRef.current?.setPlayerQuote(
       localizedText(tutorial.scene.dialogue.onQuestion, isEnglishCopy),
     );
   }, [isEnglishCopy, tutorial]);
@@ -785,7 +784,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     }
 
     if (tutorial) {
-      tutorial.bindings.setCharacterText(
+      triggerBattleEffect('voicingCast');
+      phaserGameRef.current?.setPlayerQuote(
         localizedText(tutorial.scene.dialogue.onCorrect, isEnglishCopy),
       );
       setTutorialQuestionsAnswered(prev => {
@@ -1037,16 +1037,12 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, [playerBubbleText]);
 
   const enemyName = enemy?.name ?? 'Random Rival';
-  const enemyAvatar = useMemo(() => {
-    const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
-    let hash = 0;
-    for (let index = 0; index < source.length; index += 1) {
-      hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
-    }
-    const avatarIndex = Math.abs(hash) % EAR_TRAINING_ENEMY_AVATAR_URLS.length;
-    return EAR_TRAINING_ENEMY_AVATAR_URLS[avatarIndex] ?? DEFAULT_AVATAR_URL;
-  }, [enemy?.id, enemy?.name, stage.id]);
-  const enemyAvatarFlipX = EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(enemyAvatar);
+  const enemyBattleKey = useMemo(
+    () => buildEarTrainingEnemyBattleSourceKey(stage.id, enemy ?? { id: 'enemy', name: null }),
+    [enemy?.id, enemy?.name, stage.id],
+  );
+  const { url: enemyAvatar, flipX: enemyAvatarFlipX } =
+    resolveEarTrainingEnemyAvatarFromBattleSourceKey(enemyBattleKey);
 
   const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
@@ -1129,6 +1125,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     canChangePracticeMode,
     startButtonLabel,
     lessonProgressText,
+    ...(tutorial ? { fixedCharacterPositions: true } : {}),
   }, tutorialUi ?? {
     hidePlayerHpBar: false,
     hideSettingsButton: false,
@@ -1176,6 +1173,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     statusText,
     timeLabel,
     isEnglishCopy,
+    tutorial,
   ]);
 
   const battleCallbacks = useMemo(() => ({

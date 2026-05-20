@@ -210,7 +210,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     private func showTutorialQuestionDialogueIfNeeded() {
         guard let quiz = tutorialHooks?.quiz else { return }
-        tutorialHooks?.onCharacterText(quiz.onQuestionText)
+        scene?.setPlayerQuote(quiz.onQuestionText)
     }
 
     func tearDown() {
@@ -574,7 +574,14 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         if let hooks = tutorialHooks {
             tutorialQuestionsAnswered += 1
             if let quiz = hooks.quiz {
-                hooks.onCharacterText(quiz.onCorrectText)
+                _ = triggerBattleEffect(
+                    kind: .voicingCast,
+                    label: nil,
+                    damage: nil,
+                    phraseNoteCount: nil,
+                    originPoint: nil
+                )
+                scene?.setPlayerQuote(quiz.onCorrectText)
             }
             if tutorialQuestionsAnswered >= max(1, tutorialQuestionTarget) {
                 audio.stopDrumLoop()
@@ -823,7 +830,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
             enemyAvatarName: enemyAvatarAssetName(),
             enemyAvatarFlipX: EarTrainingBattleController.shouldFlipEnemyAvatar(name: enemyAvatarAssetName()),
-            fixedCharacterPositions: false,
+            fixedCharacterPositions: tutorialHooks != nil,
             showLobbyControls: showLobbyControls,
             isEnglishCopy: isEnglishCopy
         )
@@ -860,7 +867,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     private func updatePlayerQuoteBubble() {
         if tutorialHooks != nil {
-            scene?.setPlayerQuote(nil)
             return
         }
         if gameState == .playingPhrase, !quizEnded {
