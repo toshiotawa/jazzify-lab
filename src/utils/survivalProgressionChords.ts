@@ -16,6 +16,7 @@ export interface SurvivalProgressionBuiltChord {
   quality: 'progression';
   root: string;
   progressionStaffVoicingNames?: readonly string[];
+  progressionStaffVoicingStaves?: readonly (1 | 2)[];
   progressionStaffKeyFifths?: number;
 }
 import { parseChordName } from '@/utils/chord-utils';
@@ -167,8 +168,27 @@ export const buildProgressionChordDefinition = (
     progressionStaffKeyFifths: keyFifth,
   };
 
+  let progressionStaffVoicingStaves: readonly (1 | 2)[] | undefined;
+  const rawStaves = entry.voicing_staves;
+  if (
+    rawStaves
+    && rawStaves.length === entry.voicing.length
+    && sortedVoicing.length === rawStaves.length
+  ) {
+    const zipped = entry.voicing.map((m, i) => ({
+      midi: m,
+      staff: rawStaves[i] === 1 ? (1 as const) : (2 as const),
+    }));
+    zipped.sort((a, b) => a.midi - b.midi);
+    progressionStaffVoicingStaves = zipped.map((z) => z.staff);
+  }
+
   if (staffNames.length === sortedVoicing.length && staffNames.length > 0) {
-    return { ...base, progressionStaffVoicingNames: staffNames };
+    return {
+      ...base,
+      progressionStaffVoicingNames: staffNames,
+      ...(progressionStaffVoicingStaves ? { progressionStaffVoicingStaves } : {}),
+    };
   }
 
   return base;

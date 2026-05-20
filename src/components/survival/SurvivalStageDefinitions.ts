@@ -68,6 +68,8 @@ export interface SurvivalChordProgressionEntry {
   voicing: number[];
   voicingNames?: readonly string[];
   keyFifths?: number;
+  /** MusicXML 準拠: 1 = ト音、2 = ヘ音（大譜表テスト・チュートリアル向け）。 */
+  voicing_staves?: readonly (1 | 2)[];
 }
 
 type SurvivalStageBattleKind = 'random' | 'progression' | 'boss';

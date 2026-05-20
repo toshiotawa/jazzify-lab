@@ -25,6 +25,8 @@ final class SurvivalGameSession: ObservableObject {
     private let isDemo: Bool
     private let usesEnglishToastCopy: Bool
     private let onExit: (_ isCleared: Bool) -> Void
+    /// チュートリアルなど Supabase を叩かずにフレーズを注入する際に使用。
+    private let inlinePhraseDefinition: SurvivalPhraseDefinition?
     private let supabase = SupabaseService.shared
     private var uiForward: AnyCancellable?
 
@@ -38,7 +40,8 @@ final class SurvivalGameSession: ObservableObject {
         isDemo: Bool = false,
         usesEnglishToastCopy: Bool,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
-        scenarioController: SurvivalScenarioController? = nil
+        scenarioController: SurvivalScenarioController? = nil,
+        inlinePhraseDefinition: SurvivalPhraseDefinition? = nil
     ) {
         let loop = SurvivalGameLoop(
             stage: stage,
@@ -66,6 +69,7 @@ final class SurvivalGameSession: ObservableObject {
         self.isDemo = isDemo
         self.usesEnglishToastCopy = usesEnglishToastCopy
         self.onExit = onExit
+        self.inlinePhraseDefinition = inlinePhraseDefinition
 
         uiForward = vm.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
@@ -96,21 +100,33 @@ final class SurvivalGameSession: ObservableObject {
         guard state != .disposed else { return }
         let playBackgroundMusic = !gameLoop.runtime.scenario.disableSurvivalBgm
         if gameLoop.isPhraseMode {
-            Task {
-                if let phrase = try? await supabase.fetchSurvivalPhrase(
-                    mapCategory: stage.mapCategory,
-                    stageNumber: stage.stageNumber
-                ) {
-                    gameLoop.loadPhraseDefinition(phrase)
-                    viewModel.syncPhraseStaff(from: gameLoop)
-                    if playBackgroundMusic {
-                        let urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
-                        if let urlString, let url = URL(string: urlString) {
-                            audioController.setBgmUrl(url)
-                        }
+            if let phrase = inlinePhraseDefinition {
+                gameLoop.loadPhraseDefinition(phrase)
+                viewModel.syncPhraseStaff(from: gameLoop)
+                if playBackgroundMusic {
+                    let urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
+                    if let urlString, let url = URL(string: urlString) {
+                        audioController.setBgmUrl(url)
                     }
                 }
                 audioController.start(playBackgroundMusic: playBackgroundMusic)
+            } else {
+                Task {
+                    if let phrase = try? await supabase.fetchSurvivalPhrase(
+                        mapCategory: stage.mapCategory,
+                        stageNumber: stage.stageNumber
+                    ) {
+                        gameLoop.loadPhraseDefinition(phrase)
+                        viewModel.syncPhraseStaff(from: gameLoop)
+                        if playBackgroundMusic {
+                            let urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
+                            if let urlString, let url = URL(string: urlString) {
+                                audioController.setBgmUrl(url)
+                            }
+                        }
+                    }
+                    audioController.start(playBackgroundMusic: playBackgroundMusic)
+                }
             }
         } else {
             if playBackgroundMusic {

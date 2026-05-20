@@ -24,6 +24,8 @@ export interface SurvivalProgressionStaffSnapshot {
   /** 度数・テンション出題時のルート音名（例: C, Db） */
   readonly rootDisplayName?: string;
   readonly staffClef?: SurvivalStaffClef;
+  /** 音符単位で 1=treble, 2=bass。指定時は `staffClef` 単一割当より優先（大譜表）。 */
+  readonly voicingStaves?: readonly (1 | 2)[];
 }
 
 export interface SurvivalProgressionStaffProps {
@@ -34,6 +36,8 @@ export interface SurvivalProgressionStaffProps {
   readonly correctPitchClasses: readonly number[];
   /** 既定はヘ音（Progression）。ランダム HINT はト音。 */
   readonly staffClef?: SurvivalStaffClef;
+  /** `voicingNames` と同長。無指定時は `staffClef` で全員同じ譜表。 */
+  readonly voicingStaves?: readonly (1 | 2)[];
   /** 隣接符頭の横ずらし。未指定時は低音基準（`anchor-low`） */
   readonly noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
   /** 未正解符頭 opacity（0〜1）。本番 HINT OFF フェード用。 */
@@ -49,12 +53,18 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
     keyFifths,
     correctPitchClasses,
     staffClef = 'bass',
+    voicingStaves: explicitStaves,
     noteCollisionLayout = 'anchor-low',
     unpressedNoteOpacity = 1,
     className,
   }) => {
     const staffNumber = staffClef === 'treble' ? (1 as const) : (2 as const);
-    const voicingStaves = useMemo(() => voicingNames.map(() => staffNumber), [voicingNames, staffNumber]);
+    const voicingStaves = useMemo(() => {
+      if (explicitStaves && explicitStaves.length === voicingNames.length) {
+        return explicitStaves;
+      }
+      return voicingNames.map(() => staffNumber);
+    }, [explicitStaves, staffNumber, voicingNames]);
 
     const staffChordLabel = useMemo(() => {
       if (rootDisplayName && rootDisplayName.length > 0) {

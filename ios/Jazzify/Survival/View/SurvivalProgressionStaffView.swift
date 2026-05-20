@@ -15,6 +15,8 @@ struct SurvivalProgressionStaffView: View {
     let unpressedNoteOpacity: CGFloat
     /// サバイバル中央楽譜: コード名を譜面近傍へ寄せる（垂直中央寄せを無効化）。
     let compactVerticalLayout: Bool
+    /// 並びが `voicingNames` と一致するときのみ多段譜へ。無ければ `staffClef` を全構成音へ。
+    let voicingStavesPerNote: [Int]?
 
     init(
         chordDisplayName: String,
@@ -24,7 +26,8 @@ struct SurvivalProgressionStaffView: View {
         staffClef: Int = 2,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
         unpressedNoteOpacity: CGFloat = 1,
-        compactVerticalLayout: Bool = false
+        compactVerticalLayout: Bool = false,
+        voicingStavesPerNote: [Int]? = nil
     ) {
         self.chordDisplayName = chordDisplayName
         self.voicingNames = voicingNames
@@ -34,16 +37,24 @@ struct SurvivalProgressionStaffView: View {
         self.noteCollisionLayout = noteCollisionLayout
         self.unpressedNoteOpacity = unpressedNoteOpacity
         self.compactVerticalLayout = compactVerticalLayout
+        self.voicingStavesPerNote = voicingStavesPerNote
     }
 
     private static let staffGroupId = UUID(uuidString: "A0B99C62-1111-4222-A333-D44444444101")!
+
+    private var resolvedStaffRows: [Int] {
+        if let rows = voicingStavesPerNote, rows.count == voicingNames.count {
+            return rows
+        }
+        return voicingNames.map { _ in staffClef }
+    }
 
     var body: some View {
         let group = EarTrainingChordVoicingStaffLayout.GroupInput(
             id: Self.staffGroupId,
             chordName: chordDisplayName,
             voicing: voicingNames,
-            voicingStaves: voicingNames.map { _ in staffClef },
+            voicingStaves: resolvedStaffRows,
             measureOffset: 0,
             isRest: false
         )

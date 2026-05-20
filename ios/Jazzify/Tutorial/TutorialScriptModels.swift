@@ -89,11 +89,43 @@ struct TutorialScriptPayload: Decodable, Sendable {
     }
 }
 
+enum SurvivalTutorialScriptPayload: Sendable {
+    case v2(TutorialScriptPayload)
+    case v3(SurvivalTutorialScriptPayloadV3)
+}
+
+extension SurvivalTutorialScriptPayload: Decodable {
+    private enum CodingKeys: String, CodingKey { case version }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let version = try container.decode(Int.self, forKey: .version)
+        switch version {
+        case 3:
+            self = .v3(try SurvivalTutorialScriptPayloadV3(from: decoder))
+        default:
+            self = .v2(try TutorialScriptPayload(from: decoder))
+        }
+    }
+}
+
+extension SurvivalTutorialScriptPayload {
+    var interpretedV2: TutorialScriptPayload? {
+        if case let .v2(p) = self { return p }
+        return nil
+    }
+
+    var interpretedV3: SurvivalTutorialScriptPayloadV3? {
+        if case let .v3(p) = self { return p }
+        return nil
+    }
+}
+
 struct SurvivalTutorialScriptRow: Decodable, Sendable {
     let id: String
     let title: String
     let title_en: String
-    let script: TutorialScriptPayload
+    let script: SurvivalTutorialScriptPayload
 }
 
 enum TutorialScriptBundled {
@@ -118,7 +150,8 @@ enum TutorialStageBuilder {
                 name: $0.name,
                 voicing: $0.voicing,
                 voicingNames: $0.voicingNames,
-                keyFifths: $0.keyFifths ?? 0
+                keyFifths: $0.keyFifths ?? 0,
+                voicingStaves: nil
             )
         }
         let mapCategory = SurvivalMapCategory(rawValue: stage.mapCategory ?? "lesson") ?? .basic
@@ -152,7 +185,8 @@ enum TutorialStageBuilder {
                 name: def.name,
                 voicing: def.voicing,
                 voicingNames: def.voicingNames,
-                keyFifths: def.keyFifths ?? 0
+                keyFifths: def.keyFifths ?? 0,
+                voicingStaves: nil
             )
             return SurvivalResolvedChord.fromProgressionEntry(entry, index: 0)
         }

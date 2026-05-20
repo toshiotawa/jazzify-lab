@@ -298,6 +298,10 @@ interface SurvivalGameScreenProps {
   scenarioUserInputPulseRef?: React.MutableRefObject<number>;
   scenarioSlotBCompletionPulseRef?: React.MutableRefObject<number>;
   scenarioMidiNoteReceivedRef?: React.MutableRefObject<boolean>;
+  /** phrases ステージでも Supabase を叩かず、インライン定義のみ使う（v3 チュートリアルなど） */
+  tutorialPhraseInlineDefinition?: import('@/utils/survivalPhraseDefinitions').SurvivalPhraseDefinition | null;
+  /** phrases モードで全コードを一周して先頭コードに戻ったタイミングでのみインクリメント（親が tutorial 終了判定に利用） */
+  scenarioPhraseFullLoopPulseRef?: React.MutableRefObject<number>;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -324,6 +328,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   scenarioUserInputPulseRef,
   scenarioSlotBCompletionPulseRef,
   scenarioMidiNoteReceivedRef,
+  tutorialPhraseInlineDefinition = null,
+  scenarioPhraseFullLoopPulseRef,
 }) => {
   const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
@@ -391,6 +397,34 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       phraseStateRef.current = null;
       return;
     }
+
+    const inline = tutorialPhraseInlineDefinition ?? null;
+    if (inline !== null && inline.chords.length > 0) {
+      phraseDefinitionRef.current = inline;
+      phraseStateRef.current = createInitialPhraseState(inline);
+      const phraseDrumInline = phraseDrumLoopRef.current;
+      const url =
+        inline.bgmUrl?.trim() ||
+        config.bgmUrl?.trim() ||
+        SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL;
+      if (phraseDrumInline) {
+        void (async () => {
+          try {
+            await initializeAudioSystem();
+            const ctx = new AudioContext();
+            await ctx.resume();
+            await phraseDrumInline.prepare(url, ctx);
+            phraseDrumInline.start();
+            phraseDrumInline.setVolume(bgmVolumeRef.current);
+          } catch {
+            /* ignore */
+          }
+        })();
+      }
+      setPhraseUiTick((t) => t + 1);
+      return undefined;
+    }
+
     let cancelled = false;
     void fetchSurvivalPhraseByStage(stageDefinition.mapCategory, stageDefinition.stageNumber).then((phrase) => {
       if (cancelled || !phrase) return;
@@ -420,7 +454,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isPhraseMode, stageDefinition?.mapCategory, stageDefinition?.stageNumber]);
+  }, [isPhraseMode, stageDefinition?.mapCategory, stageDefinition?.stageNumber, tutorialPhraseInlineDefinition, config.bgmUrl]);
 
   useEffect(() => {
     if (!isProgressionStage) {
@@ -1517,6 +1551,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const noteMod12 = ((note % 12) + 12) % 12;
         const evaluation = evaluatePhraseNoteOn(phraseStateRef.current, noteMod12);
         phraseStateRef.current = evaluation.nextState;
+
+        if (
+          evaluation.result === 'measure-complete'
+          && scenarioPhraseFullLoopPulseRef
+          && evaluation.nextState.chordIndex === 0
+        ) {
+          scenarioPhraseFullLoopPulseRef.current += 1;
+        }
+
         setPhraseUiTick((t) => t + 1);
 
         if (evaluation.result === 'miss') {
@@ -2339,7 +2382,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts, isBossStage, isStageMode, isPhraseMode]);
+  }, [
+    config.allowedChords,
+    levelUpCorrectNotes,
+    handleLevelUpBonusSelect,
+    isAMagicSlot,
+    isBMagicSlot,
+    appendThunderEffectsFromDamageTexts,
+    isBossStage,
+    isStageMode,
+    isPhraseMode,
+    scenarioPhraseFullLoopPulseRef,
+  ]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
@@ -4404,19 +4458,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (!names || names.length === 0 || typeof kf !== 'number') return null;
 
-    return {
+    const staves = ch.progressionStaffVoicingStaves;
+    const snapshot: SurvivalProgressionStaffSnapshot = {
       voicingNames: names,
       keyFifths: kf,
       correctPitchClasses: slot.correctNotes,
       chordDisplayName: ch.displayName,
       staffClef: sc.scenarioStaffClef === 1 ? 'treble' : 'bass',
     };
+    if (staves && staves.length === names.length) {
+      return { ...snapshot, voicingStaves: staves };
+    }
+    return snapshot;
   }, [
     scenarioMode,
     scenarioUiTick,
     gameState.codeSlots.current[1].correctNotes,
     gameState.codeSlots.current[1].isEnabled,
     gameState.codeSlots.current[1].chord?.id,
+    gameState.codeSlots.current[1].chord?.progressionStaffVoicingNames,
   ]);
 
   const scenarioUi = useMemo(() => {
@@ -4512,13 +4572,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (!names || names.length === 0 || typeof kf !== 'number') return null;
 
-    return {
+    const staves = ch.progressionStaffVoicingStaves;
+    const base: SurvivalProgressionStaffSnapshot = {
       voicingNames: names,
       keyFifths: kf,
       correctPitchClasses: slot.correctNotes,
       chordDisplayName: ch.displayName,
       staffClef: 'bass',
     };
+    if (staves && staves.length === names.length) {
+      return { ...base, voicingStaves: staves };
+    }
+    return base;
   }, [
     isStageMode,
     hintMode,
@@ -4531,6 +4596,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionStaffVoicingNamesSig,
     progressionPunchSlot.chord?.progressionStaffKeyFifths,
     progressionPunchSlot.chord?.quality,
+    progressionPunchSlot.chord?.progressionStaffVoicingStaves,
   ]);
 
   const randomPunchStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
@@ -4542,11 +4608,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const ch = slot.chord;
     if (!slot.isEnabled || !ch || ch.quality === 'progression') return null;
 
-    const built = buildSurvivalRandomHintStaffVoicing(ch.id);
-    if (!built) return null;
+    const tutNames = ch.progressionStaffVoicingNames;
+    const tutKf = ch.progressionStaffKeyFifths;
 
     const survivalQuestion = parseSurvivalQuestionId(ch.id);
     const typeLabel = survivalQuestion
+      ? (isEnglishCopy
+          ? (stageDefinition?.chordDisplayNameEn || ch.displayName)
+          : (stageDefinition?.chordDisplayName || ch.displayName))
+      : ch.displayName;
+
+    if (tutNames && tutNames.length > 0 && typeof tutKf === 'number') {
+      const staves = ch.progressionStaffVoicingStaves;
+      const baseRand: SurvivalProgressionStaffSnapshot = {
+        voicingNames: tutNames,
+        keyFifths: tutKf,
+        correctPitchClasses: slot.correctNotes,
+        chordDisplayName: typeLabel,
+        rootDisplayName: survivalQuestion ? ch.root : undefined,
+        staffClef: 'treble',
+      };
+      if (staves && staves.length === tutNames.length) {
+        return { ...baseRand, voicingStaves: staves };
+      }
+      return baseRand;
+    }
+
+    const built = buildSurvivalRandomHintStaffVoicing(ch.id);
+    if (!built) return null;
+
+    const typeLabelResolved = survivalQuestion
       ? (isEnglishCopy
           ? (stageDefinition?.chordDisplayNameEn || ch.displayName)
           : (stageDefinition?.chordDisplayName || ch.displayName))
@@ -4556,7 +4647,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       voicingNames: built.voicingNames,
       keyFifths: built.keyFifths,
       correctPitchClasses: slot.correctNotes,
-      chordDisplayName: typeLabel,
+      chordDisplayName: typeLabelResolved,
       rootDisplayName: survivalQuestion ? ch.root : undefined,
       staffClef: 'treble',
     };
@@ -5034,6 +5125,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 <SurvivalProgressionStaff
                   chordDisplayName={scenarioProgressionStaff.chordDisplayName}
                   voicingNames={scenarioProgressionStaff.voicingNames}
+                  voicingStaves={scenarioProgressionStaff.voicingStaves}
                   keyFifths={scenarioProgressionStaff.keyFifths}
                   correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
                   staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}

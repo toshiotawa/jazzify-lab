@@ -36,6 +36,8 @@ final class SurvivalGameLoop {
 
     private(set) var phraseDefinition: SurvivalPhraseDefinition?
     private(set) var phraseState: SurvivalPhraseRuntimeState?
+    /// フレーズ全周回ごとに増分（`chordIndex` が末尾から 0 に戻ったとき）。チュートリアル検知のみ。
+    private(set) var phraseFullLoopPulse: UInt64 = 0
 
     var isPhraseMode: Bool { stage.mapCategory == .phrases }
 
@@ -172,6 +174,7 @@ final class SurvivalGameLoop {
     func loadPhraseDefinition(_ phrase: SurvivalPhraseDefinition) {
         phraseDefinition = phrase
         phraseState = SurvivalPhraseEngine.createInitialState(phrase: phrase)
+        phraseFullLoopPulse = 0
     }
 
     func phraseStaffSnapshot() -> SurvivalPhraseStaffSnapshot? {
@@ -471,6 +474,11 @@ final class SurvivalGameLoop {
             runtime.comboReady = false
             return []
         case .progress, .measureComplete:
+            if evaluation.result == .measureComplete,
+               evaluation.nextState.chordIndex == 0,
+               !evaluation.nextState.phrase.chords.isEmpty {
+                phraseFullLoopPulse &+= 1
+            }
             runtime.comboCount += 1
             return firePhraseCombat(measureComplete: evaluation.result == .measureComplete)
         }

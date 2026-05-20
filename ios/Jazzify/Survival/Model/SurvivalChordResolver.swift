@@ -43,6 +43,8 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
     public let displayName: String
     /// HINT スタッフ用（DB の `voicing_names` と MIDI を対応させて昇順、無ければ nil）。
     public let progressionStaffVoicingNames: [String]?
+    /// `progressionStaffVoicingNames` と昇順並び対応した譜表行（1=ト／2=ヘ）。
+    public let progressionStaffVoicingStaves: [Int]?
     /// 調号 -7…7。DB 未取得時でも綴りがあれば 0 とみなしてスタッフを表示可能。
     public let progressionStaffKeyFifths: Int?
 
@@ -54,6 +56,7 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         pitchClasses: [Int],
         displayName: String,
         progressionStaffVoicingNames: [String]? = nil,
+        progressionStaffVoicingStaves: [Int]? = nil,
         progressionStaffKeyFifths: Int? = nil,
     ) {
         self.id = id
@@ -63,6 +66,7 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         self.pitchClasses = pitchClasses
         self.displayName = displayName
         self.progressionStaffVoicingNames = progressionStaffVoicingNames
+        self.progressionStaffVoicingStaves = progressionStaffVoicingStaves
         self.progressionStaffKeyFifths = progressionStaffKeyFifths
     }
 
@@ -82,7 +86,8 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         name: String,
         voicing: [Int],
         voicingNames: [String],
-        keyFifths: Int = 0
+        keyFifths: Int = 0,
+        progressionStaffVoicingStaves: [Int]? = nil
     ) -> SurvivalResolvedChord {
         var pitchClasses: [Int] = []
         var seen = Set<Int>()
@@ -100,6 +105,7 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             pitchClasses: pitchClasses,
             displayName: name,
             progressionStaffVoicingNames: voicingNames,
+            progressionStaffVoicingStaves: progressionStaffVoicingStaves,
             progressionStaffKeyFifths: min(5, max(-6, keyFifths))
         )
     }
@@ -118,7 +124,9 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             let pc = ((note % 12) + 12) % 12
             if seen.insert(pc).inserted { pcs.append(pc) }
         }
-        let staffNames = Self.ascendingProgressionStaffNames(entry: entry)
+        let layout = Self.ascendingProgressionStaffLayout(entry: entry)
+        let staffNames = layout?.names
+        let staffRows = layout?.staves
         // 採用範囲は -6..+5（F# キーは Gb で表現する方針）。
         let storedKey = entry.keyFifths.map { min(5, max(-6, $0)) }
         let keyForStaff: Int? = storedKey ?? (staffNames != nil ? 0 : nil)
@@ -131,36 +139,63 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             pitchClasses: pcs,
             displayName: entry.name,
             progressionStaffVoicingNames: staffNames,
+            progressionStaffVoicingStaves: staffRows,
             progressionStaffKeyFifths: keyForStaff
         )
     }
 
-    /// `voicing` の各 MIDI と並列の綴りを昇順 MIDI に並べる。重複ピッチクラスや綴り不足時は nil。
-    /// オクターブは鍵盤 HINT の単一オクターブ再構築（baseMidi=48 / C3 起点・厳密昇順）に揃え、
-    /// `SurvivalGameLoop.hintHighlightMidis` と完全一致させる。例: `FM7(9) [E4,G4,A4,C5]` → `[E3,G3,A3,C4]`。
-    private static func ascendingProgressionStaffNames(entry: SurvivalChordProgressionEntry) -> [String]? {
+    /// `voicing` の各 MIDI と並列の綴りを昇順 MIDI に並べる。重複ピッチクラス時はレイアウト不可。
+    /// `voicing_names` が無いときはピッチクラスの簡易綴りを使う。`voicing_staves` 省略時はヘ音のみ。
+    private static func ascendingProgressionStaffLayout(entry: SurvivalChordProgressionEntry) -> (names: [String], staves: [Int])? {
         let voices = entry.voicing
         guard !voices.isEmpty else { return nil }
-        let pitchClasses = Set(voices.map { (($0 % 12) + 12) % 12 })
-        guard pitchClasses.count == voices.count else { return nil }
+        let pitchClassesUnique = Set(voices.map { (($0 % 12) + 12) % 12 })
+        guard pitchClassesUnique.count == voices.count else { return nil }
 
-        guard let parallel = entry.voicingNames, parallel.count == voices.count else { return nil }
+        let nameStrings: [String]
+        if let parallel = entry.voicingNames, parallel.count == voices.count {
+            var built: [String] = []
+            built.reserveCapacity(voices.count)
+            for rawName in parallel {
+                let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                built.append(trimmed)
+            }
+            nameStrings = built
+        } else {
+            nameStrings = voices.map { letterPitchName(midi: $0) }
+        }
+
+        let stavesParallel: [Int]
+        if let vs = entry.voicingStaves, vs.count == voices.count {
+            stavesParallel = vs.map { $0 == 1 ? 1 : 2 }
+        } else {
+            stavesParallel = Array(repeating: 2, count: voices.count)
+        }
 
         let sortedVoicing = voices.sorted()
         let hintMidiByPc = reconstructHintMidisByPitchClass(sortedVoicing: sortedVoicing)
 
-        var pairs: [(midi: Int, nm: String)] = []
-        pairs.reserveCapacity(voices.count)
-        for (rawMidi, rawName) in zip(voices, parallel) {
-            let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return nil }
+        var tuples: [(midi: Int, nm: String, st: Int)] = []
+        tuples.reserveCapacity(voices.count)
+        for idx in voices.indices {
+            let rawMidi = voices[idx]
+            let nmRaw = nameStrings[idx]
+            let rawStaff = stavesParallel[idx]
             let pc = ((rawMidi % 12) + 12) % 12
             let aligned = hintMidiByPc[pc] ?? rawMidi
-            let nm = alignNameOctaveToMidi(name: trimmed, targetMidi: aligned)
-            pairs.append((midi: aligned, nm: nm))
+            let adjustedName = alignNameOctaveToMidi(name: nmRaw, targetMidi: aligned)
+            tuples.append((midi: aligned, nm: adjustedName, st: rawStaff))
         }
-        pairs.sort { $0.midi < $1.midi }
-        return pairs.map(\.nm)
+        tuples.sort { $0.midi < $1.midi }
+        return (tuples.map(\.nm), tuples.map(\.st))
+    }
+
+    private static func letterPitchName(midi: Int) -> String {
+        let letters = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        let pc = ((midi % 12) + 12) % 12
+        guard letters.indices.contains(pc) else { return "C" }
+        return letters[pc]
     }
 
     private static let hintBaseMidi = 48

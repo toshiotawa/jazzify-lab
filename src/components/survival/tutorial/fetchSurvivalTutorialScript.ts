@@ -5,6 +5,10 @@ import {
   isTutorialScriptPayload,
   type TutorialScriptPayload,
 } from './tutorialScriptTypes';
+import {
+  isSurvivalTutorialScriptPayloadV3,
+  type SurvivalTutorialScriptPayloadV3,
+} from './survivalTutorialV3ScriptTypes';
 
 export interface SurvivalTutorialLegacyPayload {
   version: 1;
@@ -14,7 +18,8 @@ export interface SurvivalTutorialLegacyPayload {
 
 export type SurvivalTutorialScriptPayload =
   | TutorialScriptPayload
-  | SurvivalTutorialLegacyPayload;
+  | SurvivalTutorialLegacyPayload
+  | SurvivalTutorialScriptPayloadV3;
 
 export interface SurvivalTutorialScriptRow {
   id: string;
@@ -44,6 +49,9 @@ function parseLegacyPayload(raw: Record<string, unknown>): SurvivalTutorialLegac
 function parsePayload(raw: unknown): SurvivalTutorialScriptPayload | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
+  if (isSurvivalTutorialScriptPayloadV3(raw)) {
+    return raw;
+  }
   if (isTutorialScriptPayload(raw)) {
     return raw;
   }
@@ -54,6 +62,12 @@ export function isInterpretedTutorialScript(
   script: SurvivalTutorialScriptPayload,
 ): script is TutorialScriptPayload {
   return isTutorialScriptPayload(script);
+}
+
+export function isSurvivalTutorialScriptV3(
+  script: SurvivalTutorialScriptPayload,
+): script is SurvivalTutorialScriptPayloadV3 {
+  return isSurvivalTutorialScriptPayloadV3(script);
 }
 
 export async function fetchSurvivalTutorialScript(

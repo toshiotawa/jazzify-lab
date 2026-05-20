@@ -137,19 +137,29 @@ public struct SurvivalChordProgressionEntry: Codable, Sendable, Hashable {
     public let voicingNames: [String]?
     /// MusicXML の fifths と同じ -7…7。
     public let keyFifths: Int?
+    /// 並びが `voicing` と対応するとき、コードヴォイシングごとの楽譜行（1=ト音／2=ヘ音）。
+    public let voicingStaves: [Int]?
 
     enum CodingKeys: String, CodingKey {
         case name
         case voicing
         case voicingNames = "voicing_names"
         case keyFifths = "key_fifths"
+        case voicingStaves = "voicing_staves"
     }
 
-    public init(name: String, voicing: [Int], voicingNames: [String]? = nil, keyFifths: Int? = nil) {
+    public init(
+        name: String,
+        voicing: [Int],
+        voicingNames: [String]? = nil,
+        keyFifths: Int? = nil,
+        voicingStaves: [Int]? = nil
+    ) {
         self.name = name
         self.voicing = voicing
         self.voicingNames = voicingNames
         self.keyFifths = keyFifths
+        self.voicingStaves = voicingStaves
     }
 }
 
@@ -271,6 +281,12 @@ enum SurvivalStageCatalog {
         let trimmed = raw.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         guard trimmed.count == voicingCount else { return nil }
         return trimmed
+    }
+
+    /// `voicing_staves` が `voicing` と同じ長さのときのみ採用（1 or 2 に正規化）。
+    private static func sanitizedProgressionVoicingStaves(_ raw: [Int]?, voicingCount: Int) -> [Int]? {
+        guard let raw, raw.count == voicingCount else { return nil }
+        return raw.map { $0 == 1 ? 1 : 2 }
     }
 
     /// 採用範囲は -6..+5（F# キーは Gb で表現する方針）。
@@ -405,7 +421,8 @@ enum SurvivalStageCatalog {
                         name: trimmed,
                         voicing: entry.voicing,
                         voicingNames: Self.sanitizedProgressionVoicingNames(entry.voicingNames, voicingCount: entry.voicing.count),
-                        keyFifths: Self.clampProgressionKeyFifths(entry.keyFifths)
+                        keyFifths: Self.clampProgressionKeyFifths(entry.keyFifths),
+                        voicingStaves: Self.sanitizedProgressionVoicingStaves(entry.voicingStaves, voicingCount: entry.voicing.count)
                     )
                 }
                 return cleaned.isEmpty ? nil : cleaned

@@ -170,6 +170,8 @@ export interface ChordDefinition {
   root: string;        // ルート音（例: 'C', 'G', 'A'）
   /** サバイバル Progression + HINT 譜面用（DB の voicing_names / 生成綴り、MIDI 昇順）。 */
   progressionStaffVoicingNames?: readonly string[];
+  /** 音符ごとの譜表（1=treble, 2=bass）。`progressionStaffVoicingNames` と同順。 */
+  progressionStaffVoicingStaves?: readonly (1 | 2)[];
   progressionStaffKeyFifths?: number;
 }
 

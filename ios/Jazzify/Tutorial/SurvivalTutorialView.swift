@@ -4,7 +4,8 @@ import SwiftUI
 final class SurvivalTutorialContainer: ObservableObject {
     enum Gate {
         case loading
-        case ready
+        case readyV2
+        case readyV3(SurvivalTutorialScriptPayloadV3)
         case failed
     }
 
@@ -21,16 +22,20 @@ final class SurvivalTutorialContainer: ObservableObject {
     }
 
     func loadIfNeeded() async {
-        guard gate == .loading else { return }
-        guard let payload = await TutorialScriptService.fetchScript(scriptId: scriptId),
-              payload.isInterpretedV2
-        else {
+        guard case .loading = gate else { return }
+        guard let loaded = await TutorialScriptService.fetchTutorialPayload(scriptId: scriptId) else {
             gate = .failed
             return
         }
-        stageDefinition = TutorialStageBuilder.buildStageDefinition(from: payload)
-        interpreter = TutorialScriptInterpreter(locale: locale, payload: payload)
-        gate = .ready
+        switch loaded {
+        case let .interpretedV3(payload):
+            interpreter = nil
+            gate = .readyV3(payload)
+        case let .interpretedV2(payload):
+            stageDefinition = TutorialStageBuilder.buildStageDefinition(from: payload)
+            interpreter = TutorialScriptInterpreter(locale: locale, payload: payload)
+            gate = .readyV2
+        }
     }
 
     func attach(session: SurvivalGameSession, controller: SurvivalScenarioController, onFinish: @escaping () -> Void) {
@@ -85,7 +90,15 @@ struct SurvivalTutorialView: View {
                     Button(isJa ? "戻る" : "Back") { onClose() }
                 }
                 .padding()
-            case .ready:
+            case .readyV3(let scriptV3):
+                SurvivalTutorialV3LessonView(
+                    script: scriptV3,
+                    locale: locale,
+                    showSkip: showSkip,
+                    onClose: onClose,
+                    onComplete: onComplete
+                )
+            case .readyV2:
                 if let interpreter = container.interpreter {
                     SurvivalTutorialReadyView(
                         interpreter: interpreter,

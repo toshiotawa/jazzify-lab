@@ -10,8 +10,16 @@ import { buildTutorialStageDefinition } from '@/components/survival/tutorial/bui
 import {
   fetchSurvivalTutorialScript,
   isInterpretedTutorialScript,
+  isSurvivalTutorialScriptV3,
   type SurvivalTutorialScriptPayload,
 } from '@/components/survival/tutorial/fetchSurvivalTutorialScript';
+import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
+import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/survivalTutorialV3Bindings';
+import {
+  SurvivalTutorialSceneHost,
+  showSurvivalTutorialFinishCta,
+  survivalTutorialFinishCtaLabel,
+} from '@/components/survival/tutorial/SurvivalTutorialSceneHost';
 import {
   resolveLegacyTutorialRunnerKey,
   resolveSurvivalBuiltinTutorialRunner,
@@ -83,6 +91,10 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const [pillarCaption, setPillarCaption] = useState<string | null>(null);
   const [pillarSystemImage, setPillarSystemImage] = useState<string | null>(null);
   const [showCta, setShowCta] = useState(false);
+  const [tutorialV3Payload, setTutorialV3Payload] = useState<SurvivalTutorialScriptPayloadV3 | null>(null);
+  const [v3SceneIndex, setV3SceneIndex] = useState(0);
+  const [v3CharacterLine, setV3CharacterLine] = useState('');
+  const [v3FinishCta, setV3FinishCta] = useState(false);
 
   const audioRef = useRef<TutorialAudioController | null>(null);
   const runnerAbortRef = useRef<AbortController | null>(null);
@@ -112,8 +124,26 @@ export const SurvivalLessonTutorialExperience: React.FC<
       setUnknownRunnerKey(null);
       setLoadedScript(null);
 
+      setTutorialV3Payload(null);
+      setV3SceneIndex(0);
+      setV3CharacterLine('');
+      setV3FinishCta(false);
+
       try {
         const row = await fetchSurvivalTutorialScript(scriptId);
+        if (isSurvivalTutorialScriptV3(row.script)) {
+          if (!cancelled) {
+            setLoadedScript(null);
+            setTutorialV3Payload(row.script);
+            runnerFnRef.current = null;
+            runnerStartedRef.current = false;
+            finalizedOnceRef.current = false;
+            setGate('ready');
+          }
+          return;
+        }
+        setTutorialV3Payload(null);
+
         if (isInterpretedTutorialScript(row.script)) {
           if (!cancelled) {
             setLoadedScript(row.script);
@@ -148,6 +178,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
         const runnerFn = resolveSurvivalBuiltinTutorialRunner(builtinKey);
         if (!runnerFn) {
           if (!cancelled) {
+            setTutorialV3Payload(null);
             setUnknownRunnerKey(builtinKey);
             setGate('unknown_runner');
           }
@@ -155,6 +186,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
         }
         runnerFnRef.current = runnerFn;
         if (!cancelled) {
+          setTutorialV3Payload(null);
           setStageDefinition(TUTORIAL_STAGE_DEFINITION);
           runnerStartedRef.current = false;
           finalizedOnceRef.current = false;
@@ -182,9 +214,45 @@ export const SurvivalLessonTutorialExperience: React.FC<
     [onExit, onLessonTutorialCompleted],
   );
 
+  const advanceV3Scene = useCallback(() => {
+    const pl = tutorialV3Payload;
+    if (!pl) return;
+    const nextIdx = v3SceneIndex + 1;
+    if (nextIdx >= pl.scenes.length) {
+      void finalizeLesson('completed');
+      return;
+    }
+    setV3SceneIndex(nextIdx);
+  }, [finalizeLesson, tutorialV3Payload, v3SceneIndex]);
+
+  useEffect(() => {
+    const pl = tutorialV3Payload;
+    if (!pl || gate !== 'ready') return;
+    const s = pl.scenes[v3SceneIndex];
+    if (!s) return;
+    if (s.type === 'finish') {
+      setV3FinishCta(showSurvivalTutorialFinishCta(pl, s));
+    } else {
+      setV3FinishCta(false);
+    }
+  }, [tutorialV3Payload, gate, v3SceneIndex]);
+
+  const v3Bindings: SurvivalTutorialV3Bindings | null = useMemo(() => {
+    if (!tutorialV3Payload) return null;
+    return {
+      isEnglishCopy,
+      ui: tutorialV3Payload.ui,
+      setCharacterLine: setV3CharacterLine,
+      onExit: () => {
+        void finalizeLesson('aborted');
+      },
+      onLessonTutorialCompleted,
+    };
+  }, [tutorialV3Payload, isEnglishCopy, finalizeLesson, onLessonTutorialCompleted]);
+
   const onScenarioHandleReady = useCallback(
     (handle: SurvivalScenarioHandle) => {
-      if (gate !== 'ready' || runnerStartedRef.current) return;
+      if (gate !== 'ready' || tutorialV3Payload !== null || runnerStartedRef.current) return;
       runnerStartedRef.current = true;
 
       const run = async () => {
@@ -301,7 +369,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
       void run();
     },
-    [finalizeLesson, gate, isEnglishCopy, loadedScript, scriptId],
+    [finalizeLesson, gate, isEnglishCopy, loadedScript, scriptId, tutorialV3Payload],
   );
 
   const gameScreenKey = useMemo(
@@ -311,6 +379,10 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
   const handleSkip = useCallback(() => {
     void finalizeLesson('aborted');
+  }, [finalizeLesson]);
+
+  const handleV3FinishCta = useCallback(() => {
+    void finalizeLesson('completed');
   }, [finalizeLesson]);
 
   const handleCta = useCallback(() => {
@@ -338,6 +410,69 @@ export const SurvivalLessonTutorialExperience: React.FC<
         >
           {isEnglishCopy ? 'Back' : '戻る'}
         </button>
+      </div>
+    );
+  }
+
+  if (tutorialV3Payload && v3Bindings) {
+    const scenes = tutorialV3Payload.scenes;
+    const currentScene = scenes[v3SceneIndex];
+    const showExitV3Top = Boolean(tutorialV3Payload.ui.showExitButton);
+
+    return (
+      <div
+        className={
+          embeddedFullHeight
+            ? 'relative h-full min-h-0 w-full overflow-hidden bg-black'
+            : 'relative fixed inset-0 z-50 bg-black'
+        }
+      >
+        {showExitV3Top ? (
+          <button
+            type="button"
+            onClick={() => handleSkip()}
+            className="absolute right-[max(12px,env(safe-area-inset-right))] top-[max(12px,env(safe-area-inset-top))] z-[115] rounded-lg border border-white/20 bg-black/70 px-3 py-1.5 text-xs font-bold text-white hover:bg-black/90"
+          >
+            {isEnglishCopy ? 'Exit' : '退出'}
+          </button>
+        ) : null}
+
+        {currentScene && currentScene.type !== 'finish' ? (
+          <SurvivalTutorialSceneHost
+            key={`survival-tutorial-v3-${scriptId}-${v3SceneIndex}`}
+            script={tutorialV3Payload}
+            scene={currentScene}
+            bindings={v3Bindings}
+            embeddedFullHeight={embeddedFullHeight}
+            onSceneComplete={advanceV3Scene}
+          />
+        ) : null}
+
+        <OnboardingOverlays
+          characterText={v3CharacterLine}
+          narrationText=""
+          connectedDeviceLine={null}
+          showPillarCard={false}
+          pillarCaption={null}
+          pillarSystemImage={null}
+          showCta={false}
+          showSkip={showSkip && !v3FinishCta}
+          isEnglishCopy={isEnglishCopy}
+          onCta={handleV3FinishCta}
+          onSkip={handleSkip}
+        />
+
+        {v3FinishCta ? (
+          <div className="pointer-events-auto absolute inset-0 z-[120] flex items-center justify-center bg-black/50 px-4">
+            <button
+              type="button"
+              onClick={handleV3FinishCta}
+              className="rounded-xl bg-purple-600 px-8 py-4 text-lg font-bold text-white shadow-lg hover:bg-purple-500"
+            >
+              {survivalTutorialFinishCtaLabel(isEnglishCopy)}
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   }

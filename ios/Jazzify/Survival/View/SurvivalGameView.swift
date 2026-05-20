@@ -15,6 +15,7 @@ struct SurvivalGameView: View {
     var configOverride: SurvivalStageConfig? = nil
     var scenarioOverrides: SurvivalScenarioOverrides = .init()
     var scenarioController: SurvivalScenarioController? = nil
+    var inlinePhraseDefinition: SurvivalPhraseDefinition? = nil
     var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
 
     init(
@@ -27,6 +28,7 @@ struct SurvivalGameView: View {
         configOverride: SurvivalStageConfig? = nil,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
         scenarioController: SurvivalScenarioController? = nil,
+        inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
         onSessionReady: ((SurvivalGameSession) -> Void)? = nil
     ) {
         self.stage = stage
@@ -37,6 +39,7 @@ struct SurvivalGameView: View {
         self.configOverride = configOverride
         self.scenarioOverrides = scenarioOverrides
         self.scenarioController = scenarioController
+        self.inlinePhraseDefinition = inlinePhraseDefinition
         self.onSessionReady = onSessionReady
         _activeHintMode = State(initialValue: hintMode)
     }
@@ -170,7 +173,8 @@ struct SurvivalGameView: View {
             isDemo: isDemo,
             usesEnglishToastCopy: locale == .en,
             scenarioOverrides: scenarioOverrides,
-            scenarioController: scenarioController
+            scenarioController: scenarioController,
+            inlinePhraseDefinition: inlinePhraseDefinition
         )
         created.start()
         onSessionReady?(created)
@@ -413,14 +417,15 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
     let keyFifths: Int
     let correctPitchClasses: [Int]
     let staffClef: Int
+    /// 中央スタッフ用。`progressionStaffVoicingStaves` があれば構成音単位。
+    let voicingStavesPerNote: [Int]?
 
     static func make(from snapshot: SurvivalUISnapshot) -> Self? {
         guard snapshot.slots.indices.contains(1) else { return nil }
         let slot = snapshot.slots[1]
         guard slot.isEnabled else { return nil }
 
-        if snapshot.stageType == .progression,
-           let chord = slot.chord,
+        if let chord = slot.chord,
            chord.quality == .progression,
            let staffNames = chord.progressionStaffVoicingNames,
            !staffNames.isEmpty,
@@ -434,7 +439,8 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
                 voicingNames: staffNames,
                 keyFifths: keyFf,
                 correctPitchClasses: pcs,
-                staffClef: 2
+                staffClef: 2,
+                voicingStavesPerNote: chord.progressionStaffVoicingStaves
             )
         }
 
@@ -451,7 +457,8 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
                 voicingNames: hintVoicing.names,
                 keyFifths: hintVoicing.keyFifths,
                 correctPitchClasses: pcs,
-                staffClef: 1
+                staffClef: 1,
+                voicingStavesPerNote: nil
             )
         }
 
@@ -471,7 +478,8 @@ private struct SurvivalStageCenterStaffOverlay: View {
             correctPitchClasses: payload.correctPitchClasses,
             staffClef: payload.staffClef,
             unpressedNoteOpacity: unpressedNoteOpacity,
-            compactVerticalLayout: true
+            compactVerticalLayout: true,
+            voicingStavesPerNote: payload.voicingStavesPerNote
         )
         .frame(maxWidth: 560, maxHeight: 160, alignment: .top)
     }
