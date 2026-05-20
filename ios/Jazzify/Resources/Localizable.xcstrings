@@ -840,6 +840,24 @@
         }
       }
     },
+    "Quest %@ / %@" : {
+      "comment" : "Main Quest continue card: quests completed in the current chapter (e.g. Quest 2 / 5).",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quest %1$@ / %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クエスト %1$@ / %2$@"
+          }
+        }
+      }
+    },
     "quick_actions" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -921,23 +939,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "会員登録"
-          }
-        }
-      }
-    },
-    "Quest %@ / %@" : {
-      "comment" : "Main Quest continue card: quests completed in the current chapter (e.g. Quest 2 / 5).",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quest %1$@ / %2$@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "クエスト %1$@ / %2$@"
           }
         }
       }

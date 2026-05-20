@@ -51,6 +51,9 @@
 		AA01BB02CC03DD04EE05FF24 /* SurvivalPhraseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */; };
 		AA01BB02CC03DD04EE05FF26 /* SurvivalPhraseStaffSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */; };
 		AA01BB02CC03DD04EE05FF28 /* SurvivalPhraseStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */; };
+		BB11CC02CC03DD04EE06AA04 /* SurvivalPhrasePreviewURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB11CC02CC03DD04EE06AA03 /* SurvivalPhrasePreviewURL.swift */; };
+		BB11CC02CC03DD04EE06AA06 /* SurvivalPhraseMapPreviewPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB11CC02CC03DD04EE06AA05 /* SurvivalPhraseMapPreviewPlayer.swift */; };
+		BB11CC02CC03DD04EE06AA08 /* SurvivalPhrasePreviewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB11CC02CC03DD04EE06AA07 /* SurvivalPhrasePreviewModel.swift */; };
 		AA01BB02CC03DD04EE05FF04 /* SurvivalFrameEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF03 /* SurvivalFrameEvent.swift */; };
 		AA01BB02CC03DD04EE05FF06 /* SurvivalInputBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF05 /* SurvivalInputBuffer.swift */; };
 		AA01BB02CC03DD04EE05FF08 /* SurvivalGameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF07 /* SurvivalGameSession.swift */; };
@@ -227,6 +230,9 @@
 		AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseModel.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffSnapshot.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffView.swift; sourceTree = "<group>"; };
+		BB11CC02CC03DD04EE06AA03 /* SurvivalPhrasePreviewURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhrasePreviewURL.swift; sourceTree = "<group>"; };
+		BB11CC02CC03DD04EE06AA05 /* SurvivalPhraseMapPreviewPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseMapPreviewPlayer.swift; sourceTree = "<group>"; };
+		BB11CC02CC03DD04EE06AA07 /* SurvivalPhrasePreviewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhrasePreviewModel.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF03 /* SurvivalFrameEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalFrameEvent.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF05 /* SurvivalInputBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalInputBuffer.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF07 /* SurvivalGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameSession.swift; sourceTree = "<group>"; };
@@ -514,6 +520,9 @@
 			children = (
 				AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */,
 				AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */,
+				BB11CC02CC03DD04EE06AA03 /* SurvivalPhrasePreviewURL.swift */,
+				BB11CC02CC03DD04EE06AA05 /* SurvivalPhraseMapPreviewPlayer.swift */,
+				BB11CC02CC03DD04EE06AA07 /* SurvivalPhrasePreviewModel.swift */,
 				AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */,
 				AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */,
 			);
@@ -1033,6 +1042,9 @@
 				AA01BB02CC03DD04EE05FF24 /* SurvivalPhraseModel.swift in Sources */,
 				AA01BB02CC03DD04EE05FF26 /* SurvivalPhraseStaffSnapshot.swift in Sources */,
 				AA01BB02CC03DD04EE05FF28 /* SurvivalPhraseStaffView.swift in Sources */,
+				BB11CC02CC03DD04EE06AA04 /* SurvivalPhrasePreviewURL.swift in Sources */,
+				BB11CC02CC03DD04EE06AA06 /* SurvivalPhraseMapPreviewPlayer.swift in Sources */,
+				BB11CC02CC03DD04EE06AA08 /* SurvivalPhrasePreviewModel.swift in Sources */,
 				DD03BB02CC03DD04EE05BB02 /* SurvivalSessionState.swift in Sources */,
 				AA01BB02CC03DD04EE05FF08 /* SurvivalGameSession.swift in Sources */,
 				AA01BB02CC03DD04EE05FF06 /* SurvivalInputBuffer.swift in Sources */,

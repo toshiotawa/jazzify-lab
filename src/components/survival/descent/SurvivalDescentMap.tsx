@@ -65,6 +65,7 @@ import BackgroundWall from './parts/BackgroundWall';
 import DescentCharacter from './parts/DescentCharacter';
 import DescentSidePanel from './DescentSidePanel';
 import { useDescentCamera } from './useDescentCamera';
+import { useSurvivalPhrasePreview } from '@/hooks/useSurvivalPhrasePreview';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
   id: row.id,
@@ -561,6 +562,26 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     return stagesForCategory.find(s => s.stageNumber === selectedStageNumber) ?? null;
   }, [selectedStageNumber, stagesForCategory]);
 
+  const phrasesStageBgmResolved = useMemo(
+    () => resolveSurvivalBgmUrl('phrases', bgmSettings),
+    [bgmSettings],
+  );
+
+  const {
+    status: phrasePreviewStatus,
+    phrasePreviewError,
+    playPhrasePreview,
+    stopPhrasePreview,
+  } = useSurvivalPhrasePreview({
+    phrasesStageBgm: phrasesStageBgmResolved,
+    mapCategory,
+    isEnglishCopy,
+  });
+
+  useEffect(() => {
+    stopPhrasePreview();
+  }, [mapCategory, selectedStageNumber, stopPhrasePreview]);
+
   const selectedStageClearCount = useMemo(() => {
     if (selectedStageNumber == null) return 0;
     return stageClearCounts.get(selectedStageNumber) ?? 0;
@@ -701,6 +722,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const runConfirmedStageStart = useCallback(
     async (startHintMode: boolean) => {
       if (!selectedStage) return;
+      stopPhrasePreview();
       if (!isIOSWebView()) {
         try {
           await Promise.race([
@@ -731,6 +753,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     },
     [
       selectedStage,
+      stopPhrasePreview,
       getConfig,
       bgmSettings,
       characters,
@@ -1004,6 +1027,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
             playLocked={selectedStagePlayPaywalled}
             onStart={handleStart}
             onRequestUpgrade={() => setShowPaywall(true)}
+            phrasePreviewStatus={phrasePreviewStatus}
+            phrasePreviewError={phrasePreviewError}
+            onPhrasePreview={() => {
+              void SurvivalMapAudio.unlock().catch(() => { /* ignore */ });
+              if (selectedStage) {
+                void playPhrasePreview(selectedStage);
+              }
+            }}
           />
         </div>
       </div>
@@ -1046,6 +1077,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 playLocked={selectedStagePlayPaywalled}
                 onStart={handleStart}
                 onRequestUpgrade={() => setShowPaywall(true)}
+                phrasePreviewStatus={phrasePreviewStatus}
+                phrasePreviewError={phrasePreviewError}
+                onPhrasePreview={() => {
+                  void SurvivalMapAudio.unlock().catch(() => { /* ignore */ });
+                  if (selectedStage) {
+                    void playPhrasePreview(selectedStage);
+                  }
+                }}
               />
             </div>
           </div>

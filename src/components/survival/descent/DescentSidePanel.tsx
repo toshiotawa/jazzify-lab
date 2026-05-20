@@ -7,10 +7,15 @@
 
 import React from 'react';
 import { cn } from '@/utils/cn';
-import { FaLock, FaCheck, FaPlay } from 'react-icons/fa';
-import { StageDefinition, isBlockLastStage } from '../SurvivalStageDefinitions';
+import { FaLock, FaCheck, FaPlay, FaVolumeUp } from 'react-icons/fa';
+import {
+  StageDefinition,
+  formatSurvivalStageModeLabel,
+  isBlockLastStage,
+} from '../SurvivalStageDefinitions';
 import { getStageKillQuotaForStage } from '../survivalFirstBlockStage';
 import { BlockMeta } from './descentBlocks';
+import type { SurvivalPhrasePreviewStatus } from '@/hooks/useSurvivalPhrasePreview';
 
 interface DescentSidePanelProps {
   isEnglishCopy: boolean;
@@ -28,6 +33,9 @@ interface DescentSidePanelProps {
   playLocked: boolean;
   onStart: () => void;
   onRequestUpgrade: () => void;
+  phrasePreviewStatus: SurvivalPhrasePreviewStatus;
+  phrasePreviewError: string | null;
+  onPhrasePreview: () => void;
 }
 
 export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
@@ -45,6 +53,9 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
   playLocked,
   onStart,
   onRequestUpgrade,
+  phrasePreviewStatus,
+  phrasePreviewError,
+  onPhrasePreview,
 }) => {
   const totalProgressPct = Math.round((totalClearedCount / Math.max(1, totalStages)) * 100);
   const blockProgressPct = activeBlock
@@ -124,15 +135,39 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
               {isEnglishCopy ? selectedStage.nameEn : selectedStage.name}
             </h3>
 
+            {selectedStage.mapCategory === 'phrases' && (
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={onPhrasePreview}
+                  disabled={phrasePreviewStatus === 'loading' || phrasePreviewStatus === 'playing'}
+                  className={cn(
+                    'flex w-full items-center justify-center gap-2 rounded-lg border border-sky-500/35 bg-sky-950/40 py-2.5 text-xs font-bold text-sky-200 transition-colors',
+                    phrasePreviewStatus === 'loading' || phrasePreviewStatus === 'playing'
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'hover:bg-sky-900/50',
+                  )}
+                >
+                  <FaVolumeUp className="text-sm" />
+                  {phrasePreviewStatus === 'loading'
+                    ? (isEnglishCopy ? 'Loading…' : '読み込み中…')
+                    : phrasePreviewStatus === 'playing'
+                      ? (isEnglishCopy ? 'Playing…' : '再生中…')
+                      : (isEnglishCopy ? 'Play demo' : '模範演奏を試聴')}
+                </button>
+                {phrasePreviewError ? (
+                  <p className="mt-1 text-center text-[10px] text-red-300">{phrasePreviewError}</p>
+                ) : null}
+              </div>
+            )}
+
             <dl className="mb-3 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-md bg-white/5 p-2">
                 <dt className="text-[10px] text-gray-400">
                   {isEnglishCopy ? 'Type' : 'タイプ'}
                 </dt>
                 <dd className="mt-0.5 font-bold text-white">
-                  {selectedStage.stageType === 'progression'
-                    ? (isEnglishCopy ? 'Progression' : 'コード進行')
-                    : (isEnglishCopy ? 'Random' : 'ランダム')}
+                  {formatSurvivalStageModeLabel(selectedStage, isEnglishCopy)}
                 </dd>
               </div>
               {selectedStage.mapCategory === 'basic' && (

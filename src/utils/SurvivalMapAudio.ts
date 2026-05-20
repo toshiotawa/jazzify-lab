@@ -74,6 +74,8 @@ class SurvivalMapAudioImpl {
   private bgmFadeRaf: number | null = null;
   private bgmCurrentUrl = '';
   private bgmRequestedPlaying = false;
+  /** Phrases 試聴中に BGM をダックしたか（`restoreBgmAfterPhrasePreview` で立て直す） */
+  private bgmPhrasePreviewDucked = false;
 
   private seContext: AudioContext | null = null;
   private seGain: GainNode | null = null;
@@ -131,6 +133,31 @@ class SurvivalMapAudioImpl {
 
   private effectiveBgmVolume(): number {
     return this.muted ? 0 : this.bgmVolume;
+  }
+
+  /**
+   * Phrases マップ試聴開始時: マップ BGM を一時的に下げる（ミュート時は BGM 自体が無音のまま）。
+   */
+  duckBgmForPhrasePreview(): void {
+    if (!this.bgmAudio) {
+      return;
+    }
+    const eff = this.effectiveBgmVolume();
+    if (eff <= 0) {
+      return;
+    }
+    this.bgmPhrasePreviewDucked = true;
+    this.bgmAudio.volume = eff * 0.15;
+  }
+
+  /**
+   * Phrases 試聴終了・中断時: BGM 音量を通常に戻す。
+   */
+  restoreBgmAfterPhrasePreview(): void {
+    this.bgmPhrasePreviewDucked = false;
+    if (this.bgmAudio) {
+      this.bgmAudio.volume = this.effectiveBgmVolume();
+    }
   }
 
   /**

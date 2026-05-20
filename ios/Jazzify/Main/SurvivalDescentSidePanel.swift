@@ -20,6 +20,9 @@ struct SurvivalDescentSidePanel: View {
     let playLocked: Bool
     let onStart: () -> Void
     let onRequestUpgrade: () -> Void
+    @ObservedObject var phrasePreview: SurvivalPhrasePreviewModel
+    let mapCategory: SurvivalMapCategory
+    let phrasesBgmSettingUrl: String
 
     private var isEnglishCopy: Bool { locale == .en }
 
@@ -148,6 +151,10 @@ struct SurvivalDescentSidePanel: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 2)
 
+                if stage.mapCategory == .phrases {
+                    phrasePreviewControls(stage: stage)
+                }
+
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
                     spacing: 8
@@ -226,6 +233,55 @@ struct SurvivalDescentSidePanel: View {
     }
 
     // MARK: - Pieces
+
+    private func phrasePreviewControls(stage: SurvivalStageDefinition) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                phrasePreview.requestPreview(
+                    stage: stage,
+                    mapCategory: mapCategory,
+                    phrasesDefaultBgmUrlString: phrasesBgmSettingUrl,
+                    locale: locale
+                )
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(phrasePreviewButtonTitle)
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(Color(hex: "bae6fd"))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.35))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.cyan.opacity(0.35), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .disabled(phrasePreview.status == .loading || phrasePreview.status == .playing)
+
+            if let err = phrasePreview.errorMessage {
+                Text(err)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color(hex: "fca5a5"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var phrasePreviewButtonTitle: String {
+        switch phrasePreview.status {
+        case .idle:
+            return isEnglishCopy ? "Play demo" : "模範演奏を試聴"
+        case .loading:
+            return isEnglishCopy ? "Loading…" : "読み込み中…"
+        case .playing:
+            return isEnglishCopy ? "Playing…" : "再生中…"
+        }
+    }
 
     @ViewBuilder
     private var statusBadge: some View {

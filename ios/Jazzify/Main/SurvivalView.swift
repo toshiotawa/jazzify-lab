@@ -17,6 +17,7 @@ import UIKit
 /// - BGM: `SurvivalMapAudio` を onAppear で再生開始、onDisappear / ゲーム起動時に停止。
 struct SurvivalView: View {
     @EnvironmentObject var appState: AppState
+    @StateObject private var phrasePreviewModel = SurvivalPhrasePreviewModel()
 
     @State private var currentStageNumber: Int = 1
     @State private var clearedStages: Set<Int> = []
@@ -45,6 +46,8 @@ struct SurvivalView: View {
     @State private var showSurvivalInfo: Bool = false
     @State private var isSoundMuted: Bool = SurvivalMapAudio.shared.isMuted
     @State private var progressCacheByCategory: [SurvivalMapCategory: SurvivalProgressSnapshot] = [:]
+    /// Phrases 試聴のフォールバック用（`survival_bgm_settings.stage_type = phrases`）。
+    @State private var phrasesBgmSettingUrl: String = SurvivalBgmDefaults.phrasesURL.absoluteString
 
     /// ステージ定義は Supabase からのロード後に再構築されるため、computed property で常に最新を参照する。
     private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks(in: mapCategory) }
@@ -83,129 +86,104 @@ struct SurvivalView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(hex: "0f172a").ignoresSafeArea()
-
-                if isLoading {
-                    ProgressView()
-                        .tint(.purple)
-                } else {
-                    content
-                }
-            }
-            .navigationTitle(locale == .ja ? "サバイバル" : "Survival")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 12) {
-                        Button {
-                            let muted = SurvivalMapAudio.shared.toggleMuted()
-                            isSoundMuted = muted
-                            if !muted { SurvivalMapAudio.shared.play() }
-                        } label: {
-                            Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                .foregroundStyle(.white)
-                        }
-                        Button { showSurvivalInfo = true } label: {
-                            Image(systemName: "info.circle")
-                                .foregroundStyle(.gray)
-                        }
-                    }
-                }
-            }
-            .task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
-            .onChange(of: appState.profile?.id) { _ in
-                survivalStagesFetchedAt = nil
-                progressCacheByCategory = [:]
-                Task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
-            }
-            .onAppear {
-                if !SurvivalMapAudio.shared.isMuted {
-                    SurvivalMapAudio.shared.play()
-                }
-                Task { await appState.ensureFreshBilling() }
-            }
-            .onDisappear {
-                SurvivalMapAudio.shared.stop()
-            }
-            .sheet(isPresented: $showSubscription) {
-                SubscriptionView()
-            }
-            .sheet(item: $mobileDetailStage) { stage in
-                // `.sheet(item:)` によりシート表示時点のステージ本体が直接クロージャに渡されるため、
-                // `@State` の反映タイミング揺らぎで「現在地」の詳細が表示されてしまうバグを回避できる。
-                let block = SurvivalStageCatalog.block(forStage: stage.stageNumber, in: stage.mapCategory)
-                    ?? SurvivalStageCatalog.blocks(in: stage.mapCategory).first
-                let blockClearedCount = block?.stageNumbers.filter { clearedStages.contains($0) }.count ?? 0
-                NavigationStack {
-                    SurvivalDescentSidePanel(
-                        locale: locale,
-                        totalClearedCount: clearedStages.count,
-                        totalStages: SurvivalStageCatalog.totalStages(in: stage.mapCategory),
-                        activeBlock: block,
-                        blockClearedCount: blockClearedCount,
-                        selectedStage: stage,
-                        selectedStageClearCount: stageClearCounts[stage.stageNumber] ?? 0,
-                        selectedStageIsUnlocked: isStageUnlocked(stage.stageNumber),
-                        selectedStageIsCleared: clearedStages.contains(stage.stageNumber),
-                        hintMode: $hintMode,
-                        playLocked: playLockedForUpsell && !freeStageNumbers.contains(stage.stageNumber),
-                        onStart: {
-                            startStage(stage)
-                        },
-                        onRequestUpgrade: {
-                            mobileDetailStage = nil
-                            showSubscription = true
-                        }
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(hex: "050308").ignoresSafeArea())
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(locale == .ja ? "閉じる" : "Close") {
-                                mobileDetailStage = nil
-                            }
-                            .foregroundStyle(.purple)
-                        }
-                    }
-                }
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $showSurvivalInfo) {
-                FeatureInfoModal(
-                    icon: "flame.fill",
-                    iconColor: .orange,
-                    title: locale == .ja ? "サバイバル" : "Survival",
-                    description: locale == .ja
-                        ? "順番にステージをクリアしましょう。90秒間生き残れ、表示されているコードを演奏するとスキルが発動、ボス戦はボスの体力を0にすると勝利。"
-                        : "Clear stages in order. Survive for 90 seconds—play the displayed chords to trigger skills. In boss fights, reduce the boss's HP to 0 to win.",
-                    locale: locale
-                )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-            }
-            .fullScreenCover(item: $stageLaunchSession) { session in
-                SurvivalGameView(
-                    stage: session.stage,
-                    hintMode: session.hintMode,
-                    characterId: "fai",
-                    locale: locale,
-                    onClose: { stageLaunchSession = nil }
-                )
-            }
-            .onChange(of: stageLaunchSession == nil) { isNil in
-                if isNil {
+        navigationStackRoot
+            .modifier(SurvivalViewPresentationModifier(
+                locale: locale,
+                showSubscription: $showSubscription,
+                showSurvivalInfo: $showSurvivalInfo,
+                mobileDetailStage: $mobileDetailStage,
+                stageLaunchSession: $stageLaunchSession,
+                onGameClosed: {
                     Task { await loadProgress(showBlockingLoader: false, forceCatalogFetch: false) }
                     if !SurvivalMapAudio.shared.isMuted {
                         SurvivalMapAudio.shared.play()
                     }
+                },
+                mobileDetailSheet: { stage in
+                    SurvivalMobileDetailSheet(
+                        stage: stage,
+                        locale: locale,
+                        clearedStages: clearedStages,
+                        stageClearCounts: stageClearCounts,
+                        hintMode: $hintMode,
+                        playLockedForUpsell: playLockedForUpsell,
+                        freeStageNumbers: freeStageNumbers,
+                        phrasesBgmSettingUrl: phrasesBgmSettingUrl,
+                        phrasePreview: phrasePreviewModel,
+                        isStageUnlocked: isStageUnlocked,
+                        onStart: { startStage(stage) },
+                        onRequestUpgrade: {
+                            mobileDetailStage = nil
+                            showSubscription = true
+                        },
+                        onClose: { mobileDetailStage = nil }
+                    )
+                }
+            ))
+    }
+
+    private var navigationStackRoot: some View {
+        NavigationStack {
+            rootZStack
+                .navigationTitle(locale == .ja ? "サバイバル" : "Survival")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbar { survivalToolbar }
+        }
+        .task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
+        .onChange(of: appState.profile?.id) { _ in
+            survivalStagesFetchedAt = nil
+            progressCacheByCategory = [:]
+            Task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
+        }
+        .onAppear {
+            if !SurvivalMapAudio.shared.isMuted {
+                SurvivalMapAudio.shared.play()
+            }
+            Task { await appState.ensureFreshBilling() }
+        }
+        .onDisappear {
+            SurvivalMapAudio.shared.stop()
+        }
+        .onChange(of: selectedStageNumber) { _ in
+            phrasePreviewModel.stopPlayback()
+        }
+        .onChange(of: mobileDetailStage) { newStage in
+            if newStage == nil {
+                phrasePreviewModel.stopPlayback()
+            }
+        }
+    }
+
+    private var rootZStack: some View {
+        ZStack {
+            Color(hex: "0f172a").ignoresSafeArea()
+            if isLoading {
+                ProgressView()
+                    .tint(.purple)
+            } else {
+                content
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var survivalToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            HStack(spacing: 12) {
+                Button {
+                    let muted = SurvivalMapAudio.shared.toggleMuted()
+                    isSoundMuted = muted
+                    if !muted { SurvivalMapAudio.shared.play() }
+                } label: {
+                    Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .foregroundStyle(.white)
+                }
+                Button { showSurvivalInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.gray)
                 }
             }
         }
@@ -227,36 +205,51 @@ struct SurvivalView: View {
             }
 
             if useSplitLayout {
-                HStack(spacing: 12) {
-                    descentMap
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    SurvivalDescentSidePanel(
-                        locale: locale,
-                        totalClearedCount: clearedStages.count,
-                        totalStages: SurvivalStageCatalog.totalStages(in: mapCategory),
-                        activeBlock: panelBlock,
-                        blockClearedCount: panelBlockClearedCount,
-                        selectedStage: selectedStage,
-                        selectedStageClearCount: selectedStage.map { stageClearCounts[$0.stageNumber] ?? 0 } ?? 0,
-                        selectedStageIsUnlocked: selectedStage.map { isStageUnlocked($0.stageNumber) } ?? false,
-                        selectedStageIsCleared: selectedStage.map { clearedStages.contains($0.stageNumber) } ?? false,
-                        hintMode: $hintMode,
-                        playLocked: playLockedForUpsell && !(selectedStage.map { freeStageNumbers.contains($0.stageNumber) } ?? false),
-                        onStart: {
-                            if let stage = selectedStage { startStage(stage) }
-                        },
-                        onRequestUpgrade: { showSubscription = true }
-                    )
-                    .frame(width: 320)
-                    .padding(.trailing, 12)
-                    .padding(.vertical, 8)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                splitLayoutRow
             } else {
                 descentMap
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+    }
+
+    private var splitLayoutRow: some View {
+        HStack(spacing: 12) {
+            descentMap
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ipadSidePanel
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var ipadSidePanel: some View {
+        let stage = selectedStage
+        let clearCount = stage.map { stageClearCounts[$0.stageNumber] ?? 0 } ?? 0
+        let unlocked = stage.map { isStageUnlocked($0.stageNumber) } ?? false
+        let cleared = stage.map { clearedStages.contains($0.stageNumber) } ?? false
+        let playLocked = playLockedForUpsell && !(stage.map { freeStageNumbers.contains($0.stageNumber) } ?? false)
+        return SurvivalDescentSidePanel(
+            locale: locale,
+            totalClearedCount: clearedStages.count,
+            totalStages: SurvivalStageCatalog.totalStages(in: mapCategory),
+            activeBlock: panelBlock,
+            blockClearedCount: panelBlockClearedCount,
+            selectedStage: stage,
+            selectedStageClearCount: clearCount,
+            selectedStageIsUnlocked: unlocked,
+            selectedStageIsCleared: cleared,
+            hintMode: $hintMode,
+            playLocked: playLocked,
+            onStart: {
+                if let stage { startStage(stage) }
+            },
+            onRequestUpgrade: { showSubscription = true },
+            phrasePreview: phrasePreviewModel,
+            mapCategory: mapCategory,
+            phrasesBgmSettingUrl: phrasesBgmSettingUrl
+        )
+        .padding(.trailing, 12)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Descent map
@@ -292,6 +285,7 @@ struct SurvivalView: View {
 
     private func handleSelectMapCategory(_ next: SurvivalMapCategory) {
         guard next != mapCategory else { return }
+        phrasePreviewModel.stopPlayback()
         mapCategory = next
         selectedStageNumber = nil
         mobileDetailStage = nil
@@ -304,6 +298,7 @@ struct SurvivalView: View {
     }
 
     private func handleDescentStageSelect(stage: SurvivalStageDefinition) {
+        phrasePreviewModel.stopPlayback()
         selectedStageNumber = stage.stageNumber
         hintMode = false
         if !useSplitLayout {
@@ -367,6 +362,7 @@ struct SurvivalView: View {
         }
         guard isStageUnlocked(stage.stageNumber) else { return }
         mobileDetailStage = nil
+        phrasePreviewModel.stopPlayback()
         SurvivalMapAudio.shared.stop()
         stageLaunchSession = StageLaunchSession(stage: stage, hintMode: hintMode)
     }
@@ -400,6 +396,11 @@ struct SurvivalView: View {
                 SurvivalStageCatalog.load(rows: rows, blockLabelRows: blockRows)
                 survivalStagesFetchedAt = Date()
             }
+        }
+
+        if let s = try? await SupabaseService.shared.fetchSurvivalPhrasesBgmSettingUrlString(),
+           !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            phrasesBgmSettingUrl = s
         }
 
         async let progressTask: SurvivalStageProgressRow? = {
@@ -439,6 +440,114 @@ struct SurvivalView: View {
                 selectedStageNumber = SurvivalStageCatalog.blocks(in: category).first?.stageNumbers.first
             }
         }
+    }
+}
+
+// MARK: - Presentation (sheets / fullScreenCover) — `body` の型チェック負荷軽減用
+
+private struct SurvivalViewPresentationModifier<MobileDetail: View>: ViewModifier {
+    let locale: AppLocale
+    @Binding var showSubscription: Bool
+    @Binding var showSurvivalInfo: Bool
+    @Binding var mobileDetailStage: SurvivalStageDefinition?
+    @Binding var stageLaunchSession: StageLaunchSession?
+    let onGameClosed: () -> Void
+  @ViewBuilder let mobileDetailSheet: (SurvivalStageDefinition) -> MobileDetail
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $showSubscription) {
+                SubscriptionView()
+            }
+            .sheet(item: $mobileDetailStage, content: mobileDetailSheet)
+            .sheet(isPresented: $showSurvivalInfo) {
+                survivalInfoSheet
+            }
+            .fullScreenCover(item: $stageLaunchSession) { session in
+                SurvivalGameView(
+                    stage: session.stage,
+                    hintMode: session.hintMode,
+                    characterId: "fai",
+                    locale: locale,
+                    onClose: { stageLaunchSession = nil }
+                )
+            }
+            .onChange(of: stageLaunchSession == nil) { isNil in
+                if isNil {
+                    onGameClosed()
+                }
+            }
+    }
+
+    private var survivalInfoSheet: some View {
+        FeatureInfoModal(
+            icon: "flame.fill",
+            iconColor: .orange,
+            title: locale == .ja ? "サバイバル" : "Survival",
+            description: locale == .ja
+                ? "順番にステージをクリアしましょう。90秒間生き残れ、表示されているコードを演奏するとスキルが発動、ボス戦はボスの体力を0にすると勝利。"
+                : "Clear stages in order. Survive for 90 seconds—play the displayed chords to trigger skills. In boss fights, reduce the boss's HP to 0 to win.",
+            locale: locale
+        )
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+/// iPhone 向けステージ詳細ボトムシート（`.sheet(item:)` でタップしたステージを直接渡す）。
+private struct SurvivalMobileDetailSheet: View {
+    let stage: SurvivalStageDefinition
+    let locale: AppLocale
+    let clearedStages: Set<Int>
+    let stageClearCounts: [Int: Int]
+    @Binding var hintMode: Bool
+    let playLockedForUpsell: Bool
+    let freeStageNumbers: Set<Int>
+    let phrasesBgmSettingUrl: String
+    @ObservedObject var phrasePreview: SurvivalPhrasePreviewModel
+    let isStageUnlocked: (Int) -> Bool
+    let onStart: () -> Void
+    let onRequestUpgrade: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        let block = SurvivalStageCatalog.block(forStage: stage.stageNumber, in: stage.mapCategory)
+            ?? SurvivalStageCatalog.blocks(in: stage.mapCategory).first
+        let blockClearedCount = block?.stageNumbers.filter { clearedStages.contains($0) }.count ?? 0
+        let playLocked = playLockedForUpsell && !freeStageNumbers.contains(stage.stageNumber)
+
+        NavigationStack {
+            SurvivalDescentSidePanel(
+                locale: locale,
+                totalClearedCount: clearedStages.count,
+                totalStages: SurvivalStageCatalog.totalStages(in: stage.mapCategory),
+                activeBlock: block,
+                blockClearedCount: blockClearedCount,
+                selectedStage: stage,
+                selectedStageClearCount: stageClearCounts[stage.stageNumber] ?? 0,
+                selectedStageIsUnlocked: isStageUnlocked(stage.stageNumber),
+                selectedStageIsCleared: clearedStages.contains(stage.stageNumber),
+                hintMode: $hintMode,
+                playLocked: playLocked,
+                onStart: onStart,
+                onRequestUpgrade: onRequestUpgrade,
+                phrasePreview: phrasePreview,
+                mapCategory: stage.mapCategory,
+                phrasesBgmSettingUrl: phrasesBgmSettingUrl
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(hex: "050308").ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(locale == .ja ? "閉じる" : "Close", action: onClose)
+                        .foregroundStyle(.purple)
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
 

@@ -100,6 +100,22 @@ final class SurvivalMapAudio {
 
     private var fadeTimer: Timer?
 
+    /// Phrases マップ試聴中にマップ BGM を下げる（ミュート時は何もしない）。
+    func duckForPhrasePreview() {
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+        let eff = effectiveVolume()
+        guard eff > 0 else { return }
+        queuePlayer.volume = eff * 0.15
+    }
+
+    /// Phrases 試聴終了後にマップ BGM 音量を戻す。
+    func restoreAfterPhrasePreview() {
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+        queuePlayer.volume = effectiveVolume()
+    }
+
     private func fade(to target: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
         fadeTimer?.invalidate()
         let fromValue = queuePlayer.volume

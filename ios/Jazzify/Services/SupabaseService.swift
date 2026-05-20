@@ -688,6 +688,34 @@ final class SupabaseService: Sendable {
         )
     }
 
+    /// Phrases マップ試聴用: `survival_phrases.bgm_url` のみ取得。
+    func fetchSurvivalPhraseBgmUrl(mapCategory: SurvivalMapCategory, stageNumber: Int) async throws -> String? {
+        struct Row: Decodable {
+            let bgm_url: String?
+        }
+        let rows: [Row] = try await client
+            .from("survival_phrases")
+            .select("bgm_url")
+            .eq("map_category", value: mapCategory.rawValue)
+            .eq("stage_number", value: stageNumber)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.bgm_url
+    }
+
+    /// `survival_bgm_settings` の Phrases 行 URL（試聴のフォールバック 2 段目）。
+    func fetchSurvivalPhrasesBgmSettingUrlString() async throws -> String? {
+        let rows: [SurvivalBgmSettingRow] = try await client
+            .from("survival_bgm_settings")
+            .select("stage_type, bgm_url")
+            .eq("stage_type", value: SurvivalStageType.phrases.rawValue)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.bgmUrl
+    }
+
     func fetchSurvivalCharacters() async throws -> [SurvivalCharacterRow] {
         try await client
             .from("survival_characters")

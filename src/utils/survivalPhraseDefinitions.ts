@@ -56,16 +56,50 @@ interface NoteRow {
   staff: number;
 }
 
-let phraseCache: SurvivalPhraseDefinition | null = null;
-let phraseCacheKey = '';
+const phraseDefinitionCache = new Map<string, SurvivalPhraseDefinition | null>();
+const phraseBgmUrlCache = new Map<string, string | null>();
+
+function phraseCacheKey(mapCategory: SurvivalMapCategory, stageNumber: number): string {
+  return `${mapCategory}:${stageNumber}`;
+}
+
+/**
+ * マップ試聴用。`bgm_url` のみ取得（コード・ノートは不要）。
+ */
+export async function fetchSurvivalPhraseBgmUrlByStage(
+  mapCategory: SurvivalMapCategory,
+  stageNumber: number,
+): Promise<string | null> {
+  const key = phraseCacheKey(mapCategory, stageNumber);
+  if (phraseBgmUrlCache.has(key)) {
+    return phraseBgmUrlCache.get(key) ?? null;
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('survival_phrases')
+    .select('bgm_url')
+    .eq('map_category', mapCategory)
+    .eq('stage_number', stageNumber)
+    .maybeSingle();
+
+  if (error || !data) {
+    phraseBgmUrlCache.set(key, null);
+    return null;
+  }
+
+  const row = data as { bgm_url: string | null };
+  phraseBgmUrlCache.set(key, row.bgm_url);
+  return row.bgm_url;
+}
 
 export async function fetchSurvivalPhraseByStage(
   mapCategory: SurvivalMapCategory,
   stageNumber: number,
 ): Promise<SurvivalPhraseDefinition | null> {
-  const cacheKey = `${mapCategory}:${stageNumber}`;
-  if (phraseCache && phraseCacheKey === cacheKey) {
-    return phraseCache;
+  const cacheKey = phraseCacheKey(mapCategory, stageNumber);
+  if (phraseDefinitionCache.has(cacheKey)) {
+    return phraseDefinitionCache.get(cacheKey) ?? null;
   }
 
   const supabase = getSupabaseClient();
@@ -77,10 +111,12 @@ export async function fetchSurvivalPhraseByStage(
     .maybeSingle();
 
   if (phraseError || !phraseRows) {
+    phraseDefinitionCache.set(cacheKey, null);
     return null;
   }
 
   const phrase = phraseRows as PhraseRow;
+  phraseBgmUrlCache.set(cacheKey, phrase.bgm_url);
 
   const { data: chordRows, error: chordError } = await supabase
     .from('survival_phrase_chords')
@@ -89,6 +125,7 @@ export async function fetchSurvivalPhraseByStage(
     .order('order_index', { ascending: true });
 
   if (chordError || !chordRows || chordRows.length === 0) {
+    phraseDefinitionCache.set(cacheKey, null);
     return null;
   }
 
@@ -102,6 +139,7 @@ export async function fetchSurvivalPhraseByStage(
     .order('order_index', { ascending: true });
 
   if (noteError) {
+    phraseDefinitionCache.set(cacheKey, null);
     return null;
   }
 
@@ -137,8 +175,7 @@ export async function fetchSurvivalPhraseByStage(
     chords: builtChords,
   };
 
-  phraseCache = result;
-  phraseCacheKey = cacheKey;
+  phraseDefinitionCache.set(cacheKey, result);
   return result;
 }
 
