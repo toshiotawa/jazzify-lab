@@ -1,3 +1,4 @@
+import Combine
 import QuartzCore
 import SpriteKit
 import SwiftUI
@@ -223,6 +224,26 @@ struct SurvivalGameView: View {
 
 }
 
+// MARK: - Stage intro (timed lines for stage 1)
+
+@MainActor
+private final class SurvivalStageIntroUIModel: ObservableObject {
+    @Published var line = ""
+    private let player = SurvivalStageIntroPlayer()
+
+    func cancelAll() {
+        player.cancel(setLineEmpty: { [weak self] in self?.line = "" })
+    }
+
+    func loadAndSchedule(mapCategory: SurvivalMapCategory, usesEnglishCopy: Bool) async {
+        cancelAll()
+        let script = await SupabaseService.shared.fetchSurvivalStageIntroScript(mapCategory: mapCategory)
+        player.schedule(script: script, usesEnglishCopy: usesEnglishCopy) { [weak self] text in
+            self?.line = text
+        }
+    }
+}
+
 // MARK: - Session-observing content view
 
 private struct SurvivalGameContent: View {
@@ -232,9 +253,18 @@ private struct SurvivalGameContent: View {
     let isDemo: Bool
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
 
+
+    @StateObject private var stageIntroUIModel = SurvivalStageIntroUIModel()
     @State private var hudHeight: CGFloat = 72
 
     private var vm: SurvivalViewModel { session.viewModel }
+
+    private var wantsStageIntroTimedLines: Bool {
+        !isDemo &&
+            stage.stageNumber == 1 &&
+            SurvivalMapCategory.descentDisplayCategories.contains(stage.mapCategory) &&
+            !vm.uiSnapshot.scenario.isActive
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -310,6 +340,11 @@ private struct SurvivalGameContent: View {
                 .allowsHitTesting(false)
             }
 
+            if !stageIntroUIModel.line.isEmpty {
+                OnboardingCharacterDialogView(text: stageIntroUIModel.line)
+                    .allowsHitTesting(false)
+            }
+
             if !vm.uiSnapshot.scenario.hideChordPad {
                 VStack {
                     Spacer()
@@ -323,6 +358,43 @@ private struct SurvivalGameContent: View {
 
             if vm.uiSnapshot.phase != .playing && !vm.uiSnapshot.scenario.disableResultScreen {
                 resultOverlay
+            }
+        }
+        .onChange(of: ObjectIdentifier(session)) { _ in
+            stageIntroUIModel.cancelAll()
+        }
+        .onChange(of: session.viewModel.sceneRestartGeneration) { _ in
+            rescheduleStageIntroTimedLinesIfEligible()
+        }
+        .onChange(of: vm.uiSnapshot.phase) { phase in
+            guard wantsStageIntroTimedLines else {
+                stageIntroUIModel.cancelAll()
+                return
+            }
+            if phase != .playing {
+                stageIntroUIModel.cancelAll()
+            }
+        }
+        .onAppear {
+            rescheduleStageIntroTimedLinesIfEligible()
+        }
+    }
+
+    private func rescheduleStageIntroTimedLinesIfEligible() {
+        guard wantsStageIntroTimedLines else {
+            stageIntroUIModel.cancelAll()
+            return
+        }
+        DispatchQueue.main.async {
+            guard self.vm.uiSnapshot.phase == .playing else {
+                self.stageIntroUIModel.cancelAll()
+                return
+            }
+            Task { @MainActor in
+                await self.stageIntroUIModel.loadAndSchedule(
+                    mapCategory: self.stage.mapCategory,
+                    usesEnglishCopy: self.locale == .en
+                )
             }
         }
     }
@@ -355,6 +427,11 @@ private struct SurvivalGameContent: View {
               !staffNames.isEmpty else {
             return nil
         }
+        let staves = chord.progressionStaffVoicingStaves
+        let perNoteStaves: [Int]? = {
+            guard let staves, staves.count == staffNames.count else { return nil }
+            return staves
+        }()
         return SurvivalScenarioStaffPanel.Snapshot(
             chordDisplayName: chord.displayName,
             voicingNames: staffNames,
@@ -363,7 +440,8 @@ private struct SurvivalGameContent: View {
                 inputPitchClasses: slot.inputPitchClasses,
                 target: chord
             ),
-            staffClef: sc.scenarioStaffClef
+            staffClef: sc.scenarioStaffClef,
+            voicingStavesPerNote: perNoteStaves
         )
     }
 
@@ -503,9 +581,18 @@ private struct SurvivalScenarioStaffPanel: View, Equatable {
         let keyFifths: Int
         let correctPitchClasses: [Int]
         let staffClef: Int
+        /// 1=ト音・2=ヘ音。`voicingNames` と同長のとき大譜表。
+        let voicingStavesPerNote: [Int]?
     }
 
     let snapshot: Snapshot
+
+    private var usesGrandStaffLayout: Bool {
+        guard let staves = snapshot.voicingStavesPerNote, staves.count == snapshot.voicingNames.count else {
+            return false
+        }
+        return staves.contains(1) && staves.contains(2)
+    }
 
     var body: some View {
         SurvivalProgressionStaffView(
@@ -513,9 +600,14 @@ private struct SurvivalScenarioStaffPanel: View, Equatable {
             voicingNames: snapshot.voicingNames,
             keyFifths: snapshot.keyFifths,
             correctPitchClasses: snapshot.correctPitchClasses,
-            staffClef: snapshot.staffClef
+            staffClef: snapshot.staffClef,
+            compactVerticalLayout: true,
+            voicingStavesPerNote: snapshot.voicingStavesPerNote
         )
-        .frame(width: 220, height: 132)
+        .frame(
+            width: usesGrandStaffLayout ? 260 : 220,
+            height: usesGrandStaffLayout ? 220 : 132
+        )
         .background(Color.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 12))
     }
 }

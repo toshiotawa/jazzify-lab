@@ -74,16 +74,19 @@ final class SurvivalMapAudio {
         fade(to: effectiveVolume(), duration: 0.6)
     }
 
-    /// フェードアウトして停止。
+    /// フェードアウトして停止（画面離脱など）。
     func stop() {
         isRequestedPlaying = false
         fade(to: 0, duration: 0.28) { [weak self] in
-            guard let self else { return }
-            self.queuePlayer.pause()
-            self.queuePlayer.removeAllItems()
-            self.looper = nil
-            self.currentURL = nil
+            self?.finalizeStop()
         }
+    }
+
+    /// ステージ開始など、フェードなしで即座に停止する。Web `stopBgmImmediately()` 相当。
+    func stopImmediately() {
+        isRequestedPlaying = false
+        cancelFade()
+        finalizeStop()
     }
 
     // MARK: - Private
@@ -102,8 +105,8 @@ final class SurvivalMapAudio {
 
     /// Phrases マップ試聴中にマップ BGM を下げる（ミュート時は何もしない）。
     func duckForPhrasePreview() {
-        fadeTimer?.invalidate()
-        fadeTimer = nil
+        guard isRequestedPlaying else { return }
+        cancelFade()
         let eff = effectiveVolume()
         guard eff > 0 else { return }
         queuePlayer.volume = eff * 0.15
@@ -111,14 +114,25 @@ final class SurvivalMapAudio {
 
     /// Phrases 試聴終了後にマップ BGM 音量を戻す。
     func restoreAfterPhrasePreview() {
-        fadeTimer?.invalidate()
-        fadeTimer = nil
         guard isRequestedPlaying else { return }
+        cancelFade()
         queuePlayer.volume = effectiveVolume()
     }
 
-    private func fade(to target: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
+    private func cancelFade() {
         fadeTimer?.invalidate()
+        fadeTimer = nil
+    }
+
+    private func finalizeStop() {
+        queuePlayer.pause()
+        queuePlayer.removeAllItems()
+        looper = nil
+        currentURL = nil
+    }
+
+    private func fade(to target: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
+        cancelFade()
         let fromValue = queuePlayer.volume
         let start = Date()
         let totalSteps = max(1, Int(duration * 60))

@@ -101,6 +101,19 @@ struct EarTrainingTutorialView: View {
                             .foregroundStyle(Color(red: 0.99, green: 0.92, blue: 0.55))
                             .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 4)
                     }
+
+                    if showFinishCta {
+                        EarTrainingLandscapeFinishCtaOverlay(
+                            landscapeSize: landscapeSize,
+                            isJapanese: isJa,
+                            onComplete: {
+                                Task {
+                                    await onComplete?()
+                                    onClose()
+                                }
+                            }
+                        )
+                    }
                 }
                 .frame(width: landscapeSize.width, height: landscapeSize.height)
                 .clipped()
@@ -108,15 +121,6 @@ struct EarTrainingTutorialView: View {
                 .frame(width: portraitSize.width, height: portraitSize.height)
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
                 .id(sceneIndex)
-
-                if showFinishCta {
-                    OnboardingCtaView(isJa: isJa, buttonTitle: isJa ? "完了する" : "Complete") {
-                        Task {
-                            await onComplete?()
-                            onClose()
-                        }
-                    }
-                }
             }
         }
     }
@@ -393,6 +397,28 @@ struct EarTrainingTutorialView: View {
         }
     }
 
+}
+
+/// 完了 CTA（ランドスケープ座標・Web 版と同様に中央配置）。
+private struct EarTrainingLandscapeFinishCtaOverlay: View {
+    let landscapeSize: CGSize
+    let isJapanese: Bool
+    let onComplete: () -> Void
+
+    var body: some View {
+        Color.black.opacity(0.5)
+            .frame(width: landscapeSize.width, height: landscapeSize.height)
+            .overlay {
+                Button(isJapanese ? "完了する" : "Complete", action: onComplete)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 16)
+                    .background(Color(red: 0.58, green: 0.20, blue: 0.92))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+            }
+    }
 }
 
 /// Exit ボタンのみチュートリアル本体に載せる（セリフは SpriteKit の吹き出しに統一）。

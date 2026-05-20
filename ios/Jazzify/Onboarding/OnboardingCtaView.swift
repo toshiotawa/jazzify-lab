@@ -10,7 +10,7 @@ struct OnboardingCtaView: View {
         if let buttonTitle {
             return buttonTitle
         }
-        return isJa ? "最初のクエストへ" : "Start your first quest"
+        return isJa ? "最初のクエストに進む" : "Go to your first quest"
     }
 
     var body: some View {

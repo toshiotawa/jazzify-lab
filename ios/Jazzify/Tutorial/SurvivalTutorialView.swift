@@ -180,7 +180,10 @@ private struct SurvivalTutorialReadyView: View {
             }
             Group {
                 if interpreter.showCta {
-                    OnboardingCtaView(isJa: isJa) {
+                    OnboardingCtaView(
+                        isJa: isJa,
+                        buttonTitle: SurvivalTutorialV3Scenario.demoPlayCtaLabel(isEnglish: locale == .en)
+                    ) {
                         interpreter.userFinishedCta()
                     }
                 }

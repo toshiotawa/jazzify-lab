@@ -590,6 +590,32 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    /// 降下マップ ステージ1 のタイムドセリフ（`survival_stage_intro_scripts`）。RLS: 全員 SELECT 可。
+    func fetchSurvivalStageIntroScript(mapCategory: SurvivalMapCategory) async -> SurvivalStageIntroScriptPayload {
+        struct Row: Decodable {
+            let script: SurvivalStageIntroScriptPayload
+        }
+        guard SurvivalMapCategory.descentDisplayCategories.contains(mapCategory) else {
+            return SurvivalStageIntroBundledPayloads.payload(for: mapCategory)
+        }
+        do {
+            let rows: [Row] = try await client
+                .from("survival_stage_intro_scripts")
+                .select("script")
+                .eq("map_category", value: mapCategory.rawValue)
+                .eq("is_active", value: true)
+                .limit(1)
+                .execute()
+                .value
+            if let first = rows.first {
+                return first.script
+            }
+        } catch {
+            /* use bundled fallback */
+        }
+        return SurvivalStageIntroBundledPayloads.payload(for: mapCategory)
+    }
+
     /// 降下マップのブロック表示名（ja/en）。RLS: 全員 SELECT 可。
     func fetchSurvivalStageBlocks() async throws -> [SurvivalStageBlockRow] {
         try await client

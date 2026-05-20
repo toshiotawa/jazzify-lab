@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
 import type { SurvivalScenarioHandle } from '@/components/survival/scenario/survivalScenarioHandle';
@@ -10,6 +10,7 @@ import {
 } from '@/components/survival/tutorial/buildTutorialStageFromSurvivalV3Content';
 import { runSurvivalTutorialQuestions } from '@/components/survival/tutorial/survivalTutorialQuestionFlow';
 import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/survivalTutorialV3Bindings';
+import { SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS } from '@/components/survival/tutorial/survivalTutorialV3Constants';
 import {
   mergeSurvivalTutorialV3Baseline,
   survivalTutorialChordIntroBlockOverrides,
@@ -103,23 +104,6 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
   const midiRef = useRef(false);
 
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
-  const [tapToAdvanceIntro, setTapToAdvanceIntro] = useState(false);
-  const tapResolverRef = useRef<(() => void) | null>(null);
-
-  const awaitIntroTap = useCallback(() => {
-    return new Promise<void>((resolve) => {
-      setTapToAdvanceIntro(true);
-      tapResolverRef.current = () => {
-        tapResolverRef.current = null;
-        setTapToAdvanceIntro(false);
-        resolve();
-      };
-    });
-  }, []);
-
-  const flushIntroTap = useCallback(() => {
-    tapResolverRef.current?.();
-  }, []);
 
   useEffect(() => {
     const h = scenarioHandle;
@@ -163,8 +147,9 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
       h.setSlotAEnabled(false);
       h.setSlotBEnabled(true);
 
-      const introSecs = scene.introDelaySeconds ?? 4;
+      const introSecs = scene.introDelaySeconds ?? SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS;
       let progressed = false;
+      let activeQuestionIndex = 0;
       try {
         const finishedOk = await runSurvivalTutorialQuestions({
           totalQuestions,
@@ -175,11 +160,16 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
             onIntro: () => {
               h.setOverrides(survivalTutorialChordIntroBlockOverrides(baseline));
               h.clearEnemies();
+              h.setSlotBChord(null);
               bindingsRef.current.setCharacterLine(
                 survivalTutorialLocalized(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
               );
             },
             onRevealFight: () => {
+              const ch = chords[activeQuestionIndex % chords.length];
+              if (ch) {
+                h.setSlotBChord(ch);
+              }
               h.setOverrides(survivalTutorialChordRevealOverrides(baseline));
               bindingsRef.current.setCharacterLine(
                 survivalTutorialLocalized(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
@@ -189,12 +179,10 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
             },
           },
           onPrepareQuestion: (qi) => {
-            const ch = chords[qi % chords.length];
-            if (ch) {
-              h.setSlotBChord(ch);
-            }
+            activeQuestionIndex = qi;
           },
-          awaitIntroTap,
+          waitIntroAdvance: (seconds, signal) =>
+            bindingsRef.current.waitForTapOrTimeout(seconds, signal),
           waitForChordCompletion: waitChordCompletion,
           emitSpecialGaugeSkill: () => {
             h.emitSpecialShockwave();
@@ -227,10 +215,9 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
 
     return () => {
       ac.abort();
-      tapResolverRef.current?.();
+      bindingsRef.current.setTapAdvanceCueVisible(false);
     };
   }, [
-    awaitIntroTap,
     block,
     chords,
     difficultyConfig,
@@ -272,14 +259,6 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
         onBackToSelect={() => bindingsRef.current.onExit()}
         onBackToMenu={() => bindingsRef.current.onExit()}
       />
-      {tapToAdvanceIntro ? (
-        <button
-          type="button"
-          aria-label={bindings.isEnglishCopy ? 'Continue' : '次へ'}
-          className="absolute inset-0 z-[90] cursor-pointer bg-transparent"
-          onClick={flushIntroTap}
-        />
-      ) : null}
     </div>
   );
 };

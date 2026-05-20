@@ -16,6 +16,8 @@ struct SurvivalTutorialV3LessonView: View {
     @State private var sceneIndex = 0
     @State private var showFinishCta = false
     @State private var characterLine = ""
+    @StateObject private var tapHub = SurvivalTutorialTapAdvanceHub()
+    @StateObject private var drumPlayer = SurvivalTutorialV3DrumLoopPlayer()
 
     private var isJapanese: Bool { locale == .ja }
 
@@ -31,6 +33,29 @@ struct SurvivalTutorialV3LessonView: View {
             }
 
             OnboardingCharacterDialogView(text: characterLine)
+
+            if tapHub.isWaiting {
+                VStack {
+                    Spacer()
+                        .contentShape(Rectangle())
+                        .onTapGesture { tapHub.userTappedAdvance() }
+                    Spacer()
+                        .frame(height: 148)
+                        .allowsHitTesting(false)
+                }
+                .zIndex(50)
+
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        SurvivalTutorialTapAdvanceCue(onTap: { tapHub.userTappedAdvance() })
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 148)
+                    }
+                }
+                .zIndex(51)
+            }
 
             if showExitButton {
                 VStack {
@@ -84,14 +109,19 @@ struct SurvivalTutorialV3LessonView: View {
         .onAppear {
             OrientationManager.shared.lock(.portrait)
             sceneAdvanceIfFinish(from: script, index: sceneIndex)
+            let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
+            drumPlayer.start(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
         }
         .onDisappear {
             OrientationManager.shared.lock(.portrait)
+            tapHub.cancelWait()
+            drumPlayer.stop()
         }
         .onChange(of: sceneIndex) { newIdx in
             characterLine = ""
             showFinishCta = false
             sceneAdvanceIfFinish(from: script, index: newIdx)
+            restartDrumLoopForScene(at: newIdx)
         }
     }
 
@@ -110,6 +140,7 @@ struct SurvivalTutorialV3LessonView: View {
                 script: script,
                 scene: diag,
                 locale: locale,
+                tapHub: tapHub,
                 onCharacter: { txt in characterLine = txt },
                 onDone: { advanceScene() }
             )
@@ -121,6 +152,7 @@ struct SurvivalTutorialV3LessonView: View {
                 SurvivalTutorialChordBattleLessonScene(
                     locale: locale,
                     payload: payload,
+                    tapHub: tapHub,
                     onCharacter: { txt in characterLine = txt },
                     onDone: { advanceScene() }
                 )
@@ -133,6 +165,7 @@ struct SurvivalTutorialV3LessonView: View {
                 SurvivalTutorialChordBattleLessonScene(
                     locale: locale,
                     payload: payload,
+                    tapHub: tapHub,
                     onCharacter: { txt in characterLine = txt },
                     onDone: { advanceScene() }
                 )
@@ -145,6 +178,8 @@ struct SurvivalTutorialV3LessonView: View {
                 script: script,
                 scene: sceneNode,
                 locale: locale,
+                tapHub: tapHub,
+                drumPlayer: drumPlayer,
                 onCharacter: { txt in characterLine = txt },
                 onDone: { advanceScene() }
             )
@@ -160,6 +195,16 @@ struct SurvivalTutorialV3LessonView: View {
         await MainActor.run {
             onClose()
         }
+    }
+
+    private func restartDrumLoopForScene(at index: Int) {
+        guard script.scenes.indices.contains(index) else { return }
+        if case .phraseBattle = script.scenes[index] {
+            drumPlayer.stop()
+            return
+        }
+        let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
+        drumPlayer.start(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
     }
 
     private func advanceScene() {
@@ -202,7 +247,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
             config = cfg
             self.chords = chords
             totalQuestions = loops
-            introDelaySeconds = scene.introDelaySeconds ?? 4
+            introDelaySeconds = scene.introDelaySeconds ?? SurvivalTutorialV3Constants.introHoldSeconds
             dialogue = scene.dialogue
         }
 
@@ -219,19 +264,27 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
             config = cfg
             self.chords = chords
             totalQuestions = q
-            introDelaySeconds = scene.introDelaySeconds ?? 4
+            introDelaySeconds = scene.introDelaySeconds ?? SurvivalTutorialV3Constants.introHoldSeconds
             dialogue = scene.dialogue
         }
     }
 
     let locale: AppLocale
     let payload: Payload
+    let tapHub: SurvivalTutorialTapAdvanceHub
     let onCharacter: (String) -> Void
     let onDone: () -> Void
 
-    init(locale: AppLocale, payload: Payload, onCharacter: @escaping (String) -> Void, onDone: @escaping () -> Void) {
+    init(
+        locale: AppLocale,
+        payload: Payload,
+        tapHub: SurvivalTutorialTapAdvanceHub,
+        onCharacter: @escaping (String) -> Void,
+        onDone: @escaping () -> Void
+    ) {
         self.locale = locale
         self.payload = payload
+        self.tapHub = tapHub
         self.onCharacter = onCharacter
         self.onDone = onDone
     }
@@ -239,8 +292,6 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
     @StateObject private var scenarioController = SurvivalScenarioController()
     @StateObject private var sessionBox = SurvivalTutorialSessionBox()
     @State private var runIdentity = UUID()
-    @State private var introTapNonce = 0
-    @State private var pendingIntroTapContinuation: CheckedContinuation<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -259,16 +310,9 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
                 onSessionReady: { s in sessionBox.session = s }
             )
             .allowsHitTesting(true)
-
-            if introTapNonce > 0 {
-                Color.black.opacity(0.001)
-                    .contentShape(Rectangle())
-                    .onTapGesture { fulfillIntroTap() }
-            }
         }
         .onDisappear {
-            pendingIntroTapContinuation?.resume()
-            pendingIntroTapContinuation = nil
+            tapHub.cancelWait()
             sessionBox.session?.dispose()
             sessionBox.session = nil
         }
@@ -279,12 +323,6 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
 
     private func localized(_ t: SurvivalTutorialV3LocalizedText) -> String {
         locale == .ja ? t.ja : t.en
-    }
-
-    private func fulfillIntroTap() {
-        pendingIntroTapContinuation?.resume()
-        pendingIntroTapContinuation = nil
-        introTapNonce = 0
     }
 
     private func chordRunLoop() async {
@@ -308,17 +346,17 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
             await MainActor.run {
                 scenarioController.setOverrides(SurvivalTutorialV3Scenario.chordIntroBlock(base: payload.baseline))
                 scenarioController.clearEnemies()
+                scenarioController.setSlotBChord(nil)
                 onCharacter(localized(payload.dialogue.intro))
-                scenarioController.setSlotBChord(ch)
             }
 
-            async let raced: Void = SurvivalTutorialSleep.race(seconds: payload.introDelaySeconds, tap: { await introTapAwaitable() })
-            _ = await raced
+            await tapHub.waitForTapOrTimeout(seconds: payload.introDelaySeconds)
 
             if Task.isCancelled { return }
 
             await MainActor.run {
                 scenarioController.setOverrides(SurvivalTutorialV3Scenario.chordReveal(base: payload.baseline))
+                scenarioController.setSlotBChord(ch)
                 onCharacter(localized(payload.dialogue.onReveal))
                 scenarioController.clearEnemies()
                 scenarioController.spawnStationaryRing(count: 12, radius: 180)
@@ -332,18 +370,14 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
                 let line = payload.dialogue.onCorrectRemaining.interpolateRemaining(locale: locale, remaining: remaining)
                 onCharacter(line)
             }
-            await SurvivalTutorialSleep.seconds(1)
+            let afterNs = UInt64(max(0, SurvivalTutorialV3Constants.afterCorrectSeconds) * 1_000_000_000)
+            if afterNs > 0 {
+                try? await Task.sleep(nanoseconds: afterNs)
+            }
         }
         await MainActor.run {
             onCharacter("")
             onDone()
-        }
-    }
-
-    private func introTapAwaitable() async {
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            introTapNonce &+= 1
-            pendingIntroTapContinuation = cont
         }
     }
 
@@ -362,12 +396,13 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
 
     /// セッションが立ち上がるまで待機（読み込みのみ・低頻ポーリング）。
     private func waitChordCompletion(session sess: SurvivalGameSession, timeoutSeconds: Double = 180) async -> Bool {
-        guard sess.viewModel.uiSnapshot.slots.indices.contains(1) else { return false }
-        let start = sess.viewModel.uiSnapshot.slots[1].triggerPulse
+        guard sess.gameLoop.runtime.slots.indices.contains(1) else { return false }
+        let start = await MainActor.run { sess.gameLoop.runtime.slots[1].triggerPulse }
         let deadline = Date().timeIntervalSince1970 + timeoutSeconds
         while Date().timeIntervalSince1970 < deadline {
             if Task.isCancelled { return false }
-            if sess.viewModel.uiSnapshot.slots[1].triggerPulse != start {
+            let pulse = await MainActor.run { sess.gameLoop.runtime.slots[1].triggerPulse }
+            if pulse != start {
                 return true
             }
             try? await Task.sleep(nanoseconds: 40_000_000)
@@ -383,6 +418,8 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
     let script: SurvivalTutorialScriptPayloadV3
     let scene: SurvivalTutorialV3PhraseBattleScene
     let locale: AppLocale
+    let tapHub: SurvivalTutorialTapAdvanceHub
+    let drumPlayer: SurvivalTutorialV3DrumLoopPlayer
     let onCharacter: (String) -> Void
     let onDone: () -> Void
 
@@ -390,12 +427,16 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         script: SurvivalTutorialScriptPayloadV3,
         scene: SurvivalTutorialV3PhraseBattleScene,
         locale: AppLocale,
+        tapHub: SurvivalTutorialTapAdvanceHub,
+        drumPlayer: SurvivalTutorialV3DrumLoopPlayer,
         onCharacter: @escaping (String) -> Void,
         onDone: @escaping () -> Void
     ) {
         self.script = script
         self.scene = scene
         self.locale = locale
+        self.tapHub = tapHub
+        self.drumPlayer = drumPlayer
         self.onCharacter = onCharacter
         self.onDone = onDone
     }
@@ -403,8 +444,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
     @StateObject private var scenarioController = SurvivalScenarioController()
     @StateObject private var sessionBox = SurvivalTutorialSessionBox()
     @State private var runIdentity = UUID()
-    @State private var tapNonce = 0
-    @State private var pendingTapContinuation: CheckedContinuation<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -423,15 +462,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
                     onSessionReady: { s in sessionBox.session = s }
                 )
 
-                if tapNonce > 0 {
-                    Color.black.opacity(0.001)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            pendingTapContinuation?.resume()
-                            pendingTapContinuation = nil
-                            tapNonce = 0
-                        }
-                }
             } else {
                 Color.black.onAppear {
                     DispatchQueue.main.async { onDone() }
@@ -442,10 +472,11 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             await phraseRun()
         }
         .onDisappear {
-            pendingTapContinuation?.resume()
-            pendingTapContinuation = nil
+            tapHub.cancelWait()
             sessionBox.session?.dispose()
             sessionBox.session = nil
+            let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
+            drumPlayer.start(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
         }
     }
 
@@ -456,7 +487,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
               let inline = SurvivalTutorialV3StageBuilder.buildInlinePhrase(from: ph)
         else { return nil }
         let cfg = SurvivalTutorialV3StageBuilder.buildStageConfig(stage: stage, content: raw)
-        let baseline = SurvivalTutorialV3Scenario.mergeBaseline(script: script)
+        let baseline = SurvivalTutorialV3Scenario.phraseBattleBaseline(script: script)
         return (stage, cfg, baseline, inline)
     }
 
@@ -477,18 +508,14 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         locale == .ja ? t.ja : t.en
     }
 
-    private func introTapAwait() async {
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            tapNonce &+= 1
-            pendingTapContinuation = cont
-        }
-    }
-
     private func phraseRun() async {
         guard let built = phrasePayload else { return }
         guard scene.requiredLoops > 0 else {
             await MainActor.run { onDone() }
             return
+        }
+        await MainActor.run {
+            drumPlayer.stop()
         }
         guard let sess = await pollPhraseSession(timeoutSeconds: 12) else {
             await MainActor.run { onDone() }
@@ -498,13 +525,12 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             scenarioController.setOverrides(built.baseline)
             scenarioController.clearEnemies()
         }
-        await SurvivalTutorialSleep.seconds(0.08)
         await MainActor.run {
             scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseIntroBlock(base: built.baseline))
             onCharacter(localized(scene.dialogue.intro))
         }
-        async let introDone: Void = SurvivalTutorialSleep.race(seconds: scene.introDelaySeconds ?? 5, tap: { await introTapAwait() })
-        _ = await introDone
+        let introSecs = scene.introDelaySeconds ?? SurvivalTutorialV3Constants.introHoldSeconds
+        await tapHub.waitForTapOrTimeout(seconds: introSecs)
         if Task.isCancelled { return }
 
         let startPulse = sess.gameLoop.phraseFullLoopPulse
@@ -512,7 +538,10 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         await MainActor.run {
             scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseReveal(base: built.baseline))
             onCharacter(localized(scene.dialogue.onReveal))
+            scenarioController.clearEnemies()
+            scenarioController.spawnStationaryRing(count: 12, radius: 180)
             sess.viewModel.syncPhraseStaff(from: sess.gameLoop)
+            sess.resumeScenarioBackgroundMusicIfEnabled()
         }
 
         guard await SurvivalTutorialPhraseWait.waitLoops(
@@ -532,10 +561,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             let line = localized(scene.dialogue.onCorrectRemaining).replacingOccurrences(of: "{{remaining}}", with: "0")
             onCharacter(line)
             scenarioController.emitSpecialShockwaveOnly()
-        }
-        await SurvivalTutorialSleep.seconds(0.6)
-
-        await MainActor.run {
             onCharacter("")
             onDone()
         }
@@ -543,22 +568,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
 }
 
 // MARK: - Small async helpers（低頻・チュートリアル限定）
-
-private enum SurvivalTutorialSleep {
-    @MainActor
-    static func seconds(_ s: Double) async {
-        let ns = UInt64(max(0, s) * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: ns)
-    }
-
-    /// タップ待ちまたは固定秒どちらか先。
-    @MainActor
-    static func race(seconds: Double, tap: @escaping () async -> Void) async {
-        async let sleeper: Void = SurvivalTutorialSleep.seconds(seconds)
-        async let tapped: Void = tap()
-        _ = await (sleeper, tapped)
-    }
-}
 
 private enum SurvivalTutorialPhraseWait {
     @MainActor

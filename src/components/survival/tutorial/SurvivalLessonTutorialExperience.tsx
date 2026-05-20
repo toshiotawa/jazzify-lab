@@ -18,6 +18,7 @@ import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/
 import {
   SurvivalTutorialSceneHost,
   showSurvivalTutorialFinishCta,
+  survivalTutorialDemoPlayCtaLabel,
   survivalTutorialFinishCtaLabel,
 } from '@/components/survival/tutorial/SurvivalTutorialSceneHost';
 import {
@@ -28,6 +29,7 @@ import {
 } from '@/components/survival/tutorial/tutorialRunnerRegistry';
 import type { RunTutorialIiViScriptParams } from '@/components/survival/tutorial/tutorialIiViScript';
 import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
+import { TutorialTapAdvanceCue } from '@/components/survival/tutorial/TutorialTapAdvanceCue';
 import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
 import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
@@ -95,6 +97,11 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const [v3SceneIndex, setV3SceneIndex] = useState(0);
   const [v3CharacterLine, setV3CharacterLine] = useState('');
   const [v3FinishCta, setV3FinishCta] = useState(false);
+  const [v3TapCueVisible, setV3TapCueVisible] = useState(false);
+
+  const v3AudioRef = useRef<TutorialAudioController | null>(null);
+  const v3TapResolverRef = useRef<(() => void) | null>(null);
+  const v3DrumPlayingRef = useRef(false);
 
   const audioRef = useRef<TutorialAudioController | null>(null);
   const runnerAbortRef = useRef<AbortController | null>(null);
@@ -128,6 +135,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
       setV3SceneIndex(0);
       setV3CharacterLine('');
       setV3FinishCta(false);
+      setV3TapCueVisible(false);
 
       try {
         const row = await fetchSurvivalTutorialScript(scriptId);
@@ -135,6 +143,32 @@ export const SurvivalLessonTutorialExperience: React.FC<
           if (!cancelled) {
             setLoadedScript(null);
             setTutorialV3Payload(row.script);
+            void unlockTutorialAudio();
+            const ctl = v3AudioRef.current ?? new TutorialAudioController();
+            v3AudioRef.current = ctl;
+            const drum = row.script.audioTracks?.drum_loop;
+            const tracks =
+              drum?.url?.trim()
+                ? {
+                    main_bgm: {
+                      url: drum.url.trim(),
+                      defaultLoop: true,
+                      defaultVolume: drum.volume ?? 0.35,
+                    },
+                    drum_loop: {
+                      url: drum.url.trim(),
+                      defaultLoop: true,
+                      defaultVolume: drum.volume ?? 0.35,
+                    },
+                  }
+                : TUTORIAL_DRUM_LOOP_AUDIO_TRACKS;
+            ctl.setTracks(tracks);
+            void ctl.ensureBgmSettings().then(() => {
+              if (!cancelled) {
+                ctl.playAudio('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
+                v3DrumPlayingRef.current = true;
+              }
+            });
             runnerFnRef.current = null;
             runnerStartedRef.current = false;
             finalizedOnceRef.current = false;
@@ -199,6 +233,10 @@ export const SurvivalLessonTutorialExperience: React.FC<
       cancelled = true;
       runnerAbortRef.current?.abort();
       audioRef.current?.dispose();
+      v3AudioRef.current?.stopAudio('main_bgm');
+      v3AudioRef.current?.dispose();
+      v3AudioRef.current = null;
+      v3DrumPlayingRef.current = false;
     };
   }, [scriptId]);
 
@@ -235,7 +273,47 @@ export const SurvivalLessonTutorialExperience: React.FC<
     } else {
       setV3FinishCta(false);
     }
+    if (s.type === 'phrase_battle') {
+      v3AudioRef.current?.stopAudio('main_bgm');
+      v3DrumPlayingRef.current = false;
+    } else {
+      const drum = pl.audioTracks?.drum_loop;
+      v3AudioRef.current?.stopAudio('main_bgm');
+      void v3AudioRef.current?.ensureBgmSettings().then(() => {
+        v3AudioRef.current?.playAudio('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
+        v3DrumPlayingRef.current = true;
+      });
+    }
   }, [tutorialV3Payload, gate, v3SceneIndex]);
+
+  const waitForTapOrTimeout = useCallback((seconds: number, signal?: AbortSignal): Promise<void> => {
+    if (signal?.aborted) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      setV3TapCueVisible(true);
+      let settled = false;
+      const finish = (): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timerId);
+        signal?.removeEventListener('abort', onAbort);
+        if (v3TapResolverRef.current === finish) {
+          v3TapResolverRef.current = null;
+        }
+        setV3TapCueVisible(false);
+        resolve();
+      };
+      v3TapResolverRef.current = finish;
+      const timerId = window.setTimeout(finish, Math.max(0, seconds * 1000));
+      const onAbort = (): void => {
+        finish();
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }, []);
 
   const v3Bindings: SurvivalTutorialV3Bindings | null = useMemo(() => {
     if (!tutorialV3Payload) return null;
@@ -247,8 +325,26 @@ export const SurvivalLessonTutorialExperience: React.FC<
         void finalizeLesson('aborted');
       },
       onLessonTutorialCompleted,
+      setTapAdvanceCueVisible: setV3TapCueVisible,
+      waitForTapOrTimeout,
+      pauseSharedDrumLoop: () => {
+        v3AudioRef.current?.stopAudio('main_bgm');
+        v3DrumPlayingRef.current = false;
+      },
+      resumeSharedDrumLoop: () => {
+        const drum = tutorialV3Payload.audioTracks?.drum_loop;
+        v3AudioRef.current?.stopAudio('main_bgm');
+        void v3AudioRef.current?.ensureBgmSettings().then(() => {
+          v3AudioRef.current?.playAudio('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
+          v3DrumPlayingRef.current = true;
+        });
+      },
     };
-  }, [tutorialV3Payload, isEnglishCopy, finalizeLesson, onLessonTutorialCompleted]);
+  }, [tutorialV3Payload, isEnglishCopy, finalizeLesson, onLessonTutorialCompleted, waitForTapOrTimeout]);
+
+  const flushV3TapAdvance = useCallback(() => {
+    v3TapResolverRef.current?.();
+  }, []);
 
   const onScenarioHandleReady = useCallback(
     (handle: SurvivalScenarioHandle) => {
@@ -462,6 +558,18 @@ export const SurvivalLessonTutorialExperience: React.FC<
           onSkip={handleSkip}
         />
 
+        {v3TapCueVisible ? (
+          <>
+            <button
+              type="button"
+              aria-label={isEnglishCopy ? 'Continue' : '次へ'}
+              className="absolute inset-x-0 top-0 bottom-36 z-[110] cursor-pointer bg-transparent"
+              onClick={flushV3TapAdvance}
+            />
+            <TutorialTapAdvanceCue visible />
+          </>
+        ) : null}
+
         {v3FinishCta ? (
           <div className="pointer-events-auto absolute inset-0 z-[120] flex items-center justify-center bg-black/50 px-4">
             <button
@@ -513,6 +621,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
         showCta={showCta}
         showSkip={showSkip}
         isEnglishCopy={isEnglishCopy}
+        ctaLabel={survivalTutorialDemoPlayCtaLabel(isEnglishCopy)}
         onCta={handleCta}
         onSkip={handleSkip}
       />

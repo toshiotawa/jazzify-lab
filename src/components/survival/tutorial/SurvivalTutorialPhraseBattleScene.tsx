@@ -8,8 +8,9 @@ import {
   buildTutorialPhraseDefinitionFromV3Block,
 } from '@/components/survival/tutorial/buildTutorialStageFromSurvivalV3Content';
 import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/survivalTutorialV3Bindings';
+import { SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS } from '@/components/survival/tutorial/survivalTutorialV3Constants';
 import {
-  mergeSurvivalTutorialV3Baseline,
+  survivalTutorialPhraseBattleBaseline,
   survivalTutorialPhraseIntroBlockOverrides,
   survivalTutorialPhraseRevealOverrides,
 } from '@/components/survival/tutorial/survivalTutorialV3Scenario';
@@ -113,23 +114,6 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
   const midiRef = useRef(false);
 
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
-  const [tapToAdvanceIntro, setTapToAdvanceIntro] = useState(false);
-  const tapResolverRef = useRef<(() => void) | null>(null);
-
-  const awaitIntroTap = useCallback(() => {
-    return new Promise<void>((resolve) => {
-      setTapToAdvanceIntro(true);
-      tapResolverRef.current = () => {
-        tapResolverRef.current = null;
-        setTapToAdvanceIntro(false);
-        resolve();
-      };
-    });
-  }, []);
-
-  const flushIntroTap = useCallback(() => {
-    tapResolverRef.current?.();
-  }, []);
 
   useEffect(() => {
     const h = scenarioHandle;
@@ -149,7 +133,8 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
     }
 
     const ac = new AbortController();
-    const baseline = mergeSurvivalTutorialV3Baseline(script);
+    const baseline = survivalTutorialPhraseBattleBaseline(script);
+    bindingsRef.current.pauseSharedDrumLoop?.();
 
     const run = async (): Promise<void> => {
       h.setOverrides({ ...baseline });
@@ -165,10 +150,10 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
           survivalTutorialLocalized(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
         );
 
-        await Promise.race([
-          sleepSeconds(scene.introDelaySeconds ?? 5, ac.signal),
-          awaitIntroTap(),
-        ]);
+        await bindingsRef.current.waitForTapOrTimeout(
+          scene.introDelaySeconds ?? SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS,
+          ac.signal,
+        );
         if (ac.signal.aborted) {
           return;
         }
@@ -178,6 +163,8 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
         bindingsRef.current.setCharacterLine(
           survivalTutorialLocalized(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
         );
+        h.clearEnemies();
+        h.spawnStationaryRing(12, 180);
 
         const loopsOk = await waitPhraseLoopPulseDelta(
           () => pulseRef.current,
@@ -198,12 +185,13 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
             ),
           );
           h.emitSpecialShockwave();
-          await sleepSeconds(0.6, ac.signal);
         }
       } catch {
         /* ignore */
       } finally {
         bindingsRef.current.setCharacterLine('');
+        bindingsRef.current.resumeSharedDrumLoop?.();
+        bindingsRef.current.setTapAdvanceCueVisible(false);
         if (progressed) {
           onSceneComplete();
         }
@@ -214,10 +202,10 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
     return () => {
       ac.abort();
-      tapResolverRef.current?.();
+      bindingsRef.current.resumeSharedDrumLoop?.();
+      bindingsRef.current.setTapAdvanceCueVisible(false);
     };
   }, [
-    awaitIntroTap,
     block,
     difficultyConfig,
     onSceneComplete,
@@ -248,7 +236,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
         embeddedFullHeight={embeddedFullHeight}
         survivalTutorialLayout={embeddedFullHeight}
         scenarioMode
-        initialScenarioOverrides={mergeSurvivalTutorialV3Baseline(script)}
+        initialScenarioOverrides={survivalTutorialPhraseBattleBaseline(script)}
         tutorialPhraseInlineDefinition={phraseInline}
         scenarioPhraseFullLoopPulseRef={pulseRef}
         onScenarioHandleReady={(x) => {
@@ -260,14 +248,6 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
         onBackToSelect={() => bindingsRef.current.onExit()}
         onBackToMenu={() => bindingsRef.current.onExit()}
       />
-      {tapToAdvanceIntro ? (
-        <button
-          type="button"
-          aria-label={bindingsRef.current.isEnglishCopy ? 'Continue' : '次へ'}
-          className="absolute inset-0 z-[90] cursor-pointer bg-transparent"
-          onClick={flushIntroTap}
-        />
-      ) : null}
     </div>
   );
 };

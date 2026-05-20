@@ -143,6 +143,13 @@ final class SurvivalGameSession: ObservableObject {
         viewModel.clearMidiHeldKeys()
     }
 
+    /// チュートリアル等: 共有ドラム停止後にフレーズ BGM を確実に再開する。
+    func resumeScenarioBackgroundMusicIfEnabled() {
+        guard state == .running else { return }
+        guard !gameLoop.runtime.scenario.disableSurvivalBgm else { return }
+        audioController.start(playBackgroundMusic: true)
+    }
+
     func togglePause() {
         guard state == .running || state == .paused else { return }
         viewModel.togglePause()

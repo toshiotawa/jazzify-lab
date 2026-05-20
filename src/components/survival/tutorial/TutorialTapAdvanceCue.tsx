@@ -10,11 +10,13 @@ export const TutorialTapAdvanceCue: React.FC<TutorialTapAdvanceCueProps> = ({ vi
   if (!visible) return null;
 
   return (
-    <div
-      className="pointer-events-none absolute bottom-[max(16px,env(safe-area-inset-bottom))] right-[max(16px,env(safe-area-inset-right))] z-[80] animate-pulse text-2xl font-bold text-white drop-shadow-lg"
+    <button
+      type="button"
+      tabIndex={-1}
+      className="pointer-events-none absolute bottom-[max(16px,env(safe-area-inset-bottom))] right-[max(16px,env(safe-area-inset-right))] z-[80] flex h-12 w-12 animate-pulse items-center justify-center rounded-full border border-white/30 bg-black/55 text-xl font-bold text-white shadow-lg"
       aria-hidden
     >
       ▶︎
-    </div>
+    </button>
   );
 };

@@ -21,14 +21,14 @@ export const buildSurvivalDeveloperFullV3Script = (): SurvivalTutorialScriptPayl
     keyboardHintsDefault: true,
   },
   content: {
-    'prog-test': {
+    'prog-bass-staff': {
       stage: {
-        name: 'v3・プログレッション',
-        nameEn: 'v3 progression',
+        name: 'v3・ヘ音譜（単譜）',
+        nameEn: 'v3 bass staff (single)',
         stageType: 'progression',
         mapCategory: 'lesson',
-        chordDisplayName: 'II-V（テスト）',
-        chordDisplayNameEn: 'II–V (test)',
+        chordDisplayName: 'Dm7（ヘ音のみ）',
+        chordDisplayNameEn: 'Dm7 (bass staff only)',
         lessonOnly: true,
       },
       chordProgression: [
@@ -37,13 +37,27 @@ export const buildSurvivalDeveloperFullV3Script = (): SurvivalTutorialScriptPayl
           voicing: [53, 57, 60, 64],
           voicingNames: ['F3', 'A3', 'C4', 'E4'],
           keyFifths: 0,
+          voicing_staves: [2, 2, 2, 2],
         },
+      ],
+    },
+    'prog-grand-staff': {
+      stage: {
+        name: 'v3・大譜表',
+        nameEn: 'v3 grand staff',
+        stageType: 'progression',
+        mapCategory: 'lesson',
+        chordDisplayName: 'G7（大譜表）',
+        chordDisplayNameEn: 'G7 (grand staff)',
+        lessonOnly: true,
+      },
+      chordProgression: [
         {
           name: 'G7',
           voicing: [53, 57, 59, 64],
           voicingNames: ['F3', 'A3', 'B3', 'E4'],
           keyFifths: 0,
-          voicing_staves: [2, 2, 1, 1],
+          voicing_staves: [2, 2, 2, 1],
         },
       ],
     },
@@ -147,13 +161,30 @@ export const buildSurvivalDeveloperFullV3Script = (): SurvivalTutorialScriptPayl
     },
     {
       type: 'progression_battle',
-      contentRef: 'prog-test',
-      loopCount: 2,
+      contentRef: 'prog-bass-staff',
+      loopCount: 1,
       introDelaySeconds: 4,
       dialogue: {
-        intro: { ja: 'プログレッション。タップでスキップできます。', en: 'Progression. Tap to skip intro.' },
-        onReveal: { ja: 'このコードを演奏！', en: 'Play this chord!' },
-        onCorrectRemaining: { ja: 'OK、あと{{remaining}}問。', en: 'OK, {{remaining}} left.' },
+        intro: {
+          ja: '出題1: ヘ音記号の単一譜表（voicing_staves はすべて 2）。',
+          en: 'Question 1: single bass staff (all voicing_staves = 2).',
+        },
+        onReveal: { ja: 'Dm7 — ヘ音譜のみ。', en: 'Dm7 — bass staff only.' },
+        onCorrectRemaining: { ja: 'OK。次は大譜表です。', en: 'OK. Next: grand staff.' },
+      },
+    },
+    {
+      type: 'progression_battle',
+      contentRef: 'prog-grand-staff',
+      loopCount: 1,
+      introDelaySeconds: 4,
+      dialogue: {
+        intro: {
+          ja: '出題2: 大譜表（ヘ音＋ト音。voicing_staves に 1 と 2 が混在）。',
+          en: 'Question 2: grand staff (voicing_staves mix treble 1 and bass 2).',
+        },
+        onReveal: { ja: 'G7 — 大譜表で演奏！', en: 'G7 — play on the grand staff!' },
+        onCorrectRemaining: { ja: 'OK。', en: 'OK.' },
       },
     },
     {

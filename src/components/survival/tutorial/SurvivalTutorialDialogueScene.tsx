@@ -1,12 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
-import { TUTORIAL_BOOTSTRAP_OVERRIDES } from '@/components/survival/scenario/survivalScenarioTypes';
-import type { TutorialAudioTracksMap } from '@/components/survival/tutorial/TutorialAudioController';
-import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
-import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
-import { TutorialTapAdvanceCue } from '@/components/survival/tutorial/TutorialTapAdvanceCue';
-import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
+import { mergeSurvivalTutorialV3Baseline } from '@/components/survival/tutorial/survivalTutorialV3Scenario';
+import { SURVIVAL_TUTORIAL_V3_DIALOGUE_LINE_SECONDS } from '@/components/survival/tutorial/survivalTutorialV3Constants';
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 
 import type { SurvivalTutorialV3Bindings } from './survivalTutorialV3Bindings';
@@ -33,7 +29,6 @@ interface SurvivalTutorialDialogueSceneProps {
   readonly scene: Extract<SurvivalTutorialScriptPayloadV3['scenes'][number], { type: 'dialogue_only' }>;
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
-  readonly onBlinkAdvanceToggle: (value: boolean) => void;
   readonly onSceneComplete: () => void;
 }
 
@@ -42,165 +37,58 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
   scene,
   bindings,
   embeddedFullHeight,
-  onBlinkAdvanceToggle,
   onSceneComplete,
 }) => {
-  const linesRef = useRef(scene.lines ?? []);
-  linesRef.current = scene.lines ?? [];
-  const lines = scene.lines ?? [];
-  const intervalSec = scene.lineIntervalSeconds ?? 4;
-
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
-  const englishRef = useRef(bindings.isEnglishCopy);
-  englishRef.current = bindings.isEnglishCopy;
 
-  const [lineIndex, setLineIndex] = useState(0);
-  const completedRef = useRef(false);
-  const audioRef = useRef<TutorialAudioController | null>(null);
-  const lineTimerRef = useRef<number | null>(null);
+  const lineSeconds = scene.lineIntervalSeconds ?? SURVIVAL_TUTORIAL_V3_DIALOGUE_LINE_SECONDS;
 
-  const scheduleAfterDisplayedIdx = useRef<(displayIdx: number) => void>(() => undefined);
-
-  const finalizeRef = useRef<() => void>(() => undefined);
-
-  const finalize = useCallback(() => {
-    if (completedRef.current) return;
-    completedRef.current = true;
-    if (lineTimerRef.current !== null) {
-      window.clearTimeout(lineTimerRef.current);
-      lineTimerRef.current = null;
-    }
-    onBlinkAdvanceToggle(false);
-    audioRef.current?.stopAudio('main_bgm');
-    bindingsRef.current.setCharacterLine('');
-    onSceneComplete();
-  }, [onBlinkAdvanceToggle, onSceneComplete]);
-
-  finalizeRef.current = finalize;
-
-  useEffect(() => {
-    completedRef.current = false;
-    setLineIndex(0);
-  }, [scene]);
-
-  useEffect(() => {
-    const base = script.audioTracks?.drum_loop;
-    const tracks: TutorialAudioTracksMap =
-      script.audioTracks && base?.url?.trim()
-        ? {
-            main_bgm: {
-              url: base.url.trim(),
-              defaultLoop: true,
-              defaultVolume: base.volume ?? 0.35,
-            },
-            drum_loop: {
-              url: base.url.trim(),
-              defaultLoop: true,
-              defaultVolume: base.volume ?? 0.35,
-            },
-          }
-        : TUTORIAL_DRUM_LOOP_AUDIO_TRACKS;
-
-    unlockTutorialAudio();
-    const ctl = audioRef.current ?? new TutorialAudioController();
-    audioRef.current = ctl;
-    ctl.setTracks(tracks);
-    void ctl.ensureBgmSettings().finally(() => {
-      ctl.playAudio('main_bgm', { loop: true, volume: base?.volume ?? 0.35 });
-    });
-
-    return () => {
-      ctl.stopAudio('main_bgm');
-      ctl.dispose();
-      audioRef.current = null;
+  const dialogueScenarioOverrides = useMemo(() => {
+    const base = mergeSurvivalTutorialV3Baseline(script);
+    return {
+      ...base,
+      disableJoystick: false,
     };
-  }, [script.audioTracks]);
-
-  const chainTimerFrom = useCallback(
-    (displayIdx: number) => {
-      if (lineTimerRef.current !== null) {
-        window.clearTimeout(lineTimerRef.current);
-        lineTimerRef.current = null;
-      }
-      const ln = linesRef.current;
-      if (ln.length === 0) {
-        finalizeRef.current();
-        return;
-      }
-
-      lineTimerRef.current = window.setTimeout(() => {
-        lineTimerRef.current = null;
-        if (completedRef.current) return;
-
-        if (displayIdx >= ln.length - 1) {
-          finalizeRef.current();
-          return;
-        }
-
-        const ni = displayIdx + 1;
-        setLineIndex(ni);
-        const lineAt = ln[ni];
-        if (lineAt) {
-          bindingsRef.current.setCharacterLine(survivalTutorialLocalized(lineAt, englishRef.current));
-        }
-        scheduleAfterDisplayedIdx.current(ni);
-      }, intervalSec * 1000);
-    },
-    [intervalSec],
-  );
-
-  scheduleAfterDisplayedIdx.current = chainTimerFrom;
-
-  useEffect(() => {
-    const ln = linesRef.current;
-    if (ln.length === 0) {
-      finalizeRef.current();
-      return undefined;
-    }
-    const first = ln[0];
-    if (first) {
-      bindingsRef.current.setCharacterLine(survivalTutorialLocalized(first, englishRef.current));
-    }
-    onBlinkAdvanceToggle(true);
-
-    chainTimerFrom(0);
-
-    return () => {
-      if (lineTimerRef.current !== null) {
-        window.clearTimeout(lineTimerRef.current);
-        lineTimerRef.current = null;
-      }
-    };
-  }, [chainTimerFrom, onBlinkAdvanceToggle, scene]);
-
-  const advanceTap = useCallback(() => {
-    if (completedRef.current) return;
-
-    const ln = linesRef.current;
-    if (ln.length === 0) return;
-
-    if (lineTimerRef.current !== null) {
-      window.clearTimeout(lineTimerRef.current);
-      lineTimerRef.current = null;
-    }
-
-    if (lineIndex < ln.length - 1) {
-      const ni = lineIndex + 1;
-      setLineIndex(ni);
-      const l = ln[ni];
-      if (l) bindingsRef.current.setCharacterLine(survivalTutorialLocalized(l, englishRef.current));
-      chainTimerFrom(ni);
-      onBlinkAdvanceToggle(true);
-      return;
-    }
-    finalizeRef.current();
-  }, [chainTimerFrom, lineIndex, onBlinkAdvanceToggle]);
+  }, [script]);
 
   const screenKey = useMemo(
-    () => `tutorial-v3-dialog:${lines[0]?.ja ?? ''}:${lines.length}`,
-    [lines],
+    () => `tutorial-v3-dialog:${scene.lines[0]?.ja ?? ''}:${scene.lines.length}`,
+    [scene.lines],
   );
+
+  useEffect(() => {
+    const ac = new AbortController();
+    const lines = scene.lines ?? [];
+    if (lines.length === 0) {
+      onSceneComplete();
+      return undefined;
+    }
+
+    const run = async (): Promise<void> => {
+      for (let i = 0; i < lines.length; i += 1) {
+        if (ac.signal.aborted) return;
+        const line = lines[i];
+        if (!line) continue;
+        bindingsRef.current.setCharacterLine(
+          survivalTutorialLocalized(line, bindingsRef.current.isEnglishCopy),
+        );
+        await bindingsRef.current.waitForTapOrTimeout(lineSeconds, ac.signal);
+        if (ac.signal.aborted) return;
+      }
+      bindingsRef.current.setCharacterLine('');
+      if (!ac.signal.aborted) {
+        onSceneComplete();
+      }
+    };
+
+    void run();
+
+    return () => {
+      ac.abort();
+      bindingsRef.current.setTapAdvanceCueVisible(false);
+    };
+  }, [lineSeconds, onSceneComplete, scene.lines]);
 
   return (
     <div className="relative h-full min-h-0 w-full bg-black">
@@ -216,19 +104,10 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
         embeddedFullHeight={embeddedFullHeight}
         survivalTutorialLayout={embeddedFullHeight}
         scenarioMode
-        initialScenarioOverrides={TUTORIAL_BOOTSTRAP_OVERRIDES}
+        initialScenarioOverrides={dialogueScenarioOverrides}
         onBackToSelect={() => bindingsRef.current.onExit()}
         onBackToMenu={() => bindingsRef.current.onExit()}
       />
-
-      <button
-        type="button"
-        className="absolute inset-0 z-40 cursor-pointer bg-transparent"
-        aria-label={englishRef.current ? 'Next line' : '次へ'}
-        onClick={advanceTap}
-      />
-
-      <TutorialTapAdvanceCue visible />
     </div>
   );
 };

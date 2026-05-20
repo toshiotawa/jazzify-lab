@@ -23,9 +23,21 @@ export function mergeSurvivalTutorialV3Baseline(
     disableEnemyAttacks: u.disableEnemyAttacks,
     freezeAllEnemyAi: true,
     suppressAutoSpawn: true,
+    /** 親 `TutorialAudioController` がドラムループを継続再生 */
+    disableSurvivalBgm: true,
   };
 
   return merged;
+}
+
+/** フレーズのみステージ BGM を `SurvivalGameScreen` 側で再生 */
+export function survivalTutorialPhraseBattleBaseline(
+  script: SurvivalTutorialScriptPayloadV3,
+): SurvivalScenarioOverrides {
+  return {
+    ...mergeSurvivalTutorialV3Baseline(script),
+    disableSurvivalBgm: false,
+  };
 }
 
 /** コードバトル: 入力可能・進行コード譜・B コードスロット有効時 */
@@ -66,6 +78,7 @@ export function survivalTutorialChordIntroBlockOverrides(
     staffMode: 'hidden',
     hideChordSlots: true,
     hideChordPad: false,
+    useChordMidiNotesForHintHighlights: false,
     blockChordPadInput: true,
     blockMidiGameInput: true,
     blockSlotEvaluation: true,
@@ -80,6 +93,7 @@ export function survivalTutorialPhraseIntroBlockOverrides(
     ...survivalTutorialPhraseRevealOverrides(base),
     hideStaff: true,
     staffMode: 'hidden',
+    useChordMidiNotesForHintHighlights: false,
     blockChordPadInput: true,
     blockMidiGameInput: true,
     blockSlotEvaluation: true,

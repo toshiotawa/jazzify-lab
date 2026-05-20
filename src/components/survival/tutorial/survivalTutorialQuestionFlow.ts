@@ -1,3 +1,5 @@
+import { SURVIVAL_TUTORIAL_V3_AFTER_CORRECT_SECONDS, SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS } from '@/components/survival/tutorial/survivalTutorialV3Constants';
+
 /** progression / random の 1 問サイクル用（タイマー駆動。フレームループ無し）。 */
 
 export interface SurvivalTutorialQuestionCallbacks {
@@ -19,17 +21,17 @@ export interface RunSurvivalTutorialQuestionsParams {
   readonly completionTimeoutSeconds?: number;
   readonly afterCorrectSleepSeconds?: number;
   readonly emitSpecialGaugeSkill: () => void;
-  /** 各質問ごとに新しいインスタンスへ差し替え（フルスクリーンタップで resolve） */
-  readonly awaitIntroTap: () => Promise<void>;
+  /** intro 表示後、秒数経過またはタップで reveal へ（iOS `waitForTapOrTimeout` 相当） */
+  readonly waitIntroAdvance: (seconds: number, signal: AbortSignal) => Promise<void>;
   readonly afterCorrect?: (remainingQuestions: number, questionIndexCompleted: number) => void;
 }
 
 export const runSurvivalTutorialQuestions = async (
   params: RunSurvivalTutorialQuestionsParams,
 ): Promise<boolean> => {
-  const introHoldSeconds = params.introHoldSeconds ?? 4;
+  const introHoldSeconds = params.introHoldSeconds ?? SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS;
   const completionTimeoutSeconds = params.completionTimeoutSeconds ?? 180;
-  const afterCorrectSleepSeconds = params.afterCorrectSleepSeconds ?? 1;
+  const afterCorrectSleepSeconds = params.afterCorrectSleepSeconds ?? SURVIVAL_TUTORIAL_V3_AFTER_CORRECT_SECONDS;
 
   for (let questionIndex = 0; questionIndex < params.totalQuestions; questionIndex += 1) {
     if (params.signal.aborted) {
@@ -40,10 +42,7 @@ export const runSurvivalTutorialQuestions = async (
 
     params.callbacks.onIntro();
 
-    await Promise.race([
-      params.sleepSeconds(introHoldSeconds, params.signal),
-      params.awaitIntroTap(),
-    ]);
+    await params.waitIntroAdvance(introHoldSeconds, params.signal);
 
     if (params.signal.aborted) {
       return false;

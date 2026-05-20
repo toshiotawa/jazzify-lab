@@ -342,6 +342,9 @@ final class SurvivalGameLoop {
     /// 鍵盤ビューは MIDI 完全一致で判定する。
     /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
     func currentHintHighlightMidis() -> Set<Int> {
+        if runtime.scenario.hideStaff {
+            return []
+        }
         if isPhraseMode, (mode.hintMode || stage.hasBeginnerStageAssist),
            let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
             return [midi]
@@ -356,6 +359,9 @@ final class SurvivalGameLoop {
     /// 構成音として対象スロットに入力済み（pitch class が一致）のハイライト MIDI。
     /// オクターブ違いの演奏でも、この集合は「元々のヒント MIDI」側に載せる。
     func currentHintCompletedHighlightMidis() -> Set<Int> {
+        if runtime.scenario.hideStaff {
+            return []
+        }
         guard let target = currentHintTargetSlot() else { return [] }
         let highlights = runtime.scenario.useChordMidiNotesForHintHighlights
             ? Set(target.chord.midiNotes)
@@ -403,16 +409,16 @@ final class SurvivalGameLoop {
             let pc = ((midi % 12) + 12) % 12
             activePressedPitchClasses.remove(pc)
         }
-        if runtime.scenario.blockSlotEvaluation {
-            for on in frameInput.noteOns {
-                let pc = ((on.midi % 12) + 12) % 12
-                activePressedPitchClasses.insert(pc)
-            }
-            return events
-        }
         for on in frameInput.noteOns {
             let pc = ((on.midi % 12) + 12) % 12
             activePressedPitchClasses.insert(pc)
+            if isPhraseMode {
+                events.append(contentsOf: evaluatePhraseNote(on.midi))
+                continue
+            }
+            if runtime.scenario.blockSlotEvaluation {
+                continue
+            }
             events.append(contentsOf: evaluateSlots(for: on.midi))
         }
         return events
@@ -1400,7 +1406,7 @@ final class SurvivalGameLoop {
         guard runtime.slots.indices.contains(1) else { return }
         runtime.slots[1].chord = chord
         runtime.slots[1].inputPitchClasses = []
-        runtime.slots[1].triggerPulse &+= 1
+        // triggerPulse は正解時の `triggerSlot` のみ更新（チュートリアル待機と Web `slotBCompletionPulseRef` と揃える）
     }
 
     func scenarioSetSlotBEnabled(_ enabled: Bool) {

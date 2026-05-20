@@ -13,8 +13,14 @@ export function showSurvivalTutorialFinishCta(
   return scene.type === 'finish' && (script.finish?.showCta ?? true);
 }
 
+/** v3 台本末尾の完了 CTA（固定文言）。 */
 export function survivalTutorialFinishCtaLabel(isEnglishCopy: boolean): string {
-  return isEnglishCopy ? 'Continue' : '続ける';
+  return isEnglishCopy ? 'Complete' : '完了する';
+}
+
+/** オンボーディング等のデモプレイ CTA（固定文言）。 */
+export function survivalTutorialDemoPlayCtaLabel(isEnglishCopy: boolean): string {
+  return isEnglishCopy ? 'Go to your first quest' : '最初のクエストに進む';
 }
 
 export interface SurvivalTutorialSceneHostProps {
@@ -23,10 +29,7 @@ export interface SurvivalTutorialSceneHostProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
-  readonly onBlinkAdvanceToggle?: (value: boolean) => void;
 }
-
-const noopBlink = (): void => undefined;
 
 export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps> = ({
   script,
@@ -34,7 +37,6 @@ export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps>
   bindings,
   embeddedFullHeight,
   onSceneComplete,
-  onBlinkAdvanceToggle = noopBlink,
 }) => {
   if (scene.type === 'dialogue_only') {
     return (
@@ -43,7 +45,6 @@ export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps>
         scene={scene}
         bindings={bindings}
         embeddedFullHeight={embeddedFullHeight}
-        onBlinkAdvanceToggle={onBlinkAdvanceToggle}
         onSceneComplete={onSceneComplete}
       />
     );

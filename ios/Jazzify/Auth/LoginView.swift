@@ -347,7 +347,7 @@ struct LoginView: View {
                 onOnboardingRequested()
             } label: {
                 Label(
-                    locale == .ja ? "デモプレイ" : "Demo play",
+                    locale == .ja ? "最初のクエストに進む" : "Go to your first quest",
                     systemImage: "play.circle.fill"
                 )
                 .frame(maxWidth: .infinity)

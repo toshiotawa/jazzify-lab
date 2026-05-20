@@ -77,6 +77,12 @@ import {
   getSurvivalStageBattleKind,
   isBlockLastStage,
 } from './SurvivalStageDefinitions';
+import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
+import { fetchSurvivalStageIntroScript } from '@/components/survival/stageIntro/fetchSurvivalStageIntroScript';
+import {
+  scheduleSurvivalStageIntroLines,
+  type SurvivalStageIntroScheduleHandle,
+} from '@/components/survival/stageIntro/scheduleSurvivalStageIntroLines';
 import {
   getStageKillQuotaForStage,
   hasBeginnerStageAssistForStage,
@@ -336,6 +342,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const settings = useGameStore(state => state.settings);
   
+  // ステージ1 タイムドセリフ（本番のみ）
+  const [stageIntroCharacterLine, setStageIntroCharacterLine] = useState('');
+  const stageIntroSchedulerRef = useRef<SurvivalStageIntroScheduleHandle | null>(null);
+
   // 初期化エラー状態
   const [initError, setInitError] = useState<string | null>(null);
   // MIDI初期化完了状態
@@ -359,6 +369,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isProgressionStage = stageDefinition?.stageType === 'progression';
   const isBasicMapStage = stageDefinition?.mapCategory === 'basic';
   const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
+  const shouldRunStageIntroDialogue =
+    isStageMode
+    && !!stageDefinition
+    && stageDefinition.stageNumber === 1
+    && (stageDefinition.mapCategory === 'basic'
+      || stageDefinition.mapCategory === 'songs'
+      || stageDefinition.mapCategory === 'phrases')
+    && !isLessonMode
+    && !scenarioMode
+    && !survivalTutorialLayout;
   const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
   const beginnerAssistActive = stageDefinition
     ? hasBeginnerStageAssistForStage(stageDefinition)
@@ -1420,6 +1440,48 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   useEffect(() => {
     startGame();
   }, []);
+
+  useEffect(() => {
+    stageIntroSchedulerRef.current?.cancel();
+    stageIntroSchedulerRef.current = null;
+
+    if (
+      !shouldRunStageIntroDialogue
+      || stageDefinition === undefined
+      || !gameState.isPlaying
+      || gameState.isGameOver
+    ) {
+      setStageIntroCharacterLine('');
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    fetchSurvivalStageIntroScript(stageDefinition.mapCategory).then((scriptPayload) => {
+      if (cancelled) return;
+      stageIntroSchedulerRef.current?.cancel();
+      stageIntroSchedulerRef.current = scheduleSurvivalStageIntroLines({
+        script: scriptPayload,
+        isEnglishCopy,
+        setLine: (t) => {
+          if (!cancelled) setStageIntroCharacterLine(t);
+        },
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      stageIntroSchedulerRef.current?.cancel();
+      stageIntroSchedulerRef.current = null;
+    };
+  }, [
+    shouldRunStageIntroDialogue,
+    gameState.isPlaying,
+    gameState.isGameOver,
+    isEnglishCopy,
+    stageDefinition?.mapCategory,
+    stageDefinition?.stageNumber,
+  ]);
   
   // キャラクター固有のボーナス除外リストとnoMagicフラグ
   const charExcludedBonuses = character?.excludedBonuses;
@@ -4482,6 +4544,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.codeSlots.current[1].chord?.progressionStaffVoicingNames,
   ]);
 
+  const scenarioProgressionStaffUsesGrand = useMemo(() => {
+    const staves = scenarioProgressionStaff?.voicingStaves;
+    if (!staves || staves.length === 0) return false;
+    return staves.some((s) => s === 1) && staves.some((s) => s === 2);
+  }, [scenarioProgressionStaff]);
+
   const scenarioUi = useMemo(() => {
     void scenarioUiTick;
     return scenarioOverridesRef.current;
@@ -4678,6 +4746,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // フレーズモード: HINT / 第一ブロックアシスト時は判定対象音をオレンジハイライト
   useEffect(() => {
+    if (
+      scenarioMode
+      && scenarioOverridesRef.current.isActive
+      && scenarioOverridesRef.current.hideStaff
+    ) {
+      pixiRendererRef.current?.clearVoicingHints();
+      return undefined;
+    }
+
     if (isPhraseMode) {
       if (!shouldShowKeyboardHints) {
         pixiRendererRef.current?.clearVoicingHints();
@@ -4841,6 +4918,26 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           {perfHud.fps} fps
         </div>
       )}
+
+      {stageIntroCharacterLine ? (
+        <div className="pointer-events-none fixed inset-0 z-[56] flex justify-center pt-[max(72px,env(safe-area-inset-top))]">
+          <div className="relative h-full w-full max-w-[100vw]">
+            <OnboardingOverlays
+              characterText={stageIntroCharacterLine}
+              narrationText=""
+              connectedDeviceLine={null}
+              showPillarCard={false}
+              pillarCaption={null}
+              pillarSystemImage={null}
+              showCta={false}
+              showSkip={false}
+              isEnglishCopy={isEnglishCopy}
+              onCta={() => undefined}
+              onSkip={() => undefined}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {/* 初期化エラー表示（閉じられるトースト） */}
       {initError && (
@@ -5133,7 +5230,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
                   staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                  className="max-w-[220px] [&_svg]:scale-[1] rounded-xl border border-white/26 bg-black/38 px-1 py-0.5"
+                  className={cn(
+                    '[&_svg]:scale-[1] rounded-xl border border-white/26 bg-black/38 px-1 py-0.5',
+                    scenarioProgressionStaffUsesGrand
+                      ? 'max-w-[260px] min-h-[210px]'
+                      : 'max-w-[220px]',
+                  )}
                 />
               </div>
             )}

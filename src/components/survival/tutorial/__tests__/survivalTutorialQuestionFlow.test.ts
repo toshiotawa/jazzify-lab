@@ -16,7 +16,7 @@ describe('runSurvivalTutorialQuestions', () => {
         },
         waitForChordCompletion: async () => true,
         emitSpecialGaugeSkill: () => undefined,
-        awaitIntroTap: async () => undefined,
+        waitIntroAdvance: async () => undefined,
       }),
     ).resolves.toBe(false);
   });
@@ -44,7 +44,7 @@ describe('runSurvivalTutorialQuestions', () => {
           return true;
         },
         emitSpecialGaugeSkill: () => undefined,
-        awaitIntroTap: async () => undefined,
+        waitIntroAdvance: async () => undefined,
       }),
     ).resolves.toBe(true);
 

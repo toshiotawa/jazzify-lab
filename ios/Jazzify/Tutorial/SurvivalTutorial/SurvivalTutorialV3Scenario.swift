@@ -11,6 +11,14 @@ enum SurvivalTutorialV3Scenario {
         o.hidePlayerHpBar = u.hidePlayerHpBar
         o.playerInvincible = u.playerInvincible
         o.disableEnemyAttacks = u.disableEnemyAttacks
+        o.disableSurvivalBgm = true
+        return o
+    }
+
+    /// フレーズ BGM は `SurvivalGameSession` が再生（親ドラムは停止）。
+    static func phraseBattleBaseline(script: SurvivalTutorialScriptPayloadV3) -> SurvivalScenarioOverrides {
+        var o = mergeBaseline(script: script)
+        o.disableSurvivalBgm = false
         return o
     }
 
@@ -42,6 +50,7 @@ enum SurvivalTutorialV3Scenario {
         out.hideStaff = true
         out.hideChordSlots = true
         out.hideChordPad = false
+        out.useChordMidiNotesForHintHighlights = false
         out.blockChordPadInput = true
         out.blockMidiGameInput = true
         out.blockSlotEvaluation = true
@@ -51,6 +60,7 @@ enum SurvivalTutorialV3Scenario {
     static func phraseIntroBlock(base: SurvivalScenarioOverrides) -> SurvivalScenarioOverrides {
         var out = phraseReveal(base: base)
         out.hideStaff = true
+        out.useChordMidiNotesForHintHighlights = false
         out.blockChordPadInput = true
         out.blockMidiGameInput = true
         out.blockSlotEvaluation = true
@@ -85,6 +95,10 @@ enum SurvivalTutorialV3Scenario {
     }
 
     static func finishCtaLabel(isEnglish: Bool) -> String {
-        isEnglish ? "Continue" : "続ける"
+        isEnglish ? "Complete" : "完了する"
+    }
+
+    static func demoPlayCtaLabel(isEnglish: Bool) -> String {
+        isEnglish ? "Go to your first quest" : "最初のクエストに進む"
     }
 }
