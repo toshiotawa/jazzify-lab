@@ -39,6 +39,7 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
     triggerEffect: command => sceneRef.current?.triggerEffect(command),
     highlightKey: (midiNote, active) => sceneRef.current?.highlightKey(midiNote, active),
     setPlayerQuote: (text, options) => sceneRef.current?.setPlayerQuote(text, options),
+    setPartnerQuote: (text, options) => sceneRef.current?.setPartnerQuote(text, options),
   }), []);
 
   useEffect(() => {

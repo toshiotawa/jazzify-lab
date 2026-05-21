@@ -5,7 +5,7 @@ import SpriteKit
 struct EarTrainingTutorialDialogueBattleView: View {
     let drumLoopUrl: String?
     let locale: AppLocale
-    let lines: [EarTrainingTutorialLocalizedText]
+    let lines: [EarTrainingTutorialDialogueLine]
     /// 互換維持用（進行はタップまたは固定秒タイムアウトのため無視）。
     let intervalSeconds: Double
     /// チュートリアル親と同じ landscape コンテナへ直接載せる場合に指定。
@@ -19,7 +19,7 @@ struct EarTrainingTutorialDialogueBattleView: View {
     init(
         drumLoopUrl: String?,
         locale: AppLocale,
-        lines: [EarTrainingTutorialLocalizedText],
+        lines: [EarTrainingTutorialDialogueLine],
         intervalSeconds: Double,
         fixedLandscapeSize: CGSize? = nil,
         onComplete: @escaping () -> Void
@@ -99,12 +99,12 @@ struct EarTrainingTutorialDialogueBattleView: View {
         if Task.isCancelled { return }
 
         for line in lines {
-            driver.presentLine(locale: locale, text: line)
+            driver.presentLine(locale: locale, line: line)
             await driver.waitForAdvanceTap()
             if Task.isCancelled { return }
         }
 
-        driver.clearQuote()
+        driver.clearQuotes()
         driver.publishIdleSnapshot()
         audioInstance.stop()
         onComplete()
@@ -141,17 +141,23 @@ final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTraini
         _ = effectId
     }
 
-    func presentLine(locale: AppLocale, text: EarTrainingTutorialLocalizedText) {
+    func presentLine(locale: AppLocale, line: EarTrainingTutorialDialogueLine) {
         publishIdleSnapshot()
-        scene?.setPlayerQuote(
-            text.localized(locale),
-            quoteFontPoints: EarTrainingBattleScene.dialogueTutorialQuoteFontPoints,
-            showAdvanceCue: true
-        )
+        scene?.setPlayerQuote(nil)
+        scene?.setPartnerQuote(nil)
+        let txt = line.localized(locale)
+        let quotePts = EarTrainingBattleScene.dialogueTutorialQuoteFontPoints
+        switch line.resolvedSpeaker {
+        case .player:
+            scene?.setPlayerQuote(txt, quoteFontPoints: quotePts, showAdvanceCue: true)
+        case .partner:
+            scene?.setPartnerQuote(txt, quoteFontPoints: quotePts, showAdvanceCue: true)
+        }
     }
 
-    func clearQuote() {
+    func clearQuotes() {
         scene?.setPlayerQuote(nil)
+        scene?.setPartnerQuote(nil)
     }
 
     func waitForAdvanceTap() async {
@@ -175,7 +181,7 @@ final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTraini
     }
 
     func publishIdleSnapshot() {
-        let enemyName = EarTrainingBattleController.avatarAssetName(stageId: stageId, enemyId: "tutorial-dialogue")
+        let partnerAsset = EarTrainingAvatarCatalog.partnerJajiiAssetName
         let snapshot = EarTrainingBattleSceneSnapshot(
             gameState: .playingPhrase,
             stageId: stageId,
@@ -188,8 +194,8 @@ final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTraini
             phraseIntroLine: "",
             demoLoopActive: false,
             playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
-            enemyAvatarName: enemyName,
-            enemyAvatarFlipX: EarTrainingBattleController.shouldFlipEnemyAvatar(name: enemyName),
+            enemyAvatarName: partnerAsset,
+            enemyAvatarFlipX: EarTrainingBattleController.shouldFlipEnemyAvatar(name: partnerAsset),
             fixedCharacterPositions: true,
             showLobbyControls: false,
             isEnglishCopy: isEnglishCopy

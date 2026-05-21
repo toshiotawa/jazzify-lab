@@ -32,4 +32,14 @@ export const buildEarTrainingEnemyBattleSourceKey = (
   enemy: { id?: string | null; name?: string | null } | null,
 ): string => `${stageId}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
 
+/** チュートリアル `dialogue_only` の相方（ジャ爺）Web 用（iOS `survival_jajii` と同素材） */
+export const EAR_TRAINING_PARTNER_JAJII_AVATAR_URL = '/default_avater/jajii.png';
+
+/** ジャ爺立ち絵の横向き調整が必要なら true にする */
+export const EAR_TRAINING_PARTNER_JAJII_AVATAR_FLIP_X = false;
+
+export const earTrainingPartnerJajiiDisplayName = (isEnglishCopy: boolean): string => (
+  isEnglishCopy ? 'Jazz Elder' : 'ジャ爺'
+);
+
 export { EAR_TRAINING_PLAYER_AVATAR_URL };

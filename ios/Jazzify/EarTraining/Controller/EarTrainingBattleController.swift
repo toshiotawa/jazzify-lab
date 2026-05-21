@@ -13,6 +13,8 @@ protocol EarTrainingBattleSceneHandle: AnyObject {
     func runEffect(_ command: EarTrainingBattleEffectCommand)
     /// 主人公頭上のコードヴォイシング台詞（吹き出し）。nil で非表示。
     func setPlayerQuote(_ text: String?, quoteFontPoints: CGFloat?, showAdvanceCue: Bool)
+    /// 右側キャラ頭上の台詞吹き出し（チュートリアル dialogue_only の相方用）。nil で非表示。
+    func setPartnerQuote(_ text: String?, quoteFontPoints: CGFloat?, showAdvanceCue: Bool)
     /// OSMD デモ等で飛行中のハンマーを着弾前に破棄する（`relatedEffectId` 再利用クラッシュ防止）。
     func dismissOsmdHammerEffect(effectId: Int)
 }
@@ -22,6 +24,10 @@ extension EarTrainingBattleSceneHandle {
 
     func setPlayerQuote(_ text: String?) {
         setPlayerQuote(text, quoteFontPoints: nil, showAdvanceCue: false)
+    }
+
+    func setPartnerQuote(_ text: String?) {
+        setPartnerQuote(text, quoteFontPoints: nil, showAdvanceCue: false)
     }
 }
 
@@ -931,6 +937,8 @@ extension EarTrainingBattleController: EarTrainingLobbyPresentable {
 // MARK: - Avatar catalog (Web `EAR_TRAINING_ENEMY_AVATAR_URLS` 相当)
 
 enum EarTrainingAvatarCatalog {
+    /// チュートリアル `dialogue_only` の相方（ジャ爺）固定表示。
+    static let partnerJajiiAssetName = "survival_jajii"
     static let enemyAssetNames: [String] = (1...10).map { "ear-training-enemy-\($0)" }
     static let flipXAssetNames: Set<String> = [
         "ear-training-enemy-1",

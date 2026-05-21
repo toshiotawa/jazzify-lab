@@ -127,4 +127,6 @@ export interface EarTrainingBattleSceneHandle {
   highlightKey: (midiNote: number, active: boolean) => void;
   /** 主人公頭上のヴォイシング台詞吹き出し。null で非表示。 */
   setPlayerQuote: (text: string | null, options?: EarTrainingPlayerQuoteOptions) => void;
+  /** 右側キャラ（相方）頭上の台詞吹き出し。dialogue_only のジャ爺用。null で非表示。 */
+  setPartnerQuote: (text: string | null, options?: EarTrainingPlayerQuoteOptions) => void;
 }

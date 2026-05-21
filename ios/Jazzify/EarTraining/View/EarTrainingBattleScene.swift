@@ -187,6 +187,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var cachedQuoteFontPoints: CGFloat?
     private var cachedQuoteShowAdvanceCue = false
     private var playerQuoteBubbleRoot: SKNode?
+    private var cachedPartnerQuoteText: String?
+    private var cachedPartnerQuoteFontPoints: CGFloat?
+    private var cachedPartnerQuoteShowAdvanceCue = false
+    private var partnerQuoteBubbleRoot: SKNode?
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
     private var osmdHammerNodesByEffectId: [Int: SKSpriteNode] = [:]
@@ -294,6 +298,28 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         layoutPlayerQuoteBubble()
     }
 
+    func setPartnerQuote(_ text: String?, quoteFontPoints: CGFloat?, showAdvanceCue: Bool) {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next: String? = (trimmed?.isEmpty == false) ? trimmed : nil
+        if next == nil {
+            if cachedPartnerQuoteText == nil, cachedPartnerQuoteFontPoints == nil, cachedPartnerQuoteShowAdvanceCue == false { return }
+            cachedPartnerQuoteText = nil
+            cachedPartnerQuoteFontPoints = nil
+            cachedPartnerQuoteShowAdvanceCue = false
+            layoutPartnerQuoteBubble()
+            return
+        }
+        if next == cachedPartnerQuoteText,
+           quoteFontPoints == cachedPartnerQuoteFontPoints,
+           showAdvanceCue == cachedPartnerQuoteShowAdvanceCue {
+            return
+        }
+        cachedPartnerQuoteText = next
+        cachedPartnerQuoteFontPoints = quoteFontPoints
+        cachedPartnerQuoteShowAdvanceCue = showAdvanceCue
+        layoutPartnerQuoteBubble()
+    }
+
     // MARK: - Scene rebuild
 
     private func rebuildScene() {
@@ -307,6 +333,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         playerNode = nil
         enemyNode = nil
         playerQuoteBubbleRoot = nil
+        partnerQuoteBubbleRoot = nil
         // effectLayer は残す（進行中エフェクトを破壊しない）
 
         let width = max(320, size.width)
@@ -1287,6 +1314,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             startCharacterAutoMotion(enemyNode, idleMinSec: Self.autoIdleMinSec, idleMaxSec: Self.autoIdleMaxSec)
         }
         layoutPlayerQuoteBubble()
+        layoutPartnerQuoteBubble()
     }
 
     private static func quoteUIFont(forPoints points: CGFloat) -> UIFont {
@@ -1483,6 +1511,133 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 SKAction.fadeAlpha(to: 1.0, duration: 0.85),
             ])
             cue.run(SKAction.repeatForever(pulse), withKey: "advanceCuePulse")
+            row.addChild(cue)
+        }
+
+        root.addChild(tailNode)
+        root.addChild(bubbleNode)
+        root.addChild(row)
+    }
+
+    private func layoutPartnerQuoteBubble() {
+        guard let enemy = enemyNode else { return }
+        let footContainer = enemy.container
+        guard let quoteTextRaw = cachedPartnerQuoteText else {
+            partnerQuoteBubbleRoot?.isHidden = true
+            return
+        }
+        let quoteText = quoteTextRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !quoteText.isEmpty else {
+            partnerQuoteBubbleRoot?.isHidden = true
+            return
+        }
+
+        let bodyFont = cachedPartnerQuoteFontPoints ?? Self.battleLayoutPt(15)
+        let uiFont = Self.quoteUIFont(forPoints: bodyFont)
+
+        if partnerQuoteBubbleRoot == nil || partnerQuoteBubbleRoot?.parent !== footContainer {
+            partnerQuoteBubbleRoot?.removeFromParent()
+            let root = SKNode()
+            root.zPosition = -3
+            root.position = CGPoint(x: 0, y: Self.characterDisplaySize + 12)
+            footContainer.addChild(root)
+            partnerQuoteBubbleRoot = root
+        }
+
+        guard let root = partnerQuoteBubbleRoot else { return }
+        root.removeAllChildren()
+        root.isHidden = false
+
+        let padX = Self.battleLayoutPt(10)
+        let padY = Self.battleLayoutPt(6)
+        let corner = Self.battleLayoutPt(8)
+        let tailH = Self.battleLayoutPt(10)
+        let cueGap = Self.battleLayoutPt(8)
+
+        let sceneShort = min(size.width, size.height)
+        let maxBubbleOuter = min(sceneShort * 0.86, 340)
+
+        var cueColumnWidth: CGFloat = 0
+        var cueLabel: SKLabelNode?
+        if cachedPartnerQuoteShowAdvanceCue {
+            let cue = SKLabelNode(text: "▶︎")
+            cue.fontName = "AvenirNext-Heavy"
+            cue.fontSize = bodyFont
+            cue.fontColor = .white
+            cue.horizontalAlignmentMode = .left
+            cue.verticalAlignmentMode = .center
+            cue.alpha = 1
+            cueColumnWidth = cueGap + cue.calculateAccumulatedFrame().width
+            cueLabel = cue
+        }
+
+        let textMaxWidth = max(Self.battleLayoutPt(96), maxBubbleOuter - padX * 2 - cueColumnWidth)
+        let lines = Self.wrapQuoteLinesFullText(quoteText, font: uiFont, maxWidth: textMaxWidth)
+        guard !lines.isEmpty else {
+            partnerQuoteBubbleRoot?.isHidden = true
+            return
+        }
+
+        var textColumnWidth: CGFloat = 0
+        for line in lines {
+            textColumnWidth = max(textColumnWidth, Self.quoteLineWidth(line, font: uiFont))
+        }
+
+        let innerWidth = textColumnWidth + cueColumnWidth
+
+        let lineStep = max(uiFont.lineHeight, bodyFont * 1.12)
+        let lineCount = CGFloat(lines.count)
+        let blockHeight = max(lineStep, lineCount * lineStep)
+
+        let bubbleWidth = innerWidth + padX * 2
+        let bubbleHeight = blockHeight + padY * 2
+
+        let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
+        let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
+        let bubbleNode = SKShapeNode(path: bubblePath)
+        bubbleNode.fillColor = UIColor.black.withAlphaComponent(0.7)
+        bubbleNode.strokeColor = .clear
+        bubbleNode.lineWidth = 0
+        bubbleNode.zPosition = 0
+
+        let tailPath = CGMutablePath()
+        tailPath.move(to: CGPoint(x: -Self.battleLayoutPt(7), y: tailH))
+        tailPath.addLine(to: CGPoint(x: Self.battleLayoutPt(7), y: tailH))
+        tailPath.addLine(to: CGPoint(x: 0, y: -Self.battleLayoutPt(2)))
+        tailPath.closeSubpath()
+        let tailNode = SKShapeNode(path: tailPath)
+        tailNode.fillColor = UIColor.black.withAlphaComponent(0.7)
+        tailNode.strokeColor = .clear
+        tailNode.zPosition = -0.25
+
+        let row = SKNode()
+        row.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
+        row.zPosition = 0.5
+
+        let textBlock = SKNode()
+        textBlock.position = CGPoint(x: -innerWidth / 2, y: 0)
+
+        let verticalMid = (lineCount - 1) / 2
+        for (i, line) in lines.enumerated() {
+            let lab = SKLabelNode(text: line)
+            lab.fontName = "AvenirNext-Heavy"
+            lab.fontSize = bodyFont
+            lab.fontColor = .white
+            lab.horizontalAlignmentMode = .left
+            lab.verticalAlignmentMode = .center
+            let dy = (verticalMid - CGFloat(i)) * lineStep
+            lab.position = CGPoint(x: 0, y: dy)
+            textBlock.addChild(lab)
+        }
+        row.addChild(textBlock)
+
+        if let cue = cueLabel {
+            cue.position = CGPoint(x: -innerWidth / 2 + textColumnWidth + cueGap, y: 0)
+            let pulse = SKAction.sequence([
+                SKAction.fadeAlpha(to: 0.38, duration: 0.85),
+                SKAction.fadeAlpha(to: 1.0, duration: 0.85),
+            ])
+            cue.run(SKAction.repeatForever(pulse), withKey: "advanceCuePulsePartner")
             row.addChild(cue)
         }
 

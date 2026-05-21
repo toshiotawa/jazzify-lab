@@ -264,6 +264,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private cachedPlayerQuoteShowCue = false;
   private playerQuoteCueTween: Phaser.Tweens.Tween | null = null;
   private playerQuoteBubbleRoot: Phaser.GameObjects.Container | null = null;
+  private cachedPartnerQuoteText: string | null = null;
+  private cachedPartnerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
+  private cachedPartnerQuoteShowCue = false;
+  private partnerQuoteCueTween: Phaser.Tweens.Tween | null = null;
+  private partnerQuoteBubbleRoot: Phaser.GameObjects.Container | null = null;
   private phraseIntroText: Phaser.GameObjects.Text | null = null;
   private lastPhraseIntroKey: string | null = null;
   private lastEffectId: number | null = null;
@@ -303,6 +308,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.pendingSceneRebuild = false;
     this.clearOsmdHammers();
     this.stopQuoteCueTween();
+    this.stopPartnerQuoteCueTween();
     this.stopAllCharacterMotion();
     this.sceneRebuildTimer?.remove(false);
     this.sceneRebuildTimer = null;
@@ -417,10 +423,48 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.layoutPlayerQuoteBubble();
   }
 
+  setPartnerQuote(text: string | null, options?: EarTrainingPlayerQuoteOptions): void {
+    const normalized = text?.trim() ? text.trim() : null;
+    const fontPx = options?.fontSizePx ?? PLAYER_QUOTE_FONT_PX;
+    const showCue = options?.showAdvanceCue ?? false;
+    if (!normalized) {
+      if (
+        this.cachedPartnerQuoteText === null &&
+        this.cachedPartnerQuoteFontPx === PLAYER_QUOTE_FONT_PX &&
+        !this.cachedPartnerQuoteShowCue
+      ) {
+        return;
+      }
+      this.cachedPartnerQuoteText = null;
+      this.cachedPartnerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
+      this.cachedPartnerQuoteShowCue = false;
+      this.layoutPartnerQuoteBubble();
+      return;
+    }
+    if (
+      normalized === this.cachedPartnerQuoteText &&
+      fontPx === this.cachedPartnerQuoteFontPx &&
+      showCue === this.cachedPartnerQuoteShowCue
+    ) {
+      return;
+    }
+    this.cachedPartnerQuoteText = normalized;
+    this.cachedPartnerQuoteFontPx = fontPx;
+    this.cachedPartnerQuoteShowCue = showCue;
+    this.layoutPartnerQuoteBubble();
+  }
+
   private stopQuoteCueTween(): void {
     if (this.playerQuoteCueTween) {
       this.playerQuoteCueTween.stop();
       this.playerQuoteCueTween = null;
+    }
+  }
+
+  private stopPartnerQuoteCueTween(): void {
+    if (this.partnerQuoteCueTween) {
+      this.partnerQuoteCueTween.stop();
+      this.partnerQuoteCueTween = null;
     }
   }
 
@@ -562,12 +606,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private clearCharacterScene(): void {
+    this.stopQuoteCueTween();
+    this.stopPartnerQuoteCueTween();
     this.stopAllCharacterMotion();
     this.characterLayer?.destroy(true);
     this.characterLayer = null;
     this.playerView = null;
     this.enemyView = null;
     this.playerQuoteBubbleRoot = null;
+    this.partnerQuoteBubbleRoot = null;
     this.lastCharacterBuildKey = null;
   }
 
@@ -982,6 +1029,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.startCharacterAutoMotion(this.enemyView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
     }
     this.layoutPlayerQuoteBubble();
+    this.layoutPartnerQuoteBubble();
   }
 
   private layoutPlayerQuoteBubble(): void {
@@ -1083,6 +1131,118 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       cueLabel.setPosition(textLeft + textColumnWidth + PLAYER_QUOTE_CUE_GAP_PX, rowY);
       cueLabel.setAlpha(1);
       this.playerQuoteCueTween = this.tweens.add({
+        targets: cueLabel,
+        alpha: { from: 0.38, to: 1 },
+        duration: 850,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+
+    root.add([tail, bubble, label, ...(cueLabel ? [cueLabel] : [])]);
+
+    root.setVisible(true);
+  }
+
+  private layoutPartnerQuoteBubble(): void {
+    if (!this.isReady) {
+      return;
+    }
+    const view = this.enemyView;
+    if (!view) {
+      return;
+    }
+    this.stopPartnerQuoteCueTween();
+
+    const text = this.cachedPartnerQuoteText;
+    if (!text) {
+      this.partnerQuoteBubbleRoot?.setVisible(false);
+      return;
+    }
+
+    const footContainer = view.container;
+    const existingRoot = this.partnerQuoteBubbleRoot;
+    if (!existingRoot || existingRoot.parentContainer !== footContainer) {
+      existingRoot?.destroy(true);
+      const root = this.make.container({ x: 0, y: -CHARACTER_DISPLAY_SIZE - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX, add: false });
+      footContainer.add(root);
+      this.partnerQuoteBubbleRoot = root;
+    }
+
+    const root = this.partnerQuoteBubbleRoot;
+    if (!root) {
+      return;
+    }
+    root.removeAll(true);
+
+    const fontPx = this.cachedPartnerQuoteFontPx;
+
+    const quoteStyleBase = {
+      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+      fontSize: `${fontPx}px`,
+      fontStyle: 'bold' as const,
+      color: '#ffffff',
+    };
+
+    const sceneW = Math.max(320, this.scale.width);
+    const maxBubbleOuter = Math.min(sceneW * 0.72, 480);
+
+    let cueLabel: Phaser.GameObjects.Text | null = null;
+    let cueColumnWidth = 0;
+    if (this.cachedPartnerQuoteShowCue) {
+      cueLabel = this.make.text({
+        x: 0,
+        y: 0,
+        text: '▶︎',
+        style: quoteStyleBase,
+        add: false,
+      });
+      cueLabel.setOrigin(0, 0.5);
+      cueColumnWidth = PLAYER_QUOTE_CUE_GAP_PX + cueLabel.width;
+    }
+
+    const horizontalPadding = PLAYER_QUOTE_PAD_X * 2;
+    const textWrapWidth = Math.max(
+      96,
+      maxBubbleOuter - horizontalPadding - cueColumnWidth,
+    );
+
+    const quoteStyle = {
+      ...quoteStyleBase,
+      wordWrap: { width: textWrapWidth, useAdvancedWrap: true },
+    };
+
+    const label = this.make.text({
+      x: 0,
+      y: 0,
+      text,
+      style: quoteStyle,
+      add: false,
+    });
+    label.setOrigin(0, 0.5);
+
+    const textColumnWidth = label.width;
+    const innerWidth = textColumnWidth + cueColumnWidth;
+    const bubbleWidth = innerWidth + PLAYER_QUOTE_PAD_X * 2;
+    const rowHeight = Math.max(label.height, cueLabel?.height ?? 0);
+    const bubbleHeight = rowHeight + PLAYER_QUOTE_PAD_Y * 2;
+    const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
+
+    const bubble = this.make.graphics({ x: 0, y: 0 }, false);
+    bubble.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
+    bubble.fillRoundedRect(-bubbleWidth / 2, -tailH - bubbleHeight, bubbleWidth, bubbleHeight, PLAYER_QUOTE_CORNER_RADIUS);
+
+    const tail = this.make.graphics({ x: 0, y: 0 }, false);
+    tail.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
+    tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
+
+    const rowY = -tailH - bubbleHeight / 2;
+    const textLeft = -innerWidth / 2;
+    label.setPosition(textLeft, rowY);
+    if (cueLabel) {
+      cueLabel.setPosition(textLeft + textColumnWidth + PLAYER_QUOTE_CUE_GAP_PX, rowY);
+      cueLabel.setAlpha(1);
+      this.partnerQuoteCueTween = this.tweens.add({
         targets: cueLabel,
         alpha: { from: 0.38, to: 1 },
         duration: 850,

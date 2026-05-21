@@ -3,12 +3,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import EarTrainingPhaserGame from '@/components/earTraining/EarTrainingPhaserGame';
 import type { EarTrainingBattleSceneHandle } from '@/game/earTraining/types';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
-import type { SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import {
-  buildEarTrainingEnemyBattleSourceKey,
+  earTrainingPartnerJajiiDisplayName,
+  EAR_TRAINING_PARTNER_JAJII_AVATAR_FLIP_X,
+  EAR_TRAINING_PARTNER_JAJII_AVATAR_URL,
   EAR_TRAINING_PLAYER_AVATAR_URL,
-  EAR_TRAINING_TUTORIAL_DIALOGUE_STAGE_ID_FOR_AVATAR,
-  resolveEarTrainingEnemyAvatarFromBattleSourceKey,
 } from '@/utils/earTrainingBattleAvatar';
 import {
   EarTrainingChordVoicingDrumLoop,
@@ -19,7 +18,7 @@ import { markAudioUserInteraction } from '@/utils/MidiController';
 
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
 import type { EarTrainingTutorialDialogueOnlyScene } from './earTrainingTutorialScriptTypes';
-import { localizedText } from './earTrainingTutorialScriptTypes';
+import { localizedText, resolveDialogueLineSpeaker } from './earTrainingTutorialScriptTypes';
 
 /** dialogue_only 用（標準プレイヤーセリフよりやや大きめ・はみ出しにくいサイズ） */
 const DIALOGUE_QUOTE_FONT_PX = 26;
@@ -29,16 +28,15 @@ interface EarTrainingTutorialDialogueSceneProps {
   scene: EarTrainingTutorialDialogueOnlyScene;
   bindings: EarTrainingTutorialBindings;
   drumLoopUrl: string;
-  enemy: SurvivalCharacterRow | null;
   onComplete: () => void;
 }
 
 const buildIdleSnapshot = (
   hudLabels: EarTrainingBattleSnapshot['hudLabels'],
   playerAvatarUrl: string,
-  enemyAvatarUrl: string,
-  enemyAvatarFlipX: boolean,
-  enemyNameLine: string,
+  partnerAvatarUrl: string,
+  partnerAvatarFlipX: boolean,
+  partnerNameLine: string,
 ): EarTrainingBattleSnapshot => ({
   gameState: 'playingPhrase',
   resultState: null,
@@ -55,9 +53,9 @@ const buildIdleSnapshot = (
   playerMaxHp: 100,
   enemyHp: 100,
   enemyMaxHp: 100,
-  enemyName: enemyNameLine,
-  enemyAvatarUrl,
-  enemyAvatarFlipX,
+  enemyName: partnerNameLine,
+  enemyAvatarUrl: partnerAvatarUrl,
+  enemyAvatarFlipX: partnerAvatarFlipX,
   playerAvatarUrl,
   phraseIndex: 0,
   phraseRunId: 0,
@@ -94,7 +92,6 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
   scene,
   bindings,
   drumLoopUrl,
-  enemy,
   onComplete,
 }) => {
   const drumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
@@ -105,26 +102,15 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
 
   const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(bindings.isEnglishCopy), [bindings.isEnglishCopy]);
 
-  const enemyBattleKey = buildEarTrainingEnemyBattleSourceKey(
-    EAR_TRAINING_TUTORIAL_DIALOGUE_STAGE_ID_FOR_AVATAR,
-    enemy ?? { id: 'tutorial-dialogue', name: null },
-  );
-  const { url: enemyAvatarUrlRes, flipX: enemyFlipXRes } =
-    resolveEarTrainingEnemyAvatarFromBattleSourceKey(enemyBattleKey);
-
-  const enemyDisplayName = bindings.isEnglishCopy
-    ? (enemy?.nameEn?.trim() || enemy?.name || '')
-    : (enemy?.name || enemy?.nameEn?.trim() || '');
-
   const snapshot = useMemo(
     () => buildIdleSnapshot(
       hudLabels,
       EAR_TRAINING_PLAYER_AVATAR_URL,
-      enemyAvatarUrlRes,
-      enemyFlipXRes,
-      enemyDisplayName,
+      EAR_TRAINING_PARTNER_JAJII_AVATAR_URL,
+      EAR_TRAINING_PARTNER_JAJII_AVATAR_FLIP_X,
+      earTrainingPartnerJajiiDisplayName(bindings.isEnglishCopy),
     ),
-    [enemyAvatarUrlRes, enemyDisplayName, enemyFlipXRes, hudLabels],
+    [bindings.isEnglishCopy, hudLabels],
   );
 
   const finalizeComplete = useCallback(() => {
@@ -134,6 +120,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
     completedRef.current = true;
     drumLoopRef.current?.stop();
     phaserRef.current?.setPlayerQuote(null);
+    phaserRef.current?.setPartnerQuote(null);
     onComplete();
   }, [onComplete]);
 
@@ -141,6 +128,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
     completedRef.current = false;
     setLineIndex(0);
     phaserRef.current?.setPlayerQuote(null);
+    phaserRef.current?.setPartnerQuote(null);
   }, [scene.lines]);
 
   useEffect(() => {
@@ -199,13 +187,32 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       return undefined;
     }
 
-    const quoteText = localizedText(lines[lineIndex], bindings.isEnglishCopy);
+    const line = lines[lineIndex];
+    if (!line) {
+      return undefined;
+    }
+
+    const quoteText = localizedText(line, bindings.isEnglishCopy);
+    const speaker = resolveDialogueLineSpeaker(line);
+
     const rafId = window.requestAnimationFrame(() => {
-      if (!completedRef.current) {
-        phaserRef.current?.setPlayerQuote(quoteText, {
-          fontSizePx: DIALOGUE_QUOTE_FONT_PX,
-          showAdvanceCue: true,
-        });
+      if (completedRef.current) {
+        return;
+      }
+      const h = phaserRef.current;
+      if (!h) {
+        return;
+      }
+      const opts = {
+        fontSizePx: DIALOGUE_QUOTE_FONT_PX,
+        showAdvanceCue: true,
+      } as const;
+      if (speaker === 'partner') {
+        h.setPlayerQuote(null);
+        h.setPartnerQuote(quoteText, opts);
+      } else {
+        h.setPartnerQuote(null);
+        h.setPlayerQuote(quoteText, opts);
       }
     });
 

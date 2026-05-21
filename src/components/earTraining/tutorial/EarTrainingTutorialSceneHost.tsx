@@ -74,7 +74,6 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
         scene={scene}
         bindings={bindings}
         drumLoopUrl={drumLoopUrl}
-        enemy={enemy}
         onComplete={completeOnce}
       />
     );

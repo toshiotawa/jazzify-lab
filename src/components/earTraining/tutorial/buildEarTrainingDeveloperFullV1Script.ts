@@ -226,9 +226,31 @@ export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScri
     {
       type: 'dialogue_only',
       lines: [
-        { ja: '耳コピバトル・チュートリアルへようこそ。', en: 'Welcome to the ear training battle tutorial.' },
-        { ja: 'まずはセリフだけのシーンです。', en: 'This is a dialogue-only scene first.' },
-        { ja: 'ドラムループが流れています。', en: 'A drum loop is playing.' },
+        {
+          speaker: 'player',
+          ja: '耳コピバトル・チュートリアルへようこそ。',
+          en: 'Welcome to the ear training battle tutorial.',
+        },
+        {
+          speaker: 'partner',
+          ja: 'ワシが付いとるから安心じゃ！',
+          en: "I've got your back!",
+        },
+        {
+          speaker: 'player',
+          ja: 'まずはセリフだけのシーンです。',
+          en: 'This is a dialogue-only scene first.',
+        },
+        {
+          speaker: 'partner',
+          ja: '交互にセリフが出るようになったで。',
+          en: 'Lines now alternate between us.',
+        },
+        {
+          speaker: 'player',
+          ja: 'ドラムループが流れています。',
+          en: 'A drum loop is playing.',
+        },
       ],
       lineIntervalSeconds: 4,
     },
@@ -282,7 +304,16 @@ export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScri
     {
       type: 'dialogue_only',
       lines: [
-        { ja: 'お疲れさま。最後まで見るとクリアです。', en: 'Well done. Finish to clear the lesson.' },
+        {
+          speaker: 'player',
+          ja: 'お疲れさま。最後まで見るとクリアです。',
+          en: 'Well done. Finish to clear the lesson.',
+        },
+        {
+          speaker: 'partner',
+          ja: 'よく頑張ったのう。',
+          en: 'You did great out there!',
+        },
       ],
       lineIntervalSeconds: 4,
     },

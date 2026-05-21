@@ -9,6 +9,25 @@ struct EarTrainingTutorialLocalizedText: Decodable, Sendable {
     }
 }
 
+enum EarTrainingTutorialDialogueSpeaker: String, Codable, Sendable {
+    case player
+    case partner
+}
+
+struct EarTrainingTutorialDialogueLine: Decodable, Sendable {
+    let ja: String
+    let en: String
+    let speaker: EarTrainingTutorialDialogueSpeaker?
+
+    func localized(_ locale: AppLocale) -> String {
+        locale == .ja ? ja : en
+    }
+
+    var resolvedSpeaker: EarTrainingTutorialDialogueSpeaker {
+        speaker ?? .player
+    }
+}
+
 struct EarTrainingTutorialUiOverrides: Decodable, Sendable {
     let hidePlayerHpBar: Bool
     let hideSettingsButton: Bool
@@ -155,7 +174,7 @@ enum EarTrainingTutorialScene: Decodable, Sendable {
 }
 
 struct EarTrainingTutorialDialogueOnlyScene: Decodable, Sendable {
-    let lines: [EarTrainingTutorialLocalizedText]
+    let lines: [EarTrainingTutorialDialogueLine]
     let lineIntervalSeconds: Double?
 }
 

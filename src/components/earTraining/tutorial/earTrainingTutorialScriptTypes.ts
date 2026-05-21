@@ -5,6 +5,13 @@ export interface TutorialLocalizedText {
   en: string;
 }
 
+/** `dialogue_only` の話者（省略時はプレイヤー）。`partner` はジャ爺（相方）固定表示。 */
+type EarTrainingTutorialDialogueSpeaker = 'player' | 'partner';
+
+export interface EarTrainingTutorialDialogueLine extends TutorialLocalizedText {
+  speaker?: EarTrainingTutorialDialogueSpeaker;
+}
+
 export interface EarTrainingTutorialUiOverrides {
   hidePlayerHpBar: boolean;
   hideSettingsButton: boolean;
@@ -96,7 +103,7 @@ export interface EarTrainingTutorialContentRef {
 
 export interface EarTrainingTutorialDialogueOnlyScene {
   type: 'dialogue_only';
-  lines: TutorialLocalizedText[];
+  lines: EarTrainingTutorialDialogueLine[];
   lineIntervalSeconds?: number;
 }
 
@@ -188,3 +195,9 @@ export function localizedText(
 ): string {
   return isEnglishCopy ? text.en : text.ja;
 }
+
+export const resolveDialogueLineSpeaker = (
+  line: EarTrainingTutorialDialogueLine,
+): EarTrainingTutorialDialogueSpeaker => (
+  line.speaker === 'partner' ? 'partner' : 'player'
+);
