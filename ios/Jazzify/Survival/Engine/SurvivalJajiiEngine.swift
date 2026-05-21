@@ -9,7 +9,7 @@ enum SurvivalJajiiEngine {
     static let followTriggerRadius: CGFloat = maxRadius
     static let arriveEps: CGFloat = 4
     static let miniDelaySec: TimeInterval = 2
-    static let miniRadiusMultiplier: CGFloat = 1.0 / 3.0
+    static let miniRadiusMultiplier: CGFloat = 1.0 / 2.0
     static let moveSpeedMultiplier: CGFloat = 0.8
     static let moveSlowdownWhilePending: CGFloat = 0.7
 

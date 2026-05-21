@@ -19,7 +19,7 @@ export const JAJII_ARRIVE_EPS = 4;
 /** A/B 通常発動からミニ必殺までの遅延（秒） */
 export const JAJII_MINI_DELAY_SEC = 2;
 /** ミニ必殺の半径はプレイヤー必殺相当半径に対する倍率 */
-export const JAJII_MINI_RADIUS_MULTIPLIER = 1 / 3;
+export const JAJII_MINI_RADIUS_MULTIPLIER = 1 / 2;
 /** プレイヤー基底移動速度に対するジャ爺の倍率 */
 export const JAJII_MOVE_SPEED_MULTIPLIER = 0.8;
 /** 歩行速度（Web プレイヤー基底 150 px/s × 0.8） */
