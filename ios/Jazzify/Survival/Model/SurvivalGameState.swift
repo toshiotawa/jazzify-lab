@@ -344,6 +344,8 @@ public struct SurvivalShockwave: Identifiable, Sendable {
     public var colorLevel: Int = 0
     /// コンボ必殺技の衝撃波（360°・単発・見た目・敵弾消去を特別扱い）
     public var isSpecial: Bool = false
+    /// ジャ爺などプレイヤー以外発動の必殺でカメラシェイクを抑止する。
+    public var suppressCameraShake: Bool = false
 }
 
 /// 多段ヒット用に遅延発火される衝撃波のプラン。
@@ -618,6 +620,9 @@ struct SurvivalStageRuntime: Sendable {
     
     /// オンボーディング等。通常プレイでは `.inactive` のまま。
     public var scenario: SurvivalScenarioRuntimeState = .inactive
+
+    /// ジャ爺サポート（lesson / scenario 無効時のみ）。HP・被弾なし・移動のみ。
+    var jajii: SurvivalJajiiEngine.State?
 }
 
 extension SurvivalCodeSlot: Equatable {

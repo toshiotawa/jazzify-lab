@@ -100,6 +100,8 @@ interface SurvivalCanvasProps {
   hideComboGauge?: boolean;
   /** シナリオ台本 `hideHintBadge` 相当: プレイヤー頭上の 💡 を非表示 */
   hidePlayerHintStatusIcon?: boolean;
+  /** ジャ爺のワールド座標（ステージ本番のみ親が更新） */
+  jajiiWorldPosRef?: React.MutableRefObject<{ x: number; y: number } | null>;
 }
 
 // ===== 色定義 =====
@@ -172,6 +174,9 @@ const ENEMY_ICONS: Record<string, string> = {
 
 // ===== プレイヤー表示サイズ =====
 const PLAYER_SIZE = 48;  // プレイヤーの表示サイズ（当たり判定はGameEngine側で別管理）
+/** ジャ爺スプライト表示サイズ（向き固定 `/stage_icons/5.png`） */
+const JAJII_SPRITE_SIZE = 48;
+const JAJII_SPRITE_PATH = '/stage_icons/5.png';
 const LIGHTNING_SEGMENT_COUNT = 4;
 const LIGHTNING_SCREEN_PADDING = 120;
 
@@ -258,6 +263,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   bossUiTick = 0,
   hideComboGauge = false,
   hidePlayerHintStatusIcon = false,
+  jajiiWorldPosRef,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const woodPatternRef = useRef<CanvasPattern | null>(null);
@@ -286,6 +292,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const damageFlashUntilRef = useRef<number>(0);
   const bossImagesRef = useRef<Record<BossType, HTMLImageElement | null>>({ A: null, B: null, C: null });
   const bossImagesLoadedRef = useRef<Record<BossType, boolean>>({ A: false, B: false, C: false });
+  const jajiiSpriteRef = useRef<HTMLImageElement | null>(null);
+  const jajiiSpriteLoadedRef = useRef(false);
 
   // 描画スケール時の論理ビューポート（大きいほど広い範囲を表示）
   const logicalWidth = viewportWidth / contentScale;
@@ -326,6 +334,22 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      jajiiSpriteRef.current = img;
+      jajiiSpriteLoadedRef.current = true;
+    };
+    img.onerror = () => {
+      jajiiSpriteLoadedRef.current = false;
+    };
+    img.src = JAJII_SPRITE_PATH;
+    return () => {
+      jajiiSpriteRef.current = null;
+      jajiiSpriteLoadedRef.current = false;
     };
   }, []);
 
@@ -706,6 +730,20 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       }
       ctx.fillText('🧙', playerScreenX, playerScreenY);
       ctx.restore();
+    }
+
+    const jajiiWorld = jajiiWorldPosRef?.current ?? null;
+    const jajiiImgEl = jajiiSpriteRef.current;
+    if (jajiiWorld && jajiiImgEl && jajiiSpriteLoadedRef.current) {
+      const jjx = jajiiWorld.x - camera.x;
+      const jjy = jajiiWorld.y - camera.y;
+      ctx.drawImage(
+        jajiiImgEl,
+        jjx - JAJII_SPRITE_SIZE / 2,
+        jjy - JAJII_SPRITE_SIZE / 2,
+        JAJII_SPRITE_SIZE,
+        JAJII_SPRITE_SIZE,
+      );
     }
     
     // 方向インジケーター（矢印アイコン）- 向きに応じて回転
@@ -1830,7 +1868,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (contentScale !== 1) {
       ctx.restore();
     }
-  }, [logicalWidth, logicalHeight, contentScale, getCameraOffset, woodFloorAssetRevision, hideComboGauge, hidePlayerHintStatusIcon]);
+  }, [logicalWidth, logicalHeight, contentScale, getCameraOffset, woodFloorAssetRevision, hideComboGauge, hidePlayerHintStatusIcon, jajiiWorldPosRef]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

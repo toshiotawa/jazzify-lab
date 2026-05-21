@@ -20,6 +20,7 @@ final class SurvivalScene: SKScene {
 
     private var playerNode: SKNode?
     private var playerSprite: SKSpriteNode?
+    private var jajiiSpriteNode: SKSpriteNode?
     private var enemyNodes: [UUID: SKNode] = [:]
     private var projectileNodes: [UUID: SKNode] = [:]
     private var enemyProjectileNodes: [UUID: SKNode] = [:]
@@ -484,6 +485,25 @@ final class SurvivalScene: SKScene {
             }
         }
 
+        // ジャ爺サポート（scenario / lesson 無効時のみ runtime.jajii が存在）
+        if let jajiiState = runtime.jajii {
+            let texName = "survival_jajii"
+            if jajiiSpriteNode == nil, UIImage(named: texName) != nil {
+                let node = SKSpriteNode(imageNamed: texName)
+                node.zPosition = 99
+                node.size = CGSize(width: 48, height: 48)
+                entitiesNode.addChild(node)
+                jajiiSpriteNode = node
+            }
+            if let node = jajiiSpriteNode {
+                let wp = SurvivalJajiiEngine.worldPosition(state: jajiiState)
+                node.position = toScenePoint(x: wp.x, y: wp.y)
+                node.isHidden = false
+            }
+        } else {
+            jajiiSpriteNode?.isHidden = true
+        }
+
         // 敵 (絵文字 + HP リング)
         syncNodes(
             nodeMap: &enemyNodes,
@@ -543,7 +563,8 @@ final class SurvivalScene: SKScene {
             nodeMap: &shockwaveNodes,
             ids: runtime.shockwaves.map { $0.id },
             create: { [effectsNode, weak self] id in
-                let isSpecial = shockwaveById[id]?.isSpecial ?? false
+                let waveMeta = shockwaveById[id]
+                let isSpecial = waveMeta?.isSpecial ?? false
                 let sparkCount = 5
 
                 let container = SKNode()
@@ -584,10 +605,13 @@ final class SurvivalScene: SKScene {
                 effectsNode.addChild(container)
 
                 if isSpecial {
-                    self?.triggerCameraShake(
-                        intensity: SurvivalConstants.specialCameraShakeIntensity,
-                        duration: SurvivalConstants.specialCameraShakeDuration
-                    )
+                    let suppressShake = waveMeta?.suppressCameraShake ?? false
+                    if !suppressShake {
+                        self?.triggerCameraShake(
+                            intensity: SurvivalConstants.specialCameraShakeIntensity,
+                            duration: SurvivalConstants.specialCameraShakeDuration
+                        )
+                    }
                 } else {
                     self?.triggerCameraShake()
                 }

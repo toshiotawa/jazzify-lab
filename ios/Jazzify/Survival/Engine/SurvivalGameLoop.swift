@@ -141,6 +141,7 @@ final class SurvivalGameLoop {
             slots: slots
         )
         self.runtime.scenario = scenarioOverrides.toRuntimeState()
+        configureJajiiSupportIfNeeded()
 
         self.currentHintSlotIndex = Self.initialHintSlotIndex(
             slots: slots,
@@ -241,6 +242,7 @@ final class SurvivalGameLoop {
             slots: slots
         )
         runtime.scenario = initialScenarioOverrides.toRuntimeState()
+        configureJajiiSupportIfNeeded()
 
         setHintSlotIndexIfChanged(Self.initialHintSlotIndex(
             slots: slots,
@@ -275,6 +277,73 @@ final class SurvivalGameLoop {
             runtime.comboCount = 0
             runtime.comboGauge = 0
             runtime.comboReady = false
+        }
+    }
+
+    // MARK: - Jajii support（Web SurvivalJajiiEngine と仕様同期）
+
+    private func configureJajiiSupportIfNeeded() {
+        if SurvivalJajiiEngine.shouldEnable(stage: stage, scenario: runtime.scenario) {
+            runtime.jajii = SurvivalJajiiEngine.makeInitial(
+                playerX: runtime.player.x,
+                playerY: runtime.player.y
+            )
+        } else {
+            runtime.jajii = nil
+        }
+    }
+
+    private func scheduleJajiiMiniIfNeeded() {
+        guard var jajii = runtime.jajii else { return }
+        _ = SurvivalJajiiEngine.tryScheduleMiniSpecial(&jajii, nowSec: runtime.elapsedSeconds)
+        runtime.jajii = jajii
+    }
+
+    private func appendJajiiSyncSpecial(effectiveBAtk: Int, now: TimeInterval) {
+        guard let jajiiState = runtime.jajii else { return }
+        let pt = SurvivalJajiiEngine.worldPosition(state: jajiiState)
+        let wave = SurvivalGameEngine.createSpecialShockwave(
+            centerX: pt.x,
+            centerY: pt.y,
+            facingDirection: runtime.player.direction,
+            player: runtime.player,
+            effectiveBAtk: effectiveBAtk,
+            now: now,
+            radiusMultiplier: SurvivalConstants.specialAttackRadiusMultiplier,
+            suppressCameraShake: true
+        )
+        runtime.shockwaves.append(wave)
+    }
+
+    private func appendJajiiMiniSpecial(effectiveBAtk: Int, now: TimeInterval) {
+        guard let jajiiState = runtime.jajii else { return }
+        let pt = SurvivalJajiiEngine.worldPosition(state: jajiiState)
+        let mult = SurvivalConstants.specialAttackRadiusMultiplier * SurvivalJajiiEngine.miniRadiusMultiplier
+        let wave = SurvivalGameEngine.createSpecialShockwave(
+            centerX: pt.x,
+            centerY: pt.y,
+            facingDirection: runtime.player.direction,
+            player: runtime.player,
+            effectiveBAtk: effectiveBAtk,
+            now: now,
+            radiusMultiplier: mult,
+            suppressCameraShake: true
+        )
+        runtime.shockwaves.append(wave)
+    }
+
+    private func tickJajii(elapsedSec: TimeInterval, deltaSec: TimeInterval, effectiveBAtk: Int, now: TimeInterval) {
+        guard var jajii = runtime.jajii else { return }
+        SurvivalJajiiEngine.updateMovementInPlace(
+            &jajii,
+            playerX: runtime.player.x,
+            playerY: runtime.player.y,
+            deltaSec: deltaSec
+        )
+        let firedMini = SurvivalJajiiEngine.consumeDueMiniSpecialIfDue(&jajii, nowSec: elapsedSec)
+        runtime.jajii = jajii
+        if firedMini {
+            appendJajiiMiniSpecial(effectiveBAtk: effectiveBAtk, now: now)
         }
     }
 
@@ -512,6 +581,9 @@ final class SurvivalGameLoop {
                 now: now
             )
             runtime.shockwaves.append(wave)
+            appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
+        } else {
+            scheduleJajiiMiniIfNeeded()
         }
         return events
     }
@@ -533,6 +605,7 @@ final class SurvivalGameLoop {
                     now: now
                 )
                 runtime.shockwaves.append(wave)
+                appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
                 runtime.comboGauge = 0
                 runtime.comboReady = false
                 runtime.comboCount += 1
@@ -544,6 +617,7 @@ final class SurvivalGameLoop {
                     now: now
                 )
                 runtime.shockwaves.append(wave)
+                appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
                 runtime.comboGauge = 0
                 runtime.comboReady = false
                 runtime.comboCount += 1
@@ -586,6 +660,7 @@ final class SurvivalGameLoop {
                         }
                     }
                 }
+                scheduleJajiiMiniIfNeeded()
                 runtime.comboGauge = min(SurvivalConstants.comboGaugeMax, runtime.comboGauge + 1)
                 if runtime.comboGauge >= SurvivalConstants.comboGaugeMax {
                     runtime.comboReady = true
@@ -751,6 +826,9 @@ final class SurvivalGameLoop {
             now: now,
             speedMultiplier: speedMul
         )
+
+        let elapsedForJajii = runtime.elapsedSeconds + deltaTime
+        tickJajii(elapsedSec: elapsedForJajii, deltaSec: deltaTime, effectiveBAtk: effectiveStats.bAtk, now: now)
 
         tickSlotsTimer(deltaTime: deltaTime)
 
@@ -1082,6 +1160,9 @@ final class SurvivalGameLoop {
             now: now,
             speedMultiplier: speedMul
         )
+
+        let elapsedForJajii = runtime.elapsedSeconds + deltaTime
+        tickJajii(elapsedSec: elapsedForJajii, deltaSec: deltaTime, effectiveBAtk: effectiveStats.bAtk, now: now)
 
         tickSlotsTimer(deltaTime: deltaTime)
 

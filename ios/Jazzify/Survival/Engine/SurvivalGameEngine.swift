@@ -615,17 +615,49 @@ enum SurvivalGameEngine {
         effectiveBAtk: Int,
         now: TimeInterval
     ) -> SurvivalShockwave {
-        var wave = createShockwave(
-            from: player,
+        createSpecialShockwave(
+            centerX: player.x,
+            centerY: player.y,
+            facingDirection: player.direction,
+            player: player,
             effectiveBAtk: effectiveBAtk,
             now: now,
-            colorLevel: 7
+            radiusMultiplier: SurvivalConstants.specialAttackRadiusMultiplier,
+            suppressCameraShake: false
         )
-        wave.maxRadius *= SurvivalConstants.specialAttackRadiusMultiplier
-        wave.isSpecial = true
-        wave.x = player.x
-        wave.y = player.y
-        return wave
+    }
+
+    /// 任意座標の必殺衝撃波（360°）。`(baseRadius + rangeBonus) * radiusMultiplier` が最大半径。
+    /// Web `buildSpecialShockwaveAt` と整合。
+    static func createSpecialShockwave(
+        centerX: CGFloat,
+        centerY: CGFloat,
+        facingDirection: SurvivalDirection8,
+        player: SurvivalPlayerState,
+        effectiveBAtk: Int,
+        now: TimeInterval,
+        radiusMultiplier: CGFloat,
+        suppressCameraShake: Bool
+    ) -> SurvivalShockwave {
+        let damage = calculateBMeleeDamage(bAtk: effectiveBAtk)
+        let baseRadius = SurvivalConstants.meleeShockwaveBaseRadius
+        let rangeBonus = CGFloat(player.skills.bRangeBonusLevel) * 20
+        let maxRadius = (baseRadius + rangeBonus) * radiusMultiplier
+        return SurvivalShockwave(
+            x: centerX,
+            y: centerY,
+            radius: 20,
+            maxRadius: maxRadius,
+            baseRadius: baseRadius,
+            direction: facingDirection,
+            createdAt: now,
+            lifetime: SurvivalConstants.meleeShockwaveLifetime,
+            damage: damage,
+            hitEnemyIds: [],
+            colorLevel: 7,
+            isSpecial: true,
+            suppressCameraShake: suppressCameraShake
+        )
     }
 
     static func updateShockwaves(

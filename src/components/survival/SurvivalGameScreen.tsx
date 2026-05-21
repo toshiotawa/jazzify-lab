@@ -123,6 +123,17 @@ import type { SurvivalScenarioHandle } from './scenario/survivalScenarioHandle';
 import { chordToPhraseChord } from './tutorial/tutorialOnboardingChords';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import {
+  shouldEnableJajiiSupport,
+  createInitialJajiiState,
+  updateJajiiMovementInPlace,
+  getJajiiWorldPosition,
+  tryScheduleMiniSpecial,
+  consumeDueMiniSpecialIfDue,
+  JAJII_MINI_RADIUS_MULTIPLIER,
+  type JajiiState,
+} from '@/components/survival/jajii/SurvivalJajiiEngine';
+import { applyJajiiGaugeSpecialAtWorld } from '@/components/survival/jajii/applyJajiiSpecialShockwave';
+import {
   createInitialPhraseState,
   evaluatePhraseNoteOn,
   getPhraseDisplayChords,
@@ -419,6 +430,27 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const phraseStateRef = useRef<SurvivalPhraseRuntimeState | null>(null);
   const [phraseUiTick, setPhraseUiTick] = useState(0);
   const phraseDrumLoopRef = useRef<SurvivalPhraseDrumLoop | null>(null);
+
+  const jajiiStateRef = useRef<JajiiState | null>(null);
+  const jajiiWorldPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const jajiiEnabled = useMemo(
+    () =>
+      shouldEnableJajiiSupport({
+        isStageMode,
+        scenarioMode,
+        survivalTutorialLayout,
+        mapCategory: stageDefinition?.mapCategory,
+      }),
+    [isStageMode, scenarioMode, survivalTutorialLayout, stageDefinition?.mapCategory],
+  );
+
+  useEffect(() => {
+    if (!jajiiEnabled) {
+      jajiiStateRef.current = null;
+      jajiiWorldPosRef.current = null;
+    }
+  }, [jajiiEnabled]);
 
   const scenarioOverridesRef = useRef<SurvivalScenarioOverrides>(
     initialScenarioOverrides ?? INACTIVE_SCENARIO_OVERRIDES,
@@ -1804,6 +1836,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           });
         }
 
+        if (jajiiEnabled && jajiiStateRef.current) {
+          if (evaluation.result === 'measure-complete') {
+            const jp = getJajiiWorldPosition(jajiiStateRef.current);
+            applyJajiiGaugeSpecialAtWorld({
+              draft: newState,
+              jajiiX: jp.x,
+              jajiiY: jp.y,
+              radiusMultiplier: 1,
+              isBossStage,
+              bossBattle: bossBattleRef.current,
+              queueShockwave: (w) => {
+                pendingShockwavesRef.current.push(w);
+              },
+            });
+          } else {
+            tryScheduleMiniSpecial(jajiiStateRef.current, prev.elapsedTime);
+          }
+        }
+
         return newState;
       }
       
@@ -2091,6 +2142,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 return enemy;
               });
             }
+            if (triggeredSpecialA && jajiiEnabled && jajiiStateRef.current) {
+              const jp = getJajiiWorldPosition(jajiiStateRef.current);
+              applyJajiiGaugeSpecialAtWorld({
+                draft: newState,
+                jajiiX: jp.x,
+                jajiiY: jp.y,
+                radiusMultiplier: 1,
+                isBossStage,
+                bossBattle: bossBattleRef.current,
+                queueShockwave: (w) => {
+                  pendingShockwavesRef.current.push(w);
+                },
+              });
+            } else if (!triggeredSpecialA && jajiiEnabled && jajiiStateRef.current) {
+              tryScheduleMiniSpecial(jajiiStateRef.current, prev.elapsedTime);
+            }
           }
         } else if (slotType === 'B') {
           if (isBMagicSlot) {
@@ -2312,6 +2379,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               });
             }
 
+            if (triggeredSpecialB && jajiiEnabled && jajiiStateRef.current) {
+              const jp = getJajiiWorldPosition(jajiiStateRef.current);
+              applyJajiiGaugeSpecialAtWorld({
+                draft: newState,
+                jajiiX: jp.x,
+                jajiiY: jp.y,
+                radiusMultiplier: 1,
+                isBossStage,
+                bossBattle: bossBattleRef.current,
+                queueShockwave: (w) => {
+                  pendingShockwavesRef.current.push(w);
+                },
+              });
+            } else if (!triggeredSpecialB && jajiiEnabled && jajiiStateRef.current) {
+              tryScheduleMiniSpecial(jajiiStateRef.current, prev.elapsedTime);
+            }
+
             const bMultiHitLevel = prev.player.skills.multiHitLevel;
             if (!triggeredSpecialB && bMultiHitLevel > 0) {
             for (let hit = 1; hit <= bMultiHitLevel; hit++) {
@@ -2524,6 +2608,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     isStageMode,
     isPhraseMode,
     scenarioPhraseFullLoopPulseRef,
+    jajiiEnabled,
   ]);
   
   // handleNoteInputが更新されるたびにrefを更新
@@ -3423,6 +3508,31 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (newState.aSlotCooldown > 0) newState.aSlotCooldown = Math.max(0, newState.aSlotCooldown - deltaTime);
           if (newState.bSlotCooldown > 0) newState.bSlotCooldown = Math.max(0, newState.bSlotCooldown - deltaTime);
 
+          if (jajiiEnabled) {
+            if (!jajiiStateRef.current) {
+              jajiiStateRef.current = createInitialJajiiState(newState.player.x, newState.player.y);
+            }
+            const jst = jajiiStateRef.current;
+            updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
+            const pos = getJajiiWorldPosition(jst);
+            jajiiWorldPosRef.current = pos;
+            if (consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
+              applyJajiiGaugeSpecialAtWorld({
+                draft: newState,
+                jajiiX: pos.x,
+                jajiiY: pos.y,
+                radiusMultiplier: JAJII_MINI_RADIUS_MULTIPLIER,
+                isBossStage,
+                bossBattle: bossBattleRef.current,
+                queueShockwave: (w) => {
+                  pendingShockwavesRef.current.push(w);
+                },
+              });
+            }
+          } else {
+            jajiiWorldPosRef.current = null;
+          }
+
           // ダメージテキストのクリーンアップ（変化なしなら元配列を維持）
           if (newState.damageTexts.length > 0) {
             const bossNow = Date.now();
@@ -3501,6 +3611,31 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           stats: { ...movedPlayer.stats },
           statusEffects: [...movedPlayer.statusEffects],
         };
+
+        if (jajiiEnabled) {
+          if (!jajiiStateRef.current) {
+            jajiiStateRef.current = createInitialJajiiState(newState.player.x, newState.player.y);
+          }
+          const jst = jajiiStateRef.current;
+          updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
+          const pos = getJajiiWorldPosition(jst);
+          jajiiWorldPosRef.current = pos;
+          if (consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
+            applyJajiiGaugeSpecialAtWorld({
+              draft: newState,
+              jajiiX: pos.x,
+              jajiiY: pos.y,
+              radiusMultiplier: JAJII_MINI_RADIUS_MULTIPLIER,
+              isBossStage,
+              bossBattle: bossBattleRef.current,
+              queueShockwave: (w) => {
+                pendingShockwavesRef.current.push(w);
+              },
+            });
+          }
+        } else {
+          jajiiWorldPosRef.current = null;
+        }
         
         // 敵移動（WAVE倍率適用）
         const waveSpeedMult = getWaveSpeedMultiplier(prev.wave.currentWave);
@@ -4319,13 +4454,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, beginnerAssistActive, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, beginnerAssistActive, onLessonStageClear, onMissionStageClear, perfHudEnabled, jajiiEnabled]);
   
   // リトライ
   const handleRetry = useCallback(() => {
     setResult(null);
     setShockwaves([]);
     pendingShockwavesRef.current = [];
+    jajiiStateRef.current = null;
+    jajiiWorldPosRef.current = null;
     pendingMultiHitCallbacksRef.current = [];
     setLightningEffects([]);
     setSkillNotifications([]);
@@ -5243,6 +5380,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             bossUiTick={bossUiTick}
             hideComboGauge={isPhraseMode || scenarioHideComboBadge}
             hidePlayerHintStatusIcon={scenarioHideHintBadge}
+            jajiiWorldPosRef={jajiiWorldPosRef}
           />
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (
             <div

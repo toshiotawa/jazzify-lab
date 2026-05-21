@@ -304,6 +304,10 @@ export interface ShockwaveEffect {
   color?: string;         // 衝撃波の色（B列連続ヒットで変化）
   /** true のとき 360° 近接・必殺描画（iOS の isSpecial 衝撃波） */
   isSpecial?: boolean;
+  /** true のときカメラシェイクを抑制（ジャ爺必殺など） */
+  suppressCameraShake?: boolean;
+  /** 発生源の識別（任意） */
+  source?: 'jajii';
 }
 
 // ===== 雷エフェクト =====

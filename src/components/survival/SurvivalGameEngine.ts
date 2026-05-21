@@ -31,6 +31,9 @@ import {
   WAVE_DURATION,
   COMBO_GAUGE_MAX,
   COMBO_RESET_INTERVAL_SEC,
+  ShockwaveEffect,
+  SHOCKWAVE_DURATION,
+  SPECIAL_ATTACK_RADIUS_MULTIPLIER,
 } from './SurvivalTypes';
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
@@ -1977,6 +1980,37 @@ export const createEnemyProjectile = (
     dy: dist > 0 ? dy / dist : 0,
     damage: Math.floor(enemy.stats.atk * 0.5),  // 体当たりより弱いダメージ
     speed: ENEMY_PROJECTILE_SPEED,
+  };
+};
+
+/** ジャ爺など：任意座標・半径倍率でゲージ必殺相当の衝撃波ビジュアルを構築（ダメージは呼び出し側で適用） */
+export const buildSpecialShockwaveAt = (
+  x: number,
+  y: number,
+  player: PlayerState,
+  radiusMultiplier: number,
+  options?: {
+    readonly suppressCameraShake?: boolean;
+    readonly source?: 'jajii';
+    readonly idPrefix?: string;
+  },
+): ShockwaveEffect => {
+  const baseRange = 80;
+  const bonusRange = player.skills.bRangeBonus * 20;
+  const totalRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER * radiusMultiplier;
+  return {
+    id: `${options?.idPrefix ?? 'shock'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    x,
+    y,
+    radius: 0,
+    maxRadius: totalRange,
+    startTime: Date.now(),
+    duration: SHOCKWAVE_DURATION,
+    direction: player.direction,
+    color: '#f9d332',
+    isSpecial: true,
+    suppressCameraShake: options?.suppressCameraShake,
+    source: options?.source,
   };
 };
 
