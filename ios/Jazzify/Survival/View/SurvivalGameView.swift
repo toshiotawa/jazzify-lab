@@ -244,6 +244,24 @@ private final class SurvivalStageIntroUIModel: ObservableObject {
     }
 }
 
+@MainActor
+private final class SurvivalBlockBossIntroUIModel: ObservableObject {
+    @Published var line = ""
+    private let player = SurvivalStageIntroPlayer()
+
+    func cancelAll() {
+        player.cancel(setLineEmpty: { [weak self] in self?.line = "" })
+    }
+
+    func loadAndSchedule(mapCategory: SurvivalMapCategory, usesEnglishCopy: Bool) async {
+        cancelAll()
+        let script = await SupabaseService.shared.fetchSurvivalBlockBossIntroScript(mapCategory: mapCategory)
+        player.schedule(script: script, usesEnglishCopy: usesEnglishCopy) { [weak self] text in
+            self?.line = text
+        }
+    }
+}
+
 // MARK: - Session-observing content view
 
 private struct SurvivalGameContent: View {
@@ -255,6 +273,7 @@ private struct SurvivalGameContent: View {
 
 
     @StateObject private var stageIntroUIModel = SurvivalStageIntroUIModel()
+    @StateObject private var blockBossIntroUIModel = SurvivalBlockBossIntroUIModel()
     @State private var hudHeight: CGFloat = 72
 
     private var vm: SurvivalViewModel { session.viewModel }
@@ -264,6 +283,23 @@ private struct SurvivalGameContent: View {
             stage.stageNumber == 1 &&
             SurvivalMapCategory.descentDisplayCategories.contains(stage.mapCategory) &&
             !vm.uiSnapshot.scenario.isActive
+    }
+
+    /// 第一ブロック末尾ボス（ステージ1のイントロと同時実行しない）。
+    private var wantsBlockBossTimedLines: Bool {
+        !isDemo &&
+            SurvivalMapCategory.descentDisplayCategories.contains(stage.mapCategory) &&
+            vm.isBossStage &&
+            stage.isFirstBlockBossStage &&
+            !vm.uiSnapshot.scenario.isActive &&
+            !wantsStageIntroTimedLines
+    }
+
+    private var faiTimedBubbleText: String {
+        if !blockBossIntroUIModel.line.isEmpty {
+            return blockBossIntroUIModel.line
+        }
+        return stageIntroUIModel.line
     }
 
     var body: some View {
@@ -340,8 +376,8 @@ private struct SurvivalGameContent: View {
                 .allowsHitTesting(false)
             }
 
-            if !stageIntroUIModel.line.isEmpty {
-                OnboardingCharacterDialogView(text: stageIntroUIModel.line)
+            if !faiTimedBubbleText.isEmpty {
+                OnboardingCharacterDialogView(text: faiTimedBubbleText)
                     .allowsHitTesting(false)
             }
 
@@ -362,21 +398,32 @@ private struct SurvivalGameContent: View {
         }
         .onChange(of: ObjectIdentifier(session)) { _ in
             stageIntroUIModel.cancelAll()
+            blockBossIntroUIModel.cancelAll()
         }
         .onChange(of: session.viewModel.sceneRestartGeneration) { _ in
             rescheduleStageIntroTimedLinesIfEligible()
+            rescheduleBlockBossIntroTimedLinesIfEligible()
         }
         .onChange(of: vm.uiSnapshot.phase) { phase in
-            guard wantsStageIntroTimedLines else {
+            if wantsStageIntroTimedLines {
+                if phase != .playing {
+                    stageIntroUIModel.cancelAll()
+                }
+            } else {
                 stageIntroUIModel.cancelAll()
-                return
             }
-            if phase != .playing {
-                stageIntroUIModel.cancelAll()
+
+            if wantsBlockBossTimedLines {
+                if phase != .playing {
+                    blockBossIntroUIModel.cancelAll()
+                }
+            } else {
+                blockBossIntroUIModel.cancelAll()
             }
         }
         .onAppear {
             rescheduleStageIntroTimedLinesIfEligible()
+            rescheduleBlockBossIntroTimedLinesIfEligible()
         }
     }
 
@@ -392,6 +439,25 @@ private struct SurvivalGameContent: View {
             }
             Task { @MainActor in
                 await self.stageIntroUIModel.loadAndSchedule(
+                    mapCategory: self.stage.mapCategory,
+                    usesEnglishCopy: self.locale == .en
+                )
+            }
+        }
+    }
+
+    private func rescheduleBlockBossIntroTimedLinesIfEligible() {
+        guard wantsBlockBossTimedLines else {
+            blockBossIntroUIModel.cancelAll()
+            return
+        }
+        DispatchQueue.main.async {
+            guard self.vm.uiSnapshot.phase == .playing else {
+                self.blockBossIntroUIModel.cancelAll()
+                return
+            }
+            Task { @MainActor in
+                await self.blockBossIntroUIModel.loadAndSchedule(
                     mapCategory: self.stage.mapCategory,
                     usesEnglishCopy: self.locale == .en
                 )

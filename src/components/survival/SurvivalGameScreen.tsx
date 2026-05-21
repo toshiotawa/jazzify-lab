@@ -79,6 +79,7 @@ import {
 } from './SurvivalStageDefinitions';
 import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
 import { fetchSurvivalStageIntroScript } from '@/components/survival/stageIntro/fetchSurvivalStageIntroScript';
+import { fetchSurvivalBlockBossIntroScript } from '@/components/survival/stageIntro/fetchSurvivalBlockBossIntroScript';
 import {
   scheduleSurvivalStageIntroLines,
   type SurvivalStageIntroScheduleHandle,
@@ -343,9 +344,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const settings = useGameStore(state => state.settings);
   
-  // ステージ1 タイムドセリフ（本番のみ）
+  // ステージ1 / 第一ブロックボス のタイムドセリフ（本番のみ。両者は同時に走らせない）
   const [stageIntroCharacterLine, setStageIntroCharacterLine] = useState('');
   const stageIntroSchedulerRef = useRef<SurvivalStageIntroScheduleHandle | null>(null);
+  const [blockBossIntroCharacterLine, setBlockBossIntroCharacterLine] = useState('');
+  const blockBossIntroSchedulerRef = useRef<SurvivalStageIntroScheduleHandle | null>(null);
+
+  const timedFaiBubbleCharacterLine =
+    blockBossIntroCharacterLine || stageIntroCharacterLine;
 
   // 初期化エラー状態
   const [initError, setInitError] = useState<string | null>(null);
@@ -380,13 +386,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     && !isLessonMode
     && !scenarioMode
     && !survivalTutorialLayout;
-  const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
   const beginnerAssistActive = stageDefinition
     ? hasBeginnerStageAssistForStage(stageDefinition)
     : false;
   const isFirstBlockBoss = stageDefinition && isBossStage
     ? isFirstBlockBossStageDef(stageDefinition)
     : false;
+  const shouldRunBlockBossIntroDialogue =
+    isStageMode
+    && !!stageDefinition
+    && isBossStage
+    && isFirstBlockBoss
+    && (stageDefinition.mapCategory === 'basic'
+      || stageDefinition.mapCategory === 'songs'
+      || stageDefinition.mapCategory === 'phrases')
+    && !isLessonMode
+    && !scenarioMode
+    && !survivalTutorialLayout
+    && !shouldRunStageIntroDialogue;
+  const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
   const shouldShowKeyboardHints = hintMode || beginnerAssistActive;
   const bossType = isBossStage && stageDefinition
     ? (getBlockForStage(stageDefinition.stageNumber, stageDefinition.mapCategory)?.bossType ?? null)
@@ -1486,7 +1504,51 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     stageDefinition?.mapCategory,
     stageDefinition?.stageNumber,
   ]);
-  
+
+  useEffect(() => {
+    blockBossIntroSchedulerRef.current?.cancel();
+    blockBossIntroSchedulerRef.current = null;
+
+    if (
+      !shouldRunBlockBossIntroDialogue
+      || stageDefinition === undefined
+      || !gameState.isPlaying
+      || gameState.isGameOver
+    ) {
+      setBlockBossIntroCharacterLine('');
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    fetchSurvivalBlockBossIntroScript(stageDefinition.mapCategory).then((scriptPayload) => {
+      if (cancelled) return;
+      blockBossIntroSchedulerRef.current?.cancel();
+      blockBossIntroSchedulerRef.current = scheduleSurvivalStageIntroLines({
+        script: scriptPayload,
+        isEnglishCopy,
+        setLine: (t) => {
+          if (!cancelled) setBlockBossIntroCharacterLine(t);
+        },
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      blockBossIntroSchedulerRef.current?.cancel();
+      blockBossIntroSchedulerRef.current = null;
+    };
+  }, [
+    shouldRunBlockBossIntroDialogue,
+    gameState.isPlaying,
+    gameState.isGameOver,
+    isEnglishCopy,
+    stageDefinition?.mapCategory,
+    stageDefinition?.stageNumber,
+    isBossStage,
+    isFirstBlockBoss,
+  ]);
+
   // キャラクター固有のボーナス除外リストとnoMagicフラグ
   const charExcludedBonuses = character?.excludedBonuses;
   const charNoMagic = character?.noMagic;
@@ -4924,11 +4986,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         </div>
       )}
 
-      {stageIntroCharacterLine ? (
+      {timedFaiBubbleCharacterLine ? (
         <div className="pointer-events-none fixed inset-0 z-[56] flex justify-center pt-[max(72px,env(safe-area-inset-top))]">
           <div className="relative h-full w-full max-w-[100vw]">
             <OnboardingOverlays
-              characterText={stageIntroCharacterLine}
+              characterText={timedFaiBubbleCharacterLine}
               narrationText=""
               connectedDeviceLine={null}
               showPillarCard={false}

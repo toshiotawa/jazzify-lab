@@ -125,3 +125,42 @@ enum SurvivalStageIntroBundledPayloads {
         )
     }
 }
+
+// MARK: - Block 1 boss (timed lines, survival_block_boss_intro_scripts)
+
+enum SurvivalBlockBossIntroBundledPayloads {
+    private static let lineDuration: Double =
+        Double(SurvivalTutorialV3Constants.dialogueLineSeconds)
+
+    private static func line(_ at: Double, ja: String, en: String) -> SurvivalStageIntroLinePayload {
+        SurvivalStageIntroLinePayload(
+            atSeconds: at,
+            text: SurvivalStageIntroLocalizedTextPayload(ja: ja, en: en)
+        )
+    }
+
+    /// 第一ブロック末尾ボス（各 descent / lesson 共通台本）。
+    static func sharedPayload() -> SurvivalStageIntroScriptPayload {
+        SurvivalStageIntroScriptPayload(
+            lineDurationSeconds: lineDuration,
+            lines: [
+                line(2, ja: "ボス戦だよ！", en: "It's boss time!"),
+                line(
+                    6,
+                    ja: "ボスの予備動作をきちんと見て、避けながら弾こう！",
+                    en: "Watch the boss telegraphs closely — dodge and keep playing your chords!"
+                ),
+                line(
+                    10,
+                    ja: "難しかったら前のステージに戻って復習しよう。",
+                    en: "If it's rough, jump back earlier and rehearse."
+                ),
+                line(
+                    14,
+                    ja: "MIDIキーボードでのプレイがおすすめ",
+                    en: "We recommend playing with a MIDI keyboard."
+                ),
+            ]
+        )
+    }
+}
