@@ -389,7 +389,10 @@ private struct SurvivalGameContent: View {
                !vm.uiSnapshot.scenario.hideStaff,
                scenarioStaffSnapshot == nil,
                let phraseStaff = vm.phraseStaffSnapshot {
-                SurvivalPhraseStaffOverlay(snapshot: phraseStaff)
+                SurvivalPhraseStaffOverlay(
+                    snapshot: phraseStaff,
+                    tutorialStaffBackdrop: vm.uiSnapshot.scenario.isActive,
+                )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, hudHeight + 4)
                     .padding(.horizontal, 12)
@@ -707,6 +710,19 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
     }
 }
 
+private struct SurvivalTutorialStaffBackdropModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1),
+            )
+    }
+}
+
 private struct SurvivalStageCenterStaffOverlay: View {
     let payload: SurvivalStageCenterStaffPayload
     let unpressedNoteOpacity: CGFloat
@@ -728,10 +744,17 @@ private struct SurvivalStageCenterStaffOverlay: View {
 
 private struct SurvivalPhraseStaffOverlay: View {
     let snapshot: SurvivalPhraseStaffSnapshot
+    var tutorialStaffBackdrop: Bool
 
+    @ViewBuilder
     var body: some View {
-        SurvivalPhraseStaffView(snapshot: snapshot)
+        let staffFrame = SurvivalPhraseStaffView(snapshot: snapshot)
             .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
+        if tutorialStaffBackdrop {
+            staffFrame.modifier(SurvivalTutorialStaffBackdropModifier())
+        } else {
+            staffFrame
+        }
     }
 }
 
@@ -770,7 +793,7 @@ private struct SurvivalScenarioStaffPanel: View, Equatable {
             maxHeight: usesGrandStaffLayout ? 260 : 220,
             alignment: .top
         )
-        .background(Color.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 12))
+        .modifier(SurvivalTutorialStaffBackdropModifier())
     }
 }
 

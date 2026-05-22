@@ -258,6 +258,26 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onAnalogChange }) => {
   );
 };
 
+/** チュートリアル／シナリオ中の楽譜背後モンスター視認抑制用 */
+interface SurvivalTutorialStaffBackdropProps {
+  readonly children: React.ReactNode;
+  readonly className?: string;
+}
+
+const SurvivalTutorialStaffBackdrop: React.FC<SurvivalTutorialStaffBackdropProps> = ({
+  children,
+  className,
+}) => (
+  <div
+    className={cn(
+      'w-fit rounded-xl border border-white/20 bg-black/50 px-3 py-2 pointer-events-none',
+      className,
+    )}
+  >
+    {children}
+  </div>
+);
+
 interface DebugSkillSettings {
   aPenetration?: boolean;     // 貫通（上限1）
   aBulletCount?: number;      // A列の弾数（時計方向システム）
@@ -5488,17 +5508,33 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 )}
                 aria-hidden
               >
-                <SurvivalPhraseStaff
-                  currentChord={scenarioPhraseStaff.currentChord}
-                  nextChord={scenarioPhraseStaff.nextChord}
-                  keyFifths={scenarioPhraseStaff.keyFifths}
-                  correctNoteIndices={scenarioPhraseStaff.correctNoteIndices}
-                  revealedNoteIndices={scenarioPhraseStaff.revealedNoteIndices}
-                  targetNoteIndex={scenarioPhraseStaff.targetNoteIndex}
-                  hintMode={scenarioPhraseStaff.hintMode}
-                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
-                />
+                {survivalTutorialLayout && scenarioMode ? (
+                  <SurvivalTutorialStaffBackdrop>
+                    <SurvivalPhraseStaff
+                      currentChord={scenarioPhraseStaff.currentChord}
+                      nextChord={scenarioPhraseStaff.nextChord}
+                      keyFifths={scenarioPhraseStaff.keyFifths}
+                      correctNoteIndices={scenarioPhraseStaff.correctNoteIndices}
+                      revealedNoteIndices={scenarioPhraseStaff.revealedNoteIndices}
+                      targetNoteIndex={scenarioPhraseStaff.targetNoteIndex}
+                      hintMode={scenarioPhraseStaff.hintMode}
+                      unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                      className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                    />
+                  </SurvivalTutorialStaffBackdrop>
+                ) : (
+                  <SurvivalPhraseStaff
+                    currentChord={scenarioPhraseStaff.currentChord}
+                    nextChord={scenarioPhraseStaff.nextChord}
+                    keyFifths={scenarioPhraseStaff.keyFifths}
+                    correctNoteIndices={scenarioPhraseStaff.correctNoteIndices}
+                    revealedNoteIndices={scenarioPhraseStaff.revealedNoteIndices}
+                    targetNoteIndex={scenarioPhraseStaff.targetNoteIndex}
+                    hintMode={scenarioPhraseStaff.hintMode}
+                    unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                    className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                  />
+                )}
               </div>
             )}
           {scenarioProgressionStaff &&
@@ -5511,16 +5547,31 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 )}
                 aria-hidden
               >
-                <SurvivalProgressionStaff
-                  chordDisplayName={scenarioProgressionStaff.chordDisplayName}
-                  voicingNames={scenarioProgressionStaff.voicingNames}
-                  voicingStaves={scenarioProgressionStaff.voicingStaves}
-                  keyFifths={scenarioProgressionStaff.keyFifths}
-                  correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
-                  staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
-                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                  className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
-                />
+                {survivalTutorialLayout && scenarioMode ? (
+                  <SurvivalTutorialStaffBackdrop>
+                    <SurvivalProgressionStaff
+                      chordDisplayName={scenarioProgressionStaff.chordDisplayName}
+                      voicingNames={scenarioProgressionStaff.voicingNames}
+                      voicingStaves={scenarioProgressionStaff.voicingStaves}
+                      keyFifths={scenarioProgressionStaff.keyFifths}
+                      correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
+                      staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
+                      unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                      className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
+                    />
+                  </SurvivalTutorialStaffBackdrop>
+                ) : (
+                  <SurvivalProgressionStaff
+                    chordDisplayName={scenarioProgressionStaff.chordDisplayName}
+                    voicingNames={scenarioProgressionStaff.voicingNames}
+                    voicingStaves={scenarioProgressionStaff.voicingStaves}
+                    keyFifths={scenarioProgressionStaff.keyFifths}
+                    correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
+                    staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
+                    unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                    className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
+                  />
+                )}
               </div>
             )}
           {phraseStaffProps &&
