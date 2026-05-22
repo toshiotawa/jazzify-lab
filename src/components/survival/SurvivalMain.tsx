@@ -39,7 +39,7 @@ import {
 } from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { initializeAudioSystem } from '@/utils/MidiController';
+import { initializeAudioSystem, markAudioUserInteraction } from '@/utils/MidiController';
 import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import GameHeader from '@/components/ui/GameHeader';
@@ -331,9 +331,13 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         return;
       }
 
+      // レッスン詳細の「プレイ」クリック直後にマウントされるため、
+      // initializeAudioSystem を await すると detectUserInteraction で永久待ちになる。
+      // ファンタジーレッスンと同様、音声初期化は非ブロッキングで開始する。
       try {
-        await FantasySoundManager.unlock();
-        await initializeAudioSystem();
+        markAudioUserInteraction();
+        void FantasySoundManager.unlock();
+        void initializeAudioSystem().catch(() => {});
       } catch { /* ignore */ }
 
       let faiChar: SurvivalCharacter | undefined;

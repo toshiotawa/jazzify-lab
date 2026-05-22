@@ -365,7 +365,13 @@ enum SurvivalStageCatalog {
     }
 
     static func block(forStage stageNumber: Int, in category: SurvivalMapCategory) -> SurvivalBlockMeta? {
-        blocks(in: category).first { $0.stageNumbers.contains(stageNumber) }
+        if let direct = blocks(in: category).first(where: { $0.stageNumbers.contains(stageNumber) }) {
+            return direct
+        }
+        guard let stage = stage(byNumber: stageNumber, in: category), stage.lessonOnly else {
+            return nil
+        }
+        return block(byKey: stage.blockKey, in: category)
     }
 
     static func block(byKey blockKey: SurvivalBlockKey, in category: SurvivalMapCategory) -> SurvivalBlockMeta? {

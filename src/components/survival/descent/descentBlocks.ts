@@ -11,6 +11,7 @@
 import {
   BlockKey,
   bossTypeForBlockIndex,
+  getStageByNumber,
   getStagesByCategory,
   resolveSurvivalBlockLabel,
   resolveSurvivalBlockSortOrder,
@@ -154,11 +155,20 @@ export function getFreeTierStageNumbers(mapCategory: SurvivalMapCategory): reado
   return getStageNumbersOfFirstBlock(getBlocksByCategory(mapCategory));
 }
 
+/**
+ * ステージ所属ブロックを返す。
+ * 降下マップ用の stage→block マップに無い `lesson_only` 行は、同カテゴリの公開ブロックから
+ * `block_key` で blockIndex を継承する（レッスン専用ステージの初級アシスト等）。
+ */
 export function getBlockForStage(
   stageNumber: number,
   mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 ): BlockMeta | undefined {
-  return STAGE_TO_BLOCK_BY_CATEGORY[mapCategory].get(stageNumber);
+  const direct = STAGE_TO_BLOCK_BY_CATEGORY[mapCategory].get(stageNumber);
+  if (direct) return direct;
+  const stage = getStageByNumber(stageNumber, mapCategory);
+  if (!stage?.lessonOnly) return undefined;
+  return getBlockByKey(stage.blockKey, mapCategory);
 }
 
 export function getBlockByKey(

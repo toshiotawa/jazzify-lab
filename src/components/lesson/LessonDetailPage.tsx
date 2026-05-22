@@ -64,6 +64,7 @@ import {
   clearNavigationCacheForCourse,
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
+import { markAudioUserInteraction } from '@/utils/MidiController';
 import {
   getStageByNumber,
   resolveLessonSurvivalMapCategory,
@@ -935,6 +936,7 @@ const LessonDetailPage: React.FC = () => {
                                 return;
                               }
                             }
+                            markAudioUserInteraction();
                             if (isSurvivalTutorial) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
