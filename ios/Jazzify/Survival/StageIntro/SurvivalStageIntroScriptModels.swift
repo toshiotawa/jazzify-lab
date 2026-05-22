@@ -6,9 +6,19 @@ struct SurvivalStageIntroScriptPayload: Codable, Sendable {
     let lines: [SurvivalStageIntroLinePayload]
 }
 
+enum SurvivalStageIntroSpeaker: String, Codable, Sendable {
+    case fai
+    case jajii
+}
+
 struct SurvivalStageIntroLinePayload: Codable, Sendable {
     let atSeconds: Double
     let text: SurvivalStageIntroLocalizedTextPayload
+    let speaker: SurvivalStageIntroSpeaker?
+
+    var resolvedSpeaker: SurvivalStageIntroSpeaker {
+        speaker ?? .fai
+    }
 }
 
 struct SurvivalStageIntroLocalizedTextPayload: Codable, Sendable {
@@ -159,6 +169,59 @@ enum SurvivalBlockBossIntroBundledPayloads {
                     14,
                     ja: "MIDIキーボードでのプレイがおすすめ",
                     en: "We recommend playing with a MIDI keyboard."
+                ),
+            ]
+        )
+    }
+}
+
+// MARK: - Per-stage play dialogue (survival_stage_play_dialogues)
+
+enum SurvivalStagePlayDialogueBundledPayloads {
+    private static let lineDuration: Double =
+        Double(SurvivalTutorialV3Constants.dialogueLineSeconds)
+
+    private static func line(
+        _ at: Double,
+        speaker: SurvivalStageIntroSpeaker,
+        ja: String,
+        en: String
+    ) -> SurvivalStageIntroLinePayload {
+        SurvivalStageIntroLinePayload(
+            atSeconds: at,
+            text: SurvivalStageIntroLocalizedTextPayload(ja: ja, en: en),
+            speaker: speaker
+        )
+    }
+
+    static func payload(mapCategory: SurvivalMapCategory, stageNumber: Int) -> SurvivalStageIntroScriptPayload? {
+        guard mapCategory == .basic, stageNumber == 9901 else { return nil }
+        return SurvivalStageIntroScriptPayload(
+            lineDurationSeconds: lineDuration,
+            lines: [
+                line(
+                    2,
+                    speaker: .fai,
+                    ja: "やあ、ファイだよ。2人でしゃべるテストだね。",
+                    en: "Hey, it's Fai. This is a two-character dialogue test."
+                ),
+                line(
+                    6,
+                    speaker: .jajii,
+                    ja: "わしはジャ爺じゃ。吹き出しは細めで頭の上じゃ。",
+                    en: "I'm Old Man Jajii. My bubble is narrower, above my head."
+                ),
+                line(
+                    10,
+                    speaker: .fai,
+                    ja: "ジャ爺が歩き回ると、吹き出しもついてくるよ。",
+                    en: "When Jajii drifts around, the bubble follows him."
+                ),
+                line(
+                    14,
+                    speaker: .jajii,
+                    ja: "ほほう、バッチリじゃな。では戦いも続けるかのう。",
+                    en: "Ho ho, looks good. Shall we keep fighting, then?"
                 ),
             ]
         )

@@ -7,9 +7,13 @@ export interface SurvivalStageIntroLocalizedText {
   readonly en: string;
 }
 
+/** 省略時はファイ（画面上部中央）。`jajii` はワールド上のジャ爺頭上。 */
+export type SurvivalStageIntroSpeaker = 'fai' | 'jajii';
+
 export interface SurvivalStageIntroLine {
   readonly atSeconds: number;
   readonly text: SurvivalStageIntroLocalizedText;
+  readonly speaker?: SurvivalStageIntroSpeaker;
 }
 
 export interface SurvivalStageIntroScript {
@@ -27,11 +31,25 @@ function isLocalizedText(v: unknown): v is SurvivalStageIntroLocalizedText {
   return isNonEmptyString(o.ja) && isNonEmptyString(o.en);
 }
 
+function isIntroSpeaker(v: unknown): v is SurvivalStageIntroSpeaker {
+  return v === 'fai' || v === 'jajii';
+}
+
 function isIntroLine(v: unknown): v is SurvivalStageIntroLine {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
-  return typeof o.atSeconds === 'number' && Number.isFinite(o.atSeconds) && isLocalizedText(o.text);
+  const speakerOk = o.speaker === undefined || isIntroSpeaker(o.speaker);
+  return (
+    typeof o.atSeconds === 'number'
+    && Number.isFinite(o.atSeconds)
+    && isLocalizedText(o.text)
+    && speakerOk
+  );
 }
+
+export const resolveSurvivalStageIntroSpeaker = (
+  line: SurvivalStageIntroLine,
+): SurvivalStageIntroSpeaker => line.speaker ?? 'fai';
 
 export function parseSurvivalStageIntroScript(raw: unknown): SurvivalStageIntroScript | null {
   if (!raw || typeof raw !== 'object') return null;

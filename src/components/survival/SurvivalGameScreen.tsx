@@ -79,6 +79,7 @@ import {
 } from './SurvivalStageDefinitions';
 import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
 import { fetchSurvivalStageIntroScript } from '@/components/survival/stageIntro/fetchSurvivalStageIntroScript';
+import { fetchSurvivalStagePlayDialogue } from '@/components/survival/stageIntro/fetchSurvivalStagePlayDialogue';
 import { fetchSurvivalBlockBossIntroScript } from '@/components/survival/stageIntro/fetchSurvivalBlockBossIntroScript';
 import {
   scheduleSurvivalStageIntroLines,
@@ -357,12 +358,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ステージ1 / 第一ブロックボス のタイムドセリフ（本番のみ。両者は同時に走らせない）
   const [stageIntroCharacterLine, setStageIntroCharacterLine] = useState('');
+  const [stageIntroJajiiLine, setStageIntroJajiiLine] = useState('');
   const stageIntroSchedulerRef = useRef<SurvivalStageIntroScheduleHandle | null>(null);
   const [blockBossIntroCharacterLine, setBlockBossIntroCharacterLine] = useState('');
+  const [blockBossIntroJajiiLine, setBlockBossIntroJajiiLine] = useState('');
   const blockBossIntroSchedulerRef = useRef<SurvivalStageIntroScheduleHandle | null>(null);
+  const [playDialogueFaiLine, setPlayDialogueFaiLine] = useState('');
+  const [playDialogueJajiiLine, setPlayDialogueJajiiLine] = useState('');
+  const playDialogueSchedulerRef = useRef<SurvivalStageIntroScheduleHandle | null>(null);
 
   const timedFaiBubbleCharacterLine =
-    blockBossIntroCharacterLine || stageIntroCharacterLine;
+    playDialogueFaiLine || blockBossIntroCharacterLine || stageIntroCharacterLine;
+  const timedJajiiBubbleLine =
+    playDialogueJajiiLine || blockBossIntroJajiiLine || stageIntroJajiiLine;
 
   // 初期化エラー状態
   const [initError, setInitError] = useState<string | null>(null);
@@ -415,6 +423,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     && !scenarioMode
     && !survivalTutorialLayout
     && !shouldRunStageIntroDialogue;
+  const shouldRunStagePlayDialogue =
+    isStageMode
+    && !!stageDefinition
+    && !scenarioMode
+    && !survivalTutorialLayout
+    && !shouldRunStageIntroDialogue
+    && !shouldRunBlockBossIntroDialogue;
   const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
   const shouldShowKeyboardHints = hintMode || beginnerAssistActive;
   const bossType = isBossStage && stageDefinition
@@ -1506,6 +1521,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       || gameState.isGameOver
     ) {
       setStageIntroCharacterLine('');
+      setStageIntroJajiiLine('');
       return undefined;
     }
 
@@ -1517,8 +1533,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       stageIntroSchedulerRef.current = scheduleSurvivalStageIntroLines({
         script: scriptPayload,
         isEnglishCopy,
-        setLine: (t) => {
+        setFaiLine: (t) => {
           if (!cancelled) setStageIntroCharacterLine(t);
+        },
+        setJajiiLine: (t) => {
+          if (!cancelled) setStageIntroJajiiLine(t);
         },
       });
     });
@@ -1548,6 +1567,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       || gameState.isGameOver
     ) {
       setBlockBossIntroCharacterLine('');
+      setBlockBossIntroJajiiLine('');
       return undefined;
     }
 
@@ -1559,8 +1579,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       blockBossIntroSchedulerRef.current = scheduleSurvivalStageIntroLines({
         script: scriptPayload,
         isEnglishCopy,
-        setLine: (t) => {
+        setFaiLine: (t) => {
           if (!cancelled) setBlockBossIntroCharacterLine(t);
+        },
+        setJajiiLine: (t) => {
+          if (!cancelled) setBlockBossIntroJajiiLine(t);
         },
       });
     });
@@ -1579,6 +1602,55 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     stageDefinition?.stageNumber,
     isBossStage,
     isFirstBlockBoss,
+  ]);
+
+  useEffect(() => {
+    playDialogueSchedulerRef.current?.cancel();
+    playDialogueSchedulerRef.current = null;
+
+    if (
+      !shouldRunStagePlayDialogue
+      || stageDefinition === undefined
+      || !gameState.isPlaying
+      || gameState.isGameOver
+    ) {
+      setPlayDialogueFaiLine('');
+      setPlayDialogueJajiiLine('');
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    void fetchSurvivalStagePlayDialogue(
+      stageDefinition.mapCategory,
+      stageDefinition.stageNumber,
+    ).then((scriptPayload) => {
+      if (cancelled || !scriptPayload) return;
+      playDialogueSchedulerRef.current?.cancel();
+      playDialogueSchedulerRef.current = scheduleSurvivalStageIntroLines({
+        script: scriptPayload,
+        isEnglishCopy,
+        setFaiLine: (t) => {
+          if (!cancelled) setPlayDialogueFaiLine(t);
+        },
+        setJajiiLine: (t) => {
+          if (!cancelled) setPlayDialogueJajiiLine(t);
+        },
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      playDialogueSchedulerRef.current?.cancel();
+      playDialogueSchedulerRef.current = null;
+    };
+  }, [
+    shouldRunStagePlayDialogue,
+    gameState.isPlaying,
+    gameState.isGameOver,
+    isEnglishCopy,
+    stageDefinition?.mapCategory,
+    stageDefinition?.stageNumber,
   ]);
 
   // キャラクター固有のボーナス除外リストとnoMagicフラグ
@@ -5381,6 +5453,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             hideComboGauge={isPhraseMode || scenarioHideComboBadge}
             hidePlayerHintStatusIcon={scenarioHideHintBadge}
             jajiiWorldPosRef={jajiiWorldPosRef}
+            jajiiBubbleText={timedJajiiBubbleLine}
           />
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (
             <div

@@ -16,9 +16,14 @@ final class SurvivalStageIntroPlayer {
     func schedule(
         script: SurvivalStageIntroScriptPayload,
         usesEnglishCopy: Bool,
-        onLine: @escaping @MainActor (String) -> Void
+        onFaiLine: @escaping @MainActor (String) -> Void,
+        onJajiiLine: @escaping @MainActor (String) -> Void
     ) {
-        cancel(setLineEmpty: { onLine("") })
+        let clearAll = {
+            onFaiLine("")
+            onJajiiLine("")
+        }
+        cancel(setLineEmpty: clearAll)
 
         let durationSec = max(0.1, script.lineDurationSeconds)
 
@@ -30,12 +35,19 @@ final class SurvivalStageIntroPlayer {
                 guard let self else { return }
                 self.displayGeneration += 1
                 let genSnap = self.displayGeneration
-                onLine(text)
+                switch line.resolvedSpeaker {
+                case .fai:
+                    onJajiiLine("")
+                    onFaiLine(text)
+                case .jajii:
+                    onFaiLine("")
+                    onJajiiLine(text)
+                }
 
                 let hideWork = DispatchWorkItem { [weak self] in
                     guard let self else { return }
                     if self.displayGeneration == genSnap {
-                        onLine("")
+                        clearAll()
                     }
                 }
                 self.workItems.append(hideWork)

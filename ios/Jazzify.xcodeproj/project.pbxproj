@@ -109,6 +109,8 @@
 		60BCB75E89D7C46F20FEE1A4 /* C7.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2D32E093A43244C6072305F8 /* C7.mp3 */; };
 		624CAA545111AF6B552990FB /* SurvivalDescentViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8335394CBDC8AC038641B7B8 /* SurvivalDescentViewComponents.swift */; };
 		691267A6D039775FE12AEC8D /* SurvivalScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66CAD3695FC2030F5AC34539 /* SurvivalScene.swift */; };
+		BB02JAJII03CC03DD04EE070002 /* SurvivalSpeechBubbleLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB02JAJII01CC03DD04EE070001 /* SurvivalSpeechBubbleLayout.swift */; };
+		BB02JAJII04CC03DD04EE070002 /* SurvivalSpeechBubbleBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB02JAJII02CC03DD04EE070001 /* SurvivalSpeechBubbleBuilder.swift */; };
 		CC03BB02CC03DD04EE05AA02 /* SurvivalBackgroundCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC03BB02CC03DD04EE05AA01 /* SurvivalBackgroundCache.swift */; };
 		CC03BB02CC03DD04EE05AA04 /* SurvivalAssetPreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC03BB02CC03DD04EE05AA03 /* SurvivalAssetPreloader.swift */; };
 		F102BB02CC03DD04EE05AA02 /* SurvivalMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F102BB02CC03DD04EE05AA01 /* SurvivalMode.swift */; };
@@ -284,6 +286,8 @@
 		6116747FF78CFB5A21A4FCB6 /* SurvivalGameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameEngine.swift; sourceTree = "<group>"; };
 		611CAFDFC9C51C7A54B21C68 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		66CAD3695FC2030F5AC34539 /* SurvivalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScene.swift; sourceTree = "<group>"; };
+		BB02JAJII01CC03DD04EE070001 /* SurvivalSpeechBubbleLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalSpeechBubbleLayout.swift; sourceTree = "<group>"; };
+		BB02JAJII02CC03DD04EE070001 /* SurvivalSpeechBubbleBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalSpeechBubbleBuilder.swift; sourceTree = "<group>"; };
 		CC03BB02CC03DD04EE05AA01 /* SurvivalBackgroundCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBackgroundCache.swift; sourceTree = "<group>"; };
 		CC03BB02CC03DD04EE05AA03 /* SurvivalAssetPreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalAssetPreloader.swift; sourceTree = "<group>"; };
 		F102BB02CC03DD04EE05AA01 /* SurvivalMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalMode.swift; sourceTree = "<group>"; };
@@ -669,6 +673,8 @@
 				0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */,
 				F2EE770003DD11EE0000DD01 /* SurvivalRunPrepSheet.swift */,
 				66CAD3695FC2030F5AC34539 /* SurvivalScene.swift */,
+				BB02JAJII02CC03DD04EE070001 /* SurvivalSpeechBubbleBuilder.swift */,
+				BB02JAJII01CC03DD04EE070001 /* SurvivalSpeechBubbleLayout.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -1128,6 +1134,8 @@
 				F102BB02CC03DD04EE05BB02 /* SurvivalSceneSnapshot.swift in Sources */,
 				F102BB02CC03DD04EE05CC02 /* SurvivalSimulation.swift in Sources */,
 				691267A6D039775FE12AEC8D /* SurvivalScene.swift in Sources */,
+				BB02JAJII04CC03DD04EE070002 /* SurvivalSpeechBubbleBuilder.swift in Sources */,
+				BB02JAJII03CC03DD04EE070002 /* SurvivalSpeechBubbleLayout.swift in Sources */,
 				C2066F3C674DE5E97A286AE5 /* SurvivalStageConfig.swift in Sources */,
 				B3B7F00C2BE2665277EE54BC /* SurvivalStageDefinition.swift in Sources */,
 				AA21BB03CC03DD04EE052002 /* SurvivalStageIntroPlayer.swift in Sources */,

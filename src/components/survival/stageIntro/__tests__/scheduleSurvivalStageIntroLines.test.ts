@@ -22,9 +22,10 @@ describe('scheduleSurvivalStageIntroLines', () => {
     scheduleSurvivalStageIntroLines({
       script,
       isEnglishCopy: true,
-      setLine: (t) => {
+      setFaiLine: (t) => {
         lines.push(t);
       },
+      setJajiiLine: () => undefined,
     });
 
     vi.advanceTimersByTime(999);
@@ -49,9 +50,10 @@ describe('scheduleSurvivalStageIntroLines', () => {
     scheduleSurvivalStageIntroLines({
       script: scriptOverlap,
       isEnglishCopy: true,
-      setLine: (t) => {
+      setFaiLine: (t) => {
         last = t;
       },
+      setJajiiLine: () => undefined,
     });
 
     vi.advanceTimersByTime(0);
@@ -67,6 +69,30 @@ describe('scheduleSurvivalStageIntroLines', () => {
     expect(last).toBe('');
   });
 
+  it('routes lines to jajii bubble when speaker is jajii', () => {
+    const scriptWithJajii: SurvivalStageIntroScript = {
+      lineDurationSeconds: 3,
+      lines: [
+        {
+          atSeconds: 0,
+          speaker: 'jajii',
+          text: { ja: '爺', en: 'Jajii' },
+        },
+      ],
+    };
+    let fai = 'init';
+    let jajii = 'init';
+    scheduleSurvivalStageIntroLines({
+      script: scriptWithJajii,
+      isEnglishCopy: false,
+      setFaiLine: (t) => { fai = t; },
+      setJajiiLine: (t) => { jajii = t; },
+    });
+    vi.advanceTimersByTime(0);
+    expect(fai).toBe('');
+    expect(jajii).toBe('爺');
+  });
+
   it('cancel stops pending lines and clears', () => {
     const scriptLate: SurvivalStageIntroScript = {
       lineDurationSeconds: 3,
@@ -78,7 +104,8 @@ describe('scheduleSurvivalStageIntroLines', () => {
     const handle = scheduleSurvivalStageIntroLines({
       script: scriptLate,
       isEnglishCopy: false,
-      setLine: (t) => lines.push(t),
+      setFaiLine: (t) => lines.push(t),
+      setJajiiLine: () => undefined,
     });
     vi.advanceTimersByTime(2000);
     handle.cancel();

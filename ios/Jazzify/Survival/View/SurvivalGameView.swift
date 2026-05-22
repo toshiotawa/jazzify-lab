@@ -228,37 +228,83 @@ struct SurvivalGameView: View {
 
 @MainActor
 private final class SurvivalStageIntroUIModel: ObservableObject {
-    @Published var line = ""
+    @Published var faiLine = ""
+    @Published var jajiiLine = ""
     private let player = SurvivalStageIntroPlayer()
 
     func cancelAll() {
-        player.cancel(setLineEmpty: { [weak self] in self?.line = "" })
+        player.cancel(setLineEmpty: { [weak self] in
+            self?.faiLine = ""
+            self?.jajiiLine = ""
+        })
     }
 
     func loadAndSchedule(mapCategory: SurvivalMapCategory, usesEnglishCopy: Bool) async {
         cancelAll()
         let script = await SupabaseService.shared.fetchSurvivalStageIntroScript(mapCategory: mapCategory)
-        player.schedule(script: script, usesEnglishCopy: usesEnglishCopy) { [weak self] text in
-            self?.line = text
-        }
+        player.schedule(
+            script: script,
+            usesEnglishCopy: usesEnglishCopy,
+            onFaiLine: { [weak self] text in self?.faiLine = text },
+            onJajiiLine: { [weak self] text in self?.jajiiLine = text }
+        )
     }
 }
 
 @MainActor
 private final class SurvivalBlockBossIntroUIModel: ObservableObject {
-    @Published var line = ""
+    @Published var faiLine = ""
+    @Published var jajiiLine = ""
     private let player = SurvivalStageIntroPlayer()
 
     func cancelAll() {
-        player.cancel(setLineEmpty: { [weak self] in self?.line = "" })
+        player.cancel(setLineEmpty: { [weak self] in
+            self?.faiLine = ""
+            self?.jajiiLine = ""
+        })
     }
 
     func loadAndSchedule(mapCategory: SurvivalMapCategory, usesEnglishCopy: Bool) async {
         cancelAll()
         let script = await SupabaseService.shared.fetchSurvivalBlockBossIntroScript(mapCategory: mapCategory)
-        player.schedule(script: script, usesEnglishCopy: usesEnglishCopy) { [weak self] text in
-            self?.line = text
-        }
+        player.schedule(
+            script: script,
+            usesEnglishCopy: usesEnglishCopy,
+            onFaiLine: { [weak self] text in self?.faiLine = text },
+            onJajiiLine: { [weak self] text in self?.jajiiLine = text }
+        )
+    }
+}
+
+@MainActor
+private final class SurvivalStagePlayDialogueUIModel: ObservableObject {
+    @Published var faiLine = ""
+    @Published var jajiiLine = ""
+    private let player = SurvivalStageIntroPlayer()
+
+    func cancelAll() {
+        player.cancel(setLineEmpty: { [weak self] in
+            self?.faiLine = ""
+            self?.jajiiLine = ""
+        })
+    }
+
+    func loadAndSchedule(
+        mapCategory: SurvivalMapCategory,
+        stageNumber: Int,
+        usesEnglishCopy: Bool
+    ) async {
+        cancelAll()
+        guard let script = await SupabaseService.shared.fetchSurvivalStagePlayDialogue(
+            mapCategory: mapCategory,
+            stageNumber: stageNumber
+        ) else { return }
+        player.schedule(
+            script: script,
+            usesEnglishCopy: usesEnglishCopy,
+            onFaiLine: { [weak self] text in self?.faiLine = text },
+            onJajiiLine: { [weak self] text in self?.jajiiLine = text }
+        )
     }
 }
 
@@ -274,6 +320,7 @@ private struct SurvivalGameContent: View {
 
     @StateObject private var stageIntroUIModel = SurvivalStageIntroUIModel()
     @StateObject private var blockBossIntroUIModel = SurvivalBlockBossIntroUIModel()
+    @StateObject private var playDialogueUIModel = SurvivalStagePlayDialogueUIModel()
     @State private var hudHeight: CGFloat = 72
 
     private var vm: SurvivalViewModel { session.viewModel }
@@ -295,16 +342,30 @@ private struct SurvivalGameContent: View {
             !wantsStageIntroTimedLines
     }
 
+    private var wantsStagePlayDialogue: Bool {
+        !isDemo
+            && stage.mapCategory == .basic
+            && stage.stageNumber == 9901
+            && !vm.uiSnapshot.scenario.isActive
+            && !wantsStageIntroTimedLines
+            && !wantsBlockBossTimedLines
+    }
+
     private var faiTimedBubbleText: String {
-        if !blockBossIntroUIModel.line.isEmpty {
-            return blockBossIntroUIModel.line
-        }
-        return stageIntroUIModel.line
+        if !playDialogueUIModel.faiLine.isEmpty { return playDialogueUIModel.faiLine }
+        if !blockBossIntroUIModel.faiLine.isEmpty { return blockBossIntroUIModel.faiLine }
+        return stageIntroUIModel.faiLine
+    }
+
+    private var jajiiTimedBubbleText: String {
+        if !playDialogueUIModel.jajiiLine.isEmpty { return playDialogueUIModel.jajiiLine }
+        if !blockBossIntroUIModel.jajiiLine.isEmpty { return blockBossIntroUIModel.jajiiLine }
+        return stageIntroUIModel.jajiiLine
     }
 
     var body: some View {
         ZStack(alignment: .top) {
-            SurvivalSceneContainer(session: session)
+            SurvivalSceneContainer(session: session, jajiiBubbleText: jajiiTimedBubbleText)
                 .ignoresSafeArea()
 
             SurvivalJoystickRepresentable(
@@ -399,10 +460,12 @@ private struct SurvivalGameContent: View {
         .onChange(of: ObjectIdentifier(session)) { _ in
             stageIntroUIModel.cancelAll()
             blockBossIntroUIModel.cancelAll()
+            playDialogueUIModel.cancelAll()
         }
         .onChange(of: session.viewModel.sceneRestartGeneration) { _ in
             rescheduleStageIntroTimedLinesIfEligible()
             rescheduleBlockBossIntroTimedLinesIfEligible()
+            reschedulePlayDialogueTimedLinesIfEligible()
         }
         .onChange(of: vm.uiSnapshot.phase) { phase in
             if wantsStageIntroTimedLines {
@@ -420,10 +483,39 @@ private struct SurvivalGameContent: View {
             } else {
                 blockBossIntroUIModel.cancelAll()
             }
+
+            if wantsStagePlayDialogue {
+                if phase != .playing {
+                    playDialogueUIModel.cancelAll()
+                }
+            } else {
+                playDialogueUIModel.cancelAll()
+            }
         }
         .onAppear {
             rescheduleStageIntroTimedLinesIfEligible()
             rescheduleBlockBossIntroTimedLinesIfEligible()
+            reschedulePlayDialogueTimedLinesIfEligible()
+        }
+    }
+
+    private func reschedulePlayDialogueTimedLinesIfEligible() {
+        guard wantsStagePlayDialogue else {
+            playDialogueUIModel.cancelAll()
+            return
+        }
+        DispatchQueue.main.async {
+            guard self.vm.uiSnapshot.phase == .playing else {
+                self.playDialogueUIModel.cancelAll()
+                return
+            }
+            Task { @MainActor in
+                await self.playDialogueUIModel.loadAndSchedule(
+                    mapCategory: self.stage.mapCategory,
+                    stageNumber: self.stage.stageNumber,
+                    usesEnglishCopy: self.locale == .en
+                )
+            }
         }
     }
 
@@ -707,6 +799,7 @@ private struct SurvivalComboBadgeView: View {
 
 private struct SurvivalSceneContainer: UIViewRepresentable {
     let session: SurvivalGameSession
+    let jajiiBubbleText: String
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -736,6 +829,10 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SKView, context: Context) {
+        if let scene = uiView.scene as? SurvivalScene {
+            scene.setJajiiQuoteText(jajiiBubbleText)
+        }
+
         let gen = session.viewModel.sceneRestartGeneration
         guard gen != context.coordinator.lastSceneRestartGeneration else { return }
         context.coordinator.lastSceneRestartGeneration = gen

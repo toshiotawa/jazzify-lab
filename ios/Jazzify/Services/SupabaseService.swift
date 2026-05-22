@@ -642,6 +642,36 @@ final class SupabaseService: Sendable {
         return SurvivalBlockBossIntroBundledPayloads.sharedPayload()
     }
 
+    /// 任意ステージのタイムドセリフ（`survival_stage_play_dialogues`）。無ければ nil。
+    func fetchSurvivalStagePlayDialogue(
+        mapCategory: SurvivalMapCategory,
+        stageNumber: Int
+    ) async -> SurvivalStageIntroScriptPayload? {
+        struct Row: Decodable {
+            let script: SurvivalStageIntroScriptPayload
+        }
+        do {
+            let rows: [Row] = try await client
+                .from("survival_stage_play_dialogues")
+                .select("script")
+                .eq("map_category", value: mapCategory.rawValue)
+                .eq("stage_number", value: stageNumber)
+                .eq("is_active", value: true)
+                .limit(1)
+                .execute()
+                .value
+            if let first = rows.first {
+                return first.script
+            }
+        } catch {
+            /* bundled fallback */
+        }
+        return SurvivalStagePlayDialogueBundledPayloads.payload(
+            mapCategory: mapCategory,
+            stageNumber: stageNumber
+        )
+    }
+
     /// 降下マップのブロック表示名（ja/en）。RLS: 全員 SELECT 可。
     func fetchSurvivalStageBlocks() async throws -> [SurvivalStageBlockRow] {
         try await client

@@ -21,6 +21,9 @@ final class SurvivalScene: SKScene {
     private var playerNode: SKNode?
     private var playerSprite: SKSpriteNode?
     private var jajiiSpriteNode: SKSpriteNode?
+    private var jajiiQuoteText: String = ""
+    private var jajiiQuoteTextLaidOut: String = ""
+    private var jajiiQuoteBubbleRoot: SKNode?
     private var enemyNodes: [UUID: SKNode] = [:]
     private var projectileNodes: [UUID: SKNode] = [:]
     private var enemyProjectileNodes: [UUID: SKNode] = [:]
@@ -77,6 +80,15 @@ final class SurvivalScene: SKScene {
 
     /// ボス撃破演出を既に発火済みか (カメラシェイク + 爆散エフェクトを 1 回だけトリガーするため)。
     private var hasTriggeredBossDefeatFx: Bool = false
+
+    func setJajiiQuoteText(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != jajiiQuoteText else { return }
+        jajiiQuoteText = trimmed
+        if trimmed.isEmpty {
+            jajiiQuoteTextLaidOut = ""
+        }
+    }
 
     /// `SKScene.update` が最後に走ったホスト時刻。`UIViewRepresentable.Coordinator` の watchdog がゲームループ停止を検出するために使う。
     private(set) var lastUpdateWallTime: TimeInterval = CACurrentMediaTime()
@@ -499,9 +511,12 @@ final class SurvivalScene: SKScene {
                 let wp = SurvivalJajiiEngine.worldPosition(state: jajiiState)
                 node.position = toScenePoint(x: wp.x, y: wp.y)
                 node.isHidden = false
+                layoutJajiiQuoteBubble(on: node)
             }
         } else {
             jajiiSpriteNode?.isHidden = true
+            jajiiQuoteBubbleRoot?.removeFromParent()
+            jajiiQuoteBubbleRoot = nil
         }
 
         // 敵 (絵文字 + HP リング)
@@ -1273,5 +1288,28 @@ final class SurvivalScene: SKScene {
         case .exp: return UIColor(red: 0.6, green: 0.9, blue: 1, alpha: 1)
         case .chord: return UIColor(red: 0.85, green: 0.95, blue: 1, alpha: 1)
         }
+    }
+
+    private func layoutJajiiQuoteBubble(on sprite: SKSpriteNode) {
+        if jajiiQuoteText.isEmpty {
+            jajiiQuoteBubbleRoot?.removeFromParent()
+            jajiiQuoteBubbleRoot = nil
+            jajiiQuoteTextLaidOut = ""
+            return
+        }
+        if jajiiQuoteText == jajiiQuoteTextLaidOut,
+           jajiiQuoteBubbleRoot?.parent === sprite {
+            return
+        }
+        jajiiQuoteTextLaidOut = jajiiQuoteText
+        jajiiQuoteBubbleRoot?.removeFromParent()
+        jajiiQuoteBubbleRoot = nil
+        guard let root = SurvivalSpeechBubbleBuilder.makeRoot(
+            text: jajiiQuoteText,
+            maxOuterWidth: SurvivalSpeechBubbleLayout.jajiiMaxBubbleWidth
+        ) else { return }
+        root.position = CGPoint(x: 0, y: sprite.size.height / 2 + 14)
+        sprite.addChild(root)
+        jajiiQuoteBubbleRoot = root
     }
 }

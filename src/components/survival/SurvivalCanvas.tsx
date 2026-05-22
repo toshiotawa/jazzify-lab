@@ -31,6 +31,8 @@ import {
   SURVIVAL_DEFAULT_SPRITE_VARIANTS,
   type SurvivalDefaultSpriteVariant,
 } from '@/utils/survivalPlayerSprites';
+import { drawSurvivalSpeechBubble } from '@/components/survival/stageIntro/drawSurvivalSpeechBubble';
+import { SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX } from '@/components/survival/stageIntro/survivalSpeechBubbleLayout';
 
 /**
  * iOS WebKit では shadowBlur が極端に重い（1 回で数 ms）。
@@ -102,6 +104,8 @@ interface SurvivalCanvasProps {
   hidePlayerHintStatusIcon?: boolean;
   /** ジャ爺のワールド座標（ステージ本番のみ親が更新） */
   jajiiWorldPosRef?: React.MutableRefObject<{ x: number; y: number } | null>;
+  /** ジャ爺頭上の吹き出し（空で非表示） */
+  jajiiBubbleText?: string;
 }
 
 // ===== 色定義 =====
@@ -264,6 +268,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   hideComboGauge = false,
   hidePlayerHintStatusIcon = false,
   jajiiWorldPosRef,
+  jajiiBubbleText = '',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const woodPatternRef = useRef<CanvasPattern | null>(null);
@@ -274,7 +279,9 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const lightningEffectsRef = useRef(lightningEffects);
   const bossBattleRef = useRef(bossBattle);
   const bossUiTickRef = useRef(bossUiTick);
+  const jajiiBubbleTextRef = useRef(jajiiBubbleText);
   gameStateRef.current = gameState;
+  jajiiBubbleTextRef.current = jajiiBubbleText;
   shockwavesRef.current = shockwaves;
   lightningEffectsRef.current = lightningEffects;
   bossBattleRef.current = bossBattle;
@@ -744,6 +751,21 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         JAJII_SPRITE_SIZE,
         JAJII_SPRITE_SIZE,
       );
+
+      const jajiiQuote = jajiiBubbleTextRef.current.trim();
+      if (jajiiQuote) {
+        const bubbleMax = Math.min(
+          SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
+          logicalWidth - 32,
+        );
+        drawSurvivalSpeechBubble({
+          ctx,
+          centerX: jjx,
+          anchorY: jjy - JAJII_SPRITE_SIZE / 2 - 6,
+          text: jajiiQuote,
+          maxWidth: bubbleMax,
+        });
+      }
     }
     
     // 方向インジケーター（矢印アイコン）- 向きに応じて回転
