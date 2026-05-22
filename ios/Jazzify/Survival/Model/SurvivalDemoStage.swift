@@ -35,7 +35,8 @@ enum SurvivalDemoStage {
             allowedChords: allowedChords,
             blockKey: base.blockKey,
             isMixedStage: false,
-            chordProgression: base.chordProgression
+            chordProgression: base.chordProgression,
+            lessonOnly: false
         )
     }()
 
@@ -73,6 +74,7 @@ enum SurvivalDemoStage {
         allowedChords: allowedChords,
         blockKey: "major",
         isMixedStage: false,
-        chordProgression: nil
+        chordProgression: nil,
+        lessonOnly: false
     )
 }

@@ -265,6 +265,9 @@ enum SurvivalBossEngine {
         stageNumber: Int,
         in mapCategory: SurvivalMapCategory = .basic
     ) -> Bool {
+        if let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory), stage.lessonOnly {
+            return false
+        }
         guard let block = SurvivalStageCatalog.block(forStage: stageNumber, in: mapCategory) else { return false }
         return block.lastStage == stageNumber
     }

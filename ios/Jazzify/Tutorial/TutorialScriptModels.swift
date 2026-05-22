@@ -172,7 +172,8 @@ enum TutorialStageBuilder {
             allowedChords: [],
             blockKey: base.blockKey,
             isMixedStage: false,
-            chordProgression: entries
+            chordProgression: entries,
+            lessonOnly: stage.lessonOnly ?? true
         )
     }
 

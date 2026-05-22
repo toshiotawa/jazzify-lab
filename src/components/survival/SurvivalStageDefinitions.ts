@@ -445,6 +445,7 @@ export function isBlockLastStage(
 ): boolean {
   const current = getStageByNumber(stageNumber, mapCategory);
   if (!current) return false;
+  if (current.lessonOnly) return false;
   const next = getStageByNumber(stageNumber + 1, mapCategory);
   if (!next) return true;
   return next.blockKey !== current.blockKey;

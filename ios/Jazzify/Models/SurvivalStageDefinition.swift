@@ -200,7 +200,7 @@ struct SurvivalStageRow: Decodable, Sendable {
     let block_key: String
     let is_mixed_stage: Bool?
     let mixed_group_key: String?
-    /// DB `lesson_only`。降下マップのカタログから除外する。
+    /// DB `lesson_only`。レッスン専用等のフラグ。カタログには含め、降下マップ UI は `.lesson` カテゴリ等で非表示。
     let lesson_only: Bool?
     /// Progression 用コード進行（`[{"name": "FM7", "voicing": [65, 69, 72, 76]}, ...]`）
     let chord_progression: [SurvivalChordProgressionEntry]?
@@ -235,6 +235,8 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let isMixedStage: Bool
     /// Progression ステージで使う事前ビルド済みのコード進行。Random ステージでは nil。
     let chordProgression: [SurvivalChordProgressionEntry]?
+    /// DB `lesson_only`。降下マップのブロック構成・ボス判定からは除外する。
+    let lessonOnly: Bool
 
     /// `Identifiable` 用 ID。マップ間で `stageNumber` が重複し得るため、`mapCategory` を含めて一意化する。
     var id: String { "\(mapCategory.rawValue)-\(stageNumber)" }
@@ -401,10 +403,7 @@ enum SurvivalStageCatalog {
             )
         ]
 
-        let definitions: [SurvivalStageDefinition] = rows.compactMap { row in
-            if row.lesson_only == true {
-                return nil
-            }
+        let definitions: [SurvivalStageDefinition] = rows.compactMap { row -> SurvivalStageDefinition? in
             let mapCategory = SurvivalMapCategory(rawValue: row.map_category ?? "") ?? .basic
             let stageType = SurvivalStageType(rawValue: row.stage_type) ?? .random
             let blockKeyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -462,7 +461,8 @@ enum SurvivalStageCatalog {
                 allowedChords: allowed,
                 blockKey: blockKey,
                 isMixedStage: isMixedStage,
-                chordProgression: progression
+                chordProgression: progression,
+                lessonOnly: row.lesson_only == true
             )
         }
 
@@ -482,7 +482,9 @@ enum SurvivalStageCatalog {
         var blocksByCategory: [SurvivalMapCategory: [SurvivalBlockMeta]] = [:]
         for (category, stages) in stagesByCategory {
             let overrides = blockOverridesByCategory[category] ?? [:]
-            blocksByCategory[category] = generateBlocks(from: stages, blockOverrides: overrides)
+            // lesson_only はカタログ検索用に残し、降下マップのブロック末尾判定からは除外する。
+            let descentStages = stages.filter { !$0.lessonOnly }
+            blocksByCategory[category] = generateBlocks(from: descentStages, blockOverrides: overrides)
         }
 
         _stagesByCategory = stagesByCategory
@@ -631,7 +633,8 @@ enum SurvivalStageCatalog {
                         allowedChords: buildAllowed(roots: roots, suffix: chordType.suffix),
                         blockKey: chordType.blockKey,
                         isMixedStage: false,
-                        chordProgression: nil
+                        chordProgression: nil,
+                        lessonOnly: false
                     )
                 )
                 stageNumber += 1
@@ -656,7 +659,8 @@ enum SurvivalStageCatalog {
                         allowedChords: buildMixedAllowed(for: group),
                         blockKey: group.blockKey,
                         isMixedStage: true,
-                        chordProgression: nil
+                        chordProgression: nil,
+                        lessonOnly: false
                     )
                 )
                 stageNumber += 1

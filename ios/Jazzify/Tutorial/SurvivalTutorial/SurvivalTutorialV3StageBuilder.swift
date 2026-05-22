@@ -75,7 +75,8 @@ enum SurvivalTutorialV3StageBuilder {
                 allowedChords: [],
                 blockKey: "lesson_practice",
                 isMixedStage: false,
-                chordProgression: nil
+                chordProgression: nil,
+                lessonOnly: phraseStage.stage.lessonOnly ?? true
             )
         case let .progressionRandom(block):
             let stageTy = SurvivalStageType(rawValue: block.stage.stageType) ?? .progression
@@ -116,7 +117,8 @@ enum SurvivalTutorialV3StageBuilder {
                 allowedChords: allowedUnique,
                 blockKey: "lesson_practice",
                 isMixedStage: false,
-                chordProgression: chordProgressionEntries
+                chordProgression: chordProgressionEntries,
+                lessonOnly: block.stage.lessonOnly ?? true
             )
         }
     }

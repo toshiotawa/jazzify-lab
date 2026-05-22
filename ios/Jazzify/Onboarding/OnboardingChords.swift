@@ -73,7 +73,8 @@ enum OnboardingChords {
             allowedChords: [],
             blockKey: base.blockKey,
             isMixedStage: false,
-            chordProgression: entries
+            chordProgression: entries,
+            lessonOnly: true
         )
     }()
 
@@ -107,7 +108,8 @@ enum OnboardingChords {
         allowedChords: [],
         blockKey: "major",
         isMixedStage: false,
-        chordProgression: entries
+        chordProgression: entries,
+        lessonOnly: true
     )
 
     private static func makeSceneThreeChord(

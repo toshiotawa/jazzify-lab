@@ -52,6 +52,7 @@ function buildBlocksForCategory(category: SurvivalMapCategory): BlockMeta[] {
   if (stages.length === 0) return [];
   const byKey: Map<BlockKey, BlockBucket> = new Map();
   for (const stage of stages) {
+    if (stage.lessonOnly) continue;
     const existing = byKey.get(stage.blockKey);
     if (existing) {
       existing.stageNumbers.push(stage.stageNumber);

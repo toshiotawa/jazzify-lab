@@ -508,7 +508,7 @@ final class SurvivalScene: SKScene {
                 }
             }
 
-            layoutPlayerQuoteBubble(on: sprite)
+            layoutPlayerQuoteBubble(spriteHeight: sprite.size.height)
         } else {
             playerQuoteBubbleRoot?.removeFromParent()
             playerQuoteBubbleRoot = nil
@@ -1309,7 +1309,8 @@ final class SurvivalScene: SKScene {
     }
 
     private func layoutQuoteBubble(
-        on sprite: SKSpriteNode,
+        on host: SKNode,
+        anchorOffsetY: CGFloat,
         text: String,
         laidOutText: inout String,
         bubbleRoot: inout SKNode?,
@@ -1321,7 +1322,7 @@ final class SurvivalScene: SKScene {
             laidOutText = ""
             return
         }
-        if text == laidOutText, bubbleRoot?.parent === sprite {
+        if text == laidOutText, bubbleRoot?.parent === host {
             return
         }
         laidOutText = text
@@ -1331,14 +1332,17 @@ final class SurvivalScene: SKScene {
             text: text,
             maxOuterWidth: maxOuterWidth
         ) else { return }
-        root.position = CGPoint(x: 0, y: sprite.size.height / 2 + 14)
-        sprite.addChild(root)
+        root.position = CGPoint(x: 0, y: anchorOffsetY)
+        host.addChild(root)
         bubbleRoot = root
     }
 
-    private func layoutPlayerQuoteBubble(on sprite: SKSpriteNode) {
+    /// プレイヤー向き反転 (`sprite.xScale`) の影響を受けないよう、反転しない `playerNode` に載せる。
+    private func layoutPlayerQuoteBubble(spriteHeight: CGFloat) {
+        guard let host = playerNode else { return }
         layoutQuoteBubble(
-            on: sprite,
+            on: host,
+            anchorOffsetY: spriteHeight / 2 + 14,
             text: playerQuoteText,
             laidOutText: &playerQuoteTextLaidOut,
             bubbleRoot: &playerQuoteBubbleRoot,
@@ -1349,6 +1353,7 @@ final class SurvivalScene: SKScene {
     private func layoutJajiiQuoteBubble(on sprite: SKSpriteNode) {
         layoutQuoteBubble(
             on: sprite,
+            anchorOffsetY: sprite.size.height / 2 + 14,
             text: jajiiQuoteText,
             laidOutText: &jajiiQuoteTextLaidOut,
             bubbleRoot: &jajiiQuoteBubbleRoot,
