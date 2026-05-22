@@ -747,19 +747,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.restore();
     }
 
-    const faiQuote = faiBubbleTextRef.current.trim();
-    if (faiQuote) {
-      const bubbleMax = Math.min(SURVIVAL_FAI_BUBBLE_MAX_WIDTH_PX, logicalWidth - 32);
-      drawSurvivalSpeechBubble({
-        ctx,
-        centerX: playerScreenX,
-        anchorY: playerScreenY + PLAYER_SIZE / 2 + 6,
-        text: faiQuote,
-        maxWidth: bubbleMax,
-        placement: 'below',
-      });
-    }
-
     const jajiiWorld = jajiiWorldPosRef?.current ?? null;
     const jajiiImgEl = jajiiSpriteRef.current;
     if (jajiiWorld && jajiiImgEl && jajiiSpriteLoadedRef.current) {
@@ -772,22 +759,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         JAJII_SPRITE_SIZE,
         JAJII_SPRITE_SIZE,
       );
-
-      const jajiiQuote = jajiiBubbleTextRef.current.trim();
-      if (jajiiQuote) {
-        const bubbleMax = Math.min(
-          SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
-          logicalWidth - 32,
-        );
-        drawSurvivalSpeechBubble({
-          ctx,
-          centerX: jjx,
-          anchorY: jjy - JAJII_SPRITE_SIZE / 2 - 6,
-          text: jajiiQuote,
-          maxWidth: bubbleMax,
-          placement: 'above',
-        });
-      }
     }
     
     // 方向インジケーター（矢印アイコン）- 向きに応じて回転
@@ -1730,6 +1701,40 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 
       // 使用しない変数警告を抑止（RAF ループで毎フレーム参照し UI 更新を取り込む）
       void bossUiTickRef.current;
+    }
+
+    const faiQuote = faiBubbleTextRef.current.trim();
+    if (faiQuote) {
+      const bubbleMax = Math.min(SURVIVAL_FAI_BUBBLE_MAX_WIDTH_PX, logicalWidth - 32);
+      drawSurvivalSpeechBubble({
+        ctx,
+        centerX: playerScreenX,
+        anchorY: playerScreenY + PLAYER_SIZE / 2 + 6,
+        text: faiQuote,
+        maxWidth: bubbleMax,
+        placement: 'below',
+      });
+    }
+
+    const jajiiWorldForBubble = jajiiWorldPosRef?.current ?? null;
+    if (jajiiWorldForBubble) {
+      const jjx = jajiiWorldForBubble.x - camera.x;
+      const jjy = jajiiWorldForBubble.y - camera.y;
+      const jajiiQuote = jajiiBubbleTextRef.current.trim();
+      if (jajiiQuote) {
+        const bubbleMax = Math.min(
+          SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
+          logicalWidth - 32,
+        );
+        drawSurvivalSpeechBubble({
+          ctx,
+          centerX: jjx,
+          anchorY: jjy - JAJII_SPRITE_SIZE / 2 - 6,
+          text: jajiiQuote,
+          maxWidth: bubbleMax,
+          placement: 'above',
+        });
+      }
     }
 
     // 衝撃波エフェクト（通常: 前方扇形 / 必殺: 360°）

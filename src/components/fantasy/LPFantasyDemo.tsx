@@ -75,7 +75,7 @@ const LPFantasyDemo: React.FC = () => {
   }, []);
 
   const openDemo = useCallback(() => {
-    void unlockTutorialAudio();
+    void unlockTutorialAudio().catch(() => { /* autoplay policy */ });
     setSuspendPiano(true);
     setIsOpen(true);
     try {

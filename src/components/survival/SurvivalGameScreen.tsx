@@ -5477,7 +5477,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState.isPlaying &&
             !gameState.isGameOver && (
               <div
-                className="absolute inset-0 z-[5] flex items-start justify-center px-3 pt-12 pointer-events-none"
+                className={cn(
+                  'absolute inset-0 z-[5] flex items-start justify-center px-3 pointer-events-none',
+                  survivalStaffOverlayTopPadding,
+                )}
                 aria-hidden
               >
                 <SurvivalProgressionStaff
@@ -5489,10 +5492,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   className={cn(
-                    '[&_svg]:scale-[1] rounded-xl border border-white/26 bg-black/38 px-1 py-0.5',
-                    scenarioProgressionStaffUsesGrand
-                      ? 'max-w-[260px] min-h-[210px]'
-                      : 'max-w-[220px]',
+                    'max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)] [&_svg]:scale-[1]',
+                    'rounded-xl border border-white/26 bg-black/38 px-1 py-0.5',
+                    scenarioProgressionStaffUsesGrand && 'min-h-[210px]',
                   )}
                 />
               </div>

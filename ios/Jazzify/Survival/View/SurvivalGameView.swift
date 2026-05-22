@@ -766,8 +766,9 @@ private struct SurvivalScenarioStaffPanel: View, Equatable {
             voicingStavesPerNote: snapshot.voicingStavesPerNote
         )
         .frame(
-            width: usesGrandStaffLayout ? 260 : 220,
-            height: usesGrandStaffLayout ? 220 : 132
+            maxWidth: 560,
+            maxHeight: usesGrandStaffLayout ? 260 : 220,
+            alignment: .top
         )
         .background(Color.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 12))
     }

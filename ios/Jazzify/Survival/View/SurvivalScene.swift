@@ -27,6 +27,8 @@ final class SurvivalScene: SKScene {
     private var jajiiQuoteText: String = ""
     private var jajiiQuoteTextLaidOut: String = ""
     private var jajiiQuoteBubbleRoot: SKNode?
+    private var playerBubbleAnchorNode: SKNode?
+    private var jajiiBubbleAnchorNode: SKNode?
     private var enemyNodes: [UUID: SKNode] = [:]
     private var projectileNodes: [UUID: SKNode] = [:]
     private var enemyProjectileNodes: [UUID: SKNode] = [:]
@@ -175,6 +177,7 @@ final class SurvivalScene: SKScene {
         drawBackground()
         drawMapBoundary()
         buildPlayer()
+        buildSpeechBubbleOverlay()
 
         let camera = SKCameraNode()
         self.camera = camera
@@ -225,6 +228,19 @@ final class SurvivalScene: SKScene {
         entitiesNode.addChild(container)
         playerNode = container
         playerSprite = sprite
+    }
+
+    /// ボス (z≈120) より前面に吹き出しだけ載せるオーバーレイ。
+    private func buildSpeechBubbleOverlay() {
+        let overlay = SKNode()
+        overlay.zPosition = 200
+        let playerAnchor = SKNode()
+        let jajiiAnchor = SKNode()
+        overlay.addChild(playerAnchor)
+        overlay.addChild(jajiiAnchor)
+        entitiesNode.addChild(overlay)
+        playerBubbleAnchorNode = playerAnchor
+        jajiiBubbleAnchorNode = jajiiAnchor
     }
 
     /// A/B コンボ用ゲージ（5 本）をプレイヤースプライト上端に載せる。
@@ -529,7 +545,8 @@ final class SurvivalScene: SKScene {
                 let wp = SurvivalJajiiEngine.worldPosition(state: jajiiState)
                 node.position = toScenePoint(x: wp.x, y: wp.y)
                 node.isHidden = false
-                layoutJajiiQuoteBubble(on: node)
+                jajiiBubbleAnchorNode?.position = node.position
+                layoutJajiiQuoteBubble(on: jajiiBubbleAnchorNode)
             }
         } else {
             jajiiSpriteNode?.isHidden = true
@@ -1337,11 +1354,12 @@ final class SurvivalScene: SKScene {
         bubbleRoot = root
     }
 
-    /// プレイヤー向き反転 (`sprite.xScale`) の影響を受けないよう、反転しない `playerNode` に載せる。
+    /// プレイヤー向き反転 (`sprite.xScale`) の影響を受けないよう、反転しないアンカーに載せる。
     private func layoutPlayerQuoteBubble(spriteHeight: CGFloat) {
-        guard let host = playerNode else { return }
+        guard let anchor = playerBubbleAnchorNode, let player = playerNode else { return }
+        anchor.position = player.position
         layoutQuoteBubble(
-            on: host,
+            on: anchor,
             anchorOffsetY: spriteHeight / 2 + 14,
             text: playerQuoteText,
             laidOutText: &playerQuoteTextLaidOut,
@@ -1350,10 +1368,11 @@ final class SurvivalScene: SKScene {
         )
     }
 
-    private func layoutJajiiQuoteBubble(on sprite: SKSpriteNode) {
+    private func layoutJajiiQuoteBubble(on anchor: SKNode?) {
+        guard let host = anchor else { return }
         layoutQuoteBubble(
-            on: sprite,
-            anchorOffsetY: sprite.size.height / 2 + 14,
+            on: host,
+            anchorOffsetY: 48 / 2 + 14,
             text: jajiiQuoteText,
             laidOutText: &jajiiQuoteTextLaidOut,
             bubbleRoot: &jajiiQuoteBubbleRoot,
