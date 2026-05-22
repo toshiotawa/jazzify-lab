@@ -539,7 +539,10 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseReveal(base: built.baseline))
             onCharacter(localized(scene.dialogue.onReveal))
             scenarioController.clearEnemies()
-            scenarioController.spawnStationaryRing(count: 12, radius: 180)
+            scenarioController.spawnStationaryRing(
+                count: SurvivalTutorialV3Constants.phraseRevealEnemyCount,
+                radius: SurvivalTutorialV3Constants.phraseRevealEnemyRadius
+            )
             sess.viewModel.syncPhraseStaff(from: sess.gameLoop)
             sess.resumeScenarioBackgroundMusicIfEnabled()
         }

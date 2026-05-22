@@ -5508,33 +5508,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 )}
                 aria-hidden
               >
-                {survivalTutorialLayout && scenarioMode ? (
-                  <SurvivalTutorialStaffBackdrop>
-                    <SurvivalPhraseStaff
-                      currentChord={scenarioPhraseStaff.currentChord}
-                      nextChord={scenarioPhraseStaff.nextChord}
-                      keyFifths={scenarioPhraseStaff.keyFifths}
-                      correctNoteIndices={scenarioPhraseStaff.correctNoteIndices}
-                      revealedNoteIndices={scenarioPhraseStaff.revealedNoteIndices}
-                      targetNoteIndex={scenarioPhraseStaff.targetNoteIndex}
-                      hintMode={scenarioPhraseStaff.hintMode}
-                      unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                      className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
-                    />
-                  </SurvivalTutorialStaffBackdrop>
-                ) : (
-                  <SurvivalPhraseStaff
-                    currentChord={scenarioPhraseStaff.currentChord}
-                    nextChord={scenarioPhraseStaff.nextChord}
-                    keyFifths={scenarioPhraseStaff.keyFifths}
-                    correctNoteIndices={scenarioPhraseStaff.correctNoteIndices}
-                    revealedNoteIndices={scenarioPhraseStaff.revealedNoteIndices}
-                    targetNoteIndex={scenarioPhraseStaff.targetNoteIndex}
-                    hintMode={scenarioPhraseStaff.hintMode}
-                    unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                    className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
-                  />
-                )}
+                <SurvivalPhraseStaff
+                  currentChord={scenarioPhraseStaff.currentChord}
+                  nextChord={scenarioPhraseStaff.nextChord}
+                  keyFifths={scenarioPhraseStaff.keyFifths}
+                  correctNoteIndices={scenarioPhraseStaff.correctNoteIndices}
+                  revealedNoteIndices={scenarioPhraseStaff.revealedNoteIndices}
+                  targetNoteIndex={scenarioPhraseStaff.targetNoteIndex}
+                  hintMode={scenarioPhraseStaff.hintMode}
+                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                />
               </div>
             )}
           {scenarioProgressionStaff &&
@@ -5585,33 +5569,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 )}
                 aria-hidden
               >
-                {survivalTutorialLayout && scenarioMode ? (
-                  <SurvivalTutorialStaffBackdrop>
-                    <SurvivalPhraseStaff
-                      currentChord={phraseStaffProps.currentChord}
-                      nextChord={phraseStaffProps.nextChord}
-                      keyFifths={phraseStaffProps.keyFifths}
-                      correctNoteIndices={phraseStaffProps.correctNoteIndices}
-                      revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
-                      targetNoteIndex={phraseStaffProps.targetNoteIndex}
-                      hintMode={phraseStaffProps.hintMode}
-                      unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                      className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
-                    />
-                  </SurvivalTutorialStaffBackdrop>
-                ) : (
-                  <SurvivalPhraseStaff
-                    currentChord={phraseStaffProps.currentChord}
-                    nextChord={phraseStaffProps.nextChord}
-                    keyFifths={phraseStaffProps.keyFifths}
-                    correctNoteIndices={phraseStaffProps.correctNoteIndices}
-                    revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
-                    targetNoteIndex={phraseStaffProps.targetNoteIndex}
-                    hintMode={phraseStaffProps.hintMode}
-                    unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                    className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
-                  />
-                )}
+                <SurvivalPhraseStaff
+                  currentChord={phraseStaffProps.currentChord}
+                  nextChord={phraseStaffProps.nextChord}
+                  keyFifths={phraseStaffProps.keyFifths}
+                  correctNoteIndices={phraseStaffProps.correctNoteIndices}
+                  revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
+                  targetNoteIndex={phraseStaffProps.targetNoteIndex}
+                  hintMode={phraseStaffProps.hintMode}
+                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                />
               </div>
             )}
           {!isPhraseMode &&

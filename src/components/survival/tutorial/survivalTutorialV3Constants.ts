@@ -8,3 +8,9 @@ export const SURVIVAL_TUTORIAL_V3_DIALOGUE_LINE_SECONDS = 3;
 
 /** 正解後の余韻（iOS `SurvivalTutorialV3Constants.afterCorrectSeconds` と揃える）。 */
 export const SURVIVAL_TUTORIAL_V3_AFTER_CORRECT_SECONDS = 1;
+
+/** フレーズバトル reveal 時の静止敵数（譜面背後の視認性確保）。 */
+export const SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT = 1;
+
+/** フレーズバトル reveal 時の静止敵リング半径（px）。 */
+export const SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS = 180;

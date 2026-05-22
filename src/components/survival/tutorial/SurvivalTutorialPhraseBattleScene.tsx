@@ -8,7 +8,11 @@ import {
   buildTutorialPhraseDefinitionFromV3Block,
 } from '@/components/survival/tutorial/buildTutorialStageFromSurvivalV3Content';
 import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/survivalTutorialV3Bindings';
-import { SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS } from '@/components/survival/tutorial/survivalTutorialV3Constants';
+import {
+  SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS,
+  SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT,
+  SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS,
+} from '@/components/survival/tutorial/survivalTutorialV3Constants';
 import {
   survivalTutorialPhraseBattleBaseline,
   survivalTutorialPhraseIntroBlockOverrides,
@@ -164,7 +168,10 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
           survivalTutorialLocalized(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
         );
         h.clearEnemies();
-        h.spawnStationaryRing(12, 180);
+        h.spawnStationaryRing(
+          SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT,
+          SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS,
+        );
 
         const loopsOk = await waitPhraseLoopPulseDelta(
           () => pulseRef.current,

@@ -389,10 +389,7 @@ private struct SurvivalGameContent: View {
                !vm.uiSnapshot.scenario.hideStaff,
                scenarioStaffSnapshot == nil,
                let phraseStaff = vm.phraseStaffSnapshot {
-                SurvivalPhraseStaffOverlay(
-                    snapshot: phraseStaff,
-                    tutorialStaffBackdrop: vm.uiSnapshot.scenario.isActive,
-                )
+                SurvivalPhraseStaffOverlay(snapshot: phraseStaff)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, hudHeight + 4)
                     .padding(.horizontal, 12)
@@ -723,17 +720,6 @@ private struct SurvivalTutorialStaffBackdropModifier: ViewModifier {
     }
 }
 
-private extension View {
-    @ViewBuilder
-    func survivalTutorialStaffBackdrop(_ enabled: Bool) -> some View {
-        if enabled {
-            modifier(SurvivalTutorialStaffBackdropModifier())
-        } else {
-            self
-        }
-    }
-}
-
 private struct SurvivalStageCenterStaffOverlay: View {
     let payload: SurvivalStageCenterStaffPayload
     let unpressedNoteOpacity: CGFloat
@@ -755,12 +741,10 @@ private struct SurvivalStageCenterStaffOverlay: View {
 
 private struct SurvivalPhraseStaffOverlay: View {
     let snapshot: SurvivalPhraseStaffSnapshot
-    var tutorialStaffBackdrop: Bool
 
     var body: some View {
         SurvivalPhraseStaffView(snapshot: snapshot)
             .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
-            .survivalTutorialStaffBackdrop(tutorialStaffBackdrop)
     }
 }
 

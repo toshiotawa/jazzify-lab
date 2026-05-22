@@ -8,4 +8,8 @@ enum SurvivalTutorialV3Constants {
     static let dialogueLineSeconds: Double = 3
     /// 正解後の余韻（Web `SURVIVAL_TUTORIAL_V3_AFTER_CORRECT_SECONDS` と揃える）。
     static let afterCorrectSeconds: Double = 1
+    /// フレーズバトル reveal 時の静止敵数（譜面背後の視認性確保）。
+    static let phraseRevealEnemyCount: Int = 1
+    /// フレーズバトル reveal 時の静止敵リング半径。
+    static let phraseRevealEnemyRadius: CGFloat = 180
 }
