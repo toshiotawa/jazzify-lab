@@ -4819,12 +4819,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.codeSlots.current[1].chord?.progressionStaffVoicingNames,
   ]);
 
-  const scenarioProgressionStaffUsesGrand = useMemo(() => {
-    const staves = scenarioProgressionStaff?.voicingStaves;
-    if (!staves || staves.length === 0) return false;
-    return staves.some((s) => s === 1) && staves.some((s) => s === 2);
-  }, [scenarioProgressionStaff]);
-
   const scenarioUi = useMemo(() => {
     void scenarioUiTick;
     return scenarioOverridesRef.current;
@@ -5491,11 +5485,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
                   staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                  className={cn(
-                    'max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)] [&_svg]:scale-[1]',
-                    'rounded-xl border border-white/26 bg-black/38 px-1 py-0.5',
-                    scenarioProgressionStaffUsesGrand && 'min-h-[210px]',
-                  )}
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
                 />
               </div>
             )}
