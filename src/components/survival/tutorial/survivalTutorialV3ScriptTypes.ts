@@ -1,9 +1,14 @@
 import type { SurvivalScenarioOverrides } from '@/components/survival/scenario/survivalScenarioTypes';
+import type { TutorialStyledLocalizedText } from '@/types/tutorialStyledText';
 
-/** v3 共通: 多言語文言 */
-export interface SurvivalTutorialLocalizedText {
-  readonly ja: string;
-  readonly en: string;
+/** v3 共通: 多言語文言（任意 `styled` で部分色付け） */
+export type SurvivalTutorialLocalizedText = TutorialStyledLocalizedText;
+
+/** `dialogue_only` 行の話者（省略時はファイ想定／Onboarding）。 */
+export type SurvivalTutorialV3DialogueSpeaker = 'fai' | 'jajii';
+
+export interface SurvivalTutorialV3DialogueLine extends SurvivalTutorialLocalizedText {
+  readonly speaker?: SurvivalTutorialV3DialogueSpeaker;
 }
 
 /** v3: コンテンツ用コード（tutorial v2 と同様の並び）。 */
@@ -79,7 +84,7 @@ export interface SurvivalTutorialV3BattleDialogue {
 
 export interface SurvivalTutorialV3DialogueOnlyScene {
   readonly type: 'dialogue_only';
-  readonly lines: readonly SurvivalTutorialLocalizedText[];
+  readonly lines: readonly SurvivalTutorialV3DialogueLine[];
   readonly lineIntervalSeconds?: number;
 }
 

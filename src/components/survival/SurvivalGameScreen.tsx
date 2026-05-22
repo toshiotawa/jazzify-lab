@@ -114,6 +114,7 @@ import {
   SurvivalProgressionStaff,
   type SurvivalProgressionStaffSnapshot,
 } from './SurvivalProgressionStaff';
+import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 import { SurvivalPhraseStaff } from './phrases/SurvivalPhraseStaff';
 import {
   INACTIVE_SCENARIO_OVERRIDES,
@@ -341,6 +342,10 @@ interface SurvivalGameScreenProps {
   tutorialPhraseInlineDefinition?: import('@/utils/survivalPhraseDefinitions').SurvivalPhraseDefinition | null;
   /** phrases モードで全コードを一周して先頭コードに戻ったタイミングでのみインクリメント（親が tutorial 終了判定に利用） */
   scenarioPhraseFullLoopPulseRef?: React.MutableRefObject<number>;
+  /** v3 dialogue_only でジャ爺話者があるシーンのみ。`shouldEnableJajiiSupport` の特例へ渡す */
+  tutorialDialogueJajii?: boolean;
+  /** ジャ爺吹き出しの segments。`.current` を親が書き換え、Canvas が毎フレーム参照 */
+  tutorialJajiiSpeechSegmentsRef?: React.MutableRefObject<readonly TutorialResolvedTextSegment[]>;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -369,6 +374,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   scenarioMidiNoteReceivedRef,
   tutorialPhraseInlineDefinition = null,
   scenarioPhraseFullLoopPulseRef,
+  tutorialDialogueJajii = false,
+  tutorialJajiiSpeechSegmentsRef,
 }) => {
   const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
@@ -476,8 +483,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         scenarioMode,
         survivalTutorialLayout,
         mapCategory: stageDefinition?.mapCategory,
+        tutorialDialogueJajii: tutorialDialogueJajii || undefined,
       }),
-    [isStageMode, scenarioMode, survivalTutorialLayout, stageDefinition?.mapCategory],
+    [
+      isStageMode,
+      scenarioMode,
+      survivalTutorialLayout,
+      stageDefinition?.mapCategory,
+      tutorialDialogueJajii,
+    ],
   );
 
   useEffect(() => {
@@ -5481,6 +5495,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             hidePlayerHintStatusIcon={scenarioHideHintBadge}
             jajiiWorldPosRef={jajiiWorldPosRef}
             jajiiBubbleText={timedJajiiBubbleLine}
+            jajiiSpeechSegmentsRef={tutorialJajiiSpeechSegmentsRef}
             faiBubbleText={timedFaiBubbleCharacterLine}
           />
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (

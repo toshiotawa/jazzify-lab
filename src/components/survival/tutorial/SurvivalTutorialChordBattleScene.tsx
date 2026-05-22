@@ -19,8 +19,8 @@ import {
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import { survivalTutorialV3ContentIsPhraseBlock } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import {
-  interpolateRemaining,
-  survivalTutorialLocalized,
+  survivalTutorialResolvedSegments,
+  survivalTutorialResolvedSegmentsWithRemaining,
 } from '@/components/survival/tutorial/survivalTutorialV3Locales';
 
 type ChordBattleScene =
@@ -161,8 +161,8 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
               h.setOverrides(survivalTutorialChordIntroBlockOverrides(baseline));
               h.clearEnemies();
               h.setSlotBChord(null);
-              bindingsRef.current.setCharacterLine(
-                survivalTutorialLocalized(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
+              bindingsRef.current.setCharacterSegments(
+                survivalTutorialResolvedSegments(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
               );
             },
             onRevealFight: () => {
@@ -171,8 +171,8 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
                 h.setSlotBChord(ch);
               }
               h.setOverrides(survivalTutorialChordRevealOverrides(baseline));
-              bindingsRef.current.setCharacterLine(
-                survivalTutorialLocalized(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
+              bindingsRef.current.setCharacterSegments(
+                survivalTutorialResolvedSegments(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
               );
               h.clearEnemies();
               h.spawnStationaryRing(12, 180);
@@ -190,14 +190,13 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
           afterCorrect: (_remainingQuestions, qiCompleted) => {
             const answered = qiCompleted + 1;
             const remainingAfter = Math.max(0, totalQuestions - answered);
-            const line = interpolateRemaining(
-              survivalTutorialLocalized(
+            bindingsRef.current.setCharacterSegments(
+              survivalTutorialResolvedSegmentsWithRemaining(
                 scene.dialogue.onCorrectRemaining,
                 bindingsRef.current.isEnglishCopy,
+                remainingAfter,
               ),
-              remainingAfter,
             );
-            bindingsRef.current.setCharacterLine(line);
           },
         });
         progressed = Boolean(finishedOk) && !ac.signal.aborted;
@@ -205,7 +204,7 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
         progressed = false;
       }
 
-      bindingsRef.current.setCharacterLine('');
+      bindingsRef.current.setCharacterSegments([]);
       if (progressed) {
         onSceneComplete();
       }

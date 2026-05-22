@@ -21,8 +21,8 @@ import {
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import { survivalTutorialV3ContentIsPhraseBlock } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import {
-  interpolateRemaining,
-  survivalTutorialLocalized,
+  survivalTutorialResolvedSegments,
+  survivalTutorialResolvedSegmentsWithRemaining,
 } from '@/components/survival/tutorial/survivalTutorialV3Locales';
 
 type PhraseScene = Extract<
@@ -150,8 +150,8 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
       try {
         h.setOverrides(survivalTutorialPhraseIntroBlockOverrides(baseline));
-        bindingsRef.current.setCharacterLine(
-          survivalTutorialLocalized(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
+        bindingsRef.current.setCharacterSegments(
+          survivalTutorialResolvedSegments(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
         );
 
         await bindingsRef.current.waitForTapOrTimeout(
@@ -164,8 +164,8 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
         const introPulse = pulseRef.current;
         h.setOverrides(survivalTutorialPhraseRevealOverrides(baseline));
-        bindingsRef.current.setCharacterLine(
-          survivalTutorialLocalized(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
+        bindingsRef.current.setCharacterSegments(
+          survivalTutorialResolvedSegments(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
         );
         h.clearEnemies();
         h.spawnStationaryRing(
@@ -182,12 +182,10 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
         if (loopsOk && !ac.signal.aborted) {
           progressed = true;
-          bindingsRef.current.setCharacterLine(
-            interpolateRemaining(
-              survivalTutorialLocalized(
-                scene.dialogue.onCorrectRemaining,
-                bindingsRef.current.isEnglishCopy,
-              ),
+          bindingsRef.current.setCharacterSegments(
+            survivalTutorialResolvedSegmentsWithRemaining(
+              scene.dialogue.onCorrectRemaining,
+              bindingsRef.current.isEnglishCopy,
               0,
             ),
           );
@@ -196,7 +194,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
       } catch {
         /* ignore */
       } finally {
-        bindingsRef.current.setCharacterLine('');
+        bindingsRef.current.setCharacterSegments([]);
         bindingsRef.current.resumeSharedDrumLoop?.();
         bindingsRef.current.setTapAdvanceCueVisible(false);
         if (progressed) {

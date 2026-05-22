@@ -32,6 +32,7 @@ export interface JajiiSupportEnableParams {
   readonly scenarioMode: boolean;
   readonly survivalTutorialLayout: boolean;
   readonly mapCategory: SurvivalMapCategory | undefined;
+  readonly tutorialDialogueJajii?: boolean;
 }
 
 export interface JajiiState {
@@ -81,12 +82,18 @@ const distFromPlayer = (state: JajiiState, playerX: number, playerY: number): nu
 const isRestingAtTarget = (state: JajiiState): boolean =>
   distToTarget(state) < JAJII_ARRIVE_EPS;
 
-export const shouldEnableJajiiSupport = (p: JajiiSupportEnableParams): boolean =>
-  p.isStageMode
-  && !p.scenarioMode
-  && !p.survivalTutorialLayout
-  && p.mapCategory !== undefined
-  && p.mapCategory !== 'lesson';
+export const shouldEnableJajiiSupport = (p: JajiiSupportEnableParams): boolean => {
+  if (p.tutorialDialogueJajii) {
+    return p.isStageMode;
+  }
+  return (
+    p.isStageMode
+    && !p.scenarioMode
+    && !p.survivalTutorialLayout
+    && p.mapCategory !== undefined
+    && p.mapCategory !== 'lesson'
+  );
+};
 
 export const createInitialJajiiState = (
   playerX: number,

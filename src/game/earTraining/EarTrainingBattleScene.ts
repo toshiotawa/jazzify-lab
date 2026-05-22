@@ -5,7 +5,9 @@ import type {
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
   EarTrainingPlayerQuoteOptions,
+  EarTrainingQuotePayload,
 } from './types';
+import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 import { EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS } from '@/utils/constants';
 import {
   clampBattleCharacterX,
@@ -13,6 +15,16 @@ import {
   getBattleCharacterMotionRange,
   type BattleCharacterMotionRange,
 } from './battleCharacterMotion';
+
+import {
+  earTrainingQuoteSegmentsCacheKey,
+  normalizeEarTrainingQuotePayload,
+} from '@/utils/earTrainingQuotePayload';
+import {
+  maxLineRenderedWidthPx,
+  totalQuoteLinesHeightPx,
+  wrapTutorialQuoteSegmentsToLines,
+} from '@/game/earTraining/tutorialQuoteSegmentsLayout';
 
 const PIANO_OVERLAY_HEIGHT = 88;
 const HUD_HEIGHT = 150;
@@ -259,12 +271,14 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private phraseLayer: Phaser.GameObjects.Container | null = null;
   private playerView: CharacterView | null = null;
   private enemyView: CharacterView | null = null;
-  private cachedPlayerQuoteText: string | null = null;
+  private cachedPlayerQuoteSegments: readonly TutorialResolvedTextSegment[] | null = null;
+  private cachedPlayerQuoteFingerprint = '';
   private cachedPlayerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
   private cachedPlayerQuoteShowCue = false;
   private playerQuoteCueTween: Phaser.Tweens.Tween | null = null;
   private playerQuoteBubbleRoot: Phaser.GameObjects.Container | null = null;
-  private cachedPartnerQuoteText: string | null = null;
+  private cachedPartnerQuoteSegments: readonly TutorialResolvedTextSegment[] | null = null;
+  private cachedPartnerQuoteFingerprint = '';
   private cachedPartnerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
   private cachedPartnerQuoteShowCue = false;
   private partnerQuoteCueTween: Phaser.Tweens.Tween | null = null;
@@ -392,68 +406,77 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     void _active;
   }
 
-  setPlayerQuote(text: string | null, options?: EarTrainingPlayerQuoteOptions): void {
-    const normalized = text?.trim() ? text.trim() : null;
+  private measureBoldInterQuoteText(text: string, fontPx: number): number {
+    const canvas = this.sys.game.canvas as HTMLCanvasElement | undefined;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) {
+      return text.length * fontPx * 0.56;
+    }
+    ctx.font = `bold ${fontPx}px Inter, ui-sans-serif, system-ui, sans-serif`;
+    return ctx.measureText(text).width;
+  }
+
+  setPlayerQuote(content: EarTrainingQuotePayload | null, options?: EarTrainingPlayerQuoteOptions): void {
+    const segments = normalizeEarTrainingQuotePayload(content);
     const fontPx = options?.fontSizePx ?? PLAYER_QUOTE_FONT_PX;
     const showCue = options?.showAdvanceCue ?? false;
-    if (!normalized) {
+    const fp =
+      `${earTrainingQuoteSegmentsCacheKey(segments)}:${fontPx}:${showCue ? 1 : 0}`;
+    if (!segments) {
       if (
-        this.cachedPlayerQuoteText === null &&
-        this.cachedPlayerQuoteFontPx === PLAYER_QUOTE_FONT_PX &&
-        !this.cachedPlayerQuoteShowCue
+        this.cachedPlayerQuoteSegments === null
+        && this.cachedPlayerQuoteFontPx === PLAYER_QUOTE_FONT_PX
+        && !this.cachedPlayerQuoteShowCue
       ) {
         return;
       }
-      this.cachedPlayerQuoteText = null;
+      this.cachedPlayerQuoteSegments = null;
+      this.cachedPlayerQuoteFingerprint = '';
       this.cachedPlayerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
       this.cachedPlayerQuoteShowCue = false;
       this.layoutPlayerQuoteBubble();
       return;
     }
-    if (
-      normalized === this.cachedPlayerQuoteText &&
-      fontPx === this.cachedPlayerQuoteFontPx &&
-      showCue === this.cachedPlayerQuoteShowCue
-    ) {
+    if (fp === this.cachedPlayerQuoteFingerprint) {
       return;
     }
-    this.cachedPlayerQuoteText = normalized;
+    this.cachedPlayerQuoteSegments = segments;
+    this.cachedPlayerQuoteFingerprint = fp;
     this.cachedPlayerQuoteFontPx = fontPx;
     this.cachedPlayerQuoteShowCue = showCue;
     this.layoutPlayerQuoteBubble();
   }
 
-  setPartnerQuote(text: string | null, options?: EarTrainingPlayerQuoteOptions): void {
-    const normalized = text?.trim() ? text.trim() : null;
+  setPartnerQuote(content: EarTrainingQuotePayload | null, options?: EarTrainingPlayerQuoteOptions): void {
+    const segments = normalizeEarTrainingQuotePayload(content);
     const fontPx = options?.fontSizePx ?? PLAYER_QUOTE_FONT_PX;
     const showCue = options?.showAdvanceCue ?? false;
-    if (!normalized) {
+    const fp =
+      `${earTrainingQuoteSegmentsCacheKey(segments)}:${fontPx}:${showCue ? 1 : 0}`;
+    if (!segments) {
       if (
-        this.cachedPartnerQuoteText === null &&
-        this.cachedPartnerQuoteFontPx === PLAYER_QUOTE_FONT_PX &&
-        !this.cachedPartnerQuoteShowCue
+        this.cachedPartnerQuoteSegments === null
+        && this.cachedPartnerQuoteFontPx === PLAYER_QUOTE_FONT_PX
+        && !this.cachedPartnerQuoteShowCue
       ) {
         return;
       }
-      this.cachedPartnerQuoteText = null;
+      this.cachedPartnerQuoteSegments = null;
+      this.cachedPartnerQuoteFingerprint = '';
       this.cachedPartnerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
       this.cachedPartnerQuoteShowCue = false;
       this.layoutPartnerQuoteBubble();
       return;
     }
-    if (
-      normalized === this.cachedPartnerQuoteText &&
-      fontPx === this.cachedPartnerQuoteFontPx &&
-      showCue === this.cachedPartnerQuoteShowCue
-    ) {
+    if (fp === this.cachedPartnerQuoteFingerprint) {
       return;
     }
-    this.cachedPartnerQuoteText = normalized;
+    this.cachedPartnerQuoteSegments = segments;
+    this.cachedPartnerQuoteFingerprint = fp;
     this.cachedPartnerQuoteFontPx = fontPx;
     this.cachedPartnerQuoteShowCue = showCue;
     this.layoutPartnerQuoteBubble();
   }
-
   private stopQuoteCueTween(): void {
     if (this.playerQuoteCueTween) {
       this.playerQuoteCueTween.stop();
@@ -1042,8 +1065,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     this.stopQuoteCueTween();
 
-    const text = this.cachedPlayerQuoteText;
-    if (!text) {
+    const segments = this.cachedPlayerQuoteSegments;
+    if (!segments || segments.length === 0) {
       this.playerQuoteBubbleRoot?.setVisible(false);
       return;
     }
@@ -1064,6 +1087,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     root.removeAll(true);
 
     const fontPx = this.cachedPlayerQuoteFontPx;
+    const lineHeightApprox = Math.ceil(fontPx * 1.22);
 
     const quoteStyleBase = {
       fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
@@ -1095,25 +1119,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       maxBubbleOuter - horizontalPadding - cueColumnWidth,
     );
 
-    const quoteStyle = {
-      ...quoteStyleBase,
-      wordWrap: { width: textWrapWidth, useAdvancedWrap: true },
-    };
+    const measure = (s: string) => this.measureBoldInterQuoteText(s, fontPx);
+    const lineRows = wrapTutorialQuoteSegmentsToLines(segments, textWrapWidth, measure);
 
-    const label = this.make.text({
-      x: 0,
-      y: 0,
-      text,
-      style: quoteStyle,
-      add: false,
-    });
-    label.setOrigin(0, 0.5);
+    const bodyTextWidth = maxLineRenderedWidthPx(lineRows, measure);
+    const innerWidth = bodyTextWidth + cueColumnWidth;
 
-    const textColumnWidth = label.width;
-    const innerWidth = textColumnWidth + cueColumnWidth;
-    const bubbleWidth = innerWidth + PLAYER_QUOTE_PAD_X * 2;
-    const rowHeight = Math.max(label.height, cueLabel?.height ?? 0);
-    const bubbleHeight = rowHeight + PLAYER_QUOTE_PAD_Y * 2;
+    const textBlockHeight = totalQuoteLinesHeightPx(lineRows.length, lineHeightApprox);
+    const bubbleWidth = innerWidth + horizontalPadding;
+    const bubbleHeight = textBlockHeight + PLAYER_QUOTE_PAD_Y * 2;
     const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
 
     const bubble = this.make.graphics({ x: 0, y: 0 }, false);
@@ -1124,11 +1138,33 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     tail.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
     tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
 
-    const rowY = -tailH - bubbleHeight / 2;
+    const rowAnchorY = -tailH - bubbleHeight / 2;
+    const blockTopY = rowAnchorY - textBlockHeight / 2 + lineHeightApprox / 2;
     const textLeft = -innerWidth / 2;
-    label.setPosition(textLeft, rowY);
+
+    const lineNodes: Phaser.GameObjects.Text[] = [];
+    lineRows.forEach((row, lineIndex) => {
+      let cx = textLeft;
+      const y = blockTopY + lineIndex * lineHeightApprox;
+      for (const seg of row) {
+        const lbl = this.make.text({
+          x: cx,
+          y,
+          text: seg.text,
+          style: {
+            ...quoteStyleBase,
+            color: seg.color,
+          },
+          add: false,
+        });
+        lbl.setOrigin(0, 0.5);
+        lineNodes.push(lbl);
+        cx += measure(seg.text);
+      }
+    });
+
     if (cueLabel) {
-      cueLabel.setPosition(textLeft + textColumnWidth + PLAYER_QUOTE_CUE_GAP_PX, rowY);
+      cueLabel.setPosition(textLeft + bodyTextWidth + PLAYER_QUOTE_CUE_GAP_PX, rowAnchorY);
       cueLabel.setAlpha(1);
       this.playerQuoteCueTween = this.tweens.add({
         targets: cueLabel,
@@ -1139,8 +1175,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       });
     }
 
-    root.add([tail, bubble, label, ...(cueLabel ? [cueLabel] : [])]);
-
+    root.add([tail, bubble, ...lineNodes, ...(cueLabel ? [cueLabel] : [])]);
     root.setVisible(true);
   }
 
@@ -1154,8 +1189,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     this.stopPartnerQuoteCueTween();
 
-    const text = this.cachedPartnerQuoteText;
-    if (!text) {
+    const segments = this.cachedPartnerQuoteSegments;
+    if (!segments || segments.length === 0) {
       this.partnerQuoteBubbleRoot?.setVisible(false);
       return;
     }
@@ -1176,6 +1211,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     root.removeAll(true);
 
     const fontPx = this.cachedPartnerQuoteFontPx;
+    const lineHeightApprox = Math.ceil(fontPx * 1.22);
 
     const quoteStyleBase = {
       fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
@@ -1207,25 +1243,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       maxBubbleOuter - horizontalPadding - cueColumnWidth,
     );
 
-    const quoteStyle = {
-      ...quoteStyleBase,
-      wordWrap: { width: textWrapWidth, useAdvancedWrap: true },
-    };
+    const measure = (s: string) => this.measureBoldInterQuoteText(s, fontPx);
+    const lineRows = wrapTutorialQuoteSegmentsToLines(segments, textWrapWidth, measure);
 
-    const label = this.make.text({
-      x: 0,
-      y: 0,
-      text,
-      style: quoteStyle,
-      add: false,
-    });
-    label.setOrigin(0, 0.5);
+    const bodyTextWidth = maxLineRenderedWidthPx(lineRows, measure);
+    const innerWidth = bodyTextWidth + cueColumnWidth;
 
-    const textColumnWidth = label.width;
-    const innerWidth = textColumnWidth + cueColumnWidth;
-    const bubbleWidth = innerWidth + PLAYER_QUOTE_PAD_X * 2;
-    const rowHeight = Math.max(label.height, cueLabel?.height ?? 0);
-    const bubbleHeight = rowHeight + PLAYER_QUOTE_PAD_Y * 2;
+    const textBlockHeight = totalQuoteLinesHeightPx(lineRows.length, lineHeightApprox);
+    const bubbleWidth = innerWidth + horizontalPadding;
+    const bubbleHeight = textBlockHeight + PLAYER_QUOTE_PAD_Y * 2;
     const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
 
     const bubble = this.make.graphics({ x: 0, y: 0 }, false);
@@ -1236,11 +1262,33 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     tail.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
     tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
 
-    const rowY = -tailH - bubbleHeight / 2;
+    const rowAnchorY = -tailH - bubbleHeight / 2;
+    const blockTopY = rowAnchorY - textBlockHeight / 2 + lineHeightApprox / 2;
     const textLeft = -innerWidth / 2;
-    label.setPosition(textLeft, rowY);
+
+    const lineNodes: Phaser.GameObjects.Text[] = [];
+    lineRows.forEach((row, lineIndex) => {
+      let cx = textLeft;
+      const y = blockTopY + lineIndex * lineHeightApprox;
+      for (const seg of row) {
+        const lbl = this.make.text({
+          x: cx,
+          y,
+          text: seg.text,
+          style: {
+            ...quoteStyleBase,
+            color: seg.color,
+          },
+          add: false,
+        });
+        lbl.setOrigin(0, 0.5);
+        lineNodes.push(lbl);
+        cx += measure(seg.text);
+      }
+    });
+
     if (cueLabel) {
-      cueLabel.setPosition(textLeft + textColumnWidth + PLAYER_QUOTE_CUE_GAP_PX, rowY);
+      cueLabel.setPosition(textLeft + bodyTextWidth + PLAYER_QUOTE_CUE_GAP_PX, rowAnchorY);
       cueLabel.setAlpha(1);
       this.partnerQuoteCueTween = this.tweens.add({
         targets: cueLabel,
@@ -1251,8 +1299,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       });
     }
 
-    root.add([tail, bubble, label, ...(cueLabel ? [cueLabel] : [])]);
-
+    root.add([tail, bubble, ...lineNodes, ...(cueLabel ? [cueLabel] : [])]);
     root.setVisible(true);
   }
 

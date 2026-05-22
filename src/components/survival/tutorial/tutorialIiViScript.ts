@@ -4,6 +4,7 @@ import {
   TUTORIAL_BOOTSTRAP_OVERRIDES,
   type SurvivalScenarioOverrides,
 } from '@/components/survival/scenario/survivalScenarioTypes';
+import type { TutorialLocalizedText } from './tutorialScriptTypes';
 import { TutorialAudioController } from './TutorialAudioController';
 import { hasWebMidiInputDeviceInitially } from './tutorialMidiSetup';
 import {
@@ -16,7 +17,7 @@ import {
 } from './tutorialOnboardingChords';
 
 export interface TutorialRunnerUi {
-  setCharacterText: (text: string) => void;
+  setCharacterText: (line: TutorialLocalizedText | string) => void;
   setNarrationText: (text: string) => void;
   setConnectedDeviceLine: (line: string | null) => void;
   setShowPillarCard: (show: boolean) => void;

@@ -48,6 +48,18 @@ describe('SurvivalJajiiEngine', () => {
         }),
       ).toBe(false);
     });
+
+    it('scenarioMode と lesson でも tutorialDialogueJajii が true なら有効', () => {
+      expect(
+        shouldEnableJajiiSupport({
+          isStageMode: true,
+          scenarioMode: true,
+          survivalTutorialLayout: true,
+          mapCategory: 'lesson',
+          tutorialDialogueJajii: true,
+        }),
+      ).toBe(true);
+    });
   });
 
   describe('tryScheduleMiniSpecial', () => {

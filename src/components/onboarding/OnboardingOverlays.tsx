@@ -1,4 +1,7 @@
 import React from 'react';
+import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
+
+import { TutorialRichText } from '@/components/onboarding/TutorialRichText';
 import { cn } from '@/utils/cn';
 import { isIOSWebView } from '@/utils/iosbridge';
 
@@ -13,6 +16,8 @@ export type EarTutorialDialogPlacement =
 
 interface OnboardingOverlaysProps {
   characterText: string;
+  /** `ja`/`en` 解決済みセグメント。指定時は `characterText` より優先して描画する。 */
+  characterSegments?: readonly TutorialResolvedTextSegment[] | null;
   narrationText: string;
   connectedDeviceLine: string | null;
   showPillarCard: boolean;
@@ -49,6 +54,7 @@ const estimateVoicingSlotBandPx = (slotCount: number, viewportShortEdgePx: numbe
  */
 export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
   characterText,
+  characterSegments,
   narrationText,
   connectedDeviceLine,
   showPillarCard,
@@ -65,8 +71,17 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
 }) => {
   const viewportShortEdgePx =
     typeof window !== 'undefined' ? Math.min(window.innerWidth, window.innerHeight) : 400;
+  const segmentContent: readonly TutorialResolvedTextSegment[] | null =
+    characterSegments !== undefined &&
+    characterSegments !== null &&
+    characterSegments.length > 0
+      ? characterSegments
+      : null;
+  const legacyLineVisible =
+    segmentContent === null && characterText.trim().length > 0;
+  const dialogVisible = segmentContent !== null || legacyLineVisible;
   const tutorialPlacement =
-    characterText !== '' && earTutorialDialogPlacement !== 'default'
+    dialogVisible && earTutorialDialogPlacement !== 'default'
       ? earTutorialDialogPlacement
       : undefined;
 
@@ -128,7 +143,7 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
 
   return (
   <>
-    {characterText ? (
+    {dialogVisible ? (
       <div
         className={cn(
           'pointer-events-none absolute z-30 px-4',
@@ -139,16 +154,21 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
         <div className={cn('mx-auto flex flex-col items-center', characterWidthClass, characterBubbleTranslateClass)}>
           <div
             className={cn(
-              'w-full rounded-[12px] border border-white/25 bg-black/80 px-3 py-2.5 text-center font-bold text-white shadow-lg',
+              'w-full rounded-[12px] border border-white/25 bg-black/80 px-3 py-2.5 text-center font-bold shadow-lg',
+              segmentContent ? '' : 'text-white',
               characterInnerTypographyClass,
             )}
           >
-            {characterText.split('\n').map((line, i) => (
-              <span key={`${i}-${line}`}>
-                {i > 0 ? <br /> : null}
-                {line}
-              </span>
-            ))}
+            {segmentContent ? (
+              <TutorialRichText segments={segmentContent} />
+            ) : (
+              characterText.split('\n').map((line, i) => (
+                <span key={`${i}-${line}`}>
+                  {i > 0 ? <br /> : null}
+                  {line}
+                </span>
+              ))
+            )}
           </div>
           <div
             className="h-0 w-0 border-x-[12px] border-t-[12px] border-x-transparent border-t-black/80"

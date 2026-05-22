@@ -1,9 +1,7 @@
 import type { EarTrainingMode } from '@/types';
+import type { TutorialStyledLocalizedText } from '@/types/tutorialStyledText';
 
-export interface TutorialLocalizedText {
-  ja: string;
-  en: string;
-}
+export type TutorialLocalizedText = TutorialStyledLocalizedText;
 
 /** `dialogue_only` の話者（省略時はプレイヤー）。`partner` はジャ爺（相方）固定表示。 */
 type EarTrainingTutorialDialogueSpeaker = 'player' | 'partner';

@@ -12,6 +12,11 @@ import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutori
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
+import type { TutorialLocalizedText } from '@/components/survival/tutorial/tutorialScriptTypes';
+
+import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
+import { resolveTutorialStyledSegments, segmentsToPlainString } from '@/types/tutorialStyledText';
+
 import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 
 import { OnboardingOverlays } from './OnboardingOverlays';
@@ -55,7 +60,9 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
     rank: profile?.rank,
   });
 
-  const [characterText, setCharacterText] = useState('');
+  const [characterSegments, setCharacterSegments] = useState<
+    readonly TutorialResolvedTextSegment[]
+  >([]);
   const [narrationText, setNarrationText] = useState('');
   const [connectedDeviceLine, setConnectedDeviceLine] = useState<string | null>(null);
   const [showPillarCard, setShowPillarCard] = useState(false);
@@ -64,6 +71,10 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
   const [showCta, setShowCta] = useState(false);
   const [showFinishedOverlay, setShowFinishedOverlay] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
+
+  useEffect(() => {
+    setCharacterSegments([]);
+  }, [sessionKey]);
 
   const audioRef = useRef<TutorialAudioController | null>(null);
   const runnerAbortRef = useRef<AbortController | null>(null);
@@ -89,6 +100,23 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
     setShowFinishedOverlay(true);
     onComplete?.();
   }, [onComplete]);
+
+  const setRunnerCharacterOverlay = useCallback(
+    (line: TutorialLocalizedText | string): void => {
+      if (typeof line === 'string') {
+        if (!line.trim()) {
+          setCharacterSegments([]);
+          return;
+        }
+        setCharacterSegments(
+          resolveTutorialStyledSegments({ ja: line, en: line }, isEnglishCopy),
+        );
+        return;
+      }
+      setCharacterSegments(resolveTutorialStyledSegments(line, isEnglishCopy));
+    },
+    [isEnglishCopy],
+  );
 
   const onScenarioHandleReady = useCallback(
     (handle: SurvivalScenarioHandle) => {
@@ -166,7 +194,7 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
         await runOnboardingScript({
           isEnglishCopy,
           ui: {
-            setCharacterText,
+            setCharacterText: setRunnerCharacterOverlay,
             setNarrationText,
             setConnectedDeviceLine,
             setShowPillarCard,
@@ -186,7 +214,7 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
 
       void run();
     },
-    [isEnglishCopy, finish],
+    [finish, isEnglishCopy, setRunnerCharacterOverlay],
   );
 
   useEffect(
@@ -234,7 +262,8 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
       </div>
 
       <OnboardingOverlays
-        characterText={characterText}
+        characterText={segmentsToPlainString(characterSegments)}
+        characterSegments={characterSegments.length > 0 ? characterSegments : null}
         narrationText={narrationText}
         connectedDeviceLine={connectedDeviceLine}
         showPillarCard={showPillarCard}

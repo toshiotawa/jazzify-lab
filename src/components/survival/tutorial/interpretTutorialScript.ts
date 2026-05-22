@@ -152,7 +152,7 @@ async function runChordFightStep(
   const timeoutSeconds = step.timeoutSeconds ?? 5;
 
   if (step.introCharacter) {
-    ui.setCharacterText(localized(step.introCharacter, isEnglishCopy));
+    ui.setCharacterText(step.introCharacter);
     await sleep(step.introDelaySeconds ?? 0.8, signal);
   }
 
@@ -186,7 +186,7 @@ async function runChordFightStep(
     });
     await sleep(0.9, signal);
     if (step.successCharacter) {
-      ui.setCharacterText(localized(step.successCharacter, isEnglishCopy));
+      ui.setCharacterText(step.successCharacter);
       await sleep(step.successDelaySeconds ?? 0.8, signal);
     }
   } else {
@@ -197,7 +197,7 @@ async function runChordFightStep(
     handle.emitChordNameText(chord.displayName);
     runAttack(handle, step.assistAttack);
     if (step.failCharacter) {
-      ui.setCharacterText(localized(step.failCharacter, isEnglishCopy));
+      ui.setCharacterText(step.failCharacter);
       await sleep(step.failDelaySeconds ?? 1.4, signal);
     }
   }
@@ -239,7 +239,7 @@ async function runKeyboardSetup(
     ui.setNarrationText(
       isEnglishCopy ? 'Play one key on your keyboard.' : '鍵盤を1つ弾いてください',
     );
-    ui.setCharacterText(isEnglishCopy ? 'Try playing one note.' : '1音弾いてみよう。');
+    ui.setCharacterText({ ja: '1音弾いてみよう。', en: 'Try playing one note.' });
     handle.applyMutation((o) => {
       o.blockMidiGameInput = false;
       o.blockChordPadInput = true;
@@ -254,7 +254,7 @@ async function runKeyboardSetup(
         ? 'Start by making sound. You can plug in a keyboard later.'
         : 'まずは音を鳴らすところから。外部キーボードはあとで接続できます。',
     );
-    ui.setCharacterText(isEnglishCopy ? 'Try playing one note.' : '1音弾いてみよう。');
+    ui.setCharacterText({ ja: '1音弾いてみよう。', en: 'Try playing one note.' });
     handle.applyMutation((o) => {
       o.blockChordPadInput = false;
       o.blockMidiGameInput = true;
@@ -279,7 +279,7 @@ async function runStep(
       await sleep(step.seconds, signal);
       return 'continue';
     case 'character':
-      ui.setCharacterText(localized(step.text, isEnglishCopy));
+      ui.setCharacterText(step.text);
       return 'continue';
     case 'narration':
       if (step.clear) {
