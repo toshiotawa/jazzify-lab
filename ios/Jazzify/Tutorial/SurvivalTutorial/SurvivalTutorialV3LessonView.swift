@@ -16,6 +16,8 @@ struct SurvivalTutorialV3LessonView: View {
     @State private var sceneIndex = 0
     @State private var showFinishCta = false
     @State private var characterLine = ""
+    @State private var jajiiBubbleLine = ""
+    @State private var narrationLine = ""
     @StateObject private var tapHub = SurvivalTutorialTapAdvanceHub()
     @StateObject private var drumPlayer = SurvivalTutorialV3DrumLoopPlayer()
 
@@ -33,6 +35,7 @@ struct SurvivalTutorialV3LessonView: View {
             }
 
             OnboardingCharacterDialogView(text: characterLine)
+            OnboardingNarrationCaptionView(text: narrationLine)
 
             if tapHub.isWaiting {
                 VStack {
@@ -119,6 +122,8 @@ struct SurvivalTutorialV3LessonView: View {
         }
         .onChange(of: sceneIndex) { newIdx in
             characterLine = ""
+            jajiiBubbleLine = ""
+            narrationLine = ""
             showFinishCta = false
             sceneAdvanceIfFinish(from: script, index: newIdx)
             restartDrumLoopForScene(at: newIdx)
@@ -141,7 +146,9 @@ struct SurvivalTutorialV3LessonView: View {
                 scene: diag,
                 locale: locale,
                 tapHub: tapHub,
-                onCharacter: { txt in characterLine = txt },
+                jajiiBubbleLine: $jajiiBubbleLine,
+                onFai: { characterLine = $0 },
+                onNarration: { narrationLine = $0 },
                 onDone: { advanceScene() }
             )
         case let .finish(fin):
@@ -153,7 +160,10 @@ struct SurvivalTutorialV3LessonView: View {
                     locale: locale,
                     payload: payload,
                     tapHub: tapHub,
-                    onCharacter: { txt in characterLine = txt },
+                    jajiiBubbleLine: $jajiiBubbleLine,
+                    onFai: { characterLine = $0 },
+                    onJajii: { jajiiBubbleLine = $0 },
+                    onNarration: { narrationLine = $0 },
                     onDone: { advanceScene() }
                 )
             } else {
@@ -166,7 +176,10 @@ struct SurvivalTutorialV3LessonView: View {
                     locale: locale,
                     payload: payload,
                     tapHub: tapHub,
-                    onCharacter: { txt in characterLine = txt },
+                    jajiiBubbleLine: $jajiiBubbleLine,
+                    onFai: { characterLine = $0 },
+                    onJajii: { jajiiBubbleLine = $0 },
+                    onNarration: { narrationLine = $0 },
                     onDone: { advanceScene() }
                 )
             } else {
@@ -180,7 +193,10 @@ struct SurvivalTutorialV3LessonView: View {
                 locale: locale,
                 tapHub: tapHub,
                 drumPlayer: drumPlayer,
-                onCharacter: { txt in characterLine = txt },
+                jajiiBubbleLine: $jajiiBubbleLine,
+                onFai: { characterLine = $0 },
+                onJajii: { jajiiBubbleLine = $0 },
+                onNarration: { narrationLine = $0 },
                 onDone: { advanceScene() }
             )
         }
@@ -272,20 +288,29 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
     let locale: AppLocale
     let payload: Payload
     let tapHub: SurvivalTutorialTapAdvanceHub
-    let onCharacter: (String) -> Void
+    @Binding var jajiiBubbleLine: String
+    let onFai: (String) -> Void
+    let onJajii: (String) -> Void
+    let onNarration: (String) -> Void
     let onDone: () -> Void
 
     init(
         locale: AppLocale,
         payload: Payload,
         tapHub: SurvivalTutorialTapAdvanceHub,
-        onCharacter: @escaping (String) -> Void,
+        jajiiBubbleLine: Binding<String>,
+        onFai: @escaping (String) -> Void,
+        onJajii: @escaping (String) -> Void,
+        onNarration: @escaping (String) -> Void,
         onDone: @escaping () -> Void
     ) {
         self.locale = locale
         self.payload = payload
         self.tapHub = tapHub
-        self.onCharacter = onCharacter
+        _jajiiBubbleLine = jajiiBubbleLine
+        self.onFai = onFai
+        self.onJajii = onJajii
+        self.onNarration = onNarration
         self.onDone = onDone
     }
 
@@ -307,6 +332,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
                 scenarioOverrides: payload.baseline,
                 scenarioController: scenarioController,
                 inlinePhraseDefinition: nil,
+                externalJajiiBubbleText: jajiiBubbleLine,
                 onSessionReady: { s in sessionBox.session = s }
             )
             .allowsHitTesting(true)
@@ -323,6 +349,31 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
 
     private func localized(_ t: SurvivalTutorialV3LocalizedText) -> String {
         locale == .ja ? t.ja : t.en
+    }
+
+    private func presentLine(_ text: SurvivalTutorialV3LocalizedText) {
+        SurvivalTutorialV3LineRouter.present(
+            text: text,
+            locale: locale,
+            context: .battle,
+            onFai: onFai,
+            onJajii: { line in
+                jajiiBubbleLine = line
+                onJajii(line)
+            },
+            onNarration: onNarration
+        )
+    }
+
+    private func clearLines() {
+        SurvivalTutorialV3LineRouter.clear(
+            onFai: onFai,
+            onJajii: { line in
+                jajiiBubbleLine = line
+                onJajii(line)
+            },
+            onNarration: onNarration
+        )
     }
 
     private func chordRunLoop() async {
@@ -347,7 +398,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
                 scenarioController.setOverrides(SurvivalTutorialV3Scenario.chordIntroBlock(base: payload.baseline))
                 scenarioController.clearEnemies()
                 scenarioController.setSlotBChord(nil)
-                onCharacter(localized(payload.dialogue.intro))
+                presentLine(payload.dialogue.intro)
             }
 
             await tapHub.waitForTapOrTimeout(seconds: payload.introDelaySeconds)
@@ -357,7 +408,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
             await MainActor.run {
                 scenarioController.setOverrides(SurvivalTutorialV3Scenario.chordReveal(base: payload.baseline))
                 scenarioController.setSlotBChord(ch)
-                onCharacter(localized(payload.dialogue.onReveal))
+                presentLine(payload.dialogue.onReveal)
                 scenarioController.clearEnemies()
                 scenarioController.spawnStationaryRing(count: 12, radius: 180)
             }
@@ -367,8 +418,21 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
             await MainActor.run {
                 scenarioController.emitSpecialShockwaveOnly()
                 let remaining = max(0, payload.totalQuestions - q - 1)
-                let line = payload.dialogue.onCorrectRemaining.interpolateRemaining(locale: locale, remaining: remaining)
-                onCharacter(line)
+                let lineText = payload.dialogue.onCorrectRemaining.interpolateRemaining(
+                    locale: locale,
+                    remaining: remaining
+                )
+                SurvivalTutorialV3LineRouter.presentResolvedLine(
+                    text: payload.dialogue.onCorrectRemaining,
+                    line: lineText,
+                    context: .battle,
+                    onFai: onFai,
+                    onJajii: { txt in
+                        jajiiBubbleLine = txt
+                        onJajii(txt)
+                    },
+                    onNarration: onNarration
+                )
             }
             let afterNs = UInt64(max(0, SurvivalTutorialV3Constants.afterCorrectSeconds) * 1_000_000_000)
             if afterNs > 0 {
@@ -376,7 +440,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
             }
         }
         await MainActor.run {
-            onCharacter("")
+            clearLines()
             onDone()
         }
     }
@@ -420,7 +484,10 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
     let locale: AppLocale
     let tapHub: SurvivalTutorialTapAdvanceHub
     let drumPlayer: SurvivalTutorialV3DrumLoopPlayer
-    let onCharacter: (String) -> Void
+    @Binding var jajiiBubbleLine: String
+    let onFai: (String) -> Void
+    let onJajii: (String) -> Void
+    let onNarration: (String) -> Void
     let onDone: () -> Void
 
     init(
@@ -429,7 +496,10 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         locale: AppLocale,
         tapHub: SurvivalTutorialTapAdvanceHub,
         drumPlayer: SurvivalTutorialV3DrumLoopPlayer,
-        onCharacter: @escaping (String) -> Void,
+        jajiiBubbleLine: Binding<String>,
+        onFai: @escaping (String) -> Void,
+        onJajii: @escaping (String) -> Void,
+        onNarration: @escaping (String) -> Void,
         onDone: @escaping () -> Void
     ) {
         self.script = script
@@ -437,7 +507,10 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         self.locale = locale
         self.tapHub = tapHub
         self.drumPlayer = drumPlayer
-        self.onCharacter = onCharacter
+        _jajiiBubbleLine = jajiiBubbleLine
+        self.onFai = onFai
+        self.onJajii = onJajii
+        self.onNarration = onNarration
         self.onDone = onDone
     }
 
@@ -459,6 +532,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
                     scenarioOverrides: built.baseline,
                     scenarioController: scenarioController,
                     inlinePhraseDefinition: built.phrase,
+                    externalJajiiBubbleText: jajiiBubbleLine,
                     onSessionReady: { s in sessionBox.session = s }
                 )
 
@@ -504,8 +578,29 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         return await MainActor.run { sessionBox.session }
     }
 
-    private func localized(_ t: SurvivalTutorialV3LocalizedText) -> String {
-        locale == .ja ? t.ja : t.en
+    private func presentLine(_ text: SurvivalTutorialV3LocalizedText) {
+        SurvivalTutorialV3LineRouter.present(
+            text: text,
+            locale: locale,
+            context: .battle,
+            onFai: onFai,
+            onJajii: { line in
+                jajiiBubbleLine = line
+                onJajii(line)
+            },
+            onNarration: onNarration
+        )
+    }
+
+    private func clearLines() {
+        SurvivalTutorialV3LineRouter.clear(
+            onFai: onFai,
+            onJajii: { line in
+                jajiiBubbleLine = line
+                onJajii(line)
+            },
+            onNarration: onNarration
+        )
     }
 
     private func phraseRun() async {
@@ -527,7 +622,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         }
         await MainActor.run {
             scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseIntroBlock(base: built.baseline))
-            onCharacter(localized(scene.dialogue.intro))
+            presentLine(scene.dialogue.intro)
         }
         let introSecs = scene.introDelaySeconds ?? SurvivalTutorialV3Constants.introHoldSeconds
         await tapHub.waitForTapOrTimeout(seconds: introSecs)
@@ -537,7 +632,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
 
         await MainActor.run {
             scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseReveal(base: built.baseline))
-            onCharacter(localized(scene.dialogue.onReveal))
+            presentLine(scene.dialogue.onReveal)
             scenarioController.clearEnemies()
             scenarioController.spawnStationaryRing(
                 count: SurvivalTutorialV3Constants.phraseRevealEnemyCount,
@@ -554,17 +649,27 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             timeoutSeconds: 320
         ) else {
             await MainActor.run {
-                onCharacter("")
+                clearLines()
                 onDone()
             }
             return
         }
 
         await MainActor.run {
-            let line = localized(scene.dialogue.onCorrectRemaining).replacingOccurrences(of: "{{remaining}}", with: "0")
-            onCharacter(line)
+            let lineText = scene.dialogue.onCorrectRemaining.interpolateRemaining(locale: locale, remaining: 0)
+            SurvivalTutorialV3LineRouter.presentResolvedLine(
+                text: scene.dialogue.onCorrectRemaining,
+                line: lineText,
+                context: .battle,
+                onFai: onFai,
+                onJajii: { txt in
+                    jajiiBubbleLine = txt
+                    onJajii(txt)
+                },
+                onNarration: onNarration
+            )
             scenarioController.emitSpecialShockwaveOnly()
-            onCharacter("")
+            clearLines()
             onDone()
         }
     }

@@ -21,9 +21,14 @@ import {
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import { survivalTutorialV3ContentIsPhraseBlock } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import {
-  survivalTutorialResolvedSegments,
+  clearSurvivalTutorialV3LinePresentation,
+  presentSurvivalTutorialV3Line,
+  presentSurvivalTutorialV3ResolvedSegments,
+} from '@/components/survival/tutorial/survivalTutorialV3DialogueSpeaker';
+import {
   survivalTutorialResolvedSegmentsWithRemaining,
 } from '@/components/survival/tutorial/survivalTutorialV3Locales';
+import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 
 type PhraseScene = Extract<
   SurvivalTutorialScriptPayloadV3['scenes'][number],
@@ -116,8 +121,24 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
   const slotBPulseRef = useRef(0);
   const userPulseRef = useRef(0);
   const midiRef = useRef(false);
+  const tutorialJajiiSpeechSegmentsRef = useRef<readonly TutorialResolvedTextSegment[]>([]);
 
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
+
+  const linePresentationSink = useMemo(
+    () => ({
+      setCharacterSegments: (segments: readonly TutorialResolvedTextSegment[]) => {
+        bindingsRef.current.setCharacterSegments(segments);
+      },
+      setNarrationText: (text: string) => {
+        bindingsRef.current.setNarrationText(text);
+      },
+      setJajiiSpeechSegments: (segments: readonly TutorialResolvedTextSegment[]) => {
+        tutorialJajiiSpeechSegmentsRef.current = segments;
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     const h = scenarioHandle;
@@ -150,8 +171,11 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
       try {
         h.setOverrides(survivalTutorialPhraseIntroBlockOverrides(baseline));
-        bindingsRef.current.setCharacterSegments(
-          survivalTutorialResolvedSegments(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
+        presentSurvivalTutorialV3Line(
+          scene.dialogue.intro,
+          bindingsRef.current.isEnglishCopy,
+          'battle',
+          linePresentationSink,
         );
 
         await bindingsRef.current.waitForTapOrTimeout(
@@ -164,8 +188,11 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
         const introPulse = pulseRef.current;
         h.setOverrides(survivalTutorialPhraseRevealOverrides(baseline));
-        bindingsRef.current.setCharacterSegments(
-          survivalTutorialResolvedSegments(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
+        presentSurvivalTutorialV3Line(
+          scene.dialogue.onReveal,
+          bindingsRef.current.isEnglishCopy,
+          'battle',
+          linePresentationSink,
         );
         h.clearEnemies();
         h.spawnStationaryRing(
@@ -182,19 +209,22 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
         if (loopsOk && !ac.signal.aborted) {
           progressed = true;
-          bindingsRef.current.setCharacterSegments(
+          presentSurvivalTutorialV3ResolvedSegments(
+            scene.dialogue.onCorrectRemaining,
             survivalTutorialResolvedSegmentsWithRemaining(
               scene.dialogue.onCorrectRemaining,
               bindingsRef.current.isEnglishCopy,
               0,
             ),
+            'battle',
+            linePresentationSink,
           );
           h.emitSpecialShockwave();
         }
       } catch {
         /* ignore */
       } finally {
-        bindingsRef.current.setCharacterSegments([]);
+        clearSurvivalTutorialV3LinePresentation(linePresentationSink);
         bindingsRef.current.resumeSharedDrumLoop?.();
         bindingsRef.current.setTapAdvanceCueVisible(false);
         if (progressed) {
@@ -242,6 +272,8 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
         survivalTutorialLayout={embeddedFullHeight}
         scenarioMode
         initialScenarioOverrides={survivalTutorialPhraseBattleBaseline(script)}
+        tutorialDialogueJajii
+        tutorialJajiiSpeechSegmentsRef={tutorialJajiiSpeechSegmentsRef}
         tutorialPhraseInlineDefinition={phraseInline}
         scenarioPhraseFullLoopPulseRef={pulseRef}
         onScenarioHandleReady={(x) => {

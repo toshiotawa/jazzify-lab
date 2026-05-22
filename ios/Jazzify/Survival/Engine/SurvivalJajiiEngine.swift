@@ -22,6 +22,9 @@ enum SurvivalJajiiEngine {
     }
 
     static func shouldEnable(stage: SurvivalStageDefinition, scenario: SurvivalScenarioRuntimeState) -> Bool {
+        if scenario.tutorialDialogueJajii {
+            return true
+        }
         guard stage.mapCategory != .lesson else { return false }
         guard !scenario.isActive else { return false }
         return true

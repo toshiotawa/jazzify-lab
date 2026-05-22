@@ -35,6 +35,7 @@
 		B2C3D4E5F61718293B5118 /* SurvivalTutorialV3LessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */; };
 		B2C3D4E5F61718293B5121 /* SurvivalTutorialV3DialogueScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5120 /* SurvivalTutorialV3DialogueScene.swift */; };
 		B2C3D4E5F61718293B5123 /* SurvivalTutorialV3Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5122 /* SurvivalTutorialV3Constants.swift */; };
+		B2C3D4E5F61718293B5131 /* SurvivalTutorialV3LineRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5130 /* SurvivalTutorialV3LineRouter.swift */; };
 		B2C3D4E5F61718293B5125 /* SurvivalTutorialTapAdvanceHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5124 /* SurvivalTutorialTapAdvanceHub.swift */; };
 		B2C3D4E5F61718293B5127 /* SurvivalTutorialV3DrumLoopPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5126 /* SurvivalTutorialV3DrumLoopPlayer.swift */; };
 		B2C3D4E5F61718293A500E /* onboarding-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A500D /* onboarding-v1.script.json */; };
@@ -224,6 +225,7 @@
 		B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LessonView.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5120 /* SurvivalTutorialV3DialogueScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DialogueScene.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5122 /* SurvivalTutorialV3Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3Constants.swift; sourceTree = "<group>"; };
+		B2C3D4E5F61718293B5130 /* SurvivalTutorialV3LineRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LineRouter.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5124 /* SurvivalTutorialTapAdvanceHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialTapAdvanceHub.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5126 /* SurvivalTutorialV3DrumLoopPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DrumLoopPlayer.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293A500D /* onboarding-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "onboarding-v1.script.json"; sourceTree = "<group>"; };
@@ -811,6 +813,7 @@
 				B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */,
 				B2C3D4E5F61718293B5120 /* SurvivalTutorialV3DialogueScene.swift */,
 				B2C3D4E5F61718293B5122 /* SurvivalTutorialV3Constants.swift */,
+				B2C3D4E5F61718293B5130 /* SurvivalTutorialV3LineRouter.swift */,
 				B2C3D4E5F61718293B5124 /* SurvivalTutorialTapAdvanceHub.swift */,
 				B2C3D4E5F61718293B5126 /* SurvivalTutorialV3DrumLoopPlayer.swift */,
 			);
@@ -1058,6 +1061,7 @@
 				B2C3D4E5F61718293B5118 /* SurvivalTutorialV3LessonView.swift in Sources */,
 				B2C3D4E5F61718293B5121 /* SurvivalTutorialV3DialogueScene.swift in Sources */,
 				B2C3D4E5F61718293B5123 /* SurvivalTutorialV3Constants.swift in Sources */,
+				B2C3D4E5F61718293B5131 /* SurvivalTutorialV3LineRouter.swift in Sources */,
 				B2C3D4E5F61718293B5125 /* SurvivalTutorialTapAdvanceHub.swift in Sources */,
 				B2C3D4E5F61718293B5127 /* SurvivalTutorialV3DrumLoopPlayer.swift in Sources */,
 				E1E2F3A4B5C60718293A512 /* EarTrainingTutorialScriptModels.swift in Sources */,

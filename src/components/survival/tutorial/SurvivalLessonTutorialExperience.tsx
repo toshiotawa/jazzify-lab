@@ -104,6 +104,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const [v3CharacterSegments, setV3CharacterSegments] = useState<
     readonly TutorialResolvedTextSegment[]
   >([]);
+  const [v3NarrationText, setV3NarrationText] = useState('');
   const [v3FinishCta, setV3FinishCta] = useState(false);
   const [v3TapCueVisible, setV3TapCueVisible] = useState(false);
 
@@ -142,6 +143,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
       setTutorialV3Payload(null);
       setV3SceneIndex(0);
       setV3CharacterSegments([]);
+      setV3NarrationText('');
       setV2CharacterSegments([]);
       setV3FinishCta(false);
       setV3TapCueVisible(false);
@@ -275,6 +277,8 @@ export const SurvivalLessonTutorialExperience: React.FC<
   useEffect(() => {
     const pl = tutorialV3Payload;
     if (!pl || gate !== 'ready') return;
+    setV3CharacterSegments([]);
+    setV3NarrationText('');
     const s = pl.scenes[v3SceneIndex];
     if (!s) return;
     if (s.type === 'finish') {
@@ -330,6 +334,8 @@ export const SurvivalLessonTutorialExperience: React.FC<
       isEnglishCopy,
       ui: tutorialV3Payload.ui,
       setCharacterSegments: setV3CharacterSegments,
+      setNarrationText: setV3NarrationText,
+      setJajiiSpeechSegments: () => undefined,
       onExit: () => {
         void finalizeLesson('aborted');
       },
@@ -572,7 +578,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
             v3CharacterSegments.length > 0 ? segmentsToPlainString(v3CharacterSegments) : ''
           }
           characterSegments={v3CharacterSegments}
-          narrationText=""
+          narrationText={v3NarrationText}
           connectedDeviceLine={null}
           showPillarCard={false}
           pillarCaption={null}

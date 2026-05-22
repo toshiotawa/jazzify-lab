@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// v3 `dialogue_only`: サバイバル画面（縦）+ キャラ吹き出し。耳コピバトル UI は使わない。
+/// v3 `dialogue_only`: サバイバル画面（縦）+ 話者別吹き出し。
 @MainActor
 struct SurvivalTutorialV3DialogueScene: View {
     let script: SurvivalTutorialScriptPayloadV3
     let scene: SurvivalTutorialV3DialogueOnlyScene
     let locale: AppLocale
     let tapHub: SurvivalTutorialTapAdvanceHub
-    let onCharacter: (String) -> Void
+    @Binding var jajiiBubbleLine: String
+    let onFai: (String) -> Void
+    let onNarration: (String) -> Void
     let onDone: () -> Void
 
     @StateObject private var scenarioController = SurvivalScenarioController()
@@ -25,6 +27,7 @@ struct SurvivalTutorialV3DialogueScene: View {
             scenarioOverrides: dialogueScenarioOverrides,
             scenarioController: scenarioController,
             inlinePhraseDefinition: nil,
+            externalJajiiBubbleText: jajiiBubbleLine,
             onSessionReady: { _ in }
         )
         .task(id: runIdentity) {
@@ -36,6 +39,7 @@ struct SurvivalTutorialV3DialogueScene: View {
         var o = SurvivalTutorialV3Scenario.mergeBaseline(script: script)
         o.disableJoystick = false
         o.disableSurvivalBgm = true
+        o.tutorialDialogueJajii = scene.hasJajiiSpeaker
         return o
     }
 
@@ -55,10 +59,6 @@ struct SurvivalTutorialV3DialogueScene: View {
         )
     }
 
-    private func localized(_ t: SurvivalTutorialV3LocalizedText) -> String {
-        locale == .ja ? t.ja : t.en
-    }
-
     private func runDialogue() async {
         let lines = scene.lines
         guard !lines.isEmpty else {
@@ -76,14 +76,25 @@ struct SurvivalTutorialV3DialogueScene: View {
         for line in lines {
             if Task.isCancelled { return }
             await MainActor.run {
-                onCharacter(localized(line))
+                SurvivalTutorialV3LineRouter.present(
+                    text: line,
+                    locale: locale,
+                    context: .dialogueOnly,
+                    onFai: onFai,
+                    onJajii: { jajiiBubbleLine = $0 },
+                    onNarration: onNarration
+                )
             }
             await tapHub.waitForTapOrTimeout(seconds: interval)
             if Task.isCancelled { return }
         }
 
         await MainActor.run {
-            onCharacter("")
+            SurvivalTutorialV3LineRouter.clear(
+                onFai: onFai,
+                onJajii: { jajiiBubbleLine = $0 },
+                onNarration: onNarration
+            )
             onDone()
         }
     }

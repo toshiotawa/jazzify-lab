@@ -5,6 +5,7 @@ import Foundation
 struct SurvivalTutorialV3LocalizedText: Decodable, Sendable {
     let ja: String
     let en: String
+    let speaker: String?
 
     func text(_ locale: AppLocale) -> String {
         locale == .ja ? ja : en
@@ -120,6 +121,10 @@ struct SurvivalTutorialV3DialogueOnlyScene: Decodable, Sendable {
     let type: String
     let lines: [SurvivalTutorialV3LocalizedText]
     let lineIntervalSeconds: Double?
+
+    var hasJajiiSpeaker: Bool {
+        lines.contains { SurvivalTutorialV3LineRouter.resolvedSpeaker($0, context: .dialogueOnly) == .jajii }
+    }
 }
 
 struct SurvivalTutorialV3ProgressionBattleScene: Decodable, Sendable {

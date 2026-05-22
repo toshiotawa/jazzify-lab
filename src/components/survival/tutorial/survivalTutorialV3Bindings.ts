@@ -8,6 +8,10 @@ export interface SurvivalTutorialV3Bindings {
   readonly ui: SurvivalTutorialV3UiOverrides;
   /** Onboarding のキャラセリフ（複数色セグメント） */
   readonly setCharacterSegments: (segments: readonly TutorialResolvedTextSegment[]) => void;
+  /** 画面中央下のナレーション字幕 */
+  readonly setNarrationText: (text: string) => void;
+  /** ジャ爺 Canvas 吹き出し（styled セグメント） */
+  readonly setJajiiSpeechSegments: (segments: readonly TutorialResolvedTextSegment[]) => void;
   readonly onExit: () => void;
   /** 親が「完了」（CTA）でコールバックしたとき */
   readonly onLessonTutorialCompleted?: () => void | Promise<void>;

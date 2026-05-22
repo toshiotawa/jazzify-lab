@@ -18,6 +18,8 @@ struct SurvivalGameView: View {
     var scenarioController: SurvivalScenarioController? = nil
     var inlinePhraseDefinition: SurvivalPhraseDefinition? = nil
     var lessonContext: SurvivalLessonContext? = nil
+    /// チュートリアル等: ステージ intro より優先するジャ爺吹き出し。
+    var externalJajiiBubbleText: String = ""
     var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
 
     init(
@@ -32,6 +34,7 @@ struct SurvivalGameView: View {
         scenarioController: SurvivalScenarioController? = nil,
         inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
         lessonContext: SurvivalLessonContext? = nil,
+        externalJajiiBubbleText: String = "",
         onSessionReady: ((SurvivalGameSession) -> Void)? = nil
     ) {
         self.stage = stage
@@ -44,6 +47,7 @@ struct SurvivalGameView: View {
         self.scenarioController = scenarioController
         self.inlinePhraseDefinition = inlinePhraseDefinition
         self.lessonContext = lessonContext
+        self.externalJajiiBubbleText = externalJajiiBubbleText
         self.onSessionReady = onSessionReady
         _activeHintMode = State(initialValue: hintMode)
     }
@@ -65,6 +69,7 @@ struct SurvivalGameView: View {
                     stage: stage,
                     locale: locale,
                     isDemo: isDemo,
+                    externalJajiiBubbleText: externalJajiiBubbleText,
                     onApplyHintModeAndRestart: isDemo ? nil : { newHint in
                         applyHintModeRestart(newHint)
                     }
@@ -319,6 +324,7 @@ private struct SurvivalGameContent: View {
     let stage: SurvivalStageDefinition
     let locale: AppLocale
     let isDemo: Bool
+    let externalJajiiBubbleText: String
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
 
 
@@ -362,6 +368,8 @@ private struct SurvivalGameContent: View {
     }
 
     private var jajiiTimedBubbleText: String {
+        let trimmed = externalJajiiBubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
         if !playDialogueUIModel.jajiiLine.isEmpty { return playDialogueUIModel.jajiiLine }
         if !blockBossIntroUIModel.jajiiLine.isEmpty { return blockBossIntroUIModel.jajiiLine }
         return stageIntroUIModel.jajiiLine

@@ -12,6 +12,11 @@ import { runSurvivalTutorialQuestions } from '@/components/survival/tutorial/sur
 import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/survivalTutorialV3Bindings';
 import { SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS } from '@/components/survival/tutorial/survivalTutorialV3Constants';
 import {
+  clearSurvivalTutorialV3LinePresentation,
+  presentSurvivalTutorialV3Line,
+  presentSurvivalTutorialV3ResolvedSegments,
+} from '@/components/survival/tutorial/survivalTutorialV3DialogueSpeaker';
+import {
   mergeSurvivalTutorialV3Baseline,
   survivalTutorialChordIntroBlockOverrides,
   survivalTutorialChordRevealOverrides,
@@ -19,9 +24,9 @@ import {
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import { survivalTutorialV3ContentIsPhraseBlock } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import {
-  survivalTutorialResolvedSegments,
   survivalTutorialResolvedSegmentsWithRemaining,
 } from '@/components/survival/tutorial/survivalTutorialV3Locales';
+import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 
 type ChordBattleScene =
   | Extract<SurvivalTutorialScriptPayloadV3['scenes'][number], { type: 'progression_battle' }>
@@ -102,8 +107,24 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
   const slotBPulseRef = useRef(0);
   const userPulseRef = useRef(0);
   const midiRef = useRef(false);
+  const tutorialJajiiSpeechSegmentsRef = useRef<readonly TutorialResolvedTextSegment[]>([]);
 
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
+
+  const linePresentationSink = useMemo(
+    () => ({
+      setCharacterSegments: (segments: readonly TutorialResolvedTextSegment[]) => {
+        bindingsRef.current.setCharacterSegments(segments);
+      },
+      setNarrationText: (text: string) => {
+        bindingsRef.current.setNarrationText(text);
+      },
+      setJajiiSpeechSegments: (segments: readonly TutorialResolvedTextSegment[]) => {
+        tutorialJajiiSpeechSegmentsRef.current = segments;
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     const h = scenarioHandle;
@@ -161,8 +182,11 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
               h.setOverrides(survivalTutorialChordIntroBlockOverrides(baseline));
               h.clearEnemies();
               h.setSlotBChord(null);
-              bindingsRef.current.setCharacterSegments(
-                survivalTutorialResolvedSegments(scene.dialogue.intro, bindingsRef.current.isEnglishCopy),
+              presentSurvivalTutorialV3Line(
+                scene.dialogue.intro,
+                bindingsRef.current.isEnglishCopy,
+                'battle',
+                linePresentationSink,
               );
             },
             onRevealFight: () => {
@@ -171,8 +195,11 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
                 h.setSlotBChord(ch);
               }
               h.setOverrides(survivalTutorialChordRevealOverrides(baseline));
-              bindingsRef.current.setCharacterSegments(
-                survivalTutorialResolvedSegments(scene.dialogue.onReveal, bindingsRef.current.isEnglishCopy),
+              presentSurvivalTutorialV3Line(
+                scene.dialogue.onReveal,
+                bindingsRef.current.isEnglishCopy,
+                'battle',
+                linePresentationSink,
               );
               h.clearEnemies();
               h.spawnStationaryRing(12, 180);
@@ -190,12 +217,15 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
           afterCorrect: (_remainingQuestions, qiCompleted) => {
             const answered = qiCompleted + 1;
             const remainingAfter = Math.max(0, totalQuestions - answered);
-            bindingsRef.current.setCharacterSegments(
+            presentSurvivalTutorialV3ResolvedSegments(
+              scene.dialogue.onCorrectRemaining,
               survivalTutorialResolvedSegmentsWithRemaining(
                 scene.dialogue.onCorrectRemaining,
                 bindingsRef.current.isEnglishCopy,
                 remainingAfter,
               ),
+              'battle',
+              linePresentationSink,
             );
           },
         });
@@ -204,7 +234,7 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
         progressed = false;
       }
 
-      bindingsRef.current.setCharacterSegments([]);
+      clearSurvivalTutorialV3LinePresentation(linePresentationSink);
       if (progressed) {
         onSceneComplete();
       }
@@ -249,6 +279,8 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
         survivalTutorialLayout={embeddedFullHeight}
         scenarioMode
         initialScenarioOverrides={mergeSurvivalTutorialV3Baseline(script)}
+        tutorialDialogueJajii
+        tutorialJajiiSpeechSegmentsRef={tutorialJajiiSpeechSegmentsRef}
         onScenarioHandleReady={(x) => {
           setScenarioHandle(x);
         }}

@@ -1,11 +1,17 @@
 import type { SurvivalScenarioOverrides } from '@/components/survival/scenario/survivalScenarioTypes';
 import type { TutorialStyledLocalizedText } from '@/types/tutorialStyledText';
 
-/** v3 共通: 多言語文言（任意 `styled` で部分色付け） */
-export type SurvivalTutorialLocalizedText = TutorialStyledLocalizedText;
+/** v3 共通: 多言語文言（任意 `styled` / `speaker`） */
+export type SurvivalTutorialLocalizedText = TutorialStyledLocalizedText & {
+  readonly speaker?: SurvivalTutorialV3DialogueSpeaker;
+};
 
-/** `dialogue_only` 行の話者（省略時はファイ想定／Onboarding）。 */
-export type SurvivalTutorialV3DialogueSpeaker = 'fai' | 'jajii';
+/**
+ * v3 台詞の話者。
+ * - `dialogue_only` 省略時: fai
+ * - バトル `dialogue.*` 省略時: jajii（ナレーション相当をジャ爺吹き出しへ）
+ */
+export type SurvivalTutorialV3DialogueSpeaker = 'fai' | 'jajii' | 'narration';
 
 export interface SurvivalTutorialV3DialogueLine extends SurvivalTutorialLocalizedText {
   readonly speaker?: SurvivalTutorialV3DialogueSpeaker;

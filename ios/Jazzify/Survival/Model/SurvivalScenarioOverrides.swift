@@ -38,6 +38,9 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
     var disableSurvivalBgm: Bool = false
     var suppressAutoSpawn: Bool = false
 
+    /// v3 `dialogue_only` 等でジャ爺を lesson + シナリオ中にも出す。
+    var tutorialDialogueJajii: Bool = false
+
     /// B スロット完成時、通常の B パンチの代わりに発動させるスロット（A=弾、B=パンチ）。`nil` でデフォルト。
     var bChordCompletionAttackOverride: SurvivalSlotIndex? = nil
     /// B スロット完成時にコンボ必殺（360°）を発動。`true` のとき `bChordCompletionAttackOverride` は無視。
@@ -74,6 +77,7 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
             blockSlotEvaluation: blockSlotEvaluation,
             disableSurvivalBgm: disableSurvivalBgm,
             suppressAutoSpawn: suppressAutoSpawn,
+            tutorialDialogueJajii: tutorialDialogueJajii,
             bChordCompletionAttackOverride: bChordCompletionAttackOverride,
             bChordCompletionUseSpecial: bChordCompletionUseSpecial
         )

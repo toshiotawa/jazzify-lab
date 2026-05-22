@@ -571,6 +571,9 @@ public struct SurvivalScenarioRuntimeState: Sendable, Equatable {
     public var disableSurvivalBgm: Bool = false
     public var suppressAutoSpawn: Bool = false
 
+    /// v3 チュートリアルでジャ爺サポートを lesson / シナリオ中にも有効化。
+    public var tutorialDialogueJajii: Bool = false
+
     public var bChordCompletionAttackOverride: SurvivalSlotIndex? = nil
     public var bChordCompletionUseSpecial: Bool = false
 

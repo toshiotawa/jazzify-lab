@@ -12,6 +12,7 @@ enum SurvivalTutorialV3Scenario {
         o.playerInvincible = u.playerInvincible
         o.disableEnemyAttacks = u.disableEnemyAttacks
         o.disableSurvivalBgm = true
+        o.tutorialDialogueJajii = true
         return o
     }
 

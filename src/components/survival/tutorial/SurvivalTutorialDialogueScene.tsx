@@ -8,7 +8,10 @@ import type { SurvivalTutorialV3DialogueLine } from '@/components/survival/tutor
 
 import type { SurvivalTutorialV3Bindings } from './survivalTutorialV3Bindings';
 
-import { survivalTutorialResolvedSegments } from './survivalTutorialV3Locales';
+import {
+  clearSurvivalTutorialV3LinePresentation,
+  presentSurvivalTutorialV3Line,
+} from './survivalTutorialV3DialogueSpeaker';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
 import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 
@@ -26,7 +29,8 @@ const DUMMY_SURVIVAL_CONFIG = {
   bgmUrl: null as string | null,
 };
 
-const dialogueSpeakerOf = (line: SurvivalTutorialV3DialogueLine): 'fai' | 'jajii' => line.speaker ?? 'fai';
+const dialogueSpeakerOf = (line: SurvivalTutorialV3DialogueLine): 'fai' | 'jajii' | 'narration' =>
+  line.speaker ?? 'fai';
 
 interface SurvivalTutorialDialogueSceneProps {
   readonly script: SurvivalTutorialScriptPayloadV3;
@@ -73,10 +77,6 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
     const lines = scene.lines ?? [];
     tutorialJajiiSpeechSegmentsRef.current = [];
 
-    const clearJajii = (): void => {
-      tutorialJajiiSpeechSegmentsRef.current = [];
-    };
-
     if (lines.length === 0) {
       onSceneComplete();
       return undefined;
@@ -87,20 +87,29 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
         if (ac.signal.aborted) return;
         const line = lines[i];
         if (!line) continue;
-        const segs = survivalTutorialResolvedSegments(line, bindingsRef.current.isEnglishCopy);
-        if (dialogueSpeakerOf(line) === 'jajii') {
-          clearJajii();
-          tutorialJajiiSpeechSegmentsRef.current = segs;
-          bindingsRef.current.setCharacterSegments([]);
-        } else {
-          clearJajii();
-          bindingsRef.current.setCharacterSegments(segs);
-        }
+        presentSurvivalTutorialV3Line(
+          line,
+          bindingsRef.current.isEnglishCopy,
+          'dialogue_only',
+          {
+            setCharacterSegments: bindingsRef.current.setCharacterSegments,
+            setNarrationText: bindingsRef.current.setNarrationText,
+            setJajiiSpeechSegments: (segs) => {
+              tutorialJajiiSpeechSegmentsRef.current = segs;
+            },
+          },
+        );
         await bindingsRef.current.waitForTapOrTimeout(lineSeconds, ac.signal);
         if (ac.signal.aborted) return;
       }
       bindingsRef.current.setCharacterSegments([]);
-      clearJajii();
+      clearSurvivalTutorialV3LinePresentation({
+        setCharacterSegments: bindingsRef.current.setCharacterSegments,
+        setNarrationText: bindingsRef.current.setNarrationText,
+        setJajiiSpeechSegments: (segs) => {
+          tutorialJajiiSpeechSegmentsRef.current = segs;
+        },
+      });
       if (!ac.signal.aborted) {
         onSceneComplete();
       }
@@ -111,7 +120,13 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
     return () => {
       ac.abort();
       bindingsRef.current.setTapAdvanceCueVisible(false);
-      clearJajii();
+      clearSurvivalTutorialV3LinePresentation({
+        setCharacterSegments: bindingsRef.current.setCharacterSegments,
+        setNarrationText: bindingsRef.current.setNarrationText,
+        setJajiiSpeechSegments: (segs) => {
+          tutorialJajiiSpeechSegmentsRef.current = segs;
+        },
+      });
     };
   }, [lineSeconds, onSceneComplete, scene.lines]);
 
