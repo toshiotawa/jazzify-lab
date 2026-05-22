@@ -2035,6 +2035,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         completedSlotIndices,
       );
 
+      if (
+        completedSlotIndices.includes(1)
+        && scenarioOverridesRef.current.isActive
+        && scenarioOverridesRef.current.hideStaffOnBSlotCompletion
+      ) {
+        scenarioOverridesRef.current = {
+          ...scenarioOverridesRef.current,
+          hideStaff: true,
+        };
+        bumpScenarioUi();
+      }
+
       // コード完成時の処理 - すべての完了スロットに対してスキル発動
       for (const completedSlotIndex of completedSlotIndices) {
         if (
@@ -2680,6 +2692,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     isPhraseMode,
     scenarioPhraseFullLoopPulseRef,
     jajiiEnabled,
+    bumpScenarioUi,
   ]);
   
   // handleNoteInputが更新されるたびにrefを更新
@@ -4890,6 +4903,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   );
 
   const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    void scenarioUiTick;
     if (isPhraseMode) return null;
     const sc = scenarioOverridesRef.current;
     if (
@@ -4937,11 +4951,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.chord?.progressionStaffKeyFifths,
     progressionPunchSlot.chord?.quality,
     progressionPunchSlot.chord?.progressionStaffVoicingStaves,
+    scenarioUiTick,
+    scenarioMode,
   ]);
 
   const randomPunchStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    void scenarioUiTick;
     if (isPhraseMode) return null;
     if (isProgressionStage) return null;
+    const scRand = scenarioOverridesRef.current;
+    if (
+      scenarioMode
+      && scRand.isActive
+      && (scRand.hideStaff || scRand.staffMode === 'phrase' || scRand.staffMode === 'progression')
+    ) {
+      return null;
+    }
     if (!(isStageMode || hintMode || playerHasHintBuff)) return null;
 
     const slot = progressionPunchSlot;
@@ -5005,6 +5030,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.chord?.displayName,
     progressionPunchSlot.chord?.quality,
     progressionPunchSlot.chord?.root,
+    scenarioUiTick,
+    scenarioMode,
   ]);
 
   const punchStaffSnapshot = progressionStaffSnapshot ?? randomPunchStaffSnapshot;
@@ -5306,7 +5333,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         {/* Canvasエリア（全高さ占有・ヘッダーはCanvas上にオーバーレイで配置） */}
         <div
           ref={canvasWrapperRef}
-          className="flex-1 min-h-0 w-full relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none flex items-center justify-center"
+          className={cn(
+            'flex-1 min-h-0 w-full relative overflow-hidden touch-none flex items-center justify-center',
+            survivalTutorialLayout
+              ? 'rounded-none border-0'
+              : 'rounded-xl border-2 border-gray-700',
+          )}
         >
           {/* ヘッダー（ゲーム画面上部にオーバーレイ・レイアウトを圧迫しない・safe-area対応） */}
           {!scenarioHideHud ? (
@@ -5485,13 +5517,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
                   staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                  className="max-w-[min(420px,78vw)] [&_svg]:scale-[1.35] md:[&_svg]:scale-[1.22]"
                 />
               </div>
             )}
           {phraseStaffProps &&
             gameState.isPlaying &&
-            !gameState.isGameOver && (
+            !gameState.isGameOver &&
+            !(scenarioMode && scenarioUi.hideStaff) && (
               <div
                 className={cn(
                   'absolute inset-0 z-[5] flex items-start justify-center px-3 pointer-events-none',
@@ -5515,6 +5548,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           {!isPhraseMode &&
             punchStaffSnapshot &&
             punchStaffSnapshot.voicingNames.length > 0 &&
+            !(scenarioMode &&
+              scenarioUi.isActive &&
+              (scenarioUi.hideStaff ||
+                scenarioUi.staffMode === 'phrase' ||
+                scenarioUi.staffMode === 'progression')) &&
             gameState.isPlaying &&
             !gameState.isGameOver && (
               <div
