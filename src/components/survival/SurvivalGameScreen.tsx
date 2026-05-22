@@ -5517,7 +5517,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
                   staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                  className="max-w-[min(420px,78vw)] [&_svg]:scale-[1.35] md:[&_svg]:scale-[1.22]"
+                  className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
                 />
               </div>
             )}

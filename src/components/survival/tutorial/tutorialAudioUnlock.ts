@@ -60,10 +60,6 @@ export async function unlockTutorialAudio(): Promise<void> {
     FantasySoundManager.ensureContextsRunning();
     await FantasySoundManager.unlock();
     await FantasySoundManager.waitForGMReady();
-    const mode = await resolveTutorialPreviewAudioMode();
-    if (mode !== null) {
-      playTutorialPreviewNote(60, mode);
-    }
   } catch {
     /* noop */
   }
