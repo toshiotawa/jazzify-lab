@@ -32,7 +32,10 @@ import {
   type SurvivalDefaultSpriteVariant,
 } from '@/utils/survivalPlayerSprites';
 import { drawSurvivalSpeechBubble } from '@/components/survival/stageIntro/drawSurvivalSpeechBubble';
-import { SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX } from '@/components/survival/stageIntro/survivalSpeechBubbleLayout';
+import {
+  SURVIVAL_FAI_BUBBLE_MAX_WIDTH_PX,
+  SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
+} from '@/components/survival/stageIntro/survivalSpeechBubbleLayout';
 
 /**
  * iOS WebKit では shadowBlur が極端に重い（1 回で数 ms）。
@@ -106,6 +109,8 @@ interface SurvivalCanvasProps {
   jajiiWorldPosRef?: React.MutableRefObject<{ x: number; y: number } | null>;
   /** ジャ爺頭上の吹き出し（空で非表示） */
   jajiiBubbleText?: string;
+  /** プレイヤー足下の吹き出し（空で非表示） */
+  faiBubbleText?: string;
 }
 
 // ===== 色定義 =====
@@ -269,6 +274,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   hidePlayerHintStatusIcon = false,
   jajiiWorldPosRef,
   jajiiBubbleText = '',
+  faiBubbleText = '',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const woodPatternRef = useRef<CanvasPattern | null>(null);
@@ -280,8 +286,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const bossBattleRef = useRef(bossBattle);
   const bossUiTickRef = useRef(bossUiTick);
   const jajiiBubbleTextRef = useRef(jajiiBubbleText);
+  const faiBubbleTextRef = useRef(faiBubbleText);
   gameStateRef.current = gameState;
   jajiiBubbleTextRef.current = jajiiBubbleText;
+  faiBubbleTextRef.current = faiBubbleText;
   shockwavesRef.current = shockwaves;
   lightningEffectsRef.current = lightningEffects;
   bossBattleRef.current = bossBattle;
@@ -739,6 +747,19 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.restore();
     }
 
+    const faiQuote = faiBubbleTextRef.current.trim();
+    if (faiQuote) {
+      const bubbleMax = Math.min(SURVIVAL_FAI_BUBBLE_MAX_WIDTH_PX, logicalWidth - 32);
+      drawSurvivalSpeechBubble({
+        ctx,
+        centerX: playerScreenX,
+        anchorY: playerScreenY + PLAYER_SIZE / 2 + 6,
+        text: faiQuote,
+        maxWidth: bubbleMax,
+        placement: 'below',
+      });
+    }
+
     const jajiiWorld = jajiiWorldPosRef?.current ?? null;
     const jajiiImgEl = jajiiSpriteRef.current;
     if (jajiiWorld && jajiiImgEl && jajiiSpriteLoadedRef.current) {
@@ -764,6 +785,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
           anchorY: jjy - JAJII_SPRITE_SIZE / 2 - 6,
           text: jajiiQuote,
           maxWidth: bubbleMax,
+          placement: 'above',
         });
       }
     }

@@ -369,7 +369,11 @@ private struct SurvivalGameContent: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            SurvivalSceneContainer(session: session, jajiiBubbleText: jajiiTimedBubbleText)
+            SurvivalSceneContainer(
+                session: session,
+                faiBubbleText: faiTimedBubbleText,
+                jajiiBubbleText: jajiiTimedBubbleText
+            )
                 .ignoresSafeArea()
 
             SurvivalJoystickRepresentable(
@@ -439,11 +443,6 @@ private struct SurvivalGameContent: View {
                     }
                 }
                 .allowsHitTesting(false)
-            }
-
-            if !faiTimedBubbleText.isEmpty {
-                OnboardingCharacterDialogView(text: faiTimedBubbleText)
-                    .allowsHitTesting(false)
             }
 
             if !vm.uiSnapshot.scenario.hideChordPad {
@@ -803,6 +802,7 @@ private struct SurvivalComboBadgeView: View {
 
 private struct SurvivalSceneContainer: UIViewRepresentable {
     let session: SurvivalGameSession
+    let faiBubbleText: String
     let jajiiBubbleText: String
 
     func makeCoordinator() -> Coordinator {
@@ -834,6 +834,7 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
 
     func updateUIView(_ uiView: SKView, context: Context) {
         if let scene = uiView.scene as? SurvivalScene {
+            scene.setPlayerQuoteText(faiBubbleText)
             scene.setJajiiQuoteText(jajiiBubbleText)
         }
 

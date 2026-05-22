@@ -7,7 +7,7 @@ enum SurvivalSpeechBubbleBuilder {
     private static let padY: CGFloat = 6
     private static let corner: CGFloat = 8
     private static let tailH: CGFloat = 10
-    private static let bodyFont: CGFloat = 13
+    private static var bodyFont: CGFloat { SurvivalSpeechBubbleLayout.bodyFontPoints }
 
     private static func lineWidth(_ text: String, font: UIFont) -> CGFloat {
         (text as NSString).size(withAttributes: [.font: font]).width

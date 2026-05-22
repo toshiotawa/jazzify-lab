@@ -78,12 +78,15 @@ final class LessonMapAudio {
     func stop() {
         isRequestedPlaying = false
         fade(to: 0, duration: 0.28) { [weak self] in
-            guard let self else { return }
-            self.queuePlayer.pause()
-            self.queuePlayer.removeAllItems()
-            self.looper = nil
-            self.currentURL = nil
+            self?.finalizeStop()
         }
+    }
+
+    /// サバイバル起動など、フェードなしで即座に停止する。
+    func stopImmediately() {
+        isRequestedPlaying = false
+        cancelFade()
+        finalizeStop()
     }
 
     // MARK: - Private
@@ -101,15 +104,25 @@ final class LessonMapAudio {
 
     private var fadeTimer: Timer?
 
-    private func fade(to target: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
+    private func cancelFade() {
         fadeTimer?.invalidate()
+        fadeTimer = nil
+    }
+
+    private func finalizeStop() {
+        queuePlayer.pause()
+        queuePlayer.removeAllItems()
+        looper = nil
+        currentURL = nil
+    }
+
+    private func fade(to target: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
+        cancelFade()
         let fromValue = queuePlayer.volume
         let start = Date()
         let totalSteps = max(1, Int(duration * 60))
-        var stepIndex = 0
         fadeTimer = Timer.scheduledTimer(withTimeInterval: duration / Double(totalSteps), repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
-            stepIndex += 1
             let elapsed = min(duration, Date().timeIntervalSince(start))
             let t = Float(elapsed / duration)
             self.queuePlayer.volume = fromValue + (target - fromValue) * t

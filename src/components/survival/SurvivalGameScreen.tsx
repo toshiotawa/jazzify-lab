@@ -77,7 +77,6 @@ import {
   getSurvivalStageBattleKind,
   isBlockLastStage,
 } from './SurvivalStageDefinitions';
-import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
 import { fetchSurvivalStageIntroScript } from '@/components/survival/stageIntro/fetchSurvivalStageIntroScript';
 import { fetchSurvivalStagePlayDialogue } from '@/components/survival/stageIntro/fetchSurvivalStagePlayDialogue';
 import { fetchSurvivalBlockBossIntroScript } from '@/components/survival/stageIntro/fetchSurvivalBlockBossIntroScript';
@@ -5195,31 +5194,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         </div>
       )}
 
-      {timedFaiBubbleCharacterLine ? (
-        <div
-          className={cn(
-            'pointer-events-none fixed inset-0 z-[56]',
-            isIOSWebView() && 'flex justify-center pt-[max(72px,env(safe-area-inset-top))]',
-          )}
-        >
-          <div className={cn('relative w-full max-w-[100vw]', isIOSWebView() && 'h-full')}>
-            <OnboardingOverlays
-              characterText={timedFaiBubbleCharacterLine}
-              narrationText=""
-              connectedDeviceLine={null}
-              showPillarCard={false}
-              pillarCaption={null}
-              pillarSystemImage={null}
-              showCta={false}
-              showSkip={false}
-              isEnglishCopy={isEnglishCopy}
-              onCta={() => undefined}
-              onSkip={() => undefined}
-            />
-          </div>
-        </div>
-      ) : null}
-
       {/* 初期化エラー表示（閉じられるトースト） */}
       {initError && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md">
@@ -5459,6 +5433,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             hidePlayerHintStatusIcon={scenarioHideHintBadge}
             jajiiWorldPosRef={jajiiWorldPosRef}
             jajiiBubbleText={timedJajiiBubbleLine}
+            faiBubbleText={timedFaiBubbleCharacterLine}
           />
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (
             <div

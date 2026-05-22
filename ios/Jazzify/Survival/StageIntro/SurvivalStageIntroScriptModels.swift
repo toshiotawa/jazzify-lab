@@ -33,7 +33,8 @@ enum SurvivalStageIntroBundledPayloads {
     private static func line(_ at: Double, ja: String, en: String) -> SurvivalStageIntroLinePayload {
         SurvivalStageIntroLinePayload(
             atSeconds: at,
-            text: SurvivalStageIntroLocalizedTextPayload(ja: ja, en: en)
+            text: SurvivalStageIntroLocalizedTextPayload(ja: ja, en: en),
+            speaker: nil
         )
     }
 
@@ -145,7 +146,8 @@ enum SurvivalBlockBossIntroBundledPayloads {
     private static func line(_ at: Double, ja: String, en: String) -> SurvivalStageIntroLinePayload {
         SurvivalStageIntroLinePayload(
             atSeconds: at,
-            text: SurvivalStageIntroLocalizedTextPayload(ja: ja, en: en)
+            text: SurvivalStageIntroLocalizedTextPayload(ja: ja, en: en),
+            speaker: nil
         )
     }
 

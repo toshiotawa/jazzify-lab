@@ -21,6 +21,9 @@ final class SurvivalScene: SKScene {
     private var playerNode: SKNode?
     private var playerSprite: SKSpriteNode?
     private var jajiiSpriteNode: SKSpriteNode?
+    private var playerQuoteText: String = ""
+    private var playerQuoteTextLaidOut: String = ""
+    private var playerQuoteBubbleRoot: SKNode?
     private var jajiiQuoteText: String = ""
     private var jajiiQuoteTextLaidOut: String = ""
     private var jajiiQuoteBubbleRoot: SKNode?
@@ -80,6 +83,15 @@ final class SurvivalScene: SKScene {
 
     /// ボス撃破演出を既に発火済みか (カメラシェイク + 爆散エフェクトを 1 回だけトリガーするため)。
     private var hasTriggeredBossDefeatFx: Bool = false
+
+    func setPlayerQuoteText(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != playerQuoteText else { return }
+        playerQuoteText = trimmed
+        if trimmed.isEmpty {
+            playerQuoteTextLaidOut = ""
+        }
+    }
 
     func setJajiiQuoteText(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -495,6 +507,12 @@ final class SurvivalScene: SKScene {
                     }
                 }
             }
+
+            layoutPlayerQuoteBubble(on: sprite)
+        } else {
+            playerQuoteBubbleRoot?.removeFromParent()
+            playerQuoteBubbleRoot = nil
+            playerQuoteTextLaidOut = ""
         }
 
         // ジャ爺サポート（scenario / lesson 無効時のみ runtime.jajii が存在）
@@ -1290,26 +1308,51 @@ final class SurvivalScene: SKScene {
         }
     }
 
-    private func layoutJajiiQuoteBubble(on sprite: SKSpriteNode) {
-        if jajiiQuoteText.isEmpty {
-            jajiiQuoteBubbleRoot?.removeFromParent()
-            jajiiQuoteBubbleRoot = nil
-            jajiiQuoteTextLaidOut = ""
+    private func layoutQuoteBubble(
+        on sprite: SKSpriteNode,
+        text: String,
+        laidOutText: inout String,
+        bubbleRoot: inout SKNode?,
+        maxOuterWidth: CGFloat
+    ) {
+        if text.isEmpty {
+            bubbleRoot?.removeFromParent()
+            bubbleRoot = nil
+            laidOutText = ""
             return
         }
-        if jajiiQuoteText == jajiiQuoteTextLaidOut,
-           jajiiQuoteBubbleRoot?.parent === sprite {
+        if text == laidOutText, bubbleRoot?.parent === sprite {
             return
         }
-        jajiiQuoteTextLaidOut = jajiiQuoteText
-        jajiiQuoteBubbleRoot?.removeFromParent()
-        jajiiQuoteBubbleRoot = nil
+        laidOutText = text
+        bubbleRoot?.removeFromParent()
+        bubbleRoot = nil
         guard let root = SurvivalSpeechBubbleBuilder.makeRoot(
-            text: jajiiQuoteText,
-            maxOuterWidth: SurvivalSpeechBubbleLayout.jajiiMaxBubbleWidth
+            text: text,
+            maxOuterWidth: maxOuterWidth
         ) else { return }
         root.position = CGPoint(x: 0, y: sprite.size.height / 2 + 14)
         sprite.addChild(root)
-        jajiiQuoteBubbleRoot = root
+        bubbleRoot = root
+    }
+
+    private func layoutPlayerQuoteBubble(on sprite: SKSpriteNode) {
+        layoutQuoteBubble(
+            on: sprite,
+            text: playerQuoteText,
+            laidOutText: &playerQuoteTextLaidOut,
+            bubbleRoot: &playerQuoteBubbleRoot,
+            maxOuterWidth: SurvivalSpeechBubbleLayout.faiMaxBubbleWidth
+        )
+    }
+
+    private func layoutJajiiQuoteBubble(on sprite: SKSpriteNode) {
+        layoutQuoteBubble(
+            on: sprite,
+            text: jajiiQuoteText,
+            laidOutText: &jajiiQuoteTextLaidOut,
+            bubbleRoot: &jajiiQuoteBubbleRoot,
+            maxOuterWidth: SurvivalSpeechBubbleLayout.jajiiMaxBubbleWidth
+        )
     }
 }
