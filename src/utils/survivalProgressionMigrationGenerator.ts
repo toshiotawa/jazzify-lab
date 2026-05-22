@@ -8,6 +8,7 @@ import type { SurvivalChordProgressionEntry } from '@/components/survival/Surviv
 
 import { buildProgressionChordKeyFifths } from './survivalProgressionKeyInference';
 import {
+  analyzeSurvivalChordProgression,
   buildStaffVoicingNamesForProgressionChord,
   classifySurvivalProgressionChordName,
 } from './survivalProgressionVoicings';
@@ -54,6 +55,89 @@ const KEY_FIFTHS_MIN = -6;
 const KEY_FIFTHS_MAX = 5;
 const clampFifths = (k: number): number =>
   Math.max(KEY_FIFTHS_MIN, Math.min(KEY_FIFTHS_MAX, Math.trunc(k)));
+
+/** コード名のみから voicing を再生成（種別の半音定義変更時の DB 再投入用）。 */
+export const rebuildProgressionVoicingsFromNames = (
+  names: readonly string[],
+): SurvivalChordProgressionEntry[] => {
+  if (names.length === 0) {
+    throw new Error('rebuildProgressionVoicingsFromNames: empty names');
+  }
+  const input = names.join(' ');
+  const result = analyzeSurvivalChordProgression(input);
+  if (result.progression.length !== names.length) {
+    throw new Error(
+      `rebuildProgressionVoicingsFromNames: expected ${names.length} chords, got ${result.progression.length}`,
+    );
+  }
+  for (let i = 0; i < names.length; i += 1) {
+    const expected = names[i];
+    const actual = result.progression[i]?.name;
+    if (actual !== expected) {
+      throw new Error(
+        `rebuildProgressionVoicingsFromNames: name mismatch at ${i}: "${actual}" vs "${expected}"`,
+      );
+    }
+  }
+  return [...result.progression];
+};
+
+export interface SurvivalSongsStageExportRow {
+  readonly stageNumber: number;
+  readonly mapCategory: 'songs' | 'basic';
+  readonly chordNames: readonly string[];
+  readonly keyFifths: readonly number[];
+}
+
+export const buildAugmentedFromChordNamesAndKeyFifths = (
+  names: readonly string[],
+  keyFifths: readonly number[],
+): SurvivalProgressionDbChord[] => {
+  if (names.length !== keyFifths.length) {
+    throw new Error(
+      `buildAugmentedFromChordNamesAndKeyFifths: names (${names.length}) vs keyFifths (${keyFifths.length})`,
+    );
+  }
+  const progression = rebuildProgressionVoicingsFromNames(names);
+  return progression.map((entry, idx) => {
+    const namesForStaff = ascendingStaffNames(entry);
+    const row: SurvivalProgressionDbChord = namesForStaff
+      ? {
+          name: entry.name,
+          voicing: [...entry.voicing],
+          voicing_names: [...namesForStaff],
+          key_fifths: clampFifths(keyFifths[idx]),
+        }
+      : {
+          name: entry.name,
+          voicing: [...entry.voicing],
+          key_fifths: clampFifths(keyFifths[idx]),
+        };
+    return row;
+  });
+};
+
+export const buildSurvivalProgressionMigrationSqlFromStageExports = (
+  rows: readonly SurvivalSongsStageExportRow[],
+  header: string,
+): string => {
+  const lines: string[] = [];
+  lines.push(header);
+  lines.push('BEGIN;');
+  lines.push('');
+  for (const row of rows) {
+    const chords = buildAugmentedFromChordNamesAndKeyFifths(row.chordNames, row.keyFifths);
+    const json = JSON.stringify(chords);
+    lines.push(`UPDATE public.survival_stages`);
+    lines.push(`SET chord_progression = '${escapeSqlString(json)}'::jsonb`);
+    lines.push(
+      `WHERE map_category = '${row.mapCategory}' AND stage_number = ${row.stageNumber};`,
+    );
+    lines.push('');
+  }
+  lines.push('COMMIT;');
+  return `${lines.join('\n')}\n`;
+};
 
 export const buildAugmentedChordProgressionForStage = (
   input: SurvivalProgressionStageMigrationInput,

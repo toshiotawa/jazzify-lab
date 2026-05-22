@@ -1,4 +1,6 @@
-# Dependencies
+# Generated CLI export (regenerate via Supabase REST + --gen-migration-all-songs)
+scripts/data/survival-songs-stages-export.json
+
 node_modules/
 npm-debug.log*
 yarn-debug.log*

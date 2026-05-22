@@ -98,7 +98,7 @@ describe('survivalProgressionVoicings', () => {
 
   it('サヴァイバルマップの各エントリは 4 音かつ pitch class が一意', () => {
     const keys = Object.keys(SURVIVAL_PROGRESSION_VOICING_MAP);
-    expect(keys.length).toBe(17 * 12);
+    expect(keys.length).toBe(17 * 13);
     for (const k of keys) {
       const { voicing } = SURVIVAL_PROGRESSION_VOICING_MAP[k];
       expect(voicing.length, k).toBe(4);
@@ -113,7 +113,7 @@ describe('survivalProgressionVoicings', () => {
     const raw = String(writeSpy.mock.calls[0]?.[0] ?? '');
     writeSpy.mockRestore();
     const rows = JSON.parse(raw) as Array<{ root: string; kind: string; A: number[]; B: number[]; C?: number[] }>;
-    expect(rows.length).toBe(17 * 12);
+    expect(rows.length).toBe(17 * 13);
     const ebM7 = rows.find(r => r.root === 'Eb' && r.kind === 'M7_9');
     expect(ebM7?.C).toBeDefined();
     expect(ebM7?.C?.length).toBe(4);
@@ -140,6 +140,34 @@ describe('survivalProgressionVoicings', () => {
       'FM7(9.13):M7_9',
       'Dm7(b9.b13):m7',
     ]);
+  });
+
+  it('m7(9) は 9th を含み、素の m7 / m7(b5) は 357R・7R35（9th なし）', () => {
+    const pcs = (midis: readonly number[]) => midis.map(m => ((m % 12) + 12) % 12);
+    const ROOT_PC: Record<string, number> = {
+      C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6,
+      G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11,
+    };
+    const rootPcOf = (root: string): number => ROOT_PC[root] ?? 0;
+    const hasNinth = (root: string, voicing: readonly number[]) =>
+      pcs(voicing).includes((rootPcOf(root) + 2) % 12);
+    const hasRoot = (root: string, voicing: readonly number[]) =>
+      pcs(voicing).includes(rootPcOf(root));
+
+    const dm9 = analyzeSurvivalChordProgression('Dm7(9)').entries[0];
+    const dm = analyzeSurvivalChordProgression('Dm7').entries[0];
+    const em = analyzeSurvivalChordProgression('Em7').entries[0];
+    const amB5 = analyzeSurvivalChordProgression('Am7(b5)').entries[0];
+    if (!dm9 || !dm || !em || !amB5) throw new Error('parse failed');
+
+    expect(dm9.kind).toBe('m7_9');
+    expect(hasNinth('D', dm9.voicing)).toBe(true);
+    expect(hasNinth('D', dm.voicing)).toBe(false);
+    expect(hasRoot('D', dm.voicing)).toBe(true);
+    expect(hasNinth('E', em.voicing)).toBe(false);
+    expect(hasRoot('E', em.voicing)).toBe(true);
+    expect(hasNinth('A', amB5.voicing)).toBe(false);
+    expect(hasRoot('A', amB5.voicing)).toBe(true);
   });
 
   it('runSurvivalProgressionVoicingsCli が progression JSON を出力する', () => {

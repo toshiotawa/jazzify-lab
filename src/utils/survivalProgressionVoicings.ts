@@ -19,6 +19,7 @@ const VOICING_LOWEST_MIDI_MAX = 59;
 export type SurvivalProgressionVoicingKind =
   | 'M7_9'
   | 'm7'
+  | 'm7_9'
   | '7_9_13'
   | '7_9'
   | '7_b9_b13'
@@ -61,6 +62,7 @@ export interface SurvivalProgressionAnalyzeResult {
 const KIND_DISPLAY_SUFFIX: Record<SurvivalProgressionVoicingKind, string> = {
   M7_9: 'M7(9)',
   m7: 'm7',
+  m7_9: 'm7(9)',
   '7_9_13': '7(9.13)',
   '7_9': '7(9)',
   '7_b9_b13': '7(b9.b13)',
@@ -82,11 +84,13 @@ const KIND_RELATIVE_SEMITONES: Record<
   { readonly A: readonly number[]; readonly B: readonly number[] }
 > = {
   M7_9: { A: [4, 7, 11, 14], B: [11, 14, 16, 19] },
-  m7: { A: [3, 7, 10, 14], B: [10, 14, 15, 19] },
+  // m7 / m7(b5) 素形: LH A=357R, B=7R35（9th なし）
+  m7: { A: [3, 7, 10, 12], B: [10, 12, 15, 19] },
+  m7_9: { A: [3, 7, 10, 14], B: [10, 14, 15, 19] },
   '7_9_13': { A: [4, 9, 10, 14], B: [10, 14, 16, 21] },
   '7_9': { A: [4, 7, 10, 14], B: [10, 14, 16, 19] },
   '7_b9_b13': { A: [4, 8, 10, 13], B: [10, 13, 16, 20] },
-  m7b5: { A: [3, 6, 10, 14], B: [10, 14, 15, 18] },
+  m7b5: { A: [3, 6, 10, 12], B: [10, 12, 15, 18] },
   '6_9': { A: [4, 7, 9, 14], B: [9, 14, 16, 19] },
   // dim7 は他種と異なり、A=R 3 5 7（R 始まり）、B=5 7 R 3（5th 始まり）。
   // フォーム選択は「(root-4半音) を 7(b9.b13) のルートと見なした既定」と一致させる。
@@ -108,7 +112,7 @@ const SUFFIX_MATCHERS: ReadonlyArray<{ readonly suffix: string; readonly kind: S
   { suffix: '7(b9.b13)', kind: '7_b9_b13' },
   { suffix: 'm6(9)', kind: 'm6_9' },
   { suffix: '6(9)', kind: '6_9' },
-  { suffix: 'm7(9)', kind: 'm7' },
+  { suffix: 'm7(9)', kind: 'm7_9' },
   { suffix: '7(9)', kind: '7_9' },
   { suffix: 'dim7', kind: 'dim7' },
   { suffix: '7aug', kind: 'aug7' },
@@ -212,7 +216,12 @@ const buildFormMidis = (
     const bRel = KIND_RELATIVE_SEMITONES.M7_9.B;
     const oct = choosePreferredRootOctave(root, bRel);
     const bMidis = relativeSemitonesToAscendingMidi(root, bRel, oct);
-    return bMidis.map(m => m - 12);
+    const lowered = bMidis.map(m => m - 12);
+    const minLower = lowered[0] ?? 0;
+    if (minLower >= VOICING_LOWEST_MIDI_MIN && minLower <= VOICING_LOWEST_MIDI_MAX) {
+      return lowered;
+    }
+    return bMidis;
   }
   const rel = form === 'A' ? KIND_RELATIVE_SEMITONES[kind].A : KIND_RELATIVE_SEMITONES[kind].B;
   const oct = choosePreferredRootOctave(root, rel);
@@ -269,6 +278,7 @@ const defaultFormForRootByKind = (
     case 'dim7':
       return defaultFormForDim7Root(root);
     case 'm7':
+    case 'm7_9':
       return formFromPitchClassSet(root, MINOR_SEVENTH_A_FORM_PITCH_CLASSES);
     case 'm7b5':
       return formFromPitchClassSet(root, HALF_DIMINISHED_A_FORM_PITCH_CLASSES);

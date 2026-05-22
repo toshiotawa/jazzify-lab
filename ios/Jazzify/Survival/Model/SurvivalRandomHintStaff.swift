@@ -34,12 +34,13 @@ enum SurvivalRandomHintStaff {
     ]
 
     private enum ProgressionKind: CaseIterable {
-        case M7_9, m7, seven_9_13, seven_9, seven_b9_b13, m7b5, six_9, dim7, m6_9, mM7_9, dom7, aug7
+        case M7_9, m7, m7_9, seven_9_13, seven_9, seven_b9_b13, m7b5, six_9, dim7, m6_9, mM7_9, dom7, aug7
 
         var displaySuffix: String {
             switch self {
             case .M7_9: return "M7(9)"
             case .m7: return "m7"
+            case .m7_9: return "m7(9)"
             case .seven_9_13: return "7(9.13)"
             case .seven_9: return "7(9)"
             case .seven_b9_b13: return "7(b9.b13)"
@@ -65,11 +66,12 @@ enum SurvivalRandomHintStaff {
 
     private static let kindRelatives: [ProgressionKind: ([Int], [Int])] = [
         .M7_9: ([4, 7, 11, 14], [11, 14, 16, 19]),
-        .m7: ([3, 7, 10, 14], [10, 14, 15, 19]),
+        .m7: ([3, 7, 10, 12], [10, 12, 15, 19]),
+        .m7_9: ([3, 7, 10, 14], [10, 14, 15, 19]),
         .seven_9_13: ([4, 9, 10, 14], [10, 14, 16, 21]),
         .seven_9: ([4, 7, 10, 14], [10, 14, 16, 19]),
         .seven_b9_b13: ([4, 8, 10, 13], [10, 13, 16, 20]),
-        .m7b5: ([3, 6, 10, 14], [10, 14, 15, 18]),
+        .m7b5: ([3, 6, 10, 12], [10, 12, 15, 18]),
         .six_9: ([4, 7, 9, 14], [9, 14, 16, 19]),
         .dim7: ([0, 3, 6, 9], [6, 9, 12, 15]),
         .m6_9: ([3, 7, 9, 14], [9, 14, 15, 19]),
@@ -83,7 +85,7 @@ enum SurvivalRandomHintStaff {
         ("m7(b5)", .m7b5), ("m7(b9.b13)", .m7),
         ("7(9.13)", .seven_9_13), ("7(b9.b13)", .seven_b9_b13),
         ("m6(9)", .m6_9), ("6(9)", .six_9),
-        ("m7(9)", .m7), ("7(9)", .seven_9),
+        ("m7(9)", .m7_9), ("7(9)", .seven_9),
         ("dim7", .dim7), ("7aug", .aug7), ("aug7", .aug7),
         ("m7", .m7), ("7", .dom7),
     ]
@@ -172,7 +174,13 @@ enum SurvivalRandomHintStaff {
                     let bRel = kindRelatives[.M7_9]!.1
                     let oct = choosePreferredRootOctave(root: root, relatives: bRel)
                     let bMidis = relativeSemitonesToAscendingMidi(root: root, relatives: bRel, preferredRootOctave: oct)
-                    voicing = bMidis.map { $0 - 12 }
+                    let lowered = bMidis.map { $0 - 12 }
+                    let minLower = lowered.first ?? 0
+                    if minLower >= voicingLowestMidiMin && minLower <= voicingLowestMidiMax {
+                        voicing = lowered
+                    } else {
+                        voicing = bMidis
+                    }
                 } else {
                     let ab = kindRelatives[kind]!
                     let rel = form == "A" ? ab.0 : ab.1
@@ -188,7 +196,7 @@ enum SurvivalRandomHintStaff {
     private static func progressionMapKey(root: String, quality: SurvivalChordQuality) -> String? {
         switch quality {
         case .maj7_9: return "\(root)M7(9)"
-        case .m7_9: return "\(root)m7"
+        case .m7_9: return "\(root)m7(9)"
         case .seven_9_6th: return "\(root)7(9.13)"
         case .seven_b9_b6th: return "\(root)7(b9.b13)"
         case .six_9: return "\(root)6(9)"
@@ -255,7 +263,7 @@ enum SurvivalRandomHintStaff {
             return formFromPitchClassSet(root: root, aFormPitchClasses: minorTonicAFormPC)
         case .dim7:
             return defaultFormForDim7Root(root: root)
-        case .m7:
+        case .m7, .m7_9:
             return formFromPitchClassSet(root: root, aFormPitchClasses: minorSeventhAFormPC)
         case .m7b5:
             return formFromPitchClassSet(root: root, aFormPitchClasses: halfDimAFormPC)
@@ -313,7 +321,12 @@ enum SurvivalRandomHintStaff {
             let bRel = kindRelatives[.M7_9]!.1
             let oct = choosePreferredRootOctave(root: root, relatives: bRel)
             let bMidis = relativeSemitonesToAscendingMidi(root: root, relatives: bRel, preferredRootOctave: oct)
-            return bMidis.map { $0 - 12 }
+            let lowered = bMidis.map { $0 - 12 }
+            let minLower = lowered.first ?? 0
+            if minLower >= voicingLowestMidiMin && minLower <= voicingLowestMidiMax {
+                return lowered
+            }
+            return bMidis
         }
         guard let ab = kindRelatives[kind] else { return nil }
         let rel = form == "A" ? ab.0 : ab.1

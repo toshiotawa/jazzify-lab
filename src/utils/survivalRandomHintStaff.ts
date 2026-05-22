@@ -31,7 +31,7 @@ const progressionMapKey = (root: string, quality: ChordQuality): string | null =
     case 'maj7_9':
       return `${root}M7(9)`;
     case 'm7_9':
-      return `${root}m7`;
+      return `${root}m7(9)`;
     case '7_9_6th':
       return `${root}7(9.13)`;
     case '7_b9_b6th':

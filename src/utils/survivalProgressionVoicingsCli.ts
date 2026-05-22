@@ -15,12 +15,20 @@ import {
   parseChordsOnePerLineSections,
 } from './survivalProgressionChordsOnePerLine';
 import { buildProgressionChordDefinitions } from './survivalProgressionChords';
-import { buildSurvivalProgressionMigrationSql } from './survivalProgressionMigrationGenerator';
+import {
+  buildSurvivalProgressionMigrationSql,
+  buildSurvivalProgressionMigrationSqlFromStageExports,
+  type SurvivalSongsStageExportRow,
+} from './survivalProgressionMigrationGenerator';
 import { SURVIVAL_PROGRESSION_MIGRATION_INPUTS } from './survivalProgressionMigrationData';
 
 const MIGRATION_HEADER =
   '-- Augment survival_stages.chord_progression with voicing_names + key_fifths.\n'
   + '-- 自動生成（scripts/survival-progression-voicings.mjs --gen-migration）。';
+
+const M7_VOICING_FIX_HEADER =
+  '-- Survival songs: m7 / m7(b5) voicing を 357R・7R35（9th なし）に修正し、m7(9) を分離。\n'
+  + '-- 自動生成（scripts/survival-progression-voicings.mjs --gen-migration-all-songs）。\n';
 
 export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void => {
   const args = argv.filter(a => a !== '--');
@@ -44,6 +52,19 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
       SURVIVAL_PROGRESSION_MIGRATION_INPUTS,
       MIGRATION_HEADER,
     );
+    process.stdout.write(sql);
+    return;
+  }
+  if (args[0] === '--gen-migration-all-songs') {
+    const filePath = args[1]?.trim();
+    if (!filePath) {
+      process.stderr.write('Error: --gen-migration-all-songs には JSON ファイルパスが必要です。\n');
+      process.exitCode = 1;
+      return;
+    }
+    const raw = readFileSync(filePath, 'utf8');
+    const rows = JSON.parse(raw) as SurvivalSongsStageExportRow[];
+    const sql = buildSurvivalProgressionMigrationSqlFromStageExports(rows, M7_VOICING_FIX_HEADER);
     process.stdout.write(sql);
     return;
   }
@@ -76,6 +97,7 @@ export const runSurvivalProgressionVoicingsCli = (argv: readonly string[]): void
         '       node scripts/survival-progression-voicings.mjs --dump-map\n' +
         '       node scripts/survival-progression-voicings.mjs --dump-forms-map\n' +
         '       node scripts/survival-progression-voicings.mjs --gen-migration\n' +
+        '       node scripts/survival-progression-voicings.mjs --gen-migration-all-songs path/to/export.json\n' +
         '  JSON に chordProgressionForDb（voicing_names / key_fifths 付き）を含めます。\n',
     );
     process.exitCode = 1;

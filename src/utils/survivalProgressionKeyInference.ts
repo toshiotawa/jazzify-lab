@@ -14,7 +14,7 @@ export interface SurvivalChordClass {
   readonly kind: SurvivalProgressionVoicingKind;
 }
 
-const MINOR_II_KINDS: ReadonlySet<SurvivalProgressionVoicingKind> = new Set(['m7', 'm7b5']);
+const MINOR_II_KINDS: ReadonlySet<SurvivalProgressionVoicingKind> = new Set(['m7', 'm7_9', 'm7b5']);
 
 const DOMINANT_KINDS: ReadonlySet<SurvivalProgressionVoicingKind> = new Set([
   '7_9_13', '7_9', '7_b9_b13', 'dom7', 'aug7',
@@ -26,6 +26,7 @@ const MAJOR_TONIC_KINDS: ReadonlySet<SurvivalProgressionVoicingKind> = new Set([
 
 const MINOR_SONORITIES_AT_TONIC = new Set<SurvivalProgressionVoicingKind>([
   'm7',
+  'm7_9',
   'mM7_9',
   'm7b5',
   'm6_9',
