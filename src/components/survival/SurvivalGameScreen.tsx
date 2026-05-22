@@ -444,6 +444,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const phraseStateRef = useRef<SurvivalPhraseRuntimeState | null>(null);
   const [phraseUiTick, setPhraseUiTick] = useState(0);
   const phraseDrumLoopRef = useRef<SurvivalPhraseDrumLoop | null>(null);
+  const phraseBgmUrlRef = useRef<string | null>(null);
 
   const jajiiStateRef = useRef<JajiiState | null>(null);
   const jajiiWorldPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -484,32 +485,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (!isPhraseMode || !stageDefinition) {
       phraseDefinitionRef.current = null;
       phraseStateRef.current = null;
+      phraseBgmUrlRef.current = null;
       return;
     }
+
+    const resolvePhraseBgmUrl = (
+      phraseBgmUrl: string | null | undefined,
+    ): string =>
+      phraseBgmUrl?.trim() ||
+      config.bgmUrl?.trim() ||
+      SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL;
 
     const inline = tutorialPhraseInlineDefinition ?? null;
     if (inline !== null && inline.chords.length > 0) {
       phraseDefinitionRef.current = inline;
       phraseStateRef.current = createInitialPhraseState(inline);
-      const phraseDrumInline = phraseDrumLoopRef.current;
-      const url =
-        inline.bgmUrl?.trim() ||
-        config.bgmUrl?.trim() ||
-        SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL;
-      if (phraseDrumInline) {
-        void (async () => {
-          try {
-            await initializeAudioSystem();
-            const ctx = new AudioContext();
-            await ctx.resume();
-            await phraseDrumInline.prepare(url, ctx);
-            phraseDrumInline.start();
-            phraseDrumInline.setVolume(bgmVolumeRef.current);
-          } catch {
-            /* ignore */
-          }
-        })();
-      }
+      phraseBgmUrlRef.current = resolvePhraseBgmUrl(inline.bgmUrl);
       setPhraseUiTick((t) => t + 1);
       return undefined;
     }
@@ -519,26 +510,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (cancelled || !phrase) return;
       phraseDefinitionRef.current = phrase;
       phraseStateRef.current = createInitialPhraseState(phrase);
+      phraseBgmUrlRef.current = resolvePhraseBgmUrl(phrase.bgmUrl);
       setPhraseUiTick((t) => t + 1);
-      const phraseDrum = phraseDrumLoopRef.current;
-      const url = phrase.bgmUrl?.trim() || config.bgmUrl?.trim() || SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL;
-      if (phraseDrum) {
-        void (async () => {
-          try {
-            await initializeAudioSystem();
-            if (cancelled) return;
-            const ctx = new AudioContext();
-            await ctx.resume();
-            await phraseDrum.prepare(url, ctx);
-            if (!cancelled) {
-              phraseDrum.start();
-              phraseDrum.setVolume(bgmVolumeRef.current);
-            }
-          } catch {
-            // ignore
-          }
-        })();
-      }
     });
     return () => {
       cancelled = true;
@@ -832,29 +805,58 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   useEffect(() => {
     if (!isPhraseMode) {
+      phraseDrumLoopRef.current?.dispose();
+      phraseDrumLoopRef.current = null;
       return undefined;
     }
-    const phraseDrum = new SurvivalPhraseDrumLoop();
-    phraseDrumLoopRef.current = phraseDrum;
+    if (!phraseDrumLoopRef.current) {
+      phraseDrumLoopRef.current = new SurvivalPhraseDrumLoop();
+    }
     return () => {
-      phraseDrum.stop();
-      phraseDrum.dispose();
+      phraseDrumLoopRef.current?.stop();
+      phraseDrumLoopRef.current?.dispose();
       phraseDrumLoopRef.current = null;
     };
   }, [isPhraseMode, stageDefinition?.stageNumber]);
 
   useEffect(() => {
     const phraseDrum = phraseDrumLoopRef.current;
-    if (!isPhraseMode || !phraseDrum) {
-      return;
+    const url = phraseBgmUrlRef.current;
+    if (!isPhraseMode || !phraseDrum || !url) {
+      return undefined;
     }
     if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
       phraseDrum.stop();
-      return;
+      return undefined;
     }
-    phraseDrum.start();
-    phraseDrum.setVolume(bgmVolumeRef.current);
-  }, [isPhraseMode, gameState.isGameOver, gameState.isPaused, gameState.isPlaying]);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await initializeAudioSystem();
+        if (cancelled) return;
+        const ctx = new AudioContext();
+        await ctx.resume();
+        await phraseDrum.prepare(url, ctx);
+        if (cancelled) return;
+        phraseDrum.start();
+        phraseDrum.setVolume(bgmVolumeRef.current);
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isPhraseMode,
+    gameState.isGameOver,
+    gameState.isPaused,
+    gameState.isPlaying,
+    phraseUiTick,
+    config.bgmUrl,
+  ]);
   
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());

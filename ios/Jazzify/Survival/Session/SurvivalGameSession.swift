@@ -107,10 +107,7 @@ final class SurvivalGameSession: ObservableObject {
                 gameLoop.loadPhraseDefinition(phrase)
                 viewModel.syncPhraseStaff(from: gameLoop)
                 if playBackgroundMusic {
-                    let urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
-                    if let urlString, let url = URL(string: urlString) {
-                        audioController.setBgmUrl(url)
-                    }
+                    applyPhraseBackgroundMusicUrlIfAvailable()
                 }
                 audioController.start(playBackgroundMusic: playBackgroundMusic)
             } else {
@@ -122,10 +119,7 @@ final class SurvivalGameSession: ObservableObject {
                         gameLoop.loadPhraseDefinition(phrase)
                         viewModel.syncPhraseStaff(from: gameLoop)
                         if playBackgroundMusic {
-                            let urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
-                            if let urlString, let url = URL(string: urlString) {
-                                audioController.setBgmUrl(url)
-                            }
+                            applyPhraseBackgroundMusicUrlIfAvailable(fetchedPhrase: phrase)
                         }
                     }
                     audioController.start(playBackgroundMusic: playBackgroundMusic)
@@ -150,7 +144,23 @@ final class SurvivalGameSession: ObservableObject {
     func resumeScenarioBackgroundMusicIfEnabled() {
         guard state == .running else { return }
         guard !gameLoop.runtime.scenario.disableSurvivalBgm else { return }
+        if gameLoop.isPhraseMode {
+            applyPhraseBackgroundMusicUrlIfAvailable()
+        }
         audioController.start(playBackgroundMusic: true)
+    }
+
+    private func applyPhraseBackgroundMusicUrlIfAvailable(
+        fetchedPhrase: SurvivalPhraseDefinition? = nil
+    ) {
+        let urlString: String?
+        if let phrase = fetchedPhrase ?? inlinePhraseDefinition {
+            urlString = phrase.bgmUrl ?? gameLoop.stageConfig.bgmUrl?.absoluteString
+        } else {
+            urlString = gameLoop.stageConfig.bgmUrl?.absoluteString
+        }
+        guard let urlString, let url = URL(string: urlString) else { return }
+        audioController.setBgmUrl(url)
     }
 
     func togglePause() {
