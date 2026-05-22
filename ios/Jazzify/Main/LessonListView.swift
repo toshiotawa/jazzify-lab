@@ -1529,6 +1529,15 @@ private struct SurvivalTutorialLaunch: Identifiable {
     let clearConditions: LessonClearConditions?
 }
 
+/// レッスン課題のサバイバル（ネイティブ `SurvivalGameView`）の fullScreenCover 起動コンテキスト。
+private struct SurvivalLessonLaunch: Identifiable {
+    let id = UUID()
+    let stage: SurvivalStageDefinition
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 struct LessonDetailView: View {
     private struct QuickLookDocument: Identifiable {
         let id = UUID()
@@ -1558,6 +1567,7 @@ struct LessonDetailView: View {
     @State private var earTrainingLaunch: EarTrainingLaunch?
     @State private var earTrainingTutorialLaunch: EarTrainingTutorialLaunch?
     @State private var survivalTutorialLaunch: SurvivalTutorialLaunch?
+    @State private var survivalLessonLaunch: SurvivalLessonLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -1712,6 +1722,20 @@ struct LessonDetailView: View {
                 }
             )
         }
+        .fullScreenCover(item: $survivalLessonLaunch) { launch in
+            SurvivalGameView(
+                stage: launch.stage,
+                hintMode: false,
+                characterId: "fai",
+                locale: locale,
+                onClose: { survivalLessonLaunch = nil },
+                lessonContext: SurvivalLessonContext(
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
+                    clearConditions: launch.clearConditions
+                )
+            )
+        }
         .onChange(of: launchDestination == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
@@ -1728,6 +1752,11 @@ struct LessonDetailView: View {
             }
         }
         .onChange(of: survivalTutorialLaunch == nil) { isNil in
+            if isNil {
+                Task { await loadLessonDetail() }
+            }
+        }
+        .onChange(of: survivalLessonLaunch == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
             }
@@ -2561,11 +2590,6 @@ struct LessonDetailView: View {
         return URL(string: "https://iframe.mediadelivery.net/embed/295659/\(video.vimeoUrl)?autoplay=false")
     }
 
-    private func survivalLessonMapCategory(_ requirement: LessonSong) -> String {
-        let raw = requirement.survivalMapCategory?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return raw.isEmpty ? "basic" : raw
-    }
-
     private func launchRequirement(_ requirement: LessonSong) {
         let bn = lesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
@@ -2596,18 +2620,27 @@ struct LessonDetailView: View {
                 alertMessage = locale == .ja ? "サバイバルステージ設定がありません。" : "Missing survival stage setting."
                 return
             }
-            launchDestination = LessonLaunchDestination(
-                hash: buildHash(
-                    base: "survival-lesson",
-                    params: [
-                        "lessonId": lesson.id.uuidString,
-                        "lessonSongId": requirement.id.uuidString,
-                        "stageNumber": String(stageNumber),
-                        "mapCategory": survivalLessonMapCategory(requirement),
-                        "clearConditions": encodeClearConditions(requirement.clearConditions) ?? ""
-                    ]
-                )
-            )
+            let mapCategory = SurvivalMapCategory.resolveLessonMapCategory(requirement.survivalMapCategory)
+            Task {
+                await ensureSurvivalCatalogLoadedIfNeeded(for: mapCategory, stageNumber: stageNumber)
+                guard let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory) else {
+                    await MainActor.run {
+                        alertMessage = locale == .ja
+                            ? "サバイバルステージを読み込めませんでした。"
+                            : "Could not load the survival stage."
+                    }
+                    return
+                }
+                await MainActor.run {
+                    LessonMapAudio.shared.stopImmediately()
+                    survivalLessonLaunch = SurvivalLessonLaunch(
+                        stage: stage,
+                        lessonId: lesson.id,
+                        lessonSongId: requirement.id,
+                        clearConditions: requirement.clearConditions
+                    )
+                }
+            }
             return
         }
 
@@ -2675,6 +2708,20 @@ struct LessonDetailView: View {
                 ]
             )
         )
+    }
+
+    /// 指定ステージがカタログに無いとき Supabase から再構築する（`SurvivalView.loadProgress` と同様）。
+    private func ensureSurvivalCatalogLoadedIfNeeded(for category: SurvivalMapCategory, stageNumber: Int) async {
+        if SurvivalStageCatalog.stage(byNumber: stageNumber, in: category) != nil {
+            return
+        }
+        async let fetchedStages = SupabaseService.shared.fetchSurvivalStages()
+        async let fetchedBlocks = SupabaseService.shared.fetchSurvivalStageBlocks()
+        let rows = try? await fetchedStages
+        let blockRows = (try? await fetchedBlocks) ?? []
+        if let rows, !rows.isEmpty {
+            SurvivalStageCatalog.load(rows: rows, blockLabelRows: blockRows)
+        }
     }
 
     private func buildHash(base: String, params: [String: String]) -> String {

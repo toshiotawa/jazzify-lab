@@ -1,5 +1,9 @@
 import React from 'react';
 import { cn } from '@/utils/cn';
+import { isIOSWebView } from '@/utils/iosbridge';
+
+/** WEB ブラウザではセリフを鍵盤上に固定（ジャ爺 Canvas 吹き出しは対象外） */
+const WEB_DIALOG_BOTTOM_LIFT_PX = 132;
 
 export type EarTutorialDialogPlacement =
   | 'default'
@@ -66,7 +70,18 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
       ? earTutorialDialogPlacement
       : undefined;
 
+  const useWebBottomDialog = typeof window !== 'undefined' && !isIOSWebView();
+
   const characterOuterStyle = ((): React.CSSProperties => {
+    if (useWebBottomDialog) {
+      return {
+        bottom: `max(${WEB_DIALOG_BOTTOM_LIFT_PX}px, calc(${WEB_DIALOG_BOTTOM_LIFT_PX}px + env(safe-area-inset-bottom)))`,
+        top: 'auto',
+        left: '50%',
+        right: 'auto',
+        transform: 'translateX(-50%)',
+      };
+    }
     if (!tutorialPlacement) {
       return {
         top: 'max(70px, min(max(86px, calc(50% - 92px)), calc(100% - 240px)))',
@@ -106,9 +121,10 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
       ? 'w-[min(300px,calc(100vw-32px))]'
       : 'w-[min(380px,calc(100vw-32px))]';
   const characterInnerTypographyClass =
-    tutorialPlacement !== undefined
+    tutorialPlacement !== undefined && !useWebBottomDialog
       ? 'text-xs leading-snug'
       : 'text-sm';
+  const characterBubbleTranslateClass = useWebBottomDialog ? '' : '-translate-y-1/2';
 
   return (
   <>
@@ -120,7 +136,7 @@ export const OnboardingOverlays: React.FC<OnboardingOverlaysProps> = ({
         )}
         style={characterOuterStyle}
       >
-        <div className={cn('mx-auto flex flex-col items-center', characterWidthClass, '-translate-y-1/2')}>
+        <div className={cn('mx-auto flex flex-col items-center', characterWidthClass, characterBubbleTranslateClass)}>
           <div
             className={cn(
               'w-full rounded-[12px] border border-white/25 bg-black/80 px-3 py-2.5 text-center font-bold text-white shadow-lg',

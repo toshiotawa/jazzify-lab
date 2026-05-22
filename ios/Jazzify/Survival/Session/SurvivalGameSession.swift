@@ -23,6 +23,7 @@ final class SurvivalGameSession: ObservableObject {
     private var hintMode: Bool
     private let characterId: String
     private let isDemo: Bool
+    private let lessonContext: SurvivalLessonContext?
     private let usesEnglishToastCopy: Bool
     private let onExit: (_ isCleared: Bool) -> Void
     /// チュートリアルなど Supabase を叩かずにフレーズを注入する際に使用。
@@ -38,6 +39,7 @@ final class SurvivalGameSession: ObservableObject {
         config: SurvivalStageConfig = .default,
         onExit: @escaping (_ isCleared: Bool) -> Void,
         isDemo: Bool = false,
+        lessonContext: SurvivalLessonContext? = nil,
         usesEnglishToastCopy: Bool,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
         scenarioController: SurvivalScenarioController? = nil,
@@ -67,6 +69,7 @@ final class SurvivalGameSession: ObservableObject {
         self.hintMode = hintMode
         self.characterId = characterId
         self.isDemo = isDemo
+        self.lessonContext = lessonContext
         self.usesEnglishToastCopy = usesEnglishToastCopy
         self.onExit = onExit
         self.inlinePhraseDefinition = inlinePhraseDefinition
@@ -245,6 +248,25 @@ final class SurvivalGameSession: ObservableObject {
     private func submitClearReportIfEligible(cleared: Bool) {
         guard cleared, !hintMode, !isDemo else { return }
         guard viewModel.beginSupabaseClearReport() else { return }
+
+        if let lessonContext {
+            Task { [weak self] in
+                guard let self else { return }
+                do {
+                    _ = try await self.supabase.recordEarTrainingLessonProgress(
+                        lessonId: lessonContext.lessonId,
+                        lessonSongId: lessonContext.lessonSongId,
+                        rank: "S",
+                        clearConditions: lessonContext.clearConditions
+                    )
+                    await MainActor.run { self.viewModel.endSupabaseClearReport(error: nil) }
+                } catch {
+                    await MainActor.run { self.viewModel.endSupabaseClearReport(error: error.localizedDescription) }
+                }
+            }
+            return
+        }
+
         let stageNumber = stage.stageNumber
         let mapCategory = stage.mapCategory
         let elapsed = gameLoop.runtime.elapsedSeconds

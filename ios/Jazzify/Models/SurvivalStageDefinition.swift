@@ -24,6 +24,24 @@ enum SurvivalMapCategory: String, Codable, Sendable, CaseIterable, Hashable {
 
     /// 降下マップ UI に載せるカテゴリ（`lesson` はレッスン専用ステージ用ネームスペース）
     static let descentDisplayCategories: [SurvivalMapCategory] = [.basic, .songs, .phrases]
+
+    /// Web `resolveLessonSurvivalMapCategory` と同義。`lesson_songs.survival_map_category` / URL の正規化。
+    static func resolveLessonMapCategory(_ raw: String?) -> SurvivalMapCategory {
+        let v = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        switch v {
+        case "basic", "songs", "phrases", "lesson":
+            return SurvivalMapCategory(rawValue: v) ?? .default
+        default:
+            return .default
+        }
+    }
+}
+
+/// レッスン課題からサバイバルを起動するときのコンテキスト。
+struct SurvivalLessonContext: Sendable {
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
 }
 
 enum SurvivalDifficulty: String, Codable, Sendable, CaseIterable {

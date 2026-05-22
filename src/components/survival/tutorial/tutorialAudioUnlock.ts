@@ -26,10 +26,15 @@ export async function playTutorialChordPreview(
   if (midis.length === 0) return;
   try {
     if (waitInit) await waitInit;
+    FantasySoundManager.ensureContextsRunning();
+    await FantasySoundManager.waitForGMReady();
+    if (!FantasySoundManager.isGmAudioRunning()) {
+      await FantasySoundManager.unlock();
+    }
   } catch {
     /* noop */
   }
-  if (!isTutorialPianoAudioReady()) return;
+  if (!FantasySoundManager.isGMReady()) return;
   for (const m of midis) {
     void playNote(m, 90);
     window.setTimeout(() => stopNote(m), 420);

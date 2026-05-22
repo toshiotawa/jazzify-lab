@@ -589,27 +589,29 @@ export const SurvivalLessonTutorialExperience: React.FC<
     <div
       className={
         embeddedFullHeight
-          ? 'relative h-full min-h-0 w-full overflow-hidden bg-black'
-          : 'relative fixed inset-0 z-50 bg-black'
+          ? 'relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-black'
+          : 'relative fixed inset-0 z-50 flex flex-col bg-black'
       }
     >
-      <SurvivalGameScreen
-        key={gameScreenKey}
-        difficulty="easy"
-        config={TUTORIAL_CONFIG}
-        stageDefinition={stageDefinition}
-        hintMode
-        embeddedFullHeight={embeddedFullHeight}
-        survivalTutorialLayout={embeddedFullHeight}
-        scenarioMode
-        initialScenarioOverrides={TUTORIAL_BOOTSTRAP_OVERRIDES}
-        onScenarioHandleReady={onScenarioHandleReady}
-        scenarioUserInputPulseRef={userInputPulseRef}
-        scenarioSlotBCompletionPulseRef={slotBCompletionPulseRef}
-        scenarioMidiNoteReceivedRef={midiNoteReceivedRef}
-        onBackToSelect={() => finalizeLesson('aborted')}
-        onBackToMenu={() => finalizeLesson('aborted')}
-      />
+      <div className={embeddedFullHeight ? 'min-h-0 flex-1' : 'contents'}>
+        <SurvivalGameScreen
+          key={gameScreenKey}
+          difficulty="easy"
+          config={TUTORIAL_CONFIG}
+          stageDefinition={stageDefinition}
+          hintMode
+          embeddedFullHeight={embeddedFullHeight}
+          survivalTutorialLayout={embeddedFullHeight}
+          scenarioMode
+          initialScenarioOverrides={TUTORIAL_BOOTSTRAP_OVERRIDES}
+          onScenarioHandleReady={onScenarioHandleReady}
+          scenarioUserInputPulseRef={userInputPulseRef}
+          scenarioSlotBCompletionPulseRef={slotBCompletionPulseRef}
+          scenarioMidiNoteReceivedRef={midiNoteReceivedRef}
+          onBackToSelect={() => finalizeLesson('aborted')}
+          onBackToMenu={() => finalizeLesson('aborted')}
+        />
+      </div>
 
       <OnboardingOverlays
         characterText={characterText}

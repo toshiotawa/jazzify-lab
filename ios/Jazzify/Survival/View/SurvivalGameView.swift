@@ -17,6 +17,7 @@ struct SurvivalGameView: View {
     var scenarioOverrides: SurvivalScenarioOverrides = .init()
     var scenarioController: SurvivalScenarioController? = nil
     var inlinePhraseDefinition: SurvivalPhraseDefinition? = nil
+    var lessonContext: SurvivalLessonContext? = nil
     var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
 
     init(
@@ -30,6 +31,7 @@ struct SurvivalGameView: View {
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
         scenarioController: SurvivalScenarioController? = nil,
         inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
+        lessonContext: SurvivalLessonContext? = nil,
         onSessionReady: ((SurvivalGameSession) -> Void)? = nil
     ) {
         self.stage = stage
@@ -41,6 +43,7 @@ struct SurvivalGameView: View {
         self.scenarioOverrides = scenarioOverrides
         self.scenarioController = scenarioController
         self.inlinePhraseDefinition = inlinePhraseDefinition
+        self.lessonContext = lessonContext
         self.onSessionReady = onSessionReady
         _activeHintMode = State(initialValue: hintMode)
     }
@@ -172,6 +175,7 @@ struct SurvivalGameView: View {
             config: config,
             onExit: { _ in onClose() },
             isDemo: isDemo,
+            lessonContext: lessonContext,
             usesEnglishToastCopy: locale == .en,
             scenarioOverrides: scenarioOverrides,
             scenarioController: scenarioController,

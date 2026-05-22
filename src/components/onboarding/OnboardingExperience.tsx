@@ -12,6 +12,8 @@ import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutori
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
+import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
+
 import { OnboardingOverlays } from './OnboardingOverlays';
 
 const TUTORIAL_CONFIG: DifficultyConfig = {
@@ -69,6 +71,17 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
   const userInputPulseRef = useRef(0);
   const slotBCompletionPulseRef = useRef(0);
   const midiNoteReceivedRef = useRef(false);
+  const audioUnlockedRef = useRef(false);
+
+  useEffect(() => {
+    const unlockOnce = (): void => {
+      if (audioUnlockedRef.current) return;
+      audioUnlockedRef.current = true;
+      void unlockTutorialAudio();
+    };
+    window.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
+    return () => window.removeEventListener('pointerdown', unlockOnce);
+  }, []);
 
   const finish = useCallback(() => {
     runnerAbortRef.current?.abort();
@@ -196,10 +209,11 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
     <div
       className={
         embeddedFullHeight
-          ? 'relative h-full min-h-0 w-full overflow-hidden bg-black'
-          : 'relative fixed inset-0 z-50 bg-black'
+          ? 'relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-black'
+          : 'relative fixed inset-0 z-50 flex flex-col bg-black'
       }
     >
+      <div className={embeddedFullHeight ? 'min-h-0 flex-1' : 'contents'}>
       <SurvivalGameScreen
         key={sessionKey}
         difficulty="easy"
@@ -217,6 +231,7 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
         onBackToSelect={() => finish()}
         onBackToMenu={() => finish()}
       />
+      </div>
 
       <OnboardingOverlays
         characterText={characterText}

@@ -5181,7 +5181,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       className={cn(
         'bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen',
         embeddedFullHeight && survivalTutorialLayout
-          ? 'flex-1 min-h-0 overflow-hidden min-h-[var(--dvh,100dvh)]'
+          ? 'h-full min-h-0 flex-1 overflow-hidden'
           : embeddedFullHeight
             ? 'flex-1 min-h-0 overflow-hidden'
             : 'min-h-[var(--dvh,100dvh)]',
@@ -5196,8 +5196,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       )}
 
       {timedFaiBubbleCharacterLine ? (
-        <div className="pointer-events-none fixed inset-0 z-[56] flex justify-center pt-[max(72px,env(safe-area-inset-top))]">
-          <div className="relative h-full w-full max-w-[100vw]">
+        <div
+          className={cn(
+            'pointer-events-none fixed inset-0 z-[56]',
+            isIOSWebView() && 'flex justify-center pt-[max(72px,env(safe-area-inset-top))]',
+          )}
+        >
+          <div className={cn('relative w-full max-w-[100vw]', isIOSWebView() && 'h-full')}>
             <OnboardingOverlays
               characterText={timedFaiBubbleCharacterLine}
               narrationText=""
