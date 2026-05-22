@@ -723,6 +723,17 @@ private struct SurvivalTutorialStaffBackdropModifier: ViewModifier {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func survivalTutorialStaffBackdrop(_ enabled: Bool) -> some View {
+        if enabled {
+            modifier(SurvivalTutorialStaffBackdropModifier())
+        } else {
+            self
+        }
+    }
+}
+
 private struct SurvivalStageCenterStaffOverlay: View {
     let payload: SurvivalStageCenterStaffPayload
     let unpressedNoteOpacity: CGFloat
@@ -746,15 +757,10 @@ private struct SurvivalPhraseStaffOverlay: View {
     let snapshot: SurvivalPhraseStaffSnapshot
     var tutorialStaffBackdrop: Bool
 
-    @ViewBuilder
     var body: some View {
-        let staffFrame = SurvivalPhraseStaffView(snapshot: snapshot)
+        SurvivalPhraseStaffView(snapshot: snapshot)
             .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
-        if tutorialStaffBackdrop {
-            staffFrame.modifier(SurvivalTutorialStaffBackdropModifier())
-        } else {
-            staffFrame
-        }
+            .survivalTutorialStaffBackdrop(tutorialStaffBackdrop)
     }
 }
 

@@ -5585,17 +5585,33 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 )}
                 aria-hidden
               >
-                <SurvivalPhraseStaff
-                  currentChord={phraseStaffProps.currentChord}
-                  nextChord={phraseStaffProps.nextChord}
-                  keyFifths={phraseStaffProps.keyFifths}
-                  correctNoteIndices={phraseStaffProps.correctNoteIndices}
-                  revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
-                  targetNoteIndex={phraseStaffProps.targetNoteIndex}
-                  hintMode={phraseStaffProps.hintMode}
-                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
-                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
-                />
+                {survivalTutorialLayout && scenarioMode ? (
+                  <SurvivalTutorialStaffBackdrop>
+                    <SurvivalPhraseStaff
+                      currentChord={phraseStaffProps.currentChord}
+                      nextChord={phraseStaffProps.nextChord}
+                      keyFifths={phraseStaffProps.keyFifths}
+                      correctNoteIndices={phraseStaffProps.correctNoteIndices}
+                      revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
+                      targetNoteIndex={phraseStaffProps.targetNoteIndex}
+                      hintMode={phraseStaffProps.hintMode}
+                      unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                      className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                    />
+                  </SurvivalTutorialStaffBackdrop>
+                ) : (
+                  <SurvivalPhraseStaff
+                    currentChord={phraseStaffProps.currentChord}
+                    nextChord={phraseStaffProps.nextChord}
+                    keyFifths={phraseStaffProps.keyFifths}
+                    correctNoteIndices={phraseStaffProps.correctNoteIndices}
+                    revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
+                    targetNoteIndex={phraseStaffProps.targetNoteIndex}
+                    hintMode={phraseStaffProps.hintMode}
+                    unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                    className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                  />
+                )}
               </div>
             )}
           {!isPhraseMode &&
