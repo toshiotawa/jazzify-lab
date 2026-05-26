@@ -153,53 +153,8 @@ import {
   createInitialCompositePhraseRuntimeState,
   evaluateCompositePhraseNoteOn,
   getCompositePhraseStaffChordView,
-  type SurvivalCompositePhraseCandidateState,
   type SurvivalCompositePhraseRuntimeState,
 } from './phrases/SurvivalCompositePhraseEngine';
-
-// #region agent log
-const snapshotCompositePhraseDebug = (
-  state: SurvivalCompositePhraseRuntimeState | null,
-) => {
-  if (!state) return { runtime: null };
-  return {
-    locked: state.lockedSourceStageNumber,
-    lastCompleted: state.lastCompletedSourceStageNumber,
-    candidateCount: state.candidates.length,
-    candidates: state.candidates.map((c: SurvivalCompositePhraseCandidateState) => {
-      const chord = c.phrase.chords[c.chordIndex];
-      const target = chord?.notes[c.targetNoteIndex];
-      return {
-        stage: c.sourceStageNumber,
-        chordIndex: c.chordIndex,
-        targetNoteIndex: c.targetNoteIndex,
-        targetPc: target?.pitchClass ?? null,
-        chordNotePcs: chord?.notes.map((n) => n.pitchClass) ?? [],
-      };
-    }),
-  };
-};
-
-const postCompositePhraseDebugLog = (
-  hypothesisId: string,
-  location: string,
-  message: string,
-  data: Record<string, unknown>,
-): void => {
-  fetch('http://127.0.0.1:7806/ingest/8b40f80c-4575-44a2-b6d7-4a6a5e6b098c', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '455c1a' },
-    body: JSON.stringify({
-      sessionId: '455c1a',
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-};
-// #endregion
 import {
   SurvivalInputBuffer,
   dedupeFrameNoteOnsByPitchClass,
@@ -575,9 +530,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const compositePhraseRuntimeRef = useRef<SurvivalCompositePhraseRuntimeState | null>(null);
   const compositePhraseKeyFifthsRef = useRef<number>(0);
   const compositePhraseSourcePhrasesRef = useRef<SurvivalPhraseDefinition[]>([]);
-  // #region agent log
-  const compositePhraseDebugLastInputRef = useRef<{ at: number; note: number; pc: number } | null>(null);
-  // #endregion
   /** iOS `SurvivalInputBuffer` 相当: フレーズ入力を rAF で drain して評価 */
   const phraseInputBufferRef = useRef(new SurvivalInputBuffer());
   const phraseInputDrainRafRef = useRef<number | null>(null);
@@ -630,14 +582,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    // #region agent log
-    postCompositePhraseDebugLog('B', 'SurvivalGameScreen.tsx:phraseEffect', 'composite runtime effect reset start', {
-      isPhraseMode,
-      isBossStage,
-      stageNumber: stageDefinition?.stageNumber ?? null,
-      hadRuntime: compositePhraseRuntimeRef.current !== null,
-    });
-    // #endregion
     compositePhraseRuntimeRef.current = null;
     compositePhraseKeyFifthsRef.current = 0;
     compositePhraseSourcePhrasesRef.current = [];
@@ -692,12 +636,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         compositePhraseSourcePhrasesRef.current = [...cfg.sourcePhrases];
         compositePhraseRuntimeRef.current = createInitialCompositePhraseRuntimeState(cfg.sourcePhrases);
         compositePhraseKeyFifthsRef.current = cfg.keyFifths;
-        // #region agent log
-        postCompositePhraseDebugLog('B', 'SurvivalGameScreen.tsx:loadComposite', 'composite runtime loaded async', {
-          sourceStages: cfg.sourcePhrases.map((p) => p.stageNumber),
-          firstChordPcs: cfg.sourcePhrases.map((p) => p.chords[0]?.notes.map((n) => n.pitchClass) ?? []),
-        });
-        // #endregion
         setPhraseUiTick((t) => t + 1);
         setPhraseBgmReadyTick((t) => t + 1);
       });
@@ -2020,39 +1958,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const noteMod12 = ((note % 12) + 12) % 12;
         const curComposite = compositePhraseRuntimeRef.current;
         const repeatCompareLast = curComposite.lastCompletedSourceStageNumber;
-        // #region agent log
-        const nowMs = Date.now();
-        const prevInput = compositePhraseDebugLastInputRef.current;
-        const msSincePrev = prevInput ? nowMs - prevInput.at : null;
-        const isRapidDuplicate =
-          prevInput !== null
-          && msSincePrev !== null
-          && msSincePrev < 80
-          && prevInput.pc === noteMod12;
-        postCompositePhraseDebugLog('A', 'SurvivalGameScreen.tsx:handleNoteInput', 'composite note-on before eval', {
-          note,
-          noteMod12,
-          msSincePrev,
-          isRapidDuplicate,
-          before: snapshotCompositePhraseDebug(curComposite),
-        });
-        // #endregion
         const evaluation = evaluateCompositePhraseNoteOn(curComposite, noteMod12);
         compositePhraseRuntimeRef.current = evaluation.nextState;
-        // #region agent log
-        compositePhraseDebugLastInputRef.current = { at: nowMs, note, pc: noteMod12 };
-        postCompositePhraseDebugLog(
-          evaluation.result === 'miss' ? 'A,C,D,E' : 'C',
-          'SurvivalGameScreen.tsx:handleNoteInput',
-          'composite note-on after eval',
-          {
-            note,
-            noteMod12,
-            result: evaluation.result,
-            after: snapshotCompositePhraseDebug(evaluation.nextState),
-          },
-        );
-        // #endregion
 
         setPhraseUiTick((t) => t + 1);
 
