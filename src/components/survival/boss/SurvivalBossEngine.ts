@@ -127,6 +127,25 @@ const isInsideFan = (
   return Math.abs(diff) <= spread / 2;
 };
 
+/** 直線帯判定（突進ライン等） */
+const isInsideLine = (
+  targetX: number,
+  targetY: number,
+  originX: number,
+  originY: number,
+  angle: number,
+  length: number,
+  thickness: number
+): boolean => {
+  const dx = targetX - originX;
+  const dy = targetY - originY;
+  const cosA = Math.cos(-angle);
+  const sinA = Math.sin(-angle);
+  const localX = dx * cosA - dy * sinA;
+  const localY = dx * sinA + dy * cosA;
+  return localX >= 0 && localX <= length && Math.abs(localY) <= thickness;
+};
+
 const isInsideCross = (
   targetX: number,
   targetY: number,
@@ -465,6 +484,22 @@ const triggerActive = (state: BossBattleState, ctx: BossTickContext): void => {
     case 'charge': {
       const p = BOSS_A_PARAMS.charge;
       const data = boss.action.data ?? {};
+      const angle = data.angle ?? Math.atan2(ctx.player.y - boss.y, ctx.player.x - boss.x);
+      const startX = data.startX ?? boss.x;
+      const startY = data.startY ?? boss.y;
+      state.hazards.push({
+        id: nextId('hz'),
+        kind: 'chargeActive',
+        x: startX,
+        y: startY,
+        angle,
+        length: p.distance,
+        thickness: p.thickness,
+        startAt: now,
+        endAt: now + p.travelMs,
+        damage: p.damage,
+        hitOnce: true,
+      });
       boss.action = {
         kind: 'active',
         skill,
@@ -887,14 +922,14 @@ const checkHazardDamage = (state: BossBattleState, ctx: BossTickContext): void =
         break;
       }
       case 'chargeActive': {
-        hit = isInsideFan(
+        hit = isInsideLine(
           ctx.player.x,
           ctx.player.y,
           h.x,
           h.y,
           h.angle ?? 0,
-          0.4,
-          h.length ?? 400
+          h.length ?? 400,
+          h.thickness ?? BOSS_HITBOX_RADIUS
         );
         break;
       }
