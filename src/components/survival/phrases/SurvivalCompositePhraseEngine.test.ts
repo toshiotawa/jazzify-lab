@@ -110,12 +110,27 @@ describe('SurvivalCompositePhraseEngine', () => {
   });
 
   it('immediate lock when exactly one phrase matches opening pitch', () => {
-    const pWide = chordChain(41, [[0, 2, 4]]); // C D E
-    const pNarrow = chordChain(42, [[11, 0, 2]]); // B C D — first differs
+    const pWide = chordChain(41, [[0, 2, 4]]);
+    const pNarrow = chordChain(42, [[11, 0, 2]]);
     const state = createInitialCompositePhraseRuntimeState([pWide, pNarrow]);
     const ev = evaluateCompositePhraseNoteOn(state, 0);
     expect(ev.nextState.candidates.length).toBe(1);
     expect(ev.nextState.lockedSourceStageNumber).toBe(41);
+  });
+
+  it('completes phrases stage 1 sequence when locked (E D A F E D)', () => {
+    const p1 = chordChain(1, [[4, 2, 9, 5, 4, 2]]);
+    let state = createInitialCompositePhraseRuntimeState([p1]);
+    let ev = evaluateCompositePhraseNoteOn(state, 4);
+    expect(ev.result).toBe('progress');
+    state = ev.nextState;
+    expect(state.lockedSourceStageNumber).toBe(1);
+    for (const pc of [2, 9, 5, 4, 2] as const) {
+      ev = evaluateCompositePhraseNoteOn(state, pc);
+      expect(ev.result).not.toBe('miss');
+      state = ev.nextState;
+    }
+    expect(ev.result).toBe('phrase-complete');
   });
 
   it('repeat phrase-complete updates lastCompleted for repeat-damage heuristic', () => {
