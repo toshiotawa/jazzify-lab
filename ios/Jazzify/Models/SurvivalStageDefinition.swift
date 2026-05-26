@@ -222,6 +222,7 @@ struct SurvivalCompositePhraseStageRow: Decodable, Sendable {
     let stage_number: Int
     let boss_type: String
     let key_fifths: Int
+    let bgm_url: String?
 }
 
 /// `survival_composite_phrase_sources` 1 行。
@@ -259,6 +260,8 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let compositePhraseBossType: SurvivalBossType?
     /// DB `survival_composite_phrase_stages.key_fifths`。
     let compositePhraseKeyFifths: Int?
+    /// DB `survival_composite_phrase_stages.bgm_url`（複合のみ）。
+    let compositePhraseBgmUrl: String?
 
     /// `Identifiable` 用 ID。マップ間で `stageNumber` が重複し得るため、`mapCategory` を含めて一意化する。
     var id: String { "\(mapCategory.rawValue)-\(stageNumber)" }
@@ -431,6 +434,7 @@ enum SurvivalStageCatalog {
             let bossType: SurvivalBossType
             let keyFifths: Int
             let sources: [Int]
+            let bgmUrl: String?
         }
         var sourcesByCompositeId: [String: [Int]] = [:]
         let sortedSources = compositeSources.sorted { $0.sort_order < $1.sort_order }
@@ -445,7 +449,14 @@ enum SurvivalStageCatalog {
             guard !src.isEmpty else { continue }
             let bt = Self.normalizeCompositeBossTypeString(row.boss_type)
             let kf = Self.clampCompositePhraseKeyFifths(row.key_fifths)
-            metaByStageKey["\(mc.rawValue):\(row.stage_number)"] = Meta(bossType: bt, keyFifths: kf, sources: src)
+            let bgm = row.bgm_url?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let bgmUrl = (bgm?.isEmpty == false) ? bgm : nil
+            metaByStageKey["\(mc.rawValue):\(row.stage_number)"] = Meta(
+                bossType: bt,
+                keyFifths: kf,
+                sources: src,
+                bgmUrl: bgmUrl
+            )
         }
         return stages.map { def in
             guard let meta = metaByStageKey["\(def.mapCategory.rawValue):\(def.stageNumber)"] else { return def }
@@ -469,7 +480,8 @@ enum SurvivalStageCatalog {
                 lessonOnly: def.lessonOnly,
                 compositePhraseSources: meta.sources,
                 compositePhraseBossType: meta.bossType,
-                compositePhraseKeyFifths: meta.keyFifths
+                compositePhraseKeyFifths: meta.keyFifths,
+                compositePhraseBgmUrl: meta.bgmUrl
             )
         }
     }
@@ -585,7 +597,8 @@ enum SurvivalStageCatalog {
                 lessonOnly: row.lesson_only == true,
                 compositePhraseSources: nil,
                 compositePhraseBossType: nil,
-                compositePhraseKeyFifths: nil
+                compositePhraseKeyFifths: nil,
+                compositePhraseBgmUrl: nil
             )
         }
         let definitions = Self.mergeCompositeStageMetadata(
@@ -765,7 +778,8 @@ enum SurvivalStageCatalog {
                         lessonOnly: false,
                         compositePhraseSources: nil,
                         compositePhraseBossType: nil,
-                        compositePhraseKeyFifths: nil
+                        compositePhraseKeyFifths: nil,
+                compositePhraseBgmUrl: nil
                     )
                 )
                 stageNumber += 1
@@ -794,7 +808,8 @@ enum SurvivalStageCatalog {
                         lessonOnly: false,
                         compositePhraseSources: nil,
                         compositePhraseBossType: nil,
-                        compositePhraseKeyFifths: nil
+                        compositePhraseKeyFifths: nil,
+                compositePhraseBgmUrl: nil
                     )
                 )
                 stageNumber += 1

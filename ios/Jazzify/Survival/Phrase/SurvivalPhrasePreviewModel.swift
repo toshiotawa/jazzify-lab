@@ -40,7 +40,7 @@ final class SurvivalPhrasePreviewModel: ObservableObject {
                 let url: URL
                 if stage.survivalUsesCompositePhrasePattern {
                     url = SurvivalPhrasePreviewURL.resolve(
-                        phraseBgmUrl: nil,
+                        phraseBgmUrl: stage.compositePhraseBgmUrl,
                         phrasesStageBgmFromSettings: phrasesDefaultBgmUrlString
                     )
                 } else {

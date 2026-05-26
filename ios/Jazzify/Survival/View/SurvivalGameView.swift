@@ -152,7 +152,7 @@ struct SurvivalGameView: View {
         SurvivalAssetPreloader.preloadIfNeeded()
 
         let profile: SurvivalCharacterProfile
-        let config: SurvivalStageConfig
+        var config: SurvivalStageConfig
 
         if isDemo {
             profile = SurvivalCharacterProfile.defaultFai
@@ -173,6 +173,12 @@ struct SurvivalGameView: View {
 
             profile = await profileTask
             config = await configTask
+        }
+
+        if let bgmStr = stage.compositePhraseBgmUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !bgmStr.isEmpty,
+           let compositeBgm = URL(string: bgmStr) {
+            config = config.withBgmUrl(compositeBgm)
         }
 
         // 古い task / cancel 済み task は UI を壊さず静かに終了

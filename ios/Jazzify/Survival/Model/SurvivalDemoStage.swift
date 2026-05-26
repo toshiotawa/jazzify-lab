@@ -39,7 +39,8 @@ enum SurvivalDemoStage {
             lessonOnly: false,
             compositePhraseSources: nil,
             compositePhraseBossType: nil,
-            compositePhraseKeyFifths: nil
+            compositePhraseKeyFifths: nil,
+            compositePhraseBgmUrl: nil
         )
     }()
 
@@ -81,6 +82,7 @@ enum SurvivalDemoStage {
         lessonOnly: false,
         compositePhraseSources: nil,
         compositePhraseBossType: nil,
-        compositePhraseKeyFifths: nil
+        compositePhraseKeyFifths: nil,
+        compositePhraseBgmUrl: nil
     )
 }

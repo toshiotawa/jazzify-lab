@@ -176,7 +176,8 @@ enum TutorialStageBuilder {
             lessonOnly: stage.lessonOnly ?? true,
             compositePhraseSources: nil,
             compositePhraseBossType: nil,
-            compositePhraseKeyFifths: nil
+            compositePhraseKeyFifths: nil,
+            compositePhraseBgmUrl: nil
         )
     }
 

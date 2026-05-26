@@ -65,6 +65,8 @@ export interface StageDefinition {
   compositePhraseBossType?: SurvivalBossType;
   /** 譜面の調号 fifths（DB）。未設定時は 0。 */
   compositePhraseKeyFifths?: number;
+  /** 複合フレーズ BGM（DB `survival_composite_phrase_stages.bgm_url`）。未設定時は phrases 設定へフォールバック。 */
+  compositePhraseBgmUrl?: string;
 }
 
 /**
@@ -294,6 +296,7 @@ interface CompositeStageRowDb {
   readonly stage_number: number;
   readonly boss_type: string;
   readonly key_fifths: number;
+  readonly bgm_url?: string | null;
 }
 
 interface CompositeSourceRowDb {
@@ -339,17 +342,21 @@ function enrichStagesWithComposite(
   }
   const metaByCompositeKey = new Map<
     string,
-    { bossType: SurvivalBossType; keyFifths: number; sources: readonly number[] }
+    { bossType: SurvivalBossType; keyFifths: number; sources: readonly number[]; bgmUrl?: string }
   >();
   for (const row of compositeStages) {
     if (!SURVIVAL_MAP_CATEGORIES.includes(row.map_category as SurvivalMapCategory)) continue;
     const mc = row.map_category as SurvivalMapCategory;
     const phraseSources = sourcesByComposite.get(row.id);
     if (!phraseSources || phraseSources.length === 0) continue;
+    const bgmUrl = typeof row.bgm_url === 'string' && row.bgm_url.trim().length > 0
+      ? row.bgm_url.trim()
+      : undefined;
     metaByCompositeKey.set(`${mc}:${row.stage_number}`, {
       bossType: normalizeBossType(row.boss_type),
       keyFifths: clampKeyFifths(row.key_fifths),
       sources: phraseSources,
+      bgmUrl,
     });
   }
   return stages.map((stage) => {
@@ -360,6 +367,7 @@ function enrichStagesWithComposite(
       compositePhraseSources: meta.sources,
       compositePhraseBossType: meta.bossType,
       compositePhraseKeyFifths: meta.keyFifths,
+      ...(meta.bgmUrl ? { compositePhraseBgmUrl: meta.bgmUrl } : {}),
     };
   });
 }
@@ -461,7 +469,7 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
             .select('map_category, block_key, label, label_en, sort_order')
             .order('map_category', { ascending: true })
             .order('sort_order', { ascending: true }),
-          supabase.from('survival_composite_phrase_stages').select('id, map_category, stage_number, boss_type, key_fifths'),
+          supabase.from('survival_composite_phrase_stages').select('id, map_category, stage_number, boss_type, key_fifths, bgm_url'),
           supabase
             .from('survival_composite_phrase_sources')
             .select('composite_id, source_stage_number, sort_order'),

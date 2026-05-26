@@ -686,7 +686,7 @@ final class SupabaseService: Sendable {
     func fetchSurvivalCompositePhraseStages() async throws -> [SurvivalCompositePhraseStageRow] {
         try await client
             .from("survival_composite_phrase_stages")
-            .select("id, map_category, stage_number, boss_type, key_fifths")
+            .select("id, map_category, stage_number, boss_type, key_fifths, bgm_url")
             .execute()
             .value
     }

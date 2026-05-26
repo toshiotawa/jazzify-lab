@@ -79,7 +79,8 @@ enum SurvivalTutorialV3StageBuilder {
                 lessonOnly: phraseStage.stage.lessonOnly ?? true,
                 compositePhraseSources: nil,
                 compositePhraseBossType: nil,
-                compositePhraseKeyFifths: nil
+                compositePhraseKeyFifths: nil,
+                compositePhraseBgmUrl: nil
             )
         case let .progressionRandom(block):
             let stageTy = SurvivalStageType(rawValue: block.stage.stageType) ?? .progression
@@ -124,7 +125,8 @@ enum SurvivalTutorialV3StageBuilder {
                 lessonOnly: block.stage.lessonOnly ?? true,
                 compositePhraseSources: nil,
                 compositePhraseBossType: nil,
-                compositePhraseKeyFifths: nil
+                compositePhraseKeyFifths: nil,
+                compositePhraseBgmUrl: nil
             )
         }
     }

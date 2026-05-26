@@ -77,7 +77,8 @@ enum OnboardingChords {
             lessonOnly: true,
             compositePhraseSources: nil,
             compositePhraseBossType: nil,
-            compositePhraseKeyFifths: nil
+            compositePhraseKeyFifths: nil,
+            compositePhraseBgmUrl: nil
         )
     }()
 
@@ -115,7 +116,8 @@ enum OnboardingChords {
         lessonOnly: true,
         compositePhraseSources: nil,
         compositePhraseBossType: nil,
-        compositePhraseKeyFifths: nil
+        compositePhraseKeyFifths: nil,
+        compositePhraseBgmUrl: nil
     )
 
     private static func makeSceneThreeChord(

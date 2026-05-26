@@ -54,7 +54,8 @@ export const useSurvivalPhrasePreview = ({
       setStatus('loading');
       try {
         const url = survivalStageUsesCompositePhrasePattern(stage)
-          ? resolveSurvivalBgmUrl('phrases', { phrases: phrasesStageBgm })
+          ? (stage.compositePhraseBgmUrl?.trim()
+            || resolveSurvivalBgmUrl('phrases', { phrases: phrasesStageBgm }))
           : resolveSurvivalPhrasePreviewUrl(
             await fetchSurvivalPhraseBgmUrlByStage(mapCategory, stage.stageNumber),
             phrasesStageBgm,

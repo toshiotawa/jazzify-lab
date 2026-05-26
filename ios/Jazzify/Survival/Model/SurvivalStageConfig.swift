@@ -54,6 +54,22 @@ public struct SurvivalStageConfig: Sendable, Equatable {
         itemDropRate: 0.1,
         bgmUrl: SurvivalBgmDefaults.randomURL
     )
+
+    func withBgmUrl(_ url: URL?) -> SurvivalStageConfig {
+        SurvivalStageConfig(
+            difficulty: difficulty,
+            displayName: displayName,
+            description: description,
+            descriptionEn: descriptionEn,
+            allowedChords: allowedChords,
+            enemySpawnRate: enemySpawnRate,
+            enemySpawnCount: enemySpawnCount,
+            enemyStatMultiplier: enemyStatMultiplier,
+            expMultiplier: expMultiplier,
+            itemDropRate: itemDropRate,
+            bgmUrl: url
+        )
+    }
 }
 
 /// Supabase `survival_bgm_settings` 行モデル。

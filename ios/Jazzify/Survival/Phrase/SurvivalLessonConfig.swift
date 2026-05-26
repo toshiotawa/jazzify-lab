@@ -174,7 +174,8 @@ enum SurvivalLessonConfig {
             lessonOnly: true,
             compositePhraseSources: nil,
             compositePhraseBossType: normalizeBossType(config.bossType),
-            compositePhraseKeyFifths: config.keyFifths ?? 0
+            compositePhraseKeyFifths: config.keyFifths ?? 0,
+            compositePhraseBgmUrl: nil
         )
     }
 
