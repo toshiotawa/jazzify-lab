@@ -4836,11 +4836,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (!chord) return null;
     const phraseChord = chordToPhraseChord(chord, 0);
     const slot = gameState.codeSlots.current[1];
-    const correctSet = new Set(slot.correctNotes);
-    const revealedSet = new Set(slot.correctNotes);
+    const correctIndices = new Set<number>();
+    const remainingPitchClasses = [...slot.correctNotes];
+    for (let i = 0; i < phraseChord.notes.length; i += 1) {
+      const pc = phraseChord.notes[i].pitchClass;
+      const matchIndex = remainingPitchClasses.indexOf(pc);
+      if (matchIndex === -1) {
+        break;
+      }
+      remainingPitchClasses.splice(matchIndex, 1);
+      correctIndices.add(i);
+    }
+    const revealedIndices = new Set(correctIndices);
     let targetNoteIndex = 0;
     for (let i = 0; i < phraseChord.notes.length; i += 1) {
-      if (!correctSet.has(phraseChord.notes[i].pitchClass)) {
+      if (!correctIndices.has(i)) {
         targetNoteIndex = i;
         break;
       }
@@ -4849,8 +4859,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       currentChord: phraseChord,
       nextChord: null,
       keyFifths: chord.progressionStaffKeyFifths ?? 0,
-      correctNoteIndices: correctSet,
-      revealedNoteIndices: revealedSet,
+      correctNoteIndices: correctIndices,
+      revealedNoteIndices: revealedIndices,
       targetNoteIndex,
       hintMode: true,
     };

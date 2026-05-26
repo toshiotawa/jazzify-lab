@@ -45,6 +45,8 @@ interface ChordVoicingStaffProps {
   voicingGroups?: readonly ChordVoicingStaffGroup[];
   activeGroupId?: string | null;
   correctPitchClassesByGroupId?: ReadonlyMap<string, readonly number[]>;
+  /** 指定時は符頭正解判定を pitch class ではなく group id で行う（同一音高の重複向け） */
+  correctGroupIds?: ReadonlySet<string>;
   /** 親が算出した密集レイアウト。未指定時は measureOffset===0 のグループの合計音数で推論 */
   denseCurrentMeasureLayout?: boolean;
   /** 完成エフェクトのワンショット指示。groupId が現在小節（measureOffset===0）に存在しない場合は無視 */
@@ -1205,10 +1207,23 @@ const TopNotePointer: React.FC<{
   );
 };
 
+const isVoicingNoteCorrect = (
+  groupId: string,
+  pitchClass: number,
+  correctPitchClassSet: ReadonlySet<number> | undefined,
+  correctGroupIds: ReadonlySet<string> | undefined,
+): boolean => {
+  if (correctGroupIds) {
+    return correctGroupIds.has(groupId);
+  }
+  return correctPitchClassSet?.has(pitchClass) ?? false;
+};
+
 const RenderedStaff: React.FC<{
   staff: StaffNumber;
   groups: readonly ParsedVoicingStaffGroup[];
   correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>;
+  correctGroupIds: ReadonlySet<string> | undefined;
   staffTopY: number;
   keyFifths: number;
   layout: StaffLayoutMetrics;
@@ -1223,6 +1238,7 @@ const RenderedStaff: React.FC<{
   staff,
   groups,
   correctPitchClassSets,
+  correctGroupIds,
   staffTopY,
   keyFifths,
   layout,
@@ -1299,7 +1315,12 @@ const RenderedStaff: React.FC<{
       {positionedGroups.map(({ group, noteBaseX, positionedNotes }) => {
         const correctPitchClassSet = correctPitchClassSets.get(group.id);
         const notes = positionedNotes.flatMap(positioned => {
-          const isCorrect = correctPitchClassSet?.has(positioned.note.pitchClass) ?? false;
+          const isCorrect = isVoicingNoteCorrect(
+            group.id,
+            positioned.note.pitchClass,
+            correctPitchClassSet,
+            correctGroupIds,
+          );
           const isNextHint =
             activeGroupId !== undefined
             && activeGroupId !== null
@@ -1358,6 +1379,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   voicingGroups,
   activeGroupId,
   correctPitchClassesByGroupId,
+  correctGroupIds,
   denseCurrentMeasureLayout,
   completionPulse,
   showTargetHints = true,
@@ -1672,6 +1694,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               staff={staff}
               groups={renderState.groups}
               correctPitchClassSets={correctPitchClassSets}
+              correctGroupIds={correctGroupIds}
               staffTopY={systemLayout.firstStaffTopY + index * STAFF_TOP_STEP}
               keyFifths={keyFifths}
               layout={layout}

@@ -85,6 +85,42 @@ describe('SurvivalPhraseEngine', () => {
     expect(miss.nextState.chordIndex).toBe(0);
   });
 
+  it('accepts duplicate pitch class in the same measure in order', () => {
+    const duplicatePhrase: SurvivalPhraseDefinition = {
+      id: 'dup',
+      mapCategory: 'phrases',
+      stageNumber: 1,
+      title: 'Dup',
+      bgmUrl: null,
+      keyFifths: 0,
+      chords: [{
+        id: 'c0',
+        orderIndex: 0,
+        chordName: 'Dm7',
+        measureNumber: 1,
+        notes: [
+          { orderIndex: 0, pitchMidi: 76, pitchClass: 4, noteName: 'E5', staff: 1 },
+          { orderIndex: 1, pitchMidi: 74, pitchClass: 2, noteName: 'D5', staff: 1 },
+          { orderIndex: 2, pitchMidi: 69, pitchClass: 9, noteName: 'A4', staff: 1 },
+          { orderIndex: 3, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1 },
+          { orderIndex: 4, pitchMidi: 64, pitchClass: 4, noteName: 'E4', staff: 1 },
+          { orderIndex: 5, pitchMidi: 62, pitchClass: 2, noteName: 'D4', staff: 1 },
+        ],
+      }],
+    };
+    let state = createInitialPhraseState(duplicatePhrase);
+    const pcs = [4, 2, 9, 5, 4, 2] as const;
+    for (let i = 0; i < pcs.length - 1; i += 1) {
+      const r = evaluatePhraseNoteOn(state, pcs[i]);
+      expect(r.result).toBe('progress');
+      state = r.nextState;
+      expect(state.correctNoteIndices.has(i)).toBe(true);
+    }
+    const last = evaluatePhraseNoteOn(state, pcs[pcs.length - 1]);
+    expect(last.result).toBe('measure-complete');
+    expect(last.nextState.correctNoteIndices.size).toBe(0);
+  });
+
   it('loops from CM7 back to Dm7', () => {
     const state = {
       ...createInitialPhraseState(samplePhrase),

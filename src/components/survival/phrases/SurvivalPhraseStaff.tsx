@@ -1,5 +1,5 @@
 /**
- * Survival Phrases mode staff: 1 measure (current chord only), sequential whole notes.
+ * Survival Phrases mode staff: 2 measures (current + next chord), sequential whole notes.
  * Forked from ChordVoicingStaff via voicingGroups (one note per group, horizontal layout).
  */
 import React, { useMemo } from 'react';
@@ -12,7 +12,6 @@ import { cn } from '@/utils/cn';
 
 export interface SurvivalPhraseStaffProps {
   readonly currentChord: SurvivalPhraseChord | null;
-  /** 互換・将来用。描画では現在小節のみ使用。 */
   readonly nextChord: SurvivalPhraseChord | null;
   readonly keyFifths: number;
   readonly correctNoteIndices: ReadonlySet<number>;
@@ -25,10 +24,12 @@ export interface SurvivalPhraseStaffProps {
 
 function buildChordGroups(
   chord: SurvivalPhraseChord | null,
+  measureOffset: 0 | 1,
   correctIndices: ReadonlySet<number>,
   revealedIndices: ReadonlySet<number>,
   targetNoteIndex: number,
   hintMode: boolean,
+  isCurrentMeasure: boolean,
 ): readonly ChordVoicingStaffGroup[] {
   if (!chord || chord.notes.length === 0) {
     return [];
@@ -37,17 +38,18 @@ function buildChordGroups(
   return chord.notes.map((note, noteIndex) => {
     const isCorrect = correctIndices.has(noteIndex);
     const isRevealed = revealedIndices.has(noteIndex);
-    const isTarget = !isCorrect && noteIndex === targetNoteIndex && hintMode;
+    const isTarget =
+      isCurrentMeasure && !isCorrect && noteIndex === targetNoteIndex && hintMode;
 
     return {
-      id: `n${noteIndex}`,
+      id: `m${measureOffset}-n${noteIndex}`,
       chordName: noteIndex === 0 ? chord.chordName : '',
       voicing: [note.noteName] as const,
       voicingStaves: [note.staff] as const,
       correctPitchClasses: isCorrect ? [note.pitchClass] : [],
-      measureOffset: 0 as const,
+      measureOffset,
       isActive: isTarget,
-      exemptFromFade: isRevealed,
+      exemptFromFade: isCurrentMeasure && isRevealed,
     };
   });
 }
@@ -64,17 +66,44 @@ export const SurvivalPhraseStaff = React.memo<SurvivalPhraseStaffProps>(
     unpressedNoteOpacity,
     className,
   }) => {
-    void nextChord;
-
     const voicingGroups = useMemo((): readonly ChordVoicingStaffGroup[] => {
-      return buildChordGroups(
+      const current = buildChordGroups(
         currentChord,
+        0,
         correctNoteIndices,
         revealedNoteIndices,
         targetNoteIndex,
         hintMode,
+        true,
       );
-    }, [currentChord, correctNoteIndices, revealedNoteIndices, targetNoteIndex, hintMode]);
+      const next = buildChordGroups(
+        nextChord,
+        1,
+        new Set(),
+        new Set(),
+        0,
+        false,
+        false,
+      );
+      return [...current, ...next];
+    }, [
+      currentChord,
+      nextChord,
+      correctNoteIndices,
+      revealedNoteIndices,
+      targetNoteIndex,
+      hintMode,
+    ]);
+
+    const correctGroupIds = useMemo((): ReadonlySet<string> => {
+      const ids = new Set<string>();
+      for (const index of correctNoteIndices) {
+        ids.add(`m0-n${index}`);
+      }
+      return ids;
+    }, [correctNoteIndices]);
+
+    const activeGroupId = hintMode ? `m0-n${targetNoteIndex}` : null;
 
     const correctPitchClassesByGroupId = useMemo(() => {
       const map = new Map<string, readonly number[]>();
@@ -100,9 +129,10 @@ export const SurvivalPhraseStaff = React.memo<SurvivalPhraseStaffProps>(
         aria-hidden
       >
         <ChordVoicingStaff
-          compactSingleMeasure
           keyFifths={keyFifths}
           voicingGroups={voicingGroups}
+          activeGroupId={activeGroupId}
+          correctGroupIds={correctGroupIds}
           correctPitchClassesByGroupId={correctPitchClassesByGroupId}
           showTargetHints={hintMode}
           unpressedNoteOpacity={unpressedNoteOpacity}
