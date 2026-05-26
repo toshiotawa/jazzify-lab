@@ -8,7 +8,10 @@ import Darwin
 /// - 16 ボイスのプールを持ち、各ボイスは
 ///   `AVAudioPlayerNode -> AVAudioUnitVarispeed -> AVAudioMixerNode -> output`
 ///   の順で接続される。
-/// - ノート ON: 最も近い基準音 (C2/C3/.../C7) を選び、varispeed.rate = 2^(semitones/12) でピッチ調整。
+/// - ノート ON: ターゲット以下で最も高い C 基準音 (C2/C3/.../C7) を選び、
+///   varispeed.rate = 2^(semitones/12) でピッチアップ調整 (Cn〜Bn は Cn サンプルを使用)。
+///   nearest-neighbor だと C4/C5 境界 (G4 付近) でピッチダウンに切り替わり音量が急落するため、
+///   各 C サンプルは同オクターブ帯を担う方式にしている。
 /// - ノート OFF: ミキサー出力音量を線形フェード (約 0.5 秒) で 0 まで落とし、その後 `player.stop()`。
 ///   これにより鍵盤を離すまで発音し続け、離した時点で自然なリリースを掛けられる。
 final class SurvivalPianoSampler {
@@ -41,6 +44,8 @@ final class SurvivalPianoSampler {
     private var voices: [Voice] = []
     /// 基準音 MIDI -> PCM バッファ (C2 = 36, C3 = 48 ... C7 = 96)
     private var baseBuffers: [Int: AVAudioPCMBuffer] = [:]
+    /// 基準音ごとのピーク正規化係数 (ロード時に全サンプルの最大ピークへ揃える)
+    private var baseGainFactors: [Int: Float] = [:]
     private var baseMidis: [Int] = []
     private var isEngineAttached = false
     /// `stopAll` や外部 owner が「これ以上発音させない」ことを宣言するフラグ。
@@ -128,10 +133,39 @@ final class SurvivalPianoSampler {
     }
 
     private func applyLoadedBuffers(_ loaded: [(midi: Int, buffer: AVAudioPCMBuffer)]) {
+        baseBuffers.removeAll()
+        baseGainFactors.removeAll()
+        var maxPeak: Float = 0
+        var peaks: [Int: Float] = [:]
+        peaks.reserveCapacity(loaded.count)
+        for (midi, buffer) in loaded {
+            let peak = Self.peakAmplitude(of: buffer)
+            peaks[midi] = peak
+            maxPeak = max(maxPeak, peak)
+        }
+        let referencePeak = max(maxPeak, 1e-8)
         for (midi, buffer) in loaded {
             baseBuffers[midi] = buffer
+            let peak = peaks[midi] ?? referencePeak
+            baseGainFactors[midi] = referencePeak / max(peak, 1e-8)
         }
         baseMidis = baseBuffers.keys.sorted()
+    }
+
+    /// PCM バッファのチャンネル最大絶対値 (ロード時 1 回のみ)
+    private static func peakAmplitude(of buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData else { return 0 }
+        let frameLength = Int(buffer.frameLength)
+        let channelCount = Int(buffer.format.channelCount)
+        guard frameLength > 0, channelCount > 0 else { return 0 }
+        var peak: Float = 0
+        for channel in 0..<channelCount {
+            let samples = channelData[channel]
+            for frame in 0..<frameLength {
+                peak = max(peak, abs(samples[frame]))
+            }
+        }
+        return peak
     }
 
     /// エンジンにボイスを接続する。エンジン `start()` 後でも呼んで OK。
@@ -220,17 +254,19 @@ final class SurvivalPianoSampler {
         stopNoteImmediately(midi: clampedMidi)
 
         guard let voice = allocateVoice() else { return }
-        guard let (rootMidi, buffer) = nearestBaseBuffer(for: clampedMidi) else { return }
+        guard let (rootMidi, buffer) = baseBuffer(for: clampedMidi) else { return }
 
         let semitones = Double(clampedMidi - rootMidi)
         let rate = Float(pow(2.0, semitones / 12.0))
         // Varispeed の有効範囲 [0.25, 4.0] にクランプ (通常範囲内だが安全のため)
-        voice.varispeed.rate = max(0.25, min(4.0, rate))
+        let clampedRate = max(0.25, min(4.0, rate))
+        voice.varispeed.rate = clampedRate
 
         let v = max(1, min(127, velocity))
-        let gain = Float(v) / 127.0
+        let velocityGain = Float(v) / 127.0
+        let sampleGain = baseGainFactors[rootMidi] ?? 1.0
         voice.cancelFade()
-        voice.mixer.outputVolume = gain
+        voice.mixer.outputVolume = velocityGain * sampleGain
         voice.midi = clampedMidi
         voice.startedAt = CACurrentMediaTime()
 
@@ -269,13 +305,15 @@ final class SurvivalPianoSampler {
 
         for midi in uniqueMidis {
             guard let voice = allocateVoice() else { continue }
-            guard let (rootMidi, buffer) = nearestBaseBuffer(for: midi) else { continue }
+            guard let (rootMidi, buffer) = baseBuffer(for: midi) else { continue }
 
             let semitones = Double(midi - rootMidi)
             let rate = Float(pow(2.0, semitones / 12.0))
-            voice.varispeed.rate = max(0.25, min(4.0, rate))
+            let clampedRate = max(0.25, min(4.0, rate))
+            voice.varispeed.rate = clampedRate
+            let sampleGain = baseGainFactors[rootMidi] ?? 1.0
             voice.cancelFade()
-            voice.mixer.outputVolume = gain
+            voice.mixer.outputVolume = gain * sampleGain
             voice.midi = midi
             voice.startedAt = CACurrentMediaTime()
             voice.player.scheduleBuffer(buffer, at: nil, options: [.interrupts], completionHandler: nil)
@@ -285,19 +323,19 @@ final class SurvivalPianoSampler {
 
     // MARK: - Private
 
-    private func nearestBaseBuffer(for midi: Int) -> (rootMidi: Int, buffer: AVAudioPCMBuffer)? {
+    /// ターゲット MIDI 以下で最も高い C 基準音 (Cn) を返す。Cn〜Bn は Cn サンプルをピッチアップして再生する。
+    private func baseBuffer(for midi: Int) -> (rootMidi: Int, buffer: AVAudioPCMBuffer)? {
         guard !baseMidis.isEmpty else { return nil }
-        var bestMidi = baseMidis[0]
-        var bestDiff = abs(midi - bestMidi)
-        for candidate in baseMidis.dropFirst() {
-            let diff = abs(midi - candidate)
-            if diff < bestDiff {
-                bestDiff = diff
-                bestMidi = candidate
+        var chosen = baseMidis[0]
+        for candidate in baseMidis {
+            if candidate <= midi {
+                chosen = candidate
+            } else {
+                break
             }
         }
-        guard let buf = baseBuffers[bestMidi] else { return nil }
-        return (bestMidi, buf)
+        guard let buf = baseBuffers[chosen] else { return nil }
+        return (chosen, buf)
     }
 
     private func allocateVoice() -> Voice? {
