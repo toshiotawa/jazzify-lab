@@ -170,4 +170,31 @@ describe('SurvivalCompositePhraseEngine', () => {
     }
     expect(state.lastCompletedSourceStageNumber).toBe(71);
   });
+
+  it('phrases stage 6 composite: DEFGED then AFE EDA DE without duplicate pc in same step', () => {
+    const pcs = (stage: number, seq: readonly number[]) =>
+      chordChain(stage, [seq]);
+    const phrases = [
+      pcs(1, [4, 2, 9, 5, 4, 2]),
+      pcs(2, [4, 5, 9, 0, 4, 2]),
+      pcs(3, [2, 4, 5, 7, 4, 2]),
+      pcs(4, [4, 1, 2, 4, 5, 7]),
+      pcs(5, [9, 5, 4, 2, 7, 5]),
+    ];
+    const freshAfterDefged = () => {
+      let s = createInitialCompositePhraseRuntimeState(phrases);
+      for (const pc of [2, 4, 5, 7, 4, 2] as const) {
+        s = evaluateCompositePhraseNoteOn(s, pc).nextState;
+      }
+      return s;
+    };
+    for (const seq of [[9, 5, 4], [4, 2, 9], [2, 4]] as const) {
+      let attempt = freshAfterDefged();
+      for (const pc of seq) {
+        const ev = evaluateCompositePhraseNoteOn(attempt, pc);
+        expect(ev.result).not.toBe('miss');
+        attempt = ev.nextState;
+      }
+    }
+  });
 });

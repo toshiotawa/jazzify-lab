@@ -201,6 +201,10 @@ const postCompositePhraseDebugLog = (
 };
 // #endregion
 import {
+  SurvivalInputBuffer,
+  dedupeFrameNoteOnsByPitchClass,
+} from './input/SurvivalInputBuffer';
+import {
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY,
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT,
   COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE,
@@ -574,6 +578,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // #region agent log
   const compositePhraseDebugLastInputRef = useRef<{ at: number; note: number; pc: number } | null>(null);
   // #endregion
+  /** iOS `SurvivalInputBuffer` 相当: フレーズ入力を rAF で drain して評価 */
+  const phraseInputBufferRef = useRef(new SurvivalInputBuffer());
+  const phraseInputDrainRafRef = useRef<number | null>(null);
   const [phraseUiTick, setPhraseUiTick] = useState(0);
   const phraseDrumLoopRef = useRef<SurvivalPhraseDrumLoop | null>(null);
   const phraseBgmUrlRef = useRef<string | null>(null);
@@ -1995,33 +2002,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     });
   }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount]);
-  
-  // ノート入力処理
-  const handleNoteInput = useCallback((note: number) => {
-    const scenario = scenarioOverridesRef.current;
-    const midiBlocked = scenario.isActive && scenario.blockMidiGameInput;
-    const inputFullyBlocked =
-      scenario.isActive && scenario.blockMidiGameInput && scenario.blockChordPadInput;
 
-    if (!inputFullyBlocked && scenarioUserInputPulseRef) {
-      scenarioUserInputPulseRef.current += 1;
-    }
-    if (!midiBlocked && scenarioMidiNoteReceivedRef) {
-      scenarioMidiNoteReceivedRef.current = true;
-    }
-
-    if (isPhraseMode) {
-      if (isCompositePhraseBossStage) {
-        if (!compositePhraseRuntimeRef.current) {
-          return;
-        }
-      } else if (!phraseStateRef.current) {
-        return;
-      }
-    }
-
+  const dispatchPhraseNote = useCallback((note: number) => {
     setGameState(prev => {
-      // ゲームオーバーまたはポーズ中は何もしない
       if (prev.isGameOver || prev.isPaused) return prev;
 
       const scenario = scenarioOverridesRef.current;
@@ -2397,6 +2380,79 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
 
         return newState;
+      }
+
+      return prev;
+    });
+  }, [
+    isPhraseMode,
+    isCompositePhraseBossStage,
+    isBossStage,
+    compositeNoteDamage,
+    compositeFinishRepeatDamage,
+    compositeFinishPrimaryDamage,
+    compositeMeasureRangeDamage,
+    jajiiEnabled,
+    scenarioPhraseFullLoopPulseRef,
+  ]);
+
+  const schedulePhraseInputDrain = useCallback(() => {
+    if (phraseInputDrainRafRef.current !== null) return;
+    phraseInputDrainRafRef.current = requestAnimationFrame(() => {
+      phraseInputDrainRafRef.current = null;
+      const noteOns = dedupeFrameNoteOnsByPitchClass(phraseInputBufferRef.current.drain().noteOns);
+      for (const { midi } of noteOns) {
+        dispatchPhraseNote(midi);
+      }
+    });
+  }, [dispatchPhraseNote]);
+
+  useEffect(() => () => {
+    if (phraseInputDrainRafRef.current !== null) {
+      cancelAnimationFrame(phraseInputDrainRafRef.current);
+      phraseInputDrainRafRef.current = null;
+    }
+    phraseInputBufferRef.current.clear();
+  }, []);
+
+  // ノート入力処理
+  const handleNoteInput = useCallback((note: number) => {
+    const scenario = scenarioOverridesRef.current;
+    const midiBlocked = scenario.isActive && scenario.blockMidiGameInput;
+    const inputFullyBlocked =
+      scenario.isActive && scenario.blockMidiGameInput && scenario.blockChordPadInput;
+
+    if (!inputFullyBlocked && scenarioUserInputPulseRef) {
+      scenarioUserInputPulseRef.current += 1;
+    }
+    if (!midiBlocked && scenarioMidiNoteReceivedRef) {
+      scenarioMidiNoteReceivedRef.current = true;
+    }
+
+    if (isPhraseMode) {
+      if (isCompositePhraseBossStage) {
+        if (!compositePhraseRuntimeRef.current) {
+          return;
+        }
+      } else if (!phraseStateRef.current) {
+        return;
+      }
+      phraseInputBufferRef.current.enqueueNoteOn(note);
+      schedulePhraseInputDrain();
+      return;
+    }
+
+    setGameState(prev => {
+      // ゲームオーバーまたはポーズ中は何もしない
+      if (prev.isGameOver || prev.isPaused) return prev;
+
+      const scenarioInner = scenarioOverridesRef.current;
+      if (
+        scenarioInner.isActive
+        && scenarioInner.blockMidiGameInput
+        && scenarioInner.blockChordPadInput
+      ) {
+        return prev;
       }
       
       // レベルアップ中もボーナス選択とABCD攻撃を同時に処理
@@ -3182,7 +3238,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     scenarioPhraseFullLoopPulseRef,
     jajiiEnabled,
     bumpScenarioUi,
-    isCompositePhraseBossStage,
+    schedulePhraseInputDrain,
   ]);
   
   // handleNoteInputが更新されるたびにrefを更新
@@ -5036,6 +5092,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // リトライ
   const handleRetry = useCallback(() => {
+    if (phraseInputDrainRafRef.current !== null) {
+      cancelAnimationFrame(phraseInputDrainRafRef.current);
+      phraseInputDrainRafRef.current = null;
+    }
+    phraseInputBufferRef.current.clear();
     setResult(null);
     setShockwaves([]);
     pendingShockwavesRef.current = [];
