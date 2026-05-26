@@ -8,6 +8,8 @@ struct SurvivalChordPadSnapshot: Equatable, Sendable {
     let completedHintMidis: Set<Int>
     let midiHeldKeys: Set<Int>
     let isEnabled: Bool
+    /// Phrases のみ。`nil` のときは従来どおり Central（約 C4）。
+    let scrollAnchorMidi: Int?
 }
 
 /// 画面右下のピアノ鍵盤。A0〜C8 の 88 鍵を持ち、iPhone は横スクロール、iPad は全体を幅に収めて表示する。
@@ -99,6 +101,18 @@ struct SurvivalChordPadView: View, Equatable {
                 .frame(height: keyboardHeight)
                 .onAppear {
                     if !fitsFullKeyboard {
+                        if let midi = snapshot.scrollAnchorMidi {
+                            scrollProxy.scrollTo(midi, anchor: .trailing)
+                        } else {
+                            scrollProxy.scrollTo(60, anchor: .center)
+                        }
+                    }
+                }
+                .onChange(of: snapshot.scrollAnchorMidi) { newMidi in
+                    guard !fitsFullKeyboard else { return }
+                    if let midi = newMidi {
+                        scrollProxy.scrollTo(midi, anchor: .trailing)
+                    } else {
                         scrollProxy.scrollTo(60, anchor: .center)
                     }
                 }

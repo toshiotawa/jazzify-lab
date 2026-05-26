@@ -613,7 +613,8 @@ enum SurvivalGameEngine {
     static func createSpecialShockwave(
         from player: SurvivalPlayerState,
         effectiveBAtk: Int,
-        now: TimeInterval
+        now: TimeInterval,
+        suppressCameraShake: Bool = false
     ) -> SurvivalShockwave {
         createSpecialShockwave(
             centerX: player.x,
@@ -623,7 +624,7 @@ enum SurvivalGameEngine {
             effectiveBAtk: effectiveBAtk,
             now: now,
             radiusMultiplier: SurvivalConstants.specialAttackRadiusMultiplier,
-            suppressCameraShake: false
+            suppressCameraShake: suppressCameraShake
         )
     }
 

@@ -39,6 +39,8 @@ final class SurvivalGameLoop {
     /// フレーズ全周回ごとに増分（`chordIndex` が末尾から 0 に戻ったとき）。チュートリアル検知のみ。
     private(set) var phraseFullLoopPulse: UInt64 = 0
 
+    private(set) var phraseKeyboardScrollAnchorMidi: Int?
+
     var isPhraseMode: Bool { stage.mapCategory == .phrases }
 
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。
@@ -176,6 +178,11 @@ final class SurvivalGameLoop {
         phraseDefinition = phrase
         phraseState = SurvivalPhraseEngine.createInitialState(phrase: phrase)
         phraseFullLoopPulse = 0
+        if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: phrase) {
+            phraseKeyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
+        } else {
+            phraseKeyboardScrollAnchorMidi = nil
+        }
     }
 
     func phraseStaffSnapshot() -> SurvivalPhraseStaffSnapshot? {
@@ -330,6 +337,7 @@ final class SurvivalGameLoop {
             suppressCameraShake: true
         )
         runtime.shockwaves.append(wave)
+        capLastPhraseShockwaveOutgoingDamageIfNeeded()
     }
 
     private func tickJajii(elapsedSec: TimeInterval, deltaSec: TimeInterval, effectiveBAtk: Int, now: TimeInterval) {
@@ -536,6 +544,20 @@ final class SurvivalGameLoop {
         return events
     }
 
+    private func clampPhraseOutgoingDamageIfNeeded(raw: Int) -> Int {
+        SurvivalPhraseComboDamageCap.clampOutgoing(
+            rawDamage: raw,
+            isPhraseMode: isPhraseMode,
+            comboCount: runtime.comboCount
+        )
+    }
+
+    private func capLastPhraseShockwaveOutgoingDamageIfNeeded() {
+        guard isPhraseMode, !runtime.shockwaves.isEmpty else { return }
+        let i = runtime.shockwaves.count - 1
+        runtime.shockwaves[i].damage = clampPhraseOutgoingDamageIfNeeded(raw: runtime.shockwaves[i].damage)
+    }
+
     private func evaluatePhraseNote(_ note: Int) -> [SurvivalFrameEvent] {
         guard var state = phraseState else { return [] }
         let pc = ((note % 12) + 12) % 12
@@ -567,21 +589,29 @@ final class SurvivalGameLoop {
             effects: runtime.statusEffects
         )
         let attackInstanceId = isBossStage ? UUID() : nil
-        let projectiles = SurvivalGameEngine.createAProjectiles(
+        var projectiles = SurvivalGameEngine.createAProjectiles(
             from: runtime.player,
             effectiveAAtk: effectiveStats.aAtk,
             attackInstanceId: attackInstanceId
         )
+        if isPhraseMode {
+            for idx in projectiles.indices {
+                projectiles[idx].damage = clampPhraseOutgoingDamageIfNeeded(raw: projectiles[idx].damage)
+            }
+        }
         runtime.projectiles.append(contentsOf: projectiles)
 
         if measureComplete {
             let wave = SurvivalGameEngine.createSpecialShockwave(
                 from: runtime.player,
                 effectiveBAtk: effectiveStats.bAtk,
-                now: now
+                now: now,
+                suppressCameraShake: true
             )
             runtime.shockwaves.append(wave)
+            capLastPhraseShockwaveOutgoingDamageIfNeeded()
             appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
+            capLastPhraseShockwaveOutgoingDamageIfNeeded()
         } else {
             scheduleJajiiMiniIfNeeded()
         }

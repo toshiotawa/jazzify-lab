@@ -33,12 +33,27 @@ export interface ApplyJajiiSpecialParams {
   readonly isBossStage: boolean;
   readonly bossBattle: BossBattleState | null | undefined;
   readonly queueShockwave: (wave: ShockwaveEffect) => void;
+  /** 指定時、この値を上限として最終近接ダメージをクリップする（サバイバル・フレーズ序盤コンボなど）。 */
+  readonly maxOutgoingDamagePerHit?: number;
 }
 
 /** draft と bossBattle をミュータブル更新し、視覚用 shockwave を queue に積む */
 export const applyJajiiGaugeSpecialAtWorld = (p: ApplyJajiiSpecialParams): void => {
-  const { draft, jajiiX, jajiiY, radiusMultiplier, isBossStage, bossBattle, queueShockwave } = p;
+  const {
+    draft,
+    jajiiX,
+    jajiiY,
+    radiusMultiplier,
+    isBossStage,
+    bossBattle,
+    queueShockwave,
+    maxOutgoingDamagePerHit,
+  } = p;
   const player = draft.player;
+  const capOutgoing = (damage: number): number =>
+    maxOutgoingDamagePerHit !== undefined
+      ? Math.min(damage, maxOutgoingDamagePerHit)
+      : damage;
   const baseRange = 80;
   const bonusRange = player.skills.bRangeBonus * 20;
   const specRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER * radiusMultiplier;
@@ -61,7 +76,8 @@ export const applyJajiiGaugeSpecialAtWorld = (p: ApplyJajiiSpecialParams): void 
 
   if (isBossStage && bossBattle?.active) {
     const condMultBoss = getConditionalSkillMultipliers(player);
-    const bossDamage = Math.floor(calculateBMeleeDamage(player.stats.bAtk) * condMultBoss.atkMultiplier);
+    let bossDamage = Math.floor(calculateBMeleeDamage(player.stats.bAtk) * condMultBoss.atkMultiplier);
+    bossDamage = capOutgoing(bossDamage);
     const meleeRes = applyPlayerMeleeToBossBattle(
       bossBattle,
       jajiiX,
@@ -95,7 +111,7 @@ export const applyJajiiGaugeSpecialAtWorld = (p: ApplyJajiiSpecialParams): void 
     const baseBDamage = Math.floor(calculateBMeleeDamage(player.stats.bAtk) * condMultB.atkMultiplier);
     const luckResultB = checkLuck(player.stats.luck);
     const bufLv = bufferLikeLevel(player.statusEffects, 'buffer');
-    const damage = calculateDamage(
+    let damage = calculateDamage(
       baseBDamage,
       0,
       enemy.stats.def,
@@ -106,6 +122,7 @@ export const applyJajiiGaugeSpecialAtWorld = (p: ApplyJajiiSpecialParams): void 
       player.stats.cAtk,
       luckResultB.doubleDamage,
     );
+    damage = capOutgoing(damage);
     const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
     const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
     draft.damageTexts.push(

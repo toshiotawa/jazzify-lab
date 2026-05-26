@@ -908,6 +908,8 @@ struct ChordVoicingStaffGroupsView: View {
     let hideChordLabels: Bool
     /// Web `ChordVoicingStaff.noteCollisionLayout` と同等。
     let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
+    /// Survival Phrases: 構成音ごとの複数 group 並びでも上端ゲタを Progression に寄せる。
+    let phraseTightTopLedgerPadding: Bool
     /// 本番コードクイズ: 現在出題の未押下音符を非表示（五線・調号・コード名は維持）。
     /// @deprecated `unpressedNoteOpacity = 0` を優先。EarTraining 等の後方互換用。
     var hideUnpressedNotes: Bool
@@ -931,6 +933,7 @@ struct ChordVoicingStaffGroupsView: View {
         singleMeasureLayout: Bool = false,
         hideChordLabels: Bool = false,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
+        phraseTightTopLedgerPadding: Bool = false,
         hideUnpressedNotes: Bool = false,
         unpressedNoteOpacity: CGFloat = 1,
         compactChordLabelGap: Bool = false,
@@ -947,6 +950,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.singleMeasureLayout = singleMeasureLayout
         self.hideChordLabels = hideChordLabels
         self.noteCollisionLayout = noteCollisionLayout
+        self.phraseTightTopLedgerPadding = phraseTightTopLedgerPadding
         self.hideUnpressedNotes = hideUnpressedNotes
         self.unpressedNoteOpacity = unpressedNoteOpacity
         self.compactChordLabelGap = compactChordLabelGap
@@ -983,7 +987,8 @@ struct ChordVoicingStaffGroupsView: View {
                 hideChordLabels: hideChordLabels,
                 noteCollisionLayout: noteCollisionLayout,
                 compactChordLabelGap: compactChordLabelGap,
-                compactVerticalLayout: compactVerticalLayout
+                compactVerticalLayout: compactVerticalLayout,
+                phraseTightTopLedgerPadding: phraseTightTopLedgerPadding
             )
             let activeLabelGlobalFrame = activeLabelGlobalRect(
                 proxy: proxy,
@@ -1006,6 +1011,7 @@ struct ChordVoicingStaffGroupsView: View {
                         unpressedNoteOpacity: effectiveUnpressedNoteOpacity,
                         compactChordLabelGap: compactChordLabelGap,
                         compactVerticalLayout: compactVerticalLayout,
+                        phraseTightTopLedgerPadding: phraseTightTopLedgerPadding,
                         fadeAllMeasureNotes: fadeAllMeasureNotes
                     )
                 }
@@ -1346,7 +1352,8 @@ struct ChordVoicingStaffGroupsView: View {
         activeStaves: [Int],
         hideChordLabels: Bool,
         compactChordLabelGap: Bool = false,
-        compactVerticalLayout: Bool = false
+        compactVerticalLayout: Bool = false,
+        phraseTightTopLedgerPadding: Bool = false
     ) -> StaffSystemGeometry {
         let sp = max(8, width * (12 / 720))
         let labelTopPadding: CGFloat = hideChordLabels ? 0 : sp * 0.4
@@ -1358,9 +1365,11 @@ struct ChordVoicingStaffGroupsView: View {
         let labelBottomGap: CGFloat = hideChordLabels
             ? 0
             : (compactVerticalLayout ? sp * 0.3 : (compactChordLabelGap ? sp * 0.6 : sp * 0.9))
-        let topLedgerPadding: CGFloat = compactVerticalLayout
-            ? sp * 4.0
-            : (compactChordLabelGap ? sp * 1.6 : sp * 3.5)
+        let topLedgerPadding: CGFloat =
+            phraseTightTopLedgerPadding ? sp * 1.6
+                : compactVerticalLayout
+                    ? sp * 4.0
+                    : (compactChordLabelGap ? sp * 1.6 : sp * 3.5)
         let bottomLedgerPadding: CGFloat = compactChordLabelGap ? sp * 1.6 : sp * 3.5
         let reservedTop = reservedLabelTop + labelBottomGap + topLedgerPadding
         let availableStaffHeight = max(CGFloat(0), size.height - reservedTop - bottomLedgerPadding)
@@ -1504,6 +1513,7 @@ struct ChordVoicingStaffGroupsView: View {
         unpressedNoteOpacity: CGFloat,
         compactChordLabelGap: Bool = false,
         compactVerticalLayout: Bool = false,
+        phraseTightTopLedgerPadding: Bool = false,
         fadeAllMeasureNotes: Bool = false
     ) {
         guard !groups.isEmpty else { return }
@@ -1526,7 +1536,8 @@ struct ChordVoicingStaffGroupsView: View {
             activeStaves: activeStaves,
             hideChordLabels: hideChordLabels,
             compactChordLabelGap: compactChordLabelGap,
-            compactVerticalLayout: compactVerticalLayout
+            compactVerticalLayout: compactVerticalLayout,
+            phraseTightTopLedgerPadding: phraseTightTopLedgerPadding
         )
         let margin = geo.sp * 0.35
         let leftBound = w * (24 / 720) + margin
@@ -1997,7 +2008,8 @@ struct ChordVoicingStaffGroupsView: View {
         hideChordLabels: Bool = false,
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
         compactChordLabelGap: Bool = false,
-        compactVerticalLayout: Bool = false
+        compactVerticalLayout: Bool = false,
+        phraseTightTopLedgerPadding: Bool = false
     ) -> OverlayLayout {
         guard !groups.isEmpty, size.width > 0, size.height > 0 else {
             return OverlayLayout(
@@ -2024,7 +2036,8 @@ struct ChordVoicingStaffGroupsView: View {
             activeStaves: activeStaves,
             hideChordLabels: hideChordLabels,
             compactChordLabelGap: compactChordLabelGap,
-            compactVerticalLayout: compactVerticalLayout
+            compactVerticalLayout: compactVerticalLayout,
+            phraseTightTopLedgerPadding: phraseTightTopLedgerPadding
         )
 
         var labelCenters: [UUID: CGPoint] = [:]

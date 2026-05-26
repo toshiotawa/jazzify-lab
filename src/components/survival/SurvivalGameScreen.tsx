@@ -117,6 +117,11 @@ import {
 import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 import { SurvivalPhraseStaff } from './phrases/SurvivalPhraseStaff';
 import {
+  clampPhraseOutgoingDamage,
+  PHRASE_EARLY_COMBO_CAP_UNTIL,
+  PHRASE_EARLY_COMBO_DAMAGE_CAP,
+} from './phrases/survivalPhraseComboDamageCap';
+import {
   INACTIVE_SCENARIO_OVERRIDES,
   type SurvivalScenarioOverrides,
 } from './scenario/survivalScenarioTypes';
@@ -472,6 +477,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const [phraseUiTick, setPhraseUiTick] = useState(0);
   const phraseDrumLoopRef = useRef<SurvivalPhraseDrumLoop | null>(null);
   const phraseBgmUrlRef = useRef<string | null>(null);
+  const phraseAudioContextRef = useRef<AudioContext | null>(null);
+  const [phraseBgmReadyTick, setPhraseBgmReadyTick] = useState(0);
 
   const jajiiStateRef = useRef<JajiiState | null>(null);
   const jajiiWorldPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -536,6 +543,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       phraseStateRef.current = createInitialPhraseState(inline);
       phraseBgmUrlRef.current = resolvePhraseBgmUrl(inline.bgmUrl);
       setPhraseUiTick((t) => t + 1);
+      setPhraseBgmReadyTick((t) => t + 1);
       return undefined;
     }
 
@@ -546,6 +554,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       phraseStateRef.current = createInitialPhraseState(phrase);
       phraseBgmUrlRef.current = resolvePhraseBgmUrl(phrase.bgmUrl);
       setPhraseUiTick((t) => t + 1);
+      setPhraseBgmReadyTick((t) => t + 1);
     });
     return () => {
       cancelled = true;
@@ -869,7 +878,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       try {
         await initializeAudioSystem();
         if (cancelled) return;
-        const ctx = new AudioContext();
+        let ctx = phraseAudioContextRef.current;
+        if (!ctx || ctx.state === 'closed') {
+          ctx = new AudioContext();
+          phraseAudioContextRef.current = ctx;
+        }
         await ctx.resume();
         await phraseDrum.prepare(url, ctx);
         if (cancelled) return;
@@ -882,13 +895,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     return () => {
       cancelled = true;
+      phraseDrum.stop();
     };
   }, [
     isPhraseMode,
     gameState.isGameOver,
     gameState.isPaused,
     gameState.isPlaying,
-    phraseUiTick,
+    phraseBgmReadyTick,
     config.bgmUrl,
   ]);
   
@@ -1841,16 +1855,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
 
+        const phraseComboAfter = prev.comboCount + 1;
+        const capPhraseDmg = (raw: number): number => clampPhraseOutgoingDamage(phraseComboAfter, raw);
+        const phraseJajiiCap =
+          phraseComboAfter <= PHRASE_EARLY_COMBO_CAP_UNTIL ? PHRASE_EARLY_COMBO_DAMAGE_CAP : undefined;
+
         const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
         const newProjectiles = createAProjectilesFromPlayer(
           prev.player,
-          calculateAProjectileDamage(prev.player.stats.aAtk),
+          capPhraseDmg(calculateAProjectileDamage(prev.player.stats.aAtk)),
           attackInstanceId,
         );
 
         const newState: SurvivalGameState = {
           ...prev,
-          comboCount: prev.comboCount + 1,
+          comboCount: phraseComboAfter,
           projectiles: [...prev.projectiles, ...newProjectiles],
           enemyProjectiles: [...prev.enemyProjectiles],
           damageTexts: [...prev.damageTexts],
@@ -1883,7 +1902,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
           if (isBossStage && bossBattleRef.current?.active) {
             const condMultBoss = getConditionalSkillMultipliers(prev.player);
-            const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+            let bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+            bossDamage = capPhraseDmg(bossDamage);
             const meleeRes = applyPlayerMeleeToBossBattle(
               bossBattleRef.current,
               attackX,
@@ -1917,7 +1937,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               const condMultB = getConditionalSkillMultipliers(prev.player);
               const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
               const luckResultB = checkLuck(prev.player.stats.luck);
-              const damage = calculateDamage(
+              let damage = calculateDamage(
                 baseBDamage, 0, enemy.stats.def,
                 prev.player.statusEffects.some((e) => e.type === 'buffer'),
                 enemy.statusEffects.some((e) => e.type === 'debuffer'),
@@ -1926,6 +1946,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 prev.player.stats.cAtk,
                 luckResultB.doubleDamage,
               );
+              damage = capPhraseDmg(damage);
               const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
               const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
               newState.damageTexts = [...newState.damageTexts, createDamageText(
@@ -1956,6 +1977,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               queueShockwave: (w) => {
                 pendingShockwavesRef.current.push(w);
               },
+              maxOutgoingDamagePerHit: phraseJajiiCap,
             });
           } else {
             tryScheduleMiniSpecial(jajiiStateRef.current, prev.elapsedTime);
@@ -4617,6 +4639,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (isPhraseMode && phraseDefinitionRef.current) {
       phraseStateRef.current = createInitialPhraseState(phraseDefinitionRef.current);
       setPhraseUiTick((t) => t + 1);
+      setPhraseBgmReadyTick((t) => t + 1);
     }
     // キャラクター能力を再適用（ステージモードではスキップ）
     if (character && !isStageMode) {

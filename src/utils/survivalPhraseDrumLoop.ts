@@ -21,6 +21,7 @@ export class SurvivalPhraseDrumLoop {
     if (sameBuffer) {
       return;
     }
+    this.stopInternal();
     this.ctx = audioContext;
     this.url = url;
     const response = await fetch(url);
@@ -36,6 +37,9 @@ export class SurvivalPhraseDrumLoop {
     const audioContext = this.ctx;
     const buf = this.buffer;
     if (!audioContext || !buf) {
+      return;
+    }
+    if (this.source !== null) {
       return;
     }
     void audioContext.resume().catch(() => undefined);
@@ -54,6 +58,10 @@ export class SurvivalPhraseDrumLoop {
     }
     this.source = src;
     this.gain = g;
+  }
+
+  isPlaying(): boolean {
+    return this.source !== null;
   }
 
   setVolume(value: number): void {

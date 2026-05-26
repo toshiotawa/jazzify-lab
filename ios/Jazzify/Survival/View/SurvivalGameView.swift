@@ -574,7 +574,8 @@ private struct SurvivalGameContent: View {
                 hintMidis: vm.chordPadHintMidis,
                 completedHintMidis: vm.chordPadCompletedHintMidis,
                 midiHeldKeys: vm.midiHeldKeys,
-                isEnabled: vm.uiSnapshot.phase == .playing && !vm.isPaused
+                isEnabled: vm.uiSnapshot.phase == .playing && !vm.isPaused,
+                scrollAnchorMidi: vm.chordPadScrollAnchorMidi
             ),
             onPress: { session.chordPadNoteOn($0) },
             onRelease: { session.chordPadNoteOff($0) }
@@ -752,7 +753,7 @@ private struct SurvivalPhraseStaffOverlay: View {
 
     var body: some View {
         SurvivalPhraseStaffView(snapshot: snapshot)
-            .frame(maxWidth: 560, maxHeight: 260, alignment: .top)
+            .frame(maxWidth: 560, maxHeight: 160, alignment: .top)
     }
 }
 

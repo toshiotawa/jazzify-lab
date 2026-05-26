@@ -18,6 +18,7 @@ final class SurvivalViewModel: ObservableObject {
     /// HINT 構成音のうち、現在のスロット入力で満たされた pitch class に対応するハイライト MIDI。
     @Published private(set) var chordPadCompletedHintMidis: Set<Int> = []
     @Published private(set) var phraseStaffSnapshot: SurvivalPhraseStaffSnapshot?
+    @Published private(set) var chordPadScrollAnchorMidi: Int?
 
     private var lastBossHudPublishAt: TimeInterval = 0
 
@@ -27,6 +28,7 @@ final class SurvivalViewModel: ObservableObject {
         isBossStage: Bool,
         chordPadHintMidis: Set<Int>,
         chordPadCompletedHintMidis: Set<Int>,
+        chordPadScrollAnchorMidi: Int?,
         now: TimeInterval
     ) {
         self.uiSnapshot = uiSnapshot
@@ -34,6 +36,7 @@ final class SurvivalViewModel: ObservableObject {
         self.isBossStage = isBossStage
         self.chordPadHintMidis = chordPadHintMidis
         self.chordPadCompletedHintMidis = chordPadCompletedHintMidis
+        self.chordPadScrollAnchorMidi = chordPadScrollAnchorMidi
         self.lastBossHudPublishAt = now
     }
 
@@ -100,6 +103,11 @@ final class SurvivalViewModel: ObservableObject {
 
         syncPhraseStaff(from: gameLoop)
 
+        let nextScrollAnchor = gameLoop.isPhraseMode ? gameLoop.phraseKeyboardScrollAnchorMidi : nil
+        if nextScrollAnchor != chordPadScrollAnchorMidi {
+            chordPadScrollAnchorMidi = nextScrollAnchor
+        }
+
         let forceBossHud = gameLoop.runtime.phase != .playing || phaseChanged
         let nextBossHud = gameLoop.bossBattle.map(Self.makeBossHudSnapshot(from:))
         let throttle: TimeInterval = 1.0 / 15.0
@@ -119,6 +127,7 @@ final class SurvivalViewModel: ObservableObject {
         chordPadHintMidis = gameLoop.currentHintHighlightMidis()
         chordPadCompletedHintMidis = gameLoop.currentHintCompletedHighlightMidis()
         syncPhraseStaff(from: gameLoop)
+        chordPadScrollAnchorMidi = gameLoop.isPhraseMode ? gameLoop.phraseKeyboardScrollAnchorMidi : nil
         isPaused = false
         clearMidiHeldKeys()
         resetClearReportState()

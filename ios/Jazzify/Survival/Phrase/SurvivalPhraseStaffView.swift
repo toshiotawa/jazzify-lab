@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Phrases モード用 2 小節譜面（現在和音 + 次和音、順次全音符）。
+/// Phrases モード用 1 小節譜面（現在和音のみ、順次全音符）。
 struct SurvivalPhraseStaffView: View {
     let snapshot: SurvivalPhraseStaffSnapshot
 
@@ -14,11 +14,13 @@ struct SurvivalPhraseStaffView: View {
             correctPitchClassesByGroupId: built.correctMap,
             completionPulse: nil,
             showTargetHints: snapshot.hintMode,
-            singleMeasureLayout: false,
+            singleMeasureLayout: true,
             hideChordLabels: false,
             noteCollisionLayout: .anchorLow,
             unpressedNoteOpacity: CGFloat(snapshot.unpressedNoteOpacity),
             compactChordLabelGap: true,
+            compactVerticalLayout: true,
+            phraseTightTopLedgerPadding: true,
             fadeAllMeasureNotes: true
         )
     }
@@ -42,11 +44,6 @@ struct SurvivalPhraseStaffView: View {
             correctMap.merge(currentBuilt.correctMap) { $1 }
             activeGroupId = currentBuilt.activeGroupId
             noteCountCurrent = current.notes.count
-        }
-        if let next = snapshot.nextChord {
-            let nextBuilt = chordGroups(chord: next, measureOffset: 1, isCurrent: false)
-            groups.append(contentsOf: nextBuilt.groups)
-            correctMap.merge(nextBuilt.correctMap) { $1 }
         }
 
         let dense = noteCountCurrent >= EarTrainingChordVoicingStaffLayout.denseNoteTotalThreshold

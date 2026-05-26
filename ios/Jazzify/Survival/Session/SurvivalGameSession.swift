@@ -62,6 +62,7 @@ final class SurvivalGameSession: ObservableObject {
             isBossStage: loop.isBossStage,
             chordPadHintMidis: loop.currentHintHighlightMidis(),
             chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
+            chordPadScrollAnchorMidi: loop.isPhraseMode ? loop.phraseKeyboardScrollAnchorMidi : nil,
             now: now
         )
         self.viewModel = vm
