@@ -156,12 +156,6 @@ import {
   type SurvivalCompositePhraseRuntimeState,
 } from './phrases/SurvivalCompositePhraseEngine';
 import {
-  acceptPhraseNoteOn,
-  releasePhraseNote,
-  resetPhraseNoteGate,
-  syncPhraseInputGateAfterEvaluation,
-} from './phrases/survivalPhraseInputGate';
-import {
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY,
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT,
   COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE,
@@ -1060,12 +1054,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // handleNoteInputの最新参照を保持するref
   const handleNoteInputRef = useRef<(note: number) => void>(() => {});
-  /** Phrases: 押下中ピッチクラス（held による repeat note-on を無視） */
-  const phraseActivePitchClassesRef = useRef<Set<number>>(new Set());
-  const releasePhraseNoteInput = useCallback((note: number) => {
-    releasePhraseNote(phraseActivePitchClassesRef.current, note);
-  }, []);
-  
+
   // ビューポートサイズ（Canvasラッパーを計測して設定）
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
   const [isMobile, setIsMobile] = useState(false);
@@ -1233,8 +1222,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             handleNoteInputRef.current(note);
           }
         },
-        onNoteOff: (note: number) => {
-          releasePhraseNoteInput(note);
+        onNoteOff: (_note: number) => {
+          // Note off — MIDIController 内で音声停止等を処理（フレーズは iOS 同様ゲート無し評価）
         },
         playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
       });
@@ -1376,7 +1365,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               }
             },
             onNoteOff: (note: number) => {
-              releasePhraseNoteInput(note);
               pixiRendererRef.current?.highlightKey(note, false);
             },
             onConnectionChange: () => {},
@@ -1461,7 +1449,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         },
         (note: number) => {
           // マウスリリース時に音を止める
-          releasePhraseNoteInput(note);
           stopNote(note);
         }
       );
@@ -1986,21 +1973,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
       if (isPhraseMode && isCompositePhraseBossStage && compositePhraseRuntimeRef.current) {
         const noteMod12 = ((note % 12) + 12) % 12;
-        if (!acceptPhraseNoteOn(phraseActivePitchClassesRef.current, noteMod12)) {
-          return prev;
-        }
         const curComposite = compositePhraseRuntimeRef.current;
         const repeatCompareLast = curComposite.lastCompletedSourceStageNumber;
         const evaluation = evaluateCompositePhraseNoteOn(curComposite, noteMod12);
         compositePhraseRuntimeRef.current = evaluation.nextState;
 
         setPhraseUiTick((t) => t + 1);
-
-        syncPhraseInputGateAfterEvaluation(
-          phraseActivePitchClassesRef.current,
-          evaluation.result,
-          noteMod12,
-        );
 
         if (evaluation.result === 'miss') {
           return {
@@ -2174,9 +2152,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
       if (isPhraseMode && phraseStateRef.current) {
         const noteMod12 = ((note % 12) + 12) % 12;
-        if (!acceptPhraseNoteOn(phraseActivePitchClassesRef.current, noteMod12)) {
-          return prev;
-        }
         const evaluation = evaluatePhraseNoteOn(phraseStateRef.current, noteMod12);
         phraseStateRef.current = evaluation.nextState;
 
@@ -2189,12 +2164,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
 
         setPhraseUiTick((t) => t + 1);
-
-        syncPhraseInputGateAfterEvaluation(
-          phraseActivePitchClassesRef.current,
-          evaluation.result,
-          noteMod12,
-        );
 
         if (evaluation.result === 'miss') {
           return {
@@ -4974,7 +4943,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // リトライ
   const handleRetry = useCallback(() => {
-    resetPhraseNoteGate(phraseActivePitchClassesRef.current);
     setResult(null);
     setShockwaves([]);
     pendingShockwavesRef.current = [];

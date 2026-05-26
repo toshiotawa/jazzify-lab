@@ -158,4 +158,16 @@ describe('SurvivalCompositePhraseEngine', () => {
     const evNext = evaluateCompositePhraseNoteOn(state, 4);
     expect(evNext.result).not.toBe('miss');
   });
+
+  it('Web iOS parity: evaluate each note-on in order without an input gate (E D A F E D)', () => {
+    const p = chordChain(71, [[4, 2, 9, 5, 4, 2]]);
+    let state = createInitialCompositePhraseRuntimeState([p]);
+    const pcs = [4, 2, 9, 5, 4, 2] as const;
+    for (const pc of pcs) {
+      const ev = evaluateCompositePhraseNoteOn(state, pc);
+      expect(ev.result).not.toBe('miss');
+      state = ev.nextState;
+    }
+    expect(state.lastCompletedSourceStageNumber).toBe(71);
+  });
 });
