@@ -33,12 +33,13 @@ export function getStageKillQuotaForStage(stage: StageDefinition): number {
   return getStageKillQuota(stage.stageNumber, stage.mapCategory);
 }
 
-/** 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロック通常ステージ。 */
+/** 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロックステージ（ボス戦を含む）。 */
 export function hasBeginnerStageAssist(
   stageNumber: number,
   mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 ): boolean {
-  return isFirstBlockRegularStage(stageNumber, mapCategory);
+  const block = getBlockForStage(stageNumber, mapCategory);
+  return block?.blockIndex === 0;
 }
 
 export function hasBeginnerStageAssistForStage(stage: StageDefinition): boolean {

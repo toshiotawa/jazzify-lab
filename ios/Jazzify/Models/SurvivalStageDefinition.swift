@@ -771,8 +771,13 @@ extension SurvivalStageDefinition {
             : SurvivalConstants.stageEnemyQuota
     }
 
-    /// 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロック通常ステージ。
-    var hasBeginnerStageAssist: Bool { isFirstBlockRegularStage }
+    /// 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロックステージ（ボス戦を含む）。
+    var hasBeginnerStageAssist: Bool {
+        guard let block = SurvivalStageCatalog.block(forStage: stageNumber, in: mapCategory) else {
+            return false
+        }
+        return block.blockIndex == 0
+    }
 
     /// 第一ブロック末尾のボス戦か。
     var isFirstBlockBossStage: Bool {

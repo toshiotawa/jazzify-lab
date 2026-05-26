@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { computeUnpressedNoteOpacity } from './survivalStaffHintOpacity';
+import {
+  computeKeyboardHintOpacity,
+  computeUnpressedNoteOpacity,
+} from './survivalStaffHintOpacity';
 
 const stageOptions = {
   hintMode: false,
@@ -22,6 +25,10 @@ describe('computeUnpressedNoteOpacity', () => {
     expect(computeUnpressedNoteOpacity(45, { ...stageOptions, beginnerAssistActive: true })).toBe(1);
   });
 
+  it('フレーズモードでは経過時間に関係なく常に 1.0', () => {
+    expect(computeUnpressedNoteOpacity(45, { ...stageOptions, isPhraseMode: true })).toBe(1);
+  });
+
   it('25秒までは 1.0、26〜29秒で段階的に暗くなり、30秒以降 0.0', () => {
     expect(computeUnpressedNoteOpacity(24.9, stageOptions)).toBe(1);
     expect(computeUnpressedNoteOpacity(25, stageOptions)).toBe(1);
@@ -32,5 +39,17 @@ describe('computeUnpressedNoteOpacity', () => {
     expect(computeUnpressedNoteOpacity(29, stageOptions)).toBe(0.2);
     expect(computeUnpressedNoteOpacity(30, stageOptions)).toBe(0);
     expect(computeUnpressedNoteOpacity(45, stageOptions)).toBe(0);
+  });
+});
+
+describe('computeKeyboardHintOpacity', () => {
+  it('第一ブロックアシスト中は常に 1.0', () => {
+    expect(computeKeyboardHintOpacity(45, { ...stageOptions, beginnerAssistActive: true })).toBe(1);
+  });
+
+  it('第二ブロック以降の挑戦は 30 秒フェード', () => {
+    expect(computeKeyboardHintOpacity(24, stageOptions)).toBe(1);
+    expect(computeKeyboardHintOpacity(29, stageOptions)).toBe(0.2);
+    expect(computeKeyboardHintOpacity(30, stageOptions)).toBe(0);
   });
 });

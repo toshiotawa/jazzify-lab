@@ -689,6 +689,29 @@ enum SurvivalStaffHintOpacity {
         default: return 1
         }
     }
+
+    /// 鍵盤 pending ハイライト opacity。第一ブロックは常に 1.0、第二ブロック以降の挑戦は 30 秒フェード。
+    static func computeKeyboardHintOpacity(
+        elapsed: TimeInterval,
+        hintMode: Bool,
+        hintBuffActive: Bool,
+        beginnerAssistActive: Bool,
+        phase: SurvivalStagePhase
+    ) -> CGFloat {
+        if hintMode || hintBuffActive || beginnerAssistActive || phase != .playing {
+            return 1
+        }
+        let t = Int(floor(elapsed))
+        if t < 25 { return 1 }
+        if t >= 30 { return 0 }
+        switch t {
+        case 26: return 0.8
+        case 27: return 0.6
+        case 28: return 0.4
+        case 29: return 0.2
+        default: return 1
+        }
+    }
 }
 
 extension SurvivalUISnapshot {

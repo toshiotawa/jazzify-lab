@@ -6,6 +6,8 @@ struct SurvivalChordPadSnapshot: Equatable, Sendable {
     let hintMidis: Set<Int>
     /// 構成音入力済み（pitch class 一致）に対応するハイライト MIDI。`hintMidis` の部分集合。
     let completedHintMidis: Set<Int>
+    /// pending ハイライトの不透明度（第一ブロック 1.0、第二ブロック以降は 30 秒フェード）。
+    let hintPendingOpacity: CGFloat
     let midiHeldKeys: Set<Int>
     let isEnabled: Bool
     /// Phrases のみ。`nil` のときは従来どおり Central（約 C4）。
@@ -57,6 +59,7 @@ struct SurvivalChordPadView: View, Equatable {
                                     isBlack: false,
                                     isHinted: snapshot.hintMidis.contains(midi),
                                     isHintCompleted: snapshot.completedHintMidis.contains(midi),
+                                    hintPendingOpacity: snapshot.hintPendingOpacity,
                                     isMidiHeld: snapshot.midiHeldKeys.contains(midi),
                                     width: whiteKeyWidth,
                                     height: keyboardHeight,
@@ -81,6 +84,7 @@ struct SurvivalChordPadView: View, Equatable {
                                 isBlack: true,
                                 isHinted: snapshot.hintMidis.contains(midi),
                                 isHintCompleted: snapshot.completedHintMidis.contains(midi),
+                                hintPendingOpacity: snapshot.hintPendingOpacity,
                                 isMidiHeld: snapshot.midiHeldKeys.contains(midi),
                                 width: blackKeyWidth,
                                 height: blackKeyHeight,
@@ -183,6 +187,7 @@ private struct PianoKeyButton: View {
     let isBlack: Bool
     let isHinted: Bool
     let isHintCompleted: Bool
+    let hintPendingOpacity: CGFloat
     let isMidiHeld: Bool
     let width: CGFloat
     let height: CGFloat
@@ -235,7 +240,7 @@ private struct PianoKeyButton: View {
 
     private var hintBorderColor: Color {
         if isHintCompleted { return .green }
-        if isHinted { return Self.marigold }
+        if isHinted { return Self.marigold.opacity(Double(hintPendingOpacity)) }
         return .clear
     }
 
@@ -248,7 +253,7 @@ private struct PianoKeyButton: View {
                     : Color(red: 0.10, green: 0.40, blue: 0.18)
             }
             if isHinted {
-                return held ? Self.marigoldDarkPressed : Self.marigoldDark
+                return held ? Self.marigoldDarkPressed.opacity(Double(hintPendingOpacity)) : Self.marigoldDark.opacity(Double(hintPendingOpacity))
             }
             return held ? Color(white: 0.35) : Color.black
         }
@@ -258,7 +263,9 @@ private struct PianoKeyButton: View {
                 : Color(red: 0.78, green: 1.0, blue: 0.78)
         }
         if isHinted {
-            return held ? Self.marigoldLightPressed : Self.marigoldLight
+            return held
+                ? Self.marigoldLightPressed.opacity(Double(hintPendingOpacity))
+                : Self.marigoldLight.opacity(Double(hintPendingOpacity))
         }
         return held ? Color(white: 0.78) : Color.white
     }

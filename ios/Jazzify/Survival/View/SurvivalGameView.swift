@@ -573,6 +573,7 @@ private struct SurvivalGameContent: View {
             snapshot: SurvivalChordPadSnapshot(
                 hintMidis: vm.chordPadHintMidis,
                 completedHintMidis: vm.chordPadCompletedHintMidis,
+                hintPendingOpacity: vm.chordPadHintPendingOpacity,
                 midiHeldKeys: vm.midiHeldKeys,
                 isEnabled: vm.uiSnapshot.phase == .playing && !vm.isPaused,
                 scrollAnchorMidi: vm.chordPadScrollAnchorMidi

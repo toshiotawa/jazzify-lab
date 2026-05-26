@@ -41,9 +41,10 @@ describe('survivalFirstBlockStage', () => {
     expect(hasBeginnerStageAssist(3, 'songs')).toBe(true);
   });
 
-  it('第一ブロックボスは beginner assist 対象外', () => {
+  it('第一ブロックボスも beginner assist 対象', () => {
     expect(isFirstBlockRegularStage(5, 'basic')).toBe(false);
-    expect(hasBeginnerStageAssist(5, 'basic')).toBe(false);
+    expect(hasBeginnerStageAssist(5, 'basic')).toBe(true);
+    expect(hasBeginnerStageAssist(5, 'phrases')).toBe(true);
   });
 
   it('第一ブロック末尾のみボス HP 7000 対象', () => {

@@ -17,6 +17,7 @@ final class SurvivalViewModel: ObservableObject {
     @Published private(set) var chordPadHintMidis: Set<Int> = []
     /// HINT 構成音のうち、現在のスロット入力で満たされた pitch class に対応するハイライト MIDI。
     @Published private(set) var chordPadCompletedHintMidis: Set<Int> = []
+    @Published private(set) var chordPadHintPendingOpacity: CGFloat = 1
     @Published private(set) var phraseStaffSnapshot: SurvivalPhraseStaffSnapshot?
     @Published private(set) var chordPadScrollAnchorMidi: Int?
 
@@ -28,6 +29,7 @@ final class SurvivalViewModel: ObservableObject {
         isBossStage: Bool,
         chordPadHintMidis: Set<Int>,
         chordPadCompletedHintMidis: Set<Int>,
+        chordPadHintPendingOpacity: CGFloat,
         chordPadScrollAnchorMidi: Int?,
         now: TimeInterval
     ) {
@@ -36,6 +38,7 @@ final class SurvivalViewModel: ObservableObject {
         self.isBossStage = isBossStage
         self.chordPadHintMidis = chordPadHintMidis
         self.chordPadCompletedHintMidis = chordPadCompletedHintMidis
+        self.chordPadHintPendingOpacity = chordPadHintPendingOpacity
         self.chordPadScrollAnchorMidi = chordPadScrollAnchorMidi
         self.lastBossHudPublishAt = now
     }
@@ -101,6 +104,11 @@ final class SurvivalViewModel: ObservableObject {
             chordPadCompletedHintMidis = nextCompletedHints
         }
 
+        let nextHintOpacity = gameLoop.currentKeyboardHintPendingOpacity()
+        if nextHintOpacity != chordPadHintPendingOpacity {
+            chordPadHintPendingOpacity = nextHintOpacity
+        }
+
         syncPhraseStaff(from: gameLoop)
 
         let nextScrollAnchor = gameLoop.isPhraseMode ? gameLoop.phraseKeyboardScrollAnchorMidi : nil
@@ -126,6 +134,7 @@ final class SurvivalViewModel: ObservableObject {
         lastBossHudPublishAt = now
         chordPadHintMidis = gameLoop.currentHintHighlightMidis()
         chordPadCompletedHintMidis = gameLoop.currentHintCompletedHighlightMidis()
+        chordPadHintPendingOpacity = gameLoop.currentKeyboardHintPendingOpacity()
         syncPhraseStaff(from: gameLoop)
         chordPadScrollAnchorMidi = gameLoop.isPhraseMode ? gameLoop.phraseKeyboardScrollAnchorMidi : nil
         isPaused = false

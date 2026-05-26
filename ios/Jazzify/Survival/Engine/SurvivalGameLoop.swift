@@ -65,9 +65,10 @@ final class SurvivalGameLoop {
     private static func initialHintSlotIndex(
         slots: [SurvivalCodeSlot],
         hintMode: Bool,
-        beginnerAssistActive: Bool
+        beginnerAssistActive: Bool,
+        stageProductionKeyboardHints: Bool
     ) -> Int? {
-        guard hintMode || beginnerAssistActive else { return nil }
+        guard hintMode || beginnerAssistActive || stageProductionKeyboardHints else { return nil }
         if slots.indices.contains(0), slots[0].isEnabled { return 0 }
         if slots.indices.contains(1), slots[1].isEnabled { return 1 }
         return nil
@@ -148,7 +149,8 @@ final class SurvivalGameLoop {
         self.currentHintSlotIndex = Self.initialHintSlotIndex(
             slots: slots,
             hintMode: mode.hintMode,
-            beginnerAssistActive: stage.hasBeginnerStageAssist
+            beginnerAssistActive: stage.hasBeginnerStageAssist,
+            stageProductionKeyboardHints: !mode.hintMode && !stage.hasBeginnerStageAssist
         )
 
         let bossNow = CACurrentMediaTime()
@@ -254,7 +256,8 @@ final class SurvivalGameLoop {
         setHintSlotIndexIfChanged(Self.initialHintSlotIndex(
             slots: slots,
             hintMode: mode.hintMode,
-            beginnerAssistActive: stage.hasBeginnerStageAssist
+            beginnerAssistActive: stage.hasBeginnerStageAssist,
+            stageProductionKeyboardHints: !mode.hintMode && !stage.hasBeginnerStageAssist
         ))
 
         if isBoss {
@@ -380,8 +383,41 @@ final class SurvivalGameLoop {
 
     // MARK: - ヒント
 
-    private func currentHintTargetSlot() -> (index: Int, chord: SurvivalResolvedChord)? {
-        guard runtime.hintMode || stage.hasBeginnerStageAssist,
+    private var hintMagicBuffActive: Bool {
+        runtime.statusEffects.contains { $0.kind == .hint }
+    }
+
+    func currentKeyboardHintPendingOpacity() -> CGFloat {
+        SurvivalStaffHintOpacity.computeKeyboardHintOpacity(
+            elapsed: runtime.elapsedSeconds,
+            hintMode: runtime.hintMode,
+            hintBuffActive: hintMagicBuffActive,
+            beginnerAssistActive: stage.hasBeginnerStageAssist,
+            phase: runtime.phase
+        )
+    }
+
+    private func keyboardHintsEnabled() -> Bool {
+        if runtime.hintMode || stage.hasBeginnerStageAssist || hintMagicBuffActive {
+            return true
+        }
+        guard runtime.phase == .playing else { return false }
+        return currentKeyboardHintPendingOpacity() > 0
+    }
+
+    private func hintSlotContextEnabled(requirePendingHints: Bool) -> Bool {
+        if runtime.hintMode || stage.hasBeginnerStageAssist || hintMagicBuffActive {
+            return true
+        }
+        guard runtime.phase == .playing, currentHintSlotIndex != nil else { return false }
+        if requirePendingHints {
+            return currentKeyboardHintPendingOpacity() > 0
+        }
+        return true
+    }
+
+    private func currentHintTargetSlot(requirePendingHints: Bool = true) -> (index: Int, chord: SurvivalResolvedChord)? {
+        guard hintSlotContextEnabled(requirePendingHints: requirePendingHints),
               let idx = currentHintSlotIndex,
               runtime.slots.indices.contains(idx),
               runtime.slots[idx].isEnabled,
@@ -422,8 +458,8 @@ final class SurvivalGameLoop {
         if runtime.scenario.hideStaff {
             return []
         }
-        if isPhraseMode, (mode.hintMode || stage.hasBeginnerStageAssist),
-           let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
+        if isPhraseMode, let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
+            guard keyboardHintsEnabled() else { return [] }
             return [midi]
         }
         guard let target = currentHintTargetSlot() else { return [] }
@@ -439,7 +475,7 @@ final class SurvivalGameLoop {
         if runtime.scenario.hideStaff {
             return []
         }
-        guard let target = currentHintTargetSlot() else { return [] }
+        guard let target = currentHintTargetSlot(requirePendingHints: false) else { return [] }
         let highlights = runtime.scenario.useChordMidiNotesForHintHighlights
             ? Set(target.chord.midiNotes)
             : Self.hintHighlightMidis(from: target.chord)
@@ -465,7 +501,7 @@ final class SurvivalGameLoop {
     /// ヒント対象を「A/B のうち有効かつ反対側」へ切り替える。
     /// Progression（B のみ有効）では反対側が無効のため、トリガした側に固定する（Web 版のフォールバック相当）。
     private func advanceHintSlotIndex(triggeredIndex: Int) {
-        guard runtime.hintMode || stage.hasBeginnerStageAssist else { return }
+        guard keyboardHintsEnabled() else { return }
         guard triggeredIndex == 0 || triggeredIndex == 1 else { return }
         let preferred = triggeredIndex == 0 ? 1 : 0
         if runtime.slots.indices.contains(preferred), runtime.slots[preferred].isEnabled {
@@ -1182,7 +1218,9 @@ final class SurvivalGameLoop {
     // MARK: - ボスステージ 1 フレーム
 
     private func tickBoss(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
-        expireComboIfTimedOut(now: now)
+        if !isPhraseMode {
+            expireComboIfTimedOut(now: now)
+        }
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,

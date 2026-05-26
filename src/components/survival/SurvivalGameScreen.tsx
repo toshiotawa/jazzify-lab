@@ -157,7 +157,11 @@ import {
   SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL,
 } from '@/utils/survivalPhraseDrumLoop';
 import { buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
-import { computeUnpressedNoteOpacity } from '@/utils/survivalStaffHintOpacity';
+import {
+  applySurvivalVoicingHintsWithOpacity,
+  computeKeyboardHintOpacity,
+  computeUnpressedNoteOpacity,
+} from '@/utils/survivalStaffHintOpacity';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -463,7 +467,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     && !shouldRunStageIntroDialogue
     && !shouldRunBlockBossIntroDialogue;
   const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
-  const shouldShowKeyboardHints = hintMode || beginnerAssistActive;
   const bossType = isBossStage && stageDefinition
     ? (getBlockForStage(stageDefinition.stageNumber, stageDefinition.mapCategory)?.bossType ?? null)
     : null;
@@ -628,6 +631,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (isPhraseMode && !isBossStage) {
       initial.player.stats.hp = 1000;
       initial.player.stats.maxHp = 1000;
+    }
+    if (isPhraseMode) {
       for (let si = 0; si < 4; si += 1) {
         initial.codeSlots.current[si].isEnabled = false;
         initial.codeSlots.next[si].isEnabled = false;
@@ -637,10 +642,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const bossPlayerMaxHp = resolveBossPlayerMaxHp(isPhraseMode);
       initial.player.stats.hp = bossPlayerMaxHp;
       initial.player.stats.maxHp = bossPlayerMaxHp;
-      initial.codeSlots.current[2].isEnabled = false;
-      initial.codeSlots.current[3].isEnabled = false;
-      initial.codeSlots.next[2].isEnabled = false;
-      initial.codeSlots.next[3].isEnabled = false;
+      if (!isPhraseMode) {
+        initial.codeSlots.current[2].isEnabled = false;
+        initial.codeSlots.current[3].isEnabled = false;
+        initial.codeSlots.next[2].isEnabled = false;
+        initial.codeSlots.next[3].isEnabled = false;
+      }
     }
     // ステージモード時: HINTモードなら永続ヒントエフェクト付与
     if (isStageMode && hintMode) {
@@ -1865,6 +1872,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const newState: SurvivalGameState = {
           ...prev,
           comboCount: phraseComboAfter,
+          lastComboHitAt: prev.elapsedTime,
           enemyProjectiles: [...prev.enemyProjectiles],
           damageTexts: [...prev.damageTexts],
           enemies: [...prev.enemies],
@@ -3485,10 +3493,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
           newState.elapsedTime = prev.elapsedTime + deltaTime;
 
-          const bossComboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
-          newState.comboCount = bossComboExpired.comboCount;
-          newState.comboGauge = bossComboExpired.comboGauge;
-          newState.comboReady = bossComboExpired.comboReady;
+          if (!isPhraseMode) {
+            const bossComboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
+            newState.comboCount = bossComboExpired.comboCount;
+            newState.comboGauge = bossComboExpired.comboGauge;
+            newState.comboReady = bossComboExpired.comboReady;
+          }
 
           // プレイヤー移動
           const movedPlayerBoss = updatePlayerPosition(prev.player, combinedKeys, deltaTime, analogForMove);
@@ -4615,6 +4625,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (isPhraseMode && !isBossStage) {
       initial.player.stats.hp = 1000;
       initial.player.stats.maxHp = 1000;
+    }
+    if (isPhraseMode) {
       for (let si = 0; si < 4; si += 1) {
         initial.codeSlots.current[si].isEnabled = false;
         initial.codeSlots.next[si].isEnabled = false;
@@ -4624,10 +4636,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const bossPlayerMaxHp = resolveBossPlayerMaxHp(isPhraseMode);
       initial.player.stats.hp = bossPlayerMaxHp;
       initial.player.stats.maxHp = bossPlayerMaxHp;
-      initial.codeSlots.current[2].isEnabled = false;
-      initial.codeSlots.current[3].isEnabled = false;
-      initial.codeSlots.next[2].isEnabled = false;
-      initial.codeSlots.next[3].isEnabled = false;
+      if (!isPhraseMode) {
+        initial.codeSlots.current[2].isEnabled = false;
+        initial.codeSlots.current[3].isEnabled = false;
+        initial.codeSlots.next[2].isEnabled = false;
+        initial.codeSlots.next[3].isEnabled = false;
+      }
     }
     // ステージモード: HINTモードなら永続ヒントエフェクト付与
     if (isStageMode && hintMode) {
@@ -4758,7 +4772,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ヒントスロット判定（A/B列を交互に表示）
   const getHintSlotIndex = (): number | null => {
-    if (!shouldShowKeyboardHints && !gameState.player.statusEffects.some(e => e.type === 'hint')) {
+    if (!shouldShowKeyboardHints) {
       return null;
     }
     
@@ -4809,6 +4823,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const playerHasHintBuff =
     gameState.player.statusEffects.some(effect => effect.type === 'hint');
+
+  const shouldShowKeyboardHints =
+    hintMode
+    || beginnerAssistActive
+    || playerHasHintBuff
+    || (isStageMode && gameState.isPlaying && !gameState.isGameOver);
 
   const phraseStaffProps = useMemo(() => {
     void phraseUiTick;
@@ -4951,8 +4971,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const elapsedSecondsFloor = Math.floor(gameState.elapsedTime);
 
-  const survivalCenterStaffUnpressedNoteOpacity = useMemo(
-    () => computeUnpressedNoteOpacity(elapsedSecondsFloor, {
+  const survivalKeyboardHintOpacity = useMemo(
+    () => computeKeyboardHintOpacity(elapsedSecondsFloor, {
       hintMode,
       hintBuffActive: playerHasHintBuff,
       beginnerAssistActive,
@@ -4965,6 +4985,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       hintMode,
       playerHasHintBuff,
       beginnerAssistActive,
+      isStageMode,
+      gameState.isPlaying,
+      gameState.isGameOver,
+    ],
+  );
+
+  const survivalCenterStaffUnpressedNoteOpacity = useMemo(
+    () => computeUnpressedNoteOpacity(elapsedSecondsFloor, {
+      hintMode,
+      hintBuffActive: playerHasHintBuff,
+      beginnerAssistActive,
+      isPhraseMode,
+      isStageMode,
+      isPlaying: gameState.isPlaying,
+      isGameOver: gameState.isGameOver,
+    }),
+    [
+      elapsedSecondsFloor,
+      hintMode,
+      playerHasHintBuff,
+      beginnerAssistActive,
+      isPhraseMode,
       isStageMode,
       gameState.isPlaying,
       gameState.isGameOver,
@@ -5131,7 +5173,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         pixiRendererRef.current?.clearVoicingHints();
         return undefined;
       }
-      renderer.setVoicingHints([targetMidi], []);
+      applySurvivalVoicingHintsWithOpacity(renderer, [targetMidi], [], survivalKeyboardHintOpacity);
       return undefined;
     }
 
@@ -5193,10 +5235,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
 
-    renderer.setVoicingHints(pendingMidi, completedMidi);
+    applySurvivalVoicingHintsWithOpacity(renderer, pendingMidi, completedMidi, survivalKeyboardHintOpacity);
 
     return undefined;
-  }, [isPhraseMode, shouldShowKeyboardHints, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
+  }, [isPhraseMode, shouldShowKeyboardHints, survivalKeyboardHintOpacity, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {

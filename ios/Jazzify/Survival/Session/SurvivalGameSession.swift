@@ -62,6 +62,7 @@ final class SurvivalGameSession: ObservableObject {
             isBossStage: loop.isBossStage,
             chordPadHintMidis: loop.currentHintHighlightMidis(),
             chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
+            chordPadHintPendingOpacity: loop.currentKeyboardHintPendingOpacity(),
             chordPadScrollAnchorMidi: loop.isPhraseMode ? loop.phraseKeyboardScrollAnchorMidi : nil,
             now: now
         )
