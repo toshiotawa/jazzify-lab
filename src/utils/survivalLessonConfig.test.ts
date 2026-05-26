@@ -6,9 +6,11 @@ import {
   resolveSurvivalLessonRuntime,
 } from './survivalLessonConfig';
 import type { SurvivalLessonCompositeConfig } from '@/types';
-import { STAGE_PLAYER_MAX_HP, STAGE_TIME_LIMIT_SECONDS } from '@/components/survival/SurvivalStageDefinitions';
-import { STAGE_KILL_QUOTA } from '@/components/survival/SurvivalStageDefinitions';
+import * as survivalStageDefs from '@/components/survival/SurvivalStageDefinitions';
+import { STAGE_PLAYER_MAX_HP, STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA } from '@/components/survival/SurvivalStageDefinitions';
 import { COMPOSITE_PHRASE_NOTE_DAMAGE } from '@/utils/compositePhraseDamage';
+
+import { describe, expect, it, vi } from 'vitest';
 
 describe('survivalLessonConfig', () => {
   describe('parseNoteNameToMidi', () => {
@@ -126,6 +128,46 @@ describe('survivalLessonConfig', () => {
       expect(runtime.playerMaxHp).toBe(STAGE_PLAYER_MAX_HP);
       expect(runtime.timeLimitSec).toBe(STAGE_TIME_LIMIT_SECONDS);
       expect(runtime.killQuota).toBe(STAGE_KILL_QUOTA);
+    });
+
+    it('uses survival_stage_blocks-derived defaults via resolveBlock helpers', () => {
+      vi.spyOn(survivalStageDefs, 'survivalStageDbBalanceFor').mockReturnValue({
+        playerMaxHp: 501,
+        killQuota: 11,
+      });
+      const runtime = resolveSurvivalLessonRuntime(
+        null,
+        {
+          stageDefinition: baseStage,
+          baseConfig,
+          isBossStage: false,
+          isPhraseMode: false,
+          isCompositeBoss: false,
+          isFirstBlockBoss: false,
+        },
+      );
+      expect(runtime.playerMaxHp).toBe(501);
+      expect(runtime.killQuota).toBe(11);
+    });
+
+    it('lesson override wins when block DB exposes defaults', () => {
+      vi.spyOn(survivalStageDefs, 'survivalStageDbBalanceFor').mockReturnValue({
+        playerMaxHp: 501,
+        killQuota: 11,
+      });
+      const runtime = resolveSurvivalLessonRuntime(
+        { playerMaxHp: 910, killQuota: 33 },
+        {
+          stageDefinition: baseStage,
+          baseConfig,
+          isBossStage: false,
+          isPhraseMode: false,
+          isCompositeBoss: false,
+          isFirstBlockBoss: false,
+        },
+      );
+      expect(runtime.playerMaxHp).toBe(910);
+      expect(runtime.killQuota).toBe(33);
     });
 
     it('resolves composite damage overrides', () => {

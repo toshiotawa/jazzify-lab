@@ -204,7 +204,7 @@ enum SurvivalLessonConfig {
                     ? SurvivalConstants.phrasesBossPlayerMaxHp
                     : SurvivalConstants.bossPlayerMaxHp
             }
-            return SurvivalConstants.stagePlayerMaxHp
+            return stage.resolvedNonBossPlayerMaxHp
         }()
 
         let bgmTrimmed = overrides?.bgmUrl?.trimmingCharacters(in: .whitespacesAndNewlines)

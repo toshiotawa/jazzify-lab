@@ -1576,6 +1576,7 @@ struct LessonDetailView: View {
     @State private var attachmentActionBusyId: UUID?
     @State private var courseIsMainQuest = false
     @State private var showSubscriptionSheet = false
+    @State private var survivalCatalogPrefetchTick = 0
 
     private var locale: AppLocale { appState.locale }
     private var isPlatinumTier: Bool {
@@ -1933,6 +1934,7 @@ struct LessonDetailView: View {
             } else {
                 ForEach(Array(sortedRequirements.enumerated()), id: \.element.id) { index, requirement in
                     requirementRow(requirement, index: index)
+                        .id("\(requirement.id.uuidString)-\(survivalCatalogPrefetchTick)")
                 }
             }
         }
@@ -1992,6 +1994,10 @@ struct LessonDetailView: View {
                     .font(.caption.bold())
                     .foregroundStyle(isCompleted ? .green : .white)
                     .multilineTextAlignment(.trailing)
+            }
+
+            if let survivalInfo = survivalRequirementDisplayInfo(for: requirement) {
+                survivalRequirementInfoView(survivalInfo)
             }
 
             // 本日の進捗表示（日数課題の場合）
@@ -2395,6 +2401,7 @@ struct LessonDetailView: View {
             courseIsMainQuest = courseMeta?.isMainCourse == true
             detail = fetchedDetail
             prefetchEarTrainingStageDetails(from: fetchedDetail)
+            prefetchSurvivalCatalogIfNeeded(from: fetchedDetail)
             let rawVideos = await videosTask
             let rawAttachments = await attachmentsTask
             videos = rawVideos.filter { $0.isVisible(for: appState.locale) }
@@ -2434,6 +2441,130 @@ struct LessonDetailView: View {
         Task {
             await EarTrainingStageDetailCache.shared.preload(stageIds: stageIds)
         }
+    }
+
+    /// サバイバル課題のステージ行・ブロック DB バランスを詳細表示前に読み込む。
+    private func prefetchSurvivalCatalogIfNeeded(from lessonDetail: LessonDetail) {
+        let survivalRequirements = lessonDetail.lessonSongs.filter { song in
+            song.isSurvival == true && song.isSurvivalTutorial != true
+        }
+        guard !survivalRequirements.isEmpty else { return }
+
+        Task {
+            for requirement in survivalRequirements {
+                if SurvivalLessonConfig.lessonSongHasInlineComposite(requirement.survivalCompositeConfig) {
+                    continue
+                }
+                guard let stageNumber = requirement.survivalStageNumber else { continue }
+                let mapCategory = SurvivalMapCategory.resolveLessonMapCategory(requirement.survivalMapCategory)
+                await ensureSurvivalCatalogLoadedIfNeeded(for: mapCategory, stageNumber: stageNumber)
+            }
+            await MainActor.run {
+                survivalCatalogPrefetchTick &+= 1
+            }
+        }
+    }
+
+    private struct SurvivalRequirementDisplayInfo {
+        let stageTitle: String
+        let modeLabel: String
+        let encounterLabel: String
+        let clearCondition: String
+        let isConfigured: Bool
+    }
+
+    private func survivalRequirementDisplayInfo(for requirement: LessonSong) -> SurvivalRequirementDisplayInfo? {
+        guard requirement.isSurvival == true, requirement.isSurvivalTutorial != true else { return nil }
+
+        let hasInlineComposite = SurvivalLessonConfig.lessonSongHasInlineComposite(requirement.survivalCompositeConfig)
+
+        let stage: SurvivalStageDefinition?
+        if hasInlineComposite, let compositeConfig = requirement.survivalCompositeConfig {
+            stage = SurvivalLessonConfig.buildLessonCompositeStageDefinition(
+                title: requirement.title ?? (locale == .ja ? "複合フレーズ課題" : "Composite phrase lesson"),
+                titleEn: requirement.titleEn ?? "Composite phrase lesson",
+                config: compositeConfig
+            )
+        } else if let stageNumber = requirement.survivalStageNumber {
+            let mapCategory = SurvivalMapCategory.resolveLessonMapCategory(requirement.survivalMapCategory)
+            stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory)
+        } else {
+            stage = nil
+        }
+
+        guard let stage else {
+            return SurvivalRequirementDisplayInfo(
+                stageTitle: "",
+                modeLabel: "",
+                encounterLabel: "",
+                clearCondition: locale == .ja
+                    ? "ステージ未設定（マップと番号、または複合フレーズ設定を確認してください）"
+                    : "Stage not configured (check map/stage number or composite config).",
+                isConfigured: false
+            )
+        }
+
+        let stageTitle: String
+        if hasInlineComposite {
+            stageTitle = locale == .ja ? "レッスン複合フレーズボス" : "Composite phrase boss (lesson)"
+        } else {
+            stageTitle = "Stage \(stage.stageNumber): \(stage.localizedName(locale))"
+        }
+
+        let isBossEncounter = stage.survivalUsesCompositePhrasePattern
+            || stage.blockKey.rawValue == "lesson_composite"
+            || SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
+
+        let timeLimitSec = requirement.survivalLessonOverrides?.timeLimitSec
+            ?? Int(SurvivalConstants.stageTimeLimitSec)
+        let killQuota = requirement.survivalLessonOverrides?.killQuota
+            ?? stage.stageKillQuota
+
+        let clearCondition: String
+        if isBossEncounter {
+            clearCondition = locale == .ja ? "クリア条件: ボス撃破" : "Clear: defeat the boss"
+        } else {
+            clearCondition = locale == .ja
+                ? "\(timeLimitSec)秒生存 + \(killQuota)体撃破でクリア"
+                : "Clear: survive \(timeLimitSec)s and defeat \(killQuota) enemies"
+        }
+
+        let encounterLabel: String
+        if isBossEncounter {
+            encounterLabel = locale == .ja ? "ボス" : "Boss"
+        } else {
+            encounterLabel = stage.runPrepEncounterLabel(locale: locale)
+        }
+
+        return SurvivalRequirementDisplayInfo(
+            stageTitle: stageTitle,
+            modeLabel: stage.runPrepModeLabel(locale: locale),
+            encounterLabel: encounterLabel,
+            clearCondition: clearCondition,
+            isConfigured: true
+        )
+    }
+
+    @ViewBuilder
+    private func survivalRequirementInfoView(_ info: SurvivalRequirementDisplayInfo) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if info.isConfigured {
+                Text(info.stageTitle)
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "d1d5db"))
+                Text(
+                    (locale == .ja ? "出題" : "Mode") + ": \(info.modeLabel) · "
+                        + (locale == .ja ? "戦闘" : "Encounter") + ": \(info.encounterLabel)"
+                )
+                .font(.caption2)
+                .foregroundStyle(.gray)
+            }
+            Text(info.clearCondition)
+                .font(.caption2)
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
     }
 
     private func completeLesson() async {

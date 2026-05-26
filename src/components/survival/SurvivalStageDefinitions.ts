@@ -131,6 +131,19 @@ interface SurvivalStageBlockRow {
   label: string;
   label_en: string;
   sort_order: number;
+  /** DB `survival_stage_blocks.player_max_hp` — NULL 省略可 */
+  player_max_hp?: number | null;
+  kill_quota?: number | null;
+  boss_max_hp?: number | null;
+}
+
+/** Phrases 通常戦の初期プレイヤー HP（Basic/Songs は STAGE_PLAYER_MAX_HP）。 */
+export const PHRASES_STAGE_PLAYER_MAX_HP = 1000;
+
+export interface SurvivalStageDbBalance {
+  readonly playerMaxHp?: number;
+  readonly killQuota?: number;
+  readonly bossMaxHp?: number;
 }
 
 const BLOCK_LABELS_FROM_DB: Record<
@@ -150,10 +163,25 @@ const BLOCK_SORT_ORDER_FROM_DB: Record<SurvivalMapCategory, Map<string, number>>
   lesson: new Map(),
 };
 
+const BLOCK_BALANCE_FROM_DB: Record<SurvivalMapCategory, Record<string, SurvivalStageDbBalance>> =
+  {
+    basic: {},
+    songs: {},
+    phrases: {},
+    lesson: {},
+  };
+
+const positiveBalanceInt = (raw: unknown): number | undefined => {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined;
+  const n = Math.trunc(raw);
+  return n > 0 ? n : undefined;
+};
+
 function applySurvivalStageBlockLabels(rows: SurvivalStageBlockRow[]): void {
   for (const c of SURVIVAL_MAP_CATEGORIES) {
     BLOCK_LABELS_FROM_DB[c] = {};
     BLOCK_SORT_ORDER_FROM_DB[c].clear();
+    BLOCK_BALANCE_FROM_DB[c] = {};
   }
   for (const row of rows) {
     if (!SURVIVAL_MAP_CATEGORIES.includes(row.map_category)) continue;
@@ -162,7 +190,27 @@ function applySurvivalStageBlockLabels(rows: SurvivalStageBlockRow[]): void {
     if (!ja || !en) continue;
     BLOCK_LABELS_FROM_DB[row.map_category][row.block_key] = { ja, en };
     BLOCK_SORT_ORDER_FROM_DB[row.map_category].set(row.block_key, row.sort_order);
+
+    const ph = positiveBalanceInt(row.player_max_hp);
+    const kq = positiveBalanceInt(row.kill_quota);
+    const bh = positiveBalanceInt(row.boss_max_hp);
+    if (ph === undefined && kq === undefined && bh === undefined) continue;
+    const bal: SurvivalStageDbBalance = {
+      ...(ph !== undefined ? { playerMaxHp: ph } : {}),
+      ...(kq !== undefined ? { killQuota: kq } : {}),
+      ...(bh !== undefined ? { bossMaxHp: bh } : {}),
+    };
+    BLOCK_BALANCE_FROM_DB[row.map_category][row.block_key] = bal;
   }
+}
+
+/** DB が返したブロック単位バランス上書き（未設定フィールドなし／全 NULL の行は未定義同等）。 */
+export function survivalStageDbBalanceFor(
+  category: SurvivalMapCategory,
+  blockKey: BlockKey,
+): SurvivalStageDbBalance | undefined {
+  const b = BLOCK_BALANCE_FROM_DB[category][blockKey];
+  return b && Object.keys(b).length > 0 ? b : undefined;
 }
 
 export function resolveSurvivalBlockLabel(
@@ -194,7 +242,19 @@ function survivalStageBlockRowFromRecord(row: Record<string, unknown>): Survival
   const sortOrder = typeof sortOrderRaw === 'number' && Number.isFinite(sortOrderRaw)
     ? sortOrderRaw
     : Number.MAX_SAFE_INTEGER;
-  return { map_category: mapCategory, block_key: blockKeyRaw, label, label_en, sort_order: sortOrder };
+  const pm = positiveBalanceInt(row.player_max_hp);
+  const kq = positiveBalanceInt(row.kill_quota);
+  const bm = positiveBalanceInt(row.boss_max_hp);
+  return {
+    map_category: mapCategory,
+    block_key: blockKeyRaw,
+    label,
+    label_en,
+    sort_order: sortOrder,
+    ...(pm !== undefined ? { player_max_hp: pm } : {}),
+    ...(kq !== undefined ? { kill_quota: kq } : {}),
+    ...(bm !== undefined ? { boss_max_hp: bm } : {}),
+  };
 }
 
 /** chord_progression JSONB の正規化（不正値はスキップ） */

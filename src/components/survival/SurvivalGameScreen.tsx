@@ -75,6 +75,8 @@ import {
 } from './SurvivalGameEngine';
 import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
 import {
+  PHRASES_STAGE_PLAYER_MAX_HP,
+  STAGE_PLAYER_MAX_HP,
   STAGE_TIME_LIMIT_SECONDS,
   getSurvivalStageBattleKind,
   isBlockLastStage,
@@ -180,6 +182,10 @@ import {
   applyPlayerStatMultiplier,
   type ResolvedSurvivalLessonRuntime,
 } from '@/utils/survivalLessonConfig';
+import {
+  resolveBlockBossMaxHp,
+  resolveBlockPlayerMaxHp,
+} from '@/utils/survivalBlockBalance';
 import { parseSurvivalQuestionId } from '@/utils/survivalQuestionTypes';
 import {
   SurvivalPhraseDrumLoop,
@@ -737,9 +743,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
     const initial = createInitialGameState(difficulty, config, isStageMode);
-    if (isPhraseMode && !isBossStage) {
-      initial.player.stats.hp = 1000;
-      initial.player.stats.maxHp = 1000;
+    if (!isBossStage) {
+      const fallbackNonBossHp = stageDefinition
+        ? resolveBlockPlayerMaxHp(stageDefinition)
+        : (isPhraseMode ? PHRASES_STAGE_PLAYER_MAX_HP : STAGE_PLAYER_MAX_HP);
+      const nonBossHp = lessonRuntime?.playerMaxHp ?? fallbackNonBossHp;
+      initial.player.stats.hp = nonBossHp;
+      initial.player.stats.maxHp = nonBossHp;
     }
     if (isPhraseMode) {
       for (let si = 0; si < 4; si += 1) {
@@ -1760,7 +1770,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (isBossStage && bossType) {
       bossBattleRef.current = createBossBattleState(bossType, performance.now(), {
-        maxHp: lessonRuntime?.bossMaxHp ?? resolveBossMaxHp(isPhraseMode, { isFirstBlockBoss }),
+        maxHp: lessonRuntime?.bossMaxHp ?? (stageDefinition
+          ? resolveBlockBossMaxHp(stageDefinition)
+          : resolveBossMaxHp(isPhraseMode, { isFirstBlockBoss })),
         playerMaxHp: lessonRuntime?.playerMaxHp ?? resolveBossPlayerMaxHp(isPhraseMode),
       });
     } else {
@@ -1770,7 +1782,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
     comboClockSecRef.current = survivalComboClockSec();
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss, lessonRuntime]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss, lessonRuntime, stageDefinition]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
@@ -5098,9 +5110,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     stagePowerUpTriggeredRef.current = false;
     bossBattleRef.current = null;
     const initial = createInitialGameState(difficulty, config, isStageMode);
-    if (isPhraseMode && !isBossStage) {
-      initial.player.stats.hp = 1000;
-      initial.player.stats.maxHp = 1000;
+    if (!isBossStage) {
+      const fallbackNonBossHp = stageDefinition
+        ? resolveBlockPlayerMaxHp(stageDefinition)
+        : (isPhraseMode ? PHRASES_STAGE_PLAYER_MAX_HP : STAGE_PLAYER_MAX_HP);
+      const nonBossHp = lessonRuntime?.playerMaxHp ?? fallbackNonBossHp;
+      initial.player.stats.hp = nonBossHp;
+      initial.player.stats.maxHp = nonBossHp;
     }
     if (isPhraseMode) {
       for (let si = 0; si < 4; si += 1) {
@@ -5260,7 +5276,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
     setGameState(initial);
     startGame();
-  }, [difficulty, config, startGame, debugSettings, isStageMode, isBossStage, character, hintMode, isPhraseMode, isCompositePhraseBossStage]);
+  }, [difficulty, config, startGame, debugSettings, isStageMode, isBossStage, character, hintMode, isPhraseMode, isCompositePhraseBossStage, stageDefinition, lessonRuntime]);
   
   // ヒントスロット追跡（ローテーション用）
   const lastHintSlotRef = useRef<number>(0);

@@ -3,15 +3,13 @@
  */
 import { Note } from 'tonal';
 import type { SurvivalBossType, StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
+import { STAGE_TIME_LIMIT_SECONDS } from '@/components/survival/SurvivalStageDefinitions';
 import {
-  STAGE_PLAYER_MAX_HP,
-  STAGE_TIME_LIMIT_SECONDS,
-} from '@/components/survival/SurvivalStageDefinitions';
-import { getStageKillQuotaForStage } from '@/components/survival/survivalFirstBlockStage';
-import {
-  resolveBossMaxHp,
-  resolveBossPlayerMaxHp,
-} from '@/components/survival/boss/SurvivalBossEngine';
+  resolveBlockBossMaxHp,
+  resolveBlockKillQuota,
+  resolveBlockPlayerMaxHp,
+} from '@/utils/survivalBlockBalance';
+import { resolveBossPlayerMaxHp } from '@/components/survival/boss/SurvivalBossEngine';
 import {
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY,
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT,
@@ -171,12 +169,12 @@ export const resolveSurvivalLessonRuntime = (
   overrides: SurvivalLessonOverrides | null | undefined,
   ctx: ResolveSurvivalLessonRuntimeContext,
 ): ResolvedSurvivalLessonRuntime => {
-  const { stageDefinition, baseConfig, isBossStage, isPhraseMode, isCompositeBoss, isFirstBlockBoss } = ctx;
+  const { stageDefinition, baseConfig, isBossStage, isPhraseMode, isCompositeBoss } = ctx;
 
-  const defaultBossHp = resolveBossMaxHp(isPhraseMode, { isFirstBlockBoss });
+  const defaultBossHp = resolveBlockBossMaxHp(stageDefinition);
   const defaultPlayerHp = isBossStage
     ? resolveBossPlayerMaxHp(isPhraseMode)
-    : STAGE_PLAYER_MAX_HP;
+    : resolveBlockPlayerMaxHp(stageDefinition);
 
   const bgmTrimmed = overrides?.bgmUrl?.trim();
   const bgmUrl = bgmTrimmed && bgmTrimmed.length > 0 ? bgmTrimmed : null;
@@ -186,7 +184,7 @@ export const resolveSurvivalLessonRuntime = (
     playerMaxHp: positiveInt(overrides?.playerMaxHp) ?? defaultPlayerHp,
     bgmUrl,
     timeLimitSec: positiveInt(overrides?.timeLimitSec) ?? STAGE_TIME_LIMIT_SECONDS,
-    killQuota: positiveInt(overrides?.killQuota) ?? getStageKillQuotaForStage(stageDefinition),
+    killQuota: positiveInt(overrides?.killQuota) ?? resolveBlockKillQuota(stageDefinition),
     enemyStatMultiplier: positiveNumber(overrides?.enemyStatMultiplier) ?? baseConfig.enemyStatMultiplier,
     playerStatMultiplier: positiveNumber(overrides?.playerStatMultiplier) ?? 1,
     compositeDamage: isCompositeBoss

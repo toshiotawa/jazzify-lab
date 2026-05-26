@@ -1,5 +1,7 @@
+import { resolveBlockKillQuota } from '@/utils/survivalBlockBalance';
 import { getBlockForStage } from './descent/descentBlocks';
 import {
+  getStageByNumber,
   isBlockLastStage,
   STAGE_FIRST_BLOCK_KILL_QUOTA,
   STAGE_KILL_QUOTA,
@@ -24,13 +26,15 @@ export function getStageKillQuota(
   stageNumber: number,
   mapCategory: SurvivalMapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
 ): number {
+  const stage = getStageByNumber(stageNumber, mapCategory);
+  if (stage) return resolveBlockKillQuota(stage);
   return isFirstBlockRegularStage(stageNumber, mapCategory)
     ? STAGE_FIRST_BLOCK_KILL_QUOTA
     : STAGE_KILL_QUOTA;
 }
 
 export function getStageKillQuotaForStage(stage: StageDefinition): number {
-  return getStageKillQuota(stage.stageNumber, stage.mapCategory);
+  return resolveBlockKillQuota(stage);
 }
 
 /** 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロックステージ（ボス戦を含む）。 */

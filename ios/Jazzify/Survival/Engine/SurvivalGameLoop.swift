@@ -187,6 +187,10 @@ final class SurvivalGameLoop {
                 stats: player.stats,
                 multiplier: runtime.playerStatMultiplier
             )
+        } else if !isBoss {
+            let nbHp = stage.resolvedNonBossPlayerMaxHp
+            player.hp = nbHp
+            player.maxHp = nbHp
         }
 
         self.runtime = SurvivalStageRuntime(
@@ -221,8 +225,6 @@ final class SurvivalGameLoop {
         self.bossBattle = initialBoss
 
         if isPhraseMode, !isBoss {
-            runtime.player.hp = 1000
-            runtime.player.maxHp = 1000
             for idx in runtime.slots.indices {
                 runtime.slots[idx].isEnabled = false
             }
@@ -332,6 +334,10 @@ final class SurvivalGameLoop {
                 stats: player.stats,
                 multiplier: runtime.playerStatMultiplier
             )
+        } else if !isBoss {
+            let nbHp = stage.resolvedNonBossPlayerMaxHp
+            player.hp = nbHp
+            player.maxHp = nbHp
         }
         runtime = SurvivalStageRuntime(
             stage: stage,
@@ -359,6 +365,12 @@ final class SurvivalGameLoop {
             )
         } else {
             bossBattle = nil
+        }
+
+        if stage.mapCategory == .phrases, !isBoss {
+            for idx in runtime.slots.indices {
+                runtime.slots[idx].isEnabled = false
+            }
         }
 
         lastNow = CACurrentMediaTime()

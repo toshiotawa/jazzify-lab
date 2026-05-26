@@ -49,6 +49,8 @@ enum SurvivalConstants {
     static let bossPlayerMaxHp: Int = 1000
     /// Phrases ボス戦のプレイヤー HP
     static let phrasesBossPlayerMaxHp: Int = 5000
+    /// Phrases 通常戦のプレイヤー初期 HP（Web `PHRASES_STAGE_PLAYER_MAX_HP`）
+    static let phrasesStagePlayerMaxHp: Int = 1000
     /// 通常ステージ（非 Phrases・非ボス）のプレイヤー初期 HP
     static let stagePlayerMaxHp: Int = 800
     /// ボス HP 上限

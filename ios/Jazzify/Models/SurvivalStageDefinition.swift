@@ -213,6 +213,9 @@ struct SurvivalStageBlockRow: Decodable, Sendable {
     let label: String
     let label_en: String
     let sort_order: Int?
+    let player_max_hp: Int?
+    let kill_quota: Int?
+    let boss_max_hp: Int?
 }
 
 /// `survival_composite_phrase_stages` 1 行（Web の composite stage fetch と同列）。
@@ -339,6 +342,35 @@ enum SurvivalStageCatalog {
         .songs: [],
         .phrases: []
     ]
+
+    /// `survival_stage_blocks` のブロック単位バランス上書き（Web `survivalStageDbBalanceFor` 相当）。
+    fileprivate struct BlockDbBalance: Sendable {
+        let playerMaxHp: Int?
+        let killQuota: Int?
+        let bossMaxHp: Int?
+    }
+
+    nonisolated(unsafe) private static var _blockBalanceByCategory: [SurvivalMapCategory: [SurvivalBlockKey: BlockDbBalance]] = [
+        .basic: [:],
+        .songs: [:],
+        .phrases: [:],
+        .lesson: [:]
+    ]
+
+    fileprivate static func blockDbKillQuota(for blockKey: SurvivalBlockKey, in category: SurvivalMapCategory) -> Int? {
+        guard let q = _blockBalanceByCategory[category]?[blockKey]?.killQuota else { return nil }
+        return q > 0 ? q : nil
+    }
+
+    fileprivate static func blockDbPlayerMaxHp(for blockKey: SurvivalBlockKey, in category: SurvivalMapCategory) -> Int? {
+        guard let h = _blockBalanceByCategory[category]?[blockKey]?.playerMaxHp else { return nil }
+        return h > 0 ? h : nil
+    }
+
+    fileprivate static func blockDbBossMaxHp(for blockKey: SurvivalBlockKey, in category: SurvivalMapCategory) -> Int? {
+        guard let h = _blockBalanceByCategory[category]?[blockKey]?.bossMaxHp else { return nil }
+        return h > 0 ? h : nil
+    }
 
     /// `chord_progression` の `voicing_names` が `voicing` と同じ長さのときだけ採用。
     private static func sanitizedProgressionVoicingNames(_ raw: [String]?, voicingCount: Int) -> [String]? {
@@ -519,6 +551,7 @@ enum SurvivalStageCatalog {
         compositeSourceRows: [SurvivalCompositePhraseSourceRow] = []
     ) {
         let blockOverridesByCategory = Self.blockOverrides(from: blockLabelRows)
+        Self.ingestBlockBalances(from: blockLabelRows)
         let mixedConfigs: [MixedGroupKey: MixedGroupConfig] = [
             .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: "minor"),
             .normalA: MixedGroupConfig(suffixes: ["M7", "m7", "7", "m7b5"], difficulty: .easy, blockKey: "m7b5"),
@@ -630,6 +663,30 @@ enum SurvivalStageCatalog {
 
         _stagesByCategory = stagesByCategory
         _blocksByCategory = blocksByCategory
+    }
+
+    private static func ingestBlockBalances(from rows: [SurvivalStageBlockRow]) {
+        var next: [SurvivalMapCategory: [SurvivalBlockKey: BlockDbBalance]] = [:]
+        for category in SurvivalMapCategory.allCases {
+            next[category] = [:]
+        }
+        for row in rows {
+            let catRaw = row.map_category.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let category = SurvivalMapCategory(rawValue: catRaw) else { continue }
+            let keyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !keyRaw.isEmpty else { continue }
+            let blockKey = SurvivalBlockKey(rawValue: keyRaw)
+            let ja = row.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let en = row.label_en.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !ja.isEmpty, !en.isEmpty else { continue }
+
+            let pm = row.player_max_hp.flatMap { $0 > 0 ? $0 : nil }
+            let kq = row.kill_quota.flatMap { $0 > 0 ? $0 : nil }
+            let bm = row.boss_max_hp.flatMap { $0 > 0 ? $0 : nil }
+            guard pm != nil || kq != nil || bm != nil else { continue }
+            next[category, default: [:]][blockKey] = BlockDbBalance(playerMaxHp: pm, killQuota: kq, bossMaxHp: bm)
+        }
+        _blockBalanceByCategory = next
     }
 
     fileprivate struct BlockOverride: Sendable {
@@ -907,11 +964,24 @@ extension SurvivalStageDefinition {
         return block.blockIndex == 0
     }
 
-    /// ステージごとの撃破ノルマ（第一ブロック通常は 10、それ以外は 150）。
+    /// ステージごとの撃破ノルマ（第一ブロック通常は 10、それ以外は 150、DB 上書き優先）。
     var stageKillQuota: Int {
-        isFirstBlockRegularStage
+        if let db = SurvivalStageCatalog.blockDbKillQuota(for: blockKey, in: mapCategory) {
+            return db
+        }
+        return isFirstBlockRegularStage
             ? SurvivalConstants.stageFirstBlockEnemyQuota
             : SurvivalConstants.stageEnemyQuota
+    }
+
+    /// 通常戦プレイヤー初期 HP（Phrases 既定 1000、DB 上書き優先）。
+    var resolvedNonBossPlayerMaxHp: Int {
+        if let db = SurvivalStageCatalog.blockDbPlayerMaxHp(for: blockKey, in: mapCategory) {
+            return db
+        }
+        return mapCategory == .phrases
+            ? SurvivalConstants.phrasesStagePlayerMaxHp
+            : SurvivalConstants.stagePlayerMaxHp
     }
 
     /// 挑戦（本番）でも鍵盤ハイライト・譜面音符を維持する第一ブロックステージ（ボス戦を含む）。
@@ -933,8 +1003,11 @@ extension SurvivalStageDefinition {
         return block.blockIndex == 0
     }
 
-    /// ボス戦 HP（第一ブロックは 7000、Phrases それ以外は x5、通常 15000）。
+    /// ボス戦 HP（第一ブロックは 7000、Phrases それ以外は x5、通常 15000、DB 上書き優先）。
     var resolvedBossMaxHp: Int {
+        if let db = SurvivalStageCatalog.blockDbBossMaxHp(for: blockKey, in: mapCategory) {
+            return db
+        }
         if isFirstBlockBossStage {
             return SurvivalConstants.firstBlockBossMaxHp
         }

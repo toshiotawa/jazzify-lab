@@ -78,6 +78,7 @@ import {
   buildLessonCompositeStageDefinition,
   lessonSongHasInlineComposite,
 } from '@/utils/survivalLessonConfig';
+import { getStageKillQuotaForStage } from '@/components/survival/survivalFirstBlockStage';
 
 /**
  * レッスン詳細画面
@@ -730,7 +731,8 @@ const LessonDetailPage: React.FC = () => {
                               || formatSurvivalEncounterLabel(stageDef, isEnglishCopy) === (isEnglishCopy ? 'Boss' : 'ボス'))
                             : false;
                           const timeLimitSec = req.survival_lesson_overrides?.timeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
-                          const killQuota = req.survival_lesson_overrides?.killQuota ?? STAGE_KILL_QUOTA;
+                          const killQuota = req.survival_lesson_overrides?.killQuota
+                            ?? (stageDef ? getStageKillQuotaForStage(stageDef) : STAGE_KILL_QUOTA);
                           return (
                             <div className="mb-3 text-sm">
                               {stageDef ? (
