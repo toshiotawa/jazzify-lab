@@ -120,6 +120,7 @@ import {
   clampPhraseOutgoingDamage,
   PHRASE_EARLY_COMBO_CAP_UNTIL,
   PHRASE_EARLY_COMBO_DAMAGE_CAP,
+  shouldFirePhrasePlayerAttacks,
 } from './phrases/survivalPhraseComboDamageCap';
 import {
   INACTIVE_SCENARIO_OVERRIDES,
@@ -1856,132 +1857,131 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
 
         const phraseComboAfter = prev.comboCount + 1;
+        const firePlayerCombat = shouldFirePhrasePlayerAttacks(phraseComboAfter);
         const capPhraseDmg = (raw: number): number => clampPhraseOutgoingDamage(phraseComboAfter, raw);
         const phraseJajiiCap =
           phraseComboAfter <= PHRASE_EARLY_COMBO_CAP_UNTIL ? PHRASE_EARLY_COMBO_DAMAGE_CAP : undefined;
 
-        const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
-        const newProjectiles = createAProjectilesFromPlayer(
-          prev.player,
-          capPhraseDmg(calculateAProjectileDamage(prev.player.stats.aAtk)),
-          attackInstanceId,
-        );
-
         const newState: SurvivalGameState = {
           ...prev,
           comboCount: phraseComboAfter,
-          projectiles: [...prev.projectiles, ...newProjectiles],
           enemyProjectiles: [...prev.enemyProjectiles],
           damageTexts: [...prev.damageTexts],
           enemies: [...prev.enemies],
         };
 
-        if (evaluation.result === 'measure-complete') {
-          const baseRange = 80;
-          const bonusRange = prev.player.skills.bRangeBonus * 20;
-          const totalRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER;
-          const attackX = prev.player.x;
-          const attackY = prev.player.y;
-          pendingShockwavesRef.current.push({
-            id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            x: attackX,
-            y: attackY,
-            radius: 0,
-            maxRadius: totalRange,
-            startTime: Date.now(),
-            duration: SHOCKWAVE_DURATION,
-            direction: prev.player.direction,
-            color: '#f9d332',
-            isSpecial: true,
-          });
-          newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
-            const dx = proj.x - attackX;
-            const dy = proj.y - attackY;
-            return Math.sqrt(dx * dx + dy * dy) >= totalRange;
-          });
-          const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-          if (isBossStage && bossBattleRef.current?.active) {
-            const condMultBoss = getConditionalSkillMultipliers(prev.player);
-            let bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
-            bossDamage = capPhraseDmg(bossDamage);
-            const meleeRes = applyPlayerMeleeToBossBattle(
-              bossBattleRef.current,
-              attackX,
-              attackY,
-              totalRange,
-              bossDamage,
-              prev.player.x,
-              prev.player.y,
-              true,
-            );
-            if (meleeRes.bossDamage > 0) {
-              newState.damageTexts = [...newState.damageTexts, createDamageText(
-                bossBattleRef.current.boss.x,
-                bossBattleRef.current.boss.y - 30,
-                meleeRes.bossDamage,
-                false,
-              )];
-            }
-            for (const m of meleeRes.minionKills) {
-              newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
-            }
-            if (meleeRes.drops.length > 0) {
-              newState.items = [...newState.items, ...meleeRes.drops];
-            }
-          }
-          newState.enemies = newState.enemies.map((enemy) => {
-            const dx = enemy.x - attackX;
-            const dy = enemy.y - attackY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < totalRange) {
-              const condMultB = getConditionalSkillMultipliers(prev.player);
-              const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
-              const luckResultB = checkLuck(prev.player.stats.luck);
-              let damage = calculateDamage(
-                baseBDamage, 0, enemy.stats.def,
-                prev.player.statusEffects.some((e) => e.type === 'buffer'),
-                enemy.statusEffects.some((e) => e.type === 'debuffer'),
-                getBufferLevel(prev.player.statusEffects),
-                getDebufferLevel(enemy.statusEffects),
-                prev.player.stats.cAtk,
-                luckResultB.doubleDamage,
+        if (firePlayerCombat) {
+          const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
+          const newProjectiles = createAProjectilesFromPlayer(
+            prev.player,
+            capPhraseDmg(calculateAProjectileDamage(prev.player.stats.aAtk)),
+            attackInstanceId,
+          );
+          newState.projectiles = [...prev.projectiles, ...newProjectiles];
+
+          if (evaluation.result === 'measure-complete') {
+            const baseRange = 80;
+            const bonusRange = prev.player.skills.bRangeBonus * 20;
+            const totalRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER;
+            const attackX = prev.player.x;
+            const attackY = prev.player.y;
+            pendingShockwavesRef.current.push({
+              id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              x: attackX,
+              y: attackY,
+              radius: 0,
+              maxRadius: totalRange,
+              startTime: Date.now(),
+              duration: SHOCKWAVE_DURATION,
+              direction: prev.player.direction,
+              color: '#f9d332',
+              isSpecial: true,
+            });
+            newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
+              const dx = proj.x - attackX;
+              const dy = proj.y - attackY;
+              return Math.sqrt(dx * dx + dy * dy) >= totalRange;
+            });
+            const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+            if (isBossStage && bossBattleRef.current?.active) {
+              const condMultBoss = getConditionalSkillMultipliers(prev.player);
+              let bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+              bossDamage = capPhraseDmg(bossDamage);
+              const meleeRes = applyPlayerMeleeToBossBattle(
+                bossBattleRef.current,
+                attackX,
+                attackY,
+                totalRange,
+                bossDamage,
+                prev.player.x,
+                prev.player.y,
+                true,
               );
-              damage = capPhraseDmg(damage);
-              const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
-              const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
-              newState.damageTexts = [...newState.damageTexts, createDamageText(
-                enemy.x, enemy.y, damage,
-                luckResultB.doubleDamage,
-                luckResultB.doubleDamage ? '#ffd700' : undefined,
-              )];
-              return {
-                ...enemy,
-                stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
-                knockbackVelocity: { x: knockbackX, y: knockbackY },
-              };
+              if (meleeRes.bossDamage > 0) {
+                newState.damageTexts = [...newState.damageTexts, createDamageText(
+                  bossBattleRef.current.boss.x,
+                  bossBattleRef.current.boss.y - 30,
+                  meleeRes.bossDamage,
+                  false,
+                )];
+              }
+              for (const m of meleeRes.minionKills) {
+                newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
+              }
+              if (meleeRes.drops.length > 0) {
+                newState.items = [...newState.items, ...meleeRes.drops];
+              }
             }
-            return enemy;
-          });
+            newState.enemies = newState.enemies.map((enemy) => {
+              const dx = enemy.x - attackX;
+              const dy = enemy.y - attackY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < totalRange) {
+                const condMultB = getConditionalSkillMultipliers(prev.player);
+                const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
+                const luckResultB = checkLuck(prev.player.stats.luck);
+                let damage = calculateDamage(
+                  baseBDamage, 0, enemy.stats.def,
+                  prev.player.statusEffects.some((e) => e.type === 'buffer'),
+                  enemy.statusEffects.some((e) => e.type === 'debuffer'),
+                  getBufferLevel(prev.player.statusEffects),
+                  getDebufferLevel(enemy.statusEffects),
+                  prev.player.stats.cAtk,
+                  luckResultB.doubleDamage,
+                );
+                damage = capPhraseDmg(damage);
+                const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+                const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+                newState.damageTexts = [...newState.damageTexts, createDamageText(
+                  enemy.x, enemy.y, damage,
+                  luckResultB.doubleDamage,
+                  luckResultB.doubleDamage ? '#ffd700' : undefined,
+                )];
+                return {
+                  ...enemy,
+                  stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
+                  knockbackVelocity: { x: knockbackX, y: knockbackY },
+                };
+              }
+              return enemy;
+            });
+          }
         }
 
-        if (jajiiEnabled && jajiiStateRef.current) {
-          if (evaluation.result === 'measure-complete') {
-            const jp = getJajiiWorldPosition(jajiiStateRef.current);
-            applyJajiiGaugeSpecialAtWorld({
-              draft: newState,
-              jajiiX: jp.x,
-              jajiiY: jp.y,
-              radiusMultiplier: 1,
-              isBossStage,
-              bossBattle: bossBattleRef.current,
-              queueShockwave: (w) => {
-                pendingShockwavesRef.current.push(w);
-              },
-              maxOutgoingDamagePerHit: phraseJajiiCap,
-            });
-          } else {
-            tryScheduleMiniSpecial(jajiiStateRef.current, prev.elapsedTime);
-          }
+        if (jajiiEnabled && jajiiStateRef.current && evaluation.result === 'measure-complete') {
+          const jp = getJajiiWorldPosition(jajiiStateRef.current);
+          applyJajiiGaugeSpecialAtWorld({
+            draft: newState,
+            jajiiX: jp.x,
+            jajiiY: jp.y,
+            radiusMultiplier: 1,
+            isBossStage,
+            bossBattle: bossBattleRef.current,
+            queueShockwave: (w) => {
+              pendingShockwavesRef.current.push(w);
+            },
+            maxOutgoingDamagePerHit: phraseJajiiCap,
+          });
         }
 
         return newState;
@@ -3658,7 +3658,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
             const pos = getJajiiWorldPosition(jst);
             jajiiWorldPosRef.current = pos;
-            if (consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
+            if (!isPhraseMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
               applyJajiiGaugeSpecialAtWorld({
                 draft: newState,
                 jajiiX: pos.x,
@@ -3762,7 +3762,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
           const pos = getJajiiWorldPosition(jst);
           jajiiWorldPosRef.current = pos;
-          if (consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
+          if (!isPhraseMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
             applyJajiiGaugeSpecialAtWorld({
               draft: newState,
               jajiiX: pos.x,

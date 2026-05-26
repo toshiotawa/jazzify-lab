@@ -123,13 +123,20 @@ enum SurvivalPhraseKeyboardScroll {
         return maxValue
     }
 
+    /// フレーズ最高音が右端に来るとタップしづらいため、白鍵1つ分だけ右端を空ける。
+    private static let trailingInsetWhiteKeys = 1
+
     static func scrollAnchorWhiteMidi(maxPhraseMidi: Int, firstMidi: Int = 21, lastMidi: Int = 108) -> Int {
-        let targetHigh = min(lastMidi, max(firstMidi, maxPhraseMidi + 1))
-        var m = targetHigh
-        while m >= firstMidi, isBlackKey(m) {
-            m -= 1
+        let whites = (firstMidi...lastMidi).filter { !isBlackKey($0) }
+        guard !whites.isEmpty else {
+            return max(firstMidi, min(lastMidi, maxPhraseMidi))
         }
-        return max(firstMidi, m)
+        var highestWhiteIndex = 0
+        for (index, midi) in whites.enumerated() where midi <= maxPhraseMidi {
+            highestWhiteIndex = index
+        }
+        let anchorIndex = min(highestWhiteIndex + trailingInsetWhiteKeys, whites.count - 1)
+        return whites[anchorIndex]
     }
 }
 
@@ -138,6 +145,11 @@ enum SurvivalPhraseKeyboardScroll {
 enum SurvivalPhraseComboDamageCap {
     static let earlyUntilCombo = 5
     static let maxOutgoingDamagePerHit = 50
+
+    /// フレーズ序盤（1〜5コンボ）はプレイヤー攻撃自体を出さない。6コンボ目から発生。
+    static func shouldFirePlayerAttacks(comboCount: Int) -> Bool {
+        comboCount > earlyUntilCombo
+    }
 
     static func clampOutgoing(rawDamage: Int, isPhraseMode: Bool, comboCount: Int) -> Int {
         guard isPhraseMode, comboCount <= earlyUntilCombo else { return rawDamage }

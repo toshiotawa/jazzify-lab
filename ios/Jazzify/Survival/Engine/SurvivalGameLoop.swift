@@ -350,7 +350,7 @@ final class SurvivalGameLoop {
         )
         let firedMini = SurvivalJajiiEngine.consumeDueMiniSpecialIfDue(&jajii, nowSec: elapsedSec)
         runtime.jajii = jajii
-        if firedMini {
+        if firedMini, !isPhraseMode {
             appendJajiiMiniSpecial(effectiveBAtk: effectiveBAtk, now: now)
         }
     }
@@ -582,38 +582,45 @@ final class SurvivalGameLoop {
     }
 
     private func firePhraseCombat(measureComplete: Bool) -> [SurvivalFrameEvent] {
-        var events: [SurvivalFrameEvent] = []
+        let events: [SurvivalFrameEvent] = []
         let now = CACurrentMediaTime()
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
             base: runtime.player.stats,
             effects: runtime.statusEffects
         )
-        let attackInstanceId = isBossStage ? UUID() : nil
-        var projectiles = SurvivalGameEngine.createAProjectiles(
-            from: runtime.player,
-            effectiveAAtk: effectiveStats.aAtk,
-            attackInstanceId: attackInstanceId
+        let firePlayerCombat = SurvivalPhraseComboDamageCap.shouldFirePlayerAttacks(
+            comboCount: runtime.comboCount
         )
-        if isPhraseMode {
-            for idx in projectiles.indices {
-                projectiles[idx].damage = clampPhraseOutgoingDamageIfNeeded(raw: projectiles[idx].damage)
+
+        if firePlayerCombat {
+            let attackInstanceId = isBossStage ? UUID() : nil
+            var projectiles = SurvivalGameEngine.createAProjectiles(
+                from: runtime.player,
+                effectiveAAtk: effectiveStats.aAtk,
+                attackInstanceId: attackInstanceId
+            )
+            if isPhraseMode {
+                for idx in projectiles.indices {
+                    projectiles[idx].damage = clampPhraseOutgoingDamageIfNeeded(raw: projectiles[idx].damage)
+                }
+            }
+            runtime.projectiles.append(contentsOf: projectiles)
+
+            if measureComplete {
+                let wave = SurvivalGameEngine.createSpecialShockwave(
+                    from: runtime.player,
+                    effectiveBAtk: effectiveStats.bAtk,
+                    now: now,
+                    suppressCameraShake: true
+                )
+                runtime.shockwaves.append(wave)
+                capLastPhraseShockwaveOutgoingDamageIfNeeded()
             }
         }
-        runtime.projectiles.append(contentsOf: projectiles)
 
         if measureComplete {
-            let wave = SurvivalGameEngine.createSpecialShockwave(
-                from: runtime.player,
-                effectiveBAtk: effectiveStats.bAtk,
-                now: now,
-                suppressCameraShake: true
-            )
-            runtime.shockwaves.append(wave)
-            capLastPhraseShockwaveOutgoingDamageIfNeeded()
             appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
             capLastPhraseShockwaveOutgoingDamageIfNeeded()
-        } else {
-            scheduleJajiiMiniIfNeeded()
         }
         return events
     }
