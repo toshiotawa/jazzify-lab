@@ -31,12 +31,34 @@ enum SurvivalStageIntroBundledPayloads {
         Double(SurvivalTutorialV3Constants.dialogueLineSeconds)
 
     private static func line(_ at: Double, ja: String, en: String) -> SurvivalStageIntroLinePayload {
+        line(at, speaker: nil, ja: ja, en: en)
+    }
+
+    private static func line(
+        _ at: Double,
+        speaker: SurvivalStageIntroSpeaker?,
+        ja: String,
+        en: String
+    ) -> SurvivalStageIntroLinePayload {
         SurvivalStageIntroLinePayload(
             atSeconds: at,
             text: SurvivalStageIntroLocalizedTextPayload(ja: ja, en: en),
-            speaker: nil
+            speaker: speaker
         )
     }
+
+    private static let jajiiGreeting = line(
+        4,
+        speaker: .jajii,
+        ja: "大魔導師、ジャ爺もいるぞい。",
+        en: "Grand Archmage, Old Man Jajii is here too."
+    )
+
+    private static let octaveOk = line(
+        24,
+        ja: "オクターブ違いもOK。",
+        en: "Octave differences are OK too."
+    )
 
     static func payload(for category: SurvivalMapCategory) -> SurvivalStageIntroScriptPayload {
         switch category {
@@ -57,6 +79,7 @@ enum SurvivalStageIntroBundledPayloads {
             lineDurationSeconds: lineDuration,
             lines: [
                 line(2, ja: "また会ったね、ファイだよ。", en: "Hey again — it's Fai."),
+                jajiiGreeting,
                 courseLine,
                 line(10, ja: "ブロックごとの最終ステージにボスがいるよ。", en: "Each block ends with a boss stage."),
                 line(
@@ -66,6 +89,7 @@ enum SurvivalStageIntroBundledPayloads {
                 ),
                 line(18, ja: "バーチャルスティックで移動しよう。", en: "Move with the virtual stick."),
                 line(22, ja: "光っている鍵盤の色を演奏しよう。", en: "Play the highlighted key colors on the keyboard."),
+                octaveOk,
                 line(
                     26,
                     ja: "正解したら緑色になるよ。（正解したら次の音へ）",
@@ -112,6 +136,7 @@ enum SurvivalStageIntroBundledPayloads {
             lineDurationSeconds: lineDuration,
             lines: [
                 line(2, ja: "また会ったね、ファイだよ。", en: "Hey again — it's Fai."),
+                jajiiGreeting,
                 line(
                     6,
                     ja: "ここは Phrases コース。小節ごとにコードを演奏するフレーズモードだよ。",
@@ -125,6 +150,7 @@ enum SurvivalStageIntroBundledPayloads {
                 ),
                 line(18, ja: "バーチャルスティックで移動しよう。", en: "Move with the virtual stick."),
                 line(22, ja: "光っている鍵盤の色を演奏しよう。", en: "Play the highlighted key colors on the keyboard."),
+                octaveOk,
                 line(
                     26,
                     ja: "小節が弾けると強い攻撃が発動するよ。",

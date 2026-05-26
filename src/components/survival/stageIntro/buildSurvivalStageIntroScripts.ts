@@ -12,6 +12,20 @@ const OPENING: SurvivalStageIntroLine = {
   text: { ja: 'また会ったね、ファイだよ。', en: "Hey again — it's Fai." },
 };
 
+const JAJII_GREETING: SurvivalStageIntroLine = {
+  atSeconds: 4,
+  speaker: 'jajii',
+  text: {
+    ja: '大魔導師、ジャ爺もいるぞい。',
+    en: 'Grand Archmage, Old Man Jajii is here too.',
+  },
+};
+
+const OCTAVE_OK: SurvivalStageIntroLine = {
+  atSeconds: 24,
+  text: { ja: 'オクターブ違いもOK。', en: 'Octave differences are OK too.' },
+};
+
 const BLOCK_BOSS: SurvivalStageIntroLine = {
   atSeconds: 10,
   text: {
@@ -125,11 +139,13 @@ export const buildBundledSurvivalStageIntroScript = (
       lineDurationSeconds: LINE_DURATION,
       lines: [
         OPENING,
+        JAJII_GREETING,
         phrasesCourse,
         BLOCK_BOSS,
         HINT_MODE,
         STICK,
         KEYBOARD_HINT,
+        OCTAVE_OK,
         PHRASE_ATTACK,
         CLEAR_90_PHR,
         CLOSING_PHR,
@@ -141,11 +157,13 @@ export const buildBundledSurvivalStageIntroScript = (
     lineDurationSeconds: LINE_DURATION,
     lines: [
       OPENING,
+      JAJII_GREETING,
       course,
       BLOCK_BOSS,
       HINT_MODE,
       STICK,
       KEYBOARD_HINT,
+      OCTAVE_OK,
       CORRECT_GREEN,
       COMBO_BUILD,
       COMBO_MAX,
