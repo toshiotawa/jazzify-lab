@@ -1971,10 +1971,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
 
-    if (isPhraseMode && !acceptPhraseNoteOn(phraseActivePitchClassesRef.current, note)) {
-      return;
-    }
-
     setGameState(prev => {
       // ゲームオーバーまたはポーズ中は何もしない
       if (prev.isGameOver || prev.isPaused) return prev;
@@ -1990,6 +1986,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
       if (isPhraseMode && isCompositePhraseBossStage && compositePhraseRuntimeRef.current) {
         const noteMod12 = ((note % 12) + 12) % 12;
+        if (!acceptPhraseNoteOn(phraseActivePitchClassesRef.current, noteMod12)) {
+          return prev;
+        }
         const curComposite = compositePhraseRuntimeRef.current;
         const repeatCompareLast = curComposite.lastCompletedSourceStageNumber;
         const evaluation = evaluateCompositePhraseNoteOn(curComposite, noteMod12);
@@ -2000,6 +1999,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         syncPhraseInputGateAfterEvaluation(
           phraseActivePitchClassesRef.current,
           evaluation.result,
+          noteMod12,
         );
 
         if (evaluation.result === 'miss') {
@@ -2174,6 +2174,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
       if (isPhraseMode && phraseStateRef.current) {
         const noteMod12 = ((note % 12) + 12) % 12;
+        if (!acceptPhraseNoteOn(phraseActivePitchClassesRef.current, noteMod12)) {
+          return prev;
+        }
         const evaluation = evaluatePhraseNoteOn(phraseStateRef.current, noteMod12);
         phraseStateRef.current = evaluation.nextState;
 
@@ -2190,6 +2193,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         syncPhraseInputGateAfterEvaluation(
           phraseActivePitchClassesRef.current,
           evaluation.result,
+          noteMod12,
         );
 
         if (evaluation.result === 'miss') {

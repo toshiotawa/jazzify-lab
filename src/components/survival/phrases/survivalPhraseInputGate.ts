@@ -37,6 +37,7 @@ type SurvivalPhraseEvaluationGateSyncResult =
 export const syncPhraseInputGateAfterEvaluation = (
   activeHeldPitchClasses: Set<number>,
   result: SurvivalPhraseEvaluationGateSyncResult,
+  playedPitchClass: number,
 ): void => {
   if (
     result === 'miss'
@@ -44,5 +45,8 @@ export const syncPhraseInputGateAfterEvaluation = (
     || result === 'phrase-complete'
   ) {
     resetPhraseNoteGate(activeHeldPitchClasses);
+    return;
   }
+  // 正解で次ノートへ進んだら当該 PC を gate から外し、同一小節内の再入力（E…E 等）を許可
+  releasePhraseNote(activeHeldPitchClasses, playedPitchClass);
 };
