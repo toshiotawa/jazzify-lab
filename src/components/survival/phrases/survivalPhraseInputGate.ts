@@ -26,3 +26,23 @@ export const releasePhraseNote = (
 export const resetPhraseNoteGate = (activeHeldPitchClasses: Set<number>): void => {
   activeHeldPitchClasses.clear();
 };
+
+/** 評価後ゲート同期: 小節／フレーズ境界とミスでクリアし、progress では held 重複抑制を維持 */
+type SurvivalPhraseEvaluationGateSyncResult =
+  | 'progress'
+  | 'measure-complete'
+  | 'phrase-complete'
+  | 'miss';
+
+export const syncPhraseInputGateAfterEvaluation = (
+  activeHeldPitchClasses: Set<number>,
+  result: SurvivalPhraseEvaluationGateSyncResult,
+): void => {
+  if (
+    result === 'miss'
+    || result === 'measure-complete'
+    || result === 'phrase-complete'
+  ) {
+    resetPhraseNoteGate(activeHeldPitchClasses);
+  }
+};

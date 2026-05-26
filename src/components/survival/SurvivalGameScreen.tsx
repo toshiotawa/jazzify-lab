@@ -159,6 +159,7 @@ import {
   acceptPhraseNoteOn,
   releasePhraseNote,
   resetPhraseNoteGate,
+  syncPhraseInputGateAfterEvaluation,
 } from './phrases/survivalPhraseInputGate';
 import {
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY,
@@ -1960,6 +1961,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       scenarioMidiNoteReceivedRef.current = true;
     }
 
+    if (isPhraseMode) {
+      if (isCompositePhraseBossStage) {
+        if (!compositePhraseRuntimeRef.current) {
+          return;
+        }
+      } else if (!phraseStateRef.current) {
+        return;
+      }
+    }
+
     if (isPhraseMode && !acceptPhraseNoteOn(phraseActivePitchClassesRef.current, note)) {
       return;
     }
@@ -1986,8 +1997,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
         setPhraseUiTick((t) => t + 1);
 
+        syncPhraseInputGateAfterEvaluation(
+          phraseActivePitchClassesRef.current,
+          evaluation.result,
+        );
+
         if (evaluation.result === 'miss') {
-          resetPhraseNoteGate(phraseActivePitchClassesRef.current);
           return {
             ...prev,
             comboCount: 0,
@@ -2172,8 +2187,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
         setPhraseUiTick((t) => t + 1);
 
+        syncPhraseInputGateAfterEvaluation(
+          phraseActivePitchClassesRef.current,
+          evaluation.result,
+        );
+
         if (evaluation.result === 'miss') {
-          resetPhraseNoteGate(phraseActivePitchClassesRef.current);
           return {
             ...prev,
             comboCount: 0,

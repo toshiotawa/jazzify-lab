@@ -2,6 +2,7 @@ import {
   acceptPhraseNoteOn,
   releasePhraseNote,
   resetPhraseNoteGate,
+  syncPhraseInputGateAfterEvaluation,
 } from './survivalPhraseInputGate';
 
 describe('survivalPhraseInputGate', () => {
@@ -26,6 +27,37 @@ describe('survivalPhraseInputGate', () => {
     acceptPhraseNoteOn(held, 64);
     acceptPhraseNoteOn(held, 67);
     resetPhraseNoteGate(held);
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+  });
+
+  it('measure-complete resets gate so same pitch class accepts again', () => {
+    const held = new Set<number>();
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+    syncPhraseInputGateAfterEvaluation(held, 'measure-complete');
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+  });
+
+  it('phrase-complete resets gate same as measure-complete', () => {
+    const held = new Set<number>();
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+    syncPhraseInputGateAfterEvaluation(held, 'phrase-complete');
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+  });
+
+  it('miss resets gate', () => {
+    const held = new Set<number>();
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+    syncPhraseInputGateAfterEvaluation(held, 'miss');
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+  });
+
+  it('progress does not reset gate; duplicate pitch class stays rejected', () => {
+    const held = new Set<number>();
+    expect(acceptPhraseNoteOn(held, 64)).toBe(true);
+    expect(acceptPhraseNoteOn(held, 64)).toBe(false);
+    syncPhraseInputGateAfterEvaluation(held, 'progress');
+    expect(acceptPhraseNoteOn(held, 64)).toBe(false);
+    releasePhraseNote(held, 64);
     expect(acceptPhraseNoteOn(held, 64)).toBe(true);
   });
 });

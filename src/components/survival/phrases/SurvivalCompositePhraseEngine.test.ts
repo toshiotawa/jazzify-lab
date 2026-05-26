@@ -145,4 +145,17 @@ describe('SurvivalCompositePhraseEngine', () => {
     state = ev.nextState;
     expect(state.lastCompletedSourceStageNumber).toBe(51);
   });
+
+  it('after measure-complete next chord may start with same pitch class as prior notes', () => {
+    const p = chordChain(61, [[0, 4, 7], [4, 5]]);
+    let state = createInitialCompositePhraseRuntimeState([p]);
+    for (const pc of [0, 4] as const) {
+      state = evaluateCompositePhraseNoteOn(state, pc).nextState;
+    }
+    const evChord1 = evaluateCompositePhraseNoteOn(state, 7);
+    expect(evChord1.result).toBe('measure-complete');
+    state = evChord1.nextState;
+    const evNext = evaluateCompositePhraseNoteOn(state, 4);
+    expect(evNext.result).not.toBe('miss');
+  });
 });
