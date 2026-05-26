@@ -624,7 +624,7 @@ private struct SurvivalGameContent: View {
             SurvivalPauseSettingsSheet(
                 locale: locale,
                 isDemo: isDemo,
-                stageRunMode: onApplyHintModeAndRestart.map { restart in
+                stageRunMode: (isDemo || stage.survivalUsesCompositePhrasePattern) ? nil : onApplyHintModeAndRestart.map { restart in
                     SurvivalStageRunModeConfig(
                         hintMode: session.currentHintMode,
                         onApplyHintModeAndRestart: restart

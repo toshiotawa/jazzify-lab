@@ -2,6 +2,7 @@
  * Survival Phrases mode: phrase + chord + note definitions from Supabase.
  */
 import { getSupabaseClient } from '@/platform/supabaseClient';
+import type { SurvivalBossType, StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
 import type { SurvivalMapCategory } from '@/components/survival/SurvivalTypes';
 
 export interface SurvivalPhraseChordNote {
@@ -177,5 +178,37 @@ export async function fetchSurvivalPhraseByStage(
 
   phraseDefinitionCache.set(cacheKey, result);
   return result;
+}
+
+export interface SurvivalCompositePhraseRuntimeConfig {
+  readonly bossType: SurvivalBossType;
+  readonly keyFifths: number;
+  readonly sourcePhrases: readonly SurvivalPhraseDefinition[];
+}
+
+/** 複合フレーズ舞台: StageDefinition の compositePhraseSources で元フレーズを並列読込 */
+export async function loadCompositePhraseRuntimeConfig(
+  stage: StageDefinition,
+): Promise<SurvivalCompositePhraseRuntimeConfig | null> {
+  const srcNumbers = stage.compositePhraseSources;
+  if (!srcNumbers?.length) {
+    return null;
+  }
+
+  const phrases = await Promise.all(
+    srcNumbers.map((stageNumber) => fetchSurvivalPhraseByStage(stage.mapCategory, stageNumber)),
+  );
+
+  const hasIncomplete = phrases.some((phrase) => phrase === null || phrase.chords.length === 0);
+  if (hasIncomplete) {
+    return null;
+  }
+
+  const bossType: SurvivalBossType = stage.compositePhraseBossType ?? 'B';
+  return {
+    bossType,
+    keyFifths: stage.compositePhraseKeyFifths ?? 0,
+    sourcePhrases: phrases as SurvivalPhraseDefinition[],
+  };
 }
 

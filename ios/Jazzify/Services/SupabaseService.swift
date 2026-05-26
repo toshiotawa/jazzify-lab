@@ -683,6 +683,22 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    func fetchSurvivalCompositePhraseStages() async throws -> [SurvivalCompositePhraseStageRow] {
+        try await client
+            .from("survival_composite_phrase_stages")
+            .select("id, map_category, stage_number, boss_type, key_fifths")
+            .execute()
+            .value
+    }
+
+    func fetchSurvivalCompositePhraseSources() async throws -> [SurvivalCompositePhraseSourceRow] {
+        try await client
+            .from("survival_composite_phrase_sources")
+            .select("composite_id, source_stage_number, sort_order")
+            .execute()
+            .value
+    }
+
     /// Phrases モード用フレーズ定義（ステージ 1 件につき 1 フレーズ）。
     func fetchSurvivalPhrase(mapCategory: SurvivalMapCategory, stageNumber: Int) async throws -> SurvivalPhraseDefinition? {
         struct PhraseRow: Decodable {

@@ -215,6 +215,22 @@ struct SurvivalStageBlockRow: Decodable, Sendable {
     let sort_order: Int?
 }
 
+/// `survival_composite_phrase_stages` 1 行（Web の composite stage fetch と同列）。
+struct SurvivalCompositePhraseStageRow: Decodable, Sendable {
+    let id: String
+    let map_category: String
+    let stage_number: Int
+    let boss_type: String
+    let key_fifths: Int
+}
+
+/// `survival_composite_phrase_sources` 1 行。
+struct SurvivalCompositePhraseSourceRow: Decodable, Sendable {
+    let composite_id: String
+    let source_stage_number: Int
+    let sort_order: Int
+}
+
 struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     /// 所属マップ。Basic / Songs を分離する。
     let mapCategory: SurvivalMapCategory
@@ -237,9 +253,27 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let chordProgression: [SurvivalChordProgressionEntry]?
     /// DB `lesson_only`。降下マップのブロック構成・ボス判定からは除外する。
     let lessonOnly: Bool
+    /// 複合フレーズの参照元ステージ番号（昇順、`survival_composite_phrase_sources`）。無ければ単一フレーズ。
+    let compositePhraseSources: [Int]?
+    /// DB `survival_composite_phrase_stages.boss_type`（複合のみ）。
+    let compositePhraseBossType: SurvivalBossType?
+    /// DB `survival_composite_phrase_stages.key_fifths`。
+    let compositePhraseKeyFifths: Int?
 
     /// `Identifiable` 用 ID。マップ間で `stageNumber` が重複し得るため、`mapCategory` を含めて一意化する。
     var id: String { "\(mapCategory.rawValue)-\(stageNumber)" }
+
+    /// DB の `survival_composite_phrase_*` に紐付く複合フレーズ出題ステージか。
+    var survivalUsesCompositePhrasePattern: Bool {
+        guard let compositePhraseSources, !compositePhraseSources.isEmpty else { return false }
+        return true
+    }
+
+    /// ブロック末尾の複合フレーズボス戦か（ランタイム分岐・ボス種別上書き用）。
+    var isCompositePhraseBossStage: Bool {
+        survivalUsesCompositePhrasePattern
+            && SurvivalBossEngine.isBlockLastStage(stageNumber: stageNumber, in: mapCategory)
+    }
 
     func localizedName(_ locale: AppLocale) -> String {
         locale == .en ? nameEn : nameJa
@@ -378,6 +412,73 @@ enum SurvivalStageCatalog {
         blocks(in: category).first { $0.blockKey == blockKey }
     }
 
+    /// Web `enrichStagesWithComposite` 相当。
+    private static func mergeCompositeStageMetadata(
+        _ stages: [SurvivalStageDefinition],
+        compositeStages: [SurvivalCompositePhraseStageRow],
+        compositeSources: [SurvivalCompositePhraseSourceRow]
+    ) -> [SurvivalStageDefinition] {
+        guard !compositeStages.isEmpty, !compositeSources.isEmpty else { return stages }
+        struct Meta {
+            let bossType: SurvivalBossType
+            let keyFifths: Int
+            let sources: [Int]
+        }
+        var sourcesByCompositeId: [String: [Int]] = [:]
+        let sortedSources = compositeSources.sorted { $0.sort_order < $1.sort_order }
+        for row in sortedSources {
+            sourcesByCompositeId[row.composite_id, default: []].append(row.source_stage_number)
+        }
+        var metaByStageKey: [String: Meta] = [:]
+        for row in compositeStages {
+            let catRaw = row.map_category.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let mc = SurvivalMapCategory(rawValue: catRaw) else { continue }
+            let src = sourcesByCompositeId[row.id] ?? []
+            guard !src.isEmpty else { continue }
+            let bt = Self.normalizeCompositeBossTypeString(row.boss_type)
+            let kf = Self.clampCompositePhraseKeyFifths(row.key_fifths)
+            metaByStageKey["\(mc.rawValue):\(row.stage_number)"] = Meta(bossType: bt, keyFifths: kf, sources: src)
+        }
+        return stages.map { def in
+            guard let meta = metaByStageKey["\(def.mapCategory.rawValue):\(def.stageNumber)"] else { return def }
+            return SurvivalStageDefinition(
+                mapCategory: def.mapCategory,
+                stageNumber: def.stageNumber,
+                stageType: def.stageType,
+                nameJa: def.nameJa,
+                nameEn: def.nameEn,
+                difficulty: def.difficulty,
+                chordSuffix: def.chordSuffix,
+                chordDisplayJa: def.chordDisplayJa,
+                chordDisplayEn: def.chordDisplayEn,
+                rootPattern: def.rootPattern,
+                rootPatternJa: def.rootPatternJa,
+                rootPatternEn: def.rootPatternEn,
+                allowedChords: def.allowedChords,
+                blockKey: def.blockKey,
+                isMixedStage: def.isMixedStage,
+                chordProgression: def.chordProgression,
+                lessonOnly: def.lessonOnly,
+                compositePhraseSources: meta.sources,
+                compositePhraseBossType: meta.bossType,
+                compositePhraseKeyFifths: meta.keyFifths
+            )
+        }
+    }
+
+    private static func normalizeCompositeBossTypeString(_ raw: String) -> SurvivalBossType {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "A": return .A
+        case "B": return .B
+        case "C": return .C
+        default: return .B
+        }
+    }
+
+    private static func clampCompositePhraseKeyFifths(_ raw: Int) -> Int {
+        min(7, max(-7, raw))
+    }
+
     /// 既知の Mixed グループ識別子（Web `MixedGroupKey` と同義）
     enum MixedGroupKey: String {
         case easy
@@ -391,7 +492,12 @@ enum SurvivalStageCatalog {
     /// - `blockLabelRows` で `survival_stage_blocks` の表示名を上書き（未取得時は `blockLabels`）。
     /// - random ステージは Web 版同様、`root_pattern + chord_suffix` から実行時に allowed_chords を再生成する。
     /// - progression ステージは `allowedChords = []` で、MusicXML を後段の XMLパーサで処理する。
-    static func load(rows: [SurvivalStageRow], blockLabelRows: [SurvivalStageBlockRow] = []) {
+    static func load(
+        rows: [SurvivalStageRow],
+        blockLabelRows: [SurvivalStageBlockRow] = [],
+        compositeStageRows: [SurvivalCompositePhraseStageRow] = [],
+        compositeSourceRows: [SurvivalCompositePhraseSourceRow] = []
+    ) {
         let blockOverridesByCategory = Self.blockOverrides(from: blockLabelRows)
         let mixedConfigs: [MixedGroupKey: MixedGroupConfig] = [
             .easy: MixedGroupConfig(suffixes: ["", "m"], difficulty: .easy, blockKey: "minor"),
@@ -409,7 +515,7 @@ enum SurvivalStageCatalog {
             )
         ]
 
-        let definitions: [SurvivalStageDefinition] = rows.compactMap { row -> SurvivalStageDefinition? in
+        let baseDefinitions: [SurvivalStageDefinition] = rows.compactMap { row -> SurvivalStageDefinition? in
             let mapCategory = SurvivalMapCategory(rawValue: row.map_category ?? "") ?? .basic
             let stageType = SurvivalStageType(rawValue: row.stage_type) ?? .random
             let blockKeyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -468,9 +574,17 @@ enum SurvivalStageCatalog {
                 blockKey: blockKey,
                 isMixedStage: isMixedStage,
                 chordProgression: progression,
-                lessonOnly: row.lesson_only == true
+                lessonOnly: row.lesson_only == true,
+                compositePhraseSources: nil,
+                compositePhraseBossType: nil,
+                compositePhraseKeyFifths: nil
             )
         }
+        let definitions = Self.mergeCompositeStageMetadata(
+            baseDefinitions,
+            compositeStages: compositeStageRows,
+            compositeSources: compositeSourceRows
+        )
 
         // カテゴリ別にグルーピングして格納する。空カテゴリはフォールバック挙動が
         // 期待されるため Songs はキー自体を保持しつつ空配列にする。
@@ -640,7 +754,10 @@ enum SurvivalStageCatalog {
                         blockKey: chordType.blockKey,
                         isMixedStage: false,
                         chordProgression: nil,
-                        lessonOnly: false
+                        lessonOnly: false,
+                        compositePhraseSources: nil,
+                        compositePhraseBossType: nil,
+                        compositePhraseKeyFifths: nil
                     )
                 )
                 stageNumber += 1
@@ -666,7 +783,10 @@ enum SurvivalStageCatalog {
                         blockKey: group.blockKey,
                         isMixedStage: true,
                         chordProgression: nil,
-                        lessonOnly: false
+                        lessonOnly: false,
+                        compositePhraseSources: nil,
+                        compositePhraseBossType: nil,
+                        compositePhraseKeyFifths: nil
                     )
                 )
                 stageNumber += 1

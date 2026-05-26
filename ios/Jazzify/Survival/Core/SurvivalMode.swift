@@ -27,7 +27,7 @@ struct SurvivalMode: Equatable {
         let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
         let encounter: SurvivalEncounterMode
         if isBoss {
-            encounter = .boss(SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory))
+            encounter = .boss(SurvivalBossEngine.resolvedBossType(for: stage))
         } else {
             encounter = .regular
         }

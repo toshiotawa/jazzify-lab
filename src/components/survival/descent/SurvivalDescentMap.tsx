@@ -30,6 +30,7 @@ import {
   fetchAllStages,
   getStagesByCategory,
   getTotalStagesByCategory,
+  survivalStageUsesCompositePhrasePattern,
 } from '../SurvivalStageDefinitions';
 import {
   SurvivalDifficulty,
@@ -748,7 +749,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
       const faiChar = characters.find(c => isFaiCharacter(c));
       setIsMobileDetailOpen(false);
-      onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, startHintMode);
+      const effectiveHint = survivalStageUsesCompositePhrasePattern(selectedStage)
+        ? false
+        : startHintMode;
+      onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, effectiveHint);
     },
     [
       selectedStage,

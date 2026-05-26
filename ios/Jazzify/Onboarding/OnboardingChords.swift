@@ -74,7 +74,10 @@ enum OnboardingChords {
             blockKey: base.blockKey,
             isMixedStage: false,
             chordProgression: entries,
-            lessonOnly: true
+            lessonOnly: true,
+            compositePhraseSources: nil,
+            compositePhraseBossType: nil,
+            compositePhraseKeyFifths: nil
         )
     }()
 
@@ -109,7 +112,10 @@ enum OnboardingChords {
         blockKey: "major",
         isMixedStage: false,
         chordProgression: entries,
-        lessonOnly: true
+        lessonOnly: true,
+        compositePhraseSources: nil,
+        compositePhraseBossType: nil,
+        compositePhraseKeyFifths: nil
     )
 
     private static func makeSceneThreeChord(

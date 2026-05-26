@@ -41,7 +41,13 @@ final class SurvivalGameLoop {
 
     private(set) var phraseKeyboardScrollAnchorMidi: Int?
 
+    private var compositePhraseRuntime: SurvivalCompositePhraseRuntimeState?
+    private var compositePhraseKeyFifths: Int = 0
+
     var isPhraseMode: Bool { stage.mapCategory == .phrases }
+
+    /// Web `isCompositePhraseBossStage` と同義。
+    var isCompositePhraseBossStage: Bool { stage.isCompositePhraseBossStage }
 
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。
     /// - `pitchClasses` が空のエントリは `SurvivalChordResolver.isMatch` が常に false を返すため
@@ -156,7 +162,7 @@ final class SurvivalGameLoop {
         let bossNow = CACurrentMediaTime()
         let initialBoss: SurvivalBossBattleState?
         if isBoss {
-            let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
+            let bossType = SurvivalBossEngine.resolvedBossType(for: stage)
             initialBoss = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
                 now: bossNow,
@@ -177,6 +183,8 @@ final class SurvivalGameLoop {
     }
 
     func loadPhraseDefinition(_ phrase: SurvivalPhraseDefinition) {
+        compositePhraseRuntime = nil
+        compositePhraseKeyFifths = 0
         phraseDefinition = phrase
         phraseState = SurvivalPhraseEngine.createInitialState(phrase: phrase)
         phraseFullLoopPulse = 0
@@ -187,7 +195,33 @@ final class SurvivalGameLoop {
         }
     }
 
+    func loadCompositePhraseRuntime(sourcePhrases: [SurvivalPhraseDefinition], keyFifths: Int) {
+        phraseDefinition = nil
+        phraseState = nil
+        compositePhraseKeyFifths = keyFifths
+        compositePhraseRuntime = SurvivalCompositePhraseEngine.createInitialState(sourcePhrases: sourcePhrases)
+        phraseFullLoopPulse = 0
+        if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: sourcePhrases) {
+            phraseKeyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
+        } else {
+            phraseKeyboardScrollAnchorMidi = nil
+        }
+    }
+
     func phraseStaffSnapshot() -> SurvivalPhraseStaffSnapshot? {
+        if isCompositePhraseBossStage, let composite = compositePhraseRuntime {
+            let view = SurvivalCompositePhraseEngine.staffChordView(state: composite)
+            return SurvivalPhraseStaffSnapshot(
+                currentChord: view.chord,
+                nextChord: nil,
+                keyFifths: compositePhraseKeyFifths,
+                correctNoteIndices: view.correctNoteIndices,
+                revealedNoteIndices: view.correctNoteIndices,
+                targetNoteIndex: 0,
+                hintMode: false,
+                unpressedNoteOpacity: 0
+            )
+        }
         guard let state = phraseState else { return nil }
         let pair = SurvivalPhraseEngine.displayChords(state: state)
         let hintBuffActive = runtime.statusEffects.contains { $0.kind == .hint }
@@ -261,7 +295,7 @@ final class SurvivalGameLoop {
         ))
 
         if isBoss {
-            let bossType = SurvivalBossEngine.bossType(for: stage.blockKey, in: stage.mapCategory)
+            let bossType = SurvivalBossEngine.resolvedBossType(for: stage)
             bossBattle = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
                 now: CACurrentMediaTime(),
@@ -276,6 +310,8 @@ final class SurvivalGameLoop {
         hpRegenAccumulator = 0
         fireDotAccumulator = 0
         contactDamageAccumulator = 0
+        compositePhraseRuntime = nil
+        compositePhraseKeyFifths = 0
     }
 
     /// A/B 正解から `comboResetIntervalSec` 経過でコンボ・ゲージを 0 に戻す。
@@ -458,6 +494,9 @@ final class SurvivalGameLoop {
         if runtime.scenario.hideStaff {
             return []
         }
+        if isPhraseMode, isCompositePhraseBossStage {
+            return []
+        }
         if isPhraseMode, let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
             guard keyboardHintsEnabled() else { return [] }
             return [midi]
@@ -526,7 +565,11 @@ final class SurvivalGameLoop {
             let pc = ((on.midi % 12) + 12) % 12
             activePressedPitchClasses.insert(pc)
             if isPhraseMode {
-                events.append(contentsOf: evaluatePhraseNote(on.midi))
+                if isCompositePhraseBossStage {
+                    events.append(contentsOf: evaluateCompositePhraseNote(on.midi))
+                } else {
+                    events.append(contentsOf: evaluatePhraseNote(on.midi))
+                }
                 continue
             }
             if runtime.scenario.blockSlotEvaluation {
@@ -540,6 +583,9 @@ final class SurvivalGameLoop {
     private func evaluateSlots(for note: Int) -> [SurvivalFrameEvent] {
         if runtime.scenario.blockSlotEvaluation { return [] }
         if isPhraseMode {
+            if isCompositePhraseBossStage {
+                return evaluateCompositePhraseNote(note)
+            }
             return evaluatePhraseNote(note)
         }
         var events: [SurvivalFrameEvent] = []
@@ -595,7 +641,7 @@ final class SurvivalGameLoop {
     }
 
     private func evaluatePhraseNote(_ note: Int) -> [SurvivalFrameEvent] {
-        guard var state = phraseState else { return [] }
+        guard let state = phraseState else { return [] }
         let pc = ((note % 12) + 12) % 12
         let evaluation = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: pc)
         phraseState = evaluation.nextState
@@ -655,6 +701,109 @@ final class SurvivalGameLoop {
         }
 
         if measureComplete {
+            appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
+            capLastPhraseShockwaveOutgoingDamageIfNeeded()
+        }
+        return events
+    }
+
+    private func evaluateCompositePhraseNote(_ note: Int) -> [SurvivalFrameEvent] {
+        guard let composite = compositePhraseRuntime else { return [] }
+        let pc = ((note % 12) + 12) % 12
+        let repeatCompletionCompare = composite.lastCompletedSourceStageNumber
+        let evaluation = SurvivalCompositePhraseEngine.evaluateNoteOn(state: composite, pitchClass: pc)
+        compositePhraseRuntime = evaluation.nextState
+
+        switch evaluation.result {
+        case .miss:
+            runtime.comboCount = 0
+            runtime.comboGauge = 0
+            runtime.comboReady = false
+            return []
+        case .progress, .measureComplete, .phraseComplete:
+            let now = CACurrentMediaTime()
+            runtime.comboCount += 1
+            runtime.lastComboHitAt = now
+            return fireCompositePhraseCombat(
+                result: evaluation.result,
+                phraseComboAfter: runtime.comboCount,
+                repeatCompletionCompare: repeatCompletionCompare,
+                now: now
+            )
+        }
+    }
+
+    private func fireCompositePhraseCombat(
+        result: SurvivalCompositePhraseNoteResult,
+        phraseComboAfter: Int,
+        repeatCompletionCompare: Int?,
+        now: TimeInterval
+    ) -> [SurvivalFrameEvent] {
+        let events: [SurvivalFrameEvent] = []
+        let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
+            base: runtime.player.stats,
+            effects: runtime.statusEffects
+        )
+        let firePlayerCombat = SurvivalPhraseComboDamageCap.shouldFirePlayerAttacks(
+            comboCount: phraseComboAfter
+        )
+
+        let finishedStage: Int? = result == .phraseComplete
+            ? compositePhraseRuntime?.lastCompletedSourceStageNumber
+            : nil
+        let isDuplicatePhraseFinish =
+            result == .phraseComplete
+            && repeatCompletionCompare != nil
+            && finishedStage != nil
+            && repeatCompletionCompare == finishedStage
+
+        let rangeMeleeDamage: Int = {
+            switch result {
+            case .phraseComplete:
+                return clampPhraseOutgoingDamageIfNeeded(
+                    raw: isDuplicatePhraseFinish
+                        ? SurvivalCompositePhraseDamage.phraseFinishRepeat
+                        : SurvivalCompositePhraseDamage.phraseFinishPrimary
+                )
+            case .measureComplete:
+                return clampPhraseOutgoingDamageIfNeeded(raw: SurvivalCompositePhraseDamage.measureRange)
+            case .progress, .miss:
+                return 0
+            }
+        }()
+
+        let needsMeleeBurst =
+            firePlayerCombat
+            && (result == .measureComplete || result == .phraseComplete)
+
+        if firePlayerCombat {
+            let attackInstanceId = isBossStage ? UUID() : nil
+            var projectiles = SurvivalGameEngine.createAProjectiles(
+                from: runtime.player,
+                effectiveAAtk: effectiveStats.aAtk,
+                attackInstanceId: attackInstanceId
+            )
+            let bulletDamage = clampPhraseOutgoingDamageIfNeeded(raw: SurvivalCompositePhraseDamage.note)
+            for idx in projectiles.indices {
+                projectiles[idx].damage = bulletDamage
+            }
+            runtime.projectiles.append(contentsOf: projectiles)
+
+            if needsMeleeBurst {
+                let wave = SurvivalGameEngine.createSpecialShockwave(
+                    from: runtime.player,
+                    effectiveBAtk: effectiveStats.bAtk,
+                    now: now,
+                    suppressCameraShake: true
+                )
+                runtime.shockwaves.append(wave)
+                let i = runtime.shockwaves.count - 1
+                runtime.shockwaves[i].damage = rangeMeleeDamage
+                capLastPhraseShockwaveOutgoingDamageIfNeeded()
+            }
+        }
+
+        if result == .measureComplete || result == .phraseComplete {
             appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
             capLastPhraseShockwaveOutgoingDamageIfNeeded()
         }

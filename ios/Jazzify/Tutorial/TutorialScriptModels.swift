@@ -173,7 +173,10 @@ enum TutorialStageBuilder {
             blockKey: base.blockKey,
             isMixedStage: false,
             chordProgression: entries,
-            lessonOnly: stage.lessonOnly ?? true
+            lessonOnly: stage.lessonOnly ?? true,
+            compositePhraseSources: nil,
+            compositePhraseBossType: nil,
+            compositePhraseKeyFifths: nil
         )
     }
 

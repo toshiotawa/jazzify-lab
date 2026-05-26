@@ -27,6 +27,9 @@ export type MixedGroupKey = 'easy' | 'normalA' | 'normalB' | 'hard' | 'extreme';
  */
 export type BlockKey = string;
 
+/** 魔王城ボス種別（A/B/C）。ブロック並びおよび複合フレーズの DB で指定可能。 */
+export type SurvivalBossType = 'A' | 'B' | 'C';
+
 export interface StageDefinition {
   stageNumber: number;
   name: string;
@@ -54,6 +57,14 @@ export interface StageDefinition {
   mapCategory: SurvivalMapCategory;
   /** DB `lesson_only`。マップ非表示のレッスン専用行など */
   lessonOnly?: boolean;
+  /**
+   * 複合フレーズ・ボス専用: 参照する元フレーズのステージ番号（昇順、DB の sort_order）。
+   */
+  compositePhraseSources?: readonly number[];
+  /** 複合フレーズステージのボス種別（DB `survival_composite_phrase_stages.boss_type`） */
+  compositePhraseBossType?: SurvivalBossType;
+  /** 譜面の調号 fifths（DB）。未設定時は 0。 */
+  compositePhraseKeyFifths?: number;
 }
 
 /**
@@ -277,25 +288,113 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
   };
 }
 
-const LOCAL_CACHE_KEY = 'survival_stages_cache_v2';
+interface CompositeStageRowDb {
+  readonly id: string;
+  readonly map_category: string;
+  readonly stage_number: number;
+  readonly boss_type: string;
+  readonly key_fifths: number;
+}
+
+interface CompositeSourceRowDb {
+  readonly composite_id: string;
+  readonly source_stage_number: number;
+  readonly sort_order: number;
+}
+
+interface LocalStageCacheEnvelopeV3 {
+  readonly v: 3;
+  readonly survivalRows: Array<Record<string, unknown>>;
+  readonly compositeStages: readonly CompositeStageRowDb[];
+  readonly compositeSources: readonly CompositeSourceRowDb[];
+}
+
+function normalizeBossType(raw: string): SurvivalBossType {
+  if (raw === 'A' || raw === 'B' || raw === 'C') return raw;
+  return 'B';
+}
+
+function clampKeyFifths(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  const t = Math.trunc(v);
+  if (t < -7) return -7;
+  if (t > 7) return 7;
+  return t;
+}
+
+function enrichStagesWithComposite(
+  stages: StageDefinition[],
+  compositeStages: readonly CompositeStageRowDb[],
+  compositeSources: readonly CompositeSourceRowDb[],
+): StageDefinition[] {
+  if (compositeStages.length === 0 || compositeSources.length === 0) {
+    return stages;
+  }
+  const sourcesByComposite = new Map<string, number[]>();
+  const sortedSources = [...compositeSources].sort((a, b) => a.sort_order - b.sort_order);
+  for (const s of sortedSources) {
+    const list = sourcesByComposite.get(s.composite_id) ?? [];
+    list.push(s.source_stage_number);
+    sourcesByComposite.set(s.composite_id, list);
+  }
+  const metaByCompositeKey = new Map<
+    string,
+    { bossType: SurvivalBossType; keyFifths: number; sources: readonly number[] }
+  >();
+  for (const row of compositeStages) {
+    if (!SURVIVAL_MAP_CATEGORIES.includes(row.map_category as SurvivalMapCategory)) continue;
+    const mc = row.map_category as SurvivalMapCategory;
+    const phraseSources = sourcesByComposite.get(row.id);
+    if (!phraseSources || phraseSources.length === 0) continue;
+    metaByCompositeKey.set(`${mc}:${row.stage_number}`, {
+      bossType: normalizeBossType(row.boss_type),
+      keyFifths: clampKeyFifths(row.key_fifths),
+      sources: phraseSources,
+    });
+  }
+  return stages.map((stage) => {
+    const meta = metaByCompositeKey.get(`${stage.mapCategory}:${stage.stageNumber}`);
+    if (!meta) return stage;
+    return {
+      ...stage,
+      compositePhraseSources: meta.sources,
+      compositePhraseBossType: meta.bossType,
+      compositePhraseKeyFifths: meta.keyFifths,
+    };
+  });
+}
+
+const LOCAL_CACHE_KEY = 'survival_stages_cache_v3';
 
 function readLocalCache(): StageDefinition[] | null {
   try {
     if (typeof window === 'undefined') return null;
     const raw = window.localStorage.getItem(LOCAL_CACHE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Array<Record<string, unknown>>;
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
-    return parsed.map(rowToStageDefinition);
+    const parsed = JSON.parse(raw) as unknown;
+    const envelopeOk = parsed
+      && typeof parsed === 'object'
+      && (parsed as LocalStageCacheEnvelopeV3).v === 3
+      && Array.isArray((parsed as LocalStageCacheEnvelopeV3).survivalRows);
+    if (!envelopeOk) {
+      return null;
+    }
+    const env = parsed as LocalStageCacheEnvelopeV3;
+    const base = env.survivalRows.map(rowToStageDefinition);
+    const compositeStages =
+      env.compositeStages && Array.isArray(env.compositeStages) ? env.compositeStages : [];
+    const compositeSources =
+      env.compositeSources && Array.isArray(env.compositeSources) ? env.compositeSources : [];
+    return enrichStagesWithComposite(base, compositeStages, compositeSources);
   } catch {
     return null;
   }
 }
 
-function writeLocalCache(rows: Array<Record<string, unknown>>): void {
+function writeLocalCacheEnvelope(envelope: LocalStageCacheEnvelopeV3): void {
   try {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(rows));
+    window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(envelope));
   } catch {
     /* ignore quota errors */
   }
@@ -350,18 +449,23 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
   fetchPromise = (async () => {
     try {
       const supabase = getSupabaseClient();
-      const [stagesResponse, blocksResponse] = await Promise.all([
-        supabase
-          .from('survival_stages')
-          .select('*')
-          .order('map_category', { ascending: true })
-          .order('stage_number', { ascending: true }),
-        supabase
-          .from('survival_stage_blocks')
-          .select('map_category, block_key, label, label_en, sort_order')
-          .order('map_category', { ascending: true })
-          .order('sort_order', { ascending: true }),
-      ]);
+      const [stagesResponse, blocksResponse, compositeStagesResponse, compositeSourcesResponse] =
+        await Promise.all([
+          supabase
+            .from('survival_stages')
+            .select('*')
+            .order('map_category', { ascending: true })
+            .order('stage_number', { ascending: true }),
+          supabase
+            .from('survival_stage_blocks')
+            .select('map_category, block_key, label, label_en, sort_order')
+            .order('map_category', { ascending: true })
+            .order('sort_order', { ascending: true }),
+          supabase.from('survival_composite_phrase_stages').select('id, map_category, stage_number, boss_type, key_fifths'),
+          supabase
+            .from('survival_composite_phrase_sources')
+            .select('composite_id, source_stage_number, sort_order'),
+        ]);
       if (stagesResponse.error) throw stagesResponse.error;
       if (blocksResponse.error) {
         applySurvivalStageBlockLabels([]);
@@ -381,10 +485,23 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
         }
         return [];
       }
-      const stages = rows.map(rowToStageDefinition);
-      applyStageCaches(stages);
-      writeLocalCache(rows);
-      return stages;
+      const compositeStages = (!compositeStagesResponse.error && compositeStagesResponse.data
+        ? compositeStagesResponse.data
+        : []) as readonly CompositeStageRowDb[];
+      const compositeSources = (!compositeSourcesResponse.error && compositeSourcesResponse.data
+        ? compositeSourcesResponse.data
+        : []) as readonly CompositeSourceRowDb[];
+
+      const baseStages = rows.map(rowToStageDefinition);
+      const enriched = enrichStagesWithComposite(baseStages, compositeStages, compositeSources);
+      applyStageCaches(enriched);
+      writeLocalCacheEnvelope({
+        v: 3,
+        survivalRows: rows,
+        compositeStages,
+        compositeSources,
+      });
+      return enriched;
     } catch {
       applySurvivalStageBlockLabels([]);
       const cached = readLocalCache();
@@ -480,7 +597,11 @@ export function formatSurvivalEncounterLabel(stage: StageDefinition, isEnglish: 
   return boss ? (isEnglish ? 'Boss' : 'ボス') : (isEnglish ? 'Regular' : '通常');
 }
 
-export type SurvivalBossType = 'A' | 'B' | 'C';
+/** DB `survival_composite_phrase_*` と紐付く複合フレーズ出題ステージか */
+export function survivalStageUsesCompositePhrasePattern(stage: StageDefinition): boolean {
+  const n = stage.compositePhraseSources?.length ?? 0;
+  return n > 0;
+}
 
 const BOSS_TYPE_ROTATION: readonly SurvivalBossType[] = ['A', 'B', 'C'];
 

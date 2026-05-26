@@ -58,6 +58,8 @@
 		AA01BB02CC03DD04EE05FF02 /* SurvivalGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */; };
 		BB01AA02CC03DD04EE070002 /* SurvivalJajiiEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01AA02CC03DD04EE070001 /* SurvivalJajiiEngine.swift */; };
 		AA01BB02CC03DD04EE05FF22 /* SurvivalPhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */; };
+		AA01BB02CC03DD04EE060002 /* SurvivalCompositePhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE060001 /* SurvivalCompositePhraseEngine.swift */; };
+		AA01BB02CC03DD04EE060004 /* SurvivalCompositePhraseDamage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE060003 /* SurvivalCompositePhraseDamage.swift */; };
 		AA01BB02CC03DD04EE05FF24 /* SurvivalPhraseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */; };
 		AA01BB02CC03DD04EE05FF26 /* SurvivalPhraseStaffSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */; };
 		AA01BB02CC03DD04EE05FF28 /* SurvivalPhraseStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */; };
@@ -251,6 +253,8 @@
 		AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameLoop.swift; sourceTree = "<group>"; };
 		BB01AA02CC03DD04EE070001 /* SurvivalJajiiEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalJajiiEngine.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseEngine.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE060001 /* SurvivalCompositePhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCompositePhraseEngine.swift; sourceTree = "<group>"; };
+		AA01BB02CC03DD04EE060003 /* SurvivalCompositePhraseDamage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCompositePhraseDamage.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseModel.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF25 /* SurvivalPhraseStaffSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffSnapshot.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF27 /* SurvivalPhraseStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffView.swift; sourceTree = "<group>"; };
@@ -547,6 +551,8 @@
 			isa = PBXGroup;
 			children = (
 				AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */,
+				AA01BB02CC03DD04EE060001 /* SurvivalCompositePhraseEngine.swift */,
+				AA01BB02CC03DD04EE060003 /* SurvivalCompositePhraseDamage.swift */,
 				AA01BB02CC03DD04EE05FF23 /* SurvivalPhraseModel.swift */,
 				BB11CC02CC03DD04EE06AA03 /* SurvivalPhrasePreviewURL.swift */,
 				BB11CC02CC03DD04EE06AA05 /* SurvivalPhraseMapPreviewPlayer.swift */,
@@ -1107,6 +1113,8 @@
 				AA01BB02CC03DD04EE05FF02 /* SurvivalGameLoop.swift in Sources */,
 				BB01AA02CC03DD04EE070002 /* SurvivalJajiiEngine.swift in Sources */,
 				AA01BB02CC03DD04EE05FF22 /* SurvivalPhraseEngine.swift in Sources */,
+				AA01BB02CC03DD04EE060002 /* SurvivalCompositePhraseEngine.swift in Sources */,
+				AA01BB02CC03DD04EE060004 /* SurvivalCompositePhraseDamage.swift in Sources */,
 				AA01BB02CC03DD04EE05FF24 /* SurvivalPhraseModel.swift in Sources */,
 				AA01BB02CC03DD04EE05FF26 /* SurvivalPhraseStaffSnapshot.swift in Sources */,
 				AA01BB02CC03DD04EE05FF28 /* SurvivalPhraseStaffView.swift in Sources */,

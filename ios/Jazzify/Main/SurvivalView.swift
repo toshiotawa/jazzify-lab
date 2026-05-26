@@ -364,7 +364,10 @@ struct SurvivalView: View {
         mobileDetailStage = nil
         SurvivalMapAudio.shared.stopImmediately()
         phrasePreviewModel.stopPlayback(restoreMapBgm: false)
-        stageLaunchSession = StageLaunchSession(stage: stage, hintMode: hintMode)
+        stageLaunchSession = StageLaunchSession(
+            stage: stage,
+            hintMode: stage.survivalUsesCompositePhrasePattern ? false : hintMode
+        )
     }
 
     private func loadProgress(showBlockingLoader: Bool = true, forceCatalogFetch: Bool = false) async {
@@ -390,10 +393,19 @@ struct SurvivalView: View {
         if catalogStale || needCatalogBecauseEmpty {
             async let fetchedStages = SupabaseService.shared.fetchSurvivalStages()
             async let fetchedBlocks = SupabaseService.shared.fetchSurvivalStageBlocks()
+            async let fetchedCompositeStages = SupabaseService.shared.fetchSurvivalCompositePhraseStages()
+            async let fetchedCompositeSources = SupabaseService.shared.fetchSurvivalCompositePhraseSources()
             let rows = try? await fetchedStages
             let blockRows = (try? await fetchedBlocks) ?? []
+            let compositeStages = (try? await fetchedCompositeStages) ?? []
+            let compositeSources = (try? await fetchedCompositeSources) ?? []
             if let rows, !rows.isEmpty {
-                SurvivalStageCatalog.load(rows: rows, blockLabelRows: blockRows)
+                SurvivalStageCatalog.load(
+                    rows: rows,
+                    blockLabelRows: blockRows,
+                    compositeStageRows: compositeStages,
+                    compositeSourceRows: compositeSources
+                )
                 survivalStagesFetchedAt = Date()
             }
         }

@@ -26,6 +26,10 @@ struct SurvivalDescentSidePanel: View {
 
     private var isEnglishCopy: Bool { locale == .en }
 
+    private var compositePhraseStageSelected: Bool {
+        selectedStage?.survivalUsesCompositePhrasePattern ?? false
+    }
+
     private var totalProgressPct: Int {
         Int((Double(totalClearedCount) / Double(max(1, totalStages)) * 100).rounded())
     }
@@ -151,10 +155,23 @@ struct SurvivalDescentSidePanel: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 2)
 
-                if stage.mapCategory == .phrases {
+                if stage.mapCategory == .phrases, !stage.survivalUsesCompositePhrasePattern {
                     phrasePreviewControls(stage: stage)
                 }
 
+                if stage.survivalUsesCompositePhrasePattern,
+                   let src = stage.compositePhraseSources,
+                   !src.isEmpty {
+                    let srcLabel = src.map(String.init).joined(separator: ", ")
+                    Text(
+                        isEnglishCopy
+                            ? "Phrases: \(srcLabel)"
+                            : "フレーズ: \(srcLabel)"
+                    )
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color(hex: "a7f3d0"))
+                    .padding(.bottom, 4)
+                }
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
                     spacing: 8
@@ -189,7 +206,11 @@ struct SurvivalDescentSidePanel: View {
                     .gridCellColumns(2)
                 }
 
-                hintToggle(disabled: playLocked)
+                if compositePhraseStageSelected {
+                    compositePhraseHintNotice
+                } else {
+                    hintToggle(disabled: playLocked)
+                }
 
                 if !selectedStageIsUnlocked && !playLocked {
                     HStack(spacing: 6) {
@@ -233,6 +254,30 @@ struct SurvivalDescentSidePanel: View {
     }
 
     // MARK: - Pieces
+
+    private var compositePhraseHintNotice: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(isEnglishCopy ? "Practice mode" : "練習モード")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color(hex: "fde68a"))
+            Text(
+                isEnglishCopy
+                    ? "HINT practice is not available on this stage. Only performance mode applies."
+                    : "このステージでは HINT の練習モードは利用できません（本番のみ）。"
+            )
+            .font(.system(size: 10))
+            .foregroundStyle(.gray)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.black.opacity(0.35))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.yellow.opacity(0.25), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
 
     private func phrasePreviewControls(stage: SurvivalStageDefinition) -> some View {
         VStack(alignment: .leading, spacing: 6) {

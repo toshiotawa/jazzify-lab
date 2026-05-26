@@ -8,6 +8,7 @@ import {
   formatSurvivalEncounterLabel,
   formatSurvivalStageModeLabel,
   STAGE_TIME_LIMIT_SECONDS,
+  survivalStageUsesCompositePhrasePattern,
 } from './SurvivalStageDefinitions';
 import { getStageKillQuotaForStage } from './survivalFirstBlockStage';
 
@@ -66,6 +67,8 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
 
   const stageKillQuota = getStageKillQuotaForStage(stage);
 
+  const compositeLocked = survivalStageUsesCompositePhrasePattern(stage);
+
   const clearSummary =
     variant === 'lesson'
       ? isEnglishCopy
@@ -74,6 +77,12 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
       : isEnglishCopy
         ? `Objective: ${STAGE_TIME_LIMIT_SECONDS}s survival + ${stageKillQuota} defeats (HINT does not record clears).`
         : `目標: ${STAGE_TIME_LIMIT_SECONDS}秒生存 + ${stageKillQuota}体撃破（HINT時はクリア記録されません）。`;
+
+  const compositeNote = compositeLocked
+    ? (isEnglishCopy
+      ? 'This composite phrase boss stage is performance-only (no practice / HINT, no modal mode switch mid-run).'
+      : '複合フレーズボス専用ステージです。練習(HINT)は利用できません。実行中モーダルでのモード切替もできません。')
+    : '';
 
   return (
     <div
@@ -98,39 +107,46 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
             <span>{encounterLine}</span>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-gray-400">{clearSummary}</p>
+          {compositeNote ? (
+            <p className="mt-2 rounded-md border border-amber-600/30 bg-amber-950/30 p-2 text-xs leading-relaxed text-amber-100">
+              {compositeNote}
+            </p>
+          ) : null}
         </div>
 
-        <fieldset className="mb-5 space-y-2">
-          <legend className="mb-2 text-sm font-semibold text-gray-300">
-            {isEnglishCopy ? 'Run mode' : 'プレイモード'}
-          </legend>
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 hover:bg-white/5">
-            <input
-              type="radio"
-              name="survival-run-mode"
-              checked={!hintLocal}
-              onChange={() => setHintLocal(false)}
-              className="radio radio-sm radio-warning"
-            />
-            <span>{realLabel}</span>
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 hover:bg-white/5">
-            <input
-              type="radio"
-              name="survival-run-mode"
-              checked={hintLocal}
-              onChange={() => setHintLocal(true)}
-              className="radio radio-sm radio-warning"
-            />
-            <span>{practiceLabel}</span>
-          </label>
-        </fieldset>
+        {compositeLocked ? null : (
+          <fieldset className="mb-5 space-y-2">
+            <legend className="mb-2 text-sm font-semibold text-gray-300">
+              {isEnglishCopy ? 'Run mode' : 'プレイモード'}
+            </legend>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 hover:bg-white/5">
+              <input
+                type="radio"
+                name="survival-run-mode"
+                checked={!hintLocal}
+                onChange={() => setHintLocal(false)}
+                className="radio radio-sm radio-warning"
+              />
+              <span>{realLabel}</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 hover:bg-white/5">
+              <input
+                type="radio"
+                name="survival-run-mode"
+                checked={hintLocal}
+                onChange={() => setHintLocal(true)}
+                className="radio radio-sm radio-warning"
+              />
+              <span>{practiceLabel}</span>
+            </label>
+          </fieldset>
+        )}
 
         <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-end">
           <button
             type="button"
             className="btn btn-warning btn-sm sm:btn-md"
-            onClick={() => onConfirm(hintLocal)}
+            onClick={() => onConfirm(compositeLocked ? false : hintLocal)}
           >
             {startLabel}
           </button>

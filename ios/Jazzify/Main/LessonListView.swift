@@ -2717,10 +2717,19 @@ struct LessonDetailView: View {
         }
         async let fetchedStages = SupabaseService.shared.fetchSurvivalStages()
         async let fetchedBlocks = SupabaseService.shared.fetchSurvivalStageBlocks()
+        async let fetchedCompositeStages = SupabaseService.shared.fetchSurvivalCompositePhraseStages()
+        async let fetchedCompositeSources = SupabaseService.shared.fetchSurvivalCompositePhraseSources()
         let rows = try? await fetchedStages
         let blockRows = (try? await fetchedBlocks) ?? []
+        let compositeStages = (try? await fetchedCompositeStages) ?? []
+        let compositeSources = (try? await fetchedCompositeSources) ?? []
         if let rows, !rows.isEmpty {
-            SurvivalStageCatalog.load(rows: rows, blockLabelRows: blockRows)
+            SurvivalStageCatalog.load(
+                rows: rows,
+                blockLabelRows: blockRows,
+                compositeStageRows: compositeStages,
+                compositeSourceRows: compositeSources
+            )
         }
     }
 

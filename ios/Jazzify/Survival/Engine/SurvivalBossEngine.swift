@@ -260,6 +260,14 @@ enum SurvivalBossEngine {
         SurvivalStageCatalog.block(byKey: blockKey, in: mapCategory)?.bossType ?? .A
     }
 
+    /// 複合フレーズ末尾ボスでは DB の `boss_type` を優先。それ以外はブロックローテーション。
+    static func resolvedBossType(for stage: SurvivalStageDefinition) -> SurvivalBossType {
+        if stage.isCompositePhraseBossStage, let bt = stage.compositePhraseBossType {
+            return bt
+        }
+        return bossType(for: stage.blockKey, in: stage.mapCategory)
+    }
+
     /// ブロック末尾 (= Mixed を含む最後のステージ番号) かどうか
     static func isBlockLastStage(
         stageNumber: Int,

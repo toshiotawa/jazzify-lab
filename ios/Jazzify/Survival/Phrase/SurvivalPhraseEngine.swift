@@ -123,6 +123,18 @@ enum SurvivalPhraseKeyboardScroll {
         return maxValue
     }
 
+    /// 複合フレーズ: ソース全フレーズの最高 MIDI。
+    static func maxPitchMidi(in phrases: [SurvivalPhraseDefinition]) -> Int? {
+        var maxValue: Int?
+        for phrase in phrases {
+            guard let v = maxPitchMidi(in: phrase) else { continue }
+            if maxValue == nil || v > maxValue! {
+                maxValue = v
+            }
+        }
+        return maxValue
+    }
+
     /// フレーズ最高音が右端に来るとタップしづらいため、白鍵1つ分だけ右端を空ける。
     private static let trailingInsetWhiteKeys = 1
 

@@ -36,7 +36,10 @@ enum SurvivalDemoStage {
             blockKey: base.blockKey,
             isMixedStage: false,
             chordProgression: base.chordProgression,
-            lessonOnly: false
+            lessonOnly: false,
+            compositePhraseSources: nil,
+            compositePhraseBossType: nil,
+            compositePhraseKeyFifths: nil
         )
     }()
 
@@ -75,6 +78,9 @@ enum SurvivalDemoStage {
         blockKey: "major",
         isMixedStage: false,
         chordProgression: nil,
-        lessonOnly: false
+        lessonOnly: false,
+        compositePhraseSources: nil,
+        compositePhraseBossType: nil,
+        compositePhraseKeyFifths: nil
     )
 }

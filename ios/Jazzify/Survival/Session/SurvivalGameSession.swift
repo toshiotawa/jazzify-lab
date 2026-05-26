@@ -105,7 +105,31 @@ final class SurvivalGameSession: ObservableObject {
         guard state != .disposed else { return }
         let playBackgroundMusic = !gameLoop.runtime.scenario.disableSurvivalBgm
         if gameLoop.isPhraseMode {
-            if let phrase = inlinePhraseDefinition {
+            if stage.isCompositePhraseBossStage, let nums = stage.compositePhraseSources, !nums.isEmpty {
+                Task {
+                    var collected: [SurvivalPhraseDefinition] = []
+                    collected.reserveCapacity(nums.count)
+                    for n in nums {
+                        guard let phrase = try? await supabase.fetchSurvivalPhrase(
+                            mapCategory: stage.mapCategory,
+                            stageNumber: n
+                        ) else {
+                            collected.removeAll()
+                            break
+                        }
+                        collected.append(phrase)
+                    }
+                    let kf = stage.compositePhraseKeyFifths ?? 0
+                    if collected.count == nums.count, !collected.isEmpty {
+                        gameLoop.loadCompositePhraseRuntime(sourcePhrases: collected, keyFifths: kf)
+                        viewModel.syncPhraseStaff(from: gameLoop)
+                        if playBackgroundMusic {
+                            applyPhraseBackgroundMusicUrlIfAvailable(fetchedPhrase: collected[0])
+                        }
+                    }
+                    audioController.start(playBackgroundMusic: playBackgroundMusic)
+                }
+            } else if let phrase = inlinePhraseDefinition {
                 gameLoop.loadPhraseDefinition(phrase)
                 viewModel.syncPhraseStaff(from: gameLoop)
                 if playBackgroundMusic {

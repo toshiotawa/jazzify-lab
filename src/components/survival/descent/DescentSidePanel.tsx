@@ -12,6 +12,7 @@ import {
   StageDefinition,
   formatSurvivalStageModeLabel,
   isBlockLastStage,
+  survivalStageUsesCompositePhrasePattern,
 } from '../SurvivalStageDefinitions';
 import { getStageKillQuotaForStage } from '../survivalFirstBlockStage';
 import { BlockMeta } from './descentBlocks';
@@ -61,6 +62,10 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
   const blockProgressPct = activeBlock
     ? Math.round((blockClearedCount / activeBlock.stageCount) * 100)
     : 0;
+
+  const compositePhrasePanel = selectedStage
+    ? survivalStageUsesCompositePhrasePattern(selectedStage)
+    : false;
 
   return (
     <aside
@@ -135,7 +140,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
               {isEnglishCopy ? selectedStage.nameEn : selectedStage.name}
             </h3>
 
-            {selectedStage.mapCategory === 'phrases' && (
+            {selectedStage.mapCategory === 'phrases' && !compositePhrasePanel && (
               <div className="mb-3">
                 <button
                   type="button"
@@ -210,33 +215,50 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                       : `90秒 + ${getStageKillQuotaForStage(selectedStage)}体`)}
                 </dd>
               </div>
+              {compositePhrasePanel && selectedStage.compositePhraseSources && (
+                <div className="col-span-2 rounded-md bg-white/5 p-2">
+                  <dt className="text-[10px] text-gray-400">
+                    {isEnglishCopy ? 'Phrases' : 'フレーズ番号'}
+                  </dt>
+                  <dd className="mt-0.5 text-[11px] font-bold text-amber-100">
+                    {selectedStage.compositePhraseSources.join(', ')}
+                  </dd>
+                </div>
+              )}
             </dl>
 
-            <label
-              className={cn(
-                'mb-3 flex cursor-pointer items-center gap-3 rounded-md border border-yellow-500/25 bg-black/40 p-2.5',
-                playLocked && 'cursor-not-allowed opacity-50',
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={hintMode}
-                disabled={playLocked}
-                onChange={e => onHintModeChange(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-500 text-yellow-500 focus:ring-yellow-500"
-              />
-              <div>
-                <span className="text-xs font-bold text-yellow-300">
-                  {isEnglishCopy ? 'HINT MODE' : 'HINTモード'}
-                </span>
-                <p className="text-[10px] text-gray-400">
-                  {isEnglishCopy
-                    ? 'Shows keyboard hints. Clears not recorded.'
-                    : '鍵盤ヒント表示。クリア記録はされません。'}
-                </p>
+            {!compositePhrasePanel ? (
+              <label
+                className={cn(
+                  'mb-3 flex cursor-pointer items-center gap-3 rounded-md border border-yellow-500/25 bg-black/40 p-2.5',
+                  playLocked && 'cursor-not-allowed opacity-50',
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={hintMode}
+                  disabled={playLocked}
+                  onChange={e => onHintModeChange(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-500 text-yellow-500 focus:ring-yellow-500"
+                />
+                <div>
+                  <span className="text-xs font-bold text-yellow-300">
+                    {isEnglishCopy ? 'HINT MODE' : 'HINTモード'}
+                  </span>
+                  <p className="text-[10px] text-gray-400">
+                    {isEnglishCopy
+                      ? 'Shows keyboard hints. Clears not recorded.'
+                      : '鍵盤ヒント表示。クリア記録はされません。'}
+                  </p>
+                </div>
+              </label>
+            ) : (
+              <div className="mb-3 rounded-md border border-amber-600/30 bg-amber-950/25 p-2.5 text-[10px] leading-relaxed text-amber-100">
+                {isEnglishCopy
+                  ? 'Composite phrase boss only: practice (HINT) mode is unavailable. No score guide during play.'
+                  : '複合フレーズボス専用: 練習(HINT)は利用できません。本番でも譜面ガイドはありません。'}
               </div>
-            </label>
-
+            )}
             {!selectedStageIsUnlocked && (
               <div className="mb-2 flex items-center gap-2 rounded-md border border-red-500/20 bg-red-950/20 px-2 py-1.5 text-xs text-red-300">
                 <FaLock />

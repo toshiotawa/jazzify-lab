@@ -150,7 +150,20 @@ import {
   type SurvivalPhraseRuntimeState,
 } from './phrases/SurvivalPhraseEngine';
 import {
+  createInitialCompositePhraseRuntimeState,
+  evaluateCompositePhraseNoteOn,
+  getCompositePhraseStaffChordView,
+  type SurvivalCompositePhraseRuntimeState,
+} from './phrases/SurvivalCompositePhraseEngine';
+import {
+  COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY,
+  COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT,
+  COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE,
+  COMPOSITE_PHRASE_NOTE_DAMAGE,
+} from './phrases/survivalCompositePhraseDamage';
+import {
   fetchSurvivalPhraseByStage,
+  loadCompositePhraseRuntimeConfig,
   type SurvivalPhraseDefinition,
 } from '@/utils/survivalPhraseDefinitions';
 import { parseSurvivalQuestionId } from '@/utils/survivalQuestionTypes';
@@ -433,6 +446,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isProgressionStage = stageDefinition?.stageType === 'progression';
   const isBasicMapStage = stageDefinition?.mapCategory === 'basic';
   const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
+  const isCompositePhraseBossStage =
+    isPhraseMode
+    && isBossStage
+    && Boolean(stageDefinition?.compositePhraseSources?.length ?? 0);
   const shouldRunStageIntroDialogue =
     isStageMode
     && !!stageDefinition
@@ -470,7 +487,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     && !shouldRunBlockBossIntroDialogue;
   const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
   const bossType = isBossStage && stageDefinition
-    ? (getBlockForStage(stageDefinition.stageNumber, stageDefinition.mapCategory)?.bossType ?? null)
+    ? (
+      stageDefinition.compositePhraseBossType
+      ?? getBlockForStage(stageDefinition.stageNumber, stageDefinition.mapCategory)?.bossType
+      ?? null)
     : null;
 
   // Progression（コード進行）モード: B列のみで進行を循環。
@@ -480,6 +500,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const phraseDefinitionRef = useRef<SurvivalPhraseDefinition | null>(null);
   const phraseStateRef = useRef<SurvivalPhraseRuntimeState | null>(null);
+  const compositePhraseRuntimeRef = useRef<SurvivalCompositePhraseRuntimeState | null>(null);
+  const compositePhraseKeyFifthsRef = useRef<number>(0);
+  const compositePhraseSourcePhrasesRef = useRef<SurvivalPhraseDefinition[]>([]);
   const [phraseUiTick, setPhraseUiTick] = useState(0);
   const phraseDrumLoopRef = useRef<SurvivalPhraseDrumLoop | null>(null);
   const phraseBgmUrlRef = useRef<string | null>(null);
@@ -529,6 +552,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }, []);
 
   useEffect(() => {
+    compositePhraseRuntimeRef.current = null;
+    compositePhraseKeyFifthsRef.current = 0;
+    compositePhraseSourcePhrasesRef.current = [];
     if (!isPhraseMode || !stageDefinition) {
       phraseDefinitionRef.current = null;
       phraseStateRef.current = null;
@@ -545,6 +571,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     const inline = tutorialPhraseInlineDefinition ?? null;
     if (inline !== null && inline.chords.length > 0) {
+      compositePhraseRuntimeRef.current = null;
       phraseDefinitionRef.current = inline;
       phraseStateRef.current = createInitialPhraseState(inline);
       phraseBgmUrlRef.current = resolvePhraseBgmUrl(inline.bgmUrl);
@@ -553,7 +580,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return undefined;
     }
 
+    const isCompositeBoss = Boolean(stageDefinition?.compositePhraseSources?.length ?? 0) && isBossStage;
+
     let cancelled = false;
+    if (isCompositeBoss) {
+      phraseDefinitionRef.current = null;
+      phraseStateRef.current = null;
+      phraseBgmUrlRef.current = resolvePhraseBgmUrl(null);
+      void loadCompositePhraseRuntimeConfig(stageDefinition).then((cfg) => {
+        if (cancelled || !cfg?.sourcePhrases.length) return;
+        compositePhraseSourcePhrasesRef.current = [...cfg.sourcePhrases];
+        compositePhraseRuntimeRef.current = createInitialCompositePhraseRuntimeState(cfg.sourcePhrases);
+        compositePhraseKeyFifthsRef.current = cfg.keyFifths;
+        setPhraseUiTick((t) => t + 1);
+        setPhraseBgmReadyTick((t) => t + 1);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    compositePhraseRuntimeRef.current = null;
+    compositePhraseSourcePhrasesRef.current = [];
     void fetchSurvivalPhraseByStage(stageDefinition.mapCategory, stageDefinition.stageNumber).then((phrase) => {
       if (cancelled || !phrase) return;
       phraseDefinitionRef.current = phrase;
@@ -565,8 +613,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isPhraseMode, stageDefinition?.mapCategory, stageDefinition?.stageNumber, tutorialPhraseInlineDefinition, config.bgmUrl]);
-
+  }, [
+    isPhraseMode,
+    isBossStage,
+    stageDefinition,
+    tutorialPhraseInlineDefinition,
+    config.bgmUrl,
+  ]);
   useEffect(() => {
     if (!isProgressionStage) {
       progressionChordsRef.current = [];
@@ -1850,6 +1903,185 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         return prev;
       }
 
+      if (isPhraseMode && isCompositePhraseBossStage && compositePhraseRuntimeRef.current) {
+        const noteMod12 = ((note % 12) + 12) % 12;
+        const curComposite = compositePhraseRuntimeRef.current;
+        const repeatCompareLast = curComposite.lastCompletedSourceStageNumber;
+        const evaluation = evaluateCompositePhraseNoteOn(curComposite, noteMod12);
+        compositePhraseRuntimeRef.current = evaluation.nextState;
+
+        setPhraseUiTick((t) => t + 1);
+
+        if (evaluation.result === 'miss') {
+          return {
+            ...prev,
+            comboCount: 0,
+            comboGauge: 0,
+            comboReady: false,
+          };
+        }
+
+        const phraseComboAfter = prev.comboCount + 1;
+        const firePlayerCombat = shouldFirePhrasePlayerAttacks(phraseComboAfter);
+        const aShotDamage = clampPhraseOutgoingDamage(
+          phraseComboAfter,
+          COMPOSITE_PHRASE_NOTE_DAMAGE,
+        );
+        const phraseJajiiCap =
+          phraseComboAfter <= PHRASE_EARLY_COMBO_CAP_UNTIL ? PHRASE_EARLY_COMBO_DAMAGE_CAP : undefined;
+
+        const newState: SurvivalGameState = {
+          ...prev,
+          comboCount: phraseComboAfter,
+          lastComboHitAt: comboClockSecRef.current,
+          enemyProjectiles: [...prev.enemyProjectiles],
+          damageTexts: [...prev.damageTexts],
+          enemies: [...prev.enemies],
+        };
+
+        let finishedSnippet: number | null = null;
+        if (evaluation.result === 'phrase-complete') {
+          finishedSnippet = evaluation.nextState.lastCompletedSourceStageNumber;
+        }
+        const isDuplicatePhraseFinish =
+          evaluation.result === 'phrase-complete'
+          && repeatCompareLast !== null
+          && finishedSnippet !== null
+          && repeatCompareLast === finishedSnippet;
+        let rangeMeleeDamage =
+          evaluation.result === 'phrase-complete'
+            ? (isDuplicatePhraseFinish
+              ? COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT
+              : COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY)
+            : COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE;
+        rangeMeleeDamage = clampPhraseOutgoingDamage(
+          phraseComboAfter,
+          rangeMeleeDamage,
+        );
+
+        const needsMeleeBurst =
+          firePlayerCombat
+          && (
+            evaluation.result === 'measure-complete'
+            || evaluation.result === 'phrase-complete'
+          );
+
+        if (firePlayerCombat) {
+          const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
+          const newProjectiles = createAProjectilesFromPlayer(
+            prev.player,
+            aShotDamage,
+            attackInstanceId,
+          );
+          newState.projectiles = [...prev.projectiles, ...newProjectiles];
+
+          if (needsMeleeBurst) {
+            const baseRange = 80;
+            const bonusRange = prev.player.skills.bRangeBonus * 20;
+            const totalRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER;
+            const attackX = prev.player.x;
+            const attackY = prev.player.y;
+            pendingShockwavesRef.current.push({
+              id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              x: attackX,
+              y: attackY,
+              radius: 0,
+              maxRadius: totalRange,
+              startTime: Date.now(),
+              duration: SHOCKWAVE_DURATION,
+              direction: prev.player.direction,
+              color: '#f9d332',
+              isSpecial: true,
+            });
+            newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
+              const dx = proj.x - attackX;
+              const dy = proj.y - attackY;
+              return Math.sqrt(dx * dx + dy * dy) >= totalRange;
+            });
+            const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+            if (isBossStage && bossBattleRef.current?.active) {
+              const meleeRes = applyPlayerMeleeToBossBattle(
+                bossBattleRef.current,
+                attackX,
+                attackY,
+                totalRange,
+                rangeMeleeDamage,
+                prev.player.x,
+                prev.player.y,
+                true,
+              );
+              if (meleeRes.bossDamage > 0) {
+                newState.damageTexts = [...newState.damageTexts, createDamageText(
+                  bossBattleRef.current.boss.x,
+                  bossBattleRef.current.boss.y - 30,
+                  meleeRes.bossDamage,
+                  false,
+                )];
+              }
+              for (const m of meleeRes.minionKills) {
+                newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, rangeMeleeDamage, false)];
+              }
+              if (meleeRes.drops.length > 0) {
+                newState.items = [...newState.items, ...meleeRes.drops];
+              }
+            }
+            newState.enemies = newState.enemies.map((enemy) => {
+              const dx = enemy.x - attackX;
+              const dy = enemy.y - attackY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < totalRange) {
+                const luckResultB = checkLuck(prev.player.stats.luck);
+                let damage = calculateDamage(
+                  rangeMeleeDamage, 0, enemy.stats.def,
+                  prev.player.statusEffects.some((e) => e.type === 'buffer'),
+                  enemy.statusEffects.some((e) => e.type === 'debuffer'),
+                  getBufferLevel(prev.player.statusEffects),
+                  getDebufferLevel(enemy.statusEffects),
+                  prev.player.stats.cAtk,
+                  luckResultB.doubleDamage,
+                );
+                damage = clampPhraseOutgoingDamage(phraseComboAfter, damage);
+                const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+                const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+                newState.damageTexts = [...newState.damageTexts, createDamageText(
+                  enemy.x, enemy.y, damage,
+                  luckResultB.doubleDamage,
+                  luckResultB.doubleDamage ? '#ffd700' : undefined,
+                )];
+                return {
+                  ...enemy,
+                  stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - damage) },
+                  knockbackVelocity: { x: knockbackX, y: knockbackY },
+                };
+              }
+              return enemy;
+            });
+          }
+        }
+
+        if (
+          jajiiEnabled
+          && jajiiStateRef.current
+          && (evaluation.result === 'measure-complete' || evaluation.result === 'phrase-complete')
+        ) {
+          const jp = getJajiiWorldPosition(jajiiStateRef.current);
+          applyJajiiGaugeSpecialAtWorld({
+            draft: newState,
+            jajiiX: jp.x,
+            jajiiY: jp.y,
+            radiusMultiplier: 1,
+            isBossStage,
+            bossBattle: bossBattleRef.current,
+            queueShockwave: (w) => {
+              pendingShockwavesRef.current.push(w);
+            },
+            maxOutgoingDamagePerHit: phraseJajiiCap,
+          });
+        }
+
+        return newState;
+      }
+
       if (isPhraseMode && phraseStateRef.current) {
         const noteMod12 = ((note % 12) + 12) % 12;
         const evaluation = evaluatePhraseNoteOn(phraseStateRef.current, noteMod12);
@@ -2784,6 +3016,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     scenarioPhraseFullLoopPulseRef,
     jajiiEnabled,
     bumpScenarioUi,
+    isCompositePhraseBossStage,
   ]);
   
   // handleNoteInputが更新されるたびにrefを更新
@@ -4677,8 +4910,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         { type: 'hint' as never, duration: 999999, startTime: Date.now(), level: 1 },
       ];
     }
-    if (isPhraseMode && phraseDefinitionRef.current) {
+    if (isPhraseMode && phraseDefinitionRef.current && !isCompositePhraseBossStage) {
       phraseStateRef.current = createInitialPhraseState(phraseDefinitionRef.current);
+      setPhraseUiTick((t) => t + 1);
+      setPhraseBgmReadyTick((t) => t + 1);
+    } else if (isPhraseMode && isCompositePhraseBossStage && compositePhraseSourcePhrasesRef.current.length > 0) {
+      compositePhraseRuntimeRef.current = createInitialCompositePhraseRuntimeState(
+        compositePhraseSourcePhrasesRef.current,
+      );
       setPhraseUiTick((t) => t + 1);
       setPhraseBgmReadyTick((t) => t + 1);
     }
@@ -4791,7 +5030,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
     setGameState(initial);
     startGame();
-  }, [difficulty, config, startGame, debugSettings, isStageMode, isBossStage, character, hintMode]);
+  }, [difficulty, config, startGame, debugSettings, isStageMode, isBossStage, character, hintMode, isPhraseMode, isCompositePhraseBossStage]);
   
   // ヒントスロット追跡（ローテーション用）
   const lastHintSlotRef = useRef<number>(0);
@@ -4814,6 +5053,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const phraseStaffProps = useMemo(() => {
     void phraseUiTick;
+    if (
+      isPhraseMode
+      && isCompositePhraseBossStage
+      && compositePhraseRuntimeRef.current !== null
+    ) {
+      const view = getCompositePhraseStaffChordView(compositePhraseRuntimeRef.current);
+      return {
+        currentChord: view.chord,
+        nextChord: null,
+        keyFifths: compositePhraseKeyFifthsRef.current,
+        correctNoteIndices: view.correctNoteIndices,
+        revealedNoteIndices: view.correctNoteIndices,
+        targetNoteIndex: 0,
+        hintMode: false,
+      };
+    }
     const state = phraseStateRef.current;
     if (!isPhraseMode || !state) return null;
     const { current, next } = getPhraseDisplayChords(state);
@@ -4826,7 +5081,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       targetNoteIndex: state.targetNoteIndex,
       hintMode: hintMode || beginnerAssistActive,
     };
-  }, [isPhraseMode, phraseUiTick, hintMode, beginnerAssistActive]);
+  }, [isPhraseMode, phraseUiTick, hintMode, beginnerAssistActive, isCompositePhraseBossStage]);
 
   const scenarioPhraseStaff = useMemo(() => {
     void scenarioUiTick;
@@ -5019,21 +5274,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   };
 
   const survivalCenterStaffUnpressedNoteOpacity = useMemo(
-    () => computeUnpressedNoteOpacity(elapsedSecondsFloor, {
-      hintMode,
-      hintBuffActive: playerHasHintBuff,
-      beginnerAssistActive,
-      isPhraseMode,
-      isStageMode,
-      isPlaying: gameState.isPlaying,
-      isGameOver: gameState.isGameOver,
-    }),
+    () => (isCompositePhraseBossStage
+      ? 0
+      : computeUnpressedNoteOpacity(elapsedSecondsFloor, {
+          hintMode,
+          hintBuffActive: playerHasHintBuff,
+          beginnerAssistActive,
+          isPhraseMode,
+          isStageMode,
+          isPlaying: gameState.isPlaying,
+          isGameOver: gameState.isGameOver,
+        })),
     [
       elapsedSecondsFloor,
       hintMode,
       playerHasHintBuff,
       beginnerAssistActive,
       isPhraseMode,
+      isCompositePhraseBossStage,
       isStageMode,
       gameState.isPlaying,
       gameState.isGameOver,
@@ -5190,7 +5448,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
 
     if (isPhraseMode) {
-      if (!shouldShowKeyboardHints) {
+      if (isCompositePhraseBossStage || !shouldShowKeyboardHints) {
         pixiRendererRef.current?.clearVoicingHints();
         return undefined;
       }
@@ -5265,7 +5523,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     applySurvivalVoicingHintsWithOpacity(renderer, pendingMidi, completedMidi, survivalKeyboardHintOpacity);
 
     return undefined;
-  }, [isPhraseMode, shouldShowKeyboardHints, survivalKeyboardHintOpacity, bossUiTick, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
+  }, [isPhraseMode, shouldShowKeyboardHints, survivalKeyboardHintOpacity, bossUiTick, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current, isCompositePhraseBossStage]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
@@ -5986,7 +6244,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }}
         stageRunMode={
-          isStageMode && onSurvivalRunModeRestart
+          isStageMode && onSurvivalRunModeRestart && !isCompositePhraseBossStage
             ? {
                 hintMode,
                 onApplyHintModeAndRestart: onSurvivalRunModeRestart,
