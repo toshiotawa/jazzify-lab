@@ -615,7 +615,7 @@ final class SurvivalScene: SKScene {
             create: { [effectsNode, weak self] id in
                 let waveMeta = shockwaveById[id]
                 let isSpecial = waveMeta?.isSpecial ?? false
-                let sparkCount = 5
+                let sparkCount = isSpecial ? 10 : 5
 
                 let container = SKNode()
                 container.zPosition = 130
@@ -643,13 +643,23 @@ final class SurvivalScene: SKScene {
                 container.addChild(impact)
 
                 for i in 0..<sparkCount {
-                    let spark = SKShapeNode(circleOfRadius: 3)
-                    spark.strokeColor = .white.withAlphaComponent(isSpecial ? 0.35 : 0.8)
-                    spark.fillColor = isSpecial ? .clear : .white
-                    spark.lineWidth = 1
-                    spark.name = "spark_\(i)"
-                    spark.zPosition = 2
-                    container.addChild(spark)
+                    if isSpecial {
+                        let spark = SKLabelNode(text: "✨")
+                        spark.fontSize = 14
+                        spark.verticalAlignmentMode = .center
+                        spark.horizontalAlignmentMode = .center
+                        spark.name = "spark_\(i)"
+                        spark.zPosition = 2
+                        container.addChild(spark)
+                    } else {
+                        let spark = SKShapeNode(circleOfRadius: 3)
+                        spark.strokeColor = .white.withAlphaComponent(0.8)
+                        spark.fillColor = .white
+                        spark.lineWidth = 1
+                        spark.name = "spark_\(i)"
+                        spark.zPosition = 2
+                        container.addChild(spark)
+                    }
                 }
 
                 effectsNode.addChild(container)
@@ -737,27 +747,32 @@ final class SurvivalScene: SKScene {
                     )
                 }
 
-                let sparkCount = 5
+                let sparkCount = isSpecial ? 10 : 5
+                let nowMs = now * 1000.0
                 for i in 0..<sparkCount {
-                    guard let spark = node.childNode(withName: "spark_\(i)") as? SKShapeNode else { continue }
-                    let sparkAngle: CGFloat
-                    let fly: CGFloat
-                    if isSpecial {
-                        sparkAngle = baseAngle + (CGFloat(i) / CGFloat(sparkCount)) * 2 * .pi
-                        fly = currentRadius * (0.92 + progress * 0.2)
-                    } else {
-                        let angleOffset = (CGFloat(i) - 2) * (arcSpread * 0.33)
-                        sparkAngle = baseAngle + angleOffset
-                        fly = currentRadius * (0.82 + CGFloat(i % 3) * 0.08 + progress * 0.35)
-                    }
-                    spark.position = CGPoint(
-                        x: cos(sparkAngle) * fly,
-                        y: sin(sparkAngle) * fly
-                    )
-                    spark.fillColor = isSpecial ? .clear : color
                     let fade = max(0, 1 - progress * 1.3)
-                    spark.alpha = fade * (isSpecial ? 0.7 : 0.95)
-                    spark.setScale(max(0.35, 1 - progress * 0.7))
+                    if isSpecial {
+                        guard let spark = node.childNode(withName: "spark_\(i)") as? SKLabelNode else { continue }
+                        let sparkAngle = (CGFloat(i) / CGFloat(sparkCount)) * 2 * .pi + CGFloat(nowMs / 1000.0) * 8
+                        let fly = currentRadius * (0.88 + 0.08 * sin(CGFloat(nowMs / 60.0) + CGFloat(i)))
+                        spark.position = CGPoint(
+                            x: cos(sparkAngle) * fly,
+                            y: sin(sparkAngle) * fly
+                        )
+                        spark.alpha = fade
+                    } else {
+                        guard let spark = node.childNode(withName: "spark_\(i)") as? SKShapeNode else { continue }
+                        let angleOffset = (CGFloat(i) - 2) * (arcSpread * 0.33)
+                        let sparkAngle = baseAngle + angleOffset
+                        let fly = currentRadius * (0.82 + CGFloat(i % 3) * 0.08 + progress * 0.35)
+                        spark.position = CGPoint(
+                            x: cos(sparkAngle) * fly,
+                            y: sin(sparkAngle) * fly
+                        )
+                        spark.fillColor = color
+                        spark.alpha = fade * 0.95
+                        spark.setScale(max(0.35, 1 - progress * 0.7))
+                    }
                 }
             }
         )
