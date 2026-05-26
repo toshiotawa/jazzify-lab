@@ -383,6 +383,22 @@ export const createInitialGameState = (
   lastComboHitAt: 0,
 });
 
+/** iOS `CACurrentMediaTime()` 相当。コンボ猶予はゲーム経過秒ではなくモノトニック時刻で測る。 */
+export const survivalComboClockSec = (): number => performance.now() / 1000;
+
+/** 有効な A/B スロットのうち最初にヒント対象とする index（Progression の B のみ等）。 */
+export const resolveSurvivalHintSlotIndex = (
+  slots: SurvivalGameState['codeSlots']['current'],
+): number | null => {
+  for (let i = 0; i < 2; i += 1) {
+    const slot = slots[i];
+    if (slot?.isEnabled && !slot.isCompleted && slot.chord) {
+      return i;
+    }
+  }
+  return null;
+};
+
 /** A/B 通常スロット正解時のコンボ更新（必殺トリガー含む）。iOS `triggerSlot` の該当分岐に準拠 */
 export const updateComboOnABHit = (
   state: Pick<SurvivalGameState, 'comboCount' | 'comboGauge' | 'comboReady' | 'lastComboHitAt'>,

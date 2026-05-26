@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot } from './SurvivalTypes';
-import { createChordNameText, initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, selectProgressionChord, spawnScenarioTutorialEnemyAt, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
+import { createChordNameText, initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, resolveSurvivalHintSlotIndex, selectProgressionChord, spawnScenarioTutorialEnemyAt, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
 import { getSurvivalStageBattleKind } from './SurvivalStageDefinitions';
 
 vi.mock('@/platform/supabaseClient', () => ({
@@ -53,6 +53,7 @@ describe('survival progression code slots', () => {
     expect(slots.current[0].isEnabled).toBe(false);
     expect(slots.current[2].isEnabled).toBe(false);
     expect(slots.current[3].isEnabled).toBe(false);
+    expect(resolveSurvivalHintSlotIndex(slots.current)).toBe(1);
   });
 
   it('random + HINT 練習時は Shot を無効化し Punch のみコードを載せる', () => {
@@ -64,6 +65,7 @@ describe('survival progression code slots', () => {
     expect(slots.next[0].chord).toBeNull();
     expect(slots.current[1].chord).not.toBeNull();
     expect(slots.next[1].chord).not.toBeNull();
+    expect(resolveSurvivalHintSlotIndex(slots.current)).toBe(1);
   });
 
   it('random + HINT 時は Punch の current と next が同一 ID にならない（複数コードがある限り）', () => {

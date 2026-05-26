@@ -397,7 +397,7 @@ export interface SurvivalGameState {
   /** 0..`COMBO_GAUGE_MAX`。満タンの次の A/B 正解で必殺技 */
   comboGauge: number;
   comboReady: boolean;
-  /** 直近の A/B 正解時の `elapsedTime`（秒） */
+  /** 最後の A/B 正解時刻（秒）。`survivalComboClockSec()` のモノトニック時刻。 */
   lastComboHitAt: number;
 }
 

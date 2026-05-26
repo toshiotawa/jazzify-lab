@@ -70,6 +70,8 @@ import {
   resetIncompleteOtherSlotCorrectNotes,
   updateComboOnABHit,
   expireComboIfTimedOut,
+  resolveSurvivalHintSlotIndex,
+  survivalComboClockSec,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
 import {
@@ -624,6 +626,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const [bossUiTick, setBossUiTick] = useState(0);
   // 毎フレーム setBossUiTick を呼ぶと React コミットが頻発するので 100ms 間引き
   const lastBossUiFlushRef = useRef(0);
+  /** コンボ猶予用モノトニック時計。ボス戦ループと入力処理で共有（iOS CACurrentMediaTime 相当）。 */
+  const comboClockSecRef = useRef(0);
 
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
@@ -1541,6 +1545,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         codeSlots.next[3].isEnabled = false;
       }
 
+      const hintSlot = resolveSurvivalHintSlotIndex(codeSlots.current);
+      if (hintSlot !== null) {
+        lastHintSlotRef.current = hintSlot;
+        lastCompletedSlotRef.current = null;
+      }
+
       return {
         ...prev,
         isPlaying: true,
@@ -1559,6 +1569,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
+    comboClockSecRef.current = survivalComboClockSec();
   }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss]);
 
   // ゲーム開始（初回のみ）。
@@ -1872,7 +1883,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const newState: SurvivalGameState = {
           ...prev,
           comboCount: phraseComboAfter,
-          lastComboHitAt: prev.elapsedTime,
+          lastComboHitAt: comboClockSecRef.current,
           enemyProjectiles: [...prev.enemyProjectiles],
           damageTexts: [...prev.damageTexts],
           enemies: [...prev.enemies],
@@ -2101,6 +2112,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         completedSlotIndices,
       );
 
+      if (completedSlotIndices.length > 0) {
+        const triggeredAb = completedSlotIndices.find((i) => i === 0 || i === 1);
+        if (triggeredAb !== undefined) {
+          const preferred = triggeredAb === 0 ? 1 : 0;
+          const prefSlot = newState.codeSlots.current[preferred];
+          if (prefSlot?.isEnabled && prefSlot.chord) {
+            lastHintSlotRef.current = preferred;
+          } else {
+            lastHintSlotRef.current = triggeredAb;
+          }
+          lastCompletedSlotRef.current = triggeredAb;
+        }
+      }
+
       if (
         completedSlotIndices.includes(1)
         && scenarioOverridesRef.current.isActive
@@ -2190,7 +2215,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 comboReady: newState.comboReady,
                 lastComboHitAt: newState.lastComboHitAt,
               },
-              prev.elapsedTime,
+              comboClockSecRef.current,
             );
             newState.comboCount = comboAB.comboCount;
             newState.comboGauge = comboAB.comboGauge;
@@ -2344,7 +2369,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 comboReady: newState.comboReady,
                 lastComboHitAt: newState.lastComboHitAt,
               },
-              prev.elapsedTime,
+              comboClockSecRef.current,
             );
             newState.comboCount = comboBB.comboCount;
             newState.comboGauge = comboBB.comboGauge;
@@ -3492,9 +3517,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             items: [...prev.items],
           };
           newState.elapsedTime = prev.elapsedTime + deltaTime;
+          comboClockSecRef.current = survivalComboClockSec();
 
           if (!isPhraseMode) {
-            const bossComboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
+            const bossComboExpired = expireComboIfTimedOut(prev, comboClockSecRef.current);
             newState.comboCount = bossComboExpired.comboCount;
             newState.comboGauge = bossComboExpired.comboGauge;
             newState.comboReady = bossComboExpired.comboReady;
@@ -3748,9 +3774,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 時間更新
         newState.elapsedTime = prev.elapsedTime + deltaTime;
+        comboClockSecRef.current = survivalComboClockSec();
 
         if (!isPhraseMode) {
-          const comboExpired = expireComboIfTimedOut(prev, newState.elapsedTime);
+          const comboExpired = expireComboIfTimedOut(prev, comboClockSecRef.current);
           newState.comboCount = comboExpired.comboCount;
           newState.comboGauge = comboExpired.comboGauge;
           newState.comboReady = comboExpired.comboReady;
@@ -4769,51 +4796,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ヒントスロット追跡（ローテーション用）
   const lastHintSlotRef = useRef<number>(0);
   const lastCompletedSlotRef = useRef<number | null>(null);
-  
-  // ヒントスロット判定（A/B列を交互に表示）
-  const getHintSlotIndex = (): number | null => {
-    if (!shouldShowKeyboardHints) {
-      return null;
-    }
-    
-    // 有効で未完了のスロットを収集（A=0, B=1のみ、C=2は除外）
-    const availableSlots: number[] = [];
-    for (let i = 0; i < 2; i++) {  // A列とB列のみ（C列は除外）
-      if (isAMagicSlot && i === 0 && gameState.aSlotCooldown > 0) {
-        continue;
-      }
-      if (isBMagicSlot && i === 1 && gameState.bSlotCooldown > 0) {
-        continue;
-      }
-      if (gameState.codeSlots.current[i].isEnabled && !gameState.codeSlots.current[i].isCompleted) {
-        availableSlots.push(i);
-      }
-    }
-    
-    if (availableSlots.length === 0) return null;
-    
-    // スロットが完了した場合、次のスロットに切り替え
-    const currentSlot = gameState.codeSlots.current[lastHintSlotRef.current];
-    if (currentSlot?.isCompleted && lastCompletedSlotRef.current !== lastHintSlotRef.current) {
-      // 完了したスロットを記録
-      lastCompletedSlotRef.current = lastHintSlotRef.current;
-      // 次の有効なスロットに切り替え
-      const nextSlot = (lastHintSlotRef.current + 1) % 2;  // A↔B切り替え
-      if (availableSlots.includes(nextSlot)) {
-        lastHintSlotRef.current = nextSlot;
-      } else if (availableSlots.length > 0) {
-        lastHintSlotRef.current = availableSlots[0];
-      }
-    }
-    
-    // 現在のヒントスロットが利用可能でなければ、利用可能な最初のスロットに切り替え
-    if (!availableSlots.includes(lastHintSlotRef.current)) {
-      lastHintSlotRef.current = availableSlots[0];
-      lastCompletedSlotRef.current = null;  // 完了記録をリセット
-    }
-    
-    return lastHintSlotRef.current;
-  };
 
   const progressionPunchSlot = gameState.codeSlots.current[1];
   const progressionStaffCorrectNotesSig = progressionPunchSlot.correctNotes.join(',');
@@ -4990,6 +4972,51 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       gameState.isGameOver,
     ],
   );
+
+  // ヒントスロット判定（A/B列を交互に表示。Progression は B のみ有効のため index 0 固定を避ける）
+  const getHintSlotIndex = (): number | null => {
+    if (!shouldShowKeyboardHints) {
+      return null;
+    }
+    const hintsAlwaysOn = hintMode || beginnerAssistActive || playerHasHintBuff;
+    if (!hintsAlwaysOn && survivalKeyboardHintOpacity <= 0) {
+      return null;
+    }
+
+    const availableSlots: number[] = [];
+    for (let i = 0; i < 2; i += 1) {
+      if (isAMagicSlot && i === 0 && gameState.aSlotCooldown > 0) {
+        continue;
+      }
+      if (isBMagicSlot && i === 1 && gameState.bSlotCooldown > 0) {
+        continue;
+      }
+      const slot = gameState.codeSlots.current[i];
+      if (slot.isEnabled && !slot.isCompleted && slot.chord) {
+        availableSlots.push(i);
+      }
+    }
+
+    if (availableSlots.length === 0) return null;
+
+    const currentSlot = gameState.codeSlots.current[lastHintSlotRef.current];
+    if (currentSlot?.isCompleted && lastCompletedSlotRef.current !== lastHintSlotRef.current) {
+      lastCompletedSlotRef.current = lastHintSlotRef.current;
+      const nextSlot = (lastHintSlotRef.current + 1) % 2;
+      if (availableSlots.includes(nextSlot)) {
+        lastHintSlotRef.current = nextSlot;
+      } else {
+        lastHintSlotRef.current = availableSlots[0];
+      }
+    }
+
+    if (!availableSlots.includes(lastHintSlotRef.current)) {
+      lastHintSlotRef.current = availableSlots[0];
+      lastCompletedSlotRef.current = null;
+    }
+
+    return lastHintSlotRef.current;
+  };
 
   const survivalCenterStaffUnpressedNoteOpacity = useMemo(
     () => computeUnpressedNoteOpacity(elapsedSecondsFloor, {
@@ -5238,7 +5265,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     applySurvivalVoicingHintsWithOpacity(renderer, pendingMidi, completedMidi, survivalKeyboardHintOpacity);
 
     return undefined;
-  }, [isPhraseMode, shouldShowKeyboardHints, survivalKeyboardHintOpacity, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
+  }, [isPhraseMode, shouldShowKeyboardHints, survivalKeyboardHintOpacity, bossUiTick, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
