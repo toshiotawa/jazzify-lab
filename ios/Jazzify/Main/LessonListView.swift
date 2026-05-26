@@ -1533,6 +1533,9 @@ private struct SurvivalTutorialLaunch: Identifiable {
 private struct SurvivalLessonLaunch: Identifiable {
     let id = UUID()
     let stage: SurvivalStageDefinition
+    let configOverride: SurvivalStageConfig?
+    let inlineCompositePhrases: [SurvivalPhraseDefinition]?
+    let lessonRuntime: ResolvedSurvivalLessonRuntime?
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
@@ -1729,6 +1732,9 @@ struct LessonDetailView: View {
                 characterId: "fai",
                 locale: locale,
                 onClose: { survivalLessonLaunch = nil },
+                configOverride: launch.configOverride,
+                inlineCompositePhrases: launch.inlineCompositePhrases,
+                lessonRuntime: launch.lessonRuntime,
                 lessonContext: SurvivalLessonContext(
                     lessonId: launch.lessonId,
                     lessonSongId: launch.lessonSongId,
@@ -2616,6 +2622,66 @@ struct LessonDetailView: View {
         }
 
         if requirement.isSurvival == true {
+            if SurvivalLessonConfig.lessonSongHasInlineComposite(requirement.survivalCompositeConfig) {
+                guard let compositeConfig = requirement.survivalCompositeConfig else {
+                    alertMessage = locale == .ja
+                        ? "複合フレーズ設定がありません。"
+                        : "Missing composite phrase configuration."
+                    return
+                }
+                Task {
+                    let phrases: [SurvivalPhraseDefinition]
+                    do {
+                        phrases = try SurvivalLessonConfig.buildSurvivalPhrasesFromLessonCompositeConfig(
+                            compositeConfig,
+                            lessonSongId: requirement.id
+                        )
+                    } catch {
+                        await MainActor.run {
+                            alertMessage = locale == .ja
+                                ? "複合フレーズ設定が不正です。"
+                                : "Invalid composite phrase configuration."
+                        }
+                        return
+                    }
+                    let stage = SurvivalLessonConfig.buildLessonCompositeStageDefinition(
+                        title: requirement.title ?? (locale == .ja ? "複合フレーズ課題" : "Composite phrase lesson"),
+                        titleEn: requirement.titleEn ?? "Composite phrase lesson",
+                        config: compositeConfig
+                    )
+                    let supabase = SupabaseService.shared
+                    let baseConfig = (try? await supabase.fetchSurvivalStageConfig(
+                        difficulty: stage.difficulty.rawValue,
+                        stageType: stage.stageType
+                    )) ?? SurvivalStageConfig.default
+                    let runtime = SurvivalLessonConfig.resolveSurvivalLessonRuntime(
+                        overrides: requirement.survivalLessonOverrides,
+                        stage: stage,
+                        baseConfig: baseConfig,
+                        isBossStage: true,
+                        isCompositeBoss: true
+                    )
+                    let lessonConfig = SurvivalLessonConfig.configWithLessonRuntime(
+                        base: baseConfig,
+                        runtime: runtime,
+                        stageType: stage.stageType
+                    )
+                    await MainActor.run {
+                        LessonMapAudio.shared.stopImmediately()
+                        survivalLessonLaunch = SurvivalLessonLaunch(
+                            stage: stage,
+                            configOverride: lessonConfig,
+                            inlineCompositePhrases: phrases,
+                            lessonRuntime: runtime,
+                            lessonId: lesson.id,
+                            lessonSongId: requirement.id,
+                            clearConditions: requirement.clearConditions
+                        )
+                    }
+                }
+                return
+            }
+
             guard let stageNumber = requirement.survivalStageNumber else {
                 alertMessage = locale == .ja ? "サバイバルステージ設定がありません。" : "Missing survival stage setting."
                 return
@@ -2631,10 +2697,34 @@ struct LessonDetailView: View {
                     }
                     return
                 }
+                let supabase = SupabaseService.shared
+                let baseConfig = (try? await supabase.fetchSurvivalStageConfig(
+                    difficulty: stage.difficulty.rawValue,
+                    stageType: stage.stageType
+                )) ?? SurvivalStageConfig.default
+                let isBossStage = SurvivalBossEngine.isBlockLastStage(
+                    stageNumber: stage.stageNumber,
+                    in: stage.mapCategory
+                )
+                let runtime = SurvivalLessonConfig.resolveSurvivalLessonRuntime(
+                    overrides: requirement.survivalLessonOverrides,
+                    stage: stage,
+                    baseConfig: baseConfig,
+                    isBossStage: isBossStage,
+                    isCompositeBoss: stage.isCompositePhraseBossStage
+                )
+                let lessonConfig = SurvivalLessonConfig.configWithLessonRuntime(
+                    base: baseConfig,
+                    runtime: runtime,
+                    stageType: stage.stageType
+                )
                 await MainActor.run {
                     LessonMapAudio.shared.stopImmediately()
                     survivalLessonLaunch = SurvivalLessonLaunch(
                         stage: stage,
+                        configOverride: lessonConfig,
+                        inlineCompositePhrases: nil,
+                        lessonRuntime: runtime,
                         lessonId: lesson.id,
                         lessonSongId: requirement.id,
                         clearConditions: requirement.clearConditions

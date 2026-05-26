@@ -18,7 +18,19 @@ import {
   getStagesByCategory,
   getTotalStagesByCategory,
   resolveLessonSurvivalMapCategory,
+  getSurvivalStageBattleKind,
+  isBlockLastStage,
 } from './SurvivalStageDefinitions';
+import { fetchLessonSongById } from '@/platform/supabaseLessons';
+import {
+  buildLessonCompositeStageDefinition,
+  buildSurvivalPhrasesFromLessonCompositeConfig,
+  lessonSongHasInlineComposite,
+  resolveSurvivalLessonRuntime,
+  type ResolvedSurvivalLessonRuntime,
+} from '@/utils/survivalLessonConfig';
+import type { SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
+import { isFirstBlockBossStageDef } from './survivalFirstBlockStage';
 import SurvivalRunPrepModal from './SurvivalRunPrepModal';
 import { getFreeTierStageNumbers } from './descent/descentBlocks';
 import { rebuildDescentBlocks } from './descent/descentBlocks';
@@ -145,6 +157,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
   const [survivalSessionNonce, setSurvivalSessionNonce] = useState(0);
+  const [lessonInlineCompositePhrases, setLessonInlineCompositePhrases] = useState<
+    readonly SurvivalPhraseDefinition[] | null
+  >(null);
+  const [lessonRuntime, setLessonRuntime] = useState<ResolvedSurvivalLessonRuntime | null>(null);
   const [survivalBgmSettings, setSurvivalBgmSettings] = useState<SurvivalBgmSettingsMap>(DEFAULT_SURVIVAL_BGM_SETTINGS);
 
   const [iosInitialized, setIosInitialized] = useState(false);
@@ -309,7 +325,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       clearConditions = JSON.parse(lessonParams.get('clearConditions') || '{}') as Record<string, unknown>;
     } catch { /* ignore */ }
 
-    if (!lessonId || !lessonSongId || !stageNumber) {
+    if (!lessonId || !lessonSongId) {
       window.location.hash = '#lessons';
       return;
     }
@@ -325,15 +341,46 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         rebuildDescentLayouts();
       } catch { /* ignore */ }
 
-      const stageDef = findStageForLesson(stageNumber, survivalMapCategory);
-      if (!stageDef) {
+      let lessonSong;
+      try {
+        lessonSong = await fetchLessonSongById(lessonSongId);
+      } catch {
         window.location.hash = '#lessons';
         return;
       }
 
-      // レッスン詳細の「プレイ」クリック直後にマウントされるため、
-      // initializeAudioSystem を await すると detectUserInteraction で永久待ちになる。
-      // ファンタジーレッスンと同様、音声初期化は非ブロッキングで開始する。
+      let stageDef: StageDefinition | undefined;
+      let inlinePhrases: readonly SurvivalPhraseDefinition[] | null = null;
+
+      if (lessonSongHasInlineComposite(lessonSong.survival_composite_config)) {
+        const compositeConfig = lessonSong.survival_composite_config;
+        if (!compositeConfig) {
+          window.location.hash = '#lessons';
+          return;
+        }
+        try {
+          inlinePhrases = buildSurvivalPhrasesFromLessonCompositeConfig(compositeConfig, lessonSongId);
+        } catch {
+          window.location.hash = '#lessons';
+          return;
+        }
+        stageDef = buildLessonCompositeStageDefinition(
+          lessonSong.title ?? '複合フレーズ課題',
+          lessonSong.title_en ?? 'Composite phrase lesson',
+          compositeConfig,
+        );
+      } else {
+        if (!stageNumber) {
+          window.location.hash = '#lessons';
+          return;
+        }
+        stageDef = findStageForLesson(stageNumber, survivalMapCategory);
+        if (!stageDef) {
+          window.location.hash = '#lessons';
+          return;
+        }
+      }
+
       try {
         markAudioUserInteraction();
         void FantasySoundManager.unlock();
@@ -355,20 +402,39 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       const baseConfig = dbConfigs.find(c => c.difficulty === stageDef.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
+      const isInlineComposite = inlinePhrases !== null && inlinePhrases.length >= 2;
+      const isBossStage = isInlineComposite
+        || getSurvivalStageBattleKind(
+          stageDef.stageType,
+          isBlockLastStage(stageDef.stageNumber, stageDef.mapCategory),
+        ) === 'boss';
+      const isPhraseMode = stageDef.mapCategory === 'phrases';
+      const runtime = resolveSurvivalLessonRuntime(lessonSong.survival_lesson_overrides, {
+        stageDefinition: stageDef,
+        baseConfig,
+        isBossStage,
+        isPhraseMode,
+        isCompositeBoss: isInlineComposite
+          || Boolean(stageDef.compositePhraseSources?.length),
+        isFirstBlockBoss: isFirstBlockBossStageDef(stageDef),
+      });
+      const defaultBgm = stageDef.mapCategory === 'phrases'
+        ? resolveSurvivalBgmUrl('phrases', bgmSettings)
+        : resolveSurvivalBgmUrl(stageDef.stageType, bgmSettings);
       const lessonConfig: DifficultyConfig = {
         ...baseConfig,
         difficulty: stageDef.difficulty,
         allowedChords: stageDef.allowedChords,
-        bgmUrl:
-          stageDef.mapCategory === 'phrases'
-            ? resolveSurvivalBgmUrl('phrases', bgmSettings)
-            : resolveSurvivalBgmUrl(stageDef.stageType, bgmSettings),
+        enemyStatMultiplier: runtime.enemyStatMultiplier,
+        bgmUrl: runtime.bgmUrl ?? defaultBgm,
       };
 
       setSelectedDifficulty(stageDef.difficulty);
       setSelectedConfig(lessonConfig);
       setSelectedCharacter(faiChar);
       setActiveStageDefinition(stageDef);
+      setLessonInlineCompositePhrases(inlinePhrases);
+      setLessonRuntime(runtime);
       setActiveHintMode(false);
       setScreen('lessonPrep');
       setLessonInitialized(true);
@@ -563,6 +629,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
             isOpen
             variant="lesson"
             stage={activeStageDefinition}
+            lessonRuntime={lessonRuntime ?? undefined}
             isEnglishCopy={isEnglishCopy}
             initialHintMode={activeHintMode}
             onCancel={() => {
@@ -614,6 +681,8 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         debugSettings={debugSettings}
         character={selectedCharacter}
         stageDefinition={activeStageDefinition ?? undefined}
+        lessonInlineCompositePhrases={lessonInlineCompositePhrases ?? undefined}
+        lessonRuntime={lessonRuntime ?? undefined}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
         isLessonMode={!!lessonMode}
         hintMode={activeHintMode}

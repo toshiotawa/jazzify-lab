@@ -316,9 +316,23 @@ export async function removeFantasyStageFromLesson(lessonId: string, fantasyStag
 
 type SurvivalLessonSongData = {
   lesson_id: string;
-  survival_stage_number: number;
+  survival_stage_number?: number | null;
   survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;
+  survival_composite_config?: import('@/types').SurvivalLessonCompositeConfig | null;
+  survival_lesson_overrides?: import('@/types').SurvivalLessonOverrides | null;
   clear_conditions?: ClearConditions;
+  title?: string | null;
+  title_en?: string | null;
+};
+
+export type UpdateSurvivalLessonSongPayload = {
+  survival_stage_number?: number | null;
+  survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;
+  survival_composite_config?: import('@/types').SurvivalLessonCompositeConfig | null;
+  survival_lesson_overrides?: import('@/types').SurvivalLessonOverrides | null;
+  clear_conditions?: ClearConditions;
+  title?: string | null;
+  title_en?: string | null;
 };
 
 type EarTrainingLessonSongData = {
@@ -350,9 +364,13 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
       fantasy_stage_id: null,
       is_fantasy: false,
       is_survival: true,
-      survival_stage_number: data.survival_stage_number,
+      survival_stage_number: data.survival_stage_number ?? null,
       survival_map_category: data.survival_map_category ?? null,
+      survival_composite_config: data.survival_composite_config ?? null,
+      survival_lesson_overrides: data.survival_lesson_overrides ?? null,
       clear_conditions: data.clear_conditions,
+      title: data.title ?? null,
+      title_en: data.title_en ?? null,
       order_index: nextOrderIndex,
     })
     .select()
@@ -364,6 +382,44 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
   }
 
   return result as LessonSong;
+}
+
+export async function fetchLessonSongById(lessonSongId: string): Promise<LessonSong> {
+  const { data, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .select('*')
+    .eq('id', lessonSongId)
+    .single();
+
+  if (error) {
+    console.error(`Error fetching lesson song ${lessonSongId}:`, error);
+    throw error;
+  }
+
+  return data as LessonSong;
+}
+
+export async function updateSurvivalLessonSong(
+  lessonSongId: string,
+  updates: UpdateSurvivalLessonSongPayload,
+): Promise<LessonSong> {
+  const { data, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .update({
+      ...updates,
+      survival_composite_config: updates.survival_composite_config ?? null,
+      survival_lesson_overrides: updates.survival_lesson_overrides ?? null,
+    })
+    .eq('id', lessonSongId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(`Error updating survival lesson song ${lessonSongId}:`, error);
+    throw error;
+  }
+
+  return data as LessonSong;
 }
 
 type SurvivalTutorialLessonSongData = {

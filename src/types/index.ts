@@ -819,6 +819,38 @@ export interface EarTrainingChordVoicingAttempt {
   failedChordIds: Set<string>;
 }
 
+export interface SurvivalLessonCompositeDamageOverrides {
+  note?: number;
+  measureRange?: number;
+  finishPrimary?: number;
+  finishRepeat?: number;
+}
+
+export interface SurvivalLessonCompositeConfig {
+  bossType?: 'A' | 'B' | 'C';
+  keyFifths?: number;
+  phrases: readonly {
+    title?: string;
+    chords: readonly {
+      chordName: string;
+      measureNumber?: number;
+      noteNames: readonly string[];
+      noteStaves?: readonly (1 | 2)[];
+    }[];
+  }[];
+}
+
+export interface SurvivalLessonOverrides {
+  bossMaxHp?: number;
+  playerMaxHp?: number;
+  bgmUrl?: string;
+  timeLimitSec?: number;
+  killQuota?: number;
+  enemyStatMultiplier?: number;
+  playerStatMultiplier?: number;
+  compositeDamage?: SurvivalLessonCompositeDamageOverrides;
+}
+
 export interface LessonSong {
   id: string;
   lesson_id: string;
@@ -836,6 +868,10 @@ export interface LessonSong {
   survival_stage_number?: number;
   /** survival_stages と組み合わせてステージを一意に特定（NULL は basic とみなす） */
   survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;
+  /** レッスン専用インライン複合フレーズ（音名登録） */
+  survival_composite_config?: SurvivalLessonCompositeConfig | null;
+  /** 課題ごとの HP / 与ダメ / BGM / ステージルール上書き */
+  survival_lesson_overrides?: SurvivalLessonOverrides | null;
   clear_conditions?: ClearConditions;
   order_index?: number;
   title?: string | null;

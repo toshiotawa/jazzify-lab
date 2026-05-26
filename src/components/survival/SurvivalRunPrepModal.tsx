@@ -11,6 +11,7 @@ import {
   survivalStageUsesCompositePhrasePattern,
 } from './SurvivalStageDefinitions';
 import { getStageKillQuotaForStage } from './survivalFirstBlockStage';
+import type { ResolvedSurvivalLessonRuntime } from '@/utils/survivalLessonConfig';
 
 export type SurvivalRunPrepVariant = 'lesson' | 'map';
 
@@ -18,6 +19,7 @@ interface SurvivalRunPrepModalProps {
   isOpen: boolean;
   variant: SurvivalRunPrepVariant;
   stage: StageDefinition | null;
+  lessonRuntime?: ResolvedSurvivalLessonRuntime;
   isEnglishCopy: boolean;
   /** モーダルを開いたときの初期 HINT（練習）状態 */
   initialHintMode: boolean;
@@ -30,6 +32,7 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   isOpen,
   variant,
   stage,
+  lessonRuntime,
   isEnglishCopy,
   initialHintMode,
   onCancel,
@@ -65,18 +68,26 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   const cancelLabel = isEnglishCopy ? 'Back' : '戻る';
   const startLabel = isEnglishCopy ? 'Start' : '開始';
 
-  const stageKillQuota = getStageKillQuotaForStage(stage);
+  const stageKillQuota = lessonRuntime?.killQuota ?? getStageKillQuotaForStage(stage);
+  const timeLimitSec = lessonRuntime?.timeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
 
-  const compositeLocked = survivalStageUsesCompositePhrasePattern(stage);
+  const compositeLocked = survivalStageUsesCompositePhrasePattern(stage)
+    || stage.blockKey === 'lesson_composite';
 
-  const clearSummary =
-    variant === 'lesson'
-      ? isEnglishCopy
-        ? `Clear: survive ${STAGE_TIME_LIMIT_SECONDS}s and defeat ${stageKillQuota} enemies (performance mode saves lesson progress).`
-        : `クリア条件: ${STAGE_TIME_LIMIT_SECONDS}秒生存 + ${stageKillQuota}体撃破（本番時のみレッスン進捗が保存されます）。`
-      : isEnglishCopy
-        ? `Objective: ${STAGE_TIME_LIMIT_SECONDS}s survival + ${stageKillQuota} defeats (HINT does not record clears).`
-        : `目標: ${STAGE_TIME_LIMIT_SECONDS}秒生存 + ${stageKillQuota}体撃破（HINT時はクリア記録されません）。`;
+  const isBossEncounter = compositeLocked
+    || formatSurvivalEncounterLabel(stage, isEnglishCopy) === (isEnglishCopy ? 'Boss' : 'ボス');
+
+  const clearSummary = isBossEncounter
+    ? (isEnglishCopy
+      ? 'Clear: defeat the boss (performance mode saves lesson progress).'
+      : 'クリア条件: ボス撃破（本番時のみレッスン進捗が保存されます）。')
+    : variant === 'lesson'
+      ? (isEnglishCopy
+        ? `Clear: survive ${timeLimitSec}s and defeat ${stageKillQuota} enemies (performance mode saves lesson progress).`
+        : `クリア条件: ${timeLimitSec}秒生存 + ${stageKillQuota}体撃破（本番時のみレッスン進捗が保存されます）。`)
+      : (isEnglishCopy
+        ? `Objective: ${timeLimitSec}s survival + ${stageKillQuota} defeats (HINT does not record clears).`
+        : `目標: ${timeLimitSec}秒生存 + ${stageKillQuota}体撃破（HINT時はクリア記録されません）。`);
 
   const compositeNote = compositeLocked
     ? (isEnglishCopy

@@ -166,6 +166,10 @@ import {
   loadCompositePhraseRuntimeConfig,
   type SurvivalPhraseDefinition,
 } from '@/utils/survivalPhraseDefinitions';
+import {
+  applyPlayerStatMultiplier,
+  type ResolvedSurvivalLessonRuntime,
+} from '@/utils/survivalLessonConfig';
 import { parseSurvivalQuestionId } from '@/utils/survivalQuestionTypes';
 import {
   SurvivalPhraseDrumLoop,
@@ -371,6 +375,10 @@ interface SurvivalGameScreenProps {
   tutorialDialogueJajii?: boolean;
   /** ジャ爺吹き出しの segments。`.current` を親が書き換え、Canvas が毎フレーム参照 */
   tutorialJajiiSpeechSegmentsRef?: React.MutableRefObject<readonly TutorialResolvedTextSegment[]>;
+  /** レッスン課題のインライン複合フレーズ（Supabase 参照なし） */
+  lessonInlineCompositePhrases?: readonly SurvivalPhraseDefinition[];
+  /** レッスン課題の HP / BGM / 制限時間などランタイム上書き */
+  lessonRuntime?: ResolvedSurvivalLessonRuntime;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -401,6 +409,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   scenarioPhraseFullLoopPulseRef,
   tutorialDialogueJajii = false,
   tutorialJajiiSpeechSegmentsRef,
+  lessonInlineCompositePhrases,
+  lessonRuntime,
 }) => {
   const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
@@ -430,13 +440,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const initPromiseRef = useRef<Promise<void> | null>(null);
   const survivalPianoHeightRef = useRef(120);
   survivalPianoHeightRef.current = embeddedFullHeight && !survivalTutorialLayout ? 80 : 120;
-  
+
+  const isLessonInlineCompositeBoss = Boolean(
+    lessonInlineCompositePhrases && lessonInlineCompositePhrases.length >= 2,
+  );
+
   const isStageMode = !!stageDefinition;
   const stageBattleKind = stageDefinition
-    ? getSurvivalStageBattleKind(
+    ? (isLessonInlineCompositeBoss
+      ? 'boss'
+      : getSurvivalStageBattleKind(
         stageDefinition.stageType,
         isBlockLastStage(stageDefinition.stageNumber, stageDefinition.mapCategory),
-      )
+      ))
     : null;
   const isBossStage = stageBattleKind === 'boss';
   // Progression コード進行ステージは、ブロック末尾のボス戦であっても DB の `chord_progression`
@@ -447,9 +463,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isBasicMapStage = stageDefinition?.mapCategory === 'basic';
   const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
   const isCompositePhraseBossStage =
-    isPhraseMode
-    && isBossStage
-    && Boolean(stageDefinition?.compositePhraseSources?.length ?? 0);
+    isLessonInlineCompositeBoss
+    || (isPhraseMode
+      && isBossStage
+      && Boolean(stageDefinition?.compositePhraseSources?.length ?? 0));
   const shouldRunStageIntroDialogue =
     isStageMode
     && !!stageDefinition
@@ -485,7 +502,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     && !survivalTutorialLayout
     && !shouldRunStageIntroDialogue
     && !shouldRunBlockBossIntroDialogue;
-  const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
+  const stageKillQuota = lessonRuntime?.killQuota
+    ?? (stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150);
+  const stageTimeLimitSec = lessonRuntime?.timeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
+  const compositeNoteDamage = lessonRuntime?.compositeDamage.note ?? COMPOSITE_PHRASE_NOTE_DAMAGE;
+  const compositeMeasureRangeDamage = lessonRuntime?.compositeDamage.measureRange ?? COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE;
+  const compositeFinishPrimaryDamage = lessonRuntime?.compositeDamage.finishPrimary ?? COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY;
+  const compositeFinishRepeatDamage = lessonRuntime?.compositeDamage.finishRepeat ?? COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT;
   const bossType = isBossStage && stageDefinition
     ? (
       stageDefinition.compositePhraseBossType
@@ -580,6 +603,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return undefined;
     }
 
+    if (isLessonInlineCompositeBoss && lessonInlineCompositePhrases) {
+      phraseDefinitionRef.current = null;
+      phraseStateRef.current = null;
+      phraseBgmUrlRef.current = resolvePhraseBgmUrl(config.bgmUrl);
+      compositePhraseSourcePhrasesRef.current = [...lessonInlineCompositePhrases];
+      compositePhraseRuntimeRef.current = createInitialCompositePhraseRuntimeState(
+        lessonInlineCompositePhrases,
+      );
+      compositePhraseKeyFifthsRef.current = stageDefinition?.compositePhraseKeyFifths ?? 0;
+      setPhraseUiTick((t) => t + 1);
+      setPhraseBgmReadyTick((t) => t + 1);
+      return undefined;
+    }
+
     const isCompositeBoss = Boolean(stageDefinition?.compositePhraseSources?.length ?? 0) && isBossStage;
 
     let cancelled = false;
@@ -616,8 +653,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }, [
     isPhraseMode,
     isBossStage,
+    isLessonInlineCompositeBoss,
     stageDefinition,
     tutorialPhraseInlineDefinition,
+    lessonInlineCompositePhrases,
     config.bgmUrl,
   ]);
   useEffect(() => {
@@ -696,7 +735,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
     if (isBossStage) {
-      const bossPlayerMaxHp = resolveBossPlayerMaxHp(isPhraseMode);
+      const bossPlayerMaxHp = lessonRuntime?.playerMaxHp ?? resolveBossPlayerMaxHp(isPhraseMode);
       initial.player.stats.hp = bossPlayerMaxHp;
       initial.player.stats.maxHp = bossPlayerMaxHp;
       if (!isPhraseMode) {
@@ -705,6 +744,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         initial.codeSlots.next[2].isEnabled = false;
         initial.codeSlots.next[3].isEnabled = false;
       }
+    }
+    const playerStatMultiplier = lessonRuntime?.playerStatMultiplier ?? 1;
+    if (playerStatMultiplier !== 1) {
+      const scaled = applyPlayerStatMultiplier(
+        {
+          aAtk: initial.player.stats.aAtk,
+          bAtk: initial.player.stats.bAtk,
+          cAtk: initial.player.stats.cAtk,
+        },
+        playerStatMultiplier,
+      );
+      initial.player.stats.aAtk = scaled.aAtk;
+      initial.player.stats.bAtk = scaled.bAtk;
+      initial.player.stats.cAtk = scaled.cAtk;
     }
     // ステージモード時: HINTモードなら永続ヒントエフェクト付与
     if (isStageMode && hintMode) {
@@ -1613,8 +1666,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (isBossStage && bossType) {
       bossBattleRef.current = createBossBattleState(bossType, performance.now(), {
-        maxHp: resolveBossMaxHp(isPhraseMode, { isFirstBlockBoss }),
-        playerMaxHp: resolveBossPlayerMaxHp(isPhraseMode),
+        maxHp: lessonRuntime?.bossMaxHp ?? resolveBossMaxHp(isPhraseMode, { isFirstBlockBoss }),
+        playerMaxHp: lessonRuntime?.playerMaxHp ?? resolveBossPlayerMaxHp(isPhraseMode),
       });
     } else {
       bossBattleRef.current = null;
@@ -1623,7 +1676,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
     comboClockSecRef.current = survivalComboClockSec();
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss, lessonRuntime]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
@@ -1925,7 +1978,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const firePlayerCombat = shouldFirePhrasePlayerAttacks(phraseComboAfter);
         const aShotDamage = clampPhraseOutgoingDamage(
           phraseComboAfter,
-          COMPOSITE_PHRASE_NOTE_DAMAGE,
+          compositeNoteDamage,
         );
         const phraseJajiiCap =
           phraseComboAfter <= PHRASE_EARLY_COMBO_CAP_UNTIL ? PHRASE_EARLY_COMBO_DAMAGE_CAP : undefined;
@@ -1951,9 +2004,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         let rangeMeleeDamage =
           evaluation.result === 'phrase-complete'
             ? (isDuplicatePhraseFinish
-              ? COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT
-              : COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY)
-            : COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE;
+              ? compositeFinishRepeatDamage
+              : compositeFinishPrimaryDamage)
+            : compositeMeasureRangeDamage;
         rangeMeleeDamage = clampPhraseOutgoingDamage(
           phraseComboAfter,
           rangeMeleeDamage,
@@ -4697,7 +4750,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             && scenarioOverridesRef.current.disableKillQuotaClear;
           if (!scNoStageTimers) {
           // ステージモード: 残り30秒パワーアップ
-          const remainingTime = STAGE_TIME_LIMIT_SECONDS - newState.elapsedTime;
+          const remainingTime = stageTimeLimitSec - newState.elapsedTime;
           if (remainingTime <= 30 && !stagePowerUpTriggeredRef.current) {
             stagePowerUpTriggeredRef.current = true;
             newState.player = {
@@ -4729,7 +4782,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.wave = { ...newState.wave, waveCompleted: true };
           }
 
-          if (newState.elapsedTime >= STAGE_TIME_LIMIT_SECONDS && !newState.isGameOver) {
+          if (newState.elapsedTime >= stageTimeLimitSec && !newState.isGameOver) {
             newState.isGameOver = true;
             newState.isPlaying = false;
             const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
@@ -4866,7 +4919,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, beginnerAssistActive, onLessonStageClear, onMissionStageClear, perfHudEnabled, jajiiEnabled]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, stageTimeLimitSec, beginnerAssistActive, onLessonStageClear, onMissionStageClear, perfHudEnabled, jajiiEnabled]);
   
   // リトライ
   const handleRetry = useCallback(() => {
@@ -4893,7 +4946,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
     if (isBossStage) {
-      const bossPlayerMaxHp = resolveBossPlayerMaxHp(isPhraseMode);
+      const bossPlayerMaxHp = lessonRuntime?.playerMaxHp ?? resolveBossPlayerMaxHp(isPhraseMode);
       initial.player.stats.hp = bossPlayerMaxHp;
       initial.player.stats.maxHp = bossPlayerMaxHp;
       if (!isPhraseMode) {
@@ -4902,6 +4955,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         initial.codeSlots.next[2].isEnabled = false;
         initial.codeSlots.next[3].isEnabled = false;
       }
+    }
+    const restartPlayerStatMultiplier = lessonRuntime?.playerStatMultiplier ?? 1;
+    if (restartPlayerStatMultiplier !== 1) {
+      const scaled = applyPlayerStatMultiplier(
+        {
+          aAtk: initial.player.stats.aAtk,
+          bAtk: initial.player.stats.bAtk,
+          cAtk: initial.player.stats.cAtk,
+        },
+        restartPlayerStatMultiplier,
+      );
+      initial.player.stats.aAtk = scaled.aAtk;
+      initial.player.stats.bAtk = scaled.bAtk;
+      initial.player.stats.cAtk = scaled.cAtk;
     }
     // ステージモード: HINTモードなら永続ヒントエフェクト付与
     if (isStageMode && hintMode) {
@@ -5772,8 +5839,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   {isBossStage ? (
                     <span className="font-bold shrink-0 text-white">{formatTime(gameState.elapsedTime)}</span>
                   ) : isStageMode && !scenarioHideTimer ? (
-                    <span className={cn('font-bold shrink-0', Math.max(0, STAGE_TIME_LIMIT_SECONDS - gameState.elapsedTime) < 30 ? 'text-red-400' : 'text-white')}>
-                      {formatTime(Math.max(0, STAGE_TIME_LIMIT_SECONDS - gameState.elapsedTime))}
+                    <span className={cn('font-bold shrink-0', Math.max(0, stageTimeLimitSec - gameState.elapsedTime) < 30 ? 'text-red-400' : 'text-white')}>
+                      {formatTime(Math.max(0, stageTimeLimitSec - gameState.elapsedTime))}
                     </span>
                   ) : isStageMode && scenarioHideTimer ? null : (
                     <span className="font-bold shrink-0">{formatTime(gameState.elapsedTime)}</span>

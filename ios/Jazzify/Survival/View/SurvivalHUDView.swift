@@ -19,6 +19,7 @@ struct SurvivalHUDView: View {
     let bossHud: SurvivalBossHUDSnapshot?
     let isPaused: Bool
     let stage: SurvivalStageDefinition
+    let enemyQuotaOverride: Int?
     let locale: AppLocale
     let onTogglePause: () -> Void
 
@@ -48,7 +49,7 @@ struct SurvivalHUDView: View {
                     stageName: stage.localizedName(locale),
                     timeLabel: timeLabel,
                     enemiesDefeated: uiSnapshot.enemiesDefeated,
-                    enemyQuota: stage.stageKillQuota,
+                    enemyQuota: enemyQuotaOverride ?? stage.stageKillQuota,
                     isBossBattle: bossHud != nil,
                     hintMode: uiSnapshot.hintMode,
                     isPaused: isPaused,

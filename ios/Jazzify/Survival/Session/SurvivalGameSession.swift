@@ -28,6 +28,9 @@ final class SurvivalGameSession: ObservableObject {
     private let onExit: (_ isCleared: Bool) -> Void
     /// チュートリアルなど Supabase を叩かずにフレーズを注入する際に使用。
     private let inlinePhraseDefinition: SurvivalPhraseDefinition?
+    /// レッスン課題のインライン複合フレーズ（2 件以上）。
+    private let inlineCompositePhrases: [SurvivalPhraseDefinition]?
+    private let lessonRuntime: ResolvedSurvivalLessonRuntime?
     private let supabase = SupabaseService.shared
     private var uiForward: AnyCancellable?
 
@@ -43,14 +46,17 @@ final class SurvivalGameSession: ObservableObject {
         usesEnglishToastCopy: Bool,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
         scenarioController: SurvivalScenarioController? = nil,
-        inlinePhraseDefinition: SurvivalPhraseDefinition? = nil
+        inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
+        inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil,
+        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
     ) {
         let loop = SurvivalGameLoop(
             stage: stage,
             hintMode: hintMode,
             profile: profile,
             config: config,
-            scenarioOverrides: scenarioOverrides
+            scenarioOverrides: scenarioOverrides,
+            lessonRuntime: lessonRuntime
         )
         self.gameLoop = loop
         self.simulation = SurvivalSimulation(gameLoop: loop)
@@ -75,6 +81,8 @@ final class SurvivalGameSession: ObservableObject {
         self.usesEnglishToastCopy = usesEnglishToastCopy
         self.onExit = onExit
         self.inlinePhraseDefinition = inlinePhraseDefinition
+        self.inlineCompositePhrases = inlineCompositePhrases
+        self.lessonRuntime = lessonRuntime
 
         uiForward = vm.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
@@ -105,7 +113,19 @@ final class SurvivalGameSession: ObservableObject {
         guard state != .disposed else { return }
         let playBackgroundMusic = !gameLoop.runtime.scenario.disableSurvivalBgm
         if gameLoop.isPhraseMode {
-            if stage.isCompositePhraseBossStage, let nums = stage.compositePhraseSources, !nums.isEmpty {
+            if let inlineComposite = inlineCompositePhrases, inlineComposite.count >= 2 {
+                let kf = stage.compositePhraseKeyFifths ?? 0
+                gameLoop.loadCompositePhraseRuntime(sourcePhrases: inlineComposite, keyFifths: kf)
+                viewModel.syncPhraseStaff(from: gameLoop)
+                if playBackgroundMusic {
+                    if let bgm = lessonRuntime?.bgmUrl {
+                        audioController.setBgmUrl(bgm)
+                    } else {
+                        applyPhraseBackgroundMusicUrlIfAvailable(fetchedPhrase: inlineComposite[0])
+                    }
+                }
+                audioController.start(playBackgroundMusic: playBackgroundMusic)
+            } else if stage.isCompositePhraseBossStage, let nums = stage.compositePhraseSources, !nums.isEmpty {
                 Task {
                     var collected: [SurvivalPhraseDefinition] = []
                     collected.reserveCapacity(nums.count)
@@ -153,7 +173,11 @@ final class SurvivalGameSession: ObservableObject {
             }
         } else {
             if playBackgroundMusic {
-                audioController.setBgmUrl(gameLoop.stageConfig.bgmUrl)
+                if let bgm = lessonRuntime?.bgmUrl {
+                    audioController.setBgmUrl(bgm)
+                } else {
+                    audioController.setBgmUrl(gameLoop.stageConfig.bgmUrl)
+                }
             }
             audioController.start(playBackgroundMusic: playBackgroundMusic)
         }

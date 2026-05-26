@@ -72,7 +72,12 @@ import {
   formatSurvivalEncounterLabel,
   STAGE_KILL_QUOTA,
   STAGE_TIME_LIMIT_SECONDS,
+  survivalStageUsesCompositePhrasePattern,
 } from '@/components/survival/SurvivalStageDefinitions';
+import {
+  buildLessonCompositeStageDefinition,
+  lessonSongHasInlineComposite,
+} from '@/utils/survivalLessonConfig';
 
 /**
  * レッスン詳細画面
@@ -223,6 +228,8 @@ const LessonDetailPage: React.FC = () => {
           survival_allowed_chords: ls.survival_allowed_chords,
           survival_stage_number: ls.survival_stage_number,
           survival_map_category: ls.survival_map_category,
+          survival_composite_config: ls.survival_composite_config,
+          survival_lesson_overrides: ls.survival_lesson_overrides,
           is_ear_training: ls.is_ear_training,
           ear_training_stage: ls.ear_training_stage,
           ear_training_stage_id: ls.ear_training_stage_id,
@@ -704,32 +711,54 @@ const LessonDetailPage: React.FC = () => {
 
                         {/* サバイバルステージ情報 */}
                         {isSurvival && !isSurvivalTutorial && (() => {
+                          const hasInlineComposite = lessonSongHasInlineComposite(req.survival_composite_config);
                           const mapCat = resolveLessonSurvivalMapCategory(
                             req.survival_map_category ?? undefined,
                           );
-                          const stageDef = req.survival_stage_number
-                            ? getStageByNumber(req.survival_stage_number, mapCat)
-                            : null;
+                          const stageDef = hasInlineComposite && req.survival_composite_config
+                            ? buildLessonCompositeStageDefinition(
+                              req.title ?? '複合フレーズ課題',
+                              req.title_en ?? 'Composite phrase lesson',
+                              req.survival_composite_config,
+                            )
+                            : (req.survival_stage_number
+                              ? getStageByNumber(req.survival_stage_number, mapCat)
+                              : null);
+                          const isBossEncounter = stageDef
+                            ? (survivalStageUsesCompositePhrasePattern(stageDef)
+                              || stageDef.blockKey === 'lesson_composite'
+                              || formatSurvivalEncounterLabel(stageDef, isEnglishCopy) === (isEnglishCopy ? 'Boss' : 'ボス'))
+                            : false;
+                          const timeLimitSec = req.survival_lesson_overrides?.timeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
+                          const killQuota = req.survival_lesson_overrides?.killQuota ?? STAGE_KILL_QUOTA;
                           return (
                             <div className="mb-3 text-sm">
                               {stageDef ? (
                                 <>
                                   <div className="text-gray-300 text-xs mt-1">
-                                    Stage {stageDef.stageNumber}: {isEnglishCopy ? stageDef.nameEn : stageDef.name}
+                                    {hasInlineComposite
+                                      ? (isEnglishCopy ? 'Composite phrase boss (lesson)' : 'レッスン複合フレーズボス')
+                                      : `Stage ${stageDef.stageNumber}: ${isEnglishCopy ? stageDef.nameEn : stageDef.name}`}
                                   </div>
                                   <div className="text-gray-400 text-xs mt-1">
                                     {isEnglishCopy ? 'Mode' : '出題'}: {formatSurvivalStageModeLabel(stageDef, isEnglishCopy)}
                                     {' · '}
                                     {isEnglishCopy ? 'Encounter' : '戦闘'}:{' '}
-                                    {formatSurvivalEncounterLabel(stageDef, isEnglishCopy)}
+                                    {isBossEncounter
+                                      ? (isEnglishCopy ? 'Boss' : 'ボス')
+                                      : formatSurvivalEncounterLabel(stageDef, isEnglishCopy)}
                                   </div>
                                   <div className="text-gray-400 text-xs mt-1">
-                                    {STAGE_TIME_LIMIT_SECONDS}秒生存 + {STAGE_KILL_QUOTA}体撃破でクリア
+                                    {isBossEncounter
+                                      ? (isEnglishCopy ? 'Clear: defeat the boss' : 'クリア条件: ボス撃破')
+                                      : `${timeLimitSec}秒生存 + ${killQuota}体撃破でクリア`}
                                   </div>
                                 </>
                               ) : (
                                 <div className="text-gray-500 text-xs mt-1">
-                                  ステージ未設定（マップと番号を確認してください）
+                                  {isEnglishCopy
+                                    ? 'Stage not configured (check map/stage number or composite config).'
+                                    : 'ステージ未設定（マップと番号、または複合フレーズ設定を確認してください）'}
                                 </div>
                               )}
                             </div>
@@ -948,7 +977,10 @@ const LessonDetailPage: React.FC = () => {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
                               params.set('lessonSongId', req.lesson_song_id);
-                              params.set('stageNumber', String(req.survival_stage_number || 0));
+                              const hasInlineComposite = lessonSongHasInlineComposite(req.survival_composite_config);
+                              if (!hasInlineComposite) {
+                                params.set('stageNumber', String(req.survival_stage_number || 0));
+                              }
                               params.set(
                                 'mapCategory',
                                 resolveLessonSurvivalMapCategory(req.survival_map_category ?? undefined),

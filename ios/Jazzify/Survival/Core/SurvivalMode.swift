@@ -24,10 +24,14 @@ struct SurvivalMode: Equatable {
 
     static func resolve(stage: SurvivalStageDefinition, hintMode: Bool) -> SurvivalMode {
         let assist: SurvivalAssistMode = hintMode ? .hint : .normal
-        let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
+        let isLessonInlineComposite = SurvivalLessonConfig.isLessonInlineCompositeStage(stage)
+        let isBoss = isLessonInlineComposite
+            || SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
         let encounter: SurvivalEncounterMode
         if isBoss {
-            encounter = .boss(SurvivalBossEngine.resolvedBossType(for: stage))
+            let bossType = stage.compositePhraseBossType
+                ?? SurvivalBossEngine.resolvedBossType(for: stage)
+            encounter = .boss(bossType)
         } else {
             encounter = .regular
         }

@@ -42,6 +42,14 @@ import {
   LessonAttachment,
 } from '@/platform/supabaseLessonContent';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
+import {
+  SurvivalLessonCompositeEditor,
+  SurvivalLessonOverridesForm,
+  createDefaultSurvivalLessonCompositeConfig,
+  emptySurvivalLessonOverrides,
+  type SurvivalTaskMode,
+} from './SurvivalLessonEditors';
+import type { SurvivalLessonCompositeConfig, SurvivalLessonOverrides } from '@/types';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number' | 'block_name'>;
 
@@ -97,6 +105,13 @@ export const LessonManager: React.FC = () => {
   const [survivalCatalogReady, setSurvivalCatalogReady] = useState(false);
   /** `${mapCategory}:${stageNumber}` — サバイバル課題追加ダイアログ用 */
   const [survivalPickKey, setSurvivalPickKey] = useState<string>('');
+  const [survivalTaskMode, setSurvivalTaskMode] = useState<SurvivalTaskMode>('stage_ref');
+  const [survivalCompositeConfig, setSurvivalCompositeConfig] = useState<SurvivalLessonCompositeConfig>(
+    createDefaultSurvivalLessonCompositeConfig(),
+  );
+  const [survivalLessonOverrides, setSurvivalLessonOverrides] = useState<SurvivalLessonOverrides>(
+    emptySurvivalLessonOverrides(),
+  );
 
   const NAV_LINK_OPTIONS: { key: NavLinkKey; label: string }[] = [
     { key: 'dashboard',   label: 'ダッシュボード' },
@@ -457,6 +472,9 @@ export const LessonManager: React.FC = () => {
       override_start_key: null,
     });
     setSurvivalPickKey('');
+    setSurvivalTaskMode('stage_ref');
+    setSurvivalCompositeConfig(createDefaultSurvivalLessonCompositeConfig());
+    setSurvivalLessonOverrides(emptySurvivalLessonOverrides());
     contentDialogRef.current?.showModal();
   };
   
@@ -564,24 +582,38 @@ export const LessonManager: React.FC = () => {
           override_repeat_transposition_mode: formData.override_repeat_transposition_mode,
           override_start_key: formData.override_start_key,
         });
-      } else if (formData.content_type === 'survival' && survivalPickKey) {
-        const colon = survivalPickKey.indexOf(':');
-        const catRaw = survivalPickKey.slice(0, colon);
-        const stageNum = Number(survivalPickKey.slice(colon + 1));
-        if (
-          colon < 1
-          || !SURVIVAL_MAP_CATEGORIES.includes(catRaw as SurvivalMapCategory)
-          || !Number.isFinite(stageNum)
-        ) {
-          throw new Error('サバイバルステージの選択が不正です');
+      } else if (formData.content_type === 'survival') {
+        if (survivalTaskMode === 'composite_phrase') {
+          newLessonSong = await addSurvivalStageToLesson({
+            lesson_id: selectedLesson.id,
+            survival_stage_number: null,
+            survival_composite_config: survivalCompositeConfig,
+            survival_lesson_overrides: survivalLessonOverrides,
+            clear_conditions: formData.clear_conditions,
+          });
+        } else if (survivalPickKey) {
+          const colon = survivalPickKey.indexOf(':');
+          const catRaw = survivalPickKey.slice(0, colon);
+          const stageNum = Number(survivalPickKey.slice(colon + 1));
+          if (
+            colon < 1
+            || !SURVIVAL_MAP_CATEGORIES.includes(catRaw as SurvivalMapCategory)
+            || !Number.isFinite(stageNum)
+          ) {
+            throw new Error('サバイバルステージの選択が不正です');
+          }
+          const survivalMapCategory = catRaw as SurvivalMapCategory;
+          newLessonSong = await addSurvivalStageToLesson({
+            lesson_id: selectedLesson.id,
+            survival_stage_number: stageNum,
+            survival_map_category: survivalMapCategory,
+            survival_composite_config: null,
+            survival_lesson_overrides: survivalLessonOverrides,
+            clear_conditions: formData.clear_conditions,
+          });
+        } else {
+          throw new Error('サバイバルステージが選択されていません');
         }
-        const survivalMapCategory = catRaw as SurvivalMapCategory;
-        newLessonSong = await addSurvivalStageToLesson({
-          lesson_id: selectedLesson.id,
-          survival_stage_number: stageNum,
-          survival_map_category: survivalMapCategory,
-          clear_conditions: formData.clear_conditions,
-        });
       } else if (formData.content_type === 'survival_tutorial') {
         const scriptId = formData.survival_tutorial_script_id?.trim() || 'onboarding-v1';
         newLessonSong = await addSurvivalTutorialToLesson({
@@ -1245,6 +1277,7 @@ export const LessonManager: React.FC = () => {
                                 );
                               }
                               if (ls.is_survival) {
+                                const hasComposite = Boolean(ls.survival_composite_config?.phrases?.length);
                                 const stageDef = ls.survival_stage_number
                                   ? getStageByNumber(
                                       ls.survival_stage_number,
@@ -1257,7 +1290,14 @@ export const LessonManager: React.FC = () => {
                                       <FaSkull className="inline-block mr-2 text-red-400" />
                                       <span className="font-medium">サバイバル</span>
                                       <span className="text-xs text-red-400 ml-2">[ステージモード]</span>
-                                      {stageDef ? (
+                                      {hasComposite ? (
+                                        <span className="text-xs text-gray-400 ml-2">
+                                          複合フレーズ（インライン）
+                                          {ls.clear_conditions?.requires_days
+                                            ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
+                                            : ` (${ls.clear_conditions?.count || 1}回)`}
+                                        </span>
+                                      ) : stageDef ? (
                                         <span className="text-xs text-gray-400 ml-2">
                                           Stage {stageDef.stageNumber}: {stageDef.name}
                                           {ls.clear_conditions?.requires_days
@@ -1671,42 +1711,89 @@ export const LessonManager: React.FC = () => {
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">
-                <label className="label"><span className="label-text">ステージを選択 *</span></label>
-                <p className="text-xs text-gray-400">マップカテゴリとステージ番号を指定してください。キャラはファイ固定、{STAGE_TIME_LIMIT_SECONDS}秒生存+{STAGE_KILL_QUOTA}体撃破でクリアです。レッスンでのクリアはステージモードの進捗に影響しません。</p>
+                <div className="flex gap-4">
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      className="radio radio-sm"
+                      checked={survivalTaskMode === 'stage_ref'}
+                      onChange={() => setSurvivalTaskMode('stage_ref')}
+                    />
+                    <span className="label-text">既存ステージ参照</span>
+                  </label>
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      className="radio radio-sm"
+                      checked={survivalTaskMode === 'composite_phrase'}
+                      onChange={() => setSurvivalTaskMode('composite_phrase')}
+                    />
+                    <span className="label-text">複合フレーズ（音名登録）</span>
+                  </label>
+                </div>
 
-                {!survivalCatalogReady ? (
-                  <p className="text-sm text-gray-500">ステージ一覧を読み込み中...</p>
+                {survivalTaskMode === 'stage_ref' ? (
+                  <>
+                    <label className="label"><span className="label-text">ステージを選択 *</span></label>
+                    <p className="text-xs text-gray-400">ランダム / プログレッション / フレーズ / 複合（マップ参照）を選べます。</p>
+                    {!survivalCatalogReady ? (
+                      <p className="text-sm text-gray-500">ステージ一覧を読み込み中...</p>
+                    ) : (
+                      <select
+                        className="select select-bordered w-full"
+                        value={survivalPickKey}
+                        onChange={(e) => setSurvivalPickKey(e.target.value)}
+                      >
+                        <option value="">-- ステージを選択 --</option>
+                        {survivalPickOptions.map((opt) => (
+                          <option key={opt.key} value={opt.key}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {survivalPickKey !== '' && (() => {
+                      const colon = survivalPickKey.indexOf(':');
+                      const cat = survivalPickKey.slice(0, colon) as SurvivalMapCategory;
+                      const num = Number(survivalPickKey.slice(colon + 1));
+                      const selected = Number.isFinite(num) ? getStageByNumber(num, cat) : undefined;
+                      if (!selected) return null;
+                      return (
+                        <div className="bg-slate-800 rounded-lg p-3 text-sm">
+                          <div className="font-semibold text-red-300">[{cat}] Stage {selected.stageNumber}: {selected.name}</div>
+                          <div className="text-gray-400 text-xs mt-1">
+                            種別: {selected.stageType} / 難易度: {selected.difficulty}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
                 ) : (
-                  <select
-                    className="select select-bordered w-full"
-                    value={survivalPickKey}
-                    onChange={(e) => setSurvivalPickKey(e.target.value)}
-                  >
-                    <option value="">-- ステージを選択 --</option>
-                    {survivalPickOptions.map((opt) => (
-                      <option key={opt.key} value={opt.key}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <SurvivalLessonCompositeEditor
+                    value={survivalCompositeConfig}
+                    onChange={setSurvivalCompositeConfig}
+                  />
                 )}
 
-                {survivalPickKey !== '' && (() => {
-                  const colon = survivalPickKey.indexOf(':');
-                  const cat = survivalPickKey.slice(0, colon) as SurvivalMapCategory;
-                  const num = Number(survivalPickKey.slice(colon + 1));
-                  const selected = Number.isFinite(num) ? getStageByNumber(num, cat) : undefined;
-                  if (!selected) return null;
+                {(() => {
+                  let isBossCapable = survivalTaskMode === 'composite_phrase';
+                  if (survivalTaskMode === 'stage_ref' && survivalPickKey) {
+                    const colon = survivalPickKey.indexOf(':');
+                    const cat = survivalPickKey.slice(0, colon) as SurvivalMapCategory;
+                    const num = Number(survivalPickKey.slice(colon + 1));
+                    const selected = Number.isFinite(num) ? getStageByNumber(num, cat) : undefined;
+                    if (selected) {
+                      isBossCapable = selected.mapCategory === 'phrases'
+                        || (selected.compositePhraseSources?.length ?? 0) > 0;
+                    }
+                  }
                   return (
-                    <div className="bg-slate-800 rounded-lg p-3 text-sm">
-                      <div className="font-semibold text-red-300">[{cat}] Stage {selected.stageNumber}: {selected.name}</div>
-                      <div className="text-gray-400 text-xs mt-1">
-                        難易度: {selected.difficulty} / ルート: {selected.rootPatternName || '—'}
-                      </div>
-                      <div className="text-gray-500 text-xs mt-1 truncate">
-                        コード: {selected.allowedChords.length ? selected.allowedChords.join(', ') : '(コード進行 / Phrases)'}
-                      </div>
-                    </div>
+                    <SurvivalLessonOverridesForm
+                      value={survivalLessonOverrides}
+                      onChange={setSurvivalLessonOverrides}
+                      taskMode={survivalTaskMode}
+                      isBossCapable={isBossCapable}
+                    />
                   );
                 })()}
               </div>
@@ -1873,7 +1960,7 @@ export const LessonManager: React.FC = () => {
             
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeContentDialog}>キャンセル</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalPickKey === '') || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id'))}>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalTaskMode === 'stage_ref' && survivalPickKey === '') || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id'))}>
                 {isSubmitting ? '追加中...' : '追加'}
               </button>
             </div>

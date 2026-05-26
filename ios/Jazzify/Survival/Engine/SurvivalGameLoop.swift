@@ -46,8 +46,22 @@ final class SurvivalGameLoop {
 
     var isPhraseMode: Bool { stage.mapCategory == .phrases }
 
-    /// Web `isCompositePhraseBossStage` と同義。
-    var isCompositePhraseBossStage: Bool { stage.isCompositePhraseBossStage }
+    /// Web `isCompositePhraseBossStage` と同義（レッスンインライン複合を含む）。
+    var isCompositePhraseBossStage: Bool {
+        SurvivalLessonConfig.isLessonInlineCompositeStage(stage)
+            || compositePhraseRuntime != nil
+            || stage.isCompositePhraseBossStage
+    }
+
+    var effectiveStageKillQuota: Int {
+        lessonRuntime?.killQuota ?? stage.stageKillQuota
+    }
+
+    var effectiveStageTimeLimitSec: TimeInterval {
+        lessonRuntime?.timeLimitSec ?? SurvivalConstants.stageTimeLimitSec
+    }
+
+    private let lessonRuntime: ResolvedSurvivalLessonRuntime?
 
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。
     /// - `pitchClasses` が空のエントリは `SurvivalChordResolver.isMatch` が常に false を返すため
@@ -100,10 +114,18 @@ final class SurvivalGameLoop {
         hintMode: Bool,
         profile: SurvivalCharacterProfile = .defaultFai,
         config: SurvivalStageConfig = .default,
-        scenarioOverrides: SurvivalScenarioOverrides = .init()
+        scenarioOverrides: SurvivalScenarioOverrides = .init(),
+        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
     ) {
         let mode = SurvivalMode.resolve(stage: stage, hintMode: hintMode)
-        self.init(mode: mode, stage: stage, profile: profile, config: config, scenarioOverrides: scenarioOverrides)
+        self.init(
+            mode: mode,
+            stage: stage,
+            profile: profile,
+            config: config,
+            scenarioOverrides: scenarioOverrides,
+            lessonRuntime: lessonRuntime
+        )
     }
 
     init(
@@ -111,8 +133,10 @@ final class SurvivalGameLoop {
         stage: SurvivalStageDefinition,
         profile: SurvivalCharacterProfile = .defaultFai,
         config: SurvivalStageConfig = .default,
-        scenarioOverrides: SurvivalScenarioOverrides = .init()
+        scenarioOverrides: SurvivalScenarioOverrides = .init(),
+        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
     ) {
+        self.lessonRuntime = lessonRuntime
         self.mode = mode
         self.stage = stage
         self.profile = profile
@@ -136,12 +160,20 @@ final class SurvivalGameLoop {
                 punchOnlyForRandomHint: mode.hintMode || stage.mapCategory == .basic
             )
         }
-        let player = SurvivalGameEngine.createStageInitialPlayer(
+        var player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
             hintMode: mode.hintMode,
             isBossStage: isBoss,
             isPhrasesBossStage: isBoss && stage.mapCategory == .phrases
         )
+        if let runtime = lessonRuntime {
+            player.hp = runtime.playerMaxHp
+            player.maxHp = runtime.playerMaxHp
+            player.stats = SurvivalLessonConfig.applyPlayerStatMultiplier(
+                stats: player.stats,
+                multiplier: runtime.playerStatMultiplier
+            )
+        }
 
         self.runtime = SurvivalStageRuntime(
             stage: stage,
@@ -150,6 +182,7 @@ final class SurvivalGameLoop {
             slots: slots
         )
         self.runtime.scenario = scenarioOverrides.toRuntimeState()
+        self.runtime.remainingSeconds = effectiveStageTimeLimitSec
         configureJajiiSupportIfNeeded()
 
         self.currentHintSlotIndex = Self.initialHintSlotIndex(
@@ -166,7 +199,7 @@ final class SurvivalGameLoop {
             initialBoss = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
                 now: bossNow,
-                maxHp: stage.resolvedBossMaxHp
+                maxHp: lessonRuntime?.bossMaxHp ?? stage.resolvedBossMaxHp
             )
         } else {
             initialBoss = nil
@@ -272,12 +305,20 @@ final class SurvivalGameLoop {
                 punchOnlyForRandomHint: mode.hintMode || stage.mapCategory == .basic
             )
         }
-        let player = SurvivalGameEngine.createStageInitialPlayer(
+        var player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
             hintMode: mode.hintMode,
             isBossStage: isBoss,
             isPhrasesBossStage: isBoss && stage.mapCategory == .phrases
         )
+        if let runtime = lessonRuntime {
+            player.hp = runtime.playerMaxHp
+            player.maxHp = runtime.playerMaxHp
+            player.stats = SurvivalLessonConfig.applyPlayerStatMultiplier(
+                stats: player.stats,
+                multiplier: runtime.playerStatMultiplier
+            )
+        }
         runtime = SurvivalStageRuntime(
             stage: stage,
             hintMode: mode.hintMode,
@@ -285,6 +326,7 @@ final class SurvivalGameLoop {
             slots: slots
         )
         runtime.scenario = initialScenarioOverrides.toRuntimeState()
+        runtime.remainingSeconds = effectiveStageTimeLimitSec
         configureJajiiSupportIfNeeded()
 
         setHintSlotIndexIfChanged(Self.initialHintSlotIndex(
@@ -299,7 +341,7 @@ final class SurvivalGameLoop {
             bossBattle = SurvivalBossEngine.createBossBattleState(
                 bossType: bossType,
                 now: CACurrentMediaTime(),
-                maxHp: stage.resolvedBossMaxHp
+                maxHp: lessonRuntime?.bossMaxHp ?? stage.resolvedBossMaxHp
             )
         } else {
             bossBattle = nil
@@ -757,16 +799,19 @@ final class SurvivalGameLoop {
             && finishedStage != nil
             && repeatCompletionCompare == finishedStage
 
+        let compositeDamage = lessonRuntime?.compositeDamage
         let rangeMeleeDamage: Int = {
             switch result {
             case .phraseComplete:
                 return clampPhraseOutgoingDamageIfNeeded(
                     raw: isDuplicatePhraseFinish
-                        ? SurvivalCompositePhraseDamage.phraseFinishRepeat
-                        : SurvivalCompositePhraseDamage.phraseFinishPrimary
+                        ? (compositeDamage?.finishRepeat ?? SurvivalCompositePhraseDamage.phraseFinishRepeat)
+                        : (compositeDamage?.finishPrimary ?? SurvivalCompositePhraseDamage.phraseFinishPrimary)
                 )
             case .measureComplete:
-                return clampPhraseOutgoingDamageIfNeeded(raw: SurvivalCompositePhraseDamage.measureRange)
+                return clampPhraseOutgoingDamageIfNeeded(
+                    raw: compositeDamage?.measureRange ?? SurvivalCompositePhraseDamage.measureRange
+                )
             case .progress, .miss:
                 return 0
             }
@@ -783,7 +828,9 @@ final class SurvivalGameLoop {
                 effectiveAAtk: effectiveStats.aAtk,
                 attackInstanceId: attackInstanceId
             )
-            let bulletDamage = clampPhraseOutgoingDamageIfNeeded(raw: SurvivalCompositePhraseDamage.note)
+            let bulletDamage = clampPhraseOutgoingDamageIfNeeded(
+                raw: compositeDamage?.note ?? SurvivalCompositePhraseDamage.note
+            )
             for idx in projectiles.indices {
                 projectiles[idx].damage = bulletDamage
             }
@@ -1269,13 +1316,13 @@ final class SurvivalGameLoop {
 
         // 経過時間
         runtime.elapsedSeconds += deltaTime
-        runtime.remainingSeconds = max(0, SurvivalConstants.stageTimeLimitSec - runtime.elapsedSeconds)
+        runtime.remainingSeconds = max(0, effectiveStageTimeLimitSec - runtime.elapsedSeconds)
 
-        // クリア判定 (Web 版 `SurvivalGameScreen` と同じく 90 秒経過時にのみ判定)
+        // クリア判定 (Web 版 `SurvivalGameScreen` と同じく制限時間経過時にのみ判定)
         if !runtime.scenario.disableTimeLimitClear
             && runtime.remainingSeconds <= 0
             && !runtime.scenario.disableKillQuotaClear {
-            let cleared = runtime.enemiesDefeated >= stage.stageKillQuota
+            let cleared = runtime.enemiesDefeated >= effectiveStageKillQuota
             runtime.phase = cleared ? .cleared : .gameOver
             events.append(.playEffect(cleared ? .stageClear : .stageGameOver))
             events.append(.stageEnded(cleared: cleared))

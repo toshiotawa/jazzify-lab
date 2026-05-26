@@ -17,6 +17,8 @@ struct SurvivalGameView: View {
     var scenarioOverrides: SurvivalScenarioOverrides = .init()
     var scenarioController: SurvivalScenarioController? = nil
     var inlinePhraseDefinition: SurvivalPhraseDefinition? = nil
+    var inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil
+    var lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
     var lessonContext: SurvivalLessonContext? = nil
     /// チュートリアル等: ステージ intro より優先するジャ爺吹き出し。
     var externalJajiiBubbleText: String = ""
@@ -33,6 +35,8 @@ struct SurvivalGameView: View {
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
         scenarioController: SurvivalScenarioController? = nil,
         inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
+        inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil,
+        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
         lessonContext: SurvivalLessonContext? = nil,
         externalJajiiBubbleText: String = "",
         onSessionReady: ((SurvivalGameSession) -> Void)? = nil
@@ -46,6 +50,8 @@ struct SurvivalGameView: View {
         self.scenarioOverrides = scenarioOverrides
         self.scenarioController = scenarioController
         self.inlinePhraseDefinition = inlinePhraseDefinition
+        self.inlineCompositePhrases = inlineCompositePhrases
+        self.lessonRuntime = lessonRuntime
         self.lessonContext = lessonContext
         self.externalJajiiBubbleText = externalJajiiBubbleText
         self.onSessionReady = onSessionReady
@@ -184,7 +190,9 @@ struct SurvivalGameView: View {
             usesEnglishToastCopy: locale == .en,
             scenarioOverrides: scenarioOverrides,
             scenarioController: scenarioController,
-            inlinePhraseDefinition: inlinePhraseDefinition
+            inlinePhraseDefinition: inlinePhraseDefinition,
+            inlineCompositePhrases: inlineCompositePhrases,
+            lessonRuntime: lessonRuntime
         )
         created.start()
         onSessionReady?(created)
@@ -424,6 +432,7 @@ private struct SurvivalGameContent: View {
                     bossHud: vm.bossHud,
                     isPaused: vm.isPaused,
                     stage: stage,
+                    enemyQuotaOverride: session.gameLoop.effectiveStageKillQuota,
                     locale: locale,
                     onTogglePause: { session.togglePause() }
                 )
