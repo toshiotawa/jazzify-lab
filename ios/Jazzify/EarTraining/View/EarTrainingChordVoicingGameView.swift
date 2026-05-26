@@ -124,9 +124,13 @@ struct EarTrainingChordVoicingGameView: View {
                 enemyId: stageDetail.id.uuidString,
                 enemyName: stageDetail.localizedTitle(locale),
                 audio: audioInstance,
-                initialPracticeMode: initialPracticeMode,
+                initialPracticeMode: stageDetail.isChordVoicingCompositePhraseConfigured ? false : initialPracticeMode,
                 onExit: onClose
             )
+            if let bootstrap = stageDetail.compositePhraseBootstrap,
+               let drum = URL(string: bootstrap.bgmUrl.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                audioInstance.prefetchPhraseItem(url: drum)
+            }
             if let tutorialHooks {
                 createdController.tutorialNoCombat = tutorialHooks.noCombat
                 createdController.tutorialHooks = tutorialHooks
@@ -188,6 +192,22 @@ private struct EarTrainingChordVoicingContent: View {
 
     private static let pianoOverlayHeight: CGFloat = 80
 
+    /// 複合フレーズは練習モード非対応（Web と同様）。レッスン経由でも設定シートに出さない。
+    private var stageRunModeConfig: EarTrainingStageRunModeConfig? {
+        guard controller.lessonContext != nil,
+              !controller.stage.isChordVoicingCompositePhraseConfigured
+        else {
+            return nil
+        }
+        return EarTrainingStageRunModeConfig(
+            practiceMode: controller.practiceMode,
+            onApplyPracticeModeAndRestart: { mode in
+                controller.applyPracticeModeAndRestart(mode)
+                controller.handleCloseSettings()
+            }
+        )
+    }
+
     @State private var hudHorizontalPadding: CGFloat = 16
 
     var body: some View {
@@ -221,15 +241,7 @@ private struct EarTrainingChordVoicingContent: View {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 audio: audio,
-                stageRunMode: controller.lessonContext.map { _ in
-                    EarTrainingStageRunModeConfig(
-                        practiceMode: controller.practiceMode,
-                        onApplyPracticeModeAndRestart: { mode in
-                            controller.applyPracticeModeAndRestart(mode)
-                            controller.handleCloseSettings()
-                        }
-                    )
-                },
+                stageRunMode: stageRunModeConfig,
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )
@@ -302,7 +314,31 @@ private struct EarTrainingChordVoicingContent: View {
 
     @ViewBuilder
     private func staffOverlay(size: CGSize) -> some View {
-        if let phrase = controller.currentPhrase {
+        if controller.stage.isChordVoicingCompositePhraseConfigured {
+            let artifact = EarTrainingCompositePhraseAdapter.compositeStaffArtifact(
+                runtime: controller.compositePhraseRuntime,
+                stageId: controller.stage.id
+            )
+            let keyFifths = controller.stage.compositePhraseBootstrap?.keyFifths
+                ?? controller.stage.keyFifths ?? 0
+            if !artifact.groups.isEmpty {
+                ChordVoicingStaffGroupsView(
+                    groups: artifact.groups,
+                    denseCurrentMeasureLayout: artifact.dense,
+                    keyFifths: keyFifths,
+                    activeGroupId: artifact.activeLabelGroupId,
+                    correctPitchClassesByGroupId: artifact.correctMap,
+                    completionPulse: controller.completionPulse,
+                    showTargetHints: false,
+                    singleMeasureLayout: true,
+                    unpressedNoteOpacity: 0,
+                    fadeAllMeasureNotes: true
+                )
+                .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
+                .position(x: size.width / 2, y: size.height * 0.42)
+                .allowsHitTesting(false)
+            }
+        } else if let phrase = controller.currentPhrase {
             let build = EarTrainingChordVoicingStaffLayout.buildGroups(
                 input: EarTrainingChordVoicingStaffLayout.BuildInput(
                     phrase: phrase,

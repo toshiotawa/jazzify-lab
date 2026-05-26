@@ -2,6 +2,8 @@
  * アプリケーション全体の型定義
  */
 
+import type { CompositePhraseDefinition } from '@/utils/compositePhraseEngine';
+
 // ===== 基本的なゲーム状態 =====
 
 export type GameMode = 'practice' | 'performance';
@@ -734,6 +736,14 @@ export interface EarTrainingPhraseDemoLoop {
   created_at?: string;
 }
 
+/** `enrichEarTrainingStageWithComposite` が付与するランタイムデータ */
+export interface EarTrainingCompositePhraseBootstrap {
+  readonly bgmUrl: string;
+  readonly keyFifths: number;
+  readonly sourcePhraseIds: readonly string[];
+  readonly definitions: readonly CompositePhraseDefinition[];
+}
+
 export interface EarTrainingPhrase {
   id: string;
   stage_id: string;
@@ -783,6 +793,10 @@ export interface EarTrainingStage {
   is_demo?: boolean;
   /** chord_voicing: 時間で進行せず正解で次コードへ（無音カウントイン省略） */
   chord_voicing_self_paced?: boolean;
+  /** chord_voicing: 複合フレーズ（並列ロック・逐次入力） */
+  chord_voicing_composite_phrase?: boolean;
+  /** 複合モードの BGM URL・ソースフレーズ定義（一覧取得後に付与） */
+  compositePhraseBootstrap?: EarTrainingCompositePhraseBootstrap;
   mode: EarTrainingMode;
   /** chord_quiz: 制限時間（秒） */
   quiz_duration_seconds?: number;

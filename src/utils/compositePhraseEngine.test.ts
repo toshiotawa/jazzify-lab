@@ -1,20 +1,15 @@
 /**
- * Survival composite phrase judgment (parallel selection → lock).
+ * Composite phrase judgment (parallel selection → lock).
  */
-import type {
-  SurvivalPhraseChord,
-  SurvivalPhraseDefinition,
-} from '@/utils/survivalPhraseDefinitions';
+import type { CompositePhraseChord, CompositePhraseDefinition } from '@/utils/compositePhraseEngine';
 import {
   compositeSelectionGreenPrefixLength,
   createInitialCompositePhraseRuntimeState,
   evaluateCompositePhraseNoteOn,
-} from './SurvivalCompositePhraseEngine';
+} from '@/utils/compositePhraseEngine';
 
-function chordWithPcs(stageLabel: number, pcs: readonly number[]): SurvivalPhraseChord {
-  const notes = pcs.map((pc, idx) => ({
-    orderIndex: idx,
-    pitchMidi: pc + 60,
+function chordWithPcs(stageLabel: number, pcs: readonly number[]): CompositePhraseChord {
+  const notes = pcs.map((pc) => ({
     pitchClass: pc % 12,
     noteName: 'X',
     staff: 1 as const,
@@ -28,7 +23,7 @@ function chordWithPcs(stageLabel: number, pcs: readonly number[]): SurvivalPhras
   };
 }
 
-function chordChain(stageLabel: number, chains: readonly (readonly number[])[]): SurvivalPhraseDefinition {
+function chordChain(stageLabel: number, chains: readonly (readonly number[])[]): CompositePhraseDefinition {
   const chords = chains.map((pcs, chordIdx) => {
     const base = chordWithPcs(stageLabel * 100 + chordIdx, pcs);
     return {
@@ -41,16 +36,13 @@ function chordChain(stageLabel: number, chains: readonly (readonly number[])[]):
 
   return {
     id: `p-${stageLabel}`,
-    mapCategory: 'phrases',
-    stageNumber: stageLabel,
+    sourcePhraseId: String(stageLabel),
     title: `Phrase ${stageLabel}`,
-    bgmUrl: null,
-    keyFifths: 0,
     chords,
   };
 }
 
-describe('SurvivalCompositePhraseEngine', () => {
+describe('compositePhraseEngine', () => {
   it('parses parallel then locks when only one branch matches next pitch', () => {
     const p1 = chordChain(11, [[0, 4, 7], [2]]); // C E G | D
     const p2 = chordChain(12, [[0, 4, 9], [2]]); // C E A | D
@@ -60,7 +52,7 @@ describe('SurvivalCompositePhraseEngine', () => {
     expect(ev.result).toBe('progress');
     state = ev.nextState;
     expect(state.candidates.length).toBe(2);
-    expect(state.lockedSourceStageNumber).toBeNull();
+    expect(state.lockedSourcePhraseId).toBeNull();
 
     ev = evaluateCompositePhraseNoteOn(state, 4);
     expect(ev.result).toBe('progress');
@@ -71,13 +63,13 @@ describe('SurvivalCompositePhraseEngine', () => {
     expect(ev.result).toBe('measure-complete');
     state = ev.nextState;
     expect(state.candidates.length).toBe(1);
-    expect(state.lockedSourceStageNumber).toBe(11);
+    expect(state.lockedSourcePhraseId).toBe('11');
 
     ev = evaluateCompositePhraseNoteOn(state, 9);
     expect(ev.result).toBe('miss');
     state = ev.nextState;
     expect(state.candidates.length).toBe(2);
-    expect(state.lockedSourceStageNumber).toBeNull();
+    expect(state.lockedSourcePhraseId).toBeNull();
   });
 
   it('shows common revealed prefix length while parallel', () => {
@@ -106,7 +98,7 @@ describe('SurvivalCompositePhraseEngine', () => {
     expect(ev.result).toBe('phrase-complete');
     state = ev.nextState;
     expect(state.candidates.length).toBe(1);
-    expect(state.lastCompletedSourceStageNumber).toBe(31);
+    expect(state.lastCompletedSourcePhraseId).toBe('31');
   });
 
   it('immediate lock when exactly one phrase matches opening pitch', () => {
@@ -115,7 +107,7 @@ describe('SurvivalCompositePhraseEngine', () => {
     const state = createInitialCompositePhraseRuntimeState([pWide, pNarrow]);
     const ev = evaluateCompositePhraseNoteOn(state, 0);
     expect(ev.nextState.candidates.length).toBe(1);
-    expect(ev.nextState.lockedSourceStageNumber).toBe(41);
+    expect(ev.nextState.lockedSourcePhraseId).toBe('41');
   });
 
   it('completes phrases stage 1 sequence when locked (E D A F E D)', () => {
@@ -124,7 +116,7 @@ describe('SurvivalCompositePhraseEngine', () => {
     let ev = evaluateCompositePhraseNoteOn(state, 4);
     expect(ev.result).toBe('progress');
     state = ev.nextState;
-    expect(state.lockedSourceStageNumber).toBe(1);
+    expect(state.lockedSourcePhraseId).toBe('1');
     for (const pc of [2, 9, 5, 4, 2] as const) {
       ev = evaluateCompositePhraseNoteOn(state, pc);
       expect(ev.result).not.toBe('miss');
@@ -139,11 +131,11 @@ describe('SurvivalCompositePhraseEngine', () => {
     let ev = evaluateCompositePhraseNoteOn(state, 0);
     expect(ev.result).toBe('phrase-complete');
     state = ev.nextState;
-    expect(state.lastCompletedSourceStageNumber).toBe(51);
+    expect(state.lastCompletedSourcePhraseId).toBe('51');
     ev = evaluateCompositePhraseNoteOn(state, 0);
     expect(ev.result).toBe('phrase-complete');
     state = ev.nextState;
-    expect(state.lastCompletedSourceStageNumber).toBe(51);
+    expect(state.lastCompletedSourcePhraseId).toBe('51');
   });
 
   it('after measure-complete next chord may start with same pitch class as prior notes', () => {
@@ -168,7 +160,7 @@ describe('SurvivalCompositePhraseEngine', () => {
       expect(ev.result).not.toBe('miss');
       state = ev.nextState;
     }
-    expect(state.lastCompletedSourceStageNumber).toBe(71);
+    expect(state.lastCompletedSourcePhraseId).toBe('71');
   });
 
   it('phrases stage 6 composite: DEFGED then AFE EDA DE without duplicate pc in same step', () => {

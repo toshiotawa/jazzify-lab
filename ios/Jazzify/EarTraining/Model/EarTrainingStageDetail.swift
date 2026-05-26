@@ -71,10 +71,21 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let quizRequiredCorrectCount: Int?
     let showKeyboardHintsInBattle: Bool?
     let chordQuizItems: [EarTrainingChordQuizItem]?
+    /// Web `ear_training_stages.chord_voicing_composite_phrase`
+    let chordVoicingCompositePhrase: Bool?
+    /// PostgREST には無いフィールド（`fetchEarTrainingStageDetail` の enrich で付与）。
+    let compositePhraseBootstrap: EarTrainingCompositePhraseBootstrap?
 
     var resolvedMode: EarTrainingMode { mode ?? .phrase }
 
     var resolvedChordVoicingSelfPaced: Bool { chordVoicingSelfPaced == true }
+
+    /// コード演奏バトル複合モードが DB 構成まで揃っているか（一覧取得では enrich が無く未設定のとき false）。
+    var isChordVoicingCompositePhraseConfigured: Bool {
+        resolvedMode == .chordVoicing
+            && chordVoicingCompositePhrase == true
+            && compositePhraseBootstrap.map { !$0.definitions.isEmpty } == true
+    }
 
     var resolvedQuizDurationSeconds: Int {
         let raw = quizDurationSeconds ?? 90
@@ -149,6 +160,166 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         case quizRequiredCorrectCount = "quiz_required_correct_count"
         case showKeyboardHintsInBattle = "show_keyboard_hints_in_battle"
         case chordQuizItems = "chord_quiz_items"
+        case chordVoicingCompositePhrase = "chord_voicing_composite_phrase"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        slug = try container.decode(String.self, forKey: .slug)
+        title = try container.decode(String.self, forKey: .title)
+        titleEn = try container.decodeIfPresent(String.self, forKey: .titleEn)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        descriptionEn = try container.decodeIfPresent(String.self, forKey: .descriptionEn)
+        bpm = try container.decode(Int.self, forKey: .bpm)
+        beatsPerMeasure = try container.decode(Int.self, forKey: .beatsPerMeasure)
+        beatType = try container.decode(Int.self, forKey: .beatType)
+        loopMeasures = try container.decode(Int.self, forKey: .loopMeasures)
+        maxLoopsPerPhrase = try container.decode(Int.self, forKey: .maxLoopsPerPhrase)
+        countInBeats = try container.decode(Int.self, forKey: .countInBeats)
+        timeLimitSec = try container.decode(Int.self, forKey: .timeLimitSec)
+        playerHp = try container.decode(Int.self, forKey: .playerHp)
+        enemyHp = try container.decode(Int.self, forKey: .enemyHp)
+        perCorrectNoteDamage = try container.decode(Int.self, forKey: .perCorrectNoteDamage)
+        goodCompletionDamage = try container.decode(Int.self, forKey: .goodCompletionDamage)
+        greatCompletionDamage = try container.decode(Int.self, forKey: .greatCompletionDamage)
+        perfectCompletionDamage = try container.decode(Int.self, forKey: .perfectCompletionDamage)
+        missDamage = try container.decode(Int.self, forKey: .missDamage)
+        failDamage = try container.decode(Int.self, forKey: .failDamage)
+        perfectMaxMisses = try container.decode(Int.self, forKey: .perfectMaxMisses)
+        greatMaxMisses = try container.decode(Int.self, forKey: .greatMaxMisses)
+        backgroundTheme = try container.decodeIfPresent(String.self, forKey: .backgroundTheme)
+        isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive)
+        mode = try container.decodeIfPresent(EarTrainingMode.self, forKey: .mode)
+        keyFifths = try container.decodeIfPresent(Int.self, forKey: .keyFifths)
+        phrases = try container.decodeIfPresent([EarTrainingPhraseDetail].self, forKey: .phrases)
+        chordVoicingSelfPaced = try container.decodeIfPresent(Bool.self, forKey: .chordVoicingSelfPaced)
+        quizDurationSeconds = try container.decodeIfPresent(Int.self, forKey: .quizDurationSeconds)
+        quizQuestionOrder = try container.decodeIfPresent(String.self, forKey: .quizQuestionOrder)
+        quizShowNotationInBattle = try container.decodeIfPresent(Bool.self, forKey: .quizShowNotationInBattle)
+        quizRequiredCorrectCount = try container.decodeIfPresent(Int.self, forKey: .quizRequiredCorrectCount)
+        showKeyboardHintsInBattle = try container.decodeIfPresent(Bool.self, forKey: .showKeyboardHintsInBattle)
+        chordQuizItems = try container.decodeIfPresent([EarTrainingChordQuizItem].self, forKey: .chordQuizItems)
+        chordVoicingCompositePhrase = try container.decodeIfPresent(Bool.self, forKey: .chordVoicingCompositePhrase)
+        compositePhraseBootstrap = nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(slug, forKey: .slug)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(titleEn, forKey: .titleEn)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(descriptionEn, forKey: .descriptionEn)
+        try container.encode(bpm, forKey: .bpm)
+        try container.encode(beatsPerMeasure, forKey: .beatsPerMeasure)
+        try container.encode(beatType, forKey: .beatType)
+        try container.encode(loopMeasures, forKey: .loopMeasures)
+        try container.encode(maxLoopsPerPhrase, forKey: .maxLoopsPerPhrase)
+        try container.encode(countInBeats, forKey: .countInBeats)
+        try container.encode(timeLimitSec, forKey: .timeLimitSec)
+        try container.encode(playerHp, forKey: .playerHp)
+        try container.encode(enemyHp, forKey: .enemyHp)
+        try container.encode(perCorrectNoteDamage, forKey: .perCorrectNoteDamage)
+        try container.encode(goodCompletionDamage, forKey: .goodCompletionDamage)
+        try container.encode(greatCompletionDamage, forKey: .greatCompletionDamage)
+        try container.encode(perfectCompletionDamage, forKey: .perfectCompletionDamage)
+        try container.encode(missDamage, forKey: .missDamage)
+        try container.encode(failDamage, forKey: .failDamage)
+        try container.encode(perfectMaxMisses, forKey: .perfectMaxMisses)
+        try container.encode(greatMaxMisses, forKey: .greatMaxMisses)
+        try container.encodeIfPresent(backgroundTheme, forKey: .backgroundTheme)
+        try container.encodeIfPresent(isActive, forKey: .isActive)
+        try container.encodeIfPresent(mode, forKey: .mode)
+        try container.encodeIfPresent(keyFifths, forKey: .keyFifths)
+        try container.encodeIfPresent(phrases, forKey: .phrases)
+        try container.encodeIfPresent(chordVoicingSelfPaced, forKey: .chordVoicingSelfPaced)
+        try container.encodeIfPresent(quizDurationSeconds, forKey: .quizDurationSeconds)
+        try container.encodeIfPresent(quizQuestionOrder, forKey: .quizQuestionOrder)
+        try container.encodeIfPresent(quizShowNotationInBattle, forKey: .quizShowNotationInBattle)
+        try container.encodeIfPresent(quizRequiredCorrectCount, forKey: .quizRequiredCorrectCount)
+        try container.encodeIfPresent(showKeyboardHintsInBattle, forKey: .showKeyboardHintsInBattle)
+        try container.encodeIfPresent(chordQuizItems, forKey: .chordQuizItems)
+        try container.encodeIfPresent(chordVoicingCompositePhrase, forKey: .chordVoicingCompositePhrase)
+    }
+
+    init(
+        id: UUID,
+        slug: String,
+        title: String,
+        titleEn: String?,
+        description: String?,
+        descriptionEn: String?,
+        bpm: Int,
+        beatsPerMeasure: Int,
+        beatType: Int,
+        loopMeasures: Int,
+        maxLoopsPerPhrase: Int,
+        countInBeats: Int,
+        timeLimitSec: Int,
+        playerHp: Int,
+        enemyHp: Int,
+        perCorrectNoteDamage: Int,
+        goodCompletionDamage: Int,
+        greatCompletionDamage: Int,
+        perfectCompletionDamage: Int,
+        missDamage: Int,
+        failDamage: Int,
+        perfectMaxMisses: Int,
+        greatMaxMisses: Int,
+        backgroundTheme: String?,
+        isActive: Bool?,
+        mode: EarTrainingMode?,
+        keyFifths: Int?,
+        phrases: [EarTrainingPhraseDetail]?,
+        chordVoicingSelfPaced: Bool?,
+        quizDurationSeconds: Int?,
+        quizQuestionOrder: String?,
+        quizShowNotationInBattle: Bool?,
+        quizRequiredCorrectCount: Int?,
+        showKeyboardHintsInBattle: Bool?,
+        chordQuizItems: [EarTrainingChordQuizItem]?,
+        chordVoicingCompositePhrase: Bool?,
+        compositePhraseBootstrap: EarTrainingCompositePhraseBootstrap?
+    ) {
+        self.id = id
+        self.slug = slug
+        self.title = title
+        self.titleEn = titleEn
+        self.description = description
+        self.descriptionEn = descriptionEn
+        self.bpm = bpm
+        self.beatsPerMeasure = beatsPerMeasure
+        self.beatType = beatType
+        self.loopMeasures = loopMeasures
+        self.maxLoopsPerPhrase = maxLoopsPerPhrase
+        self.countInBeats = countInBeats
+        self.timeLimitSec = timeLimitSec
+        self.playerHp = playerHp
+        self.enemyHp = enemyHp
+        self.perCorrectNoteDamage = perCorrectNoteDamage
+        self.goodCompletionDamage = goodCompletionDamage
+        self.greatCompletionDamage = greatCompletionDamage
+        self.perfectCompletionDamage = perfectCompletionDamage
+        self.missDamage = missDamage
+        self.failDamage = failDamage
+        self.perfectMaxMisses = perfectMaxMisses
+        self.greatMaxMisses = greatMaxMisses
+        self.backgroundTheme = backgroundTheme
+        self.isActive = isActive
+        self.mode = mode
+        self.keyFifths = keyFifths
+        self.phrases = phrases
+        self.chordVoicingSelfPaced = chordVoicingSelfPaced
+        self.quizDurationSeconds = quizDurationSeconds
+        self.quizQuestionOrder = quizQuestionOrder
+        self.quizShowNotationInBattle = quizShowNotationInBattle
+        self.quizRequiredCorrectCount = quizRequiredCorrectCount
+        self.showKeyboardHintsInBattle = showKeyboardHintsInBattle
+        self.chordQuizItems = chordQuizItems
+        self.chordVoicingCompositePhrase = chordVoicingCompositePhrase
+        self.compositePhraseBootstrap = compositePhraseBootstrap
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

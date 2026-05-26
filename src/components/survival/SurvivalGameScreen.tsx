@@ -150,7 +150,7 @@ import {
   type SurvivalPhraseRuntimeState,
 } from './phrases/SurvivalPhraseEngine';
 import {
-  createInitialCompositePhraseRuntimeState,
+  createCompositePhraseRuntimeFromSurvivalPhrases,
   evaluateCompositePhraseNoteOn,
   getCompositePhraseStaffChordView,
   type SurvivalCompositePhraseRuntimeState,
@@ -170,6 +170,7 @@ import {
   loadCompositePhraseRuntimeConfig,
   type SurvivalPhraseDefinition,
 } from '@/utils/survivalPhraseDefinitions';
+import { compositeChordToSurvivalChord } from '@/utils/compositePhraseSurvivalAdapter';
 import {
   applyPlayerStatMultiplier,
   type ResolvedSurvivalLessonRuntime,
@@ -615,7 +616,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       phraseStateRef.current = null;
       phraseBgmUrlRef.current = resolvePhraseBgmUrl(config.bgmUrl);
       compositePhraseSourcePhrasesRef.current = [...lessonInlineCompositePhrases];
-      compositePhraseRuntimeRef.current = createInitialCompositePhraseRuntimeState(
+      compositePhraseRuntimeRef.current = createCompositePhraseRuntimeFromSurvivalPhrases(
         lessonInlineCompositePhrases,
       );
       compositePhraseKeyFifthsRef.current = stageDefinition?.compositePhraseKeyFifths ?? 0;
@@ -634,7 +635,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       void loadCompositePhraseRuntimeConfig(stageDefinition).then((cfg) => {
         if (cancelled || !cfg?.sourcePhrases.length) return;
         compositePhraseSourcePhrasesRef.current = [...cfg.sourcePhrases];
-        compositePhraseRuntimeRef.current = createInitialCompositePhraseRuntimeState(cfg.sourcePhrases);
+        compositePhraseRuntimeRef.current = createCompositePhraseRuntimeFromSurvivalPhrases(cfg.sourcePhrases);
         compositePhraseKeyFifthsRef.current = cfg.keyFifths;
         setPhraseUiTick((t) => t + 1);
         setPhraseBgmReadyTick((t) => t + 1);
@@ -1957,7 +1958,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (isPhraseMode && isCompositePhraseBossStage && compositePhraseRuntimeRef.current) {
         const noteMod12 = ((note % 12) + 12) % 12;
         const curComposite = compositePhraseRuntimeRef.current;
-        const repeatCompareLast = curComposite.lastCompletedSourceStageNumber;
+        const repeatCompareLast = curComposite.lastCompletedSourcePhraseId;
         const evaluation = evaluateCompositePhraseNoteOn(curComposite, noteMod12);
         compositePhraseRuntimeRef.current = evaluation.nextState;
 
@@ -1990,9 +1991,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           enemies: [...prev.enemies],
         };
 
-        let finishedSnippet: number | null = null;
+        let finishedSnippet: string | null = null;
         if (evaluation.result === 'phrase-complete') {
-          finishedSnippet = evaluation.nextState.lastCompletedSourceStageNumber;
+          finishedSnippet = evaluation.nextState.lastCompletedSourcePhraseId;
         }
         const isDuplicatePhraseFinish =
           evaluation.result === 'phrase-complete'
@@ -5063,7 +5064,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       setPhraseUiTick((t) => t + 1);
       setPhraseBgmReadyTick((t) => t + 1);
     } else if (isPhraseMode && isCompositePhraseBossStage && compositePhraseSourcePhrasesRef.current.length > 0) {
-      compositePhraseRuntimeRef.current = createInitialCompositePhraseRuntimeState(
+      compositePhraseRuntimeRef.current = createCompositePhraseRuntimeFromSurvivalPhrases(
         compositePhraseSourcePhrasesRef.current,
       );
       setPhraseUiTick((t) => t + 1);
@@ -5208,7 +5209,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     ) {
       const view = getCompositePhraseStaffChordView(compositePhraseRuntimeRef.current);
       return {
-        currentChord: view.chord,
+        currentChord: compositeChordToSurvivalChord(view.chord),
         nextChord: null,
         keyFifths: compositePhraseKeyFifthsRef.current,
         correctNoteIndices: view.correctNoteIndices,

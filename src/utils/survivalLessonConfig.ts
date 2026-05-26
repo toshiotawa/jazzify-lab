@@ -17,7 +17,7 @@ import {
   COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT,
   COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE,
   COMPOSITE_PHRASE_NOTE_DAMAGE,
-} from '@/components/survival/phrases/survivalCompositePhraseDamage';
+} from '@/utils/compositePhraseDamage';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type {
   SurvivalLessonCompositeConfig,

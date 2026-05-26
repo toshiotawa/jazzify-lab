@@ -239,7 +239,7 @@ const EarTrainingMain: React.FC = () => {
           stage={stage}
           enemy={enemy}
           lessonContext={lessonContext}
-          initialPracticeMode={effectivePracticeMode}
+          initialPracticeMode={stage.chord_voicing_composite_phrase ? false : effectivePracticeMode}
           onLessonStageClear={handleLessonStageClear}
           onBack={handleBack}
           {...lessonRestartProps}

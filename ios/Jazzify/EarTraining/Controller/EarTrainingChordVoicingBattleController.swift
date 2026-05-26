@@ -141,8 +141,20 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     private var tutorialSuccessfulLoopCount: Int = 0
 
+    /// 複合コードヴォイシング（並列ロック→単一フレーズ）ランタイム。通常モードでは nil。
+    @Published private(set) var compositePhraseRuntime: EarTrainingCompositePhraseRuntimeState?
+    private var compositeComboCount = 0
+    private var compositeMissCount = 0
+
+    private var isChordVoicingCompositePhrase: Bool { stage.isChordVoicingCompositePhraseConfigured }
+
+    private var effectivePracticeMode: Bool {
+        if isChordVoicingCompositePhrase { return false }
+        return practiceMode
+    }
+
     var damageConfig: EarTrainingDamageConfig {
-        if practiceMode || tutorialNoCombat { return Self.zeroDamage }
+        if effectivePracticeMode || tutorialNoCombat { return Self.zeroDamage }
         return EarTrainingDamageConfig(
             perCorrectNote: stage.perCorrectNoteDamage,
             good: stage.goodCompletionDamage,
@@ -163,7 +175,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var canChangePracticeMode: Bool {
-        gameState == .idle || gameState == .stageClear || gameState == .gameOver
+        if isChordVoicingCompositePhrase { return false }
+        return gameState == .idle || gameState == .stageClear || gameState == .gameOver
     }
 
     var showLobbyControls: Bool {
@@ -178,7 +191,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var timeLabel: String {
-        if practiceMode { return "∞" }
+        if effectivePracticeMode { return "∞" }
         let safe = max(0, timeRemaining)
         let minutes = safe / 60
         let rest = safe % 60
@@ -190,6 +203,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var phraseIntroLine: String {
+        if isChordVoicingCompositePhrase {
+            return ""
+        }
         if tutorialHooks?.ui.hidePhraseIntroQuota == true {
             return ""
         }
@@ -231,6 +247,35 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     var hudModel: EarTrainingHudModel {
+        if isChordVoicingCompositePhrase {
+            let base = EarTrainingHudModel(
+                playerHp: playerHp,
+                playerMaxHp: stage.playerHp,
+                enemyHp: enemyHp,
+                enemyMaxHp: stage.enemyHp,
+                practiceMode: effectivePracticeMode,
+                timeRemaining: timeRemaining,
+                timeLabel: timeLabel,
+                hideTimeLabel: false,
+                hidePlayerHpBar: false,
+                hideSettingsButton: false,
+                hideBackButton: false,
+                enemyAttackGaugePercent: enemyAttackGaugePercent,
+                hideEnemyAttackGauge: tutorialNoCombat,
+                hideChordChips: true,
+                hideSlotsRow: true,
+                hudLabels: hudLabels,
+                gameState: gameState,
+                phraseRunId: phraseRunId,
+                chordChips: [],
+                slotRow: .chordVoicing(slotCount: 1, completed: [false], currentIndex: 0)
+            )
+            if let ui = tutorialHooks?.ui {
+                return ui.apply(to: base)
+            }
+            return base
+        }
+
         let phrase = currentPhrase
         let rows: [EarTrainingChordVoicingEngine.HarmonyHudRow] = {
             guard let phrase else { return [] }
@@ -260,7 +305,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             playerMaxHp: stage.playerHp,
             enemyHp: enemyHp,
             enemyMaxHp: stage.enemyHp,
-            practiceMode: practiceMode,
+            practiceMode: effectivePracticeMode,
             timeRemaining: timeRemaining,
             timeLabel: timeLabel,
             hideTimeLabel: false,
@@ -342,7 +387,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 guard let self else { return }
                 if self.stage.resolvedChordVoicingSelfPaced {
                     self.replaySelfPacedPhraseClock()
-                } else {
+                } else if !self.isChordVoicingCompositePhrase {
                     self.failCurrentPhrase()
                 }
             }
@@ -413,6 +458,12 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         let allowEarlyCountIn = gameState == .countIn && countInEarlyInputActive
         guard gameState == .playingPhrase || allowEarlyCountIn else { return }
+
+        if isChordVoicingCompositePhrase {
+            guard gameState == .playingPhrase else { return }
+            handleCompositePhraseNote(midi: midi)
+            return
+        }
 
         if gameState == .playingPhrase {
             syncChordTimeline(scheduleNext: false)
@@ -538,6 +589,100 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             }
         }
         syncChordTimeline(scheduleNext: true)
+    }
+
+    private func handleCompositePhraseNote(midi: Int) {
+        guard let rt = compositePhraseRuntime else { return }
+        let repeatCompareLast = rt.lastCompletedSourcePhraseId
+        let pc = EarTrainingChordVoicingEngine.midiToPitchClass(midi)
+        let evaluation = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: rt, pitchClass: pc)
+        compositePhraseRuntime = evaluation.nextState
+
+        guard evaluation.result != .miss else {
+            compositeComboCount = 0
+            compositeMissCount += 1
+            triggerFeedback(.miss)
+            statusText = copy.tryAgain
+            return
+        }
+
+        compositeComboCount += 1
+        let comboAfter = compositeComboCount
+        triggerFeedback(.correct)
+
+        let stateAfterNote = compositePhraseRuntime
+        if evaluation.result == .measureComplete || evaluation.result == .phraseComplete {
+            if let gid = EarTrainingCompositePhraseAdapter.compositeChordLabelGroupId(stageId: stage.id, state: stateAfterNote) {
+                triggerCompletionPulse(groupId: gid, kind: .harmonyComplete)
+            }
+        }
+
+        let fireCombat = SurvivalPhraseComboDamageCap.shouldFirePlayerAttacks(comboCount: comboAfter)
+        let noteDmg = SurvivalPhraseComboDamageCap.clampOutgoing(
+            rawDamage: EarTrainingCompositePhraseDamage.note,
+            isPhraseMode: true,
+            comboCount: comboAfter
+        )
+
+        let finishedId: UUID? = evaluation.result == .phraseComplete
+            ? evaluation.nextState.lastCompletedSourcePhraseId
+            : nil
+        let isDupPhrase = evaluation.result == .phraseComplete
+            && repeatCompareLast != nil
+            && finishedId != nil
+            && repeatCompareLast == finishedId
+
+        let needsRangeBurst =
+            fireCombat && (evaluation.result == .measureComplete || evaluation.result == .phraseComplete)
+        let rangeRaw: Int
+        if evaluation.result == .phraseComplete {
+            rangeRaw = isDupPhrase
+                ? EarTrainingCompositePhraseDamage.phraseFinishRepeat
+                : EarTrainingCompositePhraseDamage.phraseFinishPrimary
+        } else if evaluation.result == .measureComplete {
+            rangeRaw = EarTrainingCompositePhraseDamage.measureRange
+        } else {
+            rangeRaw = 0
+        }
+        let rangeExtra = needsRangeBurst
+            ? SurvivalPhraseComboDamageCap.clampOutgoing(
+                rawDamage: rangeRaw,
+                isPhraseMode: true,
+                comboCount: comboAfter
+              )
+            : 0
+        let noteHit = fireCombat ? noteDmg : 0
+        let totalEnemyDamage = noteHit + rangeExtra
+
+        if !tutorialNoCombat && totalEnemyDamage > 0 {
+            let origin = chordLabelOriginInScene()
+            let effectId = triggerBattleEffect(
+                kind: .correct,
+                label: nil,
+                damage: totalEnemyDamage,
+                phraseNoteCount: nil,
+                originPoint: origin
+            )
+            registerBattleEffectImpact(effectId: effectId) { [weak self] in
+                guard let self else { return }
+                let nextEnemyHp = max(0, self.enemyHp - totalEnemyDamage)
+                self.enemyHp = nextEnemyHp
+                let outcome = EarTrainingEngine.resolveOutcome(
+                    enemyHp: nextEnemyHp,
+                    playerHp: self.playerHp,
+                    timeRemainingSec: self.timeRemaining,
+                    phraseCompleted: false,
+                    phraseFailed: false
+                )
+                if outcome == .stageClear {
+                    let rank = EarTrainingEngine.calculateRank(
+                        missedNoteCounts: [0: self.compositeMissCount],
+                        rule: self.rankRule
+                    )
+                    Task { @MainActor in await self.finishStageClear(rank: rank) }
+                }
+            }
+        }
     }
 
     private func handleAllChordsCompleted(
@@ -697,7 +842,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     private func startCountIn() {
-        guard !phrases.isEmpty else {
+        if phrases.isEmpty, !isChordVoicingCompositePhrase {
             finishGameOver(message: copy.noPhrases)
             return
         }
@@ -721,6 +866,49 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         selfPacedDrumLoopPlaybackStarted = false
         audio.stopDrumLoop()
         audio.stopPhrase()
+
+        if isChordVoicingCompositePhrase {
+            guard let boot = stage.compositePhraseBootstrap, !boot.definitions.isEmpty else {
+                finishGameOver(message: copy.noPhrases)
+                return
+            }
+            compositePhraseRuntime = EarTrainingCompositePhraseEngine.createInitialState(sourcePhrases: boot.definitions)
+            compositeComboCount = 0
+            compositeMissCount = 0
+            attempt = nil
+            activeChord = nil
+            countInValue = 0
+            countInEarlyInputActive = false
+            phraseRunId += 1
+            let runId = phraseRunId
+            statusText = ""
+            countdownTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                let trimmedBoot = boot.bgmUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let drumUrl = URL(string: trimmedBoot), drumUrl.scheme != nil else {
+                    self.finishGameOver(message: self.copy.audioFailed)
+                    return
+                }
+                guard await self.audio.prepareDrumLoop(url: drumUrl) else {
+                    self.finishGameOver(message: self.copy.audioFailed)
+                    return
+                }
+                if Task.isCancelled { return }
+                guard self.phraseRunId == runId else { return }
+                self.selfPacedDrumLoopPlaybackStarted = true
+                self.audio.startDrumLoop()
+                self.gameState = .playingPhrase
+                self.statusText = ""
+                self.publishSnapshot()
+            }
+            publishSnapshot()
+            return
+        }
+
+        guard !phrases.isEmpty else {
+            finishGameOver(message: copy.noPhrases)
+            return
+        }
 
         if stage.resolvedChordVoicingSelfPaced {
             countInValue = 0
@@ -844,6 +1032,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     /// セルフペースの無音フレーズ時計（ドラム MP3）が 1 周したら進捗を維持したまま再スケジュールする。
     private func replaySelfPacedPhraseClock() {
+        guard !isChordVoicingCompositePhrase else { return }
         guard stage.resolvedChordVoicingSelfPaced,
               gameState == .playingPhrase,
               phrases.indices.contains(phraseIndex)
@@ -953,7 +1142,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     private func startTimeLimit() {
         cancelTimeLimitTimer()
-        if practiceMode || stage.resolvedChordVoicingSelfPaced { return }
+        if effectivePracticeMode || stage.resolvedChordVoicingSelfPaced || isChordVoicingCompositePhrase { return }
         timeLimitTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while self.timeRemaining > 0 {
@@ -970,6 +1159,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     private func syncChordTimeline(scheduleNext: Bool) {
+        guard !isChordVoicingCompositePhrase else { return }
         guard gameState == .playingPhrase else { return }
         guard let phrase = currentPhrase, let currentAttempt = attempt else { return }
         let loopDurationSec = phrase.loopDurationSec
@@ -1188,6 +1378,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     private func handleAudioTimeUpdate(currentTime: Double) {
+        guard !isChordVoicingCompositePhrase else { return }
         syncChordTimeline(scheduleNext: false)
     }
 
@@ -1470,6 +1661,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private func cancelChordSyncTask() { chordSyncTask?.cancel(); chordSyncTask = nil }
 
     private func recomputeVoicingHints() {
+        if isChordVoicingCompositePhrase {
+            if !voicingHintsByMidi.isEmpty { voicingHintsByMidi = [:] }
+            return
+        }
         let next: [Int: VoicingHintState]
         if (practiceMode || stage.resolvedShowKeyboardHintsInBattle),
            let chord = activeChord,

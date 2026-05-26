@@ -40,8 +40,25 @@ import {
   getNextMeasureDelaySec,
   getNextPhraseIndex,
   mapEarTrainingRankToLessonRank,
+  midiToPitchClass,
   resolveEarTrainingOutcome,
 } from '@/utils/earTrainingEngine';
+import {
+  COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY,
+  COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT,
+  COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE,
+  COMPOSITE_PHRASE_NOTE_DAMAGE,
+} from '@/utils/compositePhraseDamage';
+import {
+  createInitialCompositePhraseRuntimeState,
+  evaluateCompositePhraseNoteOn,
+  getCompositePhraseStaffChordView,
+  type CompositePhraseRuntimeState,
+} from '@/utils/compositePhraseEngine';
+import {
+  clampPhraseOutgoingDamage,
+  shouldFirePhrasePlayerAttacks,
+} from '@/components/survival/phrases/survivalPhraseComboDamageCap';
 import {
   acknowledgeChordAward,
   createChordVoicingAttempt,
@@ -90,9 +107,6 @@ import {
   shouldTutorialBlockGameOver,
 } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
 import type { EarTrainingTutorialSelfPacedConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
-import {
-  localizedText,
-} from '@/components/earTraining/tutorial/earTrainingTutorialScriptTypes';
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -131,6 +145,28 @@ const NO_DAMAGE_CONFIG = {
   fail: 0,
 };
 const EMPTY_STAVES: readonly number[] = [];
+
+const getCompositeChordLabelGroupId = (
+  state: CompositePhraseRuntimeState | null,
+): string | null => {
+  if (!state) {
+    return null;
+  }
+  const view = getCompositePhraseStaffChordView(state);
+  const chord = view.chord;
+  if (!chord) {
+    return null;
+  }
+  for (let i = 0; i < chord.notes.length; i += 1) {
+    if (!view.correctNoteIndices.has(i)) {
+      return `cmp-${chord.id}-n${i}`;
+    }
+  }
+  if (chord.notes.length === 0) {
+    return null;
+  }
+  return `cmp-${chord.id}-n${chord.notes.length - 1}`;
+};
 
 const formatTime = (seconds: number): string => {
   const safe = Math.max(0, Math.ceil(seconds));
@@ -231,8 +267,21 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     [stage.chord_voicing_self_paced, stage.mode],
   );
 
+  const isChordVoicingCompositePhrase = useMemo(
+    (): boolean =>
+      stage.mode === 'chord_voicing'
+      && Boolean(stage.chord_voicing_composite_phrase)
+      && Boolean(stage.compositePhraseBootstrap?.definitions.length),
+    [
+      stage.chord_voicing_composite_phrase,
+      stage.compositePhraseBootstrap?.definitions.length,
+      stage.mode,
+    ],
+  );
+
   const [statusText, setStatusText] = useState(copy.idlePrompt);
   const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
+  const practiceModeEffective = isChordVoicingCompositePhrase ? false : practiceMode;
   const phrases = useMemo(
     () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
     [stage.phrases],
@@ -249,8 +298,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     [stage],
   );
   const activeDamageConfig = useMemo(
-    () => (practiceMode || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
-    [damageConfig, practiceMode, tutorialNoCombat],
+    () => (practiceModeEffective || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceModeEffective, tutorialNoCombat],
   );
   const rankRule = useMemo(
     () => ({
@@ -281,6 +330,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const [progressSaved, setProgressSaved] = useState(false);
   const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
   const [completionPulse, setCompletionPulse] = useState<ChordVoicingCompletionPulse | null>(null);
+
+  const [compositeUiTick, setCompositeUiTick] = useState(0);
+  const compositePhraseRuntimeRef = useRef<CompositePhraseRuntimeState | null>(null);
+  const compositeComboRef = useRef(0);
+  const compositeMissCountRef = useRef(0);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const selfPacedDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
@@ -559,7 +613,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setStatusText(copy.stageClear);
     triggerFeedback('clear');
 
-    if (practiceMode || !lessonContext || progressSaveStartedRef.current) {
+    if (practiceModeEffective || !lessonContext || progressSaveStartedRef.current) {
       return;
     }
     progressSaveStartedRef.current = true;
@@ -573,7 +627,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     copy,
     lessonContext,
     onLessonStageClear,
-    practiceMode,
+    practiceModeEffective,
     stopPhraseAudio,
     stopSelfPacedDrumLoop,
     triggerFeedback,
@@ -659,6 +713,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }, [failCurrentPhrase]);
 
   const replaySelfPacedPhraseClock = useCallback(() => {
+    if (isChordVoicingCompositePhrase) {
+      return;
+    }
     if (!chordVoicingSelfPaced || gameStateRef.current !== 'playingPhrase') {
       return;
     }
@@ -685,19 +742,22 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         setStatusText(copy.audioFailed);
       }
     })();
-  }, [chordVoicingSelfPaced, copy.audioFailed, ensurePhrasePlayer, phrases]);
+  }, [chordVoicingSelfPaced, copy.audioFailed, ensurePhrasePlayer, phrases, isChordVoicingCompositePhrase]);
 
   useEffect(() => {
     replaySelfPacedPhraseClockRef.current = replaySelfPacedPhraseClock;
   }, [replaySelfPacedPhraseClock]);
 
   const resolvePhrasePlaybackOnEnded = useCallback((): void => {
+    if (isChordVoicingCompositePhrase) {
+      return;
+    }
     if (chordVoicingSelfPaced) {
       replaySelfPacedPhraseClockRef.current();
       return;
     }
     failCurrentPhraseRef.current();
-  }, [chordVoicingSelfPaced]);
+  }, [chordVoicingSelfPaced, isChordVoicingCompositePhrase]);
 
   const triggerLoopEnemyAttack = useCallback((completedLoop: number) => {
     if (tutorialNoCombat) {
@@ -750,6 +810,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
   const scheduleNextAudioTimelineSync = useCallback(() => {
     clearChordSyncTimer();
+    if (isChordVoicingCompositePhrase) {
+      return;
+    }
     if (gameStateRef.current !== 'playingPhrase') {
       return;
     }
@@ -805,9 +868,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       chordSyncTimerRef.current = null;
       syncAudioTimelineRef.current();
     }, delayMs);
-  }, [chordVoicingSelfPaced, clearChordSyncTimer, phrases, stage.bpm]);
+  }, [chordVoicingSelfPaced, clearChordSyncTimer, isChordVoicingCompositePhrase, phrases, stage.bpm]);
 
   const syncAudioTimeline = useCallback((options?: { scheduleNext?: boolean }) => {
+    if (isChordVoicingCompositePhrase) {
+      return;
+    }
     if (gameStateRef.current !== 'playingPhrase') {
       return;
     }
@@ -908,6 +974,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stage.loop_measures,
     stage.max_loops_per_phrase,
     triggerLoopEnemyAttack,
+    isChordVoicingCompositePhrase,
   ]);
 
   useEffect(() => {
@@ -1117,7 +1184,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
   const startTimeLimit = useCallback(() => {
     clearTimeLimitTimer();
-    if (practiceMode || chordVoicingSelfPaced) {
+    if (practiceModeEffective || chordVoicingSelfPaced || isChordVoicingCompositePhrase) {
       return;
     }
     timeLimitTimerRef.current = setInterval(() => {
@@ -1129,10 +1196,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         return next;
       });
     }, 1000);
-  }, [chordVoicingSelfPaced, clearTimeLimitTimer, copy, finishGameOver, practiceMode]);
+  }, [chordVoicingSelfPaced, clearTimeLimitTimer, copy, finishGameOver, isChordVoicingCompositePhrase, practiceModeEffective]);
 
   const startCountIn = useCallback(() => {
-    if (phrases.length === 0) {
+    if (!isChordVoicingCompositePhrase && phrases.length === 0) {
+      finishGameOver(copy.noPhrases);
+      return;
+    }
+    if (isChordVoicingCompositePhrase && !stage.compositePhraseBootstrap?.definitions.length) {
       finishGameOver(copy.noPhrases);
       return;
     }
@@ -1165,8 +1236,46 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearMeasureShiftQueue();
     clearTimeLimitTimer();
     stopPhraseAudio();
-    if (chordVoicingSelfPaced) {
+    if (chordVoicingSelfPaced || isChordVoicingCompositePhrase) {
       stopSelfPacedDrumLoop();
+    }
+
+    if (isChordVoicingCompositePhrase) {
+      const boot = stage.compositePhraseBootstrap;
+      compositePhraseRuntimeRef.current = boot
+        ? createInitialCompositePhraseRuntimeState(boot.definitions)
+        : null;
+      compositeComboRef.current = 0;
+      compositeMissCountRef.current = 0;
+      setAttempt(null);
+      attemptRef.current = null;
+      setActiveChord(null);
+      activeChordRef.current = null;
+      setCompositeUiTick((x) => x + 1);
+      setCountInValue(0);
+      void (async () => {
+        try {
+          const playerOnly = ensurePhrasePlayer();
+          const phraseCtx = playerOnly.getAudioContext();
+          if (!phraseCtx || !boot) {
+            setStatusText(copy.audioFailed);
+            return;
+          }
+          const drum = ensureSelfPacedDrumLoop();
+          await drum.prepare(boot.bgmUrl.trim(), phraseCtx);
+          drum.setVolume(settings.masterVolume * settings.musicVolume);
+          drum.start();
+        } catch {
+          setStatusText(copy.audioFailed);
+          return;
+        }
+        countInEarlyInputRef.current = false;
+        setCountInEarlyInputActive(false);
+        gameStateRef.current = 'playingPhrase';
+        setGameState('playingPhrase');
+        setStatusText('');
+      })();
+      return;
     }
 
     if (tutorial && chordVoicingSelfPaced) {
@@ -1307,6 +1416,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stage.time_limit_sec,
     chordVoicingSelfPaced,
     practiceMode,
+    isChordVoicingCompositePhrase,
+    stage.compositePhraseBootstrap,
     resolvePhrasePlaybackOnEnded,
     startTimeLimit,
     stopPhraseAudio,
@@ -1454,12 +1565,114 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     triggerCompletionPulse,
   ]);
 
+  const handleCompositePhraseNote = useCallback((note: number) => {
+    const rt = compositePhraseRuntimeRef.current;
+    if (!rt) {
+      return;
+    }
+    const repeatCompareLast = rt.lastCompletedSourcePhraseId;
+    const pc = midiToPitchClass(note);
+    const evaluation = evaluateCompositePhraseNoteOn(rt, pc);
+    compositePhraseRuntimeRef.current = evaluation.nextState;
+    setCompositeUiTick((x) => x + 1);
+
+    if (evaluation.result === 'miss') {
+      compositeComboRef.current = 0;
+      compositeMissCountRef.current += 1;
+      triggerFeedback('miss');
+      setStatusText(copy.tryAgain);
+      return;
+    }
+
+    compositeComboRef.current += 1;
+    const comboAfter = compositeComboRef.current;
+    const fireCombat = shouldFirePhrasePlayerAttacks(comboAfter);
+    const noteDmg = clampPhraseOutgoingDamage(comboAfter, COMPOSITE_PHRASE_NOTE_DAMAGE);
+
+    triggerFeedback('correct');
+
+    const labelGroupId = getCompositeChordLabelGroupId(compositePhraseRuntimeRef.current);
+    const origin = computeChordLabelOriginPoint(labelGroupId);
+
+    let finishedId: string | null = null;
+    if (evaluation.result === 'phrase-complete') {
+      finishedId = evaluation.nextState.lastCompletedSourcePhraseId;
+    }
+    const isDupPhrase =
+      evaluation.result === 'phrase-complete'
+      && repeatCompareLast !== null
+      && finishedId !== null
+      && repeatCompareLast === finishedId;
+
+    const needsRangeBurst =
+      fireCombat
+      && (
+        evaluation.result === 'measure-complete'
+        || evaluation.result === 'phrase-complete'
+      );
+    const rangeRaw = evaluation.result === 'phrase-complete'
+      ? (isDupPhrase
+        ? COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_REPEAT
+        : COMPOSITE_PHRASE_FINISH_RANGE_DAMAGE_PRIMARY)
+      : COMPOSITE_PHRASE_MEASURE_RANGE_DAMAGE;
+    const rangeExtra = needsRangeBurst ? clampPhraseOutgoingDamage(comboAfter, rangeRaw) : 0;
+    const noteHit = fireCombat ? noteDmg : 0;
+    const totalEnemyDamage = noteHit + rangeExtra;
+
+    if (!tutorialNoCombat && totalEnemyDamage > 0) {
+      const effectId = triggerBattleEffect('correct', undefined, totalEnemyDamage, undefined, origin);
+      registerBattleEffectImpact(effectId, () => {
+        const nextEnemyHp = Math.max(0, enemyHpRef.current - totalEnemyDamage);
+        setEnemyHp(nextEnemyHp);
+        enemyHpRef.current = nextEnemyHp;
+        const outcome = resolveEarTrainingOutcome({
+          enemyHp: nextEnemyHp,
+          playerHp: playerHpRef.current,
+          timeRemainingSec: timeRemainingRef.current,
+          phraseCompleted: false,
+          phraseFailed: false,
+        });
+        if (outcome === 'stageClear') {
+          const rank = calculateEarTrainingRank(
+            new Map([[0, compositeMissCountRef.current]]),
+            rankRule,
+          );
+          void finishStageClear(rank);
+        }
+      });
+    }
+
+    if (evaluation.result === 'measure-complete' || evaluation.result === 'phrase-complete') {
+      const pulseGid = getCompositeChordLabelGroupId(compositePhraseRuntimeRef.current);
+      if (pulseGid) {
+        triggerCompletionPulse(pulseGid, 'harmonyComplete');
+      }
+    }
+  }, [
+    computeChordLabelOriginPoint,
+    copy.tryAgain,
+    finishStageClear,
+    rankRule,
+    registerBattleEffectImpact,
+    triggerBattleEffect,
+    triggerCompletionPulse,
+    triggerFeedback,
+    tutorialNoCombat,
+  ]);
+
   const handleNoteInput = useCallback((note: number) => {
     const now = performance.now();
     if (now - lastInputAtRef.current < INPUT_COOLDOWN_MS) {
       return;
     }
     lastInputAtRef.current = now;
+    if (isChordVoicingCompositePhrase) {
+      if (gameStateRef.current !== 'playingPhrase') {
+        return;
+      }
+      handleCompositePhraseNote(note);
+      return;
+    }
     const allowEarlyCountIn = gameStateRef.current === 'countIn' && countInEarlyInputRef.current;
     if (gameStateRef.current !== 'playingPhrase' && !allowEarlyCountIn) {
       return;
@@ -1599,7 +1812,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     copy,
     finishGameOver,
     finishStageClear,
+    handleCompositePhraseNote,
     handlePhraseAllChordsCompleted,
+    isChordVoicingCompositePhrase,
     phraseIndex,
     phrases,
     rankRule,
@@ -1685,7 +1900,18 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     stopPhraseAudio,
   ]);
 
+  const compositeActiveStaffGroupId = useMemo((): string | null => {
+    if (!isChordVoicingCompositePhrase) {
+      return null;
+    }
+    void compositeUiTick;
+    return getCompositeChordLabelGroupId(compositePhraseRuntimeRef.current);
+  }, [compositeUiTick, isChordVoicingCompositePhrase]);
+
   const harmonyHudRowsForHud = useMemo(() => {
+    if (isChordVoicingCompositePhrase) {
+      return [];
+    }
     const rows = getEarTrainingHarmonyHudRows(currentPhrase);
     if (rows.length > 0) {
       return rows;
@@ -1696,7 +1922,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       chordName: chord.chord_name,
       voicingIds: [chord.id],
     }));
-  }, [currentPhrase]);
+  }, [currentPhrase, isChordVoicingCompositePhrase]);
 
   const harmonyCompletedFlags = useMemo(() => {
     if (!attempt) {
@@ -1714,9 +1940,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     : Math.max(0, harmonySlotCount - 1);
 
   const showVoicingTargetHints =
-    gameState === 'playingPhrase'
-    || (gameState === 'countIn' && countInEarlyInputActive);
-  const showKeyboardTargetHints = practiceMode || stage.show_keyboard_hints_in_battle === true;
+    !isChordVoicingCompositePhrase
+    && (gameState === 'playingPhrase'
+      || (gameState === 'countIn' && countInEarlyInputActive));
+  const showKeyboardTargetHints = practiceModeEffective || stage.show_keyboard_hints_in_battle === true;
 
   const playerQuoteBubbleText = useMemo(() => {
     if (!showVoicingTargetHints || !activeChord) {
@@ -1735,8 +1962,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   );
   const { url: enemyAvatar, flipX: enemyAvatarFlipX } =
     resolveEarTrainingEnemyAvatarFromBattleSourceKey(enemyBattleKey);
-  const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
-  const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
+  const timeLabel = practiceModeEffective ? '∞' : formatTime(timeRemaining);
+  const canChangePracticeMode =
+    !isChordVoicingCompositePhrase
+    && (gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver');
   const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';
   const stageStatusText = gameState === 'countIn'
@@ -1750,9 +1979,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const lessonProgressText = lessonContext && gameState === 'stageClear'
     ? progressSaved ? copy.lessonSaved : copy.lessonSaving
     : null;
-  const phraseIntroLine = tutorial?.bindings.ui.hidePhraseIntroQuota
+  const phraseIntroLine = isChordVoicingCompositePhrase
     ? ''
-    : formatEarTrainingPhraseIntroLine(isEnglishCopy, phraseIndex, phrases.length);
+    : tutorial?.bindings.ui.hidePhraseIntroQuota
+      ? ''
+      : formatEarTrainingPhraseIntroLine(isEnglishCopy, phraseIndex, phrases.length);
   const resultRankLine = null;
   const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
 
@@ -1776,7 +2007,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     phraseIntroLine,
     resultRankLine,
     timeLabel,
-    practiceMode,
+    practiceMode: practiceModeEffective,
     isMidiConnected,
     playerHp,
     playerMaxHp: stage.player_hp,
@@ -1850,7 +2081,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     phraseIntroLine,
     phrases.length,
     playerHp,
-    practiceMode,
+    practiceModeEffective,
     resultRankLine,
     resultState,
     showLobbyControls,
@@ -1863,6 +2094,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     startButtonLabel,
     timeLabel,
     tutorial,
+    isChordVoicingCompositePhrase,
   ]);
 
   const battleCallbacks = useMemo(() => ({
@@ -1887,6 +2119,36 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   ]);
 
   const { staffVoicingGroups, staffDenseCurrentMeasureLayout } = useMemo(() => {
+    if (isChordVoicingCompositePhrase) {
+      void compositeUiTick;
+      const rt = compositePhraseRuntimeRef.current;
+      if (!rt) {
+        return {
+          staffVoicingGroups: [] as ChordVoicingStaffGroup[],
+          staffDenseCurrentMeasureLayout: false,
+        };
+      }
+      const view = getCompositePhraseStaffChordView(rt);
+      const chord = view.chord;
+      if (!chord || chord.notes.length === 0) {
+        return {
+          staffVoicingGroups: [] as ChordVoicingStaffGroup[],
+          staffDenseCurrentMeasureLayout: false,
+        };
+      }
+      const staffVoicingGroups = chord.notes.map((note, i) => ({
+        id: `cmp-${chord.id}-n${i}`,
+        chordName: i === 0 ? chord.chordName : '',
+        voicing: [note.noteName] as const,
+        voicingStaves: [note.staff] as const,
+        measureOffset: 0 as const,
+        isRest: false,
+        correctPitchClasses: view.correctNoteIndices.has(i) ? [note.pitchClass] as const : [],
+        exemptFromFade: view.correctNoteIndices.has(i),
+      }));
+      return { staffVoicingGroups, staffDenseCurrentMeasureLayout: false };
+    }
+
     const phrase = currentPhrase;
     const chords = phrase?.chords ?? [];
     const loopDurationSec = getFinitePhraseLoopDuration(phrase);
@@ -1972,6 +2234,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     currentPhrase,
     displayedActiveMeasureNumber,
     stage.loop_measures,
+    compositeUiTick,
+    isChordVoicingCompositePhrase,
   ]);
 
   const staffCorrectPitchClassesByGroupId = useMemo(() => {
@@ -2046,13 +2310,22 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           )}
         >
           <ChordVoicingStaff
-            chordName={activeChord?.chord_name}
+            chordName={isChordVoicingCompositePhrase ? (staffVoicingGroups[0]?.chordName ?? undefined) : activeChord?.chord_name}
             voicingGroups={staffVoicingGroups}
-            activeGroupId={activeChord?.id ?? null}
+            activeGroupId={isChordVoicingCompositePhrase ? compositeActiveStaffGroupId : activeChord?.id ?? null}
             showTargetHints={showVoicingTargetHints}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
-            keyFifths={currentPhrase?.key_fifths ?? stage.key_fifths ?? 0}
+            {...(isChordVoicingCompositePhrase
+              ? {
+                singleMeasureLayout: true as const,
+                unpressedNoteOpacity: 0,
+                fadeAllMeasureNotes: true as const,
+              }
+              : {})}
+            keyFifths={isChordVoicingCompositePhrase
+              ? (stage.compositePhraseBootstrap?.keyFifths ?? stage.key_fifths ?? 0)
+              : (currentPhrase?.key_fifths ?? stage.key_fifths ?? 0)}
             completionPulse={completionPulse}
           />
         </div>

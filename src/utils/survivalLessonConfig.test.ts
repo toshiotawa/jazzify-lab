@@ -8,7 +8,7 @@ import {
 import type { SurvivalLessonCompositeConfig } from '@/types';
 import { STAGE_PLAYER_MAX_HP, STAGE_TIME_LIMIT_SECONDS } from '@/components/survival/SurvivalStageDefinitions';
 import { STAGE_KILL_QUOTA } from '@/components/survival/SurvivalStageDefinitions';
-import { COMPOSITE_PHRASE_NOTE_DAMAGE } from '@/components/survival/phrases/survivalCompositePhraseDamage';
+import { COMPOSITE_PHRASE_NOTE_DAMAGE } from '@/utils/compositePhraseDamage';
 
 describe('survivalLessonConfig', () => {
   describe('parseNoteNameToMidi', () => {

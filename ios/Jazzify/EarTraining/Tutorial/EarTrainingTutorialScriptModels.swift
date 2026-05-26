@@ -100,6 +100,7 @@ struct EarTrainingTutorialContentStage: Decodable, Sendable {
     let background_theme: String?
     let mode: String
     let chord_voicing_self_paced: Bool?
+    let chord_voicing_composite_phrase: Bool?
     let quiz_duration_seconds: Int?
     let quiz_question_order: String?
     let quiz_show_notation_in_battle: Bool?

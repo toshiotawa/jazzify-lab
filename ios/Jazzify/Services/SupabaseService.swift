@@ -1062,7 +1062,8 @@ final class SupabaseService: Sendable {
             .single()
             .execute()
             .value
-        return Self.normalizeStageDetail(raw)
+        let normalized = Self.normalizeStageDetail(raw)
+        return try await Self.enrichEarTrainingCompositeIfNeeded(normalized)
     }
 
     /// 耳コピバトル ステージの詳細を slug で取得する (ログイン画面のデモ起動用)。
@@ -1074,7 +1075,8 @@ final class SupabaseService: Sendable {
             .single()
             .execute()
             .value
-        return Self.normalizeStageDetail(raw)
+        let normalized = Self.normalizeStageDetail(raw)
+        return try await Self.enrichEarTrainingCompositeIfNeeded(normalized)
     }
 
     private static let earTrainingStageDetailSelect = """
@@ -1127,7 +1129,112 @@ final class SupabaseService: Sendable {
             quizShowNotationInBattle: raw.quizShowNotationInBattle,
             quizRequiredCorrectCount: raw.quizRequiredCorrectCount,
             showKeyboardHintsInBattle: raw.showKeyboardHintsInBattle,
-            chordQuizItems: raw.sortedChordQuizItems()
+            chordQuizItems: raw.sortedChordQuizItems(),
+            chordVoicingCompositePhrase: raw.chordVoicingCompositePhrase,
+            compositePhraseBootstrap: raw.compositePhraseBootstrap
+        )
+    }
+
+    private struct EarTrainingCompositePhraseConfigRow: Decodable {
+        let id: UUID
+        let bgmUrl: String
+        let keyFifths: Int
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case bgmUrl = "bgm_url"
+            case keyFifths = "key_fifths"
+        }
+    }
+
+    private struct EarTrainingCompositePhraseSourceRow: Decodable {
+        let sourcePhraseId: UUID
+
+        enum CodingKeys: String, CodingKey {
+            case sourcePhraseId = "source_phrase_id"
+        }
+    }
+
+    private static func enrichEarTrainingCompositeIfNeeded(_ detail: EarTrainingStageDetail) async throws -> EarTrainingStageDetail {
+        guard detail.chordVoicingCompositePhrase == true,
+              detail.resolvedMode == .chordVoicing
+        else {
+            return detail
+        }
+        guard detail.compositePhraseBootstrap == nil else {
+            return detail
+        }
+
+        let client = SupabaseService.shared.client
+
+        let cfgRows: [EarTrainingCompositePhraseConfigRow] = try await client
+            .from("ear_training_composite_phrase_config")
+            .select("id,bgm_url,key_fifths")
+            .eq("stage_id", value: detail.id.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        guard let cfg = cfgRows.first else {
+            return detail
+        }
+
+        let sourceRows: [EarTrainingCompositePhraseSourceRow] = try await client
+            .from("ear_training_composite_phrase_sources")
+            .select("source_phrase_id")
+            .eq("config_id", value: cfg.id.uuidString)
+            .order("sort_order")
+            .execute()
+            .value
+        guard !sourceRows.isEmpty else {
+            return detail
+        }
+
+        let orderedPhraseIds = sourceRows.map(\.sourcePhraseId)
+        let bootstrap = EarTrainingCompositePhraseAdapter.buildBootstrap(
+            stagePhrases: detail.sortedPhrases(),
+            bgmUrl: cfg.bgmUrl,
+            keyFifths: cfg.keyFifths,
+            sourcePhraseIdsOrdered: orderedPhraseIds
+        )
+
+        return EarTrainingStageDetail(
+            id: detail.id,
+            slug: detail.slug,
+            title: detail.title,
+            titleEn: detail.titleEn,
+            description: detail.description,
+            descriptionEn: detail.descriptionEn,
+            bpm: detail.bpm,
+            beatsPerMeasure: detail.beatsPerMeasure,
+            beatType: detail.beatType,
+            loopMeasures: detail.loopMeasures,
+            maxLoopsPerPhrase: detail.maxLoopsPerPhrase,
+            countInBeats: detail.countInBeats,
+            timeLimitSec: detail.timeLimitSec,
+            playerHp: detail.playerHp,
+            enemyHp: detail.enemyHp,
+            perCorrectNoteDamage: detail.perCorrectNoteDamage,
+            goodCompletionDamage: detail.goodCompletionDamage,
+            greatCompletionDamage: detail.greatCompletionDamage,
+            perfectCompletionDamage: detail.perfectCompletionDamage,
+            missDamage: detail.missDamage,
+            failDamage: detail.failDamage,
+            perfectMaxMisses: detail.perfectMaxMisses,
+            greatMaxMisses: detail.greatMaxMisses,
+            backgroundTheme: detail.backgroundTheme,
+            isActive: detail.isActive,
+            mode: detail.mode,
+            keyFifths: detail.keyFifths,
+            phrases: detail.phrases,
+            chordVoicingSelfPaced: detail.chordVoicingSelfPaced,
+            quizDurationSeconds: detail.quizDurationSeconds,
+            quizQuestionOrder: detail.quizQuestionOrder,
+            quizShowNotationInBattle: detail.quizShowNotationInBattle,
+            quizRequiredCorrectCount: detail.quizRequiredCorrectCount,
+            showKeyboardHintsInBattle: detail.showKeyboardHintsInBattle,
+            chordQuizItems: detail.chordQuizItems,
+            chordVoicingCompositePhrase: detail.chordVoicingCompositePhrase,
+            compositePhraseBootstrap: bootstrap
         )
     }
 

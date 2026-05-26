@@ -1,4 +1,5 @@
 import { EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA } from '@/utils/earTrainingUiCopy';
+import { enrichEarTrainingStageWithComposite } from '@/platform/enrichEarTrainingCompositePhrase';
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
 import type {
   EarTrainingChordQuizItem,
@@ -141,7 +142,8 @@ export const fetchEarTrainingStages = async (
     throw error;
   }
 
-  return ((data ?? []) as EarTrainingStage[]).map(sortStageRelations);
+  const sorted = ((data ?? []) as EarTrainingStage[]).map(sortStageRelations);
+  return Promise.all(sorted.map((s) => enrichEarTrainingStageWithComposite(s)));
 };
 
 export const fetchEarTrainingStageById = async (
@@ -171,7 +173,8 @@ export const fetchEarTrainingStageById = async (
     throw new Error(EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA);
   }
 
-  return sortStageRelations(data as EarTrainingStage);
+  const base = sortStageRelations(data as EarTrainingStage);
+  return enrichEarTrainingStageWithComposite(base);
 };
 
 export const createEarTrainingStage = async (payload: EarTrainingStagePayload): Promise<EarTrainingStage> => {
