@@ -17,10 +17,10 @@ struct SurvivalPhraseStaffView: View {
             singleMeasureLayout: true,
             hideChordLabels: false,
             noteCollisionLayout: .anchorLow,
+            phraseTightTopLedgerPadding: true,
             unpressedNoteOpacity: CGFloat(snapshot.unpressedNoteOpacity),
             compactChordLabelGap: true,
             compactVerticalLayout: true,
-            phraseTightTopLedgerPadding: true,
             fadeAllMeasureNotes: true
         )
     }

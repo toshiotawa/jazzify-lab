@@ -98,3 +98,49 @@ private extension Array {
         indices.contains(index) ? self[index] : nil
     }
 }
+
+// MARK: - 鍵盤スクロール（フレーズ全曲の最高音基準）
+
+enum SurvivalPhraseKeyboardScroll {
+    private static func isBlackKey(_ midi: Int) -> Bool {
+        switch ((midi % 12) + 12) % 12 {
+        case 1, 3, 6, 8, 10:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func maxPitchMidi(in phrase: SurvivalPhraseDefinition) -> Int? {
+        var maxValue: Int?
+        for chord in phrase.chords {
+            for note in chord.notes {
+                if maxValue == nil || note.pitchMidi > maxValue! {
+                    maxValue = note.pitchMidi
+                }
+            }
+        }
+        return maxValue
+    }
+
+    static func scrollAnchorWhiteMidi(maxPhraseMidi: Int, firstMidi: Int = 21, lastMidi: Int = 108) -> Int {
+        let targetHigh = min(lastMidi, max(firstMidi, maxPhraseMidi + 1))
+        var m = targetHigh
+        while m >= firstMidi, isBlackKey(m) {
+            m -= 1
+        }
+        return max(firstMidi, m)
+    }
+}
+
+// MARK: - 序盤コンボ与ダメ上限（Web survivalPhraseComboDamageCap.ts と整合）
+
+enum SurvivalPhraseComboDamageCap {
+    static let earlyUntilCombo = 5
+    static let maxOutgoingDamagePerHit = 50
+
+    static func clampOutgoing(rawDamage: Int, isPhraseMode: Bool, comboCount: Int) -> Int {
+        guard isPhraseMode, comboCount <= earlyUntilCombo else { return rawDamage }
+        return min(rawDamage, maxOutgoingDamagePerHit)
+    }
+}
