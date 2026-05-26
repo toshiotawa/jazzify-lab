@@ -324,11 +324,16 @@ const getStaffLayoutMetrics = (
       ? STAFF_LINE_LEFT_X + (staffLineRightX - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO
       : staffMidX;
   const measureOneNoteLeftX = Math.max(MEASURE_ONE_NOTE_LEFT_X, keySignatureEndX + SP * 3.1);
+  const denseMeasureOneRightX =
+    STAFF_LINE_LEFT_X + (staffLineRightX - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO - SP * 2.5;
+  const measureOneNoteRightX = singleMeasureLayout && wideFirstMeasure
+    ? Math.max(measureOneNoteLeftX + SP * 3, denseMeasureOneRightX)
+    : Math.max(measureOneNoteLeftX + SP * 3, dividerX - SP * 2.5);
 
   return {
     measureDividerX: dividerX,
     measureOneNoteLeftX,
-    measureOneNoteRightX: Math.max(measureOneNoteLeftX + SP * 3, dividerX - SP * 2.5),
+    measureOneNoteRightX,
     measureTwoNoteLeftX: Math.min(dividerX + SP * 2.1, staffLineRightX - SP * 2.2),
     measureTwoNoteRightX: staffLineRightX - SP * 2.5,
   };
