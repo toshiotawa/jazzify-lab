@@ -275,6 +275,14 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
             && SurvivalBossEngine.isBlockLastStage(stageNumber: stageNumber, in: mapCategory)
     }
 
+    /// BGM・難易度設定取得用。複合フレーズボス（ステージ6 等）は phrases の drum loop。
+    var survivalBgmConfigStageType: SurvivalStageType {
+        if survivalUsesCompositePhrasePattern || mapCategory == .phrases {
+            return .phrases
+        }
+        return stageType
+    }
+
     func localizedName(_ locale: AppLocale) -> String {
         locale == .en ? nameEn : nameJa
     }

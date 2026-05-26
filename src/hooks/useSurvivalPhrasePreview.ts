@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
+import { survivalStageUsesCompositePhrasePattern } from '@/components/survival/SurvivalStageDefinitions';
 import type { SurvivalMapCategory } from '@/components/survival/SurvivalTypes';
+import { resolveSurvivalBgmUrl } from '@/platform/supabaseSurvival';
 import { fetchSurvivalPhraseBgmUrlByStage } from '@/utils/survivalPhraseDefinitions';
 import { SurvivalPhraseMapPreviewPlayer } from '@/utils/survivalPhraseMapPreviewPlayer';
 import { resolveSurvivalPhrasePreviewUrl } from '@/utils/survivalPhrasePreviewUrl';
@@ -51,8 +53,12 @@ export const useSurvivalPhrasePreview = ({
       setPhrasePreviewError(null);
       setStatus('loading');
       try {
-        const rowUrl = await fetchSurvivalPhraseBgmUrlByStage(mapCategory, stage.stageNumber);
-        const url = resolveSurvivalPhrasePreviewUrl(rowUrl, phrasesStageBgm);
+        const url = survivalStageUsesCompositePhrasePattern(stage)
+          ? resolveSurvivalBgmUrl('phrases', { phrases: phrasesStageBgm })
+          : resolveSurvivalPhrasePreviewUrl(
+            await fetchSurvivalPhraseBgmUrlByStage(mapCategory, stage.stageNumber),
+            phrasesStageBgm,
+          );
         setStatus('playing');
         await playerRef.current.play(url);
         setStatus('idle');

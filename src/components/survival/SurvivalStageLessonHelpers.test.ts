@@ -42,6 +42,16 @@ describe('formatSurvivalStageModeLabel', () => {
     expect(formatSurvivalStageModeLabel(stage, true)).toBe('Phrases');
   });
 
+  it('labels composite phrase boss on phrases map', () => {
+    const stage = baseStage({
+      mapCategory: 'phrases',
+      stageType: 'progression',
+      compositePhraseSources: [1, 2, 3],
+    });
+    expect(formatSurvivalStageModeLabel(stage, false)).toBe('複合フレーズ');
+    expect(formatSurvivalStageModeLabel(stage, true)).toBe('Composite phrases');
+  });
+
   it('labels progression vs random for non-phrases', () => {
     const prog = baseStage({ stageType: 'progression', mapCategory: 'songs' });
     expect(formatSurvivalStageModeLabel(prog, true)).toBe('Progression');

@@ -623,7 +623,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (isCompositeBoss) {
       phraseDefinitionRef.current = null;
       phraseStateRef.current = null;
-      phraseBgmUrlRef.current = resolvePhraseBgmUrl(null);
+      phraseBgmUrlRef.current = resolvePhraseBgmUrl(config.bgmUrl);
       void loadCompositePhraseRuntimeConfig(stageDefinition).then((cfg) => {
         if (cancelled || !cfg?.sourcePhrases.length) return;
         compositePhraseSourcePhrasesRef.current = [...cfg.sourcePhrases];

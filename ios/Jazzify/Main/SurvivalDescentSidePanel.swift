@@ -481,8 +481,11 @@ struct SurvivalDescentSidePanel: View {
         return isEnglishCopy ? "90s + \(quota) Kills" : "90秒 + \(quota)体"
     }
 
-    /// ステージのタイプ表示（Progression / Random）。
+    /// ステージのタイプ表示（Progression / Random / Phrases / Composite phrases）。
     private func stageTypeText(stage: SurvivalStageDefinition) -> String {
+        if stage.survivalUsesCompositePhrasePattern {
+            return isEnglishCopy ? "Composite phrases" : "複合フレーズ"
+        }
         switch stage.stageType {
         case .progression:
             return isEnglishCopy ? "Progression" : "コード進行"

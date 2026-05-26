@@ -114,6 +114,22 @@ export const resolveSurvivalBgmUrl = (
     : DEFAULT_SURVIVAL_BGM_SETTINGS[stageType];
 };
 
+/** ステージ定義から BGM URL を解決。複合フレーズボス（phrases ステージ6 等）は phrases drum loop。 */
+export const resolveStageBgmUrl = (
+  stage: {
+    readonly stageType: SurvivalStageType;
+    readonly mapCategory?: string;
+    readonly compositePhraseSources?: readonly number[] | undefined;
+  },
+  settings?: Partial<Record<SurvivalStageType, string | null>>,
+): string => {
+  const isComposite = (stage.compositePhraseSources?.length ?? 0) > 0;
+  if (isComposite || stage.mapCategory === 'phrases') {
+    return resolveSurvivalBgmUrl('phrases', settings);
+  }
+  return resolveSurvivalBgmUrl(stage.stageType, settings);
+};
+
 async function hasCharacterColumn(supabase: ReturnType<typeof getSupabaseClient>): Promise<boolean> {
   if (hasCharacterColumnCache !== null) {
     return hasCharacterColumnCache;

@@ -93,11 +93,7 @@ enum SurvivalCompositePhraseEngine {
 
         let lock: Int? = advanced.count == 1 ? advanced[0].sourceStageNumber : nil
         var next = state
-        for u in advanced {
-            if let j = next.candidates.firstIndex(where: { $0.sourceStageNumber == u.sourceStageNumber }) {
-                next.candidates[j] = u
-            }
-        }
+        next.candidates = advanced
         next.lockedSourceStageNumber = lock
         return (aggResult, next)
     }

@@ -120,8 +120,8 @@ final class SurvivalGameSession: ObservableObject {
                 if playBackgroundMusic {
                     if let bgm = lessonRuntime?.bgmUrl {
                         audioController.setBgmUrl(bgm)
-                    } else {
-                        applyPhraseBackgroundMusicUrlIfAvailable(fetchedPhrase: inlineComposite[0])
+                    } else if let stageBgm = gameLoop.stageConfig.bgmUrl {
+                        audioController.setBgmUrl(stageBgm)
                     }
                 }
                 audioController.start(playBackgroundMusic: playBackgroundMusic)
@@ -144,7 +144,9 @@ final class SurvivalGameSession: ObservableObject {
                         gameLoop.loadCompositePhraseRuntime(sourcePhrases: collected, keyFifths: kf)
                         viewModel.syncPhraseStaff(from: gameLoop)
                         if playBackgroundMusic {
-                            applyPhraseBackgroundMusicUrlIfAvailable(fetchedPhrase: collected[0])
+                            if let stageBgm = gameLoop.stageConfig.bgmUrl {
+                                audioController.setBgmUrl(stageBgm)
+                            }
                         }
                     }
                     audioController.start(playBackgroundMusic: playBackgroundMusic)

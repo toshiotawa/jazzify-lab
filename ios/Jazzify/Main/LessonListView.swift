@@ -2652,7 +2652,7 @@ struct LessonDetailView: View {
                     let supabase = SupabaseService.shared
                     let baseConfig = (try? await supabase.fetchSurvivalStageConfig(
                         difficulty: stage.difficulty.rawValue,
-                        stageType: stage.stageType
+                        stageType: stage.survivalBgmConfigStageType
                     )) ?? SurvivalStageConfig.default
                     let runtime = SurvivalLessonConfig.resolveSurvivalLessonRuntime(
                         overrides: requirement.survivalLessonOverrides,
@@ -2664,7 +2664,7 @@ struct LessonDetailView: View {
                     let lessonConfig = SurvivalLessonConfig.configWithLessonRuntime(
                         base: baseConfig,
                         runtime: runtime,
-                        stageType: stage.stageType
+                        stageType: stage.survivalBgmConfigStageType
                     )
                     await MainActor.run {
                         LessonMapAudio.shared.stopImmediately()
@@ -2700,7 +2700,7 @@ struct LessonDetailView: View {
                 let supabase = SupabaseService.shared
                 let baseConfig = (try? await supabase.fetchSurvivalStageConfig(
                     difficulty: stage.difficulty.rawValue,
-                    stageType: stage.stageType
+                    stageType: stage.survivalBgmConfigStageType
                 )) ?? SurvivalStageConfig.default
                 let isBossStage = SurvivalBossEngine.isBlockLastStage(
                     stageNumber: stage.stageNumber,
@@ -2716,7 +2716,7 @@ struct LessonDetailView: View {
                 let lessonConfig = SurvivalLessonConfig.configWithLessonRuntime(
                     base: baseConfig,
                     runtime: runtime,
-                    stageType: stage.stageType
+                    stageType: stage.survivalBgmConfigStageType
                 )
                 await MainActor.run {
                     LessonMapAudio.shared.stopImmediately()

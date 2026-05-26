@@ -45,6 +45,7 @@ import {
   fetchSurvivalCharacters,
   fetchSurvivalDifficultySettings,
   resolveSurvivalBgmUrl,
+  resolveStageBgmUrl,
   SurvivalBgmSettingsMap,
   SurvivalCharacterRow,
   toSurvivalBgmSettingsMap,
@@ -278,7 +279,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         const config: DifficultyConfig = {
           ...baseConfig,
           allowedChords: targetStage.allowedChords,
-          bgmUrl: resolveSurvivalBgmUrl(targetStage.stageType, bgmSettings),
+          bgmUrl: resolveStageBgmUrl(targetStage, bgmSettings),
         };
 
         const iosHintMode = getIOSParam('hintMode') === 'true';
@@ -418,9 +419,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
           || Boolean(stageDef.compositePhraseSources?.length),
         isFirstBlockBoss: isFirstBlockBossStageDef(stageDef),
       });
-      const defaultBgm = stageDef.mapCategory === 'phrases'
-        ? resolveSurvivalBgmUrl('phrases', bgmSettings)
-        : resolveSurvivalBgmUrl(stageDef.stageType, bgmSettings);
+      const defaultBgm = resolveStageBgmUrl(stageDef, bgmSettings);
       const lessonConfig: DifficultyConfig = {
         ...baseConfig,
         difficulty: stageDef.difficulty,
@@ -513,10 +512,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       description: nextStage.name,
       descriptionEn: nextStage.nameEn,
       allowedChords: nextStage.allowedChords,
-      bgmUrl:
-        nextStage.mapCategory === 'phrases'
-          ? resolveSurvivalBgmUrl('phrases', survivalBgmSettings)
-          : resolveSurvivalBgmUrl(nextStage.stageType, survivalBgmSettings),
+      bgmUrl: resolveStageBgmUrl(nextStage, survivalBgmSettings),
     };
     setActiveStageDefinition(nextStage);
     setSelectedConfig(nextConfig);

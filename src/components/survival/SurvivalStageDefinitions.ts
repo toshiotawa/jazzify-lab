@@ -583,6 +583,9 @@ export function findStageForLesson(
 }
 
 export function formatSurvivalStageModeLabel(stage: StageDefinition, isEnglish: boolean): string {
+  if (survivalStageUsesCompositePhrasePattern(stage)) {
+    return isEnglish ? 'Composite phrases' : '複合フレーズ';
+  }
   if (stage.mapCategory === 'phrases') {
     return isEnglish ? 'Phrases' : 'フレーズ';
   }

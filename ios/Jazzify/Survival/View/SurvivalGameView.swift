@@ -165,7 +165,7 @@ struct SurvivalGameView: View {
             async let configTask: SurvivalStageConfig = {
                 if let override = configOverride { return override }
                 let difficulty = stage.difficulty.rawValue
-                if let fetched = try? await supabase.fetchSurvivalStageConfig(difficulty: difficulty, stageType: stage.stageType) {
+                if let fetched = try? await supabase.fetchSurvivalStageConfig(difficulty: difficulty, stageType: stage.survivalBgmConfigStageType) {
                     return fetched
                 }
                 return SurvivalStageConfig.default

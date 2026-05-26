@@ -37,14 +37,22 @@ final class SurvivalPhrasePreviewModel: ObservableObject {
 
         loadTask = Task { @MainActor in
             do {
-                let rowUrl = try await SupabaseService.shared.fetchSurvivalPhraseBgmUrl(
-                    mapCategory: mapCategory,
-                    stageNumber: stage.stageNumber
-                )
-                let url = SurvivalPhrasePreviewURL.resolve(
-                    phraseBgmUrl: rowUrl,
-                    phrasesStageBgmFromSettings: phrasesDefaultBgmUrlString
-                )
+                let url: URL
+                if stage.survivalUsesCompositePhrasePattern {
+                    url = SurvivalPhrasePreviewURL.resolve(
+                        phraseBgmUrl: nil,
+                        phrasesStageBgmFromSettings: phrasesDefaultBgmUrlString
+                    )
+                } else {
+                    let rowUrl = try await SupabaseService.shared.fetchSurvivalPhraseBgmUrl(
+                        mapCategory: mapCategory,
+                        stageNumber: stage.stageNumber
+                    )
+                    url = SurvivalPhrasePreviewURL.resolve(
+                        phraseBgmUrl: rowUrl,
+                        phrasesStageBgmFromSettings: phrasesDefaultBgmUrlString
+                    )
+                }
                 if Task.isCancelled { return }
                 self.status = .playing
                 await self.player.play(url: url)

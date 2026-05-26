@@ -20,6 +20,7 @@ import {
   fetchSurvivalStageProgress,
   fetchSurvivalStageClears,
   resolveSurvivalBgmUrl,
+  resolveStageBgmUrl,
   SurvivalBgmSettingsMap,
   SurvivalCharacterRow,
   toSurvivalBgmSettingsMap,
@@ -741,10 +742,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       const stageConfig: DifficultyConfig = {
         ...baseConfig,
         allowedChords: selectedStage.allowedChords,
-        bgmUrl:
-          selectedStage.mapCategory === 'phrases'
-            ? resolveSurvivalBgmUrl('phrases', bgmSettings)
-            : resolveSurvivalBgmUrl(selectedStage.stageType, bgmSettings),
+        bgmUrl: resolveStageBgmUrl(selectedStage, bgmSettings),
       };
 
       const faiChar = characters.find(c => isFaiCharacter(c));
