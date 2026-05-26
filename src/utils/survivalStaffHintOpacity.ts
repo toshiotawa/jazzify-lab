@@ -1,4 +1,4 @@
-/** HINT OFF 本番: 未正解音符の opacity（25秒までは1.0、26〜29秒で0.8→0.2、30秒以降0.0）。 */
+/** HINT OFF 本番: 未正解音符の opacity（5秒までは1.0、6〜9秒で0.8→0.2、10秒以降0.0）。 */
 export function computeUnpressedNoteOpacity(
   elapsedSec: number,
   options: {
@@ -32,22 +32,22 @@ export function computeUnpressedNoteOpacity(
     return 1;
   }
   const t = Math.floor(elapsedSec);
-  if (t < 25) {
+  if (t < 6) {
     return 1;
   }
-  if (t >= 30) {
+  if (t >= 10) {
     return 0;
   }
   const fadeSteps: Record<number, number> = {
-    26: 0.8,
-    27: 0.6,
-    28: 0.4,
-    29: 0.2,
+    6: 0.8,
+    7: 0.6,
+    8: 0.4,
+    9: 0.2,
   };
   return fadeSteps[t] ?? 1;
 }
 
-/** 鍵盤 pending ハイライト opacity。第一ブロックは常に 1.0、第二ブロック以降の挑戦は 30 秒フェード。 */
+/** 鍵盤 pending ハイライト opacity。第一ブロックは常に 1.0、第二ブロック以降の挑戦は約 10 秒フェード。 */
 export function computeKeyboardHintOpacity(
   elapsedSec: number,
   options: {
@@ -78,17 +78,17 @@ export function computeKeyboardHintOpacity(
     return 1;
   }
   const t = Math.floor(elapsedSec);
-  if (t < 25) {
+  if (t < 6) {
     return 1;
   }
-  if (t >= 30) {
+  if (t >= 10) {
     return 0;
   }
   const fadeSteps: Record<number, number> = {
-    26: 0.8,
-    27: 0.6,
-    28: 0.4,
-    29: 0.2,
+    6: 0.8,
+    7: 0.6,
+    8: 0.4,
+    9: 0.2,
   };
   return fadeSteps[t] ?? 1;
 }

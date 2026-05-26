@@ -111,7 +111,7 @@ final class SurvivalViewModel: ObservableObject {
 
         syncPhraseStaff(from: gameLoop)
 
-        let nextScrollAnchor = gameLoop.isPhraseMode ? gameLoop.phraseKeyboardScrollAnchorMidi : nil
+        let nextScrollAnchor = gameLoop.keyboardScrollAnchorMidi
         if nextScrollAnchor != chordPadScrollAnchorMidi {
             chordPadScrollAnchorMidi = nextScrollAnchor
         }
@@ -136,7 +136,7 @@ final class SurvivalViewModel: ObservableObject {
         chordPadCompletedHintMidis = gameLoop.currentHintCompletedHighlightMidis()
         chordPadHintPendingOpacity = gameLoop.currentKeyboardHintPendingOpacity()
         syncPhraseStaff(from: gameLoop)
-        chordPadScrollAnchorMidi = gameLoop.isPhraseMode ? gameLoop.phraseKeyboardScrollAnchorMidi : nil
+        chordPadScrollAnchorMidi = gameLoop.keyboardScrollAnchorMidi
         isPaused = false
         clearMidiHeldKeys()
         resetClearReportState()

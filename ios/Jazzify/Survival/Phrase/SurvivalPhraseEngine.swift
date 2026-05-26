@@ -150,6 +150,60 @@ enum SurvivalPhraseKeyboardScroll {
         let anchorIndex = min(highestWhiteIndex + trailingInsetWhiteKeys, whites.count - 1)
         return whites[anchorIndex]
     }
+
+    /// Progression での実ボイシング（`midiNotes`）の全体最大 MIDI。
+    static func maxPitchMidi(in chord: SurvivalResolvedChord) -> Int? {
+        chord.midiNotes.max()
+    }
+
+    /// コード進行ステージ全体のボイシング最大 MIDI。
+    static func maxPitchMidi(in chords: [SurvivalResolvedChord]) -> Int? {
+        var maxValue: Int?
+        for chord in chords {
+            for note in chord.midiNotes {
+                if maxValue == nil || note > maxValue! {
+                    maxValue = note
+                }
+            }
+        }
+        return maxValue
+    }
+
+    /// `SurvivalGameLoop.hintHighlightMidis` と同じアルゴリズムで、Random ヒント鍵の最大 MIDI を返す。
+    static func hintHighlightMidis(from chord: SurvivalResolvedChord) -> Set<Int> {
+        let baseOctave = 4
+        var seen = Set<Int>()
+        var uniquePitchClasses: [Int] = []
+        for pc in chord.pitchClasses {
+            let norm = ((pc % 12) + 12) % 12
+            if seen.insert(norm).inserted {
+                uniquePitchClasses.append(norm)
+            }
+        }
+        var result = Set<Int>()
+        var lastMidi = 0
+        for pc in uniquePitchClasses {
+            var midi = pc + baseOctave * 12
+            while midi <= lastMidi { midi += 12 }
+            result.insert(midi)
+            lastMidi = midi
+        }
+        return result
+    }
+
+    /// 出題コードプールにおけるヒント表示の最大 MIDI（オクターブは baseOctave 4 基準）。
+    static func maxHintMidi(fromChordIds allowedChordIds: [String]) -> Int? {
+        var maxValue: Int?
+        for id in allowedChordIds {
+            guard let chord = SurvivalChordResolver.resolve(id: id) else { continue }
+            for midi in hintHighlightMidis(from: chord) {
+                if maxValue == nil || midi > maxValue! {
+                    maxValue = midi
+                }
+            }
+        }
+        return maxValue
+    }
 }
 
 // MARK: - 序盤コンボ与ダメ上限（Web survivalPhraseComboDamageCap.ts と整合）

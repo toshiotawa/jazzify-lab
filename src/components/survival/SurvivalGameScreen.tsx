@@ -3,7 +3,7 @@
  * ゲームループ、入力処理、UI統合
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { cn } from '@/utils/cn';
 import {
   SurvivalGameState,
@@ -93,6 +93,11 @@ import {
 } from './survivalFirstBlockStage';
 import { getBlockForStage } from './descent/descentBlocks';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
+import {
+  computeSurvivalKeyboardScrollAnchor,
+  maxPitchMidiFromPhraseDefinition,
+  scrollAnchorWhiteMidi,
+} from '@/utils/survivalKeyboardScrollAnchor';
 import type { ChordDefinition as SurvivalChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import {
   createBossBattleState,
@@ -1056,12 +1061,92 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
-  const pianoScrollInitializedRef = useRef(false);
+  const survivalKeyboardScrollAnchorMidiRef = useRef<number | null>(null);
+  const applyPianoHorizontalScrollRef = useRef<() => void>(() => {
+    // 代入は各レンダーで上書き
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(loadSurvivalDisplaySettings);
   
   // handleNoteInputの最新参照を保持するref
   const handleNoteInputRef = useRef<(note: number) => void>(() => {});
+
+  const survivalKeyboardScrollAnchorMidi = useMemo(() => {
+    if (isPhraseMode) {
+      const compositeSources = compositePhraseSourcePhrasesRef.current;
+      if (compositeSources.length > 0) {
+        let maxMidi: number | null = null;
+        for (const phraseDef of compositeSources) {
+          const m = maxPitchMidiFromPhraseDefinition(phraseDef);
+          if (m !== null && (maxMidi === null || m > maxMidi)) {
+            maxMidi = m;
+          }
+        }
+        return maxMidi === null ? null : scrollAnchorWhiteMidi(maxMidi);
+      }
+      return computeSurvivalKeyboardScrollAnchor({
+        kind: 'phrase',
+        phrase: phraseDefinitionRef.current,
+      });
+    }
+    if (isProgressionStage) {
+      const chords = buildProgressionChordDefinitions(stageDefinition?.chordProgression);
+      return computeSurvivalKeyboardScrollAnchor({ kind: 'progression', chords });
+    }
+    return computeSurvivalKeyboardScrollAnchor({
+      kind: 'random',
+      allowedChordIds: config.allowedChords,
+    });
+  }, [
+    config.allowedChords,
+    isPhraseMode,
+    isProgressionStage,
+    phraseUiTick,
+    stageDefinition?.chordProgression,
+    stageDefinition?.stageNumber,
+  ]);
+
+  survivalKeyboardScrollAnchorMidiRef.current = survivalKeyboardScrollAnchorMidi;
+
+  const applyPianoHorizontalScroll = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const container = pianoScrollRef.current;
+    if (!container) return;
+    const rawWidth = gameAreaRef.current?.clientWidth ?? window.innerWidth;
+    const gameAreaWidth = Math.max(1, rawWidth);
+    const adjustedThreshold = 1100;
+    const forceScrollOnIos = isIOSWebView() && gameAreaWidth < 1400;
+    if (gameAreaWidth >= adjustedThreshold && !forceScrollOnIos) {
+      return;
+    }
+    const scrollWidth = container.scrollWidth;
+    const clientWidth = container.clientWidth;
+    if (scrollWidth <= clientWidth) return;
+
+    const firstMidi = 21;
+    const span = 88;
+    const anchor = survivalKeyboardScrollAnchorMidiRef.current;
+    let scrollTarget: number;
+    if (anchor !== null) {
+      scrollTarget = (scrollWidth * (anchor + 1 - firstMidi)) / span - clientWidth;
+    } else {
+      const centerMidi = 60;
+      scrollTarget = (scrollWidth * (centerMidi - firstMidi)) / span - clientWidth / 2;
+    }
+    const maxScroll = Math.max(0, scrollWidth - clientWidth);
+    container.scrollLeft = Math.max(0, Math.min(scrollTarget, maxScroll));
+  }, []);
+
+  applyPianoHorizontalScrollRef.current = applyPianoHorizontalScroll;
+
+  useLayoutEffect(() => {
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        applyPianoHorizontalScroll();
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [survivalKeyboardScrollAnchorMidi, applyPianoHorizontalScroll]);
 
   // ビューポートサイズ（Canvasラッパーを計測して設定）
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
@@ -1469,18 +1554,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
 
       renderer.setTouchActionMode('pan-x');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          applyPianoHorizontalScrollRef.current();
+        });
+      });
     }
   }, [settings.noteNameStyle, settings.simpleDisplayMode]);
-  
-  // ピアノをC4中心にスクロール
-  const centerPianoC4 = useCallback(() => {
-    if (!pianoScrollRef.current) return;
-    const container = pianoScrollRef.current;
-    const c4Position = (60 - 21) / 88;
-    const scrollTarget = container.scrollWidth * c4Position - container.clientWidth / 2;
-    container.scrollLeft = Math.max(0, scrollTarget);
-  }, []);
-  
+
   // キーボード入力
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -6310,12 +6391,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 }}
                 ref={(el) => {
                   pianoScrollRef.current = el;
-                  if (el && !pianoScrollInitializedRef.current) {
-                    pianoScrollInitializedRef.current = true;
-                    requestAnimationFrame(() => {
-                      requestAnimationFrame(centerPianoC4);
-                    });
-                  }
                 }}
               >
                 <PIXINotesRenderer

@@ -79,6 +79,37 @@ const reconstructHintMidisByPitchClass = (
   return out;
 };
 
+/**
+ * Random ヒント鍵と同一オクターブ展開での最大 MIDI。
+ * `SurvivalGameScreen.tsx` のヒント算出（`.notes` 初出の pitch class 順、`baseOctave = 4`）と同一。
+ */
+export const maxSurvivalHintMidiFromChordNotes = (midiNotes: readonly number[]): number | null => {
+  if (midiNotes.length === 0) {
+    return null;
+  }
+  const uniquePitchClasses: number[] = [];
+  const seenPc = new Set<number>();
+  for (const note of midiNotes) {
+    const pc = ((note % 12) + 12) % 12;
+    if (!seenPc.has(pc)) {
+      seenPc.add(pc);
+      uniquePitchClasses.push(pc);
+    }
+  }
+  const baseOctave = 4;
+  let lastMidi = 0;
+  let maxValue: number | null = null;
+  for (let i = 0; i < uniquePitchClasses.length; i += 1) {
+    let midiNote = uniquePitchClasses[i] + baseOctave * 12;
+    while (midiNote <= lastMidi) {
+      midiNote += 12;
+    }
+    lastMidi = midiNote;
+    maxValue = maxValue === null || midiNote > maxValue ? midiNote : maxValue;
+  }
+  return maxValue;
+};
+
 const STEP_SEMITONE: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const ACCIDENTAL_ALTER: Record<string, number> = { '': 0, '#': 1, '##': 2, x: 2, b: -1, bb: -2 };
 const NOTE_NAME_PATTERN = /^([A-G])(bb|##|#|b|x)?(-?\d+)$/;

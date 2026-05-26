@@ -69,7 +69,7 @@ final class SurvivalGameSession: ObservableObject {
             chordPadHintMidis: loop.currentHintHighlightMidis(),
             chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
             chordPadHintPendingOpacity: loop.currentKeyboardHintPendingOpacity(),
-            chordPadScrollAnchorMidi: loop.isPhraseMode ? loop.phraseKeyboardScrollAnchorMidi : nil,
+            chordPadScrollAnchorMidi: loop.keyboardScrollAnchorMidi,
             now: now
         )
         self.viewModel = vm

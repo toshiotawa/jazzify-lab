@@ -29,15 +29,13 @@ describe('computeUnpressedNoteOpacity', () => {
     expect(computeUnpressedNoteOpacity(45, { ...stageOptions, isPhraseMode: true })).toBe(1);
   });
 
-  it('25秒までは 1.0、26〜29秒で段階的に暗くなり、30秒以降 0.0', () => {
-    expect(computeUnpressedNoteOpacity(24.9, stageOptions)).toBe(1);
-    expect(computeUnpressedNoteOpacity(25, stageOptions)).toBe(1);
-    expect(computeUnpressedNoteOpacity(25.9, stageOptions)).toBe(1);
-    expect(computeUnpressedNoteOpacity(26, stageOptions)).toBe(0.8);
-    expect(computeUnpressedNoteOpacity(27, stageOptions)).toBe(0.6);
-    expect(computeUnpressedNoteOpacity(28, stageOptions)).toBe(0.4);
-    expect(computeUnpressedNoteOpacity(29, stageOptions)).toBe(0.2);
-    expect(computeUnpressedNoteOpacity(30, stageOptions)).toBe(0);
+  it('5秒までは 1.0、6〜9秒で段階的に暗くなり、10秒以降 0.0', () => {
+    expect(computeUnpressedNoteOpacity(5.9, stageOptions)).toBe(1);
+    expect(computeUnpressedNoteOpacity(6, stageOptions)).toBe(0.8);
+    expect(computeUnpressedNoteOpacity(7, stageOptions)).toBe(0.6);
+    expect(computeUnpressedNoteOpacity(8, stageOptions)).toBe(0.4);
+    expect(computeUnpressedNoteOpacity(9, stageOptions)).toBe(0.2);
+    expect(computeUnpressedNoteOpacity(10, stageOptions)).toBe(0);
     expect(computeUnpressedNoteOpacity(45, stageOptions)).toBe(0);
   });
 });
@@ -47,9 +45,9 @@ describe('computeKeyboardHintOpacity', () => {
     expect(computeKeyboardHintOpacity(45, { ...stageOptions, beginnerAssistActive: true })).toBe(1);
   });
 
-  it('第二ブロック以降の挑戦は 30 秒フェード', () => {
-    expect(computeKeyboardHintOpacity(24, stageOptions)).toBe(1);
-    expect(computeKeyboardHintOpacity(29, stageOptions)).toBe(0.2);
-    expect(computeKeyboardHintOpacity(30, stageOptions)).toBe(0);
+  it('第二ブロック以降の挑戦は約 10 秒フェード', () => {
+    expect(computeKeyboardHintOpacity(5, stageOptions)).toBe(1);
+    expect(computeKeyboardHintOpacity(9, stageOptions)).toBe(0.2);
+    expect(computeKeyboardHintOpacity(10, stageOptions)).toBe(0);
   });
 });

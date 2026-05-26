@@ -660,14 +660,14 @@ struct SurvivalBossHUDSnapshot: Equatable, Sendable {
 
 /// ステージ画面中央楽譜のフェーズ。
 enum SurvivalStaffPhase: Equatable, Sendable {
-    /// 全構成音・記号を表示する（練習・ヒント魔法・または本番開始から約30秒）。
+    /// 全構成音・記号を表示する（練習・ヒント魔法・または本番開始から約10秒）。
     case fullHint
     /// 正しく弾いた構成音のみ（緑）を表示する。本番で経過時間が一定を超えた後。
     case pressedOnly
 }
 
 enum SurvivalStaffHintOpacity {
-    /// HINT OFF 本番: 未正解音符 opacity（25秒までは1.0、26〜29秒で0.8→0.2、30秒以降0.0）。
+    /// HINT OFF 本番: 未正解音符 opacity（5秒までは1.0、6〜9秒で0.8→0.2、10秒以降0.0）。
     static func computeUnpressedNoteOpacity(
         elapsed: TimeInterval,
         hintMode: Bool,
@@ -679,18 +679,18 @@ enum SurvivalStaffHintOpacity {
             return 1
         }
         let t = Int(floor(elapsed))
-        if t < 25 { return 1 }
-        if t >= 30 { return 0 }
+        if t < 6 { return 1 }
+        if t >= 10 { return 0 }
         switch t {
-        case 26: return 0.8
-        case 27: return 0.6
-        case 28: return 0.4
-        case 29: return 0.2
+        case 6: return 0.8
+        case 7: return 0.6
+        case 8: return 0.4
+        case 9: return 0.2
         default: return 1
         }
     }
 
-    /// 鍵盤 pending ハイライト opacity。第一ブロックは常に 1.0、第二ブロック以降の挑戦は 30 秒フェード。
+    /// 鍵盤 pending ハイライト opacity。第一ブロックは常に 1.0、第二ブロック以降の挑戦は約10秒フェード。
     static func computeKeyboardHintOpacity(
         elapsed: TimeInterval,
         hintMode: Bool,
@@ -702,13 +702,13 @@ enum SurvivalStaffHintOpacity {
             return 1
         }
         let t = Int(floor(elapsed))
-        if t < 25 { return 1 }
-        if t >= 30 { return 0 }
+        if t < 6 { return 1 }
+        if t >= 10 { return 0 }
         switch t {
-        case 26: return 0.8
-        case 27: return 0.6
-        case 28: return 0.4
-        case 29: return 0.2
+        case 6: return 0.8
+        case 7: return 0.6
+        case 8: return 0.4
+        case 9: return 0.2
         default: return 1
         }
     }

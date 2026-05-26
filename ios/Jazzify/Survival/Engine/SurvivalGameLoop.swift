@@ -39,7 +39,8 @@ final class SurvivalGameLoop {
     /// フレーズ全周回ごとに増分（`chordIndex` が末尾から 0 に戻ったとき）。チュートリアル検知のみ。
     private(set) var phraseFullLoopPulse: UInt64 = 0
 
-    private(set) var phraseKeyboardScrollAnchorMidi: Int?
+    /// 狭い鍵盤で trailing アンカーにスクロールする MIDI（白鍵）。フレーズはロード確定後にセット。
+    private(set) var keyboardScrollAnchorMidi: Int?
 
     private var compositePhraseRuntime: SurvivalCompositePhraseRuntimeState?
     private var compositePhraseKeyFifths: Int = 0
@@ -146,11 +147,17 @@ final class SurvivalGameLoop {
         let isBoss = mode.isBossStage
 
         let slots: [SurvivalCodeSlot]
+        let stageKeyboardScrollMidi: Int?
         switch mode.stageKind {
         case let .progression(chords):
             self.progressionChords = chords
             self.progressionIndex = 0
             slots = SurvivalGameEngine.createProgressionInitialSlots(progressionChords: chords)
+            if let mx = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: chords) {
+                stageKeyboardScrollMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: mx)
+            } else {
+                stageKeyboardScrollMidi = nil
+            }
         case let .random(allowedChords):
             self.progressionChords = []
             self.progressionIndex = 0
@@ -159,7 +166,14 @@ final class SurvivalGameLoop {
                 isBossStage: isBoss,
                 punchOnlyForRandomHint: mode.hintMode || stage.mapCategory == .basic
             )
+            if let mx = SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: allowedChords) {
+                stageKeyboardScrollMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: mx)
+            } else {
+                stageKeyboardScrollMidi = nil
+            }
         }
+
+        keyboardScrollAnchorMidi = stage.mapCategory == .phrases ? nil : stageKeyboardScrollMidi
         var player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
             hintMode: mode.hintMode,
@@ -222,9 +236,9 @@ final class SurvivalGameLoop {
         phraseState = SurvivalPhraseEngine.createInitialState(phrase: phrase)
         phraseFullLoopPulse = 0
         if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: phrase) {
-            phraseKeyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
+            keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
         } else {
-            phraseKeyboardScrollAnchorMidi = nil
+            keyboardScrollAnchorMidi = nil
         }
     }
 
@@ -235,9 +249,9 @@ final class SurvivalGameLoop {
         compositePhraseRuntime = SurvivalCompositePhraseEngine.createInitialState(sourcePhrases: sourcePhrases)
         phraseFullLoopPulse = 0
         if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: sourcePhrases) {
-            phraseKeyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
+            keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
         } else {
-            phraseKeyboardScrollAnchorMidi = nil
+            keyboardScrollAnchorMidi = nil
         }
     }
 
@@ -505,29 +519,6 @@ final class SurvivalGameLoop {
         return (idx, chord)
     }
 
-    /// Web 版 HINT と同様に単一オクターブへ展開したハイライト MIDI。
-    private static func hintHighlightMidis(from chord: SurvivalResolvedChord) -> Set<Int> {
-        let baseOctave = 4
-        var seen = Set<Int>()
-        var uniquePitchClasses: [Int] = []
-        for pc in chord.pitchClasses {
-            let norm = ((pc % 12) + 12) % 12
-            if seen.insert(norm).inserted {
-                uniquePitchClasses.append(norm)
-            }
-        }
-        var result = Set<Int>()
-        var lastMidi = 0
-        for pc in uniquePitchClasses {
-            var midi = pc + baseOctave * 12
-            while midi <= lastMidi { midi += 12 }
-            result.insert(midi)
-            lastMidi = midi
-        }
-        return result
-    }
-
-    /// 現在のヒント対象スロットのコード構成音を、Web 版と同じアルゴリズムで
     /// C4 (MIDI 60) 起点の昇順の MIDI 番号に展開したもの。
     /// 全オクターブではなく単一オクターブ内（1 つの pitch class あたり 1 鍵）のみをハイライトするため、
     /// 鍵盤ビューは MIDI 完全一致で判定する。
@@ -547,7 +538,7 @@ final class SurvivalGameLoop {
         if runtime.scenario.useChordMidiNotesForHintHighlights {
             return Set(target.chord.midiNotes)
         }
-        return Self.hintHighlightMidis(from: target.chord)
+        return SurvivalPhraseKeyboardScroll.hintHighlightMidis(from: target.chord)
     }
 
     /// 構成音として対象スロットに入力済み（pitch class が一致）のハイライト MIDI。
@@ -559,7 +550,7 @@ final class SurvivalGameLoop {
         guard let target = currentHintTargetSlot(requirePendingHints: false) else { return [] }
         let highlights = runtime.scenario.useChordMidiNotesForHintHighlights
             ? Set(target.chord.midiNotes)
-            : Self.hintHighlightMidis(from: target.chord)
+            : SurvivalPhraseKeyboardScroll.hintHighlightMidis(from: target.chord)
         let inputPCs = Set(
             runtime.slots[target.index].inputPitchClasses.map { (($0 % 12) + 12) % 12 }
         )

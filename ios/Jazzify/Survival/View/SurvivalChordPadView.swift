@@ -6,7 +6,7 @@ struct SurvivalChordPadSnapshot: Equatable, Sendable {
     let hintMidis: Set<Int>
     /// 構成音入力済み（pitch class 一致）に対応するハイライト MIDI。`hintMidis` の部分集合。
     let completedHintMidis: Set<Int>
-    /// pending ハイライトの不透明度（第一ブロック 1.0、第二ブロック以降は 30 秒フェード）。
+    /// pending ハイライトの不透明度（第一ブロック 1.0、第二ブロック以降は約 10 秒フェード）。
     let hintPendingOpacity: CGFloat
     let midiHeldKeys: Set<Int>
     let isEnabled: Bool
