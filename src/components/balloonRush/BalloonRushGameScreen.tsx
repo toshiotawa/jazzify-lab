@@ -1,7 +1,8 @@
 /** 風船ラッシュ — `SurvivalGameScreen` の薄いラッパー（UI はすべてサバイバルモードを流用） */
 import React, { useMemo } from 'react';
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
-import type { SurvivalCharacter } from '@/components/survival/SurvivalTypes';
+import type { SurvivalCharacter, DifficultyConfig } from '@/components/survival/SurvivalTypes';
+import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import type { LessonContext } from '@/types';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
 import {
@@ -17,6 +18,8 @@ export interface BalloonRushGameScreenProps {
   readonly character: SurvivalCharacter | null | undefined;
   readonly lessonContext: LessonContext | null;
   readonly isEnglishCopy: boolean;
+  readonly configOverride?: DifficultyConfig;
+  readonly lessonRandomChordOverrides?: ReadonlyMap<string, ChordDefinition>;
   readonly onLessonClear?: () => void | Promise<void>;
   readonly onBack: () => void;
 }
@@ -27,11 +30,16 @@ const BalloonRushGameScreen: React.FC<BalloonRushGameScreenProps> = ({
   character,
   lessonContext,
   isEnglishCopy,
+  configOverride,
+  lessonRandomChordOverrides,
   onLessonClear,
   onBack,
 }) => {
   const stageDefinition = useMemo(() => balloonRushToStageDefinition(stage), [stage]);
-  const config = useMemo(() => balloonRushDifficultyConfig(stage), [stage]);
+  const config = useMemo(
+    () => configOverride ?? balloonRushDifficultyConfig(stage),
+    [configOverride, stage],
+  );
   const lessonRuntime = useMemo(() => balloonRushLessonRuntime(stage), [stage]);
   const scenarioOverrides = useMemo(
     () => balloonRushScenarioOverrides(stage, hintMode),
@@ -48,6 +56,7 @@ const BalloonRushGameScreen: React.FC<BalloonRushGameScreenProps> = ({
       stageDefinition={stageDefinition}
       balloonRushStage={stage}
       lessonRuntime={lessonRuntime}
+      lessonRandomChordOverrides={lessonRandomChordOverrides}
       isLessonMode={lessonContext !== null}
       hintMode={hintMode}
       onLessonStageClear={onLessonClear}

@@ -519,37 +519,47 @@ export const selectProgressionChord = (
   return progressionChords[safeIndex];
 };
 
-export const selectRandomChord = (allowedChords: string[], excludeIds?: string | string[]): ChordDefinition | null => {
+export const selectRandomChord = (
+  allowedChords: string[],
+  excludeIds?: string | string[],
+  overrides?: ReadonlyMap<string, ChordDefinition>,
+): ChordDefinition | null => {
   if (!allowedChords || allowedChords.length === 0) {
     return null;
   }
-  
+
+  const resolveChord = (chordId: string): ChordDefinition | null => {
+    const override = overrides?.get(chordId);
+    if (override) return override;
+    return getChordDefinition(chordId);
+  };
+
   // excludeIdsを配列に正規化
-  const excludeArray = excludeIds 
+  const excludeArray = excludeIds
     ? (Array.isArray(excludeIds) ? excludeIds : [excludeIds])
     : [];
-  
+
   const available = allowedChords.filter(c => !excludeArray.includes(c));
-  
+
   // 利用可能なコードからランダムに選択（複数回試行）
   const chordsToTry = available.length > 0 ? available : allowedChords;
-  
+
   for (let attempt = 0; attempt < chordsToTry.length; attempt++) {
     const chordId = chordsToTry[Math.floor(Math.random() * chordsToTry.length)];
-    const chord = getChordDefinition(chordId);
+    const chord = resolveChord(chordId);
     if (chord) {
       return chord;
     }
   }
-  
+
   // 全て失敗した場合、すべてのコードを順番に試す
   for (const chordId of allowedChords) {
-    const chord = getChordDefinition(chordId);
+    const chord = resolveChord(chordId);
     if (chord) {
       return chord;
     }
   }
-  
+
   return null;
 };
 
@@ -561,6 +571,7 @@ export const initializeCodeSlots = (
   progressionChords?: ChordDefinition[] | null,
   /** ランダム + HINT（練習）時: Shot 列を出題・入力対象から外す（B のみ）。 */
   randomHintShotDisabled?: boolean,
+  randomChordOverrides?: ReadonlyMap<string, ChordDefinition>,
 ): SurvivalGameState['codeSlots'] => {
   // Progression（コード進行）モード: B列のみ使用し、A/C/D列は無効化
   if (progressionChords) {
@@ -588,23 +599,23 @@ export const initializeCodeSlots = (
   const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     {
       ...createEmptyCodeSlot('A'),
-      chord: shotEnabled ? selectRandomChord(allowedChords) : null,
+      chord: shotEnabled ? selectRandomChord(allowedChords, undefined, randomChordOverrides) : null,
       isEnabled: shotEnabled,
     },
-    { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords) },
-    { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords) : null, isEnabled: cEnabled },
-    { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords) : null, isEnabled: dEnabled },
+    { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, undefined, randomChordOverrides) },
+    { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords, undefined, randomChordOverrides) : null, isEnabled: cEnabled },
+    { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords, undefined, randomChordOverrides) : null, isEnabled: dEnabled },
   ];
 
   const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     {
       ...createEmptyCodeSlot('A'),
-      chord: shotEnabled ? selectRandomChord(allowedChords, current[0].chord?.id) : null,
+      chord: shotEnabled ? selectRandomChord(allowedChords, current[0].chord?.id, randomChordOverrides) : null,
       isEnabled: shotEnabled,
     },
-    { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id) },
-    { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: cEnabled },
-    { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: dEnabled },
+    { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id, randomChordOverrides) },
+    { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords, current[2].chord?.id, randomChordOverrides) : null, isEnabled: cEnabled },
+    { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords, current[3].chord?.id, randomChordOverrides) : null, isEnabled: dEnabled },
   ];
 
   return { current, next };

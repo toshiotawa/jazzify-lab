@@ -46,11 +46,18 @@ import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLesso
 import {
   SurvivalLessonCompositeEditor,
   SurvivalLessonOverridesForm,
+  SurvivalLessonRandomChordsEditor,
   createDefaultSurvivalLessonCompositeConfig,
   emptySurvivalLessonOverrides,
+  emptySurvivalLessonRandomChords,
   type SurvivalTaskMode,
 } from './SurvivalLessonEditors';
-import type { SurvivalLessonCompositeConfig, SurvivalLessonOverrides } from '@/types';
+import type {
+  SurvivalLessonCompositeConfig,
+  SurvivalLessonOverrides,
+  SurvivalLessonRandomChordEntry,
+} from '@/types';
+import type { BalloonRushStageType } from '@/utils/balloonRushStageDefinitions';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number' | 'block_name'>;
 
@@ -87,7 +94,9 @@ export const LessonManager: React.FC = () => {
   const [availableSongs, setAvailableSongs] = useState<SongData[]>([]);
   const [availableFantasyStages, setAvailableFantasyStages] = useState<FantasyStage[]>([]);
   const [availableEarTrainingStages, setAvailableEarTrainingStages] = useState<EarTrainingStage[]>([]);
-  const [availableBalloonRushStages, setAvailableBalloonRushStages] = useState<Array<{ id: string; slug: string; title: string }>>([]);
+  const [availableBalloonRushStages, setAvailableBalloonRushStages] = useState<
+    Array<{ id: string; slug: string; title: string; stageType: BalloonRushStageType }>
+  >([]);
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
   const [currentLessons, setCurrentLessons] = useState<Lesson[]>([]);
   const [lessonsLoading, setLessonsLoading] = useState(false);
@@ -114,6 +123,9 @@ export const LessonManager: React.FC = () => {
   );
   const [survivalLessonOverrides, setSurvivalLessonOverrides] = useState<SurvivalLessonOverrides>(
     emptySurvivalLessonOverrides(),
+  );
+  const [survivalRandomChords, setSurvivalRandomChords] = useState<SurvivalLessonRandomChordEntry[]>(
+    emptySurvivalLessonRandomChords(),
   );
 
   const NAV_LINK_OPTIONS: { key: NavLinkKey; label: string }[] = [
@@ -209,6 +221,7 @@ export const LessonManager: React.FC = () => {
           id: s.id,
           slug: s.slug,
           title: s.title ?? s.slug,
+          stageType: s.stageType,
         })),
       );
 
@@ -487,6 +500,7 @@ export const LessonManager: React.FC = () => {
     setSurvivalTaskMode('stage_ref');
     setSurvivalCompositeConfig(createDefaultSurvivalLessonCompositeConfig());
     setSurvivalLessonOverrides(emptySurvivalLessonOverrides());
+    setSurvivalRandomChords(emptySurvivalLessonRandomChords());
     contentDialogRef.current?.showModal();
   };
   
@@ -601,6 +615,7 @@ export const LessonManager: React.FC = () => {
             survival_stage_number: null,
             survival_composite_config: survivalCompositeConfig,
             survival_lesson_overrides: survivalLessonOverrides,
+            survival_random_chords: survivalRandomChords.length > 0 ? survivalRandomChords : null,
             clear_conditions: formData.clear_conditions,
           });
         } else if (survivalPickKey) {
@@ -621,6 +636,7 @@ export const LessonManager: React.FC = () => {
             survival_map_category: survivalMapCategory,
             survival_composite_config: null,
             survival_lesson_overrides: survivalLessonOverrides,
+            survival_random_chords: survivalRandomChords.length > 0 ? survivalRandomChords : null,
             clear_conditions: formData.clear_conditions,
           });
         } else {
@@ -654,6 +670,7 @@ export const LessonManager: React.FC = () => {
         newLessonSong = await addBalloonRushStageToLesson({
           lesson_id: selectedLesson.id,
           balloon_rush_stage_id: sid,
+          survival_random_chords: survivalRandomChords.length > 0 ? survivalRandomChords : null,
           clear_conditions: formData.clear_conditions,
         });
       } else {
@@ -1791,10 +1808,21 @@ export const LessonManager: React.FC = () => {
                   <option value="">-- ステージを選択してください --</option>
                   {availableBalloonRushStages.map(stage => (
                     <option key={stage.id} value={stage.id}>
-                      {stage.title} ({stage.slug})
+                      {stage.title} ({stage.slug}) [{stage.stageType}]
                     </option>
                   ))}
                 </select>
+                {watchContent('balloon_rush_stage_id') && (() => {
+                  const brId = watchContent('balloon_rush_stage_id');
+                  const st = availableBalloonRushStages.find(s => s.id === brId);
+                  if (!st || st.stageType !== 'random') return null;
+                  return (
+                    <SurvivalLessonRandomChordsEditor
+                      value={survivalRandomChords}
+                      onChange={setSurvivalRandomChords}
+                    />
+                  );
+                })()}
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">
@@ -1861,6 +1889,20 @@ export const LessonManager: React.FC = () => {
                     onChange={setSurvivalCompositeConfig}
                   />
                 )}
+
+                {survivalTaskMode === 'stage_ref' && survivalPickKey !== '' && (() => {
+                  const colon = survivalPickKey.indexOf(':');
+                  const cat = survivalPickKey.slice(0, colon) as SurvivalMapCategory;
+                  const num = Number(survivalPickKey.slice(colon + 1));
+                  const selected = Number.isFinite(num) ? getStageByNumber(num, cat) : undefined;
+                  if (!selected || selected.stageType !== 'random') return null;
+                  return (
+                    <SurvivalLessonRandomChordsEditor
+                      value={survivalRandomChords}
+                      onChange={setSurvivalRandomChords}
+                    />
+                  );
+                })()}
 
                 {(() => {
                   let isBossCapable = survivalTaskMode === 'composite_phrase';

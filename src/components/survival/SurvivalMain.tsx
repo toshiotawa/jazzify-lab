@@ -29,6 +29,11 @@ import {
   resolveSurvivalLessonRuntime,
   type ResolvedSurvivalLessonRuntime,
 } from '@/utils/survivalLessonConfig';
+import {
+  applyLessonRandomChords,
+  parseSurvivalLessonRandomChords,
+} from '@/utils/survivalLessonRandomChords';
+import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import type { SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
 import { isFirstBlockBossStageDef } from './survivalFirstBlockStage';
 import SurvivalRunPrepModal from './SurvivalRunPrepModal';
@@ -162,6 +167,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     readonly SurvivalPhraseDefinition[] | null
   >(null);
   const [lessonRuntime, setLessonRuntime] = useState<ResolvedSurvivalLessonRuntime | null>(null);
+  const [lessonRandomChordOverrides, setLessonRandomChordOverrides] = useState<
+    ReadonlyMap<string, ChordDefinition> | undefined
+  >(undefined);
   const [survivalBgmSettings, setSurvivalBgmSettings] = useState<SurvivalBgmSettingsMap>(DEFAULT_SURVIVAL_BGM_SETTINGS);
 
   const [iosInitialized, setIosInitialized] = useState(false);
@@ -420,10 +428,16 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         isFirstBlockBoss: isFirstBlockBossStageDef(stageDef),
       });
       const defaultBgm = resolveStageBgmUrl(stageDef, bgmSettings);
+      const randomChordEntries = parseSurvivalLessonRandomChords(lessonSong.survival_random_chords);
+      const appliedRandom = applyLessonRandomChords(
+        stageDef.allowedChords,
+        randomChordEntries,
+        stageDef.stageType,
+      );
       const lessonConfig: DifficultyConfig = {
         ...baseConfig,
         difficulty: stageDef.difficulty,
-        allowedChords: stageDef.allowedChords,
+        allowedChords: appliedRandom.allowedChordIds,
         enemyStatMultiplier: runtime.enemyStatMultiplier,
         bgmUrl: runtime.bgmUrl ?? defaultBgm,
       };
@@ -434,6 +448,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       setActiveStageDefinition(stageDef);
       setLessonInlineCompositePhrases(inlinePhrases);
       setLessonRuntime(runtime);
+      setLessonRandomChordOverrides(
+        appliedRandom.overrides.size > 0 ? appliedRandom.overrides : undefined,
+      );
       setActiveHintMode(false);
       setScreen('lessonPrep');
       setLessonInitialized(true);
@@ -679,6 +696,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         stageDefinition={activeStageDefinition ?? undefined}
         lessonInlineCompositePhrases={lessonInlineCompositePhrases ?? undefined}
         lessonRuntime={lessonRuntime ?? undefined}
+        lessonRandomChordOverrides={lessonRandomChordOverrides}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
         isLessonMode={!!lessonMode}
         hintMode={activeHintMode}

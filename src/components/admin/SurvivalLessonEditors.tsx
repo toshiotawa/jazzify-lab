@@ -2,7 +2,9 @@ import React from 'react';
 import type {
   SurvivalLessonCompositeConfig,
   SurvivalLessonOverrides,
+  SurvivalLessonRandomChordEntry,
 } from '@/types';
+import { parseNoteNameToMidi } from '@/utils/survivalLessonConfig';
 
 const emptyCompositeConfig = (): SurvivalLessonCompositeConfig => ({
   bossType: 'B',
@@ -283,6 +285,145 @@ export const SurvivalLessonOverridesForm: React.FC<SurvivalLessonOverridesFormPr
           ))}
         </div>
       ) : null}
+    </div>
+  );
+};
+
+const defaultRandomChordEntry = (): SurvivalLessonRandomChordEntry => ({
+  name: 'Dm7',
+  voicing: [53, 57, 60, 64],
+  voicingNames: ['F3', 'A3', 'C4', 'E4'],
+  voicingStaves: [2, 2, 1, 1],
+  keyFifths: 0,
+});
+
+export const emptySurvivalLessonRandomChords = (): SurvivalLessonRandomChordEntry[] => [];
+
+const parseMidiList = (raw: string): number[] => {
+  const parts = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+  const out: number[] = [];
+  for (const p of parts) {
+    const n = Number(p);
+    if (Number.isFinite(n)) out.push(Math.trunc(n));
+  }
+  return out;
+};
+
+interface SurvivalLessonRandomChordsEditorProps {
+  value: SurvivalLessonRandomChordEntry[];
+  onChange: (next: SurvivalLessonRandomChordEntry[]) => void;
+}
+
+export const SurvivalLessonRandomChordsEditor: React.FC<SurvivalLessonRandomChordsEditorProps> = ({
+  value,
+  onChange,
+}) => {
+  const updateEntry = (index: number, patch: Partial<SurvivalLessonRandomChordEntry>) => {
+    onChange(value.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));
+  };
+
+  const updateNoteNames = (index: number, raw: string) => {
+    const noteNames = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    const entry = value[index];
+    if (!entry) return;
+    const staves = noteNames.map((_, ni) => entry.voicingStaves?.[ni] ?? 1 as const);
+    updateEntry(index, {
+      voicingNames: noteNames,
+      voicingStaves: staves,
+      voicing: noteNames.length > 0
+        ? noteNames.map(name => parseNoteNameToMidi(name)).map((m, ni) => (
+          typeof m === 'number' ? m : (entry.voicing[ni] ?? 60)
+        ))
+        : entry.voicing,
+    });
+  };
+
+  const setStaff = (entryIndex: number, noteIndex: number, staff: 1 | 2) => {
+    const entry = value[entryIndex];
+    if (!entry) return;
+    const count = entry.voicingNames?.length ?? entry.voicing.length;
+    const staves: (1 | 2)[] = [];
+    for (let i = 0; i < count; i += 1) {
+      if (i === noteIndex) staves.push(staff);
+      else staves.push(entry.voicingStaves?.[i] === 2 ? 2 : 1);
+    }
+    updateEntry(entryIndex, { voicingStaves: staves });
+  };
+
+  return (
+    <div className="space-y-3 rounded border border-cyan-500/40 bg-cyan-950/20 p-3">
+      <p className="text-sm font-semibold text-cyan-200">Random カスタムコード（空=ステージ既定）</p>
+      <p className="text-xs text-gray-400">
+        指定時は出題プールをこの一覧に置き換えます。音名1行ごとにト音(1)/ヘ音(2)を指定できます。
+      </p>
+      {value.map((entry, ei) => (
+        <div key={`random-chord-${ei}`} className="space-y-2 rounded border border-slate-600 p-3">
+          <div className="flex gap-2">
+            <input
+              className="input input-bordered input-sm flex-1"
+              value={entry.name}
+              placeholder="コード名 (例: Dm7)"
+              onChange={(e) => updateEntry(ei, { name: e.target.value })}
+            />
+            <button
+              type="button"
+              className="btn btn-xs btn-ghost text-red-400"
+              onClick={() => onChange(value.filter((_, i) => i !== ei))}
+            >
+              削除
+            </button>
+          </div>
+          <label className="block text-xs">
+            MIDI（カンマ区切り）
+            <input
+              className="input input-bordered input-xs w-full mt-0.5 font-mono"
+              value={entry.voicing.join(', ')}
+              onChange={(e) => updateEntry(ei, { voicing: parseMidiList(e.target.value) })}
+            />
+          </label>
+          <label className="block text-xs">
+            音名（1行1音）
+            <textarea
+              className="textarea textarea-bordered textarea-xs w-full mt-0.5 font-mono"
+              rows={4}
+              value={(entry.voicingNames ?? []).join('\n')}
+              placeholder={'F3\nA3\nC4\nE4'}
+              onChange={(e) => updateNoteNames(ei, e.target.value)}
+            />
+          </label>
+          {(entry.voicingNames ?? []).map((noteName, ni) => (
+            <label key={`staff-${ei}-${ni}`} className="flex items-center gap-2 text-xs">
+              <span className="w-12 font-mono">{noteName}</span>
+              <select
+                className="select select-bordered select-xs"
+                value={entry.voicingStaves?.[ni] === 2 ? 2 : 1}
+                onChange={(e) => setStaff(ei, ni, e.target.value === '2' ? 2 : 1)}
+              >
+                <option value="1">ト音</option>
+                <option value="2">ヘ音</option>
+              </select>
+            </label>
+          ))}
+          <label className="block text-xs">
+            調号 key_fifths
+            <input
+              type="number"
+              min={-7}
+              max={7}
+              className="input input-bordered input-xs w-24 mt-0.5"
+              value={entry.keyFifths ?? 0}
+              onChange={(e) => updateEntry(ei, { keyFifths: Number(e.target.value) })}
+            />
+          </label>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn-sm btn-outline"
+        onClick={() => onChange([...value, defaultRandomChordEntry()])}
+      >
+        コード追加
+      </button>
     </div>
   );
 };

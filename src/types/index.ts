@@ -840,6 +840,19 @@ export interface SurvivalLessonCompositeDamageOverrides {
   finishRepeat?: number;
 }
 
+/** レッスン Random 課題用カスタムコード（`lesson_songs.survival_random_chords`） */
+export interface SurvivalLessonRandomChordEntry {
+  /** 出題コード ID（例: Dm7, CM7(9)） */
+  name: string;
+  /** 演奏・正解判定用 MIDI（mod 12） */
+  voicing: readonly number[];
+  /** 五線譜用オクターブ付き音名（voicing と同順） */
+  voicingNames?: readonly string[];
+  /** 1=ト音 / 2=ヘ音（voicingNames または voicing と同順） */
+  voicingStaves?: readonly (1 | 2)[];
+  keyFifths?: number;
+}
+
 export interface SurvivalLessonCompositeConfig {
   bossType?: 'A' | 'B' | 'C';
   keyFifths?: number;
@@ -892,7 +905,8 @@ export interface LessonSong {
   is_ear_training?: boolean;
   is_ear_training_tutorial?: boolean;
   ear_training_tutorial_script_id?: string | null;
-  survival_allowed_chords?: string[];
+  /** Random モード課題のカスタムコード池（指定時はステージ既定プールを置き換え） */
+  survival_random_chords?: SurvivalLessonRandomChordEntry[] | null;
   survival_stage_number?: number;
   /** survival_stages と組み合わせてステージを一意に特定（NULL は basic とみなす） */
   survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;

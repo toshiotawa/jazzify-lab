@@ -409,6 +409,8 @@ interface SurvivalGameScreenProps {
   lessonRuntime?: ResolvedSurvivalLessonRuntime;
   /** 風船ラッシュ: ステージ定義は `balloonRushToStageDefinition` で渡し、シミュレーションは専用物理を使用 */
   balloonRushStage?: BalloonRushResolvedStage;
+  /** レッスン Random 課題のカスタムコード定義（`selectRandomChord` オーバーライド） */
+  lessonRandomChordOverrides?: ReadonlyMap<string, import('@/components/fantasy/FantasyGameEngine').ChordDefinition>;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -442,6 +444,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   lessonInlineCompositePhrases,
   lessonRuntime,
   balloonRushStage,
+  lessonRandomChordOverrides,
 }) => {
   const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
@@ -1102,6 +1105,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // handleNoteInputの最新参照を保持するref
   const handleNoteInputRef = useRef<(note: number) => void>(() => {});
+
+  const lessonRandomChordOverridesRef = useRef(lessonRandomChordOverrides);
+  lessonRandomChordOverridesRef.current = lessonRandomChordOverrides;
+
+  const pickRandomChord = useCallback((
+    excludeIds?: string | string[],
+  ) => selectRandomChord(
+    config.allowedChords,
+    excludeIds,
+    lessonRandomChordOverridesRef.current,
+  ), [config.allowedChords]);
 
   const survivalKeyboardScrollAnchorMidi = useMemo(() => {
     if (isPhraseMode) {
@@ -1765,6 +1779,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         isStageMode,
         progressionChords,
         randomHintShotDisabled,
+        lessonRandomChordOverridesRef.current,
       );
       if (isPhraseMode) {
         for (let si = 0; si < 4; si += 1) {
@@ -2070,10 +2085,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newCodeSlots = isProgressionStage ? gs.codeSlots : {
         ...gs.codeSlots,
         current: gs.codeSlots.current.map((slot, i) => 
-          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? pickRandomChord() : null } : slot
         ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
         next: gs.codeSlots.next.map((slot, i) =>
-          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? pickRandomChord() : null } : slot
         ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
       };
       
@@ -4284,8 +4299,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     return { ...slot, chord: advanced.current, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
                   }
                   let nextChord = newState.codeSlots.next[slotIndex]?.chord;
-                  if (!nextChord) nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
-                  const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
+                  if (!nextChord) nextChord = pickRandomChord(slot.chord?.id);
+                  const newNextChord = pickRandomChord(nextChord?.id);
                   newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
                     i === slotIndex ? { ...ns, chord: newNextChord } : ns
                   ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
@@ -4305,7 +4320,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   }
                   return slot;
                 }
-                const newChord = selectRandomChord(config.allowedChords);
+                const newChord = pickRandomChord();
                 if (newChord) {
                   return { ...slot, chord: newChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
                 }
@@ -4874,10 +4889,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.codeSlots = isProgressionStage ? newState.codeSlots : {
               ...newState.codeSlots,
               current: newState.codeSlots.current.map((slot, i) => 
-                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? selectRandomChord(config.allowedChords) : slot.chord } : slot
+                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? pickRandomChord() : slot.chord } : slot
               ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
               next: newState.codeSlots.next.map((slot, i) =>
-                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? selectRandomChord(config.allowedChords) : slot.chord } : slot
+                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? pickRandomChord() : slot.chord } : slot
               ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
             };
             
@@ -5061,9 +5076,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
               let nextChord = newState.codeSlots.next[slotIndex]?.chord;
               if (!nextChord) {
-                nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
+                nextChord = pickRandomChord(slot.chord?.id);
               }
-              const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
+              const newNextChord = pickRandomChord(nextChord?.id);
               newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
                 i === slotIndex ? { ...ns, chord: newNextChord } : ns
               ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
@@ -5085,7 +5100,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               }
               return slot;
             }
-            const newChord = selectRandomChord(config.allowedChords);
+            const newChord = pickRandomChord();
             if (newChord) {
               return { ...slot, chord: newChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
             }
@@ -5924,13 +5939,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (tutNames && tutNames.length > 0 && typeof tutKf === 'number') {
       const staves = ch.progressionStaffVoicingStaves;
+      const allBass = staves && staves.length === tutNames.length && staves.every(s => s === 2);
       const baseRand: SurvivalProgressionStaffSnapshot = {
         voicingNames: tutNames,
         keyFifths: tutKf,
         correctPitchClasses: slot.correctNotes,
         chordDisplayName: typeLabel,
         rootDisplayName: survivalQuestion ? ch.root : undefined,
-        staffClef: 'treble',
+        staffClef: allBass ? 'bass' : 'treble',
       };
       if (staves && staves.length === tutNames.length) {
         return { ...baseRand, voicingStaves: staves };

@@ -12,9 +12,18 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import type { ClearConditions, LessonContext } from '@/types';
+import { fetchLessonSongById } from '@/platform/supabaseLessons';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
+import { resolveBalloonRushAllowedChordIds } from '@/utils/balloonRushStageDefinitions';
 import {
+  applyLessonRandomChords,
+  parseSurvivalLessonRandomChords,
+} from '@/utils/survivalLessonRandomChords';
+import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
+import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
+import {
+  balloonRushDifficultyConfig,
   balloonRushLessonRuntime,
   balloonRushToStageDefinition,
 } from '@/utils/balloonRushSurvivalBridge';
@@ -93,6 +102,10 @@ const BalloonRushMain: React.FC = () => {
   const [resolvedStage, setResolvedStage] = useState<BalloonRushResolvedStage | null>(null);
   const [hintMode, setHintMode] = useState(false);
   const [gameNonce, setGameNonce] = useState(0);
+  const [gameConfigOverride, setGameConfigOverride] = useState<DifficultyConfig | null>(null);
+  const [lessonRandomChordOverrides, setLessonRandomChordOverrides] = useState<
+    ReadonlyMap<string, ChordDefinition> | undefined
+  >(undefined);
 
   const demoCharacter = useMemo((): SurvivalCharacter | null => {
     try {
@@ -159,6 +172,47 @@ const BalloonRushMain: React.FC = () => {
       cancelled = true;
     };
   }, [stageIdFromUrl, lessonContext, isEnglishCopy]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadLessonRandomChords = async (): Promise<void> => {
+      if (!lessonContext?.lessonSongId || !resolvedStage) {
+        setGameConfigOverride(null);
+        setLessonRandomChordOverrides(undefined);
+        return;
+      }
+      try {
+        const lessonSong = await fetchLessonSongById(lessonContext.lessonSongId);
+        if (cancelled) return;
+        const entries = parseSurvivalLessonRandomChords(lessonSong.survival_random_chords);
+        const baseAllowed = resolveBalloonRushAllowedChordIds(resolvedStage);
+        const applied = applyLessonRandomChords(
+          baseAllowed,
+          entries,
+          resolvedStage.stageType,
+        );
+        const baseConfig = balloonRushDifficultyConfig(resolvedStage);
+        setGameConfigOverride({
+          ...baseConfig,
+          allowedChords: applied.allowedChordIds.length > 0
+            ? [...applied.allowedChordIds]
+            : [...baseConfig.allowedChords],
+        });
+        setLessonRandomChordOverrides(
+          applied.overrides.size > 0 ? applied.overrides : undefined,
+        );
+      } catch {
+        if (!cancelled) {
+          setGameConfigOverride(null);
+          setLessonRandomChordOverrides(undefined);
+        }
+      }
+    };
+    void loadLessonRandomChords();
+    return () => {
+      cancelled = true;
+    };
+  }, [lessonContext?.lessonSongId, resolvedStage]);
 
   const handleBack = useCallback(() => {
     if (lessonContext) {
@@ -249,6 +303,8 @@ const BalloonRushMain: React.FC = () => {
         character={demoCharacter}
         lessonContext={lessonContext}
         isEnglishCopy={isEnglishCopy}
+        configOverride={gameConfigOverride ?? undefined}
+        lessonRandomChordOverrides={lessonRandomChordOverrides}
         onLessonClear={handleLessonClear}
         onBack={handleBack}
       />

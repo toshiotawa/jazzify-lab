@@ -226,7 +226,7 @@ const LessonDetailPage: React.FC = () => {
           survival_tutorial_script_id: ls.survival_tutorial_script_id,
           is_ear_training_tutorial: ls.is_ear_training_tutorial,
           ear_training_tutorial_script_id: ls.ear_training_tutorial_script_id,
-          survival_allowed_chords: ls.survival_allowed_chords,
+          survival_random_chords: ls.survival_random_chords,
           survival_stage_number: ls.survival_stage_number,
           survival_map_category: ls.survival_map_category,
           survival_composite_config: ls.survival_composite_config,
@@ -241,7 +241,7 @@ const LessonDetailPage: React.FC = () => {
           fantasy_stage_id: ls.fantasy_stage_id,
           title: ls.title,
           title_en: ls.title_en,
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_allowed_chords?: string[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       

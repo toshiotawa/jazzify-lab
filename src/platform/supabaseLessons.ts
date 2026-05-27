@@ -326,6 +326,7 @@ type SurvivalLessonSongData = {
   survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;
   survival_composite_config?: import('@/types').SurvivalLessonCompositeConfig | null;
   survival_lesson_overrides?: import('@/types').SurvivalLessonOverrides | null;
+  survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[] | null;
   clear_conditions?: ClearConditions;
   title?: string | null;
   title_en?: string | null;
@@ -336,6 +337,7 @@ export type UpdateSurvivalLessonSongPayload = {
   survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null;
   survival_composite_config?: import('@/types').SurvivalLessonCompositeConfig | null;
   survival_lesson_overrides?: import('@/types').SurvivalLessonOverrides | null;
+  survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[] | null;
   clear_conditions?: ClearConditions;
   title?: string | null;
   title_en?: string | null;
@@ -374,6 +376,7 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
       survival_map_category: data.survival_map_category ?? null,
       survival_composite_config: data.survival_composite_config ?? null,
       survival_lesson_overrides: data.survival_lesson_overrides ?? null,
+      survival_random_chords: data.survival_random_chords ?? null,
       clear_conditions: data.clear_conditions,
       title: data.title ?? null,
       title_en: data.title_en ?? null,
@@ -415,6 +418,7 @@ export async function updateSurvivalLessonSong(
       ...updates,
       survival_composite_config: updates.survival_composite_config ?? null,
       survival_lesson_overrides: updates.survival_lesson_overrides ?? null,
+      survival_random_chords: updates.survival_random_chords ?? null,
     })
     .eq('id', lessonSongId)
     .select()
@@ -613,6 +617,7 @@ export async function removeEarTrainingStageFromLesson(lessonId: string, lessonS
 type BalloonRushLessonSongData = {
   lesson_id: string;
   balloon_rush_stage_id: string;
+  survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[] | null;
   clear_conditions?: ClearConditions;
   title?: string | null;
   title_en?: string | null;
@@ -642,6 +647,7 @@ export async function addBalloonRushStageToLesson(data: BalloonRushLessonSongDat
       is_fantasy: false,
       is_balloon_rush: true,
       balloon_rush_stage_id: data.balloon_rush_stage_id,
+      survival_random_chords: data.survival_random_chords ?? null,
       clear_conditions: data.clear_conditions,
       title: data.title ?? null,
       title_en: data.title_en ?? null,
