@@ -659,7 +659,7 @@ export interface LessonContext {
   lessonId: string;
   lessonSongId: string; // lesson_songs.id（進捗記録用）
   clearConditions: ClearConditions;
-  sourceType: 'song' | 'fantasy' | 'ear_training' | 'survival';
+  sourceType: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush';
 }
 
 export type EarTrainingGameState =
@@ -865,12 +865,26 @@ export interface SurvivalLessonOverrides {
   compositeDamage?: SurvivalLessonCompositeDamageOverrides;
 }
 
+/** `lesson_songs` からネスト取得する `balloon_rush_stages` 行（一覧・詳細表示用） */
+export interface BalloonRushStageRow {
+  id: string;
+  slug: string;
+  title: string;
+  title_en?: string | null;
+  time_limit_sec?: number;
+  pop_quota?: number;
+  stage_type?: 'random' | 'progression';
+}
+
 export interface LessonSong {
   id: string;
   lesson_id: string;
   song_id: string | null;
   fantasy_stage_id: string | null;
   ear_training_stage_id?: string | null;
+  is_balloon_rush?: boolean;
+  balloon_rush_stage_id?: string | null;
+  balloon_rush_stage?: BalloonRushStageRow | null;
   is_fantasy: boolean;
   is_survival?: boolean;
   is_survival_tutorial?: boolean;

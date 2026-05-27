@@ -2000,6 +2000,19 @@ struct LessonDetailView: View {
                 survivalRequirementInfoView(survivalInfo)
             }
 
+            if requirement.isBalloonRush == true, let bs = requirement.balloonRushStage {
+                let tl = bs.timeLimitSec ?? 0
+                let pq = bs.popQuota ?? 0
+                if tl > 0 && pq > 0 {
+                    Text(locale == .ja
+                         ? "\(tl)秒以内に風船を\(pq)個割る"
+                         : "Pop \(pq) balloons within \(tl)s")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             // 本日の進捗表示（日数課題の場合）
             if !isCompleted,
                requirement.clearConditions?.requiresDays == true,
@@ -2628,7 +2641,7 @@ struct LessonDetailView: View {
 
     private func progress(for requirement: LessonSong) -> LessonRequirementProgressRow? {
         requirementProgress.first { progress in
-            if requirement.isFantasy || requirement.isSurvival == true || requirement.isSurvivalTutorial == true || requirement.isEarTraining == true || requirement.isEarTrainingTutorial == true {
+            if requirement.isFantasy || requirement.isSurvival == true || requirement.isSurvivalTutorial == true || requirement.isBalloonRush == true || requirement.isEarTraining == true || requirement.isEarTrainingTutorial == true {
                 return progress.lessonSongId == requirement.id
             }
             return progress.songId == requirement.songId
@@ -2666,6 +2679,9 @@ struct LessonDetailView: View {
         }
         if requirement.isEarTraining == true, let earTrainingStage = requirement.earTrainingStage {
             return "\(index + 1). \(earTrainingStage.localizedTitle(locale))"
+        }
+        if requirement.isBalloonRush == true, let br = requirement.balloonRushStage {
+            return "\(index + 1). \(br.localizedTitle(locale))"
         }
         return "\(index + 1). \(locale == .ja ? "課題" : "Task")"
     }
@@ -2715,6 +2731,9 @@ struct LessonDetailView: View {
         }
         if let earTrainingStageTitle = requirement.earTrainingStage?.localizedTitle(locale) {
             return earTrainingStageTitle
+        }
+        if requirement.isBalloonRush == true, let slug = requirement.balloonRushStage?.slug, !slug.isEmpty {
+            return slug
         }
         return requirement.id.uuidString
     }
@@ -2864,6 +2883,26 @@ struct LessonDetailView: View {
             }
             return
         }
+
+        if requirement.isBalloonRush == true {
+            guard let stageId = requirement.balloonRushStage?.id ?? requirement.balloonRushStageId else {
+                alertMessage = locale == .ja ? "風船ラッシュステージがありません。" : "Missing balloon rush stage."
+                return
+            }
+            var brParams: [String: String] = [
+                "lessonId": lesson.id.uuidString,
+                "lessonSongId": requirement.id.uuidString,
+                "stageId": stageId.uuidString,
+            ]
+            if let cc = encodeClearConditions(requirement.clearConditions) {
+                brParams["clearConditions"] = cc
+            }
+            launchDestination = LessonLaunchDestination(
+                hash: buildHash(base: "balloon-rush-lesson", params: brParams)
+            )
+            return
+        }
+
 
         if requirement.isFantasy {
             guard let stageId = requirement.fantasyStage?.id ?? requirement.fantasyStageId else {

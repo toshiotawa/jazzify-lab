@@ -4,9 +4,10 @@ import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode,
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, addBalloonRushStageToLesson, removeBalloonRushStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
 import { fetchEarTrainingStages } from '@/platform/supabaseEarTraining';
+import { fetchBalloonRushStagesForLessonAdmin } from '@/platform/supabaseBalloonRush';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon, FaSkull } from 'react-icons/fa';
@@ -59,12 +60,13 @@ type SongFormData = {
 };
 
 type ContentFormData = {
-  content_type: 'song' | 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training' | 'ear_training_tutorial';
+  content_type: 'song' | 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training' | 'ear_training_tutorial' | 'balloon_rush';
   survival_tutorial_script_id?: string;
   ear_training_tutorial_script_id?: string;
   song_id?: string;
   fantasy_stage_id?: string;
   ear_training_stage_id?: string;
+  balloon_rush_stage_id?: string;
   clear_conditions: ClearConditions;
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
@@ -85,6 +87,7 @@ export const LessonManager: React.FC = () => {
   const [availableSongs, setAvailableSongs] = useState<SongData[]>([]);
   const [availableFantasyStages, setAvailableFantasyStages] = useState<FantasyStage[]>([]);
   const [availableEarTrainingStages, setAvailableEarTrainingStages] = useState<EarTrainingStage[]>([]);
+  const [availableBalloonRushStages, setAvailableBalloonRushStages] = useState<Array<{ id: string; slug: string; title: string }>>([]);
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
   const [currentLessons, setCurrentLessons] = useState<Lesson[]>([]);
   const [lessonsLoading, setLessonsLoading] = useState(false);
@@ -190,16 +193,24 @@ export const LessonManager: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [coursesData, songsData, fantasyStagesData, earTrainingStagesData] = await Promise.all([
+      const [coursesData, songsData, fantasyStagesData, earTrainingStagesData, balloonRushRows] = await Promise.all([
         fetchCoursesSimple({ includeHidden: true, includeDeveloperCourses: true }),
         fetchSongs('lesson'),
         fetchFantasyStages(),
-        fetchEarTrainingStages({ includeInactive: true, includeDemo: true })
+        fetchEarTrainingStages({ includeInactive: true, includeDemo: true }),
+        fetchBalloonRushStagesForLessonAdmin(),
       ]);
       setCourses(coursesData);
       setAvailableSongs(songsData);
       setAvailableFantasyStages(fantasyStagesData);
       setAvailableEarTrainingStages(earTrainingStagesData);
+      setAvailableBalloonRushStages(
+        balloonRushRows.map(s => ({
+          id: s.id,
+          slug: s.slug,
+          title: s.title ?? s.slug,
+        })),
+      );
 
       const sortedPick = sortCoursesByDifficultyThenOrder(coursesData);
       if (!selectedCourseId || !coursesData.some(c => c.id === selectedCourseId)) {
@@ -470,6 +481,7 @@ export const LessonManager: React.FC = () => {
       },
       override_repeat_transposition_mode: null,
       override_start_key: null,
+      balloon_rush_stage_id: '',
     });
     setSurvivalPickKey('');
     setSurvivalTaskMode('stage_ref');
@@ -634,6 +646,16 @@ export const LessonManager: React.FC = () => {
           ear_training_stage_id: formData.ear_training_stage_id,
           clear_conditions: formData.clear_conditions,
         });
+      } else if (formData.content_type === 'balloon_rush') {
+        const sid = formData.balloon_rush_stage_id?.trim();
+        if (!sid) {
+          throw new Error('風船ラッシュステージが選択されていません');
+        }
+        newLessonSong = await addBalloonRushStageToLesson({
+          lesson_id: selectedLesson.id,
+          balloon_rush_stage_id: sid,
+          clear_conditions: formData.clear_conditions,
+        });
       } else {
         throw new Error('コンテンツが選択されていません');
       }
@@ -653,6 +675,7 @@ export const LessonManager: React.FC = () => {
         survival_tutorial: 'サバイバルチュートリアルを追加しました。',
         ear_training_tutorial: '耳コピバトルチュートリアルを追加しました。',
         ear_training: 'バトルモードステージを追加しました。',
+        balloon_rush: '風船ラッシュステージを追加しました。',
       };
       toast.success(contentTypeMessages[formData.content_type]);
       
@@ -719,16 +742,29 @@ export const LessonManager: React.FC = () => {
     }
   };
   
-  const handleRemoveContent = async (lessonId: string, lessonSongId: string, isFantasy: boolean, contentId: string, isSurvival?: boolean, isEarTraining?: boolean) => {
+  const handleRemoveContent = async (
+    lessonId: string,
+    lessonSongId: string,
+    isFantasy: boolean,
+    contentId: string,
+    isSurvival?: boolean,
+    isEarTraining?: boolean,
+    isBalloonRush?: boolean,
+  ) => {
     if (!selectedCourseId) return;
     
-    const confirmMessage = isEarTraining ? 'このバトルモードステージをレッスンから削除しますか？'
-      : isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
-      : isFantasy ? 'このファンタジーステージをレッスンから削除しますか？' : 'この曲をレッスンから削除しますか？';
+    const confirmMessage = isBalloonRush
+      ? 'この風船ラッシュ課題をレッスンから削除しますか？'
+      : isEarTraining ? 'このバトルモードステージをレッスンから削除しますか？'
+        : isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
+        : isFantasy ? 'このファンタジーステージをレッスンから削除しますか？'
+        : 'この曲をレッスンから削除しますか？';
     
     if (window.confirm(confirmMessage)) {
       try {
-        if (isEarTraining) {
+        if (isBalloonRush) {
+          await removeBalloonRushStageFromLesson(lessonId, lessonSongId);
+        } else if (isEarTraining) {
           await removeEarTrainingStageFromLesson(lessonId, lessonSongId);
         } else if (isSurvival) {
           await removeSurvivalStageFromLesson(lessonId, lessonSongId);
@@ -746,7 +782,13 @@ export const LessonManager: React.FC = () => {
           )
         );
         
-        toast.success(isEarTraining ? 'バトルモードステージを削除しました。' : isFantasy ? 'ファンタジーステージを削除しました。' : '曲を削除しました。');
+        toast.success(
+          isBalloonRush ? '風船ラッシュ課題を削除しました。'
+          : isEarTraining ? 'バトルモードステージを削除しました。'
+            : isSurvival ? 'サバイバルステージを削除しました。'
+            : isFantasy ? 'ファンタジーステージを削除しました。'
+            : '曲を削除しました。',
+        );
         
         invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
         setTimeout(() => loadLessons(true), 500);
@@ -1254,6 +1296,30 @@ export const LessonManager: React.FC = () => {
                                   </div>
                                 );
                               }
+                              if (ls.is_balloon_rush) {
+                                const stSlug = ls.balloon_rush_stage?.slug ?? '';
+                                return (
+                                  <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div>
+                                      <FaMusic className="inline-block mr-2 text-sky-400" />
+                                      <span className="font-medium">風船ラッシュ</span>
+                                      <span className="text-xs text-sky-300 ml-2">[{stSlug || 'slug?'}]</span>
+                                      <span className="text-xs text-gray-400 ml-2">
+                                        {ls.clear_conditions?.requires_days
+                                          ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
+                                          : ` (${ls.clear_conditions?.count || 1}回)`}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveContent(lesson.id, ls.id, false, ls.id, false, false, true)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                );
+                              }
                               if (ls.is_survival_tutorial) {
                                 return (
                                   <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
@@ -1639,6 +1705,15 @@ export const LessonManager: React.FC = () => {
                   />
                   <span className="ml-2">耳コピチュートリアル</span>
                 </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    {...registerContent('content_type')}
+                    value="balloon_rush"
+                    className="radio radio-secondary"
+                  />
+                  <span className="ml-2">風船ラッシュ</span>
+                </label>
               </div>
             </div>
             
@@ -1708,6 +1783,18 @@ export const LessonManager: React.FC = () => {
                 <p className="text-xs text-gray-400">
                   耳コピバトルチュートリアル（セリフ・コードヴォイシング・OSMD・クイズ）。最後まで進めると課題クリア（バトルモード進捗には影響しません）。
                 </p>
+              </div>
+            ) : watchContent && watchContent('content_type') === 'balloon_rush' ? (
+              <div className="space-y-3">
+                <label className="label"><span className="label-text">風船ラッシュステージ *</span></label>
+                <select {...registerContent('balloon_rush_stage_id', { required: true })} className="select select-bordered w-full">
+                  <option value="">-- ステージを選択してください --</option>
+                  {availableBalloonRushStages.map(stage => (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.title} ({stage.slug})
+                    </option>
+                  ))}
+                </select>
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">
@@ -1960,7 +2047,7 @@ export const LessonManager: React.FC = () => {
             
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeContentDialog}>キャンセル</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalTaskMode === 'stage_ref' && survivalPickKey === '') || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id'))}>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalTaskMode === 'stage_ref' && survivalPickKey === '') || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id')) || (watchContent('content_type') === 'balloon_rush' && !watchContent('balloon_rush_stage_id'))}>
                 {isSubmitting ? '追加中...' : '追加'}
               </button>
             </div>

@@ -34,6 +34,7 @@ const LazyEarTrainingMain = React.lazy(() => import('@/components/earTraining/Ea
 const LazyEarTrainingTutorialMain = React.lazy(
   () => import('@/components/earTraining/tutorial/EarTrainingTutorialMain'),
 );
+const LazyBalloonRushMain = React.lazy(() => import('@/components/balloonRush/BalloonRushMain'));
 
 /**
  * メインアプリケーションコンポーネント
@@ -129,6 +130,7 @@ const App: React.FC = () => {
         '#survival',
         '#survival-lesson',
         '#survival-tutorial-lesson',
+        '#balloon-rush-lesson',
         '#ear-training-lesson',
         '#ear-training-tutorial-lesson',
         '#play-lesson',
@@ -195,6 +197,12 @@ const App: React.FC = () => {
           return <LazySurvivalMain lessonMode />;
         case 'survival-tutorial-lesson':
           return <LazySurvivalTutorialMain />;
+        case 'balloon-rush-lesson':
+          return (
+            <React.Suspense fallback={<LoadingScreen />}>
+              <LazyBalloonRushMain />
+            </React.Suspense>
+          );
         case 'ear-training-lesson':
           return <LazyEarTrainingMain />;
         case 'ear-training-tutorial-lesson':
@@ -405,6 +413,13 @@ const App: React.FC = () => {
       MainContent = (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazySurvivalTutorialMain />
+        </React.Suspense>
+      );
+      break;
+    case '#balloon-rush-lesson':
+      MainContent = (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazyBalloonRushMain />
         </React.Suspense>
       );
       break;

@@ -1,5 +1,6 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache, getCurrentUserIdCached, clearCacheByPattern } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
+import type { ClearConditions } from '@/types';
 
 export interface LessonRequirementProgress {
   id: string;
@@ -46,9 +47,9 @@ export async function updateLessonRequirementProgress(
   lessonId: string,
   songId: string,
   rank: string,
-  clearConditions: any,
+  clearConditions: ClearConditions | Record<string, unknown>,
   options?: {
-    sourceType?: 'song' | 'fantasy' | 'ear_training' | 'survival';
+    sourceType?: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush';
     lessonSongId?: string;
   }
 ): Promise<boolean> {
@@ -87,7 +88,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
-    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_ear_training, ear_training_stage_id')
+    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_balloon_rush, is_ear_training, ear_training_stage_id')
     .eq('lesson_id', lessonId);
 
   if (reqError || !requirements) return false;
@@ -127,7 +128,10 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
       *,
       songs (id, title, artist),
       fantasy_stage:fantasy_stages (*),
-      ear_training_stage:ear_training_stages (*)
+      ear_training_stage:ear_training_stages (*),
+      balloon_rush_stage:balloon_rush_stages (
+        id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+      )
     `)
     .eq('lesson_id', lessonId);
 
@@ -139,7 +143,7 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   const allCompleted = requirements ? 
     requirements.every(req => 
       progress.some(p => {
-        if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_ear_training) {
+        if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_balloon_rush === true || req.is_ear_training) {
           return p.lesson_song_id === req.id && p.is_completed;
         }
         return p.song_id === req.song_id && p.is_completed;

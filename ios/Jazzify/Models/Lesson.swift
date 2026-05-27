@@ -176,12 +176,34 @@ struct LessonDetail: Codable, Identifiable, Sendable {
     }
 }
 
+struct BalloonRushStageSummary: Codable, Identifiable, Sendable {
+    let id: UUID
+    let slug: String?
+    let title: String
+    let titleEn: String?
+    let timeLimitSec: Int?
+    let popQuota: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, slug, title
+        case titleEn = "title_en"
+        case timeLimitSec = "time_limit_sec"
+        case popQuota = "pop_quota"
+    }
+
+    func localizedTitle(_ locale: AppLocale) -> String {
+        locale == .en ? (titleEn ?? title) : title
+    }
+}
+
 struct LessonSong: Codable, Identifiable, Sendable {
     let id: UUID
     let lessonId: UUID
     let songId: UUID?
     let fantasyStageId: UUID?
     let earTrainingStageId: UUID?
+    let isBalloonRush: Bool?
+    let balloonRushStageId: UUID?
     let isFantasy: Bool
     let isSurvival: Bool?
     let isSurvivalTutorial: Bool?
@@ -201,6 +223,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let songs: LessonSongReferenceSong?
     let fantasyStage: FantasyStage?
     let earTrainingStage: EarTrainingStage?
+    let balloonRushStage: BalloonRushStageSummary?
 
     enum CodingKeys: String, CodingKey {
         case id, title, songs
@@ -209,6 +232,9 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case songId = "song_id"
         case fantasyStageId = "fantasy_stage_id"
         case earTrainingStageId = "ear_training_stage_id"
+        case isBalloonRush = "is_balloon_rush"
+        case balloonRushStageId = "balloon_rush_stage_id"
+        case balloonRushStage = "balloon_rush_stage"
         case isFantasy = "is_fantasy"
         case isSurvival = "is_survival"
         case isSurvivalTutorial = "is_survival_tutorial"

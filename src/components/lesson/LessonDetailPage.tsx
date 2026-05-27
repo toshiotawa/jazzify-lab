@@ -27,7 +27,7 @@ import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
-import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
+import { CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import {
@@ -232,13 +232,16 @@ const LessonDetailPage: React.FC = () => {
           survival_composite_config: ls.survival_composite_config,
           survival_lesson_overrides: ls.survival_lesson_overrides,
           is_ear_training: ls.is_ear_training,
+          is_balloon_rush: ls.is_balloon_rush,
+          balloon_rush_stage_id: ls.balloon_rush_stage_id,
+          balloon_rush_stage: ls.balloon_rush_stage,
           ear_training_stage: ls.ear_training_stage,
           ear_training_stage_id: ls.ear_training_stage_id,
           fantasy_stage: ls.fantasy_stage,
           fantasy_stage_id: ls.fantasy_stage_id,
           title: ls.title,
           title_en: ls.title_en,
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_ear_training?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: any; fantasy_stage_id?: string; ear_training_stage?: any; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_allowed_chords?: string[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -661,7 +664,7 @@ const LessonDetailPage: React.FC = () => {
                 <div className="space-y-4">
                   {requirements.map((req: any, index) => {
                     const progress = requirementsProgress.find(p => {
-                      if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_ear_training || req.is_ear_training_tutorial) {
+                      if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_balloon_rush === true || req.is_ear_training || req.is_ear_training_tutorial) {
                         return p.lesson_song_id === req.lesson_song_id;
                       }
                       return p.song_id === req.song_id;
@@ -680,6 +683,7 @@ const LessonDetailPage: React.FC = () => {
                     const isEarTrainingTutorial = req.is_ear_training_tutorial || false;
                     const isSurvival = req.is_survival || isSurvivalTutorial || false;
                     const isEarTraining = req.is_ear_training || isEarTrainingTutorial || false;
+                    const isBalloonRush = req.is_balloon_rush === true;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -790,6 +794,31 @@ const LessonDetailPage: React.FC = () => {
                           return (
                             <div className="mb-3 text-sm">
                               <div className="text-gray-400 text-xs">{etDesc}</div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* 風船ラッシュ */}
+                        {isBalloonRush && (() => {
+                          const br = req.balloon_rush_stage as BalloonRushStageRow | undefined | null;
+                          const tl = typeof br?.time_limit_sec === 'number' ? br.time_limit_sec : undefined;
+                          const pq = typeof br?.pop_quota === 'number' ? br.pop_quota : undefined;
+                          return (
+                            <div className="mb-3 text-sm">
+                              <div className="text-gray-400 text-xs mt-1">
+                                {tl !== undefined && pq !== undefined
+                                  ? (isEnglishCopy
+                                    ? `Pop ${pq} balloons within ${tl}s.`
+                                    : `${tl}秒以内に風船を${pq}個割る`)
+                                  : (isEnglishCopy
+                                    ? 'Balloon rush — pop the quota before time runs out.'
+                                    : '風船ラッシュ — 制限時間内にノルマの風船を割ってください')}
+                              </div>
+                              {typeof br?.slug === 'string' && br.slug.trim() !== '' ? (
+                                <div className="text-gray-500 text-[11px] mt-1">
+                                  {isEnglishCopy ? `Stage slug: ${br.slug}` : `ステージ: ${br.slug}`}
+                                </div>
+                              ) : null}
                             </div>
                           );
                         })()}
@@ -942,7 +971,7 @@ const LessonDetailPage: React.FC = () => {
                           }`}
                           onClick={() => {
                             if (
-                              (isFantasy || isSurvival || isEarTraining)
+                              (isFantasy || isSurvival || isEarTraining || isBalloonRush)
                               && !isPremiumMember
                               && !(
                                 lessonCourseIsMainQuest
@@ -956,7 +985,7 @@ const LessonDetailPage: React.FC = () => {
                               );
                               return;
                             }
-                            if (!isFantasy && !isSurvival && !isEarTraining && !isPremiumMember) {
+                            if (!isFantasy && !isSurvival && !isEarTraining && !isBalloonRush && !isPremiumMember) {
                               const tier = courseDifficultyTier ? normalizeCourseDifficultyTier(courseDifficultyTier) : null;
                               if (tier !== 'tutorial') {
                                 toast.warning(
@@ -989,6 +1018,20 @@ const LessonDetailPage: React.FC = () => {
                               );
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               window.location.hash = `#survival-lesson?${params.toString()}`;
+                            } else if (isBalloonRush) {
+                              const stId = req.balloon_rush_stage?.id ?? req.balloon_rush_stage_id ?? '';
+                              if (!stId) {
+                                toast.warning(
+                                  isEnglishCopy ? 'Balloon rush stage is not configured.' : '風船ラッシュステージが設定されていません。',
+                                );
+                                return;
+                              }
+                              const params = new URLSearchParams();
+                              params.set('lessonId', req.lesson_id);
+                              params.set('lessonSongId', req.lesson_song_id);
+                              params.set('stageId', stId);
+                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
+                              window.location.hash = `#balloon-rush-lesson?${params.toString()}`;
                             } else if (isFantasy) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);

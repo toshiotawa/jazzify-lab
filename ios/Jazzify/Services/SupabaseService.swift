@@ -298,6 +298,14 @@ final class SupabaseService: Sendable {
                     description_en,
                     stage_tier
                 ),
+                balloonRushStage:balloon_rush_stages (
+                    id,
+                    slug,
+                    title,
+                    title_en,
+                    time_limit_sec,
+                    pop_quota
+                ),
                 earTrainingStage:ear_training_stages (*)
             )
             """)

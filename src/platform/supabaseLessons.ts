@@ -20,6 +20,9 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
           *,
           songs (id, title, artist),
           fantasy_stage:fantasy_stages (*),
+          balloon_rush_stage:balloon_rush_stages (
+            id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+          ),
           ear_training_stage:ear_training_stages (
             *,
             chord_quiz_items:ear_training_chord_quiz_items (*)
@@ -90,6 +93,9 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
         *,
         songs (id, title, artist),
         fantasy_stage:fantasy_stages (*),
+        balloon_rush_stage:balloon_rush_stages (
+          id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+        ),
         ear_training_stage:ear_training_stages (
           *,
           chord_quiz_items:ear_training_chord_quiz_items (*)
@@ -600,6 +606,76 @@ export async function removeEarTrainingStageFromLesson(lessonId: string, lessonS
 
   if (error) {
     console.error(`Error removing ear training stage from lesson ${lessonId}:`, error);
+    throw error;
+  }
+}
+
+type BalloonRushLessonSongData = {
+  lesson_id: string;
+  balloon_rush_stage_id: string;
+  clear_conditions?: ClearConditions;
+  title?: string | null;
+  title_en?: string | null;
+};
+
+/**
+ * レッスンに風船ラッシュステージを追加します。
+ */
+export async function addBalloonRushStageToLesson(data: BalloonRushLessonSongData): Promise<LessonSong> {
+  const { data: existingItems } = await getSupabaseClient()
+    .from('lesson_songs')
+    .select('order_index')
+    .eq('lesson_id', data.lesson_id)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  const nextOrderIndex = existingItems && existingItems.length > 0
+    ? (existingItems[0].order_index || 0) + 1
+    : 0;
+
+  const { data: result, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .insert({
+      lesson_id: data.lesson_id,
+      song_id: null,
+      fantasy_stage_id: null,
+      is_fantasy: false,
+      is_balloon_rush: true,
+      balloon_rush_stage_id: data.balloon_rush_stage_id,
+      clear_conditions: data.clear_conditions,
+      title: data.title ?? null,
+      title_en: data.title_en ?? null,
+      order_index: nextOrderIndex,
+    })
+    .select(`
+      *,
+      balloon_rush_stage:balloon_rush_stages (
+        id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+      )
+    `)
+    .single();
+
+  if (error) {
+    console.error('Error adding balloon rush stage to lesson:', error);
+    throw error;
+  }
+
+  return result as LessonSong;
+}
+
+/**
+ * レッスンから風船ラッシュステージを削除します。
+ */
+export async function removeBalloonRushStageFromLesson(lessonId: string, lessonSongId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .delete()
+    .eq('lesson_id', lessonId)
+    .eq('id', lessonSongId)
+    .eq('is_balloon_rush', true);
+
+  if (error) {
+    console.error(`Error removing balloon rush stage from lesson ${lessonId}:`, error);
     throw error;
   }
 }
