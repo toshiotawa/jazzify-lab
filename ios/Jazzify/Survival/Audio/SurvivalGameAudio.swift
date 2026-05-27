@@ -383,7 +383,7 @@ final class SurvivalGameAudio {
         guard let url = Bundle.main.url(forResource: "Balloon", withExtension: "mp3") else { return }
         do {
             let player = try AVAudioPlayer(contentsOf: url)
-            let base: Float = 0.32
+            let base: Float = 0.23
             player.volume = isMuted ? 0 : base * effectiveSfxVolume()
             player.prepareToPlay()
             player.play()

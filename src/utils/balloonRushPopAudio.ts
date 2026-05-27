@@ -2,7 +2,7 @@
 
 const BALLOON_POP_URL = '/Balloon.mp3';
 /** 小さめの音量（SE 全体より控えめ） */
-const POP_GAIN = 0.28;
+const POP_GAIN = 0.2;
 
 let ctx: AudioContext | null = null;
 let buffer: AudioBuffer | null = null;
