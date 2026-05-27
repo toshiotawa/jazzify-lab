@@ -7,6 +7,21 @@ enum EarTrainingMode: String, Codable, Sendable {
     case chordVoicing = "chord_voicing"
     case chordQuiz = "chord_quiz"
     case chordOSMD = "chord_osmd"
+
+    /// レッスン課題カード用（Web `formatEarTrainingModeLabel` と同値）
+    func lessonDisplayLabel(locale: AppLocale) -> String {
+        let ja = locale == .ja
+        switch self {
+        case .phrase:
+            return ja ? "耳コピ" : "Ear copy"
+        case .chordVoicing:
+            return ja ? "コード演奏" : "Chord voicing"
+        case .chordQuiz:
+            return ja ? "コードクイズ" : "Chord quiz"
+        case .chordOSMD:
+            return ja ? "楽譜バトル" : "Sheet music battle"
+        }
+    }
 }
 
 struct EarTrainingChordQuizItem: Codable, Identifiable, Sendable {
@@ -112,9 +127,12 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     func battleClearConditionText(isEnglish: Bool) -> String {
         switch resolvedMode {
         case .chordQuiz:
-            return isEnglish
-                ? "Answer at least 10 questions correctly and survive for 90 seconds."
-                : "10問以上正解かつ、90秒間生存"
+            let d = quizDurationSeconds ?? 90
+            let r = max(1, quizRequiredCorrectCount ?? 80)
+            if isEnglish {
+                return "Survive \(d)s and answer at least \(r) questions correctly."
+            }
+            return "\(d)秒間生存かつ\(r)問以上正解"
         case .chordOSMD:
             return isEnglish
                 ? "Reduce the enemy HP to 0."

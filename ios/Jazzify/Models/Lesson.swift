@@ -181,18 +181,35 @@ struct BalloonRushStageSummary: Codable, Identifiable, Sendable {
     let slug: String?
     let title: String
     let titleEn: String?
+    /// Web `BalloonRushStageRow.stage_type`（nil は progression とみなす）
+    let stageType: String?
     let timeLimitSec: Int?
     let popQuota: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, slug, title
         case titleEn = "title_en"
+        case stageType = "stage_type"
         case timeLimitSec = "time_limit_sec"
         case popQuota = "pop_quota"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
         locale == .en ? (titleEn ?? title) : title
+    }
+
+    func lessonRequirementModeLabel(locale: AppLocale) -> String {
+        if stageType == "random" {
+            return locale == .ja ? "ランダムコード" : "Random chords"
+        }
+        return locale == .ja ? "プログレッションコード" : "Progression chords"
+    }
+
+    /// ボディのみ（プレフィックスなし）。Web `buildBalloonRushLessonRequirementDisplay` と同文言。
+    func lessonClearConditionBody(locale: AppLocale, timeLimit: Int, popQuota: Int) -> String {
+        locale == .ja
+            ? "\(timeLimit)秒以内に風船を\(popQuota)個割る"
+            : "pop \(popQuota) balloons within \(timeLimit)s"
     }
 }
 
@@ -273,6 +290,7 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
     let bpm: Int?
     let timeLimitSec: Int?
     let mode: EarTrainingMode?
+    let quizDurationSeconds: Int?
     let quizRequiredCorrectCount: Int?
     let showKeyboardHintsInBattle: Bool?
 
@@ -281,6 +299,7 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
         case titleEn = "title_en"
         case descriptionEn = "description_en"
         case timeLimitSec = "time_limit_sec"
+        case quizDurationSeconds = "quiz_duration_seconds"
         case quizRequiredCorrectCount = "quiz_required_correct_count"
         case showKeyboardHintsInBattle = "show_keyboard_hints_in_battle"
     }
@@ -297,9 +316,11 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
         let isEnglish = locale == .en
         switch mode ?? .phrase {
         case .chordQuiz:
+            let d = quizDurationSeconds ?? 90
+            let r = max(1, quizRequiredCorrectCount ?? 80)
             return isEnglish
-                ? "Answer at least 10 questions correctly and survive for 90 seconds."
-                : "10問以上正解かつ、90秒間生存"
+                ? "Survive \(d)s and answer at least \(r) questions correctly."
+                : "\(d)秒間生存かつ\(r)問以上正解"
         case .chordOSMD:
             return isEnglish
                 ? "Reduce the enemy HP to 0."

@@ -2063,16 +2063,27 @@ struct LessonDetailView: View {
                 survivalRequirementInfoView(survivalInfo)
             }
 
+            if requirement.isEarTraining == true, requirement.isEarTrainingTutorial != true,
+               let et = requirement.earTrainingStage {
+                earTrainingRequirementInfoView(stage: et)
+            }
+
             if requirement.isBalloonRush == true, let bs = requirement.balloonRushStage {
                 let tl = bs.timeLimitSec ?? 0
                 let pq = bs.popQuota ?? 0
                 if tl > 0 && pq > 0 {
-                    Text(locale == .ja
-                         ? "\(tl)秒以内に風船を\(pq)個割る"
-                         : "Pop \(pq) balloons within \(tl)s")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                        .fixedSize(horizontal: false, vertical: true)
+                    let taskPrefix = locale == .ja ? "課題タイプ" : "Task type"
+                    let clearPrefix = locale == .ja ? "クリア条件" : "Clear"
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(taskPrefix): \(bs.lessonRequirementModeLabel(locale: locale))")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                        Text("\(clearPrefix): \(bs.lessonClearConditionBody(locale: locale, timeLimit: tl, popQuota: pq))")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 2)
                 }
             }
 
@@ -2542,9 +2553,7 @@ struct LessonDetailView: View {
     }
 
     private struct SurvivalRequirementDisplayInfo {
-        let stageTitle: String
-        let modeLabel: String
-        let encounterLabel: String
+        let modeEncounterLine: String
         let clearCondition: String
         let isConfigured: Bool
     }
@@ -2570,21 +2579,12 @@ struct LessonDetailView: View {
 
         guard let stage else {
             return SurvivalRequirementDisplayInfo(
-                stageTitle: "",
-                modeLabel: "",
-                encounterLabel: "",
+                modeEncounterLine: "",
                 clearCondition: locale == .ja
                     ? "ステージ未設定（マップと番号、または複合フレーズ設定を確認してください）"
                     : "Stage not configured (check map/stage number or composite config).",
                 isConfigured: false
             )
-        }
-
-        let stageTitle: String
-        if hasInlineComposite {
-            stageTitle = locale == .ja ? "レッスン複合フレーズボス" : "Composite phrase boss (lesson)"
-        } else {
-            stageTitle = "Stage \(stage.stageNumber): \(stage.localizedName(locale))"
         }
 
         let isBossEncounter = stage.survivalUsesCompositePhrasePattern
@@ -2601,7 +2601,7 @@ struct LessonDetailView: View {
             clearCondition = locale == .ja ? "クリア条件: ボス撃破" : "Clear: defeat the boss"
         } else {
             clearCondition = locale == .ja
-                ? "\(timeLimitSec)秒生存 + \(killQuota)体撃破でクリア"
+                ? "クリア条件: \(timeLimitSec)秒生存 + \(killQuota)体撃破"
                 : "Clear: survive \(timeLimitSec)s and defeat \(killQuota) enemies"
         }
 
@@ -2612,10 +2612,11 @@ struct LessonDetailView: View {
             encounterLabel = stage.runPrepEncounterLabel(locale: locale)
         }
 
+        let modeEncounterLine = (locale == .ja ? "出題" : "Mode") + ": \(stage.runPrepModeLabel(locale: locale)) · "
+            + (locale == .ja ? "戦闘" : "Encounter") + ": \(encounterLabel)"
+
         return SurvivalRequirementDisplayInfo(
-            stageTitle: stageTitle,
-            modeLabel: stage.runPrepModeLabel(locale: locale),
-            encounterLabel: encounterLabel,
+            modeEncounterLine: modeEncounterLine,
             clearCondition: clearCondition,
             isConfigured: true
         )
@@ -2625,17 +2626,28 @@ struct LessonDetailView: View {
     private func survivalRequirementInfoView(_ info: SurvivalRequirementDisplayInfo) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if info.isConfigured {
-                Text(info.stageTitle)
-                    .font(.caption)
-                    .foregroundStyle(Color(hex: "d1d5db"))
-                Text(
-                    (locale == .ja ? "出題" : "Mode") + ": \(info.modeLabel) · "
-                        + (locale == .ja ? "戦闘" : "Encounter") + ": \(info.encounterLabel)"
-                )
-                .font(.caption2)
-                .foregroundStyle(.gray)
+                Text(info.modeEncounterLine)
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
             }
             Text(info.clearCondition)
+                .font(.caption2)
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func earTrainingRequirementInfoView(stage: EarTrainingStage) -> some View {
+        let mode = stage.mode ?? .phrase
+        let taskPrefix = locale == .ja ? "課題タイプ" : "Task type"
+        let clearPrefix = locale == .ja ? "クリア条件" : "Clear"
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(taskPrefix): \(mode.lessonDisplayLabel(locale: locale))")
+                .font(.caption2)
+                .foregroundStyle(.gray)
+            Text("\(clearPrefix): \(stage.battleClearConditionText(locale: locale))")
                 .font(.caption2)
                 .foregroundStyle(.gray)
         }

@@ -40,6 +40,8 @@ enum BalloonRushSurvivalBridge {
         o.hidePlayerHpBar = true
         o.hideChordSlots = true
         o.hideComboBadge = true
+        o.hideKillCounter = true
+        o.hideTimerDisplay = true
         o.hideStaff = false
         o.scenarioStaffClef = stageType == .progression ? 2 : 1
         o.playerInvincible = true

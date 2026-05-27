@@ -484,6 +484,21 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
             }
             .onPreferenceChange(SurvivalHUDHeightKey.self) { hudHeight = $0 }
 
+            if session is BalloonRushGameSession,
+               vm.uiSnapshot.phase == .playing,
+               !vm.isPaused {
+                BalloonRushStatusOverlay(
+                    remainingSeconds: vm.uiSnapshot.remainingSecondsCoarse,
+                    remainingCount: max(
+                        0,
+                        session.playLoopFacade.effectiveStageKillQuota - vm.uiSnapshot.enemiesDefeated
+                    ),
+                    locale: locale,
+                    hudTopInset: hudHeight
+                )
+                .equatable()
+            }
+
             if let staffSnapshot = scenarioStaffSnapshot {
                 VStack(spacing: 0) {
                     SurvivalScenarioStaffPanel(snapshot: staffSnapshot)

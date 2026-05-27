@@ -202,6 +202,7 @@
 		BR06ENGLOOPBFCC03DD04EE05BR01 /* BalloonRushGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR06ENGLOOPFRCC03DD04EE05BR01 /* BalloonRushGameLoop.swift */; };
 		BR07SESSIONBFCC03DD04EE05BR01 /* BalloonRushGameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR07SESSIONFRCC03DD04EE05BR01 /* BalloonRushGameSession.swift */; };
 		BR12GAMEVIEWBFCC03DD04EE05BR01 /* BalloonRushGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR12GAMEVIEWFRCC03DD04EE05BR01 /* BalloonRushGameView.swift */; };
+		BR16STATUSBFCC03DD04EE05BR01 /* BalloonRushStatusOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR16STATUSFRCC03DD04EE05BR01 /* BalloonRushStatusOverlay.swift */; };
 		BR13BRIDGEBFCC03DD04EE05BR01 /* BalloonRushSurvivalBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR13BRIDGEFRCC03DD04EE05BR01 /* BalloonRushSurvivalBridge.swift */; };
 		BR15MAPBFCC03DD04EE05BR01 /* BalloonRushMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR15MAPFRCC03DD04EE05BR01 /* BalloonRushMap.swift */; };
 		BR14FACADEBFCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR14FACADEFRCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift */; };
@@ -408,6 +409,7 @@
 		BR06ENGLOOPFRCC03DD04EE05BR01 /* BalloonRushGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushGameLoop.swift; sourceTree = "<group>"; };
 		BR07SESSIONFRCC03DD04EE05BR01 /* BalloonRushGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushGameSession.swift; sourceTree = "<group>"; };
 		BR12GAMEVIEWFRCC03DD04EE05BR01 /* BalloonRushGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushGameView.swift; sourceTree = "<group>"; };
+		BR16STATUSFRCC03DD04EE05BR01 /* BalloonRushStatusOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushStatusOverlay.swift; sourceTree = "<group>"; };
 		BR13BRIDGEFRCC03DD04EE05BR01 /* BalloonRushSurvivalBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushSurvivalBridge.swift; sourceTree = "<group>"; };
 		BR15MAPFRCC03DD04EE05BR01 /* BalloonRushMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushMap.swift; sourceTree = "<group>"; };
 		BR14FACADEFRCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushPlayLoopFacade.swift; sourceTree = "<group>"; };
@@ -646,6 +648,7 @@
 			isa = PBXGroup;
 			children = (
 				BR12GAMEVIEWFRCC03DD04EE05BR01 /* BalloonRushGameView.swift */,
+				BR16STATUSFRCC03DD04EE05BR01 /* BalloonRushStatusOverlay.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -1231,6 +1234,7 @@
 				BR06ENGLOOPBFCC03DD04EE05BR01 /* BalloonRushGameLoop.swift in Sources */,
 				BR07SESSIONBFCC03DD04EE05BR01 /* BalloonRushGameSession.swift in Sources */,
 				BR12GAMEVIEWBFCC03DD04EE05BR01 /* BalloonRushGameView.swift in Sources */,
+				BR16STATUSBFCC03DD04EE05BR01 /* BalloonRushStatusOverlay.swift in Sources */,
 				BR13BRIDGEBFCC03DD04EE05BR01 /* BalloonRushSurvivalBridge.swift in Sources */,
 				BR15MAPBFCC03DD04EE05BR01 /* BalloonRushMap.swift in Sources */,
 				BR14FACADEBFCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift in Sources */,

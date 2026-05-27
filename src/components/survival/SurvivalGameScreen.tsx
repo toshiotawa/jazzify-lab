@@ -194,6 +194,7 @@ import {
 } from '@/utils/balloonRushPhysics';
 import { BALLOON_RUSH_MAP_CONFIG } from '@/utils/balloonRushMap';
 import { playBalloonRushPop, preloadBalloonRushPopAudio } from '@/utils/balloonRushPopAudio';
+import BalloonRushStatusOverlay from '@/components/balloonRush/BalloonRushStatusOverlay';
 import {
   resolveBlockBossMaxHp,
   resolveBlockPlayerMaxHp,
@@ -6449,6 +6450,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             balloonRushDraw={isBalloonRushMode ? balloonDrawSnapshot : null}
             mapConfig={isBalloonRushMode ? BALLOON_RUSH_MAP_CONFIG : undefined}
           />
+          {isBalloonRushMode && gameState.isPlaying && !gameState.isGameOver && (
+            <BalloonRushStatusOverlay
+              remainingSeconds={Math.max(0, stageTimeLimitSec - gameState.elapsedTime)}
+              remainingCount={Math.max(0, stageKillQuota - gameState.enemiesDefeated)}
+              isEnglishCopy={isEnglishCopy}
+            />
+          )}
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (
             <div
               className="absolute right-4 bottom-[140px] z-[8] pointer-events-none flex items-center gap-1 rounded-full border border-yellow-500/60 bg-black/55 px-2 py-0.5 font-sans tabular-nums"

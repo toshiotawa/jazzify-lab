@@ -303,6 +303,7 @@ final class SupabaseService: Sendable {
                     slug,
                     title,
                     title_en,
+                    stage_type,
                     time_limit_sec,
                     pop_quota
                 ),

@@ -1,25 +1,35 @@
 import type { EarTrainingStage } from '@/types';
 
-type EarTrainingClearConditionMode = Pick<EarTrainingStage, 'mode'>;
+/** `EarTrainingChordQuizScreen` の本番既定 `quiz_required_correct_count ?? 80` と同一 */
+const DEFAULT_QUIZ_REQUIRED_CORRECT = 80;
+const DEFAULT_QUIZ_DURATION_SEC = 90;
+
+export type EarTrainingLessonClearConditionInput = Pick<EarTrainingStage, 'mode'> &
+  Partial<Pick<EarTrainingStage, 'quiz_duration_seconds' | 'quiz_required_correct_count'>>;
 
 export const getEarTrainingLessonClearConditionText = (
-  stage: EarTrainingClearConditionMode | null | undefined,
+  stage: EarTrainingLessonClearConditionInput | null | undefined,
   isEnglishCopy: boolean,
 ): string => {
-  if (isEnglishCopy) {
-    if (stage?.mode === 'chord_quiz') {
-      return 'Answer at least 10 questions correctly and survive for 90 seconds.';
+  const mode = stage?.mode;
+
+  if (mode === 'chord_quiz') {
+    const duration = stage?.quiz_duration_seconds ?? DEFAULT_QUIZ_DURATION_SEC;
+    const required = Math.max(1, stage?.quiz_required_correct_count ?? DEFAULT_QUIZ_REQUIRED_CORRECT);
+    if (isEnglishCopy) {
+      return `Survive ${duration}s and answer at least ${required} questions correctly.`;
     }
-    if (stage?.mode === 'chord_osmd') {
+    return `${duration}秒間生存かつ${required}問以上正解`;
+  }
+
+  if (isEnglishCopy) {
+    if (mode === 'chord_osmd') {
       return 'Reduce the enemy HP to 0.';
     }
     return 'Reduce the enemy HP to 0 within the time limit.';
   }
 
-  if (stage?.mode === 'chord_quiz') {
-    return '10問以上正解かつ、90秒間生存';
-  }
-  if (stage?.mode === 'chord_osmd') {
+  if (mode === 'chord_osmd') {
     return '敵HPを0にする。';
   }
   return '制限時間以内に敵HPを0にする';

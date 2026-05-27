@@ -16,12 +16,16 @@ import { useToast, useToastStore } from '@/stores/toastStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import {
-  earTrainingStageDisplayDescription,
   fantasyStageDisplayDescription,
   lessonDisplayDescription,
   lessonDisplayTitle,
   lessonSongDisplayTitle,
 } from '@/utils/lessonCopy';
+import {
+  buildBalloonRushLessonRequirementDisplay,
+  buildEarTrainingLessonRequirementDisplay,
+  buildSurvivalLessonRequirementDisplay,
+} from '@/utils/lessonRequirementDisplay';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -68,7 +72,6 @@ import { markAudioUserInteraction } from '@/utils/MidiController';
 import {
   getStageByNumber,
   resolveLessonSurvivalMapCategory,
-  formatSurvivalStageModeLabel,
   formatSurvivalEncounterLabel,
   STAGE_KILL_QUOTA,
   STAGE_TIME_LIMIT_SECONDS,
@@ -118,7 +121,6 @@ const LessonDetailPage: React.FC = () => {
     () => ({
       sectionTitle: isEnglishCopy ? 'Practice tasks' : '実習課題',
       taskFallback: (n: number) => (isEnglishCopy ? `Task ${n}` : `課題 ${n}`),
-      earTrainingDescriptionFallback: isEnglishCopy ? 'Battle mode task' : 'バトルモード課題',
       progressLabel: isEnglishCopy ? 'Progress' : '進捗',
       dayLabel: (n: number) => (isEnglishCopy ? `Day ${n}` : `${n}日目`),
       todayCleared: isEnglishCopy ? "Today's goal: Cleared" : '本日の課題: クリア済み',
@@ -716,11 +718,11 @@ const LessonDetailPage: React.FC = () => {
 
                         {/* サバイバルステージ情報 */}
                         {isSurvival && !isSurvivalTutorial && (() => {
-                          const hasInlineComposite = lessonSongHasInlineComposite(req.survival_composite_config);
                           const mapCat = resolveLessonSurvivalMapCategory(
                             req.survival_map_category ?? undefined,
                           );
-                          const stageDef = hasInlineComposite && req.survival_composite_config
+                          const stageDef = lessonSongHasInlineComposite(req.survival_composite_config)
+                            && req.survival_composite_config
                             ? buildLessonCompositeStageDefinition(
                               req.title ?? '複合フレーズ課題',
                               req.title_en ?? 'Composite phrase lesson',
@@ -740,26 +742,21 @@ const LessonDetailPage: React.FC = () => {
                           return (
                             <div className="mb-3 text-sm">
                               {stageDef ? (
-                                <>
-                                  <div className="text-gray-300 text-xs mt-1">
-                                    {hasInlineComposite
-                                      ? (isEnglishCopy ? 'Composite phrase boss (lesson)' : 'レッスン複合フレーズボス')
-                                      : `Stage ${stageDef.stageNumber}: ${isEnglishCopy ? stageDef.nameEn : stageDef.name}`}
-                                  </div>
-                                  <div className="text-gray-400 text-xs mt-1">
-                                    {isEnglishCopy ? 'Mode' : '出題'}: {formatSurvivalStageModeLabel(stageDef, isEnglishCopy)}
-                                    {' · '}
-                                    {isEnglishCopy ? 'Encounter' : '戦闘'}:{' '}
-                                    {isBossEncounter
-                                      ? (isEnglishCopy ? 'Boss' : 'ボス')
-                                      : formatSurvivalEncounterLabel(stageDef, isEnglishCopy)}
-                                  </div>
-                                  <div className="text-gray-400 text-xs mt-1">
-                                    {isBossEncounter
-                                      ? (isEnglishCopy ? 'Clear: defeat the boss' : 'クリア条件: ボス撃破')
-                                      : `${timeLimitSec}秒生存 + ${killQuota}体撃破でクリア`}
-                                  </div>
-                                </>
+                                (() => {
+                                  const survivalLines = buildSurvivalLessonRequirementDisplay(
+                                    stageDef,
+                                    isBossEncounter,
+                                    timeLimitSec,
+                                    killQuota,
+                                    isEnglishCopy,
+                                  );
+                                  return (
+                                    <>
+                                      <div className="text-gray-400 text-xs mt-1">{survivalLines.modeEncounterLine}</div>
+                                      <div className="text-gray-400 text-xs mt-1">{survivalLines.clearLine}</div>
+                                    </>
+                                  );
+                                })()
                               ) : (
                                 <div className="text-gray-500 text-xs mt-1">
                                   {isEnglishCopy
@@ -788,12 +785,11 @@ const LessonDetailPage: React.FC = () => {
                         {/* 耳コピバトル情報 */}
                         {isEarTraining && !isEarTrainingTutorial && req.ear_training_stage && (() => {
                           const et = req.ear_training_stage;
-                          const etDesc =
-                            earTrainingStageDisplayDescription(et, isEnglishCopy) ||
-                            practiceCopy.earTrainingDescriptionFallback;
+                          const lines = buildEarTrainingLessonRequirementDisplay(et, isEnglishCopy);
                           return (
                             <div className="mb-3 text-sm">
-                              <div className="text-gray-400 text-xs">{etDesc}</div>
+                              <div className="text-gray-400 text-xs mt-1">{lines.taskTypeLine}</div>
+                              <div className="text-gray-400 text-xs mt-1">{lines.clearLine}</div>
                             </div>
                           );
                         })()}
@@ -801,24 +797,30 @@ const LessonDetailPage: React.FC = () => {
                         {/* 風船ラッシュ */}
                         {isBalloonRush && (() => {
                           const br = req.balloon_rush_stage as BalloonRushStageRow | undefined | null;
-                          const tl = typeof br?.time_limit_sec === 'number' ? br.time_limit_sec : undefined;
-                          const pq = typeof br?.pop_quota === 'number' ? br.pop_quota : undefined;
+                          const lines = buildBalloonRushLessonRequirementDisplay(
+                            br
+                              ? {
+                                stage_type: br.stage_type,
+                                time_limit_sec: br.time_limit_sec,
+                                pop_quota: br.pop_quota,
+                              }
+                              : null,
+                            isEnglishCopy,
+                          );
                           return (
                             <div className="mb-3 text-sm">
-                              <div className="text-gray-400 text-xs mt-1">
-                                {tl !== undefined && pq !== undefined
-                                  ? (isEnglishCopy
-                                    ? `Pop ${pq} balloons within ${tl}s.`
-                                    : `${tl}秒以内に風船を${pq}個割る`)
-                                  : (isEnglishCopy
+                              {lines ? (
+                                <>
+                                  <div className="text-gray-400 text-xs mt-1">{lines.taskTypeLine}</div>
+                                  <div className="text-gray-400 text-xs mt-1">{lines.clearLine}</div>
+                                </>
+                              ) : (
+                                <div className="text-gray-400 text-xs mt-1">
+                                  {isEnglishCopy
                                     ? 'Balloon rush — pop the quota before time runs out.'
-                                    : '風船ラッシュ — 制限時間内にノルマの風船を割ってください')}
-                              </div>
-                              {typeof br?.slug === 'string' && br.slug.trim() !== '' ? (
-                                <div className="text-gray-500 text-[11px] mt-1">
-                                  {isEnglishCopy ? `Stage slug: ${br.slug}` : `ステージ: ${br.slug}`}
+                                    : '風船ラッシュ — 制限時間内にノルマの風船を割ってください'}
                                 </div>
-                              ) : null}
+                              )}
                             </div>
                           );
                         })()}
