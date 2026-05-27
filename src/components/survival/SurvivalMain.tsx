@@ -34,6 +34,7 @@ import {
   parseSurvivalLessonRandomChords,
 } from '@/utils/survivalLessonRandomChords';
 import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
+import type { ProductionHintMode } from '@/types';
 import type { SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
 import { isFirstBlockBossStageDef } from './survivalFirstBlockStage';
 import SurvivalRunPrepModal from './SurvivalRunPrepModal';
@@ -170,6 +171,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [lessonRandomChordOverrides, setLessonRandomChordOverrides] = useState<
     ReadonlyMap<string, ChordDefinition> | undefined
   >(undefined);
+  const [lessonProductionHintOverrides, setLessonProductionHintOverrides] = useState<{
+    staff?: ProductionHintMode | null;
+    keyboard?: ProductionHintMode | null;
+  } | undefined>(undefined);
   const [survivalBgmSettings, setSurvivalBgmSettings] = useState<SurvivalBgmSettingsMap>(DEFAULT_SURVIVAL_BGM_SETTINGS);
 
   const [iosInitialized, setIosInitialized] = useState(false);
@@ -451,6 +456,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       setLessonRandomChordOverrides(
         appliedRandom.overrides.size > 0 ? appliedRandom.overrides : undefined,
       );
+      setLessonProductionHintOverrides({
+        staff: lessonSong.override_production_staff_hint_mode ?? null,
+        keyboard: lessonSong.override_production_keyboard_hint_mode ?? null,
+      });
       setActiveHintMode(false);
       setScreen('lessonPrep');
       setLessonInitialized(true);
@@ -697,6 +706,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         lessonInlineCompositePhrases={lessonInlineCompositePhrases ?? undefined}
         lessonRuntime={lessonRuntime ?? undefined}
         lessonRandomChordOverrides={lessonRandomChordOverrides}
+        lessonProductionHintOverrides={lessonProductionHintOverrides}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
         isLessonMode={!!lessonMode}
         hintMode={activeHintMode}

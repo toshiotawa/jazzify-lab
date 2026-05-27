@@ -209,6 +209,7 @@ import {
   computeKeyboardHintOpacity,
   computeUnpressedNoteOpacity,
 } from '@/utils/survivalStaffHintOpacity';
+import { resolveProductionHintModes } from '@/utils/resolveProductionHintModes';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -411,6 +412,11 @@ interface SurvivalGameScreenProps {
   balloonRushStage?: BalloonRushResolvedStage;
   /** レッスン Random 課題のカスタムコード定義（`selectRandomChord` オーバーライド） */
   lessonRandomChordOverrides?: ReadonlyMap<string, import('@/components/fantasy/FantasyGameEngine').ChordDefinition>;
+  /** レッスン課題の本番ヒント上書き（NULL = ステージ既定） */
+  lessonProductionHintOverrides?: {
+    readonly staff?: import('@/types').ProductionHintMode | null;
+    readonly keyboard?: import('@/types').ProductionHintMode | null;
+  };
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -445,6 +451,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   lessonRuntime,
   balloonRushStage,
   lessonRandomChordOverrides,
+  lessonProductionHintOverrides,
 }) => {
   const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
@@ -5759,11 +5766,26 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const elapsedSecondsFloor = Math.floor(gameState.elapsedTime);
 
+  const productionHintModes = useMemo(
+    () => resolveProductionHintModes({
+      stageStaffMode: stageDefinition?.productionStaffHintMode,
+      stageKeyboardMode: stageDefinition?.productionKeyboardHintMode,
+      lessonOverrideStaff: lessonProductionHintOverrides?.staff,
+      lessonOverrideKeyboard: lessonProductionHintOverrides?.keyboard,
+    }),
+    [
+      stageDefinition?.productionStaffHintMode,
+      stageDefinition?.productionKeyboardHintMode,
+      lessonProductionHintOverrides?.staff,
+      lessonProductionHintOverrides?.keyboard,
+    ],
+  );
+
   const survivalKeyboardHintOpacity = useMemo(
     () => computeKeyboardHintOpacity(elapsedSecondsFloor, {
       hintMode,
       hintBuffActive: playerHasHintBuff,
-      beginnerAssistActive,
+      productionHintMode: productionHintModes.keyboardHintMode,
       isStageMode,
       isPlaying: gameState.isPlaying,
       isGameOver: gameState.isGameOver,
@@ -5772,7 +5794,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       elapsedSecondsFloor,
       hintMode,
       playerHasHintBuff,
-      beginnerAssistActive,
+      productionHintModes.keyboardHintMode,
       isStageMode,
       gameState.isPlaying,
       gameState.isGameOver,
@@ -5791,7 +5813,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
       return null;
     }
-    const hintsAlwaysOn = hintMode || beginnerAssistActive || playerHasHintBuff;
+    const hintsAlwaysOn = hintMode || playerHasHintBuff
+      || productionHintModes.keyboardHintMode === 'always';
     if (!hintsAlwaysOn && survivalKeyboardHintOpacity <= 0) {
       return null;
     }
@@ -5837,8 +5860,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       : computeUnpressedNoteOpacity(elapsedSecondsFloor, {
           hintMode,
           hintBuffActive: playerHasHintBuff,
-          beginnerAssistActive,
-          isPhraseMode,
+          productionHintMode: productionHintModes.staffHintMode,
           isStageMode,
           isPlaying: gameState.isPlaying,
           isGameOver: gameState.isGameOver,
@@ -5847,8 +5869,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       elapsedSecondsFloor,
       hintMode,
       playerHasHintBuff,
-      beginnerAssistActive,
-      isPhraseMode,
+      productionHintModes.staffHintMode,
       isCompositePhraseBossStage,
       isStageMode,
       gameState.isPlaying,

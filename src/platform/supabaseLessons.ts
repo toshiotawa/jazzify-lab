@@ -327,6 +327,8 @@ type SurvivalLessonSongData = {
   survival_composite_config?: import('@/types').SurvivalLessonCompositeConfig | null;
   survival_lesson_overrides?: import('@/types').SurvivalLessonOverrides | null;
   survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[] | null;
+  override_production_staff_hint_mode?: import('@/types').ProductionHintMode | null;
+  override_production_keyboard_hint_mode?: import('@/types').ProductionHintMode | null;
   clear_conditions?: ClearConditions;
   title?: string | null;
   title_en?: string | null;
@@ -338,6 +340,8 @@ export type UpdateSurvivalLessonSongPayload = {
   survival_composite_config?: import('@/types').SurvivalLessonCompositeConfig | null;
   survival_lesson_overrides?: import('@/types').SurvivalLessonOverrides | null;
   survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[] | null;
+  override_production_staff_hint_mode?: import('@/types').ProductionHintMode | null;
+  override_production_keyboard_hint_mode?: import('@/types').ProductionHintMode | null;
   clear_conditions?: ClearConditions;
   title?: string | null;
   title_en?: string | null;
@@ -377,6 +381,8 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
       survival_composite_config: data.survival_composite_config ?? null,
       survival_lesson_overrides: data.survival_lesson_overrides ?? null,
       survival_random_chords: data.survival_random_chords ?? null,
+      override_production_staff_hint_mode: data.override_production_staff_hint_mode ?? null,
+      override_production_keyboard_hint_mode: data.override_production_keyboard_hint_mode ?? null,
       clear_conditions: data.clear_conditions,
       title: data.title ?? null,
       title_en: data.title_en ?? null,
@@ -618,6 +624,8 @@ type BalloonRushLessonSongData = {
   lesson_id: string;
   balloon_rush_stage_id: string;
   survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[] | null;
+  override_production_staff_hint_mode?: import('@/types').ProductionHintMode | null;
+  override_production_keyboard_hint_mode?: import('@/types').ProductionHintMode | null;
   clear_conditions?: ClearConditions;
   title?: string | null;
   title_en?: string | null;
@@ -648,6 +656,8 @@ export async function addBalloonRushStageToLesson(data: BalloonRushLessonSongDat
       is_balloon_rush: true,
       balloon_rush_stage_id: data.balloon_rush_stage_id,
       survival_random_chords: data.survival_random_chords ?? null,
+      override_production_staff_hint_mode: data.override_production_staff_hint_mode ?? null,
+      override_production_keyboard_hint_mode: data.override_production_keyboard_hint_mode ?? null,
       clear_conditions: data.clear_conditions,
       title: data.title ?? null,
       title_en: data.title_en ?? null,

@@ -46,8 +46,10 @@ import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLesso
 import {
   SurvivalLessonCompositeEditor,
   SurvivalLessonOverridesForm,
+  ProductionHintOverridesForm,
   SurvivalLessonRandomChordsEditor,
   createDefaultSurvivalLessonCompositeConfig,
+  emptyProductionHintOverrides,
   emptySurvivalLessonOverrides,
   emptySurvivalLessonRandomChords,
   type SurvivalTaskMode,
@@ -126,6 +128,9 @@ export const LessonManager: React.FC = () => {
   );
   const [survivalRandomChords, setSurvivalRandomChords] = useState<SurvivalLessonRandomChordEntry[]>(
     emptySurvivalLessonRandomChords(),
+  );
+  const [productionHintOverrides, setProductionHintOverrides] = useState(
+    emptyProductionHintOverrides(),
   );
 
   const NAV_LINK_OPTIONS: { key: NavLinkKey; label: string }[] = [
@@ -501,6 +506,7 @@ export const LessonManager: React.FC = () => {
     setSurvivalCompositeConfig(createDefaultSurvivalLessonCompositeConfig());
     setSurvivalLessonOverrides(emptySurvivalLessonOverrides());
     setSurvivalRandomChords(emptySurvivalLessonRandomChords());
+    setProductionHintOverrides(emptyProductionHintOverrides());
     contentDialogRef.current?.showModal();
   };
   
@@ -616,6 +622,8 @@ export const LessonManager: React.FC = () => {
             survival_composite_config: survivalCompositeConfig,
             survival_lesson_overrides: survivalLessonOverrides,
             survival_random_chords: survivalRandomChords.length > 0 ? survivalRandomChords : null,
+            override_production_staff_hint_mode: productionHintOverrides.staff,
+            override_production_keyboard_hint_mode: productionHintOverrides.keyboard,
             clear_conditions: formData.clear_conditions,
           });
         } else if (survivalPickKey) {
@@ -637,6 +645,8 @@ export const LessonManager: React.FC = () => {
             survival_composite_config: null,
             survival_lesson_overrides: survivalLessonOverrides,
             survival_random_chords: survivalRandomChords.length > 0 ? survivalRandomChords : null,
+            override_production_staff_hint_mode: productionHintOverrides.staff,
+            override_production_keyboard_hint_mode: productionHintOverrides.keyboard,
             clear_conditions: formData.clear_conditions,
           });
         } else {
@@ -671,6 +681,8 @@ export const LessonManager: React.FC = () => {
           lesson_id: selectedLesson.id,
           balloon_rush_stage_id: sid,
           survival_random_chords: survivalRandomChords.length > 0 ? survivalRandomChords : null,
+          override_production_staff_hint_mode: productionHintOverrides.staff,
+          override_production_keyboard_hint_mode: productionHintOverrides.keyboard,
           clear_conditions: formData.clear_conditions,
         });
       } else {
@@ -1823,6 +1835,10 @@ export const LessonManager: React.FC = () => {
                     />
                   );
                 })()}
+                <ProductionHintOverridesForm
+                  value={productionHintOverrides}
+                  onChange={setProductionHintOverrides}
+                />
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">
@@ -1917,12 +1933,18 @@ export const LessonManager: React.FC = () => {
                     }
                   }
                   return (
-                    <SurvivalLessonOverridesForm
-                      value={survivalLessonOverrides}
-                      onChange={setSurvivalLessonOverrides}
-                      taskMode={survivalTaskMode}
-                      isBossCapable={isBossCapable}
-                    />
+                    <>
+                      <SurvivalLessonOverridesForm
+                        value={survivalLessonOverrides}
+                        onChange={setSurvivalLessonOverrides}
+                        taskMode={survivalTaskMode}
+                        isBossCapable={isBossCapable}
+                      />
+                      <ProductionHintOverridesForm
+                        value={productionHintOverrides}
+                        onChange={setProductionHintOverrides}
+                      />
+                    </>
                   );
                 })()}
               </div>

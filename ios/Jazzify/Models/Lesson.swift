@@ -216,6 +216,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let survivalMapCategory: String?
     let survivalCompositeConfig: SurvivalLessonCompositeConfig?
     let survivalLessonOverrides: SurvivalLessonOverrides?
+    let overrideProductionStaffHintMode: String?
+    let overrideProductionKeyboardHintMode: String?
     let clearConditions: LessonClearConditions?
     let orderIndex: Int?
     let title: String?
@@ -246,6 +248,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case survivalMapCategory = "survival_map_category"
         case survivalCompositeConfig = "survival_composite_config"
         case survivalLessonOverrides = "survival_lesson_overrides"
+        case overrideProductionStaffHintMode = "override_production_staff_hint_mode"
+        case overrideProductionKeyboardHintMode = "override_production_keyboard_hint_mode"
         case clearConditions = "clear_conditions"
         case orderIndex = "order_index"
         case fantasyStage

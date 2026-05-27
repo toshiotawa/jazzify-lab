@@ -867,6 +867,14 @@ export interface SurvivalLessonCompositeConfig {
   }[];
 }
 
+/** 本番モード: 譜面未正解ヒント / 鍵盤 HINT ハイライトの表示方針 */
+export type ProductionHintMode = 'fade_15s' | 'always' | 'hidden_until_pressed';
+
+export interface ResolvedProductionHintModes {
+  staffHintMode: ProductionHintMode;
+  keyboardHintMode: ProductionHintMode;
+}
+
 export interface SurvivalLessonOverrides {
   bossMaxHp?: number;
   playerMaxHp?: number;
@@ -887,6 +895,8 @@ export interface BalloonRushStageRow {
   time_limit_sec?: number;
   pop_quota?: number;
   stage_type?: 'random' | 'progression';
+  production_staff_hint_mode?: ProductionHintMode;
+  production_keyboard_hint_mode?: ProductionHintMode;
 }
 
 export interface LessonSong {
@@ -914,6 +924,10 @@ export interface LessonSong {
   survival_composite_config?: SurvivalLessonCompositeConfig | null;
   /** 課題ごとの HP / 与ダメ / BGM / ステージルール上書き */
   survival_lesson_overrides?: SurvivalLessonOverrides | null;
+  /** 本番譜面ヒント上書き（NULL = ステージ既定） */
+  override_production_staff_hint_mode?: ProductionHintMode | null;
+  /** 本番鍵盤ヒント上書き（NULL = ステージ既定） */
+  override_production_keyboard_hint_mode?: ProductionHintMode | null;
   clear_conditions?: ClearConditions;
   order_index?: number;
   title?: string | null;

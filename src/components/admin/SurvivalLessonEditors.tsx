@@ -427,3 +427,72 @@ export const SurvivalLessonRandomChordsEditor: React.FC<SurvivalLessonRandomChor
     </div>
   );
 };
+
+const PRODUCTION_HINT_MODE_OPTIONS: { value: '' | import('@/types').ProductionHintMode; label: string }[] = [
+  { value: '', label: 'ステージ既定' },
+  { value: 'fade_15s', label: '15秒で消える（デフォ）' },
+  { value: 'always', label: 'ずっと表示' },
+  { value: 'hidden_until_pressed', label: '正解音のみ表示' },
+];
+
+export interface ProductionHintOverridesFormValue {
+  staff: import('@/types').ProductionHintMode | null;
+  keyboard: import('@/types').ProductionHintMode | null;
+}
+
+export const emptyProductionHintOverrides = (): ProductionHintOverridesFormValue => ({
+  staff: null,
+  keyboard: null,
+});
+
+interface ProductionHintOverridesFormProps {
+  value: ProductionHintOverridesFormValue;
+  onChange: (next: ProductionHintOverridesFormValue) => void;
+}
+
+export const ProductionHintOverridesForm: React.FC<ProductionHintOverridesFormProps> = ({
+  value,
+  onChange,
+}) => (
+  <div className="space-y-3 rounded border border-cyan-500/30 bg-cyan-950/10 p-3">
+    <p className="text-sm font-semibold text-cyan-200">本番モード ヒント上書き（空=ステージ既定）</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <label className="text-xs">
+        A. 譜面未正解音符ヒント
+        <select
+          className="select select-bordered select-xs w-full mt-0.5"
+          value={value.staff ?? ''}
+          onChange={(e) => {
+            const raw = e.target.value;
+            onChange({
+              ...value,
+              staff: raw === '' ? null : raw as import('@/types').ProductionHintMode,
+            });
+          }}
+        >
+          {PRODUCTION_HINT_MODE_OPTIONS.map((opt) => (
+            <option key={opt.value || 'default'} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-xs">
+        B. 鍵盤 HINT ハイライト
+        <select
+          className="select select-bordered select-xs w-full mt-0.5"
+          value={value.keyboard ?? ''}
+          onChange={(e) => {
+            const raw = e.target.value;
+            onChange({
+              ...value,
+              keyboard: raw === '' ? null : raw as import('@/types').ProductionHintMode,
+            });
+          }}
+        >
+          {PRODUCTION_HINT_MODE_OPTIONS.map((opt) => (
+            <option key={`kb-${opt.value || 'default'}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </label>
+    </div>
+  </div>
+);

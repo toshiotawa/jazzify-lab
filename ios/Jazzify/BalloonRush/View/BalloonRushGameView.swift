@@ -6,6 +6,7 @@ struct BalloonRushGameView: View {
     let hintMode: Bool
     let locale: AppLocale
     let lessonContext: BalloonRushLessonContext?
+    let productionHintModes: ResolvedProductionHintModes?
     let onClose: () -> Void
 
     @State private var session: BalloonRushGameSession?
@@ -61,6 +62,7 @@ struct BalloonRushGameView: View {
             hintMode: hintMode,
             profile: profile,
             lessonContext: lessonContext,
+            productionHintModes: productionHintModes,
             locale: locale,
             onExit: onClose
         )

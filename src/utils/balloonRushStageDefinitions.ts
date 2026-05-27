@@ -1,6 +1,8 @@
 import type { RootPattern } from '@/components/survival/SurvivalStageDefinitions';
 import type { SurvivalChordProgressionEntry } from '@/components/survival/SurvivalStageDefinitions';
+import type { ProductionHintMode } from '@/types';
 import { buildAllowedChordsForSuffix } from '@/utils/survivalQuestionTypes';
+import { parseProductionHintMode } from '@/utils/resolveProductionHintModes';
 
 export type BalloonRushStageType = 'random' | 'progression';
 
@@ -23,6 +25,8 @@ export interface BalloonRushResolvedStage {
   readonly respawnDelaySec: number;
   readonly bgmUrl: string | null;
   readonly keyFifths: number;
+  readonly productionStaffHintMode: ProductionHintMode;
+  readonly productionKeyboardHintMode: ProductionHintMode;
 }
 
 function parseChordProgressionBalloon(raw: unknown): SurvivalChordProgressionEntry[] | undefined {
@@ -179,5 +183,7 @@ export const rowToBalloonRushResolvedStage = (row: Record<string, unknown>): Bal
     respawnDelaySec: respawnDelaySecRaw,
     bgmUrl: typeof row.bgm_url === 'string' && row.bgm_url.length > 0 ? row.bgm_url : null,
     keyFifths: typeof row.key_fifths === 'number' ? Math.trunc(row.key_fifths) : 0,
+    productionStaffHintMode: parseProductionHintMode(row.production_staff_hint_mode),
+    productionKeyboardHintMode: parseProductionHintMode(row.production_keyboard_hint_mode),
   };
 };

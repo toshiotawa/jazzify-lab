@@ -14,6 +14,7 @@ import {
 } from './SurvivalTypes';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { buildAllowedChordsForSuffix } from '@/utils/survivalQuestionTypes';
+import { parseProductionHintMode } from '@/utils/resolveProductionHintModes';
 
 export type RootPattern = 'cde' | 'fgab' | 'sharp' | 'flat' | 'all';
 
@@ -67,6 +68,10 @@ export interface StageDefinition {
   compositePhraseKeyFifths?: number;
   /** 複合フレーズ BGM（DB `survival_composite_phrase_stages.bgm_url`）。未設定時は phrases 設定へフォールバック。 */
   compositePhraseBgmUrl?: string;
+  /** 本番: 譜面未正解音符ヒント（DB `production_staff_hint_mode`） */
+  productionStaffHintMode?: import('@/types').ProductionHintMode;
+  /** 本番: 鍵盤 pending HINT ハイライト（DB `production_keyboard_hint_mode`） */
+  productionKeyboardHintMode?: import('@/types').ProductionHintMode;
 }
 
 /**
@@ -346,6 +351,8 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     mixedGroupKey,
     chordProgression: parseChordProgression(row.chord_progression),
     mapCategory,
+    productionStaffHintMode: parseProductionHintMode(row.production_staff_hint_mode),
+    productionKeyboardHintMode: parseProductionHintMode(row.production_keyboard_hint_mode),
     ...(lessonOnly ? { lessonOnly: true } : {}),
   };
 }

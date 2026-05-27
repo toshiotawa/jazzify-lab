@@ -29,6 +29,7 @@ final class BalloonRushGameSession: SurvivalPlaySession {
         hintMode: Bool,
         profile: SurvivalCharacterProfile = .defaultFai,
         lessonContext: BalloonRushLessonContext?,
+        productionHintModes: ResolvedProductionHintModes? = nil,
         locale: AppLocale,
         onExit: @escaping () -> Void
     ) {
@@ -38,7 +39,12 @@ final class BalloonRushGameSession: SurvivalPlaySession {
         self.lessonContext = lessonContext
         self.locale = locale
         self.onExit = onExit
-        let loop = BalloonRushGameLoop(stage: stage, hintMode: hintMode, profile: profile)
+        let loop = BalloonRushGameLoop(
+            stage: stage,
+            hintMode: hintMode,
+            profile: profile,
+            productionHintModes: productionHintModes
+        )
         self.gameLoop = loop
         self.playLoopFacade = BalloonRushPlayLoopFacade(loop: loop, popQuota: stage.popQuota)
         let ui = BalloonRushSurvivalBridge.makeUISnapshot(

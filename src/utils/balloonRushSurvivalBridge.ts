@@ -74,6 +74,8 @@ export const balloonRushToStageDefinition = (stage: BalloonRushResolvedStage): S
     mapCategory: 'lesson',
     lessonOnly: true,
     chordProgression: progression,
+    productionStaffHintMode: stage.productionStaffHintMode,
+    productionKeyboardHintMode: stage.productionKeyboardHintMode,
   };
 };
 

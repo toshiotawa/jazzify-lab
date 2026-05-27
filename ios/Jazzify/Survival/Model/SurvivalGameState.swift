@@ -631,6 +631,8 @@ struct SurvivalStageRuntime: Sendable {
 
     /// 風船ラッシュ時の風船表示（敵の代わり）。
     var balloonRushBalloons: [SurvivalBalloonRenderState] = []
+    /// 本番ヒント表示（譜面 A / 鍵盤 B）。ステージ開始時に確定。
+    var productionHintModes: ResolvedProductionHintModes = .default
 }
 
 extension SurvivalCodeSlot: Equatable {
@@ -671,51 +673,84 @@ enum SurvivalStaffPhase: Equatable, Sendable {
     case pressedOnly
 }
 
+/// 本番モード: 譜面未正解ヒント / 鍵盤 HINT ハイライト（DB `production_*_hint_mode`）。
+enum ProductionHintMode: String, Sendable, Equatable {
+    case fade15s = "fade_15s"
+    case always
+    case hiddenUntilPressed = "hidden_until_pressed"
+
+    static func parse(_ raw: String?) -> ProductionHintMode {
+        guard let raw, let mode = ProductionHintMode(rawValue: raw) else { return .fade15s }
+        return mode
+    }
+}
+
+struct ResolvedProductionHintModes: Sendable, Equatable {
+    let staffHintMode: ProductionHintMode
+    let keyboardHintMode: ProductionHintMode
+
+    static let `default` = ResolvedProductionHintModes(staffHintMode: .fade15s, keyboardHintMode: .fade15s)
+
+    static func resolve(
+        stageStaff: ProductionHintMode,
+        stageKeyboard: ProductionHintMode,
+        lessonOverrideStaff: ProductionHintMode?,
+        lessonOverrideKeyboard: ProductionHintMode?
+    ) -> ResolvedProductionHintModes {
+        ResolvedProductionHintModes(
+            staffHintMode: lessonOverrideStaff ?? stageStaff,
+            keyboardHintMode: lessonOverrideKeyboard ?? stageKeyboard
+        )
+    }
+}
+
 enum SurvivalStaffHintOpacity {
-    /// HINT OFF 本番: 未正解音符 opacity（5秒までは1.0、6〜9秒で0.8→0.2、10秒以降0.0）。
+    private static func opacityForProductionHintMode(_ elapsed: TimeInterval, mode: ProductionHintMode) -> CGFloat {
+        switch mode {
+        case .always:
+            return 1
+        case .hiddenUntilPressed:
+            return 0
+        case .fade15s:
+            let t = Int(floor(elapsed))
+            if t < 11 { return 1 }
+            if t >= 15 { return 0 }
+            switch t {
+            case 11: return 0.8
+            case 12: return 0.6
+            case 13: return 0.4
+            case 14: return 0.2
+            default: return 1
+            }
+        }
+    }
+
+    /// HINT OFF 本番: 未正解音符 opacity（DB productionHintMode に従う）。
     static func computeUnpressedNoteOpacity(
         elapsed: TimeInterval,
         hintMode: Bool,
         hintBuffActive: Bool,
-        beginnerAssistActive: Bool,
+        productionHintMode: ProductionHintMode,
         phase: SurvivalStagePhase
     ) -> CGFloat {
-        if hintMode || hintBuffActive || beginnerAssistActive || phase != .playing {
+        if hintMode || hintBuffActive || phase != .playing {
             return 1
         }
-        let t = Int(floor(elapsed))
-        if t < 6 { return 1 }
-        if t >= 10 { return 0 }
-        switch t {
-        case 6: return 0.8
-        case 7: return 0.6
-        case 8: return 0.4
-        case 9: return 0.2
-        default: return 1
-        }
+        return opacityForProductionHintMode(elapsed, mode: productionHintMode)
     }
 
-    /// 鍵盤 pending ハイライト opacity。第一ブロックは常に 1.0、第二ブロック以降の挑戦は約10秒フェード。
+    /// 鍵盤 pending ハイライト opacity（DB productionHintMode に従う）。
     static func computeKeyboardHintOpacity(
         elapsed: TimeInterval,
         hintMode: Bool,
         hintBuffActive: Bool,
-        beginnerAssistActive: Bool,
+        productionHintMode: ProductionHintMode,
         phase: SurvivalStagePhase
     ) -> CGFloat {
-        if hintMode || hintBuffActive || beginnerAssistActive || phase != .playing {
+        if hintMode || hintBuffActive || phase != .playing {
             return 1
         }
-        let t = Int(floor(elapsed))
-        if t < 6 { return 1 }
-        if t >= 10 { return 0 }
-        switch t {
-        case 6: return 0.8
-        case 7: return 0.6
-        case 8: return 0.4
-        case 9: return 0.2
-        default: return 1
-        }
+        return opacityForProductionHintMode(elapsed, mode: productionHintMode)
     }
 }
 
@@ -727,7 +762,7 @@ extension SurvivalUISnapshot {
             elapsed: runtime.elapsedSeconds,
             hintMode: runtime.hintMode,
             hintBuffActive: hintMagicBuffActive,
-            beginnerAssistActive: runtime.stage.hasBeginnerStageAssist,
+            productionHintMode: runtime.productionHintModes.staffHintMode,
             phase: runtime.phase
         )
         return opacity == 0 ? .pressedOnly : .fullHint
@@ -739,7 +774,7 @@ extension SurvivalUISnapshot {
             elapsed: runtime.elapsedSeconds,
             hintMode: runtime.hintMode,
             hintBuffActive: hintMagicBuffActive,
-            beginnerAssistActive: runtime.stage.hasBeginnerStageAssist,
+            productionHintMode: runtime.productionHintModes.staffHintMode,
             phase: runtime.phase
         )
     }

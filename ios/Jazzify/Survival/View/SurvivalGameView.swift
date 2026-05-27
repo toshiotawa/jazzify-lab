@@ -19,6 +19,7 @@ struct SurvivalGameView: View {
     var inlinePhraseDefinition: SurvivalPhraseDefinition? = nil
     var inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil
     var lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
+    var productionHintModes: ResolvedProductionHintModes? = nil
     var lessonContext: SurvivalLessonContext? = nil
     /// チュートリアル等: ステージ intro より優先するジャ爺吹き出し。
     var externalJajiiBubbleText: String = ""
@@ -37,6 +38,7 @@ struct SurvivalGameView: View {
         inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
         inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil,
         lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
+        productionHintModes: ResolvedProductionHintModes? = nil,
         lessonContext: SurvivalLessonContext? = nil,
         externalJajiiBubbleText: String = "",
         onSessionReady: ((SurvivalGameSession) -> Void)? = nil
@@ -52,6 +54,7 @@ struct SurvivalGameView: View {
         self.inlinePhraseDefinition = inlinePhraseDefinition
         self.inlineCompositePhrases = inlineCompositePhrases
         self.lessonRuntime = lessonRuntime
+        self.productionHintModes = productionHintModes
         self.lessonContext = lessonContext
         self.externalJajiiBubbleText = externalJajiiBubbleText
         self.onSessionReady = onSessionReady
@@ -198,7 +201,8 @@ struct SurvivalGameView: View {
             scenarioController: scenarioController,
             inlinePhraseDefinition: inlinePhraseDefinition,
             inlineCompositePhrases: inlineCompositePhrases,
-            lessonRuntime: lessonRuntime
+            lessonRuntime: lessonRuntime,
+            productionHintModes: productionHintModes
         )
         created.start()
         onSessionReady?(created)

@@ -1,11 +1,40 @@
-/** HINT OFF 本番: 未正解音符の opacity（5秒までは1.0、6〜9秒で0.8→0.2、10秒以降0.0）。 */
+import type { ProductionHintMode } from '@/types';
+
+const FADE_15S_STEPS: Record<number, number> = {
+  11: 0.8,
+  12: 0.6,
+  13: 0.4,
+  14: 0.2,
+};
+
+/** fade_15s: 0〜10秒 1.0 → 11〜14秒 段階フェード → 15秒以降 0.0 */
+export function opacityForProductionHintMode(
+  elapsedSec: number,
+  productionHintMode: ProductionHintMode,
+): number {
+  if (productionHintMode === 'always') {
+    return 1;
+  }
+  if (productionHintMode === 'hidden_until_pressed') {
+    return 0;
+  }
+  const t = Math.floor(elapsedSec);
+  if (t < 11) {
+    return 1;
+  }
+  if (t >= 15) {
+    return 0;
+  }
+  return FADE_15S_STEPS[t] ?? 1;
+}
+
+/** HINT OFF 本番: 未正解音符 opacity（DB productionHintMode に従う）。 */
 export function computeUnpressedNoteOpacity(
   elapsedSec: number,
   options: {
     readonly hintMode: boolean;
     readonly hintBuffActive: boolean;
-    readonly beginnerAssistActive?: boolean;
-    readonly isPhraseMode?: boolean;
+    readonly productionHintMode: ProductionHintMode;
     readonly isStageMode: boolean;
     readonly isPlaying: boolean;
     readonly isGameOver: boolean;
@@ -14,46 +43,24 @@ export function computeUnpressedNoteOpacity(
   const {
     hintMode,
     hintBuffActive,
-    beginnerAssistActive = false,
-    isPhraseMode = false,
+    productionHintMode,
     isStageMode,
     isPlaying,
     isGameOver,
   } = options;
-  if (
-    hintMode
-    || hintBuffActive
-    || beginnerAssistActive
-    || isPhraseMode
-    || !isStageMode
-    || !isPlaying
-    || isGameOver
-  ) {
+  if (hintMode || hintBuffActive || !isStageMode || !isPlaying || isGameOver) {
     return 1;
   }
-  const t = Math.floor(elapsedSec);
-  if (t < 6) {
-    return 1;
-  }
-  if (t >= 10) {
-    return 0;
-  }
-  const fadeSteps: Record<number, number> = {
-    6: 0.8,
-    7: 0.6,
-    8: 0.4,
-    9: 0.2,
-  };
-  return fadeSteps[t] ?? 1;
+  return opacityForProductionHintMode(elapsedSec, productionHintMode);
 }
 
-/** 鍵盤 pending ハイライト opacity。第一ブロックは常に 1.0、第二ブロック以降の挑戦は約 10 秒フェード。 */
+/** 鍵盤 pending ハイライト opacity（DB productionHintMode に従う）。 */
 export function computeKeyboardHintOpacity(
   elapsedSec: number,
   options: {
     readonly hintMode: boolean;
     readonly hintBuffActive: boolean;
-    readonly beginnerAssistActive?: boolean;
+    readonly productionHintMode: ProductionHintMode;
     readonly isStageMode: boolean;
     readonly isPlaying: boolean;
     readonly isGameOver: boolean;
@@ -62,35 +69,15 @@ export function computeKeyboardHintOpacity(
   const {
     hintMode,
     hintBuffActive,
-    beginnerAssistActive = false,
+    productionHintMode,
     isStageMode,
     isPlaying,
     isGameOver,
   } = options;
-  if (
-    hintMode
-    || hintBuffActive
-    || beginnerAssistActive
-    || !isStageMode
-    || !isPlaying
-    || isGameOver
-  ) {
+  if (hintMode || hintBuffActive || !isStageMode || !isPlaying || isGameOver) {
     return 1;
   }
-  const t = Math.floor(elapsedSec);
-  if (t < 6) {
-    return 1;
-  }
-  if (t >= 10) {
-    return 0;
-  }
-  const fadeSteps: Record<number, number> = {
-    6: 0.8,
-    7: 0.6,
-    8: 0.4,
-    9: 0.2,
-  };
-  return fadeSteps[t] ?? 1;
+  return opacityForProductionHintMode(elapsedSec, productionHintMode);
 }
 
 export interface SurvivalVoicingHintRenderer {

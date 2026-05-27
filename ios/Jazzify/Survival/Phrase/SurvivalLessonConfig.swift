@@ -190,6 +190,21 @@ enum SurvivalLessonConfig {
         )
     }
 
+    static func resolveProductionHintModes(
+        stage: SurvivalStageDefinition,
+        overrideStaffRaw: String?,
+        overrideKeyboardRaw: String?
+    ) -> ResolvedProductionHintModes {
+        let staffOverride = overrideStaffRaw.map { ProductionHintMode.parse($0) }
+        let keyboardOverride = overrideKeyboardRaw.map { ProductionHintMode.parse($0) }
+        return ResolvedProductionHintModes.resolve(
+            stageStaff: stage.productionStaffHintMode,
+            stageKeyboard: stage.productionKeyboardHintMode,
+            lessonOverrideStaff: staffOverride,
+            lessonOverrideKeyboard: keyboardOverride
+        )
+    }
+
     static func resolveSurvivalLessonRuntime(
         overrides: SurvivalLessonOverrides?,
         stage: SurvivalStageDefinition,

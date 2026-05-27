@@ -49,7 +49,8 @@ final class SurvivalGameSession: SurvivalPlaySession {
         scenarioController: SurvivalScenarioController? = nil,
         inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
         inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil,
-        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
+        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
+        productionHintModes: ResolvedProductionHintModes? = nil
     ) {
         let loop = SurvivalGameLoop(
             stage: stage,
@@ -57,7 +58,8 @@ final class SurvivalGameSession: SurvivalPlaySession {
             profile: profile,
             config: config,
             scenarioOverrides: scenarioOverrides,
-            lessonRuntime: lessonRuntime
+            lessonRuntime: lessonRuntime,
+            productionHintModes: productionHintModes
         )
         self.gameLoop = loop
         self.simulation = SurvivalSimulation(gameLoop: loop)

@@ -11,7 +11,7 @@ import { fetchBalloonRushStageById } from '@/platform/supabaseBalloonRush';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
-import type { ClearConditions, LessonContext } from '@/types';
+import type { ClearConditions, LessonContext, ProductionHintMode } from '@/types';
 import { fetchLessonSongById } from '@/platform/supabaseLessons';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
@@ -106,6 +106,10 @@ const BalloonRushMain: React.FC = () => {
   const [lessonRandomChordOverrides, setLessonRandomChordOverrides] = useState<
     ReadonlyMap<string, ChordDefinition> | undefined
   >(undefined);
+  const [lessonProductionHintOverrides, setLessonProductionHintOverrides] = useState<{
+    staff?: ProductionHintMode | null;
+    keyboard?: ProductionHintMode | null;
+  } | undefined>(undefined);
 
   const demoCharacter = useMemo((): SurvivalCharacter | null => {
     try {
@@ -179,6 +183,7 @@ const BalloonRushMain: React.FC = () => {
       if (!lessonContext?.lessonSongId || !resolvedStage) {
         setGameConfigOverride(null);
         setLessonRandomChordOverrides(undefined);
+        setLessonProductionHintOverrides(undefined);
         return;
       }
       try {
@@ -201,10 +206,15 @@ const BalloonRushMain: React.FC = () => {
         setLessonRandomChordOverrides(
           applied.overrides.size > 0 ? applied.overrides : undefined,
         );
+        setLessonProductionHintOverrides({
+          staff: lessonSong.override_production_staff_hint_mode ?? null,
+          keyboard: lessonSong.override_production_keyboard_hint_mode ?? null,
+        });
       } catch {
         if (!cancelled) {
           setGameConfigOverride(null);
           setLessonRandomChordOverrides(undefined);
+          setLessonProductionHintOverrides(undefined);
         }
       }
     };
@@ -305,6 +315,7 @@ const BalloonRushMain: React.FC = () => {
         isEnglishCopy={isEnglishCopy}
         configOverride={gameConfigOverride ?? undefined}
         lessonRandomChordOverrides={lessonRandomChordOverrides}
+        lessonProductionHintOverrides={lessonProductionHintOverrides}
         onLessonClear={handleLessonClear}
         onBack={handleBack}
       />

@@ -86,10 +86,9 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     private static func initialHintSlotIndex(
         slots: [SurvivalCodeSlot],
         hintMode: Bool,
-        beginnerAssistActive: Bool,
-        stageProductionKeyboardHints: Bool
+        keyboardHintMode: ProductionHintMode
     ) -> Int? {
-        guard hintMode || beginnerAssistActive || stageProductionKeyboardHints else { return nil }
+        guard hintMode || keyboardHintMode != .hiddenUntilPressed else { return nil }
         if slots.indices.contains(0), slots[0].isEnabled { return 0 }
         if slots.indices.contains(1), slots[1].isEnabled { return 1 }
         return nil
@@ -116,7 +115,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         profile: SurvivalCharacterProfile = .defaultFai,
         config: SurvivalStageConfig = .default,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
-        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
+        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
+        productionHintModes: ResolvedProductionHintModes? = nil
     ) {
         let mode = SurvivalMode.resolve(stage: stage, hintMode: hintMode)
         self.init(
@@ -125,7 +125,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             profile: profile,
             config: config,
             scenarioOverrides: scenarioOverrides,
-            lessonRuntime: lessonRuntime
+            lessonRuntime: lessonRuntime,
+            productionHintModes: productionHintModes
         )
     }
 
@@ -135,7 +136,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         profile: SurvivalCharacterProfile = .defaultFai,
         config: SurvivalStageConfig = .default,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
-        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
+        lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
+        productionHintModes: ResolvedProductionHintModes? = nil
     ) {
         self.lessonRuntime = lessonRuntime
         self.mode = mode
@@ -199,6 +201,12 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             player: player,
             slots: slots
         )
+        self.runtime.productionHintModes = productionHintModes ?? ResolvedProductionHintModes.resolve(
+            stageStaff: stage.productionStaffHintMode,
+            stageKeyboard: stage.productionKeyboardHintMode,
+            lessonOverrideStaff: nil,
+            lessonOverrideKeyboard: nil
+        )
         self.runtime.scenario = scenarioOverrides.toRuntimeState()
         self.runtime.remainingSeconds = effectiveStageTimeLimitSec
         configureJajiiSupportIfNeeded()
@@ -206,8 +214,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         self.currentHintSlotIndex = Self.initialHintSlotIndex(
             slots: slots,
             hintMode: mode.hintMode,
-            beginnerAssistActive: stage.hasBeginnerStageAssist,
-            stageProductionKeyboardHints: !mode.hintMode && !stage.hasBeginnerStageAssist
+            keyboardHintMode: self.runtime.productionHintModes.keyboardHintMode
         )
 
         let bossNow = CACurrentMediaTime()
@@ -288,7 +295,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             elapsed: runtime.elapsedSeconds,
             hintMode: mode.hintMode,
             hintBuffActive: hintBuffActive,
-            beginnerAssistActive: stage.hasBeginnerStageAssist,
+            productionHintMode: runtime.productionHintModes.staffHintMode,
             phase: runtime.phase
         )
         return SurvivalPhraseStaffSnapshot(
@@ -298,7 +305,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             correctNoteIndices: state.correctNoteIndices,
             revealedNoteIndices: state.revealedNoteIndices,
             targetNoteIndex: state.targetNoteIndex,
-            hintMode: mode.hintMode || stage.hasBeginnerStageAssist,
+            hintMode: mode.hintMode || runtime.productionHintModes.staffHintMode == .always,
             unpressedNoteOpacity: Double(opacity)
         )
     }
@@ -349,12 +356,14 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             player.hp = nbHp
             player.maxHp = nbHp
         }
+        let preservedHintModes = runtime.productionHintModes
         runtime = SurvivalStageRuntime(
             stage: stage,
             hintMode: mode.hintMode,
             player: player,
             slots: slots
         )
+        runtime.productionHintModes = preservedHintModes
         runtime.scenario = initialScenarioOverrides.toRuntimeState()
         runtime.remainingSeconds = effectiveStageTimeLimitSec
         configureJajiiSupportIfNeeded()
@@ -362,8 +371,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         setHintSlotIndexIfChanged(Self.initialHintSlotIndex(
             slots: slots,
             hintMode: mode.hintMode,
-            beginnerAssistActive: stage.hasBeginnerStageAssist,
-            stageProductionKeyboardHints: !mode.hintMode && !stage.hasBeginnerStageAssist
+            keyboardHintMode: runtime.productionHintModes.keyboardHintMode
         ))
 
         if isBoss {
@@ -506,13 +514,13 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             elapsed: runtime.elapsedSeconds,
             hintMode: runtime.hintMode,
             hintBuffActive: hintMagicBuffActive,
-            beginnerAssistActive: stage.hasBeginnerStageAssist,
+            productionHintMode: runtime.productionHintModes.keyboardHintMode,
             phase: runtime.phase
         )
     }
 
     private func keyboardHintsEnabled() -> Bool {
-        if runtime.hintMode || stage.hasBeginnerStageAssist || hintMagicBuffActive {
+        if runtime.hintMode || hintMagicBuffActive || runtime.productionHintModes.keyboardHintMode == .always {
             return true
         }
         guard runtime.phase == .playing else { return false }
@@ -520,7 +528,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     }
 
     private func hintSlotContextEnabled(requirePendingHints: Bool) -> Bool {
-        if runtime.hintMode || stage.hasBeginnerStageAssist || hintMagicBuffActive {
+        if runtime.hintMode || hintMagicBuffActive || runtime.productionHintModes.keyboardHintMode == .always {
             return true
         }
         guard runtime.phase == .playing, currentHintSlotIndex != nil else { return false }

@@ -1534,6 +1534,7 @@ private struct BalloonRushLessonLaunch: Identifiable {
     let id = UUID()
     let stage: BalloonRushStageDefinition
     let hintMode: Bool
+    let productionHintModes: ResolvedProductionHintModes
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
@@ -1543,6 +1544,7 @@ private struct BalloonRushLessonLaunch: Identifiable {
 private struct BalloonRushPrepContext: Identifiable {
     let id = UUID()
     let stage: BalloonRushStageDefinition
+    let productionHintModes: ResolvedProductionHintModes
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
@@ -1555,6 +1557,7 @@ private struct SurvivalLessonLaunch: Identifiable {
     let configOverride: SurvivalStageConfig?
     let inlineCompositePhrases: [SurvivalPhraseDefinition]?
     let lessonRuntime: ResolvedSurvivalLessonRuntime?
+    let productionHintModes: ResolvedProductionHintModes
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
@@ -1757,6 +1760,7 @@ struct LessonDetailView: View {
                 configOverride: launch.configOverride,
                 inlineCompositePhrases: launch.inlineCompositePhrases,
                 lessonRuntime: launch.lessonRuntime,
+                productionHintModes: launch.productionHintModes,
                 lessonContext: SurvivalLessonContext(
                     lessonId: launch.lessonId,
                     lessonSongId: launch.lessonSongId,
@@ -1775,6 +1779,7 @@ struct LessonDetailView: View {
                     balloonRushLessonLaunch = BalloonRushLessonLaunch(
                         stage: prep.stage,
                         hintMode: hintMode,
+                        productionHintModes: prep.productionHintModes,
                         lessonId: prep.lessonId,
                         lessonSongId: prep.lessonSongId,
                         clearConditions: prep.clearConditions
@@ -1792,6 +1797,7 @@ struct LessonDetailView: View {
                     lessonSongId: launch.lessonSongId,
                     clearConditions: launch.clearConditions
                 ),
+                productionHintModes: launch.productionHintModes,
                 onClose: { balloonRushLessonLaunch = nil }
             )
         }
@@ -2868,6 +2874,11 @@ struct LessonDetailView: View {
                         isBossStage: true,
                         isCompositeBoss: true
                     )
+                    let hintModes = SurvivalLessonConfig.resolveProductionHintModes(
+                        stage: stage,
+                        overrideStaffRaw: requirement.overrideProductionStaffHintMode,
+                        overrideKeyboardRaw: requirement.overrideProductionKeyboardHintMode
+                    )
                     let lessonConfig = SurvivalLessonConfig.configWithLessonRuntime(
                         base: baseConfig,
                         runtime: runtime,
@@ -2880,6 +2891,7 @@ struct LessonDetailView: View {
                             configOverride: lessonConfig,
                             inlineCompositePhrases: phrases,
                             lessonRuntime: runtime,
+                            productionHintModes: hintModes,
                             lessonId: lesson.id,
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions
@@ -2920,6 +2932,11 @@ struct LessonDetailView: View {
                     isBossStage: isBossStage,
                     isCompositeBoss: stage.isCompositePhraseBossStage
                 )
+                let hintModes = SurvivalLessonConfig.resolveProductionHintModes(
+                    stage: stage,
+                    overrideStaffRaw: requirement.overrideProductionStaffHintMode,
+                    overrideKeyboardRaw: requirement.overrideProductionKeyboardHintMode
+                )
                 let lessonConfig = SurvivalLessonConfig.configWithLessonRuntime(
                     base: baseConfig,
                     runtime: runtime,
@@ -2932,6 +2949,7 @@ struct LessonDetailView: View {
                         configOverride: lessonConfig,
                         inlineCompositePhrases: nil,
                         lessonRuntime: runtime,
+                        productionHintModes: hintModes,
                         lessonId: lesson.id,
                         lessonSongId: requirement.id,
                         clearConditions: requirement.clearConditions
@@ -2958,8 +2976,15 @@ struct LessonDetailView: View {
                     }
                     await MainActor.run {
                         LessonMapAudio.shared.stopImmediately()
+                        let presentation = BalloonRushSurvivalBridge.presentationStage(from: stage)
+                        let hintModes = SurvivalLessonConfig.resolveProductionHintModes(
+                            stage: presentation,
+                            overrideStaffRaw: requirement.overrideProductionStaffHintMode,
+                            overrideKeyboardRaw: requirement.overrideProductionKeyboardHintMode
+                        )
                         balloonRushPrep = BalloonRushPrepContext(
                             stage: stage,
+                            productionHintModes: hintModes,
                             lessonId: lesson.id,
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions

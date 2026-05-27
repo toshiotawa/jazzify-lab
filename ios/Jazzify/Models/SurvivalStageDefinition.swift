@@ -204,6 +204,8 @@ struct SurvivalStageRow: Decodable, Sendable {
     let lesson_only: Bool?
     /// Progression 用コード進行（`[{"name": "FM7", "voicing": [65, 69, 72, 76]}, ...]`）
     let chord_progression: [SurvivalChordProgressionEntry]?
+    let production_staff_hint_mode: String?
+    let production_keyboard_hint_mode: String?
 }
 
 /// `survival_stage_blocks` テーブル 1 行。降下マップのブロックヘッダー表示名と並び順。
@@ -265,6 +267,8 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let compositePhraseKeyFifths: Int?
     /// DB `survival_composite_phrase_stages.bgm_url`（複合のみ）。
     let compositePhraseBgmUrl: String?
+    let productionStaffHintMode: ProductionHintMode = .fade15s
+    let productionKeyboardHintMode: ProductionHintMode = .fade15s
 
     /// `Identifiable` 用 ID。マップ間で `stageNumber` が重複し得るため、`mapCategory` を含めて一意化する。
     var id: String { "\(mapCategory.rawValue)-\(stageNumber)" }
@@ -631,7 +635,9 @@ enum SurvivalStageCatalog {
                 compositePhraseSources: nil,
                 compositePhraseBossType: nil,
                 compositePhraseKeyFifths: nil,
-                compositePhraseBgmUrl: nil
+                compositePhraseBgmUrl: nil,
+                productionStaffHintMode: ProductionHintMode.parse(row.production_staff_hint_mode),
+                productionKeyboardHintMode: ProductionHintMode.parse(row.production_keyboard_hint_mode)
             )
         }
         let definitions = Self.mergeCompositeStageMetadata(

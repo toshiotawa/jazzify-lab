@@ -2,15 +2,37 @@ import { describe, expect, it } from 'vitest';
 import {
   computeKeyboardHintOpacity,
   computeUnpressedNoteOpacity,
+  opacityForProductionHintMode,
 } from './survivalStaffHintOpacity';
 
 const stageOptions = {
   hintMode: false,
   hintBuffActive: false,
+  productionHintMode: 'fade_15s' as const,
   isStageMode: true,
   isPlaying: true,
   isGameOver: false,
-} as const;
+};
+
+describe('opacityForProductionHintMode', () => {
+  it('always は常に 1.0', () => {
+    expect(opacityForProductionHintMode(100, 'always')).toBe(1);
+  });
+
+  it('hidden_until_pressed は常に 0.0', () => {
+    expect(opacityForProductionHintMode(0, 'hidden_until_pressed')).toBe(0);
+  });
+
+  it('fade_15s: 0〜10秒 1.0、11〜14秒 段階フェード、15秒以降 0.0', () => {
+    expect(opacityForProductionHintMode(10.9, 'fade_15s')).toBe(1);
+    expect(opacityForProductionHintMode(11, 'fade_15s')).toBe(0.8);
+    expect(opacityForProductionHintMode(12, 'fade_15s')).toBe(0.6);
+    expect(opacityForProductionHintMode(13, 'fade_15s')).toBe(0.4);
+    expect(opacityForProductionHintMode(14, 'fade_15s')).toBe(0.2);
+    expect(opacityForProductionHintMode(15, 'fade_15s')).toBe(0);
+    expect(opacityForProductionHintMode(45, 'fade_15s')).toBe(0);
+  });
+});
 
 describe('computeUnpressedNoteOpacity', () => {
   it('HINT ON / 練習 / 非ステージでは常に 1.0', () => {
@@ -21,33 +43,28 @@ describe('computeUnpressedNoteOpacity', () => {
     expect(computeUnpressedNoteOpacity(29, { ...stageOptions, isGameOver: true })).toBe(1);
   });
 
-  it('第一ブロック通常ステージのアシスト中は常に 1.0', () => {
-    expect(computeUnpressedNoteOpacity(45, { ...stageOptions, beginnerAssistActive: true })).toBe(1);
+  it('always / hidden_until_pressed モード', () => {
+    expect(computeUnpressedNoteOpacity(45, {
+      ...stageOptions,
+      productionHintMode: 'always',
+    })).toBe(1);
+    expect(computeUnpressedNoteOpacity(0, {
+      ...stageOptions,
+      productionHintMode: 'hidden_until_pressed',
+    })).toBe(0);
   });
 
-  it('フレーズモードでは経過時間に関係なく常に 1.0', () => {
-    expect(computeUnpressedNoteOpacity(45, { ...stageOptions, isPhraseMode: true })).toBe(1);
-  });
-
-  it('5秒までは 1.0、6〜9秒で段階的に暗くなり、10秒以降 0.0', () => {
-    expect(computeUnpressedNoteOpacity(5.9, stageOptions)).toBe(1);
-    expect(computeUnpressedNoteOpacity(6, stageOptions)).toBe(0.8);
-    expect(computeUnpressedNoteOpacity(7, stageOptions)).toBe(0.6);
-    expect(computeUnpressedNoteOpacity(8, stageOptions)).toBe(0.4);
-    expect(computeUnpressedNoteOpacity(9, stageOptions)).toBe(0.2);
-    expect(computeUnpressedNoteOpacity(10, stageOptions)).toBe(0);
-    expect(computeUnpressedNoteOpacity(45, stageOptions)).toBe(0);
+  it('fade_15s は経過時間に応じてフェード', () => {
+    expect(computeUnpressedNoteOpacity(10, stageOptions)).toBe(1);
+    expect(computeUnpressedNoteOpacity(14, stageOptions)).toBe(0.2);
+    expect(computeUnpressedNoteOpacity(15, stageOptions)).toBe(0);
   });
 });
 
 describe('computeKeyboardHintOpacity', () => {
-  it('第一ブロックアシスト中は常に 1.0', () => {
-    expect(computeKeyboardHintOpacity(45, { ...stageOptions, beginnerAssistActive: true })).toBe(1);
-  });
-
-  it('第二ブロック以降の挑戦は約 10 秒フェード', () => {
-    expect(computeKeyboardHintOpacity(5, stageOptions)).toBe(1);
-    expect(computeKeyboardHintOpacity(9, stageOptions)).toBe(0.2);
-    expect(computeKeyboardHintOpacity(10, stageOptions)).toBe(0);
+  it('fade_15s は 15 秒で 0', () => {
+    expect(computeKeyboardHintOpacity(10, stageOptions)).toBe(1);
+    expect(computeKeyboardHintOpacity(14, stageOptions)).toBe(0.2);
+    expect(computeKeyboardHintOpacity(15, stageOptions)).toBe(0);
   });
 });

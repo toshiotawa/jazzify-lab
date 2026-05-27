@@ -25,6 +25,8 @@ struct BalloonRushStageDefinition: Sendable, Identifiable {
     let respawnDelaySec: Double
     let bgmUrl: String?
     let keyFifths: Int
+    let productionStaffHintMode: ProductionHintMode = .fade15s
+    let productionKeyboardHintMode: ProductionHintMode = .fade15s
 
     func localizedTitle(_ locale: AppLocale) -> String {
         locale == .en ? (titleEn.isEmpty ? title : titleEn) : title
@@ -101,6 +103,8 @@ struct BalloonRushStageRow: Decodable, Sendable {
     let respawn_delay_sec: Double?
     let bgm_url: String?
     let key_fifths: Int?
+    let production_staff_hint_mode: String?
+    let production_keyboard_hint_mode: String?
 
     func toDefinition() -> BalloonRushStageDefinition {
         let st: BalloonRushStageDefinition.StageType =
@@ -123,7 +127,9 @@ struct BalloonRushStageRow: Decodable, Sendable {
             maxConcurrent: max_concurrent ?? 5,
             respawnDelaySec: respawn_delay_sec ?? 5,
             bgmUrl: bgm_url,
-            keyFifths: key_fifths ?? 0
+            keyFifths: key_fifths ?? 0,
+            productionStaffHintMode: ProductionHintMode.parse(production_staff_hint_mode),
+            productionKeyboardHintMode: ProductionHintMode.parse(production_keyboard_hint_mode)
         )
     }
 }

@@ -26,10 +26,20 @@ final class BalloonRushGameLoop {
 
     private let allowedChordIds: [String]
     private let isProgression: Bool
+    let productionHintModes: ResolvedProductionHintModes
 
-    init(stage: BalloonRushStageDefinition, hintMode: Bool, profile: SurvivalCharacterProfile = .defaultFai) {
+    init(
+        stage: BalloonRushStageDefinition,
+        hintMode: Bool,
+        profile: SurvivalCharacterProfile = .defaultFai,
+        productionHintModes: ResolvedProductionHintModes? = nil
+    ) {
         self.stage = stage
         self.hintMode = hintMode
+        self.productionHintModes = productionHintModes ?? ResolvedProductionHintModes(
+            staffHintMode: stage.productionStaffHintMode,
+            keyboardHintMode: stage.productionKeyboardHintMode
+        )
         allowedChordIds = stage.resolvedAllowedChordIds()
         progressionChords = stage.buildProgressionChords()
         isProgression = stage.stageType == .progression && !progressionChords.isEmpty
@@ -94,7 +104,7 @@ final class BalloonRushGameLoop {
             elapsed: elapsedSeconds,
             hintMode: hintMode,
             hintBuffActive: false,
-            beginnerAssistActive: false,
+            productionHintMode: productionHintModes.staffHintMode,
             phase: survivalPhase
         )
     }
@@ -111,7 +121,7 @@ final class BalloonRushGameLoop {
             elapsed: elapsedSeconds,
             hintMode: hintMode,
             hintBuffActive: false,
-            beginnerAssistActive: false,
+            productionHintMode: productionHintModes.keyboardHintMode,
             phase: survivalPhase
         )
     }

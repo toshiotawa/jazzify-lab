@@ -27,7 +27,9 @@ enum BalloonRushSurvivalBridge {
             compositePhraseSources: nil,
             compositePhraseBossType: nil,
             compositePhraseKeyFifths: nil,
-            compositePhraseBgmUrl: nil
+            compositePhraseBgmUrl: nil,
+            productionStaffHintMode: br.productionStaffHintMode,
+            productionKeyboardHintMode: br.productionKeyboardHintMode
         )
     }
 

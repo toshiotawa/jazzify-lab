@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
 import type { SurvivalCharacter, DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
-import type { LessonContext } from '@/types';
+import type { LessonContext, ProductionHintMode } from '@/types';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
 import {
   balloonRushDifficultyConfig,
@@ -20,6 +20,10 @@ export interface BalloonRushGameScreenProps {
   readonly isEnglishCopy: boolean;
   readonly configOverride?: DifficultyConfig;
   readonly lessonRandomChordOverrides?: ReadonlyMap<string, ChordDefinition>;
+  readonly lessonProductionHintOverrides?: {
+    readonly staff?: ProductionHintMode | null;
+    readonly keyboard?: ProductionHintMode | null;
+  };
   readonly onLessonClear?: () => void | Promise<void>;
   readonly onBack: () => void;
 }
@@ -32,6 +36,7 @@ const BalloonRushGameScreen: React.FC<BalloonRushGameScreenProps> = ({
   isEnglishCopy,
   configOverride,
   lessonRandomChordOverrides,
+  lessonProductionHintOverrides,
   onLessonClear,
   onBack,
 }) => {
@@ -57,6 +62,7 @@ const BalloonRushGameScreen: React.FC<BalloonRushGameScreenProps> = ({
       balloonRushStage={stage}
       lessonRuntime={lessonRuntime}
       lessonRandomChordOverrides={lessonRandomChordOverrides}
+      lessonProductionHintOverrides={lessonProductionHintOverrides}
       isLessonMode={lessonContext !== null}
       hintMode={hintMode}
       onLessonStageClear={onLessonClear}
