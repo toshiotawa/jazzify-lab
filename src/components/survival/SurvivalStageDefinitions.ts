@@ -526,7 +526,9 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
             .order('stage_number', { ascending: true }),
           supabase
             .from('survival_stage_blocks')
-            .select('map_category, block_key, label, label_en, sort_order')
+            .select(
+              'map_category, block_key, label, label_en, sort_order, player_max_hp, kill_quota, boss_max_hp',
+            )
             .order('map_category', { ascending: true })
             .order('sort_order', { ascending: true }),
           supabase.from('survival_composite_phrase_stages').select('id, map_category, stage_number, boss_type, key_fifths, bgm_url'),
