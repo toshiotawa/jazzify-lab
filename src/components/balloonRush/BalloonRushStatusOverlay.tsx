@@ -49,10 +49,10 @@ const BalloonRushStatusOverlay: React.FC<BalloonRushStatusOverlayProps> = ({
           : `残り時間 ${formatRemainingTime(remainingSeconds)}、${formatBalloonRushRemainingCountLabel(remainingCount, false)}`
       }
     >
-      <div className="flex flex-col items-center gap-0.5 rounded-2xl border border-white/25 bg-black/55 px-6 py-2.5 shadow-lg backdrop-blur-sm">
+      <div className="flex flex-row items-baseline justify-center gap-3 md:gap-4">
         <span
           className={cn(
-            'font-sans text-3xl md:text-4xl font-bold tabular-nums leading-none',
+            'font-sans text-2xl md:text-3xl font-bold tabular-nums leading-none',
             timeLow ? 'text-red-400' : 'text-yellow-300',
           )}
         >
@@ -60,7 +60,7 @@ const BalloonRushStatusOverlay: React.FC<BalloonRushStatusOverlayProps> = ({
         </span>
         <span
           className={cn(
-            'font-sans text-xl md:text-2xl font-bold tabular-nums leading-tight',
+            'font-sans text-lg md:text-xl font-bold tabular-nums leading-none',
             countDone ? 'text-green-400' : 'text-cyan-300',
           )}
         >

@@ -59,24 +59,16 @@ struct BalloonRushStatusOverlay: View, Equatable {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 4) {
+            HStack(spacing: 12) {
                 Text(timeLabel)
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(timeIsLow ? Color.red : Color.yellow)
                 Text(countLabel)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(countIsDone ? Color.green : Color.cyan)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 10)
-            .background(Color.black.opacity(0.55))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
-            )
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
