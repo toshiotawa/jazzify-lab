@@ -1765,8 +1765,8 @@ struct LessonDetailView: View {
             )
         }
         .sheet(item: $balloonRushPrep) { prep in
-            BalloonRushRunPrepSheet(
-                stage: prep.stage,
+            SurvivalRunPrepSheet(
+                balloonStage: prep.stage,
                 locale: locale,
                 initialHintMode: false,
                 onCancel: { balloonRushPrep = nil },

@@ -36,6 +36,14 @@ struct BalloonRushDrawSnapshot: Sendable {
     let nowPerfMs: Double
 }
 
+/// SpriteKit 描画用（`SurvivalStageRuntime.balloonRushBalloons`）。
+struct SurvivalBalloonRenderState: Sendable {
+    let id: String
+    let x: CGFloat
+    let y: CGFloat
+    let visible: Bool
+}
+
 struct BalloonRushUISnapshot: Equatable, Sendable {
     var phase: BalloonRushPhase
     var hintMode: Bool

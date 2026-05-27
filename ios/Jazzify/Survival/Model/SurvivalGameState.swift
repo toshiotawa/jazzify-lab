@@ -628,6 +628,9 @@ struct SurvivalStageRuntime: Sendable {
 
     /// ジャ爺サポート（lesson / scenario 無効時のみ）。HP・被弾なし・移動のみ。
     var jajii: SurvivalJajiiEngine.State?
+
+    /// 風船ラッシュ時の風船表示（敵の代わり）。
+    var balloonRushBalloons: [SurvivalBalloonRenderState] = []
 }
 
 extension SurvivalCodeSlot: Equatable {

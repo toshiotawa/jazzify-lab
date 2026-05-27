@@ -1,7 +1,7 @@
 /**
  * Balloon Rush spawn positions — keep in sync with iOS BalloonRushSpawn.swift
  */
-import { MAP_CONFIG } from '@/components/survival/SurvivalTypes';
+import { BALLOON_RUSH_MAP_CONFIG } from '@/utils/balloonRushMap';
 
 /** ステージ開始: キャラクター近傍の最初の風船 */
 export const INITIAL_NEAR_PLAYER_MIN_PX = 60;
@@ -24,8 +24,8 @@ export interface XY {
 export const hypotDist = (a: XY, b: XY): number => Math.hypot(a.x - b.x, a.y - b.y);
 
 const clampToMap = (x: number, y: number, margin: number): XY => ({
-  x: Math.min(MAP_CONFIG.width - margin, Math.max(margin, x)),
-  y: Math.min(MAP_CONFIG.height - margin, Math.max(margin, y)),
+  x: Math.min(BALLOON_RUSH_MAP_CONFIG.width - margin, Math.max(margin, x)),
+  y: Math.min(BALLOON_RUSH_MAP_CONFIG.height - margin, Math.max(margin, y)),
 });
 
 const randomInRing = (
@@ -64,8 +64,8 @@ export const pickInitialFivePositions = (
   for (let bi = 0; bi < 4; bi += 1) {
     let cand: XY = first;
     for (let a = 0; a < maxAttempts; a += 1) {
-      const sx = margin + rng() * (MAP_CONFIG.width - margin * 2);
-      const sy = margin + rng() * (MAP_CONFIG.height - margin * 2);
+      const sx = margin + rng() * (BALLOON_RUSH_MAP_CONFIG.width - margin * 2);
+      const sy = margin + rng() * (BALLOON_RUSH_MAP_CONFIG.height - margin * 2);
       const trial = clampToMap(sx, sy, margin);
       const dfp = hypotDist(player, trial);
       if (dfp < INITIAL_FAR_FROM_PLAYER_MIN_PX) {
@@ -98,8 +98,8 @@ export const pickRespawnPosition = (
 ): XY | null => {
   const maxAttempts = 120;
   for (let a = 0; a < maxAttempts; a += 1) {
-    const sx = margin + rng() * (MAP_CONFIG.width - margin * 2);
-    const sy = margin + rng() * (MAP_CONFIG.height - margin * 2);
+    const sx = margin + rng() * (BALLOON_RUSH_MAP_CONFIG.width - margin * 2);
+    const sy = margin + rng() * (BALLOON_RUSH_MAP_CONFIG.height - margin * 2);
     const trial = clampToMap(sx, sy, margin);
     if (hypotDist(player, trial) < RESPAWN_FROM_PLAYER_MIN_PX) {
       continue;

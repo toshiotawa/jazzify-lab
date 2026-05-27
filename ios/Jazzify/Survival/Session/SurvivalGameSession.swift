@@ -4,8 +4,9 @@ import QuartzCore
 
 /// SwiftUI が保持するサバイバルプレイセッション。ゲームループ・入力バッファ・UI 公開を束ねる。
 @MainActor
-final class SurvivalGameSession: ObservableObject {
+final class SurvivalGameSession: SurvivalPlaySession {
     let gameLoop: SurvivalGameLoop
+    var playLoopFacade: SurvivalPlayLoopFacade { gameLoop }
     let input: SurvivalInputBuffer
     let viewModel: SurvivalViewModel
     let audioController = SurvivalAudioController()

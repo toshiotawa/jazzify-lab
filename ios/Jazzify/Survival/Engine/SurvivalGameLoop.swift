@@ -4,7 +4,7 @@ import QuartzCore
 
 /// 毎フレームのシミュレーション本体。SwiftUI / `ObservableObject` を持たない。
 @MainActor
-final class SurvivalGameLoop {
+final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     private(set) var runtime: SurvivalStageRuntime
     private(set) var bossBattle: SurvivalBossBattleState?
     private(set) var mode: SurvivalMode

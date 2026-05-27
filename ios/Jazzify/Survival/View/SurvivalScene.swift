@@ -30,6 +30,7 @@ final class SurvivalScene: SKScene {
     private var playerBubbleAnchorNode: SKNode?
     private var jajiiBubbleAnchorNode: SKNode?
     private var enemyNodes: [UUID: SKNode] = [:]
+    private var balloonNodes: [String: SKLabelNode] = [:]
     private var projectileNodes: [UUID: SKNode] = [:]
     private var enemyProjectileNodes: [UUID: SKNode] = [:]
     private var shockwaveNodes: [UUID: SKNode] = [:]
@@ -107,11 +108,17 @@ final class SurvivalScene: SKScene {
     /// `SKScene.update` が最後に走ったホスト時刻。`UIViewRepresentable.Coordinator` の watchdog がゲームループ停止を検出するために使う。
     private(set) var lastUpdateWallTime: TimeInterval = CACurrentMediaTime()
 
+    private let playfieldWidth: CGFloat
+    private let playfieldHeight: CGFloat
+
     init(
         size: CGSize,
-        driver: SurvivalSceneDriver
+        driver: SurvivalSceneDriver,
+        playfieldSize: CGSize? = nil
     ) {
         self.driver = driver
+        playfieldWidth = playfieldSize?.width ?? SurvivalMap.width
+        playfieldHeight = playfieldSize?.height ?? SurvivalMap.height
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = UIColor(red: 0.03, green: 0.02, blue: 0.06, alpha: 1.0)
@@ -269,7 +276,7 @@ final class SurvivalScene: SKScene {
 
     /// 暗い木床（Web 版と同一見た目）。テクスチャ本体は `SurvivalBackgroundCache` でプロセス共有。
     private func drawBackground() {
-        let mapSize = CGSize(width: SurvivalMap.width, height: SurvivalMap.height)
+        let mapSize = CGSize(width: playfieldWidth, height: playfieldHeight)
         let floorTexture = SurvivalBackgroundCache.sharedFloorTexture()
         let node = SKSpriteNode(texture: floorTexture, size: mapSize)
         node.anchorPoint = CGPoint(x: 0, y: 0)
@@ -282,8 +289,8 @@ final class SurvivalScene: SKScene {
     /// - マップ外側に赤黒い「立入禁止帯」を敷いて進入不可領域を明示
     /// - マップ枠 (3200 × 2400) に二重のネオン風ラインを引く
     private func drawMapBoundary() {
-        let mapWidth = SurvivalMap.width
-        let mapHeight = SurvivalMap.height
+        let mapWidth = playfieldWidth
+        let mapHeight = playfieldHeight
         let boundary = SKNode()
         boundary.zPosition = -50
         backgroundNode.addChild(boundary)
@@ -337,7 +344,7 @@ final class SurvivalScene: SKScene {
     // MARK: - 座標変換 (Web 側 y=下向き → SpriteKit y=上向き)
 
     private func toScenePoint(x: CGFloat, y: CGFloat) -> CGPoint {
-        CGPoint(x: x, y: SurvivalMap.height - y)
+        CGPoint(x: x, y: playfieldHeight - y)
     }
 
     // MARK: - フレーム更新
@@ -499,7 +506,7 @@ final class SurvivalScene: SKScene {
             }
 
             if let host = playerNode.childNode(withName: "comboGaugeHost") {
-                let hideGauge = (driver as? SurvivalGameSession)?.gameLoop.isPhraseMode == true
+                let hideGauge = (driver as? SurvivalPlaySession)?.playLoopFacade.isPhraseMode == true
                 let gauge = runtime.comboGauge
                 let ready = runtime.comboReady
                 let maxG = SurvivalConstants.comboGaugeMax
@@ -554,7 +561,34 @@ final class SurvivalScene: SKScene {
             jajiiQuoteBubbleRoot = nil
         }
 
-        // 敵 (絵文字 + HP リング)
+        // 風船ラッシュ
+        let liveBalloonIds = Set(
+            runtime.balloonRushBalloons.filter(\.visible).map(\.id)
+        )
+        for (id, node) in balloonNodes where !liveBalloonIds.contains(id) {
+            node.removeFromParent()
+            balloonNodes.removeValue(forKey: id)
+        }
+        for b in runtime.balloonRushBalloons where b.visible {
+            let node: SKLabelNode
+            if let existing = balloonNodes[b.id] {
+                node = existing
+            } else {
+                let label = SKLabelNode(text: "🎈")
+                label.fontSize = 52
+                label.verticalAlignmentMode = .center
+                label.horizontalAlignmentMode = .center
+                label.zPosition = 55
+                entitiesNode.addChild(label)
+                balloonNodes[b.id] = label
+                node = label
+            }
+            node.position = toScenePoint(x: b.x, y: b.y)
+            node.isHidden = false
+        }
+
+        // 敵 (絵文字 + HP リング) — 風船ラッシュでは非表示
+        if runtime.balloonRushBalloons.isEmpty {
         syncNodes(
             nodeMap: &enemyNodes,
             ids: runtime.enemies.map { $0.id },
@@ -569,8 +603,10 @@ final class SurvivalScene: SKScene {
                 Self.updateEnemyNode(node: node, enemy: enemy)
             }
         )
+        }
 
         // プレイヤー弾 (✨)
+        if runtime.balloonRushBalloons.isEmpty {
         syncNodes(
             nodeMap: &projectileNodes,
             ids: runtime.projectiles.map { $0.id },
@@ -607,6 +643,7 @@ final class SurvivalScene: SKScene {
                 node.position = self.toScenePoint(x: proj.x, y: proj.y)
             }
         )
+        }
 
         // 衝撃波: 通常は前方 144° 扇形。必殺技 (`isSpecial`) は 360° 円形・強シェイク。
         syncNodes(

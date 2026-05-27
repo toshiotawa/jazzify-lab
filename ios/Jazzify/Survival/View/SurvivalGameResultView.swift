@@ -15,6 +15,8 @@ struct SurvivalGameResultView: View {
     let isCleared: Bool
     let stage: SurvivalStageDefinition
     let enemiesDefeated: Int
+    var enemiesDefeatedQuota: Int?
+    var enemiesDefeatedLabel: String?
     let elapsedSeconds: Int
     let playerHp: Int
     let playerMaxHp: Int
@@ -38,7 +40,9 @@ struct SurvivalGameResultView: View {
                 resultRow(label: locale == .ja ? "ステージ" : "Stage", value: stage.localizedName(locale))
                 // ボス戦は 1 体撃破なので撃破数表示を省略する
                 if !isBossStage {
-                    resultRow(label: locale == .ja ? "撃破数" : "Enemies", value: "\(enemiesDefeated) / \(stage.stageKillQuota)")
+                    let quota = enemiesDefeatedQuota ?? stage.stageKillQuota
+                    let label = enemiesDefeatedLabel ?? (locale == .ja ? "撃破数" : "Enemies")
+                    resultRow(label: label, value: "\(enemiesDefeated) / \(quota)")
                 }
                 resultRow(label: locale == .ja ? "生存時間" : "Survived", value: timeLabel)
                 resultRow(label: "HP", value: "\(playerHp) / \(playerMaxHp)")

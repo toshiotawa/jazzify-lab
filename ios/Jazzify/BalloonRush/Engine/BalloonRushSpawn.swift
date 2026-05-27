@@ -21,8 +21,8 @@ enum BalloonRushSpawn {
 
     private static func clampToMap(x: CGFloat, y: CGFloat, margin: CGFloat) -> Point {
         Point(
-            x: min(SurvivalMap.width - margin, max(margin, x)),
-            y: min(SurvivalMap.height - margin, max(margin, y))
+            x: min(BalloonRushMap.width - margin, max(margin, x)),
+            y: min(BalloonRushMap.height - margin, max(margin, y))
         )
     }
 
@@ -54,8 +54,8 @@ enum BalloonRushSpawn {
         for _ in 0..<4 {
             var cand = first
             for _ in 0..<60 {
-                let sx = margin + rng() * (SurvivalMap.width - margin * 2)
-                let sy = margin + rng() * (SurvivalMap.height - margin * 2)
+                let sx = margin + rng() * (BalloonRushMap.width - margin * 2)
+                let sy = margin + rng() * (BalloonRushMap.height - margin * 2)
                 let trial = clampToMap(x: sx, y: sy, margin: margin)
                 if hypotDist(player, trial) < initialFarFromPlayerMinPx { continue }
                 var ok = true
@@ -80,8 +80,8 @@ enum BalloonRushSpawn {
         rng: () -> CGFloat
     ) -> Point? {
         for _ in 0..<120 {
-            let sx = margin + rng() * (SurvivalMap.width - margin * 2)
-            let sy = margin + rng() * (SurvivalMap.height - margin * 2)
+            let sx = margin + rng() * (BalloonRushMap.width - margin * 2)
+            let sy = margin + rng() * (BalloonRushMap.height - margin * 2)
             let trial = clampToMap(x: sx, y: sy, margin: margin)
             if hypotDist(player, trial) < respawnFromPlayerMinPx { continue }
             var ok = true

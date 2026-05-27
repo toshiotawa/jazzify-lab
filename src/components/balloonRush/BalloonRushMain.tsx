@@ -1,5 +1,6 @@
 /**
  * 風船ラッシュ — レッスン課題専用エントリ（URL ハッシュから stage / lesson を解決）
+ * 準備・ゲーム画面はサバイバルモードの UI を流用する。
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,8 +14,12 @@ import { useGeoStore } from '@/stores/geoStore';
 import type { ClearConditions, LessonContext } from '@/types';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
+import {
+  balloonRushLessonRuntime,
+  balloonRushToStageDefinition,
+} from '@/utils/balloonRushSurvivalBridge';
 import BalloonRushGameScreen from '@/components/balloonRush/BalloonRushGameScreen';
-import BalloonRushRunPrepModal from '@/components/balloonRush/BalloonRushRunPrepModal';
+import SurvivalRunPrepModal from '@/components/survival/SurvivalRunPrepModal';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import type { SurvivalCharacter } from '@/components/survival/SurvivalTypes';
 
@@ -89,7 +94,6 @@ const BalloonRushMain: React.FC = () => {
   const [hintMode, setHintMode] = useState(false);
   const [gameNonce, setGameNonce] = useState(0);
 
-  /** レッスン外デモ用の簡易キャラ（未ログインでも成立） */
   const demoCharacter = useMemo((): SurvivalCharacter | null => {
     try {
       const w = getWindow() as unknown as { localStorage?: { getItem: (key: string) => string | null } };
@@ -175,6 +179,15 @@ const BalloonRushMain: React.FC = () => {
     );
   }, [lessonContext]);
 
+  const prepStageDefinition = useMemo(
+    () => (resolvedStage ? balloonRushToStageDefinition(resolvedStage) : null),
+    [resolvedStage],
+  );
+  const prepLessonRuntime = useMemo(
+    () => (resolvedStage ? balloonRushLessonRuntime(resolvedStage) : undefined),
+    [resolvedStage],
+  );
+
   if (loading) {
     return <LoadingScreen message={isEnglishCopy ? 'Loading balloon rush…' : '読み込み中…'} />;
   }
@@ -200,18 +213,28 @@ const BalloonRushMain: React.FC = () => {
     return (
       <>
         <GameHeader />
-        <BalloonRushRunPrepModal
-          isOpen
-          stage={resolvedStage}
-          isEnglishCopy={isEnglishCopy}
-          initialHintMode={false}
-          onCancel={handleBack}
-          onConfirm={(hint) => {
-            setHintMode(hint);
-            setGameNonce(n => n + 1);
-            setScreen('game');
+        <div
+          className="relative flex min-h-screen items-center justify-center overflow-hidden fantasy-game-screen"
+          style={{
+            background:
+              'radial-gradient(ellipse at top, #1b1228 0%, #0d0818 45%, #050309 100%)',
           }}
-        />
+        >
+          <SurvivalRunPrepModal
+            isOpen
+            variant="balloon_rush"
+            stage={prepStageDefinition}
+            lessonRuntime={prepLessonRuntime}
+            isEnglishCopy={isEnglishCopy}
+            initialHintMode={false}
+            onCancel={handleBack}
+            onConfirm={(hint) => {
+              setHintMode(hint);
+              setGameNonce(n => n + 1);
+              setScreen('game');
+            }}
+          />
+        </div>
         <OrientationLandscapePrompt isEnglishCopy={isEnglishCopy} />
       </>
     );

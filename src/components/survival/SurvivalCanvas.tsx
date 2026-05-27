@@ -15,7 +15,9 @@ import {
   Direction,
   ShockwaveEffect,
   MAP_CONFIG,
+  type MapConfig,
   SHOCKWAVE_EXPAND_RATIO,
+  SHOCKWAVE_DURATION,
   COMBO_GAUGE_MAX,
 } from './SurvivalTypes';
 import {
@@ -37,6 +39,7 @@ import {
   SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
 } from '@/components/survival/stageIntro/survivalSpeechBubbleLayout';
 import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
+import type { BalloonRushDrawSnapshot } from '@/components/balloonRush/balloonRushWorldDraw';
 
 /**
  * iOS WebKit では shadowBlur が極端に重い（1 回で数 ms）。
@@ -114,6 +117,10 @@ interface SurvivalCanvasProps {
   jajiiSpeechSegmentsRef?: React.MutableRefObject<readonly TutorialResolvedTextSegment[]>;
   /** プレイヤー足下の吹き出し（空で非表示） */
   faiBubbleText?: string;
+  /** 風船ラッシュ時: 敵の代わりに風船を描画 */
+  balloonRushDraw?: BalloonRushDrawSnapshot | null;
+  /** プレイフィールド寸法（未指定時は `MAP_CONFIG`） */
+  mapConfig?: Pick<MapConfig, 'width' | 'height'>;
 }
 
 // ===== 色定義 =====
@@ -279,7 +286,11 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   jajiiBubbleText = '',
   jajiiSpeechSegmentsRef,
   faiBubbleText = '',
+  balloonRushDraw = null,
+  mapConfig,
 }) => {
+  const playfieldWidth = mapConfig?.width ?? MAP_CONFIG.width;
+  const playfieldHeight = mapConfig?.height ?? MAP_CONFIG.height;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const woodPatternRef = useRef<CanvasPattern | null>(null);
   const [woodFloorAssetRevision, setWoodFloorAssetRevision] = useState(0);
@@ -291,9 +302,11 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const bossUiTickRef = useRef(bossUiTick);
   const jajiiBubbleTextRef = useRef(jajiiBubbleText);
   const faiBubbleTextRef = useRef(faiBubbleText);
+  const balloonRushDrawRef = useRef(balloonRushDraw);
   gameStateRef.current = gameState;
   jajiiBubbleTextRef.current = jajiiBubbleText;
   faiBubbleTextRef.current = faiBubbleText;
+  balloonRushDrawRef.current = balloonRushDraw;
   shockwavesRef.current = shockwaves;
   lightningEffectsRef.current = lightningEffects;
   bossBattleRef.current = bossBattle;
@@ -401,14 +414,14 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     const targetY = player.y - logicalHeight / 2;
     
     // マップ端での制限
-    const maxX = MAP_CONFIG.width - logicalWidth;
-    const maxY = MAP_CONFIG.height - logicalHeight;
+    const maxX = playfieldWidth - logicalWidth;
+    const maxY = playfieldHeight - logicalHeight;
     
     return {
       x: Math.max(0, Math.min(maxX, targetX)),
       y: Math.max(0, Math.min(maxY, targetY)),
     };
-  }, [logicalWidth, logicalHeight]);
+  }, [logicalWidth, logicalHeight, playfieldWidth, playfieldHeight]);
 
   // 描画関数（contentScale時は論理ビューポートで描画し、ctx.scaleで縮小）
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -434,8 +447,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.fillStyle = pattern;
       const x0 = Math.max(0, camera.x);
       const y0 = Math.max(0, camera.y);
-      const x1 = Math.min(MAP_CONFIG.width, camera.x + logicalWidth);
-      const y1 = Math.min(MAP_CONFIG.height, camera.y + logicalHeight);
+      const x1 = Math.min(playfieldWidth, camera.x + logicalWidth);
+      const y1 = Math.min(playfieldHeight, camera.y + logicalHeight);
       ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
       ctx.restore();
     }
@@ -443,7 +456,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     // マップ境界描画
     ctx.strokeStyle = '#4a4a6e';
     ctx.lineWidth = 4;
-    ctx.strokeRect(-camera.x, -camera.y, MAP_CONFIG.width, MAP_CONFIG.height);
+    ctx.strokeRect(-camera.x, -camera.y, playfieldWidth, playfieldHeight);
 
     // アイテム描画
     items.forEach(item => {
@@ -521,7 +534,36 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.restore();
     });
 
+    const balloonSnap = balloonRushDrawRef.current;
+    if (balloonSnap) {
+      for (const w of balloonSnap.shockwaves) {
+        const age = balloonSnap.nowPerfMs - w.startPerfMs;
+        if (age < 0 || age > SHOCKWAVE_DURATION) continue;
+        const t = age / SHOCKWAVE_DURATION;
+        const r = w.maxRadius * t;
+        const sx = w.x - camera.x;
+        const sy = w.y - camera.y;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(250,204,21,${0.55 * (1 - t)})`;
+        ctx.lineWidth = 8 * (1 - t) + 2;
+        ctx.stroke();
+      }
+      for (const b of balloonSnap.balloons) {
+        if (!b.visible) continue;
+        const screenX = b.x - camera.x;
+        const screenY = b.y - camera.y;
+        if (screenX < -50 || screenX > logicalWidth + 50
+          || screenY < -50 || screenY > logicalHeight + 50) continue;
+        ctx.font = `52px ${EMOJI_FONT_FALLBACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🎈', screenX, screenY);
+      }
+    }
+
     // 敵描画
+    if (!balloonSnap) {
     enemies.forEach(enemy => {
       const screenX = enemy.x - camera.x;
       const screenY = enemy.y - camera.y;
@@ -593,8 +635,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         });
       }
     });
+    }
 
     // 弾丸描画（軽量なCanvas図形）
+    if (!balloonSnap) {
     projectiles.forEach(proj => {
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
@@ -649,6 +693,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.fillText('🔴', screenX, screenY);
       ctx.shadowBlur = 0;
     });
+    }
 
     // プレイヤー描画
     const playerScreenX = player.x - camera.x;

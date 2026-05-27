@@ -322,6 +322,16 @@ private final class SurvivalStagePlayDialogueUIModel: ObservableObject {
             mapCategory: mapCategory,
             stageNumber: stageNumber
         ) else { return }
+        scheduleScript(script, usesEnglishCopy: usesEnglishCopy)
+    }
+
+    func loadAndScheduleBalloonRush(stageId: UUID, usesEnglishCopy: Bool) async {
+        cancelAll()
+        guard let script = await SupabaseService.shared.fetchBalloonRushPlayDialogue(stageId: stageId) else { return }
+        scheduleScript(script, usesEnglishCopy: usesEnglishCopy)
+    }
+
+    private func scheduleScript(_ script: SurvivalStageIntroScriptPayload, usesEnglishCopy: Bool) {
         player.schedule(
             script: script,
             usesEnglishCopy: usesEnglishCopy,
@@ -333,9 +343,10 @@ private final class SurvivalStagePlayDialogueUIModel: ObservableObject {
 
 // MARK: - Session-observing content view
 
-private struct SurvivalGameContent: View {
-    @ObservedObject var session: SurvivalGameSession
+struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
+    @ObservedObject var session: Session
     let stage: SurvivalStageDefinition
+    var balloonRushPlayDialogueStageId: UUID?
     let locale: AppLocale
     let isDemo: Bool
     let externalJajiiBubbleText: String
@@ -367,7 +378,10 @@ private struct SurvivalGameContent: View {
     }
 
     private var wantsStagePlayDialogue: Bool {
-        !isDemo
+        if balloonRushPlayDialogueStageId != nil {
+            return !isDemo && !vm.uiSnapshot.scenario.isActive
+        }
+        return !isDemo
             && stage.mapCategory == .basic
             && stage.stageNumber == 9901
             && !vm.uiSnapshot.scenario.isActive
@@ -438,7 +452,7 @@ private struct SurvivalGameContent: View {
                     bossHud: vm.bossHud,
                     isPaused: vm.isPaused,
                     stage: stage,
-                    enemyQuotaOverride: session.gameLoop.effectiveStageKillQuota,
+                    enemyQuotaOverride: session.playLoopFacade.effectiveStageKillQuota,
                     locale: locale,
                     onTogglePause: { session.togglePause() }
                 )
@@ -536,11 +550,18 @@ private struct SurvivalGameContent: View {
                 return
             }
             Task { @MainActor in
-                await self.playDialogueUIModel.loadAndSchedule(
-                    mapCategory: self.stage.mapCategory,
-                    stageNumber: self.stage.stageNumber,
-                    usesEnglishCopy: self.locale == .en
-                )
+                if let brId = self.balloonRushPlayDialogueStageId {
+                    await self.playDialogueUIModel.loadAndScheduleBalloonRush(
+                        stageId: brId,
+                        usesEnglishCopy: self.locale == .en
+                    )
+                } else {
+                    await self.playDialogueUIModel.loadAndSchedule(
+                        mapCategory: self.stage.mapCategory,
+                        stageNumber: self.stage.stageNumber,
+                        usesEnglishCopy: self.locale == .en
+                    )
+                }
             }
         }
     }
@@ -593,7 +614,7 @@ private struct SurvivalGameContent: View {
                 isEnabled: vm.uiSnapshot.phase == .playing && !vm.isPaused,
                 scrollAnchorMidi: vm.chordPadScrollAnchorMidi
             ),
-            onPress: { session.chordPadNoteOn($0) },
+            onPress: { session.chordPadNoteOn($0, velocity: 100) },
             onRelease: { session.chordPadNoteOff($0) }
         )
         .equatable()
@@ -604,7 +625,7 @@ private struct SurvivalGameContent: View {
     private var scenarioStaffSnapshot: SurvivalScenarioStaffPanel.Snapshot? {
         let sc = vm.uiSnapshot.scenario
         guard sc.isActive, !sc.hideStaff else { return nil }
-        guard session.gameLoop.phraseStaffSnapshot() == nil else { return nil }
+        guard session.playLoopFacade.phraseStaffSnapshot() == nil else { return nil }
         guard vm.uiSnapshot.slots.indices.contains(1) else { return nil }
         let slot = vm.uiSnapshot.slots[1]
         guard slot.isEnabled else { return nil }
@@ -659,6 +680,10 @@ private struct SurvivalGameContent: View {
                 isCleared: isCleared,
                 stage: stage,
                 enemiesDefeated: vm.uiSnapshot.enemiesDefeated,
+                enemiesDefeatedQuota: session.playLoopFacade.effectiveStageKillQuota,
+                enemiesDefeatedLabel: balloonRushPlayDialogueStageId != nil
+                    ? (locale == .ja ? "風船" : "Balloons")
+                    : (locale == .ja ? "撃破数" : "Enemies"),
                 elapsedSeconds: vm.uiSnapshot.elapsedSecondsRounded,
                 playerHp: vm.uiSnapshot.hp,
                 playerMaxHp: vm.uiSnapshot.maxHp,
@@ -668,7 +693,7 @@ private struct SurvivalGameContent: View {
                 clearReportInFlight: vm.clearReportInFlight,
                 clearReportError: vm.clearReportError,
                 isDemo: isDemo,
-                onRetry: { session.restartSameStage() },
+                onRetry: { session.restartSameStage(hintMode: nil) },
                 onExit: { session.requestExit() }
             )
         }
@@ -839,8 +864,15 @@ private struct SurvivalComboBadgeView: View {
 
 // MARK: - SpriteKit ブリッジ
 
+private func playfieldSize(for session: any SurvivalPlaySession) -> CGSize {
+    if session is BalloonRushGameSession {
+        return CGSize(width: BalloonRushMap.width, height: BalloonRushMap.height)
+    }
+    return CGSize(width: SurvivalMap.width, height: SurvivalMap.height)
+}
+
 private struct SurvivalSceneContainer: UIViewRepresentable {
-    let session: SurvivalGameSession
+    let session: any SurvivalPlaySession
     let faiBubbleText: String
     let jajiiBubbleText: String
 
@@ -861,7 +893,8 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         let sceneSize = initialFrame.size.width > 0 && initialFrame.size.height > 0
             ? initialFrame.size
             : CGSize(width: 1, height: 1)
-        let scene = SurvivalScene(size: sceneSize, driver: session)
+        let playfield = playfieldSize(for: session)
+        let scene = SurvivalScene(size: sceneSize, driver: session, playfieldSize: playfield)
         scene.scaleMode = .resizeFill
         scene.isPaused = false
         view.presentScene(scene)
@@ -897,7 +930,8 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
             context.coordinator.attach(view: uiView, scene: existing, session: session)
             return
         }
-        let scene = SurvivalScene(size: sceneSize, driver: session)
+        let playfield = playfieldSize(for: session)
+        let scene = SurvivalScene(size: sceneSize, driver: session, playfieldSize: playfield)
         scene.scaleMode = .resizeFill
         scene.isPaused = false
         uiView.isPaused = false
@@ -913,14 +947,14 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
     final class Coordinator {
         private weak var view: SKView?
         private weak var scene: SurvivalScene?
-        private weak var session: SurvivalGameSession?
+        private weak var session: (any SurvivalPlaySession)?
         private var watchdog: Timer?
 
         private var activeObserver: NSObjectProtocol?
         private var willResignObserver: NSObjectProtocol?
         var lastSceneRestartGeneration: Int = 0
 
-        func attach(view: SKView, scene: SurvivalScene, session: SurvivalGameSession) {
+        func attach(view: SKView, scene: SurvivalScene, session: any SurvivalPlaySession) {
             detach()
 
             self.view = view

@@ -13,7 +13,7 @@ import {
 import { getStageKillQuotaForStage } from './survivalFirstBlockStage';
 import type { ResolvedSurvivalLessonRuntime } from '@/utils/survivalLessonConfig';
 
-export type SurvivalRunPrepVariant = 'lesson' | 'map';
+export type SurvivalRunPrepVariant = 'lesson' | 'map' | 'balloon_rush';
 
 interface SurvivalRunPrepModalProps {
   isOpen: boolean;
@@ -51,13 +51,17 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   }
 
   const title =
-    variant === 'lesson'
+    variant === 'balloon_rush'
       ? isEnglishCopy
-        ? 'Start survival task'
-        : 'サバイバル課題を開始'
-      : isEnglishCopy
-        ? 'Start stage'
-        : 'ステージを開始';
+        ? 'Start balloon rush task'
+        : '風船ラッシュを開始'
+      : variant === 'lesson'
+        ? isEnglishCopy
+          ? 'Start survival task'
+          : 'サバイバル課題を開始'
+        : isEnglishCopy
+          ? 'Start stage'
+          : 'ステージを開始';
 
   const modeLine = formatSurvivalStageModeLabel(stage, isEnglishCopy);
   const encounterLine = formatSurvivalEncounterLabel(stage, isEnglishCopy);
@@ -77,17 +81,21 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   const isBossEncounter = compositeLocked
     || formatSurvivalEncounterLabel(stage, isEnglishCopy) === (isEnglishCopy ? 'Boss' : 'ボス');
 
-  const clearSummary = isBossEncounter
+  const clearSummary = variant === 'balloon_rush'
     ? (isEnglishCopy
-      ? 'Clear: defeat the boss (performance mode saves lesson progress).'
-      : 'クリア条件: ボス撃破（本番時のみレッスン進捗が保存されます）。')
-    : variant === 'lesson'
+      ? `Clear: pop ${stageKillQuota} balloons within ${timeLimitSec}s (practice does not save progress).`
+      : `クリア条件: ${timeLimitSec}秒以内に風船を${stageKillQuota}個割る（練習時は進捗が保存されません）。`)
+    : isBossEncounter
       ? (isEnglishCopy
-        ? `Clear: survive ${timeLimitSec}s and defeat ${stageKillQuota} enemies (performance mode saves lesson progress).`
-        : `クリア条件: ${timeLimitSec}秒生存 + ${stageKillQuota}体撃破（本番時のみレッスン進捗が保存されます）。`)
-      : (isEnglishCopy
-        ? `Objective: ${timeLimitSec}s survival + ${stageKillQuota} defeats (HINT does not record clears).`
-        : `目標: ${timeLimitSec}秒生存 + ${stageKillQuota}体撃破（HINT時はクリア記録されません）。`);
+        ? 'Clear: defeat the boss (performance mode saves lesson progress).'
+        : 'クリア条件: ボス撃破（本番時のみレッスン進捗が保存されます）。')
+      : variant === 'lesson'
+        ? (isEnglishCopy
+          ? `Clear: survive ${timeLimitSec}s and defeat ${stageKillQuota} enemies (performance mode saves lesson progress).`
+          : `クリア条件: ${timeLimitSec}秒生存 + ${stageKillQuota}体撃破（本番時のみレッスン進捗が保存されます）。`)
+        : (isEnglishCopy
+          ? `Objective: ${timeLimitSec}s survival + ${stageKillQuota} defeats (HINT does not record clears).`
+          : `目標: ${timeLimitSec}秒生存 + ${stageKillQuota}体撃破（HINT時はクリア記録されません）。`);
 
   const compositeNote = compositeLocked
     ? (isEnglishCopy
@@ -113,10 +121,12 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
             <span className="text-gray-400">{isEnglishCopy ? 'Mode' : '出題'}: </span>
             <span>{modeLine}</span>
           </div>
-          <div>
-            <span className="text-gray-400">{isEnglishCopy ? 'Encounter' : '戦闘'}: </span>
-            <span>{encounterLine}</span>
-          </div>
+          {variant !== 'balloon_rush' ? (
+            <div>
+              <span className="text-gray-400">{isEnglishCopy ? 'Encounter' : '戦闘'}: </span>
+              <span>{encounterLine}</span>
+            </div>
+          ) : null}
           <p className="mt-2 text-xs leading-relaxed text-gray-400">{clearSummary}</p>
           {compositeNote ? (
             <p className="mt-2 rounded-md border border-amber-600/30 bg-amber-950/30 p-2 text-xs leading-relaxed text-amber-100">

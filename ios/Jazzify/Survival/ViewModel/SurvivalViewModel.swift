@@ -127,6 +127,26 @@ final class SurvivalViewModel: ObservableObject {
         }
     }
 
+    func syncBalloonRush(
+        uiSnapshot nextSnapshot: SurvivalUISnapshot,
+        chordPadHintMidis nextHints: Set<Int>,
+        chordPadCompletedHintMidis nextCompletedHints: Set<Int>,
+        chordPadHintPendingOpacity nextHintOpacity: CGFloat
+    ) {
+        if nextSnapshot != uiSnapshot {
+            uiSnapshot = nextSnapshot
+        }
+        if nextHints != chordPadHintMidis {
+            chordPadHintMidis = nextHints
+        }
+        if nextCompletedHints != chordPadCompletedHintMidis {
+            chordPadCompletedHintMidis = nextCompletedHints
+        }
+        if nextHintOpacity != chordPadHintPendingOpacity {
+            chordPadHintPendingOpacity = nextHintOpacity
+        }
+    }
+
     func applyFullReset(from gameLoop: SurvivalGameLoop, now: TimeInterval) {
         isBossStage = gameLoop.isBossStage
         uiSnapshot = SurvivalUISnapshot.make(from: gameLoop.runtime, hintSlotIndex: gameLoop.currentHintSlotIndex)

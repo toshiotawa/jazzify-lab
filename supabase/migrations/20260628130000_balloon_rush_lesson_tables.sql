@@ -280,7 +280,7 @@ INSERT INTO public.balloon_rush_stages (
   10,
   5,
   5,
-  'https://jazzify-cdn.com/fantasy-bgm/survival-phrases-dm7-1-5-stage-01.mp3',
+  'https://jazzify-cdn.com/fantasy-bgm/survival-composite-phrases-drums160-loop.mp3',
   0,
   true,
   true

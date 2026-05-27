@@ -182,6 +182,17 @@ import {
   applyPlayerStatMultiplier,
   type ResolvedSurvivalLessonRuntime,
 } from '@/utils/survivalLessonConfig';
+import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
+import { fetchBalloonRushPlayDialogue } from '@/platform/supabaseBalloonRush';
+import type { BalloonRushDrawSnapshot } from '@/components/balloonRush/balloonRushWorldDraw';
+import {
+  applyBalloonMeleeHits,
+  buildBalloonRushDrawSnapshot,
+  createBalloonRushPhysicsState,
+  tickBalloonRushPhysics,
+  type BalloonRushPhysicsState,
+} from '@/utils/balloonRushPhysics';
+import { BALLOON_RUSH_MAP_CONFIG } from '@/utils/balloonRushMap';
 import {
   resolveBlockBossMaxHp,
   resolveBlockPlayerMaxHp,
@@ -395,6 +406,8 @@ interface SurvivalGameScreenProps {
   lessonInlineCompositePhrases?: readonly SurvivalPhraseDefinition[];
   /** レッスン課題の HP / BGM / 制限時間などランタイム上書き */
   lessonRuntime?: ResolvedSurvivalLessonRuntime;
+  /** 風船ラッシュ: ステージ定義は `balloonRushToStageDefinition` で渡し、シミュレーションは専用物理を使用 */
+  balloonRushStage?: BalloonRushResolvedStage;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -427,6 +440,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   tutorialJajiiSpeechSegmentsRef,
   lessonInlineCompositePhrases,
   lessonRuntime,
+  balloonRushStage,
 }) => {
   const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
@@ -461,7 +475,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     lessonInlineCompositePhrases && lessonInlineCompositePhrases.length >= 2,
   );
 
+  const isBalloonRushMode = balloonRushStage !== undefined;
   const isStageMode = !!stageDefinition;
+  const balloonRushStageRef = useRef(balloonRushStage);
+  balloonRushStageRef.current = balloonRushStage;
+  const balloonPhysicsRef = useRef<BalloonRushPhysicsState | null>(null);
+  const [balloonDrawSnapshot, setBalloonDrawSnapshot] = useState<BalloonRushDrawSnapshot | null>(null);
   const stageBattleKind = stageDefinition
     ? (isLessonInlineCompositeBoss
       ? 'boss'
@@ -556,7 +575,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const jajiiEnabled = useMemo(
     () =>
-      shouldEnableJajiiSupport({
+      isBalloonRushMode
+      || shouldEnableJajiiSupport({
         isStageMode,
         scenarioMode,
         survivalTutorialLayout,
@@ -564,6 +584,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         tutorialDialogueJajii: tutorialDialogueJajii || undefined,
       }),
     [
+      isBalloonRushMode,
       isStageMode,
       scenarioMode,
       survivalTutorialLayout,
@@ -1732,10 +1753,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       // Progression 起動時は index を 0 から開始
       if (isProgressionStage) progressionIndexRef.current = 0;
       const randomHintShotDisabled =
-        !isProgressionStage &&
-        (isBasicMapStage ||
-          hintMode ||
-          prev.player.statusEffects.some(e => e.type === 'hint'));
+        isBalloonRushMode
+        || (!isProgressionStage &&
+          (isBasicMapStage ||
+            hintMode ||
+            prev.player.statusEffects.some(e => e.type === 'hint')));
       const codeSlots = initializeCodeSlots(
         config.allowedChords,
         hasMagic,
@@ -1761,10 +1783,30 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         lastCompletedSlotRef.current = null;
       }
 
+      if (isBalloonRushMode && balloonRushStageRef.current) {
+        balloonPhysicsRef.current = createBalloonRushPhysicsState(
+          prev.player,
+          balloonRushStageRef.current,
+        );
+      } else {
+        balloonPhysicsRef.current = null;
+      }
+
+      const player = isBalloonRushMode
+        ? {
+            ...prev.player,
+            x: BALLOON_RUSH_MAP_CONFIG.width / 2,
+            y: BALLOON_RUSH_MAP_CONFIG.height / 2,
+          }
+        : prev.player;
+
       return {
         ...prev,
         isPlaying: true,
+        player,
         codeSlots,
+        enemies: isBalloonRushMode ? [] : prev.enemies,
+        enemiesDefeated: isBalloonRushMode ? 0 : prev.enemiesDefeated,
       };
     });
 
@@ -1931,6 +1973,47 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     isEnglishCopy,
     stageDefinition?.mapCategory,
     stageDefinition?.stageNumber,
+  ]);
+
+  useEffect(() => {
+    if (!isBalloonRushMode) return undefined;
+
+    playDialogueSchedulerRef.current?.cancel();
+    playDialogueSchedulerRef.current = null;
+
+    if (!balloonRushStage?.id || !gameState.isPlaying || gameState.isGameOver) {
+      setPlayDialogueFaiLine('');
+      setPlayDialogueJajiiLine('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    void fetchBalloonRushPlayDialogue(balloonRushStage.id).then((scriptPayload) => {
+      if (cancelled || !scriptPayload) return;
+      playDialogueSchedulerRef.current?.cancel();
+      playDialogueSchedulerRef.current = scheduleSurvivalStageIntroLines({
+        script: scriptPayload,
+        isEnglishCopy,
+        setFaiLine: (t) => {
+          if (!cancelled) setPlayDialogueFaiLine(t);
+        },
+        setJajiiLine: (t) => {
+          if (!cancelled) setPlayDialogueJajiiLine(t);
+        },
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      playDialogueSchedulerRef.current?.cancel();
+      playDialogueSchedulerRef.current = null;
+    };
+  }, [
+    isBalloonRushMode,
+    balloonRushStage?.id,
+    gameState.isPlaying,
+    gameState.isGameOver,
+    isEnglishCopy,
   ]);
 
   // キャラクター固有のボーナス除外リストとnoMagicフラグ
@@ -2789,6 +2872,54 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
         } else if (slotType === 'B') {
+          if (isBalloonRushMode && balloonRushStageRef.current && balloonPhysicsRef.current) {
+            const perfNowB = performance.now();
+            balloonPhysicsRef.current = applyBalloonMeleeHits(
+              balloonPhysicsRef.current,
+              newState.player,
+              newState.elapsedTime,
+              balloonRushStageRef.current,
+              perfNowB,
+            );
+            newState.enemiesDefeated = balloonPhysicsRef.current.popped;
+            const jpB = jajiiWorldPosRef.current;
+            setBalloonDrawSnapshot(
+              buildBalloonRushDrawSnapshot(
+                newState.player,
+                balloonPhysicsRef.current,
+                jpB?.x ?? null,
+                jpB?.y ?? null,
+                newState.elapsedTime,
+                perfNowB,
+              ),
+            );
+            if (
+              balloonPhysicsRef.current.popped >= stageKillQuota
+              && !newState.isGameOver
+            ) {
+              newState.isGameOver = true;
+              newState.isPlaying = false;
+              const earnedXpB = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
+              setResult({
+                survivalTime: newState.elapsedTime,
+                finalLevel: newState.player.level,
+                enemiesDefeated: newState.enemiesDefeated,
+                playerStats: newState.player.stats,
+                skills: newState.player.skills,
+                magics: newState.player.magics,
+                earnedXp: earnedXpB,
+                isStageClear: true,
+                isHintMode: hintMode,
+              });
+              if (!hintMode && onLessonStageClear) {
+                onLessonStageClear();
+              }
+              if (!hintMode && onMissionStageClear) {
+                onMissionStageClear();
+              }
+            }
+            continue;
+          }
           if (isBMagicSlot) {
             const availableMagics = getAvailableMagics(prev.player);
             
@@ -4247,6 +4378,62 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           statusEffects: [...movedPlayer.statusEffects],
         };
 
+        if (isBalloonRushMode && balloonRushStageRef.current && balloonPhysicsRef.current) {
+          const perfNow = performance.now();
+          const ticked = tickBalloonRushPhysics(
+            balloonPhysicsRef.current,
+            newState.player,
+            newState.elapsedTime,
+            balloonRushStageRef.current,
+            perfNow,
+            deltaTime,
+          );
+          balloonPhysicsRef.current = ticked.physics;
+          newState.player = {
+            ...ticked.player,
+            stats: { ...ticked.player.stats },
+            statusEffects: [...ticked.player.statusEffects],
+          };
+          newState.enemiesDefeated = ticked.enemiesDefeated;
+          const jp = jajiiWorldPosRef.current;
+          setBalloonDrawSnapshot(
+            buildBalloonRushDrawSnapshot(
+              newState.player,
+              ticked.physics,
+              jp?.x ?? null,
+              jp?.y ?? null,
+              newState.elapsedTime,
+              perfNow,
+            ),
+          );
+          if (
+            newState.enemiesDefeated >= stageKillQuota
+            && !newState.isGameOver
+          ) {
+            newState.isGameOver = true;
+            newState.isPlaying = false;
+            const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
+            setResult({
+              survivalTime: newState.elapsedTime,
+              finalLevel: newState.player.level,
+              enemiesDefeated: newState.enemiesDefeated,
+              playerStats: newState.player.stats,
+              skills: newState.player.skills,
+              magics: newState.player.magics,
+              earnedXp,
+              isStageClear: true,
+              isHintMode: hintMode,
+            });
+            if (!hintMode && onLessonStageClear) {
+              onLessonStageClear();
+            }
+            if (!hintMode && onMissionStageClear) {
+              onMissionStageClear();
+            }
+            return newState;
+          }
+        }
+
         if (jajiiEnabled) {
           if (!jajiiStateRef.current) {
             jajiiStateRef.current = createInitialJajiiState(newState.player.x, newState.player.y);
@@ -4727,7 +4914,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
-        if (
+        if (isBalloonRushMode) {
+          /* 風船ラッシュ: 敵なし */
+        } else if (
           scenarioOverridesRef.current.isActive
           && scenarioOverridesRef.current.suppressAutoSpawn
         ) {
@@ -6103,6 +6292,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             jajiiBubbleText={timedJajiiBubbleLine}
             jajiiSpeechSegmentsRef={tutorialJajiiSpeechSegmentsRef}
             faiBubbleText={timedFaiBubbleCharacterLine}
+            balloonRushDraw={isBalloonRushMode ? balloonDrawSnapshot : null}
+            mapConfig={isBalloonRushMode ? BALLOON_RUSH_MAP_CONFIG : undefined}
           />
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (
             <div

@@ -3,14 +3,16 @@ import Foundation
 import QuartzCore
 
 @MainActor
-final class BalloonRushGameSession: ObservableObject {
+final class BalloonRushGameSession: SurvivalPlaySession {
     let gameLoop: BalloonRushGameLoop
     let input = SurvivalInputBuffer()
-    let viewModel: BalloonRushViewModel
+    let viewModel: SurvivalViewModel
+    let playLoopFacade: SurvivalPlayLoopFacade
     let audioController = SurvivalAudioController()
 
-    private let stage: BalloonRushStageDefinition
-    private let hintMode: Bool
+    private let balloonStage: BalloonRushStageDefinition
+    private let presentationStage: SurvivalStageDefinition
+    private var hintMode: Bool
     private let lessonContext: BalloonRushLessonContext?
     private let locale: AppLocale
     private let onExit: () -> Void
@@ -18,6 +20,9 @@ final class BalloonRushGameSession: ObservableObject {
     private var displayLink: CADisplayLink?
     private var lastFrameTime: TimeInterval = 0
     private var uiForward: AnyCancellable?
+
+    var currentHintMode: Bool { hintMode }
+    var allowsGameplayWatchdog: Bool { displayLink != nil }
 
     init(
         stage: BalloonRushStageDefinition,
@@ -27,24 +32,39 @@ final class BalloonRushGameSession: ObservableObject {
         locale: AppLocale,
         onExit: @escaping () -> Void
     ) {
-        self.stage = stage
+        self.balloonStage = stage
+        self.presentationStage = BalloonRushSurvivalBridge.presentationStage(from: stage)
         self.hintMode = hintMode
         self.lessonContext = lessonContext
         self.locale = locale
         self.onExit = onExit
         let loop = BalloonRushGameLoop(stage: stage, hintMode: hintMode, profile: profile)
         self.gameLoop = loop
-        let vm = BalloonRushViewModel(snapshot: loop.makeUISnapshot())
-        self.viewModel = vm
-        uiForward = vm.objectWillChange.sink { [weak self] _ in
+        self.playLoopFacade = BalloonRushPlayLoopFacade(loop: loop, popQuota: stage.popQuota)
+        let ui = BalloonRushSurvivalBridge.makeUISnapshot(
+            from: loop,
+            stage: presentationStage,
+            hintSlotIndex: loop.effectiveHintSlotIndex
+        )
+        self.viewModel = SurvivalViewModel(
+            uiSnapshot: ui,
+            bossHud: nil,
+            isBossStage: false,
+            chordPadHintMidis: loop.currentHintHighlightMidis(),
+            chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
+            chordPadHintPendingOpacity: loop.keyboardHintPendingOpacity(),
+            chordPadScrollAnchorMidi: nil,
+            now: CACurrentMediaTime()
+        )
+        uiForward = viewModel.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
     }
 
     func start() {
-        if let urlStr = stage.bgmUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !urlStr.isEmpty,
-           let url = URL(string: urlStr) {
+        let trimmed = balloonStage.bgmUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let urlStr = trimmed.isEmpty ? BalloonRushDrumLoopBgm.urlString : trimmed
+        if let url = URL(string: urlStr) {
             audioController.setBgmUrl(url)
         } else {
             audioController.setBgmUrl(nil)
@@ -63,6 +83,10 @@ final class BalloonRushGameSession: ObservableObject {
         audioController.stop()
         uiForward?.cancel()
         uiForward = nil
+    }
+
+    func togglePause() {
+        viewModel.togglePause()
     }
 
     func chordPadNoteOn(_ midi: Int, velocity: Int = 100) {
@@ -85,14 +109,34 @@ final class BalloonRushGameSession: ObservableObject {
         input.enqueueNoteOff(midi)
     }
 
+    func restartSameStage(hintMode newHint: Bool?) {
+        if let newHint {
+            hintMode = newHint
+        }
+        audioController.stop()
+        input.clear()
+        gameLoop.resetForSameStage(hintMode: hintMode)
+        syncViewModel()
+        viewModel.prepareForSceneRestart()
+        viewModel.resetClearReportState()
+        lastFrameTime = 0
+        start()
+    }
+
+    func requestExit() {
+        dispose()
+        onExit()
+    }
+
     @objc private func tick(_ link: CADisplayLink) {
+        guard !viewModel.isPaused else { return }
         let now = link.timestamp
         let dt = lastFrameTime > 0 ? now - lastFrameTime : 0
         lastFrameTime = now
 
         let frame = input.drain()
         let cleared = gameLoop.applyFrameInput(frame, deltaTime: dt, now: now)
-        viewModel.sync(from: gameLoop)
+        syncViewModel()
 
         if cleared, !hintMode, let ctx = lessonContext {
             submitLessonClear(ctx)
@@ -105,13 +149,22 @@ final class BalloonRushGameSession: ObservableObject {
         }
     }
 
-    func handleResultDismiss() {
-        dispose()
-        onExit()
+    private func syncViewModel() {
+        let ui = BalloonRushSurvivalBridge.makeUISnapshot(
+            from: gameLoop,
+            stage: presentationStage,
+            hintSlotIndex: gameLoop.effectiveHintSlotIndex
+        )
+        viewModel.syncBalloonRush(
+            uiSnapshot: ui,
+            chordPadHintMidis: gameLoop.currentHintHighlightMidis(),
+            chordPadCompletedHintMidis: gameLoop.currentHintCompletedHighlightMidis(),
+            chordPadHintPendingOpacity: gameLoop.keyboardHintPendingOpacity()
+        )
     }
 
     private func submitLessonClear(_ ctx: BalloonRushLessonContext) {
-        guard viewModel.beginClearReport() else { return }
+        guard viewModel.beginSupabaseClearReport() else { return }
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -121,10 +174,19 @@ final class BalloonRushGameSession: ObservableObject {
                     rank: "S",
                     clearConditions: ctx.clearConditions
                 )
-                await MainActor.run { self.viewModel.endClearReport(error: nil) }
+                await MainActor.run { self.viewModel.endSupabaseClearReport(error: nil) }
             } catch {
-                await MainActor.run { self.viewModel.endClearReport(error: error.localizedDescription) }
+                await MainActor.run {
+                    self.viewModel.endSupabaseClearReport(error: error.localizedDescription)
+                }
             }
         }
+    }
+}
+
+extension BalloonRushGameSession: SurvivalSceneDriver {
+    func advanceSceneFrame(currentTime: TimeInterval) -> SurvivalSceneSnapshot {
+        let runtime = BalloonRushSurvivalBridge.makeRuntime(from: gameLoop, stage: presentationStage)
+        return SurvivalSceneSnapshot(runtime: runtime, bossBattle: nil)
     }
 }

@@ -7,6 +7,7 @@ struct SurvivalRunPrepSheet: View {
     let initialHintMode: Bool
     let onCancel: () -> Void
     let onConfirm: (Bool) -> Void
+    private let balloonStage: BalloonRushStageDefinition?
 
     @State private var hintDraft: Bool
 
@@ -24,6 +25,23 @@ struct SurvivalRunPrepSheet: View {
         self.initialHintMode = initialHintMode
         self.onCancel = onCancel
         self.onConfirm = onConfirm
+        self.balloonStage = nil
+        _hintDraft = State(initialValue: initialHintMode)
+    }
+
+    init(
+        balloonStage: BalloonRushStageDefinition,
+        locale: AppLocale,
+        initialHintMode: Bool,
+        onCancel: @escaping () -> Void,
+        onConfirm: @escaping (Bool) -> Void
+    ) {
+        self.stage = BalloonRushSurvivalBridge.presentationStage(from: balloonStage)
+        self.locale = locale
+        self.initialHintMode = initialHintMode
+        self.onCancel = onCancel
+        self.onConfirm = onConfirm
+        self.balloonStage = balloonStage
         _hintDraft = State(initialValue: initialHintMode)
     }
 
@@ -34,17 +52,20 @@ struct SurvivalRunPrepSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         infoRow(
                             label: isEnglishCopy ? "Stage" : "ステージ",
-                            value: stage.localizedName(locale)
+                            value: balloonStage?.localizedTitle(locale) ?? stage.localizedName(locale)
                         )
                         infoRow(
                             label: isEnglishCopy ? "Mode" : "出題",
-                            value: stage.runPrepModeLabel(locale: locale)
+                            value: balloonStage?.runPrepModeLabel(locale: locale)
+                                ?? stage.runPrepModeLabel(locale: locale)
                         )
-                        infoRow(
-                            label: isEnglishCopy ? "Encounter" : "戦闘",
-                            value: stage.runPrepEncounterLabel(locale: locale)
-                        )
-                        Text(stage.runPrepClearSummary(locale: locale))
+                        if balloonStage == nil {
+                            infoRow(
+                                label: isEnglishCopy ? "Encounter" : "戦闘",
+                                value: stage.runPrepEncounterLabel(locale: locale)
+                            )
+                        }
+                        Text(clearSummaryText)
                             .font(.caption)
                             .foregroundStyle(.gray)
                             .fixedSize(horizontal: false, vertical: true)
@@ -86,7 +107,11 @@ struct SurvivalRunPrepSheet: View {
                 .padding(20)
             }
             .background(Color(hex: "0a0610").ignoresSafeArea())
-            .navigationTitle(isEnglishCopy ? "Start stage" : "ステージを開始")
+            .navigationTitle(
+                balloonStage != nil
+                    ? (isEnglishCopy ? "Start balloon rush" : "風船ラッシュを開始")
+                    : (isEnglishCopy ? "Start stage" : "ステージを開始")
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -101,6 +126,13 @@ struct SurvivalRunPrepSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(.dark)
+    }
+
+    private var clearSummaryText: String {
+        if let br = balloonStage {
+            return br.runPrepClearSummary(locale: locale)
+        }
+        return stage.runPrepClearSummary(locale: locale)
     }
 
     private func infoRow(label: String, value: String) -> some View {
