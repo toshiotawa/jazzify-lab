@@ -23,6 +23,10 @@ final class SurvivalAudioController {
         SurvivalGameAudio.shared.playSynthBassRoot(midi: midi)
     }
 
+    func playBalloonPop() {
+        SurvivalGameAudio.shared.playBalloonPop()
+    }
+
     func pianoNoteOn(midi: Int, velocity: Int) {
         SurvivalGameAudio.shared.pianoNoteOn(midi: midi, velocity: velocity)
     }

@@ -403,6 +403,13 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
         return stageIntroUIModel.jajiiLine
     }
 
+    private var balloonRushStaffPayload: SurvivalStageCenterStaffPayload? {
+        guard let balloonSession = session as? BalloonRushGameSession else {
+            return nil
+        }
+        return SurvivalStageCenterStaffPayload.make(from: balloonSession.gameLoop)
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             SurvivalSceneContainer(
@@ -421,6 +428,19 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
             .allowsHitTesting(vm.uiSnapshot.phase == .playing && !vm.isPaused && !vm.uiSnapshot.scenario.disableJoystick)
 
             if vm.uiSnapshot.phase == .playing,
+               !vm.isPaused,
+               !vm.uiSnapshot.scenario.hideStaff,
+               let balloonStaff = balloonRushStaffPayload,
+               !balloonStaff.voicingNames.isEmpty {
+                SurvivalStageCenterStaffOverlay(
+                    payload: balloonStaff,
+                    unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, hudHeight + 4)
+                .padding(.horizontal, 12)
+                .allowsHitTesting(false)
+            } else if vm.uiSnapshot.phase == .playing,
                !vm.isPaused,
                !vm.uiSnapshot.scenario.hideStaff,
                scenarioStaffSnapshot == nil,
@@ -623,6 +643,9 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
     }
 
     private var scenarioStaffSnapshot: SurvivalScenarioStaffPanel.Snapshot? {
+        if balloonRushPlayDialogueStageId != nil {
+            return nil
+        }
         let sc = vm.uiSnapshot.scenario
         guard sc.isActive, !sc.hideStaff else { return nil }
         guard session.playLoopFacade.phraseStaffSnapshot() == nil else { return nil }
@@ -743,6 +766,45 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
                 inputPitchClasses: slot.inputPitchClasses,
                 target: chord
             )
+            return Self(
+                chordDisplayName: chord.displayName,
+                voicingNames: hintVoicing.names,
+                keyFifths: hintVoicing.keyFifths,
+                correctPitchClasses: pcs,
+                staffClef: 1,
+                voicingStavesPerNote: nil
+            )
+        }
+
+        return nil
+    }
+
+    @MainActor
+    static func make(from loop: BalloonRushGameLoop) -> Self? {
+        guard loop.slots.indices.contains(SurvivalSlotIndex.B.rawValue) else { return nil }
+        let slot = loop.slots[SurvivalSlotIndex.B.rawValue]
+        guard slot.isEnabled, let chord = slot.chord else { return nil }
+        let pcs = SurvivalChordResolver.correctNotes(
+            inputPitchClasses: slot.inputPitchClasses,
+            target: chord
+        )
+
+        if chord.quality == .progression,
+           let staffNames = chord.progressionStaffVoicingNames,
+           !staffNames.isEmpty,
+           let keyFf = chord.progressionStaffKeyFifths {
+            return Self(
+                chordDisplayName: chord.displayName,
+                voicingNames: staffNames,
+                keyFifths: keyFf,
+                correctPitchClasses: pcs,
+                staffClef: 2,
+                voicingStavesPerNote: chord.progressionStaffVoicingStaves
+            )
+        }
+
+        if chord.quality != .progression,
+           let hintVoicing = SurvivalRandomHintStaff.voicing(forChordId: chord.id) {
             return Self(
                 chordDisplayName: chord.displayName,
                 voicingNames: hintVoicing.names,

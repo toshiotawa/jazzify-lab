@@ -1,6 +1,12 @@
 import CoreGraphics
 import Foundation
 
+/// B 列正解フレームで鳴らす音（ルート + 風船破裂 SE）。
+struct BalloonRushFrameAudio: Equatable, Sendable {
+    var rootMidi: Int?
+    var balloonPopCount: Int = 0
+}
+
 enum BalloonRushPhase: Equatable, Sendable {
     case playing
     case cleared
@@ -16,15 +22,6 @@ struct BalloonRushBalloon: Identifiable, Sendable {
     var popped: Bool
 }
 
-/// 描画用の軽量衝撃波（Web `ShockwaveBurst`）。
-struct BalloonRushVisualShockwave: Identifiable, Sendable {
-    let id: String
-    let x: CGFloat
-    let y: CGFloat
-    let maxRadius: CGFloat
-    let startPerfMs: Double
-}
-
 struct BalloonRushDrawSnapshot: Sendable {
     let playerX: CGFloat
     let playerY: CGFloat
@@ -32,7 +29,6 @@ struct BalloonRushDrawSnapshot: Sendable {
     let balloons: [(id: String, x: CGFloat, y: CGFloat, visible: Bool)]
     let jajiiX: CGFloat?
     let jajiiY: CGFloat?
-    let shockwaves: [BalloonRushVisualShockwave]
     let nowPerfMs: Double
 }
 

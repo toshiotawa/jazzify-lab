@@ -536,19 +536,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 
     const balloonSnap = balloonRushDrawRef.current;
     if (balloonSnap) {
-      for (const w of balloonSnap.shockwaves) {
-        const age = balloonSnap.nowPerfMs - w.startPerfMs;
-        if (age < 0 || age > SHOCKWAVE_DURATION) continue;
-        const t = age / SHOCKWAVE_DURATION;
-        const r = w.maxRadius * t;
-        const sx = w.x - camera.x;
-        const sy = w.y - camera.y;
-        ctx.beginPath();
-        ctx.arc(sx, sy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(250,204,21,${0.55 * (1 - t)})`;
-        ctx.lineWidth = 8 * (1 - t) + 2;
-        ctx.stroke();
-      }
       for (const b of balloonSnap.balloons) {
         if (!b.visible) continue;
         const screenX = b.x - camera.x;

@@ -31,16 +31,19 @@ enum BalloonRushSurvivalBridge {
         )
     }
 
-    static func scenarioOverrides() -> SurvivalScenarioOverrides {
+    static func scenarioOverrides(for stageType: SurvivalStageType) -> SurvivalScenarioOverrides {
         var o = SurvivalScenarioOverrides()
         o.isActive = true
         o.hideStatusStrip = true
         o.hidePlayerHpBar = true
         o.hideChordSlots = true
         o.hideComboBadge = true
+        o.hideStaff = false
+        o.scenarioStaffClef = stageType == .progression ? 2 : 1
         o.playerInvincible = true
         o.disableEnemyAttacks = true
         o.suppressAutoSpawn = true
+        o.useChordMidiNotesForHintHighlights = stageType == .progression
         return o
     }
 
@@ -74,7 +77,7 @@ enum BalloonRushSurvivalBridge {
             staffPhase: staffOpacity == 0 ? .pressedOnly : .fullHint,
             unpressedNoteOpacity: staffOpacity,
             comboCount: 0,
-            scenario: scenarioOverrides().toRuntimeState()
+            scenario: scenarioOverrides(for: stage.stageType).toRuntimeState()
         )
     }
 
@@ -101,27 +104,14 @@ enum BalloonRushSurvivalBridge {
             }
         }()
         runtime.jajii = loop.jajii
-        runtime.scenario = scenarioOverrides().toRuntimeState()
+        runtime.scenario = scenarioOverrides(for: stage.stageType).toRuntimeState()
+        runtime.shockwaves = loop.shockwaves
         runtime.balloonRushBalloons = loop.balloons.filter { !$0.popped }.map {
             SurvivalBalloonRenderState(
                 id: $0.id,
                 x: $0.x,
                 y: $0.y,
-                visible: BalloonRushEngine.blinkVisible($0, nowGameSec: loop.elapsedSeconds)
-            )
-        }
-        runtime.shockwaves = loop.shockwaves.map { w in
-            SurvivalShockwave(
-                x: w.x,
-                y: w.y,
-                radius: 0,
-                maxRadius: w.maxRadius,
-                baseRadius: 80,
-                direction: loop.player.direction,
-                createdAt: w.startPerfMs / 1000,
-                lifetime: SurvivalConstants.meleeShockwaveLifetime,
-                damage: 0,
-                isSpecial: false
+                visible: true
             )
         }
         return runtime

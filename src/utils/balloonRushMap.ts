@@ -1,9 +1,9 @@
 import { MAP_CONFIG } from '@/components/survival/SurvivalTypes';
 
-/** 風船ラッシュのプレイフィールド（サバイバルマップの 1/2）。iOS `BalloonRushMap` と同期。 */
+/** 風船ラッシュのプレイフィールド（サバイバルマップの 1/4）。iOS `BalloonRushMap` と同期。 */
 export const BALLOON_RUSH_MAP_CONFIG = {
-  width: MAP_CONFIG.width / 2,
-  height: MAP_CONFIG.height / 2,
+  width: MAP_CONFIG.width / 4,
+  height: MAP_CONFIG.height / 4,
   tileSize: MAP_CONFIG.tileSize,
 } as const;
 

@@ -13,17 +13,16 @@ final class BalloonRushGameLoop {
     private(set) var balloons: [BalloonRushBalloon] = []
     private(set) var poppedCount = 0
     private(set) var respawnDue: [TimeInterval] = []
-    private(set) var shockwaves: [BalloonRushVisualShockwave] = []
+    private(set) var shockwaves: [SurvivalShockwave] = []
     private(set) var jajii: SurvivalJajiiEngine.State?
     private(set) var phase: BalloonRushPhase = .playing
     private(set) var elapsedSeconds: TimeInterval = 0
 
-    private var knockVx: CGFloat = 0
-    private var knockVy: CGFloat = 0
     private var progressionChords: [SurvivalResolvedChord] = []
     private var progressionIndex = 0
     private var activePressedPitchClasses: Set<Int> = []
     private var rngState: UInt64 = 0xDEAD_BEEF_CAFE_BABE
+    private(set) var pendingFrameAudio = BalloonRushFrameAudio()
 
     private let allowedChordIds: [String]
     private let isProgression: Bool
@@ -68,12 +67,17 @@ final class BalloonRushGameLoop {
 
     func currentHintHighlightMidis() -> Set<Int> {
         guard let idx = effectiveHintSlotIndex, let chord = slots[idx].chord else { return [] }
+        if isProgression {
+            return Set(chord.midiNotes)
+        }
         return SurvivalPhraseKeyboardScroll.hintHighlightMidis(from: chord)
     }
 
     func currentHintCompletedHighlightMidis() -> Set<Int> {
         guard let idx = effectiveHintSlotIndex, let chord = slots[idx].chord else { return [] }
-        let highlights = SurvivalPhraseKeyboardScroll.hintHighlightMidis(from: chord)
+        let highlights = isProgression
+            ? Set(chord.midiNotes)
+            : SurvivalPhraseKeyboardScroll.hintHighlightMidis(from: chord)
         let inputPCs = Set(slots[idx].inputPitchClasses.map { (($0 % 12) + 12) % 12 })
         return Set(highlights.filter { inputPCs.contains((($0 % 12) + 12) % 12) })
     }
@@ -128,7 +132,7 @@ final class BalloonRushGameLoop {
         let jx = jajii?.worldX
         let jy = jajii?.worldY
         let live = balloons.filter { !$0.popped }.map { b -> (id: String, x: CGFloat, y: CGFloat, visible: Bool) in
-            (b.id, b.x, b.y, BalloonRushEngine.blinkVisible(b, nowGameSec: elapsedSeconds))
+            (b.id, b.x, b.y, true)
         }
         return BalloonRushDrawSnapshot(
             playerX: player.x,
@@ -137,7 +141,6 @@ final class BalloonRushGameLoop {
             balloons: live,
             jajiiX: jx,
             jajiiY: jy,
-            shockwaves: shockwaves,
             nowPerfMs: now * 1000
         )
     }
@@ -150,7 +153,7 @@ final class BalloonRushGameLoop {
             activePressedPitchClasses.remove(((midi % 12) + 12) % 12)
         }
         for on in input.noteOns {
-            if handleNoteOn(on.midi) {
+            if handleNoteOn(on.midi, now: now) {
                 cleared = true
             }
         }
@@ -170,20 +173,11 @@ final class BalloonRushGameLoop {
             now: now,
             speedMultiplier: 1
         )
-        pl.x += knockVx * CGFloat(deltaTime)
-        pl.y += knockVy * CGFloat(deltaTime)
-        knockVx *= 0.9
-        knockVy *= 0.9
         pl.x = min(BalloonRushMap.width - 16, max(16, pl.x))
         pl.y = min(BalloonRushMap.height - 16, max(16, pl.y))
         player = pl
 
-        processExpiredBalloons(now: now)
         processRespawnQueue()
-
-        let shockLifetime = SurvivalConstants.meleeShockwaveLifetime
-        shockwaves = shockwaves.filter { now - ($0.startPerfMs / 1000) < shockLifetime }
-        applyExpandingShockwaveKnockback(now: now)
 
         if var j = jajii {
             SurvivalJajiiEngine.updateMovementInPlace(
@@ -195,43 +189,11 @@ final class BalloonRushGameLoop {
             jajii = j
         }
 
+        shockwaves = SurvivalGameEngine.updateShockwaves(shockwaves: shockwaves, now: now)
+
         if elapsedSeconds >= TimeInterval(stage.timeLimitSec), poppedCount < stage.popQuota {
             phase = .failed
         }
-    }
-
-    private func processExpiredBalloons(now: TimeInterval) {
-        let kbForce = SurvivalConstants.meleeKnockbackBase
-            + CGFloat(player.skills.bKnockbackBonusLevel) * SurvivalConstants.meleeKnockbackPerLevel
-        var next: [BalloonRushBalloon] = []
-        for var b in balloons {
-            if b.popped {
-                next.append(b)
-                continue
-            }
-            if !BalloonRushEngine.isExpired(b, nowGameSec: elapsedSeconds) {
-                next.append(b)
-                continue
-            }
-            let vel = BalloonRushMelee.knockVelocityFromBurst(
-                balloon: BalloonRushSpawn.Point(x: b.x, y: b.y),
-                player: BalloonRushSpawn.Point(x: player.x, y: player.y),
-                force: kbForce
-            )
-            knockVx += vel.vx
-            knockVy += vel.vy
-            enqueueRespawn(at: elapsedSeconds + stage.respawnDelaySec)
-            shockwaves.append(BalloonRushVisualShockwave(
-                id: "ex_\(b.id)",
-                x: b.x,
-                y: b.y,
-                maxRadius: 90,
-                startPerfMs: now * 1000
-            ))
-            b.popped = true
-            next.append(b)
-        }
-        balloons = next
     }
 
     private func processRespawnQueue() {
@@ -268,7 +230,7 @@ final class BalloonRushGameLoop {
         respawnDue.append(time)
     }
 
-    private func handleNoteOn(_ note: Int) -> Bool {
+    private func handleNoteOn(_ note: Int, now: TimeInterval) -> Bool {
         guard phase == .playing else { return false }
         let pc = ((note % 12) + 12) % 12
         for idx in slots.indices where slots[idx].isEnabled {
@@ -289,7 +251,7 @@ final class BalloonRushGameLoop {
         var won = false
         for idx in completed {
             guard idx == SurvivalSlotIndex.B.rawValue else { continue }
-            won = completePunchSlot() || won
+            won = completePunchSlot(now: now) || won
         }
 
         let completedSet = Set(completed)
@@ -299,45 +261,22 @@ final class BalloonRushGameLoop {
         return won
     }
 
-    private func appendBalloonBurstShockwave(at x: CGFloat, y: CGFloat, now: TimeInterval) {
-        shockwaves.append(BalloonRushVisualShockwave(
-            id: "ex_\(now)_\(Int.random(in: 0..<999_999))",
-            x: x,
-            y: y,
-            maxRadius: 90,
-            startPerfMs: now * 1000
-        ))
-    }
-
-    private func applyExpandingShockwaveKnockback(now: TimeInterval) {
-        let lifetime = SurvivalConstants.meleeShockwaveLifetime
-        guard lifetime > 0 else { return }
-        let kbForce = SurvivalConstants.meleeKnockbackBase
-            + CGFloat(player.skills.bKnockbackBonusLevel) * SurvivalConstants.meleeKnockbackPerLevel
-        for w in shockwaves {
-            let age = now - (w.startPerfMs / 1000)
-            guard age >= 0, age < lifetime else { continue }
-            let t = CGFloat(age / lifetime)
-            let radius = w.maxRadius * t
-            let dx = player.x - w.x
-            let dy = player.y - w.y
-            let dist = hypot(dx, dy)
-            guard dist > 1e-3, dist < radius + SurvivalConstants.playerSize else { continue }
-            knockVx += (dx / dist) * kbForce * 0.4
-            knockVy += (dy / dist) * kbForce * 0.4
-        }
+    func drainFrameAudio() -> BalloonRushFrameAudio {
+        let out = pendingFrameAudio
+        pendingFrameAudio = BalloonRushFrameAudio()
+        return out
     }
 
     @discardableResult
-    private func completePunchSlot() -> Bool {
-        let now = CACurrentMediaTime()
-        shockwaves.append(BalloonRushMelee.createMeleeShockwave(player: player, now: now))
-
+    private func completePunchSlot(now: TimeInterval) -> Bool {
+        if slots.indices.contains(SurvivalSlotIndex.B.rawValue), let chord = slots[SurvivalSlotIndex.B.rawValue].chord {
+            pendingFrameAudio.rootMidi = 36 + chord.rootPitchClass
+        }
+        appendPlayerMeleeShockwave(now: now)
         let hits = BalloonRushMelee.findBalloonsHitByMelee(player: player, balloons: balloons)
+        pendingFrameAudio.balloonPopCount += hits.count
         for id in hits {
             if let i = balloons.firstIndex(where: { $0.id == id }) {
-                let b = balloons[i]
-                appendBalloonBurstShockwave(at: b.x, y: b.y, now: now)
                 balloons[i].popped = true
             }
         }
@@ -353,6 +292,21 @@ final class BalloonRushGameLoop {
             return true
         }
         return false
+    }
+
+    private func appendPlayerMeleeShockwave(now: TimeInterval) {
+        let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(
+            base: player.stats,
+            effects: []
+        )
+        shockwaves.append(
+            SurvivalGameEngine.createShockwave(
+                from: player,
+                effectiveBAtk: effectiveStats.bAtk,
+                now: now,
+                colorLevel: 0
+            )
+        )
     }
 
     private func advanceChordAfterPunch() {
@@ -380,9 +334,6 @@ final class BalloonRushGameLoop {
         phase = .playing
         elapsedSeconds = 0
         poppedCount = 0
-        knockVx = 0
-        knockVy = 0
-        shockwaves = []
         progressionIndex = 0
         activePressedPitchClasses.removeAll()
         var pl = SurvivalGameEngine.createStageInitialPlayer(
@@ -403,6 +354,7 @@ final class BalloonRushGameLoop {
             )
         }
         resetBalloons()
+        shockwaves = []
         jajii = SurvivalJajiiEngine.makeInitial(playerX: player.x, playerY: player.y)
     }
 

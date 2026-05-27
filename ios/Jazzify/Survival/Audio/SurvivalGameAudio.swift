@@ -95,6 +95,8 @@ final class SurvivalGameAudio {
     /// `pianoNoteOnRealtime` が遅延で飛んできた際に停止済みエンジン操作を
     /// 完全に遮断するための二重ガード。
     private var isStopping: Bool = false
+    /// 風船破裂 SE (`Balloon.mp3`) の同時再生用プレイヤー。
+    private var balloonPopPlayers: [AVAudioPlayer] = []
 
     private let bgmPlayer = AVQueuePlayer()
     private var bgmLooper: AVPlayerLooper?
@@ -372,6 +374,23 @@ final class SurvivalGameAudio {
                 self.synthBassPlayer.play()
             }
             self.synthBassPlayer.scheduleBuffer(buffer, at: nil, options: [.interrupts], completionHandler: nil)
+        }
+    }
+
+    /// 風船ラッシュ: 破裂 SE（小さめ音量）。
+    func playBalloonPop() {
+        guard !isStopping else { return }
+        guard let url = Bundle.main.url(forResource: "Balloon", withExtension: "mp3") else { return }
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            let base: Float = 0.32
+            player.volume = isMuted ? 0 : base * effectiveSfxVolume()
+            player.prepareToPlay()
+            player.play()
+            balloonPopPlayers.append(player)
+            balloonPopPlayers.removeAll { !$0.isPlaying }
+        } catch {
+            // 無音動作
         }
     }
 

@@ -193,6 +193,7 @@ import {
   type BalloonRushPhysicsState,
 } from '@/utils/balloonRushPhysics';
 import { BALLOON_RUSH_MAP_CONFIG } from '@/utils/balloonRushMap';
+import { playBalloonRushPop, preloadBalloonRushPopAudio } from '@/utils/balloonRushPopAudio';
 import {
   resolveBlockBossMaxHp,
   resolveBlockPlayerMaxHp,
@@ -1775,30 +1776,51 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         codeSlots.current[3].isEnabled = false;
         codeSlots.next[2].isEnabled = false;
         codeSlots.next[3].isEnabled = false;
+      } else if (isBalloonRushMode) {
+        codeSlots.current[0].isEnabled = false;
+        codeSlots.current[0].chord = null;
+        codeSlots.current[2].isEnabled = false;
+        codeSlots.current[2].chord = null;
+        codeSlots.current[3].isEnabled = false;
+        codeSlots.current[3].chord = null;
+        codeSlots.next[0].isEnabled = false;
+        codeSlots.next[0].chord = null;
+        codeSlots.next[2].isEnabled = false;
+        codeSlots.next[2].chord = null;
+        codeSlots.next[3].isEnabled = false;
+        codeSlots.next[3].chord = null;
       }
 
-      const hintSlot = resolveSurvivalHintSlotIndex(codeSlots.current);
-      if (hintSlot !== null) {
-        lastHintSlotRef.current = hintSlot;
-        lastCompletedSlotRef.current = null;
-      }
+      const balloonCenterPlayer = isBalloonRushMode
+        ? {
+            x: BALLOON_RUSH_MAP_CONFIG.width / 2,
+            y: BALLOON_RUSH_MAP_CONFIG.height / 2,
+          }
+        : null;
 
-      if (isBalloonRushMode && balloonRushStageRef.current) {
+      if (isBalloonRushMode && balloonRushStageRef.current && balloonCenterPlayer) {
         balloonPhysicsRef.current = createBalloonRushPhysicsState(
-          prev.player,
+          balloonCenterPlayer,
           balloonRushStageRef.current,
         );
       } else {
         balloonPhysicsRef.current = null;
       }
 
-      const player = isBalloonRushMode
-        ? {
-            ...prev.player,
-            x: BALLOON_RUSH_MAP_CONFIG.width / 2,
-            y: BALLOON_RUSH_MAP_CONFIG.height / 2,
-          }
+      const player = balloonCenterPlayer
+        ? { ...prev.player, ...balloonCenterPlayer }
         : prev.player;
+
+      if (isBalloonRushMode) {
+        lastHintSlotRef.current = 1;
+        lastCompletedSlotRef.current = null;
+      } else {
+        const hintSlot = resolveSurvivalHintSlotIndex(codeSlots.current);
+        if (hintSlot !== null) {
+          lastHintSlotRef.current = hintSlot;
+          lastCompletedSlotRef.current = null;
+        }
+      }
 
       return {
         ...prev,
@@ -1824,13 +1846,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
     comboClockSecRef.current = survivalComboClockSec();
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss, lessonRuntime, stageDefinition]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss, lessonRuntime, stageDefinition, isBalloonRushMode]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
   useEffect(() => {
     startGame();
   }, []);
+
+  useEffect(() => {
+    if (!isBalloonRushMode) return;
+    preloadBalloonRushPopAudio();
+  }, [isBalloonRushMode]);
 
   useEffect(() => {
     stageIntroSchedulerRef.current?.cancel();
@@ -2874,6 +2901,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         } else if (slotType === 'B') {
           if (isBalloonRushMode && balloonRushStageRef.current && balloonPhysicsRef.current) {
             const perfNowB = performance.now();
+            const bBaseRange = 80;
+            const bTotalRange = bBaseRange + prev.player.skills.bRangeBonus * 20;
+            const bDirVec = getDirectionVector(prev.player.direction);
+            const bAttackX = prev.player.x + bDirVec.x * 40;
+            const bAttackY = prev.player.y + bDirVec.y * 40;
+            pendingShockwavesRef.current.push({
+              id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              x: bAttackX,
+              y: bAttackY,
+              radius: 0,
+              maxRadius: bTotalRange,
+              startTime: Date.now(),
+              duration: SHOCKWAVE_DURATION,
+              direction: prev.player.direction,
+              color: B_HIT_COLORS[0],
+            });
+            const prevPopped = balloonPhysicsRef.current.popped;
             balloonPhysicsRef.current = applyBalloonMeleeHits(
               balloonPhysicsRef.current,
               newState.player,
@@ -2881,6 +2925,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               balloonRushStageRef.current,
               perfNowB,
             );
+            const newPops = balloonPhysicsRef.current.popped - prevPopped;
+            for (let pi = 0; pi < newPops; pi += 1) {
+              playBalloonRushPop();
+            }
             newState.enemiesDefeated = balloonPhysicsRef.current.popped;
             const jpB = jajiiWorldPosRef.current;
             setBalloonDrawSnapshot(
@@ -4281,7 +4329,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
             const pos = getJajiiWorldPosition(jst);
             jajiiWorldPosRef.current = pos;
-            if (!isPhraseMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
+            if (!isPhraseMode && !isBalloonRushMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
               applyJajiiGaugeSpecialAtWorld({
                 draft: newState,
                 jajiiX: pos.x,
@@ -4363,7 +4411,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.elapsedTime = prev.elapsedTime + deltaTime;
         comboClockSecRef.current = survivalComboClockSec();
 
-        if (!isPhraseMode) {
+        if (!isPhraseMode && !isBalloonRushMode) {
           const comboExpired = expireComboIfTimedOut(prev, comboClockSecRef.current);
           newState.comboCount = comboExpired.comboCount;
           newState.comboGauge = comboExpired.comboGauge;
@@ -4442,7 +4490,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
           const pos = getJajiiWorldPosition(jst);
           jajiiWorldPosRef.current = pos;
-          if (!isPhraseMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
+          if (!isPhraseMode && !isBalloonRushMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
             applyJajiiGaugeSpecialAtWorld({
               draft: newState,
               jajiiX: pos.x,
@@ -4458,7 +4506,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         } else {
           jajiiWorldPosRef.current = null;
         }
-        
+
+        if (!isBalloonRushMode) {
         // 敵移動（WAVE倍率適用）
         const waveSpeedMult = getWaveSpeedMultiplier(prev.wave.currentWave);
         newState.enemies = updateEnemyPositions(prev.enemies, newState.player.x, newState.player.y, deltaTime, waveSpeedMult);
@@ -4975,7 +5024,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (newState.projectiles.length > MAX_PROJECTILES) {
           newState.projectiles = newState.projectiles.slice(-MAX_PROJECTILES);
         }
-        
+        }
+
         // スロット状態更新（時間切れによる自動切替えは廃止）
         newState.codeSlots.current = newState.codeSlots.current.map((slot, slotIndex) => {
           if (!slot.isEnabled) return slot;
@@ -4992,6 +5042,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             if (Date.now() - slot.completedTime >= 50) {
               // Progression（コード進行）モード: B列のみ進行を進める
               if (isProgressionStage && slotIndex === 1) {
+                if (scenarioOverridesRef.current.isActive && isBalloonRushMode) {
+                  const advanced = advanceProgressionPair();
+                  newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
+                    i === slotIndex ? { ...ns, chord: advanced.next } : ns
+                  ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+                  return { ...slot, chord: advanced.current, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
+                }
                 if (scenarioOverridesRef.current.isActive) {
                   return { ...slot, isCompleted: false, completedTime: undefined };
                 }
@@ -5110,7 +5167,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (!scNoStageTimers) {
           // ステージモード: 残り30秒パワーアップ
           const remainingTime = stageTimeLimitSec - newState.elapsedTime;
-          if (remainingTime <= 30 && !stagePowerUpTriggeredRef.current) {
+          if (remainingTime <= 30 && !stagePowerUpTriggeredRef.current && !isBalloonRushMode) {
             stagePowerUpTriggeredRef.current = true;
             newState.player = {
               ...newState.player,
@@ -5278,7 +5335,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, stageTimeLimitSec, beginnerAssistActive, onLessonStageClear, onMissionStageClear, perfHudEnabled, jajiiEnabled]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, isProgressionStage, advanceProgressionPair, hintMode, stageKillQuota, stageTimeLimitSec, beginnerAssistActive, onLessonStageClear, onMissionStageClear, perfHudEnabled, jajiiEnabled, isBalloonRushMode]);
   
   // リトライ
   const handleRetry = useCallback(() => {
@@ -5593,6 +5650,50 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.codeSlots.current[1].chord?.progressionStaffVoicingNames,
   ]);
 
+  const scenarioRandomStaff = useMemo((): SurvivalProgressionStaffSnapshot | null => {
+    void scenarioUiTick;
+    if (!isBalloonRushMode || isProgressionStage) return null;
+    const sc = scenarioOverridesRef.current;
+    if (!scenarioMode || !sc.isActive || sc.hideStaff) return null;
+
+    const slot = gameState.codeSlots.current[1];
+    const ch = slot.chord;
+    if (!slot.isEnabled || !ch || ch.quality === 'progression') return null;
+
+    const built = buildSurvivalRandomHintStaffVoicing(ch.id);
+    if (!built) return null;
+
+    const survivalQuestion = parseSurvivalQuestionId(ch.id);
+    const typeLabel = survivalQuestion
+      ? (isEnglishCopy
+          ? (stageDefinition?.chordDisplayNameEn || ch.displayName)
+          : (stageDefinition?.chordDisplayName || ch.displayName))
+      : ch.displayName;
+
+    return {
+      voicingNames: built.voicingNames,
+      keyFifths: built.keyFifths,
+      correctPitchClasses: slot.correctNotes,
+      chordDisplayName: typeLabel,
+      rootDisplayName: survivalQuestion ? ch.root : undefined,
+      staffClef: 'treble',
+    };
+  }, [
+    isBalloonRushMode,
+    isProgressionStage,
+    scenarioMode,
+    scenarioUiTick,
+    isEnglishCopy,
+    stageDefinition?.chordDisplayName,
+    stageDefinition?.chordDisplayNameEn,
+    gameState.codeSlots.current[1].correctNotes,
+    gameState.codeSlots.current[1].isEnabled,
+    gameState.codeSlots.current[1].chord?.id,
+    gameState.codeSlots.current[1].chord?.displayName,
+    gameState.codeSlots.current[1].chord?.quality,
+    gameState.codeSlots.current[1].chord?.root,
+  ]);
+
   const scenarioUi = useMemo(() => {
     void scenarioUiTick;
     return scenarioOverridesRef.current;
@@ -5666,6 +5767,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ヒントスロット判定（A/B列を交互に表示。Progression は B のみ有効のため index 0 固定を避ける）
   const getHintSlotIndex = (): number | null => {
     if (!shouldShowKeyboardHints) {
+      return null;
+    }
+    if (isBalloonRushMode) {
+      const bSlot = gameState.codeSlots.current[1];
+      if (bSlot?.isEnabled && !bSlot.isCompleted && bSlot.chord) {
+        return 1;
+      }
       return null;
     }
     const hintsAlwaysOn = hintMode || beginnerAssistActive || playerHasHintBuff;
@@ -6214,15 +6322,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     <span className="font-bold shrink-0">{formatTime(gameState.elapsedTime)}</span>
                   )}
                   {!isStageMode && <span className="shrink-0">Lv.{gameState.player.level}</span>}
-                  {isStageMode && hintMode && !scenarioHideHintBadge && (
+                  {isStageMode && hintMode && (!scenarioHideHintBadge || isBalloonRushMode) && (
                     <span className="bg-yellow-500/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0 text-[9px]">HINT</span>
                   )}
                 </div>
                 <div className="flex items-center gap-1 text-[10px] md:text-xs shrink-0">
                   {isBossStage ? null : isStageMode && !scenarioHideKill ? (
+                    isBalloonRushMode ? (
+                      <span className={cn('font-bold', gameState.enemiesDefeated >= stageKillQuota ? 'text-green-400' : 'text-white')}>
+                        {Math.max(0, stageKillQuota - gameState.enemiesDefeated)}
+                      </span>
+                    ) : (
                     <span className={cn('font-bold', gameState.enemiesDefeated >= stageKillQuota ? 'text-green-400' : 'text-white')}>
                       {gameState.enemiesDefeated}/{stageKillQuota}
                     </span>
+                    )
                   ) : isStageMode && scenarioHideKill ? null : (
                     <>
                       <span className={cn('font-bold', gameState.wave.waveKills >= gameState.wave.waveQuota ? 'text-green-400' : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7 ? 'text-red-400' : 'text-white')}>
@@ -6368,6 +6482,29 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
                   />
                 )}
+              </div>
+            )}
+          {scenarioRandomStaff &&
+            gameState.isPlaying &&
+            !gameState.isGameOver && (
+              <div
+                className={cn(
+                  'absolute inset-0 z-[5] flex items-start justify-center px-3 pointer-events-none',
+                  survivalStaffOverlayTopPadding,
+                )}
+                aria-hidden
+              >
+                <SurvivalProgressionStaff
+                  chordDisplayName={scenarioRandomStaff.chordDisplayName}
+                  voicingNames={scenarioRandomStaff.voicingNames}
+                  voicingStaves={scenarioRandomStaff.voicingStaves}
+                  keyFifths={scenarioRandomStaff.keyFifths}
+                  correctPitchClasses={scenarioRandomStaff.correctPitchClasses}
+                  rootDisplayName={scenarioRandomStaff.rootDisplayName}
+                  staffClef={scenarioRandomStaff.staffClef ?? 'treble'}
+                  unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                  className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
+                />
               </div>
             )}
           {phraseStaffProps &&

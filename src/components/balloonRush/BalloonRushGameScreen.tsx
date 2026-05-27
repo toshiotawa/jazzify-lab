@@ -5,9 +5,9 @@ import type { SurvivalCharacter } from '@/components/survival/SurvivalTypes';
 import type { LessonContext } from '@/types';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
 import {
-  BALLOON_RUSH_SCENARIO_OVERRIDES,
   balloonRushDifficultyConfig,
   balloonRushLessonRuntime,
+  balloonRushScenarioOverrides,
   balloonRushToStageDefinition,
 } from '@/utils/balloonRushSurvivalBridge';
 
@@ -33,6 +33,10 @@ const BalloonRushGameScreen: React.FC<BalloonRushGameScreenProps> = ({
   const stageDefinition = useMemo(() => balloonRushToStageDefinition(stage), [stage]);
   const config = useMemo(() => balloonRushDifficultyConfig(stage), [stage]);
   const lessonRuntime = useMemo(() => balloonRushLessonRuntime(stage), [stage]);
+  const scenarioOverrides = useMemo(
+    () => balloonRushScenarioOverrides(stage, hintMode),
+    [stage, hintMode],
+  );
 
   return (
     <SurvivalGameScreen
@@ -47,7 +51,7 @@ const BalloonRushGameScreen: React.FC<BalloonRushGameScreenProps> = ({
       isLessonMode={lessonContext !== null}
       hintMode={hintMode}
       onLessonStageClear={onLessonClear}
-      initialScenarioOverrides={BALLOON_RUSH_SCENARIO_OVERRIDES}
+      initialScenarioOverrides={scenarioOverrides}
       scenarioMode
       embeddedFullHeight
     />

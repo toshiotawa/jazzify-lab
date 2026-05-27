@@ -6,12 +6,11 @@ import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitio
 import { resolveBalloonRushAllowedChordIds } from '@/utils/balloonRushStageDefinitions';
 import { BALLOON_RUSH_DRUM_LOOP_BGM_URL } from '@/utils/balloonRushMap';
 
-/** 風船ラッシュ用: 敵なし・HP 非表示・B 列のみ。サバイバル `SurvivalGameScreen` と共有。 */
-export const BALLOON_RUSH_SCENARIO_OVERRIDES: SurvivalScenarioOverrides = {
+const BALLOON_RUSH_SCENARIO_OVERRIDES_BASE: SurvivalScenarioOverrides = {
   isActive: true,
   hideHud: false,
   hideStageTitle: false,
-  hideHintBadge: false,
+  hideHintBadge: true,
   hidePauseButton: false,
   hideKillCounter: false,
   hideTimerDisplay: false,
@@ -24,7 +23,7 @@ export const BALLOON_RUSH_SCENARIO_OVERRIDES: SurvivalScenarioOverrides = {
   scenarioStaffClef: 2,
   hideStaffOnBSlotCompletion: false,
   useChordMidiNotesForHintHighlights: false,
-  staffMode: 'progression',
+  staffMode: 'hidden',
   disableJoystick: false,
   disableTimeLimitClear: false,
   disableKillQuotaClear: false,
@@ -40,6 +39,17 @@ export const BALLOON_RUSH_SCENARIO_OVERRIDES: SurvivalScenarioOverrides = {
   bChordCompletionAttackSlot: null,
   bChordCompletionUseSpecial: false,
 };
+
+export const balloonRushScenarioOverrides = (
+  stage: BalloonRushResolvedStage,
+  hintMode = false,
+): SurvivalScenarioOverrides => ({
+  ...BALLOON_RUSH_SCENARIO_OVERRIDES_BASE,
+  staffMode: stage.stageType === 'progression' ? 'progression' : 'hidden',
+  useChordMidiNotesForHintHighlights: stage.stageType === 'progression',
+  scenarioStaffClef: stage.stageType === 'progression' ? 2 : 1,
+  hideHintBadge: !hintMode,
+});
 
 export const balloonRushToStageDefinition = (stage: BalloonRushResolvedStage): StageDefinition => {
   const allowed = [...resolveBalloonRushAllowedChordIds(stage)];

@@ -136,6 +136,15 @@ final class BalloonRushGameSession: SurvivalPlaySession {
 
         let frame = input.drain()
         let cleared = gameLoop.applyFrameInput(frame, deltaTime: dt, now: now)
+        let audio = gameLoop.drainFrameAudio()
+        if let rootMidi = audio.rootMidi {
+            audioController.playSynthBassRoot(midi: rootMidi)
+        }
+        if audio.balloonPopCount > 0 {
+            for _ in 0..<audio.balloonPopCount {
+                audioController.playBalloonPop()
+            }
+        }
         syncViewModel()
 
         if cleared, !hintMode, let ctx = lessonContext {

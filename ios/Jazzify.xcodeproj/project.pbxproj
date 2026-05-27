@@ -24,6 +24,7 @@
 		AA01BB02CC03DD04EE05FF12 /* SurvivalScenarioOverrides.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF11 /* SurvivalScenarioOverrides.swift */; };
 		AA01BB02CC03DD04EE05FF14 /* SurvivalScenarioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF13 /* SurvivalScenarioController.swift */; };
 		A1B2C3D4E5F61718293A4C2 /* DrumLoop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */; };
+		BR16BALLOONMP3BFCC03DD04EE05BR01 /* Balloon.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BR16BALLOONMP3FRCC03DD04EE05BR01 /* Balloon.mp3 */; };
 		B2C3D4E5F61718293A5003 /* TutorialScriptModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A5002 /* TutorialScriptModels.swift */; };
 		B2C3D4E5F61718293A5005 /* TutorialScriptPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A5004 /* TutorialScriptPresets.swift */; };
 		B2C3D4E5F61718293A5007 /* TutorialScriptInterpreter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A5006 /* TutorialScriptInterpreter.swift */; };
@@ -197,7 +198,6 @@
 		BR01MODELSTAGEBFCC03DD04EE05BR01 /* BalloonRushStageDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR01MODELSTAGEFRCC03DD04EE05BR01 /* BalloonRushStageDefinition.swift */; };
 		BR02MODELTYPESBFCC03DD04EE05BR01 /* BalloonRushTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR02MODELTYPESFRCC03DD04EE05BR01 /* BalloonRushTypes.swift */; };
 		BR03ENGSPAWNBFCC03DD04EE05BR01 /* BalloonRushSpawn.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR03ENGSPAWNFRCC03DD04EE05BR01 /* BalloonRushSpawn.swift */; };
-		BR04ENGENGINEBFCC03DD04EE05BR01 /* BalloonRushEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR04ENGENGINEFRCC03DD04EE05BR01 /* BalloonRushEngine.swift */; };
 		BR05ENGMELEEBFCC03DD04EE05BR01 /* BalloonRushMelee.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR05ENGMELEEFRCC03DD04EE05BR01 /* BalloonRushMelee.swift */; };
 		BR06ENGLOOPBFCC03DD04EE05BR01 /* BalloonRushGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR06ENGLOOPFRCC03DD04EE05BR01 /* BalloonRushGameLoop.swift */; };
 		BR07SESSIONBFCC03DD04EE05BR01 /* BalloonRushGameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR07SESSIONFRCC03DD04EE05BR01 /* BalloonRushGameSession.swift */; };
@@ -266,6 +266,7 @@
 		AA01BB02CC03DD04EE05FF11 /* SurvivalScenarioOverrides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioOverrides.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF13 /* SurvivalScenarioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioController.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = DrumLoop.mp3; sourceTree = "<group>"; };
+		BR16BALLOONMP3FRCC03DD04EE05BR01 /* Balloon.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = Balloon.mp3; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameLoop.swift; sourceTree = "<group>"; };
 		BB01AA02CC03DD04EE070001 /* SurvivalJajiiEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalJajiiEngine.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseEngine.swift; sourceTree = "<group>"; };
@@ -403,7 +404,6 @@
 		BR01MODELSTAGEFRCC03DD04EE05BR01 /* BalloonRushStageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushStageDefinition.swift; sourceTree = "<group>"; };
 		BR02MODELTYPESFRCC03DD04EE05BR01 /* BalloonRushTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushTypes.swift; sourceTree = "<group>"; };
 		BR03ENGSPAWNFRCC03DD04EE05BR01 /* BalloonRushSpawn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushSpawn.swift; sourceTree = "<group>"; };
-		BR04ENGENGINEFRCC03DD04EE05BR01 /* BalloonRushEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushEngine.swift; sourceTree = "<group>"; };
 		BR05ENGMELEEFRCC03DD04EE05BR01 /* BalloonRushMelee.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushMelee.swift; sourceTree = "<group>"; };
 		BR06ENGLOOPFRCC03DD04EE05BR01 /* BalloonRushGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushGameLoop.swift; sourceTree = "<group>"; };
 		BR07SESSIONFRCC03DD04EE05BR01 /* BalloonRushGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushGameSession.swift; sourceTree = "<group>"; };
@@ -627,7 +627,6 @@
 			isa = PBXGroup;
 			children = (
 				BR03ENGSPAWNFRCC03DD04EE05BR01 /* BalloonRushSpawn.swift */,
-				BR04ENGENGINEFRCC03DD04EE05BR01 /* BalloonRushEngine.swift */,
 				BR05ENGMELEEFRCC03DD04EE05BR01 /* BalloonRushMelee.swift */,
 				BR06ENGLOOPFRCC03DD04EE05BR01 /* BalloonRushGameLoop.swift */,
 			);
@@ -838,6 +837,7 @@
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 				F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */,
 				A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */,
+				BR16BALLOONMP3FRCC03DD04EE05BR01 /* Balloon.mp3 */,
 				E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */,
 			);
 			path = Resources;
@@ -1065,6 +1065,7 @@
 				B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */,
 				607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */,
 				A1B2C3D4E5F61718293A4C2 /* DrumLoop.mp3 in Resources */,
+				BR16BALLOONMP3BFCC03DD04EE05BR01 /* Balloon.mp3 in Resources */,
 				B2C3D4E5F61718293A500E /* onboarding-v1.script.json in Resources */,
 				E1E2F3A4B5C60718293A51A /* ear-training-developer-full-v1.script.json in Resources */,
 				EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */,
@@ -1226,7 +1227,6 @@
 				BR01MODELSTAGEBFCC03DD04EE05BR01 /* BalloonRushStageDefinition.swift in Sources */,
 				BR02MODELTYPESBFCC03DD04EE05BR01 /* BalloonRushTypes.swift in Sources */,
 				BR03ENGSPAWNBFCC03DD04EE05BR01 /* BalloonRushSpawn.swift in Sources */,
-				BR04ENGENGINEBFCC03DD04EE05BR01 /* BalloonRushEngine.swift in Sources */,
 				BR05ENGMELEEBFCC03DD04EE05BR01 /* BalloonRushMelee.swift in Sources */,
 				BR06ENGLOOPBFCC03DD04EE05BR01 /* BalloonRushGameLoop.swift in Sources */,
 				BR07SESSIONBFCC03DD04EE05BR01 /* BalloonRushGameSession.swift in Sources */,
