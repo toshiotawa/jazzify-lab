@@ -267,8 +267,58 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let compositePhraseKeyFifths: Int?
     /// DB `survival_composite_phrase_stages.bgm_url`（複合のみ）。
     let compositePhraseBgmUrl: String?
-    let productionStaffHintMode: ProductionHintMode = .fade15s
-    let productionKeyboardHintMode: ProductionHintMode = .fade15s
+    let productionStaffHintMode: ProductionHintMode
+    let productionKeyboardHintMode: ProductionHintMode
+
+    init(
+        mapCategory: SurvivalMapCategory,
+        stageNumber: Int,
+        stageType: SurvivalStageType,
+        nameJa: String,
+        nameEn: String,
+        difficulty: SurvivalDifficulty,
+        chordSuffix: String,
+        chordDisplayJa: String,
+        chordDisplayEn: String,
+        rootPattern: SurvivalRootPattern?,
+        rootPatternJa: String,
+        rootPatternEn: String,
+        allowedChords: [String],
+        blockKey: SurvivalBlockKey,
+        isMixedStage: Bool,
+        chordProgression: [SurvivalChordProgressionEntry]?,
+        lessonOnly: Bool,
+        compositePhraseSources: [Int]?,
+        compositePhraseBossType: SurvivalBossType?,
+        compositePhraseKeyFifths: Int?,
+        compositePhraseBgmUrl: String?,
+        productionStaffHintMode: ProductionHintMode = .fade15s,
+        productionKeyboardHintMode: ProductionHintMode = .fade15s
+    ) {
+        self.mapCategory = mapCategory
+        self.stageNumber = stageNumber
+        self.stageType = stageType
+        self.nameJa = nameJa
+        self.nameEn = nameEn
+        self.difficulty = difficulty
+        self.chordSuffix = chordSuffix
+        self.chordDisplayJa = chordDisplayJa
+        self.chordDisplayEn = chordDisplayEn
+        self.rootPattern = rootPattern
+        self.rootPatternJa = rootPatternJa
+        self.rootPatternEn = rootPatternEn
+        self.allowedChords = allowedChords
+        self.blockKey = blockKey
+        self.isMixedStage = isMixedStage
+        self.chordProgression = chordProgression
+        self.lessonOnly = lessonOnly
+        self.compositePhraseSources = compositePhraseSources
+        self.compositePhraseBossType = compositePhraseBossType
+        self.compositePhraseKeyFifths = compositePhraseKeyFifths
+        self.compositePhraseBgmUrl = compositePhraseBgmUrl
+        self.productionStaffHintMode = productionStaffHintMode
+        self.productionKeyboardHintMode = productionKeyboardHintMode
+    }
 
     /// `Identifiable` 用 ID。マップ間で `stageNumber` が重複し得るため、`mapCategory` を含めて一意化する。
     var id: String { "\(mapCategory.rawValue)-\(stageNumber)" }
@@ -517,7 +567,9 @@ enum SurvivalStageCatalog {
                 compositePhraseSources: meta.sources,
                 compositePhraseBossType: meta.bossType,
                 compositePhraseKeyFifths: meta.keyFifths,
-                compositePhraseBgmUrl: meta.bgmUrl
+                compositePhraseBgmUrl: meta.bgmUrl,
+                productionStaffHintMode: def.productionStaffHintMode,
+                productionKeyboardHintMode: def.productionKeyboardHintMode
             )
         }
     }

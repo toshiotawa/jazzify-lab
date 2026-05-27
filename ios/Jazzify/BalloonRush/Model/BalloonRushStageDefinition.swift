@@ -25,8 +25,52 @@ struct BalloonRushStageDefinition: Sendable, Identifiable {
     let respawnDelaySec: Double
     let bgmUrl: String?
     let keyFifths: Int
-    let productionStaffHintMode: ProductionHintMode = .fade15s
-    let productionKeyboardHintMode: ProductionHintMode = .fade15s
+    let productionStaffHintMode: ProductionHintMode
+    let productionKeyboardHintMode: ProductionHintMode
+
+    init(
+        id: UUID,
+        slug: String,
+        title: String,
+        titleEn: String,
+        description: String?,
+        descriptionEn: String?,
+        stageType: StageType,
+        chordSuffix: String,
+        rootPattern: String?,
+        allowedChordIds: [String],
+        chordProgression: [SurvivalChordProgressionEntry]?,
+        timeLimitSec: Int,
+        popQuota: Int,
+        balloonLifetimeSec: Double,
+        maxConcurrent: Int,
+        respawnDelaySec: Double,
+        bgmUrl: String?,
+        keyFifths: Int,
+        productionStaffHintMode: ProductionHintMode = .fade15s,
+        productionKeyboardHintMode: ProductionHintMode = .fade15s
+    ) {
+        self.id = id
+        self.slug = slug
+        self.title = title
+        self.titleEn = titleEn
+        self.description = description
+        self.descriptionEn = descriptionEn
+        self.stageType = stageType
+        self.chordSuffix = chordSuffix
+        self.rootPattern = rootPattern
+        self.allowedChordIds = allowedChordIds
+        self.chordProgression = chordProgression
+        self.timeLimitSec = timeLimitSec
+        self.popQuota = popQuota
+        self.balloonLifetimeSec = balloonLifetimeSec
+        self.maxConcurrent = maxConcurrent
+        self.respawnDelaySec = respawnDelaySec
+        self.bgmUrl = bgmUrl
+        self.keyFifths = keyFifths
+        self.productionStaffHintMode = productionStaffHintMode
+        self.productionKeyboardHintMode = productionKeyboardHintMode
+    }
 
     func localizedTitle(_ locale: AppLocale) -> String {
         locale == .en ? (titleEn.isEmpty ? title : titleEn) : title
