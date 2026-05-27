@@ -174,18 +174,14 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         }
 
         let sortedVoicing = voices.sorted()
-        let hintMidiByPc = reconstructHintMidisByPitchClass(sortedVoicing: sortedVoicing)
-
         var tuples: [(midi: Int, nm: String, st: Int)] = []
         tuples.reserveCapacity(voices.count)
         for idx in voices.indices {
             let rawMidi = voices[idx]
             let nmRaw = nameStrings[idx]
             let rawStaff = stavesParallel[idx]
-            let pc = ((rawMidi % 12) + 12) % 12
-            let aligned = hintMidiByPc[pc] ?? rawMidi
-            let adjustedName = alignNameOctaveToMidi(name: nmRaw, targetMidi: aligned)
-            tuples.append((midi: aligned, nm: adjustedName, st: rawStaff))
+            let adjustedName = alignNameOctaveToMidi(name: nmRaw, targetMidi: rawMidi)
+            tuples.append((midi: rawMidi, nm: adjustedName, st: rawStaff))
         }
         tuples.sort { $0.midi < $1.midi }
         return (tuples.map(\.nm), tuples.map(\.st))
@@ -196,30 +192,6 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         let pc = ((midi % 12) + 12) % 12
         guard letters.indices.contains(pc) else { return "C" }
         return letters[pc]
-    }
-
-    private static let hintBaseMidi = 48
-
-    private static func reconstructHintMidisByPitchClass(
-        sortedVoicing: [Int]
-    ) -> [Int: Int] {
-        var orderedPcs: [Int] = []
-        var seenPc = Set<Int>()
-        for midi in sortedVoicing {
-            let pc = ((midi % 12) + 12) % 12
-            if seenPc.insert(pc).inserted {
-                orderedPcs.append(pc)
-            }
-        }
-        var out: [Int: Int] = [:]
-        var last = -1
-        for pc in orderedPcs {
-            var m = pc + hintBaseMidi
-            while m <= last { m += 12 }
-            out[pc] = m
-            last = m
-        }
-        return out
     }
 
     private static let stepSemitone: [Character: Int] = [

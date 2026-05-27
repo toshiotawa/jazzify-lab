@@ -155,6 +155,56 @@ enum SurvivalRandomHintStaff {
         return nil
     }
 
+    /// ランダム等: 解決済みコードの `midiNotes` に合わせた譜面用音名（綴りは `voicing(forChordId:)` から）。
+    static func directVoicing(for chord: SurvivalResolvedChord) -> (names: [String], keyFifths: Int)? {
+        let sortedMidis = Array(Set(chord.midiNotes)).sorted()
+        guard !sortedMidis.isEmpty else { return nil }
+
+        if let staffNames = chord.progressionStaffVoicingNames,
+           staffNames.count == sortedMidis.count,
+           let keyFf = chord.progressionStaffKeyFifths {
+            return (staffNames, keyFf)
+        }
+
+        if let template = voicing(forChordId: chord.id),
+           let aligned = alignSpellingsToDirectMidis(spelledNames: template.names, targetMidis: sortedMidis) {
+            return (aligned, template.keyFifths)
+        }
+
+        return (sortedMidis.map { letterPitchNameWithOctave(midi: $0) }, 0)
+    }
+
+    private static func letterPitchNameWithOctave(midi: Int) -> String {
+        let letters = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        let pc = ((midi % 12) + 12) % 12
+        let octave = midi / 12 - 1
+        guard letters.indices.contains(pc) else { return "C\(octave)" }
+        return "\(letters[pc])\(octave)"
+    }
+
+    private static func alignSpellingsToDirectMidis(spelledNames: [String], targetMidis: [Int]) -> [String]? {
+        guard spelledNames.count == targetMidis.count, !targetMidis.isEmpty else { return nil }
+        let sortedTargets = targetMidis.sorted()
+        struct SpellingRow {
+            let pc: Int
+            let name: String
+        }
+        var rows: [SpellingRow] = []
+        rows.reserveCapacity(spelledNames.count)
+        for name in spelledNames {
+            guard let parsedMidi = midi(ofSpelledNote: name) else { return nil }
+            rows.append(SpellingRow(pc: ((parsedMidi % 12) + 12) % 12, name: name))
+        }
+        var out: [String] = []
+        out.reserveCapacity(sortedTargets.count)
+        for targetMidi in sortedTargets {
+            let tgtPc = ((targetMidi % 12) + 12) % 12
+            guard let row = rows.first(where: { $0.pc == tgtPc }) else { return nil }
+            out.append(alignNameOctaveToMidi(name: row.name, targetMidi: targetMidi))
+        }
+        return out
+    }
+
     // MARK: - Progression map + staff names
 
     private static let progressionVoicingMap: [String: [Int]] = {

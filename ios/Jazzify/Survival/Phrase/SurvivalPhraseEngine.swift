@@ -169,34 +169,17 @@ enum SurvivalPhraseKeyboardScroll {
         return maxValue
     }
 
-    /// `SurvivalGameLoop.hintHighlightMidis` と同じアルゴリズムで、Random ヒント鍵の最大 MIDI を返す。
+    /// 鍵盤 HINT 用 MIDI 集合（`midiNotes` 直値）。
     static func hintHighlightMidis(from chord: SurvivalResolvedChord) -> Set<Int> {
-        let baseOctave = 4
-        var seen = Set<Int>()
-        var uniquePitchClasses: [Int] = []
-        for pc in chord.pitchClasses {
-            let norm = ((pc % 12) + 12) % 12
-            if seen.insert(norm).inserted {
-                uniquePitchClasses.append(norm)
-            }
-        }
-        var result = Set<Int>()
-        var lastMidi = 0
-        for pc in uniquePitchClasses {
-            var midi = pc + baseOctave * 12
-            while midi <= lastMidi { midi += 12 }
-            result.insert(midi)
-            lastMidi = midi
-        }
-        return result
+        Set(chord.midiNotes)
     }
 
-    /// 出題コードプールにおけるヒント表示の最大 MIDI（オクターブは baseOctave 4 基準）。
+    /// 出題コードプールにおけるヒント鍵の最大 MIDI（`midiNotes` 直値）。
     static func maxHintMidi(fromChordIds allowedChordIds: [String]) -> Int? {
         var maxValue: Int?
         for id in allowedChordIds {
             guard let chord = SurvivalChordResolver.resolve(id: id) else { continue }
-            for midi in hintHighlightMidis(from: chord) {
+            for midi in chord.midiNotes {
                 if maxValue == nil || midi > maxValue! {
                     maxValue = midi
                 }

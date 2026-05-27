@@ -3,6 +3,8 @@
  * 調号は常に C（keyFifths = 0）。ト音記号は `SurvivalProgressionStaff` の `staffClef` で切り替え。
  */
 
+import { getChordDefinition } from '@/components/survival/SurvivalGameEngine';
+import { alignStaffSpellingsToDirectMidis } from '@/utils/survivalProgressionChords';
 import { note as parseNote, transpose } from 'tonal';
 
 import type { ChordQuality } from '@/utils/chord-templates';
@@ -142,4 +144,39 @@ export const buildSurvivalRandomHintStaffVoicing = (chordId: string): SurvivalRa
   }
 
   return { voicingNames: basic, keyFifths: 0 };
+};
+
+const midiToLetterWithOctave = (midi: number): string => {
+  const letters = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+  const pc = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${letters[pc] ?? 'C'}${octave}`;
+};
+
+/**
+ * ランダムコードの `getChordDefinition().notes`（実 MIDI）に合わせた譜面用音名。
+ * 綴りは `buildSurvivalRandomHintStaffVoicing` をピッチクラス対応でオクターブ合わせする。
+ */
+export const buildSurvivalRandomDirectStaffVoicing = (
+  chordId: string,
+): SurvivalRandomHintStaffVoicing | null => {
+  const trimmed = chordId.trim();
+  const chord = getChordDefinition(trimmed);
+  if (!chord?.notes?.length) {
+    return null;
+  }
+  const sortedMidis = Array.from(new Set<number>(chord.notes)).sort((a, b) => a - b);
+
+  const spellingSource = buildSurvivalRandomHintStaffVoicing(trimmed);
+  if (spellingSource) {
+    const aligned = alignStaffSpellingsToDirectMidis(spellingSource.voicingNames, sortedMidis);
+    if (aligned) {
+      return { voicingNames: aligned, keyFifths: spellingSource.keyFifths };
+    }
+  }
+
+  return {
+    voicingNames: sortedMidis.map(midiToLetterWithOctave),
+    keyFifths: 0,
+  };
 };

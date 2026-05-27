@@ -40,7 +40,7 @@ describe('survivalProgressionChords', () => {
     }
   });
 
-  it('progressionStaffVoicingNames は鍵盤 HINT と同じ単一オクターブ域に揃う（FM7(9) のトップが C4）', () => {
+  it('progressionStaffVoicingNames は voicing 直値のオクターブを維持する（FM7(9)）', () => {
     const def = buildProgressionChordDefinition(
       {
         name: 'FM7(9)',
@@ -51,11 +51,11 @@ describe('survivalProgressionChords', () => {
       0,
       -1,
     );
-    expect(def.progressionStaffVoicingNames).toEqual(['E3', 'G3', 'A3', 'C4']);
+    expect(def.progressionStaffVoicingNames).toEqual(['E4', 'G4', 'A4', 'C5']);
     expect(def.progressionStaffKeyFifths).toBe(-1);
   });
 
-  it('BbM7(9) も鍵盤 HINT に合わせ低オクターブの綴りになる', () => {
+  it('BbM7(9) も voicing_names のオクターブをそのまま使う', () => {
     const def = buildProgressionChordDefinition(
       {
         name: 'BbM7(9)',
@@ -66,7 +66,7 @@ describe('survivalProgressionChords', () => {
       0,
       -2,
     );
-    expect(def.progressionStaffVoicingNames).toEqual(['D3', 'F3', 'A3', 'C4']);
+    expect(def.progressionStaffVoicingNames).toEqual(['D4', 'F4', 'A4', 'C5']);
   });
 
   it('鍵盤 HINT 再構築結果が DB 通りのコード（Cm7(9) など）は綴りも変わらない', () => {
@@ -111,7 +111,7 @@ describe('survivalProgressionChords', () => {
     expect(fmi.progression[0]?.voicing).toEqual([51, 55, 56, 60]);
   });
 
-  it('Gb スペル（GbM7(9)）の異名同音表記を維持したままオクターブを揃える', () => {
+  it('Gb スペル（GbM7(9)）の異名同音表記を維持したまま voicing 直値を使う', () => {
     const def = buildProgressionChordDefinition(
       {
         name: 'GbM7(9)',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
+import { buildSurvivalRandomDirectStaffVoicing, buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
+import { getChordDefinition } from '@/components/survival/SurvivalGameEngine';
 import {
   analyzeSurvivalChordProgression,
   buildStaffVoicingNamesForProgressionChord,
@@ -65,5 +66,18 @@ describe('buildSurvivalRandomHintStaffVoicing', () => {
       voicing: base.map(m => m + 12),
     });
     expect(r?.voicingNames).toEqual(expected);
+  });
+
+  it('buildSurvivalRandomDirectStaffVoicing は getChordDefinition の MIDI オクターブに合わせる', () => {
+    const chord = getChordDefinition('FM7(9)');
+    expect(chord).not.toBeNull();
+    if (!chord) throw new Error('missing chord');
+    const r = buildSurvivalRandomDirectStaffVoicing('FM7(9)');
+    expect(r).not.toBeNull();
+    const sortedMidis = [...new Set(chord.notes)].sort((a, b) => a - b);
+    expect(r?.voicingNames.length).toBe(sortedMidis.length);
+    const hint = buildSurvivalRandomHintStaffVoicing('FM7(9)');
+    expect(hint).not.toBeNull();
+    expect(r?.voicingNames).not.toEqual(hint?.voicingNames);
   });
 });

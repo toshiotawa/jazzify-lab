@@ -531,10 +531,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         return (idx, chord)
     }
 
-    /// C4 (MIDI 60) 起点の昇順の MIDI 番号に展開したもの。
-    /// 全オクターブではなく単一オクターブ内（1 つの pitch class あたり 1 鍵）のみをハイライトするため、
-    /// 鍵盤ビューは MIDI 完全一致で判定する。
-    /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
+    /// コード `midiNotes`（voicing 直値）を鍵盤 HINT に使う。
     func currentHintHighlightMidis() -> Set<Int> {
         if runtime.scenario.hideStaff {
             return []
@@ -547,10 +544,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             return [midi]
         }
         guard let target = currentHintTargetSlot() else { return [] }
-        if runtime.scenario.useChordMidiNotesForHintHighlights {
-            return Set(target.chord.midiNotes)
-        }
-        return SurvivalPhraseKeyboardScroll.hintHighlightMidis(from: target.chord)
+        return Set(target.chord.midiNotes)
     }
 
     /// 構成音として対象スロットに入力済み（pitch class が一致）のハイライト MIDI。
@@ -560,9 +554,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             return []
         }
         guard let target = currentHintTargetSlot(requirePendingHints: false) else { return [] }
-        let highlights = runtime.scenario.useChordMidiNotesForHintHighlights
-            ? Set(target.chord.midiNotes)
-            : SurvivalPhraseKeyboardScroll.hintHighlightMidis(from: target.chord)
+        let highlights = Set(target.chord.midiNotes)
         let inputPCs = Set(
             runtime.slots[target.index].inputPitchClasses.map { (($0 % 12) + 12) % 12 }
         )

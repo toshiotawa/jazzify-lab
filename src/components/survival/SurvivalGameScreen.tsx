@@ -203,7 +203,7 @@ import {
   SurvivalPhraseDrumLoop,
   SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL,
 } from '@/utils/survivalPhraseDrumLoop';
-import { buildSurvivalRandomHintStaffVoicing } from '@/utils/survivalRandomHintStaff';
+import { buildSurvivalRandomDirectStaffVoicing } from '@/utils/survivalRandomHintStaff';
 import {
   applySurvivalVoicingHintsWithOpacity,
   computeKeyboardHintOpacity,
@@ -5675,7 +5675,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const ch = slot.chord;
     if (!slot.isEnabled || !ch || ch.quality === 'progression') return null;
 
-    const built = buildSurvivalRandomHintStaffVoicing(ch.id);
+    const built = buildSurvivalRandomDirectStaffVoicing(ch.id);
     if (!built) return null;
 
     const survivalQuestion = parseSurvivalQuestionId(ch.id);
@@ -5954,7 +5954,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return baseRand;
     }
 
-    const built = buildSurvivalRandomHintStaffVoicing(ch.id);
+    const built = buildSurvivalRandomDirectStaffVoicing(ch.id);
     if (!built) return null;
 
     const typeLabelResolved = survivalQuestion
@@ -6043,39 +6043,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     const pendingMidi: number[] = [];
     const completedMidi: number[] = [];
-    const useExactChordMidis =
-      scenarioMode
-      && scenarioOverridesRef.current.isActive
-      && scenarioOverridesRef.current.useChordMidiNotesForHintHighlights;
-
-    if (useExactChordMidis) {
-      for (let i = 0; i < notes.length; i += 1) {
-        const midiNote = notes[i];
-        const noteMod12 = ((midiNote % 12) + 12) % 12;
-        if (slot.correctNotes.includes(noteMod12)) {
-          completedMidi.push(midiNote);
-        } else {
-          pendingMidi.push(midiNote);
-        }
-      }
-    } else {
-      const baseOctave = 4;
-
-      const uniqueNoteMod12 = [...new Set(notes.map((n) => ((n % 12) + 12) % 12))];
-
-      let lastMidi = 0;
-      for (let i = 0; i < uniqueNoteMod12.length; i += 1) {
-        const noteMod12 = uniqueNoteMod12[i];
-        let midiNote = noteMod12 + baseOctave * 12;
-        while (midiNote <= lastMidi) {
-          midiNote += 12;
-        }
-        lastMidi = midiNote;
-        if (slot.correctNotes.includes(noteMod12)) {
-          completedMidi.push(midiNote);
-        } else {
-          pendingMidi.push(midiNote);
-        }
+    for (let i = 0; i < notes.length; i += 1) {
+      const midiNote = notes[i];
+      const noteMod12 = ((midiNote % 12) + 12) % 12;
+      if (slot.correctNotes.includes(noteMod12)) {
+        completedMidi.push(midiNote);
+      } else {
+        pendingMidi.push(midiNote);
       }
     }
 

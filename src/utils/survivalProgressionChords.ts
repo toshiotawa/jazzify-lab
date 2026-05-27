@@ -47,65 +47,17 @@ const progressionChordSymbolRoot = (chordSymbol: string): string | null => {
 const clampKeyFifths = (value: number): number => Math.max(-6, Math.min(5, Math.trunc(value)));
 
 /**
- * 鍵盤 HINT ハイライトと同一のアルゴリズム。
- * `SurvivalGameScreen.tsx` の `baseOctave = 4`（= MIDI 48 起点）に合わせ、
- * 並び順は `slot.chord.notes`（= sortedVoicing 昇順）の最初に出現したピッチクラス順、
- * 各音は直前より厳密に大きい MIDI へオクターブ補正する。
- *
- * 例: `FM7(9) [E4,G4,A4,C5]` → `[E3,G3,A3,C4]`（top = 中央 C）。
- */
-const HINT_BASE_MIDI = 48;
-
-const reconstructHintMidisByPitchClass = (
-  sortedVoicing: readonly number[],
-): Map<number, number> => {
-  const orderedPcs: number[] = [];
-  const seenPc = new Set<number>();
-  for (const midi of sortedVoicing) {
-    const pc = ((midi % 12) + 12) % 12;
-    if (!seenPc.has(pc)) {
-      seenPc.add(pc);
-      orderedPcs.push(pc);
-    }
-  }
-  const out = new Map<number, number>();
-  let last = -1;
-  for (const pc of orderedPcs) {
-    let m = pc + HINT_BASE_MIDI;
-    while (m <= last) m += 12;
-    out.set(pc, m);
-    last = m;
-  }
-  return out;
-};
-
-/**
- * Random ヒント鍵と同一オクターブ展開での最大 MIDI。
- * `SurvivalGameScreen.tsx` のヒント算出（`.notes` 初出の pitch class 順、`baseOctave = 4`）と同一。
+ * コード `notes` / `midiNotes` 配列の最大 MIDI（鍵盤 HINT・スクロールアンカー共通）。
  */
 export const maxSurvivalHintMidiFromChordNotes = (midiNotes: readonly number[]): number | null => {
   if (midiNotes.length === 0) {
     return null;
   }
-  const uniquePitchClasses: number[] = [];
-  const seenPc = new Set<number>();
-  for (const note of midiNotes) {
-    const pc = ((note % 12) + 12) % 12;
-    if (!seenPc.has(pc)) {
-      seenPc.add(pc);
-      uniquePitchClasses.push(pc);
-    }
-  }
-  const baseOctave = 4;
-  let lastMidi = 0;
   let maxValue: number | null = null;
-  for (let i = 0; i < uniquePitchClasses.length; i += 1) {
-    let midiNote = uniquePitchClasses[i] + baseOctave * 12;
-    while (midiNote <= lastMidi) {
-      midiNote += 12;
+  for (const note of midiNotes) {
+    if (maxValue === null || note > maxValue) {
+      maxValue = note;
     }
-    lastMidi = midiNote;
-    maxValue = maxValue === null || midiNote > maxValue ? midiNote : maxValue;
   }
   return maxValue;
 };
@@ -131,10 +83,61 @@ const alignNameOctaveToMidi = (name: string, targetMidi: number): string => {
   return `${step}${accidental}${octave + diffOct}`;
 };
 
+const midiToLetterWithOctave = (midi: number): string => {
+  const pc = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${NOTE_NAMES[pc]}${octave}`;
+};
+
+/**
+ * 綴り列を target MIDI（昇順）へピッチクラス対応でオクターブ合わせする。
+ * Random 譜面など、スペル源と実 MIDI が別経路のときに使う。
+ */
+export const alignStaffSpellingsToDirectMidis = (
+  spelledNames: readonly string[],
+  targetMidis: readonly number[],
+): readonly string[] | null => {
+  if (spelledNames.length !== targetMidis.length || targetMidis.length === 0) {
+    return null;
+  }
+  const sortedTargets = [...targetMidis].sort((a, b) => a - b);
+  type SpellingRow = { readonly pc: number; readonly name: string };
+  const rows: SpellingRow[] = [];
+  for (const name of spelledNames) {
+    const matched = name.match(NOTE_NAME_PATTERN);
+    if (!matched) {
+      return null;
+    }
+    const step = matched[1];
+    const accidental = matched[2] ?? '';
+    const octave = Number.parseInt(matched[3], 10);
+    if (!Number.isFinite(octave)) {
+      return null;
+    }
+    const stepSemi = STEP_SEMITONE[step];
+    const alter = ACCIDENTAL_ALTER[accidental];
+    if (typeof stepSemi !== 'number' || typeof alter !== 'number') {
+      return null;
+    }
+    const parsedMidi = (octave + 1) * 12 + stepSemi + alter;
+    rows.push({ pc: ((parsedMidi % 12) + 12) % 12, name });
+  }
+  const out: string[] = [];
+  for (const targetMidi of sortedTargets) {
+    const tgtPc = ((targetMidi % 12) + 12) % 12;
+    const row = rows.find((r) => r.pc === tgtPc);
+    if (!row) {
+      return null;
+    }
+    out.push(alignNameOctaveToMidi(row.name, targetMidi));
+  }
+  return out;
+};
+
 /**
  * スタッフ用に MIDI 昇順の綴り列を生成する。
  * - 綴り（step + accidental）は DB の `voicing_names` を尊重。
- * - オクターブは `reconstructHintMidisByPitchClass` の結果に揃え、鍵盤 HINT と完全一致させる。
+ * - オクターブは `voicing` の実 MIDI に揃える（鍵盤 HINT 再構築とは独立）。
  */
 const progressionStaffAscendingNames = (entry: SurvivalChordProgressionEntry): readonly string[] => {
   const distinctCount = new Set<number>(entry.voicing.map(m => ((m % 12) + 12) % 12)).size;
@@ -148,7 +151,7 @@ const progressionStaffAscendingNames = (entry: SurvivalChordProgressionEntry): r
         voicing: entry.voicing,
       }) ?? [];
     } else {
-      parallel = [];
+      parallel = entry.voicing.map(midiToLetterWithOctave);
     }
   }
 
@@ -156,16 +159,12 @@ const progressionStaffAscendingNames = (entry: SurvivalChordProgressionEntry): r
     return [];
   }
 
-  const sortedVoicing = [...entry.voicing].sort((a, b) => a - b);
-  const hintMidiByPc = reconstructHintMidisByPitchClass(sortedVoicing);
-
   type Pair = { readonly midi: number; readonly nm: string };
 
-  const pairs: Pair[] = entry.voicing.map((rawMidi, ix) => {
-    const pc = ((rawMidi % 12) + 12) % 12;
-    const aligned = hintMidiByPc.get(pc) ?? rawMidi;
-    return { midi: aligned, nm: alignNameOctaveToMidi(parallel[ix], aligned) };
-  });
+  const pairs: Pair[] = entry.voicing.map((rawMidi, ix) => ({
+    midi: rawMidi,
+    nm: alignNameOctaveToMidi(parallel[ix], rawMidi),
+  }));
 
   pairs.sort((p, q) => p.midi - q.midi);
 

@@ -75,7 +75,7 @@ describe('computeSurvivalKeyboardScrollAnchor progression', () => {
 });
 
 describe('computeSurvivalKeyboardScrollAnchor random', () => {
-  it('単音 C とヒント算出が整合', () => {
+  it('単音 C の notes 最大 MIDI と整合', () => {
     const c = getChordDefinition('C');
     expect(c).not.toBeNull();
     const hintMx = maxSurvivalHintMidiFromChordNotes(c!.notes);
@@ -87,9 +87,9 @@ describe('computeSurvivalKeyboardScrollAnchor random', () => {
 });
 
 describe('maxSurvivalHintMidiFromChordNotes', () => {
-  it('昇順構成音でも baseOctave=4 で段階的に押し上げたヒント MIDI の最大', () => {
+  it('notes 配列の最大 MIDI を返す', () => {
     const midi = maxSurvivalHintMidiFromChordNotes([60, 64, 67, 71]);
-    expect(midi).toBe(59);
+    expect(midi).toBe(71);
   });
 });
 

@@ -761,15 +761,15 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
         if snapshot.stageType != .progression,
            let chord = slot.chord,
            chord.quality != .progression,
-           let hintVoicing = SurvivalRandomHintStaff.voicing(forChordId: chord.id) {
+           let directVoicing = SurvivalRandomHintStaff.directVoicing(for: chord) {
             let pcs = SurvivalChordResolver.correctNotes(
                 inputPitchClasses: slot.inputPitchClasses,
                 target: chord
             )
             return Self(
                 chordDisplayName: chord.displayName,
-                voicingNames: hintVoicing.names,
-                keyFifths: hintVoicing.keyFifths,
+                voicingNames: directVoicing.names,
+                keyFifths: directVoicing.keyFifths,
                 correctPitchClasses: pcs,
                 staffClef: 1,
                 voicingStavesPerNote: nil
@@ -804,11 +804,11 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
         }
 
         if chord.quality != .progression,
-           let hintVoicing = SurvivalRandomHintStaff.voicing(forChordId: chord.id) {
+           let directVoicing = SurvivalRandomHintStaff.directVoicing(for: chord) {
             return Self(
                 chordDisplayName: chord.displayName,
-                voicingNames: hintVoicing.names,
-                keyFifths: hintVoicing.keyFifths,
+                voicingNames: directVoicing.names,
+                keyFifths: directVoicing.keyFifths,
                 correctPitchClasses: pcs,
                 staffClef: 1,
                 voicingStavesPerNote: nil
