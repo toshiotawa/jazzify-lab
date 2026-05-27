@@ -1,5 +1,5 @@
 -- 開発者用テストコース: 本番ヒント 3×2 を追加モード 4 種 × 6 課題
---   1. サバイバル Progression（lesson / stage 2）
+--   1. サバイバル Progression（songs / stage 1 = II-V-I Part 1）
 --   2. サバイバル Phrases（phrases / stage 1）
 --   3. 風船ラッシュ Progression（balloon-rush-prog-iivi-01）
 --   4. 風船ラッシュ Random CDE（balloon-rush-random-cde-01）
@@ -36,9 +36,9 @@ VALUES (
   'm7',
   NULL,
   '[
-    {"name":"Dm7","voicing":[50,53,57,60,64,69],"voicing_names":["D3","F3","A3","C4","E4","A4"],"key_fifths":0,"voicing_staves":[2,2,2,2,1,1]},
-    {"name":"G7","voicing":[55,59,62,65,67,71],"voicing_names":["G3","B3","D4","F4","G4","C5"],"key_fifths":0,"voicing_staves":[2,2,2,2,1,1]},
-    {"name":"CM7","voicing":[48,52,55,59,60,64],"voicing_names":["C3","E3","G3","B3","C4","E4"],"key_fifths":0,"voicing_staves":[2,2,2,2,1,1]}
+    {"name":"Dm7(9)","voicing":[53,57,60,64],"voicing_names":["F3","A3","C4","E4"],"key_fifths":0,"voicing_staves":[2,2,2,2]},
+    {"name":"G7(9.13)","voicing":[53,57,59,64],"voicing_names":["F3","A3","B3","E4"],"key_fifths":0,"voicing_staves":[2,2,2,2]},
+    {"name":"CM7(9)","voicing":[52,55,59,62],"voicing_names":["E3","G3","B3","D4"],"key_fifths":0,"voicing_staves":[2,2,2,2]}
   ]'::jsonb,
   90,
   20,
@@ -172,8 +172,8 @@ FROM (VALUES
     'developer-production-hint-lab-prog-lesson',
     '本番ヒント設定テスト・Progression（3×2）',
     'Production Hint Lab · Progression (3×2)',
-    'レッスン Progression（II-V-I）で譜面ヒント A と鍵盤 HINT B の override を 6 通り検証します。',
-    'Six tasks on lesson progression stage II-V-I with distinct staff (A) × keyboard (B) overrides.',
+    'Songs マップ stage 1（II-V-I Part 1）で譜面ヒント A と鍵盤 HINT B の override を 6 通り検証します。',
+    'Six tasks on songs map stage 1 (II-V-I Part 1) with distinct staff (A) × keyboard (B) overrides.',
     '本番モードで Progression を起動し、譜面未正解音符（A）と鍵盤 HINT（B）を確認してください。'
   ),
   (
@@ -232,8 +232,8 @@ modes AS (
       'developer-production-hint-lsong-prog-',
       true,
       false,
-      2,
-      'lesson'::text,
+      1,
+      'songs'::text,
       NULL::uuid
     ),
     (

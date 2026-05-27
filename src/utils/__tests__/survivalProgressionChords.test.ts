@@ -111,6 +111,84 @@ describe('survivalProgressionChords', () => {
     expect(fmi.progression[0]?.voicing).toEqual([51, 55, 56, 60]);
   });
 
+  it('lesson stage 2 旧データ相当: 素の G7/CM7 は譜面綴りが生成されない', () => {
+    const dm7 = buildProgressionChordDefinition({ name: 'Dm7', voicing: [50, 53, 57, 60] }, 0, 0);
+    expect(dm7.progressionStaffVoicingNames?.length).toBe(4);
+    const g7 = buildProgressionChordDefinition({ name: 'G7', voicing: [55, 59, 62, 65] }, 1, 0);
+    expect(g7.progressionStaffVoicingNames).toBeUndefined();
+    const cm7 = buildProgressionChordDefinition({ name: 'CM7', voicing: [48, 52, 55, 59] }, 2, 0);
+    expect(cm7.progressionStaffVoicingNames).toBeUndefined();
+  });
+
+  it('balloon-rush-prog-iivi-01 旧6音: ピッチクラス重複で譜面綴りなし', () => {
+    const dm7 = buildProgressionChordDefinition(
+      {
+        name: 'Dm7',
+        voicing: [50, 53, 57, 60, 64, 69],
+        voicingNames: ['D3', 'F3', 'A3', 'C4', 'E4', 'A4'],
+        keyFifths: 0,
+      },
+      0,
+      0,
+    );
+    expect(dm7.progressionStaffVoicingNames).toBeUndefined();
+  });
+
+  it('balloon-rush-prog-iivi-01 修正後: 4声 II-V-I は譜面綴りが揃う', () => {
+    const entries = [
+      {
+        name: 'Dm7(9)',
+        voicing: [53, 57, 60, 64],
+        voicingNames: ['F3', 'A3', 'C4', 'E4'],
+        keyFifths: 0,
+      },
+      {
+        name: 'G7(9.13)',
+        voicing: [53, 57, 59, 64],
+        voicingNames: ['F3', 'A3', 'B3', 'E4'],
+        keyFifths: 0,
+      },
+      {
+        name: 'CM7(9)',
+        voicing: [52, 55, 59, 62],
+        voicingNames: ['E3', 'G3', 'B3', 'D4'],
+        keyFifths: 0,
+      },
+    ] as const;
+    for (const [i, entry] of entries.entries()) {
+      const def = buildProgressionChordDefinition(entry, i, 0);
+      expect(def.progressionStaffVoicingNames?.length).toBe(4);
+    }
+  });
+
+  it('lesson stage 2 修正後: Dm7(9)/G7(9.13)/CM7(9) は譜面綴りが揃う', () => {
+    const entries = [
+      {
+        name: 'Dm7(9)',
+        voicing: [53, 57, 60, 64],
+        voicingNames: ['F3', 'A3', 'C4', 'E4'],
+        keyFifths: 0,
+      },
+      {
+        name: 'G7(9.13)',
+        voicing: [53, 57, 59, 64],
+        voicingNames: ['F3', 'A3', 'B3', 'E4'],
+        keyFifths: 0,
+      },
+      {
+        name: 'CM7(9)',
+        voicing: [52, 55, 59, 62],
+        voicingNames: ['E3', 'G3', 'B3', 'D4'],
+        keyFifths: 0,
+      },
+    ] as const;
+    for (const [i, entry] of entries.entries()) {
+      const def = buildProgressionChordDefinition(entry, i, 0);
+      expect(def.progressionStaffVoicingNames?.length).toBe(4);
+      expect(def.progressionStaffKeyFifths).toBe(0);
+    }
+  });
+
   it('Gb スペル（GbM7(9)）の異名同音表記を維持したまま voicing 直値を使う', () => {
     const def = buildProgressionChordDefinition(
       {

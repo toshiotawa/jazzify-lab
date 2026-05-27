@@ -100,7 +100,11 @@ INSERT INTO public.survival_stages (
   'lesson_practice',
   false,
   NULL,
-  '[{"name":"Dm7","voicing":[50,53,57,60]},{"name":"G7","voicing":[55,59,62,65]},{"name":"CM7","voicing":[48,52,55,59]}]'::jsonb,
+  '[
+    {"name":"Dm7(9)","voicing":[53,57,60,64],"voicing_names":["F3","A3","C4","E4"],"key_fifths":0,"voicing_staves":[2,2,2,2]},
+    {"name":"G7(9.13)","voicing":[53,57,59,64],"voicing_names":["F3","A3","B3","E4"],"key_fifths":0,"voicing_staves":[2,2,2,2]},
+    {"name":"CM7(9)","voicing":[52,55,59,62],"voicing_names":["E3","G3","B3","D4"],"key_fifths":0,"voicing_staves":[2,2,2,2]}
+  ]'::jsonb,
   true
 )
 ON CONFLICT (map_category, stage_number) DO UPDATE SET
