@@ -1529,6 +1529,25 @@ private struct SurvivalTutorialLaunch: Identifiable {
     let clearConditions: LessonClearConditions?
 }
 
+/// 風船ラッシュ（ネイティブ `BalloonRushGameView`）の起動コンテキスト。
+private struct BalloonRushLessonLaunch: Identifiable {
+    let id = UUID()
+    let stage: BalloonRushStageDefinition
+    let hintMode: Bool
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
+/// 風船ラッシュ開始前の準備シート用。
+private struct BalloonRushPrepContext: Identifiable {
+    let id = UUID()
+    let stage: BalloonRushStageDefinition
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 /// レッスン課題のサバイバル（ネイティブ `SurvivalGameView`）の fullScreenCover 起動コンテキスト。
 private struct SurvivalLessonLaunch: Identifiable {
     let id = UUID()
@@ -1571,6 +1590,8 @@ struct LessonDetailView: View {
     @State private var earTrainingTutorialLaunch: EarTrainingTutorialLaunch?
     @State private var survivalTutorialLaunch: SurvivalTutorialLaunch?
     @State private var survivalLessonLaunch: SurvivalLessonLaunch?
+    @State private var balloonRushPrep: BalloonRushPrepContext?
+    @State private var balloonRushLessonLaunch: BalloonRushLessonLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -1743,6 +1764,37 @@ struct LessonDetailView: View {
                 )
             )
         }
+        .sheet(item: $balloonRushPrep) { prep in
+            BalloonRushRunPrepSheet(
+                stage: prep.stage,
+                locale: locale,
+                initialHintMode: false,
+                onCancel: { balloonRushPrep = nil },
+                onConfirm: { hintMode in
+                    balloonRushPrep = nil
+                    balloonRushLessonLaunch = BalloonRushLessonLaunch(
+                        stage: prep.stage,
+                        hintMode: hintMode,
+                        lessonId: prep.lessonId,
+                        lessonSongId: prep.lessonSongId,
+                        clearConditions: prep.clearConditions
+                    )
+                }
+            )
+        }
+        .fullScreenCover(item: $balloonRushLessonLaunch) { launch in
+            BalloonRushGameView(
+                stage: launch.stage,
+                hintMode: launch.hintMode,
+                locale: locale,
+                lessonContext: BalloonRushLessonContext(
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
+                    clearConditions: launch.clearConditions
+                ),
+                onClose: { balloonRushLessonLaunch = nil }
+            )
+        }
         .onChange(of: launchDestination == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
@@ -1764,6 +1816,11 @@ struct LessonDetailView: View {
             }
         }
         .onChange(of: survivalLessonLaunch == nil) { isNil in
+            if isNil {
+                Task { await loadLessonDetail() }
+            }
+        }
+        .onChange(of: balloonRushLessonLaunch == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
             }
@@ -2889,17 +2946,33 @@ struct LessonDetailView: View {
                 alertMessage = locale == .ja ? "風船ラッシュステージがありません。" : "Missing balloon rush stage."
                 return
             }
-            var brParams: [String: String] = [
-                "lessonId": lesson.id.uuidString,
-                "lessonSongId": requirement.id.uuidString,
-                "stageId": stageId.uuidString,
-            ]
-            if let cc = encodeClearConditions(requirement.clearConditions) {
-                brParams["clearConditions"] = cc
+            Task {
+                do {
+                    guard let stage = try await SupabaseService.shared.fetchBalloonRushStageById(stageId) else {
+                        await MainActor.run {
+                            alertMessage = locale == .ja
+                                ? "風船ラッシュステージを読み込めませんでした。"
+                                : "Could not load the balloon rush stage."
+                        }
+                        return
+                    }
+                    await MainActor.run {
+                        LessonMapAudio.shared.stopImmediately()
+                        balloonRushPrep = BalloonRushPrepContext(
+                            stage: stage,
+                            lessonId: lesson.id,
+                            lessonSongId: requirement.id,
+                            clearConditions: requirement.clearConditions
+                        )
+                    }
+                } catch {
+                    await MainActor.run {
+                        alertMessage = locale == .ja
+                            ? "風船ラッシュステージの読み込みに失敗しました。"
+                            : "Failed to load balloon rush stage."
+                    }
+                }
             }
-            launchDestination = LessonLaunchDestination(
-                hash: buildHash(base: "balloon-rush-lesson", params: brParams)
-            )
             return
         }
 

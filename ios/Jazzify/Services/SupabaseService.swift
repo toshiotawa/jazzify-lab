@@ -1286,6 +1286,36 @@ final class SupabaseService: Sendable {
         return result
     }
 
+    func fetchBalloonRushStageById(_ id: UUID) async throws -> BalloonRushStageDefinition? {
+        let row: BalloonRushStageRow = try await client
+            .from("balloon_rush_stages")
+            .select()
+            .eq("id", value: id.uuidString)
+            .single()
+            .execute()
+            .value
+        return row.toDefinition()
+    }
+
+    func fetchBalloonRushPlayDialogue(stageId: UUID) async -> SurvivalStageIntroScriptPayload? {
+        struct Row: Decodable {
+            let script: SurvivalStageIntroScriptPayload
+        }
+        do {
+            let rows: [Row] = try await client
+                .from("balloon_rush_play_dialogues")
+                .select("script")
+                .eq("stage_id", value: stageId.uuidString)
+                .eq("is_active", value: true)
+                .limit(1)
+                .execute()
+                .value
+            return rows.first?.script
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Player track XP (separate from diary `profiles.xp` / `profiles.level`)
 
     struct PlayerXpLevelPayload: Equatable {
