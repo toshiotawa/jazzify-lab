@@ -81,14 +81,26 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         return stage.allowedChords.compactMap { SurvivalChordResolver.resolve(id: $0) }
     }
 
-    /// ヒント鍵盤ハイライトの初期対象スロット（有効な A/B のうち最も若い index）。
-    /// Progression は B のみ有効のため `0` 固定だとハイライトが永遠に空になる。
+    /// Random + ステージ譜面は Web と同様 Punch（B）列に鍵盤 HINT を揃える。フレーズは除外。
+    private static func shouldPreferPunchSlotForKeyboardHints(mode: SurvivalMode, stage: SurvivalStageDefinition) -> Bool {
+        guard case .random = mode.stageKind else { return false }
+        return stage.mapCategory != .phrases
+    }
+
+    /// ヒント鍵盤ハイライトの初期対象スロット（有効な A/B）。
+    /// Random + ステージモードでは B を優先（譜面は Punch 固定のため）。
     private static func initialHintSlotIndex(
         slots: [SurvivalCodeSlot],
         hintMode: Bool,
-        keyboardHintMode: ProductionHintMode
+        keyboardHintMode: ProductionHintMode,
+        preferPunchForRandomKeyboardHint: Bool
     ) -> Int? {
         guard hintMode || keyboardHintMode != .hiddenUntilPressed else { return nil }
+        if preferPunchForRandomKeyboardHint {
+            if slots.indices.contains(1), slots[1].isEnabled { return 1 }
+            if slots.indices.contains(0), slots[0].isEnabled { return 0 }
+            return nil
+        }
         if slots.indices.contains(0), slots[0].isEnabled { return 0 }
         if slots.indices.contains(1), slots[1].isEnabled { return 1 }
         return nil
@@ -166,7 +178,10 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             slots = SurvivalGameEngine.createStageInitialSlots(
                 allowedChords: allowedChords,
                 isBossStage: isBoss,
-                punchOnlyForRandomHint: mode.hintMode || stage.mapCategory == .basic
+                punchOnlyForRandomHint: SurvivalGameEngine.punchOnlyForRandomHint(
+                    hintMode: mode.hintMode,
+                    mapCategory: stage.mapCategory
+                )
             )
             if let mx = SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: allowedChords) {
                 stageKeyboardScrollMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: mx)
@@ -214,7 +229,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         self.currentHintSlotIndex = Self.initialHintSlotIndex(
             slots: slots,
             hintMode: mode.hintMode,
-            keyboardHintMode: self.runtime.productionHintModes.keyboardHintMode
+            keyboardHintMode: self.runtime.productionHintModes.keyboardHintMode,
+            preferPunchForRandomKeyboardHint: Self.shouldPreferPunchSlotForKeyboardHints(mode: mode, stage: stage)
         )
 
         let bossNow = CACurrentMediaTime()
@@ -335,7 +351,10 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             slots = SurvivalGameEngine.createStageInitialSlots(
                 allowedChords: allowedChords,
                 isBossStage: isBoss,
-                punchOnlyForRandomHint: mode.hintMode || stage.mapCategory == .basic
+                punchOnlyForRandomHint: SurvivalGameEngine.punchOnlyForRandomHint(
+                    hintMode: mode.hintMode,
+                    mapCategory: stage.mapCategory
+                )
             )
         }
         var player = SurvivalGameEngine.createStageInitialPlayer(
@@ -371,7 +390,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         setHintSlotIndexIfChanged(Self.initialHintSlotIndex(
             slots: slots,
             hintMode: mode.hintMode,
-            keyboardHintMode: runtime.productionHintModes.keyboardHintMode
+            keyboardHintMode: runtime.productionHintModes.keyboardHintMode,
+            preferPunchForRandomKeyboardHint: Self.shouldPreferPunchSlotForKeyboardHints(mode: mode, stage: stage)
         ))
 
         if isBoss {
@@ -597,6 +617,16 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     private func advanceHintSlotIndex(triggeredIndex: Int) {
         guard keyboardHintsEnabled() else { return }
         guard triggeredIndex == 0 || triggeredIndex == 1 else { return }
+        if Self.shouldPreferPunchSlotForKeyboardHints(mode: mode, stage: stage) {
+            if runtime.slots.indices.contains(1), runtime.slots[1].isEnabled, runtime.slots[1].chord != nil {
+                setHintSlotIndexIfChanged(1)
+                return
+            }
+            if runtime.slots.indices.contains(triggeredIndex), runtime.slots[triggeredIndex].isEnabled {
+                setHintSlotIndexIfChanged(triggeredIndex)
+            }
+            return
+        }
         let preferred = triggeredIndex == 0 ? 1 : 0
         if runtime.slots.indices.contains(preferred), runtime.slots[preferred].isEnabled {
             setHintSlotIndexIfChanged(preferred)

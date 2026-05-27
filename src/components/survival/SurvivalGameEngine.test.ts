@@ -56,7 +56,7 @@ describe('survival progression code slots', () => {
     expect(resolveSurvivalHintSlotIndex(slots.current)).toBe(1);
   });
 
-  it('random + HINT 練習時は Shot を無効化し Punch のみコードを載せる', () => {
+  it('random + Shot 無効化（HINT / basic / lesson）は Web と同様 Punch のみコードを載せる', () => {
     const slots = initializeCodeSlots(['CM7', 'Dm7'], false, true, null, true);
 
     expect(slots.current.map(s => s.isEnabled)).toEqual([false, true, false, false]);

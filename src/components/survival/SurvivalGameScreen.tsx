@@ -1777,9 +1777,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const randomHintShotDisabled =
         isBalloonRushMode
         || (!isProgressionStage &&
-          (isBasicMapStage ||
-            hintMode ||
-            prev.player.statusEffects.some(e => e.type === 'hint')));
+          (isBasicMapStage
+            || stageDefinition?.mapCategory === 'lesson'
+            || isLessonMode
+            || hintMode
+            || prev.player.statusEffects.some(e => e.type === 'hint')));
       const codeSlots = initializeCodeSlots(
         config.allowedChords,
         hasMagic,
@@ -1868,7 +1870,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
     comboClockSecRef.current = survivalComboClockSec();
-  }, [config.allowedChords, isStageMode, isBossStage, bossType, isProgressionStage, isBasicMapStage, hintMode, isPhraseMode, isFirstBlockBoss, lessonRuntime, stageDefinition, isBalloonRushMode]);
+  }, [
+    config.allowedChords,
+    isStageMode,
+    isBossStage,
+    bossType,
+    isProgressionStage,
+    isBasicMapStage,
+    hintMode,
+    isPhraseMode,
+    isFirstBlockBoss,
+    lessonRuntime,
+    stageDefinition,
+    isLessonMode,
+    isBalloonRushMode,
+  ]);
 
   // ゲーム開始（初回のみ）。
   // 親側がコンポーネントを unmount→mount することでステージ切替時に再起動する想定。
@@ -5816,6 +5832,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const hintsAlwaysOn = hintMode || playerHasHintBuff
       || productionHintModes.keyboardHintMode === 'always';
     if (!hintsAlwaysOn && survivalKeyboardHintOpacity <= 0) {
+      return null;
+    }
+
+    // ランダム＋譜面は B 列（Punch）固定。Staff は `progressionPunchSlot` と同じ列のみ。
+    if (
+      !isProgressionStage
+      && !isPhraseMode
+      && (isStageMode || hintMode || playerHasHintBuff)
+    ) {
+      const bSlot = gameState.codeSlots.current[1];
+      if (bSlot?.isEnabled && !bSlot.isCompleted && bSlot.chord) {
+        return 1;
+      }
       return null;
     }
 

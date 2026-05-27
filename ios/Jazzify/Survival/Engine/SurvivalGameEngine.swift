@@ -82,6 +82,11 @@ enum SurvivalGameEngine {
         )
     }
 
+    /// Random ステージで B 列（Punch）のみ出題にする。Web `SurvivalGameScreen` の `randomHintShotDisabled` と整合。
+    static func punchOnlyForRandomHint(hintMode: Bool, mapCategory: SurvivalMapCategory) -> Bool {
+        hintMode || mapCategory == .basic || mapCategory == .lesson
+    }
+
     /// allowedChords からコードスロットを 4 個生成。
     /// - 通常ステージ / ボスステージ共に A/B のみ有効 (Shot / Punch の 2 列構成)
     /// - C 列 (Magic) / D 列はステージモードでは常に無効
