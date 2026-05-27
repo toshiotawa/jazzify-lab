@@ -414,6 +414,17 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
         return SurvivalStageCenterStaffPayload.make(from: balloonSession.gameLoop)
     }
 
+    private var balloonRushStaffVisible: Bool {
+        guard session is BalloonRushGameSession,
+              !vm.uiSnapshot.scenario.hideStaff else {
+            return false
+        }
+        if let balloonStaff = balloonRushStaffPayload, !balloonStaff.voicingNames.isEmpty {
+            return true
+        }
+        return false
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             SurvivalSceneContainer(
@@ -487,6 +498,10 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
             if session is BalloonRushGameSession,
                vm.uiSnapshot.phase == .playing,
                !vm.isPaused {
+                let staffBandHeight = BalloonRushStatusOverlayLayout.staffBandHeight(
+                    stageType: stage.stageType,
+                    staffVisible: balloonRushStaffVisible
+                )
                 BalloonRushStatusOverlay(
                     remainingSeconds: vm.uiSnapshot.remainingSecondsCoarse,
                     remainingCount: max(
@@ -494,7 +509,10 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                         session.playLoopFacade.effectiveStageKillQuota - vm.uiSnapshot.enemiesDefeated
                     ),
                     locale: locale,
-                    hudTopInset: hudHeight
+                    topInset: BalloonRushStatusOverlayLayout.topInset(
+                        hudHeight: hudHeight,
+                        staffBandHeight: staffBandHeight
+                    )
                 )
                 .equatable()
             }

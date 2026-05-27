@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { resolveBalloonRushStatusOverlayTopStyle } from '@/utils/balloonRushSurvivalBridge';
 
 export interface BalloonRushStatusOverlayProps {
   readonly remainingSeconds: number;
   readonly remainingCount: number;
   readonly isEnglishCopy: boolean;
+  readonly staffBandHeightPx: number;
 }
 
 const formatRemainingTime = (seconds: number): string => {
@@ -27,13 +29,19 @@ const BalloonRushStatusOverlay: React.FC<BalloonRushStatusOverlayProps> = ({
   remainingSeconds,
   remainingCount,
   isEnglishCopy,
+  staffBandHeightPx,
 }) => {
   const timeLow = remainingSeconds < 30;
   const countDone = remainingCount <= 0;
+  const topStyle = useMemo(
+    () => resolveBalloonRushStatusOverlayTopStyle(staffBandHeightPx),
+    [staffBandHeightPx],
+  );
 
   return (
     <div
-      className="absolute left-0 right-0 z-[6] flex justify-center pointer-events-none px-3 pt-[calc(max(4px,env(safe-area-inset-top))+52px)]"
+      className="absolute left-0 right-0 z-[6] flex justify-center pointer-events-none px-3"
+      style={topStyle}
       aria-live="polite"
       aria-label={
         isEnglishCopy

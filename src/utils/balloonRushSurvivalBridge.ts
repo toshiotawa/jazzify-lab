@@ -110,3 +110,26 @@ export const balloonRushDifficultyConfig = (stage: BalloonRushResolvedStage): Di
     bgmUrl: stage.bgmUrl?.trim() || BALLOON_RUSH_DRUM_LOOP_BGM_URL,
   };
 };
+
+/** iOS `SurvivalStageCenterStaffOverlay.frame(maxHeight:)` と揃える */
+export const BALLOON_RUSH_COMPACT_STAFF_BAND_HEIGHT_PX = 160;
+export const BALLOON_RUSH_PROGRESSION_STAFF_BAND_HEIGHT_PX = 220;
+export const BALLOON_RUSH_STATUS_GAP_BELOW_STAFF_PX = 8;
+/** Web `survivalStaffOverlayTopPadding` の HUD 帯（safe-area 除く） */
+export const BALLOON_RUSH_STATUS_HUD_BAND_PX = 52;
+
+export const resolveBalloonRushStaffBandHeightPx = (
+  staffVisible: boolean,
+  isProgressionStage: boolean,
+): number => {
+  if (!staffVisible) return 0;
+  return isProgressionStage
+    ? BALLOON_RUSH_PROGRESSION_STAFF_BAND_HEIGHT_PX
+    : BALLOON_RUSH_COMPACT_STAFF_BAND_HEIGHT_PX;
+};
+
+export const resolveBalloonRushStatusOverlayTopStyle = (
+  staffBandHeightPx: number,
+): { paddingTop: string } => ({
+  paddingTop: `calc(max(4px, env(safe-area-inset-top)) + ${BALLOON_RUSH_STATUS_HUD_BAND_PX}px + ${staffBandHeightPx + BALLOON_RUSH_STATUS_GAP_BELOW_STAFF_PX}px)`,
+});

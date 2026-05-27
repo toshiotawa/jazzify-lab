@@ -196,6 +196,9 @@ import { BALLOON_RUSH_MAP_CONFIG } from '@/utils/balloonRushMap';
 import { playBalloonRushPop, preloadBalloonRushPopAudio } from '@/utils/balloonRushPopAudio';
 import BalloonRushStatusOverlay from '@/components/balloonRush/BalloonRushStatusOverlay';
 import {
+  resolveBalloonRushStaffBandHeightPx,
+} from '@/utils/balloonRushSurvivalBridge';
+import {
   resolveBlockBossMaxHp,
   resolveBlockPlayerMaxHp,
 } from '@/utils/survivalBlockBalance';
@@ -6045,6 +6048,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const survivalStaffOverlayTopPadding = isBossStage
     ? 'pt-[calc(max(4px,env(safe-area-inset-top))+80px)]'
     : 'pt-[calc(max(4px,env(safe-area-inset-top))+52px)]';
+
+  const balloonRushStaffBandHeightPx = resolveBalloonRushStaffBandHeightPx(
+    !scenarioUi.hideStaff && Boolean(scenarioRandomStaff ?? scenarioProgressionStaff),
+    isProgressionStage,
+  );
   
   // フレーズモード: HINT / 第一ブロックアシスト時は判定対象音をオレンジハイライト
   useEffect(() => {
@@ -6455,6 +6463,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               remainingSeconds={Math.max(0, stageTimeLimitSec - gameState.elapsedTime)}
               remainingCount={Math.max(0, stageKillQuota - gameState.enemiesDefeated)}
               isEnglishCopy={isEnglishCopy}
+              staffBandHeightPx={balloonRushStaffBandHeightPx}
             />
           )}
           {gameState.comboCount > 0 && gameState.isPlaying && !gameState.isGameOver && !scenarioHideComboBadge && (

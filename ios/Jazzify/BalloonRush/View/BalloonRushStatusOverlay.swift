@@ -1,17 +1,39 @@
 import SwiftUI
 
-/// 風船ラッシュ: ゲーム画面内に残り時間・残り個数を大きく表示（WEB `BalloonRushStatusOverlay` 準拠）
+/// 風船ラッシュ: 五線譜直下に残り時間・残り個数を大きく表示（WEB `BalloonRushStatusOverlay` 準拠）
+enum BalloonRushStatusOverlayLayout {
+    /// iOS `SurvivalStageCenterStaffOverlay.frame(maxHeight:)`
+    static let compactStaffBandHeight: CGFloat = 160
+    static let progressionStaffBandHeight: CGFloat = 220
+    static let staffTopPadding: CGFloat = 4
+    static let gapBelowStaff: CGFloat = 8
+
+    static func staffBandHeight(stageType: SurvivalStageType, staffVisible: Bool) -> CGFloat {
+        guard staffVisible else { return 0 }
+        switch stageType {
+        case .progression:
+            return progressionStaffBandHeight
+        default:
+            return compactStaffBandHeight
+        }
+    }
+
+    static func topInset(hudHeight: CGFloat, staffBandHeight: CGFloat) -> CGFloat {
+        hudHeight + staffTopPadding + staffBandHeight + gapBelowStaff
+    }
+}
+
 struct BalloonRushStatusOverlay: View, Equatable {
     let remainingSeconds: Int
     let remainingCount: Int
     let locale: AppLocale
-    let hudTopInset: CGFloat
+    let topInset: CGFloat
 
     static func == (lhs: BalloonRushStatusOverlay, rhs: BalloonRushStatusOverlay) -> Bool {
         lhs.remainingSeconds == rhs.remainingSeconds &&
             lhs.remainingCount == rhs.remainingCount &&
             lhs.locale == rhs.locale &&
-            lhs.hudTopInset == rhs.hudTopInset
+            lhs.topInset == rhs.topInset
     }
 
     private var timeLabel: String {
@@ -58,7 +80,7 @@ struct BalloonRushStatusOverlay: View, Equatable {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, hudTopInset + 12)
+        .padding(.top, topInset)
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
