@@ -110,6 +110,12 @@ final class SurvivalGameSession: SurvivalPlaySession {
         )
     }
 
+    /// サバイバルチュートリアル v3: シーン内コードの実ボイシング最高音で鍵盤位置を揃える。
+    func applyTutorialSceneKeyboardScroll(fromSceneChords chords: [SurvivalResolvedChord]) {
+        gameLoop.updateKeyboardScrollAnchor(fromSceneChords: chords)
+        viewModel.syncKeyboardScrollAnchor(from: gameLoop)
+    }
+
     func start() {
         guard state != .disposed else { return }
         let playBackgroundMusic = !gameLoop.runtime.scenario.disableSurvivalBgm
@@ -118,6 +124,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                 let kf = stage.compositePhraseKeyFifths ?? 0
                 gameLoop.loadCompositePhraseRuntime(sourcePhrases: inlineComposite, keyFifths: kf)
                 viewModel.syncPhraseStaff(from: gameLoop)
+                viewModel.syncKeyboardScrollAnchor(from: gameLoop)
                 if playBackgroundMusic {
                     if let bgm = lessonRuntime?.bgmUrl {
                         audioController.setBgmUrl(bgm)
@@ -144,6 +151,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                     if collected.count == nums.count, !collected.isEmpty {
                         gameLoop.loadCompositePhraseRuntime(sourcePhrases: collected, keyFifths: kf)
                         viewModel.syncPhraseStaff(from: gameLoop)
+                        viewModel.syncKeyboardScrollAnchor(from: gameLoop)
                         if playBackgroundMusic {
                             if let stageBgm = gameLoop.stageConfig.bgmUrl {
                                 audioController.setBgmUrl(stageBgm)
@@ -155,6 +163,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
             } else if let phrase = inlinePhraseDefinition {
                 gameLoop.loadPhraseDefinition(phrase)
                 viewModel.syncPhraseStaff(from: gameLoop)
+                viewModel.syncKeyboardScrollAnchor(from: gameLoop)
                 if playBackgroundMusic {
                     applyPhraseBackgroundMusicUrlIfAvailable()
                 }
@@ -167,6 +176,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                     ) {
                         gameLoop.loadPhraseDefinition(phrase)
                         viewModel.syncPhraseStaff(from: gameLoop)
+                        viewModel.syncKeyboardScrollAnchor(from: gameLoop)
                         if playBackgroundMusic {
                             applyPhraseBackgroundMusicUrlIfAvailable(fetchedPhrase: phrase)
                         }

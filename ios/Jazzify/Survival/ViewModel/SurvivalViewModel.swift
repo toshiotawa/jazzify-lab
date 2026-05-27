@@ -75,6 +75,13 @@ final class SurvivalViewModel: ObservableObject {
         }
     }
 
+    func syncKeyboardScrollAnchor(from gameLoop: SurvivalGameLoop) {
+        let nextScrollAnchor = gameLoop.keyboardScrollAnchorMidi
+        if nextScrollAnchor != chordPadScrollAnchorMidi {
+            chordPadScrollAnchorMidi = nextScrollAnchor
+        }
+    }
+
     func beginSupabaseClearReport() -> Bool {
         guard !clearReportInFlight else { return false }
         clearReportInFlight = true
@@ -110,11 +117,7 @@ final class SurvivalViewModel: ObservableObject {
         }
 
         syncPhraseStaff(from: gameLoop)
-
-        let nextScrollAnchor = gameLoop.keyboardScrollAnchorMidi
-        if nextScrollAnchor != chordPadScrollAnchorMidi {
-            chordPadScrollAnchorMidi = nextScrollAnchor
-        }
+        syncKeyboardScrollAnchor(from: gameLoop)
 
         let forceBossHud = gameLoop.runtime.phase != .playing || phaseChanged
         let nextBossHud = gameLoop.bossBattle.map(Self.makeBossHudSnapshot(from:))

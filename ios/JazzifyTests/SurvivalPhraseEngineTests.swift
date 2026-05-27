@@ -73,4 +73,28 @@ final class SurvivalPhraseEngineTests: XCTestCase {
         XCTAssertEqual(done.result, .measureComplete)
         XCTAssertEqual(done.nextState.chordIndex, 0)
     }
+
+    func testMaxPitchMidiInResolvedChordsForTutorialV3() {
+        let g7 = SurvivalResolvedChord(
+            id: "tutorial:g7",
+            root: "G7",
+            quality: .progression,
+            midiNotes: [53, 57, 59, 64],
+            pitchClasses: [5, 9, 11, 4],
+            displayName: "G7"
+        )
+        let cm79 = SurvivalResolvedChord(
+            id: "tutorial:cm79",
+            root: "CM7(9)",
+            quality: .progression,
+            midiNotes: [52, 57, 59, 62, 66],
+            pitchClasses: [4, 9, 11, 2, 6],
+            displayName: "CM7(9)"
+        )
+        XCTAssertEqual(SurvivalPhraseKeyboardScroll.maxPitchMidi(in: [g7]), 64)
+        XCTAssertEqual(SurvivalPhraseKeyboardScroll.maxPitchMidi(in: [cm79]), 66)
+        XCTAssertEqual(SurvivalPhraseKeyboardScroll.maxPitchMidi(in: [g7, cm79]), 66)
+        XCTAssertEqual(SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: 64), 65)
+        XCTAssertEqual(SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: 66), 67)
+    }
 }

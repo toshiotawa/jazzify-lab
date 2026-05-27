@@ -231,6 +231,16 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         }
     }
 
+    /// チュートリアル v3 等: シーン内コード列の実ボイシング最高音で鍵盤 trailing アンカーを更新する。
+    func updateKeyboardScrollAnchor(fromSceneChords chords: [SurvivalResolvedChord]) {
+        guard stage.mapCategory != .phrases else { return }
+        if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: chords) {
+            keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
+        } else {
+            keyboardScrollAnchorMidi = nil
+        }
+    }
+
     func loadPhraseDefinition(_ phrase: SurvivalPhraseDefinition) {
         compositePhraseRuntime = nil
         compositePhraseKeyFifths = 0

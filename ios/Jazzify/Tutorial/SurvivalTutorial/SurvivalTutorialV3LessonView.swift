@@ -390,6 +390,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
             scenarioController.clearEnemies()
             scenarioController.setSlotAEnabled(false)
             scenarioController.setSlotBEnabled(true)
+            sess.applyTutorialSceneKeyboardScroll(fromSceneChords: payload.chords)
         }
         for q in 0..<payload.totalQuestions {
             if Task.isCancelled { return }
