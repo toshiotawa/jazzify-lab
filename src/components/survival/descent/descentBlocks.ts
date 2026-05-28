@@ -10,9 +10,9 @@
 
 import {
   BlockKey,
-  bossTypeForBlockIndex,
   getStageByNumber,
   getStagesByCategory,
+  resolveMapBossTypeForBlock,
   resolveSurvivalBlockLabel,
   resolveSurvivalBlockSortOrder,
   SurvivalBossType,
@@ -104,7 +104,7 @@ function buildBlocksForCategory(category: SurvivalMapCategory): BlockMeta[] {
       mixedStageNumber: entry.mixedStageNumber,
       hasMixed: entry.mixedStageNumber !== null,
       stageCount: sorted.length,
-      bossType: bossTypeForBlockIndex(blockIndex),
+      bossType: resolveMapBossTypeForBlock(blockIndex, sorted[sorted.length - 1], category),
     });
   }
   return result;

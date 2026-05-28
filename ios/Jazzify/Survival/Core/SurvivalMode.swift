@@ -25,7 +25,11 @@ struct SurvivalMode: Equatable {
     static func resolve(stage: SurvivalStageDefinition, hintMode: Bool) -> SurvivalMode {
         let assist: SurvivalAssistMode = hintMode ? .hint : .normal
         let isLessonInlineComposite = SurvivalLessonConfig.isLessonInlineCompositeStage(stage)
+        let isPhraseMapComposite = stage.mapCategory == .phrases
+            && !stage.lessonOnly
+            && stage.survivalUsesCompositePhrasePattern
         let isBoss = isLessonInlineComposite
+            || isPhraseMapComposite
             || SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
         let encounter: SurvivalEncounterMode
         if isBoss {

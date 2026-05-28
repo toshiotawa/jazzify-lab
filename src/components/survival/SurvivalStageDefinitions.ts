@@ -683,6 +683,28 @@ export function survivalStageUsesCompositePhrasePattern(stage: StageDefinition):
   return n > 0;
 }
 
+/** Phrases マップ上の DB 複合フレーズステージ（レッスン専用は除外）。 */
+export function isPhraseMapCompositeStage(stage: StageDefinition): boolean {
+  return stage.mapCategory === 'phrases'
+    && !stage.lessonOnly
+    && survivalStageUsesCompositePhrasePattern(stage);
+}
+
+/** 降下マップ扉前ボスシルエット用。複合で終わる Phrases ブロックは B 固定。 */
+export function resolveMapBossTypeForBlock(
+  blockIndex: number,
+  lastStageNumber: number,
+  mapCategory: SurvivalMapCategory,
+): SurvivalBossType {
+  if (mapCategory === 'phrases') {
+    const lastStage = getStageByNumber(lastStageNumber, mapCategory);
+    if (lastStage && survivalStageUsesCompositePhrasePattern(lastStage)) {
+      return 'B';
+    }
+  }
+  return bossTypeForBlockIndex(blockIndex);
+}
+
 const BOSS_TYPE_ROTATION: readonly SurvivalBossType[] = ['A', 'B', 'C'];
 
 /** ブロック並び順 (blockIndex) からボスタイプ A→B→C をローテーション。 */

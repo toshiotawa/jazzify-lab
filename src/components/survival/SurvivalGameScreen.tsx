@@ -80,6 +80,7 @@ import {
   STAGE_TIME_LIMIT_SECONDS,
   getSurvivalStageBattleKind,
   isBlockLastStage,
+  isPhraseMapCompositeStage,
 } from './SurvivalStageDefinitions';
 import { fetchSurvivalStageIntroScript } from '@/components/survival/stageIntro/fetchSurvivalStageIntroScript';
 import { fetchSurvivalStagePlayDialogue } from '@/components/survival/stageIntro/fetchSurvivalStagePlayDialogue';
@@ -496,8 +497,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   balloonRushStageRef.current = balloonRushStage;
   const balloonPhysicsRef = useRef<BalloonRushPhysicsState | null>(null);
   const [balloonDrawSnapshot, setBalloonDrawSnapshot] = useState<BalloonRushDrawSnapshot | null>(null);
+  const isPhraseMapCompositeBossStage = stageDefinition
+    ? isPhraseMapCompositeStage(stageDefinition)
+    : false;
   const stageBattleKind = stageDefinition
-    ? (isLessonInlineCompositeBoss
+    ? (isLessonInlineCompositeBoss || isPhraseMapCompositeBossStage
       ? 'boss'
       : getSurvivalStageBattleKind(
         stageDefinition.stageType,
@@ -514,9 +518,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
   const isCompositePhraseBossStage =
     isLessonInlineCompositeBoss
-    || (isPhraseMode
-      && isBossStage
-      && Boolean(stageDefinition?.compositePhraseSources?.length ?? 0));
+    || isPhraseMapCompositeBossStage;
   const shouldRunStageIntroDialogue =
     isStageMode
     && !!stageDefinition
@@ -672,7 +674,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return undefined;
     }
 
-    const isCompositeBoss = Boolean(stageDefinition?.compositePhraseSources?.length ?? 0) && isBossStage;
+    const isCompositeBoss = isCompositePhraseBossStage;
 
     let cancelled = false;
     if (isCompositeBoss) {

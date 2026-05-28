@@ -329,10 +329,16 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         return true
     }
 
-    /// ブロック末尾の複合フレーズボス戦か（ランタイム分岐・ボス種別上書き用）。
-    var isCompositePhraseBossStage: Bool {
+    /// Phrases マップ上の DB 複合フレーズステージ（レッスン専用は除外）。
+    var isPhraseMapCompositeStage: Bool {
         survivalUsesCompositePhrasePattern
-            && SurvivalBossEngine.isBlockLastStage(stageNumber: stageNumber, in: mapCategory)
+            && !lessonOnly
+            && mapCategory == .phrases
+    }
+
+    /// 複合フレーズボス戦か（ランタイム分岐・ボス種別上書き用）。
+    var isCompositePhraseBossStage: Bool {
+        isPhraseMapCompositeStage
     }
 
     /// BGM・難易度設定取得用。複合フレーズボス（ステージ6 等）は phrases の drum loop。
@@ -991,20 +997,44 @@ enum SurvivalStageCatalog {
             let override = blockOverrides[key]
             let labelJa = override?.labelJa ?? key.rawValue
             let labelEn = override?.labelEn ?? key.rawValue
+            let sortedStageNumbers = entry.stages.sorted()
+            let lastStageNumber = sortedStageNumbers.last ?? 0
+            let mapCategory = stages.first(where: { $0.blockKey == key })?.mapCategory ?? .basic
+            let mapBossType = Self.resolveMapBossType(
+                blockIndex: index,
+                lastStageNumber: lastStageNumber,
+                mapCategory: mapCategory,
+                stages: stages
+            )
             result.append(
                 SurvivalBlockMeta(
                     blockKey: key,
                     blockIndex: index,
                     labelJa: labelJa,
                     labelEn: labelEn,
-                    stageNumbers: entry.stages.sorted(),
+                    stageNumbers: sortedStageNumbers,
                     mixedStageNumber: entry.mixed,
                     difficulty: entry.difficulty,
-                    bossType: SurvivalBossType.forBlockIndex(index)
+                    bossType: mapBossType
                 )
             )
         }
         return result
+    }
+
+    /// 降下マップ扉前ボスシルエット用。複合で終わる Phrases ブロックは B 固定。
+    private static func resolveMapBossType(
+        blockIndex: Int,
+        lastStageNumber: Int,
+        mapCategory: SurvivalMapCategory,
+        stages: [SurvivalStageDefinition]
+    ) -> SurvivalBossType {
+        if mapCategory == .phrases,
+           let lastStage = stages.first(where: { $0.stageNumber == lastStageNumber }),
+           lastStage.survivalUsesCompositePhrasePattern {
+            return .B
+        }
+        return SurvivalBossType.forBlockIndex(blockIndex)
     }
 }
 
