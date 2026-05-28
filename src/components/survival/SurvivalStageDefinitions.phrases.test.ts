@@ -47,6 +47,7 @@ import {
   getSurvivalStageBattleKind,
   isBlockLastStage,
   isPhraseMapCompositeStage,
+  isSurvivalStageDetailBossClearCondition,
   resolveMapBossTypeForBlock,
 } from './SurvivalStageDefinitions';
 
@@ -82,6 +83,27 @@ describe('resolveMapBossTypeForBlock', () => {
 
   it('does not override map boss type for mid-block regular endings', () => {
     expect(resolveMapBossTypeForBlock(1, 11, 'phrases')).toBe(bossTypeForBlockIndex(1));
+  });
+});
+
+describe('isSurvivalStageDetailBossClearCondition', () => {
+  it('uses boss clear label for mid-block composite stages', () => {
+    expect(isSurvivalStageDetailBossClearCondition(phraseStage({ stageNumber: 6 }))).toBe(true);
+    expect(isBlockLastStage(6, 'phrases')).toBe(false);
+  });
+
+  it('uses boss clear label for block-ending composite stages', () => {
+    expect(isSurvivalStageDetailBossClearCondition(phraseStage({
+      stageNumber: 12,
+      compositePhraseSources: [7, 8, 9, 10, 11],
+    }))).toBe(true);
+  });
+
+  it('uses regular clear label for non-composite phrase stages', () => {
+    expect(isSurvivalStageDetailBossClearCondition(phraseStage({
+      stageNumber: 7,
+      compositePhraseSources: undefined,
+    }))).toBe(false);
   });
 });
 

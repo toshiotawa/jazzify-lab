@@ -690,6 +690,12 @@ export function isPhraseMapCompositeStage(stage: StageDefinition): boolean {
     && survivalStageUsesCompositePhrasePattern(stage);
 }
 
+/** 降下マップ詳細パネルのクリア条件がボス表記になるか（ブロック末尾 or Phrases 途中複合）。 */
+export function isSurvivalStageDetailBossClearCondition(stage: StageDefinition): boolean {
+  return isBlockLastStage(stage.stageNumber, stage.mapCategory)
+    || isPhraseMapCompositeStage(stage);
+}
+
 /** 降下マップ扉前ボスシルエット用。複合で終わる Phrases ブロックは B 固定。 */
 export function resolveMapBossTypeForBlock(
   blockIndex: number,

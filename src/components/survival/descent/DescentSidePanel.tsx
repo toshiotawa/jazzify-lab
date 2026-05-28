@@ -11,7 +11,7 @@ import { FaLock, FaCheck, FaPlay, FaVolumeUp } from 'react-icons/fa';
 import {
   StageDefinition,
   formatSurvivalStageModeLabel,
-  isBlockLastStage,
+  isSurvivalStageDetailBossClearCondition,
   survivalStageUsesCompositePhrasePattern,
 } from '../SurvivalStageDefinitions';
 import { getStageKillQuotaForStage } from '../survivalFirstBlockStage';
@@ -208,7 +208,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                   {isEnglishCopy ? 'Clear' : 'クリア条件'}
                 </dt>
                 <dd className="mt-0.5 text-[11px] font-bold text-emerald-300">
-                  {isBlockLastStage(selectedStage.stageNumber, selectedStage.mapCategory)
+                  {isSurvivalStageDetailBossClearCondition(selectedStage)
                     ? (isEnglishCopy ? 'Boss x1' : 'ボス x1')
                     : (isEnglishCopy
                       ? `90s + ${getStageKillQuotaForStage(selectedStage)} Kills`
