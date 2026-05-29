@@ -348,6 +348,19 @@ struct SurvivalView: View {
         return clearedStages.contains(stageNumber - 1)
     }
 
+    /// クリア状況から次に挑戦すべきステージ（Web `frontierStageNumber` と同義）。
+    private func frontierStageNumber(in category: SurvivalMapCategory) -> Int {
+        let total = SurvivalStageCatalog.totalStages(in: category)
+        let upper = Swift.max(1, total)
+        for stageNumber in 1...upper {
+            let unlocked = stageNumber == 1 || clearedStages.contains(stageNumber - 1)
+            if unlocked && !clearedStages.contains(stageNumber) {
+                return stageNumber
+            }
+        }
+        return upper
+    }
+
     private func startStage(_ stage: SurvivalStageDefinition) {
         let freeAllowed = freeStageNumbers.contains(stage.stageNumber)
         if playLockedForUpsell && !freeAllowed {
@@ -445,12 +458,7 @@ struct SurvivalView: View {
         stageClearCounts = snapshot.stageClearCounts
 
         if selectedStageNumber == nil {
-            if let frontierBlock = SurvivalStageCatalog.block(forStage: currentStageNumber, in: category) {
-                selectedStageNumber = frontierBlock.stageNumbers.first { isStageUnlocked($0) && !clearedStages.contains($0) }
-                    ?? frontierBlock.stageNumbers.first
-            } else {
-                selectedStageNumber = SurvivalStageCatalog.blocks(in: category).first?.stageNumbers.first
-            }
+            selectedStageNumber = frontierStageNumber(in: category)
         }
     }
 }

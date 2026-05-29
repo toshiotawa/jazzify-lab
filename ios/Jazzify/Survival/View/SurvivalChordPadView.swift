@@ -47,83 +47,110 @@ struct SurvivalChordPadView: View, Equatable {
             let whiteKeyWidth = max(minWhiteKeyWidth, proxy.size.width / visibleWhiteKeys)
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
-            let totalWidth = CGFloat(whites.count) * whiteKeyWidth
+            let totalWidth = fitsFullKeyboard ? proxy.size.width : CGFloat(whites.count) * whiteKeyWidth
 
-            ScrollViewReader { scrollProxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    ZStack(alignment: .topLeading) {
-                        HStack(spacing: 0) {
-                            ForEach(whites, id: \.self) { midi in
-                                PianoKeyButton(
-                                    label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
-                                    isBlack: false,
-                                    isHinted: snapshot.hintMidis.contains(midi),
-                                    isHintCompleted: snapshot.completedHintMidis.contains(midi),
-                                    hintPendingOpacity: snapshot.hintPendingOpacity,
-                                    isMidiHeld: snapshot.midiHeldKeys.contains(midi),
-                                    width: whiteKeyWidth,
-                                    height: keyboardHeight,
-                                    onPress: {
-                                        guard snapshot.isEnabled else { return }
-                                        onPress(midi)
-                                    },
-                                    onRelease: {
-                                        guard snapshot.isEnabled else { return }
-                                        onRelease(midi)
-                                    }
-                                )
-                                .id(midi)
+            Group {
+                if fitsFullKeyboard {
+                    keyboardStack(
+                        whites: whites,
+                        whiteKeyWidth: whiteKeyWidth,
+                        blackKeyWidth: blackKeyWidth,
+                        blackKeyHeight: blackKeyHeight,
+                        totalWidth: totalWidth
+                    )
+                    .frame(height: keyboardHeight)
+                } else {
+                    ScrollViewReader { scrollProxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            keyboardStack(
+                                whites: whites,
+                                whiteKeyWidth: whiteKeyWidth,
+                                blackKeyWidth: blackKeyWidth,
+                                blackKeyHeight: blackKeyHeight,
+                                totalWidth: totalWidth
+                            )
+                        }
+                        .frame(height: keyboardHeight)
+                        .onAppear {
+                            if let midi = snapshot.scrollAnchorMidi {
+                                scrollProxy.scrollTo(midi, anchor: .trailing)
+                            } else {
+                                scrollProxy.scrollTo(60, anchor: .center)
                             }
                         }
-                        .frame(width: totalWidth, height: keyboardHeight)
-
-                        ForEach(Self.blackNotes, id: \.self) { midi in
-                            let x = Self.blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth)
-                            PianoKeyButton(
-                                label: "",
-                                isBlack: true,
-                                isHinted: snapshot.hintMidis.contains(midi),
-                                isHintCompleted: snapshot.completedHintMidis.contains(midi),
-                                hintPendingOpacity: snapshot.hintPendingOpacity,
-                                isMidiHeld: snapshot.midiHeldKeys.contains(midi),
-                                width: blackKeyWidth,
-                                height: blackKeyHeight,
-                                onPress: {
-                                    guard snapshot.isEnabled else { return }
-                                    onPress(midi)
-                                },
-                                onRelease: {
-                                    guard snapshot.isEnabled else { return }
-                                    onRelease(midi)
-                                }
-                            )
-                            .offset(x: x - blackKeyWidth / 2, y: 0)
+                        .onChange(of: snapshot.scrollAnchorMidi) { newMidi in
+                            if let midi = newMidi {
+                                scrollProxy.scrollTo(midi, anchor: .trailing)
+                            } else {
+                                scrollProxy.scrollTo(60, anchor: .center)
+                            }
                         }
-                    }
-                    .frame(width: totalWidth, height: keyboardHeight)
-                }
-                .frame(height: keyboardHeight)
-                .onAppear {
-                    if !fitsFullKeyboard {
-                        if let midi = snapshot.scrollAnchorMidi {
-                            scrollProxy.scrollTo(midi, anchor: .trailing)
-                        } else {
-                            scrollProxy.scrollTo(60, anchor: .center)
-                        }
-                    }
-                }
-                .onChange(of: snapshot.scrollAnchorMidi) { newMidi in
-                    guard !fitsFullKeyboard else { return }
-                    if let midi = newMidi {
-                        scrollProxy.scrollTo(midi, anchor: .trailing)
-                    } else {
-                        scrollProxy.scrollTo(60, anchor: .center)
                     }
                 }
             }
             .background(Color.black.opacity(0.55))
         }
         .frame(height: keyboardHeight)
+    }
+
+    @ViewBuilder
+    private func keyboardStack(
+        whites: [Int],
+        whiteKeyWidth: CGFloat,
+        blackKeyWidth: CGFloat,
+        blackKeyHeight: CGFloat,
+        totalWidth: CGFloat
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                ForEach(whites, id: \.self) { midi in
+                    PianoKeyButton(
+                        label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
+                        isBlack: false,
+                        isHinted: snapshot.hintMidis.contains(midi),
+                        isHintCompleted: snapshot.completedHintMidis.contains(midi),
+                        hintPendingOpacity: snapshot.hintPendingOpacity,
+                        isMidiHeld: snapshot.midiHeldKeys.contains(midi),
+                        width: whiteKeyWidth,
+                        height: keyboardHeight,
+                        onPress: {
+                            guard snapshot.isEnabled else { return }
+                            onPress(midi)
+                        },
+                        onRelease: {
+                            guard snapshot.isEnabled else { return }
+                            onRelease(midi)
+                        }
+                    )
+                    .id(midi)
+                }
+            }
+            .frame(width: totalWidth, height: keyboardHeight)
+
+            ForEach(Self.blackNotes, id: \.self) { midi in
+                let x = Self.blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth)
+                PianoKeyButton(
+                    label: "",
+                    isBlack: true,
+                    isHinted: snapshot.hintMidis.contains(midi),
+                    isHintCompleted: snapshot.completedHintMidis.contains(midi),
+                    hintPendingOpacity: snapshot.hintPendingOpacity,
+                    isMidiHeld: snapshot.midiHeldKeys.contains(midi),
+                    width: blackKeyWidth,
+                    height: blackKeyHeight,
+                    onPress: {
+                        guard snapshot.isEnabled else { return }
+                        onPress(midi)
+                    },
+                    onRelease: {
+                        guard snapshot.isEnabled else { return }
+                        onRelease(midi)
+                    }
+                )
+                .offset(x: x - blackKeyWidth / 2, y: 0)
+            }
+        }
+        .frame(width: totalWidth, height: keyboardHeight)
     }
 
     private static func whiteMidiNotes(first: Int, last: Int) -> [Int] {

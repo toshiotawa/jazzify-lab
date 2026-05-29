@@ -50,7 +50,7 @@ final class SurvivalJoystickHostView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        isMultipleTouchEnabled = false
+        isMultipleTouchEnabled = true
         backgroundColor = .clear
 
         baseVisual.isHidden = true
@@ -83,7 +83,6 @@ final class SurvivalJoystickHostView: UIView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard isUserInteractionEnabled, !isHidden, alpha > 0.01 else { return nil }
         guard bounds.contains(point) else { return nil }
-        reconcileActiveTouchIfNeeded(with: event)
         switch hitMask {
         case .full:
             return self
@@ -148,7 +147,7 @@ final class SurvivalJoystickHostView: UIView {
 
     /// システムが `touchesEnded` / `touchesCancelled` を配信しなかった場合でも
     /// `activeTouch` が残って新規タッチを弾かないよう、終了済み・無効なタッチを掃除する。
-    private func reconcileActiveTouchIfNeeded(with event: UIEvent?) {
+    private func reconcileActiveTouchIfNeeded(with _: UIEvent?) {
         guard let touch = activeTouch else { return }
         switch touch.phase {
         case .ended, .cancelled:
@@ -158,10 +157,6 @@ final class SurvivalJoystickHostView: UIView {
             break
         }
         if touch.window == nil {
-            endInteraction()
-            return
-        }
-        if let all = event?.allTouches, !all.contains(touch) {
             endInteraction()
         }
     }

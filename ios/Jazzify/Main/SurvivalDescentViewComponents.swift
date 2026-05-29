@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 魔王城降下マップ ネイティブ版の描画パーツ。
 /// Web 版 (`src/components/survival/descent/parts/*`) を SwiftUI の図形描画で再現する。
@@ -7,13 +8,13 @@ import SwiftUI
 // MARK: - Background
 
 /// マップの縦長背景。レンガは世界全体を 1 枚のタイルパターンで連続させ、スクロール・カテゴリ切替で縞模様がずれないようにする。
-/// ブロックごとの雰囲気は、`SurvivalDescentThemeCatalog.theme` の tint グラデーションを全区間常時重ねて表現する（旧 `SurvivalDescentBlockTintOverlay` と同等の blend/opacity）。
+/// ブロックごとの雰囲気 tint は viewport 内ブロックのみ重ねる（レンガ・全体グラデは world 全体）。
 struct SurvivalDescentBackgroundView: View {
     let widthPx: CGFloat
     let heightPx: CGFloat
     let scale: CGFloat
-    /// マップ全体のブロックレイアウト（常時描画。視野カリングの対象外）。
-    let blocks: [SurvivalDescentBlockLayout]
+    /// viewport 内（+ frontier/selected 強制含有）のブロック tint のみ描画する。
+    let tintBlocks: [SurvivalDescentBlockLayout]
     let accessibleBlockIndex: Int
 
     var body: some View {
@@ -31,7 +32,7 @@ struct SurvivalDescentBackgroundView: View {
             .clipped()
             .allowsHitTesting(false)
 
-            ForEach(blocks, id: \.blockKey) { blockLayout in
+            ForEach(tintBlocks, id: \.blockKey) { blockLayout in
                 let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
                 let dim = blockLayout.blockIndex > accessibleBlockIndex
                 let bandHeight = max(0, (blockLayout.endY - blockLayout.startY) * scale)
@@ -831,6 +832,133 @@ struct SurvivalDescentBossFigure: View {
 
 // MARK: - Floating ember (フロンティアブロックの火の粉)
 
+private struct EmberParticleSpec {
+    let leftPct: Double
+    let startYPct: Double
+    let size: CGFloat
+    let duration: CFTimeInterval
+    let delay: CFTimeInterval
+}
+
+private enum FloatingEmberParticleFactory {
+    static func specs(count: Int) -> [EmberParticleSpec] {
+        var items: [EmberParticleSpec] = []
+        items.reserveCapacity(count)
+        for i in 0..<count {
+            let seed = (i * 31 + 7) % 100
+            items.append(
+                EmberParticleSpec(
+                    leftPct: 12 + Double((seed * 7) % 76),
+                    startYPct: Double((seed * 11) % 100),
+                    size: CGFloat(2 + ((seed * 3) % 4)),
+                    duration: 4.0 + Double((seed * 2) % 6),
+                    delay: Double(seed % 10) * 0.5
+                )
+            )
+        }
+        return items
+    }
+}
+
+/// Web 版 `FloatingEmber.tsx` と同 seed 式。CALayer keyframe で GPU 合成し SwiftUI body を毎フレーム更新しない。
+private final class FloatingEmberUIView: UIView {
+    private var appliedKey: String = ""
+
+    func apply(widthPx: CGFloat, heightPx: CGFloat, scale: CGFloat, color: UIColor, count: Int) {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        let key = String(
+            format: "%.2f|%.2f|%.4f|%.3f|%.3f|%.3f|%.3f|%d",
+            widthPx, heightPx, scale, red, green, blue, alpha, count
+        )
+        guard appliedKey != key else { return }
+        appliedKey = key
+
+        layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+
+        let specs = FloatingEmberParticleFactory.specs(count: count)
+        let steps = 9
+        for spec in specs {
+            let diameter = max(1, spec.size * scale)
+            let baseX = CGFloat(spec.leftPct / 100) * widthPx
+            let startY = CGFloat(spec.startYPct / 100) * heightPx
+
+            var positions: [CGPoint] = []
+            positions.reserveCapacity(steps + 1)
+            var opacities: [NSNumber] = []
+            opacities.reserveCapacity(steps + 1)
+            for step in 0...steps {
+                let clamped = Double(step) / Double(steps)
+                let yProgress = 1 - clamped
+                let xWave = sin(clamped * .pi * 2) * 12 * scale
+                let alpha = sin(clamped * .pi) * 0.9
+                positions.append(
+                    CGPoint(
+                        x: baseX + xWave,
+                        y: startY * CGFloat(yProgress)
+                    )
+                )
+                opacities.append(NSNumber(value: alpha))
+            }
+
+            let particleLayer = CALayer()
+            particleLayer.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+            particleLayer.cornerRadius = diameter / 2
+            particleLayer.backgroundColor = color.cgColor
+            particleLayer.shadowColor = color.cgColor
+            particleLayer.shadowRadius = diameter * 0.6
+            particleLayer.shadowOpacity = 1
+            particleLayer.shadowOffset = .zero
+            particleLayer.position = positions[0]
+            particleLayer.opacity = opacities[0].floatValue
+            layer.addSublayer(particleLayer)
+
+            let positionAnim = CAKeyframeAnimation(keyPath: "position")
+            positionAnim.values = positions
+            positionAnim.duration = spec.duration
+            positionAnim.repeatCount = .infinity
+            positionAnim.timingFunctions = Array(repeating: CAMediaTimingFunction(name: .easeInEaseOut), count: steps)
+
+            let opacityAnim = CAKeyframeAnimation(keyPath: "opacity")
+            opacityAnim.values = opacities
+            opacityAnim.duration = spec.duration
+            opacityAnim.repeatCount = .infinity
+            opacityAnim.timingFunctions = Array(repeating: CAMediaTimingFunction(name: .easeInEaseOut), count: steps)
+
+            let group = CAAnimationGroup()
+            group.animations = [positionAnim, opacityAnim]
+            group.duration = spec.duration
+            group.repeatCount = .infinity
+            group.timeOffset = spec.delay
+            group.isRemovedOnCompletion = false
+            particleLayer.add(group, forKey: "emberFloat")
+        }
+    }
+}
+
+private struct FloatingEmberRepresentable: UIViewRepresentable {
+    let widthPx: CGFloat
+    let heightPx: CGFloat
+    let scale: CGFloat
+    let uiColor: UIColor
+    let count: Int
+
+    func makeUIView(context: Context) -> FloatingEmberUIView {
+        let view = FloatingEmberUIView()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        view.apply(widthPx: widthPx, heightPx: heightPx, scale: scale, color: uiColor, count: count)
+        return view
+    }
+
+    func updateUIView(_ uiView: FloatingEmberUIView, context: Context) {
+        uiView.apply(widthPx: widthPx, heightPx: heightPx, scale: scale, color: uiColor, count: count)
+    }
+}
+
 /// フロンティアブロックに漂うパーティクル (火の粉)
 struct SurvivalDescentFloatingEmber: View {
     let startY: CGFloat
@@ -840,66 +968,15 @@ struct SurvivalDescentFloatingEmber: View {
     let color: Color
     var count: Int = 6
 
-    private struct Particle: Identifiable {
-        let id = UUID()
-        let leftPct: Double
-        let startYPct: Double
-        let size: CGFloat
-        let duration: Double
-        let delay: Double
-    }
-
-    private let particles: [Particle]
-
-    init(startY: CGFloat, endY: CGFloat, widthPx: CGFloat, scale: CGFloat, color: Color, count: Int = 6) {
-        self.startY = startY
-        self.endY = endY
-        self.widthPx = widthPx
-        self.scale = scale
-        self.color = color
-        self.count = count
-        var items: [Particle] = []
-        for i in 0..<count {
-            let seed = (i * 31 + 7) % 100
-            items.append(
-                Particle(
-                    leftPct: 12 + Double((seed * 7) % 76),
-                    startYPct: Double((seed * 11) % 100),
-                    size: CGFloat(2 + ((seed * 3) % 4)),
-                    duration: 4.0 + Double((seed * 2) % 6),
-                    delay: Double(seed % 10) * 0.5
-                )
-            )
-        }
-        self.particles = items
-    }
-
     var body: some View {
         let height = max(0, (endY - startY) * scale)
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            ZStack(alignment: .topLeading) {
-                ForEach(particles) { p in
-                    let phase = (t - p.delay).truncatingRemainder(dividingBy: p.duration) / p.duration
-                    let clamped = phase < 0 ? phase + 1 : phase
-                    let yProgress = 1 - clamped
-                    let xWave = sin(clamped * .pi * 2) * 12 * scale
-                    let alpha = sin(clamped * .pi) * 0.9
-
-                    Circle()
-                        .fill(color)
-                        .frame(width: p.size * scale, height: p.size * scale)
-                        .shadow(color: color, radius: p.size * 1.2)
-                        .opacity(alpha)
-                        .blendMode(.screen)
-                        .position(
-                            x: CGFloat(p.leftPct / 100) * widthPx + xWave,
-                            y: CGFloat(p.startYPct / 100) * height * CGFloat(yProgress)
-                        )
-                }
-            }
-            .frame(width: widthPx, height: height, alignment: .topLeading)
-        }
+        FloatingEmberRepresentable(
+            widthPx: widthPx,
+            heightPx: height,
+            scale: scale,
+            uiColor: UIColor(color),
+            count: count
+        )
         .frame(width: widthPx, height: height, alignment: .topLeading)
         .offset(y: startY * scale)
         .allowsHitTesting(false)

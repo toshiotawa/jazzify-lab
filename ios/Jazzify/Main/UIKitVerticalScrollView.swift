@@ -62,6 +62,8 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
     @Binding var viewport: UIKitVerticalViewport
     let animated: Bool
     let delaysContentTouches: Bool
+    /// 指定時、値が前回と同じなら `UIHostingController.rootView` の差し替えを省略する。
+    let contentToken: AnyHashable?
     let content: Content
 
     init(
@@ -70,6 +72,7 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
         viewport: Binding<UIKitVerticalViewport> = .constant(.zero),
         animated: Bool,
         delaysContentTouches: Bool = false,
+        contentToken: AnyHashable? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.contentSize = contentSize
@@ -77,6 +80,7 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
         self._viewport = viewport
         self.animated = animated
         self.delaysContentTouches = delaysContentTouches
+        self.contentToken = contentToken
         self.content = content()
     }
 
@@ -87,6 +91,7 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
 
         var scrollTargetYBinding: Binding<CGFloat?>
         var viewportBinding: Binding<UIKitVerticalViewport>
+        var lastContentToken: AnyHashable?
 
         private var lastPublishedViewport: UIKitVerticalViewport = .zero
         /// 1px 単位で publish すると SwiftUI 再評価が多すぎるので粗く丸める
@@ -172,7 +177,19 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
     func updateUIView(_ uiView: UIScrollView, context: Context) {
         context.coordinator.scrollTargetYBinding = $scrollTargetY
         context.coordinator.viewportBinding = $viewport
-        context.coordinator.host?.rootView = content
+
+        let shouldUpdateRootView: Bool
+        if let contentToken {
+            shouldUpdateRootView = context.coordinator.lastContentToken != contentToken
+            if shouldUpdateRootView {
+                context.coordinator.lastContentToken = contentToken
+            }
+        } else {
+            shouldUpdateRootView = true
+        }
+        if shouldUpdateRootView {
+            context.coordinator.host?.rootView = content
+        }
 
         let newWidth = max(1, contentSize.width)
         let newHeight = max(1, contentSize.height)

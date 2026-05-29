@@ -103,6 +103,11 @@ enum SurvivalDescentLayoutBuilder {
         .joined(separator: "|")
     }
 
+    /// カタログ再構築検知用（`SurvivalDescentView` の layout @State 更新）。
+    static func blocksSignature(for blocks: [SurvivalBlockMeta]) -> String {
+        cacheKey(for: blocks)
+    }
+
     /// ブロック内ステージに左右交互のレーンを割り当てる。末尾のみ中央。
     private static func assignLane(indexInBlock: Int, isLastInBlock: Bool) -> SurvivalDescentLane {
         if isLastInBlock { return .center }
@@ -185,7 +190,7 @@ enum SurvivalDescentLayoutBuilder {
             blocks: layouts,
             stagePositions: positions
         )
-        if layoutCache.count >= 4 {
+        if layoutCache.count >= 8 {
             layoutCache.removeAll(keepingCapacity: true)
         }
         layoutCache[key] = layout
