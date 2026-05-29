@@ -35,6 +35,8 @@ export interface ApplyJajiiSpecialParams {
   readonly queueShockwave: (wave: ShockwaveEffect) => void;
   /** 指定時、この値を上限として最終近接ダメージをクリップする（サバイバル・フレーズ序盤コンボなど）。 */
   readonly maxOutgoingDamagePerHit?: number;
+  /** 複合フレーズ等: stat 計算の代わりにこの固定近接ダメージを使う（ボス/ミニオン）。 */
+  readonly explicitMeleeDamage?: number;
 }
 
 /** draft と bossBattle をミュータブル更新し、視覚用 shockwave を queue に積む */
@@ -48,6 +50,7 @@ export const applyJajiiGaugeSpecialAtWorld = (p: ApplyJajiiSpecialParams): void 
     bossBattle,
     queueShockwave,
     maxOutgoingDamagePerHit,
+    explicitMeleeDamage,
   } = p;
   const player = draft.player;
   const capOutgoing = (damage: number): number =>
@@ -75,8 +78,13 @@ export const applyJajiiGaugeSpecialAtWorld = (p: ApplyJajiiSpecialParams): void 
   const knockbackForce = 150 + player.skills.bKnockbackBonus * 50;
 
   if (isBossStage && bossBattle?.active) {
-    const condMultBoss = getConditionalSkillMultipliers(player);
-    let bossDamage = Math.floor(calculateBMeleeDamage(player.stats.bAtk) * condMultBoss.atkMultiplier);
+    let bossDamage: number;
+    if (explicitMeleeDamage !== undefined) {
+      bossDamage = explicitMeleeDamage;
+    } else {
+      const condMultBoss = getConditionalSkillMultipliers(player);
+      bossDamage = Math.floor(calculateBMeleeDamage(player.stats.bAtk) * condMultBoss.atkMultiplier);
+    }
     bossDamage = capOutgoing(bossDamage);
     const meleeRes = applyPlayerMeleeToBossBattle(
       bossBattle,

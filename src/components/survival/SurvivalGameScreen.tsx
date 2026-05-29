@@ -2226,8 +2226,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           phraseComboAfter,
           compositeNoteDamage,
         );
-        const phraseJajiiCap =
-          phraseComboAfter <= PHRASE_EARLY_COMBO_CAP_UNTIL ? PHRASE_EARLY_COMBO_DAMAGE_CAP : undefined;
 
         const newState: SurvivalGameState = {
           ...prev,
@@ -2356,26 +2354,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               return enemy;
             });
           }
-        }
-
-        if (
-          jajiiEnabled
-          && jajiiStateRef.current
-          && (evaluation.result === 'measure-complete' || evaluation.result === 'phrase-complete')
-        ) {
-          const jp = getJajiiWorldPosition(jajiiStateRef.current);
-          applyJajiiGaugeSpecialAtWorld({
-            draft: newState,
-            jajiiX: jp.x,
-            jajiiY: jp.y,
-            radiusMultiplier: 1,
-            isBossStage,
-            bossBattle: bossBattleRef.current,
-            queueShockwave: (w) => {
-              pendingShockwavesRef.current.push(w);
-            },
-            maxOutgoingDamagePerHit: phraseJajiiCap,
-          });
         }
 
         return newState;

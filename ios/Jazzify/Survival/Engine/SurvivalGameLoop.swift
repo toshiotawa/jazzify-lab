@@ -451,10 +451,14 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         runtime.jajii = jajii
     }
 
-    private func appendJajiiSyncSpecial(effectiveBAtk: Int, now: TimeInterval) {
+    private func appendJajiiSyncSpecial(
+        effectiveBAtk: Int,
+        now: TimeInterval,
+        explicitDamage: Int? = nil
+    ) {
         guard let jajiiState = runtime.jajii else { return }
         let pt = SurvivalJajiiEngine.worldPosition(state: jajiiState)
-        let wave = SurvivalGameEngine.createSpecialShockwave(
+        var wave = SurvivalGameEngine.createSpecialShockwave(
             centerX: pt.x,
             centerY: pt.y,
             facingDirection: runtime.player.direction,
@@ -464,6 +468,9 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             radiusMultiplier: SurvivalConstants.specialAttackRadiusMultiplier,
             suppressCameraShake: true
         )
+        if let explicitDamage {
+            wave.damage = explicitDamage
+        }
         runtime.shockwaves.append(wave)
     }
 
@@ -893,10 +900,6 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             }
         }
 
-        if result == .measureComplete || result == .phraseComplete {
-            appendJajiiSyncSpecial(effectiveBAtk: effectiveStats.bAtk, now: now)
-            capLastPhraseShockwaveOutgoingDamageIfNeeded()
-        }
         return events
     }
 
@@ -1572,9 +1575,14 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                     direction: dirVec
                 )
             }
+            let shockwaveDamage: Int = if isCompositePhraseBossStage {
+                wave.damage
+            } else {
+                Int(Double(wave.damage) * 0.6)
+            }
             let res = SurvivalBossEngine.applyPlayerAttack(
                 state: &boss,
-                damage: Int(Double(wave.damage) * 0.6),
+                damage: shockwaveDamage,
                 atPoint: CGPoint(x: wave.x, y: wave.y),
                 radius: wave.maxRadius,
                 alreadyHitIds: wave.hitEnemyIds,
