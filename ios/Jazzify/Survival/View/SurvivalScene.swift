@@ -172,6 +172,7 @@ final class SurvivalScene: SKScene {
         super.didChangeSize(oldSize)
         hasInitializedCameraPosition = false
         lastSceneUpdateTimeForCamera = nil
+        applyWorldZoomScale()
     }
 
     private func setup() {
@@ -189,6 +190,12 @@ final class SurvivalScene: SKScene {
         let camera = SKCameraNode()
         self.camera = camera
         addChild(camera)
+        applyWorldZoomScale()
+    }
+
+    /// ワールド描画（キャラ・敵・ステージ・セリフ吹き出し）を一律拡大。楽譜オーバーレイは別レイヤーのため不変。
+    private func applyWorldZoomScale() {
+        camera?.setScale(1.0 / SurvivalConstants.worldZoomScale)
     }
 
     /// プレイヤー向きに応じたテクスチャ名を Web 版 `getSurvivalDefaultSpriteForDirection` と同一マッピングにする。

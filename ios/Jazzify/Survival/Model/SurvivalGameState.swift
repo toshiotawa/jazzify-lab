@@ -10,6 +10,8 @@ enum SurvivalMap {
 }
 
 enum SurvivalConstants {
+    /// SpriteKit カメラのワールド拡大倍率（`camera.setScale(1 / worldZoomScale)`）。楽譜は別 SwiftUI 層のため影響なし。
+    static let worldZoomScale: CGFloat = 1.3
     static let playerSize: CGFloat = 36
     static let enemySize: CGFloat = 40
     static let projectileSize: CGFloat = 14
