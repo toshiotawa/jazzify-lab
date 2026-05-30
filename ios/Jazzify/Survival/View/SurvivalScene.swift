@@ -193,9 +193,12 @@ final class SurvivalScene: SKScene {
         applyWorldZoomScale()
     }
 
-    /// ワールド描画（キャラ・敵・ステージ・セリフ吹き出し）を一律拡大。楽譜オーバーレイは別レイヤーのため不変。
+    /// ワールド描画（キャラ・敵・ステージ・セリフ吹き出し）を iPad のみ拡大。楽譜オーバーレイは別レイヤーのため不変。
     private func applyWorldZoomScale() {
-        camera?.setScale(1.0 / SurvivalConstants.worldZoomScale)
+        let zoom: CGFloat = UIDevice.current.userInterfaceIdiom == .pad
+            ? SurvivalConstants.worldZoomScale
+            : 1.0
+        camera?.setScale(1.0 / zoom)
     }
 
     /// プレイヤー向きに応じたテクスチャ名を Web 版 `getSurvivalDefaultSpriteForDirection` と同一マッピングにする。
