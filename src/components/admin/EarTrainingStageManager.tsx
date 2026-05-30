@@ -651,7 +651,13 @@ const EarTrainingStageManager: React.FC = () => {
                       || nextMode === 'chord_quiz'
                       || nextMode === 'chord_osmd'
                     ) {
-                      setStageForm(prev => ({ ...prev, mode: nextMode }));
+                      setStageForm(prev => ({
+                        ...prev,
+                        mode: nextMode,
+                        show_keyboard_hints_in_battle: nextMode === 'chord_osmd'
+                          ? true
+                          : prev.show_keyboard_hints_in_battle,
+                      }));
                     }
                   }}
                 >

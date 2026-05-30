@@ -24,6 +24,7 @@ import {
 import {
   createInitialGameState,
   initializeCodeSlots,
+  isSurvivalPunchOnlyRandomSlots,
   selectRandomChord,
   selectProgressionChord,
   spawnEnemy,
@@ -1780,14 +1781,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const progressionChords = isProgressionStage ? progressionChordsRef.current : null;
       // Progression 起動時は index を 0 から開始
       if (isProgressionStage) progressionIndexRef.current = 0;
-      const randomHintShotDisabled =
-        isBalloonRushMode
-        || (!isProgressionStage &&
-          (isBasicMapStage
-            || stageDefinition?.mapCategory === 'lesson'
-            || isLessonMode
-            || hintMode
-            || prev.player.statusEffects.some(e => e.type === 'hint')));
+      const randomHintShotDisabled = isSurvivalPunchOnlyRandomSlots({
+        isBalloonRushMode,
+        isProgressionStage,
+        isBasicMapStage,
+        mapCategory: stageDefinition?.mapCategory,
+        isLessonMode,
+        hintMode,
+        hasHintStatusEffect: prev.player.statusEffects.some(effect => effect.type === 'hint'),
+      });
       const codeSlots = initializeCodeSlots(
         config.allowedChords,
         hasMagic,
@@ -2109,15 +2111,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
-      // 魔法を取得したらC列とD列を有効化（魔法不可キャラの場合は常に無効）
+      // 魔法を取得したらC列とD列を有効化（Punch のみ出題ステージでは常に無効）
       const hasMagic = !charNoMagic && Object.values(newPlayer.magics).some(l => l > 0);
+      const punchOnlyRandomSlots = isSurvivalPunchOnlyRandomSlots({
+        isBalloonRushMode,
+        isProgressionStage,
+        isBasicMapStage,
+        mapCategory: stageDefinition?.mapCategory,
+        isLessonMode,
+        hintMode,
+        hasHintStatusEffect: newPlayer.statusEffects.some(effect => effect.type === 'hint'),
+      });
+      const shouldEnableMagicSlots = hasMagic && !punchOnlyRandomSlots;
       const newCodeSlots = isProgressionStage ? gs.codeSlots : {
         ...gs.codeSlots,
         current: gs.codeSlots.current.map((slot, i) => 
-          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? pickRandomChord() : null } : slot
+          (i === 2 || i === 3) ? { ...slot, isEnabled: shouldEnableMagicSlots, chord: shouldEnableMagicSlots ? pickRandomChord() : null } : slot
         ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
         next: gs.codeSlots.next.map((slot, i) =>
-          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? pickRandomChord() : null } : slot
+          (i === 2 || i === 3) ? { ...slot, isEnabled: shouldEnableMagicSlots, chord: shouldEnableMagicSlots ? pickRandomChord() : null } : slot
         ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
       };
       
@@ -4891,15 +4903,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
             newState.player = currentPlayer;
             
-            // 魔法を取得したらC列とD列を有効化（魔法不可キャラの場合は常に無効）
+            // 魔法を取得したらC列とD列を有効化（Punch のみ出題ステージでは常に無効）
             const hasMagic = !charNoMagic && Object.values(newState.player.magics).some(l => l > 0);
+            const punchOnlyRandomSlots = isSurvivalPunchOnlyRandomSlots({
+              isBalloonRushMode,
+              isProgressionStage,
+              isBasicMapStage,
+              mapCategory: stageDefinition?.mapCategory,
+              isLessonMode,
+              hintMode,
+              hasHintStatusEffect: newState.player.statusEffects.some(effect => effect.type === 'hint'),
+            });
+            const shouldEnableMagicSlots = hasMagic && !punchOnlyRandomSlots;
             newState.codeSlots = isProgressionStage ? newState.codeSlots : {
               ...newState.codeSlots,
               current: newState.codeSlots.current.map((slot, i) => 
-                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? pickRandomChord() : slot.chord } : slot
+                (i === 2 || i === 3) ? { ...slot, isEnabled: shouldEnableMagicSlots, chord: shouldEnableMagicSlots && !slot.chord ? pickRandomChord() : slot.chord } : slot
               ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
               next: newState.codeSlots.next.map((slot, i) =>
-                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? pickRandomChord() : slot.chord } : slot
+                (i === 2 || i === 3) ? { ...slot, isEnabled: shouldEnableMagicSlots, chord: shouldEnableMagicSlots && !slot.chord ? pickRandomChord() : slot.chord } : slot
               ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
             };
             

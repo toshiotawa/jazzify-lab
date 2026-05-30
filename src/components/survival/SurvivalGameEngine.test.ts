@@ -80,6 +80,14 @@ describe('survival progression code slots', () => {
     }
   });
 
+  it('random + Punch のみ: hasMagic=true でも C/D は無効', () => {
+    const slots = initializeCodeSlots(['CM7', 'Dm7'], true, true, null, true);
+    expect(slots.current.map(slot => slot.isEnabled)).toEqual([false, true, false, false]);
+    expect(slots.next.map(slot => slot.isEnabled)).toEqual([false, true, false, false]);
+    expect(slots.current[2].chord).toBeNull();
+    expect(slots.next[2].chord).toBeNull();
+  });
+
   it('selects progression chords sequentially with wraparound', () => {
     expect(selectProgressionChord(progressionChords, 0)?.displayName).toBe('Cmaj7');
     expect(selectProgressionChord(progressionChords, 1)?.displayName).toBe('Dm7');

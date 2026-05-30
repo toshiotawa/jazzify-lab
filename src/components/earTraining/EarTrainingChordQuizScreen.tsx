@@ -50,6 +50,7 @@ import {
   isChordQuizQuestionCompleted,
   isQuizClear,
   pickNextQuizIndex,
+  shouldShowEarTrainingChordQuizPreview,
   type EarTrainingChordQuizQuestion,
 } from '@/utils/earTrainingChordQuiz';
 import {
@@ -344,17 +345,27 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
   const activeQuestion = quizQuestions[activeQuestionIndex] ?? null;
   const previewQuestion = quizQuestions[previewQuestionIndex] ?? null;
-  const shouldShowQuizPreview = useMemo(() => {
-    if (!previewQuestion || !activeQuestion || previewQuestion.id === activeQuestion.id) {
-      return false;
-    }
-    if (tutorial) {
-      const target = Math.max(1, tutorial.scene.questionCount ?? 1);
-      return tutorialQuestionsAnswered + 1 < target;
-    }
-    const required = Math.max(1, stage.quiz_required_correct_count ?? 10);
-    return correctCount + 1 < required;
-  }, [activeQuestion, correctCount, previewQuestion, stage.quiz_required_correct_count, tutorial, tutorialQuestionsAnswered]);
+  const shouldShowQuizPreview = useMemo(
+    () => shouldShowEarTrainingChordQuizPreview({
+      practiceMode,
+      isTutorial: tutorial != null,
+      activeQuestionId: activeQuestion?.id ?? null,
+      previewQuestionId: previewQuestion?.id ?? null,
+      correctCount,
+      quizRequiredCorrectCount: stage.quiz_required_correct_count ?? 10,
+      tutorialQuestionsAnswered,
+      tutorialQuestionCount: tutorial?.scene.questionCount ?? 1,
+    }),
+    [
+      activeQuestion,
+      correctCount,
+      practiceMode,
+      previewQuestion,
+      stage.quiz_required_correct_count,
+      tutorial,
+      tutorialQuestionsAnswered,
+    ],
+  );
   const activeChord = useMemo(
     () => getActiveChordInQuizQuestion(activeQuestion, attempt?.completedChordIds),
     [activeQuestion, attempt],
@@ -1231,6 +1242,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
             activeGroupId={activeChord?.id ?? null}
             showTargetHints={showVoicingTargetHints}
             hideUnpressedNotes={hideStaffNotes}
+            singleMeasureLayout={!shouldShowQuizPreview}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
             keyFifths={getQuestionKeyFifths(displayedActiveQuestion, stage)}

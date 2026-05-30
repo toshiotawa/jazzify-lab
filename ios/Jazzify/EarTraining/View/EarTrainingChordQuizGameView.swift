@@ -326,6 +326,7 @@ private struct EarTrainingChordQuizContent: View {
                 correctPitchClassesByGroupId: correctMap,
                 completionPulse: controller.staffCompletionPulse,
                 showTargetHints: showHints,
+                singleMeasureLayout: controller.displayedStaffPreviewQuestion == nil,
                 hideUnpressedNotes: hideNotes
             )
             .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)

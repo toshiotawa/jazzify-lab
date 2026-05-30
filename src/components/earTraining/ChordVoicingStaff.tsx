@@ -55,7 +55,7 @@ interface ChordVoicingStaffProps {
   showTargetHints?: boolean;
   /**
    * true のとき、現在小節（measureOffset===0）で未正解の符頭を描画しない（五線・コード名は維持）。
-   * 次小節プレビューは従来どおり表示する。
+   * クイズ本番では右小節プレビュー自体を出さない（親が measureOffset===1 を渡さない）。
    * @deprecated `unpressedNoteOpacity={0}` を優先。EarTraining 等の後方互換用。
    */
   hideUnpressedNotes?: boolean;

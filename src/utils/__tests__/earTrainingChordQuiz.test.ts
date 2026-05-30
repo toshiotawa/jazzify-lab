@@ -6,6 +6,7 @@ import {
   isChordQuizQuestionCompleted,
   pickNextQuizIndex,
   isQuizClear,
+  shouldShowEarTrainingChordQuizPreview,
 } from '@/utils/earTrainingChordQuiz';
 
 const three = [{ order_index: 0 }, { order_index: 1 }, { order_index: 2 }];
@@ -53,6 +54,45 @@ describe('isQuizClear', () => {
   it('checks threshold', () => {
     expect(isQuizClear(10, 10)).toBe(true);
     expect(isQuizClear(9, 10)).toBe(false);
+  });
+});
+
+describe('shouldShowEarTrainingChordQuizPreview', () => {
+  const base = {
+    practiceMode: true,
+    isTutorial: false,
+    activeQuestionId: 'q1',
+    previewQuestionId: 'q2',
+    correctCount: 0,
+    quizRequiredCorrectCount: 10,
+    tutorialQuestionsAnswered: 0,
+    tutorialQuestionCount: 3,
+  };
+
+  it('returns false in production battle', () => {
+    expect(shouldShowEarTrainingChordQuizPreview({
+      ...base,
+      practiceMode: false,
+    })).toBe(false);
+  });
+
+  it('returns true in practice when not on final question', () => {
+    expect(shouldShowEarTrainingChordQuizPreview(base)).toBe(true);
+  });
+
+  it('returns false in practice on final question', () => {
+    expect(shouldShowEarTrainingChordQuizPreview({
+      ...base,
+      correctCount: 9,
+    })).toBe(false);
+  });
+
+  it('returns true in tutorial even when not practice mode', () => {
+    expect(shouldShowEarTrainingChordQuizPreview({
+      ...base,
+      practiceMode: false,
+      isTutorial: true,
+    })).toBe(true);
   });
 });
 

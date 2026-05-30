@@ -131,8 +131,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         return quizQuestions[displayedStaffPreviewQuizIndex]
     }
 
-    /// 最終出題では右プレビュー小節（次の問題）を出さない。
+    /// 最終出題では右プレビュー小節（次の問題）を出さない。本番では練習時のみプレビュー表示。
     private var shouldShowQuizPreviewQuestion: Bool {
+        guard practiceMode || tutorialHooks != nil else { return false }
         guard let preview = previewQuestion,
               let active = currentActiveQuestion,
               preview.id != active.id

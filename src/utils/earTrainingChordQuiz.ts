@@ -43,6 +43,39 @@ export const isQuizClear = (correct: number, required: number): boolean => (
   correct >= Math.max(0, required)
 );
 
+export interface ShouldShowEarTrainingChordQuizPreviewParams {
+  practiceMode: boolean;
+  isTutorial: boolean;
+  activeQuestionId: string | null;
+  previewQuestionId: string | null;
+  correctCount: number;
+  quizRequiredCorrectCount: number;
+  tutorialQuestionsAnswered: number;
+  tutorialQuestionCount: number;
+}
+
+/** chord_quiz: 練習・チュートリアル時のみ右小節（次問題）プレビューを表示する。 */
+export const shouldShowEarTrainingChordQuizPreview = (
+  params: ShouldShowEarTrainingChordQuizPreviewParams,
+): boolean => {
+  if (!params.practiceMode && !params.isTutorial) {
+    return false;
+  }
+  if (
+    !params.previewQuestionId
+    || !params.activeQuestionId
+    || params.previewQuestionId === params.activeQuestionId
+  ) {
+    return false;
+  }
+  if (params.isTutorial) {
+    const target = Math.max(1, params.tutorialQuestionCount);
+    return params.tutorialQuestionsAnswered + 1 < target;
+  }
+  const required = Math.max(1, params.quizRequiredCorrectCount);
+  return params.correctCount + 1 < required;
+};
+
 export interface EarTrainingChordQuizQuestion {
   id: string;
   order_index: number;

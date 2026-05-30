@@ -563,6 +563,35 @@ export const selectRandomChord = (
   return null;
 };
 
+export interface SurvivalPunchOnlyRandomSlotsParams {
+  isBalloonRushMode?: boolean;
+  isProgressionStage: boolean;
+  isBasicMapStage?: boolean;
+  mapCategory?: string | null;
+  isLessonMode?: boolean;
+  hintMode?: boolean;
+  hasHintStatusEffect?: boolean;
+}
+
+/** Random ステージで B 列（Punch）のみ出題にする。Web `SurvivalGameScreen` の `randomHintShotDisabled` と整合。 */
+export const isSurvivalPunchOnlyRandomSlots = (
+  params: SurvivalPunchOnlyRandomSlotsParams,
+): boolean => {
+  if (params.isBalloonRushMode) {
+    return true;
+  }
+  if (params.isProgressionStage) {
+    return false;
+  }
+  return !!(
+    params.isBasicMapStage
+    || params.mapCategory === 'lesson'
+    || params.isLessonMode
+    || params.hintMode
+    || params.hasHintStatusEffect
+  );
+};
+
 // ===== コードスロット管理 =====
 export const initializeCodeSlots = (
   allowedChords: string[],
@@ -593,9 +622,10 @@ export const initializeCodeSlots = (
   }
 
   const shotEnabled = randomHintShotDisabled !== true;
+  const punchOnlySlots = randomHintShotDisabled === true;
 
-  const cEnabled = hasMagic && (!isStageMode || hasMagic);
-  const dEnabled = hasMagic && !isStageMode;
+  const cEnabled = !punchOnlySlots && hasMagic && (!isStageMode || hasMagic);
+  const dEnabled = !punchOnlySlots && hasMagic && !isStageMode;
   const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     {
       ...createEmptyCodeSlot('A'),
