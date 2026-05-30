@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import UIKit
 
 /// Apple DLS（General MIDI）のデフォルトバンク MSB（メロディック）
 private let kDefaultMelodicBankMSB: UInt8 = 0x79
@@ -112,6 +113,10 @@ final class SurvivalGameAudio {
     private let defaultBgmVolume: Float = 0.3
     private let defaultPianoVolume: Float = 0.8
 
+    private var interruptionObserver: NSObjectProtocol?
+    private var engineConfigObserver: NSObjectProtocol?
+    private var foregroundObserver: NSObjectProtocol?
+
     private init() {
         engine.attach(sampler)
         engine.attach(sfxMixer)
@@ -132,6 +137,7 @@ final class SurvivalGameAudio {
         engine.connect(rootBassMixer, to: engine.mainMixerNode, format: nil)
         bgmPlayer.actionAtItemEnd = .advance
         self.pianoSampler = SurvivalPianoSampler(engine: engine, output: pianoMixer)
+        registerLifecycleObservers()
     }
 
     // MARK: - Public API
@@ -549,14 +555,80 @@ final class SurvivalGameAudio {
         try? session.setActive(true, options: [])
     }
 
+    private func registerLifecycleObservers() {
+        let center = NotificationCenter.default
+        interruptionObserver = center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleAudioSessionInterruption(notification)
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+        foregroundObserver = center.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reactivateAudioAfterForeground()
+        }
+    }
+
+    private func handleAudioSessionInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+        switch type {
+        case .began:
+            if bgmPlayer.timeControlStatus == .playing {
+                bgmPlayer.pause()
+            }
+        case .ended:
+            let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            if options.contains(.shouldResume) {
+                reactivateAudioAfterForeground()
+            }
+        @unknown default:
+            break
+        }
+    }
+
+    /// バックグラウンド復帰・割り込み終了・ルート変更後に AVAudioSession / エンジン / BGM を再開する。
+    private func reactivateAudioAfterForeground() {
+        guard !isStopping else { return }
+        guard isEngineStarted || currentBgmUrl != nil || isPianoPrepared else { return }
+        configureAudioSession()
+        startEngineIfNeeded()
+        if currentBgmUrl != nil {
+            playBgm()
+        }
+    }
+
+    private func handleEngineConfigurationChange() {
+        guard !isStopping else { return }
+        guard isEngineStarted || isPianoPrepared else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isStopping else { return }
+            self.startEngineIfNeeded()
+        }
+    }
+
     private func startEngineIfNeeded() {
-        guard !isEngineStarted else { return }
+        guard !isStopping else { return }
+        if isEngineStarted && engine.isRunning { return }
         do {
             try engine.start()
             applyVolumesToNodes()
             isEngineStarted = true
         } catch {
-            // 無音動作。AVAudioUnitSampler は内蔵 DLS でも起動できないケースがあるため fail-safe。
+            isEngineStarted = false
         }
     }
 

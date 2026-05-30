@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import AVFoundation
 import Darwin
+import UIKit
 
 /// コードヴォイシング同期用。`schedulePreparedPhraseWithCountIn` が採用したリードインと BPM を UI 側に渡す。
 struct EarTrainingScheduledCountInPhrase: Sendable {
@@ -72,6 +73,10 @@ final class EarTrainingAudio: NSObject {
 
     private var playbackToken: Int = 0
     private var isPhraseEngineRunning = false
+    private var isDrumLoopActive = false
+
+    private var engineConfigObserver: NSObjectProtocol?
+    private var foregroundObserver: NSObjectProtocol?
 
     /// `schedulePreparedPhraseWithCountIn` でフレーズ `scheduleFile` した頭のホスト時刻。
     /// 非ゼロの間は `playerTime.sampleTime` ではなくアンカー差分から `currentTimeSec` を出す。
@@ -84,9 +89,16 @@ final class EarTrainingAudio: NSObject {
     override init() {
         super.init()
         sfxVolume = max(0, min(1, SurvivalGameAudio.shared.sfxVolume))
+        registerLifecycleObservers()
     }
 
     deinit {
+        if let engineConfigObserver {
+            NotificationCenter.default.removeObserver(engineConfigObserver)
+        }
+        if let foregroundObserver {
+            NotificationCenter.default.removeObserver(foregroundObserver)
+        }
         stopTimeTicker()
         if engine.isRunning {
             engine.stop()
@@ -164,10 +176,12 @@ final class EarTrainingAudio: NSObject {
         drumPlayer.stop()
         drumPlayer.scheduleBuffer(pcm, at: nil, options: [.loops], completionHandler: nil)
         drumPlayer.play()
+        isDrumLoopActive = true
     }
 
     func stopDrumLoop() {
         drumPlayer.stop()
+        isDrumLoopActive = false
     }
 
     // MARK: - Phrase playback
@@ -578,6 +592,39 @@ final class EarTrainingAudio: NSObject {
             engine.mainMixerNode.outputVolume = 1.0
         } catch {
             isPhraseEngineRunning = false
+        }
+    }
+
+    private func registerLifecycleObservers() {
+        let center = NotificationCenter.default
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+        foregroundObserver = center.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.resumePhraseEngineAfterForeground()
+        }
+    }
+
+    private func handleEngineConfigurationChange() {
+        guard isPhraseEngineRunning else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.resumePhraseEngineAfterForeground()
+        }
+    }
+
+    private func resumePhraseEngineAfterForeground() {
+        guard isPhraseEngineRunning else { return }
+        startPhraseEngineIfNeeded()
+        if isDrumLoopActive {
+            startDrumLoop()
         }
     }
 
