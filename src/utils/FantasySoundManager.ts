@@ -34,6 +34,7 @@ import {
   buildPublicAssetUrl,
   QUEST_COMPLETE_JINGLE_RELATIVE,
   QUEST_PRE_COMPLETE_JINGLE_RELATIVE,
+  GAMEOVER_JINGLE_RELATIVE,
 } from '@/utils/questJingleAssets';
 import { getWindow } from '@/platform';
 import { requestWebPlaybackAudioSession } from '@/utils/iosbridge';
@@ -70,6 +71,7 @@ export class FantasySoundManager {
     stage_clear:   { base: new Audio(), ready: false },
     quest_complete: { base: new Audio(), ready: false },
     quest_pre_complete: { base: new Audio(), ready: false },
+    gameover: { base: new Audio(), ready: false },
   };
 
   /** Web Audio (SE用) */
@@ -84,6 +86,7 @@ export class FantasySoundManager {
     stage_clear: null,
     quest_complete: null,
     quest_pre_complete: null,
+    gameover: null,
   };
 
   /** マスターボリューム (0‑1) */
@@ -139,6 +142,7 @@ export class FantasySoundManager {
   public static playStageClear() { return this.instance._playSe('stage_clear'); }
   public static playQuestCompleteJingle() { return this.instance._playSe('quest_complete'); }
   public static playQuestPreCompleteJingle() { return this.instance._playSe('quest_pre_complete'); }
+  public static playGameOverJingle() { return this.instance._playSe('gameover'); }
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
   public static async playRootNote(rootName: string) {
@@ -321,6 +325,7 @@ export class FantasySoundManager {
       load('stage_clear',   'stage_clear.mp3'),
       loadPublicAsset('quest_complete', QUEST_COMPLETE_JINGLE_RELATIVE),
       loadPublicAsset('quest_pre_complete', QUEST_PRE_COMPLETE_JINGLE_RELATIVE),
+      loadPublicAsset('gameover', GAMEOVER_JINGLE_RELATIVE),
     ];
 
     // ロード完了Promiseを保存
@@ -1404,6 +1409,7 @@ export class FantasySoundManager {
       const sePublicFiles: Array<[keyof typeof this.seBuffers, string]> = [
         ['quest_complete', QUEST_COMPLETE_JINGLE_RELATIVE],
         ['quest_pre_complete', QUEST_PRE_COMPLETE_JINGLE_RELATIVE],
+        ['gameover', GAMEOVER_JINGLE_RELATIVE],
       ];
 
       await Promise.all(seFiles.map(async ([key, file]) => {

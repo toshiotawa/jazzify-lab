@@ -800,6 +800,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         cancelCountdownTask()
         clearStaffShiftQueue()
         gameState = .gameOver
+        QuestJinglePlayer.playGameOver()
         statusText = isEnglishCopy ? "Try again" : "残念…"
         audio.stopDrumLoop()
     }

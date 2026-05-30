@@ -4,9 +4,11 @@ import AVFoundation
 enum QuestJinglePlayer {
     private static var completePlayer: AVAudioPlayer?
     private static var preCompletePlayer: AVAudioPlayer?
+    private static var gameOverPlayer: AVAudioPlayer?
 
     private static let completeResource = "クエスト完了"
     private static let preCompleteResource = "課題完了前 クリアモーダル"
+    private static let gameOverResource = "Gameover"
 
     static func playComplete() {
         play(resourceName: completeResource, cache: &completePlayer)
@@ -14,6 +16,10 @@ enum QuestJinglePlayer {
 
     static func playPreComplete() {
         play(resourceName: preCompleteResource, cache: &preCompletePlayer)
+    }
+
+    static func playGameOver() {
+        play(resourceName: gameOverResource, cache: &gameOverPlayer)
     }
 
     private static func play(resourceName: String, cache: inout AVAudioPlayer?) {

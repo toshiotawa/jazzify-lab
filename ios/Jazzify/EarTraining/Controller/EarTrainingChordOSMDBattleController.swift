@@ -992,6 +992,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         cancelAllTasks(keepsAudio: true)
         audio.stopPhrase()
         gameState = .gameOver
+        QuestJinglePlayer.playGameOver()
         statusText = message
         publishSnapshot()
     }

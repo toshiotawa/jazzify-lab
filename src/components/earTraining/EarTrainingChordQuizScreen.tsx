@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuestCompleteJingleOnStageClear } from '@/hooks/useQuestCompleteJingle';
+import { useQuestCompleteJingleOnStageClear, useGameOverJingleOnGameOver } from '@/hooks/useQuestCompleteJingle';
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingPhaserGame from './EarTrainingPhaserGame';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
@@ -230,6 +230,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
 
   useQuestCompleteJingleOnStageClear(gameState);
+  useGameOverJingleOnGameOver(gameState);
   const [phraseRunId, setPhraseRunId] = useState(0);
   const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);

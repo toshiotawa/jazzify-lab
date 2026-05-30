@@ -531,7 +531,7 @@ final class SurvivalGameAudio {
         case .stageClear:
             QuestJinglePlayer.playComplete()
         case .stageGameOver:
-            playArpeggio([60, 57, 53, 48], stepInterval: 0.12, velocity: 95, duration: 0.3)
+            QuestJinglePlayer.playGameOver()
         case .itemPickup:
             playChord([72, 76], velocity: 80, duration: 0.12)
         case .magicCast:

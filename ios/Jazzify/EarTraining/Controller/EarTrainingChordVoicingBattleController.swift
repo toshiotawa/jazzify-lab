@@ -1464,6 +1464,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private func finishGameOver(message: String) {
         cancelAllTimers()
         gameState = .gameOver
+        QuestJinglePlayer.playGameOver()
         statusText = message
         audio.stopDrumLoop()
         audio.stopPhrase()

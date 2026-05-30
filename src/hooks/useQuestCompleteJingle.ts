@@ -43,3 +43,26 @@ export function useQuestCompleteJingleWhenVisible(visible: boolean): void {
     }
   }, [visible]);
 }
+
+/** ゲームオーバー遷移時に Gameover ジングルを 1 回だけ再生 */
+export function useGameOverJingleOnGameOver(
+  gameState: string,
+  gameOverValue = 'gameOver',
+): void {
+  const playedRef = useRef(false);
+
+  useEffect(() => {
+    if (gameState === gameOverValue) {
+      if (!playedRef.current) {
+        playedRef.current = true;
+        try {
+          FantasySoundManager.playGameOverJingle();
+        } catch {
+          /* noop */
+        }
+      }
+    } else {
+      playedRef.current = false;
+    }
+  }, [gameState, gameOverValue]);
+}

@@ -1344,23 +1344,34 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     };
   }, []);
 
-  // ステージクリア音をボス戦／通常ステージ共通で単一経路から再生
-  // setGameState のアップデータ内部で副作用として呼んでいた経路を廃止し、
-  // result.isStageClear の遷移を監視して一度だけ鳴らすことで一貫性を確保。
-  const stageClearSoundPlayedRef = useRef(false);
+  // result 表示時のクリア / ゲームオーバー SE を単一経路から 1 回だけ再生
+  const resultSoundPlayedRef = useRef<'clear' | 'gameover' | null>(null);
   useEffect(() => {
-    if (result?.isStageClear === true) {
-      if (!stageClearSoundPlayedRef.current) {
-        stageClearSoundPlayedRef.current = true;
-        // BGM を即座にフェードアウトさせ、クリア音を確実に聴かせる
-        if (bgmAudioRef.current) {
-          try { bgmAudioRef.current.pause(); } catch { /* noop */ }
-        }
-        try { FantasySoundManager.playQuestCompleteJingle(); } catch { /* noop */ }
-      }
-    } else {
-      stageClearSoundPlayedRef.current = false;
+    if (!result) {
+      resultSoundPlayedRef.current = null;
+      return;
     }
+
+    if (result.isStageClear === true) {
+      if (resultSoundPlayedRef.current === 'clear') {
+        return;
+      }
+      resultSoundPlayedRef.current = 'clear';
+      if (bgmAudioRef.current) {
+        try { bgmAudioRef.current.pause(); } catch { /* noop */ }
+      }
+      try { FantasySoundManager.playQuestCompleteJingle(); } catch { /* noop */ }
+      return;
+    }
+
+    if (resultSoundPlayedRef.current === 'gameover') {
+      return;
+    }
+    resultSoundPlayedRef.current = 'gameover';
+    if (bgmAudioRef.current) {
+      try { bgmAudioRef.current.pause(); } catch { /* noop */ }
+    }
+    try { FantasySoundManager.playGameOverJingle(); } catch { /* noop */ }
   }, [result]);
   
   // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）

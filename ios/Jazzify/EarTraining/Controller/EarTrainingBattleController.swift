@@ -733,6 +733,7 @@ final class EarTrainingBattleController: ObservableObject {
         cancelTransitionTimer()
         cancelTimeLimitTimer()
         gameState = .gameOver
+        QuestJinglePlayer.playGameOver()
         audio.stopPhrase()
         statusText = message
         publishSnapshot()
