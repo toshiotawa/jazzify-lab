@@ -427,12 +427,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     handler();
   }, []);
 
-  const finishStageClear = useCallback(async (rank: EarTrainingRank) => {
+    const finishStageClear = useCallback(async (rank: EarTrainingRank) => {
     pendingImpactHandlersRef.current.clear();
     clearScheduledTimers();
     clearBattleEffectTimers();
     gameStateRef.current = 'stageClear';
     stopPhraseAudio();
+    tutorialDrumLoopRef.current?.stop();
     lastRankRef.current = rank;
     setLastRank(rank);
     setGameState('stageClear');

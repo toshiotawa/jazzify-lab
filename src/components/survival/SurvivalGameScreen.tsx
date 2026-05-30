@@ -1026,6 +1026,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const [bgmVolume, setBgmVolume] = useState<number>(0.3);
   const bgmVolumeRef = useRef<number>(0.3);
 
+  const stopAllSurvivalBackgroundMusic = useCallback(() => {
+    if (bgmAudioRef.current) {
+      try {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current.currentTime = 0;
+      } catch {
+        /* noop */
+      }
+      bgmAudioRef.current = null;
+      currentBgmUrlRef.current = null;
+    }
+    phraseDrumLoopRef.current?.stop();
+  }, []);
+
   useEffect(() => {
     if (!isPhraseMode) {
       phraseDrumLoopRef.current?.dispose();
@@ -1045,6 +1059,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   useEffect(() => {
     const phraseDrum = phraseDrumLoopRef.current;
     const url = phraseBgmUrlRef.current;
+    if (result) {
+      phraseDrum?.stop();
+      return undefined;
+    }
     if (!isPhraseMode || !phraseDrum || !url) {
       return undefined;
     }
@@ -1084,6 +1102,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.isPlaying,
     phraseBgmReadyTick,
     config.bgmUrl,
+    result,
   ]);
   
   // キー入力状態
@@ -1259,6 +1278,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // BGM再生制御（ステージ種別ごとに決まる1曲をループ再生）
   useEffect(() => {
+    if (result) {
+      stopAllSurvivalBackgroundMusic();
+      return;
+    }
     if (
       scenarioMode
       && scenarioOverridesRef.current.disableSurvivalBgm
@@ -1332,7 +1355,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       // コンポーネントアンマウント時はBGMを停止
     };
-  }, [isPhraseMode, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmUrl]);
+  }, [isPhraseMode, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmUrl, result, stopAllSurvivalBackgroundMusic]);
   
   // コンポーネントアンマウント時にBGMを停止
   useEffect(() => {
@@ -1357,9 +1380,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         return;
       }
       resultSoundPlayedRef.current = 'clear';
-      if (bgmAudioRef.current) {
-        try { bgmAudioRef.current.pause(); } catch { /* noop */ }
-      }
+      stopAllSurvivalBackgroundMusic();
       try { FantasySoundManager.playQuestCompleteJingle(); } catch { /* noop */ }
       return;
     }
@@ -1368,11 +1389,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return;
     }
     resultSoundPlayedRef.current = 'gameover';
-    if (bgmAudioRef.current) {
-      try { bgmAudioRef.current.pause(); } catch { /* noop */ }
-    }
+    stopAllSurvivalBackgroundMusic();
     try { FantasySoundManager.playGameOverJingle(); } catch { /* noop */ }
-  }, [result]);
+  }, [result, stopAllSurvivalBackgroundMusic]);
   
   // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
   useEffect(() => {

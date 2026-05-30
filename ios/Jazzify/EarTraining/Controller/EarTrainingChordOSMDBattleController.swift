@@ -978,6 +978,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func finishStageClear() {
         guard gameState != .stageClear else { return }
         cancelAllTasks(keepsAudio: true)
+        audio.stopDrumLoop()
         audio.stopPhrase()
         gameState = .stageClear
         QuestJinglePlayer.playComplete()
@@ -990,6 +991,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
     private func finishGameOver(message: String) {
         cancelAllTasks(keepsAudio: true)
+        audio.stopDrumLoop()
         audio.stopPhrase()
         gameState = .gameOver
         QuestJinglePlayer.playGameOver()

@@ -703,6 +703,7 @@ final class EarTrainingBattleController: ObservableObject {
         cancelTimeLimitTimer()
         gameState = .stageClear
         QuestJinglePlayer.playComplete()
+        audio.stopDrumLoop()
         audio.stopPhrase()
         lastRank = rank
         statusText = copy.stageClear
@@ -734,6 +735,7 @@ final class EarTrainingBattleController: ObservableObject {
         cancelTimeLimitTimer()
         gameState = .gameOver
         QuestJinglePlayer.playGameOver()
+        audio.stopDrumLoop()
         audio.stopPhrase()
         statusText = message
         publishSnapshot()

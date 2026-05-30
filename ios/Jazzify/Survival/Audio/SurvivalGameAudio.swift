@@ -529,8 +529,10 @@ final class SurvivalGameAudio {
         case .damage:
             playNote(48, velocity: 85, duration: 0.22)
         case .stageClear:
+            stopBgm()
             QuestJinglePlayer.playComplete()
         case .stageGameOver:
+            stopBgm()
             QuestJinglePlayer.playGameOver()
         case .itemPickup:
             playChord([72, 76], velocity: 80, duration: 0.12)
