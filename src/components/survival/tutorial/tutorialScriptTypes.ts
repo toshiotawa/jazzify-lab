@@ -1,9 +1,11 @@
 import type { SurvivalScenarioOverrides } from '@/components/survival/scenario/survivalScenarioTypes';
-import type { TutorialStyledLocalizedText } from '@/types/tutorialStyledText';
 
 import type { TutorialAudioTracksMap } from './TutorialAudioController';
 
-export type TutorialLocalizedText = TutorialStyledLocalizedText;
+export interface TutorialLocalizedText {
+  readonly ja: string;
+  readonly en: string;
+}
 
 export interface TutorialChordDef {
   name: string;

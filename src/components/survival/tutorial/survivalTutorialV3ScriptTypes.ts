@@ -1,10 +1,11 @@
 import type { SurvivalScenarioOverrides } from '@/components/survival/scenario/survivalScenarioTypes';
-import type { TutorialStyledLocalizedText } from '@/types/tutorialStyledText';
 
-/** v3 共通: 多言語文言（任意 `styled` / `speaker`） */
-export type SurvivalTutorialLocalizedText = TutorialStyledLocalizedText & {
+/** v3 共通: 多言語文言（`speaker` 任意） */
+export interface SurvivalTutorialLocalizedText {
+  readonly ja: string;
+  readonly en: string;
   readonly speaker?: SurvivalTutorialV3DialogueSpeaker;
-};
+}
 
 /**
  * v3 台詞の話者。

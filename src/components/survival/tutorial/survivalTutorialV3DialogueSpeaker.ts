@@ -1,7 +1,6 @@
 import type { SurvivalTutorialLocalizedText } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
-import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 
-import { survivalTutorialResolvedSegments } from './survivalTutorialV3Locales';
+import { survivalTutorialLocalized } from './survivalTutorialV3Locales';
 
 /** v3 台詞の話者。`dialogue_only` 省略時は fai、バトル dialogue 省略時は jajii。 */
 export type SurvivalTutorialV3DialogueSpeaker = 'fai' | 'jajii' | 'narration';
@@ -22,9 +21,9 @@ export const resolveSurvivalTutorialV3Speaker = (
 };
 
 export interface SurvivalTutorialV3LinePresentationSink {
-  readonly setCharacterSegments: (segments: readonly TutorialResolvedTextSegment[]) => void;
+  readonly setCharacterText: (text: string) => void;
   readonly setNarrationText: (text: string) => void;
-  readonly setJajiiSpeechSegments: (segments: readonly TutorialResolvedTextSegment[]) => void;
+  readonly setJajiiSpeechText: (text: string) => void;
 }
 
 /** 1 行を話者に応じて表示先へ振り分け（他チャンネルはクリア）。 */
@@ -34,45 +33,45 @@ export const presentSurvivalTutorialV3Line = (
   context: SurvivalTutorialV3LineContext,
   sink: SurvivalTutorialV3LinePresentationSink,
 ): void => {
-  presentSurvivalTutorialV3ResolvedSegments(
+  presentSurvivalTutorialV3ResolvedLine(
     line,
-    survivalTutorialResolvedSegments(line, isEnglishCopy),
+    survivalTutorialLocalized(line, isEnglishCopy),
     context,
     sink,
   );
 };
 
-/** 解決済みセグメントを話者に応じて表示（`{{remaining}}` 展開後など）。 */
-export const presentSurvivalTutorialV3ResolvedSegments = (
+/** 解決済み文字列を話者に応じて表示（`{{remaining}}` 展開後など）。 */
+export const presentSurvivalTutorialV3ResolvedLine = (
   line: SurvivalTutorialLocalizedText & { readonly speaker?: SurvivalTutorialV3DialogueSpeaker | string },
-  segments: readonly TutorialResolvedTextSegment[],
+  resolvedLine: string,
   context: SurvivalTutorialV3LineContext,
   sink: SurvivalTutorialV3LinePresentationSink,
 ): void => {
   const speaker = resolveSurvivalTutorialV3Speaker(line, context);
-  sink.setCharacterSegments([]);
+  sink.setCharacterText('');
   sink.setNarrationText('');
-  sink.setJajiiSpeechSegments([]);
+  sink.setJajiiSpeechText('');
 
   switch (speaker) {
     case 'fai':
-      sink.setCharacterSegments(segments);
+      sink.setCharacterText(resolvedLine);
       break;
     case 'jajii':
-      sink.setJajiiSpeechSegments(segments);
+      sink.setJajiiSpeechText(resolvedLine);
       break;
     case 'narration':
-      sink.setNarrationText(segments.map((s) => s.text).join(''));
+      sink.setNarrationText(resolvedLine);
       break;
     default:
-      sink.setCharacterSegments(segments);
+      sink.setCharacterText(resolvedLine);
   }
 };
 
 export const clearSurvivalTutorialV3LinePresentation = (
   sink: SurvivalTutorialV3LinePresentationSink,
 ): void => {
-  sink.setCharacterSegments([]);
+  sink.setCharacterText('');
   sink.setNarrationText('');
-  sink.setJajiiSpeechSegments([]);
+  sink.setJajiiSpeechText('');
 };

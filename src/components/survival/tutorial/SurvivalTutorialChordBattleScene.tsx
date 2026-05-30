@@ -14,7 +14,7 @@ import { SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS } from '@/components/survival/t
 import {
   clearSurvivalTutorialV3LinePresentation,
   presentSurvivalTutorialV3Line,
-  presentSurvivalTutorialV3ResolvedSegments,
+  presentSurvivalTutorialV3ResolvedLine,
 } from '@/components/survival/tutorial/survivalTutorialV3DialogueSpeaker';
 import {
   mergeSurvivalTutorialV3Baseline,
@@ -23,10 +23,7 @@ import {
 } from '@/components/survival/tutorial/survivalTutorialV3Scenario';
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import { survivalTutorialV3ContentIsPhraseBlock } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
-import {
-  survivalTutorialResolvedSegmentsWithRemaining,
-} from '@/components/survival/tutorial/survivalTutorialV3Locales';
-import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
+import { survivalTutorialLocalizedWithRemaining } from '@/components/survival/tutorial/survivalTutorialV3Locales';
 
 type ChordBattleScene =
   | Extract<SurvivalTutorialScriptPayloadV3['scenes'][number], { type: 'progression_battle' }>
@@ -107,20 +104,20 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
   const slotBPulseRef = useRef(0);
   const userPulseRef = useRef(0);
   const midiRef = useRef(false);
-  const tutorialJajiiSpeechSegmentsRef = useRef<readonly TutorialResolvedTextSegment[]>([]);
+  const tutorialJajiiSpeechTextRef = useRef('');
 
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
 
   const linePresentationSink = useMemo(
     () => ({
-      setCharacterSegments: (segments: readonly TutorialResolvedTextSegment[]) => {
-        bindingsRef.current.setCharacterSegments(segments);
+      setCharacterText: (text: string) => {
+        bindingsRef.current.setCharacterText(text);
       },
       setNarrationText: (text: string) => {
         bindingsRef.current.setNarrationText(text);
       },
-      setJajiiSpeechSegments: (segments: readonly TutorialResolvedTextSegment[]) => {
-        tutorialJajiiSpeechSegmentsRef.current = segments;
+      setJajiiSpeechText: (text: string) => {
+        tutorialJajiiSpeechTextRef.current = text;
       },
     }),
     [],
@@ -217,9 +214,9 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
           afterCorrect: (_remainingQuestions, qiCompleted) => {
             const answered = qiCompleted + 1;
             const remainingAfter = Math.max(0, totalQuestions - answered);
-            presentSurvivalTutorialV3ResolvedSegments(
+            presentSurvivalTutorialV3ResolvedLine(
               scene.dialogue.onCorrectRemaining,
-              survivalTutorialResolvedSegmentsWithRemaining(
+              survivalTutorialLocalizedWithRemaining(
                 scene.dialogue.onCorrectRemaining,
                 bindingsRef.current.isEnglishCopy,
                 remainingAfter,
@@ -280,7 +277,7 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
         scenarioMode
         initialScenarioOverrides={mergeSurvivalTutorialV3Baseline(script)}
         tutorialDialogueJajii
-        tutorialJajiiSpeechSegmentsRef={tutorialJajiiSpeechSegmentsRef}
+        tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
         onScenarioHandleReady={(x) => {
           setScenarioHandle(x);
         }}

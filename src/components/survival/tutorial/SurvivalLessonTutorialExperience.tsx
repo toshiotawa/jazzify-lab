@@ -38,9 +38,7 @@ import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutori
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import type { TutorialLocalizedText } from '@/components/survival/tutorial/tutorialScriptTypes';
-import { segmentsToPlainString } from '@/types/tutorialStyledText';
-import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
-import { resolveTutorialStyledSegments } from '@/types/tutorialStyledText';
+import { survivalTutorialLocalized } from '@/components/survival/tutorial/survivalTutorialV3Locales';
 
 const TUTORIAL_CONFIG: DifficultyConfig = {
   difficulty: 'easy',
@@ -92,9 +90,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const [loadedScript, setLoadedScript] = useState<SurvivalTutorialScriptPayload | null>(null);
   const [stageDefinition, setStageDefinition] = useState<StageDefinition>(TUTORIAL_STAGE_DEFINITION);
 
-  const [v2CharacterSegments, setV2CharacterSegments] = useState<
-    readonly TutorialResolvedTextSegment[]
-  >([]);
+  const [v2CharacterText, setV2CharacterText] = useState('');
   const [narrationText, setNarrationText] = useState('');
   const [connectedDeviceLine, setConnectedDeviceLine] = useState<string | null>(null);
   const [showPillarCard, setShowPillarCard] = useState(false);
@@ -103,9 +99,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const [showCta, setShowCta] = useState(false);
   const [tutorialV3Payload, setTutorialV3Payload] = useState<SurvivalTutorialScriptPayloadV3 | null>(null);
   const [v3SceneIndex, setV3SceneIndex] = useState(0);
-  const [v3CharacterSegments, setV3CharacterSegments] = useState<
-    readonly TutorialResolvedTextSegment[]
-  >([]);
+  const [v3CharacterText, setV3CharacterText] = useState('');
   const [v3NarrationText, setV3NarrationText] = useState('');
   const [v3FinishCta, setV3FinishCta] = useState(false);
   const [v3TapCueVisible, setV3TapCueVisible] = useState(false);
@@ -146,9 +140,9 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
       setTutorialV3Payload(null);
       setV3SceneIndex(0);
-      setV3CharacterSegments([]);
+      setV3CharacterText('');
       setV3NarrationText('');
-      setV2CharacterSegments([]);
+      setV2CharacterText('');
       setV3FinishCta(false);
       setV3TapCueVisible(false);
 
@@ -281,7 +275,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
   useEffect(() => {
     const pl = tutorialV3Payload;
     if (!pl || gate !== 'ready') return;
-    setV3CharacterSegments([]);
+    setV3CharacterText('');
     setV3NarrationText('');
     const s = pl.scenes[v3SceneIndex];
     if (!s) return;
@@ -337,9 +331,9 @@ export const SurvivalLessonTutorialExperience: React.FC<
     return {
       isEnglishCopy,
       ui: tutorialV3Payload.ui,
-      setCharacterSegments: setV3CharacterSegments,
+      setCharacterText: setV3CharacterText,
       setNarrationText: setV3NarrationText,
-      setJajiiSpeechSegments: () => undefined,
+      setJajiiSpeechText: () => undefined,
       onExit: () => {
         void finalizeLesson('aborted');
       },
@@ -367,16 +361,10 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
   const setRunnerCharacterOverlay = useCallback((line: TutorialLocalizedText | string) => {
     if (typeof line === 'string') {
-      if (!line.trim()) {
-        setV2CharacterSegments([]);
-        return;
-      }
-      setV2CharacterSegments(
-        resolveTutorialStyledSegments({ ja: line, en: line }, isEnglishCopy),
-      );
+      setV2CharacterText(line.trim());
       return;
     }
-    setV2CharacterSegments(resolveTutorialStyledSegments(line, isEnglishCopy));
+    setV2CharacterText(survivalTutorialLocalized(line, isEnglishCopy).trim());
   }, [isEnglishCopy]);
 
   const onScenarioHandleReady = useCallback(
@@ -578,10 +566,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
         ) : null}
 
         <OnboardingOverlays
-          characterText={
-            v3CharacterSegments.length > 0 ? segmentsToPlainString(v3CharacterSegments) : ''
-          }
-          characterSegments={v3CharacterSegments}
+          characterText={v3CharacterText}
           narrationText={v3NarrationText}
           connectedDeviceLine={null}
           showPillarCard={false}
@@ -650,10 +635,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
       </div>
 
       <OnboardingOverlays
-        characterText={
-          v2CharacterSegments.length > 0 ? segmentsToPlainString(v2CharacterSegments) : ''
-        }
-        characterSegments={v2CharacterSegments}
+        characterText={v2CharacterText}
         narrationText={narrationText}
         connectedDeviceLine={connectedDeviceLine}
         showPillarCard={showPillarCard}

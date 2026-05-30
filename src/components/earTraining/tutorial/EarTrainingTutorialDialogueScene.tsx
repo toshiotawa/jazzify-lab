@@ -18,8 +18,7 @@ import { markAudioUserInteraction } from '@/utils/MidiController';
 
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
 import type { EarTrainingTutorialDialogueOnlyScene } from './earTrainingTutorialScriptTypes';
-import { resolveDialogueLineSpeaker } from './earTrainingTutorialScriptTypes';
-import { resolveTutorialStyledSegments } from '@/types/tutorialStyledText';
+import { localizedText, resolveDialogueLineSpeaker } from './earTrainingTutorialScriptTypes';
 
 /** dialogue_only 用（標準プレイヤーセリフよりやや大きめ・はみ出しにくいサイズ） */
 const DIALOGUE_QUOTE_FONT_PX = 26;
@@ -193,7 +192,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       return undefined;
     }
 
-    const quotePayload = { segments: resolveTutorialStyledSegments(line, bindings.isEnglishCopy) };
+    const quoteText = localizedText(line, bindings.isEnglishCopy);
     const speaker = resolveDialogueLineSpeaker(line);
 
     const rafId = window.requestAnimationFrame(() => {
@@ -210,10 +209,10 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       } as const;
       if (speaker === 'partner') {
         h.setPlayerQuote(null);
-        h.setPartnerQuote(quotePayload, opts);
+        h.setPartnerQuote(quoteText, opts);
       } else {
         h.setPartnerQuote(null);
-        h.setPlayerQuote(quotePayload, opts);
+        h.setPlayerQuote(quoteText, opts);
       }
     });
 

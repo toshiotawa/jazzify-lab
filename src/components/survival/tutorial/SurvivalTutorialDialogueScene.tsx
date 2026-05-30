@@ -13,7 +13,6 @@ import {
   presentSurvivalTutorialV3Line,
 } from './survivalTutorialV3DialogueSpeaker';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
-import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 
 const DUMMY_SURVIVAL_CONFIG = {
   difficulty: 'easy' as const,
@@ -50,7 +49,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
 
-  const tutorialJajiiSpeechSegmentsRef = useRef<readonly TutorialResolvedTextSegment[]>([]);
+  const tutorialJajiiSpeechTextRef = useRef('');
 
   const sceneHasJajii = useMemo(
     () => scene.lines.some((l) => dialogueSpeakerOf(l) === 'jajii'),
@@ -75,7 +74,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
   useEffect(() => {
     const ac = new AbortController();
     const lines = scene.lines ?? [];
-    tutorialJajiiSpeechSegmentsRef.current = [];
+    tutorialJajiiSpeechTextRef.current = '';
 
     if (lines.length === 0) {
       onSceneComplete();
@@ -92,22 +91,22 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
           bindingsRef.current.isEnglishCopy,
           'dialogue_only',
           {
-            setCharacterSegments: bindingsRef.current.setCharacterSegments,
+            setCharacterText: bindingsRef.current.setCharacterText,
             setNarrationText: bindingsRef.current.setNarrationText,
-            setJajiiSpeechSegments: (segs) => {
-              tutorialJajiiSpeechSegmentsRef.current = segs;
+            setJajiiSpeechText: (text) => {
+              tutorialJajiiSpeechTextRef.current = text;
             },
           },
         );
         await bindingsRef.current.waitForTapOrTimeout(lineSeconds, ac.signal);
         if (ac.signal.aborted) return;
       }
-      bindingsRef.current.setCharacterSegments([]);
+      bindingsRef.current.setCharacterText('');
       clearSurvivalTutorialV3LinePresentation({
-        setCharacterSegments: bindingsRef.current.setCharacterSegments,
+        setCharacterText: bindingsRef.current.setCharacterText,
         setNarrationText: bindingsRef.current.setNarrationText,
-        setJajiiSpeechSegments: (segs) => {
-          tutorialJajiiSpeechSegmentsRef.current = segs;
+        setJajiiSpeechText: (text) => {
+          tutorialJajiiSpeechTextRef.current = text;
         },
       });
       if (!ac.signal.aborted) {
@@ -121,10 +120,10 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
       ac.abort();
       bindingsRef.current.setTapAdvanceCueVisible(false);
       clearSurvivalTutorialV3LinePresentation({
-        setCharacterSegments: bindingsRef.current.setCharacterSegments,
+        setCharacterText: bindingsRef.current.setCharacterText,
         setNarrationText: bindingsRef.current.setNarrationText,
-        setJajiiSpeechSegments: (segs) => {
-          tutorialJajiiSpeechSegmentsRef.current = segs;
+        setJajiiSpeechText: (text) => {
+          tutorialJajiiSpeechTextRef.current = text;
         },
       });
     };
@@ -146,7 +145,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
         scenarioMode
         initialScenarioOverrides={dialogueScenarioOverrides}
         tutorialDialogueJajii={sceneHasJajii}
-        tutorialJajiiSpeechSegmentsRef={tutorialJajiiSpeechSegmentsRef}
+        tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
         onBackToSelect={() => bindingsRef.current.onExit()}
         onBackToMenu={() => bindingsRef.current.onExit()}
       />

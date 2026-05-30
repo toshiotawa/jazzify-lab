@@ -38,7 +38,6 @@ import {
   SURVIVAL_FAI_BUBBLE_MAX_WIDTH_PX,
   SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
 } from '@/components/survival/stageIntro/survivalSpeechBubbleLayout';
-import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 import type { BalloonRushDrawSnapshot } from '@/components/balloonRush/balloonRushWorldDraw';
 
 /**
@@ -113,8 +112,8 @@ interface SurvivalCanvasProps {
   jajiiWorldPosRef?: React.MutableRefObject<{ x: number; y: number } | null>;
   /** ジャ爺頭上の吹き出し（空で非表示） */
   jajiiBubbleText?: string;
-  /** ジャ爺頭上セリフの色セグメント（優先）。親が `.current` を更新。 */
-  jajiiSpeechSegmentsRef?: React.MutableRefObject<readonly TutorialResolvedTextSegment[]>;
+  /** チュートリアル用ジャ爺台詞（`.current` 優先。親が毎フレーム参照） */
+  tutorialJajiiSpeechTextRef?: React.MutableRefObject<string>;
   /** プレイヤー足下の吹き出し（空で非表示） */
   faiBubbleText?: string;
   /** 風船ラッシュ時: 敵の代わりに風船を描画 */
@@ -284,7 +283,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   hidePlayerHintStatusIcon = false,
   jajiiWorldPosRef,
   jajiiBubbleText = '',
-  jajiiSpeechSegmentsRef,
+  tutorialJajiiSpeechTextRef,
   faiBubbleText = '',
   balloonRushDraw = null,
   mapConfig,
@@ -1756,10 +1755,9 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (jajiiWorldForBubble) {
       const jjx = jajiiWorldForBubble.x - camera.x;
       const jjy = jajiiWorldForBubble.y - camera.y;
-      const jajiiSegments = jajiiSpeechSegmentsRef?.current;
-      const jajiiQuote = jajiiBubbleTextRef.current.trim();
-      const hasSeg = Boolean(jajiiSegments && jajiiSegments.length > 0);
-      if (hasSeg || jajiiQuote) {
+      const tutorialJajiiQuote = tutorialJajiiSpeechTextRef?.current.trim() ?? '';
+      const jajiiQuote = tutorialJajiiQuote || jajiiBubbleTextRef.current.trim();
+      if (jajiiQuote) {
         const bubbleMax = Math.min(
           SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
           logicalWidth - 32,
@@ -1768,8 +1766,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
           ctx,
           centerX: jjx,
           anchorY: jjy - JAJII_SPRITE_SIZE / 2 - 6,
-          text: hasSeg ? '' : jajiiQuote,
-          segments: hasSeg ? jajiiSegments : undefined,
+          text: jajiiQuote,
           maxWidth: bubbleMax,
           placement: 'above',
         });

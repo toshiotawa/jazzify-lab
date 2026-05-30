@@ -21,10 +21,10 @@ describe('survivalTutorialV3DialogueSpeaker', () => {
   });
 
   it('presentSurvivalTutorialV3Line は話者ごとに sink を呼ぶ', () => {
-    const setCharacterSegments = vi.fn();
+    const setCharacterText = vi.fn();
     const setNarrationText = vi.fn();
-    const setJajiiSpeechSegments = vi.fn();
-    const sink = { setCharacterSegments, setNarrationText, setJajiiSpeechSegments };
+    const setJajiiSpeechText = vi.fn();
+    const sink = { setCharacterText, setNarrationText, setJajiiSpeechText };
 
     presentSurvivalTutorialV3Line(
       { ja: 'ナレ', en: 'Narr', speaker: 'narration' },
@@ -32,17 +32,17 @@ describe('survivalTutorialV3DialogueSpeaker', () => {
       'dialogue_only',
       sink,
     );
-    expect(setCharacterSegments).toHaveBeenCalledWith([]);
-    expect(setJajiiSpeechSegments).toHaveBeenCalledWith([]);
+    expect(setCharacterText).toHaveBeenCalledWith('');
+    expect(setJajiiSpeechText).toHaveBeenCalledWith('');
     expect(setNarrationText).toHaveBeenCalledWith('ナレ');
 
-    setCharacterSegments.mockClear();
+    setCharacterText.mockClear();
     setNarrationText.mockClear();
-    setJajiiSpeechSegments.mockClear();
+    setJajiiSpeechText.mockClear();
 
     presentSurvivalTutorialV3Line({ ja: '爺', en: 'J', speaker: 'jajii' }, false, 'dialogue_only', sink);
-    expect(setJajiiSpeechSegments).toHaveBeenCalledWith([{ text: '爺', color: '#ffffff' }]);
-    expect(setCharacterSegments).toHaveBeenCalledWith([]);
+    expect(setJajiiSpeechText).toHaveBeenCalledWith('爺');
+    expect(setCharacterText).toHaveBeenCalledWith('');
     expect(setNarrationText).toHaveBeenCalledWith('');
   });
 });

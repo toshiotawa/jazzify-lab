@@ -125,7 +125,6 @@ import {
   SurvivalProgressionStaff,
   type SurvivalProgressionStaffSnapshot,
 } from './SurvivalProgressionStaff';
-import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 import { SurvivalPhraseStaff } from './phrases/SurvivalPhraseStaff';
 import {
   clampPhraseOutgoingDamage,
@@ -408,8 +407,8 @@ interface SurvivalGameScreenProps {
   scenarioPhraseFullLoopPulseRef?: React.MutableRefObject<number>;
   /** v3 dialogue_only でジャ爺話者があるシーンのみ。`shouldEnableJajiiSupport` の特例へ渡す */
   tutorialDialogueJajii?: boolean;
-  /** ジャ爺吹き出しの segments。`.current` を親が書き換え、Canvas が毎フレーム参照 */
-  tutorialJajiiSpeechSegmentsRef?: React.MutableRefObject<readonly TutorialResolvedTextSegment[]>;
+  /** ジャ爺吹き出しの台詞。`.current` を親が書き換え、Canvas が毎フレーム参照 */
+  tutorialJajiiSpeechTextRef?: React.MutableRefObject<string>;
   /** レッスン課題のインライン複合フレーズ（Supabase 参照なし） */
   lessonInlineCompositePhrases?: readonly SurvivalPhraseDefinition[];
   /** レッスン課題の HP / BGM / 制限時間などランタイム上書き */
@@ -452,7 +451,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   tutorialPhraseInlineDefinition = null,
   scenarioPhraseFullLoopPulseRef,
   tutorialDialogueJajii = false,
-  tutorialJajiiSpeechSegmentsRef,
+  tutorialJajiiSpeechTextRef,
   lessonInlineCompositePhrases,
   lessonRuntime,
   balloonRushStage,
@@ -6485,7 +6484,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             hidePlayerHintStatusIcon={scenarioHideHintBadge}
             jajiiWorldPosRef={jajiiWorldPosRef}
             jajiiBubbleText={timedJajiiBubbleLine}
-            jajiiSpeechSegmentsRef={tutorialJajiiSpeechSegmentsRef}
+            tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
             faiBubbleText={timedFaiBubbleCharacterLine}
             balloonRushDraw={isBalloonRushMode ? balloonDrawSnapshot : null}
             mapConfig={isBalloonRushMode ? BALLOON_RUSH_MAP_CONFIG : undefined}
