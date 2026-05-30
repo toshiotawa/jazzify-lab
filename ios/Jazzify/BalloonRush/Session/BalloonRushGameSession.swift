@@ -160,6 +160,14 @@ final class BalloonRushGameSession: SurvivalPlaySession {
         if gameLoop.phase != .playing {
             displayLink?.invalidate()
             displayLink = nil
+            switch gameLoop.phase {
+            case .cleared:
+                audioController.playEffect(.stageClear)
+            case .failed:
+                audioController.playEffect(.stageGameOver)
+            case .playing:
+                break
+            }
             audioController.stop()
         }
     }
