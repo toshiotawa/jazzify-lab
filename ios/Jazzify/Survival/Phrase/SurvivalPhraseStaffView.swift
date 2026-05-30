@@ -3,6 +3,13 @@ import SwiftUI
 /// Phrases モード用 1 小節譜面（現在和音のみ、順次全音符）。
 struct SurvivalPhraseStaffView: View {
     let snapshot: SurvivalPhraseStaffSnapshot
+    /// サバイバル iPad 用: 五線間隔スケール。既定 1。
+    let staffSpacingScale: CGFloat
+
+    init(snapshot: SurvivalPhraseStaffSnapshot, staffSpacingScale: CGFloat = 1) {
+        self.snapshot = snapshot
+        self.staffSpacingScale = staffSpacingScale
+    }
 
     var body: some View {
         let built = buildGroups()
@@ -21,7 +28,8 @@ struct SurvivalPhraseStaffView: View {
             unpressedNoteOpacity: CGFloat(snapshot.unpressedNoteOpacity),
             compactChordLabelGap: true,
             compactVerticalLayout: true,
-            fadeAllMeasureNotes: true
+            fadeAllMeasureNotes: true,
+            staffSpacingScale: staffSpacingScale
         )
     }
 

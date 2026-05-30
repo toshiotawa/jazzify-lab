@@ -869,11 +869,60 @@ private struct SurvivalTutorialStaffBackdropModifier: ViewModifier {
     }
 }
 
+private enum SurvivalStaffOverlayLayout {
+    static let iPadScale: CGFloat = 1.4
+
+    static var isPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    static var staffSpacingScale: CGFloat {
+        isPad ? iPadScale : 1
+    }
+
+    static func usesGrandStaff(voicingStavesPerNote: [Int]?) -> Bool {
+        guard let staves = voicingStavesPerNote else { return false }
+        return staves.contains(1) && staves.contains(2)
+    }
+
+    static func usesGrandStaff(notes: [SurvivalPhraseChordNote]?) -> Bool {
+        guard let notes else { return false }
+        return notes.contains { $0.staff == 1 } && notes.contains { $0.staff == 2 }
+    }
+
+    static func centerStaffMaxWidth(isPad: Bool) -> CGFloat {
+        isPad ? 784 : 560
+    }
+
+    static func centerStaffMaxHeight(isPad: Bool, grandStaff: Bool) -> CGFloat {
+        if isPad {
+            return grandStaff ? 300 : 224
+        }
+        return 160
+    }
+
+    static func scenarioStaffMaxWidth(isPad: Bool) -> CGFloat {
+        isPad ? 784 : 560
+    }
+
+    static func scenarioStaffMaxHeight(isPad: Bool, grandStaff: Bool) -> CGFloat {
+        if isPad {
+            return grandStaff ? 364 : 308
+        }
+        return grandStaff ? 260 : 220
+    }
+}
+
 private struct SurvivalStageCenterStaffOverlay: View {
     let payload: SurvivalStageCenterStaffPayload
     let unpressedNoteOpacity: CGFloat
 
+    private var grandStaff: Bool {
+        SurvivalStaffOverlayLayout.usesGrandStaff(voicingStavesPerNote: payload.voicingStavesPerNote)
+    }
+
     var body: some View {
+        let isPad = SurvivalStaffOverlayLayout.isPad
         SurvivalProgressionStaffView(
             chordDisplayName: payload.chordDisplayName,
             voicingNames: payload.voicingNames,
@@ -882,18 +931,35 @@ private struct SurvivalStageCenterStaffOverlay: View {
             staffClef: payload.staffClef,
             unpressedNoteOpacity: unpressedNoteOpacity,
             compactVerticalLayout: true,
-            voicingStavesPerNote: payload.voicingStavesPerNote
+            voicingStavesPerNote: payload.voicingStavesPerNote,
+            staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale
         )
-        .frame(maxWidth: 560, maxHeight: 160, alignment: .top)
+        .frame(
+            maxWidth: SurvivalStaffOverlayLayout.centerStaffMaxWidth(isPad: isPad),
+            maxHeight: SurvivalStaffOverlayLayout.centerStaffMaxHeight(isPad: isPad, grandStaff: grandStaff),
+            alignment: .top
+        )
     }
 }
 
 private struct SurvivalPhraseStaffOverlay: View {
     let snapshot: SurvivalPhraseStaffSnapshot
 
+    private var grandStaff: Bool {
+        SurvivalStaffOverlayLayout.usesGrandStaff(notes: snapshot.currentChord?.notes)
+    }
+
     var body: some View {
-        SurvivalPhraseStaffView(snapshot: snapshot)
-            .frame(maxWidth: 560, maxHeight: 160, alignment: .top)
+        let isPad = SurvivalStaffOverlayLayout.isPad
+        SurvivalPhraseStaffView(
+            snapshot: snapshot,
+            staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale
+        )
+        .frame(
+            maxWidth: SurvivalStaffOverlayLayout.centerStaffMaxWidth(isPad: isPad),
+            maxHeight: SurvivalStaffOverlayLayout.centerStaffMaxHeight(isPad: isPad, grandStaff: grandStaff),
+            alignment: .top
+        )
     }
 }
 
@@ -918,6 +984,7 @@ private struct SurvivalScenarioStaffPanel: View, Equatable {
     }
 
     var body: some View {
+        let isPad = SurvivalStaffOverlayLayout.isPad
         SurvivalProgressionStaffView(
             chordDisplayName: snapshot.chordDisplayName,
             voicingNames: snapshot.voicingNames,
@@ -925,11 +992,15 @@ private struct SurvivalScenarioStaffPanel: View, Equatable {
             correctPitchClasses: snapshot.correctPitchClasses,
             staffClef: snapshot.staffClef,
             compactVerticalLayout: true,
-            voicingStavesPerNote: snapshot.voicingStavesPerNote
+            voicingStavesPerNote: snapshot.voicingStavesPerNote,
+            staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale
         )
         .frame(
-            maxWidth: 560,
-            maxHeight: usesGrandStaffLayout ? 260 : 220,
+            maxWidth: SurvivalStaffOverlayLayout.scenarioStaffMaxWidth(isPad: isPad),
+            maxHeight: SurvivalStaffOverlayLayout.scenarioStaffMaxHeight(
+                isPad: isPad,
+                grandStaff: usesGrandStaffLayout
+            ),
             alignment: .top
         )
         .modifier(SurvivalTutorialStaffBackdropModifier())

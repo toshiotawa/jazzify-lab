@@ -17,6 +17,8 @@ struct SurvivalProgressionStaffView: View {
     let compactVerticalLayout: Bool
     /// 並びが `voicingNames` と一致するときのみ多段譜へ。無ければ `staffClef` を全構成音へ。
     let voicingStavesPerNote: [Int]?
+    /// サバイバル iPad 用: 五線間隔スケール。既定 1。
+    let staffSpacingScale: CGFloat
 
     init(
         chordDisplayName: String,
@@ -27,7 +29,8 @@ struct SurvivalProgressionStaffView: View {
         noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
         unpressedNoteOpacity: CGFloat = 1,
         compactVerticalLayout: Bool = false,
-        voicingStavesPerNote: [Int]? = nil
+        voicingStavesPerNote: [Int]? = nil,
+        staffSpacingScale: CGFloat = 1
     ) {
         self.chordDisplayName = chordDisplayName
         self.voicingNames = voicingNames
@@ -38,6 +41,7 @@ struct SurvivalProgressionStaffView: View {
         self.unpressedNoteOpacity = unpressedNoteOpacity
         self.compactVerticalLayout = compactVerticalLayout
         self.voicingStavesPerNote = voicingStavesPerNote
+        self.staffSpacingScale = staffSpacingScale
     }
 
     private static let staffGroupId = UUID(uuidString: "A0B99C62-1111-4222-A333-D44444444101")!
@@ -73,7 +77,8 @@ struct SurvivalProgressionStaffView: View {
             noteCollisionLayout: noteCollisionLayout,
             unpressedNoteOpacity: unpressedNoteOpacity,
             compactChordLabelGap: true,
-            compactVerticalLayout: compactVerticalLayout
+            compactVerticalLayout: compactVerticalLayout,
+            staffSpacingScale: staffSpacingScale
         )
     }
 }
