@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchLessonById } from '@/platform/supabaseLessons';
+import { fetchLessonById, fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
 import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { awardPlayerXp } from '@/platform/supabasePlayerXp';
@@ -66,8 +66,13 @@ import {
   validateNavigation, 
   cleanupLessonNavigationCache,
   clearNavigationCacheForCourse,
-  LessonNavigationInfo 
+  getQuestCompletionModalKind,
+  sortLessonsByOrder,
+  type LessonNavigationInfo,
+  type QuestCompletionModalKind,
 } from '@/utils/lessonNavigation';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import {
   getStageByNumber,
@@ -342,6 +347,7 @@ const LessonDetailPage: React.FC = () => {
   }, [open, lessonId, loadLessonData]);
 
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
+  const [questCompletionModalKind, setQuestCompletionModalKind] = useState<QuestCompletionModalKind>('none');
 
   const completionState = resolveLessonCompletionState({
     isCompleted: lessonProgress?.completed === true,
@@ -366,6 +372,12 @@ const LessonDetailPage: React.FC = () => {
     
     setCompleting(true);
     try {
+      try {
+        FantasySoundManager.playQuestPreCompleteJingle();
+      } catch {
+        /* noop */
+      }
+
       await updateLessonProgress(lessonId, lesson.course_id, true);
       
       // キャッシュを無効化してデータの即座反映を確保
@@ -413,9 +425,14 @@ const LessonDetailPage: React.FC = () => {
           clearNavigationCacheForCourse(lesson.course_id);
           const freshNavInfo = await getLessonNavigationInfo(lessonId, lesson.course_id, effectiveRank, { forceRefresh: true });
           setNavigationInfo(freshNavInfo);
-          if (freshNavInfo.nextLesson && freshNavInfo.canGoNext) {
-            setShowNextLessonPrompt(true);
-          }
+          const courseLessons = await fetchLessonsByCourse(lesson.course_id);
+          const modalKind = getQuestCompletionModalKind(
+            lesson,
+            sortLessonsByOrder(courseLessons),
+            freshNavInfo,
+          );
+          setQuestCompletionModalKind(modalKind);
+          setShowNextLessonPrompt(modalKind !== 'none');
         } catch (_) {
           // ナビゲーション情報取得失敗は致命的でないため無視
         }
@@ -1261,32 +1278,21 @@ const LessonDetailPage: React.FC = () => {
             </div>
             )}
 
-            {/* 次のクエストへ進むポップアップ */}
-            {showNextLessonPrompt && navigationInfo?.nextLesson && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setShowNextLessonPrompt(false)}>
-                <div className="bg-slate-800 rounded-xl p-6 max-w-sm mx-4 border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
-                  <div className="text-center mb-4">
-                    <div className="text-4xl mb-2">🎉</div>
-                    <h3 className="text-xl font-bold text-white">
-                      {isEnglishCopy ? 'Quest complete!' : 'クエスト完了！'}
-                    </h3>
-                    <p className="text-gray-300 text-sm mt-2">
-                      {isEnglishCopy ? 'Go to the next quest?' : '次のクエストに進みますか？'}
-                    </p>
-                    <p className="text-blue-300 text-sm mt-1 font-medium">
-                      {navigationInfo.nextLesson.title}
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setShowNextLessonPrompt(false)}
-                      className="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors text-sm"
-                    >
-                      {isEnglishCopy ? 'Stay on this page' : 'このまま留まる'}
-                    </button>
-                    <button
-                      onClick={() => {
+            {showNextLessonPrompt && lesson && questCompletionModalKind !== 'none' ? (
+              <QuestCompletionModal
+                kind={questCompletionModalKind}
+                currentLesson={lesson}
+                nextLesson={navigationInfo?.nextLesson ?? null}
+                isEnglishCopy={isEnglishCopy}
+                onStay={() => {
+                  setShowNextLessonPrompt(false);
+                  setQuestCompletionModalKind('none');
+                }}
+                onContinue={
+                  navigationInfo?.nextLesson
+                    ? () => {
                         setShowNextLessonPrompt(false);
+                        setQuestCompletionModalKind('none');
                         if (lesson?.course_id) {
                           cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
                           clearSupabaseCache();
@@ -1294,16 +1300,11 @@ const LessonDetailPage: React.FC = () => {
                         setTimeout(() => {
                           window.location.hash = `#lesson-detail?id=${navigationInfo.nextLesson!.id}`;
                         }, 100);
-                      }}
-                      className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                    >
-                      {isEnglishCopy ? 'Continue' : '次へ進む'}{' '}
-                      <FaChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+                      }
+                    : undefined
+                }
+              />
+            ) : null}
           </div>
         </div>
       )}

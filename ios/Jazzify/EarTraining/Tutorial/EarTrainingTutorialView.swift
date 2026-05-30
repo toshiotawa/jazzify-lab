@@ -63,6 +63,11 @@ struct EarTrainingTutorialView: View {
                 gate = .failed
             }
         }
+        .onChange(of: showFinishCta) { visible in
+            if visible {
+                QuestJinglePlayer.playComplete()
+            }
+        }
     }
 
     @ViewBuilder

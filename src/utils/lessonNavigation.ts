@@ -260,4 +260,46 @@ export function getLessonBlockInfo(
     displayText: blockName,
     lessonDisplayText: isEnglishCopy ? `Quest ${lessonNumber}` : `クエスト ${lessonNumber}`,
   };
+}
+
+export type QuestCompletionModalKind =
+  | 'nextQuest'
+  | 'chapterCompleteWithNext'
+  | 'chapterCompleteOnly'
+  | 'none';
+
+export function sortLessonsByOrder(lessons: Lesson[]): Lesson[] {
+  return [...lessons].sort((a, b) => a.order_index - b.order_index);
+}
+
+export function isLastLessonInBlock(currentLesson: Lesson, sortedLessons: Lesson[]): boolean {
+  const blockNumber = currentLesson.block_number ?? 1;
+  const blockLessons = sortedLessons.filter(
+    (lesson) => (lesson.block_number ?? 1) === blockNumber,
+  );
+  const lastLesson = blockLessons[blockLessons.length - 1];
+  return lastLesson?.id === currentLesson.id;
+}
+
+export function getQuestCompletionModalKind(
+  currentLesson: Lesson,
+  sortedLessons: Lesson[],
+  navigationInfo: LessonNavigationInfo,
+): QuestCompletionModalKind {
+  const isLastInChapter = isLastLessonInBlock(currentLesson, sortedLessons);
+  const hasNext = navigationInfo.nextLesson !== null;
+  const canGoNext = navigationInfo.canGoNext;
+
+  if (isLastInChapter) {
+    if (hasNext && canGoNext) {
+      return 'chapterCompleteWithNext';
+    }
+    return 'chapterCompleteOnly';
+  }
+
+  if (hasNext && canGoNext) {
+    return 'nextQuest';
+  }
+
+  return 'none';
 } 

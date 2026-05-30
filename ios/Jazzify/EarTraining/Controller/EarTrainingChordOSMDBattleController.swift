@@ -980,6 +980,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         cancelAllTasks(keepsAudio: true)
         audio.stopPhrase()
         gameState = .stageClear
+        QuestJinglePlayer.playComplete()
         let accuracy = totalJudgedTargets == 0 ? phraseAccuracy : Double(totalCompletedTargets) / Double(max(1, totalJudgedTargets))
         lastRankStorage = rank(for: accuracy)
         statusText = copy.stageClear

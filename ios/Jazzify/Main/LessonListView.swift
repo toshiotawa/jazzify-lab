@@ -128,7 +128,9 @@ struct LessonListView: View {
                 )
             ) {
                 if let lesson = lessonToOpen {
-                    LessonDetailView(lesson: lesson)
+                    LessonDetailView(lesson: lesson) { nextLesson in
+                        lessonToOpen = nextLesson
+                    }
                 }
             }
             .onChange(of: journeyCourse == nil) { isNil in
@@ -1578,6 +1580,7 @@ struct LessonDetailView: View {
     @EnvironmentObject var appState: AppState
 
     let lesson: Lesson
+    var onSelectLesson: ((Lesson) -> Void)? = nil
 
     @State private var detail: LessonDetail?
     @State private var videos: [LessonVideoResource] = []
@@ -1601,6 +1604,7 @@ struct LessonDetailView: View {
     @State private var courseIsMainQuest = false
     @State private var showSubscriptionSheet = false
     @State private var survivalCatalogPrefetchTick = 0
+    @State private var questCompletionSheet: QuestCompletionSheetModel?
 
     private var locale: AppLocale { appState.locale }
     private var isPlatinumTier: Bool {
@@ -1841,6 +1845,19 @@ struct LessonDetailView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
+        }
+        .sheet(item: $questCompletionSheet) { sheetModel in
+            QuestCompletionSheet(
+                model: sheetModel,
+                locale: locale,
+                onStay: { questCompletionSheet = nil },
+                onContinue: sheetModel.nextLesson.map { next in
+                    {
+                        questCompletionSheet = nil
+                        onSelectLesson?(next)
+                    }
+                }
+            )
         }
         .fullScreenCover(item: $quickLookDocument) { doc in
             ZStack(alignment: .topTrailing) {
@@ -2687,6 +2704,8 @@ struct LessonDetailView: View {
         }
 
         do {
+            QuestJinglePlayer.playPreComplete()
+
             try await SupabaseService.shared.updateLessonProgress(
                 lessonId: lesson.id,
                 courseId: courseId,
@@ -2708,9 +2727,42 @@ struct LessonDetailView: View {
                 /* XP は初回のみ。RPC 失敗や重複は非致命的 */
             }
 
-            alertMessage = locale == .ja ? "クエストを完了しました。" : "Quest completed."
+            await presentQuestCompletionSheet(courseId: courseId, userId: userId)
         } catch {
             alertMessage = error.localizedDescription
+        }
+    }
+
+    private func presentQuestCompletionSheet(courseId: UUID, userId: UUID) async {
+        do {
+            let lessons = try await SupabaseService.shared.fetchLessons(courseId: courseId)
+            let sorted = LessonNavigationHelpers.sortLessonsByOrder(lessons)
+            let progressRows = try await SupabaseService.shared.fetchLessonProgress(
+                courseId: courseId,
+                userId: userId
+            )
+            let completedIds = Set(progressRows.filter(\.completed).map(\.lessonId))
+            let accessGraph = LessonJourneyAccessGraph.build(lessons: sorted, completedIds: completedIds)
+            let next = LessonNavigationHelpers.nextLesson(after: lesson, in: sorted)
+            let canGoNext = next.map {
+                LessonNavigationHelpers.canOpenNextLesson(nextLesson: $0, accessGraph: accessGraph)
+            } ?? false
+            let kind = LessonNavigationHelpers.modalKind(
+                currentLesson: lesson,
+                sortedLessons: sorted,
+                nextLesson: next,
+                canGoNext: canGoNext
+            )
+            guard kind != .none else { return }
+            await MainActor.run {
+                questCompletionSheet = QuestCompletionSheetModel(
+                    kind: kind,
+                    chapterNumber: lesson.blockNumber ?? 1,
+                    nextLesson: next
+                )
+            }
+        } catch {
+            /* モーダル表示失敗は非致命的 */
         }
     }
 

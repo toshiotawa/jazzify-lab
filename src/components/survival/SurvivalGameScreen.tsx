@@ -1356,7 +1356,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (bgmAudioRef.current) {
           try { bgmAudioRef.current.pause(); } catch { /* noop */ }
         }
-        try { FantasySoundManager.playStageClear(); } catch { /* noop */ }
+        try { FantasySoundManager.playQuestCompleteJingle(); } catch { /* noop */ }
       }
     } else {
       stageClearSoundPlayedRef.current = false;

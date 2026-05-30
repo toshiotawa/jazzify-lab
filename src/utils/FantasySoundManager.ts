@@ -30,7 +30,11 @@
  *   FSM.setVolume(newVolume);  // 0‑1 の値を渡す
  */
 
-// 追加 import
+import {
+  buildPublicAssetUrl,
+  QUEST_COMPLETE_JINGLE_RELATIVE,
+  QUEST_PRE_COMPLETE_JINGLE_RELATIVE,
+} from '@/utils/questJingleAssets';
 import { getWindow } from '@/platform';
 import { requestWebPlaybackAudioSession } from '@/utils/iosbridge';
 import { note as tonalNote } from 'tonal';
@@ -63,7 +67,9 @@ export class FantasySoundManager {
     ice:           { base: new Audio(), ready: false },
     thunder:       { base: new Audio(), ready: false },
     my_attack:     { base: new Audio(), ready: false },
-    stage_clear:   { base: new Audio(), ready: false }
+    stage_clear:   { base: new Audio(), ready: false },
+    quest_complete: { base: new Audio(), ready: false },
+    quest_pre_complete: { base: new Audio(), ready: false },
   };
 
   /** Web Audio (SE用) */
@@ -76,6 +82,8 @@ export class FantasySoundManager {
     thunder: null,
     my_attack: null,
     stage_clear: null,
+    quest_complete: null,
+    quest_pre_complete: null,
   };
 
   /** マスターボリューム (0‑1) */
@@ -129,6 +137,8 @@ export class FantasySoundManager {
   public static playEnemyAttack() { return this.instance._playSe('enemy_attack'); }
   public static playMyAttack() { return this.instance._playSe('my_attack'); }
   public static playStageClear() { return this.instance._playSe('stage_clear'); }
+  public static playQuestCompleteJingle() { return this.instance._playSe('quest_complete'); }
+  public static playQuestPreCompleteJingle() { return this.instance._playSe('quest_pre_complete'); }
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
   public static async playRootNote(rootName: string) {
@@ -282,13 +292,35 @@ export class FantasySoundManager {
       setTimeout(() => done(false), 3000);
     });
 
+    const loadPublicAsset = (key: keyof typeof this.audioMap, relativePath: string) => new Promise<void>((res) => {
+      const a = this.audioMap[key].base;
+      const fullPath = buildPublicAssetUrl(baseUrl, relativePath);
+      let resolved = false;
+      const done = (ready: boolean) => {
+        if (resolved) return;
+        resolved = true;
+        if (ready) this.audioMap[key].ready = true;
+        res();
+      };
+      a.src = fullPath;
+      a.preload = 'auto';
+      a.volume = this._volume;
+      if (a.readyState >= 4) { done(true); return; }
+      a.addEventListener('canplaythrough', () => done(true), { once: true });
+      a.addEventListener('error', () => done(false), { once: true });
+      a.load();
+      setTimeout(() => done(false), 3000);
+    });
+
     const promises = [
       load('enemy_attack', 'enemy_attack.mp3'),
       load('fire',          'fire.mp3'),
       load('ice',           'ice.mp3'),
       load('thunder',       'thunder.mp3'),
       load('my_attack',     'my_attack.mp3'),
-      load('stage_clear',   'stage_clear.mp3')
+      load('stage_clear',   'stage_clear.mp3'),
+      loadPublicAsset('quest_complete', QUEST_COMPLETE_JINGLE_RELATIVE),
+      loadPublicAsset('quest_pre_complete', QUEST_PRE_COMPLETE_JINGLE_RELATIVE),
     ];
 
     // ロード完了Promiseを保存
@@ -1369,9 +1401,26 @@ export class FantasySoundManager {
         ['stage_clear', 'stage_clear.mp3'],
       ];
 
+      const sePublicFiles: Array<[keyof typeof this.seBuffers, string]> = [
+        ['quest_complete', QUEST_COMPLETE_JINGLE_RELATIVE],
+        ['quest_pre_complete', QUEST_PRE_COMPLETE_JINGLE_RELATIVE],
+      ];
+
       await Promise.all(seFiles.map(async ([key, file]) => {
         try {
           const url = `${baseUrl}sounds/${file}`;
+          const resp = await fetch(url);
+          const arr = await resp.arrayBuffer();
+          const buf = await this.seAudioContext!.decodeAudioData(arr.slice(0));
+          this.seBuffers[key] = buf;
+        } catch {
+          // Failed to decode SE buffer - ignored
+        }
+      }));
+
+      await Promise.all(sePublicFiles.map(async ([key, relativePath]) => {
+        try {
+          const url = buildPublicAssetUrl(baseUrl, relativePath);
           const resp = await fetch(url);
           const arr = await resp.arrayBuffer();
           const buf = await this.seAudioContext!.decodeAudioData(arr.slice(0));

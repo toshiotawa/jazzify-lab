@@ -771,6 +771,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         cancelCountdownTask()
         clearStaffShiftQueue()
         gameState = .stageClear
+        QuestJinglePlayer.playComplete()
         statusText = isEnglishCopy ? "CLEAR!" : "クリア!"
         audio.stopDrumLoop()
         triggerFeedbackFlash(.clear)

@@ -128,6 +128,11 @@ struct SurvivalTutorialV3LessonView: View {
             sceneAdvanceIfFinish(from: script, index: newIdx)
             restartDrumLoopForScene(at: newIdx)
         }
+        .onChange(of: showFinishCta) { visible in
+            if visible {
+                QuestJinglePlayer.playComplete()
+            }
+        }
     }
 
     private func sceneAdvanceIfFinish(from script: SurvivalTutorialScriptPayloadV3, index: Int) {

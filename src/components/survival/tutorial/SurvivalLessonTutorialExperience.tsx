@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useQuestCompleteJingleWhenVisible } from '@/hooks/useQuestCompleteJingle';
+
 import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
 import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
@@ -107,6 +109,8 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const [v3NarrationText, setV3NarrationText] = useState('');
   const [v3FinishCta, setV3FinishCta] = useState(false);
   const [v3TapCueVisible, setV3TapCueVisible] = useState(false);
+
+  useQuestCompleteJingleWhenVisible(v3FinishCta || showCta);
 
   const v3AudioRef = useRef<TutorialAudioController | null>(null);
   const v3TapResolverRef = useRef<(() => void) | null>(null);

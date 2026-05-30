@@ -16,6 +16,7 @@ import type {
   EarTrainingTutorialScene,
   EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
+import { useQuestCompleteJingleWhenVisible } from '@/hooks/useQuestCompleteJingle';
 import { preloadEarTrainingTutorialBattleChunks } from './preloadEarTrainingTutorialBattleChunks';
 
 export interface EarTrainingLessonTutorialExperienceProps {
@@ -51,6 +52,8 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const [scriptRow, setScriptRow] = useState<Awaited<ReturnType<typeof fetchEarTrainingTutorialScript>> | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [showCta, setShowCta] = useState(false);
+
+  useQuestCompleteJingleWhenVisible(showCta);
   const [greatInterstitialVisible, setGreatInterstitialVisible] = useState(false);
   const finalizedRef = useRef(false);
   const sceneCompleteTimerRef = useRef<number | null>(null);

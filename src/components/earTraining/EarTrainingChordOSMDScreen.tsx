@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuestCompleteJingleOnStageClear } from '@/hooks/useQuestCompleteJingle';
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingPhaserGame from './EarTrainingPhaserGame';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
@@ -190,6 +191,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     isEnglishCopy ? 'Press START to begin OSMD rhythm battle.' : 'STARTでOSMDリズムバトルを開始します',
   );
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
+
+  useQuestCompleteJingleOnStageClear(gameState);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [phraseRunId, setPhraseRunId] = useState(0);
   const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);

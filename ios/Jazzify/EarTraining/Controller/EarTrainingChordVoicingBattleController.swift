@@ -1436,6 +1436,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private func finishStageClear(rank: EarTrainingRank) async {
         cancelAllTimers()
         gameState = .stageClear
+        QuestJinglePlayer.playComplete()
         lastRank = rank
         statusText = copy.stageClear
         audio.stopDrumLoop()
