@@ -620,6 +620,19 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             emitChordCompletionVisualEffects(origin: origin, completionDamage: completionDamage)
         }
 
+        if !practiceMode, EarTrainingChordQuiz.isQuizClear(correct: correctCount, required: requiredCorrectCount) {
+            quizEnded = true
+            cancelQuizTicker()
+            cancelCountdownTask()
+            publishSnapshot()
+            updatePlayerQuoteBubble()
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                self?.finishQuizSuccess()
+            }
+            return
+        }
+
         advanceAfterCorrect()
         publishSnapshot()
         updatePlayerQuoteBubble()
@@ -702,13 +715,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             phraseFailed: false
         )
         switch outcome {
-        case .stageClear:
-            quizEnded = true
-            cancelQuizTicker()
-            cancelCountdownTask()
-            pendingImpactHandlers.removeAll()
-            clearStaffShiftQueue()
-            finishQuizSuccess()
         case .gameOver:
             quizEnded = true
             cancelQuizTicker()
@@ -756,12 +762,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         quizEnded = true
         pendingImpactHandlers.removeAll()
         clearStaffShiftQueue()
-        let ok = EarTrainingChordQuiz.isQuizClear(correct: correctCount, required: requiredCorrectCount)
-        if ok {
-            finishQuizSuccess()
-        } else {
-            finishQuizFail()
-        }
+        finishQuizFail()
         publishSnapshot()
         updatePlayerQuoteBubble()
     }
@@ -841,11 +842,10 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     private func phraseIntroSummary() -> String {
         let n = requiredCorrectCount
-        let sec = quizDurationSec
         if isEnglishCopy {
-            return "Get \(n)+ correct in \(sec)s to clear!"
+            return "Get \(n) correct to clear!"
         }
-        return "\(sec)秒で\(n)問正解でクリア！"
+        return "\(n)問正解でクリア！"
     }
 
     private func enemyAvatarAssetName() -> String {

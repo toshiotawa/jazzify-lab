@@ -2,7 +2,6 @@ import type { EarTrainingStage } from '@/types';
 
 /** `EarTrainingChordQuizScreen` の本番既定 `quiz_required_correct_count ?? 80` と同一 */
 const DEFAULT_QUIZ_REQUIRED_CORRECT = 80;
-const DEFAULT_QUIZ_DURATION_SEC = 90;
 
 export type EarTrainingLessonClearConditionInput = Pick<EarTrainingStage, 'mode'> &
   Partial<Pick<EarTrainingStage, 'quiz_duration_seconds' | 'quiz_required_correct_count'>>;
@@ -14,12 +13,11 @@ export const getEarTrainingLessonClearConditionText = (
   const mode = stage?.mode;
 
   if (mode === 'chord_quiz') {
-    const duration = stage?.quiz_duration_seconds ?? DEFAULT_QUIZ_DURATION_SEC;
     const required = Math.max(1, stage?.quiz_required_correct_count ?? DEFAULT_QUIZ_REQUIRED_CORRECT);
     if (isEnglishCopy) {
-      return `Survive ${duration}s and answer at least ${required} questions correctly.`;
+      return `Answer at least ${required} questions correctly.`;
     }
-    return `${duration}秒間生存かつ${required}問以上正解`;
+    return `${required}問以上正解`;
   }
 
   if (isEnglishCopy) {

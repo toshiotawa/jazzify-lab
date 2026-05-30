@@ -316,11 +316,10 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
         let isEnglish = locale == .en
         switch mode ?? .phrase {
         case .chordQuiz:
-            let d = quizDurationSeconds ?? 90
             let r = max(1, quizRequiredCorrectCount ?? 80)
             return isEnglish
-                ? "Survive \(d)s and answer at least \(r) questions correctly."
-                : "\(d)秒間生存かつ\(r)問以上正解"
+                ? "Answer at least \(r) questions correctly."
+                : "\(r)問以上正解"
         case .chordOSMD:
             return isEnglish
                 ? "Reduce the enemy HP to 0."

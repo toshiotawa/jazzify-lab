@@ -127,12 +127,11 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     func battleClearConditionText(isEnglish: Bool) -> String {
         switch resolvedMode {
         case .chordQuiz:
-            let d = quizDurationSeconds ?? 90
             let r = max(1, quizRequiredCorrectCount ?? 80)
             if isEnglish {
-                return "Survive \(d)s and answer at least \(r) questions correctly."
+                return "Answer at least \(r) questions correctly."
             }
-            return "\(d)秒間生存かつ\(r)問以上正解"
+            return "\(r)問以上正解"
         case .chordOSMD:
             return isEnglish
                 ? "Reduce the enemy HP to 0."

@@ -19,13 +19,13 @@ describe('getEarTrainingLessonClearConditionText (quiz dynamic)', () => {
   it('JA uses DB quiz fields with defaults', () => {
     expect(
       getEarTrainingLessonClearConditionText({ mode: 'chord_quiz' }, false),
-    ).toBe('90秒間生存かつ80問以上正解');
+    ).toBe('80問以上正解');
     expect(
       getEarTrainingLessonClearConditionText(
         { mode: 'chord_quiz', quiz_duration_seconds: 60, quiz_required_correct_count: 5 },
         false,
       ),
-    ).toBe('60秒間生存かつ5問以上正解');
+    ).toBe('5問以上正解');
   });
 
   it('EN uses DB quiz fields with defaults', () => {
@@ -34,7 +34,7 @@ describe('getEarTrainingLessonClearConditionText (quiz dynamic)', () => {
         { mode: 'chord_quiz', quiz_duration_seconds: 120, quiz_required_correct_count: 15 },
         true,
       ),
-    ).toBe('Survive 120s and answer at least 15 questions correctly.');
+    ).toBe('Answer at least 15 questions correctly.');
   });
 });
 
@@ -88,7 +88,7 @@ describe('buildEarTrainingLessonRequirementDisplay', () => {
       false,
     );
     expect(lines.taskTypeLine).toBe('課題タイプ: コードクイズ');
-    expect(lines.clearLine).toBe('クリア条件: 90秒間生存かつ10問以上正解');
+    expect(lines.clearLine).toBe('クリア条件: 10問以上正解');
   });
 
   it('phrase mode label (EN)', () => {

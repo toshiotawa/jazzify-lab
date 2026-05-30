@@ -528,13 +528,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return;
     }
     quizEndedRef.current = true;
-    const ok = isQuizClear(correctCountRef.current, requiredCorrect);
-    if (ok) {
-      void finishQuizSuccess();
-    } else {
-      finishQuizFail();
-    }
-  }, [finishQuizFail, finishQuizSuccess, practiceMode, requiredCorrect]);
+    finishQuizFail();
+  }, [finishQuizFail, practiceMode]);
 
   const applyQuizHpOutcome = useCallback((nextEnemyHp: number, nextPlayerHp: number) => {
     if (practiceModeRef.current || quizEndedRef.current) {
@@ -547,20 +542,13 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       phraseCompleted: false,
       phraseFailed: false,
     });
-    if (outcome === 'stageClear') {
-      quizEndedRef.current = true;
-      clearQuizTimer();
-      clearCountdownTimer();
-      void finishQuizSuccess();
-      return;
-    }
     if (outcome === 'gameOver') {
       quizEndedRef.current = true;
       clearQuizTimer();
       clearCountdownTimer();
       finishQuizFail();
     }
-  }, [clearCountdownTimer, clearQuizTimer, finishQuizFail, finishQuizSuccess]);
+  }, [clearCountdownTimer, clearQuizTimer, finishQuizFail]);
 
   const registerPlayerHpImpactDamage = useCallback((damageAmount: number) => {
     if (tutorialNoCombat || practiceModeRef.current || quizEndedRef.current) {
@@ -870,12 +858,25 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       registerEnemyDamageImpact();
     }
 
+    if (!practiceModeRef.current && isQuizClear(nextCorrect, requiredCorrect)) {
+      quizEndedRef.current = true;
+      clearQuizTimer();
+      clearCountdownTimer();
+      setTimeout(() => {
+        void finishQuizSuccess();
+      }, 600);
+      return;
+    }
+
     advanceToNextQuestion();
   }, [
     activeQuestion,
     advanceToNextQuestion,
     applyQuizHpOutcome,
+    clearCountdownTimer,
+    clearQuizTimer,
     computeChordLabelOriginPoint,
+    finishQuizSuccess,
     isEnglishCopy,
     registerPlayerHpImpactDamage,
     requiredCorrect,
@@ -1069,8 +1070,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     : null;
 
   const chordQuizBannerLine = useMemo(
-    () => formatEarTrainingChordQuizIntroLine(isEnglishCopy, quizDurationSec, requiredCorrect),
-    [isEnglishCopy, quizDurationSec, requiredCorrect],
+    () => formatEarTrainingChordQuizIntroLine(isEnglishCopy, requiredCorrect),
+    [isEnglishCopy, requiredCorrect],
   );
   const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
 
