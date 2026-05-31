@@ -193,12 +193,15 @@ final class SurvivalScene: SKScene {
         applyWorldZoomScale()
     }
 
-    /// ワールド描画（キャラ・敵・ステージ・セリフ吹き出し）を iPad のみ拡大。楽譜オーバーレイは別レイヤーのため不変。
-    private func applyWorldZoomScale() {
-        let zoom: CGFloat = UIDevice.current.userInterfaceIdiom == .pad
+    /// iPad は 1.3 倍拡大、iPhone は 0.9 倍縮小。楽譜オーバーレイは別レイヤーのため不変。
+    private static func effectiveWorldZoomScale() -> CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad
             ? SurvivalConstants.worldZoomScale
-            : 1.0
-        camera?.setScale(1.0 / zoom)
+            : SurvivalConstants.iphoneWorldZoomScale
+    }
+
+    private func applyWorldZoomScale() {
+        camera?.setScale(1.0 / Self.effectiveWorldZoomScale())
     }
 
     /// プレイヤー向きに応じたテクスチャ名を Web 版 `getSurvivalDefaultSpriteForDirection` と同一マッピングにする。
@@ -1411,6 +1414,10 @@ final class SurvivalScene: SKScene {
             text: text,
             maxOuterWidth: maxOuterWidth
         ) else { return }
+        if UIDevice.current.userInterfaceIdiom != .pad {
+            let zoom = Self.effectiveWorldZoomScale()
+            root.setScale(1.0 / zoom)
+        }
         root.position = CGPoint(x: 0, y: anchorOffsetY)
         host.addChild(root)
         bubbleRoot = root
