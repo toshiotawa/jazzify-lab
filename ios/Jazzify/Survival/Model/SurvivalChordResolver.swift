@@ -70,13 +70,15 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         self.progressionStaffKeyFifths = progressionStaffKeyFifths
     }
 
-    /// 正解時ルート音用。Progression はコード記号ルート（`displayName`）を、それ以外は最低 MIDI のピッチクラスを使う。
+    /// 正解時ルート音用。コード記号（`displayName` / `root`）からルートのピッチクラスを返す。
     public var rootPitchClass: Int {
-        if quality == .progression, let pc = SurvivalChordResolver.progressionSymbolRootPitchClass(chordSymbol: displayName) {
+        if let pc = SurvivalChordResolver.progressionSymbolRootPitchClass(chordSymbol: displayName) {
             return pc
         }
-        guard let first = midiNotes.first else { return 0 }
-        return ((first % 12) + 12) % 12
+        if let pc = SurvivalChordResolver.progressionSymbolRootPitchClass(chordSymbol: root) {
+            return pc
+        }
+        return 0
     }
 
     /// Web `resolveTutorialChordRef` / `sceneThreeChord` 相当。台本の `voicingNames` をそのまま譜面へ。
