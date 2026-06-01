@@ -2715,6 +2715,13 @@ struct LessonDetailView: View {
             isLessonCompleted = true
 
             do {
+                let badges = try await SupabaseService.shared.grantUserBadgesForEvent(event: "quest_clear")
+                PlayerLevelHub.shared.ingestAchievementBadges(badges, usesEnglishUi: locale == .en)
+            } catch {
+                /* 称号付与失敗はクエスト完了を妨げない */
+            }
+
+            do {
                 let award = try await SupabaseService.shared.awardPlayerXp(
                     reason: "lesson_first_clear",
                     sourceId: lesson.id.uuidString,
@@ -2722,6 +2729,17 @@ struct LessonDetailView: View {
                 )
                 await MainActor.run {
                     PlayerLevelHub.shared.ingestAwardResponse(award, usesEnglishUi: locale == .en)
+                }
+                if award.gainedXp > 0 {
+                    do {
+                        let badges = try await SupabaseService.shared.grantUserBadgesForEvent(
+                            event: "level_reached",
+                            playerLevel: award.newLevel
+                        )
+                        PlayerLevelHub.shared.ingestAchievementBadges(badges, usesEnglishUi: locale == .en)
+                    } catch {
+                        /* レベル称号は次回同期でも付与できる */
+                    }
                 }
             } catch {
                 /* XP は初回のみ。RPC 失敗や重複は非致命的 */

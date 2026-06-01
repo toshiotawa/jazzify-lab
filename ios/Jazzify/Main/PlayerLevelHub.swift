@@ -71,6 +71,21 @@ final class PlayerLevelHub: ObservableObject {
         }
     }
 
+    func ingestAchievementBadges(_ badges: [SupabaseService.UserBadgeRow], usesEnglishUi: Bool) {
+        guard !badges.isEmpty else { return }
+        let ja = !usesEnglishUi
+        for badge in badges {
+            guard let definition = AchievementBadgeCatalog.definition(id: badge.badgeId) else { continue }
+            let name = ja ? definition.nameJa : definition.nameEn
+            enqueueToast(
+                ToastItem(
+                    title: ja ? "称号獲得" : "Title earned",
+                    subtitle: ja ? "「\(name)」を獲得しました" : "You earned \"\(name)\"."
+                )
+            )
+        }
+    }
+
     private func enqueueToast(_ item: ToastItem) {
         toasts.append(item)
         let id = item.id

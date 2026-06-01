@@ -21,6 +21,7 @@ const LessonPage = React.lazy(() => import('@/components/lesson/LessonPage'));
 const CoursePage = React.lazy(() => import('@/components/lesson/CoursePage'));
 const LessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
 const InformationPage = React.lazy(() => import('@/components/information/InformationPage'));
+const AchievementsPage = React.lazy(() => import('@/components/achievements/AchievementsPage'));
 const AdminDashboard = React.lazy(() => import('@/components/admin/AdminDashboard'));
 const PricingTable = React.lazy(() => import('@/components/subscription/PricingTable'));
 const LazyFantasyMain = React.lazy(() => import('@/components/fantasy/FantasyMain'));
@@ -127,6 +128,7 @@ const App: React.FC = () => {
         '#course',
         '#lesson-detail',
         '#information',
+        '#achievements',
         '#survival',
         '#survival-lesson',
         '#survival-tutorial-lesson',
@@ -347,6 +349,9 @@ const App: React.FC = () => {
     case '#information':
       MainContent = <InformationPage />;
       break;
+    case '#achievements':
+      MainContent = <AchievementsPage />;
+      break;
     case '#pricing':
       MainContent = <PricingTable />;
       break;
@@ -461,4 +466,4 @@ const App: React.FC = () => {
   );
 };
 
-export default App; 
+export default App;

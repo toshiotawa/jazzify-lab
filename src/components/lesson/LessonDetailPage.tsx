@@ -31,6 +31,7 @@ import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
+import { grantAndToastUserBadges } from '@/utils/badgeToasts';
 import { CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
@@ -397,8 +398,28 @@ const LessonDetailPage: React.FC = () => {
       });
 
       try {
+        await grantAndToastUserBadges(
+          { event: 'quest_clear' },
+          toast,
+          isEnglishCopy,
+        );
+      } catch {
+        /* 称号付与失敗はクエスト完了を妨げない */
+      }
+
+      try {
         const xpAward = await awardPlayerXp('lesson_first_clear', lessonId, 100);
         showPlayerXpToasts(toast, xpAward, isEnglishCopy);
+        if (xpAward.gainedXp > 0) {
+          await grantAndToastUserBadges(
+            {
+              event: 'level_reached',
+              playerLevel: xpAward.newLevel,
+            },
+            toast,
+            isEnglishCopy,
+          );
+        }
       } catch {
         /* RPC 失敗でもクエスト完了は維持 */
       }

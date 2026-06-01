@@ -351,7 +351,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
             guard let self else { return }
             do {
                 let userId = try await self.supabase.currentUserId()
-                try await self.supabase.upsertSurvivalStageClear(
+                let isFirstClear = try await self.supabase.upsertSurvivalStageClear(
                     userId: userId,
                     stageNumber: stageNumber,
                     survivalTimeSeconds: Int(elapsed.rounded()),
@@ -361,6 +361,23 @@ final class SurvivalGameSession: SurvivalPlaySession {
                     totalStages: SurvivalStageCatalog.totalStages(in: mapCategory),
                     mapCategory: mapCategory
                 )
+                if isFirstClear && mapCategory != .lesson {
+                    do {
+                        let badges = try await self.supabase.grantUserBadgesForEvent(
+                            event: "survival_stage_clear",
+                            mapCategory: mapCategory.rawValue,
+                            stageNumber: stageNumber
+                        )
+                        await MainActor.run {
+                            PlayerLevelHub.shared.ingestAchievementBadges(
+                                badges,
+                                usesEnglishUi: self.usesEnglishToastCopy
+                            )
+                        }
+                    } catch {
+                        /* 称号付与失敗はクリア保存を妨げない */
+                    }
+                }
                 do {
                     let sourceId = "\(mapCategory.rawValue):\(stageNumber)"
                     let award = try await self.supabase.awardPlayerXp(
@@ -370,6 +387,22 @@ final class SurvivalGameSession: SurvivalPlaySession {
                     )
                     await MainActor.run {
                         PlayerLevelHub.shared.ingestAwardResponse(award, usesEnglishUi: self.usesEnglishToastCopy)
+                    }
+                    if award.gainedXp > 0 {
+                        do {
+                            let badges = try await self.supabase.grantUserBadgesForEvent(
+                                event: "level_reached",
+                                playerLevel: award.newLevel
+                            )
+                            await MainActor.run {
+                                PlayerLevelHub.shared.ingestAchievementBadges(
+                                    badges,
+                                    usesEnglishUi: self.usesEnglishToastCopy
+                                )
+                            }
+                        } catch {
+                            /* レベル称号は次回同期でも付与できる */
+                        }
                     }
                 } catch {
                     /* 初回クリア進捗は保存済み。XP が取れなくても致命ではない */

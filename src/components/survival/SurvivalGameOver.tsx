@@ -12,6 +12,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore, upsertSurvivalStageClear } from '@/platform/supabaseSurvival';
 import { awardPlayerXp } from '@/platform/supabasePlayerXp';
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
+import { grantAndToastUserBadges } from '@/utils/badgeToasts';
 import { useToast } from '@/stores/toastStore';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 import {
@@ -89,7 +90,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
       if (isStageClear && !stageSaved && !isLessonMode) {
         try {
           const stageCategory = stageDefinition!.mapCategory;
-          await upsertSurvivalStageClear(
+          const clearResult = await upsertSurvivalStageClear(
             profile.id,
             stageDefinition!.stageNumber,
             survivalTime,
@@ -99,6 +100,21 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             getTotalStagesByCategory(stageCategory),
             stageCategory,
           );
+          if (clearResult.isFirstClear && stageCategory !== 'lesson') {
+            try {
+              await grantAndToastUserBadges(
+                {
+                  event: 'survival_stage_clear',
+                  mapCategory: stageCategory,
+                  stageNumber: stageDefinition!.stageNumber,
+                },
+                toast,
+                isEnglishCopy,
+              );
+            } catch {
+              /* 称号付与失敗はクリア保存を妨げない */
+            }
+          }
           try {
             const xpAward = await awardPlayerXp(
               'survival_stage_first_clear',
@@ -106,6 +122,16 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               80,
             );
             showPlayerXpToasts(toast, xpAward, isEnglishCopy);
+            if (xpAward.gainedXp > 0) {
+              await grantAndToastUserBadges(
+                {
+                  event: 'level_reached',
+                  playerLevel: xpAward.newLevel,
+                },
+                toast,
+                isEnglishCopy,
+              );
+            }
           } catch {
             /* XP は非致命（初回のみ付与済みでも握りつぶさないとクリア進捗は保存済み） */
           }

@@ -950,7 +950,7 @@ final class SupabaseService: Sendable {
         characterId: String?,
         totalStages: Int,
         mapCategory: SurvivalMapCategory = .basic
-    ) async throws {
+    ) async throws -> Bool {
         struct ExistingClearRow: Decodable {
             let id: UUID
             let clear_count: Int?
@@ -1013,7 +1013,7 @@ final class SupabaseService: Sendable {
             )
             .execute()
 
-        guard isFirstClear else { return }
+        guard isFirstClear else { return false }
 
         let progressRows: [ProgressRow] = try await client
             .from("survival_stage_progress")
@@ -1043,6 +1043,8 @@ final class SupabaseService: Sendable {
                 onConflict: "user_id,map_category"
             )
             .execute()
+
+        return true
     }
 
     // MARK: - Daily Challenge Records
@@ -1415,6 +1417,57 @@ final class SupabaseService: Sendable {
         let totalXp: Int64
         let inLevelXp: Int
         let nextLevelXp: Int
+    }
+
+    // MARK: - Achievement Badges
+
+    struct UserBadgeRow: Decodable, Equatable, Sendable {
+        let badgeId: String
+        let earnedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case badgeId = "badge_id"
+            case earnedAt = "earned_at"
+        }
+    }
+
+    private struct BadgeGrantParams: Encodable {
+        let p_event: String
+        let p_map_category: String?
+        let p_stage_number: Int?
+        let p_player_level: Int?
+    }
+
+    func fetchUserBadges(userId: UUID) async throws -> [UserBadgeRow] {
+        try await client
+            .from("user_badges")
+            .select("badge_id, earned_at")
+            .eq("user_id", value: userId.uuidString)
+            .order("earned_at")
+            .execute()
+            .value
+    }
+
+    func grantUserBadgesForEvent(
+        event: String,
+        mapCategory: String? = nil,
+        stageNumber: Int? = nil,
+        playerLevel: Int? = nil
+    ) async throws -> [UserBadgeRow] {
+        let params = BadgeGrantParams(
+            p_event: event,
+            p_map_category: mapCategory,
+            p_stage_number: stageNumber,
+            p_player_level: playerLevel
+        )
+        return try await client
+            .rpc("grant_user_badges_for_event", params: params)
+            .execute()
+            .value
+    }
+
+    func syncUserBadges() async throws -> [UserBadgeRow] {
+        try await grantUserBadgesForEvent(event: "sync")
     }
 
     // MARK: - Account Deletion
