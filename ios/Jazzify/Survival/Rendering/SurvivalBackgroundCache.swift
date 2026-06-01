@@ -18,19 +18,35 @@ private func survivalWoodSeededUnit(seed: UInt32) -> CGFloat {
     return CGFloat(Double(fin) / 4294967296.0)
 }
 
+/// Web 版 `#150e07` / `0x1c130a` 系より一段明るい iOS 向け床パレット。
+/// OLED + SpriteKit の linear フィルタで暗く潰れやすいため、板目地・木目コントラストを上げる。
+private enum SurvivalFloorPalette {
+    static let grout = (r: 0x1c, g: 0x13, b: 0x0b)
+    static let plankBase = (r: 0x26, g: 0x1a, b: 0x10)
+    static let plankVariation = (r: 16, g: 12, b: 10)
+    static let grainRGB = (r: 105, g: 72, b: 42)
+    static let grainAlphaRange = (min: 0.12, span: 0.12)
+    static let seamRGB = (r: 18, g: 12, b: 6)
+    static let seamAlpha: CGFloat = 0.72
+}
+
 /// マップ全体の木床テクスチャを **プロセス内で 1 枚だけ** CoreGraphics 合成して共有する。
 /// ステージ再入場や `SKScene` の作り直しのたびに 3200×2400 を再生成しない。
 @MainActor
 enum SurvivalBackgroundCache {
+    /// 床色パレット変更時にインクリメントしてキャッシュを無効化する。
+    private static let floorTextureRevision = 2
     private static var floorTexture: SKTexture?
+    private static var builtFloorTextureRevision: Int?
 
     /// テクスチャを構築済みならそれを返す。初回のみ重い。
     static func sharedFloorTexture() -> SKTexture {
-        if let floorTexture {
+        if let floorTexture, builtFloorTextureRevision == floorTextureRevision {
             return floorTexture
         }
         let built = buildFloorTexture()
         floorTexture = built
+        builtFloorTextureRevision = floorTextureRevision
         return built
     }
 
@@ -49,15 +65,25 @@ enum SurvivalBackgroundCache {
         let tileRenderer = UIGraphicsImageRenderer(size: tileSize)
         let tileImage = tileRenderer.image { ctx in
             let cg = ctx.cgContext
-            cg.setFillColor(UIColor(red: 0x15 / 255.0, green: 0x0e / 255.0, blue: 0x07 / 255.0, alpha: 1).cgColor)
+            let grout = SurvivalFloorPalette.grout
+            cg.setFillColor(
+                UIColor(
+                    red: CGFloat(grout.r) / 255.0,
+                    green: CGFloat(grout.g) / 255.0,
+                    blue: CGFloat(grout.b) / 255.0,
+                    alpha: 1
+                ).cgColor
+            )
             cg.fill(CGRect(origin: .zero, size: tileSize))
 
             func drawPlank(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, seed: UInt32) {
                 let ru = survivalWoodSeededUnit(seed: seed)
                 let dr = Double(ru) - 0.5
-                let baseRi = 0x1c + Int(floor(dr * 14))
-                let baseGi = 0x13 + Int(floor(dr * 10))
-                let baseBi = 0x0a + Int(floor(dr * 8))
+                let plankBase = SurvivalFloorPalette.plankBase
+                let plankVar = SurvivalFloorPalette.plankVariation
+                let baseRi = plankBase.r + Int(floor(dr * Double(plankVar.r)))
+                let baseGi = plankBase.g + Int(floor(dr * Double(plankVar.g)))
+                let baseBi = plankBase.b + Int(floor(dr * Double(plankVar.b)))
                 cg.setFillColor(
                     UIColor(
                         red: CGFloat(baseRi) / 255.0,
@@ -69,11 +95,19 @@ enum SurvivalBackgroundCache {
                 cg.fill(CGRect(x: x, y: y, width: w, height: h))
 
                 let grainCount = 2 + Int(floor(Double(survivalWoodSeededUnit(seed: seed &+ 31)) * 2))
+                let grainRGB = SurvivalFloorPalette.grainRGB
+                let grainAlphaRange = SurvivalFloorPalette.grainAlphaRange
                 for i in 0..<grainCount {
                     let gx = x + 6 + survivalWoodSeededUnit(seed: seed &+ UInt32(i * 7)) * (w - 12)
-                    let grainAlpha = 0.1 + Double(survivalWoodSeededUnit(seed: seed &+ UInt32(i * 11))) * 0.1
+                    let grainAlpha = grainAlphaRange.min
+                        + Double(survivalWoodSeededUnit(seed: seed &+ UInt32(i * 11))) * grainAlphaRange.span
                     cg.setStrokeColor(
-                        UIColor(red: 80 / 255.0, green: 55 / 255.0, blue: 30 / 255.0, alpha: grainAlpha).cgColor
+                        UIColor(
+                            red: CGFloat(grainRGB.r) / 255.0,
+                            green: CGFloat(grainRGB.g) / 255.0,
+                            blue: CGFloat(grainRGB.b) / 255.0,
+                            alpha: grainAlpha
+                        ).cgColor
                     )
                     cg.setLineWidth(1)
                     cg.beginPath()
@@ -83,7 +117,15 @@ enum SurvivalBackgroundCache {
                     cg.strokePath()
                 }
 
-                cg.setStrokeColor(UIColor(red: 5 / 255.0, green: 3 / 255.0, blue: 0, alpha: 0.85).cgColor)
+                let seam = SurvivalFloorPalette.seamRGB
+                cg.setStrokeColor(
+                    UIColor(
+                        red: CGFloat(seam.r) / 255.0,
+                        green: CGFloat(seam.g) / 255.0,
+                        blue: CGFloat(seam.b) / 255.0,
+                        alpha: SurvivalFloorPalette.seamAlpha
+                    ).cgColor
+                )
                 cg.setLineWidth(1)
                 cg.stroke(CGRect(x: x + 0.5, y: y + 0.5, width: w - 1, height: h - 1))
             }

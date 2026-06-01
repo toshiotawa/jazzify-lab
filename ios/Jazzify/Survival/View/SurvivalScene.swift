@@ -121,7 +121,8 @@ final class SurvivalScene: SKScene {
         playfieldHeight = playfieldSize?.height ?? SurvivalMap.height
         super.init(size: size)
         scaleMode = .resizeFill
-        backgroundColor = UIColor(red: 0.03, green: 0.02, blue: 0.06, alpha: 1.0)
+        // 床目地色に合わせ、カメラ端の余白が紫黒く見えないようにする
+        backgroundColor = UIColor(red: 0x1c / 255.0, green: 0x13 / 255.0, blue: 0x0b / 255.0, alpha: 1.0)
         setup()
     }
 
@@ -287,7 +288,7 @@ final class SurvivalScene: SKScene {
         container.addChild(host)
     }
 
-    /// 暗い木床（Web 版と同一見た目）。テクスチャ本体は `SurvivalBackgroundCache` でプロセス共有。
+    /// 暗めの木床（iOS 向けに Web より一段明るいパレット）。テクスチャは `SurvivalBackgroundCache` でプロセス共有。
     private func drawBackground() {
         let mapSize = CGSize(width: playfieldWidth, height: playfieldHeight)
         let floorTexture = SurvivalBackgroundCache.sharedFloorTexture()
