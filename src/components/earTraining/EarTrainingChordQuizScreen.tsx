@@ -1130,6 +1130,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
         ? getQuestionChordViews(previewQuestion, null, false)
         : []),
     ],
+    phraseSlotsHidden: true,
     phraseSlots: ['◯', '◯'],
     revealedNotes: [],
     currentNoteIndex: 0,

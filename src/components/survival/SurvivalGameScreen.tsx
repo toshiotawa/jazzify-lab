@@ -6012,7 +6012,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (
       scenarioMode
       && scRand.isActive
-      && (scRand.hideStaff || scRand.staffMode === 'phrase' || scRand.staffMode === 'progression')
+      && (scRand.hideStaff
+        || scRand.staffMode === 'phrase'
+        || scRand.staffMode === 'progression'
+        || scRand.staffMode === 'hidden')
     ) {
       return null;
     }
@@ -6085,6 +6088,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   ]);
 
   const punchStaffSnapshot = progressionStaffSnapshot ?? randomPunchStaffSnapshot;
+
+  const survivalCanvasContentScale = useMemo(() => {
+    const baseScale = isMobile
+      ? (viewportSize.width >= 768 ? 0.95 : 0.75)
+      : PC_SURVIVAL_CONTENT_SCALE;
+    if (!isBalloonRushMode) {
+      return baseScale;
+    }
+    const widthCover = viewportSize.width / BALLOON_RUSH_MAP_CONFIG.width;
+    const heightCover = viewportSize.height / BALLOON_RUSH_MAP_CONFIG.height;
+    return Math.max(baseScale, widthCover, heightCover);
+  }, [isMobile, viewportSize.width, viewportSize.height, isBalloonRushMode]);
 
   const survivalStaffOverlayTopPadding = isBossStage
     ? 'pt-[calc(max(4px,env(safe-area-inset-top))+80px)]'
@@ -6485,7 +6500,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState={gameState}
             viewportWidth={viewportSize.width}
             viewportHeight={viewportSize.height}
-            contentScale={isMobile ? (viewportSize.width >= 768 ? 0.95 : 0.75) : PC_SURVIVAL_CONTENT_SCALE}
+            contentScale={survivalCanvasContentScale}
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
             bossBattle={bossBattleRef.current}
@@ -6636,7 +6651,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               scenarioUi.isActive &&
               (scenarioUi.hideStaff ||
                 scenarioUi.staffMode === 'phrase' ||
-                scenarioUi.staffMode === 'progression')) &&
+                scenarioUi.staffMode === 'progression' ||
+                scenarioUi.staffMode === 'hidden')) &&
             gameState.isPlaying &&
             !gameState.isGameOver && (
               <div
