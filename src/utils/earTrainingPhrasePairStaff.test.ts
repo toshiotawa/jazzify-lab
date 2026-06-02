@@ -2,6 +2,7 @@ import {
   buildPhrasePairStaffVoicingGroups,
   computePhrasePairStaffCorrectGroupIds,
   pickLongestPhrasePairPattern,
+  pickPhrasePairDisplayPattern,
 } from '@/utils/earTrainingPhrasePairStaff';
 import type { AdlibPattern } from '@/utils/earTrainingPhrasePairEngine';
 
@@ -37,9 +38,40 @@ describe('pickLongestPhrasePairPattern', () => {
   });
 });
 
+describe('pickPhrasePairDisplayPattern', () => {
+  it('returns null for empty buffer', () => {
+    const cd = makePattern({ id: 'cd', pcs: [0, 2] });
+    expect(pickPhrasePairDisplayPattern([], [cd])).toBeNull();
+  });
+
+  it('picks pattern matching buffer prefix', () => {
+    const cd = makePattern({ id: 'cd', pcs: [0, 2] });
+    const dc = makePattern({ id: 'dc', pcs: [2, 0] });
+    expect(pickPhrasePairDisplayPattern([2], [cd, dc])?.id).toBe('dc');
+    expect(pickPhrasePairDisplayPattern([2, 0], [cd, dc])?.id).toBe('dc');
+  });
+});
+
 describe('buildPhrasePairStaffVoicingGroups', () => {
   it('returns empty when pattern is null', () => {
     expect(buildPhrasePairStaffVoicingGroups(null, 'CM7')).toEqual([]);
+  });
+
+  it('builds rest group with chord name', () => {
+    expect(buildPhrasePairStaffVoicingGroups(null, 'CM7', 0, { isRest: true })).toMatchObject([
+      { chordName: 'CM7', isRest: true, voicing: [] },
+    ]);
+  });
+
+  it('limits visible notes to buffer length', () => {
+    const pattern = makePattern({
+      id: 'pair',
+      pcs: [0, 2],
+      voicing: ['C4', 'D4'],
+    });
+    const groups = buildPhrasePairStaffVoicingGroups(pattern, 'CM7', 1);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.voicing).toEqual(['C4']);
   });
 
   it('falls back to pitch-class note names when voicing is missing', () => {

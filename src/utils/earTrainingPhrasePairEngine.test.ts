@@ -33,6 +33,20 @@ describe('earTrainingPhrasePairEngine CM7', () => {
     const { results } = playSequence([2, 0]);
     expect(results[1].result).toBe('complete');
     expect(results[1].completedPattern?.familyId).toBe('CM7-A');
+    expect(results[1].completedPattern?.pcs).toEqual([2, 0]);
+  });
+
+  it('prefers D-C over C-D suffix when trial is exactly D then C', () => {
+    const cd = patterns.find((p) => p.pcs[0] === 0 && p.pcs[1] === 2);
+    const dc = patterns.find((p) => p.pcs[0] === 2 && p.pcs[1] === 0);
+    expect(cd).toBeDefined();
+    expect(dc).toBeDefined();
+
+    let state = createInitialAdlibRuntimeState();
+    state = evaluateAdlibNote(state, 2, [cd!, dc!]).nextState;
+    const ev2 = evaluateAdlibNote(state, 0, [cd!, dc!]);
+    expect(ev2.result).toBe('complete');
+    expect(ev2.completedPattern?.pcs).toEqual([2, 0]);
   });
 
   it('B C => D complete, buffer = [C]', () => {

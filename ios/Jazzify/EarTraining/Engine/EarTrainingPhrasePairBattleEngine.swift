@@ -147,17 +147,55 @@ enum EarTrainingPhrasePairStaff {
         return best
     }
 
+    static func pickDisplayPattern(
+        buffer: [Int],
+        patterns: [EarTrainingPhrasePairEngine.Pattern]
+    ) -> EarTrainingPhrasePairEngine.Pattern? {
+        guard !buffer.isEmpty else { return nil }
+        var best: EarTrainingPhrasePairEngine.Pattern?
+        var bestPrefix = 0
+        for pattern in patterns {
+            let prefixLen = longestCommonPrefixLength(buffer, pattern.pcs)
+            guard prefixLen > 0 else { continue }
+            if let current = best {
+                if prefixLen > bestPrefix
+                    || (prefixLen == bestPrefix && pattern.pcs.count > current.pcs.count)
+                    || (prefixLen == bestPrefix && pattern.pcs.count == current.pcs.count && pattern.priority > current.priority) {
+                    best = pattern
+                    bestPrefix = prefixLen
+                }
+            } else {
+                best = pattern
+                bestPrefix = prefixLen
+            }
+        }
+        return best
+    }
+
     static func buildStaffGroups(
         pattern: EarTrainingPhrasePairEngine.Pattern?,
-        chordName: String
+        chordName: String,
+        visibleNoteCount: Int? = nil,
+        isRest: Bool = false
     ) -> [EarTrainingChordVoicingStaffLayout.GroupInput] {
+        if isRest {
+            return [EarTrainingChordVoicingStaffLayout.GroupInput(
+                id: staffGroupUUID(patternId: "rest", noteIndex: 0),
+                chordName: chordName,
+                voicing: [],
+                voicingStaves: [],
+                measureOffset: 0,
+                isRest: true
+            )]
+        }
         guard let pattern else { return [] }
         let voicing = resolvedVoicing(for: pattern)
         let staves = pattern.voicingStaves ?? []
+        let noteCount = min(voicing.count, visibleNoteCount ?? voicing.count)
         var groups: [EarTrainingChordVoicingStaffLayout.GroupInput] = []
-        groups.reserveCapacity(voicing.count)
+        groups.reserveCapacity(noteCount)
 
-        for index in voicing.indices {
+        for index in 0..<noteCount {
             let noteName = voicing[index].trimmingCharacters(in: .whitespacesAndNewlines)
             if noteName.isEmpty { continue }
             let staff = staves.indices.contains(index) && staves[index] == 2 ? 2 : 1

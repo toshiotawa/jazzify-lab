@@ -135,8 +135,7 @@ enum EarTrainingCompositePhraseEngine {
             return accepted.first(where: { $0.matchedLength == bestMatchedLength })
         }()
 
-        let primaryResync =
-            selectedStep.map { $0.matchedLength < $0.beforeMatchedLength } ?? false
+        let primaryResync = selectedStep?.resync == true
         let result = resolveAggregateResult(selectedStep: selectedStep, primaryResync: primaryResync)
 
         var next = state
@@ -212,6 +211,7 @@ enum EarTrainingCompositePhraseEngine {
         let accepted: Bool
         let matchedLength: Int
         let beforeMatchedLength: Int
+        let resync: Bool
     }
 
     private static func candidateFromPhrase(_ phrase: EarTrainingCompositePhraseDefinition) -> EarTrainingCompositePhraseCandidateState {
@@ -250,7 +250,7 @@ enum EarTrainingCompositePhraseEngine {
         candidate c: EarTrainingCompositePhraseCandidateState,
         pitchClass pc: Int
     ) -> CandidateStep {
-        let cache = PhraseStreamMatching.getEarTrainingCompositeKmpCache(chords: c.phrase.chords)
+        let cache = PhraseStreamMatching.getEarTrainingCompositePatternCache(chords: c.phrase.chords)
         let pattern = cache.pattern
 
         if pattern.isEmpty {
@@ -259,7 +259,8 @@ enum EarTrainingCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: 0
+                beforeMatchedLength: 0,
+                resync: false
             )
         }
 
@@ -268,12 +269,12 @@ enum EarTrainingCompositePhraseEngine {
             chordIndex: c.chordIndex,
             targetNoteIndex: c.targetNoteIndex
         )
-        let nextMatchedLength = PhraseStreamMatching.advanceKmp(
+        let advance = PhraseStreamMatching.advanceSequential(
             pattern: cache.pattern,
-            table: cache.table,
             matchedLength: beforeMatchedLength,
             pitchClass: pc
         )
+        let nextMatchedLength = advance.matchedLength
 
         if nextMatchedLength == 0 {
             return CandidateStep(
@@ -281,7 +282,8 @@ enum EarTrainingCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: beforeMatchedLength
+                beforeMatchedLength: beforeMatchedLength,
+                resync: false
             )
         }
 
@@ -293,7 +295,8 @@ enum EarTrainingCompositePhraseEngine {
                 result: .phraseComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength
+                beforeMatchedLength: beforeMatchedLength,
+                resync: false
             )
         }
 
@@ -306,7 +309,8 @@ enum EarTrainingCompositePhraseEngine {
                 result: .measureComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength
+                beforeMatchedLength: beforeMatchedLength,
+                resync: false
             )
         }
 
@@ -315,7 +319,8 @@ enum EarTrainingCompositePhraseEngine {
             result: .progress,
             accepted: true,
             matchedLength: nextMatchedLength,
-            beforeMatchedLength: beforeMatchedLength
+            beforeMatchedLength: beforeMatchedLength,
+            resync: advance.resync
         )
     }
 

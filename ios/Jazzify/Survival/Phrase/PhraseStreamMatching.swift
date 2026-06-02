@@ -1,53 +1,37 @@
 import Foundation
 
-/// KMP-style prefix matching for phrase note streams (pitch class sequences).
+/// Sequential prefix matching for phrase note streams (pitch class sequences).
 enum PhraseStreamMatching {
     static func normalizedPitchClass(_ pitchClass: Int) -> Int {
         ((pitchClass % 12) + 12) % 12
     }
 
-    static func buildKmpTable(_ pattern: [Int]) -> [Int] {
-        guard !pattern.isEmpty else { return [] }
-        var table = Array(repeating: 0, count: pattern.count)
-        var j = 0
-
-        for i in 1..<pattern.count {
-            while j > 0 && pattern[i] != pattern[j] {
-                j = table[j - 1]
-            }
-            if pattern[i] == pattern[j] {
-                j += 1
-            }
-            table[i] = j
-        }
-
-        return table
+    struct SequentialAdvanceResult: Equatable {
+        let matchedLength: Int
+        let resync: Bool
     }
 
-    static func advanceKmp(
+    static func advanceSequential(
         pattern: [Int],
-        table: [Int],
         matchedLength: Int,
         pitchClass: Int
-    ) -> Int {
-        guard !pattern.isEmpty else { return 0 }
+    ) -> SequentialAdvanceResult {
+        guard !pattern.isEmpty else {
+            return SequentialAdvanceResult(matchedLength: 0, resync: false)
+        }
 
         let pc = normalizedPitchClass(pitchClass)
-        var j = max(0, min(matchedLength, pattern.count))
+        let before = max(0, min(matchedLength, pattern.count))
 
-        if j == pattern.count {
-            j = table[j - 1]
+        if before < pattern.count, pattern[before] == pc {
+            return SequentialAdvanceResult(matchedLength: before + 1, resync: false)
         }
 
-        while j > 0 && pattern[j] != pc {
-            j = table[j - 1]
+        if before > 0, pattern[0] == pc {
+            return SequentialAdvanceResult(matchedLength: 1, resync: true)
         }
 
-        if pattern[j] == pc {
-            j += 1
-        }
-
-        return j
+        return SequentialAdvanceResult(matchedLength: 0, resync: false)
     }
 
     static func prefixIndexSet(_ length: Int) -> Set<Int> {
@@ -55,13 +39,12 @@ enum PhraseStreamMatching {
         return Set(0..<length)
     }
 
-    struct KmpPatternCache {
+    struct PitchPatternCache {
         let pattern: [Int]
-        let table: [Int]
     }
 
-    private static var compositeCache: [ObjectIdentifier: KmpPatternCache] = [:]
-    private static var chordNotesCache: [ObjectIdentifier: KmpPatternCache] = [:]
+    private static var compositeCache: [ObjectIdentifier: PitchPatternCache] = [:]
+    private static var chordNotesCache: [ObjectIdentifier: PitchPatternCache] = [:]
 
     static func chordPitchPattern(
         notes: [SurvivalPhraseChordNote]
@@ -69,15 +52,19 @@ enum PhraseStreamMatching {
         notes.map { normalizedPitchClass($0.pitchClass) }
     }
 
-    static func getChordKmpCache(notes: [SurvivalPhraseChordNote]) -> KmpPatternCache {
+    static func getChordPatternCache(notes: [SurvivalPhraseChordNote]) -> PitchPatternCache {
         let key = ObjectIdentifier(notes as NSArray)
         if let cached = chordNotesCache[key] {
             return cached
         }
         let pattern = chordPitchPattern(notes: notes)
-        let entry = KmpPatternCache(pattern: pattern, table: buildKmpTable(pattern))
+        let entry = PitchPatternCache(pattern: pattern)
         chordNotesCache[key] = entry
         return entry
+    }
+
+    static func getChordKmpCache(notes: [SurvivalPhraseChordNote]) -> PitchPatternCache {
+        getChordPatternCache(notes: notes)
     }
 
     static func compositePitchPattern(chords: [SurvivalPhraseChord]) -> [Int] {
@@ -90,15 +77,19 @@ enum PhraseStreamMatching {
         return out
     }
 
-    static func getCompositeKmpCache(chords: [SurvivalPhraseChord]) -> KmpPatternCache {
+    static func getCompositePatternCache(chords: [SurvivalPhraseChord]) -> PitchPatternCache {
         let key = ObjectIdentifier(chords as NSArray)
         if let cached = compositeCache[key] {
             return cached
         }
         let pattern = compositePitchPattern(chords: chords)
-        let entry = KmpPatternCache(pattern: pattern, table: buildKmpTable(pattern))
+        let entry = PitchPatternCache(pattern: pattern)
         compositeCache[key] = entry
         return entry
+    }
+
+    static func getCompositeKmpCache(chords: [SurvivalPhraseChord]) -> PitchPatternCache {
+        getCompositePatternCache(chords: chords)
     }
 
     static func matchedLengthFromCoordinates(
@@ -171,17 +162,23 @@ enum PhraseStreamMatching {
         return out
     }
 
-    static func getEarTrainingCompositeKmpCache(
+    static func getEarTrainingCompositePatternCache(
         chords: [EarTrainingCompositePhraseChord]
-    ) -> KmpPatternCache {
+    ) -> PitchPatternCache {
         let key = ObjectIdentifier(chords as NSArray)
         if let cached = compositeCache[key] {
             return cached
         }
         let pattern = earTrainingCompositePitchPattern(chords: chords)
-        let entry = KmpPatternCache(pattern: pattern, table: buildKmpTable(pattern))
+        let entry = PitchPatternCache(pattern: pattern)
         compositeCache[key] = entry
         return entry
+    }
+
+    static func getEarTrainingCompositeKmpCache(
+        chords: [EarTrainingCompositePhraseChord]
+    ) -> PitchPatternCache {
+        getEarTrainingCompositePatternCache(chords: chords)
     }
 
     static func matchedLengthFromEarTrainingCoordinates(

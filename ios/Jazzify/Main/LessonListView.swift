@@ -2026,8 +2026,11 @@ struct LessonDetailView: View {
     private func requirementRow(_ requirement: LessonSong, index: Int) -> some View {
         let progressRow = progress(for: requirement)
         let isCompleted = progressRow?.isCompleted ?? false
+        let isClearRequired = requirement.isClearRequired != false
         let title = requirementTitle(requirement, index: index)
-        let requiredCount = max(requirement.clearConditions?.count ?? 1, 1)
+        let requiredCount = isClearRequired
+            ? max(requirement.clearConditions?.count ?? 1, 1)
+            : 0
         let displayProgress: String
 
         if requirement.clearConditions?.requiresDays == true {
@@ -2055,6 +2058,21 @@ struct LessonDetailView: View {
                     Text(title)
                         .font(.subheadline.bold())
                         .foregroundStyle(.white)
+                    if !isClearRequired {
+                        Text(locale == .ja
+                             ? "この課題はクリア必須ではありません。"
+                             : "This task is not required to clear.")
+                            .font(.caption)
+                            .foregroundStyle(Color(hex: "fde68a"))
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: "f59e0b").opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(hex: "fde68a").opacity(0.3), lineWidth: 1)
+                            )
+                            .cornerRadius(8)
+                    }
                 }
 
                 Spacer()
@@ -2065,15 +2083,26 @@ struct LessonDetailView: View {
                 }
             }
 
-            HStack {
-                Text(locale == .ja ? "進捗" : "Progress")
-                    .font(.caption)
+            if isClearRequired {
+                HStack {
+                    Text(locale == .ja ? "進捗" : "Progress")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text(displayProgress)
+                        .font(.caption.bold())
+                        .foregroundStyle(isCompleted ? .green : .white)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+
+            if requirement.isSurvivalTutorial == true || requirement.isEarTrainingTutorial == true {
+                Text(locale == .ja
+                     ? "ガイド体験を最後まで進めるとクリアになります。"
+                     : "Complete the guided experience to clear this task.")
+                    .font(.caption2)
                     .foregroundStyle(.gray)
-                Spacer()
-                Text(displayProgress)
-                    .font(.caption.bold())
-                    .foregroundStyle(isCompleted ? .green : .white)
-                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let survivalInfo = survivalRequirementDisplayInfo(for: requirement) {

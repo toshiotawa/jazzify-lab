@@ -1,8 +1,7 @@
 import {
-  advanceKmp,
-  buildKmpTable,
+  advanceSequential,
   coordinateFromMatchedLength,
-  getChordKmpCache,
+  getChordPatternCache,
   isNonFinalMeasureBoundary,
   matchedLengthFromCoordinates,
   normalizePitchClass,
@@ -15,29 +14,46 @@ describe('phraseStreamMatching', () => {
     expect(normalizePitchClass(14)).toBe(2);
   });
 
-  it('advances KMP prefix on phrase restart mid-progress', () => {
+  it('advances sequentially on expected notes', () => {
     const pattern = [2, 4, 5, 7];
-    const table = buildKmpTable(pattern);
-
     let matched = 0;
-    for (const pc of [2, 4, 5]) {
-      matched = advanceKmp(pattern, table, matched, pc);
+    for (const pc of [2, 4, 5] as const) {
+      const step = advanceSequential(pattern, matched, pc);
+      expect(step.resync).toBe(false);
+      matched = step.matchedLength;
+    }
+    expect(matched).toBe(3);
+  });
+
+  it('resyncs to opening pitch when replayed mid-progress', () => {
+    const pattern = [2, 4, 5, 7];
+    let matched = 0;
+    for (const pc of [2, 4, 5] as const) {
+      matched = advanceSequential(pattern, matched, pc).matchedLength;
     }
     expect(matched).toBe(3);
 
-    matched = advanceKmp(pattern, table, matched, 2);
-    expect(matched).toBe(1);
+    const replay = advanceSequential(pattern, matched, 2);
+    expect(replay.resync).toBe(true);
+    expect(replay.matchedLength).toBe(1);
+  });
+
+  it('returns miss on unexpected pitch', () => {
+    const pattern = [2, 4, 5, 7];
+    const miss = advanceSequential(pattern, 1, 0);
+    expect(miss.matchedLength).toBe(0);
+    expect(miss.resync).toBe(false);
   });
 
   it('prefixIndexSet builds contiguous indices', () => {
     expect([...prefixIndexSet(3)]).toEqual([0, 1, 2]);
   });
 
-  it('caches chord kmp tables', () => {
+  it('caches chord pitch patterns', () => {
     const notes = [{ pitchClass: 0 }, { pitchClass: 4 }];
-    const a = getChordKmpCache(notes);
-    const b = getChordKmpCache(notes);
-    expect(a.table).toBe(b.table);
+    const a = getChordPatternCache(notes);
+    const b = getChordPatternCache(notes);
+    expect(a.pattern).toBe(b.pattern);
   });
 
   it('maps matched length to chord coordinates', () => {

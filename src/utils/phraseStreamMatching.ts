@@ -1,52 +1,38 @@
 /**
- * KMP-style prefix matching for phrase note streams (pitch class sequences).
+ * Sequential prefix matching for phrase note streams (pitch class sequences).
+ * Advances only on the next expected note; opening-pitch replay mid-progress resyncs to index 1.
  */
 
 export function normalizePitchClass(pitchClass: number): number {
   return ((pitchClass % 12) + 12) % 12;
 }
 
-export function buildKmpTable(pattern: readonly number[]): number[] {
-  const table = new Array<number>(pattern.length).fill(0);
-  let j = 0;
-
-  for (let i = 1; i < pattern.length; i += 1) {
-    while (j > 0 && pattern[i] !== pattern[j]) {
-      j = table[j - 1] ?? 0;
-    }
-    if (pattern[i] === pattern[j]) {
-      j += 1;
-    }
-    table[i] = j;
-  }
-
-  return table;
+export interface SequentialAdvanceResult {
+  readonly matchedLength: number;
+  readonly resync: boolean;
 }
 
-export function advanceKmp(
+export function advanceSequential(
   pattern: readonly number[],
-  table: readonly number[],
   matchedLength: number,
   pitchClass: number,
-): number {
-  if (pattern.length === 0) return 0;
+): SequentialAdvanceResult {
+  if (pattern.length === 0) {
+    return { matchedLength: 0, resync: false };
+  }
 
   const pc = normalizePitchClass(pitchClass);
-  let j = Math.max(0, Math.min(matchedLength, pattern.length));
+  const before = Math.max(0, Math.min(matchedLength, pattern.length));
 
-  if (j === pattern.length) {
-    j = table[j - 1] ?? 0;
+  if (before < pattern.length && pattern[before] === pc) {
+    return { matchedLength: before + 1, resync: false };
   }
 
-  while (j > 0 && pattern[j] !== pc) {
-    j = table[j - 1] ?? 0;
+  if (before > 0 && pattern[0] === pc) {
+    return { matchedLength: 1, resync: true };
   }
 
-  if (pattern[j] === pc) {
-    j += 1;
-  }
-
-  return j;
+  return { matchedLength: 0, resync: false };
 }
 
 export function prefixIndexSet(length: number): ReadonlySet<number> {
@@ -57,14 +43,13 @@ export function prefixIndexSet(length: number): ReadonlySet<number> {
   return out;
 }
 
-export interface KmpPatternCache {
+export interface PitchPatternCache {
   readonly pattern: readonly number[];
-  readonly table: readonly number[];
 }
 
 const chordPatternCache = new WeakMap<
   readonly { readonly pitchClass: number }[],
-  KmpPatternCache
+  PitchPatternCache
 >();
 
 export function chordPitchPattern(
@@ -73,17 +58,19 @@ export function chordPitchPattern(
   return notes.map((n) => normalizePitchClass(n.pitchClass));
 }
 
-export function getChordKmpCache(
+export function getChordPatternCache(
   notes: readonly { readonly pitchClass: number }[],
-): KmpPatternCache {
+): PitchPatternCache {
   const cached = chordPatternCache.get(notes);
   if (cached) return cached;
 
-  const pattern = chordPitchPattern(notes);
-  const entry: KmpPatternCache = { pattern, table: buildKmpTable(pattern) };
+  const entry: PitchPatternCache = { pattern: chordPitchPattern(notes) };
   chordPatternCache.set(notes, entry);
   return entry;
 }
+
+/** @deprecated Use getChordPatternCache */
+export const getChordKmpCache = getChordPatternCache;
 
 export interface CompositePhraseLike {
   readonly chords: readonly {
@@ -91,7 +78,7 @@ export interface CompositePhraseLike {
   }[];
 }
 
-const compositePatternCache = new WeakMap<CompositePhraseLike, KmpPatternCache>();
+const compositePatternCache = new WeakMap<CompositePhraseLike, PitchPatternCache>();
 
 export function compositePitchPattern(phrase: CompositePhraseLike): readonly number[] {
   const out: number[] = [];
@@ -103,15 +90,17 @@ export function compositePitchPattern(phrase: CompositePhraseLike): readonly num
   return out;
 }
 
-export function getCompositeKmpCache(phrase: CompositePhraseLike): KmpPatternCache {
+export function getCompositePatternCache(phrase: CompositePhraseLike): PitchPatternCache {
   const cached = compositePatternCache.get(phrase);
   if (cached) return cached;
 
-  const pattern = compositePitchPattern(phrase);
-  const entry: KmpPatternCache = { pattern, table: buildKmpTable(pattern) };
+  const entry: PitchPatternCache = { pattern: compositePitchPattern(phrase) };
   compositePatternCache.set(phrase, entry);
   return entry;
 }
+
+/** @deprecated Use getCompositePatternCache */
+export const getCompositeKmpCache = getCompositePatternCache;
 
 export function matchedLengthFromCoordinates(
   phrase: CompositePhraseLike,

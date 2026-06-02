@@ -1,5 +1,5 @@
 /**
- * Composite phrase judgment (parallel KMP stream matching).
+ * Composite phrase judgment (parallel sequential stream matching).
  */
 import type { CompositePhraseChord, CompositePhraseDefinition } from '@/utils/compositePhraseEngine';
 import {

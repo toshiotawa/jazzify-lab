@@ -236,6 +236,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let overrideProductionStaffHintMode: String?
     let overrideProductionKeyboardHintMode: String?
     let clearConditions: LessonClearConditions?
+    /// 表示用。false のとき任意課題（クエスト完了ボタン条件には含めない）。
+    let isClearRequired: Bool?
     let orderIndex: Int?
     let title: String?
     let titleEn: String?
@@ -268,6 +270,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case overrideProductionStaffHintMode = "override_production_staff_hint_mode"
         case overrideProductionKeyboardHintMode = "override_production_keyboard_hint_mode"
         case clearConditions = "clear_conditions"
+        case isClearRequired = "is_clear_required"
         case orderIndex = "order_index"
         case fantasyStage
         case earTrainingStage

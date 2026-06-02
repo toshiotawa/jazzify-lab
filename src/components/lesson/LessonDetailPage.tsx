@@ -535,11 +535,12 @@ const LessonDetailPage: React.FC = () => {
   };
 
   const handleBackToCourse = () => {
-    if (lessonCourseIsMainQuest || !lesson?.course_id) {
+    const courseId = lesson?.course_id;
+    if (lessonCourseIsMainQuest || !courseId) {
       window.location.hash = '#lessons';
       return;
     }
-    window.location.hash = `#course?id=${lesson.course_id}`;
+    window.location.hash = `#course?id=${courseId}`;
   };
 
   const getBunnyEmbedUrl = (vimeoUrl: string): string => {
@@ -725,8 +726,11 @@ const LessonDetailPage: React.FC = () => {
                       isEnglishCopy,
                     );
                     const isCompleted = progress?.is_completed || false;
+                    const isClearRequired = req.is_clear_required !== false;
                     const clearCount = progress?.clear_count || 0;
-                    const requiredCount = req.clear_conditions?.count || 1;
+                    const requiredCount = isClearRequired
+                      ? (req.clear_conditions?.count || 1)
+                      : 0;
                     const clearDates = progress?.clear_dates || [];
                     const requiresDays = req.clear_conditions?.requires_days || false;
                     const isFantasy = req.is_fantasy || false;
@@ -735,7 +739,6 @@ const LessonDetailPage: React.FC = () => {
                     const isSurvival = req.is_survival || isSurvivalTutorial || false;
                     const isEarTraining = req.is_ear_training || isEarTrainingTutorial || false;
                     const isBalloonRush = req.is_balloon_rush === true;
-                    const isClearRequired = req.is_clear_required !== false;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -880,7 +883,8 @@ const LessonDetailPage: React.FC = () => {
                           );
                         })()}
                         
-                        {/* 進捗表示 */}
+                        {/* 進捗表示（必須課題のみ） */}
+                        {isClearRequired && (
                         <div className="mb-3">
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-gray-400">{practiceCopy.progressLabel}</span>
@@ -898,7 +902,7 @@ const LessonDetailPage: React.FC = () => {
                           </div>
                           
                           {/* 通常の進捗バー（回数条件の場合） */}
-                          {!requiresDays && (
+                          {!requiresDays && requiredCount > 0 && (
                             <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
                               <div 
                                 className={`h-full transition-all duration-300 ${
@@ -1020,6 +1024,7 @@ const LessonDetailPage: React.FC = () => {
                             </div>
                           )}
                         </div>
+                        )}
                         
                         
                         <button 

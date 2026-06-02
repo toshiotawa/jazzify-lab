@@ -1,10 +1,10 @@
 /**
- * Composite phrase: parallel KMP stream matching across all candidates.
+ * Composite phrase: parallel sequential stream matching across all candidates.
  */
 import {
-  advanceKmp,
+  advanceSequential,
   coordinateFromMatchedLength,
-  getCompositeKmpCache,
+  getCompositePatternCache,
   isNonFinalMeasureBoundary,
   matchedLengthFromCoordinates,
   prefixIndexSet,
@@ -66,6 +66,7 @@ interface CompositeCandidateStep {
   readonly accepted: boolean;
   readonly matchedLength: number;
   readonly beforeMatchedLength: number;
+  readonly resync: boolean;
 }
 
 function candidateFromPhrase(phrase: CompositePhraseDefinition): CompositePhraseCandidateState {
@@ -128,7 +129,7 @@ function applyStreamingCandidateStep(
   c: CompositePhraseCandidateState,
   pitchClass: number,
 ): CompositeCandidateStep {
-  const { pattern, table } = getCompositeKmpCache(c.phrase);
+  const { pattern } = getCompositePatternCache(c.phrase);
 
   if (pattern.length === 0) {
     return {
@@ -137,6 +138,7 @@ function applyStreamingCandidateStep(
       accepted: false,
       matchedLength: 0,
       beforeMatchedLength: 0,
+      resync: false,
     };
   }
 
@@ -145,7 +147,11 @@ function applyStreamingCandidateStep(
     c.chordIndex,
     c.targetNoteIndex,
   );
-  const nextMatchedLength = advanceKmp(pattern, table, beforeMatchedLength, pitchClass);
+  const { matchedLength: nextMatchedLength, resync } = advanceSequential(
+    pattern,
+    beforeMatchedLength,
+    pitchClass,
+  );
 
   if (nextMatchedLength === 0) {
     return {
@@ -154,6 +160,7 @@ function applyStreamingCandidateStep(
       accepted: false,
       matchedLength: 0,
       beforeMatchedLength,
+      resync: false,
     };
   }
 
@@ -166,6 +173,7 @@ function applyStreamingCandidateStep(
       accepted: true,
       matchedLength: nextMatchedLength,
       beforeMatchedLength,
+      resync: false,
     };
   }
 
@@ -176,6 +184,7 @@ function applyStreamingCandidateStep(
       accepted: true,
       matchedLength: nextMatchedLength,
       beforeMatchedLength,
+      resync: false,
     };
   }
 
@@ -185,6 +194,7 @@ function applyStreamingCandidateStep(
     accepted: true,
     matchedLength: nextMatchedLength,
     beforeMatchedLength,
+    resync,
   };
 }
 
@@ -330,9 +340,7 @@ export function evaluateCompositePhraseNoteOn(
     ? steps.find((s) => s.candidate.sourcePhraseId === nextPrimarySourcePhraseId)
     : accepted.find((s) => s.matchedLength === bestMatchedLength);
 
-  const primaryResync =
-    selectedStep !== undefined
-    && selectedStep.matchedLength < selectedStep.beforeMatchedLength;
+  const primaryResync = selectedStep?.resync === true;
 
   const result = resolveAggregateResult(selectedStep, primaryResync);
 

@@ -245,13 +245,20 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                 for: step,
                 patternsByGroupId: controller.bootstrap.patternsByGroupId
             )
-            let longestPattern = EarTrainingPhrasePairStaff.pickLongestPattern(patterns)
+            let displayPattern = step.inputDisabled
+                ? nil
+                : EarTrainingPhrasePairStaff.pickDisplayPattern(
+                    buffer: controller.matcherState.buffer,
+                    patterns: patterns
+                )
             let groups = EarTrainingPhrasePairStaff.buildStaffGroups(
-                pattern: longestPattern,
-                chordName: step.chordName
+                pattern: displayPattern,
+                chordName: step.chordName,
+                visibleNoteCount: controller.matcherState.buffer.count,
+                isRest: step.inputDisabled
             )
             let correctMap = EarTrainingPhrasePairStaff.correctPitchClassesByGroup(
-                pattern: longestPattern,
+                pattern: displayPattern,
                 buffer: controller.matcherState.buffer
             )
             let showVoicingTargets = controller.gameState == .playingPhrase
@@ -267,7 +274,8 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                     completionPulse: nil,
                     showTargetHints: showVoicingTargets,
                     singleMeasureLayout: true,
-                    fadeAllMeasureNotes: true
+                    fadeAllMeasureNotes: true,
+                    unpressedNoteOpacity: 0
                 )
                 .frame(width: min(size.width * 0.82, 720), height: size.height * 0.5)
                 .position(x: size.width / 2, y: size.height * 0.44)

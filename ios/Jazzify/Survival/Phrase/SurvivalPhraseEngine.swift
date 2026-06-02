@@ -37,13 +37,13 @@ enum SurvivalPhraseEngine {
         }
 
         let beforeLength = state.targetNoteIndex
-        let cache = PhraseStreamMatching.getChordKmpCache(notes: chord.notes)
-        let nextMatchedLength = PhraseStreamMatching.advanceKmp(
+        let cache = PhraseStreamMatching.getChordPatternCache(notes: chord.notes)
+        let advance = PhraseStreamMatching.advanceSequential(
             pattern: cache.pattern,
-            table: cache.table,
             matchedLength: beforeLength,
             pitchClass: pitchClass
         )
+        let nextMatchedLength = advance.matchedLength
 
         if nextMatchedLength == 0 {
             return (.miss, resetChord(state))
@@ -59,8 +59,7 @@ enum SurvivalPhraseEngine {
             return (.measureComplete, advanceChord(progressed))
         }
 
-        let result: SurvivalPhraseNoteResult =
-            nextMatchedLength < beforeLength ? .resync : .progress
+        let result: SurvivalPhraseNoteResult = advance.resync ? .resync : .progress
         return (result, progressed)
     }
 

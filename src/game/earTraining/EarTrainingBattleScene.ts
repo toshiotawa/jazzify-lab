@@ -285,6 +285,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private partnerQuoteBubbleRoot: Phaser.GameObjects.Container | null = null;
   private phraseIntroText: Phaser.GameObjects.Text | null = null;
   private lastPhraseIntroKey: string | null = null;
+  private countInOverlayNodes: Phaser.GameObjects.GameObject[] = [];
   private lastEffectId: number | null = null;
   private readonly osmdHammerNodesByEffectId = new Map<number, Phaser.GameObjects.Image>();
   private lastPhraseRunId: number | null = null;
@@ -1447,7 +1448,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
   }
 
+  private clearCountInOverlay(): void {
+    for (const node of this.countInOverlayNodes) {
+      node.destroy();
+    }
+    this.countInOverlayNodes = [];
+  }
+
   private drawCountInOverlay(width: number, height: number): void {
+    this.clearCountInOverlay();
     const snapshot = this.snapshot;
     if (
       !snapshot
@@ -1474,6 +1483,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       strokeThickness: 5,
     }).setOrigin(0.5, 0.54);
     this.effectLayer.add([halo, circle, text]);
+    this.countInOverlayNodes = [halo, circle, text];
   }
 
   private playQuotaReachedEffect(): void {

@@ -92,6 +92,15 @@ enum EarTrainingPhrasePairEngine {
         return false
     }
 
+    static func isExactTrialMatch(_ trial: [Int], pattern: Pattern) -> Bool {
+        pattern.pcs.count == trial.count
+            && zip(pattern.pcs, trial).allSatisfy { $0 == $1 }
+    }
+
+    static func suffixStartOffset(_ trial: [Int], pattern: Pattern) -> Int {
+        trial.count - pattern.pcs.count
+    }
+
     static func patternMatchesSuffix(_ trial: [Int], pattern: Pattern) -> Bool {
         if pattern.pcs.count > trial.count { return false }
         let offset = trial.count - pattern.pcs.count
@@ -124,6 +133,13 @@ enum EarTrainingPhrasePairEngine {
         let completed = patterns
             .filter { patternMatchesSuffix(trial, pattern: $0) }
             .sorted { a, b in
+                let aExact = isExactTrialMatch(trial, pattern: a)
+                let bExact = isExactTrialMatch(trial, pattern: b)
+                if aExact != bExact { return aExact && !bExact }
+
+                let offsetDiff = suffixStartOffset(trial, pattern: b) - suffixStartOffset(trial, pattern: a)
+                if offsetDiff != 0 { return offsetDiff > 0 }
+
                 if a.pcs.count != b.pcs.count { return a.pcs.count > b.pcs.count }
                 return a.priority > b.priority
             }

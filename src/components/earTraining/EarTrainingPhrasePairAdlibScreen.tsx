@@ -78,7 +78,7 @@ import {
 import {
   buildPhrasePairStaffVoicingGroups,
   computePhrasePairStaffCorrectGroupIds,
-  pickLongestPhrasePairPattern,
+  pickPhrasePairDisplayPattern,
 } from '@/utils/earTrainingPhrasePairStaff';
 
 interface EarTrainingLessonContext {
@@ -827,20 +827,31 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     gameState === 'playingPhrase'
     || (gameState === 'countIn' && countInEarlyInputActive);
 
-  const longestPattern = useMemo(() => {
-    if (!activeStep) return null;
-    const patterns = getPhrasePairAdlibPatternsForStep(activeStep, patternsByGroupId);
-    return pickLongestPhrasePairPattern(patterns);
+  const activeStepPatterns = useMemo(() => {
+    if (!activeStep) return [];
+    return getPhrasePairAdlibPatternsForStep(activeStep, patternsByGroupId);
   }, [activeStep, patternsByGroupId]);
+
+  const displayPattern = useMemo(
+    () => pickPhrasePairDisplayPattern(matcherState.buffer, activeStepPatterns),
+    [activeStepPatterns, matcherState.buffer],
+  );
 
   const staffVoicingGroups = useMemo((): readonly ChordVoicingStaffGroup[] => {
     if (!activeStep) return [];
-    return buildPhrasePairStaffVoicingGroups(longestPattern, activeStep.chordName);
-  }, [activeStep, longestPattern]);
+    if (activeStep.inputDisabled) {
+      return buildPhrasePairStaffVoicingGroups(null, activeStep.chordName, 0, { isRest: true });
+    }
+    return buildPhrasePairStaffVoicingGroups(
+      displayPattern,
+      activeStep.chordName,
+      matcherState.buffer.length,
+    );
+  }, [activeStep, displayPattern, matcherState.buffer.length]);
 
   const staffCorrectGroupIds = useMemo(
-    () => computePhrasePairStaffCorrectGroupIds(longestPattern, matcherState.buffer),
-    [longestPattern, matcherState.buffer],
+    () => computePhrasePairStaffCorrectGroupIds(displayPattern, matcherState.buffer),
+    [displayPattern, matcherState.buffer],
   );
 
   const enemyName = enemy?.name ?? 'Random Rival';
@@ -910,11 +921,12 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
       active: showVoicingTargetHints && row.id === activeStep?.id,
     })),
     phraseSlots: stepHudRows.map(() => '◯'),
+    phraseSlotsHidden: true,
     revealedNotes: [],
     currentNoteIndex: currentStepIndex,
     slotKind: 'circle',
     chordCompleted: stepHudRows.map(() => false),
-    countInValue,
+    countInValue: gameState === 'countIn' ? countInValue : 0,
     lastRank: null,
     showLobbyControls,
     canChangePracticeMode,
@@ -1008,6 +1020,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
           snapshot={battleSnapshot}
           effectCommand={battleEffectCommand}
           callbacks={battleCallbacks}
+          disableCorrectSe
           className="h-full w-full"
         />
       </div>
@@ -1026,6 +1039,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
             showTargetHints={showVoicingTargetHints}
             singleMeasureLayout
             fadeAllMeasureNotes
+            unpressedNoteOpacity={0}
             smuflUseForeignObject
             keyFifths={bootstrap.keyFifths}
           />

@@ -87,10 +87,35 @@ export function longestSuffixPrefix(
   return [];
 }
 
+function isExactTrialMatch(
+  trial: readonly number[],
+  pattern: AdlibPattern,
+): boolean {
+  return pattern.pcs.length === trial.length
+    && pattern.pcs.every((pc, i) => trial[i] === pc);
+}
+
+function suffixStartOffset(
+  trial: readonly number[],
+  pattern: AdlibPattern,
+): number {
+  return trial.length - pattern.pcs.length;
+}
+
 function sortCompletedPatterns(
   completed: readonly AdlibPattern[],
+  trial: readonly number[],
 ): readonly AdlibPattern[] {
   return completed.slice().sort((a, b) => {
+    const aExact = isExactTrialMatch(trial, a);
+    const bExact = isExactTrialMatch(trial, b);
+    if (aExact !== bExact) {
+      return aExact ? -1 : 1;
+    }
+
+    const offsetDiff = suffixStartOffset(trial, b) - suffixStartOffset(trial, a);
+    if (offsetDiff !== 0) return offsetDiff;
+
     const lenDiff = b.pcs.length - a.pcs.length;
     if (lenDiff !== 0) return lenDiff;
     return (b.priority ?? 0) - (a.priority ?? 0);
@@ -107,6 +132,7 @@ export function evaluateAdlibNote(
 
   const completed = sortCompletedPatterns(
     patterns.filter((pattern) => patternMatchesSuffix(trial, pattern)),
+    trial,
   );
 
   if (completed.length > 0) {

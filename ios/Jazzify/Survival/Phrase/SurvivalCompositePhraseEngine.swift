@@ -90,8 +90,7 @@ enum SurvivalCompositePhraseEngine {
             return accepted.first(where: { $0.matchedLength == bestMatchedLength })
         }()
 
-        let primaryResync =
-            selectedStep.map { $0.matchedLength < $0.beforeMatchedLength } ?? false
+        let primaryResync = selectedStep?.resync == true
         let result = resolveAggregateResult(selectedStep: selectedStep, primaryResync: primaryResync)
 
         var next = state
@@ -167,6 +166,7 @@ enum SurvivalCompositePhraseEngine {
         let accepted: Bool
         let matchedLength: Int
         let beforeMatchedLength: Int
+        let resync: Bool
     }
 
     private static func candidateFromPhrase(_ phrase: SurvivalPhraseDefinition) -> SurvivalCompositePhraseCandidateState {
@@ -205,7 +205,7 @@ enum SurvivalCompositePhraseEngine {
         candidate c: SurvivalCompositePhraseCandidateState,
         pitchClass pc: Int
     ) -> CandidateStep {
-        let cache = PhraseStreamMatching.getCompositeKmpCache(chords: c.phrase.chords)
+        let cache = PhraseStreamMatching.getCompositePatternCache(chords: c.phrase.chords)
         let pattern = cache.pattern
 
         if pattern.isEmpty {
@@ -214,7 +214,8 @@ enum SurvivalCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: 0
+                beforeMatchedLength: 0,
+                resync: false
             )
         }
 
@@ -223,12 +224,12 @@ enum SurvivalCompositePhraseEngine {
             chordIndex: c.chordIndex,
             targetNoteIndex: c.targetNoteIndex
         )
-        let nextMatchedLength = PhraseStreamMatching.advanceKmp(
+        let advance = PhraseStreamMatching.advanceSequential(
             pattern: cache.pattern,
-            table: cache.table,
             matchedLength: beforeMatchedLength,
             pitchClass: pc
         )
+        let nextMatchedLength = advance.matchedLength
 
         if nextMatchedLength == 0 {
             return CandidateStep(
@@ -236,7 +237,8 @@ enum SurvivalCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: beforeMatchedLength
+                beforeMatchedLength: beforeMatchedLength,
+                resync: false
             )
         }
 
@@ -248,7 +250,8 @@ enum SurvivalCompositePhraseEngine {
                 result: .phraseComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength
+                beforeMatchedLength: beforeMatchedLength,
+                resync: false
             )
         }
 
@@ -261,7 +264,8 @@ enum SurvivalCompositePhraseEngine {
                 result: .measureComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength
+                beforeMatchedLength: beforeMatchedLength,
+                resync: false
             )
         }
 
@@ -270,7 +274,8 @@ enum SurvivalCompositePhraseEngine {
             result: .progress,
             accepted: true,
             matchedLength: nextMatchedLength,
-            beforeMatchedLength: beforeMatchedLength
+            beforeMatchedLength: beforeMatchedLength,
+            resync: advance.resync
         )
     }
 

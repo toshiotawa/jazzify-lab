@@ -65,15 +65,22 @@ export const EarTrainingLessonTutorialExperience: React.FC<
     void (async () => {
       setGate('loading');
       try {
-        const [row, characters] = await Promise.all([
-          fetchEarTrainingTutorialScript(scriptId),
-          fetchSurvivalCharacters(),
-        ]);
+        const row = await fetchEarTrainingTutorialScript(scriptId);
         if (cancelled) return;
         setScriptRow(row);
-        setEnemy(characters[0] ?? null);
         setSceneIndex(0);
         setGate('ready');
+        const needsEnemyAvatar = row.script.scenes.some(
+          (scene) => scene.type !== 'dialogue_only',
+        );
+        if (needsEnemyAvatar) {
+          const characters = await fetchSurvivalCharacters();
+          if (!cancelled) {
+            setEnemy(characters[0] ?? null);
+          }
+        } else {
+          setEnemy(null);
+        }
       } catch {
         if (!cancelled) {
           setGate('error');

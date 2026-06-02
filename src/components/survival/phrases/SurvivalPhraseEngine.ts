@@ -3,8 +3,8 @@
  */
 import type { SurvivalPhraseChord, SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
 import {
-  advanceKmp,
-  getChordKmpCache,
+  advanceSequential,
+  getChordPatternCache,
   prefixIndexSet,
 } from '@/utils/phraseStreamMatching';
 
@@ -83,8 +83,12 @@ export function evaluatePhraseNoteOn(
   }
 
   const beforeLength = state.targetNoteIndex;
-  const { pattern, table } = getChordKmpCache(chord.notes);
-  const nextMatchedLength = advanceKmp(pattern, table, beforeLength, pitchClass);
+  const { pattern } = getChordPatternCache(chord.notes);
+  const { matchedLength: nextMatchedLength, resync } = advanceSequential(
+    pattern,
+    beforeLength,
+    pitchClass,
+  );
 
   if (nextMatchedLength === 0) {
     return { result: 'miss', nextState: resetChordState(state) };
@@ -105,8 +109,7 @@ export function evaluatePhraseNoteOn(
     };
   }
 
-  const result: SurvivalPhraseNoteResult =
-    nextMatchedLength < beforeLength ? 'resync' : 'progress';
+  const result: SurvivalPhraseNoteResult = resync ? 'resync' : 'progress';
 
   return {
     result,

@@ -461,7 +461,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
-            if kind == .correct || kind == .miss {
+            if kind == .miss {
                 audio.playFireMagicSe()
             }
             scene?.runEffect(command)

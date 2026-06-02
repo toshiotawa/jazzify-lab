@@ -52,17 +52,59 @@ export const pickLongestPhrasePairPattern = (
   return best;
 };
 
+/** Buffer prefix に最も長く一致するパターン（表示用）。空 buffer は null。 */
+export const pickPhrasePairDisplayPattern = (
+  buffer: readonly number[],
+  patterns: readonly AdlibPattern[],
+): AdlibPattern | null => {
+  if (buffer.length === 0 || patterns.length === 0) return null;
+
+  let best: AdlibPattern | null = null;
+  let bestPrefix = 0;
+  for (const pattern of patterns) {
+    const prefixLen = longestCommonPrefixLength(buffer, pattern.pcs);
+    if (prefixLen <= 0) continue;
+    if (
+      best === null
+      || prefixLen > bestPrefix
+      || (prefixLen === bestPrefix && comparePatternsByLengthAndPriority(pattern, best) < 0)
+    ) {
+      best = pattern;
+      bestPrefix = prefixLen;
+    }
+  }
+  return best;
+};
+
 export const buildPhrasePairStaffVoicingGroups = (
   pattern: AdlibPattern | null,
   chordName: string,
+  visibleNoteCount?: number,
+  options?: { readonly isRest?: boolean },
 ): readonly ChordVoicingStaffGroup[] => {
+  if (options?.isRest) {
+    return [{
+      id: 'pp-rest',
+      chordName,
+      voicing: [],
+      voicingStaves: [],
+      measureOffset: 0,
+      isRest: true,
+      isActive: false,
+    }];
+  }
+
   if (!pattern) return [];
 
   const voicing = resolvePatternVoicing(pattern);
   const staves = pattern.voicingStaves ?? [];
+  const noteCount = Math.min(
+    voicing.length,
+    visibleNoteCount ?? voicing.length,
+  );
   const groups: ChordVoicingStaffGroup[] = [];
 
-  for (let i = 0; i < voicing.length; i += 1) {
+  for (let i = 0; i < noteCount; i += 1) {
     const noteName = voicing[i]?.trim();
     if (!noteName) continue;
 
