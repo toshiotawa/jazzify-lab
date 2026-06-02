@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import type { CodeSlot } from './SurvivalTypes';
-import { createChordNameText, initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, resolveSurvivalHintSlotIndex, selectProgressionChord, spawnScenarioTutorialEnemyAt, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
+import { createChordNameText, getChordDefinition, initializeCodeSlots, resetIncompleteOtherSlotCorrectNotes, resolveSurvivalHintSlotIndex, selectProgressionChord, spawnScenarioTutorialEnemyAt, updateComboOnABHit, expireComboIfTimedOut } from './SurvivalGameEngine';
 import { getSurvivalStageBattleKind } from './SurvivalStageDefinitions';
 
 vi.mock('@/platform/supabaseClient', () => ({
@@ -15,6 +15,20 @@ const buildChord = (id: string): ChordDefinition => ({
   noteNames: ['C', 'E', 'G'],
   quality: 'progression',
   root: 'C',
+});
+
+describe('getChordDefinition', () => {
+  it('returns ascending close voicing from root octave 4 (iOS SurvivalChordResolver parity)', () => {
+    const chord = getChordDefinition('A');
+    expect(chord).not.toBeNull();
+    expect(chord?.notes).toEqual([69, 73, 76]);
+  });
+
+  it('returns rootless jazz voicing with tensions stacked upward', () => {
+    const chord = getChordDefinition('CM7(9)');
+    expect(chord).not.toBeNull();
+    expect(chord?.notes).toEqual([64, 67, 71, 74]);
+  });
 });
 
 describe('survival progression code slots', () => {

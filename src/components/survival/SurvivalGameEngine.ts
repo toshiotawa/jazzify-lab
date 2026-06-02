@@ -36,9 +36,8 @@ import {
   SPECIAL_ATTACK_RADIUS_MULTIPLIER,
 } from './SurvivalTypes';
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
-import { resolveChord } from '@/utils/chord-utils';
+import { buildChordMidiNotes, resolveChord } from '@/utils/chord-utils';
 import { resolveSurvivalQuestion } from '@/utils/survivalQuestionTypes';
-import { note as parseNote } from 'tonal';
 import {
   STAGE_TIME_LIMIT_SECONDS,
   STAGE_KILL_QUOTA,
@@ -496,10 +495,7 @@ export const getChordDefinition = (chordId: string): ChordDefinition | null => {
   return {
     id: chordId,
     displayName: resolved.displayName,
-    notes: resolved.notes.map((n, i) => {
-      const parsed = parseNote(n + '4');
-      return parsed?.midi ?? (60 + i);
-    }),
+    notes: buildChordMidiNotes(resolved.root, resolved.quality, 4),
     noteNames: resolved.notes,
     quality: resolved.quality,
     root: resolved.root,
