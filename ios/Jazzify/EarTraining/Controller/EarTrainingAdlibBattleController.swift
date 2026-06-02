@@ -518,7 +518,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
-            if kind == .correct || kind == .miss {
+            if kind == .miss {
                 audio.playFireMagicSe()
             }
             scene?.runEffect(command)
@@ -681,11 +681,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
     }
 
     private func phraseIntroLine() -> String {
-        guard !phrases.isEmpty else { return "" }
-        let current = phraseIndex + 1
-        return isEnglishCopy
-            ? "Phrase \(current) / \(phrases.count)"
-            : "フレーズ \(current) / \(phrases.count)"
+        ""
     }
 
     static func avatarAssetName(stageId: UUID, enemyId: String) -> String {

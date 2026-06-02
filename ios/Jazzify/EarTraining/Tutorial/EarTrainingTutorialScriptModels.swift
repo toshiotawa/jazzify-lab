@@ -87,6 +87,8 @@ struct EarTrainingTutorialContentPhrasePairAdlibPattern: Decodable, Sendable {
     let family_id: String
     let carry_tail_length: Int?
     let priority: Int?
+    let voicing: [String]?
+    let voicing_staves: [Int]?
 }
 
 struct EarTrainingTutorialContentPhrasePairAdlib: Decodable, Sendable {
@@ -154,7 +156,19 @@ struct EarTrainingTutorialContentPhrase: Decodable, Sendable {
     let audio_duration_sec: Double?
     let note_count: Int?
     let key_fifths: Int?
+    let notes: [EarTrainingTutorialContentPhraseNote]?
     let chords: [EarTrainingTutorialContentChord]?
+}
+
+struct EarTrainingTutorialContentPhraseNote: Decodable, Sendable {
+    let note_index: Int
+    let pitch_midi: Int
+    let pitch_class: Int
+    let note_name: String
+    let octave: Int?
+    let measure_number: Int?
+    let beat_offset: Double?
+    let tied_from_previous: Bool?
 }
 
 struct EarTrainingTutorialContentChord: Decodable, Sendable {

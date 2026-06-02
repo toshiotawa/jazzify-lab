@@ -111,6 +111,32 @@ describe('earTrainingAdlibEngine', () => {
     expect(groups[0].chordName).toBe('Dm7');
   });
 
+  it('keeps a chord-name rest group when harmony has no voicing notes', () => {
+    const restChord: EarTrainingPhraseChord = {
+      ...dm7Chord,
+      id: 'rest-1',
+      chord_name: 'CM7',
+      voicing: [],
+      voicing_staves: [],
+    };
+    const restPhrase: EarTrainingPhrase = {
+      ...phrase,
+      chords: [restChord],
+    };
+    const groups = buildAdlibStaffVoicingGroups(restPhrase, {
+      representativeId: 'rest-1',
+      chordName: 'CM7',
+      voicingIds: ['rest-1'],
+    });
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      chordName: 'CM7',
+      voicing: [],
+      isRest: true,
+    });
+  });
+
   it('maps keyboard hints with pressed pitch classes as completed', () => {
     const hints = computeAdlibKeyboardHints(
       phrase,

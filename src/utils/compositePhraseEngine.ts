@@ -20,6 +20,7 @@ export interface CompositePhraseChord {
   readonly id: string;
   readonly orderIndex: number;
   readonly chordName: string;
+  readonly quoteText?: string | null;
   readonly measureNumber: number;
   readonly notes: readonly CompositePhraseChordNote[];
 }

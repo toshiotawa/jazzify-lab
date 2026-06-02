@@ -84,6 +84,21 @@ enum EarTrainingAdlibEngine {
         for chord in chords {
             let voicing = chord.voicing ?? []
             let staves = chord.voicingStaves ?? []
+            if voicing.isEmpty {
+                groups.append(
+                    EarTrainingChordVoicingStaffLayout.GroupInput(
+                        id: chord.id,
+                        chordName: slotIndex == 0 ? row.chordName : "",
+                        voicing: [],
+                        voicingStaves: [],
+                        measureOffset: 0,
+                        isRest: true,
+                        exemptFromFade: true
+                    )
+                )
+                slotIndex += 1
+                continue
+            }
             for (vi, noteName) in voicing.enumerated() {
                 let staff: Int = (vi < staves.count && staves[vi] == 2) ? 2 : 1
                 groups.append(

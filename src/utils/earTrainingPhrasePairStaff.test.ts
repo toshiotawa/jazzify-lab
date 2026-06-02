@@ -42,9 +42,12 @@ describe('buildPhrasePairStaffVoicingGroups', () => {
     expect(buildPhrasePairStaffVoicingGroups(null, 'CM7')).toEqual([]);
   });
 
-  it('returns empty when voicing is missing', () => {
+  it('falls back to pitch-class note names when voicing is missing', () => {
     const pattern = makePattern({ id: 'no-voicing', pcs: [0, 2] });
-    expect(buildPhrasePairStaffVoicingGroups(pattern, 'CM7')).toEqual([]);
+    const groups = buildPhrasePairStaffVoicingGroups(pattern, 'CM7');
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.voicing).toEqual(['C4']);
+    expect(groups[1]?.voicing).toEqual(['D4']);
   });
 
   it('builds one group per note with chord name on first slot', () => {
@@ -99,9 +102,11 @@ describe('computePhrasePairStaffCorrectGroupIds', () => {
     expect(computePhrasePairStaffCorrectGroupIds(null, [11, 2])).toEqual(new Set());
   });
 
-  it('returns empty set when voicing is missing', () => {
+  it('can highlight fallback groups when voicing is missing', () => {
     const pattern = makePattern({ id: 'no-voicing', pcs: [0, 2] });
-    expect(computePhrasePairStaffCorrectGroupIds(pattern, [0, 2])).toEqual(new Set());
+    expect(computePhrasePairStaffCorrectGroupIds(pattern, [0, 2])).toEqual(
+      new Set(['pp-no-voicing-n0', 'pp-no-voicing-n1']),
+    );
   });
 
   it('returns empty set when buffer does not match pattern prefix', () => {

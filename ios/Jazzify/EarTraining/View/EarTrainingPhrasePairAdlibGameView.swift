@@ -227,6 +227,7 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                 )
                 Spacer()
             }
+            staffOverlay(size: size)
             VStack(spacing: 0) {
                 Spacer()
                 EarTrainingPianoView(player: controller)
@@ -234,6 +235,44 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                     .padding(.bottom, 4)
             }
             EarTrainingResultView(host: controller)
+        }
+    }
+
+    @ViewBuilder
+    private func staffOverlay(size: CGSize) -> some View {
+        if let step = controller.activeStep {
+            let patterns = EarTrainingPhrasePairTimeline.patterns(
+                for: step,
+                patternsByGroupId: controller.bootstrap.patternsByGroupId
+            )
+            let longestPattern = EarTrainingPhrasePairStaff.pickLongestPattern(patterns)
+            let groups = EarTrainingPhrasePairStaff.buildStaffGroups(
+                pattern: longestPattern,
+                chordName: step.chordName
+            )
+            let correctMap = EarTrainingPhrasePairStaff.correctPitchClassesByGroup(
+                pattern: longestPattern,
+                buffer: controller.matcherState.buffer
+            )
+            let showVoicingTargets = controller.gameState == .playingPhrase
+                || (controller.gameState == .countIn && controller.countInEarlyInputActive)
+
+            if !groups.isEmpty {
+                ChordVoicingStaffGroupsView(
+                    groups: groups,
+                    denseCurrentMeasureLayout: false,
+                    keyFifths: controller.bootstrap.keyFifths,
+                    activeGroupId: nil,
+                    correctPitchClassesByGroupId: correctMap,
+                    completionPulse: nil,
+                    showTargetHints: showVoicingTargets,
+                    singleMeasureLayout: true,
+                    fadeAllMeasureNotes: true
+                )
+                .frame(width: min(size.width * 0.82, 720), height: size.height * 0.5)
+                .position(x: size.width / 2, y: size.height * 0.44)
+                .allowsHitTesting(false)
+            }
         }
     }
 

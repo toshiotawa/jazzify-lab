@@ -2,6 +2,7 @@ import type { ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoici
 import type { AdlibPattern } from '@/utils/earTrainingPhrasePairEngine';
 
 const EMPTY_CORRECT_GROUP_IDS = new Set<string>();
+const NOTE_NAMES_BY_PITCH_CLASS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 
 const phrasePairStaffGroupId = (patternId: string, noteIndex: number): string => (
   `pp-${patternId}-n${noteIndex}`
@@ -24,6 +25,17 @@ const comparePatternsByLengthAndPriority = (a: AdlibPattern, b: AdlibPattern): n
   return (b.priority ?? 0) - (a.priority ?? 0);
 };
 
+const fallbackVoicingForPattern = (pattern: AdlibPattern): readonly string[] => (
+  pattern.pcs.map((pc) => {
+    const safePc = ((Math.trunc(pc) % 12) + 12) % 12;
+    return `${NOTE_NAMES_BY_PITCH_CLASS[safePc] ?? 'C'}4`;
+  })
+);
+
+const resolvePatternVoicing = (pattern: AdlibPattern): readonly string[] => (
+  pattern.voicing?.length ? pattern.voicing : fallbackVoicingForPattern(pattern)
+);
+
 /** Active step pattern group: longest pcs sequence; tie-break by priority desc. */
 export const pickLongestPhrasePairPattern = (
   patterns: readonly AdlibPattern[],
@@ -44,9 +56,9 @@ export const buildPhrasePairStaffVoicingGroups = (
   pattern: AdlibPattern | null,
   chordName: string,
 ): readonly ChordVoicingStaffGroup[] => {
-  if (!pattern?.voicing?.length) return [];
+  if (!pattern) return [];
 
-  const voicing = pattern.voicing;
+  const voicing = resolvePatternVoicing(pattern);
   const staves = pattern.voicingStaves ?? [];
   const groups: ChordVoicingStaffGroup[] = [];
 
@@ -75,7 +87,7 @@ export const computePhrasePairStaffCorrectGroupIds = (
   pattern: AdlibPattern | null,
   buffer: readonly number[],
 ): ReadonlySet<string> => {
-  if (!pattern?.voicing?.length || buffer.length === 0) {
+  if (!pattern || buffer.length === 0) {
     return EMPTY_CORRECT_GROUP_IDS;
   }
 
@@ -85,7 +97,7 @@ export const computePhrasePairStaffCorrectGroupIds = (
   }
 
   const correctIds = new Set<string>();
-  const voicing = pattern.voicing;
+  const voicing = resolvePatternVoicing(pattern);
   for (let i = 0; i < matchedLength; i += 1) {
     const noteName = voicing[i]?.trim();
     if (!noteName) continue;

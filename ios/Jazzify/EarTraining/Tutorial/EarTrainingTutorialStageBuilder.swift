@@ -69,6 +69,20 @@ enum EarTrainingTutorialStageBuilder {
                     inputDisabled: chord.input_disabled ?? false
                 )
             }
+            let notes = phrase.notes?.map { note in
+                EarTrainingPhraseNoteDetail(
+                    id: stableId("tutorial-\(phraseId.uuidString)-note-\(note.note_index)"),
+                    phraseId: phraseId,
+                    noteIndex: note.note_index,
+                    pitchMidi: note.pitch_midi,
+                    pitchClass: ((note.pitch_class % 12) + 12) % 12,
+                    noteName: note.note_name,
+                    octave: note.octave,
+                    measureNumber: note.measure_number,
+                    beatOffset: note.beat_offset,
+                    tiedFromPrevious: note.tied_from_previous
+                )
+            }
             return EarTrainingPhraseDetail(
                 id: phraseId,
                 stageId: stageId,
@@ -80,8 +94,8 @@ enum EarTrainingTutorialStageBuilder {
                 audioUrl: phrase.audio_url ?? "",
                 loopDurationSec: phrase.loop_duration_sec ?? 8,
                 audioDurationSec: phrase.audio_duration_sec ?? 8,
-                noteCount: phrase.note_count ?? 1,
-                notes: nil,
+                noteCount: phrase.note_count ?? notes?.count ?? 1,
+                notes: notes,
                 chords: chords,
                 demoLoops: nil
             )
@@ -268,7 +282,9 @@ enum EarTrainingTutorialInlineBootstrap {
                 pcs: row.pcs.map { (($0 % 12) + 12) % 12 },
                 familyId: row.family_id,
                 carryTailLength: row.carry_tail_length ?? 0,
-                priority: row.priority ?? 0
+                priority: row.priority ?? 0,
+                voicing: row.voicing,
+                voicingStaves: row.voicing_staves
             )
             patternsByGroupId[groupId, default: []].append(pattern)
         }

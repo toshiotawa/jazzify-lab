@@ -82,4 +82,39 @@ final class EarTrainingPhrasePairEngineTests: XCTestCase {
         state = EarTrainingPhrasePairEngine.handleChordChange(state: state, nextPatterns: withoutApp)
         XCTAssertEqual(state.buffer, [])
     }
+
+    func testStaffGroupsUsePatternVoicing() {
+        let pattern = EarTrainingPhrasePairEngine.Pattern(
+            id: "A",
+            label: "A",
+            pcs: [0, 2],
+            familyId: "CM7-A",
+            carryTailLength: 0,
+            voicing: ["C4", "D4"],
+            voicingStaves: [1, 1]
+        )
+
+        let groups = EarTrainingPhrasePairStaff.buildStaffGroups(pattern: pattern, chordName: "CM7")
+        let correct = EarTrainingPhrasePairStaff.correctPitchClassesByGroup(pattern: pattern, buffer: [0])
+
+        XCTAssertEqual(groups.map(\.voicing.first), [Optional("C4"), Optional("D4")])
+        XCTAssertEqual(groups.first?.chordName, "CM7")
+        XCTAssertEqual(groups.dropFirst().first?.chordName, "")
+        XCTAssertEqual(correct[groups[0].id], Set([0]))
+        XCTAssertNil(correct[groups[1].id])
+    }
+
+    func testStaffGroupsFallbackToPitchClassNames() {
+        let pattern = EarTrainingPhrasePairEngine.Pattern(
+            id: "fallback",
+            label: "A",
+            pcs: [11, 1],
+            familyId: "CM7-A",
+            carryTailLength: 0
+        )
+
+        let groups = EarTrainingPhrasePairStaff.buildStaffGroups(pattern: pattern, chordName: "CM7")
+
+        XCTAssertEqual(groups.map(\.voicing.first), [Optional("B4"), Optional("C#4")])
+    }
 }

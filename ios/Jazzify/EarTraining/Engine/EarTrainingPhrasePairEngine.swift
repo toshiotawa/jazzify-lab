@@ -9,6 +9,8 @@ enum EarTrainingPhrasePairEngine {
         let familyId: String
         let carryTailLength: Int
         let priority: Int
+        let voicing: [String]?
+        let voicingStaves: [Int]?
 
         init(
             id: String,
@@ -16,7 +18,9 @@ enum EarTrainingPhrasePairEngine {
             pcs: [Int],
             familyId: String,
             carryTailLength: Int,
-            priority: Int = 0
+            priority: Int = 0,
+            voicing: [String]? = nil,
+            voicingStaves: [Int]? = nil
         ) {
             self.id = id
             self.label = label
@@ -24,6 +28,8 @@ enum EarTrainingPhrasePairEngine {
             self.familyId = familyId
             self.carryTailLength = carryTailLength
             self.priority = priority
+            self.voicing = voicing
+            self.voicingStaves = voicingStaves
         }
     }
 

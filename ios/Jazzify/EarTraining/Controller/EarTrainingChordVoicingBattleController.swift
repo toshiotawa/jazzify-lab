@@ -144,7 +144,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var tutorialSuccessfulLoopCount: Int = 0
 
     /// 複合コードヴォイシング（並列ロック→単一フレーズ）ランタイム。通常モードでは nil。
-    @Published private(set) var compositePhraseRuntime: EarTrainingCompositePhraseRuntimeState?
+    @Published private(set) var compositePhraseRuntime: EarTrainingCompositePhraseRuntimeState? {
+        didSet {
+            if isChordVoicingCompositePhrase {
+                updatePlayerQuoteBubble()
+            }
+        }
+    }
     private var compositeComboCount = 0
     private var compositeMissCount = 0
 
@@ -1516,6 +1522,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     /// 既に `attempt.completedChordIds` に含まれているヴォイシング（次ループで戻ってきた小節など、
     /// もう判定対象でないもの）の場合は表示しない。
     private func updatePlayerQuoteBubble() {
+        if isChordVoicingCompositePhrase {
+            scene?.setPlayerQuote(Self.compositePlayerQuoteBubbleTextForScene(
+                gameState: gameState,
+                runtime: compositePhraseRuntime
+            ))
+            return
+        }
         scene?.setPlayerQuote(Self.playerQuoteBubbleTextForScene(
             gameState: gameState,
             activeChord: activeChord,
@@ -1535,6 +1548,17 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         guard let chord = activeChord else { return nil }
         if completedChordIds.contains(chord.id) { return nil }
         guard let raw = chord.quote?.text else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func compositePlayerQuoteBubbleTextForScene(
+        gameState: EarTrainingGameState,
+        runtime: EarTrainingCompositePhraseRuntimeState?
+    ) -> String? {
+        guard gameState == .playingPhrase, let runtime else { return nil }
+        let view = EarTrainingCompositePhraseEngine.staffChordView(state: runtime)
+        guard let raw = view.chord?.quoteText else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }

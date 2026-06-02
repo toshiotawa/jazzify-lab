@@ -41,6 +41,18 @@ export interface EarTrainingTutorialContentChord {
   input_disabled?: boolean;
 }
 
+export interface EarTrainingTutorialContentNote {
+  id?: string;
+  note_index: number;
+  pitch_midi: number;
+  pitch_class: number;
+  note_name: string;
+  octave?: number | null;
+  measure_number?: number | null;
+  beat_offset?: number | null;
+  tied_from_previous?: boolean;
+}
+
 export interface EarTrainingTutorialContentPhrase {
   id?: string;
   order_index: number;
@@ -52,6 +64,7 @@ export interface EarTrainingTutorialContentPhrase {
   audio_duration_sec?: number | null;
   note_count?: number | null;
   key_fifths?: number | null;
+  notes?: EarTrainingTutorialContentNote[];
   chords?: EarTrainingTutorialContentChord[];
 }
 

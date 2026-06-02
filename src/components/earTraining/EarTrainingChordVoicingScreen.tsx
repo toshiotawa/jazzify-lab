@@ -1996,6 +1996,18 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const showKeyboardTargetHints = practiceModeEffective || stage.show_keyboard_hints_in_battle === true;
 
   const playerQuoteBubbleText = useMemo(() => {
+    if (isChordVoicingCompositePhrase) {
+      if (tutorial?.scene.type === 'composite') {
+        return null;
+      }
+      void compositeUiTick;
+      const rt = compositePhraseRuntimeRef.current;
+      if (!rt) {
+        return null;
+      }
+      const quote = getCompositePhraseStaffChordView(rt).chord?.quoteText?.trim();
+      return quote && quote.length > 0 ? quote : null;
+    }
     if (!showVoicingTargetHints || !activeChord) {
       return null;
     }
@@ -2003,7 +2015,14 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return null;
     }
     return getChordVoicingQuoteDisplayText(activeChord);
-  }, [showVoicingTargetHints, activeChord, attempt]);
+  }, [
+    activeChord,
+    attempt,
+    compositeUiTick,
+    isChordVoicingCompositePhrase,
+    showVoicingTargetHints,
+    tutorial?.scene.type,
+  ]);
 
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyBattleKey = useMemo(

@@ -220,6 +220,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   const tutorialClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
@@ -291,6 +292,13 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     }
   }, []);
 
+  const clearCountInTimer = useCallback(() => {
+    if (countInTimerRef.current) {
+      clearInterval(countInTimerRef.current);
+      countInTimerRef.current = null;
+    }
+  }, []);
+
   const clearBattleEffectTimers = useCallback(() => {
     if (battleEffectClearTimerRef.current) {
       clearTimeout(battleEffectClearTimerRef.current);
@@ -299,11 +307,12 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   }, []);
 
   const stopPhraseAudio = useCallback(() => {
+    clearCountInTimer();
     clearChordSyncTimer();
     clearTutorialTimers();
     phrasePlayerRef.current?.stop();
     stopBgmLoop();
-  }, [clearChordSyncTimer, clearTutorialTimers, stopBgmLoop]);
+  }, [clearChordSyncTimer, clearCountInTimer, clearTutorialTimers, stopBgmLoop]);
 
   const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
     setFeedback(value);
@@ -417,8 +426,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     const url = bootstrap?.bgmUrl?.trim();
     if (!url) return false;
     const player = ensurePhrasePlayer();
-    const ctx = player.getAudioContext();
-    if (!ctx) return false;
+    const ctx = player.ensureAudioContext();
     try {
       const drum = ensureBgmLoop();
       await drum.prepare(url, ctx);
@@ -648,8 +656,10 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     };
 
     const onPhraseBodyStarted = (): void => {
+      clearCountInTimer();
       countInEarlyInputRef.current = false;
       setCountInEarlyInputActive(false);
+      setCountInValue(0);
       gameStateRef.current = 'playingPhrase';
       setGameState('playingPhrase');
       void startPairBgmLoop().then(ok => {
@@ -666,6 +676,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     };
 
     if (beats <= 0) {
+      setCountInValue(0);
       gameStateRef.current = 'playingPhrase';
       setGameState('playingPhrase');
       void startPairBgmLoop().then(ok => {
@@ -690,17 +701,20 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     let remaining = beats;
     setCountInValue(remaining);
     const beatMs = Math.max(1, Math.round(60_000 / stage.bpm));
+    clearCountInTimer();
     const countInterval = setInterval(() => {
       remaining -= 1;
       setCountInValue(remaining);
       if (remaining <= 0) {
-        clearInterval(countInterval);
+        clearCountInTimer();
         onPhraseBodyStarted();
       }
     }, beatMs);
+    countInTimerRef.current = countInterval;
   }, [
     bootstrap,
     clearChordSyncTimer,
+    clearCountInTimer,
     clearTimeLimitTimer,
     copy,
     finishGameOver,
@@ -729,7 +743,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   }, [gameState, startCountIn, tutorial?.bindings.ui.hideLobby]);
 
   const playerQuoteBubbleText = useMemo(
-    () => (activeStep?.inputDisabled ? null : getPhrasePairStepQuoteDisplayText(activeStep)),
+    () => getPhrasePairStepQuoteDisplayText(activeStep),
     [activeStep],
   );
 

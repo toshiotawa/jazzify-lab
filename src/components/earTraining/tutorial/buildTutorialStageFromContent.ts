@@ -2,12 +2,14 @@ import type {
   EarTrainingChordQuizItem,
   EarTrainingPhrase,
   EarTrainingPhraseChord,
+  EarTrainingPhraseNote,
   EarTrainingStage,
 } from '@/types';
 import { buildEarTrainingCompositeBootstrap } from '@/utils/earTrainingCompositePhraseAdapter';
 import { buildTutorialPhrasePairAdlibBootstrap } from '@/utils/buildTutorialPhrasePairAdlibBootstrap';
 import type {
   EarTrainingTutorialContentChord,
+  EarTrainingTutorialContentNote,
   EarTrainingTutorialContentPhrase,
   EarTrainingTutorialContentQuizItem,
   EarTrainingTutorialContentRef,
@@ -46,6 +48,23 @@ const mapChord = (
   };
 };
 
+const mapNote = (
+  phraseId: string,
+  note: EarTrainingTutorialContentNote,
+  index: number,
+): EarTrainingPhraseNote => ({
+  id: note.id ?? tutorialId(`${phraseId}-note`, index),
+  phrase_id: phraseId,
+  note_index: note.note_index,
+  pitch_midi: note.pitch_midi,
+  pitch_class: note.pitch_class,
+  note_name: note.note_name,
+  octave: note.octave ?? null,
+  measure_number: note.measure_number ?? null,
+  beat_offset: note.beat_offset ?? null,
+  tied_from_previous: note.tied_from_previous,
+});
+
 const mapPhrase = (
   stageId: string,
   phrase: EarTrainingTutorialContentPhrase,
@@ -73,8 +92,9 @@ const mapPhrase = (
     audio_url: phrase.audio_url ?? '',
     loop_duration_sec: phrase.loop_duration_sec ?? 8,
     audio_duration_sec: phrase.audio_duration_sec ?? 8,
-    note_count: phrase.note_count ?? 1,
+    note_count: phrase.note_count ?? phrase.notes?.length ?? 1,
     key_fifths: phrase.key_fifths ?? null,
+    notes: (phrase.notes ?? []).map((note, ni) => mapNote(phraseId, note, ni)),
     chords: timedChords.map((c, ci) => mapChord(phraseId, c, ci, isEnglishCopy)),
   };
 };

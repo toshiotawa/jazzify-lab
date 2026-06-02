@@ -19,8 +19,25 @@ struct EarTrainingCompositePhraseChord: Equatable, Sendable {
     let id: UUID
     let orderIndex: Int
     let chordName: String
+    let quoteText: String?
     let measureNumber: Int
     let notes: [EarTrainingCompositePhraseChordNote]
+
+    init(
+        id: UUID,
+        orderIndex: Int,
+        chordName: String,
+        quoteText: String? = nil,
+        measureNumber: Int,
+        notes: [EarTrainingCompositePhraseChordNote]
+    ) {
+        self.id = id
+        self.orderIndex = orderIndex
+        self.chordName = chordName
+        self.quoteText = quoteText
+        self.measureNumber = measureNumber
+        self.notes = notes
+    }
 }
 
 struct EarTrainingCompositePhraseDefinition: Equatable, Sendable {

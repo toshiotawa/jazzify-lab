@@ -52,7 +52,6 @@ import {
 } from '@/utils/earTrainingAdlibEngine';
 import {
   formatEarTrainingCountInDisplay,
-  formatEarTrainingPhraseIntroLine,
   getEarTrainingBattleHudLabels,
   getEarTrainingGameCopy,
 } from '@/utils/earTrainingUiCopy';
@@ -392,10 +391,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
       return false;
     }
     const player = ensurePhrasePlayer();
-    const ctx = player.getAudioContext();
-    if (!ctx) {
-      return false;
-    }
+    const ctx = player.ensureAudioContext();
     try {
       const drum = ensureBgmLoop();
       await drum.prepare(url, ctx);
@@ -675,6 +671,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     const onPhraseBodyStarted = (): void => {
       countInEarlyInputRef.current = false;
       setCountInEarlyInputActive(false);
+      setCountInValue(0);
       gameStateRef.current = 'playingPhrase';
       setGameState('playingPhrase');
       void startAdlibBgmLoop(firstPhrase).then(ok => {
@@ -691,6 +688,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     };
 
     if (beats <= 0) {
+      setCountInValue(0);
       gameStateRef.current = 'playingPhrase';
       setGameState('playingPhrase');
       void startAdlibBgmLoop(firstPhrase).then(ok => {
@@ -773,7 +771,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
   }, [gameState, startCountIn, tutorial?.bindings.ui.hideLobby]);
 
   const playerQuoteBubbleText = useMemo(() => {
-    if (!activeChord || activeChord.input_disabled) {
+    if (!activeChord) {
       return null;
     }
     return getChordVoicingQuoteDisplayText(activeChord);
@@ -939,11 +937,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
   const lessonProgressText = lessonContext && gameState === 'stageClear'
     ? (progressSaved ? copy.lessonSaved : copy.lessonSaving)
     : null;
-  const phraseIntroLine = formatEarTrainingPhraseIntroLine(
-    isEnglishCopy,
-    phraseIndex,
-    phrases.length,
-  );
+  const phraseIntroLine = '';
   void phraseIntroSeq;
   const resultState = gameState === 'stageClear'
     ? 'win' as const
@@ -1094,6 +1088,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
           snapshot={battleSnapshot}
           effectCommand={battleEffectCommand}
           callbacks={battleCallbacks}
+          disableCorrectSe
           className="h-full w-full"
         />
       </div>

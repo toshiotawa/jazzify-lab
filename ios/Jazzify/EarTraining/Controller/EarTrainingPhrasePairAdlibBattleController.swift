@@ -572,6 +572,29 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
 
     private func publishSnapshot() {
         objectWillChange.send()
+        let enemyAvatar = EarTrainingBattleController.avatarAssetName(
+            stageId: stage.id,
+            enemyId: stage.id.uuidString
+        )
+        let snapshot = EarTrainingBattleSceneSnapshot(
+            gameState: gameState,
+            stageId: stage.id,
+            stageTitle: stage.localizedTitle(isEnglishCopy ? .en : .ja),
+            phraseIndex: 0,
+            phraseRunId: phraseRunId,
+            phraseIntroSeq: 0,
+            phraseIntroEmphasis: false,
+            totalPhrases: 1,
+            phraseIntroLine: "",
+            demoLoopActive: false,
+            playerAvatarName: EarTrainingBattleController.playerAvatarAssetName,
+            enemyAvatarName: enemyAvatar,
+            enemyAvatarFlipX: EarTrainingBattleController.shouldFlipEnemyAvatar(name: enemyAvatar),
+            fixedCharacterPositions: false,
+            showLobbyControls: showLobbyControls,
+            isEnglishCopy: isEnglishCopy
+        )
+        scene?.applySnapshot(snapshot)
     }
 
     private func formatTime(_ seconds: Int) -> String {

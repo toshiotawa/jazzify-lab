@@ -139,6 +139,17 @@ export const buildAdlibStaffVoicingGroups = (
       slotIndex += 1;
     });
   }
+  if (groups.length === 0) {
+    return [{
+      id: `adlib-${harmonyRow.representativeId}-rest`,
+      chordName: harmonyRow.chordName,
+      voicing: [],
+      voicingStaves: [],
+      measureOffset: 0,
+      isActive: false,
+      isRest: true,
+    }];
+  }
   return groups;
 };
 
