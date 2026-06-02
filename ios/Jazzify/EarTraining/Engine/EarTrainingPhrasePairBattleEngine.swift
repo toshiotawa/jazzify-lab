@@ -98,10 +98,13 @@ enum EarTrainingPhrasePairTimeline {
 
 enum EarTrainingPhrasePairBattleEngine {
     static let maxFireballsPerStep = 16
+    static let repeatEnemyDamage = 1
 
     struct WindowState: Sendable, Equatable {
         var stepId: UUID?
         var fireCount: Int
+        /// 直前完成ペアの pitch class 集合キー（順序無視）。連続同音減衰用
+        var lastCompletedNoteKey: String?
     }
 
     struct NoteResult: Sendable, Equatable {
@@ -113,13 +116,28 @@ enum EarTrainingPhrasePairBattleEngine {
         let playerDamage: Int
     }
 
-    static func createWindow(stepId: UUID? = nil) -> WindowState {
-        WindowState(stepId: stepId, fireCount: 0)
+    static func createWindow(
+        stepId: UUID? = nil,
+        lastCompletedNoteKey: String? = nil
+    ) -> WindowState {
+        WindowState(stepId: stepId, fireCount: 0, lastCompletedNoteKey: lastCompletedNoteKey)
     }
 
     static func applyStepTransition(_ current: WindowState, stepId: UUID?) -> WindowState {
         if current.stepId == stepId { return current }
-        return createWindow(stepId: stepId)
+        return WindowState(
+            stepId: stepId,
+            fireCount: 0,
+            lastCompletedNoteKey: current.lastCompletedNoteKey
+        )
+    }
+
+    static func noteKey(from pattern: EarTrainingPhrasePairEngine.Pattern) -> String {
+        pattern.pcs
+            .map { (($0 % 12) + 12) % 12 }
+            .sorted()
+            .map(String.init)
+            .joined(separator: ",")
     }
 
     static func handleNoteOn(
@@ -146,23 +164,40 @@ enum EarTrainingPhrasePairBattleEngine {
             )
         }
 
-        let shouldFire =
-            evaluation.result == .complete
-            && window.fireCount < maxFireballsPerStep
+        if evaluation.result == .complete, let completed = evaluation.completedPattern {
+            let noteKey = Self.noteKey(from: completed)
+            let isRepeat =
+                window.lastCompletedNoteKey != nil
+                && noteKey == window.lastCompletedNoteKey
+            let shouldFire = window.fireCount < maxFireballsPerStep
+            let nextWindow = WindowState(
+                stepId: window.stepId,
+                fireCount: shouldFire ? window.fireCount + 1 : window.fireCount,
+                lastCompletedNoteKey: noteKey
+            )
+            let enemyDamage: Int
+            if shouldFire {
+                enemyDamage = isRepeat ? repeatEnemyDamage : damage.perCorrectNote
+            } else {
+                enemyDamage = 0
+            }
 
-        let nextWindow: WindowState
-        if shouldFire {
-            nextWindow = WindowState(stepId: window.stepId, fireCount: window.fireCount + 1)
-        } else {
-            nextWindow = window
+            return NoteResult(
+                evaluation: evaluation,
+                nextMatcherState: evaluation.nextState,
+                nextWindow: nextWindow,
+                shouldFire: shouldFire,
+                enemyDamage: enemyDamage,
+                playerDamage: 0
+            )
         }
 
         return NoteResult(
             evaluation: evaluation,
             nextMatcherState: evaluation.nextState,
-            nextWindow: nextWindow,
-            shouldFire: shouldFire,
-            enemyDamage: shouldFire ? damage.perCorrectNote : 0,
+            nextWindow: window,
+            shouldFire: false,
+            enemyDamage: 0,
             playerDamage: 0
         )
     }
