@@ -3,6 +3,8 @@
  */
 
 import type { CompositePhraseDefinition } from '@/utils/compositePhraseEngine';
+import type { AdlibPattern } from '@/utils/earTrainingPhrasePairEngine';
+import type { EarTrainingPhrasePairAdlibStep } from '@/utils/earTrainingPhrasePairAdlibAdapter';
 
 // ===== 基本的なゲーム状態 =====
 
@@ -713,7 +715,13 @@ export interface EarTrainingPhraseChord {
   created_at?: string;
 }
 
-export type EarTrainingMode = 'phrase' | 'chord_voicing' | 'chord_quiz' | 'chord_osmd' | 'adlib';
+export type EarTrainingMode =
+  | 'phrase'
+  | 'chord_voicing'
+  | 'chord_quiz'
+  | 'chord_osmd'
+  | 'adlib'
+  | 'phrase_pair_adlib';
 
 /** chord_quiz モードの出題行（ステージ直下） */
 export interface EarTrainingChordQuizItem {
@@ -742,6 +750,15 @@ export interface EarTrainingCompositePhraseBootstrap {
   readonly keyFifths: number;
   readonly sourcePhraseIds: readonly string[];
   readonly definitions: readonly CompositePhraseDefinition[];
+}
+
+/** `enrichEarTrainingStageWithPhrasePairAdlib` が付与するランタイムデータ */
+export interface EarTrainingPhrasePairAdlibBootstrap {
+  readonly bgmUrl: string;
+  readonly keyFifths: number;
+  readonly loopDurationSec: number;
+  readonly steps: readonly EarTrainingPhrasePairAdlibStep[];
+  readonly patternsByGroupId: Readonly<Record<string, readonly AdlibPattern[]>>;
 }
 
 export interface EarTrainingPhrase {
@@ -797,6 +814,8 @@ export interface EarTrainingStage {
   chord_voicing_composite_phrase?: boolean;
   /** 複合モードの BGM URL・ソースフレーズ定義（一覧取得後に付与） */
   compositePhraseBootstrap?: EarTrainingCompositePhraseBootstrap;
+  /** フレーズペアアドリブの BGM・コード進行ステップ・パターン群（一覧取得後に付与） */
+  phrasePairAdlibBootstrap?: EarTrainingPhrasePairAdlibBootstrap;
   mode: EarTrainingMode;
   /** chord_quiz: 制限時間（秒） */
   quiz_duration_seconds?: number;

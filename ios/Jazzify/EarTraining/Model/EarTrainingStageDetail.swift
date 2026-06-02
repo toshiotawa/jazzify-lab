@@ -8,6 +8,7 @@ enum EarTrainingMode: String, Codable, Sendable {
     case chordQuiz = "chord_quiz"
     case chordOSMD = "chord_osmd"
     case adlib
+    case phrasePairAdlib = "phrase_pair_adlib"
 
     /// レッスン課題カード用（Web `formatEarTrainingModeLabel` と同値）
     func lessonDisplayLabel(locale: AppLocale) -> String {
@@ -23,6 +24,8 @@ enum EarTrainingMode: String, Codable, Sendable {
             return ja ? "楽譜バトル" : "Sheet music battle"
         case .adlib:
             return ja ? "アドリブ" : "Ad lib"
+        case .phrasePairAdlib:
+            return ja ? "フレーズペアアドリブ" : "Phrase pair ad lib"
         }
     }
 }
@@ -93,8 +96,15 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let chordVoicingCompositePhrase: Bool?
     /// PostgREST には無いフィールド（`fetchEarTrainingStageDetail` の enrich で付与）。
     let compositePhraseBootstrap: EarTrainingCompositePhraseBootstrap?
+    /// PostgREST には無いフィールド（`fetchEarTrainingStageDetail` の enrich で付与）。
+    let phrasePairAdlibBootstrap: EarTrainingPhrasePairAdlibBootstrap?
 
     var resolvedMode: EarTrainingMode { mode ?? .phrase }
+
+    var isPhrasePairAdlibConfigured: Bool {
+        resolvedMode == .phrasePairAdlib
+            && phrasePairAdlibBootstrap.map { !$0.steps.isEmpty } == true
+    }
 
     var resolvedChordVoicingSelfPaced: Bool { chordVoicingSelfPaced == true }
 
@@ -139,7 +149,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
             return isEnglish
                 ? "Reduce the enemy HP to 0."
                 : "敵HPを0にする。"
-        case .chordVoicing, .phrase, .adlib:
+        case .chordVoicing, .phrase, .adlib, .phrasePairAdlib:
             return isEnglish
                 ? "Reduce the enemy HP to 0 within the time limit."
                 : "制限時間以内に敵HPを0にする"
@@ -222,6 +232,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         chordQuizItems = try container.decodeIfPresent([EarTrainingChordQuizItem].self, forKey: .chordQuizItems)
         chordVoicingCompositePhrase = try container.decodeIfPresent(Bool.self, forKey: .chordVoicingCompositePhrase)
         compositePhraseBootstrap = nil
+        phrasePairAdlibBootstrap = nil
     }
 
     func encode(to encoder: Encoder) throws {
@@ -301,7 +312,8 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         showKeyboardHintsInBattle: Bool?,
         chordQuizItems: [EarTrainingChordQuizItem]?,
         chordVoicingCompositePhrase: Bool?,
-        compositePhraseBootstrap: EarTrainingCompositePhraseBootstrap?
+        compositePhraseBootstrap: EarTrainingCompositePhraseBootstrap?,
+        phrasePairAdlibBootstrap: EarTrainingPhrasePairAdlibBootstrap? = nil
     ) {
         self.id = id
         self.slug = slug
@@ -340,6 +352,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         self.chordQuizItems = chordQuizItems
         self.chordVoicingCompositePhrase = chordVoicingCompositePhrase
         self.compositePhraseBootstrap = compositePhraseBootstrap
+        self.phrasePairAdlibBootstrap = phrasePairAdlibBootstrap
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

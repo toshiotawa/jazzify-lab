@@ -1074,7 +1074,9 @@ final class SupabaseService: Sendable {
             .execute()
             .value
         let normalized = Self.normalizeStageDetail(raw)
-        return try await Self.enrichEarTrainingCompositeIfNeeded(normalized)
+        return try await Self.enrichEarTrainingPhrasePairAdlibIfNeeded(
+            try await Self.enrichEarTrainingCompositeIfNeeded(normalized)
+        )
     }
 
     /// 耳コピバトル ステージの詳細を slug で取得する (ログイン画面のデモ起動用)。
@@ -1087,7 +1089,9 @@ final class SupabaseService: Sendable {
             .execute()
             .value
         let normalized = Self.normalizeStageDetail(raw)
-        return try await Self.enrichEarTrainingCompositeIfNeeded(normalized)
+        return try await Self.enrichEarTrainingPhrasePairAdlibIfNeeded(
+            try await Self.enrichEarTrainingCompositeIfNeeded(normalized)
+        )
     }
 
     private static let earTrainingStageDetailSelect = """
@@ -1142,7 +1146,8 @@ final class SupabaseService: Sendable {
             showKeyboardHintsInBattle: raw.showKeyboardHintsInBattle,
             chordQuizItems: raw.sortedChordQuizItems(),
             chordVoicingCompositePhrase: raw.chordVoicingCompositePhrase,
-            compositePhraseBootstrap: raw.compositePhraseBootstrap
+            compositePhraseBootstrap: raw.compositePhraseBootstrap,
+            phrasePairAdlibBootstrap: raw.phrasePairAdlibBootstrap
         )
     }
 
@@ -1245,7 +1250,183 @@ final class SupabaseService: Sendable {
             showKeyboardHintsInBattle: detail.showKeyboardHintsInBattle,
             chordQuizItems: detail.chordQuizItems,
             chordVoicingCompositePhrase: detail.chordVoicingCompositePhrase,
-            compositePhraseBootstrap: bootstrap
+            compositePhraseBootstrap: bootstrap,
+            phrasePairAdlibBootstrap: detail.phrasePairAdlibBootstrap
+        )
+    }
+
+    private struct EarTrainingPhrasePairAdlibConfigRow: Decodable {
+        let id: UUID
+        let bgmUrl: String
+        let keyFifths: Int
+        let loopDurationSec: Double
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case bgmUrl = "bgm_url"
+            case keyFifths = "key_fifths"
+            case loopDurationSec = "loop_duration_sec"
+        }
+    }
+
+    private struct EarTrainingPhrasePairAdlibStepRow: Decodable {
+        let id: UUID
+        let orderIndex: Int
+        let chordName: String
+        let patternGroupId: UUID
+        let measureNumber: Int?
+        let startTimeSec: Double
+        let endTimeSec: Double
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case orderIndex = "order_index"
+            case chordName = "chord_name"
+            case patternGroupId = "pattern_group_id"
+            case measureNumber = "measure_number"
+            case startTimeSec = "start_time_sec"
+            case endTimeSec = "end_time_sec"
+        }
+    }
+
+    private struct EarTrainingAdlibPatternRow: Decodable {
+        let id: UUID
+        let groupId: UUID
+        let label: String
+        let pcs: [Int]
+        let familyId: String
+        let carryTailLength: Int
+        let priority: Int
+        let sortOrder: Int
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case groupId = "group_id"
+            case label
+            case pcs
+            case familyId = "family_id"
+            case carryTailLength = "carry_tail_length"
+            case priority
+            case sortOrder = "sort_order"
+        }
+    }
+
+    private static func enrichEarTrainingPhrasePairAdlibIfNeeded(_ detail: EarTrainingStageDetail) async throws -> EarTrainingStageDetail {
+        guard detail.resolvedMode == .phrasePairAdlib else {
+            return detail
+        }
+        guard detail.phrasePairAdlibBootstrap == nil else {
+            return detail
+        }
+
+        let client = SupabaseService.shared.client
+
+        let cfgRows: [EarTrainingPhrasePairAdlibConfigRow] = try await client
+            .from("ear_training_phrase_pair_adlib_config")
+            .select("id,bgm_url,key_fifths,loop_duration_sec")
+            .eq("stage_id", value: detail.id.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        guard let cfg = cfgRows.first else {
+            return detail
+        }
+
+        let stepRows: [EarTrainingPhrasePairAdlibStepRow] = try await client
+            .from("ear_training_phrase_pair_adlib_steps")
+            .select("id,order_index,chord_name,pattern_group_id,measure_number,start_time_sec,end_time_sec")
+            .eq("config_id", value: cfg.id.uuidString)
+            .order("order_index")
+            .execute()
+            .value
+        guard !stepRows.isEmpty else {
+            return detail
+        }
+
+        let groupIds = Array(Set(stepRows.map(\.patternGroupId)))
+        let patternRows: [EarTrainingAdlibPatternRow] = try await client
+            .from("ear_training_adlib_patterns")
+            .select("id,group_id,label,pcs,family_id,carry_tail_length,priority,sort_order")
+            .in("group_id", values: groupIds.map(\.uuidString))
+            .order("sort_order")
+            .execute()
+            .value
+        guard !patternRows.isEmpty else {
+            return detail
+        }
+
+        var patternsByGroupId: [UUID: [EarTrainingPhrasePairEngine.Pattern]] = [:]
+        for row in patternRows.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+            let pattern = EarTrainingPhrasePairEngine.Pattern(
+                id: row.id.uuidString,
+                label: row.label,
+                pcs: row.pcs.map { (($0 % 12) + 12) % 12 },
+                familyId: row.familyId,
+                carryTailLength: row.carryTailLength,
+                priority: row.priority
+            )
+            patternsByGroupId[row.groupId, default: []].append(pattern)
+        }
+
+        let steps = stepRows.map {
+            EarTrainingPhrasePairAdlibStep(
+                id: $0.id,
+                orderIndex: $0.orderIndex,
+                chordName: $0.chordName,
+                patternGroupId: $0.patternGroupId,
+                measureNumber: $0.measureNumber,
+                startTimeSec: $0.startTimeSec,
+                endTimeSec: $0.endTimeSec
+            )
+        }
+
+        let bootstrap = EarTrainingPhrasePairAdlibBootstrap(
+            bgmUrl: cfg.bgmUrl,
+            keyFifths: cfg.keyFifths,
+            loopDurationSec: cfg.loopDurationSec,
+            steps: steps,
+            patternsByGroupId: patternsByGroupId
+        )
+
+        return EarTrainingStageDetail(
+            id: detail.id,
+            slug: detail.slug,
+            title: detail.title,
+            titleEn: detail.titleEn,
+            description: detail.description,
+            descriptionEn: detail.descriptionEn,
+            bpm: detail.bpm,
+            beatsPerMeasure: detail.beatsPerMeasure,
+            beatType: detail.beatType,
+            loopMeasures: detail.loopMeasures,
+            maxLoopsPerPhrase: detail.maxLoopsPerPhrase,
+            countInBeats: detail.countInBeats,
+            timeLimitSec: detail.timeLimitSec,
+            playerHp: detail.playerHp,
+            enemyHp: detail.enemyHp,
+            perCorrectNoteDamage: detail.perCorrectNoteDamage,
+            goodCompletionDamage: detail.goodCompletionDamage,
+            greatCompletionDamage: detail.greatCompletionDamage,
+            perfectCompletionDamage: detail.perfectCompletionDamage,
+            missDamage: detail.missDamage,
+            failDamage: detail.failDamage,
+            perfectMaxMisses: detail.perfectMaxMisses,
+            greatMaxMisses: detail.greatMaxMisses,
+            backgroundTheme: detail.backgroundTheme,
+            isActive: detail.isActive,
+            mode: detail.mode,
+            keyFifths: detail.keyFifths,
+            phrases: detail.phrases,
+            chordVoicingSelfPaced: detail.chordVoicingSelfPaced,
+            quizDurationSeconds: detail.quizDurationSeconds,
+            quizQuestionOrder: detail.quizQuestionOrder,
+            quizShowNotationInBattle: detail.quizShowNotationInBattle,
+            quizRequiredCorrectCount: detail.quizRequiredCorrectCount,
+            showKeyboardHintsInBattle: detail.showKeyboardHintsInBattle,
+            chordQuizItems: detail.chordQuizItems,
+            chordVoicingCompositePhrase: detail.chordVoicingCompositePhrase,
+            compositePhraseBootstrap: detail.compositePhraseBootstrap,
+            phrasePairAdlibBootstrap: bootstrap
         )
     }
 

@@ -135,7 +135,8 @@ enum EarTrainingTutorialStageBuilder {
             showKeyboardHintsInBattle: (stage.show_keyboard_hints_in_battle == true) || keyboardHintsScriptDefault,
             chordQuizItems: quizItems,
             chordVoicingCompositePhrase: stage.chord_voicing_composite_phrase,
-            compositePhraseBootstrap: nil
+            compositePhraseBootstrap: nil,
+            phrasePairAdlibBootstrap: nil
         )
     }
 

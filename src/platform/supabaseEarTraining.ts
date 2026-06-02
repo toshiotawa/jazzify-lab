@@ -1,5 +1,6 @@
 import { EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA } from '@/utils/earTrainingUiCopy';
 import { enrichEarTrainingStageWithComposite } from '@/platform/enrichEarTrainingCompositePhrase';
+import { enrichEarTrainingStageWithPhrasePairAdlib } from '@/platform/enrichEarTrainingPhrasePairAdlib';
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
 import type {
   EarTrainingChordQuizItem,
@@ -72,6 +73,9 @@ const normalizeEarTrainingMode = (raw: unknown): EarTrainingStage['mode'] => {
   }
   if (raw === 'adlib') {
     return 'adlib';
+  }
+  if (raw === 'phrase_pair_adlib') {
+    return 'phrase_pair_adlib';
   }
   return 'phrase';
 };
@@ -146,7 +150,9 @@ export const fetchEarTrainingStages = async (
   }
 
   const sorted = ((data ?? []) as EarTrainingStage[]).map(sortStageRelations);
-  return Promise.all(sorted.map((s) => enrichEarTrainingStageWithComposite(s)));
+  return Promise.all(sorted.map(async (s) => enrichEarTrainingStageWithPhrasePairAdlib(
+    await enrichEarTrainingStageWithComposite(s),
+  )));
 };
 
 export const fetchEarTrainingStageById = async (
@@ -177,7 +183,9 @@ export const fetchEarTrainingStageById = async (
   }
 
   const base = sortStageRelations(data as EarTrainingStage);
-  return enrichEarTrainingStageWithComposite(base);
+  return enrichEarTrainingStageWithPhrasePairAdlib(
+    await enrichEarTrainingStageWithComposite(base),
+  );
 };
 
 export const createEarTrainingStage = async (payload: EarTrainingStagePayload): Promise<EarTrainingStage> => {

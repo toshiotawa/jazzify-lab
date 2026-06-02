@@ -87,6 +87,10 @@
 		ADLIB004E2411EE00000004 /* EarTrainingAdlibEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADLIB001E2411EE00000001 /* EarTrainingAdlibEngine.swift */; };
 		ADLIB005E2411EE00000005 /* EarTrainingAdlibBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADLIB002E2411EE00000002 /* EarTrainingAdlibBattleController.swift */; };
 		ADLIB006E2411EE00000006 /* EarTrainingAdlibGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADLIB003E2411EE00000003 /* EarTrainingAdlibGameView.swift */; };
+		PPAD001E2606021400000001 /* EarTrainingPhrasePairEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPAD002E2606021400000002 /* EarTrainingPhrasePairEngine.swift */; };
+		PPAD003E2606021400000003 /* EarTrainingPhrasePairBattleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPAD004E2606021400000004 /* EarTrainingPhrasePairBattleEngine.swift */; };
+		PPAD005E2606021400000005 /* EarTrainingPhrasePairAdlibBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPAD006E2606021400000006 /* EarTrainingPhrasePairAdlibBattleController.swift */; };
+		PPAD007E2606021400000007 /* EarTrainingPhrasePairAdlibGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPAD008E2606021400000008 /* EarTrainingPhrasePairAdlibGameView.swift */; };
 		C2E30419294A3B0591792531 /* EarTrainingCompositePhraseDamage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E30419294A3B0591792532 /* EarTrainingCompositePhraseDamage.swift */; };
 		C2E30419294A3B0591792533 /* EarTrainingCompositePhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E30419294A3B0591792534 /* EarTrainingCompositePhraseEngine.swift */; };
 		C2E30419294A3B0591792535 /* EarTrainingCompositePhraseAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E30419294A3B0591792536 /* EarTrainingCompositePhraseAdapter.swift */; };
@@ -393,6 +397,10 @@
 		ADLIB001E2411EE00000001 /* EarTrainingAdlibEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibEngine.swift; sourceTree = "<group>"; };
 		ADLIB002E2411EE00000002 /* EarTrainingAdlibBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibBattleController.swift; sourceTree = "<group>"; };
 		ADLIB003E2411EE00000003 /* EarTrainingAdlibGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibGameView.swift; sourceTree = "<group>"; };
+		PPAD002E2606021400000002 /* EarTrainingPhrasePairEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairEngine.swift; sourceTree = "<group>"; };
+		PPAD004E2606021400000004 /* EarTrainingPhrasePairBattleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairBattleEngine.swift; sourceTree = "<group>"; };
+		PPAD006E2606021400000006 /* EarTrainingPhrasePairAdlibBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairAdlibBattleController.swift; sourceTree = "<group>"; };
+		PPAD008E2606021400000008 /* EarTrainingPhrasePairAdlibGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairAdlibGameView.swift; sourceTree = "<group>"; };
 		C2E30419294A3B0591792532 /* EarTrainingCompositePhraseDamage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingCompositePhraseDamage.swift; sourceTree = "<group>"; };
 		C2E30419294A3B0591792534 /* EarTrainingCompositePhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingCompositePhraseEngine.swift; sourceTree = "<group>"; };
 		C2E30419294A3B0591792536 /* EarTrainingCompositePhraseAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingCompositePhraseAdapter.swift; sourceTree = "<group>"; };
@@ -560,6 +568,8 @@
 				F2EE770002CC11EE0000CC01 /* EarTrainingChordOsmdMusicXmlNormalizer.swift */,
 				D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */,
 				ADLIB001E2411EE00000001 /* EarTrainingAdlibEngine.swift */,
+				PPAD002E2606021400000002 /* EarTrainingPhrasePairEngine.swift */,
+				PPAD004E2606021400000004 /* EarTrainingPhrasePairBattleEngine.swift */,
 				C2E30419294A3B0591792532 /* EarTrainingCompositePhraseDamage.swift */,
 				C2E30419294A3B0591792534 /* EarTrainingCompositePhraseEngine.swift */,
 				C2E30419294A3B0591792536 /* EarTrainingCompositePhraseAdapter.swift */,
@@ -786,6 +796,7 @@
 				F2EE770001EE11EE0000EE01 /* EarTrainingChordQuizBattleController.swift */,
 				9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */,
 				ADLIB002E2411EE00000002 /* EarTrainingAdlibBattleController.swift */,
+				PPAD006E2606021400000006 /* EarTrainingPhrasePairAdlibBattleController.swift */,
 			);
 			path = Controller;
 			sourceTree = "<group>";
@@ -1016,6 +1027,7 @@
 				F2EE770001FF11EE0000FF01 /* EarTrainingChordQuizGameView.swift */,
 				86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */,
 				ADLIB003E2411EE00000003 /* EarTrainingAdlibGameView.swift */,
+				PPAD008E2606021400000008 /* EarTrainingPhrasePairAdlibGameView.swift */,
 				AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */,
 				0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */,
 				6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */,
@@ -1153,6 +1165,10 @@
 				ADLIB004E2411EE00000004 /* EarTrainingAdlibEngine.swift in Sources */,
 				ADLIB005E2411EE00000005 /* EarTrainingAdlibBattleController.swift in Sources */,
 				ADLIB006E2411EE00000006 /* EarTrainingAdlibGameView.swift in Sources */,
+				PPAD001E2606021400000001 /* EarTrainingPhrasePairEngine.swift in Sources */,
+				PPAD003E2606021400000003 /* EarTrainingPhrasePairBattleEngine.swift in Sources */,
+				PPAD005E2606021400000005 /* EarTrainingPhrasePairAdlibBattleController.swift in Sources */,
+				PPAD007E2606021400000007 /* EarTrainingPhrasePairAdlibGameView.swift in Sources */,
 				C2E30419294A3B0591792531 /* EarTrainingCompositePhraseDamage.swift in Sources */,
 				C2E30419294A3B0591792533 /* EarTrainingCompositePhraseEngine.swift in Sources */,
 				C2E30419294A3B0591792535 /* EarTrainingCompositePhraseAdapter.swift in Sources */,

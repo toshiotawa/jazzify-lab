@@ -26,6 +26,8 @@ function formatEarTrainingModeLabel(
         return 'Sheet music battle';
       case 'adlib':
         return 'Ad lib';
+      case 'phrase_pair_adlib':
+        return 'Phrase pair ad lib';
       default:
         return 'Battle mode';
     }
@@ -41,6 +43,8 @@ function formatEarTrainingModeLabel(
       return '楽譜バトル';
     case 'adlib':
       return 'アドリブ';
+    case 'phrase_pair_adlib':
+      return 'フレーズペアアドリブ';
     default:
       return 'バトルモード';
   }
