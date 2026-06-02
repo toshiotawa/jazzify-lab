@@ -64,4 +64,8 @@ final class SurvivalScenarioController: ObservableObject {
     func setSlotBEnabled(_ enabled: Bool) {
         session?.gameLoop.scenarioSetSlotBEnabled(enabled)
     }
+
+    func setDemoKeyboardHints(_ midis: [Int]) {
+        session?.gameLoop.applyScenarioMutation { $0.demoKeyboardMidis = midis }
+    }
 }

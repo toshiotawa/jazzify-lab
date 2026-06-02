@@ -204,6 +204,19 @@ struct SurvivalTutorialV3LessonView: View {
                 onNarration: { narrationLine = $0 },
                 onDone: { advanceScene() }
             )
+        case let .demoPlay(sceneNode):
+            SurvivalTutorialV3DemoPlayLessonScene(
+                script: script,
+                scene: sceneNode,
+                locale: locale,
+                tapHub: tapHub,
+                drumPlayer: drumPlayer,
+                jajiiBubbleLine: $jajiiBubbleLine,
+                onFai: { characterLine = $0 },
+                onJajii: { jajiiBubbleLine = $0 },
+                onNarration: { narrationLine = $0 },
+                onDone: { advanceScene() }
+            )
         }
     }
 

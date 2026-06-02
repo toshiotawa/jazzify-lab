@@ -578,6 +578,9 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
     /// コード `midiNotes`（voicing 直値）を鍵盤 HINT に使う。
     func currentHintHighlightMidis() -> Set<Int> {
+        if !runtime.scenario.demoKeyboardMidis.isEmpty {
+            return Set(runtime.scenario.demoKeyboardMidis)
+        }
         if runtime.scenario.hideStaff {
             return []
         }

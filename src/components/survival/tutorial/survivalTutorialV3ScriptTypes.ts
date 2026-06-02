@@ -126,11 +126,43 @@ export interface SurvivalTutorialV3FinishScene {
   readonly type: 'finish';
 }
 
+/** demo_play: 拍ベースの和音イベント */
+export interface SurvivalTutorialV3DemoChordEvent {
+  readonly startBeat: number;
+  readonly durationBeats: number;
+  readonly chordName: string;
+  readonly voicing: readonly number[];
+  readonly voicingNames?: readonly string[];
+  readonly voicing_staves?: readonly (1 | 2)[];
+  readonly measureNumber: number;
+  readonly keyFifths?: number;
+}
+
+/** demo_play: 再生中セリフ（startBeat 基準） */
+export interface SurvivalTutorialV3DemoLine extends SurvivalTutorialLocalizedText {
+  readonly startBeat: number;
+  readonly durationBeats?: number;
+  readonly speaker?: SurvivalTutorialV3DialogueSpeaker;
+}
+
+/** demo_play: BGM 拍同期の自動デモ（無音・入力無効） */
+export interface SurvivalTutorialV3DemoPlayScene {
+  readonly type: 'demo_play';
+  readonly bpm: number;
+  readonly beatsPerMeasure?: number;
+  readonly keyFifths?: number;
+  readonly introLines?: readonly SurvivalTutorialV3DialogueLine[];
+  readonly chords: readonly SurvivalTutorialV3DemoChordEvent[];
+  readonly lines: readonly SurvivalTutorialV3DemoLine[];
+  readonly endHoldBeats?: number;
+}
+
 export type SurvivalTutorialV3Scene =
   | SurvivalTutorialV3DialogueOnlyScene
   | SurvivalTutorialV3ProgressionBattleScene
   | SurvivalTutorialV3RandomBattleScene
   | SurvivalTutorialV3PhraseBattleScene
+  | SurvivalTutorialV3DemoPlayScene
   | SurvivalTutorialV3FinishScene;
 
 export interface SurvivalTutorialV3UiOverrides {

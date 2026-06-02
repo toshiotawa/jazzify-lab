@@ -88,6 +88,35 @@ enum SurvivalTutorialV3Scenario {
         return out
     }
 
+    static func demoPlayReveal(base: SurvivalScenarioOverrides) -> SurvivalScenarioOverrides {
+        var out = base
+        out.isActive = true
+        out.hideHud = false
+        out.hideStageTitle = true
+        out.hideTimerDisplay = true
+        out.hideKillCounter = true
+        out.hidePauseButton = true
+        out.hideHintBadge = true
+        out.hideStatusStrip = true
+        out.hideStaff = false
+        out.hideChordSlots = true
+        out.hideChordPad = true
+        out.hideComboBadge = true
+        out.useChordMidiNotesForHintHighlights = false
+        out.blockChordPadInput = true
+        out.blockMidiGameInput = true
+        out.blockSlotEvaluation = true
+        out.disableJoystick = true
+        out.demoKeyboardMidis = []
+        return out
+    }
+
+    static func demoPlayIntro(base: SurvivalScenarioOverrides) -> SurvivalScenarioOverrides {
+        var out = demoPlayReveal(base: base)
+        out.hideStaff = true
+        return out
+    }
+
     static func showFinishCta(script: SurvivalTutorialScriptPayloadV3, scene: SurvivalTutorialV3Scene) -> Bool {
         if case let .finish = scene {
             return script.finish?.showCta ?? true

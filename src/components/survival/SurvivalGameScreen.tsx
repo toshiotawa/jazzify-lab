@@ -126,6 +126,7 @@ import {
   type SurvivalProgressionStaffSnapshot,
 } from './SurvivalProgressionStaff';
 import { SurvivalPhraseStaff } from './phrases/SurvivalPhraseStaff';
+import { SurvivalTutorialDemoStaff } from '@/components/survival/tutorial/SurvivalTutorialDemoStaff';
 import {
   clampPhraseOutgoingDamage,
   PHRASE_EARLY_COMBO_CAP_UNTIL,
@@ -411,6 +412,10 @@ interface SurvivalGameScreenProps {
   tutorialDialogueJajii?: boolean;
   /** ジャ爺吹き出しの台詞。`.current` を親が書き換え、Canvas が毎フレーム参照 */
   tutorialJajiiSpeechTextRef?: React.MutableRefObject<string>;
+  /** demo_play: 親が更新する譜面スナップショット */
+  tutorialDemoStaffSnapshotRef?: React.MutableRefObject<
+    import('@/components/survival/tutorial/SurvivalTutorialDemoStaff').SurvivalTutorialDemoStaffSnapshot | null
+  >;
   /** レッスン課題のインライン複合フレーズ（Supabase 参照なし） */
   lessonInlineCompositePhrases?: readonly SurvivalPhraseDefinition[];
   /** レッスン課題の HP / BGM / 制限時間などランタイム上書き */
@@ -454,6 +459,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   scenarioPhraseFullLoopPulseRef,
   tutorialDialogueJajii = false,
   tutorialJajiiSpeechTextRef,
+  tutorialDemoStaffSnapshotRef,
   lessonInlineCompositePhrases,
   lessonRuntime,
   balloonRushStage,
@@ -623,6 +629,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     initialScenarioOverrides ?? INACTIVE_SCENARIO_OVERRIDES,
   );
   const scenarioPhraseChordRef = useRef<ChordDefinition | null>(null);
+  const scenarioDemoKeyboardMidisRef = useRef<readonly number[]>([]);
   const [scenarioUiTick, setScenarioUiTick] = useState(0);
   const scenarioHandleReadyRef = useRef(false);
   const emitAttackSlotRef = useRef<(slot: 'A' | 'B') => void>(() => undefined);
@@ -4138,6 +4145,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
         bumpScenarioUi();
       },
+      setDemoKeyboardHints: (midis) => {
+        scenarioDemoKeyboardMidisRef.current = midis;
+        bumpScenarioUi();
+      },
     };
 
     scenarioHandleReadyRef.current = true;
@@ -5733,6 +5744,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.codeSlots.current[1].chord?.progressionStaffVoicingNames,
   ]);
 
+  const scenarioDemoStaffSnapshot = useMemo(() => {
+    void scenarioUiTick;
+    const sc = scenarioOverridesRef.current;
+    if (!scenarioMode || !sc.isActive || sc.hideStaff || sc.staffMode !== 'demo-timeline') {
+      return null;
+    }
+    return tutorialDemoStaffSnapshotRef?.current ?? null;
+  }, [scenarioMode, scenarioUiTick, tutorialDemoStaffSnapshotRef]);
+
   const scenarioRandomStaff = useMemo((): SurvivalProgressionStaffSnapshot | null => {
     void scenarioUiTick;
     if (!isBalloonRushMode || isProgressionStage) return null;
@@ -5958,7 +5978,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (
       scenarioMode
       && sc.isActive
-      && (sc.hideStaff || sc.staffMode === 'phrase' || sc.staffMode === 'progression')
+      && (sc.hideStaff || sc.staffMode === 'phrase' || sc.staffMode === 'progression' || sc.staffMode === 'demo-timeline')
     ) {
       return null;
     }
@@ -6015,6 +6035,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       && (scRand.hideStaff
         || scRand.staffMode === 'phrase'
         || scRand.staffMode === 'progression'
+        || scRand.staffMode === 'demo-timeline'
         || scRand.staffMode === 'hidden')
     ) {
       return null;
@@ -6112,6 +6133,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // フレーズモード: HINT / 第一ブロックアシスト時は判定対象音をオレンジハイライト
   useEffect(() => {
+    if (
+      scenarioMode
+      && scenarioOverridesRef.current.isActive
+      && scenarioOverridesRef.current.staffMode === 'demo-timeline'
+    ) {
+      const renderer = pixiRendererRef.current;
+      const midis = scenarioDemoKeyboardMidisRef.current;
+      if (!renderer || midis.length === 0) {
+        pixiRendererRef.current?.clearVoicingHints();
+        return undefined;
+      }
+      applySurvivalVoicingHintsWithOpacity(renderer, [...midis], [], survivalKeyboardHintOpacity);
+      return undefined;
+    }
+
     if (
       scenarioMode
       && scenarioOverridesRef.current.isActive
@@ -6644,6 +6680,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 />
               </div>
             )}
+          {scenarioDemoStaffSnapshot &&
+            gameState.isPlaying &&
+            !gameState.isGameOver &&
+            !(scenarioMode && scenarioUi.hideStaff) && (
+              <div
+                className={cn(
+                  'absolute inset-0 z-[5] flex items-start justify-center px-3 pointer-events-none',
+                  survivalStaffOverlayTopPadding,
+                )}
+                aria-hidden
+              >
+                <SurvivalTutorialDemoStaff
+                  snapshot={scenarioDemoStaffSnapshot}
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                />
+              </div>
+            )}
           {!isPhraseMode &&
             punchStaffSnapshot &&
             punchStaffSnapshot.voicingNames.length > 0 &&
@@ -6652,6 +6705,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               (scenarioUi.hideStaff ||
                 scenarioUi.staffMode === 'phrase' ||
                 scenarioUi.staffMode === 'progression' ||
+                scenarioUi.staffMode === 'demo-timeline' ||
                 scenarioUi.staffMode === 'hidden')) &&
             gameState.isPlaying &&
             !gameState.isGameOver && (

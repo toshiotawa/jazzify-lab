@@ -30,4 +30,6 @@ export interface SurvivalScenarioHandle {
   getUserInputPulse: () => number;
   setPhraseStaffChord: (chord: ChordDefinition | null) => void;
   setStaffMode: (mode: SurvivalScenarioStaffMode) => void;
+  /** demo_play: 鍵盤ハイライト MIDI（外部スケジューラ） */
+  setDemoKeyboardHints: (midis: readonly number[]) => void;
 }

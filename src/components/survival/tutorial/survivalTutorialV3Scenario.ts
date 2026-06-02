@@ -124,3 +124,41 @@ export function survivalTutorialPhraseRevealOverrides(
     blockSlotEvaluation: true,
   };
 }
+
+/** demo_play: 譜面表示・入力ブロック・鍵盤ハイライトは外部スケジューラ */
+export function survivalTutorialDemoPlayRevealOverrides(
+  base: SurvivalScenarioOverrides,
+): SurvivalScenarioOverrides {
+  return {
+    ...base,
+    isActive: true,
+    hideHud: false,
+    hideStageTitle: true,
+    hideTimerDisplay: true,
+    hideKillCounter: true,
+    hidePauseButton: true,
+    hideHintBadge: true,
+    hideStatusStrip: true,
+    hideStaff: false,
+    hideChordSlots: true,
+    hideChordPad: true,
+    hideComboBadge: true,
+    staffMode: 'demo-timeline',
+    useChordMidiNotesForHintHighlights: false,
+    blockChordPadInput: true,
+    blockMidiGameInput: true,
+    blockSlotEvaluation: true,
+    disableJoystick: true,
+  };
+}
+
+/** demo_play intro: 譜面非表示 */
+export function survivalTutorialDemoPlayIntroOverrides(
+  base: SurvivalScenarioOverrides,
+): SurvivalScenarioOverrides {
+  return {
+    ...survivalTutorialDemoPlayRevealOverrides(base),
+    hideStaff: true,
+    staffMode: 'hidden',
+  };
+}

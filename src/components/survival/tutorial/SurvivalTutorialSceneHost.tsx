@@ -5,6 +5,7 @@ import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/
 import { SurvivalTutorialDialogueScene } from '@/components/survival/tutorial/SurvivalTutorialDialogueScene';
 import { SurvivalTutorialChordBattleScene } from '@/components/survival/tutorial/SurvivalTutorialChordBattleScene';
 import { SurvivalTutorialPhraseBattleScene } from '@/components/survival/tutorial/SurvivalTutorialPhraseBattleScene';
+import { SurvivalTutorialDemoPlayScene } from '@/components/survival/tutorial/SurvivalTutorialDemoPlayScene';
 
 export function showSurvivalTutorialFinishCta(
   script: SurvivalTutorialScriptPayloadV3,
@@ -69,6 +70,18 @@ export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps>
   if (scene.type === 'phrase_battle') {
     return (
       <SurvivalTutorialPhraseBattleScene
+        script={script}
+        scene={scene}
+        bindings={bindings}
+        embeddedFullHeight={embeddedFullHeight}
+        onSceneComplete={onSceneComplete}
+      />
+    );
+  }
+
+  if (scene.type === 'demo_play') {
+    return (
+      <SurvivalTutorialDemoPlayScene
         script={script}
         scene={scene}
         bindings={bindings}

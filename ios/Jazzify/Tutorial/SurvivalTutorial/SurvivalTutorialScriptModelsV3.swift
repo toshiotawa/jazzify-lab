@@ -156,11 +156,42 @@ struct SurvivalTutorialV3FinishScene: Decodable, Sendable {
     let type: String
 }
 
+struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable {
+    let startBeat: Double
+    let durationBeats: Double
+    let chordName: String
+    let voicing: [Int]
+    let voicingNames: [String]?
+    let keyFifths: Int?
+    let voicing_staves: [Int]?
+    let measure_number: Int
+}
+
+struct SurvivalTutorialV3DemoLine: Decodable, Sendable {
+    let ja: String
+    let en: String
+    let speaker: String?
+    let startBeat: Double
+    let durationBeats: Double?
+}
+
+struct SurvivalTutorialV3DemoPlayScene: Decodable, Sendable {
+    let type: String
+    let bpm: Double
+    let beatsPerMeasure: Double?
+    let keyFifths: Int?
+    let introLines: [SurvivalTutorialV3LocalizedText]?
+    let chords: [SurvivalTutorialV3DemoChordEvent]
+    let lines: [SurvivalTutorialV3DemoLine]
+    let endHoldBeats: Double?
+}
+
 enum SurvivalTutorialV3Scene: Decodable, Sendable {
     case dialogueOnly(SurvivalTutorialV3DialogueOnlyScene)
     case progressionBattle(SurvivalTutorialV3ProgressionBattleScene)
     case randomBattle(SurvivalTutorialV3RandomBattleScene)
     case phraseBattle(SurvivalTutorialV3PhraseBattleScene)
+    case demoPlay(SurvivalTutorialV3DemoPlayScene)
     case finish(SurvivalTutorialV3FinishScene)
 
     private enum CodingKeys: String, CodingKey { case type }
@@ -181,6 +212,8 @@ enum SurvivalTutorialV3Scene: Decodable, Sendable {
             self = .randomBattle(try SurvivalTutorialV3RandomBattleScene(from: decoder))
         case "phrase_battle":
             self = .phraseBattle(try SurvivalTutorialV3PhraseBattleScene(from: decoder))
+        case "demo_play":
+            self = .demoPlay(try SurvivalTutorialV3DemoPlayScene(from: decoder))
         case "finish":
             self = .finish(try SurvivalTutorialV3FinishScene(from: decoder))
         default:

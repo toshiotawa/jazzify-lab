@@ -41,6 +41,9 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
     /// v3 `dialogue_only` 等でジャ爺を lesson + シナリオ中にも出す。
     var tutorialDialogueJajii: Bool = false
 
+    /// demo_play: 外部スケジューラが指定する鍵盤ハイライト MIDI。
+    var demoKeyboardMidis: [Int] = []
+
     /// B スロット完成時、通常の B パンチの代わりに発動させるスロット（A=弾、B=パンチ）。`nil` でデフォルト。
     var bChordCompletionAttackOverride: SurvivalSlotIndex? = nil
     /// B スロット完成時にコンボ必殺（360°）を発動。`true` のとき `bChordCompletionAttackOverride` は無視。
@@ -78,6 +81,7 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
             disableSurvivalBgm: disableSurvivalBgm,
             suppressAutoSpawn: suppressAutoSpawn,
             tutorialDialogueJajii: tutorialDialogueJajii,
+            demoKeyboardMidis: demoKeyboardMidis,
             bChordCompletionAttackOverride: bChordCompletionAttackOverride,
             bChordCompletionUseSpecial: bChordCompletionUseSpecial
         )

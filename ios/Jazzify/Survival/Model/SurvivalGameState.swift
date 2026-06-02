@@ -580,6 +580,9 @@ public struct SurvivalScenarioRuntimeState: Sendable, Equatable {
     /// v3 チュートリアルでジャ爺サポートを lesson / シナリオ中にも有効化。
     public var tutorialDialogueJajii: Bool = false
 
+    /// demo_play: 外部スケジューラが指定する鍵盤ハイライト MIDI。
+    public var demoKeyboardMidis: [Int] = []
+
     public var bChordCompletionAttackOverride: SurvivalSlotIndex? = nil
     public var bChordCompletionUseSpecial: Bool = false
 
