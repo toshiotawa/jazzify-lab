@@ -1,6 +1,11 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache, getCurrentUserIdCached, clearCacheByPattern } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
 import type { ClearConditions } from '@/types';
+import {
+  areAllClearRequiredLessonSongsCompleted,
+  isClearRequiredLessonSong,
+  isLessonSongRequirementCompleted,
+} from '@/utils/lessonRequirementProgress';
 
 export interface LessonRequirementProgress {
   id: string;
@@ -88,26 +93,28 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
-    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_balloon_rush, is_ear_training, ear_training_stage_id')
+    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_balloon_rush, is_ear_training, is_ear_training_tutorial, ear_training_stage_id, is_clear_required')
     .eq('lesson_id', lessonId);
 
   if (reqError || !requirements) return false;
   if (requirements.length === 0) return true; // 実習課題がない場合は完了扱い
 
+  const required = requirements.filter(isClearRequiredLessonSong);
+  if (required.length === 0) return true;
+
   // ユーザーの進捗を取得（lesson_songs.idで管理）
   const { data: progress, error: progError } = await supabase
     .from('user_lesson_requirements_progress')
-    .select('song_id, is_completed')
+    .select('song_id, lesson_song_id, is_completed')
     .eq('user_id', userId)
     .eq('lesson_id', lessonId)
     .eq('is_completed', true);
 
   if (progError) return false;
 
-  // すべての実習課題が完了しているかチェック
-  // song_idフィールドにはlesson_songs.idが格納されているので、それを使用
-  const completedIds = new Set(progress?.map(p => p.song_id) || []);
-  return requirements.every(req => completedIds.has(req.id));
+  return required.every(req =>
+    (progress ?? []).some(p => isLessonSongRequirementCompleted(req, p)),
+  );
 }
 
 /**
@@ -140,15 +147,9 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   // ユーザーの進捗を取得
   const progress = await fetchLessonRequirementsProgress(lessonId);
 
-  const allCompleted = requirements ? 
-    requirements.every(req => 
-      progress.some(p => {
-        if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_balloon_rush === true || req.is_ear_training) {
-          return p.lesson_song_id === req.id && p.is_completed;
-        }
-        return p.song_id === req.song_id && p.is_completed;
-      })
-    ) : true;
+  const allCompleted = requirements
+    ? areAllClearRequiredLessonSongsCompleted(requirements, progress)
+    : true;
 
   return {
     requirements: requirements || [],

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchLessonById, fetchLessonsByCourse } from '@/platform/supabaseLessons';
+import { fetchLessonById, fetchLessonsByCourse, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
 import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { awardPlayerXp } from '@/platform/supabasePlayerXp';
@@ -221,6 +221,9 @@ const LessonDetailPage: React.FC = () => {
       }
 
       setLesson(lessonData);
+      if (lessonData?.course_id) {
+        clearCacheByKey(LESSONS_CACHE_KEY(lessonData.course_id));
+      }
       setVideos(videosData);
       setAttachments(attachmentsData || []);
       

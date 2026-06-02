@@ -94,8 +94,9 @@ const CoursePage: React.FC = () => {
         setCourse(courseData);
         clearNavigationCacheForCourse(courseId);
 
+        const forceLessonRefresh = courseData.is_developer_only === true;
         const [lessonsData, progressData] = await Promise.all([
-          fetchLessonsByCourse(courseId),
+          fetchLessonsByCourse(courseId, { forceRefresh: forceLessonRefresh }),
           fetchUserLessonProgress(courseId),
         ]);
 
@@ -179,7 +180,7 @@ const CoursePage: React.FC = () => {
   const reloadLessons = async (cId: string) => {
     try {
       const [lessonsData, progressData] = await Promise.all([
-        fetchLessonsByCourse(cId),
+        fetchLessonsByCourse(cId, { forceRefresh: true }),
         fetchUserLessonProgress(cId),
       ]);
       setLessons(lessonsData);
