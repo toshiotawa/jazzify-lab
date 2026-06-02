@@ -51,6 +51,8 @@ interface ChordVoicingStaffProps {
   denseCurrentMeasureLayout?: boolean;
   /** 完成エフェクトのワンショット指示。groupId が現在小節（measureOffset===0）に存在しない場合は無視 */
   completionPulse?: ChordVoicingCompletionPulse | null;
+  /** true のとき voicingGroups が空でも五線・音部記号・調号のみの空大譜表を描画する */
+  showEmptyStaff?: boolean;
   /** false のとき、次ガイド色・三角・コード名強調など「入力許可」を示す強調のみ抑止する */
   showTargetHints?: boolean;
   /**
@@ -1387,6 +1389,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   correctGroupIds,
   denseCurrentMeasureLayout,
   completionPulse,
+  showEmptyStaff = false,
   showTargetHints = true,
   hideUnpressedNotes = false,
   unpressedNoteOpacity: unpressedNoteOpacityProp,
@@ -1528,7 +1531,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   }, [smuflUseForeignObject]);
 
   const hasRestGroups = renderState.groups.some(group => group.isRest);
-  const activeStaves = hasRestGroups ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
+  const activeStaves = (hasRestGroups || showEmptyStaff) ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
     renderState.groups.some(group => group.notes.some(note => note.staff === staff))
   ));
   const measureZeroNoteTotal = staffGroups.reduce((sum, group) => {
@@ -1590,11 +1593,18 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     if (!completionPulse) {
       return null;
     }
+    if (
+      showEmptyStaff
+      && completionPulse.kind === 'harmonyComplete'
+      && renderState.groups.length === 0
+    ) {
+      return completionPulse;
+    }
     const target = renderState.groups.find(group => (
       group.id === completionPulse.groupId && group.measureOffset === 0
     ));
     return target ? completionPulse : null;
-  }, [completionPulse, renderState.groups]);
+  }, [completionPulse, renderState.groups, showEmptyStaff]);
 
   const pulseGroupIds = useMemo<ReadonlySet<string> | null>(() => {
     if (!activePulse) {

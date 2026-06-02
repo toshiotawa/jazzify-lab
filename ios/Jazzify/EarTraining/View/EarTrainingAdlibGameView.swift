@@ -267,7 +267,7 @@ private struct EarTrainingAdlibContent: View {
         let showVoicingTargets = controller.gameState == .playingPhrase
             || (controller.gameState == .countIn && controller.countInEarlyInputActive)
 
-        if !groups.isEmpty {
+        if !groups.isEmpty, !groups.allSatisfy(\.isRest) {
             ChordVoicingStaffGroupsView(
                 groups: groups,
                 denseCurrentMeasureLayout: false,

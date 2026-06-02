@@ -240,22 +240,20 @@ private struct EarTrainingPhrasePairAdlibContent: View {
 
     @ViewBuilder
     private func staffOverlay(size: CGSize) -> some View {
-        if let step = controller.activeStep {
+        if let step = controller.activeStep, !step.inputDisabled {
             let patterns = EarTrainingPhrasePairTimeline.patterns(
                 for: step,
                 patternsByGroupId: controller.bootstrap.patternsByGroupId
             )
-            let displayPattern = step.inputDisabled
-                ? nil
-                : EarTrainingPhrasePairStaff.pickDisplayPattern(
-                    buffer: controller.matcherState.buffer,
-                    patterns: patterns
-                )
+            let displayPattern = EarTrainingPhrasePairStaff.pickDisplayPattern(
+                buffer: controller.matcherState.buffer,
+                patterns: patterns
+            )
             let groups = EarTrainingPhrasePairStaff.buildStaffGroups(
                 pattern: displayPattern,
                 chordName: step.chordName,
                 visibleNoteCount: controller.matcherState.buffer.count,
-                isRest: step.inputDisabled
+                isRest: false
             )
             let correctMap = EarTrainingPhrasePairStaff.correctPitchClassesByGroup(
                 pattern: displayPattern,
@@ -264,23 +262,22 @@ private struct EarTrainingPhrasePairAdlibContent: View {
             let showVoicingTargets = controller.gameState == .playingPhrase
                 || (controller.gameState == .countIn && controller.countInEarlyInputActive)
 
-            if !groups.isEmpty {
-                ChordVoicingStaffGroupsView(
-                    groups: groups,
-                    denseCurrentMeasureLayout: false,
-                    keyFifths: controller.bootstrap.keyFifths,
-                    activeGroupId: nil,
-                    correctPitchClassesByGroupId: correctMap,
-                    completionPulse: nil,
-                    showTargetHints: showVoicingTargets,
-                    singleMeasureLayout: true,
-                    fadeAllMeasureNotes: true,
-                    unpressedNoteOpacity: 0
-                )
-                .frame(width: min(size.width * 0.82, 720), height: size.height * 0.5)
-                .position(x: size.width / 2, y: size.height * 0.44)
-                .allowsHitTesting(false)
-            }
+            ChordVoicingStaffGroupsView(
+                groups: groups,
+                denseCurrentMeasureLayout: false,
+                keyFifths: controller.bootstrap.keyFifths,
+                activeGroupId: nil,
+                correctPitchClassesByGroupId: correctMap,
+                completionPulse: controller.completionPulse,
+                showEmptyStaff: true,
+                showTargetHints: showVoicingTargets,
+                singleMeasureLayout: true,
+                fadeAllMeasureNotes: true,
+                unpressedNoteOpacity: 0
+            )
+            .frame(width: min(size.width * 0.82, 720), height: size.height * 0.5)
+            .position(x: size.width / 2, y: size.height * 0.44)
+            .allowsHitTesting(false)
         }
     }
 

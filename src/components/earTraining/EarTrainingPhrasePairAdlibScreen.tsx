@@ -4,6 +4,7 @@ import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingPhaserGame from './EarTrainingPhaserGame';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
 import ChordVoicingStaff, {
+  type ChordVoicingCompletionPulse,
   type ChordVoicingStaffGroup,
 } from './ChordVoicingStaff';
 import type {
@@ -200,6 +201,8 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
   const [countInEarlyInputActive, setCountInEarlyInputActive] = useState(false);
+  const [completionPulse, setCompletionPulse] = useState<ChordVoicingCompletionPulse | null>(null);
+  const completionPulseEventKeyRef = useRef(0);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const bgmLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
@@ -317,6 +320,18 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
     setFeedback(value);
     setTimeout(() => setFeedback(null), 220);
+  }, []);
+
+  const triggerCompletionPulse = useCallback((
+    groupId: string,
+    kind: 'voicingPartial' | 'harmonyComplete',
+  ) => {
+    completionPulseEventKeyRef.current += 1;
+    setCompletionPulse({
+      groupId,
+      kind,
+      eventKey: completionPulseEventKeyRef.current,
+    });
   }, []);
 
   const triggerBattleEffect = useCallback((
@@ -551,6 +566,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     triggerFeedback('correct');
     if (result.evaluation.result === 'complete' && result.evaluation.completedPattern) {
       setStatusText(result.evaluation.completedPattern.label);
+      triggerCompletionPulse('pp-complete', 'harmonyComplete');
     }
 
     if (!result.shouldFire || result.enemyDamage <= 0) return;
@@ -581,6 +597,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     patternsByGroupId,
     registerBattleEffectImpact,
     triggerBattleEffect,
+    triggerCompletionPulse,
     triggerFeedback,
   ]);
 
@@ -838,16 +855,15 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   );
 
   const staffVoicingGroups = useMemo((): readonly ChordVoicingStaffGroup[] => {
-    if (!activeStep) return [];
-    if (activeStep.inputDisabled) {
-      return buildPhrasePairStaffVoicingGroups(null, activeStep.chordName, 0, { isRest: true });
-    }
+    if (!activeStep || activeStep.inputDisabled) return [];
     return buildPhrasePairStaffVoicingGroups(
       displayPattern,
       activeStep.chordName,
       matcherState.buffer.length,
     );
   }, [activeStep, displayPattern, matcherState.buffer.length]);
+
+  const showStaff = !!activeStep && !activeStep.inputDisabled;
 
   const staffCorrectGroupIds = useMemo(
     () => computePhrasePairStaffCorrectGroupIds(displayPattern, matcherState.buffer),
@@ -1025,7 +1041,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
         />
       </div>
 
-      {staffVoicingGroups.length > 0 && (
+      {showStaff && (
         <div
           className={cn(
             'pointer-events-none absolute left-1/2 top-[44%] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2',
@@ -1036,7 +1052,9 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
             voicingGroups={staffVoicingGroups}
             activeGroupId={null}
             correctGroupIds={staffCorrectGroupIds}
+            completionPulse={completionPulse}
             showTargetHints={showVoicingTargetHints}
+            showEmptyStaff
             singleMeasureLayout
             fadeAllMeasureNotes
             unpressedNoteOpacity={0}

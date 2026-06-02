@@ -27,6 +27,10 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published private(set) var voicingHintsByMidi: [Int: VoicingHintState] = [:]
+    @Published private(set) var completionPulse: ChordVoicingCompletionPulse?
+
+    /// Web `pp-complete` 相当の完成パルス用固定 group id。
+    static let phrasePairCompletePulseGroupId = UUID(uuidString: "A1B2C3D4-E5F6-4789-ABCD-EF0123456701")!
 
     let stage: EarTrainingStageDetail
     let bootstrap: EarTrainingPhrasePairAdlibBootstrap
@@ -55,6 +59,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     private var feedbackTask: Task<Void, Never>?
     private var battleEffectClearTask: Task<Void, Never>?
     private var drumLoopStarted = false
+    private var completionPulseEventKey = 0
 
     var damageConfig: EarTrainingDamageConfig {
         (practiceMode || tutorialNoCombat) ? .zero : EarTrainingDamageConfig(
@@ -228,6 +233,10 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         triggerFeedback(.correct)
         if result.evaluation.result == .complete, let pattern = result.evaluation.completedPattern {
             statusText = pattern.label
+            triggerCompletionPulse(
+                groupId: Self.phrasePairCompletePulseGroupId,
+                kind: .harmonyComplete
+            )
         }
 
         guard result.shouldFire, result.enemyDamage > 0 else { return }
@@ -669,5 +678,14 @@ extension EarTrainingPhrasePairAdlibBattleController: EarTrainingLobbyPresentabl
         case .saving: return copy.lessonSaving
         case nil: return copy.lessonSaving
         }
+    }
+
+    private func triggerCompletionPulse(groupId: UUID, kind: ChordVoicingCompletionPulse.Kind) {
+        completionPulseEventKey += 1
+        completionPulse = ChordVoicingCompletionPulse(
+            groupId: groupId,
+            kind: kind,
+            eventKey: completionPulseEventKey
+        )
     }
 }

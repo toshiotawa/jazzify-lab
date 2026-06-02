@@ -901,6 +901,8 @@ struct ChordVoicingStaffGroupsView: View {
     let activeGroupId: UUID?
     let correctPitchClassesByGroupId: [UUID: Set<Int>]
     let completionPulse: ChordVoicingCompletionPulse?
+    /// true のとき groups が空でも五線・音部記号・調号のみの空大譜表を描画する。
+    let showEmptyStaff: Bool
     var showTargetHints: Bool
     /// サバイバル Progression HINT 用: 1 小節のみ描画し小節区切りを右端へ吸収する。
     let singleMeasureLayout: Bool
@@ -931,6 +933,7 @@ struct ChordVoicingStaffGroupsView: View {
         activeGroupId: UUID?,
         correctPitchClassesByGroupId: [UUID: Set<Int>],
         completionPulse: ChordVoicingCompletionPulse? = nil,
+        showEmptyStaff: Bool = false,
         showTargetHints: Bool = true,
         singleMeasureLayout: Bool = false,
         hideChordLabels: Bool = false,
@@ -949,6 +952,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.activeGroupId = activeGroupId
         self.correctPitchClassesByGroupId = correctPitchClassesByGroupId
         self.completionPulse = completionPulse
+        self.showEmptyStaff = showEmptyStaff
         self.showTargetHints = showTargetHints
         self.singleMeasureLayout = singleMeasureLayout
         self.hideChordLabels = hideChordLabels
@@ -993,7 +997,8 @@ struct ChordVoicingStaffGroupsView: View {
                 compactChordLabelGap: compactChordLabelGap,
                 compactVerticalLayout: compactVerticalLayout,
                 phraseTightTopLedgerPadding: phraseTightTopLedgerPadding,
-                staffSpacingScale: staffSpacingScale
+                staffSpacingScale: staffSpacingScale,
+                showEmptyStaff: showEmptyStaff
             )
             let activeLabelGlobalFrame = activeLabelGlobalRect(
                 proxy: proxy,
@@ -1018,7 +1023,8 @@ struct ChordVoicingStaffGroupsView: View {
                         compactVerticalLayout: compactVerticalLayout,
                         phraseTightTopLedgerPadding: phraseTightTopLedgerPadding,
                         fadeAllMeasureNotes: fadeAllMeasureNotes,
-                        staffSpacingScale: staffSpacingScale
+                        staffSpacingScale: staffSpacingScale,
+                        showEmptyStaff: showEmptyStaff
                     )
                 }
                 .frame(width: w, height: h)
@@ -1061,6 +1067,9 @@ struct ChordVoicingStaffGroupsView: View {
 
     private func effectivePulse() -> ChordVoicingCompletionPulse? {
         guard let pulse = completionPulse else { return nil }
+        if showEmptyStaff, pulse.kind == .harmonyComplete, groups.isEmpty {
+            return pulse
+        }
         let exists = groups.contains { $0.id == pulse.groupId && $0.measureOffset == 0 }
         return exists ? pulse : nil
     }
@@ -1522,9 +1531,10 @@ struct ChordVoicingStaffGroupsView: View {
         compactVerticalLayout: Bool = false,
         phraseTightTopLedgerPadding: Bool = false,
         fadeAllMeasureNotes: Bool = false,
-        staffSpacingScale: CGFloat = 1
+        staffSpacingScale: CGFloat = 1,
+        showEmptyStaff: Bool = false
     ) {
-        guard !groups.isEmpty else { return }
+        guard !groups.isEmpty || showEmptyStaff else { return }
         let w = size.width
         let layout = staffLayoutMetrics(
             width: w,
@@ -1535,7 +1545,7 @@ struct ChordVoicingStaffGroupsView: View {
         let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
 
         let hasRest = parsedGroups.contains { $0.group.isRest }
-        let activeStaves = hasRest ? [1, 2] : [1, 2].filter { st in
+        let activeStaves = (hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
         }
         let geo = computeStaffSystemGeometry(
@@ -2019,9 +2029,10 @@ struct ChordVoicingStaffGroupsView: View {
         compactChordLabelGap: Bool = false,
         compactVerticalLayout: Bool = false,
         phraseTightTopLedgerPadding: Bool = false,
-        staffSpacingScale: CGFloat = 1
+        staffSpacingScale: CGFloat = 1,
+        showEmptyStaff: Bool = false
     ) -> OverlayLayout {
-        guard !groups.isEmpty, size.width > 0, size.height > 0 else {
+        guard (!groups.isEmpty || showEmptyStaff), size.width > 0, size.height > 0 else {
             return OverlayLayout(
                 chordLabelCenters: [:],
                 currentMeasureFrame: nil,
@@ -2037,7 +2048,7 @@ struct ChordVoicingStaffGroupsView: View {
         )
         let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
         let hasRest = parsedGroups.contains { $0.group.isRest }
-        let activeStaves = hasRest ? [1, 2] : [1, 2].filter { st in
+        let activeStaves = (hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
         }
         let geo = computeStaffSystemGeometry(
@@ -2061,7 +2072,7 @@ struct ChordVoicingStaffGroupsView: View {
 
         var measureFrame: CGRect? = nil
         let hasCurrentMeasure = parsedGroups.contains { $0.group.measureOffset == 0 }
-        if hasCurrentMeasure && !activeStaves.isEmpty {
+        if (hasCurrentMeasure || showEmptyStaff) && !activeStaves.isEmpty {
             let leftX = w * (24 / 720)
             let staffBlockHeight = CGFloat(activeStaves.count - 1) * (geo.staffSpacing * 4 + geo.staffGap) + geo.staffSpacing * 4
             measureFrame = CGRect(
