@@ -12,6 +12,10 @@ export interface AdlibPattern {
   /** Notes to seed into next buffer after completion (0 = consume all). */
   readonly carryTailLength: number;
   readonly priority?: number;
+  /** Octave note names for staff display (same order/length as pcs). */
+  readonly voicing?: readonly string[];
+  /** Staff per note: 1=treble, 2=bass (same order/length as pcs). */
+  readonly voicingStaves?: readonly number[];
 }
 
 export interface AdlibRuntimeState {

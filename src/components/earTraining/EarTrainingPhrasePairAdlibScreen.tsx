@@ -3,6 +3,9 @@ import { useQuestCompleteJingleOnStageClear, useGameOverJingleOnGameOver } from 
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingPhaserGame from './EarTrainingPhaserGame';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
+import ChordVoicingStaff, {
+  type ChordVoicingStaffGroup,
+} from './ChordVoicingStaff';
 import type {
   ClearConditions,
   EarTrainingGameState,
@@ -61,6 +64,10 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
+import {
+  buildPhrasePairStaffVoicingGroups,
+  pickLongestPhrasePairPattern,
+} from '@/utils/earTrainingPhrasePairStaff';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -707,6 +714,13 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     gameState === 'playingPhrase'
     || (gameState === 'countIn' && countInEarlyInputActive);
 
+  const staffVoicingGroups = useMemo((): readonly ChordVoicingStaffGroup[] => {
+    if (!activeStep) return [];
+    const patterns = getPhrasePairAdlibPatternsForStep(activeStep, patternsByGroupId);
+    const longestPattern = pickLongestPhrasePairPattern(patterns);
+    return buildPhrasePairStaffVoicingGroups(longestPattern, activeStep.chordName);
+  }, [activeStep, patternsByGroupId]);
+
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyBattleKey = useMemo(
     () => buildEarTrainingEnemyBattleSourceKey(stage.id, enemy ?? { id: 'enemy', name: null }),
@@ -861,6 +875,25 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
           className="h-full w-full"
         />
       </div>
+
+      {staffVoicingGroups.length > 0 && (
+        <div
+          className={cn(
+            'pointer-events-none absolute left-1/2 top-[44%] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2',
+            showLobbyControls ? 'z-0' : 'z-10',
+          )}
+        >
+          <ChordVoicingStaff
+            voicingGroups={staffVoicingGroups}
+            activeGroupId={null}
+            showTargetHints={showVoicingTargetHints}
+            singleMeasureLayout
+            fadeAllMeasureNotes
+            smuflUseForeignObject
+            keyFifths={bootstrap.keyFifths}
+          />
+        </div>
+      )}
 
       <EarTrainingPianoOverlay
         ref={pianoOverlayRef}

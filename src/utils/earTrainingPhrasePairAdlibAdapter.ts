@@ -44,6 +44,8 @@ export interface EarTrainingAdlibPatternRow {
   readonly carry_tail_length: number;
   readonly priority: number;
   readonly sort_order: number;
+  readonly voicing?: readonly string[] | null;
+  readonly voicing_staves?: readonly number[] | null;
 }
 
 export function rowsToAdlibPatterns(rows: readonly EarTrainingAdlibPatternRow[]): readonly AdlibPattern[] {
@@ -57,6 +59,8 @@ export function rowsToAdlibPatterns(rows: readonly EarTrainingAdlibPatternRow[])
       familyId: row.family_id,
       carryTailLength: row.carry_tail_length,
       priority: row.priority,
+      voicing: row.voicing?.length ? row.voicing : undefined,
+      voicingStaves: row.voicing_staves?.length ? row.voicing_staves : undefined,
     }));
 }
 

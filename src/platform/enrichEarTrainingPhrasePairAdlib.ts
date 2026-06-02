@@ -44,7 +44,7 @@ export const enrichEarTrainingStageWithPhrasePairAdlib = async (
   const groupIds = [...new Set(stepRows.map((r) => r.pattern_group_id as string))];
   const { data: patternRows, error: patErr } = await supabase
     .from('ear_training_adlib_patterns')
-    .select('id, group_id, label, pcs, family_id, carry_tail_length, priority, sort_order')
+    .select('id, group_id, label, pcs, family_id, carry_tail_length, priority, sort_order, voicing, voicing_staves')
     .in('group_id', groupIds)
     .order('sort_order', { ascending: true });
 
