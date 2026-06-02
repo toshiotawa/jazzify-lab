@@ -6691,19 +6691,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 )}
                 aria-hidden
               >
-                {survivalTutorialLayout && scenarioMode ? (
-                  <SurvivalTutorialStaffBackdrop>
-                    <SurvivalTutorialDemoStaff
-                      snapshot={scenarioDemoStaffSnapshot}
-                      className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
-                    />
-                  </SurvivalTutorialStaffBackdrop>
-                ) : (
-                  <SurvivalTutorialDemoStaff
-                    snapshot={scenarioDemoStaffSnapshot}
-                    className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
-                  />
-                )}
+                <SurvivalTutorialDemoStaff
+                  snapshot={scenarioDemoStaffSnapshot}
+                  className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
+                />
               </div>
             )}
           {!isPhraseMode &&

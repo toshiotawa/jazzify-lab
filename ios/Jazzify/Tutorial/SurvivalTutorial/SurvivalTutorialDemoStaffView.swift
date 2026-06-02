@@ -32,7 +32,6 @@ struct SurvivalTutorialDemoStaffView: View {
                 maxHeight: SurvivalStaffOverlayLayout.scenarioStaffMaxHeight(isPad: isPad, grandStaff: grandStaff),
                 alignment: .top
             )
-            .modifier(SurvivalTutorialStaffBackdropModifier())
         }
     }
 

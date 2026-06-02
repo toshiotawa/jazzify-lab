@@ -130,7 +130,7 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
     return (
       <div
         className={cn(
-          'min-w-0 flex-1 max-w-[min(280px,60vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[0.92] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[0.88]',
+          'min-w-0 flex-1 max-w-[min(420px,78vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.35] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.22]',
           className,
           'pointer-events-none',
         )}
@@ -142,7 +142,7 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
           smuflUseForeignObject
           noteCollisionLayout="anchor-low"
           unpressedNoteOpacity={0.45}
-          compactSingleMeasure
+          singleMeasureLayout
           showTargetHints={false}
           showEmptyStaff={showEmptyStaff}
           activeGroupId={activeGroupId}
