@@ -45,6 +45,62 @@ const restMeasureEvent = (
   keyFifths: 0,
 });
 
+const C_MAJOR_PITCH_CLASSES = [0, 2, 4, 5, 7, 9, 11] as const;
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+
+const midiToNoteName = (midi: number): string => {
+  const pc = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${NOTE_NAMES[pc]}${octave}`;
+};
+
+const nextCMajorScaleMidi = (midi: number): number => {
+  const pc = ((midi % 12) + 12) % 12;
+  const octaveBase = Math.floor(midi / 12) * 12;
+  const idx = C_MAJOR_PITCH_CLASSES.findIndex((step) => step === pc);
+  if (idx < 0) {
+    return midi + 1;
+  }
+  if (idx === C_MAJOR_PITCH_CLASSES.length - 1) {
+    return octaveBase + 12 + C_MAJOR_PITCH_CLASSES[0];
+  }
+  return octaveBase + C_MAJOR_PITCH_CLASSES[idx + 1];
+};
+
+const staffForMidi = (midi: number): 1 | 2 => (midi >= 60 ? 1 : 2);
+
+const halfBeatSingleNotesInMeasures = (
+  measureNumbers: readonly number[],
+  startMidi: number,
+  label: string,
+  beatsPerMeasure = 4,
+): readonly SurvivalTutorialV3DemoChordEvent[] => {
+  const slotsPerMeasure = Math.floor(beatsPerMeasure / 0.5);
+  const events: SurvivalTutorialV3DemoChordEvent[] = [];
+  let midi = startMidi;
+
+  for (const measureNumber of measureNumbers) {
+    const base = measureStartBeat(measureNumber, beatsPerMeasure);
+    for (let slot = 0; slot < slotsPerMeasure; slot += 1) {
+      const name = midiToNoteName(midi);
+      events.push({
+        startBeat: base + slot * 0.5,
+        durationBeats: 0.5,
+        chordName: slot === 0 ? label : '',
+        voicing: [midi],
+        voicingNames: [name],
+        voicing_staves: [staffForMidi(midi)],
+        measureNumber,
+        keyFifths: 0,
+      });
+      midi = nextCMajorScaleMidi(midi);
+    }
+  }
+
+  return events;
+};
+
 const chordDefToEvent = (
   def: (typeof VOICING)[keyof typeof VOICING],
   startBeat: number,
@@ -61,23 +117,11 @@ const chordDefToEvent = (
   keyFifths: def.keyFifths,
 });
 
-const halfBeatChordsInMeasure = (
-  measureNumber: number,
-  def: (typeof VOICING)[keyof typeof VOICING],
-  beatsPerMeasure = 4,
-): readonly SurvivalTutorialV3DemoChordEvent[] => {
-  const base = measureStartBeat(measureNumber, beatsPerMeasure);
-  const count = Math.floor(beatsPerMeasure / 0.5);
-  const events: SurvivalTutorialV3DemoChordEvent[] = [];
-  for (let i = 0; i < count; i += 1) {
-    events.push(chordDefToEvent(def, base + i * 0.5, 0.5, measureNumber));
-  }
-  return events;
-};
+/** 小節5〜8: 0.5拍刻みの C メジャー単音スケール上昇（鍵盤ハイライト検証用）。 */
+export const DEMO_PLAY_HALF_BEAT_SCALE_START_MIDI = 60;
 
 /** 160BPM デモプレイ検証台本（developer-demo-play-v3）。DB seed と整合。 */
-export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScriptPayloadV3 => ({
-  version: 3,
+export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScriptPayloadV3 => ({  version: 3,
   audioTracks: {
     drum_loop: { url: DRUMS160_URL, volume: 0.35 },
   },
@@ -115,10 +159,7 @@ export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScript
         chordDefToEvent(VOICING.g7, 4, 2, 2),
         chordDefToEvent(VOICING.cm7, 8, 2, 3),
         restMeasureEvent(4),
-        ...halfBeatChordsInMeasure(5, VOICING.cm7),
-        ...halfBeatChordsInMeasure(6, VOICING.g7),
-        ...halfBeatChordsInMeasure(7, VOICING.cm7),
-        ...halfBeatChordsInMeasure(8, VOICING.cm7),
+        ...halfBeatSingleNotesInMeasures([5, 6, 7, 8], DEMO_PLAY_HALF_BEAT_SCALE_START_MIDI, 'C maj'),
       ],
       lines: [
         {
@@ -171,22 +212,22 @@ export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScript
           durationBeats: 4,
         },
         {
-          ja: 'CM7、0.5拍刻み。',
-          en: 'CM7 in half-beat steps.',
+          ja: '単音、0.5拍刻み。ドから上昇じゃ。',
+          en: 'Single notes, half-beat steps. Ascending from C.',
           speaker: 'fai',
           startBeat: 16,
           durationBeats: 2,
         },
         {
-          ja: 'リズムに乗れ。',
-          en: 'Ride the rhythm.',
+          ja: '鍵盤のハイライトを見ろ。',
+          en: 'Watch the keyboard highlights.',
           speaker: 'jajii',
           startBeat: 18,
           durationBeats: 2,
         },
         {
-          ja: 'G7、0.5拍刻み。',
-          en: 'G7 in half-beat steps.',
+          ja: 'スケールは続く。',
+          en: 'The scale keeps going.',
           speaker: 'fai',
           startBeat: 20,
           durationBeats: 2,
@@ -199,8 +240,8 @@ export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScript
           durationBeats: 2,
         },
         {
-          ja: 'CM7、0.5拍刻み。',
-          en: 'CM7 in half-beat steps.',
+          ja: '上に上がっていくぞ。',
+          en: 'Climbing higher.',
           speaker: 'fai',
           startBeat: 24,
           durationBeats: 2,
@@ -213,8 +254,8 @@ export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScript
           durationBeats: 2,
         },
         {
-          ja: '最後のCM7。',
-          en: 'Final CM7.',
+          ja: '最後の音だ。',
+          en: 'The final note.',
           speaker: 'fai',
           startBeat: 28,
           durationBeats: 2,

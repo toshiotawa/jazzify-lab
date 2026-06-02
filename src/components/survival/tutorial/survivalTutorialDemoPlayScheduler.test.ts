@@ -7,7 +7,7 @@ import {
   isDemoStaffRestWindow,
   resolveDemoStaffWindowStartMeasure,
 } from '@/components/survival/tutorial/SurvivalTutorialDemoStaff';
-import { buildSurvivalDeveloperDemoPlayV3Script } from '@/components/survival/tutorial/buildSurvivalDeveloperDemoPlayV3Script';
+import { buildSurvivalDeveloperDemoPlayV3Script, DEMO_PLAY_HALF_BEAT_SCALE_START_MIDI } from '@/components/survival/tutorial/buildSurvivalDeveloperDemoPlayV3Script';
 
 describe('survivalTutorialDemoPlayScheduler', () => {
   const script = buildSurvivalDeveloperDemoPlayV3Script();
@@ -63,5 +63,22 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     };
     expect(buildDemoStaffVoicingGroups(snapshot)).toEqual([]);
     expect(isDemoStaffRestWindow(snapshot)).toBe(true);
+  });
+
+  it('uses single ascending scale notes for half-beat slots in measures 5-8', () => {
+    const scaleEvents = scene.chords.filter((chord) => chord.measureNumber >= 5);
+    expect(scaleEvents.length).toBe(32);
+    expect(scaleEvents.every((chord) => chord.voicing.length === 1)).toBe(true);
+    expect(scaleEvents[0]?.voicing[0]).toBe(DEMO_PLAY_HALF_BEAT_SCALE_START_MIDI);
+    for (let i = 1; i < scaleEvents.length; i += 1) {
+      const prev = scaleEvents[i - 1]?.voicing[0];
+      const current = scaleEvents[i]?.voicing[0];
+      expect(current).toBeDefined();
+      expect(prev).toBeDefined();
+      if (current === undefined || prev === undefined) {
+        throw new Error('scale event missing midi');
+      }
+      expect(current).toBeGreaterThan(prev);
+    }
   });
 });
