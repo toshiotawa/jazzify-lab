@@ -57,12 +57,12 @@ final class SurvivalCompositePhraseEngineTests: XCTestCase {
         let r0 = SurvivalCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 0)
         XCTAssertEqual(r0.result, .progress)
         state = r0.nextState
-        XCTAssertNil(state.lockedSourceStageNumber)
+        XCTAssertNil(state.primarySourceStageNumber)
 
         let r1 = SurvivalCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 4)
         XCTAssertEqual(r1.result, .progress)
         state = r1.nextState
-        XCTAssertEqual(state.lockedSourceStageNumber, 1)
+        XCTAssertEqual(state.primarySourceStageNumber, 1)
 
         let view = SurvivalCompositePhraseEngine.staffChordView(state: state)
         XCTAssertEqual(view.correctNoteIndices, Set([0, 1]))
@@ -85,7 +85,7 @@ final class SurvivalCompositePhraseEngineTests: XCTestCase {
         let r = SurvivalCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 0)
         XCTAssertEqual(r.result, .phraseComplete)
         XCTAssertEqual(r.nextState.lastCompletedSourceStageNumber, 1)
-        XCTAssertNil(r.nextState.lockedSourceStageNumber)
+        XCTAssertNil(r.nextState.primarySourceStageNumber)
         XCTAssertEqual(r.nextState.candidates.count, 1)
         XCTAssertEqual(r.nextState.candidates[0].chordIndex, 0)
         XCTAssertEqual(r.nextState.candidates[0].targetNoteIndex, 0)

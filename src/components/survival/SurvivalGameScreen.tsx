@@ -2261,6 +2261,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
 
+        if (evaluation.result === 'resync') {
+          return prev;
+        }
+
         const phraseComboAfter = prev.comboCount + 1;
         const firePlayerCombat = shouldFirePhrasePlayerAttacks(phraseComboAfter);
         const aShotDamage = clampPhraseOutgoingDamage(
@@ -2422,6 +2426,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             comboGauge: 0,
             comboReady: false,
           };
+        }
+
+        if (evaluation.result === 'resync') {
+          return prev;
         }
 
         const phraseComboAfter = prev.comboCount + 1;

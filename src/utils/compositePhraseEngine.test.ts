@@ -1,5 +1,5 @@
 /**
- * Composite phrase judgment (parallel selection → lock).
+ * Composite phrase judgment (parallel KMP stream matching).
  */
 import type { CompositePhraseChord, CompositePhraseDefinition } from '@/utils/compositePhraseEngine';
 import {
@@ -44,15 +44,15 @@ function chordChain(stageLabel: number, chains: readonly (readonly number[])[]):
 
 describe('compositePhraseEngine', () => {
   it('parses parallel then locks when only one branch matches next pitch', () => {
-    const p1 = chordChain(11, [[0, 4, 7], [2]]); // C E G | D
-    const p2 = chordChain(12, [[0, 4, 9], [2]]); // C E A | D
+    const p1 = chordChain(11, [[0, 4, 7], [2]]);
+    const p2 = chordChain(12, [[0, 4, 9], [2]]);
     let state = createInitialCompositePhraseRuntimeState([p1, p2]);
 
     let ev = evaluateCompositePhraseNoteOn(state, 0);
     expect(ev.result).toBe('progress');
     state = ev.nextState;
     expect(state.candidates.length).toBe(2);
-    expect(state.lockedSourcePhraseId).toBeNull();
+    expect(state.primarySourcePhraseId).toBeNull();
 
     ev = evaluateCompositePhraseNoteOn(state, 4);
     expect(ev.result).toBe('progress');
@@ -62,14 +62,14 @@ describe('compositePhraseEngine', () => {
     ev = evaluateCompositePhraseNoteOn(state, 7);
     expect(ev.result).toBe('measure-complete');
     state = ev.nextState;
-    expect(state.candidates.length).toBe(1);
-    expect(state.lockedSourcePhraseId).toBe('11');
+    expect(state.candidates.length).toBe(2);
+    expect(state.primarySourcePhraseId).toBe('11');
 
     ev = evaluateCompositePhraseNoteOn(state, 9);
     expect(ev.result).toBe('miss');
     state = ev.nextState;
     expect(state.candidates.length).toBe(2);
-    expect(state.lockedSourcePhraseId).toBeNull();
+    expect(state.primarySourcePhraseId).toBeNull();
   });
 
   it('shows common revealed prefix length while parallel', () => {
@@ -101,22 +101,22 @@ describe('compositePhraseEngine', () => {
     expect(state.lastCompletedSourcePhraseId).toBe('31');
   });
 
-  it('immediate lock when exactly one phrase matches opening pitch', () => {
+  it('immediate primary when exactly one phrase matches opening pitch', () => {
     const pWide = chordChain(41, [[0, 2, 4]]);
     const pNarrow = chordChain(42, [[11, 0, 2]]);
     const state = createInitialCompositePhraseRuntimeState([pWide, pNarrow]);
     const ev = evaluateCompositePhraseNoteOn(state, 0);
-    expect(ev.nextState.candidates.length).toBe(1);
-    expect(ev.nextState.lockedSourcePhraseId).toBe('41');
+    expect(ev.nextState.candidates.length).toBe(2);
+    expect(ev.nextState.primarySourcePhraseId).toBe('41');
   });
 
-  it('completes phrases stage 1 sequence when locked (E D A F E D)', () => {
+  it('completes phrases stage 1 sequence when primary is set (E D A F E D)', () => {
     const p1 = chordChain(1, [[4, 2, 9, 5, 4, 2]]);
     let state = createInitialCompositePhraseRuntimeState([p1]);
     let ev = evaluateCompositePhraseNoteOn(state, 4);
     expect(ev.result).toBe('progress');
     state = ev.nextState;
-    expect(state.lockedSourcePhraseId).toBe('1');
+    expect(state.primarySourcePhraseId).toBe('1');
     for (const pc of [2, 9, 5, 4, 2] as const) {
       ev = evaluateCompositePhraseNoteOn(state, pc);
       expect(ev.result).not.toBe('miss');
@@ -188,5 +188,32 @@ describe('compositePhraseEngine', () => {
         attempt = ev.nextState;
       }
     }
+  });
+
+  it('resyncs primary phrase when replaying opening pitch mid-phrase', () => {
+    const p = chordChain(81, [[4, 2, 9, 5, 4, 2]]);
+    let state = createInitialCompositePhraseRuntimeState([p]);
+    state = evaluateCompositePhraseNoteOn(state, 4).nextState;
+    state = evaluateCompositePhraseNoteOn(state, 2).nextState;
+    state = evaluateCompositePhraseNoteOn(state, 9).nextState;
+    expect(state.primarySourcePhraseId).toBe('81');
+
+    const ev = evaluateCompositePhraseNoteOn(state, 4);
+    expect(ev.result).toBe('resync');
+    expect(ev.nextState.candidates[0]?.targetNoteIndex).toBe(1);
+  });
+
+  it('keeps evaluating all candidates while primary is set', () => {
+    const p1 = chordChain(91, [[4, 2, 9, 5, 4, 2]]);
+    const p2 = chordChain(92, [[9, 5, 4, 2, 7, 5]]);
+    let state = createInitialCompositePhraseRuntimeState([p1, p2]);
+    state = evaluateCompositePhraseNoteOn(state, 4).nextState;
+    state = evaluateCompositePhraseNoteOn(state, 2).nextState;
+    expect(state.primarySourcePhraseId).toBe('91');
+    expect(state.candidates.length).toBe(2);
+
+    const ev = evaluateCompositePhraseNoteOn(state, 9);
+    expect(ev.result).not.toBe('miss');
+    expect(ev.nextState.candidates.length).toBe(2);
   });
 });

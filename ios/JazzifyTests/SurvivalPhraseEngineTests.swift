@@ -56,6 +56,19 @@ final class SurvivalPhraseEngineTests: XCTestCase {
         XCTAssertEqual(r4.nextState.chordIndex, 1)
     }
 
+    func testResyncWhenReplayingOpeningPitchMidChord() {
+        var state = SurvivalPhraseEngine.createInitialState(phrase: samplePhrase)
+        state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 2).nextState
+        state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 4).nextState
+        state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 5).nextState
+        XCTAssertEqual(state.targetNoteIndex, 3)
+
+        let resync = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 2)
+        XCTAssertEqual(resync.result, .resync)
+        XCTAssertEqual(resync.nextState.targetNoteIndex, 1)
+        XCTAssertEqual(resync.nextState.correctNoteIndices, Set([0]))
+    }
+
     func testMissResetsChord() {
         var state = SurvivalPhraseEngine.createInitialState(phrase: samplePhrase)
         let ok = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 2)

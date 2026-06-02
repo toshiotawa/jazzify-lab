@@ -606,6 +606,10 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             return
         }
 
+        guard evaluation.result != .resync else {
+            return
+        }
+
         compositeComboCount += 1
         let comboAfter = compositeComboCount
         triggerFeedback(.correct)

@@ -1,6 +1,15 @@
 /**
- * Composite phrase: parallel candidate filtering then single phrase (no chord loop).
+ * Composite phrase: parallel KMP stream matching across all candidates.
  */
+import {
+  advanceKmp,
+  coordinateFromMatchedLength,
+  getCompositeKmpCache,
+  isNonFinalMeasureBoundary,
+  matchedLengthFromCoordinates,
+  prefixIndexSet,
+} from '@/utils/phraseStreamMatching';
+
 export interface CompositePhraseChordNote {
   readonly pitchClass: number;
   readonly noteName: string;
@@ -24,6 +33,7 @@ export interface CompositePhraseDefinition {
 
 export type CompositePhraseNoteResult =
   | 'progress'
+  | 'resync'
   | 'measure-complete'
   | 'phrase-complete'
   | 'miss';
@@ -40,13 +50,21 @@ export interface CompositePhraseCandidateState {
 export interface CompositePhraseRuntimeState {
   readonly sourcePhrases: readonly CompositePhraseDefinition[];
   readonly candidates: readonly CompositePhraseCandidateState[];
-  readonly lockedSourcePhraseId: string | null;
+  readonly primarySourcePhraseId: string | null;
   readonly lastCompletedSourcePhraseId: string | null;
 }
 
 export interface CompositePhraseNoteEvaluation {
   readonly result: CompositePhraseNoteResult;
   readonly nextState: CompositePhraseRuntimeState;
+}
+
+interface CompositeCandidateStep {
+  readonly candidate: CompositePhraseCandidateState;
+  readonly result: CompositePhraseNoteResult;
+  readonly accepted: boolean;
+  readonly matchedLength: number;
+  readonly beforeMatchedLength: number;
 }
 
 function candidateFromPhrase(phrase: CompositePhraseDefinition): CompositePhraseCandidateState {
@@ -66,7 +84,7 @@ export function createInitialCompositePhraseRuntimeState(
   return {
     sourcePhrases,
     candidates: sourcePhrases.map(candidateFromPhrase),
-    lockedSourcePhraseId: null,
+    primarySourcePhraseId: null,
     lastCompletedSourcePhraseId: null,
   };
 }
@@ -75,41 +93,19 @@ function getCurrentChord(c: CompositePhraseCandidateState): CompositePhraseChord
   return c.phrase.chords[c.chordIndex] ?? null;
 }
 
-function getTargetNote(c: CompositePhraseCandidateState) {
-  const chord = getCurrentChord(c);
-  if (!chord) return null;
-  return chord.notes[c.targetNoteIndex] ?? null;
-}
-
-function isChordComplete(chord: CompositePhraseChord, correctIndices: ReadonlySet<number>): boolean {
-  return chord.notes.length > 0 && correctIndices.size >= chord.notes.length;
-}
-
-function isLastChord(c: CompositePhraseCandidateState): boolean {
-  return c.chordIndex >= c.phrase.chords.length - 1;
-}
-
-function resetChordFields(
+function candidateWithMatchedLength(
   c: CompositePhraseCandidateState,
+  matchedLength: number,
 ): CompositePhraseCandidateState {
+  const coord = coordinateFromMatchedLength(c.phrase, matchedLength);
+  const correct = prefixIndexSet(coord.targetNoteIndex);
+
   return {
     ...c,
-    targetNoteIndex: 0,
-    correctNoteIndices: new Set(),
-    revealedNoteIndices: new Set(),
-  };
-}
-
-function advanceToNextChord(
-  c: CompositePhraseCandidateState,
-): CompositePhraseCandidateState {
-  const nextChordIndex = c.chordIndex + 1;
-  return {
-    ...c,
-    chordIndex: nextChordIndex,
-    targetNoteIndex: 0,
-    correctNoteIndices: new Set(),
-    revealedNoteIndices: new Set(),
+    chordIndex: coord.chordIndex,
+    targetNoteIndex: coord.targetNoteIndex,
+    correctNoteIndices: correct,
+    revealedNoteIndices: correct,
   };
 }
 
@@ -120,162 +116,232 @@ function resetAllCandidates(
   return {
     sourcePhrases: state.sourcePhrases,
     candidates: state.sourcePhrases.map(candidateFromPhrase),
-    lockedSourcePhraseId: null,
+    primarySourcePhraseId: null,
     lastCompletedSourcePhraseId: preserveLastCompleted
       ? state.lastCompletedSourcePhraseId
       : null,
   };
 }
 
-function applyKnownGoodStep(
+function applyStreamingCandidateStep(
   c: CompositePhraseCandidateState,
   pitchClass: number,
-): { candidate: CompositePhraseCandidateState; result: CompositePhraseNoteResult } {
-  const chord = getCurrentChord(c);
-  const target = getTargetNote(c);
-  if (!chord || !target) {
-    return { candidate: c, result: 'miss' };
-  }
-  const allowed = new Set(chord.notes.map((n) => n.pitchClass));
-  if (!allowed.has(pitchClass) || pitchClass !== target.pitchClass) {
-    return { candidate: resetChordFields(c), result: 'miss' };
-  }
-  const nextCorrect = new Set(c.correctNoteIndices);
-  nextCorrect.add(c.targetNoteIndex);
-  const nextRevealed = new Set(c.revealedNoteIndices);
-  nextRevealed.add(c.targetNoteIndex);
+): CompositeCandidateStep {
+  const { pattern, table } = getCompositeKmpCache(c.phrase);
 
-  if (isChordComplete(chord, nextCorrect)) {
-    if (isLastChord(c)) {
-      return {
-        candidate: {
-          ...c,
-          correctNoteIndices: nextCorrect,
-          revealedNoteIndices: nextRevealed,
-        },
-        result: 'phrase-complete',
-      };
-    }
+  if (pattern.length === 0) {
     return {
-      candidate: advanceToNextChord({
-        ...c,
-        correctNoteIndices: nextCorrect,
-        revealedNoteIndices: nextRevealed,
-      }),
+      candidate: candidateFromPhrase(c.phrase),
+      result: 'miss',
+      accepted: false,
+      matchedLength: 0,
+      beforeMatchedLength: 0,
+    };
+  }
+
+  const beforeMatchedLength = matchedLengthFromCoordinates(
+    c.phrase,
+    c.chordIndex,
+    c.targetNoteIndex,
+  );
+  const nextMatchedLength = advanceKmp(pattern, table, beforeMatchedLength, pitchClass);
+
+  if (nextMatchedLength === 0) {
+    return {
+      candidate: candidateFromPhrase(c.phrase),
+      result: 'miss',
+      accepted: false,
+      matchedLength: 0,
+      beforeMatchedLength,
+    };
+  }
+
+  const nextCandidate = candidateWithMatchedLength(c, nextMatchedLength);
+
+  if (nextMatchedLength >= pattern.length) {
+    return {
+      candidate: nextCandidate,
+      result: 'phrase-complete',
+      accepted: true,
+      matchedLength: nextMatchedLength,
+      beforeMatchedLength,
+    };
+  }
+
+  if (isNonFinalMeasureBoundary(c.phrase, nextMatchedLength)) {
+    return {
+      candidate: nextCandidate,
       result: 'measure-complete',
+      accepted: true,
+      matchedLength: nextMatchedLength,
+      beforeMatchedLength,
     };
   }
 
   return {
-    candidate: {
-      ...c,
-      targetNoteIndex: c.targetNoteIndex + 1,
-      correctNoteIndices: nextCorrect,
-      revealedNoteIndices: nextRevealed,
-    },
+    candidate: nextCandidate,
     result: 'progress',
+    accepted: true,
+    matchedLength: nextMatchedLength,
+    beforeMatchedLength,
   };
 }
 
-function selectionMatchingIndices(
+function compositeSelectionCandidates(
   state: CompositePhraseRuntimeState,
-  pitchClass: number,
-): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < state.candidates.length; i += 1) {
-    const note = getTargetNote(state.candidates[i]);
-    if (note && note.pitchClass === pitchClass) {
-      out.push(i);
-    }
+): readonly CompositePhraseCandidateState[] {
+  if (state.primarySourcePhraseId !== null) {
+    const primary = state.candidates.find(
+      (c) => c.sourcePhraseId === state.primarySourcePhraseId,
+    );
+    return primary ? [primary] : [];
   }
-  return out;
+
+  if (state.candidates.length === 0) return [];
+
+  let best = 0;
+  for (const c of state.candidates) {
+    best = Math.max(
+      best,
+      matchedLengthFromCoordinates(c.phrase, c.chordIndex, c.targetNoteIndex),
+    );
+  }
+
+  if (best <= 0) {
+    return state.candidates;
+  }
+
+  return state.candidates.filter(
+    (c) => matchedLengthFromCoordinates(c.phrase, c.chordIndex, c.targetNoteIndex) === best,
+  );
 }
 
-function replaceCandidateAt(
-  candidates: readonly CompositePhraseCandidateState[],
-  index: number,
-  next: CompositePhraseCandidateState,
-): CompositePhraseCandidateState[] {
-  const copy = [...candidates];
-  copy[index] = next;
-  return copy;
+function getDisplayCandidate(
+  state: CompositePhraseRuntimeState,
+): CompositePhraseCandidateState | null {
+  const candidates = compositeSelectionCandidates(state);
+  return candidates[0] ?? null;
+}
+
+function resolvePrimarySourcePhraseId(
+  state: CompositePhraseRuntimeState,
+  steps: readonly CompositeCandidateStep[],
+  bestMatchedLength: number,
+): string | null {
+  const best = steps.filter(
+    (s) => s.accepted && s.matchedLength === bestMatchedLength,
+  );
+
+  const previousPrimary = state.primarySourcePhraseId;
+  const previousStep = previousPrimary !== null
+    ? steps.find((s) => s.candidate.sourcePhraseId === previousPrimary)
+    : undefined;
+
+  const previousPrimaryStillBest =
+    previousStep !== undefined
+    && previousStep.accepted
+    && previousStep.matchedLength === bestMatchedLength;
+
+  if (previousPrimaryStillBest) {
+    return previousPrimary;
+  }
+
+  if (best.length === 1) {
+    return best[0].candidate.sourcePhraseId;
+  }
+
+  return null;
+}
+
+function resolveAggregateResult(
+  selectedStep: CompositeCandidateStep | undefined,
+  primaryResync: boolean,
+): CompositePhraseNoteResult {
+  if (primaryResync) {
+    return 'resync';
+  }
+
+  if (selectedStep?.result === 'measure-complete') {
+    return 'measure-complete';
+  }
+
+  return 'progress';
 }
 
 export function evaluateCompositePhraseNoteOn(
   state: CompositePhraseRuntimeState,
   pitchClass: number,
 ): CompositePhraseNoteEvaluation {
-  const pc = ((pitchClass % 12) + 12) % 12;
+  const candidateById = new Map(
+    state.candidates.map((c) => [c.sourcePhraseId, c] as const),
+  );
 
-  if (state.lockedSourcePhraseId !== null) {
-    const idx = state.candidates.findIndex((c) => c.sourcePhraseId === state.lockedSourcePhraseId);
-    if (idx < 0) {
-      return { result: 'miss', nextState: resetAllCandidates(state, true) };
-    }
-    const cur = state.candidates[idx];
-    const { candidate, result } = applyKnownGoodStep(cur, pc);
-    if (result === 'miss') {
-      return { result: 'miss', nextState: resetAllCandidates(state, true) };
-    }
-    if (result === 'phrase-complete') {
-      const finishedId = candidate.sourcePhraseId;
-      return {
-        result: 'phrase-complete',
-        nextState: resetAllCandidates(
-          {
-            ...state,
-            lastCompletedSourcePhraseId: finishedId,
-          },
-          true,
-        ),
-      };
-    }
+  const steps = state.sourcePhrases.map((phrase) => {
+    const current = candidateById.get(phrase.sourcePhraseId) ?? candidateFromPhrase(phrase);
+    return applyStreamingCandidateStep(current, pitchClass);
+  });
+
+  const completed = steps.filter((s) => s.result === 'phrase-complete');
+
+  if (completed.length > 0) {
+    const preferred = state.primarySourcePhraseId !== null
+      ? completed.find((s) => s.candidate.sourcePhraseId === state.primarySourcePhraseId)
+      : undefined;
+    const finished = preferred ?? completed[0];
+    const finishedId = finished.candidate.sourcePhraseId;
+
     return {
-      result,
-      nextState: {
-        ...state,
-        candidates: replaceCandidateAt(state.candidates, idx, candidate),
-        lockedSourcePhraseId: candidate.sourcePhraseId,
-      },
+      result: 'phrase-complete',
+      nextState: resetAllCandidates(
+        {
+          ...state,
+          candidates: steps.map((s) => s.candidate),
+          lastCompletedSourcePhraseId: finishedId,
+        },
+        true,
+      ),
     };
   }
 
-  const matchIdx = selectionMatchingIndices(state, pc);
-  if (matchIdx.length === 0) {
-    return { result: 'miss', nextState: resetAllCandidates(state, true) };
+  const accepted = steps.filter((s) => s.accepted && s.matchedLength > 0);
+
+  if (accepted.length === 0) {
+    return {
+      result: 'miss',
+      nextState: resetAllCandidates(
+        {
+          ...state,
+          candidates: steps.map((s) => s.candidate),
+        },
+        true,
+      ),
+    };
   }
 
-  const advanced: CompositePhraseCandidateState[] = [];
-  let aggResult: CompositePhraseNoteResult = 'progress';
-  for (const i of matchIdx) {
-    const { candidate, result } = applyKnownGoodStep(state.candidates[i], pc);
-    if (result === 'miss') {
-      return { result: 'miss', nextState: resetAllCandidates(state, true) };
-    }
-    if (result === 'phrase-complete') {
-      const finishedId = candidate.sourcePhraseId;
-      return {
-        result: 'phrase-complete',
-        nextState: resetAllCandidates(
-          {
-            ...state,
-            lastCompletedSourcePhraseId: finishedId,
-          },
-          true,
-        ),
-      };
-    }
-    advanced.push(candidate);
-    aggResult = result;
-  }
+  const bestMatchedLength = Math.max(...accepted.map((s) => s.matchedLength));
+  const nextPrimarySourcePhraseId = resolvePrimarySourcePhraseId(
+    state,
+    steps,
+    bestMatchedLength,
+  );
 
-  const lock = advanced.length === 1 ? advanced[0].sourcePhraseId : null;
+  const selectedStep = nextPrimarySourcePhraseId !== null
+    ? steps.find((s) => s.candidate.sourcePhraseId === nextPrimarySourcePhraseId)
+    : accepted.find((s) => s.matchedLength === bestMatchedLength);
+
+  const primaryResync =
+    selectedStep !== undefined
+    && selectedStep.matchedLength < selectedStep.beforeMatchedLength;
+
+  const result = resolveAggregateResult(selectedStep, primaryResync);
+
   return {
-    result: aggResult,
+    result,
     nextState: {
-      ...state,
-      candidates: advanced,
-      lockedSourcePhraseId: lock,
+      sourcePhrases: state.sourcePhrases,
+      candidates: steps.map((s) => s.candidate),
+      primarySourcePhraseId: nextPrimarySourcePhraseId,
+      lastCompletedSourcePhraseId: state.lastCompletedSourcePhraseId,
     },
   };
 }
@@ -284,14 +350,17 @@ export function evaluateCompositePhraseNoteOn(
 export function compositeSelectionGreenPrefixLength(
   state: CompositePhraseRuntimeState,
 ): number {
-  if (state.lockedSourcePhraseId !== null) return 0;
-  if (state.candidates.length === 0) return 0;
-  const chordLens = state.candidates.map((c) => getCurrentChord(c)?.notes.length ?? 0);
+  if (state.primarySourcePhraseId !== null) return 0;
+
+  const candidates = compositeSelectionCandidates(state);
+  if (candidates.length === 0) return 0;
+
+  const chordLens = candidates.map((c) => getCurrentChord(c)?.notes.length ?? 0);
   const maxSafe = Math.min(...chordLens);
   let p = 0;
   outer: while (p < maxSafe) {
     let pitchClassBaseline: number | null = null;
-    for (const c of state.candidates) {
+    for (const c of candidates) {
       const ch = getCurrentChord(c);
       const noteAt = ch?.notes[p];
       if (!noteAt || !c.revealedNoteIndices.has(p)) {
@@ -319,8 +388,11 @@ export function getCompositePhraseStaffChordView(
   if (state.candidates.length === 0) {
     return { chord: null, correctNoteIndices: new Set() };
   }
-  if (state.lockedSourcePhraseId !== null) {
-    const c = state.candidates.find((x) => x.sourcePhraseId === state.lockedSourcePhraseId);
+
+  if (state.primarySourcePhraseId !== null) {
+    const c = state.candidates.find(
+      (x) => x.sourcePhraseId === state.primarySourcePhraseId,
+    );
     if (!c) {
       return { chord: null, correctNoteIndices: new Set() };
     }
@@ -330,15 +402,16 @@ export function getCompositePhraseStaffChordView(
     };
   }
 
-  const template = state.candidates[0];
-  const chord = getCurrentChord(template);
-  const len = compositeSelectionGreenPrefixLength(state);
-  const correct = new Set<number>();
-  for (let i = 0; i < len; i += 1) {
-    correct.add(i);
+  const display = getDisplayCandidate(state);
+  if (!display) {
+    return { chord: null, correctNoteIndices: new Set() };
   }
+
+  const chord = getCurrentChord(display);
+  const len = compositeSelectionGreenPrefixLength(state);
   return {
     chord,
-    correctNoteIndices: correct,
+    correctNoteIndices: prefixIndexSet(len),
   };
 }
+

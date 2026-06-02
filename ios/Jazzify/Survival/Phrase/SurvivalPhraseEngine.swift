@@ -2,6 +2,7 @@ import Foundation
 
 enum SurvivalPhraseNoteResult: Equatable {
     case progress
+    case resync
     case measureComplete
     case miss
 }
@@ -30,29 +31,37 @@ enum SurvivalPhraseEngine {
         pitchClass: Int
     ) -> (result: SurvivalPhraseNoteResult, nextState: SurvivalPhraseRuntimeState) {
         guard let chord = state.phrase.chords[safe: state.chordIndex],
-              let target = chord.notes[safe: state.targetNoteIndex] else {
+              !chord.notes.isEmpty
+        else {
             return (.miss, state)
         }
 
-        let allowed = Set(chord.notes.map(\.pitchClass))
-        if !allowed.contains(pitchClass) || pitchClass != target.pitchClass {
+        let beforeLength = state.targetNoteIndex
+        let cache = PhraseStreamMatching.getChordKmpCache(notes: chord.notes)
+        let nextMatchedLength = PhraseStreamMatching.advanceKmp(
+            pattern: cache.pattern,
+            table: cache.table,
+            matchedLength: beforeLength,
+            pitchClass: pitchClass
+        )
+
+        if nextMatchedLength == 0 {
             return (.miss, resetChord(state))
         }
 
-        var nextCorrect = state.correctNoteIndices
-        nextCorrect.insert(state.targetNoteIndex)
-        var nextRevealed = state.revealedNoteIndices
-        nextRevealed.insert(state.targetNoteIndex)
+        let nextCorrect = PhraseStreamMatching.prefixIndexSet(nextMatchedLength)
+        var progressed = state
+        progressed.targetNoteIndex = nextMatchedLength
+        progressed.correctNoteIndices = nextCorrect
+        progressed.revealedNoteIndices = nextCorrect
 
-        if nextCorrect.count >= chord.notes.count {
-            return (.measureComplete, advanceChord(state, correct: nextCorrect, revealed: nextRevealed))
+        if nextMatchedLength >= chord.notes.count {
+            return (.measureComplete, advanceChord(progressed))
         }
 
-        var next = state
-        next.targetNoteIndex += 1
-        next.correctNoteIndices = nextCorrect
-        next.revealedNoteIndices = nextRevealed
-        return (.progress, next)
+        let result: SurvivalPhraseNoteResult =
+            nextMatchedLength < beforeLength ? .resync : .progress
+        return (result, progressed)
     }
 
     static func targetMidi(state: SurvivalPhraseRuntimeState) -> Int? {
@@ -77,11 +86,7 @@ enum SurvivalPhraseEngine {
         return next
     }
 
-    private static func advanceChord(
-        _ state: SurvivalPhraseRuntimeState,
-        correct: Set<Int>,
-        revealed: Set<Int>
-    ) -> SurvivalPhraseRuntimeState {
+    private static func advanceChord(_ state: SurvivalPhraseRuntimeState) -> SurvivalPhraseRuntimeState {
         let count = state.phrase.chords.count
         guard count > 0 else { return state }
         var next = state

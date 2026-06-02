@@ -744,6 +744,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             runtime.comboGauge = 0
             runtime.comboReady = false
             return []
+        case .resync:
+            return []
         case .progress, .measureComplete:
             if evaluation.result == .measureComplete,
                evaluation.nextState.chordIndex == 0,
@@ -812,6 +814,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             runtime.comboGauge = 0
             runtime.comboReady = false
             return []
+        case .resync:
+            return []
         case .progress, .measureComplete, .phraseComplete:
             let now = CACurrentMediaTime()
             runtime.comboCount += 1
@@ -862,7 +866,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                 return clampPhraseOutgoingDamageIfNeeded(
                     raw: compositeDamage?.measureRange ?? SurvivalCompositePhraseDamage.measureRange
                 )
-            case .progress, .miss:
+            case .progress, .resync, .miss:
                 return 0
             }
         }()

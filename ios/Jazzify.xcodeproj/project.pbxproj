@@ -59,6 +59,7 @@
 		AA01BB02CC03DD04EE05FF02 /* SurvivalGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */; };
 		BB01AA02CC03DD04EE070002 /* SurvivalJajiiEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB01AA02CC03DD04EE070001 /* SurvivalJajiiEngine.swift */; };
 		AA01BB02CC03DD04EE05FF22 /* SurvivalPhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */; };
+		CC01BB02CC03DD04EE05FF32 /* PhraseStreamMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC01BB02CC03DD04EE05FF31 /* PhraseStreamMatching.swift */; };
 		AA01BB02CC03DD04EE060002 /* SurvivalCompositePhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE060001 /* SurvivalCompositePhraseEngine.swift */; };
 		AA01BB02CC03DD04EE060004 /* SurvivalCompositePhraseDamage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE060003 /* SurvivalCompositePhraseDamage.swift */; };
 		AA01BB02CC03DD04EE060006 /* SurvivalLessonConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE060005 /* SurvivalLessonConfig.swift */; };
@@ -277,6 +278,7 @@
 		AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameLoop.swift; sourceTree = "<group>"; };
 		BB01AA02CC03DD04EE070001 /* SurvivalJajiiEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalJajiiEngine.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseEngine.swift; sourceTree = "<group>"; };
+		CC01BB02CC03DD04EE05FF31 /* PhraseStreamMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseStreamMatching.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE060001 /* SurvivalCompositePhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCompositePhraseEngine.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE060003 /* SurvivalCompositePhraseDamage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCompositePhraseDamage.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE060005 /* SurvivalLessonConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLessonConfig.swift; sourceTree = "<group>"; };
@@ -603,6 +605,7 @@
 			isa = PBXGroup;
 			children = (
 				AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */,
+				CC01BB02CC03DD04EE05FF31 /* PhraseStreamMatching.swift */,
 				AA01BB02CC03DD04EE060001 /* SurvivalCompositePhraseEngine.swift */,
 				AA01BB02CC03DD04EE060003 /* SurvivalCompositePhraseDamage.swift */,
 				AA01BB02CC03DD04EE060005 /* SurvivalLessonConfig.swift */,
@@ -1237,6 +1240,7 @@
 				AA01BB02CC03DD04EE05FF02 /* SurvivalGameLoop.swift in Sources */,
 				BB01AA02CC03DD04EE070002 /* SurvivalJajiiEngine.swift in Sources */,
 				AA01BB02CC03DD04EE05FF22 /* SurvivalPhraseEngine.swift in Sources */,
+				CC01BB02CC03DD04EE05FF32 /* PhraseStreamMatching.swift in Sources */,
 				AA01BB02CC03DD04EE060002 /* SurvivalCompositePhraseEngine.swift in Sources */,
 				AA01BB02CC03DD04EE060004 /* SurvivalCompositePhraseDamage.swift in Sources */,
 				AA01BB02CC03DD04EE060006 /* SurvivalLessonConfig.swift in Sources */,

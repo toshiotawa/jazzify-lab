@@ -2,8 +2,17 @@
  * Survival Phrases mode: sequential note judgment (pure functions).
  */
 import type { SurvivalPhraseChord, SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
+import {
+  advanceKmp,
+  getChordKmpCache,
+  prefixIndexSet,
+} from '@/utils/phraseStreamMatching';
 
-export type SurvivalPhraseNoteResult = 'progress' | 'measure-complete' | 'miss';
+export type SurvivalPhraseNoteResult =
+  | 'progress'
+  | 'resync'
+  | 'measure-complete'
+  | 'miss';
 
 export interface SurvivalPhraseRuntimeState {
   readonly phrase: SurvivalPhraseDefinition;
@@ -33,10 +42,6 @@ function getTargetNote(state: SurvivalPhraseRuntimeState) {
   const chord = getCurrentChord(state);
   if (!chord) return null;
   return chord.notes[state.targetNoteIndex] ?? null;
-}
-
-function isChordComplete(chord: SurvivalPhraseChord, correctIndices: ReadonlySet<number>): boolean {
-  return chord.notes.length > 0 && correctIndices.size >= chord.notes.length;
 }
 
 function resetChordState(
@@ -73,44 +78,39 @@ export function evaluatePhraseNoteOn(
   pitchClass: number,
 ): SurvivalPhraseNoteEvaluation {
   const chord = getCurrentChord(state);
-  const target = getTargetNote(state);
-  if (!chord || !target) {
+  if (!chord || chord.notes.length === 0) {
     return { result: 'miss', nextState: state };
   }
 
-  const allowedPitchClasses = new Set(chord.notes.map((n) => n.pitchClass));
-  if (!allowedPitchClasses.has(pitchClass)) {
+  const beforeLength = state.targetNoteIndex;
+  const { pattern, table } = getChordKmpCache(chord.notes);
+  const nextMatchedLength = advanceKmp(pattern, table, beforeLength, pitchClass);
+
+  if (nextMatchedLength === 0) {
     return { result: 'miss', nextState: resetChordState(state) };
   }
 
-  if (pitchClass !== target.pitchClass) {
-    return { result: 'miss', nextState: resetChordState(state) };
-  }
+  const nextCorrect = prefixIndexSet(nextMatchedLength);
+  const progressedState: SurvivalPhraseRuntimeState = {
+    ...state,
+    targetNoteIndex: nextMatchedLength,
+    correctNoteIndices: nextCorrect,
+    revealedNoteIndices: nextCorrect,
+  };
 
-  const nextCorrect = new Set(state.correctNoteIndices);
-  nextCorrect.add(state.targetNoteIndex);
-  const nextRevealed = new Set(state.revealedNoteIndices);
-  nextRevealed.add(state.targetNoteIndex);
-
-  if (isChordComplete(chord, nextCorrect)) {
+  if (nextMatchedLength >= chord.notes.length) {
     return {
       result: 'measure-complete',
-      nextState: advanceChord({
-        ...state,
-        correctNoteIndices: nextCorrect,
-        revealedNoteIndices: nextRevealed,
-      }),
+      nextState: advanceChord(progressedState),
     };
   }
 
+  const result: SurvivalPhraseNoteResult =
+    nextMatchedLength < beforeLength ? 'resync' : 'progress';
+
   return {
-    result: 'progress',
-    nextState: {
-      ...state,
-      targetNoteIndex: state.targetNoteIndex + 1,
-      correctNoteIndices: nextCorrect,
-      revealedNoteIndices: nextRevealed,
-    },
+    result,
+    nextState: progressedState,
   };
 }
 

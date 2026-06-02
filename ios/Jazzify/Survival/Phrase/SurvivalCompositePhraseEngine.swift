@@ -1,8 +1,9 @@
 import Foundation
 
-/// Web `SurvivalCompositePhraseEngine.ts` の Swift 移植。並列候補フィルタ → 単一フレーズロック（コードループなし）。
+/// Web `compositePhraseEngine.ts` の Swift 移植。全候補 KMP 並列判定（コードループなし）。
 enum SurvivalCompositePhraseNoteResult: Equatable {
     case progress
+    case resync
     case measureComplete
     case phraseComplete
     case miss
@@ -20,7 +21,7 @@ struct SurvivalCompositePhraseCandidateState: Equatable {
 struct SurvivalCompositePhraseRuntimeState: Equatable {
     let sourcePhrases: [SurvivalPhraseDefinition]
     var candidates: [SurvivalCompositePhraseCandidateState]
-    var lockedSourceStageNumber: Int?
+    var primarySourceStageNumber: Int?
     /// 直近でフレーズ完成したソースステージ番号（重複完成ダメージ用）。
     var lastCompletedSourceStageNumber: Int?
 }
@@ -35,7 +36,7 @@ enum SurvivalCompositePhraseEngine {
         SurvivalCompositePhraseRuntimeState(
             sourcePhrases: sourcePhrases,
             candidates: sourcePhrases.map(candidateFromPhrase),
-            lockedSourceStageNumber: nil,
+            primarySourceStageNumber: nil,
             lastCompletedSourceStageNumber: nil
         )
     }
@@ -44,71 +45,76 @@ enum SurvivalCompositePhraseEngine {
         state: SurvivalCompositePhraseRuntimeState,
         pitchClass rawPc: Int
     ) -> (result: SurvivalCompositePhraseNoteResult, nextState: SurvivalCompositePhraseRuntimeState) {
-        let pc = normalizedPitchClass(rawPc)
+        let pc = PhraseStreamMatching.normalizedPitchClass(rawPc)
 
-        if let locked = state.lockedSourceStageNumber {
-            guard let idx = state.candidates.firstIndex(where: { $0.sourceStageNumber == locked }) else {
-                return (.miss, resetAllCandidates(state, preserveLastCompleted: true))
-            }
-            let cur = state.candidates[idx]
-            let stepped = applyKnownGoodStep(candidate: cur, pitchClass: pc)
-            switch stepped.result {
-            case .miss:
-                return (.miss, resetAllCandidates(state, preserveLastCompleted: true))
-            case .phraseComplete:
-                let finished = stepped.candidate.sourceStageNumber
-                var st = state
-                st.lastCompletedSourceStageNumber = finished
-                return (.phraseComplete, resetAllCandidates(st, preserveLastCompleted: true))
-            case .progress, .measureComplete:
-                var next = state
-                next.candidates[idx] = stepped.candidate
-                next.lockedSourceStageNumber = stepped.candidate.sourceStageNumber
-                return (stepped.result, next)
-            }
+        var candidateByStage: [Int: SurvivalCompositePhraseCandidateState] = [:]
+        for c in state.candidates {
+            candidateByStage[c.sourceStageNumber] = c
         }
 
-        let matchIdx = selectionMatchingIndices(state: state, pitchClass: pc)
-        if matchIdx.isEmpty {
-            return (.miss, resetAllCandidates(state, preserveLastCompleted: true))
+        let steps = state.sourcePhrases.map { phrase in
+            let current = candidateByStage[phrase.stageNumber] ?? candidateFromPhrase(phrase)
+            return applyStreamingCandidateStep(candidate: current, pitchClass: pc)
         }
 
-        var advanced: [SurvivalCompositePhraseCandidateState] = []
-        var aggResult: SurvivalCompositePhraseNoteResult = .progress
-
-        for i in matchIdx {
-            let stepped = applyKnownGoodStep(candidate: state.candidates[i], pitchClass: pc)
-            if stepped.result == .miss {
-                return (.miss, resetAllCandidates(state, preserveLastCompleted: true))
+        let completed = steps.filter { $0.result == .phraseComplete }
+        if !completed.isEmpty {
+            let preferred = state.primarySourceStageNumber.flatMap { primary in
+                completed.first(where: { $0.candidate.sourceStageNumber == primary })
             }
-            if stepped.result == .phraseComplete {
-                let finished = stepped.candidate.sourceStageNumber
-                var st = state
-                st.lastCompletedSourceStageNumber = finished
-                return (.phraseComplete, resetAllCandidates(st, preserveLastCompleted: true))
-            }
-            advanced.append(stepped.candidate)
-            aggResult = stepped.result
+            let finished = preferred ?? completed[0]
+            var st = state
+            st.lastCompletedSourceStageNumber = finished.candidate.sourceStageNumber
+            st.candidates = steps.map(\.candidate)
+            return (.phraseComplete, resetAllCandidates(st, preserveLastCompleted: true))
         }
 
-        let lock: Int? = advanced.count == 1 ? advanced[0].sourceStageNumber : nil
+        let accepted = steps.filter { $0.accepted && $0.matchedLength > 0 }
+        if accepted.isEmpty {
+            var st = state
+            st.candidates = steps.map(\.candidate)
+            return (.miss, resetAllCandidates(st, preserveLastCompleted: true))
+        }
+
+        let bestMatchedLength = accepted.map(\.matchedLength).max() ?? 0
+        let nextPrimary = resolvePrimaryStageNumber(
+            state: state,
+            steps: steps,
+            bestMatchedLength: bestMatchedLength
+        )
+
+        let selectedStep: CandidateStep? = {
+            if let primary = nextPrimary {
+                return steps.first(where: { $0.candidate.sourceStageNumber == primary })
+            }
+            return accepted.first(where: { $0.matchedLength == bestMatchedLength })
+        }()
+
+        let primaryResync =
+            selectedStep.map { $0.matchedLength < $0.beforeMatchedLength } ?? false
+        let result = resolveAggregateResult(selectedStep: selectedStep, primaryResync: primaryResync)
+
         var next = state
-        next.candidates = advanced
-        next.lockedSourceStageNumber = lock
-        return (aggResult, next)
+        next.candidates = steps.map(\.candidate)
+        next.primarySourceStageNumber = nextPrimary
+        return (result, next)
     }
 
-    /// 選択モード時: 全候補で revealed 済みかつ同一 pitch class の先頭共通長。
     static func selectionGreenPrefixLength(state: SurvivalCompositePhraseRuntimeState) -> Int {
-        if state.lockedSourceStageNumber != nil { return 0 }
-        guard !state.candidates.isEmpty else { return 0 }
-        let chordLens = state.candidates.map { c in chord(at: c.chordIndex, phrase: c.phrase)?.notes.count ?? 0 }
+        if state.primarySourceStageNumber != nil { return 0 }
+
+        let candidates = compositeSelectionCandidates(state: state)
+        guard !candidates.isEmpty else { return 0 }
+
+        let chordLens = candidates.map { c in
+            chord(at: c.chordIndex, phrase: c.phrase)?.notes.count ?? 0
+        }
         guard let maxSafe = chordLens.min(), maxSafe > 0 else { return 0 }
 
         var p = 0
         while p < maxSafe {
             var baseline: Int?
-            for c in state.candidates {
+            for c in candidates {
                 guard let ch = chord(at: c.chordIndex, phrase: c.phrase),
                       let noteAt = ch.notes[safe: p],
                       c.revealedNoteIndices.contains(p)
@@ -131,8 +137,9 @@ enum SurvivalCompositePhraseEngine {
         guard !state.candidates.isEmpty else {
             return SurvivalCompositePhraseStaffChordView(chord: nil, correctNoteIndices: [])
         }
-        if let locked = state.lockedSourceStageNumber {
-            guard let c = state.candidates.first(where: { $0.sourceStageNumber == locked }) else {
+
+        if let primary = state.primarySourceStageNumber {
+            guard let c = state.candidates.first(where: { $0.sourceStageNumber == primary }) else {
                 return SurvivalCompositePhraseStaffChordView(chord: nil, correctNoteIndices: [])
             }
             return SurvivalCompositePhraseStaffChordView(
@@ -141,20 +148,25 @@ enum SurvivalCompositePhraseEngine {
             )
         }
 
-        let template = state.candidates[0]
-        let chord0 = chord(at: template.chordIndex, phrase: template.phrase)
-        let len = selectionGreenPrefixLength(state: state)
-        var correct = Set<Int>()
-        for i in 0..<len {
-            correct.insert(i)
+        guard let display = getDisplayCandidate(state: state) else {
+            return SurvivalCompositePhraseStaffChordView(chord: nil, correctNoteIndices: [])
         }
-        return SurvivalCompositePhraseStaffChordView(chord: chord0, correctNoteIndices: correct)
+
+        let len = selectionGreenPrefixLength(state: state)
+        return SurvivalCompositePhraseStaffChordView(
+            chord: chord(at: display.chordIndex, phrase: display.phrase),
+            correctNoteIndices: PhraseStreamMatching.prefixIndexSet(len)
+        )
     }
 
     // MARK: - Internal
 
-    private static func normalizedPitchClass(_ pc: Int) -> Int {
-        ((pc % 12) + 12) % 12
+    private struct CandidateStep {
+        let candidate: SurvivalCompositePhraseCandidateState
+        let result: SurvivalCompositePhraseNoteResult
+        let accepted: Bool
+        let matchedLength: Int
+        let beforeMatchedLength: Int
     }
 
     private static func candidateFromPhrase(_ phrase: SurvivalPhraseDefinition) -> SurvivalCompositePhraseCandidateState {
@@ -172,78 +184,171 @@ enum SurvivalCompositePhraseEngine {
         phrase.chords[safe: index]
     }
 
-    private static func getTargetNote(_ c: SurvivalCompositePhraseCandidateState) -> SurvivalPhraseChordNote? {
-        guard let ch = chord(at: c.chordIndex, phrase: c.phrase) else { return nil }
-        return ch.notes[safe: c.targetNoteIndex]
+    private static func candidateWithMatchedLength(
+        _ c: SurvivalCompositePhraseCandidateState,
+        matchedLength: Int
+    ) -> SurvivalCompositePhraseCandidateState {
+        let coord = PhraseStreamMatching.coordinateFromMatchedLength(
+            chords: c.phrase.chords,
+            matchedLength: matchedLength
+        )
+        let correct = PhraseStreamMatching.prefixIndexSet(coord.targetNoteIndex)
+        var next = c
+        next.chordIndex = coord.chordIndex
+        next.targetNoteIndex = coord.targetNoteIndex
+        next.correctNoteIndices = correct
+        next.revealedNoteIndices = correct
+        return next
     }
 
-    private static func isChordComplete(_ chord: SurvivalPhraseChord, correct: Set<Int>) -> Bool {
-        !chord.notes.isEmpty && correct.count >= chord.notes.count
-    }
-
-    private static func isLastChord(_ c: SurvivalCompositePhraseCandidateState) -> Bool {
-        c.chordIndex >= c.phrase.chords.count - 1
-    }
-
-    private static func resetChordFields(_ c: SurvivalCompositePhraseCandidateState) -> SurvivalCompositePhraseCandidateState {
-        var n = c
-        n.targetNoteIndex = 0
-        n.correctNoteIndices = []
-        n.revealedNoteIndices = []
-        return n
-    }
-
-    private static func advanceToNextChord(_ c: SurvivalCompositePhraseCandidateState) -> SurvivalCompositePhraseCandidateState {
-        var n = c
-        n.chordIndex += 1
-        n.targetNoteIndex = 0
-        n.correctNoteIndices = []
-        n.revealedNoteIndices = []
-        return n
-    }
-
-    private struct Stepped {
-        let candidate: SurvivalCompositePhraseCandidateState
-        let result: SurvivalCompositePhraseNoteResult
-    }
-
-    private static func applyKnownGoodStep(
+    private static func applyStreamingCandidateStep(
         candidate c: SurvivalCompositePhraseCandidateState,
         pitchClass pc: Int
-    ) -> Stepped {
-        guard let chord = chord(at: c.chordIndex, phrase: c.phrase),
-              let target = getTargetNote(c)
-        else {
-            return Stepped(candidate: c, result: .miss)
-        }
-        let allowed = Set(chord.notes.map(\.pitchClass))
-        if !allowed.contains(pc) || pc != target.pitchClass {
-            return Stepped(candidate: resetChordFields(c), result: .miss)
+    ) -> CandidateStep {
+        let cache = PhraseStreamMatching.getCompositeKmpCache(chords: c.phrase.chords)
+        let pattern = cache.pattern
+
+        if pattern.isEmpty {
+            return CandidateStep(
+                candidate: candidateFromPhrase(c.phrase),
+                result: .miss,
+                accepted: false,
+                matchedLength: 0,
+                beforeMatchedLength: 0
+            )
         }
 
-        var nextCorrect = c.correctNoteIndices
-        nextCorrect.insert(c.targetNoteIndex)
-        var nextRevealed = c.revealedNoteIndices
-        nextRevealed.insert(c.targetNoteIndex)
+        let beforeMatchedLength = PhraseStreamMatching.matchedLengthFromCoordinates(
+            chords: c.phrase.chords,
+            chordIndex: c.chordIndex,
+            targetNoteIndex: c.targetNoteIndex
+        )
+        let nextMatchedLength = PhraseStreamMatching.advanceKmp(
+            pattern: cache.pattern,
+            table: cache.table,
+            matchedLength: beforeMatchedLength,
+            pitchClass: pc
+        )
 
-        if isChordComplete(chord, correct: nextCorrect) {
-            if isLastChord(c) {
-                var done = c
-                done.correctNoteIndices = nextCorrect
-                done.revealedNoteIndices = nextRevealed
-                return Stepped(candidate: done, result: .phraseComplete)
+        if nextMatchedLength == 0 {
+            return CandidateStep(
+                candidate: candidateFromPhrase(c.phrase),
+                result: .miss,
+                accepted: false,
+                matchedLength: 0,
+                beforeMatchedLength: beforeMatchedLength
+            )
+        }
+
+        let nextCandidate = candidateWithMatchedLength(c, matchedLength: nextMatchedLength)
+
+        if nextMatchedLength >= pattern.count {
+            return CandidateStep(
+                candidate: nextCandidate,
+                result: .phraseComplete,
+                accepted: true,
+                matchedLength: nextMatchedLength,
+                beforeMatchedLength: beforeMatchedLength
+            )
+        }
+
+        if PhraseStreamMatching.isNonFinalMeasureBoundary(
+            chords: c.phrase.chords,
+            matchedLength: nextMatchedLength
+        ) {
+            return CandidateStep(
+                candidate: nextCandidate,
+                result: .measureComplete,
+                accepted: true,
+                matchedLength: nextMatchedLength,
+                beforeMatchedLength: beforeMatchedLength
+            )
+        }
+
+        return CandidateStep(
+            candidate: nextCandidate,
+            result: .progress,
+            accepted: true,
+            matchedLength: nextMatchedLength,
+            beforeMatchedLength: beforeMatchedLength
+        )
+    }
+
+    private static func compositeSelectionCandidates(
+        state: SurvivalCompositePhraseRuntimeState
+    ) -> [SurvivalCompositePhraseCandidateState] {
+        if let primary = state.primarySourceStageNumber {
+            if let c = state.candidates.first(where: { $0.sourceStageNumber == primary }) {
+                return [c]
             }
-            var advanced = c
-            advanced.correctNoteIndices = nextCorrect
-            advanced.revealedNoteIndices = nextRevealed
-            return Stepped(candidate: advanceToNextChord(advanced), result: .measureComplete)
+            return []
         }
 
-        var prog = c
-        prog.targetNoteIndex += 1
-        prog.correctNoteIndices = nextCorrect
-        prog.revealedNoteIndices = nextRevealed
-        return Stepped(candidate: prog, result: .progress)
+        guard !state.candidates.isEmpty else { return [] }
+
+        var best = 0
+        for c in state.candidates {
+            best = max(
+                best,
+                PhraseStreamMatching.matchedLengthFromCoordinates(
+                    chords: c.phrase.chords,
+                    chordIndex: c.chordIndex,
+                    targetNoteIndex: c.targetNoteIndex
+                )
+            )
+        }
+
+        if best <= 0 {
+            return state.candidates
+        }
+
+        return state.candidates.filter { c in
+            PhraseStreamMatching.matchedLengthFromCoordinates(
+                chords: c.phrase.chords,
+                chordIndex: c.chordIndex,
+                targetNoteIndex: c.targetNoteIndex
+            ) == best
+        }
+    }
+
+    private static func getDisplayCandidate(
+        state: SurvivalCompositePhraseRuntimeState
+    ) -> SurvivalCompositePhraseCandidateState? {
+        compositeSelectionCandidates(state: state).first
+    }
+
+    private static func resolvePrimaryStageNumber(
+        state: SurvivalCompositePhraseRuntimeState,
+        steps: [CandidateStep],
+        bestMatchedLength: Int
+    ) -> Int? {
+        let best = steps.filter { $0.accepted && $0.matchedLength == bestMatchedLength }
+
+        if let previousPrimary = state.primarySourceStageNumber,
+           let previousStep = steps.first(where: { $0.candidate.sourceStageNumber == previousPrimary }),
+           previousStep.accepted,
+           previousStep.matchedLength == bestMatchedLength {
+            return previousPrimary
+        }
+
+        if best.count == 1 {
+            return best[0].candidate.sourceStageNumber
+        }
+
+        return nil
+    }
+
+    private static func resolveAggregateResult(
+        selectedStep: CandidateStep?,
+        primaryResync: Bool
+    ) -> SurvivalCompositePhraseNoteResult {
+        if primaryResync {
+            return .resync
+        }
+        if selectedStep?.result == .measureComplete {
+            return .measureComplete
+        }
+        return .progress
     }
 
     private static func resetAllCandidates(
@@ -252,21 +357,11 @@ enum SurvivalCompositePhraseEngine {
     ) -> SurvivalCompositePhraseRuntimeState {
         var next = state
         next.candidates = state.sourcePhrases.map(candidateFromPhrase)
-        next.lockedSourceStageNumber = nil
+        next.primarySourceStageNumber = nil
         if !preserveLastCompleted {
             next.lastCompletedSourceStageNumber = nil
         }
         return next
-    }
-
-    private static func selectionMatchingIndices(state: SurvivalCompositePhraseRuntimeState, pitchClass pc: Int) -> [Int] {
-        var out: [Int] = []
-        for i in state.candidates.indices {
-            if let n = getTargetNote(state.candidates[i]), n.pitchClass == pc {
-                out.append(i)
-            }
-        }
-        return out
     }
 }
 

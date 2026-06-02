@@ -55,12 +55,12 @@ final class EarTrainingCompositePhraseEngineTests: XCTestCase {
         let r0 = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 0)
         XCTAssertEqual(r0.result, .progress)
         state = r0.nextState
-        XCTAssertNil(state.lockedSourcePhraseId)
+        XCTAssertNil(state.primarySourcePhraseId)
 
         let r1 = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 4)
         XCTAssertEqual(r1.result, .progress)
         state = r1.nextState
-        XCTAssertEqual(state.lockedSourcePhraseId, idA)
+        XCTAssertEqual(state.primarySourcePhraseId, idA)
 
         let view = EarTrainingCompositePhraseEngine.staffChordView(state: state)
         XCTAssertEqual(view.correctNoteIndices, Set([0, 1]))

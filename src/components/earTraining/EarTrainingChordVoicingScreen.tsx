@@ -1588,6 +1588,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return;
     }
 
+    if (evaluation.result === 'resync') {
+      return;
+    }
+
     compositeComboRef.current += 1;
     const comboAfter = compositeComboRef.current;
     const fireCombat = shouldFirePhrasePlayerAttacks(comboAfter);
