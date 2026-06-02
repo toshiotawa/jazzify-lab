@@ -156,10 +156,11 @@ struct SurvivalTutorialV3FinishScene: Decodable, Sendable {
     let type: String
 }
 
-struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable {
+struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
     let startBeat: Double
     let durationBeats: Double
     let chordName: String
+    /// MIDI 番号。空配列は休符小節（空の五線譜）を表す。
     let voicing: [Int]
     let voicingNames: [String]?
     let keyFifths: Int?

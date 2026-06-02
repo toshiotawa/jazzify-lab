@@ -47,7 +47,11 @@ export const buildDemoStaffVoicingGroups = (
 
   const slotByMeasure = new Map<number, number>();
 
-  return visible.map(({ chord, index }) => {
+  return visible.flatMap(({ chord, index }) => {
+    if (chord.voicing.length === 0) {
+      return [];
+    }
+
     const measure = chord.measureNumber;
     const slotIndex = slotByMeasure.get(measure) ?? 0;
     slotByMeasure.set(measure, slotIndex + 1);
@@ -57,7 +61,7 @@ export const buildDemoStaffVoicingGroups = (
     const isActive = activeChordIndex === index;
     const showLabel = slotIndex === 0;
 
-    return {
+    return [{
       id: chordEventId(chord, index),
       chordName: showLabel ? chord.chordName : '',
       voicing: names,
@@ -66,8 +70,28 @@ export const buildDemoStaffVoicingGroups = (
       measureOffset: 0 as const,
       isActive,
       exemptFromFade: isActive,
-    };
+    }];
   });
+};
+
+/** 表示ウィンドウ内に発音グループが無く、休符イベントのみあるとき true。 */
+export const isDemoStaffRestWindow = (
+  snapshot: SurvivalTutorialDemoStaffSnapshot,
+): boolean => {
+  const { chords, windowStartMeasure } = snapshot;
+  let hasRest = false;
+  let hasVoiced = false;
+  for (const chord of chords) {
+    if (chord.measureNumber !== windowStartMeasure) {
+      continue;
+    }
+    if (chord.voicing.length === 0) {
+      hasRest = true;
+    } else {
+      hasVoiced = true;
+    }
+  }
+  return hasRest && !hasVoiced;
 };
 
 export const resolveDemoStaffWindowStartMeasure = (
@@ -97,8 +121,9 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
   ({ snapshot, className }) => {
     const groups = useMemo(() => buildDemoStaffVoicingGroups(snapshot), [snapshot]);
     const activeGroupId = useMemo(() => resolveDemoStaffActiveGroupId(snapshot), [snapshot]);
+    const showEmptyStaff = useMemo(() => isDemoStaffRestWindow(snapshot), [snapshot]);
 
-    if (groups.length === 0) {
+    if (groups.length === 0 && !showEmptyStaff) {
       return null;
     }
 
@@ -119,6 +144,7 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
           unpressedNoteOpacity={0.45}
           compactSingleMeasure
           showTargetHints={false}
+          showEmptyStaff={showEmptyStaff}
           activeGroupId={activeGroupId}
         />
       </div>

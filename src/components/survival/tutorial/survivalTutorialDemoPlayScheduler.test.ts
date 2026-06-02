@@ -4,6 +4,7 @@ import {
 } from '@/components/survival/tutorial/survivalTutorialDemoPlayScheduler';
 import {
   buildDemoStaffVoicingGroups,
+  isDemoStaffRestWindow,
   resolveDemoStaffWindowStartMeasure,
 } from '@/components/survival/tutorial/SurvivalTutorialDemoStaff';
 import { buildSurvivalDeveloperDemoPlayV3Script } from '@/components/survival/tutorial/buildSurvivalDeveloperDemoPlayV3Script';
@@ -45,5 +46,22 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     expect(resolveDemoStaffWindowStartMeasure(scene.chords, null)).toBe(
       scene.chords[0]?.measureNumber ?? 1,
     );
+  });
+
+  it('detects rest window and returns empty voiced groups', () => {
+    const restMeasure = scene.chords.find((chord) => chord.voicing.length === 0);
+    expect(restMeasure).toBeDefined();
+    if (!restMeasure) {
+      throw new Error('rest measure missing in demo fixture');
+    }
+    const restIndex = scene.chords.indexOf(restMeasure);
+    const snapshot = {
+      chords: scene.chords,
+      activeChordIndex: restIndex,
+      keyFifths: 0,
+      windowStartMeasure: restMeasure.measureNumber,
+    };
+    expect(buildDemoStaffVoicingGroups(snapshot)).toEqual([]);
+    expect(isDemoStaffRestWindow(snapshot)).toBe(true);
   });
 });

@@ -33,6 +33,18 @@ const VOICING = {
 const measureStartBeat = (measureNumber: number, beatsPerMeasure = 4): number =>
   (measureNumber - 1) * beatsPerMeasure;
 
+const restMeasureEvent = (
+  measureNumber: number,
+  beatsPerMeasure = 4,
+): SurvivalTutorialV3DemoChordEvent => ({
+  startBeat: measureStartBeat(measureNumber, beatsPerMeasure),
+  durationBeats: beatsPerMeasure,
+  chordName: '',
+  voicing: [],
+  measureNumber,
+  keyFifths: 0,
+});
+
 const chordDefToEvent = (
   def: (typeof VOICING)[keyof typeof VOICING],
   startBeat: number,
@@ -102,10 +114,11 @@ export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScript
         chordDefToEvent(VOICING.dm7, 0, 2, 1),
         chordDefToEvent(VOICING.g7, 4, 2, 2),
         chordDefToEvent(VOICING.cm7, 8, 2, 3),
-        ...halfBeatChordsInMeasure(4, VOICING.cm7),
-        ...halfBeatChordsInMeasure(5, VOICING.g7),
-        ...halfBeatChordsInMeasure(6, VOICING.cm7),
+        restMeasureEvent(4),
+        ...halfBeatChordsInMeasure(5, VOICING.cm7),
+        ...halfBeatChordsInMeasure(6, VOICING.g7),
         ...halfBeatChordsInMeasure(7, VOICING.cm7),
+        ...halfBeatChordsInMeasure(8, VOICING.cm7),
       ],
       lines: [
         {
@@ -151,59 +164,66 @@ export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScript
           durationBeats: 2,
         },
         {
+          ja: 'ここは休符。何も弾かんぞ。',
+          en: 'This is a rest. Play nothing.',
+          speaker: 'jajii',
+          startBeat: 12,
+          durationBeats: 4,
+        },
+        {
           ja: 'CM7、0.5拍刻み。',
           en: 'CM7 in half-beat steps.',
           speaker: 'fai',
-          startBeat: 12,
+          startBeat: 16,
           durationBeats: 2,
         },
         {
           ja: 'リズムに乗れ。',
           en: 'Ride the rhythm.',
           speaker: 'jajii',
-          startBeat: 14,
+          startBeat: 18,
           durationBeats: 2,
         },
         {
           ja: 'G7、0.5拍刻み。',
           en: 'G7 in half-beat steps.',
           speaker: 'fai',
-          startBeat: 16,
+          startBeat: 20,
           durationBeats: 2,
         },
         {
           ja: 'まだまだ続く。',
           en: 'Still going.',
           speaker: 'jajii',
-          startBeat: 18,
+          startBeat: 22,
           durationBeats: 2,
         },
         {
           ja: 'CM7、0.5拍刻み。',
           en: 'CM7 in half-beat steps.',
           speaker: 'fai',
-          startBeat: 20,
+          startBeat: 24,
           durationBeats: 2,
         },
         {
           ja: '集中して見るんじゃ。',
           en: 'Watch closely.',
           speaker: 'jajii',
-          startBeat: 22,
+          startBeat: 26,
           durationBeats: 2,
         },
         {
           ja: '最後のCM7。',
           en: 'Final CM7.',
           speaker: 'fai',
-          startBeat: 24,
+          startBeat: 28,
           durationBeats: 2,
         },
         {
           ja: 'デモはここまでじゃ。',
           en: 'Demo ends here.',
           speaker: 'jajii',
-          startBeat: 26,
+          startBeat: 30,
           durationBeats: 2,
         },
       ],

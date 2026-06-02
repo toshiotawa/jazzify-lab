@@ -5,7 +5,10 @@ struct SurvivalTutorialDemoStaffView: View {
 
     var body: some View {
         let built = Self.buildPresentation(snapshot: snapshot)
-        if built.groups.isEmpty {
+        let isPad = SurvivalStaffOverlayLayout.isPad
+        let grandStaff = built.usesGrandStaffLayout
+
+        if !built.showEmptyStaff && built.groups.isEmpty {
             EmptyView()
         } else {
             ChordVoicingStaffGroupsView(
@@ -15,14 +18,21 @@ struct SurvivalTutorialDemoStaffView: View {
                 activeGroupId: built.activeGroupId,
                 correctPitchClassesByGroupId: built.correctByGroupId,
                 completionPulse: nil,
+                showEmptyStaff: built.showEmptyStaff,
                 showTargetHints: false,
                 singleMeasureLayout: true,
                 hideChordLabels: false,
                 noteCollisionLayout: .anchorLow,
                 unpressedNoteOpacity: 0.45,
-                compactChordLabelGap: true
+                compactChordLabelGap: true,
+                staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale
             )
-            .frame(maxWidth: min(280, UIScreen.main.bounds.width * 0.6))
+            .frame(
+                maxWidth: SurvivalStaffOverlayLayout.scenarioStaffMaxWidth(isPad: isPad),
+                maxHeight: SurvivalStaffOverlayLayout.scenarioStaffMaxHeight(isPad: isPad, grandStaff: grandStaff),
+                alignment: .top
+            )
+            .modifier(SurvivalTutorialStaffBackdropModifier())
         }
     }
 
@@ -31,6 +41,8 @@ struct SurvivalTutorialDemoStaffView: View {
         let denseLayout: Bool
         let activeGroupId: UUID?
         let correctByGroupId: [UUID: Set<Int>]
+        let showEmptyStaff: Bool
+        let usesGrandStaffLayout: Bool
     }
 
     private static func buildPresentation(snapshot: SurvivalTutorialDemoStaffSnapshot) -> Presentation {
@@ -39,11 +51,20 @@ struct SurvivalTutorialDemoStaffView: View {
         var correctByGroupId: [UUID: Set<Int>] = [:]
         var activeGroupId: UUID?
         var totalNotes = 0
+        var hasRestInWindow = false
+        var hasVoicedInWindow = false
+        var voicedStaves: [Int] = []
 
         for (index, chord) in snapshot.chords.enumerated() {
             guard chord.measure_number == snapshot.windowStartMeasure else {
                 continue
             }
+            if chord.voicing.isEmpty {
+                hasRestInWindow = true
+                continue
+            }
+            hasVoicedInWindow = true
+
             let slotIndex = slotByMeasure[chord.measure_number, default: 0]
             slotByMeasure[chord.measure_number] = slotIndex + 1
             let names = SurvivalTutorialDemoStaffBuilder.voicingNames(for: chord)
@@ -56,6 +77,7 @@ struct SurvivalTutorialDemoStaffView: View {
                 correctByGroupId[groupId] = Set(chord.voicing.map { (($0 % 12) + 12) % 12 })
             }
             totalNotes += names.count
+            voicedStaves.append(contentsOf: staves)
             groups.append(
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: groupId,
@@ -69,11 +91,17 @@ struct SurvivalTutorialDemoStaffView: View {
             )
         }
 
+        let showEmptyStaff = hasRestInWindow && !hasVoicedInWindow
+        let usesGrandStaffLayout = showEmptyStaff
+            || SurvivalStaffOverlayLayout.usesGrandStaff(voicingStaves: voicedStaves)
+
         return Presentation(
             groups: groups,
             denseLayout: totalNotes >= EarTrainingChordVoicingStaffLayout.denseNoteTotalThreshold,
             activeGroupId: activeGroupId,
-            correctByGroupId: correctByGroupId
+            correctByGroupId: correctByGroupId,
+            showEmptyStaff: showEmptyStaff,
+            usesGrandStaffLayout: usesGrandStaffLayout
         )
     }
 

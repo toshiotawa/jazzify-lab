@@ -131,6 +131,7 @@ export interface SurvivalTutorialV3DemoChordEvent {
   readonly startBeat: number;
   readonly durationBeats: number;
   readonly chordName: string;
+  /** MIDI 番号。空配列 `[]` は休符小節（空の五線譜）を表す。 */
   readonly voicing: readonly number[];
   readonly voicingNames?: readonly string[];
   readonly voicing_staves?: readonly (1 | 2)[];
