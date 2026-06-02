@@ -188,10 +188,32 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
             return
         }
 
-        let patterns = EarTrainingPhrasePairTimeline.patterns(
+        var patterns = EarTrainingPhrasePairTimeline.patterns(
             for: step,
             patternsByGroupId: bootstrap.patternsByGroupId
         )
+        if !allowEarlyCountIn {
+            let currentTime = audio.phraseJudgmentTimelineSecNow()
+            let loopDurationSec = bootstrap.loopDurationSec
+            guard loopDurationSec > 0 else { return }
+            let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
+            let loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
+            if let overlapStep = EarTrainingPhrasePairTimeline.overlapStep(
+                at: loopTimeSafe,
+                steps: bootstrap.steps,
+                loopDurationSec: loopDurationSec,
+                bpm: stage.bpm
+            ), !overlapStep.inputDisabled {
+                let nextPatterns = EarTrainingPhrasePairTimeline.patterns(
+                    for: overlapStep,
+                    patternsByGroupId: bootstrap.patternsByGroupId
+                )
+                if !nextPatterns.isEmpty {
+                    patterns.append(contentsOf: nextPatterns)
+                }
+            }
+        }
+
         let result = EarTrainingPhrasePairBattleEngine.handleNoteOn(
             matcherState: matcherState,
             window: pairWindow,

@@ -45,6 +45,7 @@ import {
 import type { EarTrainingPhrasePairAdlibStep } from '@/utils/earTrainingPhrasePairAdlibAdapter';
 import {
   getNextPhrasePairStepBoundarySec,
+  getPhrasePairAdlibOverlapStepAtTime,
   getPhrasePairAdlibPatternsForStep,
   getPhrasePairAdlibStepAtTime,
 } from '@/utils/earTrainingPhrasePairTimeline';
@@ -522,7 +523,26 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
       return;
     }
 
-    const patterns = getPhrasePairAdlibPatternsForStep(step, patternsByGroupId);
+    let patterns = getPhrasePairAdlibPatternsForStep(step, patternsByGroupId);
+    if (!allowEarlyCountIn) {
+      const drum = bgmLoopRef.current;
+      if (drum) {
+        const loopTimeSec = getLoopTimeSec(drum.getPlaybackTimeSec(), loopDurationSec);
+        const overlapStep = getPhrasePairAdlibOverlapStepAtTime(
+          steps,
+          loopTimeSec,
+          loopDurationSec,
+          stage.bpm,
+        );
+        if (overlapStep && !overlapStep.inputDisabled) {
+          const nextPatterns = getPhrasePairAdlibPatternsForStep(overlapStep, patternsByGroupId);
+          if (nextPatterns.length > 0) {
+            patterns = [...patterns, ...nextPatterns];
+          }
+        }
+      }
+    }
+
     const result = handlePhrasePairAdlibNoteOn(
       matcherStateRef.current,
       pairWindowRef.current,
@@ -594,8 +614,11 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     copy.tryAgain,
     finishGameOver,
     finishStageClear,
+    loopDurationSec,
     patternsByGroupId,
     registerBattleEffectImpact,
+    stage.bpm,
+    steps,
     triggerBattleEffect,
     triggerCompletionPulse,
     triggerFeedback,

@@ -57,6 +57,43 @@ enum EarTrainingPhrasePairTimeline {
         }
         return loopDurationSec
     }
+
+    /// 次ステップ開始の半拍前から、表示は現ステップのまま次ステップの入力判定だけを重ねる窓。
+    static func overlapStep(
+        at loopTimeSec: Double,
+        steps: [EarTrainingPhrasePairAdlibStep],
+        loopDurationSec: Double,
+        bpm: Int
+    ) -> EarTrainingPhrasePairAdlibStep? {
+        guard !steps.isEmpty, loopDurationSec > 0 else { return nil }
+        let normalized = loopTimeSec.truncatingRemainder(dividingBy: loopDurationSec)
+        let safe = normalized < 0 ? normalized + loopDurationSec : normalized
+        guard let current = step(at: safe, steps: steps, loopDurationSec: loopDurationSec) else {
+            return nil
+        }
+
+        let nextStep = steps.first(where: { $0.orderIndex == current.orderIndex + 1 }) ?? steps.first
+        guard let nextStep, !nextStep.inputDisabled else { return nil }
+
+        let halfSec = EarTrainingChordVoicingEngine.halfBeatSec(bpm: bpm)
+        guard halfSec > 0 else { return nil }
+
+        let nextStart: Double
+        if nextStep.orderIndex == current.orderIndex + 1 {
+            nextStart = nextStep.startTimeSec
+        } else {
+            nextStart = loopDurationSec + nextStep.startTimeSec
+        }
+
+        let overlapStart = nextStart - halfSec
+        let inOverlap: Bool
+        if nextStart > loopDurationSec {
+            inOverlap = safe >= overlapStart && safe < loopDurationSec
+        } else {
+            inOverlap = safe >= overlapStart && safe < nextStart
+        }
+        return inOverlap ? nextStep : nil
+    }
 }
 
 enum EarTrainingPhrasePairBattleEngine {

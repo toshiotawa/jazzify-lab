@@ -134,6 +134,60 @@ describe('earTrainingChordTimeline', () => {
     expect(getEarTrainingChordDisplayAtTime(phrase, 4.05, bpm, new Set())?.id).toBe('c2');
   });
 
+  it('アドリブ（空 completed）でも次 harmony 半拍前から overlap 判定候補を返す', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'G7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+    const bpm = 120;
+    const half = getEarTrainingHalfBeatSec(bpm);
+    const emptyCompleted = new Set<string>();
+    const display = getEarTrainingChordDisplayAtTime(phrase, 4 - half + 0.02, bpm, emptyCompleted, 8);
+    const during = getEarTrainingChordJudgmentTargetsAtTime(
+      phrase,
+      4 - half + 0.02,
+      bpm,
+      emptyCompleted,
+      display,
+      8,
+    );
+
+    expect(display?.id).toBe('c1');
+    expect(during.primary?.id).toBe('c1');
+    expect(during.overlap?.id).toBe('c2');
+  });
+
+  it('アドリブ（空 completed）でループ境界の半拍前 overlap を返す', () => {
+    const phrase = buildPhrase([
+      buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),
+      buildChord({ id: 'c2', chord_name: 'G7', start_time_sec: 4, end_time_sec: 8 }),
+    ]);
+    const bpm = 120;
+    const half = getEarTrainingHalfBeatSec(bpm);
+    const emptyCompleted = new Set<string>();
+    const loopDurationSec = 8;
+    const loopTime = loopDurationSec - half + 0.02;
+    const display = getEarTrainingChordDisplayAtTime(
+      phrase,
+      loopTime,
+      bpm,
+      emptyCompleted,
+      loopDurationSec,
+    );
+    const during = getEarTrainingChordJudgmentTargetsAtTime(
+      phrase,
+      loopTime,
+      bpm,
+      emptyCompleted,
+      display,
+      loopDurationSec,
+    );
+
+    expect(display?.id).toBe('c2');
+    expect(during.primary?.id).toBe('c2');
+    expect(during.overlap?.id).toBe('c1');
+  });
+
   it('未完成時も次 harmony 半拍前から判定候補だけを重ねる', () => {
     const phrase = buildPhrase([
       buildChord({ id: 'c1', chord_name: 'C', start_time_sec: 0, end_time_sec: 4 }),

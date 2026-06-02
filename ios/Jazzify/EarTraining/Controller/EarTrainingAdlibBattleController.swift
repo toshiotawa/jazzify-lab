@@ -204,7 +204,29 @@ final class EarTrainingAdlibBattleController: ObservableObject {
             return
         }
 
-        let union = EarTrainingAdlibEngine.unionPitchClasses(phrase: phrase, row: row)
+        let loopDurationSec = phrase.loopDurationSec
+        var loopTimeSafe: Double = 0
+        if !allowEarlyCountIn, loopDurationSec > 0 {
+            let currentTime = audio.phraseJudgmentTimelineSecNow()
+            let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
+            loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
+        }
+
+        let targets = EarTrainingChordVoicingEngine.judgmentTargetsAt(
+            phrase: phrase,
+            loopTime: loopTimeSafe,
+            bpm: stage.bpm,
+            completedChordIds: Self.emptyCompletedChordIds,
+            displayChord: chord,
+            loopDurationSec: loopDurationSec > 0 ? loopDurationSec : nil
+        )
+
+        var union = EarTrainingAdlibEngine.unionPitchClasses(phrase: phrase, row: row)
+        if let overlap = targets.overlap, !overlap.inputDisabled,
+           let overlapRow = EarTrainingAdlibEngine.harmonyRow(containingChordId: overlap.id, phrase: phrase) {
+            union.formUnion(EarTrainingAdlibEngine.unionPitchClasses(phrase: phrase, row: overlapRow))
+        }
+
         let result = EarTrainingAdlibEngine.handleNoteOn(
             window: adlibWindow,
             unionPitchClasses: union,

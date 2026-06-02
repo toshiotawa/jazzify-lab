@@ -36,6 +36,7 @@ import {
 } from '@/utils/earTrainingEngine';
 import {
   getEarTrainingChordDisplayAtTime,
+  getEarTrainingChordJudgmentTargetsAtTime,
   getEarTrainingHarmonyHudRows,
   getEarTrainingNextChordDisplayBoundarySec,
 } from '@/utils/earTrainingChordTimeline';
@@ -522,7 +523,33 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
       return;
     }
 
-    const unionPcs = getHarmonyUnionPitchClasses(phrase, harmonyRow);
+    const loopDurationSec = getFinitePhraseLoopDuration(phrase);
+    let loopTimeSec = 0;
+    if (!allowEarlyCountIn) {
+      const drum = bgmLoopRef.current;
+      if (loopDurationSec === null || !drum) {
+        return;
+      }
+      loopTimeSec = getLoopTimeSec(drum.getPlaybackTimeSec(), loopDurationSec);
+    }
+
+    const targets = getEarTrainingChordJudgmentTargetsAtTime(
+      phrase,
+      loopTimeSec,
+      stage.bpm,
+      EMPTY_COMPLETED_CHORD_IDS,
+      displayChord,
+      loopDurationSec ?? undefined,
+    );
+
+    const unionPcs = new Set(getHarmonyUnionPitchClasses(phrase, harmonyRow));
+    if (targets.overlap && !targets.overlap.input_disabled) {
+      const overlapRow = getAdlibHarmonyRowForActiveChord(phrase, targets.overlap);
+      if (overlapRow) {
+        getHarmonyUnionPitchClasses(phrase, overlapRow).forEach(pc => unionPcs.add(pc));
+      }
+    }
+
     const result = handleAdlibNoteOn(
       adlibWindowRef.current,
       unionPcs,
@@ -589,6 +616,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     phraseIndex,
     phrases,
     registerBattleEffectImpact,
+    stage.bpm,
     triggerBattleEffect,
     triggerFeedback,
   ]);
