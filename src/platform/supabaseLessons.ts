@@ -187,12 +187,14 @@ type LessonSongData = {
   lesson_id: string;
   song_id: string;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
 };
 
 type FantasyLessonSongData = {
   lesson_id: string;
   fantasy_stage_id: string;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
 };
@@ -205,7 +207,10 @@ type FantasyLessonSongData = {
 export async function addSongToLesson(lessonSongData: LessonSongData): Promise<LessonSong> {
   const { data, error } = await getSupabaseClient()
     .from('lesson_songs')
-    .insert(lessonSongData)
+    .insert({
+      ...lessonSongData,
+      is_clear_required: lessonSongData.is_clear_required ?? true,
+    })
     .select()
     .single();
   
@@ -256,6 +261,22 @@ export async function updateLessonSongConditions(lessonSongId: string, updates: 
   return data as LessonSong;
 }
 
+export async function updateLessonSongClearRequired(
+  lessonSongId: string,
+  isClearRequired: boolean,
+): Promise<LessonSong> {
+  const { data, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .update({ is_clear_required: isClearRequired })
+    .eq('id', lessonSongId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data as LessonSong;
+}
+
 /**
  * レッスンにファンタジーステージを追加します。
  * @param {FantasyLessonSongData} fantasyLessonSongData
@@ -282,6 +303,7 @@ export async function addFantasyStageToLesson(fantasyLessonSongData: FantasyLess
       fantasy_stage_id: fantasyLessonSongData.fantasy_stage_id,
       is_fantasy: true,
       clear_conditions: fantasyLessonSongData.clear_conditions,
+      is_clear_required: fantasyLessonSongData.is_clear_required ?? true,
       order_index: nextOrderIndex,
       override_repeat_transposition_mode: fantasyLessonSongData.override_repeat_transposition_mode ?? null,
       override_start_key: fantasyLessonSongData.override_start_key ?? null,
@@ -330,6 +352,7 @@ type SurvivalLessonSongData = {
   override_production_staff_hint_mode?: import('@/types').ProductionHintMode | null;
   override_production_keyboard_hint_mode?: import('@/types').ProductionHintMode | null;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
   title?: string | null;
   title_en?: string | null;
 };
@@ -343,6 +366,7 @@ export type UpdateSurvivalLessonSongPayload = {
   override_production_staff_hint_mode?: import('@/types').ProductionHintMode | null;
   override_production_keyboard_hint_mode?: import('@/types').ProductionHintMode | null;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
   title?: string | null;
   title_en?: string | null;
 };
@@ -351,6 +375,7 @@ type EarTrainingLessonSongData = {
   lesson_id: string;
   ear_training_stage_id: string;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
 };
 
 /**
@@ -384,6 +409,7 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
       override_production_staff_hint_mode: data.override_production_staff_hint_mode ?? null,
       override_production_keyboard_hint_mode: data.override_production_keyboard_hint_mode ?? null,
       clear_conditions: data.clear_conditions,
+      is_clear_required: data.is_clear_required ?? true,
       title: data.title ?? null,
       title_en: data.title_en ?? null,
       order_index: nextOrderIndex,
@@ -442,6 +468,7 @@ type SurvivalTutorialLessonSongData = {
   lesson_id: string;
   survival_tutorial_script_id: string;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
   title?: string | null;
   title_en?: string | null;
 };
@@ -474,6 +501,7 @@ export async function addSurvivalTutorialToLesson(
       is_survival_tutorial: true,
       survival_tutorial_script_id: data.survival_tutorial_script_id,
       clear_conditions: data.clear_conditions,
+      is_clear_required: data.is_clear_required ?? true,
       order_index: nextOrderIndex,
       title: data.title ?? null,
       title_en: data.title_en ?? null,
@@ -509,6 +537,7 @@ export type EarTrainingTutorialLessonSongData = {
   lesson_id: string;
   ear_training_tutorial_script_id: string;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
   title?: string | null;
   title_en?: string | null;
 };
@@ -542,6 +571,7 @@ export async function addEarTrainingTutorialToLesson(
       is_ear_training_tutorial: true,
       ear_training_tutorial_script_id: data.ear_training_tutorial_script_id,
       clear_conditions: data.clear_conditions,
+      is_clear_required: data.is_clear_required ?? true,
       order_index: nextOrderIndex,
       title: data.title ?? null,
       title_en: data.title_en ?? null,
@@ -584,6 +614,7 @@ export async function addEarTrainingStageToLesson(data: EarTrainingLessonSongDat
       is_ear_training: true,
       ear_training_stage_id: data.ear_training_stage_id,
       clear_conditions: data.clear_conditions,
+      is_clear_required: data.is_clear_required ?? true,
       order_index: nextOrderIndex,
     })
     .select(`
@@ -627,6 +658,7 @@ type BalloonRushLessonSongData = {
   override_production_staff_hint_mode?: import('@/types').ProductionHintMode | null;
   override_production_keyboard_hint_mode?: import('@/types').ProductionHintMode | null;
   clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
   title?: string | null;
   title_en?: string | null;
 };
@@ -659,6 +691,7 @@ export async function addBalloonRushStageToLesson(data: BalloonRushLessonSongDat
       override_production_staff_hint_mode: data.override_production_staff_hint_mode ?? null,
       override_production_keyboard_hint_mode: data.override_production_keyboard_hint_mode ?? null,
       clear_conditions: data.clear_conditions,
+      is_clear_required: data.is_clear_required ?? true,
       title: data.title ?? null,
       title_en: data.title_en ?? null,
       order_index: nextOrderIndex,

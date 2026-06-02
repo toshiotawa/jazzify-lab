@@ -138,6 +138,9 @@ const LessonDetailPage: React.FC = () => {
       startPractice: isEnglishCopy ? 'Start practice' : '練習開始',
       retry: isEnglishCopy ? 'Retry' : '再挑戦',
       noTasks: isEnglishCopy ? 'No practice tasks yet.' : '実習課題がありません',
+      optionalTaskNotice: isEnglishCopy
+        ? 'This task is not required to clear.'
+        : 'この課題はクリア必須ではありません。',
       daysProgressFmt: (a: number, b: number, perDay?: number) =>
         perDay !== undefined
           ? isEnglishCopy
@@ -249,6 +252,7 @@ const LessonDetailPage: React.FC = () => {
           fantasy_stage_id: ls.fantasy_stage_id,
           title: ls.title,
           title_en: ls.title_en,
+          is_clear_required: ls.is_clear_required,
         } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
@@ -728,6 +732,7 @@ const LessonDetailPage: React.FC = () => {
                     const isSurvival = req.is_survival || isSurvivalTutorial || false;
                     const isEarTraining = req.is_ear_training || isEarTrainingTutorial || false;
                     const isBalloonRush = req.is_balloon_rush === true;
+                    const isClearRequired = req.is_clear_required !== false;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -746,6 +751,11 @@ const LessonDetailPage: React.FC = () => {
                               ? `${index + 1}. ${taskTitle}`
                               : practiceCopy.taskFallback(index + 1)}
                           </h4>
+                          {!isClearRequired && (
+                            <p className="mt-2 rounded-md border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100">
+                              {practiceCopy.optionalTaskNotice}
+                            </p>
+                          )}
                         </div>
                         
                         {(isSurvivalTutorial || isEarTrainingTutorial) && (

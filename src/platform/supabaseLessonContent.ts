@@ -20,7 +20,10 @@ export interface LessonVideo {
 export interface LessonRequirement {
   lesson_id: string;
   song_id: string;
+  lesson_song_id?: string | null;
+  title?: string | null;
   title_en?: string | null;
+  is_clear_required?: boolean;
   clear_conditions?: {
     key: number;
     speed: number;

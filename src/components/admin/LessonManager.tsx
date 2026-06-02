@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey, EarTrainingStage, type LessonMediaLocaleScope } from '@/types';
+import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey, EarTrainingStage, type LessonMediaLocaleScope, type LessonSong } from '@/types';
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, addBalloonRushStageToLesson, removeBalloonRushStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, addBalloonRushStageToLesson, removeBalloonRushStageFromLesson, updateLessonSongClearRequired, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
 import { fetchEarTrainingStages } from '@/platform/supabaseEarTraining';
 import { fetchBalloonRushStagesForLessonAdmin } from '@/platform/supabaseBalloonRush';
@@ -66,6 +66,7 @@ type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_descrip
 type SongFormData = {
   song_id: string;
   clear_conditions: ClearConditions;
+  is_clear_required: boolean;
 };
 
 type ContentFormData = {
@@ -77,6 +78,7 @@ type ContentFormData = {
   ear_training_stage_id?: string;
   balloon_rush_stage_id?: string;
   clear_conditions: ClearConditions;
+  is_clear_required: boolean;
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
 };
@@ -477,7 +479,8 @@ export const LessonManager: React.FC = () => {
         rank: 'B',
         count: 1,
         notation_setting: 'both'
-      }
+      },
+      is_clear_required: true,
     });
     songDialogRef.current?.showModal();
   };
@@ -497,6 +500,7 @@ export const LessonManager: React.FC = () => {
         count: 1,
         notation_setting: 'both'
       },
+      is_clear_required: true,
       override_repeat_transposition_mode: null,
       override_start_key: null,
       balloon_rush_stage_id: '',
@@ -568,7 +572,8 @@ export const LessonManager: React.FC = () => {
       const newLessonSong = await addSongToLesson({
         lesson_id: selectedLesson.id,
         song_id: formData.song_id,
-        clear_conditions: formData.clear_conditions
+        clear_conditions: formData.clear_conditions,
+        is_clear_required: formData.is_clear_required,
       });
       
       setCurrentLessons(prev =>
@@ -604,13 +609,15 @@ export const LessonManager: React.FC = () => {
         newLessonSong = await addSongToLesson({
           lesson_id: selectedLesson.id,
           song_id: formData.song_id,
-          clear_conditions: formData.clear_conditions
+          clear_conditions: formData.clear_conditions,
+          is_clear_required: formData.is_clear_required,
         });
       } else if (formData.content_type === 'fantasy' && formData.fantasy_stage_id) {
         newLessonSong = await addFantasyStageToLesson({
           lesson_id: selectedLesson.id,
           fantasy_stage_id: formData.fantasy_stage_id,
           clear_conditions: formData.clear_conditions,
+          is_clear_required: formData.is_clear_required,
           override_repeat_transposition_mode: formData.override_repeat_transposition_mode,
           override_start_key: formData.override_start_key,
         });
@@ -625,6 +632,7 @@ export const LessonManager: React.FC = () => {
             override_production_staff_hint_mode: productionHintOverrides.staff,
             override_production_keyboard_hint_mode: productionHintOverrides.keyboard,
             clear_conditions: formData.clear_conditions,
+            is_clear_required: formData.is_clear_required,
           });
         } else if (survivalPickKey) {
           const colon = survivalPickKey.indexOf(':');
@@ -648,6 +656,7 @@ export const LessonManager: React.FC = () => {
             override_production_staff_hint_mode: productionHintOverrides.staff,
             override_production_keyboard_hint_mode: productionHintOverrides.keyboard,
             clear_conditions: formData.clear_conditions,
+            is_clear_required: formData.is_clear_required,
           });
         } else {
           throw new Error('サバイバルステージが選択されていません');
@@ -658,6 +667,7 @@ export const LessonManager: React.FC = () => {
           lesson_id: selectedLesson.id,
           survival_tutorial_script_id: scriptId,
           clear_conditions: formData.clear_conditions,
+          is_clear_required: formData.is_clear_required,
         });
       } else if (formData.content_type === 'ear_training_tutorial') {
         const scriptId = formData.ear_training_tutorial_script_id?.trim() || 'developer-full-v1';
@@ -665,12 +675,14 @@ export const LessonManager: React.FC = () => {
           lesson_id: selectedLesson.id,
           ear_training_tutorial_script_id: scriptId,
           clear_conditions: formData.clear_conditions,
+          is_clear_required: formData.is_clear_required,
         });
       } else if (formData.content_type === 'ear_training' && formData.ear_training_stage_id) {
         newLessonSong = await addEarTrainingStageToLesson({
           lesson_id: selectedLesson.id,
           ear_training_stage_id: formData.ear_training_stage_id,
           clear_conditions: formData.clear_conditions,
+          is_clear_required: formData.is_clear_required,
         });
       } else if (formData.content_type === 'balloon_rush') {
         const sid = formData.balloon_rush_stage_id?.trim();
@@ -684,6 +696,7 @@ export const LessonManager: React.FC = () => {
           override_production_staff_hint_mode: productionHintOverrides.staff,
           override_production_keyboard_hint_mode: productionHintOverrides.keyboard,
           clear_conditions: formData.clear_conditions,
+          is_clear_required: formData.is_clear_required,
         });
       } else {
         throw new Error('コンテンツが選択されていません');
@@ -828,6 +841,34 @@ export const LessonManager: React.FC = () => {
     }
   };
 
+  const handleLessonSongClearRequiredChange = async (
+    lessonId: string,
+    lessonSongId: string,
+    isClearRequired: boolean,
+  ) => {
+    if (!selectedCourseId) return;
+
+    try {
+      const updated = await updateLessonSongClearRequired(lessonSongId, isClearRequired);
+      setCurrentLessons(prev =>
+        prev.map(lesson =>
+          lesson.id === lessonId
+            ? {
+                ...lesson,
+                lesson_songs: lesson.lesson_songs?.map(ls =>
+                  ls.id === lessonSongId ? { ...ls, is_clear_required: updated.is_clear_required } : ls,
+                ) || [],
+              }
+            : lesson,
+        ),
+      );
+      toast.success(isClearRequired ? '課題をクリア必須にしました。' : '課題を任意課題にしました。');
+      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+    } catch {
+      toast.error('課題の必須設定を更新できませんでした。');
+    }
+  };
+
   const toggleExpand = (lessonId: string) => {
     const willExpand = !expandedLessons.has(lessonId);
     setExpandedLessons(prev => {
@@ -912,6 +953,26 @@ export const LessonManager: React.FC = () => {
   const sortedLessons = useMemo(() => 
     [...currentLessons].sort((a, b) => a.order_index - b.order_index),
   [currentLessons]);
+
+  const renderClearRequiredToggle = (lessonId: string, lessonSong: LessonSong) => {
+    const isClearRequired = lessonSong.is_clear_required !== false;
+
+    return (
+      <label className="ml-3 inline-flex items-center gap-1 text-xs text-gray-300">
+        <input
+          type="checkbox"
+          className="toggle toggle-xs toggle-primary"
+          checked={isClearRequired}
+          onChange={event => {
+            void handleLessonSongClearRequiredChange(lessonId, lessonSong.id, event.target.checked);
+          }}
+        />
+        <span className={isClearRequired ? 'text-emerald-300' : 'text-amber-300'}>
+          {isClearRequired ? 'クリア必須' : '任意課題'}
+        </span>
+      </label>
+    );
+  };
 
   const renderLessonMediaSection = (lesson: Lesson) => (
     <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -1291,6 +1352,7 @@ export const LessonManager: React.FC = () => {
                                           ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
                                           : ` (${ls.clear_conditions?.count || 1}回)`}
                                       </span>
+                                      {renderClearRequiredToggle(lesson.id, ls)}
                                     </div>
                                     <button
                                       className="btn btn-ghost btn-xs text-red-500"
@@ -1315,6 +1377,7 @@ export const LessonManager: React.FC = () => {
                                           ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
                                           : `${ls.clear_conditions?.count || 1}回`})
                                       </span>
+                                      {renderClearRequiredToggle(lesson.id, ls)}
                                     </div>
                                     <button
                                       className="btn btn-ghost btn-xs text-red-500"
@@ -1338,6 +1401,7 @@ export const LessonManager: React.FC = () => {
                                           ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
                                           : ` (${ls.clear_conditions?.count || 1}回)`}
                                       </span>
+                                      {renderClearRequiredToggle(lesson.id, ls)}
                                     </div>
                                     <button
                                       type="button"
@@ -1361,6 +1425,7 @@ export const LessonManager: React.FC = () => {
                                           ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
                                           : ` (${ls.clear_conditions?.count || 1}回)`}
                                       </span>
+                                      {renderClearRequiredToggle(lesson.id, ls)}
                                     </div>
                                     <button
                                       className="btn btn-ghost btn-xs text-red-500"
@@ -1402,6 +1467,7 @@ export const LessonManager: React.FC = () => {
                                       ) : (
                                         <span className="text-xs text-gray-500 ml-2">ステージ未設定</span>
                                       )}
+                                      {renderClearRequiredToggle(lesson.id, ls)}
                                     </div>
                                     <button
                                       className="btn btn-ghost btn-xs text-red-500"
@@ -1426,6 +1492,7 @@ export const LessonManager: React.FC = () => {
                                           ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
                                           : `${ls.clear_conditions?.count || 1}回`})
                                       </span>
+                                      {renderClearRequiredToggle(lesson.id, ls)}
                                     </div>
                                     <button 
                                       className="btn btn-ghost btn-xs text-red-500"
@@ -1452,6 +1519,7 @@ export const LessonManager: React.FC = () => {
                                         楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
                                                ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
                                       </span>
+                                      {renderClearRequiredToggle(lesson.id, ls)}
                                     </div>
                                     <button 
                                       className="btn btn-ghost btn-xs text-red-500"
@@ -1576,6 +1644,18 @@ export const LessonManager: React.FC = () => {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="label"><span className="label-text">クリア必須</span></label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  {...registerSong('is_clear_required')}
+                  className="checkbox checkbox-sm"
+                />
+                <span className="text-sm">True: クリア必須 / False: 任意課題として注意書きを表示</span>
+              </label>
+              <p className="mt-1 text-xs text-gray-400">この設定はクエスト完了ボタンの可否には影響しません。</p>
             </div>
             <div>
               <label className="label"><span className="label-text">キー調整</span></label>
@@ -1744,6 +1824,18 @@ export const LessonManager: React.FC = () => {
                   <span className="ml-2">風船ラッシュ</span>
                 </label>
               </div>
+            </div>
+            <div>
+              <label className="label"><span className="label-text">クリア必須</span></label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  {...registerContent('is_clear_required')}
+                  className="checkbox checkbox-sm"
+                />
+                <span className="text-sm">True: クリア必須 / False: 任意課題として注意書きを表示</span>
+              </label>
+              <p className="mt-1 text-xs text-gray-400">この設定はクエスト完了ボタンの可否には影響しません。</p>
             </div>
             
             {watchContent && watchContent('content_type') === 'song' ? (

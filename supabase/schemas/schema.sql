@@ -994,6 +994,7 @@ CREATE TABLE IF NOT EXISTS "public"."lesson_songs" (
     "song_id" "uuid",
     "order_index" integer DEFAULT 0 NOT NULL,
     "platinum_only" boolean DEFAULT false NOT NULL,
+    "is_clear_required" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "clear_conditions" "jsonb",
     "is_fantasy" boolean DEFAULT false,
@@ -1006,6 +1007,9 @@ ALTER TABLE "public"."lesson_songs" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."lesson_songs"."clear_conditions" IS 'JSON object containing clear conditions like count, requires_days, daily_count';
+
+
+COMMENT ON COLUMN "public"."lesson_songs"."is_clear_required" IS 'Display flag for whether this lesson task is marked as clear-required. Does not control quest completion button eligibility.';
 
 
 
