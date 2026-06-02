@@ -117,16 +117,11 @@ enum SurvivalTutorialDemoPlayScheduler {
         chords: [SurvivalTutorialV3DemoChordEvent],
         activeChordIndex: Int?
     ) -> Int {
-        guard let activeChordIndex,
-              chords.indices.contains(activeChordIndex) else {
-            return chords.first?.measure_number ?? 1
+        if let activeChordIndex,
+           chords.indices.contains(activeChordIndex) {
+            return chords[activeChordIndex].measure_number
         }
-        let activeMeasure = chords[activeChordIndex].measure_number
-        let maxMeasure = chords.map(\.measure_number).max() ?? 1
-        if activeMeasure >= maxMeasure {
-            return max(1, maxMeasure - 1)
-        }
-        return activeMeasure
+        return chords.first?.measure_number ?? 1
     }
 }
 

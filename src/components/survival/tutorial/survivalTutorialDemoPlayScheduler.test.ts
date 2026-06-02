@@ -41,5 +41,9 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     expect(groups.length).toBeGreaterThan(0);
     expect(groups[0]?.voicing.length).toBeGreaterThan(1);
     expect(groups.some((g) => g.isActive === true)).toBe(true);
+    expect(groups.every((g) => g.measureOffset === 0)).toBe(true);
+    expect(resolveDemoStaffWindowStartMeasure(scene.chords, null)).toBe(
+      scene.chords[0]?.measureNumber ?? 1,
+    );
   });
 });

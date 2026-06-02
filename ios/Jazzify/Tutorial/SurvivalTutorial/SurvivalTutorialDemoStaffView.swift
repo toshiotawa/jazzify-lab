@@ -16,13 +16,13 @@ struct SurvivalTutorialDemoStaffView: View {
                 correctPitchClassesByGroupId: built.correctByGroupId,
                 completionPulse: nil,
                 showTargetHints: false,
-                singleMeasureLayout: false,
+                singleMeasureLayout: true,
                 hideChordLabels: false,
                 noteCollisionLayout: .anchorLow,
                 unpressedNoteOpacity: 0.45,
                 compactChordLabelGap: true
             )
-            .frame(maxWidth: min(620, UIScreen.main.bounds.width * 0.92))
+            .frame(maxWidth: min(280, UIScreen.main.bounds.width * 0.6))
         }
     }
 
@@ -34,7 +34,6 @@ struct SurvivalTutorialDemoStaffView: View {
     }
 
     private static func buildPresentation(snapshot: SurvivalTutorialDemoStaffSnapshot) -> Presentation {
-        let windowEnd = snapshot.windowStartMeasure + 1
         var slotByMeasure: [Int: Int] = [:]
         var groups: [EarTrainingChordVoicingStaffLayout.GroupInput] = []
         var correctByGroupId: [UUID: Set<Int>] = [:]
@@ -42,15 +41,14 @@ struct SurvivalTutorialDemoStaffView: View {
         var totalNotes = 0
 
         for (index, chord) in snapshot.chords.enumerated() {
-            guard chord.measure_number >= snapshot.windowStartMeasure,
-                  chord.measure_number <= windowEnd else {
+            guard chord.measure_number == snapshot.windowStartMeasure else {
                 continue
             }
             let slotIndex = slotByMeasure[chord.measure_number, default: 0]
             slotByMeasure[chord.measure_number] = slotIndex + 1
             let names = SurvivalTutorialDemoStaffBuilder.voicingNames(for: chord)
             let staves = SurvivalTutorialDemoStaffBuilder.voicingStaves(for: chord, names: names)
-            let measureOffset = chord.measure_number == snapshot.windowStartMeasure ? 0 : 1
+            let measureOffset = 0
             let groupId = demoGroupId(chordIndex: index)
             let isActive = snapshot.activeChordIndex == index
             if isActive {

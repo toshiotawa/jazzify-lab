@@ -100,7 +100,7 @@ enum SurvivalTutorialV3Scenario {
         out.hideStatusStrip = true
         out.hideStaff = false
         out.hideChordSlots = true
-        out.hideChordPad = true
+        out.hideChordPad = false
         out.hideComboBadge = true
         out.useChordMidiNotesForHintHighlights = false
         out.blockChordPadInput = true

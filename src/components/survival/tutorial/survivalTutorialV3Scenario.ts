@@ -141,7 +141,7 @@ export function survivalTutorialDemoPlayRevealOverrides(
     hideStatusStrip: true,
     hideStaff: false,
     hideChordSlots: true,
-    hideChordPad: true,
+    hideChordPad: false,
     hideComboBadge: true,
     staffMode: 'demo-timeline',
     useChordMidiNotesForHintHighlights: false,

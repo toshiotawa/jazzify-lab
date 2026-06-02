@@ -16,6 +16,7 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
     @StateObject private var scenarioController = SurvivalScenarioController()
     @State private var demoStaffSnapshot: SurvivalTutorialDemoStaffSnapshot?
     @State private var demoRevealActive = false
+    @State private var windowStartMeasure: Int?
     @State private var runIdentity = UUID()
 
     var body: some View {
@@ -84,14 +85,17 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
     }
 
     private func updateStaff(activeChordIndex: Int?) {
+        if let activeChordIndex,
+           scene.chords.indices.contains(activeChordIndex) {
+            windowStartMeasure = scene.chords[activeChordIndex].measure_number
+        } else if windowStartMeasure == nil {
+            windowStartMeasure = scene.chords.first?.measure_number ?? 1
+        }
         demoStaffSnapshot = SurvivalTutorialDemoStaffSnapshot(
             chords: scene.chords,
             activeChordIndex: activeChordIndex,
             keyFifths: scene.keyFifths ?? 0,
-            windowStartMeasure: SurvivalTutorialDemoPlayScheduler.resolveWindowStartMeasure(
-                chords: scene.chords,
-                activeChordIndex: activeChordIndex
-            )
+            windowStartMeasure: windowStartMeasure ?? scene.chords.first?.measure_number ?? 1
         )
     }
 

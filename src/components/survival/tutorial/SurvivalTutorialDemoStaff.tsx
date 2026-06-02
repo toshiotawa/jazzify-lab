@@ -40,14 +40,10 @@ export const buildDemoStaffVoicingGroups = (
   snapshot: SurvivalTutorialDemoStaffSnapshot,
 ): readonly ChordVoicingStaffGroup[] => {
   const { chords, activeChordIndex, windowStartMeasure } = snapshot;
-  const windowEndMeasure = windowStartMeasure + 1;
 
   const visible = chords
     .map((chord, index) => ({ chord, index }))
-    .filter(
-      ({ chord }) =>
-        chord.measureNumber >= windowStartMeasure && chord.measureNumber <= windowEndMeasure,
-    );
+    .filter(({ chord }) => chord.measureNumber === windowStartMeasure);
 
   const slotByMeasure = new Map<number, number>();
 
@@ -59,7 +55,6 @@ export const buildDemoStaffVoicingGroups = (
     const names = voicingNamesFor(chord);
     const staves = voicingStavesFor(chord, names);
     const isActive = activeChordIndex === index;
-    const measureOffset = measure === windowStartMeasure ? (0 as const) : (1 as const);
     const showLabel = slotIndex === 0;
 
     return {
@@ -68,7 +63,7 @@ export const buildDemoStaffVoicingGroups = (
       voicing: names,
       voicingStaves: staves,
       correctPitchClasses: isActive ? chord.voicing.map((m) => ((m % 12) + 12) % 12) : [],
-      measureOffset,
+      measureOffset: 0 as const,
       isActive,
       exemptFromFade: isActive,
     };
@@ -79,21 +74,29 @@ export const resolveDemoStaffWindowStartMeasure = (
   chords: readonly SurvivalTutorialV3DemoChordEvent[],
   activeChordIndex: number | null,
 ): number => {
-  if (activeChordIndex === null || !chords[activeChordIndex]) {
-    const first = chords[0];
-    return first?.measureNumber ?? 1;
+  if (activeChordIndex !== null && chords[activeChordIndex]) {
+    return chords[activeChordIndex].measureNumber;
   }
-  const activeMeasure = chords[activeChordIndex].measureNumber;
-  const maxMeasure = chords.reduce((max, c) => Math.max(max, c.measureNumber), 1);
-  if (activeMeasure >= maxMeasure) {
-    return Math.max(1, maxMeasure - 1);
+  return chords[0]?.measureNumber ?? 1;
+};
+
+const resolveDemoStaffActiveGroupId = (
+  snapshot: SurvivalTutorialDemoStaffSnapshot,
+): string | null => {
+  if (snapshot.activeChordIndex === null) {
+    return null;
   }
-  return activeMeasure;
+  const chord = snapshot.chords[snapshot.activeChordIndex];
+  if (!chord) {
+    return null;
+  }
+  return chordEventId(chord, snapshot.activeChordIndex);
 };
 
 export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffProps>(
   ({ snapshot, className }) => {
     const groups = useMemo(() => buildDemoStaffVoicingGroups(snapshot), [snapshot]);
+    const activeGroupId = useMemo(() => resolveDemoStaffActiveGroupId(snapshot), [snapshot]);
 
     if (groups.length === 0) {
       return null;
@@ -102,7 +105,7 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
     return (
       <div
         className={cn(
-          'min-w-0 flex-1 max-w-[min(520px,92vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[0.92] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[0.88]',
+          'min-w-0 flex-1 max-w-[min(280px,60vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[0.92] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[0.88]',
           className,
           'pointer-events-none',
         )}
@@ -114,6 +117,9 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
           smuflUseForeignObject
           noteCollisionLayout="anchor-low"
           unpressedNoteOpacity={0.45}
+          compactSingleMeasure
+          showTargetHints={false}
+          activeGroupId={activeGroupId}
         />
       </div>
     );

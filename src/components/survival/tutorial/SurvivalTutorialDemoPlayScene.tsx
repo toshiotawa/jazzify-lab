@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
 import type { SurvivalScenarioHandle } from '@/components/survival/scenario/survivalScenarioHandle';
 import {
-  resolveDemoStaffWindowStartMeasure,
   type SurvivalTutorialDemoStaffSnapshot,
 } from '@/components/survival/tutorial/SurvivalTutorialDemoStaff';
 import {
@@ -74,6 +73,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
 
   const tutorialJajiiSpeechTextRef = useRef('');
   const demoStaffSnapshotRef = useRef<SurvivalTutorialDemoStaffSnapshot | null>(null);
+  const windowMeasureRef = useRef<number | null>(null);
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
 
   const introHasJajii = useMemo(
@@ -102,11 +102,16 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
 
   const updateStaffSnapshot = useCallback(
     (activeChordIndex: number | null) => {
+      if (activeChordIndex !== null && scene.chords[activeChordIndex]) {
+        windowMeasureRef.current = scene.chords[activeChordIndex].measureNumber;
+      } else if (windowMeasureRef.current === null) {
+        windowMeasureRef.current = scene.chords[0]?.measureNumber ?? 1;
+      }
       demoStaffSnapshotRef.current = {
         chords: scene.chords,
         activeChordIndex,
         keyFifths,
-        windowStartMeasure: resolveDemoStaffWindowStartMeasure(scene.chords, activeChordIndex),
+        windowStartMeasure: windowMeasureRef.current ?? scene.chords[0]?.measureNumber ?? 1,
       };
     },
     [keyFifths, scene.chords],
