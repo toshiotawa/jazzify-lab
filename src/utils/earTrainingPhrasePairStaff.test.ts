@@ -1,5 +1,6 @@
 import {
   buildPhrasePairStaffVoicingGroups,
+  computePhrasePairStaffCorrectGroupIds,
   pickLongestPhrasePairPattern,
 } from '@/utils/earTrainingPhrasePairStaff';
 import type { AdlibPattern } from '@/utils/earTrainingPhrasePairEngine';
@@ -79,5 +80,43 @@ describe('buildPhrasePairStaffVoicingGroups', () => {
     const groups = buildPhrasePairStaffVoicingGroups(pattern, 'CM7');
     expect(groups[0]?.voicingStaves).toEqual([1]);
     expect(groups[1]?.voicingStaves).toEqual([1]);
+  });
+});
+
+describe('computePhrasePairStaffCorrectGroupIds', () => {
+  const longestPattern = makePattern({
+    id: 'app',
+    pcs: [11, 2, 1, 11, 0],
+    voicing: ['B4', 'D4', 'Db4', 'B4', 'C4'],
+    voicingStaves: [1, 1, 1, 1, 1],
+  });
+
+  it('returns empty set when buffer is empty', () => {
+    expect(computePhrasePairStaffCorrectGroupIds(longestPattern, [])).toEqual(new Set());
+  });
+
+  it('returns empty set when pattern is null', () => {
+    expect(computePhrasePairStaffCorrectGroupIds(null, [11, 2])).toEqual(new Set());
+  });
+
+  it('returns empty set when voicing is missing', () => {
+    const pattern = makePattern({ id: 'no-voicing', pcs: [0, 2] });
+    expect(computePhrasePairStaffCorrectGroupIds(pattern, [0, 2])).toEqual(new Set());
+  });
+
+  it('returns empty set when buffer does not match pattern prefix', () => {
+    expect(computePhrasePairStaffCorrectGroupIds(longestPattern, [4])).toEqual(new Set());
+  });
+
+  it('returns group ids for partial prefix match', () => {
+    expect(computePhrasePairStaffCorrectGroupIds(longestPattern, [11, 2])).toEqual(
+      new Set(['pp-app-n0', 'pp-app-n1']),
+    );
+  });
+
+  it('returns all group ids for full prefix match', () => {
+    expect(computePhrasePairStaffCorrectGroupIds(longestPattern, [11, 2, 1, 11, 0])).toEqual(
+      new Set(['pp-app-n0', 'pp-app-n1', 'pp-app-n2', 'pp-app-n3', 'pp-app-n4']),
+    );
   });
 });

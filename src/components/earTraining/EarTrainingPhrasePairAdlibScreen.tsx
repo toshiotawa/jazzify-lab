@@ -66,6 +66,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import {
   buildPhrasePairStaffVoicingGroups,
+  computePhrasePairStaffCorrectGroupIds,
   pickLongestPhrasePairPattern,
 } from '@/utils/earTrainingPhrasePairStaff';
 
@@ -714,12 +715,21 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     gameState === 'playingPhrase'
     || (gameState === 'countIn' && countInEarlyInputActive);
 
+  const longestPattern = useMemo(() => {
+    if (!activeStep) return null;
+    const patterns = getPhrasePairAdlibPatternsForStep(activeStep, patternsByGroupId);
+    return pickLongestPhrasePairPattern(patterns);
+  }, [activeStep, patternsByGroupId]);
+
   const staffVoicingGroups = useMemo((): readonly ChordVoicingStaffGroup[] => {
     if (!activeStep) return [];
-    const patterns = getPhrasePairAdlibPatternsForStep(activeStep, patternsByGroupId);
-    const longestPattern = pickLongestPhrasePairPattern(patterns);
     return buildPhrasePairStaffVoicingGroups(longestPattern, activeStep.chordName);
-  }, [activeStep, patternsByGroupId]);
+  }, [activeStep, longestPattern]);
+
+  const staffCorrectGroupIds = useMemo(
+    () => computePhrasePairStaffCorrectGroupIds(longestPattern, matcherState.buffer),
+    [longestPattern, matcherState.buffer],
+  );
 
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyBattleKey = useMemo(
@@ -886,6 +896,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
           <ChordVoicingStaff
             voicingGroups={staffVoicingGroups}
             activeGroupId={null}
+            correctGroupIds={staffCorrectGroupIds}
             showTargetHints={showVoicingTargetHints}
             singleMeasureLayout
             fadeAllMeasureNotes
