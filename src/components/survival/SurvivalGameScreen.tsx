@@ -245,6 +245,8 @@ const MAX_THUNDER_LIGHTNING_PER_CAST = 8;
 const MAX_ACTIVE_THUNDER_LIGHTNING = 24;
 const FIRE_AURA_PROJECTILE_ERASE_BASE_RADIUS = 60;
 const FIRE_AURA_PROJECTILE_ERASE_PER_LEVEL = 8;
+/** PC（非モバイル）Canvas描画の拡大率。キャラ・敵・床・吹き出しのみ拡大（楽譜/HUDは別レイヤー） */
+const PC_SURVIVAL_CONTENT_SCALE = 1.35;
 
 const VIRTUAL_STICK_MAX_RADIUS_PX = 40;
 
@@ -6483,7 +6485,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState={gameState}
             viewportWidth={viewportSize.width}
             viewportHeight={viewportSize.height}
-            contentScale={isMobile ? (viewportSize.width >= 768 ? 0.95 : 0.75) : 1}
+            contentScale={isMobile ? (viewportSize.width >= 768 ? 0.95 : 0.75) : PC_SURVIVAL_CONTENT_SCALE}
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
             bossBattle={bossBattleRef.current}
