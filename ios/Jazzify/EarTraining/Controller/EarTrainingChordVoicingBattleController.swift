@@ -139,6 +139,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var measureShiftConsumerTask: Task<Void, Never>?
     var tutorialNoCombat: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
+    private var tutorialCompositeCompleteCount = 0
+    private var tutorialTimedLineWorks: [DispatchWorkItem] = []
     private var tutorialSuccessfulLoopCount: Int = 0
 
     /// 複合コードヴォイシング（並列ロック→単一フレーズ）ランタイム。通常モードでは nil。
@@ -687,6 +689,15 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 }
             }
         }
+
+        if evaluation.result == .phraseComplete,
+           let required = tutorialHooks?.requiredCompletedPhrases {
+            tutorialCompositeCompleteCount += 1
+            if tutorialCompositeCompleteCount >= required {
+                cancelTutorialTimedLineWorks()
+                tutorialHooks?.onSceneComplete()
+            }
+        }
     }
 
     private func handleAllChordsCompleted(
@@ -879,6 +890,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             compositePhraseRuntime = EarTrainingCompositePhraseEngine.createInitialState(sourcePhrases: boot.definitions)
             compositeComboCount = 0
             compositeMissCount = 0
+            tutorialCompositeCompleteCount = 0
             attempt = nil
             activeChord = nil
             countInValue = 0
@@ -903,6 +915,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 self.audio.startDrumLoop()
                 self.gameState = .playingPhrase
                 self.statusText = ""
+                self.scheduleCompositeTutorialDialogueIfNeeded(runId: runId)
                 self.publishSnapshot()
             }
             publishSnapshot()
@@ -1621,12 +1634,43 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelCountdownTimer()
         cancelTimeLimitTimer()
         cancelChordSyncTask()
+        cancelTutorialTimedLineWorks()
         countInEarlyInputActive = false
         feedbackTask?.cancel()
         feedbackTask = nil
         battleEffectClearTask?.cancel()
         battleEffectClearTask = nil
         clearMeasureDisplayShiftQueue()
+    }
+
+    private func cancelTutorialTimedLineWorks() {
+        EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
+    }
+
+    private func scheduleCompositeTutorialDialogueIfNeeded(runId: Int) {
+        guard let hooks = tutorialHooks else { return }
+        cancelTutorialTimedLineWorks()
+        guard let boot = stage.compositePhraseBootstrap else { return }
+        let beatDuration = 60.0 / Double(max(1, stage.bpm))
+        let loopDur = beatDuration * Double(max(1, stage.loopMeasures))
+        guard let lines = hooks.osmdTimedLines, !lines.isEmpty else { return }
+        tutorialTimedLineWorks = EarTrainingTutorialOsmdTimedDialogue.schedule(
+            lines: lines,
+            bpm: stage.bpm,
+            beatsPerMeasure: stage.beatsPerMeasure,
+            countInBeats: 0,
+            loopIndex: 0,
+            phraseLoopDurationSec: loopDur,
+            locale: isEnglishCopy ? .en : .ja,
+            isActive: { [weak self] in
+                guard let self, self.phraseRunId == runId else { return false }
+                return self.gameState == .playingPhrase
+            },
+            onLine: { [weak self] text in
+                self?.scene?.setPlayerQuote(text)
+                hooks.onCharacterText(text)
+            }
+        )
     }
 
     private func clearMeasureDisplayShiftQueue() {

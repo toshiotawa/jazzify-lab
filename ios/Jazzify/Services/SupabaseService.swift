@@ -1277,6 +1277,8 @@ final class SupabaseService: Sendable {
         let measureNumber: Int?
         let startTimeSec: Double
         let endTimeSec: Double
+        let quote: String?
+        let inputDisabled: Bool
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -1286,6 +1288,21 @@ final class SupabaseService: Sendable {
             case measureNumber = "measure_number"
             case startTimeSec = "start_time_sec"
             case endTimeSec = "end_time_sec"
+            case quote
+            case inputDisabled = "input_disabled"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(UUID.self, forKey: .id)
+            orderIndex = try c.decode(Int.self, forKey: .orderIndex)
+            chordName = try c.decode(String.self, forKey: .chordName)
+            patternGroupId = try c.decode(UUID.self, forKey: .patternGroupId)
+            measureNumber = try c.decodeIfPresent(Int.self, forKey: .measureNumber)
+            startTimeSec = try c.decode(Double.self, forKey: .startTimeSec)
+            endTimeSec = try c.decode(Double.self, forKey: .endTimeSec)
+            quote = try c.decodeIfPresent(String.self, forKey: .quote)
+            inputDisabled = try c.decodeIfPresent(Bool.self, forKey: .inputDisabled) ?? false
         }
     }
 
@@ -1334,7 +1351,7 @@ final class SupabaseService: Sendable {
 
         let stepRows: [EarTrainingPhrasePairAdlibStepRow] = try await client
             .from("ear_training_phrase_pair_adlib_steps")
-            .select("id,order_index,chord_name,pattern_group_id,measure_number,start_time_sec,end_time_sec")
+            .select("id,order_index,chord_name,pattern_group_id,measure_number,start_time_sec,end_time_sec,quote,input_disabled")
             .eq("config_id", value: cfg.id.uuidString)
             .order("order_index")
             .execute()
@@ -1369,14 +1386,17 @@ final class SupabaseService: Sendable {
         }
 
         let steps = stepRows.map {
-            EarTrainingPhrasePairAdlibStep(
+            let quoteTrimmed = ($0.quote ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return EarTrainingPhrasePairAdlibStep(
                 id: $0.id,
                 orderIndex: $0.orderIndex,
                 chordName: $0.chordName,
                 patternGroupId: $0.patternGroupId,
                 measureNumber: $0.measureNumber,
                 startTimeSec: $0.startTimeSec,
-                endTimeSec: $0.endTimeSec
+                endTimeSec: $0.endTimeSec,
+                quote: quoteTrimmed.isEmpty ? nil : quoteTrimmed,
+                inputDisabled: $0.inputDisabled
             )
         }
 

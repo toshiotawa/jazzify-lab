@@ -107,7 +107,14 @@ import {
   isEarTrainingTutorialNoCombat,
   shouldTutorialBlockGameOver,
 } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
-import type { EarTrainingTutorialSelfPacedConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import type {
+  EarTrainingTutorialCompositeConfig,
+  EarTrainingTutorialSelfPacedConfig,
+} from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import {
+  scheduleOsmdTimedLinesForLoop,
+  type DialogueScheduleHandle,
+} from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -122,7 +129,10 @@ interface EarTrainingChordVoicingScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
-  tutorial?: EarTrainingTutorialSelfPacedConfig & { onSceneComplete: () => void };
+  tutorial?: (
+    | (EarTrainingTutorialSelfPacedConfig & { onSceneComplete: () => void })
+    | (EarTrainingTutorialCompositeConfig & { onSceneComplete: () => void })
+  );
 }
 
 type PendingImpactHandler = () => void;
@@ -249,6 +259,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const tutorialUi = tutorial?.bindings.ui;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const tutorialLoopCountRef = useRef(0);
+  const tutorialCompositeCompleteRef = useRef(0);
+  const tutorialCompositeDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -1278,11 +1290,33 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         gameStateRef.current = 'playingPhrase';
         setGameState('playingPhrase');
         setStatusText('');
+        if (tutorial?.scene.type === 'composite') {
+          tutorialCompositeCompleteRef.current = 0;
+          tutorialCompositeDialogueHandleRef.current?.cancel();
+          const measureDurationSec = (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure);
+          const phraseLoopDurationSec = measureDurationSec * Math.max(1, stage.loop_measures);
+          const timedLines = tutorial.scene.timedLines;
+          if (timedLines && timedLines.length > 0) {
+            tutorialCompositeDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
+              bpm: stage.bpm,
+              beatsPerMeasure: stage.beats_per_measure,
+              countInBeats: 0,
+              loopMeasures: stage.loop_measures,
+              phraseLoopDurationSec,
+              timedLines,
+              isEnglishCopy,
+              onLine: (text) => {
+                phaserGameRef.current?.setPlayerQuote(text);
+              },
+              loopIndex: 0,
+            });
+          }
+        }
       })();
       return;
     }
 
-    if (tutorial && chordVoicingSelfPaced) {
+    if (tutorial?.scene.type === 'chord_voicing_self_paced' && chordVoicingSelfPaced) {
       tutorialLoopCountRef.current = 0;
     }
 
@@ -1538,7 +1572,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         phraseCompleted: true,
         phraseFailed: false,
       });
-      if (tutorial && chordVoicingSelfPaced) {
+      if (tutorial?.scene.type === 'chord_voicing_self_paced' && chordVoicingSelfPaced) {
         tutorialLoopCountRef.current += 1;
         const required = tutorial.scene.requiredSuccessfulLoops;
         if (tutorialLoopCountRef.current >= required) {
@@ -1656,6 +1690,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         triggerCompletionPulse(pulseGid, 'harmonyComplete');
       }
     }
+
+    if (evaluation.result === 'phrase-complete' && tutorial?.scene.type === 'composite') {
+      tutorialCompositeCompleteRef.current += 1;
+      if (tutorialCompositeCompleteRef.current >= tutorial.scene.requiredCompletedPhrases) {
+        tutorial.onSceneComplete();
+      }
+    }
   }, [
     computeChordLabelOriginPoint,
     copy.tryAgain,
@@ -1665,6 +1706,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     triggerBattleEffect,
     triggerCompletionPulse,
     triggerFeedback,
+    tutorial,
     tutorialNoCombat,
   ]);
 

@@ -32,7 +32,7 @@ export const enrichEarTrainingStageWithPhrasePairAdlib = async (
 
   const { data: stepRows, error: stepErr } = await supabase
     .from('ear_training_phrase_pair_adlib_steps')
-    .select('id, order_index, chord_name, pattern_group_id, measure_number, start_time_sec, end_time_sec')
+    .select('id, order_index, chord_name, pattern_group_id, measure_number, start_time_sec, end_time_sec, quote, input_disabled')
     .eq('config_id', cfg.id)
     .order('order_index', { ascending: true });
 

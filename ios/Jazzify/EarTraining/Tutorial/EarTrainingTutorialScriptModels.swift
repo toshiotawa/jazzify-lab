@@ -69,10 +69,46 @@ struct EarTrainingTutorialFinishConfig: Decodable, Sendable {
     let showCta: Bool?
 }
 
+struct EarTrainingTutorialContentPhrasePairAdlibStep: Decodable, Sendable {
+    let order_index: Int
+    let chord_name: String
+    let pattern_group_key: String
+    let measure_number: Int?
+    let start_time_sec: Double
+    let end_time_sec: Double
+    let quote: EarTrainingTutorialLocalizedText?
+    let input_disabled: Bool?
+}
+
+struct EarTrainingTutorialContentPhrasePairAdlibPattern: Decodable, Sendable {
+    let group_key: String
+    let label: String
+    let pcs: [Int]
+    let family_id: String
+    let carry_tail_length: Int?
+    let priority: Int?
+}
+
+struct EarTrainingTutorialContentPhrasePairAdlib: Decodable, Sendable {
+    let bgm_url: String
+    let key_fifths: Int?
+    let loop_duration_sec: Double
+    let steps: [EarTrainingTutorialContentPhrasePairAdlibStep]
+    let patterns: [EarTrainingTutorialContentPhrasePairAdlibPattern]?
+}
+
+struct EarTrainingTutorialContentCompositeConfig: Decodable, Sendable {
+    let bgm_url: String
+    let key_fifths: Int?
+    let source_phrase_order_indices: [Int]?
+}
+
 struct EarTrainingTutorialContentRef: Decodable, Sendable {
     let stage: EarTrainingTutorialContentStage
     let phrases: [EarTrainingTutorialContentPhrase]?
     let chord_quiz_items: [EarTrainingTutorialContentQuizItem]?
+    let phrase_pair_adlib: EarTrainingTutorialContentPhrasePairAdlib?
+    let composite_config: EarTrainingTutorialContentCompositeConfig?
 }
 
 struct EarTrainingTutorialContentStage: Decodable, Sendable {
@@ -133,6 +169,7 @@ struct EarTrainingTutorialContentChord: Decodable, Sendable {
     let voicing_staves: [Int]?
     /// ヴォイシング（コード）単位のチュートリアルセリフ。
     let quote: EarTrainingTutorialLocalizedText?
+    let input_disabled: Bool?
 }
 
 struct EarTrainingTutorialContentQuizItem: Decodable, Sendable {
@@ -148,6 +185,9 @@ enum EarTrainingTutorialScene: Decodable, Sendable {
     case chordQuiz(EarTrainingTutorialChordQuizScene)
     case chordVoicingSelfPaced(EarTrainingTutorialSelfPacedScene)
     case chordOsmd(EarTrainingTutorialOsmdScene)
+    case adlib(EarTrainingTutorialAdlibScene)
+    case phrasePairAdlib(EarTrainingTutorialPhrasePairAdlibScene)
+    case composite(EarTrainingTutorialCompositeScene)
     case finish
 
     private enum CodingKeys: String, CodingKey {
@@ -166,6 +206,12 @@ enum EarTrainingTutorialScene: Decodable, Sendable {
             self = .chordVoicingSelfPaced(try EarTrainingTutorialSelfPacedScene(from: decoder))
         case "chord_osmd":
             self = .chordOsmd(try EarTrainingTutorialOsmdScene(from: decoder))
+        case "adlib":
+            self = .adlib(try EarTrainingTutorialAdlibScene(from: decoder))
+        case "phrase_pair_adlib":
+            self = .phrasePairAdlib(try EarTrainingTutorialPhrasePairAdlibScene(from: decoder))
+        case "composite":
+            self = .composite(try EarTrainingTutorialCompositeScene(from: decoder))
         case "finish":
             self = .finish
         default:
@@ -215,6 +261,24 @@ struct EarTrainingTutorialOsmdScene: Decodable, Sendable {
     /// JSON 後方互換用（未使用）。
     let playMode: String?
     let requiredLoops: Int
+    let timedLines: [EarTrainingTutorialOsmdTimedLine]?
+}
+
+struct EarTrainingTutorialAdlibScene: Decodable, Sendable {
+    let contentRef: String
+    let requiredMeasures: Int
+    let timedLines: [EarTrainingTutorialOsmdTimedLine]?
+}
+
+struct EarTrainingTutorialPhrasePairAdlibScene: Decodable, Sendable {
+    let contentRef: String
+    let requiredMeasures: Int
+    let timedLines: [EarTrainingTutorialOsmdTimedLine]?
+}
+
+struct EarTrainingTutorialCompositeScene: Decodable, Sendable {
+    let contentRef: String
+    let requiredCompletedPhrases: Int
     let timedLines: [EarTrainingTutorialOsmdTimedLine]?
 }
 
@@ -279,4 +343,8 @@ struct EarTrainingTutorialSceneHooks {
     var tutorialDrumLoopUrl: String? = nil
     /// `chord_voicing_self_paced` の `dialogue.timedLines` をフレーズ再生開始からのオフセットで表示する。
     var selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
+    /// `adlib` / `phrase_pair_adlib` の小節数クリア条件。
+    var requiredMeasures: Int? = nil
+    /// `composite` のフレーズ完成数クリア条件。
+    var requiredCompletedPhrases: Int? = nil
 }

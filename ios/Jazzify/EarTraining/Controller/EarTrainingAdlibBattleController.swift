@@ -46,6 +46,11 @@ final class EarTrainingAdlibBattleController: ObservableObject {
     private let onExitCallback: () -> Void
     private weak var scene: EarTrainingBattleSceneHandle?
 
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
+    var tutorialNoCombat = false
+    private var tutorialTimedLineWorks: [DispatchWorkItem] = []
+    private var tutorialClearWork: DispatchWorkItem?
+
     private var lastInputAt: Double = 0
     private var battleEffectIdCounter = 0
     private var lastEmittedEffectId: Int?
@@ -59,7 +64,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
     private var drumLoopStarted = false
 
     var damageConfig: EarTrainingDamageConfig {
-        practiceMode ? EarTrainingDamageConfig.zero : EarTrainingDamageConfig(
+        (practiceMode || tutorialNoCombat) ? EarTrainingDamageConfig.zero : EarTrainingDamageConfig(
             perCorrectNote: stage.perCorrectNoteDamage,
             good: stage.goodCompletionDamage,
             great: stage.greatCompletionDamage,
@@ -75,7 +80,8 @@ final class EarTrainingAdlibBattleController: ObservableObject {
     }
 
     var showLobbyControls: Bool {
-        gameState == .idle || gameState == .stageClear || gameState == .gameOver
+        if tutorialHooks?.ui.hideLobby == true { return false }
+        return gameState == .idle || gameState == .stageClear || gameState == .gameOver
     }
 
     var canChangePracticeMode: Bool { showLobbyControls }
@@ -194,6 +200,10 @@ final class EarTrainingAdlibBattleController: ObservableObject {
               let row = EarTrainingAdlibEngine.harmonyRow(containingChordId: chord.id, phrase: phrase)
         else { return }
 
+        if chord.inputDisabled {
+            return
+        }
+
         let union = EarTrainingAdlibEngine.unionPitchClasses(phrase: phrase, row: row)
         let result = EarTrainingAdlibEngine.handleNoteOn(
             window: adlibWindow,
@@ -282,7 +292,11 @@ final class EarTrainingAdlibBattleController: ObservableObject {
                 self.drumLoopStarted = true
                 self.audio.startDrumLoop()
             }
-            self.startTimeLimit()
+            if self.tutorialHooks == nil {
+                self.startTimeLimit()
+            } else if let phrase = self.currentPhrase {
+                self.scheduleTutorialSession(phrase: phrase, runId: runId)
+            }
             self.syncAdlibTimeline(scheduleNext: true)
             self.publishSnapshot()
         }
@@ -384,17 +398,23 @@ final class EarTrainingAdlibBattleController: ObservableObject {
 
         if let chord = nextChord,
            let row = EarTrainingAdlibEngine.harmonyRow(containingChordId: chord.id, phrase: phrase) {
-            let transitioned = EarTrainingAdlibEngine.applyHarmonyTransition(
-                adlibWindow,
-                harmonyRepresentativeId: row.representativeId
-            )
-            if transitioned != adlibWindow {
-                adlibWindow = transitioned
+            let repChanged = adlibWindow.harmonyRepresentativeId != row.representativeId
+            if chord.inputDisabled || repChanged {
+                adlibWindow = EarTrainingAdlibEngine.createWindow(harmonyRepresentativeId: row.representativeId)
+            } else {
+                let transitioned = EarTrainingAdlibEngine.applyHarmonyTransition(
+                    adlibWindow,
+                    harmonyRepresentativeId: row.representativeId
+                )
+                if transitioned != adlibWindow {
+                    adlibWindow = transitioned
+                }
             }
         }
 
         if nextChord?.id != activeChord?.id {
             activeChord = nextChord
+            updatePlayerQuoteBubble()
         }
 
         if scheduleNext {
@@ -539,7 +559,74 @@ final class EarTrainingAdlibBattleController: ObservableObject {
         feedbackTask = nil
         battleEffectClearTask?.cancel()
         battleEffectClearTask = nil
+        cancelTutorialTimers()
         countInEarlyInputActive = false
+    }
+
+    private func cancelTutorialTimers() {
+        EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
+        tutorialClearWork?.cancel()
+        tutorialClearWork = nil
+    }
+
+    private func scheduleTutorialSession(phrase: EarTrainingPhraseDetail, runId: Int) {
+        guard let hooks = tutorialHooks else { return }
+        cancelTutorialTimers()
+
+        if let raw = hooks.tutorialDrumLoopUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty,
+           let url = URL(string: raw) {
+            Task { @MainActor [weak self] in
+                guard let self, self.phraseRunId == runId else { return }
+                guard await self.audio.prepareDrumLoop(url: url) else { return }
+                self.audio.startDrumLoop()
+            }
+        }
+
+        let loopDur = phrase.loopDurationSec.isFinite && phrase.loopDurationSec > 0
+            ? phrase.loopDurationSec
+            : bootstrapLoopDurationFallbackSec()
+
+        if let lines = hooks.osmdTimedLines, !lines.isEmpty {
+            tutorialTimedLineWorks = EarTrainingTutorialOsmdTimedDialogue.schedule(
+                lines: lines,
+                bpm: stage.bpm,
+                beatsPerMeasure: stage.beatsPerMeasure,
+                countInBeats: stage.countInBeats,
+                loopIndex: 0,
+                phraseLoopDurationSec: loopDur,
+                locale: isEnglishCopy ? .en : .ja,
+                isActive: { [weak self] in
+                    guard let self, self.phraseRunId == runId else { return false }
+                    return self.gameState == .countIn || self.gameState == .playingPhrase
+                },
+                onLine: { [weak self] text in
+                    self?.scene?.setPlayerQuote(text)
+                    hooks.onCharacterText(text)
+                }
+            )
+        }
+
+        if let required = hooks.requiredMeasures {
+            let delayMs = EarTrainingTutorialMeasureClear.clearDelayMs(
+                bpm: stage.bpm,
+                beatsPerMeasure: stage.beatsPerMeasure,
+                countInBeats: stage.countInBeats,
+                requiredMeasures: required
+            )
+            let capturedRunId = runId
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, self.phraseRunId == capturedRunId else { return }
+                hooks.onSceneComplete()
+            }
+            tutorialClearWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + delayMs / 1000, execute: work)
+        }
+    }
+
+    private func bootstrapLoopDurationFallbackSec() -> Double {
+        let beatDuration = 60.0 / Double(max(1, stage.bpm))
+        return beatDuration * Double(max(1, stage.loopMeasures))
     }
 
     private func cancelTimeLimitTimer() {
@@ -652,6 +739,20 @@ final class EarTrainingAdlibBattleController: ObservableObject {
             chordChips: chips,
             slotRow: .chordVoicing(slotCount: max(1, rows.count), completed: completed, currentIndex: slotIndex)
         )
+    }
+
+    private func updatePlayerQuoteBubble() {
+        let showTargets = gameState == .playingPhrase || (gameState == .countIn && countInEarlyInputActive)
+        guard showTargets, let chord = activeChord else {
+            scene?.setPlayerQuote(nil)
+            return
+        }
+        guard let raw = chord.quote?.text else {
+            scene?.setPlayerQuote(nil)
+            return
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        scene?.setPlayerQuote(trimmed.isEmpty ? nil : trimmed)
     }
 
     private func activeHarmonyRepresentativeId() -> UUID? {

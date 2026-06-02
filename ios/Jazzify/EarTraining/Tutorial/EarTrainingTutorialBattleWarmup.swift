@@ -24,7 +24,7 @@ enum EarTrainingTutorialBattleWarmup {
             switch scenes[i] {
             case .dialogueOnly, .finish:
                 i += 1
-            case .chordQuiz, .chordVoicingSelfPaced, .chordOsmd:
+            case .chordQuiz, .chordVoicingSelfPaced, .chordOsmd, .adlib, .phrasePairAdlib, .composite:
                 return i
             }
         }

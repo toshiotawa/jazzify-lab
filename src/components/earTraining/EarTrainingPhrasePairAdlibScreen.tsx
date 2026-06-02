@@ -64,6 +64,17 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
+import { getPhrasePairStepQuoteDisplayText } from '@/utils/earTrainingPhrasePairQuote';
+import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
+import {
+  isEarTrainingTutorialNoCombat,
+} from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
+import type { EarTrainingTutorialPhrasePairAdlibConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import { computeTutorialMeasureClearDelayMs } from '@/utils/earTrainingTutorialMeasureClear';
+import {
+  scheduleOsmdTimedLinesForLoop,
+  type DialogueScheduleHandle,
+} from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
 import {
   buildPhrasePairStaffVoicingGroups,
   computePhrasePairStaffCorrectGroupIds,
@@ -84,6 +95,7 @@ interface EarTrainingPhrasePairAdlibScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  tutorial?: EarTrainingTutorialPhrasePairAdlibConfig & { onSceneComplete: () => void };
 }
 
 type PendingImpactHandler = () => void;
@@ -121,8 +133,11 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  tutorial,
 }) => {
   const bootstrap = stage.phrasePairAdlibBootstrap;
+  const tutorialUi = tutorial?.bindings.ui;
+  const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -163,8 +178,8 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     [stage],
   );
   const activeDamageConfig = useMemo(
-    () => (practiceMode ? NO_DAMAGE_CONFIG : damageConfig),
-    [damageConfig, practiceMode],
+    () => (practiceMode || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceMode, tutorialNoCombat],
   );
 
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
@@ -202,6 +217,8 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   const playerHpRef = useRef(stage.player_hp);
   const timeRemainingRef = useRef(stage.time_limit_sec);
   const chordSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tutorialClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
@@ -258,6 +275,15 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     }
   }, []);
 
+  const clearTutorialTimers = useCallback(() => {
+    tutorialDialogueHandleRef.current?.cancel();
+    tutorialDialogueHandleRef.current = null;
+    if (tutorialClearTimerRef.current) {
+      clearTimeout(tutorialClearTimerRef.current);
+      tutorialClearTimerRef.current = null;
+    }
+  }, []);
+
   const clearTimeLimitTimer = useCallback(() => {
     if (timeLimitTimerRef.current) {
       clearInterval(timeLimitTimerRef.current);
@@ -274,9 +300,10 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
 
   const stopPhraseAudio = useCallback(() => {
     clearChordSyncTimer();
+    clearTutorialTimers();
     phrasePlayerRef.current?.stop();
     stopBgmLoop();
-  }, [clearChordSyncTimer, stopBgmLoop]);
+  }, [clearChordSyncTimer, clearTutorialTimers, stopBgmLoop]);
 
   const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
     setFeedback(value);
@@ -365,9 +392,15 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     const nextStepId = nextStep?.id ?? null;
 
     if (nextStepId !== prevStepId) {
-      const changedMatcher = handleChordChange(matcherStateRef.current, patterns);
-      matcherStateRef.current = changedMatcher;
-      setMatcherState(changedMatcher);
+      if (nextStep?.inputDisabled) {
+        const freshMatcher = createInitialAdlibRuntimeState();
+        matcherStateRef.current = freshMatcher;
+        setMatcherState(freshMatcher);
+      } else {
+        const changedMatcher = handleChordChange(matcherStateRef.current, patterns);
+        matcherStateRef.current = changedMatcher;
+        setMatcherState(changedMatcher);
+      }
 
       const transitioned = applyPhrasePairStepTransition(pairWindowRef.current, nextStepId);
       pairWindowRef.current = transitioned;
@@ -461,6 +494,10 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
 
     const step = activeStepRef.current;
     if (!step || !bootstrap) return;
+
+    if (step.inputDisabled) {
+      return;
+    }
 
     const patterns = getPhrasePairAdlibPatternsForStep(step, patternsByGroupId);
     const result = handlePhrasePairAdlibNoteOn(
@@ -577,6 +614,39 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     const beats = Math.max(0, Math.min(32, stage.count_in_beats));
     setCountInValue(beats);
 
+    const scheduleTutorialSession = (): void => {
+      if (!tutorial) {
+        return;
+      }
+      clearTutorialTimers();
+      const timedLines = tutorial.scene.timedLines;
+      if (timedLines && timedLines.length > 0) {
+        tutorialDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
+          bpm: stage.bpm,
+          beatsPerMeasure: stage.beats_per_measure,
+          countInBeats: stage.count_in_beats,
+          loopMeasures: stage.loop_measures,
+          phraseLoopDurationSec: loopDurationSec,
+          timedLines,
+          isEnglishCopy,
+          onLine: (text) => {
+            phaserGameRef.current?.setPlayerQuote(text);
+          },
+          loopIndex: 0,
+        });
+      }
+      const delayMs = computeTutorialMeasureClearDelayMs(
+        stage.bpm,
+        stage.beats_per_measure,
+        stage.count_in_beats,
+        tutorial.scene.requiredMeasures,
+      );
+      tutorialClearTimerRef.current = setTimeout(() => {
+        tutorialClearTimerRef.current = null;
+        tutorial.onSceneComplete();
+      }, delayMs);
+    };
+
     const onPhraseBodyStarted = (): void => {
       countInEarlyInputRef.current = false;
       setCountInEarlyInputActive(false);
@@ -587,7 +657,10 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
           setStatusText(copy.audioFailed);
           return;
         }
-        startTimeLimit();
+        if (!tutorial) {
+          startTimeLimit();
+        }
+        scheduleTutorialSession();
         syncAudioTimelineRef.current();
       });
     };
@@ -600,7 +673,10 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
           setStatusText(copy.audioFailed);
           return;
         }
-        startTimeLimit();
+        if (!tutorial) {
+          startTimeLimit();
+        }
+        scheduleTutorialSession();
         syncAudioTimelineRef.current();
       });
       return;
@@ -637,7 +713,29 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     startTimeLimit,
     steps.length,
     stopPhraseAudio,
+    tutorial,
+    clearTutorialTimers,
+    isEnglishCopy,
+    loopDurationSec,
   ]);
+
+  useEffect(() => {
+    if (!tutorial?.bindings.ui.hideLobby) {
+      return;
+    }
+    if (gameState === 'idle') {
+      startCountIn();
+    }
+  }, [gameState, startCountIn, tutorial?.bindings.ui.hideLobby]);
+
+  const playerQuoteBubbleText = useMemo(
+    () => (activeStep?.inputDisabled ? null : getPhrasePairStepQuoteDisplayText(activeStep)),
+    [activeStep],
+  );
+
+  useEffect(() => {
+    phaserGameRef.current?.setPlayerQuote(playerQuoteBubbleText);
+  }, [playerQuoteBubbleText]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -740,7 +838,9 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     resolveEarTrainingEnemyAvatarFromBattleSourceKey(enemyBattleKey);
   const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
-  const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
+  const showLobbyControls = tutorial
+    ? false
+    : gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';
   const stageStatusText = gameState === 'countIn'
     ? formatEarTrainingCountInDisplay(isEnglishCopy, countInValue)
@@ -762,7 +862,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     stepHudRows.findIndex(row => row.id === activeStep?.id),
   );
 
-  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
+  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
     resultState,
     stageTitle: stage.title,
@@ -807,6 +907,17 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     startButtonLabel,
     lessonProgressText,
     quizRulesLine: lessonContext ? undefined : clearConditionLine,
+  }, tutorialUi ?? {
+    hidePlayerHpBar: false,
+    hideSettingsButton: false,
+    hideBackButton: false,
+    hideLobby: false,
+    hideMidiToggle: false,
+    hidePhraseIntroQuota: false,
+    showExitButton: false,
+    playerInvincible: false,
+    disableEnemyAttacks: false,
+    keyboardHintsDefault: false,
   }), [
     activeStep?.id,
     canChangePracticeMode,
@@ -836,6 +947,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     stepHudRows,
     timeLabel,
     isMidiConnected,
+    tutorialUi,
   ]);
 
   const battleCallbacks = useMemo(() => ({

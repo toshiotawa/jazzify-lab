@@ -712,6 +712,8 @@ export interface EarTrainingPhraseChord {
   voicing_staves?: number[] | null;
   /** コード演奏バトル吹き出し（`ear_training_phrase_chord_quotes`、0..1） */
   quote?: EarTrainingPhraseChordQuote | null;
+  /** true のとき入力は判定されない（発音のみ）。アドリブ等。 */
+  input_disabled?: boolean;
   created_at?: string;
 }
 

@@ -20,6 +20,12 @@ const EarTrainingChordQuizScreen = React.lazy(
 const EarTrainingChordOSMDScreen = React.lazy(
   () => import('@/components/earTraining/EarTrainingChordOSMDScreen'),
 );
+const EarTrainingAdlibScreen = React.lazy(
+  () => import('@/components/earTraining/EarTrainingAdlibScreen'),
+);
+const EarTrainingPhrasePairAdlibScreen = React.lazy(
+  () => import('@/components/earTraining/EarTrainingPhrasePairAdlibScreen'),
+);
 
 interface EarTrainingTutorialSceneHostProps {
   script: EarTrainingTutorialScriptPayload;
@@ -142,6 +148,66 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
             bindings,
             onSceneComplete: completeOnce,
             drumLoopUrl,
+          }}
+        />
+      </React.Suspense>
+    );
+  }
+
+  if (scene.type === 'adlib') {
+    return (
+      <React.Suspense fallback={null}>
+        <EarTrainingAdlibScreen
+          stage={stage}
+          enemy={enemy}
+          lessonContext={null}
+          initialPracticeMode={false}
+          onLessonStageClear={async () => undefined}
+          onBack={() => bindings.onExit()}
+          tutorial={{
+            scene,
+            bindings,
+            onSceneComplete: completeOnce,
+          }}
+        />
+      </React.Suspense>
+    );
+  }
+
+  if (scene.type === 'phrase_pair_adlib') {
+    return (
+      <React.Suspense fallback={null}>
+        <EarTrainingPhrasePairAdlibScreen
+          stage={stage}
+          enemy={enemy}
+          lessonContext={null}
+          initialPracticeMode={false}
+          onLessonStageClear={async () => undefined}
+          onBack={() => bindings.onExit()}
+          tutorial={{
+            scene,
+            bindings,
+            onSceneComplete: completeOnce,
+          }}
+        />
+      </React.Suspense>
+    );
+  }
+
+  if (scene.type === 'composite') {
+    return (
+      <React.Suspense fallback={null}>
+        <EarTrainingChordVoicingScreen
+          stage={stage}
+          enemy={enemy}
+          lessonContext={null}
+          initialPracticeMode={false}
+          onLessonStageClear={async () => undefined}
+          onBack={() => bindings.onExit()}
+          tutorial={{
+            scene,
+            bindings,
+            onSceneComplete: completeOnce,
           }}
         />
       </React.Suspense>

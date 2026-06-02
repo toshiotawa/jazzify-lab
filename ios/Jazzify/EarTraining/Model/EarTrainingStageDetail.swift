@@ -519,6 +519,7 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
     let voicingStaves: [Int]?
     /// `ear_training_phrase_chord_quotes`（0..1）。PostgREST のネストが配列になる場合も許容。
     let quote: EarTrainingPhraseChordQuoteDetail?
+    let inputDisabled: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -533,6 +534,7 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
         case voicing
         case voicingStaves = "voicing_staves"
         case quote
+        case inputDisabled = "input_disabled"
     }
 
     init(
@@ -547,7 +549,8 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
         endTimeSec: Double? = nil,
         voicing: [String]?,
         voicingStaves: [Int]?,
-        quote: EarTrainingPhraseChordQuoteDetail? = nil
+        quote: EarTrainingPhraseChordQuoteDetail? = nil,
+        inputDisabled: Bool = false
     ) {
         self.id = id
         self.phraseId = phraseId
@@ -561,6 +564,7 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
         self.voicing = voicing
         self.voicingStaves = voicingStaves
         self.quote = quote
+        self.inputDisabled = inputDisabled
     }
 
     init(from decoder: Decoder) throws {
@@ -577,6 +581,7 @@ struct EarTrainingPhraseChordDetail: Codable, Identifiable, Sendable {
         voicing = try c.decodeIfPresent([String].self, forKey: .voicing)
         voicingStaves = try c.decodeIfPresent([Int].self, forKey: .voicingStaves)
         quote = Self.decodeQuote(container: c)
+        inputDisabled = try c.decodeIfPresent(Bool.self, forKey: .inputDisabled) ?? false
     }
 
     private static func decodeQuote(container c: KeyedDecodingContainer<CodingKeys>) -> EarTrainingPhraseChordQuoteDetail? {

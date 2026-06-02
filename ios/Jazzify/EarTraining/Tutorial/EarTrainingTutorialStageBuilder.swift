@@ -3,7 +3,7 @@ import Foundation
 enum EarTrainingTutorialStageBuilder {
     private static let namespace = UUID(uuidString: "A0000000-0000-4000-8000-000000000001")!
 
-    private static func stableId(_ seed: String) -> UUID {
+    static func stableId(_ seed: String) -> UUID {
         var bytes = [UInt8](repeating: 0, count: 16)
         for (index, byte) in seed.utf8.enumerated() {
             bytes[index % 16] ^= byte
@@ -65,7 +65,8 @@ enum EarTrainingTutorialStageBuilder {
                     endTimeSec: chord.end_time_sec,
                     voicing: chord.voicing,
                     voicingStaves: chord.voicing_staves,
-                    quote: quoteDetail
+                    quote: quoteDetail,
+                    inputDisabled: chord.input_disabled ?? false
                 )
             }
             return EarTrainingPhraseDetail(
@@ -98,6 +99,26 @@ enum EarTrainingTutorialStageBuilder {
                 voicingStaves: item.voicing_staves ?? []
             )
         }
+        let phrasePairAdlibBootstrap = content.phrase_pair_adlib.map {
+            EarTrainingTutorialInlineBootstrap.buildPhrasePairAdlibBootstrap(
+                contentKey: contentKey,
+                payload: $0,
+                locale: locale
+            )
+        } ?? nil
+
+        var compositePhraseBootstrap: EarTrainingCompositePhraseBootstrap?
+        if stage.chord_voicing_composite_phrase == true,
+           let cfg = content.composite_config,
+           let builtPhrases = phrases {
+            compositePhraseBootstrap = EarTrainingTutorialInlineBootstrap.buildCompositePhraseBootstrap(
+                contentKey: contentKey,
+                stageId: stageId,
+                phrases: builtPhrases,
+                config: cfg
+            )
+        }
+
         return EarTrainingStageDetail(
             id: stageId,
             slug: stage.slug,
@@ -135,8 +156,8 @@ enum EarTrainingTutorialStageBuilder {
             showKeyboardHintsInBattle: (stage.show_keyboard_hints_in_battle == true) || keyboardHintsScriptDefault,
             chordQuizItems: quizItems,
             chordVoicingCompositePhrase: stage.chord_voicing_composite_phrase,
-            compositePhraseBootstrap: nil,
-            phrasePairAdlibBootstrap: nil
+            compositePhraseBootstrap: compositePhraseBootstrap,
+            phrasePairAdlibBootstrap: phrasePairAdlibBootstrap
         )
     }
 
@@ -189,7 +210,8 @@ enum EarTrainingTutorialStageBuilder {
                 end_time_sec: chord.end_time_sec,
                 voicing: chord.voicing,
                 voicing_staves: chord.voicing_staves,
-                quote: chord.quote
+                quote: chord.quote,
+                input_disabled: chord.input_disabled
             ))
         }
         return withStart.enumerated().map { pair in
@@ -215,9 +237,197 @@ enum EarTrainingTutorialStageBuilder {
                 end_time_sec: min(loopDurationSec, endSec),
                 voicing: chord.voicing,
                 voicing_staves: chord.voicing_staves,
-                quote: chord.quote
+                quote: chord.quote,
+                input_disabled: chord.input_disabled
             )
             return chord
         }
+    }
+}
+
+// MARK: - Inline bootstrap / measure clear / timed dialogue（Xcode 登録用に同ファイルへ集約）
+
+enum EarTrainingTutorialInlineBootstrap {
+    static func buildPhrasePairAdlibBootstrap(
+        contentKey: String,
+        payload: EarTrainingTutorialContentPhrasePairAdlib,
+        locale: AppLocale
+    ) -> EarTrainingPhrasePairAdlibBootstrap? {
+        let bgmUrl = payload.bgm_url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bgmUrl.isEmpty, !payload.steps.isEmpty else { return nil }
+
+        var patternsByGroupId: [UUID: [EarTrainingPhrasePairEngine.Pattern]] = [:]
+        let patterns = payload.patterns ?? []
+        for (index, row) in patterns.enumerated() {
+            let key = row.group_key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else { continue }
+            let groupId = EarTrainingTutorialStageBuilder.stableId("tutorial-ppg-\(contentKey)-\(key)")
+            let pattern = EarTrainingPhrasePairEngine.Pattern(
+                id: "tutorial-ppat-\(contentKey)-\(key)-\(index)",
+                label: row.label,
+                pcs: row.pcs.map { (($0 % 12) + 12) % 12 },
+                familyId: row.family_id,
+                carryTailLength: row.carry_tail_length ?? 0,
+                priority: row.priority ?? 0
+            )
+            patternsByGroupId[groupId, default: []].append(pattern)
+        }
+        guard !patternsByGroupId.isEmpty else { return nil }
+
+        let sortedSteps = payload.steps.sorted { $0.order_index < $1.order_index }
+        var steps: [EarTrainingPhrasePairAdlibStep] = []
+        steps.reserveCapacity(sortedSteps.count)
+        for row in sortedSteps {
+            let groupKey = row.pattern_group_key.trimmingCharacters(in: .whitespacesAndNewlines)
+            let groupId = EarTrainingTutorialStageBuilder.stableId("tutorial-ppg-\(contentKey)-\(groupKey)")
+            guard patternsByGroupId[groupId]?.isEmpty == false else { return nil }
+            let quoteText: String?
+            if let quote = row.quote {
+                let trimmed = quote.localized(locale).trimmingCharacters(in: .whitespacesAndNewlines)
+                quoteText = trimmed.isEmpty ? nil : trimmed
+            } else {
+                quoteText = nil
+            }
+            steps.append(EarTrainingPhrasePairAdlibStep(
+                id: EarTrainingTutorialStageBuilder.stableId("tutorial-pstep-\(contentKey)-\(row.order_index)"),
+                orderIndex: row.order_index,
+                chordName: row.chord_name,
+                patternGroupId: groupId,
+                measureNumber: row.measure_number,
+                startTimeSec: row.start_time_sec,
+                endTimeSec: row.end_time_sec,
+                quote: quoteText,
+                inputDisabled: row.input_disabled ?? false
+            ))
+        }
+
+        return EarTrainingPhrasePairAdlibBootstrap(
+            bgmUrl: bgmUrl,
+            keyFifths: payload.key_fifths ?? 0,
+            loopDurationSec: payload.loop_duration_sec,
+            steps: steps,
+            patternsByGroupId: patternsByGroupId
+        )
+    }
+
+    static func buildCompositePhraseBootstrap(
+        contentKey: String,
+        stageId: UUID,
+        phrases: [EarTrainingPhraseDetail],
+        config: EarTrainingTutorialContentCompositeConfig
+    ) -> EarTrainingCompositePhraseBootstrap? {
+        let orderIndices = config.source_phrase_order_indices?.isEmpty == false
+            ? config.source_phrase_order_indices!
+            : phrases.map(\.orderIndex)
+        let sourcePhraseIds: [UUID] = orderIndices.compactMap { oi in
+            phrases.first(where: { $0.orderIndex == oi })?.id
+        }
+        guard sourcePhraseIds.count == orderIndices.count else { return nil }
+        return EarTrainingCompositePhraseAdapter.buildBootstrap(
+            stagePhrases: phrases,
+            bgmUrl: config.bgm_url,
+            keyFifths: config.key_fifths ?? 0,
+            sourcePhraseIdsOrdered: sourcePhraseIds
+        )
+    }
+}
+
+enum EarTrainingTutorialMeasureClear {
+    static func clearDelayMs(
+        bpm: Int,
+        beatsPerMeasure: Int,
+        countInBeats: Int,
+        requiredMeasures: Int
+    ) -> Double {
+        let beatDurationSec = 60.0 / Double(max(1, bpm))
+        let measureDurationSec = beatDurationSec * Double(max(1, beatsPerMeasure))
+        let countInDurationSec = Double(max(0, countInBeats)) * beatDurationSec
+        let measures = max(1, requiredMeasures)
+        return (countInDurationSec + Double(measures) * measureDurationSec) * 1000
+    }
+}
+
+enum EarTrainingTutorialOsmdTimedDialogue {
+    static func delayMs(
+        line: EarTrainingTutorialOsmdTimedLine,
+        bpm: Int,
+        beatsPerMeasure: Int,
+        countInBeats: Int,
+        loopIndex: Int,
+        phraseLoopDurationSec: Double
+    ) -> Double? {
+        let safeBpm = max(1, bpm)
+        let beatDurationSec = 60.0 / Double(safeBpm)
+        let measureDurationSec = beatDurationSec * Double(max(1, beatsPerMeasure))
+        let safeCountIn = max(0, min(32, countInBeats))
+        let countInDurationSec = Double(safeCountIn) * beatDurationSec
+        let skipCountIn = loopIndex > 0
+        let loopDur = phraseLoopDurationSec.isFinite && phraseLoopDurationSec > 0
+            ? phraseLoopDurationSec
+            : measureDurationSec * Double(max(1, beatsPerMeasure))
+
+        switch line {
+        case let .countIn(loop: optionalLoop, beat: beat, _):
+            if skipCountIn { return nil }
+            let targetLoop = optionalLoop ?? 0
+            if targetLoop != loopIndex { return nil }
+            let clampedBeat = max(1, beat)
+            if clampedBeat > safeCountIn { return nil }
+            return Double(clampedBeat - 1) * beatDurationSec * 1000
+        case let .at(loop: atLoop, measure: measure, beat: beat, _):
+            if atLoop != loopIndex { return nil }
+            let countInOffsetSec = skipCountIn ? 0 : countInDurationSec
+            let measureIndex = max(1, measure) - 1
+            let beatIndex = max(1, beat) - 1
+            let phraseOffsetSec = Double(measureIndex) * measureDurationSec + Double(beatIndex) * beatDurationSec
+            let loopOffsetSec = Double(loopIndex) * loopDur
+            return (loopOffsetSec + countInOffsetSec + phraseOffsetSec) * 1000
+        }
+    }
+
+    @discardableResult
+    static func schedule(
+        lines: [EarTrainingTutorialOsmdTimedLine],
+        bpm: Int,
+        beatsPerMeasure: Int,
+        countInBeats: Int,
+        loopIndex: Int,
+        phraseLoopDurationSec: Double,
+        locale: AppLocale,
+        isActive: @escaping () -> Bool,
+        onLine: @escaping (String) -> Void
+    ) -> [DispatchWorkItem] {
+        var works: [DispatchWorkItem] = []
+        let mainQueue = DispatchQueue.main
+        for line in lines {
+            guard let delayMs = delayMs(
+                line: line,
+                bpm: bpm,
+                beatsPerMeasure: beatsPerMeasure,
+                countInBeats: countInBeats,
+                loopIndex: loopIndex,
+                phraseLoopDurationSec: phraseLoopDurationSec
+            ) else { continue }
+            let text: String
+            switch line {
+            case let .countIn(_, _, loc),
+                 let .at(_, _, _, loc):
+                text = loc.localized(locale)
+            }
+            let work = DispatchWorkItem {
+                guard isActive() else { return }
+                onLine(text)
+            }
+            works.append(work)
+            mainQueue.asyncAfter(deadline: .now() + delayMs / 1000, execute: work)
+        }
+        return works
+    }
+
+    static func cancel(_ works: inout [DispatchWorkItem]) {
+        for work in works {
+            work.cancel()
+        }
+        works.removeAll()
     }
 }

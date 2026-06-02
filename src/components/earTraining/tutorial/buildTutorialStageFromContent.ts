@@ -4,6 +4,8 @@ import type {
   EarTrainingPhraseChord,
   EarTrainingStage,
 } from '@/types';
+import { buildEarTrainingCompositeBootstrap } from '@/utils/earTrainingCompositePhraseAdapter';
+import { buildTutorialPhrasePairAdlibBootstrap } from '@/utils/buildTutorialPhrasePairAdlibBootstrap';
 import type {
   EarTrainingTutorialContentChord,
   EarTrainingTutorialContentPhrase,
@@ -40,6 +42,7 @@ const mapChord = (
     quote: quoteText
       ? { id: tutorialId(`${chordId}-quote`, 0), phrase_chord_id: chordId, text: quoteText }
       : null,
+    input_disabled: chord.input_disabled === true,
   };
 };
 
@@ -90,6 +93,78 @@ const mapQuizItem = (
   voicing_staves: item.voicing_staves ?? [],
 });
 
+const baseStageFields = (
+  stageId: string,
+  s: EarTrainingTutorialContentRef['stage'],
+): Pick<
+  EarTrainingStage,
+  | 'slug'
+  | 'title'
+  | 'title_en'
+  | 'bpm'
+  | 'key_fifths'
+  | 'beats_per_measure'
+  | 'beat_type'
+  | 'loop_measures'
+  | 'max_loops_per_phrase'
+  | 'count_in_beats'
+  | 'time_limit_sec'
+  | 'player_hp'
+  | 'enemy_hp'
+  | 'per_correct_note_damage'
+  | 'good_completion_damage'
+  | 'great_completion_damage'
+  | 'perfect_completion_damage'
+  | 'miss_damage'
+  | 'fail_damage'
+  | 'perfect_max_misses'
+  | 'great_max_misses'
+  | 'background_theme'
+  | 'is_active'
+  | 'is_demo'
+  | 'mode'
+  | 'chord_voicing_self_paced'
+  | 'quiz_duration_seconds'
+  | 'quiz_question_order'
+  | 'quiz_show_notation_in_battle'
+  | 'quiz_required_correct_count'
+  | 'show_keyboard_hints_in_battle'
+  | 'chord_voicing_composite_phrase'
+> => ({
+  slug: s.slug,
+  title: s.title,
+  title_en: s.title_en ?? null,
+  bpm: s.bpm,
+  key_fifths: s.key_fifths ?? 0,
+  beats_per_measure: s.beats_per_measure,
+  beat_type: s.beat_type,
+  loop_measures: s.loop_measures,
+  max_loops_per_phrase: s.max_loops_per_phrase,
+  count_in_beats: s.count_in_beats,
+  time_limit_sec: s.time_limit_sec,
+  player_hp: s.player_hp,
+  enemy_hp: s.enemy_hp,
+  per_correct_note_damage: s.per_correct_note_damage ?? 0,
+  good_completion_damage: s.good_completion_damage ?? 0,
+  great_completion_damage: s.great_completion_damage ?? 0,
+  perfect_completion_damage: s.perfect_completion_damage ?? 0,
+  miss_damage: s.miss_damage ?? 0,
+  fail_damage: s.fail_damage ?? 0,
+  perfect_max_misses: s.perfect_max_misses ?? 0,
+  great_max_misses: s.great_max_misses ?? 0,
+  background_theme: s.background_theme ?? 'blue_club',
+  is_active: true,
+  is_demo: true,
+  mode: s.mode,
+  chord_voicing_self_paced: s.chord_voicing_self_paced,
+  quiz_duration_seconds: s.quiz_duration_seconds,
+  quiz_question_order: s.quiz_question_order,
+  quiz_show_notation_in_battle: s.quiz_show_notation_in_battle,
+  quiz_required_correct_count: s.quiz_required_correct_count,
+  show_keyboard_hints_in_battle: s.show_keyboard_hints_in_battle,
+  chord_voicing_composite_phrase: s.chord_voicing_composite_phrase,
+});
+
 export const buildTutorialStageFromContent = (
   contentKey: string,
   content: EarTrainingTutorialContentRef,
@@ -97,41 +172,34 @@ export const buildTutorialStageFromContent = (
 ): EarTrainingStage => {
   const stageId = `tutorial-stage-${contentKey}`;
   const s = content.stage;
+  const phrases = (content.phrases ?? []).map((p, i) => mapPhrase(stageId, p, i, s.bpm, s.beats_per_measure, isEnglishCopy));
+  const phrasePairAdlibBootstrap = content.phrase_pair_adlib
+    ? buildTutorialPhrasePairAdlibBootstrap(content.phrase_pair_adlib, isEnglishCopy)
+    : undefined;
+
+  let compositePhraseBootstrap: EarTrainingStage['compositePhraseBootstrap'];
+  if (s.chord_voicing_composite_phrase && content.composite_config) {
+    const cfg = content.composite_config;
+    const orderIndices = cfg.source_phrase_order_indices?.length
+      ? cfg.source_phrase_order_indices
+      : phrases.map((p) => p.order_index);
+    const sourcePhraseIds = orderIndices
+      .map((oi) => phrases.find((p) => p.order_index === oi)?.id)
+      .filter((id): id is string => typeof id === 'string');
+    compositePhraseBootstrap = buildEarTrainingCompositeBootstrap(
+      { id: stageId, ...baseStageFields(stageId, s), phrases },
+      { id: `tutorial-composite-cfg-${contentKey}`, bgm_url: cfg.bgm_url, key_fifths: cfg.key_fifths ?? 0 },
+      sourcePhraseIds,
+    ) ?? undefined;
+  }
+
   return {
     id: stageId,
-    slug: s.slug,
-    title: s.title,
-    title_en: s.title_en ?? null,
-    bpm: s.bpm,
-    key_fifths: s.key_fifths ?? 0,
-    beats_per_measure: s.beats_per_measure,
-    beat_type: s.beat_type,
-    loop_measures: s.loop_measures,
-    max_loops_per_phrase: s.max_loops_per_phrase,
-    count_in_beats: s.count_in_beats,
-    time_limit_sec: s.time_limit_sec,
-    player_hp: s.player_hp,
-    enemy_hp: s.enemy_hp,
-    per_correct_note_damage: s.per_correct_note_damage ?? 0,
-    good_completion_damage: s.good_completion_damage ?? 0,
-    great_completion_damage: s.great_completion_damage ?? 0,
-    perfect_completion_damage: s.perfect_completion_damage ?? 0,
-    miss_damage: s.miss_damage ?? 0,
-    fail_damage: s.fail_damage ?? 0,
-    perfect_max_misses: s.perfect_max_misses ?? 0,
-    great_max_misses: s.great_max_misses ?? 0,
-    background_theme: s.background_theme ?? 'blue_club',
-    is_active: true,
-    is_demo: true,
-    mode: s.mode,
-    chord_voicing_self_paced: s.chord_voicing_self_paced,
-    quiz_duration_seconds: s.quiz_duration_seconds,
-    quiz_question_order: s.quiz_question_order,
-    quiz_show_notation_in_battle: s.quiz_show_notation_in_battle,
-    quiz_required_correct_count: s.quiz_required_correct_count,
-    show_keyboard_hints_in_battle: s.show_keyboard_hints_in_battle,
-    phrases: (content.phrases ?? []).map((p, i) => mapPhrase(stageId, p, i, s.bpm, s.beats_per_measure, isEnglishCopy)),
+    ...baseStageFields(stageId, s),
+    phrases,
     chord_quiz_items: (content.chord_quiz_items ?? []).map((q, i) => mapQuizItem(stageId, q, i)),
+    phrasePairAdlibBootstrap: phrasePairAdlibBootstrap ?? undefined,
+    compositePhraseBootstrap,
   };
 };
 

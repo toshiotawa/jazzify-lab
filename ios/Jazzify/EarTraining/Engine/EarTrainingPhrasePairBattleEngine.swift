@@ -8,6 +8,8 @@ struct EarTrainingPhrasePairAdlibStep: Equatable, Sendable, Identifiable {
     let measureNumber: Int?
     let startTimeSec: Double
     let endTimeSec: Double
+    let quote: String?
+    let inputDisabled: Bool
 }
 
 struct EarTrainingPhrasePairAdlibBootstrap: Equatable, Sendable {

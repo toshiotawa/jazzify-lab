@@ -8,6 +8,8 @@ export interface EarTrainingPhrasePairAdlibStep {
   readonly measureNumber: number | null;
   readonly startTimeSec: number;
   readonly endTimeSec: number;
+  readonly quote: string | null;
+  readonly inputDisabled: boolean;
 }
 
 export interface EarTrainingPhrasePairAdlibBootstrap {
@@ -33,6 +35,8 @@ export interface EarTrainingPhrasePairAdlibStepRow {
   readonly measure_number: number | null;
   readonly start_time_sec: number;
   readonly end_time_sec: number;
+  readonly quote?: string | null;
+  readonly input_disabled?: boolean;
 }
 
 export interface EarTrainingAdlibPatternRow {
@@ -80,15 +84,21 @@ export function buildPhrasePairAdlibBootstrap(
   const steps = stepRows
     .slice()
     .sort((a, b) => a.order_index - b.order_index)
-    .map((row) => ({
-      id: row.id,
-      orderIndex: row.order_index,
-      chordName: row.chord_name,
-      patternGroupId: row.pattern_group_id,
-      measureNumber: row.measure_number,
-      startTimeSec: Number(row.start_time_sec),
-      endTimeSec: Number(row.end_time_sec),
-    }));
+    .map((row) => {
+      const quoteRaw = row.quote;
+      const quoteTrimmed = typeof quoteRaw === 'string' ? quoteRaw.trim() : '';
+      return {
+        id: row.id,
+        orderIndex: row.order_index,
+        chordName: row.chord_name,
+        patternGroupId: row.pattern_group_id,
+        measureNumber: row.measure_number,
+        startTimeSec: Number(row.start_time_sec),
+        endTimeSec: Number(row.end_time_sec),
+        quote: quoteTrimmed.length > 0 ? quoteTrimmed : null,
+        inputDisabled: row.input_disabled === true,
+      };
+    });
 
   return {
     bgmUrl: config.bgm_url,

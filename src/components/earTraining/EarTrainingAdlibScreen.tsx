@@ -68,6 +68,17 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
+import { getChordVoicingQuoteDisplayText } from '@/utils/earTrainingChordVoicingQuote';
+import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
+import {
+  isEarTrainingTutorialNoCombat,
+} from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
+import type { EarTrainingTutorialAdlibConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import { computeTutorialMeasureClearDelayMs } from '@/utils/earTrainingTutorialMeasureClear';
+import {
+  scheduleOsmdTimedLinesForLoop,
+  type DialogueScheduleHandle,
+} from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -83,6 +94,7 @@ interface EarTrainingAdlibScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  tutorial?: EarTrainingTutorialAdlibConfig & { onSceneComplete: () => void };
 }
 
 type PendingImpactHandler = () => void;
@@ -126,8 +138,11 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  tutorial,
 }) => {
   const { settings, updateSettings } = useGameStore();
+  const tutorialUi = tutorial?.bindings.ui;
+  const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
   const audienceContext = useMemo(
@@ -160,8 +175,8 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     [stage],
   );
   const activeDamageConfig = useMemo(
-    () => (practiceMode ? NO_DAMAGE_CONFIG : damageConfig),
-    [damageConfig, practiceMode],
+    () => (practiceMode || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceMode, tutorialNoCombat],
   );
 
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
@@ -198,6 +213,8 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
   const playerHpRef = useRef(stage.player_hp);
   const timeRemainingRef = useRef(stage.time_limit_sec);
   const chordSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tutorialClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
@@ -256,6 +273,15 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     }
   }, []);
 
+  const clearTutorialTimers = useCallback(() => {
+    tutorialDialogueHandleRef.current?.cancel();
+    tutorialDialogueHandleRef.current = null;
+    if (tutorialClearTimerRef.current) {
+      clearTimeout(tutorialClearTimerRef.current);
+      tutorialClearTimerRef.current = null;
+    }
+  }, []);
+
   const clearTimeLimitTimer = useCallback(() => {
     if (timeLimitTimerRef.current) {
       clearInterval(timeLimitTimerRef.current);
@@ -272,9 +298,10 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
 
   const stopPhraseAudio = useCallback(() => {
     clearChordSyncTimer();
+    clearTutorialTimers();
     phrasePlayerRef.current?.stop();
     stopBgmLoop();
-  }, [clearChordSyncTimer, stopBgmLoop]);
+  }, [clearChordSyncTimer, clearTutorialTimers, stopBgmLoop]);
 
   const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
     setFeedback(value);
@@ -444,10 +471,18 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     );
     const harmonyRow = getAdlibHarmonyRowForActiveChord(phrase, nextChord);
     const repId = harmonyRow?.representativeId ?? null;
-    const transitioned = applyHarmonyWindowTransition(adlibWindowRef.current, repId);
-    if (transitioned !== adlibWindowRef.current) {
-      adlibWindowRef.current = transitioned;
-      setAdlibWindow(transitioned);
+    const regionChanged = repId !== adlibWindowRef.current.harmonyRepresentativeId;
+    const enteredInputDisabled = Boolean(nextChord?.input_disabled);
+    if (regionChanged || enteredInputDisabled) {
+      const nextWindow = createAdlibWindowState(repId);
+      adlibWindowRef.current = nextWindow;
+      setAdlibWindow(nextWindow);
+    } else {
+      const transitioned = applyHarmonyWindowTransition(adlibWindowRef.current, repId);
+      if (transitioned !== adlibWindowRef.current) {
+        adlibWindowRef.current = transitioned;
+        setAdlibWindow(transitioned);
+      }
     }
     if (nextChord?.id !== activeChordRef.current?.id) {
       setActiveChord(nextChord);
@@ -484,6 +519,10 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     const displayChord = activeChordRef.current;
     const harmonyRow = getAdlibHarmonyRowForActiveChord(phrase, displayChord);
     if (!phrase || !harmonyRow) {
+      return;
+    }
+
+    if (displayChord?.input_disabled) {
       return;
     }
 
@@ -599,6 +638,40 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     const beats = Math.max(0, Math.min(32, stage.count_in_beats));
     setCountInValue(beats);
 
+    const scheduleTutorialSession = (): void => {
+      if (!tutorial) {
+        return;
+      }
+      clearTutorialTimers();
+      const loopDurationSec = getFinitePhraseLoopDuration(firstPhrase) ?? 4;
+      const timedLines = tutorial.scene.timedLines;
+      if (timedLines && timedLines.length > 0) {
+        tutorialDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
+          bpm: stage.bpm,
+          beatsPerMeasure: stage.beats_per_measure,
+          countInBeats: stage.count_in_beats,
+          loopMeasures: stage.loop_measures,
+          phraseLoopDurationSec: loopDurationSec,
+          timedLines,
+          isEnglishCopy,
+          onLine: (text) => {
+            phaserGameRef.current?.setPlayerQuote(text);
+          },
+          loopIndex: 0,
+        });
+      }
+      const delayMs = computeTutorialMeasureClearDelayMs(
+        stage.bpm,
+        stage.beats_per_measure,
+        stage.count_in_beats,
+        tutorial.scene.requiredMeasures,
+      );
+      tutorialClearTimerRef.current = setTimeout(() => {
+        tutorialClearTimerRef.current = null;
+        tutorial.onSceneComplete();
+      }, delayMs);
+    };
+
     const onPhraseBodyStarted = (): void => {
       countInEarlyInputRef.current = false;
       setCountInEarlyInputActive(false);
@@ -609,7 +682,10 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
           setStatusText(copy.audioFailed);
           return;
         }
-        startTimeLimit();
+        if (!tutorial) {
+          startTimeLimit();
+        }
+        scheduleTutorialSession();
         syncAudioTimelineRef.current();
       });
     };
@@ -622,7 +698,10 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
           setStatusText(copy.audioFailed);
           return;
         }
-        startTimeLimit();
+        if (!tutorial) {
+          startTimeLimit();
+        }
+        scheduleTutorialSession();
         syncAudioTimelineRef.current();
       });
       return;
@@ -654,7 +733,9 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
           setCountInEarlyInputActive(true);
         },
         onPhraseStarted: () => {
-          startTimeLimit();
+          if (!tutorial) {
+            startTimeLimit();
+          }
           onPhraseBodyStarted();
         },
         onEnded: () => undefined,
@@ -677,7 +758,30 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     startAdlibBgmLoop,
     startTimeLimit,
     stopPhraseAudio,
+    tutorial,
+    clearTutorialTimers,
+    isEnglishCopy,
   ]);
+
+  useEffect(() => {
+    if (!tutorial?.bindings.ui.hideLobby) {
+      return;
+    }
+    if (gameState === 'idle') {
+      startCountIn();
+    }
+  }, [gameState, startCountIn, tutorial?.bindings.ui.hideLobby]);
+
+  const playerQuoteBubbleText = useMemo(() => {
+    if (!activeChord || activeChord.input_disabled) {
+      return null;
+    }
+    return getChordVoicingQuoteDisplayText(activeChord);
+  }, [activeChord]);
+
+  useEffect(() => {
+    phaserGameRef.current?.setPlayerQuote(playerQuoteBubbleText);
+  }, [playerQuoteBubbleText]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -824,7 +928,9 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     resolveEarTrainingEnemyAvatarFromBattleSourceKey(enemyBattleKey);
   const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
-  const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
+  const showLobbyControls = tutorial
+    ? false
+    : gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';
   const stageStatusText = gameState === 'countIn'
     ? formatEarTrainingCountInDisplay(isEnglishCopy, countInValue)
@@ -854,7 +960,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     ),
   );
 
-  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
+  const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
     resultState,
     stageTitle: stage.title,
@@ -903,6 +1009,17 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     startButtonLabel,
     lessonProgressText,
     quizRulesLine: lessonContext ? undefined : clearConditionLine,
+  }, tutorialUi ?? {
+    hidePlayerHpBar: false,
+    hideSettingsButton: false,
+    hideBackButton: false,
+    hideLobby: false,
+    hideMidiToggle: false,
+    hidePhraseIntroQuota: false,
+    showExitButton: false,
+    playerInvincible: false,
+    disableEnemyAttacks: false,
+    keyboardHintsDefault: false,
   }), [
     activeChord?.id,
     activeHarmonyRow?.representativeId,
@@ -938,6 +1055,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     startButtonLabel,
     timeLabel,
     isMidiConnected,
+    tutorialUi,
   ]);
 
   const battleCallbacks = useMemo(() => ({

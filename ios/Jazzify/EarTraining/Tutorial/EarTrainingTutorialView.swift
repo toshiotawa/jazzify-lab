@@ -242,6 +242,75 @@ struct EarTrainingTutorialView: View {
                     }
                 }
             }
+        case .adlib(let adlibScene):
+            if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
+                content: script.content,
+                contentRef: adlibScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
+            ) {
+                EarTrainingAdlibGameView(
+                    source: .embedded(stage),
+                    lessonContext: nil,
+                    locale: locale,
+                    initialPracticeMode: false,
+                    tutorialHooks: makeHooks(
+                        script: script,
+                        requiredLoops: 1,
+                        onLoopSuccess: nil,
+                        osmdTimedLines: adlibScene.timedLines,
+                        requiredMeasures: adlibScene.requiredMeasures
+                    ),
+                    hostedLandscapeSize: hostedLandscapeSize,
+                    onClose: onClose
+                )
+            }
+        case .phrasePairAdlib(let pairScene):
+            if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
+                content: script.content,
+                contentRef: pairScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
+            ) {
+                EarTrainingPhrasePairAdlibGameView(
+                    source: .embedded(stage),
+                    lessonContext: nil,
+                    locale: locale,
+                    initialPracticeMode: false,
+                    tutorialHooks: makeHooks(
+                        script: script,
+                        requiredLoops: 1,
+                        onLoopSuccess: nil,
+                        osmdTimedLines: pairScene.timedLines,
+                        requiredMeasures: pairScene.requiredMeasures
+                    ),
+                    hostedLandscapeSize: hostedLandscapeSize,
+                    onClose: onClose
+                )
+            }
+        case .composite(let compositeScene):
+            if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
+                content: script.content,
+                contentRef: compositeScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
+            ) {
+                EarTrainingChordVoicingGameView(
+                    source: .embedded(stage),
+                    lessonContext: nil,
+                    locale: locale,
+                    initialPracticeMode: false,
+                    tutorialHooks: makeHooks(
+                        script: script,
+                        requiredLoops: 1,
+                        onLoopSuccess: nil,
+                        osmdTimedLines: compositeScene.timedLines,
+                        requiredCompletedPhrases: compositeScene.requiredCompletedPhrases
+                    ),
+                    hostedLandscapeSize: hostedLandscapeSize,
+                    onClose: onClose
+                )
+            }
         case .finish:
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -258,7 +327,9 @@ struct EarTrainingTutorialView: View {
         onLoopSuccess: (() -> Void)?,
         quiz: EarTrainingTutorialQuizSceneHooks? = nil,
         osmdTimedLines: [EarTrainingTutorialOsmdTimedLine]? = nil,
-        selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
+        selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil,
+        requiredMeasures: Int? = nil,
+        requiredCompletedPhrases: Int? = nil
     ) -> EarTrainingTutorialSceneHooks {
         EarTrainingTutorialSceneHooks(
             ui: script.ui,
@@ -270,7 +341,9 @@ struct EarTrainingTutorialView: View {
             quiz: quiz,
             osmdTimedLines: osmdTimedLines,
             tutorialDrumLoopUrl: script.audioTracks?.drum_loop?.url,
-            selfPacedTimedLines: selfPacedTimedLines
+            selfPacedTimedLines: selfPacedTimedLines,
+            requiredMeasures: requiredMeasures,
+            requiredCompletedPhrases: requiredCompletedPhrases
         )
     }
 

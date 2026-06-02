@@ -38,6 +38,7 @@ export interface EarTrainingTutorialContentChord {
   voicing: string[];
   voicing_staves?: number[] | null;
   quote?: TutorialLocalizedText;
+  input_disabled?: boolean;
 }
 
 export interface EarTrainingTutorialContentPhrase {
@@ -93,12 +94,52 @@ export interface EarTrainingTutorialContentStage {
   quiz_show_notation_in_battle?: boolean;
   quiz_required_correct_count?: number;
   show_keyboard_hints_in_battle?: boolean;
+  chord_voicing_composite_phrase?: boolean;
+}
+
+export interface EarTrainingTutorialContentPhrasePairAdlibStep {
+  order_index: number;
+  chord_name: string;
+  pattern_group_key: string;
+  measure_number?: number | null;
+  start_time_sec: number;
+  end_time_sec: number;
+  quote?: TutorialLocalizedText;
+  input_disabled?: boolean;
+}
+
+export interface EarTrainingTutorialContentPhrasePairAdlibPattern {
+  group_key: string;
+  label: string;
+  pcs: readonly number[];
+  family_id: string;
+  carry_tail_length?: number;
+  priority?: number;
+  voicing?: readonly string[];
+  voicing_staves?: readonly number[];
+}
+
+export interface EarTrainingTutorialContentPhrasePairAdlib {
+  bgm_url: string;
+  key_fifths?: number;
+  loop_duration_sec: number;
+  steps: readonly EarTrainingTutorialContentPhrasePairAdlibStep[];
+  patterns: readonly EarTrainingTutorialContentPhrasePairAdlibPattern[];
+}
+
+export interface EarTrainingTutorialContentCompositeConfig {
+  bgm_url: string;
+  key_fifths?: number;
+  /** `phrases` の order_index をクリア判定の完成順に列挙。省略時は phrases 順。 */
+  source_phrase_order_indices?: readonly number[];
 }
 
 export interface EarTrainingTutorialContentRef {
   stage: EarTrainingTutorialContentStage;
   phrases?: EarTrainingTutorialContentPhrase[];
   chord_quiz_items?: EarTrainingTutorialContentQuizItem[];
+  phrase_pair_adlib?: EarTrainingTutorialContentPhrasePairAdlib;
+  composite_config?: EarTrainingTutorialContentCompositeConfig;
 }
 
 export interface EarTrainingTutorialDialogueOnlyScene {
@@ -163,11 +204,35 @@ export interface EarTrainingTutorialFinishScene {
   type: 'finish';
 }
 
+export interface EarTrainingTutorialAdlibScene {
+  type: 'adlib';
+  contentRef: string;
+  requiredMeasures: number;
+  timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
+}
+
+export interface EarTrainingTutorialPhrasePairAdlibScene {
+  type: 'phrase_pair_adlib';
+  contentRef: string;
+  requiredMeasures: number;
+  timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
+}
+
+export interface EarTrainingTutorialCompositeScene {
+  type: 'composite';
+  contentRef: string;
+  requiredCompletedPhrases: number;
+  timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
+}
+
 export type EarTrainingTutorialScene =
   | EarTrainingTutorialDialogueOnlyScene
   | EarTrainingTutorialChordQuizScene
   | EarTrainingTutorialSelfPacedScene
   | EarTrainingTutorialOsmdScene
+  | EarTrainingTutorialAdlibScene
+  | EarTrainingTutorialPhrasePairAdlibScene
+  | EarTrainingTutorialCompositeScene
   | EarTrainingTutorialFinishScene;
 
 export interface EarTrainingTutorialScriptPayload {

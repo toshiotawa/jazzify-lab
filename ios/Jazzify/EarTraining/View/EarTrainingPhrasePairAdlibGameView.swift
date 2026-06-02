@@ -8,6 +8,8 @@ struct EarTrainingPhrasePairAdlibGameView: View {
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
     var initialPracticeMode: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
+    var hostedLandscapeSize: CGSize?
     let onClose: () -> Void
 
     @State private var controller: EarTrainingPhrasePairAdlibBattleController?
@@ -107,6 +109,10 @@ struct EarTrainingPhrasePairAdlibGameView: View {
                 initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
+            if let tutorialHooks {
+                createdController.tutorialNoCombat = tutorialHooks.noCombat
+                createdController.tutorialHooks = tutorialHooks
+            }
             attachMidi(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription

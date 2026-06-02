@@ -115,6 +115,7 @@ const serializeChords = (chords: EarTrainingPhraseChord[] | undefined): string =
       chord.end_time_sec ?? '',
       (chord.voicing ?? []).join('|'),
       (chord.voicing_staves ?? []).join('|'),
+      chord.input_disabled ? '1' : '',
     ].join(','))
     .join('\n');
 
@@ -193,7 +194,7 @@ const parseChords = (text: string): Omit<EarTrainingPhraseChord, 'id' | 'phrase_
     .map(line => line.trim())
     .filter(Boolean)
     .map((line, index) => {
-      const [name, measure, beat, duration, start, end, voicing, voicingStaves] = line
+      const [name, measure, beat, duration, start, end, voicing, voicingStaves, inputDisabledRaw] = line
         .split(',')
         .map(part => part.trim());
       const voicingArray = voicing
@@ -213,6 +214,7 @@ const parseChords = (text: string): Omit<EarTrainingPhraseChord, 'id' | 'phrase_
         end_time_sec: end ? toNumber(end, 0) : null,
         voicing: validVoicing ? voicingArray : null,
         voicing_staves: validVoicing ? voicingStavesArray : null,
+        input_disabled: inputDisabledRaw === '1' || inputDisabledRaw === 'true',
       };
     });
 
