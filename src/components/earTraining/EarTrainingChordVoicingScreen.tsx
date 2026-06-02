@@ -1260,11 +1260,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       void (async () => {
         try {
           const playerOnly = ensurePhrasePlayer();
-          const phraseCtx = playerOnly.getAudioContext();
-          if (!phraseCtx || !boot) {
+          if (!boot) {
             setStatusText(copy.audioFailed);
             return;
           }
+          const phraseCtx = playerOnly.ensureAudioContext();
           const drum = ensureSelfPacedDrumLoop();
           await drum.prepare(boot.bgmUrl.trim(), phraseCtx);
           drum.setVolume(settings.masterVolume * settings.musicVolume);

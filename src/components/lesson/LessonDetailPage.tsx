@@ -528,7 +528,11 @@ const LessonDetailPage: React.FC = () => {
   };
 
   const handleBackToCourse = () => {
-    window.location.hash = '#lessons';
+    if (lessonCourseIsMainQuest || !lesson?.course_id) {
+      window.location.hash = '#lessons';
+      return;
+    }
+    window.location.hash = `#course?id=${lesson.course_id}`;
   };
 
   const getBunnyEmbedUrl = (vimeoUrl: string): string => {

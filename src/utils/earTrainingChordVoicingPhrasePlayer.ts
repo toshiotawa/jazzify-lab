@@ -124,6 +124,11 @@ export class EarTrainingChordVoicingPhrasePlayer {
     return this.ctx;
   }
 
+  /** フレーズ音源を再生しない複合モード等で、ドラム BGM 用にコンテキストを確保する。 */
+  ensureAudioContext(): AudioContext {
+    return this.createCtx();
+  }
+
   async prepare(url: string): Promise<PreparedChordVoicingPhrase> {
     const ctx = this.createCtx();
     let promise = this.decodeByUrl.get(url);
