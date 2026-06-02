@@ -74,6 +74,8 @@ final class EarTrainingAudio: NSObject {
     private var playbackToken: Int = 0
     private var isPhraseEngineRunning = false
     private var isDrumLoopActive = false
+    /// `startDrumLoop` 開始時のホスト時刻（フレーズ未再生時の判定タイムライン用）。
+    private var drumLoopAnchorHostTime: UInt64 = 0
 
     private var engineConfigObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
@@ -177,11 +179,17 @@ final class EarTrainingAudio: NSObject {
         drumPlayer.scheduleBuffer(pcm, at: nil, options: [.loops], completionHandler: nil)
         drumPlayer.play()
         isDrumLoopActive = true
+        drumLoopAnchorHostTime = mach_absolute_time()
+        startTimeTickerIfNeeded()
     }
 
     func stopDrumLoop() {
         drumPlayer.stop()
         isDrumLoopActive = false
+        drumLoopAnchorHostTime = 0
+        if !phrasePlayer.isPlaying {
+            stopTimeTicker()
+        }
     }
 
     // MARK: - Phrase playback
@@ -696,6 +704,13 @@ final class EarTrainingAudio: NSObject {
     }
 
     private func emitPhraseTimeIfPlaying() {
+        if isDrumLoopActive, drumLoopAnchorHostTime != 0, !phrasePlayer.isPlaying {
+            let sec = Self.secondsFromMachHostDifference(from: drumLoopAnchorHostTime, to: mach_absolute_time())
+            guard sec.isFinite else { return }
+            currentTimeSec = max(0, sec)
+            onTimeUpdate?(currentTimeSec)
+            return
+        }
         guard phrasePlayer.isPlaying else { return }
         let anchor = phrasePlaybackAnchorHostTime
         if anchor != 0 {
@@ -730,6 +745,10 @@ final class EarTrainingAudio: NSObject {
 
     /// ノートオンなど、ティッカー待ちなしでフレーズ軸の秒を取得する（カウントイン中は負になり得る）。
     func phraseJudgmentTimelineSecNow() -> Double {
+        if isDrumLoopActive, drumLoopAnchorHostTime != 0, !phrasePlayer.isPlaying {
+            let sec = Self.secondsFromMachHostDifference(from: drumLoopAnchorHostTime, to: mach_absolute_time())
+            return sec.isFinite ? max(0, sec) : currentTimeSec
+        }
         guard phrasePlayer.isPlaying else {
             return currentTimeSec
         }

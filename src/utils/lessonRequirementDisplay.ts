@@ -24,6 +24,8 @@ function formatEarTrainingModeLabel(
         return 'Chord quiz';
       case 'chord_osmd':
         return 'Sheet music battle';
+      case 'adlib':
+        return 'Ad lib';
       default:
         return 'Battle mode';
     }
@@ -37,6 +39,8 @@ function formatEarTrainingModeLabel(
       return 'コードクイズ';
     case 'chord_osmd':
       return '楽譜バトル';
+    case 'adlib':
+      return 'アドリブ';
     default:
       return 'バトルモード';
   }

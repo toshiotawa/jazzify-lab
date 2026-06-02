@@ -70,6 +70,9 @@ const normalizeEarTrainingMode = (raw: unknown): EarTrainingStage['mode'] => {
   if (raw === 'chord_osmd') {
     return 'chord_osmd';
   }
+  if (raw === 'adlib') {
+    return 'adlib';
+  }
   return 'phrase';
 };
 

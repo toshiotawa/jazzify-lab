@@ -324,7 +324,7 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
             return isEnglish
                 ? "Reduce the enemy HP to 0."
                 : "敵HPを0にする。"
-        case .chordVoicing, .phrase:
+        case .chordVoicing, .phrase, .adlib:
             return isEnglish
                 ? "Reduce the enemy HP to 0 within the time limit."
                 : "制限時間以内に敵HPを0にする"

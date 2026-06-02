@@ -650,6 +650,7 @@ const EarTrainingStageManager: React.FC = () => {
                       || nextMode === 'chord_voicing'
                       || nextMode === 'chord_quiz'
                       || nextMode === 'chord_osmd'
+                      || nextMode === 'adlib'
                     ) {
                       setStageForm(prev => ({
                         ...prev,
@@ -665,6 +666,7 @@ const EarTrainingStageManager: React.FC = () => {
                   <option value="chord_voicing">バトルモード (chord_voicing)</option>
                   <option value="chord_quiz">バトルモード (chord_quiz)</option>
                   <option value="chord_osmd">バトルモード (chord_osmd)</option>
+                  <option value="adlib">バトルモード (adlib)</option>
                 </select>
               </label>
               {stageForm.mode === 'chord_voicing' && (
@@ -681,7 +683,7 @@ const EarTrainingStageManager: React.FC = () => {
                   セルフペース進行（時間で進めず正解で次へ・無音・カウントインなし）
                 </label>
               )}
-              {(stageForm.mode === 'chord_voicing' || stageForm.mode === 'chord_quiz' || stageForm.mode === 'chord_osmd') && (
+              {(stageForm.mode === 'chord_voicing' || stageForm.mode === 'chord_quiz' || stageForm.mode === 'chord_osmd' || stageForm.mode === 'adlib') && (
                 <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
                   <input
                     type="checkbox"

@@ -713,7 +713,7 @@ export interface EarTrainingPhraseChord {
   created_at?: string;
 }
 
-export type EarTrainingMode = 'phrase' | 'chord_voicing' | 'chord_quiz' | 'chord_osmd';
+export type EarTrainingMode = 'phrase' | 'chord_voicing' | 'chord_quiz' | 'chord_osmd' | 'adlib';
 
 /** chord_quiz モードの出題行（ステージ直下） */
 export interface EarTrainingChordQuizItem {

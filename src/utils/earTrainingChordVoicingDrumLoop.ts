@@ -23,6 +23,7 @@ export class EarTrainingChordVoicingDrumLoop {
   private gain: GainNode | null = null;
   private source: AudioBufferSourceNode | null = null;
   private volume = 1;
+  private loopStartCtxTime: number | null = null;
 
   /**
    * 指定 URL を（必要なときだけ）フェッチしてデコードする。
@@ -69,8 +70,20 @@ export class EarTrainingChordVoicingDrumLoop {
     } catch {
       return;
     }
+    this.loopStartCtxTime = audioContext.currentTime;
     this.source = src;
     this.gain = g;
+  }
+
+  /** ループ再生開始からの経過秒（未開始時は 0） */
+  getPlaybackTimeSec(): number {
+    const audioContext = this.ctx;
+    const start = this.loopStartCtxTime;
+    if (!audioContext || start === null) {
+      return 0;
+    }
+    const elapsed = audioContext.currentTime - start;
+    return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
   }
 
   setVolume(value: number): void {
@@ -92,6 +105,7 @@ export class EarTrainingChordVoicingDrumLoop {
     const g = this.gain;
     this.source = null;
     this.gain = null;
+    this.loopStartCtxTime = null;
     if (!src) {
       return;
     }
