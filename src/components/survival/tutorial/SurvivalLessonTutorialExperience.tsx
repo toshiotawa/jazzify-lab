@@ -150,12 +150,13 @@ export const SurvivalLessonTutorialExperience: React.FC<
         const row = await fetchSurvivalTutorialScript(scriptId);
         if (isSurvivalTutorialScriptV3(row.script)) {
           if (!cancelled) {
+            const v3Script = row.script;
             setLoadedScript(null);
-            setTutorialV3Payload(row.script);
+            setTutorialV3Payload(v3Script);
             void unlockTutorialAudio();
             const ctl = v3AudioRef.current ?? new TutorialAudioController();
             v3AudioRef.current = ctl;
-            const drum = row.script.audioTracks?.drum_loop;
+            const drum = v3Script.audioTracks?.drum_loop;
             const tracks =
               drum?.url?.trim()
                 ? {
@@ -174,8 +175,13 @@ export const SurvivalLessonTutorialExperience: React.FC<
             ctl.setTracks(tracks);
             void ctl.ensureBgmSettings().then(() => {
               if (!cancelled) {
-                ctl.playAudio('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
-                v3DrumPlayingRef.current = true;
+                const firstScene = v3Script.scenes[0];
+                const skipInitialBgm =
+                  firstScene?.type === 'demo_play' || firstScene?.type === 'phrase_battle';
+                if (!skipInitialBgm) {
+                  ctl.playAudio('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
+                  v3DrumPlayingRef.current = true;
+                }
               }
             });
             runnerFnRef.current = null;
@@ -284,7 +290,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
     } else {
       setV3FinishCta(false);
     }
-    if (s.type === 'phrase_battle') {
+    if (s.type === 'phrase_battle' || s.type === 'demo_play') {
       v3AudioRef.current?.stopAudio('main_bgm');
       v3DrumPlayingRef.current = false;
     } else {
@@ -351,6 +357,17 @@ export const SurvivalLessonTutorialExperience: React.FC<
           v3AudioRef.current?.playAudio('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
           v3DrumPlayingRef.current = true;
         });
+      },
+      stopDemoBgm: () => {
+        v3AudioRef.current?.stopAudio('main_bgm');
+        v3DrumPlayingRef.current = false;
+      },
+      startDemoBgmFromStart: async () => {
+        const drum = tutorialV3Payload.audioTracks?.drum_loop;
+        const ctl = v3AudioRef.current;
+        if (!ctl) return;
+        await ctl.restartFromStart('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
+        v3DrumPlayingRef.current = true;
       },
     };
   }, [tutorialV3Payload, isEnglishCopy, finalizeLesson, onLessonTutorialCompleted, waitForTapOrTimeout]);

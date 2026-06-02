@@ -1,4 +1,5 @@
 import {
+  anchoredDelayMs,
   beatToSeconds,
   buildDemoPlaySchedule,
 } from '@/components/survival/tutorial/survivalTutorialDemoPlayScheduler';
@@ -19,6 +20,12 @@ describe('survivalTutorialDemoPlayScheduler', () => {
   it('converts beats to seconds at 160 BPM', () => {
     expect(beatToSeconds(4, 160)).toBeCloseTo(1.5, 5);
     expect(beatToSeconds(0.5, 160)).toBeCloseTo(0.1875, 5);
+  });
+
+  it('computes anchored delay from BGM start', () => {
+    expect(anchoredDelayMs(1500, 0)).toBe(1500);
+    expect(anchoredDelayMs(1500, 500)).toBe(1000);
+    expect(anchoredDelayMs(1500, 2000)).toBe(0);
   });
 
   it('builds sorted schedule with demo-end event', () => {

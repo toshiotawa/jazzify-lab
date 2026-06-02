@@ -221,6 +221,16 @@ enum SurvivalTutorialV3Scene: Decodable, Sendable {
             throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "Unknown survival tutorial scene type: \(t)")
         }
     }
+
+    var isPhraseBattle: Bool {
+        if case .phraseBattle = self { return true }
+        return false
+    }
+
+    var isDemoPlay: Bool {
+        if case .demoPlay = self { return true }
+        return false
+    }
 }
 
 private struct SurvivalTutorialV3ContentEntry: Decodable, Sendable {

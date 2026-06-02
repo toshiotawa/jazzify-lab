@@ -19,4 +19,8 @@ export interface SurvivalTutorialV3Bindings {
   /** フレーズ BGM 用に親のドラムループを一時停止 */
   readonly pauseSharedDrumLoop?: () => void;
   readonly resumeSharedDrumLoop?: () => void;
+  /** demo_play 開始前会話中の BGM 停止（無音） */
+  readonly stopDemoBgm?: () => void;
+  /** demo_play 本編開始時にドラムループを先頭から再生し、再生開始まで待つ */
+  readonly startDemoBgmFromStart?: () => Promise<void>;
 }

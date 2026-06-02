@@ -130,6 +130,8 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
     }
 
     private func runIntro() async -> Bool {
+        drumPlayer.stop()
+
         let introLines = scene.introLines ?? []
         guard !introLines.isEmpty else { return true }
 
@@ -163,6 +165,9 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
         scenarioController.setOverrides(SurvivalTutorialV3Scenario.demoPlayReveal(base: baseline))
         updateStaff(activeChordIndex: nil)
         scenarioController.setDemoKeyboardHints([])
+
+        let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
+        drumPlayer.restartFromStart(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
 
         let schedule = SurvivalTutorialDemoPlayScheduler.buildSchedule(scene: scene)
         var activeChordIndex: Int?

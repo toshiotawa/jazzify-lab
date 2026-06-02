@@ -18,6 +18,10 @@ export const beatToSeconds = (beat: number, bpm: number): number => {
   return (beat * 60) / safeBpm;
 };
 
+/** BGM アンカー時刻からの残り遅延 ms（負値は 0 にクランプ）。 */
+export const anchoredDelayMs = (atSecondsMs: number, elapsedMs: number): number =>
+  Math.max(0, atSecondsMs - elapsedMs);
+
 export const measureForBeat = (beat: number, beatsPerMeasure: number): number =>
   Math.floor(beat / beatsPerMeasure) + 1;
 

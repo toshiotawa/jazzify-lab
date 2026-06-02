@@ -75,6 +75,61 @@ export class TutorialAudioController {
     });
   }
 
+  /** 既存要素を再利用して先頭から再生し、`playing` まで待つ（demo 拍同期用）。 */
+  restartFromStart(
+    trackId: string,
+    options?: { loop?: boolean; volume?: number },
+  ): Promise<void> {
+    if (this.disposed) {
+      return Promise.resolve();
+    }
+    const url = this.resolveTrackUrl(trackId);
+    if (!url) {
+      return Promise.resolve();
+    }
+
+    const def = this.tracks[trackId];
+    const loop = options?.loop ?? def?.defaultLoop ?? true;
+    const volume = options?.volume ?? def?.defaultVolume ?? 0.45;
+    const clampedVolume = Math.max(0, Math.min(1, volume));
+
+    const existing = this.players.get(trackId);
+    if (existing) {
+      const { audio } = existing;
+      audio.loop = loop;
+      audio.volume = clampedVolume;
+      audio.currentTime = 0;
+      return this.waitForPlaying(audio);
+    }
+
+    const audio = new Audio(url);
+    audio.loop = loop;
+    audio.volume = clampedVolume;
+    this.players.set(trackId, { audio, trackId });
+    return this.waitForPlaying(audio);
+  }
+
+  private waitForPlaying(audio: HTMLAudioElement): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        audio.removeEventListener('playing', onPlaying);
+        window.clearTimeout(fallbackId);
+        resolve();
+      };
+      const onPlaying = (): void => {
+        finish();
+      };
+      audio.addEventListener('playing', onPlaying, { once: true });
+      const fallbackId = window.setTimeout(finish, 120);
+      void audio.play().catch(() => {
+        finish();
+      });
+    });
+  }
+
   stopAudio(trackId: string): void {
     const active = this.players.get(trackId);
     if (!active) return;

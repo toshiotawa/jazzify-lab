@@ -6,6 +6,7 @@ import {
   type SurvivalTutorialDemoStaffSnapshot,
 } from '@/components/survival/tutorial/SurvivalTutorialDemoStaff';
 import {
+  anchoredDelayMs,
   buildDemoPlaySchedule,
   resolveDemoLineSpeaker,
 } from '@/components/survival/tutorial/survivalTutorialDemoPlayScheduler';
@@ -164,6 +165,8 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     };
 
     const runIntro = async (): Promise<boolean> => {
+      bindingsRef.current.stopDemoBgm?.();
+
       const introLines = scene.introLines ?? [];
       if (introLines.length === 0) {
         return true;
@@ -191,7 +194,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       return !ac.signal.aborted;
     };
 
-    const runDemo = (): void => {
+    const runDemo = (anchorTimeMs: number): void => {
       h.setOverrides(survivalTutorialDemoPlayRevealOverrides(baseline));
       updateStaffSnapshot(null);
       h.setDemoKeyboardHints([]);
@@ -199,8 +202,8 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       const schedule = buildDemoPlaySchedule(scene);
 
       for (const event of schedule) {
-        const delayMs = event.atSeconds * 1000;
-        scheduleTimeout(delayMs, () => {
+        const atSecondsMs = event.atSeconds * 1000;
+        scheduleTimeout(anchoredDelayMs(atSecondsMs, performance.now() - anchorTimeMs), () => {
           if (event.kind === 'chord-start' && typeof event.chordIndex === 'number') {
             setActiveChord(event.chordIndex);
             return;
@@ -230,7 +233,9 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     const run = async (): Promise<void> => {
       const introOk = await runIntro();
       if (!introOk || ac.signal.aborted) return;
-      runDemo();
+      await bindingsRef.current.startDemoBgmFromStart?.();
+      if (ac.signal.aborted) return;
+      runDemo(performance.now());
     };
 
     void run();
