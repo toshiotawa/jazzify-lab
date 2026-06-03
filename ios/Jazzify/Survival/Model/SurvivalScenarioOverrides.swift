@@ -17,6 +17,8 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
     var hideChordSlots: Bool = false
     var hideChordPad: Bool = false
     var hideComboBadge: Bool = false
+    /// demo_play 等、別の譜面オーバーレイを使う場面で内蔵進行譜を抑制する。
+    var suppressScenarioStaff: Bool = false
     var scenarioStaffClef: Int = 2
     var hideStaffOnBSlotCompletion: Bool = false
     var useChordMidiNotesForHintHighlights: Bool = false
@@ -65,6 +67,7 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
             hideChordSlots: hideChordSlots,
             hideChordPad: hideChordPad,
             hideComboBadge: hideComboBadge,
+            suppressScenarioStaff: suppressScenarioStaff,
             scenarioStaffClef: scenarioStaffClef,
             hideStaffOnBSlotCompletion: hideStaffOnBSlotCompletion,
             useChordMidiNotesForHintHighlights: useChordMidiNotesForHintHighlights,

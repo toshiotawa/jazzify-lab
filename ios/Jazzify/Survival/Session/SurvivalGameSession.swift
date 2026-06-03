@@ -293,16 +293,17 @@ final class SurvivalGameSession: SurvivalPlaySession {
     /// タッチ鍵盤: ピアノ音はここで即座に鳴らし、ノートオンは次フレームの `drain` でシミュへ渡す。
     func chordPadNoteOn(_ note: Int, velocity: Int = 100) {
         guard state != .disposed else { return }
+        // Web と同様、発音は常に行いゲーム入力のみブロックする。
+        audioController.pianoNoteOn(midi: note, velocity: velocity)
         if gameLoop.runtime.scenario.blockChordPadInput { return }
         userInputNotePulse &+= 1
-        audioController.pianoNoteOn(midi: note, velocity: velocity)
         input.enqueueNoteOn(note, velocity: velocity)
     }
 
     func chordPadNoteOff(_ note: Int) {
         guard state != .disposed else { return }
-        if gameLoop.runtime.scenario.blockChordPadInput { return }
         audioController.pianoNoteOff(midi: note)
+        if gameLoop.runtime.scenario.blockChordPadInput { return }
         input.enqueueNoteOff(note)
     }
 

@@ -685,6 +685,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
         }
         let sc = vm.uiSnapshot.scenario
         guard sc.isActive, !sc.hideStaff else { return nil }
+        guard !sc.suppressScenarioStaff else { return nil }
         guard session.playLoopFacade.phraseStaffSnapshot() == nil else { return nil }
         guard vm.uiSnapshot.slots.indices.contains(1) else { return nil }
         let slot = vm.uiSnapshot.slots[1]

@@ -556,6 +556,7 @@ public struct SurvivalScenarioRuntimeState: Sendable, Equatable {
     public var hideChordSlots: Bool = false
     public var hideChordPad: Bool = false
     public var hideComboBadge: Bool = false
+    public var suppressScenarioStaff: Bool = false
     public var scenarioStaffClef: Int = 2
     public var hideStaffOnBSlotCompletion: Bool = false
     public var useChordMidiNotesForHintHighlights: Bool = false

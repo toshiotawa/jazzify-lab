@@ -106,7 +106,8 @@ enum SurvivalTutorialV3Scenario {
         out.blockChordPadInput = true
         out.blockMidiGameInput = true
         out.blockSlotEvaluation = true
-        out.disableJoystick = true
+        out.disableJoystick = false
+        out.suppressScenarioStaff = true
         out.demoKeyboardMidis = []
         return out
     }
