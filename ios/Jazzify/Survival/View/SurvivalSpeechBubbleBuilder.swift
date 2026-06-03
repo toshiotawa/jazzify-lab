@@ -1,7 +1,13 @@
 import SpriteKit
 import UIKit
 
-/// サバイバル用の頭上吹き出し SKNode（尾は下向き）。
+/// キャラ追従吹き出しの配置。`above` は頭上＋尾下向き、`below` は足下＋尾上向き（キャラ側へ）。
+enum SurvivalSpeechBubblePlacement: Equatable, Sendable {
+    case above
+    case below
+}
+
+/// サバイバル用キャラ追従吹き出し SKNode。
 enum SurvivalSpeechBubbleBuilder {
     private static let padX: CGFloat = 10
     private static let padY: CGFloat = 6
@@ -39,7 +45,11 @@ enum SurvivalSpeechBubbleBuilder {
         return out.isEmpty ? [text] : out
     }
 
-    static func makeRoot(text: String, maxOuterWidth: CGFloat) -> SKNode? {
+    static func makeRoot(
+        text: String,
+        maxOuterWidth: CGFloat,
+        placement: SurvivalSpeechBubblePlacement = .above
+    ) -> SKNode? {
         let quoteText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !quoteText.isEmpty else { return nil }
 
@@ -62,7 +72,32 @@ enum SurvivalSpeechBubbleBuilder {
         let root = SKNode()
         root.zPosition = 4
 
-        let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
+        let bubbleRect: CGRect
+        let tailPath = CGMutablePath()
+        let rowY: CGFloat
+
+        switch placement {
+        case .above:
+            bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
+            tailPath.move(to: CGPoint(x: -7, y: tailH))
+            tailPath.addLine(to: CGPoint(x: 7, y: tailH))
+            tailPath.addLine(to: CGPoint(x: 0, y: -2))
+            rowY = tailH + bubbleHeight / 2
+        case .below:
+            bubbleRect = CGRect(
+                x: -bubbleWidth / 2,
+                y: -tailH - bubbleHeight,
+                width: bubbleWidth,
+                height: bubbleHeight
+            )
+            // 尾の先端を足元（+Y＝キャラ側）へ。頭上配置の下向き尾と対称。
+            tailPath.move(to: CGPoint(x: -7, y: -tailH))
+            tailPath.addLine(to: CGPoint(x: 7, y: -tailH))
+            tailPath.addLine(to: CGPoint(x: 0, y: 2))
+            rowY = -tailH - bubbleHeight / 2
+        }
+        tailPath.closeSubpath()
+
         let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
         let bubbleNode = SKShapeNode(path: bubblePath)
         bubbleNode.fillColor = UIColor.black.withAlphaComponent(0.78)
@@ -70,18 +105,13 @@ enum SurvivalSpeechBubbleBuilder {
         bubbleNode.lineWidth = 1
         bubbleNode.zPosition = 0
 
-        let tailPath = CGMutablePath()
-        tailPath.move(to: CGPoint(x: -7, y: tailH))
-        tailPath.addLine(to: CGPoint(x: 7, y: tailH))
-        tailPath.addLine(to: CGPoint(x: 0, y: -2))
-        tailPath.closeSubpath()
         let tailNode = SKShapeNode(path: tailPath)
         tailNode.fillColor = UIColor.black.withAlphaComponent(0.78)
         tailNode.strokeColor = .clear
         tailNode.zPosition = -0.25
 
         let row = SKNode()
-        row.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
+        row.position = CGPoint(x: 0, y: rowY)
         row.zPosition = 0.5
 
         let verticalMid = (lineCount - 1) / 2

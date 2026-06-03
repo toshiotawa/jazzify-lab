@@ -149,9 +149,9 @@ final class EarTrainingTutorialDialogueBattleDriver: ObservableObject, EarTraini
         let quotePts = EarTrainingBattleScene.dialogueTutorialQuoteFontPoints
         switch line.resolvedSpeaker {
         case .player:
-            scene?.setPlayerQuote(txt, quoteFontPoints: quotePts, showAdvanceCue: true)
+            scene?.setPlayerQuote(txt, quoteFontPoints: quotePts, showAdvanceCue: false)
         case .partner:
-            scene?.setPartnerQuote(txt, quoteFontPoints: quotePts, showAdvanceCue: true)
+            scene?.setPartnerQuote(txt, quoteFontPoints: quotePts, showAdvanceCue: false)
         }
     }
 

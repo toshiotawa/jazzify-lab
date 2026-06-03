@@ -7,6 +7,7 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
     let locale: AppLocale
     let tapHub: SurvivalTutorialTapAdvanceHub
     let drumPlayer: SurvivalTutorialV3DrumLoopPlayer
+    @Binding var faiBubbleLine: String
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
     let onJajii: (String) -> Void
@@ -33,6 +34,7 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
                 scenarioController: scenarioController,
                 inlinePhraseDefinition: nil,
                 externalJajiiBubbleText: jajiiBubbleLine,
+                externalPlayerBubbleText: faiBubbleLine,
                 onSessionReady: { session in
                     scenarioController.bind(session: session)
                 }

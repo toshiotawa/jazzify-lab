@@ -27,6 +27,9 @@ final class SurvivalScene: SKScene {
     private var jajiiQuoteText: String = ""
     private var jajiiQuoteTextLaidOut: String = ""
     private var jajiiQuoteBubbleRoot: SKNode?
+    private var playerQuotePlacementLaidOut: SurvivalSpeechBubblePlacement?
+    private var jajiiQuotePlacementLaidOut: SurvivalSpeechBubblePlacement?
+    private var speechBubblesBelowCharacter = false
     private var playerBubbleAnchorNode: SKNode?
     private var jajiiBubbleAnchorNode: SKNode?
     private var enemyNodes: [UUID: SKNode] = [:]
@@ -94,6 +97,15 @@ final class SurvivalScene: SKScene {
         if trimmed.isEmpty {
             playerQuoteTextLaidOut = ""
         }
+    }
+
+    func setSpeechBubblesBelowCharacter(_ below: Bool) {
+        guard below != speechBubblesBelowCharacter else { return }
+        speechBubblesBelowCharacter = below
+        playerQuoteTextLaidOut = ""
+        jajiiQuoteTextLaidOut = ""
+        playerQuotePlacementLaidOut = nil
+        jajiiQuotePlacementLaidOut = nil
     }
 
     func setJajiiQuoteText(_ text: String) {
@@ -1394,8 +1406,10 @@ final class SurvivalScene: SKScene {
     private func layoutQuoteBubble(
         on host: SKNode,
         anchorOffsetY: CGFloat,
+        placement: SurvivalSpeechBubblePlacement,
         text: String,
         laidOutText: inout String,
+        laidOutPlacement: inout SurvivalSpeechBubblePlacement?,
         bubbleRoot: inout SKNode?,
         maxOuterWidth: CGFloat
     ) {
@@ -1403,17 +1417,20 @@ final class SurvivalScene: SKScene {
             bubbleRoot?.removeFromParent()
             bubbleRoot = nil
             laidOutText = ""
+            laidOutPlacement = nil
             return
         }
-        if text == laidOutText, bubbleRoot?.parent === host {
+        if text == laidOutText, placement == laidOutPlacement, bubbleRoot?.parent === host {
             return
         }
         laidOutText = text
+        laidOutPlacement = placement
         bubbleRoot?.removeFromParent()
         bubbleRoot = nil
         guard let root = SurvivalSpeechBubbleBuilder.makeRoot(
             text: text,
-            maxOuterWidth: maxOuterWidth
+            maxOuterWidth: maxOuterWidth,
+            placement: placement
         ) else { return }
         if UIDevice.current.userInterfaceIdiom != .pad {
             let zoom = Self.effectiveWorldZoomScale()
@@ -1428,11 +1445,18 @@ final class SurvivalScene: SKScene {
     private func layoutPlayerQuoteBubble(spriteHeight: CGFloat) {
         guard let anchor = playerBubbleAnchorNode, let player = playerNode else { return }
         anchor.position = player.position
+        let gap: CGFloat = 14
+        let placement: SurvivalSpeechBubblePlacement = speechBubblesBelowCharacter ? .below : .above
+        let anchorOffsetY = speechBubblesBelowCharacter
+            ? -(spriteHeight / 2 + gap)
+            : spriteHeight / 2 + gap
         layoutQuoteBubble(
             on: anchor,
-            anchorOffsetY: spriteHeight / 2 + 14,
+            anchorOffsetY: anchorOffsetY,
+            placement: placement,
             text: playerQuoteText,
             laidOutText: &playerQuoteTextLaidOut,
+            laidOutPlacement: &playerQuotePlacementLaidOut,
             bubbleRoot: &playerQuoteBubbleRoot,
             maxOuterWidth: SurvivalSpeechBubbleLayout.faiMaxBubbleWidth
         )
@@ -1440,11 +1464,19 @@ final class SurvivalScene: SKScene {
 
     private func layoutJajiiQuoteBubble(on anchor: SKNode?) {
         guard let host = anchor else { return }
+        let gap: CGFloat = 14
+        let jajiiHeight: CGFloat = 48
+        let placement: SurvivalSpeechBubblePlacement = speechBubblesBelowCharacter ? .below : .above
+        let anchorOffsetY = speechBubblesBelowCharacter
+            ? -(jajiiHeight / 2 + gap)
+            : jajiiHeight / 2 + gap
         layoutQuoteBubble(
             on: host,
-            anchorOffsetY: 48 / 2 + 14,
+            anchorOffsetY: anchorOffsetY,
+            placement: placement,
             text: jajiiQuoteText,
             laidOutText: &jajiiQuoteTextLaidOut,
+            laidOutPlacement: &jajiiQuotePlacementLaidOut,
             bubbleRoot: &jajiiQuoteBubbleRoot,
             maxOuterWidth: SurvivalSpeechBubbleLayout.jajiiMaxBubbleWidth
         )

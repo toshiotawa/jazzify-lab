@@ -28,6 +28,7 @@ struct BalloonRushGameView: View {
                     locale: locale,
                     isDemo: false,
                     externalJajiiBubbleText: "",
+                    externalPlayerBubbleText: "",
                     onApplyHintModeAndRestart: { newHint in
                         session.restartSameStage(hintMode: newHint)
                     }

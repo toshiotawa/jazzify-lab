@@ -15,7 +15,7 @@ struct SurvivalTutorialV3LessonView: View {
 
     @State private var sceneIndex = 0
     @State private var showFinishCta = false
-    @State private var characterLine = ""
+    @State private var faiBubbleLine = ""
     @State private var jajiiBubbleLine = ""
     @State private var narrationLine = ""
     @StateObject private var tapHub = SurvivalTutorialTapAdvanceHub()
@@ -34,7 +34,6 @@ struct SurvivalTutorialV3LessonView: View {
                     .id(sceneIndex)
             }
 
-            OnboardingCharacterDialogView(text: characterLine)
             OnboardingNarrationCaptionView(text: narrationLine)
 
             if tapHub.isWaiting {
@@ -125,7 +124,7 @@ struct SurvivalTutorialV3LessonView: View {
             drumPlayer.stop()
         }
         .onChange(of: sceneIndex) { newIdx in
-            characterLine = ""
+            faiBubbleLine = ""
             jajiiBubbleLine = ""
             narrationLine = ""
             showFinishCta = false
@@ -155,8 +154,9 @@ struct SurvivalTutorialV3LessonView: View {
                 scene: diag,
                 locale: locale,
                 tapHub: tapHub,
+                faiBubbleLine: $faiBubbleLine,
                 jajiiBubbleLine: $jajiiBubbleLine,
-                onFai: { characterLine = $0 },
+                onFai: { faiBubbleLine = $0 },
                 onNarration: { narrationLine = $0 },
                 onDone: { advanceScene() }
             )
@@ -169,8 +169,9 @@ struct SurvivalTutorialV3LessonView: View {
                     locale: locale,
                     payload: payload,
                     tapHub: tapHub,
+                    faiBubbleLine: $faiBubbleLine,
                     jajiiBubbleLine: $jajiiBubbleLine,
-                    onFai: { characterLine = $0 },
+                    onFai: { faiBubbleLine = $0 },
                     onJajii: { jajiiBubbleLine = $0 },
                     onNarration: { narrationLine = $0 },
                     onDone: { advanceScene() }
@@ -185,8 +186,9 @@ struct SurvivalTutorialV3LessonView: View {
                     locale: locale,
                     payload: payload,
                     tapHub: tapHub,
+                    faiBubbleLine: $faiBubbleLine,
                     jajiiBubbleLine: $jajiiBubbleLine,
-                    onFai: { characterLine = $0 },
+                    onFai: { faiBubbleLine = $0 },
                     onJajii: { jajiiBubbleLine = $0 },
                     onNarration: { narrationLine = $0 },
                     onDone: { advanceScene() }
@@ -202,8 +204,9 @@ struct SurvivalTutorialV3LessonView: View {
                 locale: locale,
                 tapHub: tapHub,
                 drumPlayer: drumPlayer,
+                faiBubbleLine: $faiBubbleLine,
                 jajiiBubbleLine: $jajiiBubbleLine,
-                onFai: { characterLine = $0 },
+                onFai: { faiBubbleLine = $0 },
                 onJajii: { jajiiBubbleLine = $0 },
                 onNarration: { narrationLine = $0 },
                 onDone: { advanceScene() }
@@ -215,8 +218,9 @@ struct SurvivalTutorialV3LessonView: View {
                 locale: locale,
                 tapHub: tapHub,
                 drumPlayer: drumPlayer,
+                faiBubbleLine: $faiBubbleLine,
                 jajiiBubbleLine: $jajiiBubbleLine,
-                onFai: { characterLine = $0 },
+                onFai: { faiBubbleLine = $0 },
                 onJajii: { jajiiBubbleLine = $0 },
                 onNarration: { narrationLine = $0 },
                 onDone: { advanceScene() }
@@ -311,6 +315,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
     let locale: AppLocale
     let payload: Payload
     let tapHub: SurvivalTutorialTapAdvanceHub
+    @Binding var faiBubbleLine: String
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
     let onJajii: (String) -> Void
@@ -321,6 +326,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
         locale: AppLocale,
         payload: Payload,
         tapHub: SurvivalTutorialTapAdvanceHub,
+        faiBubbleLine: Binding<String>,
         jajiiBubbleLine: Binding<String>,
         onFai: @escaping (String) -> Void,
         onJajii: @escaping (String) -> Void,
@@ -330,6 +336,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
         self.locale = locale
         self.payload = payload
         self.tapHub = tapHub
+        _faiBubbleLine = faiBubbleLine
         _jajiiBubbleLine = jajiiBubbleLine
         self.onFai = onFai
         self.onJajii = onJajii
@@ -356,6 +363,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
                 scenarioController: scenarioController,
                 inlinePhraseDefinition: nil,
                 externalJajiiBubbleText: jajiiBubbleLine,
+                externalPlayerBubbleText: faiBubbleLine,
                 onSessionReady: { s in sessionBox.session = s }
             )
             .allowsHitTesting(true)
@@ -508,6 +516,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
     let locale: AppLocale
     let tapHub: SurvivalTutorialTapAdvanceHub
     let drumPlayer: SurvivalTutorialV3DrumLoopPlayer
+    @Binding var faiBubbleLine: String
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
     let onJajii: (String) -> Void
@@ -520,6 +529,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         locale: AppLocale,
         tapHub: SurvivalTutorialTapAdvanceHub,
         drumPlayer: SurvivalTutorialV3DrumLoopPlayer,
+        faiBubbleLine: Binding<String>,
         jajiiBubbleLine: Binding<String>,
         onFai: @escaping (String) -> Void,
         onJajii: @escaping (String) -> Void,
@@ -531,6 +541,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         self.locale = locale
         self.tapHub = tapHub
         self.drumPlayer = drumPlayer
+        _faiBubbleLine = faiBubbleLine
         _jajiiBubbleLine = jajiiBubbleLine
         self.onFai = onFai
         self.onJajii = onJajii
@@ -557,6 +568,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
                     scenarioController: scenarioController,
                     inlinePhraseDefinition: built.phrase,
                     externalJajiiBubbleText: jajiiBubbleLine,
+                    externalPlayerBubbleText: faiBubbleLine,
                     onSessionReady: { s in sessionBox.session = s }
                 )
 

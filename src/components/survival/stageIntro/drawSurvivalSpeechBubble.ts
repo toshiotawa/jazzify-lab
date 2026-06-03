@@ -250,9 +250,9 @@ const drawSegmentedSpeechBubbleInner = (
   } else {
     const bodyTop = anchorY + BUBBLE_TAIL_HEIGHT;
     ctx.beginPath();
-    ctx.moveTo(centerX - 10, anchorY);
-    ctx.lineTo(centerX + 10, anchorY);
-    ctx.lineTo(centerX, bodyTop);
+    ctx.moveTo(centerX, anchorY);
+    ctx.lineTo(centerX - 10, bodyTop);
+    ctx.lineTo(centerX + 10, bodyTop);
     ctx.closePath();
     ctx.fillStyle = BUBBLE_BG;
     ctx.fill();
@@ -312,9 +312,9 @@ export const drawSurvivalSpeechBubble = (p: DrawSurvivalSpeechBubbleParams): voi
   } else {
     const bodyTop = anchorY + BUBBLE_TAIL_HEIGHT;
     ctx.beginPath();
-    ctx.moveTo(centerX - 10, anchorY);
-    ctx.lineTo(centerX + 10, anchorY);
-    ctx.lineTo(centerX, bodyTop);
+    ctx.moveTo(centerX, anchorY);
+    ctx.lineTo(centerX - 10, bodyTop);
+    ctx.lineTo(centerX + 10, bodyTop);
     ctx.closePath();
     ctx.fillStyle = BUBBLE_BG;
     ctx.fill();

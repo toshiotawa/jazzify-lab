@@ -13,6 +13,7 @@ enum SurvivalTutorialV3Scenario {
         o.disableEnemyAttacks = u.disableEnemyAttacks
         o.disableSurvivalBgm = true
         o.tutorialDialogueJajii = true
+        o.speechBubblesBelowCharacter = true
         return o
     }
 

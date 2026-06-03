@@ -23,6 +23,8 @@ struct SurvivalGameView: View {
     var lessonContext: SurvivalLessonContext? = nil
     /// チュートリアル等: ステージ intro より優先するジャ爺吹き出し。
     var externalJajiiBubbleText: String = ""
+    /// チュートリアル等: ステージ intro より優先するファイ吹き出し。
+    var externalPlayerBubbleText: String = ""
     var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
 
     init(
@@ -41,6 +43,7 @@ struct SurvivalGameView: View {
         productionHintModes: ResolvedProductionHintModes? = nil,
         lessonContext: SurvivalLessonContext? = nil,
         externalJajiiBubbleText: String = "",
+        externalPlayerBubbleText: String = "",
         onSessionReady: ((SurvivalGameSession) -> Void)? = nil
     ) {
         self.stage = stage
@@ -57,6 +60,7 @@ struct SurvivalGameView: View {
         self.productionHintModes = productionHintModes
         self.lessonContext = lessonContext
         self.externalJajiiBubbleText = externalJajiiBubbleText
+        self.externalPlayerBubbleText = externalPlayerBubbleText
         self.onSessionReady = onSessionReady
         _activeHintMode = State(initialValue: hintMode)
     }
@@ -79,6 +83,7 @@ struct SurvivalGameView: View {
                     locale: locale,
                     isDemo: isDemo,
                     externalJajiiBubbleText: externalJajiiBubbleText,
+                    externalPlayerBubbleText: externalPlayerBubbleText,
                     onApplyHintModeAndRestart: isDemo ? nil : { newHint in
                         applyHintModeRestart(newHint)
                     }
@@ -354,6 +359,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
     let locale: AppLocale
     let isDemo: Bool
     let externalJajiiBubbleText: String
+    let externalPlayerBubbleText: String
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
 
 
@@ -394,6 +400,8 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
     }
 
     private var faiTimedBubbleText: String {
+        let external = externalPlayerBubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !external.isEmpty { return external }
         if !playDialogueUIModel.faiLine.isEmpty { return playDialogueUIModel.faiLine }
         if !blockBossIntroUIModel.faiLine.isEmpty { return blockBossIntroUIModel.faiLine }
         return stageIntroUIModel.faiLine
@@ -430,7 +438,8 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
             SurvivalSceneContainer(
                 session: session,
                 faiBubbleText: faiTimedBubbleText,
-                jajiiBubbleText: jajiiTimedBubbleText
+                jajiiBubbleText: jajiiTimedBubbleText,
+                speechBubblesBelowCharacter: vm.uiSnapshot.scenario.speechBubblesBelowCharacter
             )
                 .ignoresSafeArea()
 
@@ -990,6 +999,7 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
     let session: any SurvivalPlaySession
     let faiBubbleText: String
     let jajiiBubbleText: String
+    let speechBubblesBelowCharacter: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -1021,6 +1031,7 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
 
     func updateUIView(_ uiView: SKView, context: Context) {
         if let scene = uiView.scene as? SurvivalScene {
+            scene.setSpeechBubblesBelowCharacter(speechBubblesBelowCharacter)
             scene.setPlayerQuoteText(faiBubbleText)
             scene.setJajiiQuoteText(jajiiBubbleText)
         }

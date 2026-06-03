@@ -205,7 +205,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       }
       const opts = {
         fontSizePx: DIALOGUE_QUOTE_FONT_PX,
-        showAdvanceCue: true,
+        showAdvanceCue: false,
       } as const;
       if (speaker === 'partner') {
         h.setPlayerQuote(null);
