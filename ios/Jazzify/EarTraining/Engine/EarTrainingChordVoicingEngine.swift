@@ -466,7 +466,8 @@ enum EarTrainingChordVoicingEngine {
         return value.isFinite && value > 0
     }
 
-    private static func halfBeatSec(bpm: Int) -> Double {
+    /// BPM に基づく半拍の長さ（秒）。
+    static func halfBeatSec(bpm: Int) -> Double {
         guard bpm > 0 else { return 0 }
         return 30 / Double(bpm)
     }
