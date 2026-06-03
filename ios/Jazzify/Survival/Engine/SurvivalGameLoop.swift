@@ -576,10 +576,18 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         return (idx, chord)
     }
 
+    /// demo_play: 外部スケジューラが鍵盤 HINT を独占（空のとき ii-V-I 土台スロットへフォールバックしない）。
+    private var usesDemoPlayExternalKeyboardHints: Bool {
+        runtime.scenario.isActive && runtime.scenario.suppressScenarioStaff
+    }
+
     /// コード `midiNotes`（voicing 直値）を鍵盤 HINT に使う。
     func currentHintHighlightMidis() -> Set<Int> {
         if !runtime.scenario.demoKeyboardMidis.isEmpty {
             return Set(runtime.scenario.demoKeyboardMidis)
+        }
+        if usesDemoPlayExternalKeyboardHints {
+            return []
         }
         if runtime.scenario.hideStaff {
             return []
@@ -598,7 +606,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     /// 構成音として対象スロットに入力済み（pitch class が一致）のハイライト MIDI。
     /// オクターブ違いの演奏でも、この集合は「元々のヒント MIDI」側に載せる。
     func currentHintCompletedHighlightMidis() -> Set<Int> {
-        if runtime.scenario.hideStaff {
+        if usesDemoPlayExternalKeyboardHints || runtime.scenario.hideStaff {
             return []
         }
         guard let target = currentHintTargetSlot(requirePendingHints: false) else { return [] }

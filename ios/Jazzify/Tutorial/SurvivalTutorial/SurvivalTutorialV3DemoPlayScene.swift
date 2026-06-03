@@ -37,6 +37,10 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
                 externalPlayerBubbleText: faiBubbleLine,
                 onSessionReady: { session in
                     scenarioController.bind(session: session)
+                    let scrollChords = SurvivalTutorialDemoPlayScheduler.resolvedChordsForKeyboardScroll(
+                        in: scene.chords
+                    )
+                    session.applyTutorialSceneKeyboardScroll(fromSceneChords: scrollChords)
                 }
             )
 

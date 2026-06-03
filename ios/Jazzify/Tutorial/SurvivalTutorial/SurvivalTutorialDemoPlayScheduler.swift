@@ -128,6 +128,36 @@ enum SurvivalTutorialDemoPlayScheduler {
         }
         return chords.first?.measure_number ?? 1
     }
+
+    /// demo_play 台本の全 `voicing` から最大 MIDI（休符 `[]` は除外）。鍵盤スクロール用。
+    static func maxVoicingMidi(in chords: [SurvivalTutorialV3DemoChordEvent]) -> Int? {
+        var maxValue: Int?
+        for chord in chords {
+            for midi in chord.voicing {
+                if maxValue == nil || midi > maxValue! {
+                    maxValue = midi
+                }
+            }
+        }
+        return maxValue
+    }
+
+    /// `applyTutorialSceneKeyboardScroll` 用。Onboarding ii-V-I ではなく台本 voicing のみから構築する。
+    static func resolvedChordsForKeyboardScroll(
+        in chords: [SurvivalTutorialV3DemoChordEvent]
+    ) -> [SurvivalResolvedChord] {
+        chords.enumerated().compactMap { index, event in
+            guard !event.voicing.isEmpty else { return nil }
+            let names = SurvivalTutorialDemoStaffBuilder.voicingNames(for: event)
+            return SurvivalResolvedChord.fromExplicitTutorialVoicing(
+                id: "demo-play-scroll:\(index)",
+                name: event.chordName,
+                voicing: event.voicing,
+                voicingNames: names,
+                keyFifths: event.keyFifths ?? 0
+            )
+        }
+    }
 }
 
 struct SurvivalTutorialDemoStaffSnapshot: Equatable {

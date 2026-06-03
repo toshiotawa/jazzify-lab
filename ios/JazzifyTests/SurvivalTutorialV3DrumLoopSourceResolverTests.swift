@@ -63,4 +63,49 @@ final class SurvivalTutorialDemoPlaySchedulerAnchorTests: XCTestCase {
             accuracy: 0.0001
         )
     }
+
+    func testMaxVoicingMidiIgnoresRestMeasures() throws {
+        let scene = try decodeDemoPlayScene(
+            chordsJson: """
+            [
+              {"startBeat":0,"durationBeats":2,"chordName":"Dm7","voicing":[53,57,60,64],"measureNumber":1},
+              {"startBeat":12,"durationBeats":4,"chordName":"","voicing":[],"measureNumber":4},
+              {"startBeat":16,"durationBeats":0.5,"chordName":"C","voicing":[100],"measureNumber":5}
+            ]
+            """
+        )
+        XCTAssertEqual(SurvivalTutorialDemoPlayScheduler.maxVoicingMidi(in: scene.chords), 100)
+    }
+
+    func testDemoPlayScrollAnchorUsesScriptMaxNotOnboardingIiVi() throws {
+        let scene = try decodeDemoPlayScene(
+            chordsJson: """
+            [
+              {"startBeat":0,"durationBeats":2,"chordName":"Dm7","voicing":[53,57,60,64],"measureNumber":1},
+              {"startBeat":16,"durationBeats":0.5,"chordName":"high","voicing":[100],"measureNumber":5}
+            ]
+            """
+        )
+        let scrollChords = SurvivalTutorialDemoPlayScheduler.resolvedChordsForKeyboardScroll(in: scene.chords)
+        guard let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: scrollChords) else {
+            XCTFail("Expected max midi")
+            return
+        }
+        XCTAssertEqual(maxMidi, 100)
+        XCTAssertGreaterThan(
+            SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi),
+            SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: 64)
+        )
+    }
+
+    private func decodeDemoPlayScene(chordsJson: String) throws -> SurvivalTutorialV3DemoPlayScene {
+        let json = """
+        {
+          "type": "demo_play",
+          "bpm": 160,
+          "chords": \(chordsJson)
+        }
+        """.data(using: .utf8)!
+        return try JSONDecoder().decode(SurvivalTutorialV3DemoPlayScene.self, from: json)
+    }
 }

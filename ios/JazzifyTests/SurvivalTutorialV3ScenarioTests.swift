@@ -27,4 +27,20 @@ final class SurvivalTutorialV3ScenarioTests: XCTestCase {
         let reveal = SurvivalTutorialV3Scenario.chordReveal(base: SurvivalScenarioOverrides())
         XCTAssertFalse(reveal.suppressScenarioStaff)
     }
+
+    func testDemoPlayEmptyKeyboardHintsDoNotFallbackToOnboardingDm7() {
+        let overrides = SurvivalTutorialV3Scenario.demoPlayReveal(base: SurvivalScenarioOverrides())
+        let loop = SurvivalGameLoop(
+            stage: OnboardingChords.stageDefinition,
+            profile: .defaultFai,
+            config: OnboardingChords.stageConfig,
+            hintMode: true,
+            scenarioOverrides: overrides
+        )
+        XCTAssertTrue(loop.currentHintHighlightMidis().isEmpty)
+        XCTAssertTrue(loop.currentHintCompletedHighlightMidis().isEmpty)
+
+        loop.applyScenarioMutation { $0.demoKeyboardMidis = [60, 64] }
+        XCTAssertEqual(loop.currentHintHighlightMidis(), Set([60, 64]))
+    }
 }
