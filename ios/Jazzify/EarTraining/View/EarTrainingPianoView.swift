@@ -127,6 +127,29 @@ enum EarTrainingPianoPreferences {
     }
 }
 
+/// `UIKitHorizontalScrollView` の `contentToken` 用。ヒント件数だけでは出題切替を検知できないため内容全体をハッシュする。
+enum EarTrainingPianoScrollContentToken {
+    static func hash(
+        midiHeldKeys: Set<Int>,
+        voicingHintsByMidi: [Int: VoicingHintState],
+        voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]?,
+        visibleWhiteKeys: Int,
+        viewportWidth: CGFloat,
+        totalWidth: CGFloat
+    ) -> AnyHashable {
+        var hasher = Hasher()
+        hasher.combine(midiHeldKeys)
+        hasher.combine(voicingHintsByMidi)
+        if let voicingHintIntensitiesByMidi {
+            hasher.combine(voicingHintIntensitiesByMidi)
+        }
+        hasher.combine(visibleWhiteKeys)
+        hasher.combine(viewportWidth)
+        hasher.combine(totalWidth)
+        return hasher.finalize()
+    }
+}
+
 private struct EarTrainingPianoKeyboardLayout {
     let whiteMidiNotes: [Int]
     let blackMidiNotes: [Int]
@@ -271,7 +294,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                 )
             }
             .onChange(of: visibleWhiteKeys) { _ in
-                queueScrollAnchor(
+                queuePreservedScrollOnZoom(
                     viewportWidth: viewportWidth,
                     totalWidth: totalWidth,
                     whiteKeyWidth: whiteKeyWidth,
@@ -328,13 +351,14 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     }
 
     private func scrollContentToken(viewportWidth: CGFloat, totalWidth: CGFloat) -> AnyHashable {
-        var hasher = Hasher()
-        hasher.combine(player.midiHeldKeys)
-        hasher.combine(player.voicingHintsByMidi.count)
-        hasher.combine(visibleWhiteKeys)
-        hasher.combine(viewportWidth)
-        hasher.combine(totalWidth)
-        return hasher.finalize()
+        EarTrainingPianoScrollContentToken.hash(
+            midiHeldKeys: player.midiHeldKeys,
+            voicingHintsByMidi: player.voicingHintsByMidi,
+            voicingHintIntensitiesByMidi: player.voicingHintIntensitiesByMidi,
+            visibleWhiteKeys: visibleWhiteKeys,
+            viewportWidth: viewportWidth,
+            totalWidth: totalWidth
+        )
     }
 
     private func queueScrollAnchor(
@@ -363,6 +387,22 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
             )
         }
         scrollTargetX = targetX
+    }
+
+    private func queuePreservedScrollOnZoom(
+        viewportWidth: CGFloat,
+        totalWidth: CGFloat,
+        whiteKeyWidth: CGFloat,
+        keyboardLayout: EarTrainingPianoKeyboardLayout
+    ) {
+        guard !Self.fitsFullKeyboard else { return }
+        scrollTargetX = PianoKeyboardScrollGeometry.preservedScrollOffsetXOnZoom(
+            currentScrollOffsetX: scrollOffsetX,
+            viewportWidth: viewportWidth,
+            whiteKeyWidth: whiteKeyWidth,
+            contentWidth: totalWidth,
+            whiteMidiIndexByMidi: keyboardLayout.whiteMidiIndexByMidi
+        )
     }
 
     @ViewBuilder

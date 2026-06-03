@@ -82,6 +82,50 @@ enum PianoKeyboardScrollGeometry {
         let centerX = (CGFloat(index) + 0.5) * whiteKeyWidth
         return max(0, min(maxOffset, centerX - viewportWidth / 2))
     }
+
+    /// 現在のビューポート中心に最も近い白鍵 MIDI（`centerScrollOffsetX` の逆算）。
+    static func centerAnchorWhiteMidi(
+        scrollOffsetX: CGFloat,
+        viewportWidth: CGFloat,
+        whiteKeyWidth: CGFloat,
+        whiteMidiIndexByMidi: [Int: Int]
+    ) -> Int {
+        let whites = whiteMidiNotes()
+        guard whiteKeyWidth > 0, !whites.isEmpty else {
+            return fallbackCenterMidi
+        }
+        let centerX = scrollOffsetX + viewportWidth / 2
+        let approximateIndex = centerX / whiteKeyWidth - 0.5
+        let index = max(0, min(whites.count - 1, Int(round(approximateIndex))))
+        let midi = whites[index]
+        if whiteMidiIndexByMidi[midi] != nil {
+            return midi
+        }
+        return fallbackCenterMidi
+    }
+
+    /// 鍵盤ズーム後もビューポート中心の音域を維持するスクロール位置。
+    static func preservedScrollOffsetXOnZoom(
+        currentScrollOffsetX: CGFloat,
+        viewportWidth: CGFloat,
+        whiteKeyWidth: CGFloat,
+        contentWidth: CGFloat,
+        whiteMidiIndexByMidi: [Int: Int]
+    ) -> CGFloat {
+        let anchorMidi = centerAnchorWhiteMidi(
+            scrollOffsetX: currentScrollOffsetX,
+            viewportWidth: viewportWidth,
+            whiteKeyWidth: whiteKeyWidth,
+            whiteMidiIndexByMidi: whiteMidiIndexByMidi
+        )
+        return centerScrollOffsetX(
+            anchorMidi: anchorMidi,
+            whiteKeyWidth: whiteKeyWidth,
+            viewportWidth: viewportWidth,
+            contentWidth: contentWidth,
+            whiteMidiIndexByMidi: whiteMidiIndexByMidi
+        )
+    }
 }
 
 /// 鍵盤直上の音域スクロールバー（左右ボタンで横スクロール）。

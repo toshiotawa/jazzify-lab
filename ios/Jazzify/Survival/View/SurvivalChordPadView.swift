@@ -242,7 +242,7 @@ struct SurvivalChordPadView: View, Equatable {
                 )
             }
             .onChange(of: visibleWhiteKeys) { _ in
-                queueScrollAnchor(
+                queuePreservedScrollOnZoom(
                     viewportWidth: viewportWidth,
                     totalWidth: totalWidth,
                     whiteKeyWidth: whiteKeyWidth
@@ -334,6 +334,21 @@ struct SurvivalChordPadView: View, Equatable {
             )
         }
         scrollTargetX = targetX
+    }
+
+    private func queuePreservedScrollOnZoom(
+        viewportWidth: CGFloat,
+        totalWidth: CGFloat,
+        whiteKeyWidth: CGFloat
+    ) {
+        guard !Self.fitsFullKeyboard else { return }
+        scrollTargetX = PianoKeyboardScrollGeometry.preservedScrollOffsetXOnZoom(
+            currentScrollOffsetX: scrollOffsetX,
+            viewportWidth: viewportWidth,
+            whiteKeyWidth: whiteKeyWidth,
+            contentWidth: totalWidth,
+            whiteMidiIndexByMidi: Self.whiteMidiIndexByMidi
+        )
     }
 
     @ViewBuilder

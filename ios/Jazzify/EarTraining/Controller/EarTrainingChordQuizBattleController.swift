@@ -21,9 +21,13 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private static let chordVoicingSelfPacedDrumLoopURL =
         URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
 
-    @Published private(set) var gameState: EarTrainingGameState = .idle
+    @Published private(set) var gameState: EarTrainingGameState = .idle {
+        didSet { recomputeVoicingHints() }
+    }
     @Published private(set) var phraseRunId: Int = 0
-    @Published private(set) var attempt: EarTrainingChordVoicingAttempt?
+    @Published private(set) var attempt: EarTrainingChordVoicingAttempt? {
+        didSet { recomputeVoicingHints() }
+    }
     @Published private(set) var correctCount: Int = 0
     @Published private(set) var timeRemaining: Int
     @Published private(set) var statusText: String
@@ -32,7 +36,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     @Published private(set) var playerHp: Int = 0
     @Published private(set) var enemyAttackGaugePercent: Double = 0
     @Published private(set) var countInValue: Int = 0
-    @Published var practiceMode: Bool = false
+    @Published var practiceMode: Bool = false {
+        didSet { recomputeVoicingHints() }
+    }
     /// チュートリアル時は敵ゲージ・攻撃を無効化する。
     var tutorialNoCombat: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
@@ -41,6 +47,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
+    @Published private(set) var voicingHintsByMidi: [Int: VoicingHintState] = [:]
     @Published private(set) var quizPhraseDetail: EarTrainingPhraseDetail?
     /// 譜面の左右スロット表示用（論理の `activeQuizIndex` / `previewQuizIndex` より遅れて更新）。
     @Published private(set) var displayedStaffActiveQuizIndex: Int = 0
@@ -622,6 +629,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
         if !practiceMode, EarTrainingChordQuiz.isQuizClear(correct: correctCount, required: requiredCorrectCount) {
             quizEnded = true
+            recomputeVoicingHints()
             cancelQuizTicker()
             cancelCountdownTask()
             publishSnapshot()
@@ -717,6 +725,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         switch outcome {
         case .gameOver:
             quizEnded = true
+            recomputeVoicingHints()
             cancelQuizTicker()
             cancelCountdownTask()
             pendingImpactHandlers.removeAll()
@@ -737,6 +746,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             rand: randomUnit
         )
         bootstrapPhraseAndAttempt()
+        recomputeVoicingHints()
         enqueueStaffDisplayShift(active: activeQuizIndex, preview: previewQuizIndex)
         showTutorialQuestionDialogueIfNeeded()
     }
@@ -760,6 +770,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private func evaluateTimeUp() {
         guard !practiceMode, !quizEnded else { return }
         quizEnded = true
+        recomputeVoicingHints()
         pendingImpactHandlers.removeAll()
         clearStaffShiftQueue()
         finishQuizFail()
@@ -1035,22 +1046,30 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         let needLabel = isEnglishCopy ? "Need" : "必要"
         return "\(correctLabel) \(correctCount) / \(needLabel) \(requiredCorrectCount)"
     }
+
+    private func recomputeVoicingHints() {
+        let next: [Int: VoicingHintState]
+        if (practiceMode || stage.resolvedShowKeyboardHintsInBattle),
+           gameState == .playingPhrase || gameState == .countIn,
+           !quizEnded,
+           let chord = activeChord,
+           !(attempt?.completedChordIds.contains(chord.id) ?? false) {
+            let pressed = attempt?.pressedByChord[chord.id] ?? []
+            next = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+                voicing: chord.voicing,
+                pressedPitchClasses: pressed
+            )
+        } else {
+            next = [:]
+        }
+        if next != voicingHintsByMidi {
+            voicingHintsByMidi = next
+        }
+    }
 }
 
 extension EarTrainingChordQuizBattleController: EarTrainingBattleSceneDriving {}
-extension EarTrainingChordQuizBattleController: EarTrainingPianoPlayable {
-    var voicingHintsByMidi: [Int: VoicingHintState] {
-        guard practiceMode || stage.resolvedShowKeyboardHintsInBattle else { return [:] }
-        guard gameState == .playingPhrase || gameState == .countIn, !quizEnded,
-              let chord = activeChord,
-              !(attempt?.completedChordIds.contains(chord.id) ?? false) else { return [:] }
-        let pressed = attempt?.pressedByChord[chord.id] ?? []
-        return EarTrainingChordVoicingEngine.voicingKeyboardHints(
-            voicing: chord.voicing,
-            pressedPitchClasses: pressed
-        )
-    }
-}
+extension EarTrainingChordQuizBattleController: EarTrainingPianoPlayable {}
 extension EarTrainingChordQuizBattleController: EarTrainingLobbyPresentable {
     var lessonProgressText: String? {
         guard lessonContext != nil, gameState == .stageClear else { return nil }

@@ -142,4 +142,83 @@ final class EarTrainingKeyboardScrollTests: XCTestCase {
         XCTAssertNil(EarTrainingKeyboardScroll.maxPitchMidi(in: stage))
         XCTAssertNil(EarTrainingKeyboardScroll.scrollAnchorMidi(for: stage))
     }
+
+    func testPianoScrollContentTokenDiffersForSameCountDifferentMidis() {
+        let cm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+            voicing: ["C3", "E3", "G3", "B3"],
+            pressedPitchClasses: []
+        )
+        let dm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+            voicing: ["D3", "F3", "A3", "C4"],
+            pressedPitchClasses: []
+        )
+        XCTAssertEqual(cm7.count, dm7.count)
+        XCTAssertEqual(cm7.count, 4)
+
+        let layout = (visibleWhiteKeys: 21, viewportWidth: CGFloat(400), totalWidth: CGFloat(3000))
+        let cm7Token = EarTrainingPianoScrollContentToken.hash(
+            midiHeldKeys: [],
+            voicingHintsByMidi: cm7,
+            voicingHintIntensitiesByMidi: nil,
+            visibleWhiteKeys: layout.visibleWhiteKeys,
+            viewportWidth: layout.viewportWidth,
+            totalWidth: layout.totalWidth
+        )
+        let dm7Token = EarTrainingPianoScrollContentToken.hash(
+            midiHeldKeys: [],
+            voicingHintsByMidi: dm7,
+            voicingHintIntensitiesByMidi: nil,
+            visibleWhiteKeys: layout.visibleWhiteKeys,
+            viewportWidth: layout.viewportWidth,
+            totalWidth: layout.totalWidth
+        )
+        XCTAssertNotEqual(cm7Token, dm7Token)
+    }
+
+    func testPianoScrollContentTokenDiffersWhenHintStateChanges() {
+        let pending = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+            voicing: ["C3", "E3", "G3", "B3"],
+            pressedPitchClasses: []
+        )
+        let completed = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+            voicing: ["C3", "E3", "G3", "B3"],
+            pressedPitchClasses: [0]
+        )
+        XCTAssertEqual(pending.count, completed.count)
+
+        let layout = (visibleWhiteKeys: 21, viewportWidth: CGFloat(400), totalWidth: CGFloat(3000))
+        let pendingToken = EarTrainingPianoScrollContentToken.hash(
+            midiHeldKeys: [],
+            voicingHintsByMidi: pending,
+            voicingHintIntensitiesByMidi: nil,
+            visibleWhiteKeys: layout.visibleWhiteKeys,
+            viewportWidth: layout.viewportWidth,
+            totalWidth: layout.totalWidth
+        )
+        let completedToken = EarTrainingPianoScrollContentToken.hash(
+            midiHeldKeys: [],
+            voicingHintsByMidi: completed,
+            voicingHintIntensitiesByMidi: nil,
+            visibleWhiteKeys: layout.visibleWhiteKeys,
+            viewportWidth: layout.viewportWidth,
+            totalWidth: layout.totalWidth
+        )
+        XCTAssertNotEqual(pendingToken, completedToken)
+    }
+
+    func testPianoScrollContentTokenCountOnlyWouldNotDiffer() {
+        let cm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+            voicing: ["C3", "E3", "G3", "B3"],
+            pressedPitchClasses: []
+        )
+        let dm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
+            voicing: ["D3", "F3", "A3", "C4"],
+            pressedPitchClasses: []
+        )
+        var countHasher1 = Hasher()
+        countHasher1.combine(cm7.count)
+        var countHasher2 = Hasher()
+        countHasher2.combine(dm7.count)
+        XCTAssertEqual(countHasher1.finalize(), countHasher2.finalize())
+    }
 }
