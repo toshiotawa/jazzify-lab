@@ -468,6 +468,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
             } else if vm.uiSnapshot.phase == .playing,
                !vm.isPaused,
                !vm.uiSnapshot.scenario.hideStaff,
+               !vm.uiSnapshot.scenario.suppressScenarioStaff,
                scenarioStaffSnapshot == nil,
                let staffPayload = SurvivalStageCenterStaffPayload.make(from: vm.uiSnapshot),
                !staffPayload.voicingNames.isEmpty {
