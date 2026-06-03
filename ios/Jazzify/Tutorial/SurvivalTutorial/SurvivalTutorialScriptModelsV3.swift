@@ -165,7 +165,36 @@ struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
     let voicingNames: [String]?
     let keyFifths: Int?
     let voicing_staves: [Int]?
+    /// DB / Web: `measureNumber`。phrase 系は `measure_number` のため demo_play のみ別キー。
     let measure_number: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case startBeat
+        case durationBeats
+        case chordName
+        case voicing
+        case voicingNames
+        case keyFifths
+        case voicing_staves
+        case measureNumber
+        case measure_number
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        startBeat = try c.decode(Double.self, forKey: .startBeat)
+        durationBeats = try c.decode(Double.self, forKey: .durationBeats)
+        chordName = try c.decode(String.self, forKey: .chordName)
+        voicing = try c.decode([Int].self, forKey: .voicing)
+        voicingNames = try c.decodeIfPresent([String].self, forKey: .voicingNames)
+        keyFifths = try c.decodeIfPresent(Int.self, forKey: .keyFifths)
+        voicing_staves = try c.decodeIfPresent([Int].self, forKey: .voicing_staves)
+        if let n = try c.decodeIfPresent(Int.self, forKey: .measureNumber) {
+            measure_number = n
+        } else {
+            measure_number = try c.decode(Int.self, forKey: .measure_number)
+        }
+    }
 }
 
 struct SurvivalTutorialV3DemoLine: Decodable, Sendable {
