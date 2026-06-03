@@ -220,6 +220,8 @@
 		BR14FACADEBFCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR14FACADEFRCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift */; };
 		SP01PLAYSESSIONBFCC03DD04EE05BR01 /* SurvivalPlaySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SP01PLAYSESSIONFRCC03DD04EE05BR01 /* SurvivalPlaySession.swift */; };
 		QJ01BF01C3D4E5F61718293A01 /* QuestJinglePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = QJ01FR01C3D4E5F61718293A01 /* QuestJinglePlayer.swift */; };
+		RAC01BF01C3D4E5F61718293A01 /* RemoteAudioFileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAC01FR01C3D4E5F61718293A01 /* RemoteAudioFileCache.swift */; };
+		DLS01BF01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = DLS01FR01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */; };
 		QJ02BF01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = QJ02FR01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift */; };
 		QJ03BF01C3D4E5F61718293A03 /* QuestCompletionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = QJ03FR01C3D4E5F61718293A03 /* QuestCompletionSheet.swift */; };
 		QJ04BF01C3D4E5F61718293A04 /* Gameover.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = QJ04FR01C3D4E5F61718293A04 /* Gameover.mp3 */; };
@@ -445,6 +447,8 @@
 		BR14FACADEFRCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushPlayLoopFacade.swift; sourceTree = "<group>"; };
 		SP01PLAYSESSIONFRCC03DD04EE05BR01 /* SurvivalPlaySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPlaySession.swift; sourceTree = "<group>"; };
 		QJ01FR01C3D4E5F61718293A01 /* QuestJinglePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestJinglePlayer.swift; sourceTree = "<group>"; };
+		RAC01FR01C3D4E5F61718293A01 /* RemoteAudioFileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAudioFileCache.swift; sourceTree = "<group>"; };
+		DLS01FR01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DrumLoopSourceResolver.swift; sourceTree = "<group>"; };
 		QJ02FR01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonNavigationHelpers.swift; sourceTree = "<group>"; };
 		QJ03FR01C3D4E5F61718293A03 /* QuestCompletionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestCompletionSheet.swift; sourceTree = "<group>"; };
 		QJ04FR01C3D4E5F61718293A04 /* Gameover.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = Gameover.mp3; sourceTree = "<group>"; };
@@ -792,6 +796,7 @@
 			isa = PBXGroup;
 			children = (
 				QJ01FR01C3D4E5F61718293A01 /* QuestJinglePlayer.swift */,
+				RAC01FR01C3D4E5F61718293A01 /* RemoteAudioFileCache.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -968,6 +973,7 @@
 				B2C3D4E5F61718293B5130 /* SurvivalTutorialV3LineRouter.swift */,
 				B2C3D4E5F61718293B5124 /* SurvivalTutorialTapAdvanceHub.swift */,
 				B2C3D4E5F61718293B5126 /* SurvivalTutorialV3DrumLoopPlayer.swift */,
+				DLS01FR01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */,
 				B2C3D4E5F61718293B5140 /* SurvivalTutorialDemoPlayScheduler.swift */,
 				B2C3D4E5F61718293B5142 /* SurvivalTutorialDemoStaffView.swift */,
 				B2C3D4E5F61718293B5144 /* SurvivalTutorialV3DemoPlayScene.swift */,
@@ -1237,6 +1243,7 @@
 				B2C3D4E5F61718293B5131 /* SurvivalTutorialV3LineRouter.swift in Sources */,
 				B2C3D4E5F61718293B5125 /* SurvivalTutorialTapAdvanceHub.swift in Sources */,
 				B2C3D4E5F61718293B5127 /* SurvivalTutorialV3DrumLoopPlayer.swift in Sources */,
+				DLS01BF01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift in Sources */,
 				B2C3D4E5F61718293B5141 /* SurvivalTutorialDemoPlayScheduler.swift in Sources */,
 				B2C3D4E5F61718293B5143 /* SurvivalTutorialDemoStaffView.swift in Sources */,
 				B2C3D4E5F61718293B5145 /* SurvivalTutorialV3DemoPlayScene.swift in Sources */,
@@ -1317,6 +1324,7 @@
 				BR14FACADEBFCC03DD04EE05BR01 /* BalloonRushPlayLoopFacade.swift in Sources */,
 				SP01PLAYSESSIONBFCC03DD04EE05BR01 /* SurvivalPlaySession.swift in Sources */,
 				QJ01BF01C3D4E5F61718293A01 /* QuestJinglePlayer.swift in Sources */,
+				RAC01BF01C3D4E5F61718293A01 /* RemoteAudioFileCache.swift in Sources */,
 				QJ02BF01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift in Sources */,
 				QJ03BF01C3D4E5F61718293A03 /* QuestCompletionSheet.swift in Sources */,
 				28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */,

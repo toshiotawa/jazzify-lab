@@ -22,6 +22,11 @@ enum SurvivalTutorialDemoPlayScheduler {
         return (beat * 60) / safeBpm
     }
 
+    /// BGM アンカー時刻からの残り遅延秒（負値は 0 にクランプ）。
+    static func anchoredDelaySeconds(atSeconds: Double, elapsedSeconds: Double) -> Double {
+        max(0, atSeconds - elapsedSeconds)
+    }
+
     static func defaultLineDurationBeats(bpm: Double) -> Double {
         (SurvivalTutorialV3Constants.dialogueLineSeconds * bpm) / 60
     }

@@ -113,9 +113,13 @@ struct SurvivalTutorialV3LessonView: View {
             sceneAdvanceIfFinish(from: script, index: sceneIndex)
             let firstScene = script.scenes.first
             let skipInitialBgm = firstScene?.isPhraseBattle == true || firstScene?.isDemoPlay == true
-            if !skipInitialBgm {
-                let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
-                drumPlayer.start(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
+            let drumUrl = script.audioTracks?.drum_loop?.url
+            let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
+            Task {
+                await drumPlayer.prepare(urlString: drumUrl)
+                if !skipInitialBgm {
+                    await drumPlayer.start(urlString: drumUrl, volume: vol)
+                }
             }
         }
         .onDisappear {
@@ -247,7 +251,10 @@ struct SurvivalTutorialV3LessonView: View {
             return
         }
         let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
-        drumPlayer.start(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
+        let drumUrl = script.audioTracks?.drum_loop?.url
+        Task {
+            await drumPlayer.start(urlString: drumUrl, volume: vol)
+        }
     }
 
     private func advanceScene() {
@@ -586,7 +593,10 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             sessionBox.session?.dispose()
             sessionBox.session = nil
             let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
-            drumPlayer.start(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
+            let drumUrl = script.audioTracks?.drum_loop?.url
+            Task {
+                await drumPlayer.start(urlString: drumUrl, volume: vol)
+            }
         }
     }
 

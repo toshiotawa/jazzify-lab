@@ -169,7 +169,11 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
         scenarioController.setDemoKeyboardHints([])
 
         let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
-        drumPlayer.restartFromStart(urlString: script.audioTracks?.drum_loop?.url, volume: vol)
+        let drumUrl = script.audioTracks?.drum_loop?.url
+        let anchor = Date()
+        await drumPlayer.restartFromStart(urlString: drumUrl, volume: vol)
+        if Task.isCancelled { return }
+        let elapsed = Date().timeIntervalSince(anchor)
 
         let schedule = SurvivalTutorialDemoPlayScheduler.buildSchedule(scene: scene)
         var activeChordIndex: Int?
@@ -177,7 +181,11 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
 
         await withTaskGroup(of: Void.self) { group in
             for event in schedule {
-                let delayNs = UInt64(max(0, event.atSeconds) * 1_000_000_000)
+                let delaySeconds = SurvivalTutorialDemoPlayScheduler.anchoredDelaySeconds(
+                    atSeconds: event.atSeconds,
+                    elapsedSeconds: elapsed
+                )
+                let delayNs = UInt64(delaySeconds * 1_000_000_000)
                 group.addTask {
                     try? await Task.sleep(nanoseconds: delayNs)
                     guard !Task.isCancelled else { return }
