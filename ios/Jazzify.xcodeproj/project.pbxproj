@@ -85,6 +85,9 @@
 		28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */; };
 		2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */; };
 		2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */; };
+		KBDSC004E2606031400000004 /* EarTrainingKeyboardScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = KBDSC001E2606031400000001 /* EarTrainingKeyboardScroll.swift */; };
+		KBDSC005E2606031400000005 /* PianoKeyboardScrollChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = KBDSC002E2606031400000002 /* PianoKeyboardScrollChrome.swift */; };
+		KBDSC006E2606031400000006 /* UIKitHorizontalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = KBDSC003E2606031400000003 /* UIKitHorizontalScrollView.swift */; };
 		2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB42EB0BEA73D79132F739 /* SettingsView.swift */; };
 		2CE30418294A3B0591792525 /* EarTrainingChordVoicingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */; };
 		ADLIB004E2411EE00000004 /* EarTrainingAdlibEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADLIB001E2411EE00000001 /* EarTrainingAdlibEngine.swift */; };
@@ -312,6 +315,9 @@
 		DD03BB02CC03DD04EE05BB01 /* SurvivalSessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalSessionState.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF09 /* SurvivalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalViewModel.swift; sourceTree = "<group>"; };
 		1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitVerticalScrollView.swift; sourceTree = "<group>"; };
+		KBDSC001E2606031400000001 /* EarTrainingKeyboardScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingKeyboardScroll.swift; sourceTree = "<group>"; };
+		KBDSC002E2606031400000002 /* PianoKeyboardScrollChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardScrollChrome.swift; sourceTree = "<group>"; };
+		KBDSC003E2606031400000003 /* UIKitHorizontalScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitHorizontalScrollView.swift; sourceTree = "<group>"; };
 		20B499E74ABA90E85BD71290 /* Jazzify.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Jazzify.entitlements; sourceTree = "<group>"; };
 		2C920737F9E2FF2F7DACBD07 /* LessonMapAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonMapAudio.swift; sourceTree = "<group>"; };
 		2D32E093A43244C6072305F8 /* C7.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C7.mp3; sourceTree = "<group>"; };
@@ -587,6 +593,7 @@
 				C2E30419294A3B0591792536 /* EarTrainingCompositePhraseAdapter.swift */,
 				F1EE770000CC11EE0000CCC1 /* EarTrainingChordVoicingStaffLayout.swift */,
 				3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */,
+				KBDSC001E2606031400000001 /* EarTrainingKeyboardScroll.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -1032,6 +1039,8 @@
 				DD04BB02EE0599A1B1C1D1E2 /* PlayerLevelHub.swift */,
 				QJ03FR01C3D4E5F61718293A03 /* QuestCompletionSheet.swift */,
 				1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */,
+				KBDSC002E2606031400000002 /* PianoKeyboardScrollChrome.swift */,
+				KBDSC003E2606031400000003 /* UIKitHorizontalScrollView.swift */,
 			);
 			path = Main;
 			sourceTree = "<group>";
@@ -1193,6 +1202,7 @@
 				F1EE770000CC11EE0000CCC2 /* EarTrainingChordVoicingStaffLayout.swift in Sources */,
 				73404858DC7ED47DE8628CD9 /* EarTrainingChordVoicingGameView.swift in Sources */,
 				2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */,
+				KBDSC004E2606031400000004 /* EarTrainingKeyboardScroll.swift in Sources */,
 				A9FFFB17E9606EA7AFD69772 /* EarTrainingGameView.swift in Sources */,
 				8B0A05DBF2C58F148B4FD55B /* EarTrainingHUDView.swift in Sources */,
 				5B733F7752C44E16F2013B1F /* EarTrainingPhraseSlotsView.swift in Sources */,
@@ -1353,6 +1363,8 @@
 				56798F7B79D567C225C5CB37 /* TopView.swift in Sources */,
 				DD04BB02EE0599A1B1C1D1E1 /* PlayerLevelHub.swift in Sources */,
 				2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */,
+				KBDSC005E2606031400000005 /* PianoKeyboardScrollChrome.swift in Sources */,
+				KBDSC006E2606031400000006 /* UIKitHorizontalScrollView.swift in Sources */,
 				ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */,
 				0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */,
 			);

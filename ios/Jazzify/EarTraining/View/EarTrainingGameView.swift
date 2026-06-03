@@ -274,7 +274,10 @@ private struct EarTrainingGameContent: View {
 
             VStack(spacing: 0) {
                 Spacer()
-                EarTrainingPianoView(player: controller)
+                EarTrainingPianoView(
+                    player: controller,
+                    scrollAnchorMidi: EarTrainingKeyboardScroll.scrollAnchorMidi(for: controller.stage)
+                )
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)
             }

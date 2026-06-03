@@ -190,7 +190,7 @@ private struct EarTrainingChordVoicingContent: View {
     let fixedLandscapeSize: CGSize?
     let onClose: () -> Void
 
-    private static let pianoOverlayHeight: CGFloat = 80
+    private static let pianoOverlayHeight: CGFloat = 76 + PianoKeyboardScrollGeometry.earTrainingScrollBarHeight
 
     /// 複合フレーズは練習モード非対応（Web と同様）。レッスン経由でも設定シートに出さない。
     private var stageRunModeConfig: EarTrainingStageRunModeConfig? {
@@ -283,7 +283,10 @@ private struct EarTrainingChordVoicingContent: View {
 
             VStack(spacing: 0) {
                 Spacer()
-                EarTrainingPianoView(player: controller)
+                EarTrainingPianoView(
+                    player: controller,
+                    scrollAnchorMidi: EarTrainingKeyboardScroll.scrollAnchorMidi(for: controller.stage)
+                )
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)
             }

@@ -118,13 +118,16 @@ enum SurvivalChordPadPreferences {
 /// - ヒント MIDI / 入力済みハイライトは親が `SurvivalViewModel` で組み立てて渡す。
 struct SurvivalChordPadView: View, Equatable {
     let snapshot: SurvivalChordPadSnapshot
+    let visibleWhiteKeys: Int
+    let onVisibleWhiteKeysChange: (Int) -> Void
     let onPress: (Int) -> Void
     let onRelease: (Int) -> Void
 
-    @State private var visibleWhiteKeys: Int = SurvivalChordPadPreferences.loadVisibleWhiteKeys()
+    @State private var scrollOffsetX: CGFloat = 0
+    @State private var scrollTargetX: CGFloat?
 
     static func == (lhs: SurvivalChordPadView, rhs: SurvivalChordPadView) -> Bool {
-        lhs.snapshot == rhs.snapshot
+        lhs.snapshot == rhs.snapshot && lhs.visibleWhiteKeys == rhs.visibleWhiteKeys
     }
 
     private static let firstMidi: Int = 21
@@ -136,13 +139,22 @@ struct SurvivalChordPadView: View, Equatable {
     private let keyboardHeight: CGFloat = 120
     private let blackKeyHeightRatio: CGFloat = 0.62
     private let blackKeyWidthRatio: CGFloat = 0.6
+    private let zoomControlHitSize: CGFloat = 44
+    private let zoomControlIconWidth: CGFloat = 28
+    private let zoomControlIconHeight: CGFloat = 26
+
+    private var chromeHeight: CGFloat {
+        keyboardHeight + (Self.fitsFullKeyboard ? 0 : PianoKeyboardScrollGeometry.dragBarHeight)
+    }
 
     var body: some View {
         GeometryReader { proxy in
             let fitsFullKeyboard = Self.fitsFullKeyboard
+            let needsScroll = !fitsFullKeyboard
             let whites = Self.whiteNotes
+            let viewportWidth = proxy.size.width
             let whiteKeyWidth = SurvivalChordPadLayout.whiteKeyWidth(
-                viewportWidth: proxy.size.width,
+                viewportWidth: viewportWidth,
                 visibleWhiteKeys: visibleWhiteKeys,
                 fitsFullKeyboard: fitsFullKeyboard,
                 whiteKeyCount: whites.count
@@ -150,26 +162,50 @@ struct SurvivalChordPadView: View, Equatable {
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
             let totalWidth = SurvivalChordPadLayout.totalKeyboardWidth(
-                viewportWidth: proxy.size.width,
+                viewportWidth: viewportWidth,
                 visibleWhiteKeys: visibleWhiteKeys,
                 fitsFullKeyboard: fitsFullKeyboard,
                 whiteKeyCount: whites.count
             )
+            let maxScrollOffsetX = PianoKeyboardScrollGeometry.maxScrollOffset(
+                contentWidth: totalWidth,
+                viewportWidth: viewportWidth
+            )
 
-            ZStack(alignment: .topLeading) {
-                Group {
-                    if fitsFullKeyboard {
-                        keyboardStack(
-                            whites: whites,
-                            whiteKeyWidth: whiteKeyWidth,
-                            blackKeyWidth: blackKeyWidth,
-                            blackKeyHeight: blackKeyHeight,
-                            totalWidth: totalWidth
-                        )
-                        .frame(height: keyboardHeight)
-                    } else {
-                        ScrollViewReader { scrollProxy in
-                            ScrollView(.horizontal, showsIndicators: false) {
+            VStack(spacing: 0) {
+                if needsScroll {
+                    PianoRangeScrollBar(
+                        barHeight: PianoKeyboardScrollGeometry.dragBarHeight,
+                        scrollOffsetX: scrollOffsetX,
+                        maxScrollOffsetX: maxScrollOffsetX,
+                        whiteKeyWidth: whiteKeyWidth,
+                        onScrollOffsetXChange: { scrollOffsetX = $0 }
+                    )
+                }
+
+                ZStack(alignment: .topLeading) {
+                    Group {
+                        if fitsFullKeyboard {
+                            keyboardStack(
+                                whites: whites,
+                                whiteKeyWidth: whiteKeyWidth,
+                                blackKeyWidth: blackKeyWidth,
+                                blackKeyHeight: blackKeyHeight,
+                                totalWidth: totalWidth
+                            )
+                            .frame(height: keyboardHeight)
+                        } else {
+                            UIKitHorizontalScrollView(
+                                contentSize: CGSize(width: totalWidth, height: keyboardHeight),
+                                scrollOffsetX: $scrollOffsetX,
+                                scrollTargetX: $scrollTargetX,
+                                isUserScrollingEnabled: false,
+                                delaysContentTouches: true,
+                                contentToken: scrollContentToken(
+                                    viewportWidth: viewportWidth,
+                                    totalWidth: totalWidth
+                                )
+                            ) {
                                 keyboardStack(
                                     whites: whites,
                                     whiteKeyWidth: whiteKeyWidth,
@@ -179,38 +215,51 @@ struct SurvivalChordPadView: View, Equatable {
                                 )
                             }
                             .frame(height: keyboardHeight)
-                            .onAppear {
-                                scrollToKeyboardAnchor(scrollProxy)
-                            }
-                            .onChange(of: snapshot.scrollAnchorMidi) { _ in
-                                scrollToKeyboardAnchor(scrollProxy)
-                            }
-                            .onChange(of: visibleWhiteKeys) { _ in
-                                scrollToKeyboardAnchor(scrollProxy)
-                            }
                         }
                     }
-                }
 
-                if !fitsFullKeyboard {
-                    zoomControls
-                        .padding(.leading, 6)
-                        .padding(.top, 4)
+                    if needsScroll {
+                        zoomControls
+                            .padding(.leading, 6)
+                            .padding(.top, 4)
+                    }
                 }
+                .frame(height: keyboardHeight)
+                .background(Color.black.opacity(0.55))
             }
-            .background(Color.black.opacity(0.55))
+            .onAppear {
+                queueScrollAnchor(
+                    viewportWidth: viewportWidth,
+                    totalWidth: totalWidth,
+                    whiteKeyWidth: whiteKeyWidth
+                )
+            }
+            .onChange(of: snapshot.scrollAnchorMidi) { _ in
+                queueScrollAnchor(
+                    viewportWidth: viewportWidth,
+                    totalWidth: totalWidth,
+                    whiteKeyWidth: whiteKeyWidth
+                )
+            }
+            .onChange(of: visibleWhiteKeys) { _ in
+                queueScrollAnchor(
+                    viewportWidth: viewportWidth,
+                    totalWidth: totalWidth,
+                    whiteKeyWidth: whiteKeyWidth
+                )
+            }
         }
-        .frame(height: keyboardHeight)
+        .frame(height: chromeHeight)
     }
 
     private var zoomControls: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 8) {
             zoomControlButton(
                 symbol: "plus",
                 isEnabled: SurvivalChordPadLayout.canEnlargeKeys(after: visibleWhiteKeys),
                 accessibilityLabel: "鍵盤を拡大 / Enlarge keyboard"
             ) {
-                applyVisibleWhiteKeys(
+                onVisibleWhiteKeysChange(
                     SurvivalChordPadLayout.enlargedVisibleWhiteKeys(after: visibleWhiteKeys)
                 )
             }
@@ -219,12 +268,12 @@ struct SurvivalChordPadView: View, Equatable {
                 isEnabled: SurvivalChordPadLayout.canShrinkKeys(after: visibleWhiteKeys),
                 accessibilityLabel: "鍵盤を縮小 / Shrink keyboard"
             ) {
-                applyVisibleWhiteKeys(
+                onVisibleWhiteKeysChange(
                     SurvivalChordPadLayout.shrunkVisibleWhiteKeys(after: visibleWhiteKeys)
                 )
             }
         }
-        .padding(3)
+        .padding(4)
         .background(Color.black.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
@@ -239,26 +288,52 @@ struct SurvivalChordPadView: View, Equatable {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.35))
-                .frame(width: 28, height: 26)
+                .frame(width: zoomControlIconWidth, height: zoomControlIconHeight)
+                .frame(minWidth: zoomControlHitSize, minHeight: zoomControlHitSize)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .accessibilityLabel(accessibilityLabel)
     }
 
-    private func applyVisibleWhiteKeys(_ value: Int) {
-        let clamped = SurvivalChordPadLayout.clampedVisibleWhiteKeys(value)
-        guard clamped != visibleWhiteKeys else { return }
-        visibleWhiteKeys = clamped
-        SurvivalChordPadPreferences.saveVisibleWhiteKeys(clamped)
+    private func scrollContentToken(viewportWidth: CGFloat, totalWidth: CGFloat) -> AnyHashable {
+        var hasher = Hasher()
+        hasher.combine(snapshot.hintMidis)
+        hasher.combine(snapshot.completedHintMidis)
+        hasher.combine(snapshot.midiHeldKeys)
+        hasher.combine(snapshot.isEnabled)
+        hasher.combine(visibleWhiteKeys)
+        hasher.combine(viewportWidth)
+        hasher.combine(totalWidth)
+        return hasher.finalize()
     }
 
-    private func scrollToKeyboardAnchor(_ scrollProxy: ScrollViewProxy) {
-        if let midi = snapshot.scrollAnchorMidi {
-            scrollProxy.scrollTo(midi, anchor: .trailing)
+    private func queueScrollAnchor(
+        viewportWidth: CGFloat,
+        totalWidth: CGFloat,
+        whiteKeyWidth: CGFloat
+    ) {
+        guard !Self.fitsFullKeyboard else { return }
+        let targetX: CGFloat
+        if let anchorMidi = snapshot.scrollAnchorMidi {
+            targetX = PianoKeyboardScrollGeometry.trailingScrollOffsetX(
+                anchorWhiteMidi: anchorMidi,
+                whiteKeyWidth: whiteKeyWidth,
+                viewportWidth: viewportWidth,
+                contentWidth: totalWidth,
+                whiteMidiIndexByMidi: Self.whiteMidiIndexByMidi
+            )
         } else {
-            scrollProxy.scrollTo(60, anchor: .center)
+            targetX = PianoKeyboardScrollGeometry.centerScrollOffsetX(
+                anchorMidi: PianoKeyboardScrollGeometry.fallbackCenterMidi,
+                whiteKeyWidth: whiteKeyWidth,
+                viewportWidth: viewportWidth,
+                contentWidth: totalWidth,
+                whiteMidiIndexByMidi: Self.whiteMidiIndexByMidi
+            )
         }
+        scrollTargetX = targetX
     }
 
     @ViewBuilder

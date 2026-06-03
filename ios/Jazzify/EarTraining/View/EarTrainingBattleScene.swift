@@ -8,11 +8,11 @@ import UIKit
 final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     // MARK: - Constants
 
-    private static let pianoOverlayHeight: CGFloat = 104
+    private static let pianoOverlayHeight: CGFloat = 104 + PianoKeyboardScrollGeometry.earTrainingScrollBarHeight
     private static let hudHeight: CGFloat = 104
     private static let phraseIntroFadeMs: TimeInterval = 2.6
     /// ピアノの SwiftUI と合わせる目安下部占有（[`EarTrainingPianoView.keyboardHeight`]+下端パディング程度）。
-    private static let approximateEarTrainingKeyboardVisualTopFromBottom: CGFloat = 80
+    private static let approximateEarTrainingKeyboardVisualTopFromBottom: CGFloat = 80 + PianoKeyboardScrollGeometry.earTrainingScrollBarHeight
     /// 白鍵上端と足下のごくわずかなギャップ（ほぼキーボード直上）。
     private static let battleFloorAirAboveKeyboardKeys: CGFloat = 6
     /// アバター表示を約 2/3 に（耳コピ・コードヴォイシングの iOS バトル共通）。

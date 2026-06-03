@@ -367,6 +367,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
     @StateObject private var blockBossIntroUIModel = SurvivalBlockBossIntroUIModel()
     @StateObject private var playDialogueUIModel = SurvivalStagePlayDialogueUIModel()
     @State private var hudHeight: CGFloat = 72
+    @State private var chordPadVisibleWhiteKeys = SurvivalChordPadPreferences.loadVisibleWhiteKeys()
 
     private var vm: SurvivalViewModel { session.viewModel }
 
@@ -681,6 +682,13 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                 isEnabled: vm.uiSnapshot.phase == .playing && !vm.isPaused,
                 scrollAnchorMidi: vm.chordPadScrollAnchorMidi
             ),
+            visibleWhiteKeys: chordPadVisibleWhiteKeys,
+            onVisibleWhiteKeysChange: { newValue in
+                let clamped = SurvivalChordPadLayout.clampedVisibleWhiteKeys(newValue)
+                guard clamped != chordPadVisibleWhiteKeys else { return }
+                chordPadVisibleWhiteKeys = clamped
+                SurvivalChordPadPreferences.saveVisibleWhiteKeys(clamped)
+            },
             onPress: { session.chordPadNoteOn($0, velocity: 100) },
             onRelease: { session.chordPadNoteOff($0) }
         )
