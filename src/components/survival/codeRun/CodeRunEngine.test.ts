@@ -510,4 +510,22 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.enemies).toHaveLength(1);
     expect(fromDb.enemies[0]?.speed).toBe(2);
   });
+
+  it('manualGround では自動床を敷かない', () => {
+    const fromDb = createCodeRunMapFromDb('manual_ground_test', {
+      tileSize: 48,
+      worldTilesWide: 8,
+      groundRow: 5,
+      manualGround: true,
+      spawn: { c: 1, r: 5 },
+      goalColumn: 6,
+      pits: [],
+      solids: [{ kind: 'ground', row: 5, c0: 2, c1: 4 }],
+      spikes: [],
+      enemies: [],
+    }, 60);
+    const groundTiles = fromDb.solids.filter((solid) => solid.kind === 'ground');
+    expect(groundTiles).toHaveLength(3);
+    expect(groundTiles.every((solid) => solid.x >= 96 && solid.x <= 192)).toBe(true);
+  });
 });

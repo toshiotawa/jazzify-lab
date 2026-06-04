@@ -105,6 +105,8 @@ interface CodeRunLayoutData {
   readonly worldTilesWide?: number;
   readonly worldHeight?: number;
   readonly groundRow?: number;
+  /** true のとき自動床（groundRow 沿い）を敷かず、solids の ground のみ使う。 */
+  readonly manualGround?: boolean;
   readonly spawn?: CodeRunGridPoint;
   readonly goal?: CodeRunGridPoint;
   readonly goalColumn?: number;
@@ -238,7 +240,9 @@ const buildMapFromLayout = (
   const goalPoint = layout.goal ?? { c: layout.goalColumn ?? 160, r: groundRow };
   const solids: CodeRunTileRect[] = [];
 
-  buildGround(solids, layout.pits, worldTilesWide, groundRow, tileSize);
+  if (!layout.manualGround) {
+    buildGround(solids, layout.pits, worldTilesWide, groundRow, tileSize);
+  }
   for (const placement of layout.solids) {
     addSolidPlacement(solids, placement, tileSize);
   }
@@ -685,6 +689,7 @@ const parseCodeRunLayoutFromDb = (
     worldTilesWide: readPositiveNumber(source, 'worldTilesWide'),
     worldHeight: readPositiveNumber(source, 'worldHeight'),
     groundRow: readNonNegativeInteger(source, 'groundRow'),
+    manualGround: source.manualGround === true,
     spawn: parseGridPoint(source.spawn),
     goal: parseGridPoint(source.goal),
     goalColumn: readNonNegativeInteger(source, 'goalColumn'),

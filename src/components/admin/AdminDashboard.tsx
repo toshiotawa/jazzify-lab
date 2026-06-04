@@ -12,6 +12,7 @@ import FantasyStageManager from './FantasyStageManager';
 import LessonFantasyStageManager from './LessonFantasyStageManager';
 import DailyFantasyChallengeManager from './DailyFantasyChallengeManager';
 import SurvivalStageManager from './SurvivalStageManager';
+import CodeRunMapEditor from './CodeRunMapEditor';
 import EarTrainingStageManager from './EarTrainingStageManager';
 
 /**
@@ -65,6 +66,7 @@ const AdminDashboard: React.FC = () => {
            <SidebarLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <SidebarLink hash="#admin-fantasy-stages" label="ファンタジーステージ" />
            <SidebarLink hash="#admin-survival" label="サバイバル設定" />
+           <SidebarLink hash="#admin-code-run-map" label="コードランマップ" />
            <SidebarLink hash="#admin-ear-training" label="バトルモード" />
            <SidebarLink hash="#admin-dayly-fantasy" label="デイリーチャレンジ" />
            <SidebarLink hash="#admin-lesson-stages" label="レッスン用ステージ" />
@@ -92,6 +94,7 @@ const AdminDashboard: React.FC = () => {
            <MobileTabLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <MobileTabLink hash="#admin-fantasy-stages" label="ステージ" />
            <MobileTabLink hash="#admin-survival" label="サバイバル" />
+           <MobileTabLink hash="#admin-code-run-map" label="コードラン" />
            <MobileTabLink hash="#admin-ear-training" label="バトル" />
            <MobileTabLink hash="#admin-dayly-fantasy" label="デイリー" />
            <MobileTabLink hash="#admin-lesson-stages" label="レッスン用" />
@@ -152,6 +155,7 @@ const DashboardContent: React.FC = () => {
    if (currentHash.startsWith('#admin-fantasy-bgm')) return <FantasyBgmManager />;
    if (currentHash.startsWith('#admin-fantasy-stages')) return <FantasyStageManager />;
    if (currentHash.startsWith('#admin-survival')) return <SurvivalStageManager />;
+   if (currentHash.startsWith('#admin-code-run-map')) return <CodeRunMapEditor />;
    if (currentHash.startsWith('#admin-ear-training')) return <EarTrainingStageManager />;
    if (currentHash.startsWith('#admin-dayly-fantasy')) return <DailyFantasyChallengeManager />;
    if (currentHash.startsWith('#admin-lesson-stages')) return <LessonFantasyStageManager />;

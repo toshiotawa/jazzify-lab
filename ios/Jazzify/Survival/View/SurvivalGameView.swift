@@ -393,6 +393,7 @@ private struct SurvivalCodeRunMapData: Codable, Sendable {
     let worldTilesWide: Int?
     let worldHeight: CGFloat?
     let groundRow: Int?
+    let manualGround: Bool?
     let spawn: SurvivalCodeRunGridPoint?
     let goal: SurvivalCodeRunGridPoint?
     let goalColumn: Int?
@@ -760,9 +761,11 @@ private struct SurvivalCodeRunNativeMapSpec {
         func tileRect(_ c: Int, _ r: Int) -> CGRect {
             CGRect(x: CGFloat(c) * tile, y: CGFloat(r) * tile, width: tile, height: tile)
         }
-        for c in 0..<worldTilesWide where !isPit(c) {
-            solids.append(tileRect(c, groundRow))
-            solids.append(tileRect(c, groundRow + 1))
+        if data.manualGround != true {
+            for c in 0..<worldTilesWide where !isPit(c) {
+                solids.append(tileRect(c, groundRow))
+                solids.append(tileRect(c, groundRow + 1))
+            }
         }
         for placement in placements {
             if let c = placement.c, let r = placement.r {

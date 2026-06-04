@@ -362,6 +362,7 @@ const App: React.FC = () => {
     case '#admin-fantasy-bgm':
     case '#admin-fantasy-stages':
     case '#admin-survival':
+    case '#admin-code-run-map':
     case '#admin-lesson-stages':
     case '#admin-ear-training':
     case '#admin-lessons':

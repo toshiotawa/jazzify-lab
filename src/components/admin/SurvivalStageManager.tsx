@@ -274,7 +274,12 @@ const SurvivalStageManager: React.FC = () => {
   
   return (
     <div className="space-y-6">
-      <h3 className="text-xl font-bold">サバイバルモード管理</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xl font-bold">サバイバルモード管理</h3>
+        <a href="#admin-code-run-map" className="btn btn-sm btn-outline">
+          コードラン マップエディタ
+        </a>
+      </div>
       
       {/* 難易度選択タブ */}
       <div className="flex flex-wrap gap-2">

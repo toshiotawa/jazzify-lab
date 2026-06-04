@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Code Run マップエディタ</title>
+  <meta http-equiv="refresh" content="0;url=/main#admin-code-run-map" />
+  <script>window.location.replace('/main#admin-code-run-map');</script>
+  <link rel="stylesheet" href="./editor.css" />
+</head>
+<body>
+  <p style="font-family:sans-serif;padding:2rem">
+    管理画面に移動しました:
+    <a href="/main#admin-code-run-map">コードラン マップエディタ</a>
+  </p>
+  <div class="app">
+    <header>
+      <h1>Code Run マップエディタ</h1>
+      <p>ドラッグ／クリックで配置 · マップ部分のみ JSON 出力 · <code>npm run dev</code> 後 <code>/code-run-map-editor/</code></p>
+    </header>
+
+    <aside class="toolbar">
+      <h2>パーツ</h2>
+      <div class="tool-grid">
+        <button type="button" class="tool-btn active" data-tool="ground" title="手動床（手動床モード時）">
+          <span class="tool-swatch" style="background:#6b5344"></span>床
+        </button>
+        <button type="button" class="tool-btn" data-tool="brick" title="壁・天井">
+          <span class="tool-swatch" style="background:#7a8499"></span>レンガ
+        </button>
+        <button type="button" class="tool-btn" data-tool="platform" title="足場（下から通過）">
+          <span class="tool-swatch" style="background:#c9a66b"></span>足場
+        </button>
+        <button type="button" class="tool-btn" data-tool="block" title="クレート">
+          <span class="tool-swatch" style="background:#d4783a"></span>クレート
+        </button>
+        <button type="button" class="tool-btn" data-tool="spike" title="トゲ">
+          <span class="tool-swatch" style="background:#e74c3c"></span>トゲ
+        </button>
+        <button type="button" class="tool-btn" data-tool="pit" title="穴（列単位・自動床用）">
+          <span class="tool-swatch" style="background:#1a1020"></span>穴
+        </button>
+        <button type="button" class="tool-btn" data-tool="enemy" title="スライム配置">
+          <span class="tool-swatch" style="background:#8fd14f"></span>敵
+        </button>
+        <button type="button" class="tool-btn" data-tool="patrol" title="敵をクリック→左端→右端">
+          <span class="tool-swatch" style="background:#ffe566"></span>巡回
+        </button>
+        <button type="button" class="tool-btn" data-tool="spawn" title="開始位置">
+          <span class="tool-swatch" style="background:#4da3ff"></span>開始
+        </button>
+        <button type="button" class="tool-btn" data-tool="goal" title="ゴール旗（タイル）">
+          <span class="tool-swatch" style="background:#ffd54f"></span>ゴール
+        </button>
+        <button type="button" class="tool-btn" data-tool="eraser" title="消しゴム（右クリックでも削除）">
+          <span class="tool-swatch" style="background:#444"></span>消去
+        </button>
+      </div>
+
+      <p class="hint" style="margin-top:12px">
+        <strong>操作</strong><br />
+        左ドラッグ: 配置 · 右ドラッグ: 消去<br />
+        敵: 配置後「巡回」で移動範囲（2クリック）<br />
+        Ctrl+ホイール: ズーム
+      </p>
+
+      <div class="actions" style="margin-top:10px">
+        <button type="button" class="btn-secondary" id="btnFillGroundRow">床行を一括塗り</button>
+      </div>
+    </aside>
+
+    <main class="canvas-wrap">
+      <canvas id="mapCanvas" width="1792" height="392" aria-label="マップ編集キャンバス"></canvas>
+    </main>
+
+    <aside class="sidebar">
+      <div class="checkbox-row">
+        <input type="checkbox" id="manualGround" checked />
+        <label for="manualGround">手動床（オフ＝自動床＋穴）</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="useGoalColumn" checked />
+        <label for="useGoalColumn">ゴールを列番号で指定</label>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label for="worldTilesWide">横タイル数</label>
+          <input id="worldTilesWide" type="number" min="8" max="400" value="64" />
+        </div>
+        <div class="field">
+          <label for="gridRows">編集行数</label>
+          <input id="gridRows" type="number" min="4" max="80" value="14" />
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="tileSize">tileSize (px)</label>
+          <input id="tileSize" type="number" min="16" max="64" value="48" />
+        </div>
+        <div class="field">
+          <label for="groundRow">groundRow</label>
+          <input id="groundRow" type="number" min="0" value="9" />
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="worldHeight">worldHeight</label>
+          <input id="worldHeight" type="number" min="96" value="528" />
+        </div>
+        <div class="field">
+          <label for="goalColumn">goalColumn</label>
+          <input id="goalColumn" type="number" min="0" value="60" />
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="viewWidth">viewWidth</label>
+          <input id="viewWidth" type="number" value="960" />
+        </div>
+        <div class="field">
+          <label for="viewHeight">viewHeight</label>
+          <input id="viewHeight" type="number" value="528" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="goalOffsetX">goalOffsetX</label>
+        <input id="goalOffsetX" type="number" min="0" value="18" />
+      </div>
+
+      <div id="patrolBanner" class="patrol-banner" hidden>
+        パトロール設定中: 左端 → 右端の順にキャンバスをクリック
+        <button type="button" class="btn-secondary" id="btnCancelPatrol" style="margin-top:6px;width:100%">キャンセル</button>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="btnExport">JSON 更新</button>
+        <button type="button" class="btn-secondary" id="btnCopy">コピー</button>
+        <button type="button" class="btn-secondary" id="btnImport">JSON 読込</button>
+        <button type="button" class="btn-danger" id="btnClear">全消去</button>
+      </div>
+
+      <div class="field">
+        <label for="jsonOutput">マップ JSON（survival_run_maps.map_data にマージ）</label>
+        <textarea id="jsonOutput" spellcheck="false" placeholder="ここに pits / solids / spikes / enemies などが出力されます"></textarea>
+      </div>
+      <p class="hint">
+        DB 登録例: <code>map_data = map_data || '&lt;上記JSON&gt;'::jsonb</code><br />
+        <code>assets</code> は別途マイグレーションで付与してください。
+      </p>
+    </aside>
+
+    <footer class="status-bar">
+      <span id="statusText">準備完了</span>
+    </footer>
+  </div>
+  <script src="./editor.js"></script>
+</body>
+</html>
