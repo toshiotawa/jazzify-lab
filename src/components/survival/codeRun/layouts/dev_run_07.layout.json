@@ -1,0 +1,542 @@
+{
+  "layoutVersion": 1,
+  "viewWidth": 960,
+  "viewHeight": 528,
+  "tileSize": 48,
+  "worldTilesWide": 135,
+  "worldTilesHigh": 11,
+  "worldHeight": 528,
+  "groundRow": 9,
+  "spawn": {
+    "c": 2,
+    "r": 8
+  },
+  "pits": [],
+  "solids": [
+    {
+      "kind": "ground",
+      "row": 9,
+      "c0": 0,
+      "c1": 134
+    },
+    {
+      "kind": "ground",
+      "row": 10,
+      "c0": 0,
+      "c1": 134
+    },
+    {
+      "kind": "block",
+      "c": 32,
+      "r": 4
+    },
+    {
+      "kind": "block",
+      "c": 11,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 29,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 32,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 35,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 56,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 61,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 66,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 71,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 76,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 82,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 89,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 94,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 100,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 106,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 113,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 119,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 125,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 130,
+      "r": 5
+    },
+    {
+      "kind": "block",
+      "c": 8,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 11,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 14,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 26,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 29,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 32,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 35,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 38,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 53,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 56,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 61,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 66,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 71,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 76,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 82,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 89,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 94,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 100,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 106,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 113,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 119,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 125,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 130,
+      "r": 6
+    },
+    {
+      "kind": "block",
+      "c": 5,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 8,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 11,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 14,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 17,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 23,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 26,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 29,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 32,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 35,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 38,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 41,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 47,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 53,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 56,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 61,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 66,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 71,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 76,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 82,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 89,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 94,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 100,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 106,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 113,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 119,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 125,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 130,
+      "r": 7
+    },
+    {
+      "kind": "block",
+      "c": 5,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 8,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 11,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 14,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 17,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 20,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 23,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 26,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 29,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 32,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 35,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 38,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 41,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 44,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 47,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 50,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 53,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 56,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 61,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 66,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 71,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 76,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 82,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 89,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 94,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 100,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 106,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 113,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 119,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 125,
+      "r": 8
+    },
+    {
+      "kind": "block",
+      "c": 130,
+      "r": 8
+    }
+  ],
+  "spikes": [],
+  "enemies": [],
+  "goalOffsetX": 18,
+  "manualGround": true,
+  "goal": {
+    "c": 133,
+    "r": 9
+  }
+}

@@ -9,6 +9,7 @@ import {
   CODE_RUN_PLAYER_H,
   CODE_RUN_TILE,
 } from './defaultCodeRunMap';
+import devRun07LayoutJson from './layouts/dev_run_07.layout.json';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
@@ -522,6 +523,22 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.spikes).toHaveLength(1);
     expect(fromDb.enemies).toHaveLength(1);
     expect(fromDb.enemies[0]?.speed).toBe(2);
+  });
+
+  it('dev_run_07 は段差箱の横長レイアウトを返す', () => {
+    const fromDb = createCodeRunMapFromDb('dev_run_07', {
+      name: 'Dev Run 07',
+      ...devRun07LayoutJson,
+    }, 140);
+    expect(fromDb.id).toBe('dev_run_07');
+    expect(fromDb.worldWidth).toBe(135 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(528);
+    expect(fromDb.spawn).toEqual({ x: 96, y: 8 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.goalX).toBe(133 * CODE_RUN_TILE + 18);
+    expect(fromDb.spikes).toHaveLength(0);
+    expect(fromDb.enemies).toHaveLength(0);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'block').length).toBe(101);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(270);
   });
 
   it('manualGround では自動床を敷かない', () => {
