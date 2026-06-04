@@ -1,4 +1,4 @@
-import { createDefaultCodeRunMap, CODE_RUN_PLAYER_H, CODE_RUN_TILE } from './defaultCodeRunMap';
+import { createCodeRunMapById, createCodeRunMapFromDb, createDefaultCodeRunMap, createGraveyardRun02Map, CODE_RUN_PLAYER_H, CODE_RUN_TILE } from './defaultCodeRunMap';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
@@ -229,5 +229,60 @@ describe('defaultCodeRunMap reachability', () => {
     expect(required).toBe(CODE_RUN_TILE * 4);
     expect(singleJumpHeight).toBeLessThan(required);
     expect(singleJumpHeight * 2).toBeGreaterThan(required);
+  });
+});
+
+describe('createGraveyardRun02Map reachability', () => {
+  const map = createGraveyardRun02Map();
+  const groundFootY = map.groundRow * CODE_RUN_TILE;
+  const singleJumpHeight = simulateSingleJumpHeight();
+  const platformTopY = (row: number): number => row * CODE_RUN_TILE;
+
+  it('row5 以上の platform は存在しない', () => {
+    const highPlatforms = map.solids.filter(
+      (tile) => tile.kind === 'platform' && tile.y < platformTopY(6),
+    );
+    expect(highPlatforms).toHaveLength(0);
+  });
+
+  it('row6 プラットフォームは単発ジャンプで到達可能', () => {
+    const row6Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(6));
+    expect(row6Platforms.length).toBeGreaterThan(0);
+    const required = groundFootY - platformTopY(6);
+    expect(required).toBe(CODE_RUN_TILE * 3);
+    expect(singleJumpHeight).toBeGreaterThanOrEqual(required);
+  });
+
+  it('row7 プラットフォームは単発ジャンプで到達可能', () => {
+    const row7Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(7));
+    expect(row7Platforms.length).toBeGreaterThan(0);
+    const required = groundFootY - platformTopY(7);
+    expect(required).toBe(CODE_RUN_TILE * 2);
+    expect(singleJumpHeight).toBeGreaterThanOrEqual(required);
+  });
+
+  it('敵は14体以上配置される', () => {
+    expect(map.enemies.length).toBeGreaterThanOrEqual(14);
+  });
+});
+
+describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
+  it('graveyard_run_02 は stage 112 レイアウトを返す', () => {
+    const direct = createGraveyardRun02Map();
+    const byId = createCodeRunMapById('graveyard_run_02');
+    expect(byId.id).toBe('graveyard_run_02');
+    expect(byId.solids.length).toBe(direct.solids.length);
+    expect(byId.enemies.length).toBe(direct.enemies.length);
+    expect(byId.goalX).toBe(direct.goalX);
+  });
+
+  it('createCodeRunMapFromDb は mapId に応じたレイアウトを返す', () => {
+    const nightCity = createDefaultCodeRunMap();
+    const graveyard = createGraveyardRun02Map();
+    const fromDb = createCodeRunMapFromDb('graveyard_run_02', { name: 'Graveyard Run 02' }, 90);
+    expect(fromDb.id).toBe('graveyard_run_02');
+    expect(fromDb.name).toBe('Graveyard Run 02');
+    expect(fromDb.solids.length).toBe(graveyard.solids.length);
+    expect(fromDb.solids.length).not.toBe(nightCity.solids.length);
   });
 });

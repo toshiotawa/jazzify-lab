@@ -98,9 +98,50 @@ const addEnemy = (enemies: CodeRunEnemySpec[], c: number, r = GROUND_ROW): void 
   });
 };
 
-const inPit = (c: number): boolean => {
+const inPitNightCity = (c: number): boolean => {
   return [[26, 28], [60, 63], [96, 98], [128, 129]].some(([a, b]) => c >= a && c <= b);
 };
+
+const inPitGraveyard02 = (c: number): boolean => {
+  return [[22, 24], [54, 56], [92, 94], [132, 133]].some(([a, b]) => c >= a && c <= b);
+};
+
+const buildGround = (solids: CodeRunTileRect[], isPit: (c: number) => boolean): void => {
+  for (let c = 0; c < LEVEL_TILES_W; c += 1) {
+    if (!isPit(c)) {
+      solids.push(tile('ground', c, GROUND_ROW));
+      solids.push(tile('ground', c, GROUND_ROW + 1));
+    }
+  }
+};
+
+const finalizeMap = (
+  id: string,
+  name: string,
+  solids: CodeRunTileRect[],
+  spikes: CodeRunTileRect[],
+  enemies: CodeRunEnemySpec[],
+  timeLimitSec: number,
+  assets?: CodeRunAssetsOverride,
+): CodeRunMapSpec => ({
+  id,
+  name,
+  viewWidth: VIEW_W,
+  viewHeight: VIEW_H,
+  worldWidth: LEVEL_TILES_W * TILE,
+  worldHeight: VIEW_H,
+  tileSize: TILE,
+  groundRow: GROUND_ROW,
+  spawn: { x: 2 * TILE, y: GROUND_ROW * TILE - PLAYER_H },
+  goalX: 160 * TILE + 18,
+  timeLimitSec,
+  solids,
+  spikes,
+  enemies,
+  assets: mergeAssets(assets),
+});
+
+type CodeRunMapBuilder = (timeLimitSec?: number, assets?: CodeRunAssetsOverride) => CodeRunMapSpec;
 
 const mergeAssets = (assets?: CodeRunAssetsOverride): CodeRunAssets => ({
   ...DEFAULT_ASSETS,
@@ -122,12 +163,7 @@ export function createDefaultCodeRunMap(
   const spikes: CodeRunTileRect[] = [];
   const enemies: CodeRunEnemySpec[] = [];
 
-  for (let c = 0; c < LEVEL_TILES_W; c += 1) {
-    if (!inPit(c)) {
-      solids.push(tile('ground', c, 9));
-      solids.push(tile('ground', c, 10));
-    }
-  }
+  buildGround(solids, inPitNightCity);
 
   addBlock(solids, 9, 6);
   addEnemy(enemies, 17);
@@ -167,23 +203,69 @@ export function createDefaultCodeRunMap(
   addBlock(solids, 136, 6);
   for (let i = 0; i < 5; i += 1) colRun(solids, 'brick', 148 + i, 8 - i, 8);
 
-  return {
-    id: 'night_city_run_01',
-    name: 'Night City Run 01',
-    viewWidth: VIEW_W,
-    viewHeight: VIEW_H,
-    worldWidth: LEVEL_TILES_W * TILE,
-    worldHeight: VIEW_H,
-    tileSize: TILE,
-    groundRow: GROUND_ROW,
-    spawn: { x: 2 * TILE, y: GROUND_ROW * TILE - PLAYER_H },
-    goalX: 160 * TILE + 18,
-    timeLimitSec,
-    solids,
-    spikes,
-    enemies,
-    assets: mergeAssets(assets),
-  };
+  return finalizeMap('night_city_run_01', 'Night City Run 01', solids, spikes, enemies, timeLimitSec, assets);
+}
+
+export function createGraveyardRun02Map(
+  timeLimitSec = 90,
+  assets?: CodeRunAssetsOverride,
+): CodeRunMapSpec {
+  const solids: CodeRunTileRect[] = [];
+  const spikes: CodeRunTileRect[] = [];
+  const enemies: CodeRunEnemySpec[] = [];
+
+  buildGround(solids, inPitGraveyard02);
+
+  addBlock(solids, 8, 6);
+  addEnemy(enemies, 14);
+  addEnemy(enemies, 19);
+  rowRun(solids, 'platform', 7, 28, 31);
+  addEnemy(enemies, 29, 7);
+  rowRun(solids, 'brick', 8, 40, 42);
+  for (let i = 0; i < 4; i += 1) colRun(solids, 'brick', 46 + i, 8 - i, 8);
+  addEnemy(enemies, 50);
+  addEnemy(enemies, 52);
+  rowRun(solids, 'platform', 7, 62, 63);
+  addBlock(solids, 67, 6);
+  addBlock(solids, 68, 6);
+  addSpike(spikes, 71);
+  addSpike(spikes, 72);
+  addEnemy(enemies, 74);
+  addEnemy(enemies, 80);
+  rowRun(solids, 'platform', 7, 84, 86);
+  rowRun(solids, 'platform', 6, 88, 89);
+  addEnemy(enemies, 85, 7);
+  addEnemy(enemies, 90);
+  addBlock(solids, 98, 6);
+  addBlock(solids, 99, 6);
+  addEnemy(enemies, 105);
+  rowRun(solids, 'platform', 7, 110, 111);
+  rowRun(solids, 'platform', 6, 113, 114);
+  addEnemy(enemies, 112, 6);
+  addSpike(spikes, 122);
+  addSpike(spikes, 123);
+  addEnemy(enemies, 128);
+  addEnemy(enemies, 138);
+  addBlock(solids, 140, 6);
+  for (let i = 0; i < 5; i += 1) colRun(solids, 'brick', 152 + i, 8 - i, 8);
+  addEnemy(enemies, 148);
+  addEnemy(enemies, 154);
+
+  return finalizeMap('graveyard_run_02', 'Graveyard Run 02', solids, spikes, enemies, timeLimitSec, assets);
+}
+
+const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
+  night_city_run_01: createDefaultCodeRunMap,
+  graveyard_run_02: createGraveyardRun02Map,
+};
+
+export function createCodeRunMapById(
+  mapId: string,
+  timeLimitSec = 90,
+  assets?: CodeRunAssetsOverride,
+): CodeRunMapSpec {
+  const builder = MAP_BUILDERS[mapId] ?? createDefaultCodeRunMap;
+  return builder(timeLimitSec, assets);
 }
 
 const stringArray = (raw: unknown): string[] | undefined => {
@@ -199,13 +281,14 @@ export function createCodeRunMapFromDb(mapId: string, mapData: Record<string, un
   const tileAssets = assetsRecord.tiles && typeof assetsRecord.tiles === 'object'
     ? assetsRecord.tiles as Partial<CodeRunAssets['tiles']>
     : undefined;
-  const map = createDefaultCodeRunMap(timeLimitSec, {
+  const assetOverride: CodeRunAssetsOverride = {
     background: typeof assetsRecord.background === 'string' ? assetsRecord.background : undefined,
     player: stringArray(assetsRecord.player),
     playerHurt: typeof assetsRecord.playerHurt === 'string' ? assetsRecord.playerHurt : undefined,
     slime: stringArray(assetsRecord.slime),
     tiles: tileAssets,
-  });
+  };
+  const map = createCodeRunMapById(mapId, timeLimitSec, assetOverride);
   return {
     ...map,
     id: mapId || map.id,

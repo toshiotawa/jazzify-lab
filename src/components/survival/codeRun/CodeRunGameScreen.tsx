@@ -16,7 +16,7 @@ import { STAGE_TIME_LIMIT_SECONDS, type StageDefinition } from '../SurvivalStage
 import SurvivalGameOver from '../SurvivalGameOver';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, type SurvivalDisplaySettings } from '../SurvivalSettingsModal';
 import CodeRunCanvas from './CodeRunCanvas';
-import { createCodeRunMapFromDb, createDefaultCodeRunMap } from './defaultCodeRunMap';
+import { createCodeRunMapById, createCodeRunMapFromDb } from './defaultCodeRunMap';
 import {
   CODE_RUN_INITIAL_LIVES,
   CODE_RUN_MAX_HP,
@@ -172,8 +172,9 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const runMapId = stageDefinition.runMapId ?? 'night_city_run_01';
   const timeLimitSec = lessonRuntime?.timeLimitSec ?? stageDefinition.runTimeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
-  const [mapSpec, setMapSpec] = useState<CodeRunMapSpec>(() => createDefaultCodeRunMap(timeLimitSec));
+  const [mapSpec, setMapSpec] = useState<CodeRunMapSpec>(() => createCodeRunMapById(runMapId, timeLimitSec));
   const mapSpecRef = useRef(mapSpec);
   const [runState, setRunState] = useState<CodeRunState>(() => createInitialCodeRunState(mapSpec));
   const stateRef = useRef(runState);
@@ -237,7 +238,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   useEffect(() => {
     let cancelled = false;
     const mapId = stageDefinition.runMapId ?? 'night_city_run_01';
-    const fallback = createDefaultCodeRunMap(timeLimitSec);
+    const fallback = createCodeRunMapById(mapId, timeLimitSec);
     setMapSpec(fallback);
     resetRun(fallback);
     fetchSurvivalRunMap(mapId)
