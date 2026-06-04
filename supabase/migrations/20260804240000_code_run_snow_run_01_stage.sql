@@ -46,7 +46,7 @@ INSERT INTO public.survival_stages (
   '{
     "lines": [
       {"at_seconds": 2, "speaker": "fai", "text": "雪山を登攀するステージだよ。ちくわ足場を使って登ろう！", "text_en": "This stage climbs a snowy mountain. Use the chikuwa platforms!"},
-      {"at_seconds": 10, "speaker": "jajii", "text": "足場は細い。ジャンプのタイミングを外すな。", "text_en": "The platforms are narrow. Don't mistime your jumps."},
+      {"at_seconds": 10, "speaker": "jajii", "text": "足場は細い。ジャンプのタイミングを外すな。", "text_en": "The platforms are narrow. Do not mistime your jumps."},
       {"at_seconds": 22, "speaker": "fai", "text": "下の旗に触れたらゴールだよ。", "text_en": "Touch the flag below to clear!"}
     ]
   }'::jsonb,
