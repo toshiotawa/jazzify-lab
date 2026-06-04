@@ -11,6 +11,8 @@ export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
 
 const MAIN_CHAR_BASE = '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC';
+const MAIN_CHAR_VER = '64';
+const mainCharSprite = (name: string): string => `${MAIN_CHAR_BASE}/${name}?v=${MAIN_CHAR_VER}`;
 
 const TILE = CODE_RUN_TILE;
 const VIEW_W = 960;
@@ -27,12 +29,12 @@ const NIGHT_CITY_TILE_BASE = '/RUN/tiles/night-city';
 const DEFAULT_ASSETS: CodeRunAssets = {
   background: '/RUN/%E8%83%8C%E6%99%AF.png',
   player: [
-    `${MAIN_CHAR_BASE}/sprite_01.png`,
-    `${MAIN_CHAR_BASE}/sprite_02.png`,
-    `${MAIN_CHAR_BASE}/sprite_03.png`,
-    `${MAIN_CHAR_BASE}/sprite_04.png`,
+    mainCharSprite('sprite_01.png'),
+    mainCharSprite('sprite_02.png'),
+    mainCharSprite('sprite_03.png'),
+    mainCharSprite('sprite_04.png'),
   ],
-  playerHurt: `${MAIN_CHAR_BASE}/sprite_11.png`,
+  playerHurt: mainCharSprite('sprite_11.png'),
   slime: [
     '/RUN/kenney_new-platformer-pack-1/Sprites/Enemies/Default/slime_normal_walk_a.png',
     '/RUN/kenney_new-platformer-pack-1/Sprites/Enemies/Default/slime_normal_walk_b.png',
@@ -197,6 +199,7 @@ export function createCodeRunMapFromDb(mapId: string, mapData: Record<string, un
   const map = createDefaultCodeRunMap(timeLimitSec, {
     background: typeof assetsRecord.background === 'string' ? assetsRecord.background : undefined,
     player: stringArray(assetsRecord.player),
+    playerHurt: typeof assetsRecord.playerHurt === 'string' ? assetsRecord.playerHurt : undefined,
     slime: stringArray(assetsRecord.slime),
     tiles: tileAssets,
   });

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { cn } from '@/utils/cn';
 import { getEffectiveCanvasDpr } from '@/utils/getEffectiveCanvasDpr';
 import type { CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
@@ -31,6 +32,19 @@ const collectAssetUrls = (map: CodeRunMapSpec): string[] => {
   urls.add(tiles.spike);
   urls.add(tiles.flag);
   return [...urls];
+};
+
+/** コンテナに収まるピクセルアート向け表示倍率（拡大は整数倍、縮小は 0.5 刻み）。 */
+const computePixelScale = (containerW: number, containerH: number, viewW: number, viewH: number): number => {
+  if (containerW <= 0 || containerH <= 0 || viewW <= 0 || viewH <= 0) return 1;
+  const fit = Math.min(containerW / viewW, containerH / viewH);
+  if (fit >= 1) return Math.max(1, Math.floor(fit));
+  return Math.max(0.25, Math.floor(fit * 2) / 2);
+};
+
+const applySharpCanvas = (ctx: CanvasRenderingContext2D): void => {
+  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingQuality = 'low';
 };
 
 function useImages(map: CodeRunMapSpec): ImageMap {
@@ -120,13 +134,14 @@ const drawPlayerSprite = (
   const drawW = image.naturalWidth;
   const drawH = image.naturalHeight;
   const drawX = Math.round(centerX - drawW / 2);
-  const drawY = footY - drawH;
+  const drawY = Math.round(footY - drawH);
 
   if (player.facing < 0) {
+    const anchorX = Math.round(centerX + drawW / 2);
     ctx.save();
-    ctx.translate(centerX, 0);
+    ctx.translate(anchorX, drawY);
     ctx.scale(-1, 1);
-    ctx.drawImage(image, Math.round(-drawW / 2), drawY);
+    ctx.drawImage(image, 0, 0);
     ctx.restore();
     return;
   }
@@ -141,23 +156,40 @@ const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
 };
 
 const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const images = useImages(state.map);
   const { viewWidth, viewHeight } = state.map;
+  const [pixelScale, setPixelScale] = useState(1);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const update = (): void => {
+      const { width, height } = el.getBoundingClientRect();
+      setPixelScale(computePixelScale(width, height, viewWidth, viewHeight));
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [viewWidth, viewHeight]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const dpr = getEffectiveCanvasDpr();
-    canvas.width = Math.round(viewWidth * dpr);
-    canvas.height = Math.round(viewHeight * dpr);
+    canvas.width = Math.round(viewWidth * pixelScale * dpr);
+    canvas.height = Math.round(viewHeight * pixelScale * dpr);
+    canvas.style.width = `${viewWidth * pixelScale}px`;
+    canvas.style.height = `${viewHeight * pixelScale}px`;
 
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.imageSmoothingEnabled = false;
-    }
-  }, [viewWidth, viewHeight]);
+    if (ctx) applySharpCanvas(ctx);
+  }, [viewWidth, viewHeight, pixelScale]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -166,8 +198,10 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
     if (!ctx) return;
 
     const dpr = getEffectiveCanvasDpr();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = false;
+    const transformScale = pixelScale * dpr;
+    ctx.setTransform(transformScale, 0, 0, transformScale, 0, 0);
+    applySharpCanvas(ctx);
+    ctx.clearRect(0, 0, viewWidth, viewHeight);
 
     const { map } = state;
 
@@ -233,14 +267,18 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
 
     ctx.restore();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }, [images, state, viewWidth, viewHeight]);
+  }, [images, pixelScale, state, viewWidth, viewHeight]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={className}
-      style={{ width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' }}
-    />
+    <div
+      ref={containerRef}
+      className={cn('flex h-full w-full items-center justify-center', className)}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{ display: 'block', imageRendering: 'pixelated' }}
+      />
+    </div>
   );
 };
 
