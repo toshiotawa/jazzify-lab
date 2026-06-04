@@ -1,4 +1,12 @@
-import { createCodeRunMapById, createCodeRunMapFromDb, createDefaultCodeRunMap, createGraveyardRun02Map, CODE_RUN_PLAYER_H, CODE_RUN_TILE } from './defaultCodeRunMap';
+import {
+  createCodeRunMapById,
+  createCodeRunMapFromDb,
+  createDefaultCodeRunMap,
+  createGraveyardRun02Map,
+  createGraveyardRun03Map,
+  CODE_RUN_PLAYER_H,
+  CODE_RUN_TILE,
+} from './defaultCodeRunMap';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
@@ -266,6 +274,47 @@ describe('createGraveyardRun02Map reachability', () => {
   });
 });
 
+describe('createGraveyardRun03Map gimmick layout', () => {
+  const map = createGraveyardRun03Map();
+  const groundFootY = map.groundRow * CODE_RUN_TILE;
+  const singleJumpHeight = simulateSingleJumpHeight();
+  const platformTopY = (row: number): number => row * CODE_RUN_TILE;
+
+  it('row6/row7 の低い足場でスパイク帯を渡る構成', () => {
+    const row6Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(6));
+    const row7Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(7));
+    expect(row6Platforms.length).toBeGreaterThan(0);
+    expect(row7Platforms.length).toBeGreaterThan(0);
+    expect(map.spikes.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('最高足場は単発ジャンプで到達できる row6 に収める', () => {
+    const highPlatforms = map.solids.filter(
+      (tile) => tile.kind === 'platform' && tile.y < platformTopY(6),
+    );
+    const required = groundFootY - platformTopY(6);
+    expect(highPlatforms).toHaveLength(0);
+    expect(singleJumpHeight).toBeGreaterThanOrEqual(required);
+  });
+
+  it('ギミック変更として stage 112 とは異なるスパイク数にする', () => {
+    const previous = createGraveyardRun02Map();
+    expect(map.spikes.length).not.toBe(previous.spikes.length);
+  });
+
+  it('敵は足場または地面の上に配置される', () => {
+    for (const enemy of map.enemies) {
+      const footY = enemy.y + enemy.height;
+      const hasSupport = map.solids.some((tile) => (
+        tile.y === footY
+        && enemy.x < tile.x + tile.width
+        && enemy.x + enemy.width > tile.x
+      ));
+      expect(hasSupport).toBe(true);
+    }
+  });
+});
+
 describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
   it('graveyard_run_02 は stage 112 レイアウトを返す', () => {
     const direct = createGraveyardRun02Map();
@@ -276,12 +325,21 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(byId.goalX).toBe(direct.goalX);
   });
 
+  it('graveyard_run_03 は stage 113 レイアウトを返す', () => {
+    const direct = createGraveyardRun03Map();
+    const byId = createCodeRunMapById('graveyard_run_03');
+    expect(byId.id).toBe('graveyard_run_03');
+    expect(byId.solids.length).toBe(direct.solids.length);
+    expect(byId.spikes.length).toBe(direct.spikes.length);
+    expect(byId.enemies.length).toBe(direct.enemies.length);
+  });
+
   it('createCodeRunMapFromDb は mapId に応じたレイアウトを返す', () => {
     const nightCity = createDefaultCodeRunMap();
-    const graveyard = createGraveyardRun02Map();
-    const fromDb = createCodeRunMapFromDb('graveyard_run_02', { name: 'Graveyard Run 02' }, 90);
-    expect(fromDb.id).toBe('graveyard_run_02');
-    expect(fromDb.name).toBe('Graveyard Run 02');
+    const graveyard = createGraveyardRun03Map();
+    const fromDb = createCodeRunMapFromDb('graveyard_run_03', { name: 'Graveyard Run 03' }, 95);
+    expect(fromDb.id).toBe('graveyard_run_03');
+    expect(fromDb.name).toBe('Graveyard Run 03');
     expect(fromDb.solids.length).toBe(graveyard.solids.length);
     expect(fromDb.solids.length).not.toBe(nightCity.solids.length);
   });
