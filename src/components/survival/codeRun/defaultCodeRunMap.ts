@@ -48,7 +48,7 @@ const DEFAULT_ASSETS: CodeRunAssets = {
     groundTopLeft: `${GRAVEYARD_TILE_BASE}/ground_top_left.png`,
     groundTopRight: `${GRAVEYARD_TILE_BASE}/ground_top_right.png`,
     brick: `${GRAVEYARD_TILE_BASE}/brick.png`,
-    platform: `${GRAVEYARD_TILE_BASE}/platform.png`,
+    platform: '/RUN/graveyardtilesetnew/png/Tiles/surinuke_platform.png',
     block: `${GRAVEYARD_OBJECT_BASE}/Crate.png`,
     spike: `${GRAVEYARD_TILE_BASE}/spike.png`,
     flag: `${GRAVEYARD_TILE_BASE}/flag.png`,
@@ -235,7 +235,7 @@ const buildMapFromLayout = (
   const worldWidth = worldTilesWide * tileSize;
   const worldHeight = layout.worldHeight ?? viewHeight;
   const spawnPoint = layout.spawn ?? { c: 2, r: groundRow };
-  const goalPoint = layout.goal;
+  const goalPoint = layout.goal ?? { c: layout.goalColumn ?? 160, r: groundRow };
   const solids: CodeRunTileRect[] = [];
 
   buildGround(solids, layout.pits, worldTilesWide, groundRow, tileSize);
@@ -256,8 +256,8 @@ const buildMapFromLayout = (
     tileSize,
     groundRow,
     spawn: { x: spawnPoint.c * tileSize, y: spawnPoint.r * tileSize - PLAYER_H },
-    goalX: (goalPoint?.c ?? layout.goalColumn ?? 160) * tileSize + (layout.goalOffsetX ?? 18),
-    ...(goalPoint ? { goalY: goalPoint.r * tileSize - 84 } : {}),
+    goalX: goalPoint.c * tileSize + (layout.goalOffsetX ?? 18),
+    goalY: goalPoint.r * tileSize - 84,
     timeLimitSec,
     solids,
     spikes,

@@ -151,6 +151,72 @@ describe('CodeRunEngine integration', () => {
     expect(jumped.player.vy).toBe(ENGINE_JUMP_VEL);
     expect(jumped.player.jumpCount).toBe(1);
   });
+
+  it('platform は下から通り抜けられる', () => {
+    const map = createCodeRunMapFromDb('one_way_test', {
+      name: 'One Way Test',
+      tileSize: CODE_RUN_TILE,
+      worldTilesWide: 12,
+      groundRow: 9,
+      spawn: { c: 1, r: 9 },
+      goal: { c: 10, r: 9 },
+      pits: [],
+      solids: [{ kind: 'platform', row: 5, c0: 3, c1: 3 }],
+      spikes: [],
+      enemies: [],
+    }, 30);
+    const platform = map.solids.find((tile) => tile.kind === 'platform');
+    expect(platform).toBeDefined();
+    if (!platform) return;
+
+    const state = {
+      ...createInitialCodeRunState(map),
+      player: {
+        ...basePlayer(),
+        x: platform.x + 6,
+        y: platform.y + 10,
+        vy: -10,
+        onGround: false,
+      },
+    };
+    const next = tickCodeRun(state, idleInput, 1 / 60);
+    expect(next.player.y).toBeLessThan(state.player.y);
+    expect(next.player.vy).toBeLessThan(0);
+    expect(next.player.onGround).toBe(false);
+  });
+
+  it('platform は上から下降した時だけ着地できる', () => {
+    const map = createCodeRunMapFromDb('one_way_landing_test', {
+      name: 'One Way Landing Test',
+      tileSize: CODE_RUN_TILE,
+      worldTilesWide: 12,
+      groundRow: 9,
+      spawn: { c: 1, r: 9 },
+      goal: { c: 10, r: 9 },
+      pits: [],
+      solids: [{ kind: 'platform', row: 5, c0: 3, c1: 3 }],
+      spikes: [],
+      enemies: [],
+    }, 30);
+    const platform = map.solids.find((tile) => tile.kind === 'platform');
+    expect(platform).toBeDefined();
+    if (!platform) return;
+
+    const state = {
+      ...createInitialCodeRunState(map),
+      player: {
+        ...basePlayer(),
+        x: platform.x + 6,
+        y: platform.y - CODE_RUN_PLAYER_H - 5,
+        vy: 8,
+        onGround: false,
+      },
+    };
+    const next = tickCodeRun(state, idleInput, 1 / 60);
+    expect(next.player.y + next.player.height).toBe(platform.y);
+    expect(next.player.vy).toBe(0);
+    expect(next.player.onGround).toBe(true);
+  });
 });
 
 describe('CodeRunEngine lives and damage', () => {
@@ -272,6 +338,32 @@ describe('createGraveyardRun02Map reachability', () => {
 
   it('敵は14体以上配置される', () => {
     expect(map.enemies.length).toBeGreaterThanOrEqual(14);
+  });
+
+  it('旗エリアに触れた時だけクリアする', () => {
+    expect(map.goalY).toBeDefined();
+    const state = createInitialCodeRunState(map);
+    const pastGoalButHigh = {
+      ...state,
+      player: {
+        ...state.player,
+        x: map.goalX + 8,
+        y: 0,
+      },
+    };
+    const notClear = tickCodeRun(pastGoalButHigh, idleInput, 1 / 60);
+    expect(notClear.status).toBe('playing');
+
+    const touchingFlag = {
+      ...state,
+      player: {
+        ...state.player,
+        x: map.goalX + 8,
+        y: map.goalY ?? 0,
+      },
+    };
+    const clear = tickCodeRun(touchingFlag, idleInput, 1 / 60);
+    expect(clear.status).toBe('clear');
   });
 });
 

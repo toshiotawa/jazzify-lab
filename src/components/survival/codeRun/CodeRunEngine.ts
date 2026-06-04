@@ -10,6 +10,7 @@ const JUMP_VEL = -15.4;
 const STOMP_BOUNCE = -11.5;
 const COYOTE_FRAMES = 7;
 const JUMP_BUFFER_FRAMES = 8;
+const PLATFORM_LAND_EPSILON = 0.01;
 
 export const CODE_RUN_MAX_HP = 3;
 export const CODE_RUN_INITIAL_LIVES = 5;
@@ -43,6 +44,12 @@ const solidCollisions = (rect: CodeRunRect, solids: readonly CodeRunTileRect[]):
   }
   return hits;
 };
+
+const canLandOnOneWayPlatform = (player: CodeRunPlayer, tile: CodeRunTileRect): boolean => (
+  tile.kind === 'platform'
+  && player.vy > 0
+  && player.y + player.height <= tile.y + PLATFORM_LAND_EPSILON
+);
 
 const makeEnemies = (state: CodeRunState): readonly CodeRunEnemy[] => state.map.enemies.map((enemy, index) => ({
   id: enemy.id,
@@ -184,6 +191,7 @@ export function triggerCodeRunJump(state: CodeRunState): CodeRunState {
 const movePlayerX = (player: CodeRunPlayer, solids: readonly CodeRunTileRect[], step: number): CodeRunPlayer => {
   const next = { ...player, x: player.x + player.vx * step };
   for (const hit of solidCollisions(next, solids)) {
+    if (hit.kind === 'platform') continue;
     if (player.vx > 0) next.x = hit.x - next.width;
     if (player.vx < 0) next.x = hit.x + hit.width;
     next.vx = 0;
@@ -194,6 +202,7 @@ const movePlayerX = (player: CodeRunPlayer, solids: readonly CodeRunTileRect[], 
 const movePlayerY = (player: CodeRunPlayer, solids: readonly CodeRunTileRect[], step: number): CodeRunPlayer => {
   const next = { ...player, y: player.y + player.vy * step, onGround: false };
   for (const hit of solidCollisions(next, solids)) {
+    if (hit.kind === 'platform' && !canLandOnOneWayPlatform(player, hit)) continue;
     if (player.vy > 0) {
       next.y = hit.y - next.height;
       next.vy = 0;
