@@ -20,7 +20,8 @@ WHERE id IN (
   'night_city_run_01',
   'graveyard_run_02',
   'graveyard_run_03',
-  'tower_run_01'
+  'tower_run_01',
+  'snow_run_01'
 );
 
 COMMIT;

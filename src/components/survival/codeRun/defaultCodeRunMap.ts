@@ -6,6 +6,7 @@ import type {
   CodeRunTileKind,
   CodeRunTileRect,
 } from './CodeRunTypes';
+import snowRun01LayoutJson from './layouts/snow_run_01.layout.json';
 
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
@@ -443,6 +444,14 @@ const GRAVEYARD_RUN_03_LAYOUT: CodeRunLayoutData = {
   ],
 };
 
+type SnowRun01LayoutFields = Omit<CodeRunLayoutData, 'id' | 'name'>;
+
+const SNOW_RUN_01_LAYOUT: CodeRunLayoutData = {
+  id: 'snow_run_01',
+  name: 'Snow Run 01',
+  ...(snowRun01LayoutJson as SnowRun01LayoutFields),
+};
+
 const TOWER_RUN_01_LAYOUT: CodeRunLayoutData = {
   id: 'tower_run_01',
   name: 'Tower Run 01',
@@ -527,11 +536,19 @@ export function createTowerRun01Map(
   return buildMapFromLayout(TOWER_RUN_01_LAYOUT, timeLimitSec, assets);
 }
 
+export function createSnowRun01Map(
+  timeLimitSec = 150,
+  assets?: CodeRunAssetsOverride,
+): CodeRunMapSpec {
+  return buildMapFromLayout(SNOW_RUN_01_LAYOUT, timeLimitSec, assets);
+}
+
 const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
   night_city_run_01: createDefaultCodeRunMap,
   graveyard_run_02: createGraveyardRun02Map,
   graveyard_run_03: createGraveyardRun03Map,
   tower_run_01: createTowerRun01Map,
+  snow_run_01: createSnowRun01Map,
 };
 
 export function createCodeRunMapById(

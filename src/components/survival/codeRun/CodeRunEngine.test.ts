@@ -4,6 +4,7 @@ import {
   createDefaultCodeRunMap,
   createGraveyardRun02Map,
   createGraveyardRun03Map,
+  createSnowRun01Map,
   createTowerRun01Map,
   CODE_RUN_PLAYER_H,
   CODE_RUN_TILE,
@@ -468,6 +469,18 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(byId.id).toBe('tower_run_01');
     expect(byId.worldHeight).toBe(direct.worldHeight);
     expect(byId.goalY).toBe(direct.goalY);
+  });
+
+  it('snow_run_01 はスノー登攀レイアウトを返す', () => {
+    const direct = createSnowRun01Map();
+    const byId = createCodeRunMapById('snow_run_01');
+    expect(byId.id).toBe('snow_run_01');
+    expect(byId.worldHeight).toBe(3120);
+    expect(byId.solids.filter((solid) => solid.kind === 'platform').length).toBe(78);
+    expect(byId.solids.some((solid) => solid.kind === 'ground')).toBe(false);
+    expect(byId.assets.tiles.platform).toContain('chikuwa_ashiba.png');
+    expect(byId.solids.length).toBe(direct.solids.length);
+    expect(byId.enemies.length).toBe(6);
   });
 
   it('createCodeRunMapFromDb は mapId に応じたレイアウトを返す', () => {
