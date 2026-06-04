@@ -24,12 +24,21 @@ final class OrientationManager: ObservableObject {
     }
 
     private func rotateIfNeeded(_ mask: UIInterfaceOrientationMask) {
-        guard mask == .portrait,
-              let windowScene = UIApplication.shared.connectedScenes
+        guard let windowScene = UIApplication.shared.connectedScenes
                 .compactMap({ $0 as? UIWindowScene })
                 .first else { return }
 
-        let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: .portrait)
+        let target: UIInterfaceOrientationMask
+        if mask.contains(.landscapeRight) {
+            target = .landscapeRight
+        } else if mask.contains(.landscapeLeft) {
+            target = .landscapeLeft
+        } else if mask == .portrait {
+            target = .portrait
+        } else {
+            return
+        }
+        let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: target)
         windowScene.requestGeometryUpdate(geometryPreferences) { _ in }
     }
 }

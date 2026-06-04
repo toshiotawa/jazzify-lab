@@ -290,7 +290,13 @@ private struct SurvivalCodeRunNativePlayer {
     var onGround: Bool = false
     var jumpCount: Int = 0
     var chordLockedUntilLanding: Bool = false
-    var respawnGrace: TimeInterval = 1
+    var hp: Int = SurvivalCodeRunNativeRules.maxHP
+    var maxHP: Int = SurvivalCodeRunNativeRules.maxHP
+    var invulnerableTime: TimeInterval = SurvivalCodeRunNativeRules.startInvulnerability
+    var hurtTime: TimeInterval = 0
+    var runPhase: CGFloat = 0
+    var coyoteFrames: CGFloat = 0
+    var jumpBufferFrames: CGFloat = 0
 }
 
 private struct SurvivalCodeRunNativeEnemy: Identifiable {
@@ -300,6 +306,76 @@ private struct SurvivalCodeRunNativeEnemy: Identifiable {
     let minX: CGFloat
     let maxX: CGFloat
     var alive: Bool = true
+    var anim: CGFloat = 0
+}
+
+private enum SurvivalCodeRunNativeTileKind: String, Sendable {
+    case ground
+    case brick
+    case platform
+    case block
+}
+
+private struct SurvivalCodeRunNativeSolid: Sendable {
+    let kind: SurvivalCodeRunNativeTileKind
+    let rect: CGRect
+}
+
+private enum SurvivalCodeRunNativeRules {
+    static let maxHP = 3
+    static let initialLives = 10
+    static let livesDotDisplayMax = 5
+    static let gravity: CGFloat = 0.8
+    static let maxFall: CGFloat = 17
+    static let walkAccel: CGFloat = 0.7
+    static let walkMax: CGFloat = 4.6
+    static let groundDecel: CGFloat = 0.6
+    static let airDecel: CGFloat = 0.18
+    static let jumpVelocity: CGFloat = -15.4
+    static let stompBounce: CGFloat = -11.5
+    static let knockbackVX: CGFloat = 5.5
+    static let knockbackVY: CGFloat = -7
+    static let coyoteFrames: CGFloat = 7
+    static let jumpBufferFrames: CGFloat = 8
+    static let startInvulnerability: TimeInterval = 40.0 / 60.0
+    static let respawnInvulnerability: TimeInterval = 120.0 / 60.0
+    static let damageInvulnerability: TimeInterval = 90.0 / 60.0
+    static let hurtDuration: TimeInterval = 26.0 / 60.0
+    static let oneWayPlatformLandingEpsilon: CGFloat = 0.01
+}
+
+private enum SurvivalCodeRunNativeAssets {
+    static let background = Image("code_run_background")
+    static let playerFrames = [
+        Image("code_run_player_1"),
+        Image("code_run_player_2"),
+        Image("code_run_player_3"),
+        Image("code_run_player_4")
+    ]
+    static let playerHurt = Image("code_run_player_hurt")
+    static let slimeFrames = [Image("code_run_slime_1"), Image("code_run_slime_2")]
+    static let groundFill = Image("code_run_ground_fill")
+    static let groundTop = Image("code_run_ground_top")
+    static let groundTopLeft = Image("code_run_ground_top_left")
+    static let groundTopRight = Image("code_run_ground_top_right")
+    static let brick = Image("code_run_brick")
+    static let platform = Image("code_run_platform")
+    static let block = Image("code_run_block")
+    static let spike = Image("code_run_spike")
+    static let flag = Image("code_run_flag")
+
+    static func solidImage(for solid: SurvivalCodeRunNativeSolid, groundSurfaceY: CGFloat) -> Image {
+        switch solid.kind {
+        case .ground:
+            return solid.rect.minY <= groundSurfaceY ? groundTop : groundFill
+        case .brick:
+            return brick
+        case .platform:
+            return platform
+        case .block:
+            return block
+        }
+    }
 }
 
 private struct SurvivalCodeRunGridPoint: Codable, Sendable {
@@ -412,6 +488,7 @@ private struct SurvivalCodeRunMapData: Codable, Sendable {
         worldTilesWide: Int? = 168,
         worldHeight: CGFloat? = nil,
         groundRow: Int? = 9,
+        manualGround: Bool? = nil,
         spawn: SurvivalCodeRunGridPoint? = SurvivalCodeRunGridPoint(c: 2, r: 9),
         goal: SurvivalCodeRunGridPoint? = nil,
         goalColumn: Int? = 160,
@@ -429,6 +506,7 @@ private struct SurvivalCodeRunMapData: Codable, Sendable {
         self.worldTilesWide = worldTilesWide
         self.worldHeight = worldHeight
         self.groundRow = groundRow
+        self.manualGround = manualGround
         self.spawn = spawn
         self.goal = goal
         self.goalColumn = goalColumn
@@ -655,7 +733,7 @@ private struct SurvivalCodeRunNativeMapSpec {
     let spawn: CGPoint
     let goalX: CGFloat
     let goalY: CGFloat?
-    let solids: [CGRect]
+    let solids: [SurvivalCodeRunNativeSolid]
     let spikes: [CGRect]
     private let enemyPlacements: [SurvivalCodeRunEnemyPlacement]
 
@@ -716,8 +794,14 @@ private struct SurvivalCodeRunNativeMapSpec {
         let worldWidth = 168 * tile
         let ground = (0..<168).flatMap { c in
             [
-                CGRect(x: CGFloat(c) * tile, y: CGFloat(groundRow) * tile, width: tile, height: tile),
-                CGRect(x: CGFloat(c) * tile, y: CGFloat(groundRow + 1) * tile, width: tile, height: tile)
+                SurvivalCodeRunNativeSolid(
+                    kind: .ground,
+                    rect: CGRect(x: CGFloat(c) * tile, y: CGFloat(groundRow) * tile, width: tile, height: tile)
+                ),
+                SurvivalCodeRunNativeSolid(
+                    kind: .ground,
+                    rect: CGRect(x: CGFloat(c) * tile, y: CGFloat(groundRow + 1) * tile, width: tile, height: tile)
+                )
             ]
         }
         return SurvivalCodeRunNativeMapSpec(
@@ -755,25 +839,32 @@ private struct SurvivalCodeRunNativeMapSpec {
         let worldHeight = data.worldHeight ?? viewSize.height
         let spawnGrid = data.spawn ?? SurvivalCodeRunGridPoint(c: 2, r: groundRow)
         let goalGrid = data.goal
-        var solids: [CGRect] = []
+        var solids: [SurvivalCodeRunNativeSolid] = []
 
         func isPit(_ c: Int) -> Bool { pits.contains { c >= $0.c0 && c <= $0.c1 } }
-        func tileRect(_ c: Int, _ r: Int) -> CGRect {
-            CGRect(x: CGFloat(c) * tile, y: CGFloat(r) * tile, width: tile, height: tile)
+        func tileKind(_ raw: String) -> SurvivalCodeRunNativeTileKind {
+            SurvivalCodeRunNativeTileKind(rawValue: raw) ?? .block
+        }
+        func tileRect(_ kind: SurvivalCodeRunNativeTileKind, _ c: Int, _ r: Int) -> SurvivalCodeRunNativeSolid {
+            SurvivalCodeRunNativeSolid(
+                kind: kind,
+                rect: CGRect(x: CGFloat(c) * tile, y: CGFloat(r) * tile, width: tile, height: tile)
+            )
         }
         if data.manualGround != true {
             for c in 0..<worldTilesWide where !isPit(c) {
-                solids.append(tileRect(c, groundRow))
-                solids.append(tileRect(c, groundRow + 1))
+                solids.append(tileRect(.ground, c, groundRow))
+                solids.append(tileRect(.ground, c, groundRow + 1))
             }
         }
         for placement in placements {
+            let kind = tileKind(placement.kind)
             if let c = placement.c, let r = placement.r {
-                solids.append(tileRect(c, r))
+                solids.append(tileRect(kind, c, r))
             } else if let row = placement.row, let c0 = placement.c0, let c1 = placement.c1, c0 <= c1 {
-                for c in c0...c1 { solids.append(tileRect(c, row)) }
+                for c in c0...c1 { solids.append(tileRect(kind, c, row)) }
             } else if let col = placement.col, let r0 = placement.r0, let r1 = placement.r1, r0 <= r1 {
-                for r in r0...r1 { solids.append(tileRect(col, r)) }
+                for r in r0...r1 { solids.append(tileRect(kind, col, r)) }
             }
         }
 
@@ -831,10 +922,44 @@ private struct SurvivalCodeRunGameContent: View {
     let lessonContext: SurvivalLessonContext?
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
     let onClose: () -> Void
+    private let chords: [SurvivalResolvedChord]
+    private let keyboardScrollAnchorMidi: Int?
+
+    init(
+        stage: SurvivalStageDefinition,
+        hintMode: Bool,
+        characterId: String,
+        locale: AppLocale,
+        lessonRuntime: ResolvedSurvivalLessonRuntime?,
+        productionHintModes: ResolvedProductionHintModes?,
+        lessonContext: SurvivalLessonContext?,
+        onApplyHintModeAndRestart: ((Bool) -> Void)?,
+        onClose: @escaping () -> Void
+    ) {
+        self.stage = stage
+        self.hintMode = hintMode
+        self.characterId = characterId
+        self.locale = locale
+        self.lessonRuntime = lessonRuntime
+        self.productionHintModes = productionHintModes
+        self.lessonContext = lessonContext
+        self.onApplyHintModeAndRestart = onApplyHintModeAndRestart
+        self.onClose = onClose
+        let resolvedChords = (stage.chordProgression ?? []).enumerated().map { idx, entry in
+            SurvivalResolvedChord.fromProgressionEntry(entry, index: idx)
+        }
+        self.chords = resolvedChords
+        if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: resolvedChords) {
+            self.keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
+        } else {
+            self.keyboardScrollAnchorMidi = nil
+        }
+    }
 
     @State private var mapSpec = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil)
     @State private var player = SurvivalCodeRunNativePlayer()
     @State private var enemies = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil).enemies()
+    @State private var lives = SurvivalCodeRunNativeRules.initialLives
     @State private var elapsed: TimeInterval = 0
     @State private var lastTick = Date()
     @State private var inputX: CGFloat = 0
@@ -853,11 +978,6 @@ private struct SurvivalCodeRunGameContent: View {
     private var timeLimit: TimeInterval {
         lessonRuntime?.timeLimitSec ?? TimeInterval(stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec))
     }
-    private var chords: [SurvivalResolvedChord] {
-        (stage.chordProgression ?? []).enumerated().map { idx, entry in
-            SurvivalResolvedChord.fromProgressionEntry(entry, index: idx)
-        }
-    }
     private var currentChord: SurvivalResolvedChord? { chords.isEmpty ? nil : chords[currentChordIndex % chords.count] }
     private var nextChord: SurvivalResolvedChord? { chords.isEmpty ? nil : chords[(currentChordIndex + 1) % chords.count] }
     private var keyboardHintMode: ProductionHintMode { productionHintModes?.keyboardHintMode ?? stage.productionKeyboardHintMode }
@@ -867,6 +987,15 @@ private struct SurvivalCodeRunGameContent: View {
             let keyboardHeight: CGFloat = min(170, max(132, proxy.size.height * 0.28))
             VStack(spacing: 0) {
                 gameCanvas(size: CGSize(width: proxy.size.width, height: max(1, proxy.size.height - keyboardHeight)))
+                    .overlay {
+                        SurvivalJoystickRepresentable(
+                            hitMask: .full,
+                            isInteractive: status == .playing
+                        ) { analog in
+                            inputX = max(-1, min(1, analog.dx))
+                        }
+                        .allowsHitTesting(status == .playing)
+                    }
                     .frame(height: max(1, proxy.size.height - keyboardHeight))
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
@@ -882,14 +1011,17 @@ private struct SurvivalCodeRunGameContent: View {
             }
             .background(Color.black)
             .overlay(alignment: .topLeading) { topButtons }
-            .overlay(alignment: .topTrailing) { timerBadge }
+            .overlay(alignment: .topTrailing) { statusBadges }
             .overlay(alignment: .top) { chordBadges.padding(.top, 42) }
-            .overlay(alignment: .bottomLeading) { virtualStick.padding(.bottom, keyboardHeight + 16).padding(.leading, 16) }
             .overlay { resultOverlay }
         }
         .onReceive(timer) { now in tick(now: now) }
-        .onAppear { startAudioAndMidi() }
+        .onAppear {
+            OrientationManager.shared.lock(.landscapeRight)
+            startAudioAndMidi()
+        }
         .onDisappear {
+            OrientationManager.shared.lock(.portrait)
             midiSubscriptionHolder.cancel()
             audio.stop()
         }
@@ -898,7 +1030,7 @@ private struct SurvivalCodeRunGameContent: View {
 
     private var chordPadSnapshot: SurvivalChordPadSnapshot {
         guard status == .playing, !player.chordLockedUntilLanding, let chord = currentChord else {
-            return SurvivalChordPadSnapshot(hintMidis: [], completedHintMidis: [], hintPendingOpacity: 0, midiHeldKeys: heldKeys, isEnabled: true, scrollAnchorMidi: nil)
+            return SurvivalChordPadSnapshot(hintMidis: [], completedHintMidis: [], hintPendingOpacity: 0, midiHeldKeys: heldKeys, isEnabled: true, scrollAnchorMidi: keyboardScrollAnchorMidi)
         }
         let completedMidis = Set(chord.midiNotes.filter { completedPitchClasses.contains(Self.pitchClass($0)) })
         let pendingOpacity = SurvivalStaffHintOpacity.computeKeyboardHintOpacity(
@@ -914,20 +1046,72 @@ private struct SurvivalCodeRunGameContent: View {
             hintPendingOpacity: pendingOpacity,
             midiHeldKeys: heldKeys,
             isEnabled: true,
-            scrollAnchorMidi: chord.midiNotes.max()
+            scrollAnchorMidi: keyboardScrollAnchorMidi
         )
     }
 
     private var topButtons: some View {
         HStack(spacing: 8) {
-            Button(action: onClose) { Text(locale == .ja ? "戻る" : "Back") }
-            Button(action: { showSettings = true }) { Text(locale == .ja ? "設定" : "Settings") }
+            codeRunChromeButton(title: locale == .ja ? "戻る" : "BACK", action: onClose)
+            codeRunChromeButton(title: locale == .ja ? "設定" : "SETTINGS", action: { showSettings = true })
         }
-        .font(.caption.bold())
-        .foregroundStyle(.white)
-        .padding(8)
-        .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
         .padding(12)
+    }
+
+    private func codeRunChromeButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.15), lineWidth: 1))
+    }
+
+    private var statusBadges: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            hpLivesBadge
+            timerBadge
+        }
+        .padding(12)
+    }
+
+    private var hpLivesBadge: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 2) {
+                ForEach(0..<SurvivalCodeRunNativeRules.maxHP, id: \.self) { index in
+                    Text(verbatim: "♥")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(index < player.hp ? Color(red: 0.98, green: 0.35, blue: 0.48) : Color.white.opacity(0.25))
+                }
+            }
+            Rectangle()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: 1, height: 14)
+            if lives > SurvivalCodeRunNativeRules.livesDotDisplayMax {
+                Text(verbatim: "x\(lives)")
+                    .font(.caption.bold().monospacedDigit())
+                    .foregroundStyle(Color.cyan.opacity(0.9))
+            } else {
+                HStack(spacing: 3) {
+                    ForEach(0..<SurvivalCodeRunNativeRules.livesDotDisplayMax, id: \.self) { index in
+                        Circle()
+                            .fill(index < lives ? Color.cyan.opacity(0.9) : Color.white.opacity(0.12))
+                            .overlay(Circle().stroke(index < lives ? Color.cyan.opacity(0.65) : Color.white.opacity(0.15), lineWidth: 1))
+                            .frame(width: 10, height: 10)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.15), lineWidth: 1))
     }
 
     private var timerBadge: some View {
@@ -940,41 +1124,35 @@ private struct SurvivalCodeRunGameContent: View {
         .foregroundStyle(remaining <= 15 ? Color.red.opacity(0.95) : .white)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-        .padding(12)
+        .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.15), lineWidth: 1))
     }
 
     private var chordBadges: some View {
         HStack(spacing: 8) {
-            codeBadge(title: locale == .ja ? "現在" : "Current", value: player.chordLockedUntilLanding ? "-" : (currentChord?.displayName ?? "-"), primary: true)
+            codeBadge(title: "", value: player.chordLockedUntilLanding ? "-" : (currentChord?.displayName ?? "-"), primary: true)
             codeBadge(title: "next", value: player.chordLockedUntilLanding ? "-" : (nextChord?.displayName ?? "-"), primary: false)
         }
     }
 
     private func codeBadge(title: String, value: String, primary: Bool) -> some View {
         VStack(spacing: 2) {
-            Text(title).font(.caption2).foregroundStyle(.white.opacity(0.65))
-            Text(value).font(primary ? .subheadline.bold() : .caption.bold()).foregroundStyle(primary ? .cyan.opacity(0.95) : .white.opacity(0.85))
+            if !title.isEmpty {
+                Text(title)
+                    .font(.system(size: primary ? 10 : 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            Text(value)
+                .font(primary ? .title3.bold() : .caption.bold())
+                .foregroundStyle(primary ? Color(red: 1.0, green: 0.90, blue: 0.70) : .white.opacity(0.82))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
         }
-        .frame(minWidth: primary ? 104 : 86)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(.black.opacity(primary ? 0.55 : 0.42), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(primary ? Color.cyan.opacity(0.35) : Color.white.opacity(0.18), lineWidth: 1))
-    }
-
-    private var virtualStick: some View {
-        ZStack {
-            Circle().fill(Color.black.opacity(0.38)).overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-            Capsule().fill(Color.white.opacity(0.15)).frame(width: 62, height: 6)
-            Circle().fill(Color.cyan.opacity(0.85)).frame(width: 46, height: 46).offset(x: inputX * 34)
-        }
-        .frame(width: 112, height: 112)
-        .gesture(
-            DragGesture(minimumDistance: 0).onChanged { value in
-                inputX = max(-1, min(1, value.location.x / 56 - 1))
-            }.onEnded { _ in inputX = 0 }
-        )
+        .frame(minWidth: primary ? 160 : 76, maxWidth: primary ? 240 : 96)
+        .padding(.horizontal, primary ? 16 : 10)
+        .padding(.vertical, primary ? 10 : 7)
+        .background(primary ? Color(red: 0.10, green: 0.06, blue: 0.16).opacity(0.78) : .black.opacity(0.42), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(primary ? Color(red: 0.95, green: 0.65, blue: 0.25).opacity(0.5) : Color.white.opacity(0.16), lineWidth: 1))
     }
 
     private var settingsSheet: some View {
@@ -1029,37 +1207,41 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func drawWorld(context: inout GraphicsContext) {
-        let moon = Path(ellipseIn: CGRect(x: 140, y: 50, width: 74, height: 74))
-        context.fill(moon, with: .color(Color.yellow.opacity(0.2)))
-        for i in 0..<24 {
-            let x = CGFloat(i) * 360 - (player.x * 0.12).truncatingRemainder(dividingBy: 360)
-            let h = CGFloat(80 + (i % 5) * 26)
-            context.fill(Path(CGRect(x: x, y: 528 - h - 88, width: 180, height: h)), with: .color(Color.black.opacity(0.35)))
-        }
-        for rect in mapSpec.solids {
-            let color: Color = rect.origin.y >= 432 ? Color(red: 0.22, green: 0.50, blue: 0.34) : Color(red: 0.48, green: 0.34, blue: 0.23)
-            context.fill(Path(rect), with: .color(color))
-            context.stroke(Path(rect), with: .color(.black.opacity(0.25)), lineWidth: 1)
+        context.draw(
+            SurvivalCodeRunNativeAssets.background,
+            in: CGRect(x: 0, y: 0, width: mapSpec.worldWidth, height: mapSpec.worldHeight)
+        )
+        let groundSurfaceY = mapSpec.groundRow * mapSpec.tile
+        for solid in mapSpec.solids {
+            context.draw(
+                SurvivalCodeRunNativeAssets.solidImage(for: solid, groundSurfaceY: groundSurfaceY),
+                in: solid.rect
+            )
         }
         for rect in mapSpec.spikes {
-            var path = Path()
-            path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-            path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-            path.closeSubpath()
-            context.fill(path, with: .color(.white.opacity(0.9)))
+            context.draw(SurvivalCodeRunNativeAssets.spike, in: rect)
         }
         let flagY = mapSpec.goalY ?? 348
-        context.fill(Path(CGRect(x: mapSpec.goalX, y: flagY, width: 5, height: 84)), with: .color(.white.opacity(0.85)))
-        context.fill(Path(CGRect(x: mapSpec.goalX + 5, y: flagY, width: 56, height: 34)), with: .color(.blue.opacity(0.85)))
+        context.draw(
+            SurvivalCodeRunNativeAssets.flag,
+            in: CGRect(x: mapSpec.goalX - 4, y: flagY, width: 70, height: 84)
+        )
         for enemy in enemies where enemy.alive {
-            context.fill(Path(roundedRect: enemy.rect, cornerRadius: 14), with: .color(Color.green.opacity(0.85)))
-            context.fill(Path(ellipseIn: CGRect(x: enemy.rect.midX - 7, y: enemy.rect.minY + 8, width: 4, height: 4)), with: .color(.black))
-            context.fill(Path(ellipseIn: CGRect(x: enemy.rect.midX + 3, y: enemy.rect.minY + 8, width: 4, height: 4)), with: .color(.black))
+            let frameIndex = Int(enemy.anim) % SurvivalCodeRunNativeAssets.slimeFrames.count
+            context.draw(SurvivalCodeRunNativeAssets.slimeFrames[frameIndex], in: enemy.rect)
         }
         let playerRect = CGRect(x: player.x, y: player.y, width: 34, height: 42)
-        context.fill(Path(roundedRect: playerRect, cornerRadius: 8), with: .color(Color(red: 0.86, green: 0.72, blue: 1.0)))
-        context.stroke(Path(roundedRect: playerRect, cornerRadius: 8), with: .color(.white.opacity(player.respawnGrace > 0 ? 0.8 : 0.2)), lineWidth: player.respawnGrace > 0 ? 2 : 1)
+        let playerImage: Image
+        if player.hurtTime > 0 {
+            playerImage = SurvivalCodeRunNativeAssets.playerHurt
+        } else {
+            let frameIndex = max(0, Int(player.runPhase) % SurvivalCodeRunNativeAssets.playerFrames.count)
+            playerImage = SurvivalCodeRunNativeAssets.playerFrames[frameIndex]
+        }
+        let shouldBlink = player.invulnerableTime > 0 && Int(player.invulnerableTime * 20) % 2 == 0
+        if !shouldBlink {
+            context.draw(playerImage, in: playerRect)
+        }
     }
 
     private func tick(now: Date) {
@@ -1069,45 +1251,93 @@ private struct SurvivalCodeRunGameContent: View {
         elapsed += dt
         let step = CGFloat(dt * 60)
         if abs(inputX) > 0.08 {
-            player.vx = max(-4.6, min(4.6, player.vx + 0.7 * inputX * step))
+            player.vx = max(-SurvivalCodeRunNativeRules.walkMax, min(SurvivalCodeRunNativeRules.walkMax, player.vx + SurvivalCodeRunNativeRules.walkAccel * inputX * step))
             player.facing = inputX >= 0 ? 1 : -1
         } else {
-            let decel = (player.onGround ? 0.6 : 0.18) * step
+            let decel = (player.onGround ? SurvivalCodeRunNativeRules.groundDecel : SurvivalCodeRunNativeRules.airDecel) * step
             if abs(player.vx) <= decel { player.vx = 0 } else { player.vx -= player.vx.sign == .minus ? -decel : decel }
         }
-        player.vy = min(17, player.vy + 0.8 * step)
-        player.respawnGrace = max(0, player.respawnGrace - dt)
+        player.vy = min(SurvivalCodeRunNativeRules.maxFall, player.vy + SurvivalCodeRunNativeRules.gravity * step)
+        player.runPhase += abs(player.vx) * 0.035 * step
+        updateCoyoteFrames()
+        processJumpBuffer()
         movePlayer(step: step)
+        player.invulnerableTime = max(0, player.invulnerableTime - dt)
+        player.hurtTime = max(0, player.hurtTime - dt)
         moveEnemies(step: step)
         resolveHazards(step: step)
         if hasReachedGoal() { finish(.clear) }
         if elapsed >= timeLimit { finish(.failed) }
     }
 
+    private func updateCoyoteFrames() {
+        if player.onGround {
+            player.coyoteFrames = SurvivalCodeRunNativeRules.coyoteFrames
+        } else if player.coyoteFrames > 0 {
+            player.coyoteFrames -= 1
+        }
+    }
+
+    private func processJumpBuffer() {
+        guard player.jumpBufferFrames > 0 else { return }
+        if canExecuteBufferedJump() {
+            applyBufferedJump()
+        } else {
+            player.jumpBufferFrames -= 1
+        }
+    }
+
+    private func canExecuteBufferedJump() -> Bool {
+        if player.chordLockedUntilLanding || player.jumpCount >= 2 { return false }
+        if player.jumpCount == 0 {
+            return player.onGround || player.coyoteFrames > 0
+        }
+        return true
+    }
+
+    private func applyBufferedJump() {
+        player.vy = SurvivalCodeRunNativeRules.jumpVelocity
+        player.onGround = false
+        player.jumpCount += 1
+        player.coyoteFrames = 0
+        player.jumpBufferFrames = 0
+        if player.jumpCount >= 2 {
+            player.chordLockedUntilLanding = true
+            completedPitchClasses.removeAll()
+        }
+    }
+
     private func movePlayer(step: CGFloat) {
         var rect = CGRect(x: player.x + player.vx * step, y: player.y, width: 34, height: 42)
-        for solid in mapSpec.solids where rect.intersects(solid) {
-            if player.vx > 0 { rect.origin.x = solid.minX - rect.width }
-            if player.vx < 0 { rect.origin.x = solid.maxX }
+        for solid in mapSpec.solids where solid.kind != .platform && rect.intersects(solid.rect) {
+            if player.vx > 0 { rect.origin.x = solid.rect.minX - rect.width }
+            if player.vx < 0 { rect.origin.x = solid.rect.maxX }
             player.vx = 0
         }
         player.x = max(0, min(mapSpec.worldWidth - rect.width, rect.origin.x))
         rect = CGRect(x: player.x, y: player.y + player.vy * step, width: 34, height: 42)
         player.onGround = false
-        for solid in mapSpec.solids where rect.intersects(solid) {
+        for solid in mapSpec.solids where rect.intersects(solid.rect) {
+            if solid.kind == .platform && !canLandOnPlatform(solid: solid) { continue }
             if player.vy > 0 {
-                rect.origin.y = solid.minY - rect.height
+                rect.origin.y = solid.rect.minY - rect.height
                 player.vy = 0
                 player.onGround = true
                 player.jumpCount = 0
                 player.chordLockedUntilLanding = false
             } else if player.vy < 0 {
-                rect.origin.y = solid.maxY
+                rect.origin.y = solid.rect.maxY
                 player.vy = 0
             }
         }
         player.y = rect.origin.y
-        if player.y > mapSpec.worldHeight + 96 { respawn() }
+        if player.y > mapSpec.worldHeight + 96 { loseLife() }
+    }
+
+    private func canLandOnPlatform(solid: SurvivalCodeRunNativeSolid) -> Bool {
+        solid.kind == .platform
+            && player.vy > 0
+            && player.y + 42 <= solid.rect.minY + SurvivalCodeRunNativeRules.oneWayPlatformLandingEpsilon
     }
 
     private func hasReachedGoal() -> Bool {
@@ -1127,20 +1357,25 @@ private struct SurvivalCodeRunGameContent: View {
                 enemies[i].vx *= -1
                 enemies[i].rect.origin.x = max(enemies[i].minX, min(enemies[i].maxX, enemies[i].rect.origin.x))
             }
+            enemies[i].anim += 0.15 * step
         }
     }
 
     private func resolveHazards(step: CGFloat) {
-        guard player.respawnGrace <= 0 else { return }
+        guard player.invulnerableTime <= 0 else { return }
         let rect = CGRect(x: player.x, y: player.y, width: 34, height: 42)
-        if mapSpec.spikes.contains(where: { rect.intersects($0) }) { respawn(); return }
+        if let spike = mapSpec.spikes.first(where: { rect.intersects($0) }) {
+            applyDamage(sourceCenterX: spike.midX)
+            return
+        }
         for i in enemies.indices where enemies[i].alive && rect.intersects(enemies[i].rect) {
             let bottomBefore = rect.maxY - player.vy * step
             if player.vy > 0 && bottomBefore <= enemies[i].rect.minY + 12 {
                 enemies[i].alive = false
-                player.vy = -11.5
+                player.vy = SurvivalCodeRunNativeRules.stompBounce
+                player.onGround = false
             } else {
-                respawn()
+                applyDamage(sourceCenterX: enemies[i].rect.midX)
             }
             return
         }
@@ -1168,17 +1403,41 @@ private struct SurvivalCodeRunGameContent: View {
 
     private func triggerJump() {
         guard player.jumpCount < 2, !player.chordLockedUntilLanding else { return }
-        player.vy = -15.4
+        player.jumpBufferFrames = SurvivalCodeRunNativeRules.jumpBufferFrames
+    }
+
+    private func applyDamage(sourceCenterX: CGFloat) {
+        guard status == .playing, player.invulnerableTime <= 0 else { return }
+        let playerCenterX = player.x + 17
+        let dir: CGFloat = playerCenterX < sourceCenterX ? -1 : 1
+        player.hp -= 1
+        player.hurtTime = SurvivalCodeRunNativeRules.hurtDuration
+        player.invulnerableTime = SurvivalCodeRunNativeRules.damageInvulnerability
+        player.vx = dir * SurvivalCodeRunNativeRules.knockbackVX
+        player.vy = SurvivalCodeRunNativeRules.knockbackVY
         player.onGround = false
-        player.jumpCount += 1
-        if player.jumpCount >= 2 {
-            player.chordLockedUntilLanding = true
-            completedPitchClasses.removeAll()
+        if player.hp <= 0 {
+            loseLife()
         }
     }
 
-    private func respawn() {
-        player = SurvivalCodeRunNativePlayer(x: mapSpec.spawn.x, y: mapSpec.spawn.y)
+    private func loseLife() {
+        guard status == .playing else { return }
+        lives -= 1
+        if lives <= 0 {
+            lives = 0
+            finish(.failed)
+            return
+        }
+        respawnAfterLifeLoss()
+    }
+
+    private func respawnAfterLifeLoss() {
+        player = SurvivalCodeRunNativePlayer(
+            x: mapSpec.spawn.x,
+            y: mapSpec.spawn.y,
+            invulnerableTime: SurvivalCodeRunNativeRules.respawnInvulnerability
+        )
         enemies = mapSpec.enemies()
         completedPitchClasses.removeAll()
     }
@@ -1187,6 +1446,7 @@ private struct SurvivalCodeRunGameContent: View {
         mapSpec = nextMap
         player = SurvivalCodeRunNativePlayer(x: nextMap.spawn.x, y: nextMap.spawn.y)
         enemies = nextMap.enemies()
+        lives = SurvivalCodeRunNativeRules.initialLives
         completedPitchClasses.removeAll()
         heldKeys.removeAll()
     }
@@ -1202,11 +1462,13 @@ private struct SurvivalCodeRunGameContent: View {
     private func resetRun() {
         player = SurvivalCodeRunNativePlayer(x: mapSpec.spawn.x, y: mapSpec.spawn.y)
         enemies = mapSpec.enemies()
+        lives = SurvivalCodeRunNativeRules.initialLives
         elapsed = 0
         status = .playing
         showResult = false
         submittedClear = false
         currentChordIndex = 0
+        inputX = 0
         completedPitchClasses.removeAll()
         audio.start(playBackgroundMusic: true)
     }

@@ -488,6 +488,10 @@ private struct PianoKeyButton: View {
                 .fill(fillColor)
                 .overlay(
                     RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                        .fill(hintFillOverlayColor.opacity(Double(hintFillOverlayOpacity)))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                         .stroke(Color.black.opacity(0.85), lineWidth: 1)
                 )
                 .overlay(
@@ -530,6 +534,19 @@ private struct PianoKeyButton: View {
         return .clear
     }
 
+    private var hintFillOverlayOpacity: CGFloat {
+        (isHinted && !isHintCompleted) ? hintPendingOpacity : 0
+    }
+
+    private var hintFillOverlayColor: Color {
+        guard isHinted, !isHintCompleted else { return .clear }
+        let held = isPressing || isMidiHeld
+        if isBlack {
+            return held ? Self.marigoldDarkPressed : Self.marigoldDark
+        }
+        return held ? Self.marigoldLightPressed : Self.marigoldLight
+    }
+
     private var fillColor: Color {
         let held = isPressing || isMidiHeld
         if isBlack {
@@ -538,20 +555,12 @@ private struct PianoKeyButton: View {
                     ? Color(red: 0.15, green: 0.55, blue: 0.25)
                     : Color(red: 0.10, green: 0.40, blue: 0.18)
             }
-            if isHinted {
-                return held ? Self.marigoldDarkPressed.opacity(Double(hintPendingOpacity)) : Self.marigoldDark.opacity(Double(hintPendingOpacity))
-            }
             return held ? PianoKeyboardTheme.blackKeyPressed : PianoKeyboardTheme.blackKey
         }
         if isHintCompleted {
             return held
                 ? Color(red: 0.55, green: 0.90, blue: 0.55)
                 : Color(red: 0.78, green: 1.0, blue: 0.78)
-        }
-        if isHinted {
-            return held
-                ? Self.marigoldLightPressed.opacity(Double(hintPendingOpacity))
-                : Self.marigoldLight.opacity(Double(hintPendingOpacity))
         }
         return held ? PianoKeyboardTheme.whiteKeyPressed : PianoKeyboardTheme.whiteKey
     }

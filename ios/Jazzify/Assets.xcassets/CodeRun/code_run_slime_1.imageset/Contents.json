@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "slime_normal_walk_a.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
