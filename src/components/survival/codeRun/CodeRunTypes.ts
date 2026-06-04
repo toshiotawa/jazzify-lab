@@ -97,7 +97,6 @@ export interface CodeRunState {
   map: CodeRunMapSpec;
   player: CodeRunPlayer;
   enemies: readonly CodeRunEnemy[];
-  lives: number;
   elapsedSec: number;
   cameraX: number;
   cameraY: number;

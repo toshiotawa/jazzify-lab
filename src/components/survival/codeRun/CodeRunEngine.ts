@@ -12,12 +12,9 @@ const COYOTE_FRAMES = 7;
 const JUMP_BUFFER_FRAMES = 8;
 const PLATFORM_LAND_EPSILON = 0.01;
 
-export const CODE_RUN_MAX_HP = 3;
+export const CODE_RUN_MAX_HP = 10;
 /** 制限時間（秒）。1:50 */
 export const CODE_RUN_TIME_LIMIT_SECONDS = 110;
-export const CODE_RUN_INITIAL_LIVES = 10;
-/** 残ライフがこの値以下のときドット表示、超えるときは xN 表記 */
-export const CODE_RUN_LIVES_DOT_DISPLAY_MAX = 5;
 
 export const formatCodeRunClock = (seconds: number): string => {
   const safe = Math.max(0, Math.ceil(seconds));
@@ -28,7 +25,6 @@ export const formatCodeRunClock = (seconds: number): string => {
 export const CODE_RUN_DAMAGE_INVUL_FRAMES = 90;
 export const CODE_RUN_HURT_FRAMES = 26;
 export const CODE_RUN_START_INVUL_FRAMES = 40;
-export const CODE_RUN_RESPAWN_INVUL_FRAMES = 120;
 const KNOCKBACK_VX = 5.5;
 const KNOCKBACK_VY = -7;
 
@@ -104,7 +100,6 @@ export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunStat
     map,
     player: freshPlayerAtSpawn(map, CODE_RUN_START_INVUL_FRAMES),
     enemies: [],
-    lives: CODE_RUN_INITIAL_LIVES,
     elapsedSec: 0,
     cameraX: 0,
     cameraY: 0,
@@ -113,19 +108,9 @@ export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunStat
   return { ...state, enemies: makeEnemies(state) };
 }
 
-const respawnAfterLifeLoss = (state: CodeRunState): CodeRunState => ({
-  ...state,
-  player: freshPlayerAtSpawn(state.map, CODE_RUN_RESPAWN_INVUL_FRAMES),
-  enemies: makeEnemies(state),
-});
-
-export const loseLife = (state: CodeRunState): CodeRunState => {
+export const failCodeRun = (state: CodeRunState): CodeRunState => {
   if (state.status !== 'playing') return state;
-  const lives = state.lives - 1;
-  if (lives <= 0) {
-    return { ...state, lives: 0, status: 'failed' };
-  }
-  return respawnAfterLifeLoss({ ...state, lives });
+  return { ...state, status: 'failed' };
 };
 
 export const applyDamage = (state: CodeRunState, srcCenterX: number): CodeRunState => {
@@ -143,7 +128,7 @@ export const applyDamage = (state: CodeRunState, srcCenterX: number): CodeRunSta
   };
   let next: CodeRunState = { ...state, player };
   if (player.hp <= 0) {
-    next = loseLife(next);
+    next = failCodeRun(next);
   }
   return next;
 };
@@ -289,7 +274,7 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   };
 
   if (next.player.y > next.map.worldHeight + 96) {
-    next = loseLife(next);
+    next = failCodeRun(next);
     if (next.status !== 'playing') {
       return { ...next, cameraX: clampCameraX(next), cameraY: clampCameraY(next) };
     }

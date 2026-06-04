@@ -16,10 +16,9 @@ import devRun10LayoutJson from './layouts/dev_run_10.layout.json';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
-  CODE_RUN_INITIAL_LIVES,
   CODE_RUN_MAX_HP,
   createInitialCodeRunState,
-  loseLife,
+  failCodeRun,
   tickCodeRun,
   triggerCodeRunJump,
 } from './CodeRunEngine';
@@ -224,10 +223,9 @@ describe('CodeRunEngine integration', () => {
   });
 });
 
-describe('CodeRunEngine lives and damage', () => {
-  it('createInitialCodeRunState はライフ10・HP3で開始する', () => {
+describe('CodeRunEngine HP and damage', () => {
+  it('createInitialCodeRunState は HP10 で開始する', () => {
     const state = createInitialCodeRunState(createDefaultCodeRunMap());
-    expect(state.lives).toBe(CODE_RUN_INITIAL_LIVES);
     expect(state.player.hp).toBe(CODE_RUN_MAX_HP);
     expect(state.player.invulFrames).toBeGreaterThan(0);
   });
@@ -251,28 +249,25 @@ describe('CodeRunEngine lives and damage', () => {
     expect(damaged.player.invulFrames).toBe(CODE_RUN_DAMAGE_INVUL_FRAMES);
   });
 
-  it('HP0で loseLife しライフが減る', () => {
+  it('HP0で failed になる', () => {
     const map = createDefaultCodeRunMap();
     let state = {
       ...createInitialCodeRunState(map),
       player: { ...basePlayer(), invulFrames: 0, hp: 1, maxHp: CODE_RUN_MAX_HP },
     };
     state = applyDamage(state, state.player.x + 200);
-    expect(state.lives).toBe(CODE_RUN_INITIAL_LIVES - 1);
-    expect(state.player.hp).toBe(CODE_RUN_MAX_HP);
-    expect(state.status).toBe('playing');
+    expect(state.player.hp).toBe(0);
+    expect(state.status).toBe('failed');
   });
 
-  it('ライフ0で failed になる', () => {
+  it('failCodeRun は failed にする', () => {
     const map = createDefaultCodeRunMap();
     const state = {
       ...createInitialCodeRunState(map),
-      lives: 1,
       player: { ...basePlayer(), invulFrames: 0, hp: 1, maxHp: CODE_RUN_MAX_HP },
     };
-    const over = loseLife(state);
+    const over = failCodeRun(state);
     expect(over.status).toBe('failed');
-    expect(over.lives).toBe(0);
   });
 });
 
@@ -579,7 +574,6 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
       { left: false, right: false, analogX: 0 },
       1 / 60,
     );
-    expect(afterFirstTick.lives).toBe(CODE_RUN_INITIAL_LIVES);
     expect(afterFirstTick.status).toBe('playing');
     expect(fromDb.goalX).toBe(112 * CODE_RUN_TILE + 18);
     expect(fromDb.goalY).toBe(20 * CODE_RUN_TILE - 84);
@@ -607,7 +601,6 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
       { left: false, right: false, analogX: 0 },
       1 / 60,
     );
-    expect(afterFirstTick.lives).toBe(CODE_RUN_INITIAL_LIVES);
     expect(afterFirstTick.status).toBe('playing');
     expect(fromDb.goalX).toBe(98 * CODE_RUN_TILE + 18);
     expect(fromDb.goalY).toBe(3 * CODE_RUN_TILE - 84);
