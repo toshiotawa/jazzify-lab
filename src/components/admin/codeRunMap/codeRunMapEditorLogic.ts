@@ -10,6 +10,16 @@ import { CODE_RUN_TILE_KINDS, DEFAULT_TILE_SIZE, ENEMY_H, ENEMY_W } from './code
 
 export const cellKey = (c: number, r: number): string => `${c},${r}`;
 
+/** 穴列の追加／削除。erase または既存列の再クリックで削除する。 */
+export const applyPitColumn = (
+  pitColumns: Set<number>,
+  c: number,
+  erase: boolean,
+): void => {
+  if (erase || pitColumns.has(c)) pitColumns.delete(c);
+  else pitColumns.add(c);
+};
+
 export const mergePits = (pitColumns: ReadonlySet<number>): CodeRunPitRange[] => {
   const cols = [...pitColumns].sort((a, b) => a - b);
   const pits: CodeRunPitRange[] = [];
@@ -167,7 +177,7 @@ export const buildMapLayoutJson = (
     worldHeight: settings.worldHeight,
     groundRow: settings.groundRow,
     spawn: spawn ?? { c: 2, r: settings.groundRow },
-    pits: mergePits(pitColumns),
+    pits: settings.manualGround ? [] : mergePits(pitColumns),
     solids: exportSolids(cells, settings.gridRows, settings.worldTilesWide),
     spikes: exportSpikes(spikeCells),
     enemies: exportEnemies(enemies, settings.groundRow),
@@ -265,12 +275,14 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
 
   const cells = new Map<string, string>();
   const pitColumns = new Set<number>();
-  const pits = Array.isArray(source.pits) ? source.pits : [];
-  for (const pit of pits) {
-    if (typeof pit !== 'object' || pit === null) continue;
-    const row = pit as Record<string, unknown>;
-    if (typeof row.c0 !== 'number' || typeof row.c1 !== 'number') continue;
-    for (let c = row.c0; c <= row.c1; c += 1) pitColumns.add(c);
+  if (!settings.manualGround) {
+    const pits = Array.isArray(source.pits) ? source.pits : [];
+    for (const pit of pits) {
+      if (typeof pit !== 'object' || pit === null) continue;
+      const row = pit as Record<string, unknown>;
+      if (typeof row.c0 !== 'number' || typeof row.c1 !== 'number') continue;
+      for (let c = row.c0; c <= row.c1; c += 1) pitColumns.add(c);
+    }
   }
 
   const solids = Array.isArray(source.solids) ? source.solids : [];

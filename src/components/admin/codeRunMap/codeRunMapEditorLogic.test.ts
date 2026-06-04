@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyPitColumn,
   buildMapLayoutJson,
   cellKey,
   defaultEditorSettings,
@@ -9,6 +10,23 @@ import {
 } from './codeRunMapEditorLogic';
 
 describe('codeRunMapEditorLogic', () => {
+  it('applyPitColumn は再クリックで穴列を削除する', () => {
+    const pits = new Set<number>();
+    applyPitColumn(pits, 4, false);
+    expect(pits.has(4)).toBe(true);
+    applyPitColumn(pits, 4, false);
+    expect(pits.has(4)).toBe(false);
+    applyPitColumn(pits, 5, true);
+    expect(pits.has(5)).toBe(false);
+  });
+
+  it('manualGround では pits をエクスポートしない', () => {
+    const settings = { ...defaultEditorSettings(), manualGround: true };
+    const json = buildMapLayoutJson(new Map(), new Set(), new Set([3, 4]), [], null, null, settings);
+    expect(json.pits).toEqual([]);
+    expect(json.manualGround).toBe(true);
+  });
+
   it('mergePits は連続列をまとめる', () => {
     expect(mergePits(new Set([2, 3, 4, 8]))).toEqual([
       { c0: 2, c1: 4 },
@@ -66,6 +84,14 @@ describe('codeRunMapEditorLogic', () => {
     expect(imported.cells.get(cellKey(4, 9))).toBe('ground');
     expect(imported.spikeCells.has(cellKey(4, 9))).toBe(true);
     expect(imported.spikeCells.has(cellKey(5, 9))).toBe(true);
+  });
+
+  it('manualGround の JSON 読込では pits を無視する', () => {
+    const settings = { ...defaultEditorSettings(), manualGround: true };
+    const json = buildMapLayoutJson(new Map(), new Set(), new Set([7]), [], null, null, settings);
+    const withPits = { ...json, pits: [{ c0: 7, c1: 9 }] };
+    const imported = parseMapLayoutJson(JSON.stringify(withPits));
+    expect(imported.pitColumns.size).toBe(0);
   });
 
   it('足場セルにトゲを重ねてエクスポートできる', () => {

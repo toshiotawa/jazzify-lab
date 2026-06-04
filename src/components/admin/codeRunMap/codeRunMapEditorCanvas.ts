@@ -153,7 +153,7 @@ export const drawCodeRunMapCanvas = (
       const y = r * ts;
       ctx.fillStyle = (c + r) % 2 === 0 ? '#1e2430' : '#1a1f28';
       ctx.fillRect(x, y, ts, ts);
-      if (pitColumns.has(c) && r >= settings.groundRow) {
+      if (!settings.manualGround && pitColumns.has(c) && r >= settings.groundRow) {
         ctx.fillStyle = 'rgba(80, 40, 120, 0.35)';
         ctx.fillRect(x, y, ts, ts);
       }

@@ -17,6 +17,7 @@ import {
   defaultEnemyPlacement,
   findEnemyIndexAt,
   parseMapLayoutJson,
+  applyPitColumn,
   resolveSpikeRow,
   spikeRowsToClear,
 } from './codeRunMap/codeRunMapEditorLogic';
@@ -152,12 +153,19 @@ const CodeRunMapEditor: React.FC = () => {
           }
           return next;
         });
+        if (!settings.manualGround) {
+          setPitColumns((prev) => {
+            const next = new Set(prev);
+            next.delete(c);
+            return next;
+          });
+        }
         break;
       case 'pit':
+        if (settings.manualGround) break;
         setPitColumns((prev) => {
           const next = new Set(prev);
-          if (erase) next.delete(c);
-          else next.add(c);
+          applyPitColumn(next, c, erase);
           return next;
         });
         break;
@@ -267,7 +275,6 @@ const CodeRunMapEditor: React.FC = () => {
     setCells((prev) => {
       const next = new Map(prev);
       for (let c = 0; c < settings.worldTilesWide; c += 1) {
-        if (pitColumns.has(c)) continue;
         next.set(cellKey(c, settings.groundRow), 'ground');
         if (settings.groundRow + 1 < settings.gridRows) {
           next.set(cellKey(c, settings.groundRow + 1), 'ground');
@@ -319,6 +326,7 @@ const CodeRunMapEditor: React.FC = () => {
   };
 
   const groundToolDisabled = !settings.manualGround;
+  const pitToolDisabled = settings.manualGround;
 
   return (
     <div className="space-y-4 max-w-[1600px]">
@@ -337,12 +345,12 @@ const CodeRunMapEditor: React.FC = () => {
               <button
                 key={t.id}
                 type="button"
-                disabled={t.id === 'ground' && groundToolDisabled}
+                disabled={(t.id === 'ground' && groundToolDisabled) || (t.id === 'pit' && pitToolDisabled)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-colors ${
                   tool === t.id
                     ? 'border-primary-500 bg-primary-900/40'
                     : 'border-slate-600 bg-slate-800 hover:border-slate-500'
-                } ${t.id === 'ground' && groundToolDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                } ${(t.id === 'ground' && groundToolDisabled) || (t.id === 'pit' && pitToolDisabled) ? 'opacity-40 cursor-not-allowed' : ''}`}
                 onClick={() => setTool(t.id)}
               >
                 <span
@@ -357,6 +365,8 @@ const CodeRunMapEditor: React.FC = () => {
             左ドラッグ: 配置 · 右ドラッグ / 消去: 削除 · 敵を再クリックでも削除 · Ctrl+ホイール: ズーム
             <br />
             トゲは床・足場・クレートのセル（またはその直上）にスナップして配置されます。
+            <br />
+            穴は自動床モードのみ。再クリック／右クリック／消去で削除。手動床では穴は使いません。
           </p>
           <button type="button" className="btn btn-sm btn-outline w-full" onClick={fillGroundRow}>
             床行を一括塗り
@@ -388,7 +398,14 @@ const CodeRunMapEditor: React.FC = () => {
             <input
               type="checkbox"
               checked={settings.manualGround}
-              onChange={(e) => patchSettings({ manualGround: e.target.checked })}
+              onChange={(e) => {
+                const manualGround = e.target.checked;
+                if (manualGround) {
+                  setPitColumns(new Set());
+                  if (tool === 'pit') setTool('ground');
+                }
+                patchSettings({ manualGround });
+              }}
             />
             手動床
           </label>
