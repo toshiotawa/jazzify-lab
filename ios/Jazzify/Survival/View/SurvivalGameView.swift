@@ -302,56 +302,459 @@ private struct SurvivalCodeRunNativeEnemy: Identifiable {
     var alive: Bool = true
 }
 
-private enum SurvivalCodeRunNativeMap {
-    static let viewSize = CGSize(width: 960, height: 528)
-    static let tile: CGFloat = 48
-    static let groundRow: CGFloat = 9
-    static let worldWidth: CGFloat = 168 * 48
+private struct SurvivalCodeRunGridPoint: Codable, Sendable {
+    let c: Int
+    let r: Int
+
+    init(c: Int, r: Int) {
+        self.c = c
+        self.r = r
+    }
+}
+
+private struct SurvivalCodeRunPitPlacement: Codable, Sendable {
+    let c0: Int
+    let c1: Int
+
+    init(c0: Int, c1: Int) {
+        self.c0 = c0
+        self.c1 = c1
+    }
+}
+
+private struct SurvivalCodeRunSolidPlacement: Codable, Sendable {
+    let kind: String
+    let c: Int?
+    let r: Int?
+    let row: Int?
+    let col: Int?
+    let c0: Int?
+    let c1: Int?
+    let r0: Int?
+    let r1: Int?
+
+    init(kind: String, c: Int? = nil, r: Int? = nil, row: Int? = nil, col: Int? = nil, c0: Int? = nil, c1: Int? = nil, r0: Int? = nil, r1: Int? = nil) {
+        self.kind = kind
+        self.c = c
+        self.r = r
+        self.row = row
+        self.col = col
+        self.c0 = c0
+        self.c1 = c1
+        self.r0 = r0
+        self.r1 = r1
+    }
+}
+
+private struct SurvivalCodeRunSpikePlacement: Codable, Sendable {
+    let c: Int
+    let row: Int?
+    let offsetX: CGFloat?
+    let width: CGFloat?
+    let height: CGFloat?
+
+    init(c: Int, row: Int? = nil, offsetX: CGFloat? = nil, width: CGFloat? = nil, height: CGFloat? = nil) {
+        self.c = c
+        self.row = row
+        self.offsetX = offsetX
+        self.width = width
+        self.height = height
+    }
+}
+
+private struct SurvivalCodeRunEnemyPlacement: Codable, Sendable {
+    let c: Int
+    let r: Int?
+    let id: String?
+    let width: CGFloat?
+    let height: CGFloat?
+    let speed: CGFloat?
+    let minX: CGFloat?
+    let maxX: CGFloat?
+
+    init(c: Int, r: Int? = nil, id: String? = nil, width: CGFloat? = nil, height: CGFloat? = nil, speed: CGFloat? = nil, minX: CGFloat? = nil, maxX: CGFloat? = nil) {
+        self.c = c
+        self.r = r
+        self.id = id
+        self.width = width
+        self.height = height
+        self.speed = speed
+        self.minX = minX
+        self.maxX = maxX
+    }
+}
+
+private struct SurvivalCodeRunMapData: Codable, Sendable {
+    let id: String?
+    let name: String?
+    let viewWidth: CGFloat?
+    let viewHeight: CGFloat?
+    let tileSize: CGFloat?
+    let worldTilesWide: Int?
+    let worldHeight: CGFloat?
+    let groundRow: Int?
+    let spawn: SurvivalCodeRunGridPoint?
+    let goalColumn: Int?
+    let goalOffsetX: CGFloat?
+    let pits: [SurvivalCodeRunPitPlacement]?
+    let solids: [SurvivalCodeRunSolidPlacement]?
+    let spikes: [SurvivalCodeRunSpikePlacement]?
+    let enemies: [SurvivalCodeRunEnemyPlacement]?
+
+    init(
+        id: String? = nil,
+        name: String? = nil,
+        viewWidth: CGFloat? = 960,
+        viewHeight: CGFloat? = 528,
+        tileSize: CGFloat? = 48,
+        worldTilesWide: Int? = 168,
+        worldHeight: CGFloat? = nil,
+        groundRow: Int? = 9,
+        spawn: SurvivalCodeRunGridPoint? = SurvivalCodeRunGridPoint(c: 2, r: 9),
+        goalColumn: Int? = 160,
+        goalOffsetX: CGFloat? = 18,
+        pits: [SurvivalCodeRunPitPlacement],
+        solids: [SurvivalCodeRunSolidPlacement],
+        spikes: [SurvivalCodeRunSpikePlacement],
+        enemies: [SurvivalCodeRunEnemyPlacement]
+    ) {
+        self.id = id
+        self.name = name
+        self.viewWidth = viewWidth
+        self.viewHeight = viewHeight
+        self.tileSize = tileSize
+        self.worldTilesWide = worldTilesWide
+        self.worldHeight = worldHeight
+        self.groundRow = groundRow
+        self.spawn = spawn
+        self.goalColumn = goalColumn
+        self.goalOffsetX = goalOffsetX
+        self.pits = pits
+        self.solids = solids
+        self.spikes = spikes
+        self.enemies = enemies
+    }
+}
+
+private struct SurvivalCodeRunMapRow: Decodable, Sendable {
+    let id: String
+    let name: String
+    let mapData: SurvivalCodeRunMapData?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case mapData = "map_data"
+    }
+}
+
+private extension SurvivalCodeRunMapData {
+    static var nightCityRun01: SurvivalCodeRunMapData {
+        SurvivalCodeRunMapData(
+            pits: [pit(26, 28), pit(60, 63), pit(96, 98), pit(128, 129)],
+            solids: [
+                single("block", 9, 6),
+                row("brick", 8, 21, 23),
+                row("platform", 7, 32, 35),
+                single("block", 38, 6),
+                single("block", 39, 6),
+                col("brick", 47, 8, 8),
+                col("brick", 48, 7, 8),
+                col("brick", 49, 6, 8),
+                col("brick", 50, 5, 8),
+                row("platform", 7, 61, 62),
+                single("block", 70, 6),
+                single("block", 71, 6),
+                single("block", 84, 6),
+                row("platform", 7, 88, 88),
+                row("platform", 6, 90, 90),
+                row("platform", 5, 92, 92),
+                row("platform", 7, 97, 97),
+                row("platform", 7, 106, 106),
+                row("platform", 6, 108, 108),
+                single("block", 112, 6),
+                single("block", 113, 6),
+                single("block", 114, 6),
+                single("block", 136, 6),
+                col("brick", 148, 8, 8),
+                col("brick", 149, 7, 8),
+                col("brick", 150, 6, 8),
+                col("brick", 151, 5, 8),
+                col("brick", 152, 4, 8)
+            ],
+            spikes: [spike(75), spike(76), spike(120), spike(121)],
+            enemies: [
+                enemy(17), enemy(33, 7), enemy(42), enemy(66), enemy(72), enemy(86), enemy(90),
+                enemy(104), enemy(110), enemy(118), enemy(134), enemy(140)
+            ]
+        )
+    }
+
+    static var graveyardRun02: SurvivalCodeRunMapData {
+        SurvivalCodeRunMapData(
+            pits: [pit(22, 24), pit(54, 56), pit(92, 94), pit(132, 133)],
+            solids: [
+                single("block", 8, 6),
+                row("platform", 7, 28, 31),
+                row("brick", 8, 40, 42),
+                col("brick", 46, 8, 8),
+                col("brick", 47, 7, 8),
+                col("brick", 48, 6, 8),
+                col("brick", 49, 5, 8),
+                row("platform", 7, 62, 63),
+                single("block", 67, 6),
+                single("block", 68, 6),
+                row("platform", 7, 84, 86),
+                row("platform", 6, 88, 89),
+                single("block", 98, 6),
+                single("block", 99, 6),
+                row("platform", 7, 110, 111),
+                row("platform", 6, 113, 114),
+                single("block", 140, 6),
+                col("brick", 152, 8, 8),
+                col("brick", 153, 7, 8),
+                col("brick", 154, 6, 8),
+                col("brick", 155, 5, 8),
+                col("brick", 156, 4, 8)
+            ],
+            spikes: [spike(71), spike(72), spike(122), spike(123)],
+            enemies: [
+                enemy(14), enemy(19), enemy(29, 7), enemy(50), enemy(52), enemy(74), enemy(80),
+                enemy(85, 7), enemy(90), enemy(105), enemy(112, 6), enemy(128), enemy(138), enemy(148), enemy(154)
+            ]
+        )
+    }
+
+    static var graveyardRun03: SurvivalCodeRunMapData {
+        SurvivalCodeRunMapData(
+            pits: [pit(30, 31), pit(66, 68), pit(104, 106), pit(144, 145)],
+            solids: [
+                row("platform", 7, 12, 14),
+                row("platform", 7, 19, 22),
+                row("platform", 6, 25, 26),
+                single("block", 36, 6),
+                single("block", 37, 6),
+                row("platform", 7, 45, 49),
+                row("brick", 8, 56, 58),
+                row("platform", 7, 70, 72),
+                row("platform", 6, 75, 76),
+                row("platform", 7, 81, 84),
+                single("block", 94, 6),
+                single("block", 95, 6),
+                col("brick", 99, 8, 8),
+                col("brick", 100, 7, 8),
+                col("brick", 101, 6, 8),
+                row("platform", 7, 109, 111),
+                row("platform", 6, 114, 116),
+                row("platform", 7, 122, 126),
+                row("platform", 7, 136, 138),
+                row("platform", 6, 140, 141),
+                col("brick", 152, 8, 8),
+                col("brick", 153, 7, 8),
+                col("brick", 154, 6, 8),
+                col("brick", 155, 5, 8),
+                col("brick", 156, 4, 8)
+            ],
+            spikes: [spike(20), spike(21), spike(46), spike(47), spike(48), spike(82), spike(83), spike(123), spike(124), spike(125)],
+            enemies: [
+                enemy(13, 7), enemy(27), enemy(40), enemy(48, 7), enemy(60), enemy(75, 6),
+                enemy(88), enemy(110, 7), enemy(116, 6), enemy(130), enemy(141, 6), enemy(151), enemy(158)
+            ]
+        )
+    }
+
+    private static func pit(_ c0: Int, _ c1: Int) -> SurvivalCodeRunPitPlacement {
+        SurvivalCodeRunPitPlacement(c0: c0, c1: c1)
+    }
+
+    private static func single(_ kind: String, _ c: Int, _ r: Int) -> SurvivalCodeRunSolidPlacement {
+        SurvivalCodeRunSolidPlacement(kind: kind, c: c, r: r)
+    }
+
+    private static func row(_ kind: String, _ r: Int, _ c0: Int, _ c1: Int) -> SurvivalCodeRunSolidPlacement {
+        SurvivalCodeRunSolidPlacement(kind: kind, row: r, c0: c0, c1: c1)
+    }
+
+    private static func col(_ kind: String, _ c: Int, _ r0: Int, _ r1: Int) -> SurvivalCodeRunSolidPlacement {
+        SurvivalCodeRunSolidPlacement(kind: kind, col: c, r0: r0, r1: r1)
+    }
+
+    private static func spike(_ c: Int) -> SurvivalCodeRunSpikePlacement {
+        SurvivalCodeRunSpikePlacement(c: c)
+    }
+
+    private static func enemy(_ c: Int, _ r: Int = 9) -> SurvivalCodeRunEnemyPlacement {
+        SurvivalCodeRunEnemyPlacement(c: c, r: r)
+    }
+}
+
+private struct SurvivalCodeRunNativeMapSpec {
+    let id: String
+    let name: String
+    let viewSize: CGSize
+    let tile: CGFloat
+    let groundRow: CGFloat
+    let worldWidth: CGFloat
+    let worldHeight: CGFloat
+    let playerSize: CGSize
+    let spawn: CGPoint
+    let goalX: CGFloat
+    let solids: [CGRect]
+    let spikes: [CGRect]
+    private let enemyPlacements: [SurvivalCodeRunEnemyPlacement]
+
     static let playerSize = CGSize(width: 34, height: 42)
-    static let goalX: CGFloat = 160 * 48 + 18
-    static let pits: [(Int, Int)] = [(26, 28), (60, 63), (96, 98), (128, 129)]
+    static let defaultTile: CGFloat = 48
+    static let defaultEnemySize = CGSize(width: 38, height: 34)
 
-    static var spawn: CGPoint { CGPoint(x: 2 * tile, y: groundRow * tile - playerSize.height) }
-
-    static func solids() -> [CGRect] {
-        var rects: [CGRect] = []
-        func inPit(_ c: Int) -> Bool { pits.contains { c >= $0.0 && c <= $0.1 } }
-        func tileRect(_ c: Int, _ r: Int) -> CGRect { CGRect(x: CGFloat(c) * tile, y: CGFloat(r) * tile, width: tile, height: tile) }
-        func row(_ r: Int, _ c0: Int, _ c1: Int) { for c in c0...c1 { rects.append(tileRect(c, r)) } }
-        func col(_ c: Int, _ r0: Int, _ r1: Int) { for r in r0...r1 { rects.append(tileRect(c, r)) } }
-        for c in 0..<168 where !inPit(c) {
-            rects.append(tileRect(c, 9)); rects.append(tileRect(c, 10))
-        }
-        rects.append(tileRect(9, 6)); row(8, 21, 23); row(7, 32, 35)
-        rects.append(tileRect(38, 6)); rects.append(tileRect(39, 6))
-        for i in 0..<4 { col(47 + i, 8 - i, 8) }
-        row(7, 61, 62); rects.append(tileRect(70, 6)); rects.append(tileRect(71, 6))
-        rects.append(tileRect(84, 6)); row(7, 88, 88); row(6, 90, 90); row(5, 92, 92)
-        row(7, 97, 97); row(7, 106, 106); row(6, 108, 108)
-        rects.append(tileRect(112, 6)); rects.append(tileRect(113, 6)); rects.append(tileRect(114, 6))
-        rects.append(tileRect(136, 6)); for i in 0..<5 { col(148 + i, 8 - i, 8) }
-        return rects
-    }
-
-    static func spikes() -> [CGRect] {
-        [75, 76, 120, 121].map { c in
-            CGRect(x: CGFloat(c) * tile + 9, y: groundRow * tile - 26, width: tile - 18, height: 26)
-        }
-    }
-
-    static func enemies() -> [SurvivalCodeRunNativeEnemy] {
-        let specs: [(Int, Int)] = [(17, 9), (33, 7), (42, 9), (66, 9), (72, 9), (86, 9), (90, 9), (104, 9), (110, 9), (118, 9), (134, 9), (140, 9)]
-        return specs.map { c, r in
-            let x = CGFloat(c) * tile + 5
-            let y = CGFloat(r) * tile - 34
+    func enemies() -> [SurvivalCodeRunNativeEnemy] {
+        enemyPlacements.map { placement in
+            let width = placement.width ?? Self.defaultEnemySize.width
+            let height = placement.height ?? Self.defaultEnemySize.height
+            let row = CGFloat(placement.r ?? Int(groundRow))
+            let x = CGFloat(placement.c) * tile + (tile - width) / 2
+            let y = row * tile - height
             return SurvivalCodeRunNativeEnemy(
-                id: "slime-\(c)-\(r)",
-                rect: CGRect(x: x, y: y, width: 38, height: 34),
-                vx: -1.25,
-                minX: max(0, x - tile * 2),
-                maxX: min(worldWidth - 38, x + tile * 2)
+                id: placement.id ?? "slime-\(placement.c)-\(Int(row))",
+                rect: CGRect(x: x, y: y, width: width, height: height),
+                vx: -(placement.speed ?? 1.25),
+                minX: placement.minX ?? max(0, x - tile * 2),
+                maxX: placement.maxX ?? min(worldWidth - width, x + tile * 2)
             )
         }
+    }
+
+    static func fallback(mapId: String?) -> SurvivalCodeRunNativeMapSpec {
+        let id = mapId ?? "night_city_run_01"
+        switch id {
+        case "graveyard_run_02":
+            return bundled(id: "graveyard_run_02", name: "Graveyard Run 02", data: .graveyardRun02)
+        case "graveyard_run_03":
+            return bundled(id: "graveyard_run_03", name: "Graveyard Run 03", data: .graveyardRun03)
+        default:
+            return bundled(id: "night_city_run_01", name: "Night City Run 01", data: .nightCityRun01)
+        }
+    }
+
+    static func from(row: SurvivalCodeRunMapRow) -> SurvivalCodeRunNativeMapSpec? {
+        guard let data = row.mapData else { return nil }
+        return build(id: row.id, name: row.name, data: data)
+    }
+
+    private static func build(id: String, name: String, data: SurvivalCodeRunMapData) -> SurvivalCodeRunNativeMapSpec? {
+        guard let pits = data.pits, let placements = data.solids, let spikes = data.spikes, let enemies = data.enemies else {
+            return nil
+        }
+        return build(id: id, name: name, data: data, pits: pits, placements: placements, spikes: spikes, enemies: enemies)
+    }
+
+    private static func bundled(id: String, name: String, data: SurvivalCodeRunMapData) -> SurvivalCodeRunNativeMapSpec {
+        build(id: id, name: name, data: data) ?? minimal(id: id, name: name)
+    }
+
+    private static func minimal(id: String, name: String) -> SurvivalCodeRunNativeMapSpec {
+        let tile = defaultTile
+        let groundRow = 9
+        let worldWidth = 168 * tile
+        let ground = (0..<168).flatMap { c in
+            [
+                CGRect(x: CGFloat(c) * tile, y: CGFloat(groundRow) * tile, width: tile, height: tile),
+                CGRect(x: CGFloat(c) * tile, y: CGFloat(groundRow + 1) * tile, width: tile, height: tile)
+            ]
+        }
+        return SurvivalCodeRunNativeMapSpec(
+            id: id,
+            name: name,
+            viewSize: CGSize(width: 960, height: 528),
+            tile: tile,
+            groundRow: CGFloat(groundRow),
+            worldWidth: worldWidth,
+            worldHeight: 528,
+            playerSize: playerSize,
+            spawn: CGPoint(x: 2 * tile, y: CGFloat(groundRow) * tile - playerSize.height),
+            goalX: 160 * tile + 18,
+            solids: ground,
+            spikes: [],
+            enemyPlacements: []
+        )
+    }
+
+    private static func build(
+        id: String,
+        name: String,
+        data: SurvivalCodeRunMapData,
+        pits: [SurvivalCodeRunPitPlacement],
+        placements: [SurvivalCodeRunSolidPlacement],
+        spikes spikePlacements: [SurvivalCodeRunSpikePlacement],
+        enemies enemyPlacements: [SurvivalCodeRunEnemyPlacement]
+    ) -> SurvivalCodeRunNativeMapSpec {
+        let tile = data.tileSize ?? defaultTile
+        let viewSize = CGSize(width: data.viewWidth ?? 960, height: data.viewHeight ?? 528)
+        let worldTilesWide = data.worldTilesWide ?? 168
+        let groundRow = data.groundRow ?? 9
+        let worldWidth = CGFloat(worldTilesWide) * tile
+        let worldHeight = data.worldHeight ?? viewSize.height
+        let spawnGrid = data.spawn ?? SurvivalCodeRunGridPoint(c: 2, r: groundRow)
+        var solids: [CGRect] = []
+
+        func isPit(_ c: Int) -> Bool { pits.contains { c >= $0.c0 && c <= $0.c1 } }
+        func tileRect(_ c: Int, _ r: Int) -> CGRect {
+            CGRect(x: CGFloat(c) * tile, y: CGFloat(r) * tile, width: tile, height: tile)
+        }
+        for c in 0..<worldTilesWide where !isPit(c) {
+            solids.append(tileRect(c, groundRow))
+            solids.append(tileRect(c, groundRow + 1))
+        }
+        for placement in placements {
+            if let c = placement.c, let r = placement.r {
+                solids.append(tileRect(c, r))
+            } else if let row = placement.row, let c0 = placement.c0, let c1 = placement.c1, c0 <= c1 {
+                for c in c0...c1 { solids.append(tileRect(c, row)) }
+            } else if let col = placement.col, let r0 = placement.r0, let r1 = placement.r1, r0 <= r1 {
+                for r in r0...r1 { solids.append(tileRect(col, r)) }
+            }
+        }
+
+        let spikeRects = spikePlacements.map { placement in
+            let height = placement.height ?? 26
+            let offsetX = placement.offsetX ?? 9
+            return CGRect(
+                x: CGFloat(placement.c) * tile + offsetX,
+                y: CGFloat(placement.row ?? groundRow) * tile - height,
+                width: placement.width ?? tile - offsetX * 2,
+                height: height
+            )
+        }
+
+        let displayName = data.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return SurvivalCodeRunNativeMapSpec(
+            id: id,
+            name: displayName?.isEmpty == false ? displayName ?? name : name,
+            viewSize: viewSize,
+            tile: tile,
+            groundRow: CGFloat(groundRow),
+            worldWidth: worldWidth,
+            worldHeight: worldHeight,
+            playerSize: playerSize,
+            spawn: CGPoint(x: CGFloat(spawnGrid.c) * tile, y: CGFloat(spawnGrid.r) * tile - playerSize.height),
+            goalX: CGFloat(data.goalColumn ?? 160) * tile + (data.goalOffsetX ?? 18),
+            solids: solids,
+            spikes: spikeRects,
+            enemyPlacements: enemyPlacements
+        )
+    }
+}
+
+private extension SupabaseService {
+    func fetchSurvivalCodeRunMap(id: String) async throws -> SurvivalCodeRunMapRow? {
+        let rows: [SurvivalCodeRunMapRow] = try await client
+            .from("survival_run_maps")
+            .select("id, name, map_data")
+            .eq("id", value: id)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
     }
 }
 
@@ -366,8 +769,9 @@ private struct SurvivalCodeRunGameContent: View {
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
     let onClose: () -> Void
 
+    @State private var mapSpec = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil)
     @State private var player = SurvivalCodeRunNativePlayer()
-    @State private var enemies = SurvivalCodeRunNativeMap.enemies()
+    @State private var enemies = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil).enemies()
     @State private var elapsed: TimeInterval = 0
     @State private var lastTick = Date()
     @State private var inputX: CGFloat = 0
@@ -383,10 +787,9 @@ private struct SurvivalCodeRunGameContent: View {
 
     private let audio = SurvivalAudioController()
     private let timer = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
-    private let solids = SurvivalCodeRunNativeMap.solids()
-    private let spikes = SurvivalCodeRunNativeMap.spikes()
-
-    private var timeLimit: TimeInterval { TimeInterval(lessonRuntime?.timeLimitSec ?? stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec)) }
+    private var timeLimit: TimeInterval {
+        lessonRuntime?.timeLimitSec ?? TimeInterval(stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec))
+    }
     private var chords: [SurvivalResolvedChord] {
         (stage.chordProgression ?? []).enumerated().map { idx, entry in
             SurvivalResolvedChord.fromProgressionEntry(entry, index: idx)
@@ -549,10 +952,10 @@ private struct SurvivalCodeRunGameContent: View {
 
     private func gameCanvas(size: CGSize) -> some View {
         Canvas { context, canvasSize in
-            let scale = min(canvasSize.width / SurvivalCodeRunNativeMap.viewSize.width, canvasSize.height / SurvivalCodeRunNativeMap.viewSize.height)
-            let ox = (canvasSize.width - SurvivalCodeRunNativeMap.viewSize.width * scale) / 2
-            let oy = (canvasSize.height - SurvivalCodeRunNativeMap.viewSize.height * scale) / 2
-            let camera = max(0, min(player.x + SurvivalCodeRunNativeMap.playerSize.width / 2 - SurvivalCodeRunNativeMap.viewSize.width / 2, SurvivalCodeRunNativeMap.worldWidth - SurvivalCodeRunNativeMap.viewSize.width))
+            let scale = min(canvasSize.width / mapSpec.viewSize.width, canvasSize.height / mapSpec.viewSize.height)
+            let ox = (canvasSize.width - mapSpec.viewSize.width * scale) / 2
+            let oy = (canvasSize.height - mapSpec.viewSize.height * scale) / 2
+            let camera = max(0, min(player.x + mapSpec.playerSize.width / 2 - mapSpec.viewSize.width / 2, mapSpec.worldWidth - mapSpec.viewSize.width))
             context.fill(Path(CGRect(origin: .zero, size: canvasSize)), with: .linearGradient(Gradient(colors: [Color(red: 0.03, green: 0.06, blue: 0.16), Color(red: 0.01, green: 0.015, blue: 0.04)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: canvasSize.height)))
             context.translateBy(x: ox - camera * scale, y: oy)
             context.scaleBy(x: scale, y: scale)
@@ -569,12 +972,12 @@ private struct SurvivalCodeRunGameContent: View {
             let h = CGFloat(80 + (i % 5) * 26)
             context.fill(Path(CGRect(x: x, y: 528 - h - 88, width: 180, height: h)), with: .color(Color.black.opacity(0.35)))
         }
-        for rect in solids {
+        for rect in mapSpec.solids {
             let color: Color = rect.origin.y >= 432 ? Color(red: 0.22, green: 0.50, blue: 0.34) : Color(red: 0.48, green: 0.34, blue: 0.23)
             context.fill(Path(rect), with: .color(color))
             context.stroke(Path(rect), with: .color(.black.opacity(0.25)), lineWidth: 1)
         }
-        for rect in spikes {
+        for rect in mapSpec.spikes {
             var path = Path()
             path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
             path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
@@ -582,8 +985,8 @@ private struct SurvivalCodeRunGameContent: View {
             path.closeSubpath()
             context.fill(path, with: .color(.white.opacity(0.9)))
         }
-        context.fill(Path(CGRect(x: SurvivalCodeRunNativeMap.goalX, y: 348, width: 5, height: 84)), with: .color(.white.opacity(0.85)))
-        context.fill(Path(CGRect(x: SurvivalCodeRunNativeMap.goalX + 5, y: 348, width: 56, height: 34)), with: .color(.blue.opacity(0.85)))
+        context.fill(Path(CGRect(x: mapSpec.goalX, y: 348, width: 5, height: 84)), with: .color(.white.opacity(0.85)))
+        context.fill(Path(CGRect(x: mapSpec.goalX + 5, y: 348, width: 56, height: 34)), with: .color(.blue.opacity(0.85)))
         for enemy in enemies where enemy.alive {
             context.fill(Path(roundedRect: enemy.rect, cornerRadius: 14), with: .color(Color.green.opacity(0.85)))
             context.fill(Path(ellipseIn: CGRect(x: enemy.rect.midX - 7, y: enemy.rect.minY + 8, width: 4, height: 4)), with: .color(.black))
@@ -612,21 +1015,21 @@ private struct SurvivalCodeRunGameContent: View {
         movePlayer(step: step)
         moveEnemies(step: step)
         resolveHazards(step: step)
-        if player.x + 17 >= SurvivalCodeRunNativeMap.goalX { finish(.clear) }
+        if player.x + 17 >= mapSpec.goalX { finish(.clear) }
         if elapsed >= timeLimit { finish(.failed) }
     }
 
     private func movePlayer(step: CGFloat) {
         var rect = CGRect(x: player.x + player.vx * step, y: player.y, width: 34, height: 42)
-        for solid in solids where rect.intersects(solid) {
+        for solid in mapSpec.solids where rect.intersects(solid) {
             if player.vx > 0 { rect.origin.x = solid.minX - rect.width }
             if player.vx < 0 { rect.origin.x = solid.maxX }
             player.vx = 0
         }
-        player.x = max(0, min(SurvivalCodeRunNativeMap.worldWidth - rect.width, rect.origin.x))
+        player.x = max(0, min(mapSpec.worldWidth - rect.width, rect.origin.x))
         rect = CGRect(x: player.x, y: player.y + player.vy * step, width: 34, height: 42)
         player.onGround = false
-        for solid in solids where rect.intersects(solid) {
+        for solid in mapSpec.solids where rect.intersects(solid) {
             if player.vy > 0 {
                 rect.origin.y = solid.minY - rect.height
                 player.vy = 0
@@ -655,7 +1058,7 @@ private struct SurvivalCodeRunGameContent: View {
     private func resolveHazards(step: CGFloat) {
         guard player.respawnGrace <= 0 else { return }
         let rect = CGRect(x: player.x, y: player.y, width: 34, height: 42)
-        if spikes.contains(where: { rect.intersects($0) }) { respawn(); return }
+        if mapSpec.spikes.contains(where: { rect.intersects($0) }) { respawn(); return }
         for i in enemies.indices where enemies[i].alive && rect.intersects(enemies[i].rect) {
             let bottomBefore = rect.maxY - player.vy * step
             if player.vy > 0 && bottomBefore <= enemies[i].rect.minY + 12 {
@@ -700,10 +1103,17 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func respawn() {
-        let spawn = SurvivalCodeRunNativeMap.spawn
-        player = SurvivalCodeRunNativePlayer(x: spawn.x, y: spawn.y)
-        enemies = SurvivalCodeRunNativeMap.enemies()
+        player = SurvivalCodeRunNativePlayer(x: mapSpec.spawn.x, y: mapSpec.spawn.y)
+        enemies = mapSpec.enemies()
         completedPitchClasses.removeAll()
+    }
+
+    private func applyMapSpec(_ nextMap: SurvivalCodeRunNativeMapSpec) {
+        mapSpec = nextMap
+        player = SurvivalCodeRunNativePlayer(x: nextMap.spawn.x, y: nextMap.spawn.y)
+        enemies = nextMap.enemies()
+        completedPitchClasses.removeAll()
+        heldKeys.removeAll()
     }
 
     private func finish(_ next: SurvivalCodeRunNativeStatus) {
@@ -715,9 +1125,8 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func resetRun() {
-        let spawn = SurvivalCodeRunNativeMap.spawn
-        player = SurvivalCodeRunNativePlayer(x: spawn.x, y: spawn.y)
-        enemies = SurvivalCodeRunNativeMap.enemies()
+        player = SurvivalCodeRunNativePlayer(x: mapSpec.spawn.x, y: mapSpec.spawn.y)
+        enemies = mapSpec.enemies()
         elapsed = 0
         status = .playing
         showResult = false
@@ -728,13 +1137,21 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func startAudioAndMidi() {
-        let spawn = SurvivalCodeRunNativeMap.spawn
-        player = SurvivalCodeRunNativePlayer(x: spawn.x, y: spawn.y)
+        applyMapSpec(SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.runMapId))
         Task {
             let config = (try? await SupabaseService.shared.fetchSurvivalStageConfig(difficulty: stage.difficulty.rawValue, stageType: stage.survivalBgmConfigStageType)) ?? .default
             await MainActor.run {
                 audio.setBgmUrl(lessonRuntime?.bgmUrl ?? config.bgmUrl)
                 audio.start(playBackgroundMusic: true)
+            }
+        }
+        Task {
+            let mapId = stage.runMapId ?? "night_city_run_01"
+            guard let row = try? await SupabaseService.shared.fetchSurvivalCodeRunMap(id: mapId),
+                  let nextMap = SurvivalCodeRunNativeMapSpec.from(row: row)
+            else { return }
+            await MainActor.run {
+                applyMapSpec(nextMap)
             }
         }
         midiSubscriptionHolder.cancel()

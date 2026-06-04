@@ -23,6 +23,8 @@ const PLAYER_W = 34;
 const PLAYER_H = CODE_RUN_PLAYER_H;
 const ENEMY_W = 38;
 const ENEMY_H = 34;
+const DEFAULT_SPIKE_H = 26;
+const DEFAULT_SPIKE_X_OFFSET = 9;
 
 const GRAVEYARD_TILE_BASE = '/RUN/tiles/graveyard';
 const GRAVEYARD_OBJECT_BASE = '/RUN/graveyardtilesetnew/png/Objects';
@@ -53,97 +55,213 @@ const DEFAULT_ASSETS: CodeRunAssets = {
   },
 };
 
-const tile = (kind: CodeRunTileKind, c: number, r: number): CodeRunTileRect => ({
+interface CodeRunPitPlacement {
+  readonly c0: number;
+  readonly c1: number;
+}
+
+interface CodeRunGridPoint {
+  readonly c: number;
+  readonly r: number;
+}
+
+interface CodeRunSolidPlacement {
+  readonly kind: CodeRunTileKind;
+  readonly c?: number;
+  readonly r?: number;
+  readonly row?: number;
+  readonly col?: number;
+  readonly c0?: number;
+  readonly c1?: number;
+  readonly r0?: number;
+  readonly r1?: number;
+}
+
+interface CodeRunSpikePlacement {
+  readonly c: number;
+  readonly row?: number;
+  readonly offsetX?: number;
+  readonly width?: number;
+  readonly height?: number;
+}
+
+interface CodeRunEnemyPlacement {
+  readonly c: number;
+  readonly r?: number;
+  readonly id?: string;
+  readonly width?: number;
+  readonly height?: number;
+  readonly speed?: number;
+  readonly minX?: number;
+  readonly maxX?: number;
+}
+
+interface CodeRunLayoutData {
+  readonly id: string;
+  readonly name: string;
+  readonly viewWidth?: number;
+  readonly viewHeight?: number;
+  readonly tileSize?: number;
+  readonly worldTilesWide?: number;
+  readonly worldHeight?: number;
+  readonly groundRow?: number;
+  readonly spawn?: CodeRunGridPoint;
+  readonly goalColumn?: number;
+  readonly goalOffsetX?: number;
+  readonly pits: readonly CodeRunPitPlacement[];
+  readonly solids: readonly CodeRunSolidPlacement[];
+  readonly spikes: readonly CodeRunSpikePlacement[];
+  readonly enemies: readonly CodeRunEnemyPlacement[];
+}
+
+const tile = (kind: CodeRunTileKind, c: number, r: number, tileSize = TILE): CodeRunTileRect => ({
   kind,
-  x: c * TILE,
-  y: r * TILE,
-  width: TILE,
-  height: TILE,
+  x: c * tileSize,
+  y: r * tileSize,
+  width: tileSize,
+  height: tileSize,
 });
 
-const rowRun = (solids: CodeRunTileRect[], kind: CodeRunTileKind, r: number, c0: number, c1: number): void => {
-  for (let c = c0; c <= c1; c += 1) solids.push(tile(kind, c, r));
+const row = (kind: CodeRunTileKind, r: number, c0: number, c1: number): CodeRunSolidPlacement => ({
+  kind,
+  row: r,
+  c0,
+  c1,
+});
+
+const col = (kind: CodeRunTileKind, c: number, r0: number, r1: number): CodeRunSolidPlacement => ({
+  kind,
+  col: c,
+  r0,
+  r1,
+});
+
+const single = (kind: CodeRunTileKind, c: number, r: number): CodeRunSolidPlacement => ({ kind, c, r });
+
+const spike = (c: number): CodeRunSpikePlacement => ({ c });
+
+const enemy = (c: number, r = GROUND_ROW): CodeRunEnemyPlacement => ({ c, r });
+
+const inPit = (pits: readonly CodeRunPitPlacement[], c: number): boolean => {
+  return pits.some((pit) => c >= pit.c0 && c <= pit.c1);
 };
 
-const colRun = (solids: CodeRunTileRect[], kind: CodeRunTileKind, c: number, r0: number, r1: number): void => {
-  for (let r = r0; r <= r1; r += 1) solids.push(tile(kind, c, r));
-};
-
-const addBlock = (solids: CodeRunTileRect[], c: number, r: number): void => {
-  solids.push(tile('block', c, r));
-};
-
-const addSpike = (spikes: CodeRunTileRect[], c: number): void => {
-  spikes.push({
-    kind: 'block',
-    x: c * TILE + 9,
-    y: GROUND_ROW * TILE - 26,
-    width: TILE - 18,
-    height: 26,
-  });
-};
-
-const addEnemy = (enemies: CodeRunEnemySpec[], c: number, r = GROUND_ROW): void => {
-  const x = c * TILE + (TILE - ENEMY_W) / 2;
-  const y = r * TILE - ENEMY_H;
-  enemies.push({
-    id: `slime-${c}-${r}`,
-    x,
-    y,
-    width: ENEMY_W,
-    height: ENEMY_H,
-    minX: Math.max(0, x - TILE * 2),
-    maxX: Math.min(LEVEL_TILES_W * TILE - ENEMY_W, x + TILE * 2),
-    speed: 1.25,
-  });
-};
-
-const inPitNightCity = (c: number): boolean => {
-  return [[26, 28], [60, 63], [96, 98], [128, 129]].some(([a, b]) => c >= a && c <= b);
-};
-
-const inPitGraveyard02 = (c: number): boolean => {
-  return [[22, 24], [54, 56], [92, 94], [132, 133]].some(([a, b]) => c >= a && c <= b);
-};
-
-const inPitGraveyard03 = (c: number): boolean => {
-  return [[30, 31], [66, 68], [104, 106], [144, 145]].some(([a, b]) => c >= a && c <= b);
-};
-
-const buildGround = (solids: CodeRunTileRect[], isPit: (c: number) => boolean): void => {
-  for (let c = 0; c < LEVEL_TILES_W; c += 1) {
-    if (!isPit(c)) {
-      solids.push(tile('ground', c, GROUND_ROW));
-      solids.push(tile('ground', c, GROUND_ROW + 1));
+const buildGround = (
+  solids: CodeRunTileRect[],
+  pits: readonly CodeRunPitPlacement[],
+  worldTilesWide: number,
+  groundRow: number,
+  tileSize: number,
+): void => {
+  for (let c = 0; c < worldTilesWide; c += 1) {
+    if (!inPit(pits, c)) {
+      solids.push(tile('ground', c, groundRow, tileSize));
+      solids.push(tile('ground', c, groundRow + 1, tileSize));
     }
   }
 };
 
-const finalizeMap = (
-  id: string,
-  name: string,
+const addSolidPlacement = (
   solids: CodeRunTileRect[],
-  spikes: CodeRunTileRect[],
-  enemies: CodeRunEnemySpec[],
+  placement: CodeRunSolidPlacement,
+  tileSize: number,
+): void => {
+  if (placement.row !== undefined && placement.c0 !== undefined && placement.c1 !== undefined) {
+    for (let c = placement.c0; c <= placement.c1; c += 1) {
+      solids.push(tile(placement.kind, c, placement.row, tileSize));
+    }
+    return;
+  }
+  if (placement.col !== undefined && placement.r0 !== undefined && placement.r1 !== undefined) {
+    for (let r = placement.r0; r <= placement.r1; r += 1) {
+      solids.push(tile(placement.kind, placement.col, r, tileSize));
+    }
+    return;
+  }
+  if (placement.c !== undefined && placement.r !== undefined) {
+    solids.push(tile(placement.kind, placement.c, placement.r, tileSize));
+  }
+};
+
+const buildSpikeRect = (
+  placement: CodeRunSpikePlacement,
+  groundRow: number,
+  tileSize: number,
+): CodeRunTileRect => {
+  const height = placement.height ?? DEFAULT_SPIKE_H;
+  return {
+    kind: 'block',
+    x: placement.c * tileSize + (placement.offsetX ?? DEFAULT_SPIKE_X_OFFSET),
+    y: (placement.row ?? groundRow) * tileSize - height,
+    width: placement.width ?? tileSize - DEFAULT_SPIKE_X_OFFSET * 2,
+    height,
+  };
+};
+
+const buildEnemySpec = (
+  placement: CodeRunEnemyPlacement,
+  worldWidth: number,
+  groundRow: number,
+  tileSize: number,
+): CodeRunEnemySpec => {
+  const width = placement.width ?? ENEMY_W;
+  const height = placement.height ?? ENEMY_H;
+  const r = placement.r ?? groundRow;
+  const x = placement.c * tileSize + (tileSize - width) / 2;
+  const y = r * tileSize - height;
+  return {
+    id: placement.id ?? `slime-${placement.c}-${r}`,
+    x,
+    y,
+    width,
+    height,
+    minX: placement.minX ?? Math.max(0, x - tileSize * 2),
+    maxX: placement.maxX ?? Math.min(worldWidth - width, x + tileSize * 2),
+    speed: placement.speed ?? 1.25,
+  };
+};
+
+const buildMapFromLayout = (
+  layout: CodeRunLayoutData,
   timeLimitSec: number,
   assets?: CodeRunAssetsOverride,
-): CodeRunMapSpec => ({
-  id,
-  name,
-  viewWidth: VIEW_W,
-  viewHeight: VIEW_H,
-  worldWidth: LEVEL_TILES_W * TILE,
-  worldHeight: VIEW_H,
-  tileSize: TILE,
-  groundRow: GROUND_ROW,
-  spawn: { x: 2 * TILE, y: GROUND_ROW * TILE - PLAYER_H },
-  goalX: 160 * TILE + 18,
-  timeLimitSec,
-  solids,
-  spikes,
-  enemies,
-  assets: mergeAssets(assets),
-});
+): CodeRunMapSpec => {
+  const tileSize = layout.tileSize ?? TILE;
+  const viewWidth = layout.viewWidth ?? VIEW_W;
+  const viewHeight = layout.viewHeight ?? VIEW_H;
+  const worldTilesWide = layout.worldTilesWide ?? LEVEL_TILES_W;
+  const groundRow = layout.groundRow ?? GROUND_ROW;
+  const worldWidth = worldTilesWide * tileSize;
+  const worldHeight = layout.worldHeight ?? viewHeight;
+  const spawnPoint = layout.spawn ?? { c: 2, r: groundRow };
+  const solids: CodeRunTileRect[] = [];
+
+  buildGround(solids, layout.pits, worldTilesWide, groundRow, tileSize);
+  for (const placement of layout.solids) {
+    addSolidPlacement(solids, placement, tileSize);
+  }
+
+  const spikes = layout.spikes.map((placement) => buildSpikeRect(placement, groundRow, tileSize));
+  const enemies = layout.enemies.map((placement) => buildEnemySpec(placement, worldWidth, groundRow, tileSize));
+
+  return {
+    id: layout.id,
+    name: layout.name,
+    viewWidth,
+    viewHeight,
+    worldWidth,
+    worldHeight,
+    tileSize,
+    groundRow,
+    spawn: { x: spawnPoint.c * tileSize, y: spawnPoint.r * tileSize - PLAYER_H },
+    goalX: (layout.goalColumn ?? 160) * tileSize + (layout.goalOffsetX ?? 18),
+    timeLimitSec,
+    solids,
+    spikes,
+    enemies,
+    assets: mergeAssets(assets),
+  };
+};
 
 type CodeRunMapBuilder = (timeLimitSec?: number, assets?: CodeRunAssetsOverride) => CodeRunMapSpec;
 
@@ -159,159 +277,184 @@ const mergeAssets = (assets?: CodeRunAssetsOverride): CodeRunAssets => ({
   },
 });
 
+const NIGHT_CITY_RUN_01_LAYOUT: CodeRunLayoutData = {
+  id: 'night_city_run_01',
+  name: 'Night City Run 01',
+  pits: [{ c0: 26, c1: 28 }, { c0: 60, c1: 63 }, { c0: 96, c1: 98 }, { c0: 128, c1: 129 }],
+  solids: [
+    single('block', 9, 6),
+    row('brick', 8, 21, 23),
+    row('platform', 7, 32, 35),
+    single('block', 38, 6),
+    single('block', 39, 6),
+    col('brick', 47, 8, 8),
+    col('brick', 48, 7, 8),
+    col('brick', 49, 6, 8),
+    col('brick', 50, 5, 8),
+    row('platform', 7, 61, 62),
+    single('block', 70, 6),
+    single('block', 71, 6),
+    single('block', 84, 6),
+    row('platform', 7, 88, 88),
+    row('platform', 6, 90, 90),
+    row('platform', 5, 92, 92),
+    row('platform', 7, 97, 97),
+    row('platform', 7, 106, 106),
+    row('platform', 6, 108, 108),
+    single('block', 112, 6),
+    single('block', 113, 6),
+    single('block', 114, 6),
+    single('block', 136, 6),
+    col('brick', 148, 8, 8),
+    col('brick', 149, 7, 8),
+    col('brick', 150, 6, 8),
+    col('brick', 151, 5, 8),
+    col('brick', 152, 4, 8),
+  ],
+  spikes: [spike(75), spike(76), spike(120), spike(121)],
+  enemies: [
+    enemy(17),
+    enemy(33, 7),
+    enemy(42),
+    enemy(66),
+    enemy(72),
+    enemy(86),
+    enemy(90),
+    enemy(104),
+    enemy(110),
+    enemy(118),
+    enemy(134),
+    enemy(140),
+  ],
+};
+
+const GRAVEYARD_RUN_02_LAYOUT: CodeRunLayoutData = {
+  id: 'graveyard_run_02',
+  name: 'Graveyard Run 02',
+  pits: [{ c0: 22, c1: 24 }, { c0: 54, c1: 56 }, { c0: 92, c1: 94 }, { c0: 132, c1: 133 }],
+  solids: [
+    single('block', 8, 6),
+    row('platform', 7, 28, 31),
+    row('brick', 8, 40, 42),
+    col('brick', 46, 8, 8),
+    col('brick', 47, 7, 8),
+    col('brick', 48, 6, 8),
+    col('brick', 49, 5, 8),
+    row('platform', 7, 62, 63),
+    single('block', 67, 6),
+    single('block', 68, 6),
+    row('platform', 7, 84, 86),
+    row('platform', 6, 88, 89),
+    single('block', 98, 6),
+    single('block', 99, 6),
+    row('platform', 7, 110, 111),
+    row('platform', 6, 113, 114),
+    single('block', 140, 6),
+    col('brick', 152, 8, 8),
+    col('brick', 153, 7, 8),
+    col('brick', 154, 6, 8),
+    col('brick', 155, 5, 8),
+    col('brick', 156, 4, 8),
+  ],
+  spikes: [spike(71), spike(72), spike(122), spike(123)],
+  enemies: [
+    enemy(14),
+    enemy(19),
+    enemy(29, 7),
+    enemy(50),
+    enemy(52),
+    enemy(74),
+    enemy(80),
+    enemy(85, 7),
+    enemy(90),
+    enemy(105),
+    enemy(112, 6),
+    enemy(128),
+    enemy(138),
+    enemy(148),
+    enemy(154),
+  ],
+};
+
+const GRAVEYARD_RUN_03_LAYOUT: CodeRunLayoutData = {
+  id: 'graveyard_run_03',
+  name: 'Graveyard Run 03',
+  pits: [{ c0: 30, c1: 31 }, { c0: 66, c1: 68 }, { c0: 104, c1: 106 }, { c0: 144, c1: 145 }],
+  solids: [
+    row('platform', 7, 12, 14),
+    row('platform', 7, 19, 22),
+    row('platform', 6, 25, 26),
+    single('block', 36, 6),
+    single('block', 37, 6),
+    row('platform', 7, 45, 49),
+    row('brick', 8, 56, 58),
+    row('platform', 7, 70, 72),
+    row('platform', 6, 75, 76),
+    row('platform', 7, 81, 84),
+    single('block', 94, 6),
+    single('block', 95, 6),
+    col('brick', 99, 8, 8),
+    col('brick', 100, 7, 8),
+    col('brick', 101, 6, 8),
+    row('platform', 7, 109, 111),
+    row('platform', 6, 114, 116),
+    row('platform', 7, 122, 126),
+    row('platform', 7, 136, 138),
+    row('platform', 6, 140, 141),
+    col('brick', 152, 8, 8),
+    col('brick', 153, 7, 8),
+    col('brick', 154, 6, 8),
+    col('brick', 155, 5, 8),
+    col('brick', 156, 4, 8),
+  ],
+  spikes: [
+    spike(20),
+    spike(21),
+    spike(46),
+    spike(47),
+    spike(48),
+    spike(82),
+    spike(83),
+    spike(123),
+    spike(124),
+    spike(125),
+  ],
+  enemies: [
+    enemy(13, 7),
+    enemy(27),
+    enemy(40),
+    enemy(48, 7),
+    enemy(60),
+    enemy(75, 6),
+    enemy(88),
+    enemy(110, 7),
+    enemy(116, 6),
+    enemy(130),
+    enemy(141, 6),
+    enemy(151),
+    enemy(158),
+  ],
+};
+
 export function createDefaultCodeRunMap(
   timeLimitSec = 90,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  const solids: CodeRunTileRect[] = [];
-  const spikes: CodeRunTileRect[] = [];
-  const enemies: CodeRunEnemySpec[] = [];
-
-  buildGround(solids, inPitNightCity);
-
-  addBlock(solids, 9, 6);
-  addEnemy(enemies, 17);
-  rowRun(solids, 'brick', 8, 21, 23);
-  rowRun(solids, 'platform', 7, 32, 35);
-  addEnemy(enemies, 33, 7);
-  addBlock(solids, 38, 6);
-  addBlock(solids, 39, 6);
-  addEnemy(enemies, 42);
-  for (let i = 0; i < 4; i += 1) colRun(solids, 'brick', 47 + i, 8 - i, 8);
-  rowRun(solids, 'platform', 7, 61, 62);
-  addEnemy(enemies, 66);
-  addEnemy(enemies, 72);
-  addBlock(solids, 70, 6);
-  addBlock(solids, 71, 6);
-  addSpike(spikes, 75);
-  addSpike(spikes, 76);
-  addBlock(solids, 84, 6);
-  addEnemy(enemies, 86);
-  addEnemy(enemies, 90);
-  rowRun(solids, 'platform', 7, 88, 88);
-  rowRun(solids, 'platform', 6, 90, 90);
-  rowRun(solids, 'platform', 5, 92, 92);
-  rowRun(solids, 'platform', 7, 97, 97);
-  rowRun(solids, 'platform', 7, 106, 106);
-  rowRun(solids, 'platform', 6, 108, 108);
-  addEnemy(enemies, 104);
-  addEnemy(enemies, 110);
-  addEnemy(enemies, 118);
-  addBlock(solids, 112, 6);
-  addBlock(solids, 113, 6);
-  addBlock(solids, 114, 6);
-  addSpike(spikes, 120);
-  addSpike(spikes, 121);
-  addEnemy(enemies, 134);
-  addEnemy(enemies, 140);
-  addBlock(solids, 136, 6);
-  for (let i = 0; i < 5; i += 1) colRun(solids, 'brick', 148 + i, 8 - i, 8);
-
-  return finalizeMap('night_city_run_01', 'Night City Run 01', solids, spikes, enemies, timeLimitSec, assets);
+  return buildMapFromLayout(NIGHT_CITY_RUN_01_LAYOUT, timeLimitSec, assets);
 }
 
 export function createGraveyardRun02Map(
   timeLimitSec = 90,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  const solids: CodeRunTileRect[] = [];
-  const spikes: CodeRunTileRect[] = [];
-  const enemies: CodeRunEnemySpec[] = [];
-
-  buildGround(solids, inPitGraveyard02);
-
-  addBlock(solids, 8, 6);
-  addEnemy(enemies, 14);
-  addEnemy(enemies, 19);
-  rowRun(solids, 'platform', 7, 28, 31);
-  addEnemy(enemies, 29, 7);
-  rowRun(solids, 'brick', 8, 40, 42);
-  for (let i = 0; i < 4; i += 1) colRun(solids, 'brick', 46 + i, 8 - i, 8);
-  addEnemy(enemies, 50);
-  addEnemy(enemies, 52);
-  rowRun(solids, 'platform', 7, 62, 63);
-  addBlock(solids, 67, 6);
-  addBlock(solids, 68, 6);
-  addSpike(spikes, 71);
-  addSpike(spikes, 72);
-  addEnemy(enemies, 74);
-  addEnemy(enemies, 80);
-  rowRun(solids, 'platform', 7, 84, 86);
-  rowRun(solids, 'platform', 6, 88, 89);
-  addEnemy(enemies, 85, 7);
-  addEnemy(enemies, 90);
-  addBlock(solids, 98, 6);
-  addBlock(solids, 99, 6);
-  addEnemy(enemies, 105);
-  rowRun(solids, 'platform', 7, 110, 111);
-  rowRun(solids, 'platform', 6, 113, 114);
-  addEnemy(enemies, 112, 6);
-  addSpike(spikes, 122);
-  addSpike(spikes, 123);
-  addEnemy(enemies, 128);
-  addEnemy(enemies, 138);
-  addBlock(solids, 140, 6);
-  for (let i = 0; i < 5; i += 1) colRun(solids, 'brick', 152 + i, 8 - i, 8);
-  addEnemy(enemies, 148);
-  addEnemy(enemies, 154);
-
-  return finalizeMap('graveyard_run_02', 'Graveyard Run 02', solids, spikes, enemies, timeLimitSec, assets);
+  return buildMapFromLayout(GRAVEYARD_RUN_02_LAYOUT, timeLimitSec, assets);
 }
 
 export function createGraveyardRun03Map(
   timeLimitSec = 95,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  const solids: CodeRunTileRect[] = [];
-  const spikes: CodeRunTileRect[] = [];
-  const enemies: CodeRunEnemySpec[] = [];
-
-  buildGround(solids, inPitGraveyard03);
-
-  rowRun(solids, 'platform', 7, 12, 14);
-  addEnemy(enemies, 13, 7);
-  addSpike(spikes, 20);
-  addSpike(spikes, 21);
-  rowRun(solids, 'platform', 7, 19, 22);
-  rowRun(solids, 'platform', 6, 25, 26);
-  addEnemy(enemies, 27);
-  addBlock(solids, 36, 6);
-  addBlock(solids, 37, 6);
-  addEnemy(enemies, 40);
-  addSpike(spikes, 46);
-  addSpike(spikes, 47);
-  addSpike(spikes, 48);
-  rowRun(solids, 'platform', 7, 45, 49);
-  addEnemy(enemies, 48, 7);
-  rowRun(solids, 'brick', 8, 56, 58);
-  addEnemy(enemies, 60);
-  rowRun(solids, 'platform', 7, 70, 72);
-  rowRun(solids, 'platform', 6, 75, 76);
-  addEnemy(enemies, 75, 6);
-  addSpike(spikes, 82);
-  addSpike(spikes, 83);
-  rowRun(solids, 'platform', 7, 81, 84);
-  addEnemy(enemies, 88);
-  addBlock(solids, 94, 6);
-  addBlock(solids, 95, 6);
-  for (let i = 0; i < 3; i += 1) colRun(solids, 'brick', 99 + i, 8 - i, 8);
-  rowRun(solids, 'platform', 7, 109, 111);
-  rowRun(solids, 'platform', 6, 114, 116);
-  addEnemy(enemies, 110, 7);
-  addEnemy(enemies, 116, 6);
-  addSpike(spikes, 123);
-  addSpike(spikes, 124);
-  addSpike(spikes, 125);
-  rowRun(solids, 'platform', 7, 122, 126);
-  addEnemy(enemies, 130);
-  rowRun(solids, 'platform', 7, 136, 138);
-  rowRun(solids, 'platform', 6, 140, 141);
-  addEnemy(enemies, 141, 6);
-  for (let i = 0; i < 5; i += 1) colRun(solids, 'brick', 152 + i, 8 - i, 8);
-  addEnemy(enemies, 151);
-  addEnemy(enemies, 158);
-
-  return finalizeMap('graveyard_run_03', 'Graveyard Run 03', solids, spikes, enemies, timeLimitSec, assets);
+  return buildMapFromLayout(GRAVEYARD_RUN_03_LAYOUT, timeLimitSec, assets);
 }
 
 const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
@@ -335,6 +478,156 @@ const stringArray = (raw: unknown): string[] | undefined => {
   return values.length > 0 ? values : undefined;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+);
+
+const readFiniteNumber = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+};
+
+const readPositiveNumber = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = readFiniteNumber(record, key);
+  return value !== undefined && value > 0 ? value : undefined;
+};
+
+const readNonNegativeNumber = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = readFiniteNumber(record, key);
+  return value !== undefined && value >= 0 ? value : undefined;
+};
+
+const readInteger = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = readFiniteNumber(record, key);
+  return value !== undefined && Number.isInteger(value) ? value : undefined;
+};
+
+const readNonNegativeInteger = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = readInteger(record, key);
+  return value !== undefined && value >= 0 ? value : undefined;
+};
+
+const isCodeRunTileKind = (value: unknown): value is CodeRunTileKind => (
+  value === 'ground' || value === 'brick' || value === 'platform' || value === 'block'
+);
+
+const parseGridPoint = (raw: unknown): CodeRunGridPoint | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const c = readNonNegativeInteger(raw, 'c');
+  const r = readNonNegativeInteger(raw, 'r');
+  return c !== undefined && r !== undefined ? { c, r } : undefined;
+};
+
+const parsePitPlacement = (raw: unknown): CodeRunPitPlacement | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const c0 = readNonNegativeInteger(raw, 'c0');
+  const c1 = readNonNegativeInteger(raw, 'c1');
+  return c0 !== undefined && c1 !== undefined && c0 <= c1 ? { c0, c1 } : undefined;
+};
+
+const parseSolidPlacement = (raw: unknown): CodeRunSolidPlacement | undefined => {
+  if (!isRecord(raw) || !isCodeRunTileKind(raw.kind)) return undefined;
+  const c = readNonNegativeInteger(raw, 'c');
+  const r = readNonNegativeInteger(raw, 'r');
+  if (c !== undefined && r !== undefined) return { kind: raw.kind, c, r };
+
+  const rowValue = readNonNegativeInteger(raw, 'row');
+  const c0 = readNonNegativeInteger(raw, 'c0');
+  const c1 = readNonNegativeInteger(raw, 'c1');
+  if (rowValue !== undefined && c0 !== undefined && c1 !== undefined && c0 <= c1) {
+    return { kind: raw.kind, row: rowValue, c0, c1 };
+  }
+
+  const colValue = readNonNegativeInteger(raw, 'col');
+  const r0 = readNonNegativeInteger(raw, 'r0');
+  const r1 = readNonNegativeInteger(raw, 'r1');
+  if (colValue !== undefined && r0 !== undefined && r1 !== undefined && r0 <= r1) {
+    return { kind: raw.kind, col: colValue, r0, r1 };
+  }
+
+  return undefined;
+};
+
+const parseSpikePlacement = (raw: unknown): CodeRunSpikePlacement | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const c = readNonNegativeInteger(raw, 'c');
+  if (c === undefined) return undefined;
+  return {
+    c,
+    row: readNonNegativeInteger(raw, 'row'),
+    offsetX: readNonNegativeNumber(raw, 'offsetX'),
+    width: readPositiveNumber(raw, 'width'),
+    height: readPositiveNumber(raw, 'height'),
+  };
+};
+
+const parseEnemyPlacement = (raw: unknown): CodeRunEnemyPlacement | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const c = readNonNegativeInteger(raw, 'c');
+  if (c === undefined) return undefined;
+  return {
+    c,
+    r: readNonNegativeInteger(raw, 'r'),
+    id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : undefined,
+    width: readPositiveNumber(raw, 'width'),
+    height: readPositiveNumber(raw, 'height'),
+    speed: readPositiveNumber(raw, 'speed'),
+    minX: readNonNegativeNumber(raw, 'minX'),
+    maxX: readNonNegativeNumber(raw, 'maxX'),
+  };
+};
+
+const parseArray = <T>(
+  raw: unknown,
+  parseItem: (item: unknown) => T | undefined,
+): T[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+  const parsed: T[] = [];
+  for (const item of raw) {
+    const value = parseItem(item);
+    if (value === undefined) return undefined;
+    parsed.push(value);
+  }
+  return parsed;
+};
+
+const parseCodeRunLayoutFromDb = (
+  mapId: string,
+  mapData: Record<string, unknown>,
+): CodeRunLayoutData | undefined => {
+  const source = isRecord(mapData.layout) ? mapData.layout : mapData;
+  const pits = parseArray(source.pits, parsePitPlacement);
+  const solids = parseArray(source.solids, parseSolidPlacement);
+  const spikes = parseArray(source.spikes, parseSpikePlacement);
+  const enemies = parseArray(source.enemies, parseEnemyPlacement);
+  if (!pits || !solids || !spikes || !enemies) return undefined;
+
+  const id = typeof source.id === 'string' && source.id.trim() ? source.id.trim() : mapId;
+  const name = typeof mapData.name === 'string' && mapData.name.trim()
+    ? mapData.name.trim()
+    : typeof source.name === 'string' && source.name.trim()
+      ? source.name.trim()
+      : id;
+
+  return {
+    id,
+    name,
+    viewWidth: readPositiveNumber(source, 'viewWidth'),
+    viewHeight: readPositiveNumber(source, 'viewHeight'),
+    tileSize: readPositiveNumber(source, 'tileSize'),
+    worldTilesWide: readPositiveNumber(source, 'worldTilesWide'),
+    worldHeight: readPositiveNumber(source, 'worldHeight'),
+    groundRow: readNonNegativeInteger(source, 'groundRow'),
+    spawn: parseGridPoint(source.spawn),
+    goalColumn: readNonNegativeInteger(source, 'goalColumn'),
+    goalOffsetX: readNonNegativeNumber(source, 'goalOffsetX'),
+    pits,
+    solids,
+    spikes,
+    enemies,
+  };
+};
+
 export function createCodeRunMapFromDb(mapId: string, mapData: Record<string, unknown>, timeLimitSec: number): CodeRunMapSpec {
   const assetsRecord = mapData.assets && typeof mapData.assets === 'object'
     ? mapData.assets as Record<string, unknown>
@@ -349,7 +642,10 @@ export function createCodeRunMapFromDb(mapId: string, mapData: Record<string, un
     slime: stringArray(assetsRecord.slime),
     tiles: tileAssets,
   };
-  const map = createCodeRunMapById(mapId, timeLimitSec, assetOverride);
+  const dbLayout = parseCodeRunLayoutFromDb(mapId, mapData);
+  const map = dbLayout
+    ? buildMapFromLayout(dbLayout, timeLimitSec, assetOverride)
+    : createCodeRunMapById(mapId, timeLimitSec, assetOverride);
   return {
     ...map,
     id: mapId || map.id,

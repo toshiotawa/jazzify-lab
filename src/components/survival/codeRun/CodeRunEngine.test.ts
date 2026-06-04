@@ -343,4 +343,33 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.solids.length).toBe(graveyard.solids.length);
     expect(fromDb.solids.length).not.toBe(nightCity.solids.length);
   });
+
+  it('createCodeRunMapFromDb は DB 配置があればローカルビルダーより優先する', () => {
+    const fromDb = createCodeRunMapFromDb('night_city_run_01', {
+      name: 'DB Layout',
+      viewWidth: 480,
+      viewHeight: 240,
+      tileSize: 24,
+      worldTilesWide: 12,
+      groundRow: 6,
+      spawn: { c: 1, r: 6 },
+      goalColumn: 10,
+      goalOffsetX: 3,
+      pits: [{ c0: 4, c1: 5 }],
+      solids: [{ kind: 'platform', row: 4, c0: 6, c1: 7 }],
+      spikes: [{ c: 8 }],
+      enemies: [{ c: 7, r: 4, speed: 2 }],
+    }, 30);
+
+    expect(fromDb.name).toBe('DB Layout');
+    expect(fromDb.viewWidth).toBe(480);
+    expect(fromDb.tileSize).toBe(24);
+    expect(fromDb.spawn).toEqual({ x: 24, y: 102 });
+    expect(fromDb.goalX).toBe(243);
+    expect(fromDb.solids.some((solid) => solid.kind === 'platform' && solid.x === 144 && solid.y === 96)).toBe(true);
+    expect(fromDb.solids.some((solid) => solid.kind === 'ground' && solid.x === 96)).toBe(false);
+    expect(fromDb.spikes).toHaveLength(1);
+    expect(fromDb.enemies).toHaveLength(1);
+    expect(fromDb.enemies[0]?.speed).toBe(2);
+  });
 });

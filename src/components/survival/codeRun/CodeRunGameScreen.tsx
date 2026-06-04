@@ -244,7 +244,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     fetchSurvivalRunMap(mapId)
       .then((row) => {
         if (cancelled || !row) return;
-        const nextMap = createCodeRunMapFromDb(row.id, row.mapData, timeLimitSec);
+        const nextMap = createCodeRunMapFromDb(row.id, { ...row.mapData, name: row.name }, timeLimitSec);
         setMapSpec(nextMap);
         resetRun(nextMap);
       })

@@ -506,7 +506,7 @@ struct SurvivalDescentSidePanel: View {
     /// 詳細パネルのクリア条件がボス表記になるか（ブロック末尾 or Phrases 途中複合）。
     private func isBossStage(_ stage: SurvivalStageDefinition) -> Bool {
         if stage.playMode == .codeRun { return false }
-        SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
+        return SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
             || stage.isPhraseMapCompositeStage
     }
 }
