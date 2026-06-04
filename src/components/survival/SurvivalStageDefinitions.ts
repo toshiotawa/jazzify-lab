@@ -692,9 +692,9 @@ export function getStagesByCategory(category: SurvivalMapCategory): StageDefinit
   return STAGES_BY_CATEGORY[category];
 }
 
-/** カテゴリ別の総ステージ数を返す */
+/** カテゴリ別の公開ステージ数（降下マップ進捗用。lesson_only は除外） */
 export function getTotalStagesByCategory(category: SurvivalMapCategory): number {
-  return STAGES_BY_CATEGORY[category].length;
+  return STAGES_BY_CATEGORY[category].filter(s => !s.lessonOnly).length;
 }
 
 export function getStageByNumber(
