@@ -48,7 +48,7 @@ const DEFAULT_ASSETS: CodeRunAssets = {
     groundTopLeft: `${GRAVEYARD_TILE_BASE}/ground_top_left.png`,
     groundTopRight: `${GRAVEYARD_TILE_BASE}/ground_top_right.png`,
     brick: `${GRAVEYARD_TILE_BASE}/brick.png`,
-    platform: '/RUN/graveyardtilesetnew/png/Tiles/surinuke_platform.png',
+    platform: '/RUN/graveyardtilesetnew/png/Tiles/snowMid.png',
     block: `${GRAVEYARD_OBJECT_BASE}/Crate.png`,
     spike: `${GRAVEYARD_TILE_BASE}/spike.png`,
     flag: `${GRAVEYARD_TILE_BASE}/flag.png`,
