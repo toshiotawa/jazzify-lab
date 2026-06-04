@@ -15,6 +15,7 @@ import {
   cellKey,
   defaultEditorSettings,
   defaultEnemyPlacement,
+  deriveWorldHeightPx,
   findEnemyIndexAt,
   parseMapLayoutJson,
 } from './codeRunMap/codeRunMapEditorLogic';
@@ -295,7 +296,13 @@ const CodeRunMapEditor: React.FC = () => {
   };
 
   const patchSettings = (patch: Partial<CodeRunEditorSettings>) => {
-    setSettings((s) => ({ ...s, ...patch }));
+    setSettings((s) => {
+      const next = { ...s, ...patch };
+      if (patch.gridRows !== undefined || patch.tileSize !== undefined) {
+        next.worldHeight = deriveWorldHeightPx(next.gridRows, next.tileSize);
+      }
+      return next;
+    });
   };
 
   const groundToolDisabled = !settings.manualGround;
@@ -397,7 +404,7 @@ const CodeRunMapEditor: React.FC = () => {
                 className="input input-bordered input-sm w-full mt-0.5"
                 type="number"
                 min={4}
-                max={80}
+                max={120}
                 value={settings.gridRows}
                 onChange={(e) => patchSettings({ gridRows: Number(e.target.value) })}
               />
@@ -421,12 +428,13 @@ const CodeRunMapEditor: React.FC = () => {
               />
             </label>
             <label className="block col-span-2">
-              <span className="text-xs text-gray-400">worldHeight</span>
+              <span className="text-xs text-gray-400">worldHeight（行×タイル）</span>
               <input
-                className="input input-bordered input-sm w-full mt-0.5"
+                className="input input-bordered input-sm w-full mt-0.5 bg-base-200"
                 type="number"
-                value={settings.worldHeight}
-                onChange={(e) => patchSettings({ worldHeight: Number(e.target.value) })}
+                readOnly
+                aria-readonly="true"
+                value={deriveWorldHeightPx(settings.gridRows, settings.tileSize)}
               />
             </label>
             <label className="block">

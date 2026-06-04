@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildMapLayoutJson,
   defaultEditorSettings,
+  deriveWorldHeightPx,
   mergePits,
   parseMapLayoutJson,
 } from './codeRunMapEditorLogic';
@@ -13,6 +14,18 @@ describe('codeRunMapEditorLogic', () => {
       { c0: 2, c1: 4 },
       { c0: 8, c1: 8 },
     ]);
+  });
+
+  it('deriveWorldHeightPx は行数×タイルサイズを返す', () => {
+    expect(deriveWorldHeightPx(65, 48)).toBe(3120);
+    expect(deriveWorldHeightPx(14, 48)).toBe(672);
+  });
+
+  it('エクスポート JSON の worldHeight は行数から導出される', () => {
+    const settings = { ...defaultEditorSettings(), gridRows: 65, tileSize: 48 };
+    const json = buildMapLayoutJson(new Map(), new Set(), [], null, null, settings);
+    expect(json.worldTilesHigh).toBe(65);
+    expect(json.worldHeight).toBe(3120);
   });
 
   it('manualGround 付き JSON を往復できる', () => {
