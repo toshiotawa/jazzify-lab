@@ -545,12 +545,15 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         </div>
 
         <div className="absolute left-1/2 top-[12%] flex -translate-x-1/2 items-center gap-2 text-center">
-          <div className="min-w-40 rounded-md border border-cyan-300/35 bg-black/45 px-4 py-3 backdrop-blur">
-            <div className="text-xl font-bold text-cyan-100 sm:text-2xl">{currentLabel}</div>
+          <div
+            className="min-w-40 rounded-md border border-amber-400/50 bg-[#1a1028]/75 px-4 py-3 shadow-[0_0_18px_rgba(232,160,64,0.25)] backdrop-blur"
+            style={{ boxShadow: 'inset 0 1px 0 rgba(255,220,160,0.15), 0 0 20px rgba(232,160,64,0.2)' }}
+          >
+            <div className="text-xl font-bold text-amber-100 sm:text-2xl">{currentLabel}</div>
           </div>
-          <div className="min-w-24 rounded-md border border-white/20 bg-black/35 px-3 py-2 backdrop-blur">
-            <div className="text-[10px] uppercase tracking-wide text-white/55">next</div>
-            <div className="text-xs font-semibold text-white/80">{nextLabel}</div>
+          <div className="min-w-24 rounded-md border border-white/15 bg-[#120c18]/70 px-3 py-2 backdrop-blur">
+            <div className="text-[10px] uppercase tracking-wide text-amber-200/50">next</div>
+            <div className="text-xs font-semibold text-amber-50/85">{nextLabel}</div>
           </div>
         </div>
 
@@ -592,7 +595,14 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         <CodeRunVirtualStick onAnalogChange={(value) => { inputRef.current = { ...inputRef.current, analogX: value }; }} />
       </div>
 
-      <div ref={pianoHostRef} className="h-[150px] shrink-0 bg-black sm:h-[160px]">
+      <div
+        ref={pianoHostRef}
+        className="relative h-[150px] shrink-0 border-t border-amber-900/40 bg-[#120c18] sm:h-[160px]"
+        style={{
+          backgroundImage:
+            'linear-gradient(180deg, rgba(42,28,18,0.55) 0%, rgba(12,8,18,0.95) 28%), repeating-linear-gradient(90deg, rgba(60,40,28,0.12) 0, rgba(60,40,28,0.12) 2px, transparent 2px, transparent 14px)',
+        }}
+      >
         <PIXINotesRenderer width={pianoSize.width} height={pianoSize.height} onReady={handlePixiReady} className="h-full w-full" />
       </div>
 

@@ -25,7 +25,14 @@ const collectAssetUrls = (map: CodeRunMapSpec): string[] => {
   urls.add(map.assets.playerHurt);
   for (const url of map.assets.player) urls.add(url);
   for (const url of map.assets.slime) urls.add(url);
-  for (const url of Object.values(map.assets.tiles)) urls.add(url);
+  const { tiles } = map.assets;
+  urls.add(tiles.ground);
+  if (tiles.groundTop) urls.add(tiles.groundTop);
+  urls.add(tiles.brick);
+  urls.add(tiles.platform);
+  urls.add(tiles.block);
+  urls.add(tiles.spike);
+  urls.add(tiles.flag);
   return [...urls];
 };
 
@@ -55,10 +62,22 @@ const drawImageOrRect = (
 };
 
 const tileColor: Record<CodeRunTileKind, string> = {
-  ground: '#4a5568',
-  brick: '#5c6478',
-  platform: '#6b7280',
-  block: '#52596b',
+  ground: '#3d3248',
+  brick: '#6b4e42',
+  platform: '#4a3428',
+  block: '#4a3848',
+};
+
+const tileImageUrl = (
+  tiles: CodeRunMapSpec['assets']['tiles'],
+  kind: CodeRunTileKind,
+  tileY: number,
+  groundSurfaceY: number,
+): string => {
+  if (kind === 'ground' && tiles.groundTop && tileY === groundSurfaceY) {
+    return tiles.groundTop;
+  }
+  return tiles[kind];
 };
 
 const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, images: ImageMap): void => {
@@ -74,8 +93,11 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
     for (let x = parallax - drawW; x < map.viewWidth + drawW; x += drawW) {
       ctx.drawImage(bg, x, (map.viewHeight - drawH) / 2, drawW, drawH);
     }
-    ctx.fillStyle = 'rgba(3, 8, 22, 0.32)';
+    ctx.fillStyle = 'rgba(8, 6, 18, 0.48)';
     ctx.fillRect(0, 0, map.viewWidth, map.viewHeight);
+    const groundBandTop = map.groundRow * map.tileSize - map.tileSize * 2;
+    ctx.fillStyle = 'rgba(18, 12, 28, 0.2)';
+    ctx.fillRect(0, groundBandTop, map.viewWidth, map.viewHeight - groundBandTop);
   }
 };
 
@@ -135,11 +157,13 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
     ctx.translate(-Math.round(state.cameraX), 0);
 
     const tileImages = state.map.assets.tiles;
+    const groundSurfaceY = map.groundRow * map.tileSize;
     for (const tile of map.solids) {
       if (tile.x + tile.width < state.cameraX - map.tileSize || tile.x > state.cameraX + map.viewWidth + map.tileSize) continue;
+      const url = tileImageUrl(tileImages, tile.kind, tile.y, groundSurfaceY);
       drawImageOrRect(
         ctx,
-        images[tileImages[tile.kind]],
+        images[url],
         tile.x,
         tile.y,
         tile.width,
@@ -150,20 +174,25 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
 
     for (const spike of map.spikes) {
       if (spike.x + spike.width < state.cameraX - map.tileSize || spike.x > state.cameraX + map.viewWidth + map.tileSize) continue;
-      drawImageOrRect(ctx, images[tileImages.spike], spike.x, spike.y, spike.width, spike.height, '#e6e7ef');
+      drawImageOrRect(ctx, images[tileImages.spike], spike.x, spike.y, spike.width, spike.height, '#5a6078');
     }
 
     const flag = images[tileImages.flag];
     const flagY = map.groundRow * map.tileSize - 84;
-    ctx.fillStyle = '#d7e3ff';
+    ctx.fillStyle = '#3a3048';
     ctx.fillRect(map.goalX, flagY, 5, 84);
-    drawImageOrRect(ctx, flag, map.goalX + 3, flagY, 56, 48, '#4ca3ff');
+    drawImageOrRect(ctx, flag, map.goalX + 3, flagY, 56, 48, '#e8a040');
 
     const slimeFrames = map.assets.slime;
+    const enemyScale = 1.12;
     for (const enemy of state.enemies) {
       if (!enemy.alive) continue;
       const frame = slimeFrames[Math.abs(Math.floor(enemy.anim)) % slimeFrames.length];
-      drawImageOrRect(ctx, images[frame], enemy.x, enemy.y, enemy.width, enemy.height, '#7fd75a');
+      const ew = enemy.width * enemyScale;
+      const eh = enemy.height * enemyScale;
+      const ex = enemy.x - (ew - enemy.width) / 2;
+      const ey = enemy.y - (eh - enemy.height);
+      drawImageOrRect(ctx, images[frame], ex, ey, ew, eh, '#7fd75a');
     }
 
     if (!shouldBlinkInvulnerable(state)) {

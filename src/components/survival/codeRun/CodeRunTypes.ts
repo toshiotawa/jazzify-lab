@@ -25,6 +25,8 @@ export interface CodeRunAssets {
   slime: readonly string[];
   tiles: {
     ground: string;
+    /** 歩行面（groundRow）用。未指定時は ground を使用 */
+    groundTop?: string;
     brick: string;
     platform: string;
     block: string;

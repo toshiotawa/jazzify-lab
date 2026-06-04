@@ -9,7 +9,7 @@ import type {
 
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
-export const CODE_RUN_PLAYER_DRAW_HEIGHT = 64;
+export const CODE_RUN_PLAYER_DRAW_HEIGHT = 74;
 /** sprite_01 (118×193) を高さ64に合わせた固定描画幅 */
 export const CODE_RUN_PLAYER_DRAW_WIDTH = Math.round(118 * (CODE_RUN_PLAYER_DRAW_HEIGHT / 193));
 
@@ -25,7 +25,7 @@ const PLAYER_H = CODE_RUN_PLAYER_H;
 const ENEMY_W = 38;
 const ENEMY_H = 34;
 
-const TILE_ASSET_BASE = '/RUN/kenney_new-platformer-pack-1/Sprites/Tiles/Default';
+const NIGHT_CITY_TILE_BASE = '/RUN/tiles/night-city';
 
 const DEFAULT_ASSETS: CodeRunAssets = {
   background: '/RUN/%E8%83%8C%E6%99%AF.png',
@@ -41,12 +41,13 @@ const DEFAULT_ASSETS: CodeRunAssets = {
     '/RUN/kenney_new-platformer-pack-1/Sprites/Enemies/Default/slime_normal_walk_b.png',
   ],
   tiles: {
-    ground: `${TILE_ASSET_BASE}/terrain_stone_block_center.png`,
-    brick: `${TILE_ASSET_BASE}/bricks_grey.png`,
-    platform: `${TILE_ASSET_BASE}/terrain_stone_cloud_middle.png`,
-    block: `${TILE_ASSET_BASE}/brick_grey.png`,
-    spike: `${TILE_ASSET_BASE}/spikes.png`,
-    flag: `${TILE_ASSET_BASE}/flag_blue_a.png`,
+    ground: `${NIGHT_CITY_TILE_BASE}/ground_fill.png`,
+    groundTop: `${NIGHT_CITY_TILE_BASE}/ground_top.png`,
+    brick: `${NIGHT_CITY_TILE_BASE}/brick.png`,
+    platform: `${NIGHT_CITY_TILE_BASE}/platform.png`,
+    block: `${NIGHT_CITY_TILE_BASE}/block.png`,
+    spike: `${NIGHT_CITY_TILE_BASE}/spike.png`,
+    flag: `${NIGHT_CITY_TILE_BASE}/flag.png`,
   },
 };
 

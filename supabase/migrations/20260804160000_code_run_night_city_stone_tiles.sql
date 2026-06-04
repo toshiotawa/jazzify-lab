@@ -1,4 +1,4 @@
--- Code Run night_city_run_01: 夜系ステージ向け石タイルと hurt スプライトを map_data に反映
+-- Code Run night_city_run_01: 旧 Kenney 石タイル（20260804170000 でカスタムタイルへ置換）
 BEGIN;
 
 UPDATE public.survival_run_maps
