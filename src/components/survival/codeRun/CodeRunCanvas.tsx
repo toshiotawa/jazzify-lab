@@ -26,6 +26,8 @@ const collectAssetUrls = (map: CodeRunMapSpec): string[] => {
   const { tiles } = map.assets;
   urls.add(tiles.ground);
   if (tiles.groundTop) urls.add(tiles.groundTop);
+  if (tiles.groundTopLeft) urls.add(tiles.groundTopLeft);
+  if (tiles.groundTopRight) urls.add(tiles.groundTopRight);
   urls.add(tiles.brick);
   urls.add(tiles.platform);
   urls.add(tiles.block);
@@ -77,20 +79,37 @@ const drawImageOrRect = (
 };
 
 const tileColor: Record<CodeRunTileKind, string> = {
-  ground: '#3d3248',
-  brick: '#6b4e42',
-  platform: '#4a3428',
-  block: '#4a3848',
+  ground: '#4a3828',
+  brick: '#5c4030',
+  platform: '#3d3028',
+  block: '#6a4a32',
+};
+
+const buildGroundSurfaceColumns = (solids: CodeRunMapSpec['solids'], groundSurfaceY: number, tileSize: number): Set<number> => {
+  const columns = new Set<number>();
+  for (const tile of solids) {
+    if (tile.kind === 'ground' && tile.y === groundSurfaceY) {
+      columns.add(Math.round(tile.x / tileSize));
+    }
+  }
+  return columns;
 };
 
 const tileImageUrl = (
   tiles: CodeRunMapSpec['assets']['tiles'],
   kind: CodeRunTileKind,
-  tileY: number,
+  tile: { x: number; y: number },
   groundSurfaceY: number,
+  tileSize: number,
+  groundSurfaceColumns: Set<number>,
 ): string => {
-  if (kind === 'ground' && tiles.groundTop && tileY === groundSurfaceY) {
-    return tiles.groundTop;
+  if (kind === 'ground' && tile.y === groundSurfaceY) {
+    const col = Math.round(tile.x / tileSize);
+    const hasLeft = groundSurfaceColumns.has(col - 1);
+    const hasRight = groundSurfaceColumns.has(col + 1);
+    if (!hasLeft && tiles.groundTopLeft) return tiles.groundTopLeft;
+    if (!hasRight && tiles.groundTopRight) return tiles.groundTopRight;
+    if (tiles.groundTop) return tiles.groundTop;
   }
   return tiles[kind];
 };
@@ -108,10 +127,10 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
     for (let x = parallax - drawW; x < map.viewWidth + drawW; x += drawW) {
       ctx.drawImage(bg, Math.round(x), Math.round((map.viewHeight - drawH) / 2), Math.round(drawW), Math.round(drawH));
     }
-    ctx.fillStyle = 'rgba(8, 6, 18, 0.48)';
+    ctx.fillStyle = 'rgba(6, 10, 18, 0.22)';
     ctx.fillRect(0, 0, map.viewWidth, map.viewHeight);
     const groundBandTop = map.groundRow * map.tileSize - map.tileSize * 2;
-    ctx.fillStyle = 'rgba(18, 12, 28, 0.2)';
+    ctx.fillStyle = 'rgba(12, 16, 24, 0.12)';
     ctx.fillRect(0, groundBandTop, map.viewWidth, map.viewHeight - groundBandTop);
   }
 };
@@ -211,9 +230,10 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
 
     const tileImages = state.map.assets.tiles;
     const groundSurfaceY = map.groundRow * map.tileSize;
+    const groundSurfaceColumns = buildGroundSurfaceColumns(map.solids, groundSurfaceY, map.tileSize);
     for (const tile of map.solids) {
       if (tile.x + tile.width < state.cameraX - map.tileSize || tile.x > state.cameraX + map.viewWidth + map.tileSize) continue;
-      const url = tileImageUrl(tileImages, tile.kind, tile.y, groundSurfaceY);
+      const url = tileImageUrl(tileImages, tile.kind, tile, groundSurfaceY, map.tileSize, groundSurfaceColumns);
       drawImageOrRect(
         ctx,
         images[url],

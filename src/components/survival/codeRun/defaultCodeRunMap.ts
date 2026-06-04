@@ -24,10 +24,11 @@ const PLAYER_H = CODE_RUN_PLAYER_H;
 const ENEMY_W = 38;
 const ENEMY_H = 34;
 
-const NIGHT_CITY_TILE_BASE = '/RUN/tiles/night-city';
+const GRAVEYARD_TILE_BASE = '/RUN/tiles/graveyard';
+const GRAVEYARD_OBJECT_BASE = '/RUN/graveyardtilesetnew/png/Objects';
 
 const DEFAULT_ASSETS: CodeRunAssets = {
-  background: '/RUN/%E8%83%8C%E6%99%AF.png',
+  background: '/RUN/background.png',
   player: [
     mainCharSprite('sprite_01.png'),
     mainCharSprite('sprite_02.png'),
@@ -40,13 +41,15 @@ const DEFAULT_ASSETS: CodeRunAssets = {
     '/RUN/kenney_new-platformer-pack-1/Sprites/Enemies/Default/slime_normal_walk_b.png',
   ],
   tiles: {
-    ground: `${NIGHT_CITY_TILE_BASE}/ground_fill.png`,
-    groundTop: `${NIGHT_CITY_TILE_BASE}/ground_top.png`,
-    brick: `${NIGHT_CITY_TILE_BASE}/brick.png`,
-    platform: `${NIGHT_CITY_TILE_BASE}/platform.png`,
-    block: `${NIGHT_CITY_TILE_BASE}/block.png`,
-    spike: `${NIGHT_CITY_TILE_BASE}/spike.png`,
-    flag: `${NIGHT_CITY_TILE_BASE}/flag.png`,
+    ground: `${GRAVEYARD_TILE_BASE}/ground_fill.png`,
+    groundTop: `${GRAVEYARD_TILE_BASE}/ground_top.png`,
+    groundTopLeft: `${GRAVEYARD_TILE_BASE}/ground_top_left.png`,
+    groundTopRight: `${GRAVEYARD_TILE_BASE}/ground_top_right.png`,
+    brick: `${GRAVEYARD_TILE_BASE}/brick.png`,
+    platform: `${GRAVEYARD_TILE_BASE}/platform.png`,
+    block: `${GRAVEYARD_OBJECT_BASE}/Crate.png`,
+    spike: `${GRAVEYARD_TILE_BASE}/spike.png`,
+    flag: `${GRAVEYARD_TILE_BASE}/flag.png`,
   },
 };
 
