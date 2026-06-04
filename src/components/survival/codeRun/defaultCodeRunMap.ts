@@ -7,13 +7,17 @@ import type {
   CodeRunTileRect,
 } from './CodeRunTypes';
 
-const TILE = 48;
+export const CODE_RUN_TILE = 48;
+export const CODE_RUN_PLAYER_H = 42;
+export const CODE_RUN_PLAYER_DRAW_HEIGHT = 64;
+
+const TILE = CODE_RUN_TILE;
 const VIEW_W = 960;
 const VIEW_H = 528;
 const LEVEL_TILES_W = 168;
 const GROUND_ROW = 9;
 const PLAYER_W = 34;
-const PLAYER_H = 42;
+const PLAYER_H = CODE_RUN_PLAYER_H;
 const ENEMY_W = 38;
 const ENEMY_H = 34;
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { CODE_RUN_PLAYER_DRAW_HEIGHT } from './defaultCodeRunMap';
 import type { CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
 type ImageMap = Record<string, HTMLImageElement>;
@@ -74,6 +75,39 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
   }
 };
 
+const drawPlayerSprite = (
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement | undefined,
+  player: CodeRunState['player'],
+  fallback: string,
+): void => {
+  const footY = player.y + player.height;
+  const centerX = player.x + player.width / 2;
+  const naturalHeight = image?.naturalHeight ?? 0;
+  const naturalWidth = image?.naturalWidth ?? 0;
+  const drawH = CODE_RUN_PLAYER_DRAW_HEIGHT;
+  const drawW = naturalHeight > 0 ? naturalWidth * (drawH / naturalHeight) : player.width;
+  const drawX = centerX - drawW / 2;
+  const drawY = footY - drawH;
+
+  if (!image?.complete || naturalWidth <= 0 || naturalHeight <= 0) {
+    ctx.fillStyle = fallback;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    return;
+  }
+
+  if (player.facing < 0) {
+    ctx.save();
+    ctx.translate(centerX, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, -drawW / 2, drawY, drawW, drawH);
+    ctx.restore();
+    return;
+  }
+
+  ctx.drawImage(image, drawX, drawY, drawW, drawH);
+};
+
 const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const images = useImages(state.map);
@@ -131,15 +165,7 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
         ? Math.abs(Math.floor(state.player.runPhase)) % Math.max(1, playerFrames.length - 1)
         : 0;
     const playerImage = images[playerFrames[playerIndex] ?? playerFrames[0]];
-    ctx.save();
-    if (state.player.facing < 0) {
-      ctx.translate(state.player.x + state.player.width, state.player.y);
-      ctx.scale(-1, 1);
-      drawImageOrRect(ctx, playerImage, 0, 0, state.player.width, state.player.height, '#e9d7ff');
-    } else {
-      drawImageOrRect(ctx, playerImage, state.player.x, state.player.y, state.player.width, state.player.height, '#e9d7ff');
-    }
-    ctx.restore();
+    drawPlayerSprite(ctx, playerImage, state.player, '#e9d7ff');
 
     ctx.restore();
   }, [images, state]);

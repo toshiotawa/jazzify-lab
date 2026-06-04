@@ -8,6 +8,8 @@ const GROUND_DECEL = 0.6;
 const AIR_DECEL = 0.18;
 const JUMP_VEL = -15.4;
 const STOMP_BOUNCE = -11.5;
+const COYOTE_FRAMES = 7;
+const JUMP_BUFFER_FRAMES = 8;
 
 const overlap = (a: CodeRunRect, b: CodeRunRect): boolean => (
   a.x < b.x + b.width
@@ -39,6 +41,11 @@ const makeEnemies = (state: CodeRunState): readonly CodeRunEnemy[] => state.map.
   maxX: enemy.maxX ?? Math.min(state.map.worldWidth - enemy.width, enemy.x + state.map.tileSize * 2),
 }));
 
+const defaultPlayerFields = (): Pick<CodeRunPlayer, 'coyoteFrames' | 'jumpBufferFrames'> => ({
+  coyoteFrames: 0,
+  jumpBufferFrames: 0,
+});
+
 export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunState {
   const state: CodeRunState = {
     map,
@@ -55,6 +62,7 @@ export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunStat
       chordLockedUntilLanding: false,
       respawnGraceSec: 1,
       runPhase: 0,
+      ...defaultPlayerFields(),
     },
     enemies: [],
     elapsedSec: 0,
@@ -77,21 +85,60 @@ const respawnPlayer = (state: CodeRunState): CodeRunState => ({
     jumpCount: 0,
     chordLockedUntilLanding: false,
     respawnGraceSec: 1.1,
+    ...defaultPlayerFields(),
   },
   enemies: makeEnemies(state),
 });
+
+const canExecuteBufferedJump = (player: CodeRunPlayer): boolean => {
+  if (player.chordLockedUntilLanding || player.jumpCount >= 2) return false;
+  if (player.jumpCount === 0) {
+    return player.onGround || player.coyoteFrames > 0;
+  }
+  return true;
+};
+
+const applyBufferedJump = (player: CodeRunPlayer): CodeRunPlayer => {
+  const next = {
+    ...player,
+    vy: JUMP_VEL,
+    onGround: false,
+    jumpCount: player.jumpCount + 1,
+    coyoteFrames: 0,
+    jumpBufferFrames: 0,
+  };
+  if (next.jumpCount >= 2) {
+    next.chordLockedUntilLanding = true;
+  }
+  return next;
+};
+
+const updateCoyoteFrames = (player: CodeRunPlayer): CodeRunPlayer => {
+  if (player.onGround) {
+    return { ...player, coyoteFrames: COYOTE_FRAMES };
+  }
+  if (player.coyoteFrames > 0) {
+    return { ...player, coyoteFrames: player.coyoteFrames - 1 };
+  }
+  return player;
+};
+
+const processJumpBuffer = (player: CodeRunPlayer): CodeRunPlayer => {
+  if (player.jumpBufferFrames <= 0) return player;
+  if (canExecuteBufferedJump(player)) {
+    return applyBufferedJump(player);
+  }
+  return { ...player, jumpBufferFrames: player.jumpBufferFrames - 1 };
+};
 
 export function triggerCodeRunJump(state: CodeRunState): CodeRunState {
   if (state.status !== 'playing') return state;
   const player = { ...state.player };
   if (player.jumpCount >= 2 || player.chordLockedUntilLanding) return state;
-  player.vy = JUMP_VEL;
-  player.onGround = false;
-  player.jumpCount += 1;
-  if (player.jumpCount >= 2) {
-    player.chordLockedUntilLanding = true;
-  }
-  return { ...state, player };
+  return {
+    ...state,
+    player: { ...player, jumpBufferFrames: JUMP_BUFFER_FRAMES },
+  };
 }
 
 const movePlayerX = (player: CodeRunPlayer, solids: readonly CodeRunTileRect[], step: number): CodeRunPlayer => {
@@ -161,6 +208,8 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   player.vy = clamp(player.vy + GRAVITY * step, -99, MAX_FALL);
   player.respawnGraceSec = Math.max(0, player.respawnGraceSec - dtSec);
   player.runPhase += Math.abs(player.vx) * 0.035 * step;
+  player = updateCoyoteFrames(player);
+  player = processJumpBuffer(player);
 
   player = movePlayerX(player, state.map.solids, step);
   player.x = clamp(player.x, 0, state.map.worldWidth - player.width);

@@ -66,6 +66,8 @@ export interface CodeRunPlayer extends CodeRunRect {
   chordLockedUntilLanding: boolean;
   respawnGraceSec: number;
   runPhase: number;
+  coyoteFrames: number;
+  jumpBufferFrames: number;
 }
 
 export interface CodeRunEnemy extends CodeRunRect {
