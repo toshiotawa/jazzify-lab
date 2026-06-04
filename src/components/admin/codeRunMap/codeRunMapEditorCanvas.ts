@@ -14,6 +14,31 @@ const isTileKind = (kind: string): kind is CodeRunTileKind => (
   kind === 'ground' || kind === 'brick' || kind === 'platform' || kind === 'block'
 );
 
+const spikeBaseY = (surfaceKind: string | undefined, y: number, ts: number): number => {
+  if (surfaceKind === 'platform') return y + ts * 0.55;
+  return y;
+};
+
+const drawSpike = (
+  ctx: CanvasRenderingContext2D,
+  c: number,
+  r: number,
+  ts: number,
+  surfaceKind: string | undefined,
+): void => {
+  const x = c * ts;
+  const y = r * ts;
+  const baseY = spikeBaseY(surfaceKind, y, ts);
+  const tipY = baseY + ts * 0.45;
+  ctx.fillStyle = TOOL_COLORS.spike;
+  ctx.beginPath();
+  ctx.moveTo(x + ts * 0.5, baseY);
+  ctx.lineTo(x + ts * 0.15, tipY);
+  ctx.lineTo(x + ts * 0.85, tipY);
+  ctx.closePath();
+  ctx.fill();
+};
+
 const drawTile = (
   ctx: CanvasRenderingContext2D,
   c: number,
@@ -32,13 +57,6 @@ const drawTile = (
     return;
   }
   if (kind === 'spike') {
-    ctx.fillStyle = TOOL_COLORS.spike;
-    ctx.beginPath();
-    ctx.moveTo(x + ts * 0.5, y + ts * 0.85);
-    ctx.lineTo(x + ts * 0.15, y + ts * 0.35);
-    ctx.lineTo(x + ts * 0.85, y + ts * 0.35);
-    ctx.closePath();
-    ctx.fill();
     return;
   }
   if (!isTileKind(kind)) return;
@@ -156,7 +174,7 @@ export const drawCodeRunMapCanvas = (
     const c = Number(cs);
     const row = Number(rs);
     if (!Number.isFinite(c) || !Number.isFinite(row)) continue;
-    drawTile(ctx, c, row, 'spike', ts);
+    drawSpike(ctx, c, row, ts, cells.get(key));
   }
 
   if (!settings.manualGround) {

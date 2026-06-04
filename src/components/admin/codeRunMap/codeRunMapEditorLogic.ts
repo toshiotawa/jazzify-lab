@@ -37,6 +37,53 @@ const isTileKind = (value: string): value is CodeRunTileKind => (
   CODE_RUN_TILE_KINDS.includes(value as CodeRunTileKind)
 );
 
+/** トゲを載せられる固体タイル（床・足場・クレート等） */
+export const isSpikeAnchorSolid = (kind: string | undefined): kind is CodeRunTileKind => (
+  kind !== undefined && isTileKind(kind)
+);
+
+/**
+ * クリック行を、同セルまたは真下・斜め下の固体タイル上面行へスナップする。
+ * 足場・クレートの上／直上をクリックしたときも正しい row で配置する。
+ */
+export const resolveSpikeRow = (
+  cells: ReadonlyMap<string, string>,
+  c: number,
+  r: number,
+  gridRows: number,
+): number => {
+  const kindAt = (col: number, row: number): string | undefined => {
+    if (row < 0 || row >= gridRows || col < 0) return undefined;
+    return cells.get(cellKey(col, row));
+  };
+
+  if (isSpikeAnchorSolid(kindAt(c, r))) return r;
+
+  const below = kindAt(c, r + 1);
+  if (isSpikeAnchorSolid(below)) return r + 1;
+
+  const above = kindAt(c, r - 1);
+  if (isSpikeAnchorSolid(above)) return r - 1;
+
+  const rowBelow = r + 1;
+  if (rowBelow < gridRows) {
+    if (isSpikeAnchorSolid(kindAt(c - 1, rowBelow))) return rowBelow;
+    if (isSpikeAnchorSolid(kindAt(c + 1, rowBelow))) return rowBelow;
+  }
+
+  return r;
+};
+
+export const spikeRowsToClear = (
+  cells: ReadonlyMap<string, string>,
+  c: number,
+  r: number,
+  gridRows: number,
+): number[] => {
+  const rows = new Set<number>([r, resolveSpikeRow(cells, c, r, gridRows)]);
+  return [...rows];
+};
+
 export const exportSolids = (
   cells: ReadonlyMap<string, string>,
   gridRows: number,

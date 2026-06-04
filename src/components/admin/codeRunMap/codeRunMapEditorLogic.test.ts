@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildMapLayoutJson,
+  cellKey,
   defaultEditorSettings,
   mergePits,
   parseMapLayoutJson,
+  resolveSpikeRow,
 } from './codeRunMapEditorLogic';
-import { cellKey } from './codeRunMapEditorLogic';
 
 describe('codeRunMapEditorLogic', () => {
   it('mergePits は連続列をまとめる', () => {
@@ -31,6 +32,18 @@ describe('codeRunMapEditorLogic', () => {
     expect(imported.cells.get(cellKey(2, 5))).toBe('ground');
   });
 
+  it('resolveSpikeRow は足場・クレート上面行へスナップする', () => {
+    const cells = new Map<string, string>([
+      [cellKey(3, 6), 'platform'],
+      [cellKey(5, 8), 'block'],
+    ]);
+    expect(resolveSpikeRow(cells, 3, 6, 14)).toBe(6);
+    expect(resolveSpikeRow(cells, 3, 5, 14)).toBe(6);
+    expect(resolveSpikeRow(cells, 4, 5, 14)).toBe(6);
+    expect(resolveSpikeRow(cells, 5, 7, 14)).toBe(8);
+    expect(resolveSpikeRow(cells, 5, 8, 14)).toBe(8);
+  });
+
   it('床セル上にトゲを重ねても床は残る', () => {
     const settings = { ...defaultEditorSettings(), manualGround: true, groundRow: 9 };
     const cells = new Map<string, string>([
@@ -53,5 +66,15 @@ describe('codeRunMapEditorLogic', () => {
     expect(imported.cells.get(cellKey(4, 9))).toBe('ground');
     expect(imported.spikeCells.has(cellKey(4, 9))).toBe(true);
     expect(imported.spikeCells.has(cellKey(5, 9))).toBe(true);
+  });
+
+  it('足場セルにトゲを重ねてエクスポートできる', () => {
+    const settings = { ...defaultEditorSettings(), manualGround: true };
+    const cells = new Map<string, string>([[cellKey(10, 6), 'platform']]);
+    const spikeCells = new Set([cellKey(10, 6)]);
+    const json = buildMapLayoutJson(cells, spikeCells, new Set(), [], null, null, settings);
+
+    expect(json.solids).toEqual([{ kind: 'platform', c: 10, r: 6 }]);
+    expect(json.spikes).toEqual([{ c: 10, row: 6 }]);
   });
 });

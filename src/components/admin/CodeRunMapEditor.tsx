@@ -17,6 +17,8 @@ import {
   defaultEnemyPlacement,
   findEnemyIndexAt,
   parseMapLayoutJson,
+  resolveSpikeRow,
+  spikeRowsToClear,
 } from './codeRunMap/codeRunMapEditorLogic';
 import { drawCodeRunMapCanvas } from './codeRunMap/codeRunMapEditorCanvas';
 import type {
@@ -145,7 +147,9 @@ const CodeRunMapEditor: React.FC = () => {
         });
         setSpikeCells((prev) => {
           const next = new Set(prev);
-          next.delete(cellKey(c, r));
+          for (const row of spikeRowsToClear(cells, c, r, settings.gridRows)) {
+            next.delete(cellKey(c, row));
+          }
           return next;
         });
         break;
@@ -160,8 +164,14 @@ const CodeRunMapEditor: React.FC = () => {
       case 'spike':
         setSpikeCells((prev) => {
           const next = new Set(prev);
-          if (erase) next.delete(cellKey(c, r));
-          else next.add(cellKey(c, r));
+          if (erase) {
+            for (const row of spikeRowsToClear(cells, c, r, settings.gridRows)) {
+              next.delete(cellKey(c, row));
+            }
+          } else {
+            const anchorRow = resolveSpikeRow(cells, c, r, settings.gridRows);
+            next.add(cellKey(c, anchorRow));
+          }
           return next;
         });
         break;
@@ -195,6 +205,7 @@ const CodeRunMapEditor: React.FC = () => {
     settings.worldTilesWide,
     settings.gridRows,
     settings.manualGround,
+    cells,
     placeEnemy,
     removeEnemyAt,
   ]);
@@ -344,6 +355,8 @@ const CodeRunMapEditor: React.FC = () => {
           </div>
           <p className="text-xs text-gray-500 leading-relaxed">
             左ドラッグ: 配置 · 右ドラッグ / 消去: 削除 · 敵を再クリックでも削除 · Ctrl+ホイール: ズーム
+            <br />
+            トゲは床・足場・クレートのセル（またはその直上）にスナップして配置されます。
           </p>
           <button type="button" className="btn btn-sm btn-outline w-full" onClick={fillGroundRow}>
             床行を一括塗り
