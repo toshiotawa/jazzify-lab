@@ -1,0 +1,205 @@
+{
+  "layoutVersion": 1,
+  "viewWidth": 960,
+  "viewHeight": 528,
+  "tileSize": 48,
+  "worldTilesWide": 64,
+  "worldTilesHigh": 20,
+  "worldHeight": 960,
+  "groundRow": 9,
+  "spawn": {
+    "c": 18,
+    "r": 0
+  },
+  "pits": [],
+  "solids": [
+    {
+      "kind": "platform",
+      "c": 8,
+      "r": 2
+    },
+    {
+      "kind": "platform",
+      "row": 2,
+      "c0": 16,
+      "c1": 25
+    },
+    {
+      "kind": "platform",
+      "c": 8,
+      "r": 3
+    },
+    {
+      "kind": "platform",
+      "c": 25,
+      "r": 3
+    },
+    {
+      "kind": "platform",
+      "c": 8,
+      "r": 4
+    },
+    {
+      "kind": "platform",
+      "row": 4,
+      "c0": 25,
+      "c1": 27
+    },
+    {
+      "kind": "platform",
+      "c": 8,
+      "r": 5
+    },
+    {
+      "kind": "platform",
+      "row": 5,
+      "c0": 27,
+      "c1": 28
+    },
+    {
+      "kind": "platform",
+      "c": 8,
+      "r": 6
+    },
+    {
+      "kind": "platform",
+      "row": 6,
+      "c0": 28,
+      "c1": 29
+    },
+    {
+      "kind": "platform",
+      "c": 9,
+      "r": 7
+    },
+    {
+      "kind": "platform",
+      "row": 7,
+      "c0": 29,
+      "c1": 30
+    },
+    {
+      "kind": "platform",
+      "row": 8,
+      "c0": 9,
+      "c1": 10
+    },
+    {
+      "kind": "platform",
+      "row": 8,
+      "c0": 30,
+      "c1": 31
+    },
+    {
+      "kind": "platform",
+      "c": 10,
+      "r": 9
+    },
+    {
+      "kind": "platform",
+      "row": 9,
+      "c0": 30,
+      "c1": 31
+    },
+    {
+      "kind": "platform",
+      "c": 10,
+      "r": 10
+    },
+    {
+      "kind": "platform",
+      "row": 10,
+      "c0": 29,
+      "c1": 30
+    },
+    {
+      "kind": "platform",
+      "c": 10,
+      "r": 11
+    },
+    {
+      "kind": "platform",
+      "row": 11,
+      "c0": 27,
+      "c1": 29
+    },
+    {
+      "kind": "platform",
+      "c": 10,
+      "r": 12
+    },
+    {
+      "kind": "platform",
+      "c": 27,
+      "r": 12
+    },
+    {
+      "kind": "platform",
+      "c": 10,
+      "r": 13
+    },
+    {
+      "kind": "platform",
+      "c": 27,
+      "r": 13
+    },
+    {
+      "kind": "platform",
+      "c": 10,
+      "r": 14
+    },
+    {
+      "kind": "platform",
+      "c": 26,
+      "r": 14
+    },
+    {
+      "kind": "platform",
+      "row": 15,
+      "c0": 10,
+      "c1": 11
+    },
+    {
+      "kind": "platform",
+      "row": 15,
+      "c0": 14,
+      "c1": 17
+    },
+    {
+      "kind": "platform",
+      "row": 15,
+      "c0": 22,
+      "c1": 26
+    },
+    {
+      "kind": "platform",
+      "row": 16,
+      "c0": 11,
+      "c1": 14
+    },
+    {
+      "kind": "platform",
+      "row": 16,
+      "c0": 17,
+      "c1": 22
+    }
+  ],
+  "spikes": [],
+  "enemies": [
+    {
+      "c": 23,
+      "r": 6,
+      "id": "slime-23-6"
+    },
+    {
+      "c": 24,
+      "id": "slime-24-9"
+    }
+  ],
+  "goalOffsetX": 18,
+  "manualGround": true,
+  "goal": {
+    "c": 8,
+    "r": 1
+  }
+}

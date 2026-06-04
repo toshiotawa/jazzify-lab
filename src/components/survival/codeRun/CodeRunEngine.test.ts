@@ -13,6 +13,7 @@ import devRun07LayoutJson from './layouts/dev_run_07.layout.json';
 import devRun08LayoutJson from './layouts/dev_run_08.layout.json';
 import devRun09LayoutJson from './layouts/dev_run_09.layout.json';
 import devRun10LayoutJson from './layouts/dev_run_10.layout.json';
+import devRun11LayoutJson from './layouts/dev_run_11.layout.json';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
@@ -610,6 +611,33 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.solids.filter((solid) => solid.kind === 'block').length).toBe(194);
     expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(202);
     expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(106);
+  });
+
+  it('dev_run_11 はジグザグちくわ足場のレイアウトを返す', () => {
+    const fromDb = createCodeRunMapFromDb('dev_run_11', {
+      name: 'Dev Run 11',
+      ...devRun11LayoutJson,
+    }, 150);
+    expect(fromDb.id).toBe('dev_run_11');
+    expect(fromDb.worldWidth).toBe(64 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(20 * CODE_RUN_TILE);
+    expect(fromDb.groundRow).toBe(9);
+    expect(fromDb.spawn).toEqual({ x: 18 * CODE_RUN_TILE, y: 0 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.spawn.y + CODE_RUN_PLAYER_H).toBeLessThan(fromDb.worldHeight + 96);
+    const afterFirstTick = tickCodeRun(
+      createInitialCodeRunState(fromDb),
+      { left: false, right: false, analogX: 0 },
+      1 / 60,
+    );
+    expect(afterFirstTick.status).toBe('playing');
+    expect(fromDb.goalX).toBe(8 * CODE_RUN_TILE + 18);
+    expect(fromDb.goalY).toBe(1 * CODE_RUN_TILE - 84);
+    expect(fromDb.assets.tiles.platform).toContain('chikuwa_ashiba.png');
+    expect(fromDb.spikes).toHaveLength(0);
+    expect(fromDb.enemies).toHaveLength(2);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'block').length).toBe(0);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(0);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(67);
   });
 
   it('manualGround では自動床を敷かない', () => {
