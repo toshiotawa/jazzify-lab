@@ -13,7 +13,18 @@ const JUMP_BUFFER_FRAMES = 8;
 const PLATFORM_LAND_EPSILON = 0.01;
 
 export const CODE_RUN_MAX_HP = 3;
-export const CODE_RUN_INITIAL_LIVES = 5;
+/** 制限時間（秒）。1:50 */
+export const CODE_RUN_TIME_LIMIT_SECONDS = 110;
+export const CODE_RUN_INITIAL_LIVES = 10;
+/** 残ライフがこの値以下のときドット表示、超えるときは xN 表記 */
+export const CODE_RUN_LIVES_DOT_DISPLAY_MAX = 5;
+
+export const formatCodeRunClock = (seconds: number): string => {
+  const safe = Math.max(0, Math.ceil(seconds));
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
 export const CODE_RUN_DAMAGE_INVUL_FRAMES = 90;
 export const CODE_RUN_HURT_FRAMES = 26;
 export const CODE_RUN_START_INVUL_FRAMES = 40;

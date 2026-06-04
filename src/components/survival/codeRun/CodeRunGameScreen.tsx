@@ -13,15 +13,17 @@ import type { ProductionHintMode } from '@/types';
 import { fetchSurvivalRunMap } from '@/platform/supabaseSurvival';
 import { PIXINotesRenderer, type PIXINotesRendererInstance } from '../../game/PIXINotesRenderer';
 import type { DifficultyConfig, PlayerStats, SpecialSkills, AcquiredMagics, SurvivalCharacter, SurvivalDifficulty, SurvivalGameResult } from '../SurvivalTypes';
-import { STAGE_TIME_LIMIT_SECONDS, type StageDefinition } from '../SurvivalStageDefinitions';
+import type { StageDefinition } from '../SurvivalStageDefinitions';
 import SurvivalGameOver from '../SurvivalGameOver';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, type SurvivalDisplaySettings } from '../SurvivalSettingsModal';
 import CodeRunCanvas from './CodeRunCanvas';
 import { createCodeRunMapById, createCodeRunMapFromDb } from './defaultCodeRunMap';
 import {
-  CODE_RUN_INITIAL_LIVES,
+  CODE_RUN_LIVES_DOT_DISPLAY_MAX,
   CODE_RUN_MAX_HP,
+  CODE_RUN_TIME_LIMIT_SECONDS,
   createInitialCodeRunState,
+  formatCodeRunClock,
   tickCodeRun,
   triggerCodeRunJump,
 } from './CodeRunEngine';
@@ -84,13 +86,6 @@ const EMPTY_MAGICS: AcquiredMagics = {
   heal: 0,
   buffer: 0,
   hint: 0,
-};
-
-const formatClock = (seconds: number): string => {
-  const safe = Math.max(0, Math.ceil(seconds));
-  const mins = Math.floor(safe / 60);
-  const secs = safe % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
 const pitchClass = (midi: number): number => ((midi % 12) + 12) % 12;
@@ -174,7 +169,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const runMapId = stageDefinition.runMapId ?? 'night_city_run_01';
-  const timeLimitSec = lessonRuntime?.timeLimitSec ?? stageDefinition.runTimeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
+  const timeLimitSec = lessonRuntime?.timeLimitSec ?? stageDefinition.runTimeLimitSec ?? CODE_RUN_TIME_LIMIT_SECONDS;
   const [mapSpec, setMapSpec] = useState<CodeRunMapSpec>(() => createCodeRunMapById(runMapId, timeLimitSec));
   const mapSpecRef = useRef(mapSpec);
   const [runState, setRunState] = useState<CodeRunState>(() => createInitialCodeRunState(mapSpec));
@@ -585,23 +580,29 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
               ))}
             </div>
             <span className="text-white/30" aria-hidden>|</span>
-            <div className="flex items-center gap-1" aria-label={isEnglishCopy ? 'Lives' : '残機'}>
-              {Array.from({ length: CODE_RUN_INITIAL_LIVES }, (_, i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    'h-2.5 w-2.5 rounded-full border',
-                    i < runState.lives
-                      ? 'border-cyan-200/80 bg-cyan-300'
-                      : 'border-white/15 bg-white/10',
-                  )}
-                  aria-hidden
-                />
-              ))}
+            <div className="flex items-center gap-1" aria-label={isEnglishCopy ? 'Lives' : 'ライフ'}>
+              {runState.lives > CODE_RUN_LIVES_DOT_DISPLAY_MAX ? (
+                <span className="text-xs font-bold tabular-nums tracking-tight text-cyan-200" aria-hidden>
+                  x{runState.lives}
+                </span>
+              ) : (
+                Array.from({ length: CODE_RUN_LIVES_DOT_DISPLAY_MAX }, (_, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      'h-2.5 w-2.5 rounded-full border',
+                      i < runState.lives
+                        ? 'border-cyan-200/80 bg-cyan-300'
+                        : 'border-white/15 bg-white/10',
+                    )}
+                    aria-hidden
+                  />
+                ))
+              )}
             </div>
           </div>
           <div className="rounded-md border border-white/15 bg-black/50 px-3 py-2 text-right text-sm font-bold tabular-nums backdrop-blur">
-            <div className={cn('text-lg', remainingSec <= 15 ? 'text-red-300' : 'text-white')}>{formatClock(remainingSec)}</div>
+            <div className={cn('text-lg', remainingSec <= 15 ? 'text-red-300' : 'text-white')}>{formatCodeRunClock(remainingSec)}</div>
             <div className="text-[10px] font-medium text-white/60">{hintMode ? 'HINT' : 'RUN'}</div>
           </div>
         </div>

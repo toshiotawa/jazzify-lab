@@ -5,7 +5,7 @@
   "tileSize": 48,
   "worldTilesWide": 125,
   "worldTilesHigh": 80,
-  "worldHeight": 528,
+  "worldHeight": 3840,
   "groundRow": 9,
   "spawn": {
     "c": 2,

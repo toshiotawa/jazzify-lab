@@ -8,6 +8,8 @@ import type {
 } from './CodeRunTypes';
 import snowRun01LayoutJson from './layouts/snow_run_01.layout.json';
 
+import { CODE_RUN_TIME_LIMIT_SECONDS } from './CodeRunEngine';
+
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
 
@@ -509,35 +511,35 @@ const TOWER_RUN_01_LAYOUT: CodeRunLayoutData = {
 };
 
 export function createDefaultCodeRunMap(
-  timeLimitSec = 90,
+  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
   return buildMapFromLayout(NIGHT_CITY_RUN_01_LAYOUT, timeLimitSec, assets);
 }
 
 export function createGraveyardRun02Map(
-  timeLimitSec = 90,
+  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
   return buildMapFromLayout(GRAVEYARD_RUN_02_LAYOUT, timeLimitSec, assets);
 }
 
 export function createGraveyardRun03Map(
-  timeLimitSec = 95,
+  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
   return buildMapFromLayout(GRAVEYARD_RUN_03_LAYOUT, timeLimitSec, assets);
 }
 
 export function createTowerRun01Map(
-  timeLimitSec = 120,
+  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
   return buildMapFromLayout(TOWER_RUN_01_LAYOUT, timeLimitSec, assets);
 }
 
 export function createSnowRun01Map(
-  timeLimitSec = 150,
+  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
   return buildMapFromLayout(SNOW_RUN_01_LAYOUT, timeLimitSec, assets);
@@ -553,7 +555,7 @@ const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
 
 export function createCodeRunMapById(
   mapId: string,
-  timeLimitSec = 90,
+  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
   const builder = MAP_BUILDERS[mapId] ?? createDefaultCodeRunMap;

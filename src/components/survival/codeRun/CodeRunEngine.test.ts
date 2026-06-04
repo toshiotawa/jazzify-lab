@@ -225,7 +225,7 @@ describe('CodeRunEngine integration', () => {
 });
 
 describe('CodeRunEngine lives and damage', () => {
-  it('createInitialCodeRunState は残機5・HP3で開始する', () => {
+  it('createInitialCodeRunState はライフ10・HP3で開始する', () => {
     const state = createInitialCodeRunState(createDefaultCodeRunMap());
     expect(state.lives).toBe(CODE_RUN_INITIAL_LIVES);
     expect(state.player.hp).toBe(CODE_RUN_MAX_HP);
@@ -251,7 +251,7 @@ describe('CodeRunEngine lives and damage', () => {
     expect(damaged.player.invulFrames).toBe(CODE_RUN_DAMAGE_INVUL_FRAMES);
   });
 
-  it('HP0で loseLife し残機が減る', () => {
+  it('HP0で loseLife しライフが減る', () => {
     const map = createDefaultCodeRunMap();
     let state = {
       ...createInitialCodeRunState(map),
@@ -263,7 +263,7 @@ describe('CodeRunEngine lives and damage', () => {
     expect(state.status).toBe('playing');
   });
 
-  it('残機0で failed になる', () => {
+  it('ライフ0で failed になる', () => {
     const map = createDefaultCodeRunMap();
     const state = {
       ...createInitialCodeRunState(map),
@@ -570,9 +570,17 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     }, 150);
     expect(fromDb.id).toBe('dev_run_09');
     expect(fromDb.worldWidth).toBe(125 * CODE_RUN_TILE);
-    expect(fromDb.worldHeight).toBe(528);
+    expect(fromDb.worldHeight).toBe(80 * CODE_RUN_TILE);
     expect(fromDb.groundRow).toBe(9);
     expect(fromDb.spawn).toEqual({ x: 96, y: 76 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.spawn.y + CODE_RUN_PLAYER_H).toBeLessThan(fromDb.worldHeight + 96);
+    const afterFirstTick = tickCodeRun(
+      createInitialCodeRunState(fromDb),
+      { left: false, right: false, analogX: 0 },
+      1 / 60,
+    );
+    expect(afterFirstTick.lives).toBe(CODE_RUN_INITIAL_LIVES);
+    expect(afterFirstTick.status).toBe('playing');
     expect(fromDb.goalX).toBe(112 * CODE_RUN_TILE + 18);
     expect(fromDb.goalY).toBe(20 * CODE_RUN_TILE - 84);
     expect(fromDb.assets.tiles.platform).toContain('chikuwa_ashiba.png');
@@ -590,9 +598,17 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     }, 150);
     expect(fromDb.id).toBe('dev_run_10');
     expect(fromDb.worldWidth).toBe(100 * CODE_RUN_TILE);
-    expect(fromDb.worldHeight).toBe(528);
+    expect(fromDb.worldHeight).toBe(40 * CODE_RUN_TILE);
     expect(fromDb.groundRow).toBe(9);
     expect(fromDb.spawn).toEqual({ x: 96, y: 35 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.spawn.y + CODE_RUN_PLAYER_H).toBeLessThan(fromDb.worldHeight + 96);
+    const afterFirstTick = tickCodeRun(
+      createInitialCodeRunState(fromDb),
+      { left: false, right: false, analogX: 0 },
+      1 / 60,
+    );
+    expect(afterFirstTick.lives).toBe(CODE_RUN_INITIAL_LIVES);
+    expect(afterFirstTick.status).toBe('playing');
     expect(fromDb.goalX).toBe(98 * CODE_RUN_TILE + 18);
     expect(fromDb.goalY).toBe(3 * CODE_RUN_TILE - 84);
     expect(fromDb.assets.tiles.platform).toContain('chikuwa_ashiba.png');
