@@ -91,6 +91,7 @@ const drawEnemy = (
 
 export interface CodeRunEditorDrawParams {
   cells: ReadonlyMap<string, string>;
+  spikeCells: ReadonlySet<string>;
   pitColumns: ReadonlySet<number>;
   enemies: readonly CodeRunEnemyPlacement[];
   spawn: CodeRunGridPoint | null;
@@ -116,6 +117,7 @@ export const drawCodeRunMapCanvas = (
 ): void => {
   const {
     cells,
+    spikeCells,
     pitColumns,
     enemies,
     spawn,
@@ -141,12 +143,20 @@ export const drawCodeRunMapCanvas = (
   }
 
   for (const [key, kind] of cells) {
-    if (!isTileKind(kind) && kind !== 'spike') continue;
+    if (!isTileKind(kind)) continue;
     const [cs, rs] = key.split(',');
     const c = Number(cs);
     const row = Number(rs);
     if (!Number.isFinite(c) || !Number.isFinite(row)) continue;
     drawTile(ctx, c, row, kind, ts);
+  }
+
+  for (const key of spikeCells) {
+    const [cs, rs] = key.split(',');
+    const c = Number(cs);
+    const row = Number(rs);
+    if (!Number.isFinite(c) || !Number.isFinite(row)) continue;
+    drawTile(ctx, c, row, 'spike', ts);
   }
 
   if (!settings.manualGround) {

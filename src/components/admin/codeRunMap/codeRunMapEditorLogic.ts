@@ -65,19 +65,23 @@ export const exportSolids = (
   return solids;
 };
 
-export const exportSpikes = (
-  cells: ReadonlyMap<string, string>,
-  gridRows: number,
-  worldTilesWide: number,
-  groundRow: number,
-): Record<string, unknown>[] => {
+export const exportSpikes = (spikeCells: ReadonlySet<string>): Record<string, unknown>[] => {
   const spikes: Record<string, unknown>[] = [];
-  for (let r = 0; r < gridRows; r += 1) {
-    for (let c = 0; c < worldTilesWide; c += 1) {
-      if (cells.get(cellKey(c, r)) === 'spike') spikes.push({ c, row: r });
-    }
+  for (const key of spikeCells) {
+    const [cs, rs] = key.split(',');
+    const c = Number(cs);
+    const r = Number(rs);
+    if (!Number.isFinite(c) || !Number.isFinite(r)) continue;
+    spikes.push({ c, row: r });
   }
-  return spikes;
+  return spikes.sort((a, b) => {
+    const rowA = typeof a.row === 'number' ? a.row : 0;
+    const rowB = typeof b.row === 'number' ? b.row : 0;
+    if (rowA !== rowB) return rowA - rowB;
+    const colA = typeof a.c === 'number' ? a.c : 0;
+    const colB = typeof b.c === 'number' ? b.c : 0;
+    return colA - colB;
+  });
 };
 
 export const exportEnemies = (
@@ -99,6 +103,7 @@ export const findEnemyIndexAt = (
 
 export const buildMapLayoutJson = (
   cells: ReadonlyMap<string, string>,
+  spikeCells: ReadonlySet<string>,
   pitColumns: ReadonlySet<number>,
   enemies: readonly CodeRunEnemyPlacement[],
   spawn: CodeRunGridPoint | null,
@@ -117,7 +122,7 @@ export const buildMapLayoutJson = (
     spawn: spawn ?? { c: 2, r: settings.groundRow },
     pits: mergePits(pitColumns),
     solids: exportSolids(cells, settings.gridRows, settings.worldTilesWide),
-    spikes: exportSpikes(cells, settings.gridRows, settings.worldTilesWide, settings.groundRow),
+    spikes: exportSpikes(spikeCells),
     enemies: exportEnemies(enemies, settings.groundRow),
     goalOffsetX: settings.goalOffsetX,
   };
@@ -142,6 +147,7 @@ const nonNegNumber = (v: unknown, fallback: number): number => (
 export interface ImportedMapState {
   settings: CodeRunEditorSettings;
   cells: Map<string, string>;
+  spikeCells: Set<string>;
   pitColumns: Set<number>;
   enemies: CodeRunEnemyPlacement[];
   spawn: CodeRunGridPoint | null;
@@ -225,13 +231,14 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
     if (typeof s === 'object' && s !== null) applySolidPlacement(cells, s as Record<string, unknown>);
   }
 
+  const spikeCells = new Set<string>();
   const spikes = Array.isArray(source.spikes) ? source.spikes : [];
   for (const sp of spikes) {
     if (typeof sp !== 'object' || sp === null) continue;
     const row = sp as Record<string, unknown>;
     if (typeof row.c !== 'number') continue;
     const r = typeof row.row === 'number' ? row.row : groundRow;
-    cells.set(cellKey(row.c, r), 'spike');
+    spikeCells.add(cellKey(row.c, r));
   }
 
   let spawn: CodeRunGridPoint | null = null;
@@ -263,7 +270,7 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
 
   if (!settings.manualGround) applyAutoGroundPreview(cells, pitColumns, settings);
 
-  return { settings, cells, pitColumns, enemies, spawn, goal };
+  return { settings, cells, spikeCells, pitColumns, enemies, spawn, goal };
 };
 
 export const defaultEnemyPlacement = (c: number, r: number): CodeRunEnemyPlacement => ({

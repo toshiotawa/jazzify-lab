@@ -48,6 +48,7 @@ const CodeRunMapEditor: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [settings, setSettings] = useState<CodeRunEditorSettings>(defaultEditorSettings);
   const [cells, setCells] = useState<Map<string, string>>(() => new Map());
+  const [spikeCells, setSpikeCells] = useState<Set<string>>(() => new Set());
   const [pitColumns, setPitColumns] = useState<Set<number>>(() => new Set());
   const [enemies, setEnemies] = useState<CodeRunEnemyPlacement[]>([]);
   const [spawn, setSpawn] = useState<CodeRunGridPoint | null>({ c: 2, r: 9 });
@@ -63,8 +64,8 @@ const CodeRunMapEditor: React.FC = () => {
   const displayTile = Math.round(DISPLAY_TILE_BASE * zoom);
 
   const layoutJson = useMemo(
-    () => buildMapLayoutJson(cells, pitColumns, enemies, spawn, goal, settings),
-    [cells, pitColumns, enemies, spawn, goal, settings],
+    () => buildMapLayoutJson(cells, spikeCells, pitColumns, enemies, spawn, goal, settings),
+    [cells, spikeCells, pitColumns, enemies, spawn, goal, settings],
   );
 
   const syncJson = useCallback(() => {
@@ -82,6 +83,7 @@ const CodeRunMapEditor: React.FC = () => {
     if (!ctx) return;
     drawCodeRunMapCanvas(ctx, canvas.width, canvas.height, {
       cells,
+      spikeCells,
       pitColumns,
       enemies,
       spawn,
@@ -90,7 +92,7 @@ const CodeRunMapEditor: React.FC = () => {
       displayTile,
       selectedEnemyIndex,
     });
-  }, [cells, pitColumns, enemies, spawn, goal, settings, displayTile, selectedEnemyIndex]);
+  }, [cells, spikeCells, pitColumns, enemies, spawn, goal, settings, displayTile, selectedEnemyIndex]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -141,6 +143,11 @@ const CodeRunMapEditor: React.FC = () => {
           next.delete(cellKey(c, r));
           return next;
         });
+        setSpikeCells((prev) => {
+          const next = new Set(prev);
+          next.delete(cellKey(c, r));
+          return next;
+        });
         break;
       case 'pit':
         setPitColumns((prev) => {
@@ -151,10 +158,10 @@ const CodeRunMapEditor: React.FC = () => {
         });
         break;
       case 'spike':
-        setCells((prev) => {
-          const next = new Map(prev);
+        setSpikeCells((prev) => {
+          const next = new Set(prev);
           if (erase) next.delete(cellKey(c, r));
-          else next.set(cellKey(c, r), 'spike');
+          else next.add(cellKey(c, r));
           return next;
         });
         break;
@@ -262,6 +269,7 @@ const CodeRunMapEditor: React.FC = () => {
   const clearAll = () => {
     if (!window.confirm('マップをすべて消去しますか？')) return;
     setCells(new Map());
+    setSpikeCells(new Set());
     setPitColumns(new Set());
     setEnemies([]);
     setSpawn({ c: 2, r: settings.groundRow });
@@ -274,6 +282,7 @@ const CodeRunMapEditor: React.FC = () => {
       const imported = parseMapLayoutJson(jsonText);
       setSettings(imported.settings);
       setCells(imported.cells);
+      setSpikeCells(imported.spikeCells);
       setPitColumns(imported.pitColumns);
       setEnemies(imported.enemies);
       setSpawn(imported.spawn);
