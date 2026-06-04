@@ -114,6 +114,15 @@ const tileImageUrl = (
   return tiles[kind];
 };
 
+/** 縦長ワールドでは cover 背景がビュー下にはみ出さないよう縦パララックスを切る。 */
+export const computeBackgroundParallaxY = (
+  worldHeight: number,
+  viewHeight: number,
+  cameraY: number,
+): number => (
+  worldHeight > viewHeight ? 0 : -Math.round(cameraY * 0.08)
+);
+
 const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, images: ImageMap): void => {
   const { map } = state;
   const bg = images[map.assets.background];
@@ -124,7 +133,7 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
     const drawW = bg.naturalWidth * scale;
     const drawH = bg.naturalHeight * scale;
     const parallax = -(state.cameraX * 0.18) % drawW;
-    const parallaxY = -Math.round(state.cameraY * 0.08);
+    const parallaxY = computeBackgroundParallaxY(map.worldHeight, map.viewHeight, state.cameraY);
     for (let x = parallax - drawW; x < map.viewWidth + drawW; x += drawW) {
       ctx.drawImage(bg, Math.round(x), Math.round((map.viewHeight - drawH) / 2 + parallaxY), Math.round(drawW), Math.round(drawH));
     }
