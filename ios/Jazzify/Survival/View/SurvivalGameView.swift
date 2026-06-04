@@ -972,6 +972,7 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var showResult = false
     @State private var submittedClear = false
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
+    @StateObject private var midiManager = MIDIManager.shared
 
     private let audio = SurvivalAudioController()
     private let timer = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
@@ -984,7 +985,7 @@ private struct SurvivalCodeRunGameContent: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let keyboardHeight: CGFloat = min(170, max(132, proxy.size.height * 0.28))
+            let keyboardHeight: CGFloat = min(190, max(150, proxy.size.height * 0.22))
             VStack(spacing: 0) {
                 gameCanvas(size: CGSize(width: proxy.size.width, height: max(1, proxy.size.height - keyboardHeight)))
                     .overlay {
@@ -1017,7 +1018,7 @@ private struct SurvivalCodeRunGameContent: View {
         }
         .onReceive(timer) { now in tick(now: now) }
         .onAppear {
-            OrientationManager.shared.lock(.landscapeRight)
+            OrientationManager.shared.lock(.portrait)
             startAudioAndMidi()
         }
         .onDisappear {
@@ -1139,37 +1140,102 @@ private struct SurvivalCodeRunGameContent: View {
         VStack(spacing: 2) {
             if !title.isEmpty {
                 Text(title)
-                    .font(.system(size: primary ? 10 : 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .font(.system(size: primary ? 11 : 10, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .shadow(color: .black.opacity(0.75), radius: 2, x: 0, y: 1)
             }
             Text(value)
-                .font(primary ? .title3.bold() : .caption.bold())
-                .foregroundStyle(primary ? Color(red: 1.0, green: 0.90, blue: 0.70) : .white.opacity(0.82))
+                .font(.system(size: primary ? 34 : 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(primary ? Color(red: 1.0, green: 0.88, blue: 0.30) : .white.opacity(0.88))
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
+                .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(primary ? 0.9 : 0.55), radius: primary ? 4 : 2, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
         }
         .frame(minWidth: primary ? 160 : 76, maxWidth: primary ? 240 : 96)
-        .padding(.horizontal, primary ? 16 : 10)
-        .padding(.vertical, primary ? 10 : 7)
-        .background(primary ? Color(red: 0.10, green: 0.06, blue: 0.16).opacity(0.78) : .black.opacity(0.42), in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(primary ? Color(red: 0.95, green: 0.65, blue: 0.25).opacity(0.5) : Color.white.opacity(0.16), lineWidth: 1))
+        .padding(.horizontal, primary ? 12 : 6)
+        .padding(.vertical, primary ? 6 : 4)
     }
 
     private var settingsSheet: some View {
-        VStack(spacing: 16) {
-            Text(locale == .ja ? "コードラン設定" : "Code Run Settings").font(.headline)
-            if let onApplyHintModeAndRestart {
-                Button(action: { onApplyHintModeAndRestart(!hintMode); showSettings = false }) {
-                    Text(hintMode ? (locale == .ja ? "本番で再開" : "Restart Performance") : (locale == .ja ? "HINTで再開" : "Restart with HINT"))
-                        .font(.headline)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 18) {
+                    if let onApplyHintModeAndRestart {
+                        Button(action: { onApplyHintModeAndRestart(!hintMode); showSettings = false }) {
+                            Text(hintMode ? (locale == .ja ? "本番で再開" : "Restart Performance") : (locale == .ja ? "HINTで再開" : "Restart with HINT"))
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    midiSettingsSection
+                    Button(locale == .ja ? "閉じる" : "Close") { showSettings = false }
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .padding(20)
             }
-            Button(locale == .ja ? "閉じる" : "Close") { showSettings = false }
+            .navigationTitle(locale == .ja ? "コードラン設定" : "Code Run Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear { midiManager.refreshDevices() }
         }
-        .padding(24)
-        .presentationDetents([.height(220)])
+        .presentationDetents([.medium, .large])
+    }
+
+    private var midiSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label(locale == .ja ? "MIDI キーボード" : "MIDI Keyboard", systemImage: "pianokeys")
+                    .font(.headline)
+                Spacer()
+                Button(locale == .ja ? "再検出" : "Rescan") {
+                    midiManager.refreshDevices()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if midiManager.availableDevices.isEmpty {
+                Text(locale == .ja ? "接続中の MIDI デバイスがありません。" : "No MIDI devices are connected.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(midiManager.availableDevices, id: \.uniqueID) { device in
+                        midiDeviceRow(device)
+                    }
+                }
+            }
+        }
+    }
+
+    private func midiDeviceRow(_ device: MIDIDeviceInfo) -> some View {
+        Button {
+            midiManager.selectDevice(uniqueID: device.uniqueID)
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    if !device.manufacturer.isEmpty {
+                        Text(device.manufacturer)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if midiManager.selectedDeviceID == device.uniqueID {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder private var resultOverlay: some View {
@@ -1193,24 +1259,28 @@ private struct SurvivalCodeRunGameContent: View {
 
     private func gameCanvas(size: CGSize) -> some View {
         Canvas { context, canvasSize in
-            let scale = min(canvasSize.width / mapSpec.viewSize.width, canvasSize.height / mapSpec.viewSize.height)
-            let ox = (canvasSize.width - mapSpec.viewSize.width * scale) / 2
-            let oy = (canvasSize.height - mapSpec.viewSize.height * scale) / 2
-            let camera = max(0, min(player.x + mapSpec.playerSize.width / 2 - mapSpec.viewSize.width / 2, mapSpec.worldWidth - mapSpec.viewSize.width))
-            let cameraY = max(0, min(player.y + mapSpec.playerSize.height / 2 - mapSpec.viewSize.height / 2, mapSpec.worldHeight - mapSpec.viewSize.height))
+            let fitScale = min(canvasSize.width / mapSpec.viewSize.width, canvasSize.height / mapSpec.viewSize.height)
+            let coverScale = max(canvasSize.width / mapSpec.viewSize.width, canvasSize.height / mapSpec.viewSize.height)
+            let scale = min(coverScale, fitScale * 2.2)
+            let visibleWorldWidth = max(1, canvasSize.width / max(scale, 0.01))
+            let visibleWorldHeight = max(1, canvasSize.height / max(scale, 0.01))
+            let maxCameraX = max(0, mapSpec.worldWidth - visibleWorldWidth)
+            let maxCameraY = max(0, mapSpec.worldHeight - visibleWorldHeight)
+            let camera = max(0, min(player.x + mapSpec.playerSize.width / 2 - visibleWorldWidth / 2, maxCameraX))
+            let cameraY = max(0, min(player.y + mapSpec.playerSize.height / 2 - visibleWorldHeight / 2, maxCameraY))
+            let ox = max(0, (canvasSize.width - mapSpec.worldWidth * scale) / 2)
+            let oy = max(0, (canvasSize.height - mapSpec.worldHeight * scale) / 2)
+            let visibleRect = CGRect(x: camera, y: cameraY, width: visibleWorldWidth, height: visibleWorldHeight)
             context.fill(Path(CGRect(origin: .zero, size: canvasSize)), with: .linearGradient(Gradient(colors: [Color(red: 0.03, green: 0.06, blue: 0.16), Color(red: 0.01, green: 0.015, blue: 0.04)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: canvasSize.height)))
             context.translateBy(x: ox - camera * scale, y: oy - cameraY * scale)
             context.scaleBy(x: scale, y: scale)
-            drawWorld(context: &context)
+            drawWorld(context: &context, visibleRect: visibleRect)
         }
         .frame(width: size.width, height: size.height)
     }
 
-    private func drawWorld(context: inout GraphicsContext) {
-        context.draw(
-            SurvivalCodeRunNativeAssets.background,
-            in: CGRect(x: 0, y: 0, width: mapSpec.worldWidth, height: mapSpec.worldHeight)
-        )
+    private func drawWorld(context: inout GraphicsContext, visibleRect: CGRect) {
+        drawBackground(context: &context, visibleRect: visibleRect)
         let groundSurfaceY = mapSpec.groundRow * mapSpec.tile
         for solid in mapSpec.solids {
             context.draw(
@@ -1244,6 +1314,23 @@ private struct SurvivalCodeRunGameContent: View {
         }
     }
 
+    private func drawBackground(context: inout GraphicsContext, visibleRect: CGRect) {
+        let tileWidth = max(1, mapSpec.viewSize.width)
+        let tileHeight = max(1, mapSpec.viewSize.height)
+        var x = floor(visibleRect.minX / tileWidth) * tileWidth
+        while x < visibleRect.maxX {
+            var y = floor(visibleRect.minY / tileHeight) * tileHeight
+            while y < visibleRect.maxY {
+                context.draw(
+                    SurvivalCodeRunNativeAssets.background,
+                    in: CGRect(x: x, y: y, width: tileWidth, height: tileHeight)
+                )
+                y += tileHeight
+            }
+            x += tileWidth
+        }
+    }
+
     private func tick(now: Date) {
         guard status == .playing else { return }
         let dt = min(1.0 / 20.0, max(0, now.timeIntervalSince(lastTick)))
@@ -1258,7 +1345,8 @@ private struct SurvivalCodeRunGameContent: View {
             if abs(player.vx) <= decel { player.vx = 0 } else { player.vx -= player.vx.sign == .minus ? -decel : decel }
         }
         player.vy = min(SurvivalCodeRunNativeRules.maxFall, player.vy + SurvivalCodeRunNativeRules.gravity * step)
-        player.runPhase += abs(player.vx) * 0.035 * step
+        let animationSpeed = abs(player.vx) > 0.05 ? abs(player.vx) * 0.055 : 0.10
+        player.runPhase += animationSpeed * step
         updateCoyoteFrames()
         processJumpBuffer()
         movePlayer(step: step)
@@ -1474,6 +1562,7 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func startAudioAndMidi() {
+        MIDIManager.shared.refreshDevices()
         applyMapSpec(SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.runMapId))
         Task {
             let config = (try? await SupabaseService.shared.fetchSurvivalStageConfig(difficulty: stage.difficulty.rawValue, stageType: stage.survivalBgmConfigStageType)) ?? .default

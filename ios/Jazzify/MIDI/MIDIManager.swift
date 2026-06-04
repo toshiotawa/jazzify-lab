@@ -89,7 +89,7 @@ final class MIDIManager: ObservableObject {
         source == MIDINetworkSession.default().sourceEndpoint()
     }
 
-    func refreshDevices() {
+    func refreshDevices(autoSelectSingleDevice: Bool = true) {
         var devices: [MIDIDeviceInfo] = []
         let sourceCount = MIDIGetNumberOfSources()
 
@@ -111,6 +111,11 @@ final class MIDIManager: ObservableObject {
         }
 
         self.availableDevices = devices
+
+        if selectedDeviceID == nil, autoSelectSingleDevice, devices.count == 1 {
+            selectDevice(uniqueID: devices[0].uniqueID)
+            return
+        }
 
         // 保存済みの選択 ID に一致するデバイスが (再) 出現したら自動接続する。
         // これにより、設定タブで選んだキーボードがアプリ再起動後やサバイバル画面でもそのまま使える。

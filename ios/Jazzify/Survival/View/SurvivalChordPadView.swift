@@ -342,6 +342,14 @@ struct SurvivalChordPadView: View, Equatable {
         whiteKeyWidth: CGFloat
     ) {
         guard !Self.fitsFullKeyboard else { return }
+        if snapshot.scrollAnchorMidi != nil {
+            queueScrollAnchor(
+                viewportWidth: viewportWidth,
+                totalWidth: totalWidth,
+                whiteKeyWidth: whiteKeyWidth
+            )
+            return
+        }
         scrollTargetX = PianoKeyboardScrollGeometry.preservedScrollOffsetXOnZoom(
             currentScrollOffsetX: scrollOffsetX,
             viewportWidth: viewportWidth,
