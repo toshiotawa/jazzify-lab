@@ -585,16 +585,31 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           </div>
         </div>
 
-        <div className="absolute left-1/2 top-24 flex -translate-x-1/2 flex-col items-center gap-1.5 text-center sm:top-[12%]">
+        <div
+          className="absolute left-1/2 top-24 flex -translate-x-1/2 flex-col items-center gap-1.5 text-center sm:top-[12%]"
+          style={{ fontFamily: '"Avenir Next Rounded", "Avenir Next", "Nunito", system-ui, sans-serif' }}
+        >
           <div
-            className="min-w-40 rounded-md border border-amber-400/50 bg-[#1a1028]/75 px-4 py-3 shadow-[0_0_18px_rgba(232,160,64,0.25)] backdrop-blur"
-            style={{ boxShadow: 'inset 0 1px 0 rgba(255,220,160,0.15), 0 0 20px rgba(232,160,64,0.2)' }}
+            className="min-w-40 max-w-60 px-3 py-1 text-[34px] font-black leading-none text-[#ffe04d] sm:text-[40px]"
+            style={{
+              textShadow: '0 3px 8px rgba(230,56,87,0.9), 0 1px 2px rgba(0,0,0,0.85)',
+            }}
           >
-            <div className="text-xl font-bold text-amber-100 sm:text-2xl">{currentLabel}</div>
+            {currentLabel}
           </div>
-          <div className="min-w-28 rounded-md border border-white/15 bg-[#120c18]/70 px-3 py-2 backdrop-blur">
-            <div className="text-[10px] uppercase tracking-wide text-amber-200/50">next</div>
-            <div className="text-xs font-semibold text-amber-50/85">{nextLabel}</div>
+          <div className="min-w-24 max-w-32 px-1 py-0.5">
+            <div
+              className="text-[10px] font-black uppercase leading-none text-white/70"
+              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}
+            >
+              next
+            </div>
+            <div
+              className="mt-0.5 text-xl font-black leading-none text-white/90"
+              style={{ textShadow: '0 2px 5px rgba(230,56,87,0.55), 0 1px 2px rgba(0,0,0,0.85)' }}
+            >
+              {nextLabel}
+            </div>
           </div>
         </div>
 

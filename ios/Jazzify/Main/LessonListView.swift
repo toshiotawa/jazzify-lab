@@ -1556,6 +1556,7 @@ private struct BalloonRushPrepContext: Identifiable {
 private struct SurvivalLessonLaunch: Identifiable {
     let id = UUID()
     let stage: SurvivalStageDefinition
+    let hintMode: Bool
     let configOverride: SurvivalStageConfig?
     let inlineCompositePhrases: [SurvivalPhraseDefinition]?
     let lessonRuntime: ResolvedSurvivalLessonRuntime?
@@ -1595,6 +1596,7 @@ struct LessonDetailView: View {
     @State private var earTrainingLaunch: EarTrainingLaunch?
     @State private var earTrainingTutorialLaunch: EarTrainingTutorialLaunch?
     @State private var survivalTutorialLaunch: SurvivalTutorialLaunch?
+    @State private var survivalLessonPrep: SurvivalLessonLaunch?
     @State private var survivalLessonLaunch: SurvivalLessonLaunch?
     @State private var balloonRushPrep: BalloonRushPrepContext?
     @State private var balloonRushLessonLaunch: BalloonRushLessonLaunch?
@@ -1757,7 +1759,7 @@ struct LessonDetailView: View {
         .fullScreenCover(item: $survivalLessonLaunch) { launch in
             SurvivalGameView(
                 stage: launch.stage,
-                hintMode: false,
+                hintMode: launch.hintMode,
                 characterId: "fai",
                 locale: locale,
                 onClose: { survivalLessonLaunch = nil },
@@ -1770,6 +1772,30 @@ struct LessonDetailView: View {
                     lessonSongId: launch.lessonSongId,
                     clearConditions: launch.clearConditions
                 )
+            )
+        }
+        .sheet(item: $survivalLessonPrep) { prep in
+            SurvivalRunPrepSheet(
+                stage: prep.stage,
+                locale: locale,
+                variant: .lesson,
+                initialHintMode: prep.hintMode,
+                lessonRuntime: prep.lessonRuntime,
+                onCancel: { survivalLessonPrep = nil },
+                onConfirm: { hintMode in
+                    survivalLessonPrep = nil
+                    survivalLessonLaunch = SurvivalLessonLaunch(
+                        stage: prep.stage,
+                        hintMode: hintMode,
+                        configOverride: prep.configOverride,
+                        inlineCompositePhrases: prep.inlineCompositePhrases,
+                        lessonRuntime: prep.lessonRuntime,
+                        productionHintModes: prep.productionHintModes,
+                        lessonId: prep.lessonId,
+                        lessonSongId: prep.lessonSongId,
+                        clearConditions: prep.clearConditions
+                    )
+                }
             )
         }
         .sheet(item: $balloonRushPrep) { prep in
@@ -3002,8 +3028,9 @@ struct LessonDetailView: View {
                     )
                     await MainActor.run {
                         LessonMapAudio.shared.stopImmediately()
-                        survivalLessonLaunch = SurvivalLessonLaunch(
+                        survivalLessonPrep = SurvivalLessonLaunch(
                             stage: stage,
+                            hintMode: false,
                             configOverride: lessonConfig,
                             inlineCompositePhrases: phrases,
                             lessonRuntime: runtime,
@@ -3060,8 +3087,9 @@ struct LessonDetailView: View {
                 )
                 await MainActor.run {
                     LessonMapAudio.shared.stopImmediately()
-                    survivalLessonLaunch = SurvivalLessonLaunch(
+                    survivalLessonPrep = SurvivalLessonLaunch(
                         stage: stage,
+                        hintMode: false,
                         configOverride: lessonConfig,
                         inlineCompositePhrases: nil,
                         lessonRuntime: runtime,
