@@ -512,7 +512,7 @@ private struct EarTrainingPianoKeyButton: View {
             if !label.isEmpty {
                 Text(label)
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(PianoKeyboardTheme.noteNameLabel)
                     .padding(.bottom, 3)
             }
         }
@@ -538,7 +538,7 @@ private struct EarTrainingPianoKeyButton: View {
     private var fillColor: Color {
         let held = isPressing || isMidiHeld
         if held {
-            return isBlack ? Color(white: 0.35) : Color(white: 0.78)
+            return isBlack ? PianoKeyboardTheme.blackKeyPressed : PianoKeyboardTheme.whiteKeyPressed
         }
         if let voicingHintIntensity {
             let alpha: CGFloat
@@ -550,7 +550,7 @@ private struct EarTrainingPianoKeyButton: View {
             case .soft:
                 alpha = 0.30
             }
-            let base = isBlack ? Color.black : Color.white
+            let base = isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey
             return Color.earTrainingLerp(from: base, toward: Self.voicingHintPendingColor, t: alpha)
         }
         switch voicingHint {
@@ -559,7 +559,7 @@ private struct EarTrainingPianoKeyButton: View {
         case .pending:
             return Self.voicingHintPendingColor
         case .none:
-            return isBlack ? Color.black : Color.white
+            return isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey
         }
     }
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import type { ActiveNote } from '@/types';
+import { pianoKeyboardTheme } from '@/theme/pianoKeyboardTheme';
 import { cn } from '@/utils/cn';
 
 type NoteNameStyle = 'off' | 'abc' | 'solfege';
@@ -159,8 +160,8 @@ const createDefaultSettings = (): RendererSettings => ({
     visibleBlack: '#2C5282',
     hit: '#48BB78',
     missed: '#E53E3E',
-    whiteKey: '#ffffff',
-    blackKey: '#2D2D2D',
+    whiteKey: pianoKeyboardTheme.whiteKeyBase,
+    blackKey: pianoKeyboardTheme.blackKeyBase,
     activeKey: '#FF8C00',
     guideKey: '#22C55E',
     correctKey: '#EF4444',
@@ -1003,7 +1004,7 @@ export class PIXINotesRendererInstance {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, this.width, this.height - this.settings.pianoHeight);
       this.drawGuideLanes(ctx);
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = pianoKeyboardTheme.pianoBaseBand;
       ctx.fillRect(0, this.settings.hitLineY, this.width, this.settings.pianoHeight);
       this.drawStaticKeys(ctx);
       this.backgroundCanvas = canvas;
@@ -1047,7 +1048,7 @@ export class PIXINotesRendererInstance {
 
   private drawStaticKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+    ctx.strokeStyle = pianoKeyboardTheme.keySeparatorStroke;
     ctx.lineWidth = 1;
     for (const midi of this.whiteKeyOrder) {
       const key = this.keyGeometries.get(midi);
@@ -1056,9 +1057,9 @@ export class PIXINotesRendererInstance {
       const keyBottom = keyTop + this.settings.pianoHeight;
       const radius = Math.min(6, key.width * 0.25);
       const whiteGradient = ctx.createLinearGradient(key.x, keyTop, key.x, keyBottom);
-      whiteGradient.addColorStop(0, '#fdfdfd');
-      whiteGradient.addColorStop(0.45, '#e2e8f0');
-      whiteGradient.addColorStop(1, '#cbd5f5');
+      whiteGradient.addColorStop(0, pianoKeyboardTheme.whiteKeyGradientTop);
+      whiteGradient.addColorStop(0.45, pianoKeyboardTheme.whiteKeyGradientMid);
+      whiteGradient.addColorStop(1, pianoKeyboardTheme.whiteKeyGradientBottom);
       ctx.save();
       ctx.beginPath();
       this.drawRoundedRectPath(ctx, key.x, keyTop, key.width, this.settings.pianoHeight, radius);
@@ -1067,12 +1068,12 @@ export class PIXINotesRendererInstance {
       ctx.fill();
       ctx.save();
       ctx.clip();
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillStyle = pianoKeyboardTheme.whiteKeyHighlightGloss;
       ctx.fillRect(key.x + 0.5, keyTop + 1, key.width - 1, 1.5);
-      ctx.fillStyle = 'rgba(15,23,42,0.12)';
+      ctx.fillStyle = pianoKeyboardTheme.whiteKeySideShadow;
       ctx.fillRect(key.x + key.width - 1.4, keyTop + 4, 1.4, this.settings.pianoHeight - 8);
       ctx.restore();
-      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+      ctx.strokeStyle = pianoKeyboardTheme.keySeparatorStroke;
       ctx.stroke();
       
       // 白鍵の音名表示（noteNameStyle設定に従う）
@@ -1087,7 +1088,7 @@ export class PIXINotesRendererInstance {
         }
         const fontSize = Math.max(8, Math.min(12, key.width * 0.5));
         ctx.font = `${fontSize}px 'Inter', sans-serif`;
-        ctx.fillStyle = 'rgba(71, 85, 105, 0.8)';
+        ctx.fillStyle = pianoKeyboardTheme.noteNameLabel;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         ctx.fillText(displayName, key.x + key.width / 2, keyBottom - 4);
@@ -1102,9 +1103,9 @@ export class PIXINotesRendererInstance {
       const keyBottom = keyTop + key.height;
       const radius = Math.min(6, key.width * 0.45);
       const blackGradient = ctx.createLinearGradient(key.x, keyTop, key.x + key.width, keyBottom);
-      blackGradient.addColorStop(0, '#0b1220');
-      blackGradient.addColorStop(0.5, '#1f2937');
-      blackGradient.addColorStop(1, '#05060a');
+      blackGradient.addColorStop(0, pianoKeyboardTheme.blackKeyGradientTop);
+      blackGradient.addColorStop(0.5, pianoKeyboardTheme.blackKeyGradientMid);
+      blackGradient.addColorStop(1, pianoKeyboardTheme.blackKeyGradientBottom);
       ctx.save();
       ctx.beginPath();
       this.drawRoundedRectPath(ctx, key.x, keyTop, key.width, key.height, radius);
@@ -1114,15 +1115,15 @@ export class PIXINotesRendererInstance {
       ctx.save();
       ctx.clip();
       const glossHeight = Math.min(6, key.height * 0.35);
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillStyle = pianoKeyboardTheme.blackKeyGloss;
       ctx.fillRect(key.x + 1, keyTop + 1, key.width - 2, glossHeight);
       const sideHighlightWidth = Math.max(1, key.width * 0.22);
-      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillStyle = pianoKeyboardTheme.blackKeySideHighlight;
       ctx.fillRect(key.x + 0.5, keyTop + 2, sideHighlightWidth, key.height - 4);
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillStyle = pianoKeyboardTheme.blackKeyBottomShadow;
       ctx.fillRect(key.x + 0.5, keyBottom - 3, key.width - 1, 3);
       ctx.restore();
-      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.strokeStyle = pianoKeyboardTheme.blackKeyStroke;
       ctx.stroke();
       ctx.restore();
     }

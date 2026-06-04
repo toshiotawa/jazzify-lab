@@ -463,8 +463,9 @@ struct SurvivalChordPadView: View, Equatable {
 
 private struct PianoKeyButton: View {
     private static let marigold = Color(red: 0.93, green: 0.62, blue: 0.13)
-    private static let marigoldLight = Color(red: 0.98, green: 0.86, blue: 0.45)
-    private static let marigoldLightPressed = Color(red: 0.95, green: 0.75, blue: 0.30)
+    /// 象牙白鍵上でも視認できるよう彩度・コントラストをやや上げる（Web `#f39800` ヒント系）。
+    private static let marigoldLight = Color(red: 0.97, green: 0.80, blue: 0.32)
+    private static let marigoldLightPressed = Color(red: 0.94, green: 0.68, blue: 0.18)
     private static let marigoldDark = Color(red: 0.42, green: 0.26, blue: 0.06)
     private static let marigoldDarkPressed = Color(red: 0.55, green: 0.35, blue: 0.10)
 
@@ -496,7 +497,7 @@ private struct PianoKeyButton: View {
             if !label.isEmpty {
                 Text(label)
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.gray)
+                    .foregroundStyle(PianoKeyboardTheme.noteNameLabel)
                     .padding(.bottom, 3)
             }
         }
@@ -540,7 +541,7 @@ private struct PianoKeyButton: View {
             if isHinted {
                 return held ? Self.marigoldDarkPressed.opacity(Double(hintPendingOpacity)) : Self.marigoldDark.opacity(Double(hintPendingOpacity))
             }
-            return held ? Color(white: 0.35) : Color.black
+            return held ? PianoKeyboardTheme.blackKeyPressed : PianoKeyboardTheme.blackKey
         }
         if isHintCompleted {
             return held
@@ -552,6 +553,6 @@ private struct PianoKeyButton: View {
                 ? Self.marigoldLightPressed.opacity(Double(hintPendingOpacity))
                 : Self.marigoldLight.opacity(Double(hintPendingOpacity))
         }
-        return held ? Color(white: 0.78) : Color.white
+        return held ? PianoKeyboardTheme.whiteKeyPressed : PianoKeyboardTheme.whiteKey
     }
 }
