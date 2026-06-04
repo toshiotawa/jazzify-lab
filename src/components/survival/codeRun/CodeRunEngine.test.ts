@@ -470,6 +470,29 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(byId.goalY).toBe(direct.goalY);
   });
 
+  it('createCodeRunMapFromDb は worldTilesHigh から worldHeight を導出する', () => {
+    const fromDb = createCodeRunMapFromDb('snow_climb_run_01', {
+      layoutVersion: 1,
+      viewWidth: 960,
+      viewHeight: 528,
+      tileSize: 48,
+      worldTilesWide: 20,
+      worldTilesHigh: 65,
+      worldHeight: 500,
+      groundRow: 30,
+      manualGround: true,
+      spawn: { c: 4, r: 63 },
+      goal: { c: 0, r: 63 },
+      goalOffsetX: 18,
+      pits: [],
+      solids: [{ kind: 'platform', row: 8, c0: 14, c1: 18 }],
+      spikes: [],
+      enemies: [],
+    }, 150);
+    expect(fromDb.worldHeight).toBe(3120);
+    expect(fromDb.worldWidth).toBe(960);
+  });
+
   it('createCodeRunMapFromDb は mapId に応じたレイアウトを返す', () => {
     const nightCity = createDefaultCodeRunMap();
     const graveyard = createGraveyardRun03Map();

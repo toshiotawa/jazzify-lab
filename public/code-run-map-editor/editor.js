@@ -10,6 +10,10 @@ const DISPLAY_TILE = 28;
 const ENEMY_W = 38;
 const ENEMY_H = 34;
 
+const deriveWorldHeightPx = (gridRows, tileSize) => (
+  Math.max(1, Math.floor(gridRows)) * Math.max(1, Math.floor(tileSize))
+);
+
 const TOOL_COLORS = {
   ground: '#6b5344',
   brick: '#7a8499',
@@ -150,12 +154,12 @@ class CodeRunMapEditor {
       return Number.isFinite(v) && v > 0 ? v : fallback;
     };
     this.worldTilesWide = Math.min(400, Math.max(8, Math.floor(num('worldTilesWide', 64))));
-    this.gridRows = Math.min(80, Math.max(4, Math.floor(num('gridRows', 14))));
+    this.gridRows = Math.min(120, Math.max(4, Math.floor(num('gridRows', 14))));
     this.tileSize = Math.min(64, Math.max(16, Math.floor(num('tileSize', DEFAULT_TILE))));
     this.groundRow = Math.min(this.gridRows - 1, Math.max(0, Math.floor(num('groundRow', 9))));
     this.viewWidth = Math.floor(num('viewWidth', 960));
     this.viewHeight = Math.floor(num('viewHeight', 528));
-    this.worldHeight = Math.floor(num('worldHeight', 528));
+    this.worldHeight = deriveWorldHeightPx(this.gridRows, this.tileSize);
     this.goalOffsetX = num('goalOffsetX', 18);
     this.goalColumn = Math.floor(num('goalColumn', 60));
     this.resizeCanvas();
@@ -480,7 +484,7 @@ class CodeRunMapEditor {
       tileSize: this.tileSize,
       worldTilesWide: this.worldTilesWide,
       worldTilesHigh: this.gridRows,
-      worldHeight: this.worldHeight,
+      worldHeight: deriveWorldHeightPx(this.gridRows, this.tileSize),
       groundRow: this.groundRow,
       spawn: this.spawn ?? { c: 2, r: this.groundRow },
       pits: this.mergePits(),
@@ -536,7 +540,7 @@ class CodeRunMapEditor {
     this.groundRow = nonNegInt(source.groundRow, 9);
     this.viewWidth = positiveInt(source.viewWidth, 960);
     this.viewHeight = positiveInt(source.viewHeight, 528);
-    this.worldHeight = positiveInt(source.worldHeight, this.viewHeight);
+    this.worldHeight = deriveWorldHeightPx(this.gridRows, this.tileSize);
     this.goalOffsetX = nonNegNumber(source.goalOffsetX, 18);
     this.manualGround = source.manualGround === true;
     this.useGoalColumn = !source.goal;

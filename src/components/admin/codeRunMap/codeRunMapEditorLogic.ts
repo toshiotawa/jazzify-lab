@@ -37,6 +37,11 @@ const isTileKind = (value: string): value is CodeRunTileKind => (
   CODE_RUN_TILE_KINDS.includes(value as CodeRunTileKind)
 );
 
+/** ランタイムの縦スクロール高さ（px）= 行数 × タイルサイズ */
+export const deriveWorldHeightPx = (gridRows: number, tileSize: number): number => (
+  Math.max(1, Math.floor(gridRows)) * Math.max(1, Math.floor(tileSize))
+);
+
 export const exportSolids = (
   cells: ReadonlyMap<string, string>,
   gridRows: number,
@@ -112,7 +117,7 @@ export const buildMapLayoutJson = (
     tileSize: settings.tileSize,
     worldTilesWide: settings.worldTilesWide,
     worldTilesHigh: settings.gridRows,
-    worldHeight: settings.worldHeight,
+    worldHeight: deriveWorldHeightPx(settings.gridRows, settings.tileSize),
     groundRow: settings.groundRow,
     spawn: spawn ?? { c: 2, r: settings.groundRow },
     pits: mergePits(pitColumns),
@@ -195,6 +200,7 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
     source.worldTilesHigh,
     Math.ceil(positiveInt(source.worldHeight, 528) / tileSize),
   );
+  const worldHeight = deriveWorldHeightPx(gridRows, tileSize);
 
   const settings: CodeRunEditorSettings = {
     worldTilesWide,
@@ -203,7 +209,7 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
     groundRow,
     viewWidth: positiveInt(source.viewWidth, 960),
     viewHeight: positiveInt(source.viewHeight, 528),
-    worldHeight: positiveInt(source.worldHeight, 528),
+    worldHeight,
     goalOffsetX: nonNegNumber(source.goalOffsetX, 18),
     manualGround: source.manualGround === true,
     useGoalColumn: !source.goal,
@@ -280,7 +286,7 @@ export const defaultEditorSettings = (): CodeRunEditorSettings => ({
   manualGround: true,
   viewWidth: 960,
   viewHeight: 528,
-  worldHeight: 528,
+  worldHeight: deriveWorldHeightPx(14, DEFAULT_TILE_SIZE),
   goalOffsetX: 18,
   useGoalColumn: true,
   goalColumn: 60,
