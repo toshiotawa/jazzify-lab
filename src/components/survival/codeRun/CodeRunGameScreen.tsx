@@ -8,6 +8,11 @@ import { MIDIController, initializeAudioSystem, playNote, stopNote, updateGlobal
 import { isIOSWebView } from '@/utils/iosbridge';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
+import type { CodeRunActiveChord } from './codeRunRandomChords';
+import {
+  isCodeRunRandomStage,
+  pickCodeRunRandomChord,
+} from './codeRunRandomChords';
 import { applySurvivalVoicingHintsWithOpacity, computeKeyboardHintOpacity } from '@/utils/survivalStaffHintOpacity';
 import type { ProductionHintMode } from '@/types';
 import { fetchSurvivalRunMap } from '@/platform/supabaseSurvival';
@@ -191,22 +196,52 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const pianoHostRef = useRef<HTMLDivElement | null>(null);
   const [pianoSize, setPianoSize] = useState({ width: typeof window === 'undefined' ? 960 : window.innerWidth, height: 150 });
 
+  const isRandomStage = useMemo(
+    () => isCodeRunRandomStage(stageDefinition.stageType, stageDefinition.allowedChords),
+    [stageDefinition.stageType, stageDefinition.allowedChords],
+  );
+  const randomAllowedChords = stageDefinition.allowedChords;
+
   const progressionChords = useMemo(
-    () => buildProgressionChordDefinitions(stageDefinition.chordProgression ?? []),
-    [stageDefinition.chordProgression],
+    () => (isRandomStage
+      ? []
+      : buildProgressionChordDefinitions(stageDefinition.chordProgression ?? [])),
+    [isRandomStage, stageDefinition.chordProgression],
   );
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
   const currentChordIndexRef = useRef(0);
+  const [randomCurrentChord, setRandomCurrentChord] = useState<CodeRunActiveChord | null>(null);
+  const [randomNextChord, setRandomNextChord] = useState<CodeRunActiveChord | null>(null);
+  const randomCurrentChordRef = useRef<CodeRunActiveChord | null>(null);
+  const randomNextChordRef = useRef<CodeRunActiveChord | null>(null);
   const [completedPitchClasses, setCompletedPitchClasses] = useState<Set<number>>(() => new Set());
   const completedPitchClassesRef = useRef<Set<number>>(new Set());
   const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
 
-  const currentChord = progressionChords.length > 0
+  const syncRandomChordRefs = useCallback((current: CodeRunActiveChord | null, next: CodeRunActiveChord | null) => {
+    randomCurrentChordRef.current = current;
+    randomNextChordRef.current = next;
+    setRandomCurrentChord(current);
+    setRandomNextChord(next);
+  }, []);
+
+  const drawRandomChords = useCallback((excludeId?: string) => {
+    const current = pickCodeRunRandomChord(randomAllowedChords, excludeId);
+    const next = current
+      ? pickCodeRunRandomChord(randomAllowedChords, current.id)
+      : null;
+    syncRandomChordRefs(current, next);
+  }, [randomAllowedChords, syncRandomChordRefs]);
+
+  const progressionCurrentChord = progressionChords.length > 0
     ? progressionChords[currentChordIndex % progressionChords.length]
     : null;
-  const nextChord = progressionChords.length > 0
+  const progressionNextChord = progressionChords.length > 0
     ? progressionChords[(currentChordIndex + 1) % progressionChords.length]
     : null;
+
+  const currentChord = isRandomStage ? randomCurrentChord : progressionCurrentChord;
+  const nextChord = isRandomStage ? randomNextChord : progressionNextChord;
   const chordLocked = runState.player.chordLockedUntilLanding;
   const remainingSec = Math.max(0, mapSpec.timeLimitSec - runState.elapsedSec);
   const keyboardProductionMode = lessonProductionHintOverrides?.keyboard
@@ -230,7 +265,18 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     setCurrentChordIndex(0);
     completedPitchClassesRef.current = new Set();
     setCompletedPitchClasses(new Set());
-  }, []);
+    if (isRandomStage) {
+      drawRandomChords();
+    } else {
+      syncRandomChordRefs(null, null);
+    }
+  }, [drawRandomChords, isRandomStage, syncRandomChordRefs]);
+
+  useEffect(() => {
+    if (isRandomStage) {
+      drawRandomChords();
+    }
+  }, [drawRandomChords, isRandomStage, stageDefinition.stageNumber, stageDefinition.mapCategory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,7 +378,9 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const handleNoteInput = useCallback((note: number) => {
     const latestState = stateRef.current;
     if (latestState.player.chordLockedUntilLanding || resultRef.current) return;
-    const chord = progressionChords[currentChordIndexRef.current % Math.max(1, progressionChords.length)];
+    const chord = isRandomStage
+      ? randomCurrentChordRef.current
+      : progressionChords[currentChordIndexRef.current % Math.max(1, progressionChords.length)];
     if (!chord) return;
     const targetPitchClasses = new Set(chord.notes.map(pitchClass));
     const pc = pitchClass(note);
@@ -347,17 +395,31 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     const jumped = triggerCodeRunJump(stateRef.current);
     stateRef.current = jumped;
     setRunState(jumped);
-    const nextIndex = progressionChords.length > 0
-      ? (currentChordIndexRef.current + 1) % progressionChords.length
-      : 0;
-    currentChordIndexRef.current = nextIndex;
-    setCurrentChordIndex(nextIndex);
+    if (isRandomStage) {
+      const advanced = randomNextChordRef.current
+        ?? pickCodeRunRandomChord(randomAllowedChords, chord.id);
+      const following = advanced
+        ? pickCodeRunRandomChord(randomAllowedChords, advanced.id)
+        : null;
+      syncRandomChordRefs(advanced, following);
+    } else {
+      const nextIndex = progressionChords.length > 0
+        ? (currentChordIndexRef.current + 1) % progressionChords.length
+        : 0;
+      currentChordIndexRef.current = nextIndex;
+      setCurrentChordIndex(nextIndex);
+    }
     completedPitchClassesRef.current = new Set();
     setCompletedPitchClasses(new Set());
     if (jumped.player.chordLockedUntilLanding) {
       pixiRendererRef.current?.clearVoicingHints();
     }
-  }, [progressionChords]);
+  }, [
+    isRandomStage,
+    progressionChords,
+    randomAllowedChords,
+    syncRandomChordRefs,
+  ]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;

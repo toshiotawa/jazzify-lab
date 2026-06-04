@@ -613,16 +613,16 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(106);
   });
 
-  it('dev_run_11 はジグザグちくわ足場のレイアウトを返す', () => {
+  it('dev_run_11 は横長ちくわ足場とスライムのレイアウトを返す', () => {
     const fromDb = createCodeRunMapFromDb('dev_run_11', {
       name: 'Dev Run 11',
       ...devRun11LayoutJson,
     }, 150);
     expect(fromDb.id).toBe('dev_run_11');
     expect(fromDb.worldWidth).toBe(64 * CODE_RUN_TILE);
-    expect(fromDb.worldHeight).toBe(20 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(528);
     expect(fromDb.groundRow).toBe(9);
-    expect(fromDb.spawn).toEqual({ x: 18 * CODE_RUN_TILE, y: 0 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.spawn).toEqual({ x: 8 * CODE_RUN_TILE, y: 10 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
     expect(fromDb.spawn.y + CODE_RUN_PLAYER_H).toBeLessThan(fromDb.worldHeight + 96);
     const afterFirstTick = tickCodeRun(
       createInitialCodeRunState(fromDb),
@@ -630,14 +630,13 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
       1 / 60,
     );
     expect(afterFirstTick.status).toBe('playing');
-    expect(fromDb.goalX).toBe(8 * CODE_RUN_TILE + 18);
-    expect(fromDb.goalY).toBe(1 * CODE_RUN_TILE - 84);
-    expect(fromDb.assets.tiles.platform).toContain('chikuwa_ashiba.png');
+    expect(fromDb.goalX).toBe(60 * CODE_RUN_TILE + 18);
+    expect(fromDb.goalY).toBe(11 * CODE_RUN_TILE - 84);
     expect(fromDb.spikes).toHaveLength(0);
-    expect(fromDb.enemies).toHaveLength(2);
+    expect(fromDb.enemies).toHaveLength(6);
     expect(fromDb.solids.filter((solid) => solid.kind === 'block').length).toBe(0);
     expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(0);
-    expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(67);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(53);
   });
 
   it('manualGround では自動床を敷かない', () => {

@@ -1,0 +1,290 @@
+-- 目的別コース: 横スクロールコードラン:初級（Chord Run: Beginner）
+-- 6ブロック × 3クエスト、Code Run random（Basic 相当）、マップ 5〜10（snow_run_01 / dev_run_06〜10）
+BEGIN;
+
+INSERT INTO public.courses (
+  id,
+  title,
+  title_en,
+  description,
+  description_en,
+  premium_only,
+  order_index,
+  audience,
+  is_tutorial,
+  is_visible,
+  difficulty_tier,
+  is_developer_only,
+  is_main_course
+)
+SELECT
+  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'course-chord-run-beginner'),
+  '横スクロールコードラン:初級',
+  'Chord Run: Beginner',
+  '横スクロールアクションでコード学習しましょう。',
+  'Learn chords through side-scrolling action.',
+  true,
+  COALESCE((
+    SELECT MAX(c.order_index)
+    FROM public.courses c
+    WHERE c.difficulty_tier = 'beginner'
+      AND COALESCE(c.is_developer_only, false) = false
+      AND COALESCE(c.is_visible, true) = true
+  ), 0) + 1,
+  'both',
+  false,
+  true,
+  'beginner',
+  false,
+  false
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  title_en = EXCLUDED.title_en,
+  description = EXCLUDED.description,
+  description_en = EXCLUDED.description_en,
+  premium_only = EXCLUDED.premium_only,
+  order_index = EXCLUDED.order_index,
+  audience = EXCLUDED.audience,
+  is_visible = EXCLUDED.is_visible,
+  difficulty_tier = EXCLUDED.difficulty_tier,
+  is_developer_only = EXCLUDED.is_developer_only,
+  is_main_course = EXCLUDED.is_main_course,
+  updated_at = now();
+
+INSERT INTO public.survival_stages (
+  map_category,
+  stage_number,
+  stage_type,
+  play_mode,
+  name,
+  name_en,
+  difficulty,
+  chord_suffix,
+  chord_display_name,
+  chord_display_name_en,
+  root_pattern,
+  root_pattern_name,
+  root_pattern_name_en,
+  block_key,
+  is_mixed_stage,
+  mixed_group_key,
+  chord_progression,
+  lesson_only,
+  run_map_id,
+  run_time_limit_sec,
+  run_dialogue_script,
+  production_staff_hint_mode,
+  production_keyboard_hint_mode
+)
+SELECT
+  v.map_category,
+  v.stage_number,
+  v.stage_type,
+  v.play_mode,
+  v.name,
+  v.name_en,
+  v.difficulty,
+  v.chord_suffix,
+  v.chord_display_name,
+  v.chord_display_name_en,
+  v.root_pattern,
+  v.root_pattern_name,
+  v.root_pattern_name_en,
+  v.block_key,
+  false,
+  NULL,
+  NULL,
+  true,
+  v.run_map_id,
+  110,
+  NULL,
+  'fade_15s',
+  'fade_15s'
+FROM (
+  VALUES
+    ('basic', 122, 'random', 'code_run', 'コードラン: メジャー CDE', 'Chord Run: Major CDE', 'easy', '', 'メジャー', 'Major', 'cde', 'CDE', 'CDE', 'major', 'snow_run_01'),
+    ('basic', 123, 'random', 'code_run', 'コードラン: メジャー FGAB', 'Chord Run: Major FGAB', 'easy', '', 'メジャー', 'Major', 'fgab', 'FGAB', 'FGAB', 'major', 'snow_run_01'),
+    ('basic', 124, 'random', 'code_run', 'コードラン: メジャー ♭系', 'Chord Run: Major Flats', 'easy', '', 'メジャー', 'Major', 'flat', '♭系のみ', 'Flats', 'major', 'snow_run_01'),
+    ('basic', 125, 'random', 'code_run', 'コードラン: マイナー CDE', 'Chord Run: Minor CDE', 'easy', 'm', 'マイナー', 'Minor', 'cde', 'CDE', 'CDE', 'minor', 'dev_run_06'),
+    ('basic', 126, 'random', 'code_run', 'コードラン: マイナー FGAB', 'Chord Run: Minor FGAB', 'easy', 'm', 'マイナー', 'Minor', 'fgab', 'FGAB', 'FGAB', 'minor', 'dev_run_06'),
+    ('basic', 127, 'random', 'code_run', 'コードラン: マイナー #系', 'Chord Run: Minor Sharps', 'easy', 'm', 'マイナー', 'Minor', 'sharp', '#系のみ', 'Sharps', 'minor', 'dev_run_06'),
+    ('basic', 128, 'random', 'code_run', 'コードラン: M7 CDE', 'Chord Run: M7 CDE', 'easy', 'M7', 'M7', 'M7', 'cde', 'CDE', 'CDE', 'M7', 'dev_run_07'),
+    ('basic', 129, 'random', 'code_run', 'コードラン: M7 FGAB', 'Chord Run: M7 FGAB', 'easy', 'M7', 'M7', 'M7', 'fgab', 'FGAB', 'FGAB', 'M7', 'dev_run_07'),
+    ('basic', 130, 'random', 'code_run', 'コードラン: M7 ♭系', 'Chord Run: M7 Flats', 'easy', 'M7', 'M7', 'M7', 'flat', '♭系のみ', 'Flats', 'M7', 'dev_run_07'),
+    ('basic', 131, 'random', 'code_run', 'コードラン: m7 CDE', 'Chord Run: m7 CDE', 'easy', 'm7', 'm7', 'm7', 'cde', 'CDE', 'CDE', 'm7', 'dev_run_08'),
+    ('basic', 132, 'random', 'code_run', 'コードラン: m7 FGAB', 'Chord Run: m7 FGAB', 'easy', 'm7', 'm7', 'm7', 'fgab', 'FGAB', 'FGAB', 'm7', 'dev_run_08'),
+    ('basic', 133, 'random', 'code_run', 'コードラン: m7 #系', 'Chord Run: m7 Sharps', 'easy', 'm7', 'm7', 'm7', 'sharp', '#系のみ', 'Sharps', 'm7', 'dev_run_08'),
+    ('basic', 134, 'random', 'code_run', 'コードラン: 7 CDE', 'Chord Run: 7 CDE', 'easy', '7', '7', '7', 'cde', 'CDE', 'CDE', '7', 'dev_run_09'),
+    ('basic', 135, 'random', 'code_run', 'コードラン: 7 FGAB', 'Chord Run: 7 FGAB', 'easy', '7', '7', '7', 'fgab', 'FGAB', 'FGAB', '7', 'dev_run_09'),
+    ('basic', 136, 'random', 'code_run', 'コードラン: 7 ♭系', 'Chord Run: 7 Flats', 'easy', '7', '7', '7', 'flat', '♭系のみ', 'Flats', '7', 'dev_run_09'),
+    ('basic', 137, 'random', 'code_run', 'コードラン: m7b5 CDE', 'Chord Run: m7b5 CDE', 'easy', 'm7b5', 'm7b5', 'm7b5', 'cde', 'CDE', 'CDE', 'm7b5', 'dev_run_10'),
+    ('basic', 138, 'random', 'code_run', 'コードラン: m7b5 FGAB', 'Chord Run: m7b5 FGAB', 'easy', 'm7b5', 'm7b5', 'm7b5', 'fgab', 'FGAB', 'FGAB', 'm7b5', 'dev_run_10'),
+    ('basic', 139, 'random', 'code_run', 'コードラン: m7b5 #系', 'Chord Run: m7b5 Sharps', 'easy', 'm7b5', 'm7b5', 'm7b5', 'sharp', '#系のみ', 'Sharps', 'm7b5', 'dev_run_10')
+) AS v(
+  map_category,
+  stage_number,
+  stage_type,
+  play_mode,
+  name,
+  name_en,
+  difficulty,
+  chord_suffix,
+  chord_display_name,
+  chord_display_name_en,
+  root_pattern,
+  root_pattern_name,
+  root_pattern_name_en,
+  block_key,
+  run_map_id
+)
+ON CONFLICT (map_category, stage_number) DO UPDATE SET
+  stage_type = EXCLUDED.stage_type,
+  play_mode = EXCLUDED.play_mode,
+  name = EXCLUDED.name,
+  name_en = EXCLUDED.name_en,
+  difficulty = EXCLUDED.difficulty,
+  chord_suffix = EXCLUDED.chord_suffix,
+  chord_display_name = EXCLUDED.chord_display_name,
+  chord_display_name_en = EXCLUDED.chord_display_name_en,
+  root_pattern = EXCLUDED.root_pattern,
+  root_pattern_name = EXCLUDED.root_pattern_name,
+  root_pattern_name_en = EXCLUDED.root_pattern_name_en,
+  block_key = EXCLUDED.block_key,
+  is_mixed_stage = EXCLUDED.is_mixed_stage,
+  mixed_group_key = EXCLUDED.mixed_group_key,
+  chord_progression = EXCLUDED.chord_progression,
+  lesson_only = EXCLUDED.lesson_only,
+  run_map_id = EXCLUDED.run_map_id,
+  run_time_limit_sec = EXCLUDED.run_time_limit_sec,
+  run_dialogue_script = EXCLUDED.run_dialogue_script,
+  production_staff_hint_mode = EXCLUDED.production_staff_hint_mode,
+  production_keyboard_hint_mode = EXCLUDED.production_keyboard_hint_mode,
+  updated_at = now();
+
+INSERT INTO public.lessons (
+  id,
+  course_id,
+  title,
+  title_en,
+  description,
+  description_en,
+  premium_only,
+  order_index,
+  block_number,
+  block_name,
+  block_name_en,
+  nav_links,
+  assignment_description,
+  assignment_description_en
+)
+SELECT
+  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'crb-lesson-' || v.lesson_key),
+  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'course-chord-run-beginner'),
+  v.title,
+  v.title_en,
+  '',
+  '',
+  true,
+  v.order_index,
+  v.block_number,
+  v.block_name,
+  v.block_name_en,
+  '[]'::jsonb,
+  '制限時間以内にゴールしてください。コード完成でジャンプします。',
+  'Reach the goal before the time limit. Complete each chord to jump.'
+FROM (
+  VALUES
+    ('b1-q1', 0, 1, 'メジャートライアド', 'Major Triad', 'メジャー CDE', 'Major CDE', 122),
+    ('b1-q2', 1, 1, 'メジャートライアド', 'Major Triad', 'メジャー FGAB', 'Major FGAB', 123),
+    ('b1-q3', 2, 1, 'メジャートライアド', 'Major Triad', 'メジャー ♭系', 'Major Flats', 124),
+    ('b2-q1', 3, 2, 'マイナートライアド', 'Minor Triad', 'マイナー CDE', 'Minor CDE', 125),
+    ('b2-q2', 4, 2, 'マイナートライアド', 'Minor Triad', 'マイナー FGAB', 'Minor FGAB', 126),
+    ('b2-q3', 5, 2, 'マイナートライアド', 'Minor Triad', 'マイナー #系', 'Minor Sharps', 127),
+    ('b3-q1', 6, 3, 'メジャーセブンス', 'Major 7th', 'M7 CDE', 'M7 CDE', 128),
+    ('b3-q2', 7, 3, 'メジャーセブンス', 'Major 7th', 'M7 FGAB', 'M7 FGAB', 129),
+    ('b3-q3', 8, 3, 'メジャーセブンス', 'Major 7th', 'M7 ♭系', 'M7 Flats', 130),
+    ('b4-q1', 9, 4, 'マイナーセブンス', 'Minor 7th', 'm7 CDE', 'm7 CDE', 131),
+    ('b4-q2', 10, 4, 'マイナーセブンス', 'Minor 7th', 'm7 FGAB', 'm7 FGAB', 132),
+    ('b4-q3', 11, 4, 'マイナーセブンス', 'Minor 7th', 'm7 #系', 'm7 Sharps', 133),
+    ('b5-q1', 12, 5, 'セブンス', 'Dominant 7th', '7 CDE', '7 CDE', 134),
+    ('b5-q2', 13, 5, 'セブンス', 'Dominant 7th', '7 FGAB', '7 FGAB', 135),
+    ('b5-q3', 14, 5, 'セブンス', 'Dominant 7th', '7 ♭系', '7 Flats', 136),
+    ('b6-q1', 15, 6, 'マイナーセブンスフラットファイブ', 'Minor 7 flat 5', 'm7b5 CDE', 'm7b5 CDE', 137),
+    ('b6-q2', 16, 6, 'マイナーセブンスフラットファイブ', 'Minor 7 flat 5', 'm7b5 FGAB', 'm7b5 FGAB', 138),
+    ('b6-q3', 17, 6, 'マイナーセブンスフラットファイブ', 'Minor 7 flat 5', 'm7b5 #系', 'm7b5 Sharps', 139)
+) AS v(lesson_key, order_index, block_number, block_name, block_name_en, title, title_en, stage_number)
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  title_en = EXCLUDED.title_en,
+  description = EXCLUDED.description,
+  description_en = EXCLUDED.description_en,
+  premium_only = EXCLUDED.premium_only,
+  order_index = EXCLUDED.order_index,
+  block_number = EXCLUDED.block_number,
+  block_name = EXCLUDED.block_name,
+  block_name_en = EXCLUDED.block_name_en,
+  assignment_description = EXCLUDED.assignment_description,
+  assignment_description_en = EXCLUDED.assignment_description_en,
+  updated_at = now();
+
+INSERT INTO public.lesson_songs (
+  id,
+  lesson_id,
+  song_id,
+  order_index,
+  clear_conditions,
+  is_fantasy,
+  fantasy_stage_id,
+  is_survival,
+  survival_stage_number,
+  survival_map_category,
+  is_ear_training,
+  ear_training_stage_id,
+  title,
+  title_en
+)
+SELECT
+  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'crb-lsong-' || v.lesson_key),
+  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'crb-lesson-' || v.lesson_key),
+  NULL,
+  0,
+  '{"count":1,"rank":"C"}'::jsonb,
+  false,
+  NULL,
+  true,
+  v.stage_number,
+  'basic',
+  false,
+  NULL,
+  v.title,
+  v.title_en
+FROM (
+  VALUES
+    ('b1-q1', 'メジャー CDE', 'Major CDE', 122),
+    ('b1-q2', 'メジャー FGAB', 'Major FGAB', 123),
+    ('b1-q3', 'メジャー ♭系', 'Major Flats', 124),
+    ('b2-q1', 'マイナー CDE', 'Minor CDE', 125),
+    ('b2-q2', 'マイナー FGAB', 'Minor FGAB', 126),
+    ('b2-q3', 'マイナー #系', 'Minor Sharps', 127),
+    ('b3-q1', 'M7 CDE', 'M7 CDE', 128),
+    ('b3-q2', 'M7 FGAB', 'M7 FGAB', 129),
+    ('b3-q3', 'M7 ♭系', 'M7 Flats', 130),
+    ('b4-q1', 'm7 CDE', 'm7 CDE', 131),
+    ('b4-q2', 'm7 FGAB', 'm7 FGAB', 132),
+    ('b4-q3', 'm7 #系', 'm7 Sharps', 133),
+    ('b5-q1', '7 CDE', '7 CDE', 134),
+    ('b5-q2', '7 FGAB', '7 FGAB', 135),
+    ('b5-q3', '7 ♭系', '7 Flats', 136),
+    ('b6-q1', 'm7b5 CDE', 'm7b5 CDE', 137),
+    ('b6-q2', 'm7b5 FGAB', 'm7b5 FGAB', 138),
+    ('b6-q3', 'm7b5 #系', 'm7b5 Sharps', 139)
+) AS v(lesson_key, title, title_en, stage_number)
+ON CONFLICT (id) DO UPDATE SET
+  is_survival = EXCLUDED.is_survival,
+  survival_stage_number = EXCLUDED.survival_stage_number,
+  survival_map_category = EXCLUDED.survival_map_category,
+  clear_conditions = EXCLUDED.clear_conditions,
+  title = EXCLUDED.title,
+  title_en = EXCLUDED.title_en;
+
+COMMIT;
