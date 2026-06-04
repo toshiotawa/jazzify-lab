@@ -10,6 +10,10 @@ import type {
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
 export const CODE_RUN_PLAYER_DRAW_HEIGHT = 64;
+/** sprite_01 (118×193) を高さ64に合わせた固定描画幅 */
+export const CODE_RUN_PLAYER_DRAW_WIDTH = Math.round(118 * (CODE_RUN_PLAYER_DRAW_HEIGHT / 193));
+
+const MAIN_CHAR_BASE = '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC';
 
 const TILE = CODE_RUN_TILE;
 const VIEW_W = 960;
@@ -26,20 +30,21 @@ const TILE_ASSET_BASE = '/RUN/kenney_new-platformer-pack-1/Sprites/Tiles/Default
 const DEFAULT_ASSETS: CodeRunAssets = {
   background: '/RUN/%E8%83%8C%E6%99%AF.png',
   player: [
-    '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC/sprite_01.png',
-    '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC/sprite_02.png',
-    '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC/sprite_03.png',
-    '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC/sprite_04.png',
+    `${MAIN_CHAR_BASE}/sprite_01.png`,
+    `${MAIN_CHAR_BASE}/sprite_02.png`,
+    `${MAIN_CHAR_BASE}/sprite_03.png`,
+    `${MAIN_CHAR_BASE}/sprite_04.png`,
   ],
+  playerHurt: `${MAIN_CHAR_BASE}/sprite_11.png`,
   slime: [
     '/RUN/kenney_new-platformer-pack-1/Sprites/Enemies/Default/slime_normal_walk_a.png',
     '/RUN/kenney_new-platformer-pack-1/Sprites/Enemies/Default/slime_normal_walk_b.png',
   ],
   tiles: {
-    ground: `${TILE_ASSET_BASE}/terrain_grass_block_center.png`,
-    brick: `${TILE_ASSET_BASE}/bricks_brown.png`,
-    platform: `${TILE_ASSET_BASE}/block_planks.png`,
-    block: `${TILE_ASSET_BASE}/block_coin.png`,
+    ground: `${TILE_ASSET_BASE}/terrain_stone_block_center.png`,
+    brick: `${TILE_ASSET_BASE}/bricks_grey.png`,
+    platform: `${TILE_ASSET_BASE}/terrain_stone_cloud_middle.png`,
+    block: `${TILE_ASSET_BASE}/brick_grey.png`,
     spike: `${TILE_ASSET_BASE}/spikes.png`,
     flag: `${TILE_ASSET_BASE}/flag_blue_a.png`,
   },
@@ -98,6 +103,7 @@ const mergeAssets = (assets?: CodeRunAssetsOverride): CodeRunAssets => ({
   ...DEFAULT_ASSETS,
   ...assets,
   player: assets?.player?.length ? assets.player : DEFAULT_ASSETS.player,
+  playerHurt: assets?.playerHurt ?? DEFAULT_ASSETS.playerHurt,
   slime: assets?.slime?.length ? assets.slime : DEFAULT_ASSETS.slime,
   tiles: {
     ...DEFAULT_ASSETS.tiles,

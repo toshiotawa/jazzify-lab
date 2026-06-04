@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { CODE_RUN_PLAYER_DRAW_HEIGHT } from './defaultCodeRunMap';
+import {
+  CODE_RUN_PLAYER_DRAW_HEIGHT,
+  CODE_RUN_PLAYER_DRAW_WIDTH,
+} from './defaultCodeRunMap';
 import type { CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
 type ImageMap = Record<string, HTMLImageElement>;
@@ -19,6 +22,7 @@ const loadImage = (url: string): HTMLImageElement => {
 const collectAssetUrls = (map: CodeRunMapSpec): string[] => {
   const urls = new Set<string>();
   urls.add(map.assets.background);
+  urls.add(map.assets.playerHurt);
   for (const url of map.assets.player) urls.add(url);
   for (const url of map.assets.slime) urls.add(url);
   for (const url of Object.values(map.assets.tiles)) urls.add(url);
@@ -51,10 +55,10 @@ const drawImageOrRect = (
 };
 
 const tileColor: Record<CodeRunTileKind, string> = {
-  ground: '#3f8a5c',
-  brick: '#8c5b45',
-  platform: '#a67c4a',
-  block: '#d4a93d',
+  ground: '#4a5568',
+  brick: '#5c6478',
+  platform: '#6b7280',
+  block: '#52596b',
 };
 
 const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, images: ImageMap): void => {
@@ -83,14 +87,12 @@ const drawPlayerSprite = (
 ): void => {
   const footY = player.y + player.height;
   const centerX = player.x + player.width / 2;
-  const naturalHeight = image?.naturalHeight ?? 0;
-  const naturalWidth = image?.naturalWidth ?? 0;
   const drawH = CODE_RUN_PLAYER_DRAW_HEIGHT;
-  const drawW = naturalHeight > 0 ? naturalWidth * (drawH / naturalHeight) : player.width;
+  const drawW = CODE_RUN_PLAYER_DRAW_WIDTH;
   const drawX = centerX - drawW / 2;
   const drawY = footY - drawH;
 
-  if (!image?.complete || naturalWidth <= 0 || naturalHeight <= 0) {
+  if (!image?.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
     ctx.fillStyle = fallback;
     ctx.fillRect(player.x, player.y, player.width, player.height);
     return;
@@ -106,6 +108,12 @@ const drawPlayerSprite = (
   }
 
   ctx.drawImage(image, drawX, drawY, drawW, drawH);
+};
+
+const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
+  if (state.player.invulFrames <= 0) return false;
+  const tick = Math.floor(state.elapsedSec * 60);
+  return Math.floor(tick / 4) % 2 === 0;
 };
 
 const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
@@ -158,14 +166,22 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
       drawImageOrRect(ctx, images[frame], enemy.x, enemy.y, enemy.width, enemy.height, '#7fd75a');
     }
 
-    const playerFrames = map.assets.player;
-    const playerIndex = !state.player.onGround
-      ? Math.min(3, playerFrames.length - 1)
-      : Math.abs(state.player.vx) > 0.3
-        ? Math.abs(Math.floor(state.player.runPhase)) % Math.max(1, playerFrames.length - 1)
-        : 0;
-    const playerImage = images[playerFrames[playerIndex] ?? playerFrames[0]];
-    drawPlayerSprite(ctx, playerImage, state.player, '#e9d7ff');
+    if (!shouldBlinkInvulnerable(state)) {
+      const playerFrames = map.assets.player;
+      const useHurt = state.player.hurtFrames > 0;
+      const playerIndex = useHurt
+        ? -1
+        : !state.player.onGround
+          ? Math.min(3, playerFrames.length - 1)
+          : Math.abs(state.player.vx) > 0.3
+            ? Math.abs(Math.floor(state.player.runPhase)) % Math.max(1, playerFrames.length - 1)
+            : 0;
+      const frameUrl = useHurt
+        ? map.assets.playerHurt
+        : (playerFrames[playerIndex] ?? playerFrames[0]);
+      const playerImage = images[frameUrl];
+      drawPlayerSprite(ctx, playerImage, state.player, '#e9d7ff');
+    }
 
     ctx.restore();
   }, [images, state]);
@@ -174,7 +190,7 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
     <canvas
       ref={canvasRef}
       className={className}
-      style={{ width: '100%', height: '100%', display: 'block' }}
+      style={{ width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' }}
     />
   );
 };

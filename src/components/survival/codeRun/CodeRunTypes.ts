@@ -21,6 +21,7 @@ export interface CodeRunEnemySpec extends CodeRunRect {
 export interface CodeRunAssets {
   background: string;
   player: readonly string[];
+  playerHurt: string;
   slime: readonly string[];
   tiles: {
     ground: string;
@@ -35,6 +36,7 @@ export interface CodeRunAssets {
 export type CodeRunAssetsOverride = {
   background?: string;
   player?: readonly string[];
+  playerHurt?: string;
   slime?: readonly string[];
   tiles?: Partial<CodeRunAssets['tiles']>;
 };
@@ -64,7 +66,10 @@ export interface CodeRunPlayer extends CodeRunRect {
   onGround: boolean;
   jumpCount: number;
   chordLockedUntilLanding: boolean;
-  respawnGraceSec: number;
+  hp: number;
+  maxHp: number;
+  invulFrames: number;
+  hurtFrames: number;
   runPhase: number;
   coyoteFrames: number;
   jumpBufferFrames: number;
@@ -85,6 +90,7 @@ export interface CodeRunState {
   map: CodeRunMapSpec;
   player: CodeRunPlayer;
   enemies: readonly CodeRunEnemy[];
+  lives: number;
   elapsedSec: number;
   cameraX: number;
   status: CodeRunStatus;

@@ -1,4 +1,4 @@
-import type { CodeRunEnemy, CodeRunInputState, CodeRunPlayer, CodeRunRect, CodeRunState, CodeRunTileRect } from './CodeRunTypes';
+import type { CodeRunEnemy, CodeRunInputState, CodeRunMapSpec, CodeRunPlayer, CodeRunRect, CodeRunState, CodeRunTileRect } from './CodeRunTypes';
 
 const GRAVITY = 0.8;
 const MAX_FALL = 17;
@@ -10,6 +10,15 @@ const JUMP_VEL = -15.4;
 const STOMP_BOUNCE = -11.5;
 const COYOTE_FRAMES = 7;
 const JUMP_BUFFER_FRAMES = 8;
+
+export const CODE_RUN_MAX_HP = 3;
+export const CODE_RUN_INITIAL_LIVES = 5;
+export const CODE_RUN_DAMAGE_INVUL_FRAMES = 90;
+export const CODE_RUN_HURT_FRAMES = 26;
+export const CODE_RUN_START_INVUL_FRAMES = 40;
+export const CODE_RUN_RESPAWN_INVUL_FRAMES = 120;
+const KNOCKBACK_VX = 5.5;
+const KNOCKBACK_VY = -7;
 
 const overlap = (a: CodeRunRect, b: CodeRunRect): boolean => (
   a.x < b.x + b.width
@@ -46,25 +55,31 @@ const defaultPlayerFields = (): Pick<CodeRunPlayer, 'coyoteFrames' | 'jumpBuffer
   jumpBufferFrames: 0,
 });
 
+const freshPlayerAtSpawn = (map: CodeRunMapSpec, invulFrames: number): CodeRunPlayer => ({
+  x: map.spawn.x,
+  y: map.spawn.y,
+  width: 34,
+  height: 42,
+  vx: 0,
+  vy: 0,
+  facing: 1,
+  onGround: false,
+  jumpCount: 0,
+  chordLockedUntilLanding: false,
+  hp: CODE_RUN_MAX_HP,
+  maxHp: CODE_RUN_MAX_HP,
+  invulFrames,
+  hurtFrames: 0,
+  runPhase: 0,
+  ...defaultPlayerFields(),
+});
+
 export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunState {
   const state: CodeRunState = {
     map,
-    player: {
-      x: map.spawn.x,
-      y: map.spawn.y,
-      width: 34,
-      height: 42,
-      vx: 0,
-      vy: 0,
-      facing: 1,
-      onGround: false,
-      jumpCount: 0,
-      chordLockedUntilLanding: false,
-      respawnGraceSec: 1,
-      runPhase: 0,
-      ...defaultPlayerFields(),
-    },
+    player: freshPlayerAtSpawn(map, CODE_RUN_START_INVUL_FRAMES),
     enemies: [],
+    lives: CODE_RUN_INITIAL_LIVES,
     elapsedSec: 0,
     cameraX: 0,
     status: 'playing',
@@ -72,23 +87,40 @@ export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunStat
   return { ...state, enemies: makeEnemies(state) };
 }
 
-const respawnPlayer = (state: CodeRunState): CodeRunState => ({
+const respawnAfterLifeLoss = (state: CodeRunState): CodeRunState => ({
   ...state,
-  player: {
-    ...state.player,
-    x: state.map.spawn.x,
-    y: state.map.spawn.y,
-    vx: 0,
-    vy: 0,
-    facing: 1,
-    onGround: false,
-    jumpCount: 0,
-    chordLockedUntilLanding: false,
-    respawnGraceSec: 1.1,
-    ...defaultPlayerFields(),
-  },
+  player: freshPlayerAtSpawn(state.map, CODE_RUN_RESPAWN_INVUL_FRAMES),
   enemies: makeEnemies(state),
 });
+
+export const loseLife = (state: CodeRunState): CodeRunState => {
+  if (state.status !== 'playing') return state;
+  const lives = state.lives - 1;
+  if (lives <= 0) {
+    return { ...state, lives: 0, status: 'failed' };
+  }
+  return respawnAfterLifeLoss({ ...state, lives });
+};
+
+export const applyDamage = (state: CodeRunState, srcCenterX: number): CodeRunState => {
+  if (state.status !== 'playing' || state.player.invulFrames > 0) return state;
+  const playerCenterX = state.player.x + state.player.width / 2;
+  const dir = playerCenterX < srcCenterX ? -1 : 1;
+  const player: CodeRunPlayer = {
+    ...state.player,
+    hp: state.player.hp - 1,
+    hurtFrames: CODE_RUN_HURT_FRAMES,
+    invulFrames: CODE_RUN_DAMAGE_INVUL_FRAMES,
+    vx: dir * KNOCKBACK_VX,
+    vy: KNOCKBACK_VY,
+    onGround: false,
+  };
+  let next: CodeRunState = { ...state, player };
+  if (player.hp <= 0) {
+    next = loseLife(next);
+  }
+  return next;
+};
 
 const canExecuteBufferedJump = (player: CodeRunPlayer): boolean => {
   if (player.chordLockedUntilLanding || player.jumpCount >= 2) return false;
@@ -191,6 +223,12 @@ const updateEnemies = (state: CodeRunState, step: number): readonly CodeRunEnemy
   });
 };
 
+const decrementTimedFrames = (player: CodeRunPlayer, step: number): CodeRunPlayer => ({
+  ...player,
+  invulFrames: Math.max(0, player.invulFrames - step),
+  hurtFrames: Math.max(0, player.hurtFrames - step),
+});
+
 export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec: number): CodeRunState {
   if (state.status !== 'playing') return state;
 
@@ -206,7 +244,6 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
     else player.vx -= Math.sign(player.vx) * decel;
   }
   player.vy = clamp(player.vy + GRAVITY * step, -99, MAX_FALL);
-  player.respawnGraceSec = Math.max(0, player.respawnGraceSec - dtSec);
   player.runPhase += Math.abs(player.vx) * 0.035 * step;
   player = updateCoyoteFrames(player);
   player = processJumpBuffer(player);
@@ -214,6 +251,7 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   player = movePlayerX(player, state.map.solids, step);
   player.x = clamp(player.x, 0, state.map.worldWidth - player.width);
   player = movePlayerY(player, state.map.solids, step);
+  player = decrementTimedFrames(player, step);
 
   let next: CodeRunState = {
     ...state,
@@ -223,48 +261,59 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   };
 
   if (next.player.y > next.map.viewHeight + 96) {
-    next = respawnPlayer(next);
+    next = loseLife(next);
+    if (next.status !== 'playing') {
+      return { ...next, cameraX: clampCamera(next) };
+    }
   }
 
-  if (next.player.respawnGraceSec <= 0) {
+  if (next.player.invulFrames <= 0) {
     for (const spike of next.map.spikes) {
       if (overlap(next.player, spike)) {
-        next = respawnPlayer(next);
+        next = applyDamage(next, spike.x + spike.width / 2);
         break;
       }
     }
   }
 
-  if (next.player.respawnGraceSec <= 0) {
-    let touched = false;
-    const enemies = next.enemies.map((enemy) => {
-      if (!enemy.alive || !overlap(next.player, enemy)) return enemy;
+  if (next.status === 'playing' && next.player.invulFrames <= 0) {
+    const enemies: CodeRunEnemy[] = [];
+    let sideHitSrcX: number | null = null;
+    for (const enemy of next.enemies) {
+      if (!enemy.alive || !overlap(next.player, enemy)) {
+        enemies.push(enemy);
+        continue;
+      }
       const playerBottomBefore = next.player.y + next.player.height - next.player.vy * step;
       if (next.player.vy > 0 && playerBottomBefore <= enemy.y + 12) {
         next = {
           ...next,
           player: { ...next.player, vy: STOMP_BOUNCE, onGround: false },
         };
-        return { ...enemy, alive: false };
+        enemies.push({ ...enemy, alive: false });
+        continue;
       }
-      touched = true;
-      return enemy;
-    });
+      sideHitSrcX = enemy.x + enemy.width / 2;
+      enemies.push(enemy);
+    }
     next = { ...next, enemies };
-    if (touched) next = respawnPlayer(next);
+    if (sideHitSrcX !== null) {
+      next = applyDamage(next, sideHitSrcX);
+    }
   }
 
   const playerCenterX = next.player.x + next.player.width / 2;
-  if (playerCenterX >= next.map.goalX) {
+  if (next.status === 'playing' && playerCenterX >= next.map.goalX) {
     next = { ...next, status: 'clear' };
-  } else if (next.elapsedSec >= next.map.timeLimitSec) {
+  } else if (next.status === 'playing' && next.elapsedSec >= next.map.timeLimitSec) {
     next = { ...next, status: 'failed' };
   }
 
-  const cameraX = clamp(
-    next.player.x + next.player.width / 2 - next.map.viewWidth / 2,
-    0,
-    Math.max(0, next.map.worldWidth - next.map.viewWidth),
-  );
-  return { ...next, cameraX };
+  return { ...next, cameraX: clampCamera(next) };
 }
+
+const clampCamera = (state: CodeRunState): number => clamp(
+  state.player.x + state.player.width / 2 - state.map.viewWidth / 2,
+  0,
+  Math.max(0, state.map.worldWidth - state.map.viewWidth),
+);
