@@ -5,6 +5,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { MIDIController, initializeAudioSystem, playNote, stopNote, updateGlobalVolume } from '@/utils/MidiController';
+import { isIOSWebView } from '@/utils/iosbridge';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
 import { applySurvivalVoicingHintsWithOpacity, computeKeyboardHintOpacity } from '@/utils/survivalStaffHintOpacity';
@@ -184,6 +185,8 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
+  const [isMidiInitialized, setIsMidiInitialized] = useState(false);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(() => loadSurvivalDisplaySettings());
   const [bgmVolume, setBgmVolume] = useState(0.3);
   const bgmVolumeRef = useRef(0.3);
@@ -375,11 +378,23 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       });
       controller.setConnectionChangeCallback((connected) => setIsMidiConnected(connected));
       midiControllerRef.current = controller;
-      (async () => {
+
+      const initPromise = (async () => {
         try {
+          if (isIOSWebView()) {
+            controller.setKeyHighlightCallback((note, active) => {
+              pixiRendererRef.current?.highlightKey(note, active);
+            });
+            setIsMidiInitialized(true);
+            return;
+          }
+          const seVol = settings.soundEffectVolume ?? 0.8;
+          const rootVol = settings.rootSoundVolume ?? 0.7;
           await Promise.all([
-            initializeAudioSystem().then(() => updateGlobalVolume(settings.midiVolume ?? 0.8)),
-            FantasySoundManager.init(settings.soundEffectVolume ?? 0.8, settings.rootSoundVolume ?? 0.7, true).then(() => {
+            initializeAudioSystem().then(() => {
+              updateGlobalVolume(settings.midiVolume ?? 0.8);
+            }),
+            FantasySoundManager.init(seVol, rootVol, true).then(() => {
               FantasySoundManager.enableRootSound(true);
             }),
           ]);
@@ -387,16 +402,62 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           controller.setKeyHighlightCallback((note, active) => {
             pixiRendererRef.current?.highlightKey(note, active);
           });
+          setIsMidiInitialized(true);
         } catch {
-          /* Touch input remains available even if MIDI/audio init fails. */
+          setIsMidiInitialized(true);
         }
       })();
+      initPromiseRef.current = initPromise;
     }
+
     return () => {
-      midiControllerRef.current?.destroy().catch(() => undefined);
-      midiControllerRef.current = null;
+      if (midiControllerRef.current) {
+        midiControllerRef.current.destroy();
+        midiControllerRef.current = null;
+      }
+      initPromiseRef.current = null;
+      setIsMidiInitialized(false);
     };
-  }, [settings.midiVolume, settings.rootSoundVolume, settings.soundEffectVolume]);
+  }, []);
+
+  useEffect(() => {
+    const connect = async () => {
+      if (initPromiseRef.current) {
+        await initPromiseRef.current;
+      }
+      const deviceId = settings.selectedMidiDevice;
+      if (midiControllerRef.current && deviceId) {
+        await midiControllerRef.current.connectDevice(deviceId);
+      } else if (midiControllerRef.current && !deviceId) {
+        midiControllerRef.current.disconnect();
+      }
+    };
+    void connect();
+  }, [settings.selectedMidiDevice, isMidiInitialized]);
+
+  useEffect(() => {
+    const restoreMidiConnection = async () => {
+      if (initPromiseRef.current) {
+        await initPromiseRef.current;
+      }
+      if (midiControllerRef.current) {
+        if (midiControllerRef.current.getCurrentDeviceId()) {
+          await midiControllerRef.current.checkAndRestoreConnection();
+        } else if (settings.selectedMidiDevice) {
+          await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+        }
+      }
+    };
+    const timer = setTimeout(() => {
+      void restoreMidiConnection();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [stageDefinition.runMapId, isMidiInitialized, settings.selectedMidiDevice]);
+
+  useEffect(() => {
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
+    midiControllerRef.current?.updateVolume(settings.midiVolume ?? 0.8);
+  }, [settings.midiVolume]);
 
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     pixiRendererRef.current = renderer;
