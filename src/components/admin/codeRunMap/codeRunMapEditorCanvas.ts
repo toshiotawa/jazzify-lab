@@ -74,7 +74,6 @@ const drawEnemy = (
   selected: boolean,
   groundRow: number,
   tileSize: number,
-  worldTilesWide: number,
   ts: number,
 ): void => {
   const r = enemy.r;
@@ -88,19 +87,6 @@ const drawEnemy = (
   ctx.fill();
   ctx.strokeStyle = '#2d5016';
   ctx.stroke();
-
-  const minX = enemy.minX ?? 0;
-  const maxX = enemy.maxX ?? worldTilesWide * tileSize;
-  const lineY = r * ts - 4;
-  ctx.strokeStyle = 'rgba(255, 220, 80, 0.85)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo((minX / tileSize) * ts, lineY);
-  ctx.lineTo((maxX / tileSize) * ts, lineY);
-  ctx.stroke();
-  ctx.fillStyle = '#ffe566';
-  ctx.fillRect((minX / tileSize) * ts - 3, lineY - 3, 6, 6);
-  ctx.fillRect((maxX / tileSize) * ts - 3, lineY - 3, 6, 6);
 };
 
 export interface CodeRunEditorDrawParams {
@@ -120,9 +106,6 @@ export interface CodeRunEditorDrawParams {
   };
   displayTile: number;
   selectedEnemyIndex: number;
-  patrolEnemy: CodeRunEnemyPlacement | null;
-  patrolStep: number;
-  patrolPreviewX: number | null;
 }
 
 export const drawCodeRunMapCanvas = (
@@ -140,9 +123,6 @@ export const drawCodeRunMapCanvas = (
     settings,
     displayTile: ts,
     selectedEnemyIndex,
-    patrolEnemy,
-    patrolStep,
-    patrolPreviewX,
   } = params;
 
   ctx.clearRect(0, 0, width, height);
@@ -178,24 +158,12 @@ export const drawCodeRunMapCanvas = (
   }
 
   enemies.forEach((enemy, i) => {
-    drawEnemy(ctx, enemy, i === selectedEnemyIndex, settings.groundRow, settings.tileSize, settings.worldTilesWide, ts);
+    drawEnemy(ctx, enemy, i === selectedEnemyIndex, settings.groundRow, settings.tileSize, ts);
   });
 
   if (spawn) drawMarker(ctx, spawn, 'S', '#4da3ff', ts);
   if (goal && !settings.useGoalColumn) drawMarker(ctx, goal, 'G', '#ffd54f', ts);
   if (settings.useGoalColumn && settings.goalColumn >= 0 && settings.goalColumn < settings.worldTilesWide) {
     drawMarker(ctx, { c: settings.goalColumn, r: settings.groundRow }, 'G', '#ffd54f', ts);
-  }
-
-  if (patrolEnemy && patrolPreviewX !== null && patrolStep === 1) {
-    const minX = patrolEnemy.minX ?? 0;
-    const row = patrolEnemy.r;
-    const y = row * ts - ts * 0.35;
-    ctx.strokeStyle = '#ffe566';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo((minX / settings.tileSize) * ts, y);
-    ctx.lineTo((patrolPreviewX / settings.tileSize) * ts, y);
-    ctx.stroke();
   }
 };

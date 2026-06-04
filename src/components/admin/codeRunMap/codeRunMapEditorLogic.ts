@@ -88,10 +88,14 @@ export const exportEnemies = (
   if (e.r !== groundRow) row.r = e.r;
   if (e.id) row.id = e.id;
   if (e.speed !== undefined && e.speed !== 1.25) row.speed = e.speed;
-  if (e.minX !== undefined) row.minX = Math.round(e.minX);
-  if (e.maxX !== undefined) row.maxX = Math.round(e.maxX);
   return row;
 });
+
+export const findEnemyIndexAt = (
+  enemies: readonly CodeRunEnemyPlacement[],
+  c: number,
+  r: number,
+): number => enemies.findIndex((e) => e.c === c && e.r === r);
 
 export const buildMapLayoutJson = (
   cells: ReadonlyMap<string, string>,
@@ -253,9 +257,7 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
       c: row.c,
       r,
       id: typeof row.id === 'string' ? row.id : `slime-${row.c}-${r}`,
-      minX: typeof row.minX === 'number' ? row.minX : undefined,
-      maxX: typeof row.maxX === 'number' ? row.maxX : undefined,
-      speed: typeof row.speed === 'number' ? row.speed : 1.25,
+      speed: typeof row.speed === 'number' ? row.speed : undefined,
     });
   }
 
@@ -264,22 +266,11 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
   return { settings, cells, pitColumns, enemies, spawn, goal };
 };
 
-export const defaultEnemyPlacement = (
-  c: number,
-  r: number,
-  tileSize: number,
-  worldTilesWide: number,
-): CodeRunEnemyPlacement => {
-  const centerX = c * tileSize + (tileSize - ENEMY_W) / 2;
-  return {
-    c,
-    r,
-    id: `slime-${c}-${r}`,
-    minX: Math.max(0, centerX - tileSize * 2),
-    maxX: Math.min(worldTilesWide * tileSize - ENEMY_W, centerX + tileSize * 2),
-    speed: 1.25,
-  };
-};
+export const defaultEnemyPlacement = (c: number, r: number): CodeRunEnemyPlacement => ({
+  c,
+  r,
+  id: `slime-${c}-${r}`,
+});
 
 export const defaultEditorSettings = (): CodeRunEditorSettings => ({
   worldTilesWide: 64,

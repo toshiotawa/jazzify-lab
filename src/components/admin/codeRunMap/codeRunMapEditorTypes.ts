@@ -5,7 +5,6 @@ export type CodeRunEditorTool =
   | 'spike'
   | 'pit'
   | 'enemy'
-  | 'patrol'
   | 'spawn'
   | 'goal'
   | 'eraser';

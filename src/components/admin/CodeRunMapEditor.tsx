@@ -11,11 +11,11 @@ import React, {
 } from 'react';
 import { useToast } from '@/stores/toastStore';
 import {
-  applyAutoGroundPreview,
   buildMapLayoutJson,
   cellKey,
   defaultEditorSettings,
   defaultEnemyPlacement,
+  findEnemyIndexAt,
   parseMapLayoutJson,
 } from './codeRunMap/codeRunMapEditorLogic';
 import { drawCodeRunMapCanvas } from './codeRunMap/codeRunMapEditorCanvas';
@@ -38,7 +38,6 @@ const TOOLS: Array<{ id: CodeRunEditorTool; label: string; color: string }> = [
   { id: 'spike', label: 'トゲ', color: '#e74c3c' },
   { id: 'pit', label: '穴', color: '#1a1020' },
   { id: 'enemy', label: '敵', color: '#8fd14f' },
-  { id: 'patrol', label: '巡回', color: '#ffe566' },
   { id: 'spawn', label: '開始', color: '#4da3ff' },
   { id: 'goal', label: 'ゴール', color: '#ffd54f' },
   { id: 'eraser', label: '消去', color: '#444444' },
@@ -58,9 +57,6 @@ const CodeRunMapEditor: React.FC = () => {
   const [isPainting, setIsPainting] = useState(false);
   const [paintErase, setPaintErase] = useState(false);
   const [selectedEnemyIndex, setSelectedEnemyIndex] = useState(-1);
-  const [patrolEnemy, setPatrolEnemy] = useState<CodeRunEnemyPlacement | null>(null);
-  const [patrolStep, setPatrolStep] = useState(0);
-  const [patrolPreviewX, setPatrolPreviewX] = useState<number | null>(null);
   const [jsonText, setJsonText] = useState('');
   const [hoverCell, setHoverCell] = useState('');
 
@@ -93,23 +89,8 @@ const CodeRunMapEditor: React.FC = () => {
       settings,
       displayTile,
       selectedEnemyIndex,
-      patrolEnemy,
-      patrolStep,
-      patrolPreviewX,
     });
-  }, [
-    cells,
-    pitColumns,
-    enemies,
-    spawn,
-    goal,
-    settings,
-    displayTile,
-    selectedEnemyIndex,
-    patrolEnemy,
-    patrolStep,
-    patrolPreviewX,
-  ]);
+  }, [cells, pitColumns, enemies, spawn, goal, settings, displayTile, selectedEnemyIndex]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -122,24 +103,17 @@ const CodeRunMapEditor: React.FC = () => {
     redraw();
   }, [redraw]);
 
-  const cancelPatrol = useCallback(() => {
-    setPatrolEnemy(null);
-    setPatrolStep(0);
-    setPatrolPreviewX(null);
+  const removeEnemyAt = useCallback((c: number, r: number) => {
+    setEnemies((prev) => {
+      const idx = findEnemyIndexAt(prev, c, r);
+      if (idx < 0) return prev;
+      setSelectedEnemyIndex(-1);
+      return prev.filter((_, i) => i !== idx);
+    });
   }, []);
 
-  const startPatrolEdit = useCallback((index: number) => {
-    const enemy = enemies[index];
-    if (!enemy) return;
-    setPatrolEnemy(enemy);
-    setPatrolStep(0);
-    setPatrolPreviewX(null);
-    setSelectedEnemyIndex(index);
-    setTool('patrol');
-  }, [enemies]);
-
   const placeEnemy = useCallback((c: number, r: number) => {
-    const placement = defaultEnemyPlacement(c, r, settings.tileSize, settings.worldTilesWide);
+    const placement = defaultEnemyPlacement(c, r);
     setEnemies((prev) => {
       const idx = prev.findIndex((e) => e.c === c && e.r === r);
       if (idx >= 0) {
@@ -151,10 +125,14 @@ const CodeRunMapEditor: React.FC = () => {
       setSelectedEnemyIndex(prev.length);
       return [...prev, placement];
     });
-  }, [settings.tileSize, settings.worldTilesWide]);
+  }, []);
 
   const applyAt = useCallback((c: number, r: number, erase: boolean) => {
     if (c < 0 || r < 0 || c >= settings.worldTilesWide || r >= settings.gridRows) return;
+
+    if (erase) {
+      removeEnemyAt(c, r);
+    }
 
     switch (tool) {
       case 'eraser':
@@ -190,7 +168,8 @@ const CodeRunMapEditor: React.FC = () => {
         }
         break;
       case 'enemy':
-        if (!erase) placeEnemy(c, r);
+        if (erase) break;
+        placeEnemy(c, r);
         break;
       default:
         if (CODE_RUN_TILE_KINDS.includes(tool as typeof CODE_RUN_TILE_KINDS[number])) {
@@ -204,7 +183,14 @@ const CodeRunMapEditor: React.FC = () => {
         }
         break;
     }
-  }, [tool, settings.worldTilesWide, settings.gridRows, settings.manualGround, placeEnemy]);
+  }, [
+    tool,
+    settings.worldTilesWide,
+    settings.gridRows,
+    settings.manualGround,
+    placeEnemy,
+    removeEnemyAt,
+  ]);
 
   const canvasToGrid = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -214,79 +200,39 @@ const CodeRunMapEditor: React.FC = () => {
     const y = clientY - rect.top;
     const c = Math.floor(x / displayTile);
     const r = Math.floor(y / displayTile);
-    const pixelX = (x / displayTile) * settings.tileSize;
-    return { c, r, pixelX };
-  }, [displayTile, settings.tileSize]);
-
-  const handlePatrolClick = useCallback((pixelX: number, c: number, r: number) => {
-    const idx = enemies.findIndex((e) => e.c === c && e.r === r);
-    if (!patrolEnemy) {
-      if (idx >= 0) startPatrolEdit(idx);
-      return;
-    }
-    const x = Math.round(Math.max(0, Math.min(settings.worldTilesWide * settings.tileSize - 38, pixelX)));
-    if (patrolStep === 0) {
-      setPatrolEnemy((e) => (e ? { ...e, minX: x } : e));
-      setPatrolStep(1);
-    } else {
-      setEnemies((prev) => {
-        const next = [...prev];
-        const current = patrolEnemy;
-        if (!current || selectedEnemyIndex < 0) return prev;
-        const minX = current.minX ?? x;
-        const maxX = x < minX ? minX : x;
-        const fixedMin = x < minX ? x : minX;
-        next[selectedEnemyIndex] = { ...current, minX: fixedMin, maxX };
-        return next;
-      });
-      cancelPatrol();
-    }
-  }, [
-    enemies,
-    patrolEnemy,
-    patrolStep,
-    settings.worldTilesWide,
-    settings.tileSize,
-    selectedEnemyIndex,
-    startPatrolEdit,
-    cancelPatrol,
-  ]);
+    return { c, r };
+  }, [displayTile]);
 
   const onPointerDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const grid = canvasToGrid(e.clientX, e.clientY);
     if (!grid) return;
-    const { c, r, pixelX } = grid;
-
-    if (tool === 'patrol') {
-      handlePatrolClick(pixelX, c, r);
-      return;
-    }
+    const { c, r } = grid;
+    const erase = e.button === 2 || tool === 'eraser';
 
     if (tool === 'enemy' && e.button === 0) {
-      const hit = enemies.findIndex((en) => en.c === c && en.r === r);
+      const hit = findEnemyIndexAt(enemies, c, r);
       if (hit >= 0) {
-        startPatrolEdit(hit);
+        setEnemies((prev) => prev.filter((_, i) => i !== hit));
+        setSelectedEnemyIndex(-1);
         return;
       }
     }
 
     if (tool === 'enemy' && e.button === 2) {
-      setEnemies((prev) => prev.filter((en) => !(en.c === c && en.r === r)));
-      setSelectedEnemyIndex(-1);
+      removeEnemyAt(c, r);
       return;
     }
 
     setIsPainting(true);
-    setPaintErase(e.button === 2 || tool === 'eraser');
-    applyAt(c, r, e.button === 2 || tool === 'eraser');
+    setPaintErase(erase);
+    applyAt(c, r, erase);
   };
 
   const onPointerMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const grid = canvasToGrid(e.clientX, e.clientY);
     if (!grid) return;
-    const { c, r, pixelX } = grid;
+    const { c, r } = grid;
     setHoverCell(`列 ${c}  行 ${r}`);
-    if (patrolEnemy && patrolStep === 1) setPatrolPreviewX(pixelX);
     if (!isPainting) return;
     applyAt(c, r, paintErase);
   };
@@ -320,7 +266,7 @@ const CodeRunMapEditor: React.FC = () => {
     setEnemies([]);
     setSpawn({ c: 2, r: settings.groundRow });
     setGoal(null);
-    cancelPatrol();
+    setSelectedEnemyIndex(-1);
   };
 
   const importJson = () => {
@@ -332,7 +278,7 @@ const CodeRunMapEditor: React.FC = () => {
       setEnemies(imported.enemies);
       setSpawn(imported.spawn);
       setGoal(imported.goal);
-      cancelPatrol();
+      setSelectedEnemyIndex(-1);
       toast.success('JSON を読み込みました', { title: 'インポート' });
     } catch {
       toast.error('JSON の解析に失敗しました', { title: 'インポート' });
@@ -377,10 +323,7 @@ const CodeRunMapEditor: React.FC = () => {
                     ? 'border-primary-500 bg-primary-900/40'
                     : 'border-slate-600 bg-slate-800 hover:border-slate-500'
                 } ${t.id === 'ground' && groundToolDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-                onClick={() => {
-                  cancelPatrol();
-                  setTool(t.id);
-                }}
+                onClick={() => setTool(t.id)}
               >
                 <span
                   className="w-5 h-5 rounded border border-white/20"
@@ -391,7 +334,7 @@ const CodeRunMapEditor: React.FC = () => {
             ))}
           </div>
           <p className="text-xs text-gray-500 leading-relaxed">
-            左ドラッグ: 配置 · 右ドラッグ: 消去 · 敵クリック: 巡回範囲 · Ctrl+ホイール: ズーム
+            左ドラッグ: 配置 · 右ドラッグ / 消去: 削除 · 敵を再クリックでも削除 · Ctrl+ホイール: ズーム
           </p>
           <button type="button" className="btn btn-sm btn-outline w-full" onClick={fillGroundRow}>
             床行を一括塗り
@@ -507,15 +450,6 @@ const CodeRunMapEditor: React.FC = () => {
             </label>
           </div>
 
-          {patrolEnemy && (
-            <div className="rounded-lg border border-amber-600/50 bg-amber-950/40 p-2 text-xs text-amber-100">
-              パトロール設定中: 左端 → 右端の順にクリック
-              <button type="button" className="btn btn-xs btn-outline w-full mt-2" onClick={cancelPatrol}>
-                キャンセル
-              </button>
-            </div>
-          )}
-
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn btn-sm btn-primary" onClick={syncJson}>JSON 更新</button>
             <button type="button" className="btn btn-sm btn-outline" onClick={() => { void copyJson(); }}>コピー</button>
@@ -530,7 +464,7 @@ const CodeRunMapEditor: React.FC = () => {
             spellCheck={false}
           />
           <p className="text-xs text-gray-500">
-            SQL 例: <code className="text-gray-400">map_data = map_data || &apos;&#123;...&#125;&apos;::jsonb</code>
+            敵の移動範囲はゲーム側のデフォルトを使用します（JSON に minX/maxX は出力しません）。
           </p>
         </aside>
       </div>
