@@ -12,6 +12,7 @@ import {
 import devRun07LayoutJson from './layouts/dev_run_07.layout.json';
 import devRun08LayoutJson from './layouts/dev_run_08.layout.json';
 import devRun09LayoutJson from './layouts/dev_run_09.layout.json';
+import devRun10LayoutJson from './layouts/dev_run_10.layout.json';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
@@ -580,6 +581,26 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.solids.filter((solid) => solid.kind === 'block').length).toBe(235);
     expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(0);
     expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(175);
+  });
+
+  it('dev_run_10 はちくわ足場と縦壁・下段ギャップのレイアウトを返す', () => {
+    const fromDb = createCodeRunMapFromDb('dev_run_10', {
+      name: 'Dev Run 10',
+      ...devRun10LayoutJson,
+    }, 150);
+    expect(fromDb.id).toBe('dev_run_10');
+    expect(fromDb.worldWidth).toBe(100 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(528);
+    expect(fromDb.groundRow).toBe(9);
+    expect(fromDb.spawn).toEqual({ x: 96, y: 35 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.goalX).toBe(98 * CODE_RUN_TILE + 18);
+    expect(fromDb.goalY).toBe(3 * CODE_RUN_TILE - 84);
+    expect(fromDb.assets.tiles.platform).toContain('chikuwa_ashiba.png');
+    expect(fromDb.spikes).toHaveLength(0);
+    expect(fromDb.enemies).toHaveLength(24);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'block').length).toBe(194);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(202);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(106);
   });
 
   it('manualGround では自動床を敷かない', () => {
