@@ -9,9 +9,6 @@ import type {
 
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
-export const CODE_RUN_PLAYER_DRAW_HEIGHT = 74;
-/** sprite_01 (118×193) を高さ64に合わせた固定描画幅 */
-export const CODE_RUN_PLAYER_DRAW_WIDTH = Math.round(118 * (CODE_RUN_PLAYER_DRAW_HEIGHT / 193));
 
 const MAIN_CHAR_BASE = '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC';
 

@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import {
-  CODE_RUN_PLAYER_DRAW_HEIGHT,
-  CODE_RUN_PLAYER_DRAW_WIDTH,
-} from './defaultCodeRunMap';
+import { getEffectiveCanvasDpr } from '@/utils/getEffectiveCanvasDpr';
 import type { CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
 type ImageMap = Record<string, HTMLImageElement>;
@@ -53,12 +50,16 @@ const drawImageOrRect = (
   height: number,
   fallback: string,
 ): void => {
+  const rx = Math.round(x);
+  const ry = Math.round(y);
+  const rw = Math.round(width);
+  const rh = Math.round(height);
   if (image?.complete && image.naturalWidth > 0) {
-    ctx.drawImage(image, x, y, width, height);
+    ctx.drawImage(image, rx, ry, rw, rh);
     return;
   }
   ctx.fillStyle = fallback;
-  ctx.fillRect(x, y, width, height);
+  ctx.fillRect(rx, ry, rw, rh);
 };
 
 const tileColor: Record<CodeRunTileKind, string> = {
@@ -91,7 +92,7 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
     const drawH = bg.naturalHeight * scale;
     const parallax = -(state.cameraX * 0.18) % drawW;
     for (let x = parallax - drawW; x < map.viewWidth + drawW; x += drawW) {
-      ctx.drawImage(bg, x, (map.viewHeight - drawH) / 2, drawW, drawH);
+      ctx.drawImage(bg, Math.round(x), Math.round((map.viewHeight - drawH) / 2), Math.round(drawW), Math.round(drawH));
     }
     ctx.fillStyle = 'rgba(8, 6, 18, 0.48)';
     ctx.fillRect(0, 0, map.viewWidth, map.viewHeight);
@@ -107,29 +108,30 @@ const drawPlayerSprite = (
   player: CodeRunState['player'],
   fallback: string,
 ): void => {
-  const footY = player.y + player.height;
-  const centerX = player.x + player.width / 2;
-  const drawH = CODE_RUN_PLAYER_DRAW_HEIGHT;
-  const drawW = CODE_RUN_PLAYER_DRAW_WIDTH;
-  const drawX = centerX - drawW / 2;
-  const drawY = footY - drawH;
+  const footY = Math.round(player.y + player.height);
+  const centerX = Math.round(player.x + player.width / 2);
 
   if (!image?.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
     ctx.fillStyle = fallback;
-    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.fillRect(Math.round(player.x), Math.round(player.y), Math.round(player.width), Math.round(player.height));
     return;
   }
+
+  const drawW = image.naturalWidth;
+  const drawH = image.naturalHeight;
+  const drawX = Math.round(centerX - drawW / 2);
+  const drawY = footY - drawH;
 
   if (player.facing < 0) {
     ctx.save();
     ctx.translate(centerX, 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(image, -drawW / 2, drawY, drawW, drawH);
+    ctx.drawImage(image, Math.round(-drawW / 2), drawY);
     ctx.restore();
     return;
   }
 
-  ctx.drawImage(image, drawX, drawY, drawW, drawH);
+  ctx.drawImage(image, drawX, drawY);
 };
 
 const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
@@ -141,16 +143,33 @@ const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
 const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const images = useImages(state.map);
+  const { viewWidth, viewHeight } = state.map;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const dpr = getEffectiveCanvasDpr();
+    canvas.width = Math.round(viewWidth * dpr);
+    canvas.height = Math.round(viewHeight * dpr);
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+    }
+  }, [viewWidth, viewHeight]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const { map } = state;
-    canvas.width = map.viewWidth;
-    canvas.height = map.viewHeight;
+
+    const dpr = getEffectiveCanvasDpr();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
+
+    const { map } = state;
 
     drawBackground(ctx, state, images);
     ctx.save();
@@ -213,7 +232,8 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
     }
 
     ctx.restore();
-  }, [images, state]);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }, [images, state, viewWidth, viewHeight]);
 
   return (
     <canvas
