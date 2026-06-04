@@ -20,6 +20,8 @@ export type RootPattern = 'cde' | 'fgab' | 'sharp' | 'flat' | 'all';
 
 export type StageType = 'random' | 'progression';
 
+export type SurvivalPlayMode = 'survival' | 'code_run';
+
 export type MixedGroupKey = 'easy' | 'normalA' | 'normalB' | 'hard' | 'extreme';
 
 /**
@@ -38,6 +40,8 @@ export interface StageDefinition {
   difficulty: SurvivalDifficulty;
   /** ステージ種別: 'random' = 既存の出題, 'progression' = コード進行 */
   stageType: StageType;
+  /** プレイ種別: survival = 既存サバイバル, code_run = 横スクロール型コードラン */
+  playMode: SurvivalPlayMode;
   chordSuffix: string;
   chordDisplayName: string;
   chordDisplayNameEn: string;
@@ -54,6 +58,12 @@ export interface StageDefinition {
   mixedGroupKey?: MixedGroupKey;
   /** Progressionタイプ用コード進行（DB `chord_progression` の値）。Random時は undefined。 */
   chordProgression?: SurvivalChordProgressionEntry[];
+  /** CodeRun 用マップ ID（DB `survival_run_maps.id`）。 */
+  runMapId?: string;
+  /** CodeRun 用制限時間（秒）。未設定時は STAGE_TIME_LIMIT_SECONDS。 */
+  runTimeLimitSec?: number;
+  /** CodeRun 用吹き出し台本。秒数指定で表示し、duration 未設定時は 4 秒。 */
+  runDialogueScript?: SurvivalRunDialogueScript;
   /** マップカテゴリ（basic / songs / phrases / lesson） */
   mapCategory: SurvivalMapCategory;
   /** DB `lesson_only`。マップ非表示のレッスン専用行など */
@@ -72,6 +82,18 @@ export interface StageDefinition {
   productionStaffHintMode?: import('@/types').ProductionHintMode;
   /** 本番: 鍵盤 pending HINT ハイライト（DB `production_keyboard_hint_mode`） */
   productionKeyboardHintMode?: import('@/types').ProductionHintMode;
+}
+
+export interface SurvivalRunDialogueLine {
+  readonly atSeconds: number;
+  readonly speaker?: 'fai' | 'jajii';
+  readonly text: string;
+  readonly textEn?: string;
+  readonly durationSeconds?: number;
+}
+
+export interface SurvivalRunDialogueScript {
+  readonly lines: readonly SurvivalRunDialogueLine[];
 }
 
 /**
@@ -311,9 +333,63 @@ function parseChordProgression(raw: unknown): SurvivalChordProgressionEntry[] | 
   return entries.length > 0 ? entries : undefined;
 }
 
+function parseSurvivalPlayMode(raw: unknown): SurvivalPlayMode {
+  return raw === 'code_run' ? 'code_run' : 'survival';
+}
+
+function parsePositiveSeconds(raw: unknown): number | undefined {
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  const sec = Math.trunc(n);
+  return sec > 0 ? sec : undefined;
+}
+
+function parseNonNegativeSeconds(raw: unknown): number | undefined {
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  const sec = Math.trunc(n);
+  return sec >= 0 ? sec : undefined;
+}
+
+function parseRunDialogueScript(raw: unknown): SurvivalRunDialogueScript | undefined {
+  const source = raw && typeof raw === 'object' && Array.isArray((raw as { lines?: unknown }).lines)
+    ? (raw as { lines: unknown[] }).lines
+    : Array.isArray(raw)
+      ? raw
+      : null;
+  if (!source) return undefined;
+  const lines: SurvivalRunDialogueLine[] = [];
+  for (const item of source) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const atSeconds = parseNonNegativeSeconds(record.at_seconds ?? record.atSeconds ?? record.time ?? record.t);
+    const text = typeof record.text === 'string' ? record.text.trim() : '';
+    if (atSeconds === undefined || !text) continue;
+    const speakerRaw = typeof record.speaker === 'string' ? record.speaker : '';
+    const speaker = speakerRaw === 'jajii' || speakerRaw === 'fai' ? speakerRaw : undefined;
+    const textEn = typeof record.text_en === 'string'
+      ? record.text_en.trim()
+      : typeof record.textEn === 'string'
+        ? record.textEn.trim()
+        : '';
+    const durationSeconds = parsePositiveSeconds(record.duration_seconds ?? record.durationSeconds ?? record.duration);
+    lines.push({
+      atSeconds,
+      text,
+      ...(speaker ? { speaker } : {}),
+      ...(textEn ? { textEn } : {}),
+      ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    });
+  }
+  if (lines.length === 0) return undefined;
+  lines.sort((a, b) => a.atSeconds - b.atSeconds);
+  return { lines };
+}
+
 /** survival_stages 行 → StageDefinition への変換（ランダムタイプの allowedChords を実行時生成） */
 function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
   const stageType: StageType = (row.stage_type as StageType) || 'random';
+  const playMode = parseSurvivalPlayMode(row.play_mode);
   const isMixedStage = Boolean(row.is_mixed_stage);
   const mixedGroupKey = (row.mixed_group_key as MixedGroupKey | null) ?? undefined;
   const chordSuffix = (row.chord_suffix as string) ?? '';
@@ -339,6 +415,7 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     nameEn: row.name_en as string,
     difficulty: row.difficulty as SurvivalDifficulty,
     stageType,
+    playMode,
     chordSuffix,
     chordDisplayName: (row.chord_display_name as string) ?? '',
     chordDisplayNameEn: (row.chord_display_name_en as string) ?? '',
@@ -350,6 +427,9 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     isMixedStage,
     mixedGroupKey,
     chordProgression: parseChordProgression(row.chord_progression),
+    runMapId: typeof row.run_map_id === 'string' && row.run_map_id.trim() ? row.run_map_id.trim() : undefined,
+    runTimeLimitSec: parsePositiveSeconds(row.run_time_limit_sec),
+    runDialogueScript: parseRunDialogueScript(row.run_dialogue_script),
     mapCategory,
     productionStaffHintMode: parseProductionHintMode(row.production_staff_hint_mode),
     productionKeyboardHintMode: parseProductionHintMode(row.production_keyboard_hint_mode),
@@ -372,8 +452,8 @@ interface CompositeSourceRowDb {
   readonly sort_order: number;
 }
 
-interface LocalStageCacheEnvelopeV3 {
-  readonly v: 3;
+interface LocalStageCacheEnvelopeV4 {
+  readonly v: 4;
   readonly survivalRows: Array<Record<string, unknown>>;
   readonly compositeStages: readonly CompositeStageRowDb[];
   readonly compositeSources: readonly CompositeSourceRowDb[];
@@ -439,7 +519,7 @@ function enrichStagesWithComposite(
   });
 }
 
-const LOCAL_CACHE_KEY = 'survival_stages_cache_v3';
+const LOCAL_CACHE_KEY = 'survival_stages_cache_v4';
 
 function readLocalCache(): StageDefinition[] | null {
   try {
@@ -449,12 +529,12 @@ function readLocalCache(): StageDefinition[] | null {
     const parsed = JSON.parse(raw) as unknown;
     const envelopeOk = parsed
       && typeof parsed === 'object'
-      && (parsed as LocalStageCacheEnvelopeV3).v === 3
-      && Array.isArray((parsed as LocalStageCacheEnvelopeV3).survivalRows);
+      && (parsed as LocalStageCacheEnvelopeV4).v === 4
+      && Array.isArray((parsed as LocalStageCacheEnvelopeV4).survivalRows);
     if (!envelopeOk) {
       return null;
     }
-    const env = parsed as LocalStageCacheEnvelopeV3;
+    const env = parsed as LocalStageCacheEnvelopeV4;
     const base = env.survivalRows.map(rowToStageDefinition);
     const compositeStages =
       env.compositeStages && Array.isArray(env.compositeStages) ? env.compositeStages : [];
@@ -466,7 +546,7 @@ function readLocalCache(): StageDefinition[] | null {
   }
 }
 
-function writeLocalCacheEnvelope(envelope: LocalStageCacheEnvelopeV3): void {
+function writeLocalCacheEnvelope(envelope: LocalStageCacheEnvelopeV4): void {
   try {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(envelope));
@@ -573,7 +653,7 @@ export async function fetchAllStages(): Promise<StageDefinition[]> {
       const enriched = enrichStagesWithComposite(baseStages, compositeStages, compositeSources);
       applyStageCaches(enriched);
       writeLocalCacheEnvelope({
-        v: 3,
+        v: 4,
         survivalRows: rows,
         compositeStages,
         compositeSources,
@@ -640,6 +720,7 @@ export function isBlockLastStage(
   const current = getStageByNumber(stageNumber, mapCategory);
   if (!current) return false;
   if (current.lessonOnly) return false;
+  if (current.playMode === 'code_run') return false;
   const next = getStageByNumber(stageNumber + 1, mapCategory);
   if (!next) return true;
   return next.blockKey !== current.blockKey;
@@ -660,6 +741,9 @@ export function findStageForLesson(
 }
 
 export function formatSurvivalStageModeLabel(stage: StageDefinition, isEnglish: boolean): string {
+  if (stage.playMode === 'code_run') {
+    return isEnglish ? 'Run' : 'ラン';
+  }
   if (survivalStageUsesCompositePhrasePattern(stage)) {
     return isEnglish ? 'Composite phrases' : '複合フレーズ';
   }
@@ -673,6 +757,9 @@ export function formatSurvivalStageModeLabel(stage: StageDefinition, isEnglish: 
 }
 
 export function formatSurvivalEncounterLabel(stage: StageDefinition, isEnglish: boolean): string {
+  if (stage.playMode === 'code_run') {
+    return isEnglish ? 'Run' : 'ラン';
+  }
   const boss = isBlockLastStage(stage.stageNumber, stage.mapCategory);
   return boss ? (isEnglish ? 'Boss' : 'ボス') : (isEnglish ? 'Regular' : '通常');
 }
@@ -692,6 +779,7 @@ export function isPhraseMapCompositeStage(stage: StageDefinition): boolean {
 
 /** 降下マップ詳細パネルのクリア条件がボス表記になるか（ブロック末尾 or Phrases 途中複合）。 */
 export function isSurvivalStageDetailBossClearCondition(stage: StageDefinition): boolean {
+  if (stage.playMode === 'code_run') return false;
   return isBlockLastStage(stage.stageNumber, stage.mapCategory)
     || isPhraseMapCompositeStage(stage);
 }

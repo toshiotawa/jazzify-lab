@@ -66,6 +66,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const toast = useToast();
 
   const isStageMode = !!stageDefinition;
+  const isCodeRunStage = stageDefinition?.playMode === 'code_run';
   const isStageClear = result.isStageClear === true && isStageMode && !hintMode;
   const isStageClearHint = result.isStageClear === true && isStageMode && hintMode;
   const isBossStage = isStageMode && isBlockLastStage(stageDefinition!.stageNumber, stageDefinition!.mapCategory);
@@ -87,7 +88,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 
       if (!profile) return;
 
-      if (isStageClear && !stageSaved && !isLessonMode) {
+      if (isStageClear && !stageSaved && (!isLessonMode || isCodeRunStage)) {
         try {
           const stageCategory = stageDefinition!.mapCategory;
           const clearResult = await upsertSurvivalStageClear(
@@ -172,6 +173,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
     stageDefinition,
     stageSaved,
     isLessonMode,
+    isCodeRunStage,
     toast,
     isEnglishCopy,
   ]);
@@ -230,6 +232,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                 <div className="text-xs text-gray-400 mt-1">
                   {isBossStage
                     ? (isEnglishCopy ? 'Boss defeated!' : 'ボス撃破達成！')
+                    : isCodeRunStage
+                      ? (isEnglishCopy ? 'Goal reached!' : 'ゴール到達！')
                     : (isEnglishCopy ? '90 seconds survived!' : '90秒間生存達成！')}
                 </div>
               </div>
@@ -255,7 +259,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             <>
               <div className="text-4xl mb-2">💀</div>
               <div className="text-3xl font-bold text-red-500 font-sans mb-1">
-                GAME OVER
+                {isCodeRunStage ? (isEnglishCopy ? 'TIME UP' : 'TIME UP') : 'GAME OVER'}
               </div>
 
               {isNewHighScore && (
@@ -308,14 +312,14 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         </div>
 
         {/* メイン結果 */}
-        <div className={cn('grid gap-3 mb-4', isStageMode ? 'grid-cols-2' : 'grid-cols-3')}>
+        <div className={cn('grid gap-3 mb-4', isCodeRunStage ? 'grid-cols-1' : isStageMode ? 'grid-cols-2' : 'grid-cols-3')}>
           <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
             <div className="text-2xl mb-1">⏱️</div>
             <div className="text-xl font-bold text-white font-sans">
               {formatTime(result.survivalTime)}
             </div>
             <div className="text-[10px] text-gray-400">
-              {isEnglishCopy ? 'Survival Time' : '生存時間'}
+              {isCodeRunStage ? (isEnglishCopy ? 'Clear Time' : 'クリア時間') : (isEnglishCopy ? 'Survival Time' : '生存時間')}
             </div>
           </div>
 
@@ -331,6 +335,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             </div>
           )}
 
+          {!isCodeRunStage && (
           <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
             <div className="text-2xl mb-1">💀</div>
             <div className="text-xl font-bold text-red-400 font-sans">
@@ -340,6 +345,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               {isEnglishCopy ? 'Enemies Defeated' : '撃破数'}
             </div>
           </div>
+          )}
         </div>
 
         {/* ステータスカード（フリープレイのみ） */}

@@ -7,6 +7,7 @@ const phraseStage = (overrides: Partial<StageDefinition> = {}): StageDefinition 
   nameEn: 'Composite',
   difficulty: 'easy',
   stageType: 'progression',
+  playMode: 'survival',
   chordSuffix: '',
   chordDisplayName: 'Phrases',
   chordDisplayNameEn: 'Phrases',

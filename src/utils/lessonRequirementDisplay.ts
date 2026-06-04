@@ -77,6 +77,14 @@ export const buildSurvivalLessonRequirementDisplay = (
   const modeEncounterLine = isEnglish
     ? `Mode: ${modeLabel} · Encounter: ${isBossEncounter ? 'Boss' : encounterLabel}`
     : `出題: ${modeLabel} · 戦闘: ${isBossEncounter ? 'ボス' : encounterLabel}`;
+  if (stage.playMode === 'code_run') {
+    return {
+      modeEncounterLine,
+      clearLine: isEnglish
+        ? `Clear: reach the goal within ${timeLimitSec}s`
+        : `クリア条件: ${timeLimitSec}秒以内にゴール`,
+    };
+  }
   const clearLine = isBossEncounter
     ? (isEnglish ? 'Clear: defeat the boss' : 'クリア条件: ボス撃破')
     : isEnglish

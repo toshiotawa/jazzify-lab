@@ -55,6 +55,10 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
       ? isEnglishCopy
         ? 'Start balloon rush task'
         : '風船ラッシュを開始'
+      : stage.playMode === 'code_run'
+        ? isEnglishCopy
+          ? 'Start code run task'
+          : 'コードラン課題を開始'
       : variant === 'lesson'
         ? isEnglishCopy
           ? 'Start survival task'
@@ -73,10 +77,10 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   const startLabel = isEnglishCopy ? 'Start' : '開始';
 
   const stageKillQuota = lessonRuntime?.killQuota ?? getStageKillQuotaForStage(stage);
-  const timeLimitSec = lessonRuntime?.timeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
+  const timeLimitSec = lessonRuntime?.timeLimitSec ?? stage.runTimeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
 
-  const compositeLocked = survivalStageUsesCompositePhrasePattern(stage)
-    || stage.blockKey === 'lesson_composite';
+  const compositeLocked = stage.playMode !== 'code_run'
+    && (survivalStageUsesCompositePhrasePattern(stage) || stage.blockKey === 'lesson_composite');
 
   const isBossEncounter = compositeLocked
     || formatSurvivalEncounterLabel(stage, isEnglishCopy) === (isEnglishCopy ? 'Boss' : 'ボス');
@@ -85,6 +89,14 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
     ? (isEnglishCopy
       ? `Clear: pop ${stageKillQuota} balloons within ${timeLimitSec}s (practice does not save progress).`
       : `クリア条件: ${timeLimitSec}秒以内に風船を${stageKillQuota}個割る（練習時は進捗が保存されません）。`)
+    : stage.playMode === 'code_run'
+      ? (variant === 'lesson'
+        ? (isEnglishCopy
+          ? `Clear: reach the goal within ${timeLimitSec}s (performance mode saves lesson progress).`
+          : `クリア条件: ${timeLimitSec}秒以内にゴール（本番時のみレッスン進捗が保存されます）。`)
+        : (isEnglishCopy
+          ? `Objective: reach the goal within ${timeLimitSec}s (HINT does not record clears).`
+          : `目標: ${timeLimitSec}秒以内にゴール（HINT時はクリア記録されません）。`))
     : isBossEncounter
       ? (isEnglishCopy
         ? 'Clear: defeat the boss (performance mode saves lesson progress).'

@@ -181,7 +181,7 @@ struct SurvivalDescentSidePanel: View {
                         value: stageTypeText(stage: stage),
                         valueColor: .white
                     )
-                    if stage.mapCategory == .basic {
+                    if stage.mapCategory == .basic && stage.playMode != .codeRun {
                         infoTile(
                             label: isEnglishCopy ? "Chord Type" : "コードタイプ",
                             value: stage.localizedChordDisplay(locale),
@@ -474,6 +474,10 @@ struct SurvivalDescentSidePanel: View {
     }
 
     private func clearConditionText(stage: SurvivalStageDefinition) -> String {
+        if stage.playMode == .codeRun {
+            let sec = stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec)
+            return isEnglishCopy ? "Goal within \(sec)s" : "\(sec)秒以内にゴール"
+        }
         if isBossStage(stage) {
             return isEnglishCopy ? "Boss x1" : "ボス x1"
         }
@@ -483,6 +487,9 @@ struct SurvivalDescentSidePanel: View {
 
     /// ステージのタイプ表示（Progression / Random / Phrases / Composite phrases）。
     private func stageTypeText(stage: SurvivalStageDefinition) -> String {
+        if stage.playMode == .codeRun {
+            return isEnglishCopy ? "Run" : "ラン"
+        }
         if stage.survivalUsesCompositePhrasePattern {
             return isEnglishCopy ? "Composite phrases" : "複合フレーズ"
         }
@@ -498,6 +505,7 @@ struct SurvivalDescentSidePanel: View {
 
     /// 詳細パネルのクリア条件がボス表記になるか（ブロック末尾 or Phrases 途中複合）。
     private func isBossStage(_ stage: SurvivalStageDefinition) -> Bool {
+        if stage.playMode == .codeRun { return false }
         SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
             || stage.isPhraseMapCompositeStage
     }

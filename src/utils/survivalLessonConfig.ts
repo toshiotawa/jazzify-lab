@@ -142,6 +142,7 @@ export const buildLessonCompositeStageDefinition = (
   nameEn: titleEn,
   difficulty: 'easy',
   stageType: 'progression',
+  playMode: 'survival',
   chordSuffix: '',
   chordDisplayName: 'Composite',
   chordDisplayNameEn: 'Composite',

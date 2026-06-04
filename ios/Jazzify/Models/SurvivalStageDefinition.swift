@@ -11,6 +11,12 @@ enum SurvivalStageType: String, Codable, Sendable {
     case phrases
 }
 
+/// Survival play fork. Web `SurvivalPlayMode` と同義。
+enum SurvivalPlayMode: String, Codable, Sendable, Hashable {
+    case survival
+    case codeRun = "code_run"
+}
+
 /// マップ種別。Web 版 `SurvivalMapCategory` と同義。
 /// - basic: 既存の 110 ステージのコードタイプ別マップ
 /// - songs: 曲ベースのステージ群（追加予定 / 現在は basic stage 1 のモック 1 件のみ）
@@ -188,6 +194,7 @@ struct SurvivalStageRow: Decodable, Sendable {
     let map_category: String?
     let stage_number: Int
     let stage_type: String
+    let play_mode: String?
     let name: String
     let name_en: String
     let difficulty: String
@@ -206,6 +213,55 @@ struct SurvivalStageRow: Decodable, Sendable {
     let chord_progression: [SurvivalChordProgressionEntry]?
     let production_staff_hint_mode: String?
     let production_keyboard_hint_mode: String?
+    let run_map_id: String?
+    let run_time_limit_sec: Int?
+    let run_dialogue_script: SurvivalRunDialogueScript?
+}
+
+struct SurvivalRunDialogueScript: Codable, Sendable, Hashable {
+    let lines: [SurvivalRunDialogueLine]
+}
+
+struct SurvivalRunDialogueLine: Codable, Sendable, Hashable {
+    let atSeconds: TimeInterval
+    let speaker: String?
+    let text: String
+    let textEn: String?
+    let durationSeconds: TimeInterval?
+
+    enum CodingKeys: String, CodingKey {
+        case atSeconds = "at_seconds"
+        case atSecondsCamel = "atSeconds"
+        case speaker
+        case text
+        case textEn = "text_en"
+        case textEnCamel = "textEn"
+        case durationSeconds = "duration_seconds"
+        case durationSecondsCamel = "durationSeconds"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let at = try c.decodeIfPresent(TimeInterval.self, forKey: .atSeconds)
+            ?? c.decodeIfPresent(TimeInterval.self, forKey: .atSecondsCamel)
+            ?? 0
+        atSeconds = max(0, at)
+        speaker = try c.decodeIfPresent(String.self, forKey: .speaker)
+        text = (try c.decodeIfPresent(String.self, forKey: .text)) ?? ""
+        textEn = try c.decodeIfPresent(String.self, forKey: .textEn)
+            ?? c.decodeIfPresent(String.self, forKey: .textEnCamel)
+        durationSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .durationSeconds)
+            ?? c.decodeIfPresent(TimeInterval.self, forKey: .durationSecondsCamel)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(atSeconds, forKey: .atSeconds)
+        try c.encodeIfPresent(speaker, forKey: .speaker)
+        try c.encode(text, forKey: .text)
+        try c.encodeIfPresent(textEn, forKey: .textEn)
+        try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
+    }
 }
 
 /// `survival_stage_blocks` テーブル 1 行。降下マップのブロックヘッダー表示名と並び順。
@@ -242,6 +298,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let mapCategory: SurvivalMapCategory
     let stageNumber: Int
     let stageType: SurvivalStageType
+    let playMode: SurvivalPlayMode
     let nameJa: String
     let nameEn: String
     let difficulty: SurvivalDifficulty
@@ -269,6 +326,9 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let compositePhraseBgmUrl: String?
     let productionStaffHintMode: ProductionHintMode
     let productionKeyboardHintMode: ProductionHintMode
+    let runMapId: String?
+    let runTimeLimitSec: Int?
+    let runDialogueScript: SurvivalRunDialogueScript?
 
     init(
         mapCategory: SurvivalMapCategory,
@@ -293,11 +353,16 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         compositePhraseKeyFifths: Int?,
         compositePhraseBgmUrl: String?,
         productionStaffHintMode: ProductionHintMode = .fade15s,
-        productionKeyboardHintMode: ProductionHintMode = .fade15s
+        productionKeyboardHintMode: ProductionHintMode = .fade15s,
+        playMode: SurvivalPlayMode = .survival,
+        runMapId: String? = nil,
+        runTimeLimitSec: Int? = nil,
+        runDialogueScript: SurvivalRunDialogueScript? = nil
     ) {
         self.mapCategory = mapCategory
         self.stageNumber = stageNumber
         self.stageType = stageType
+        self.playMode = playMode
         self.nameJa = nameJa
         self.nameEn = nameEn
         self.difficulty = difficulty
@@ -318,6 +383,9 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         self.compositePhraseBgmUrl = compositePhraseBgmUrl
         self.productionStaffHintMode = productionStaffHintMode
         self.productionKeyboardHintMode = productionKeyboardHintMode
+        self.runMapId = runMapId
+        self.runTimeLimitSec = runTimeLimitSec
+        self.runDialogueScript = runDialogueScript
     }
 
     /// `Identifiable` 用 ID。マップ間で `stageNumber` が重複し得るため、`mapCategory` を含めて一意化する。
@@ -633,6 +701,7 @@ enum SurvivalStageCatalog {
         let baseDefinitions: [SurvivalStageDefinition] = rows.compactMap { row -> SurvivalStageDefinition? in
             let mapCategory = SurvivalMapCategory(rawValue: row.map_category ?? "") ?? .basic
             let stageType = SurvivalStageType(rawValue: row.stage_type) ?? .random
+            let playMode = SurvivalPlayMode(rawValue: row.play_mode ?? "survival") ?? .survival
             let blockKeyRaw = row.block_key.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !blockKeyRaw.isEmpty else { return nil }
             let blockKey = SurvivalBlockKey(rawValue: blockKeyRaw)
@@ -695,7 +764,14 @@ enum SurvivalStageCatalog {
                 compositePhraseKeyFifths: nil,
                 compositePhraseBgmUrl: nil,
                 productionStaffHintMode: ProductionHintMode.parse(row.production_staff_hint_mode),
-                productionKeyboardHintMode: ProductionHintMode.parse(row.production_keyboard_hint_mode)
+                productionKeyboardHintMode: ProductionHintMode.parse(row.production_keyboard_hint_mode),
+                playMode: playMode,
+                runMapId: {
+                    let v = row.run_map_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    return v.isEmpty ? nil : v
+                }(),
+                runTimeLimitSec: row.run_time_limit_sec,
+                runDialogueScript: row.run_dialogue_script
             )
         }
         let definitions = Self.mergeCompositeStageMetadata(
@@ -1110,6 +1186,9 @@ extension SurvivalStageDefinition {
 
 extension SurvivalStageDefinition {
     func runPrepModeLabel(locale: AppLocale) -> String {
+        if playMode == .codeRun {
+            return locale == .en ? "Run" : "ラン"
+        }
         if mapCategory == .phrases {
             return locale == .en ? "Phrases" : "フレーズ"
         }
@@ -1120,6 +1199,9 @@ extension SurvivalStageDefinition {
     }
 
     func runPrepEncounterLabel(locale: AppLocale) -> String {
+        if playMode == .codeRun {
+            return locale == .en ? "Run" : "ラン"
+        }
         let isBoss = SurvivalBossEngine.isBlockLastStage(
             stageNumber: stageNumber,
             in: mapCategory
@@ -1131,6 +1213,13 @@ extension SurvivalStageDefinition {
     }
 
     func runPrepClearSummary(locale: AppLocale) -> String {
+        if playMode == .codeRun {
+            let sec = runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec)
+            if locale == .en {
+                return "Objective: reach the goal within \(sec)s (HINT runs do not record clears)."
+            }
+            return "目標: \(sec)秒以内にゴール（HINT時はクリア記録されません）。"
+        }
         let sec = Int(SurvivalConstants.stageTimeLimitSec)
         let quota = stageKillQuota
         if locale == .en {

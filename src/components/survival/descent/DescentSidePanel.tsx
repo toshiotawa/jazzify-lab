@@ -66,6 +66,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
   const compositePhrasePanel = selectedStage
     ? survivalStageUsesCompositePhrasePattern(selectedStage)
     : false;
+  const codeRunPanel = selectedStage?.playMode === 'code_run';
 
   return (
     <aside
@@ -175,7 +176,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                   {formatSurvivalStageModeLabel(selectedStage, isEnglishCopy)}
                 </dd>
               </div>
-              {selectedStage.mapCategory === 'basic' && (
+              {selectedStage.mapCategory === 'basic' && !codeRunPanel && (
                 <>
                   <div className="rounded-md bg-white/5 p-2">
                     <dt className="text-[10px] text-gray-400">
@@ -208,7 +209,11 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                   {isEnglishCopy ? 'Clear' : 'クリア条件'}
                 </dt>
                 <dd className="mt-0.5 text-[11px] font-bold text-emerald-300">
-                  {isSurvivalStageDetailBossClearCondition(selectedStage)
+                  {codeRunPanel
+                    ? (isEnglishCopy
+                      ? `Reach the goal within ${selectedStage.runTimeLimitSec ?? 90}s`
+                      : `${selectedStage.runTimeLimitSec ?? 90}秒以内にゴール`)
+                    : isSurvivalStageDetailBossClearCondition(selectedStage)
                     ? (isEnglishCopy ? 'Boss x1' : 'ボス x1')
                     : (isEnglishCopy
                       ? `90s + ${getStageKillQuotaForStage(selectedStage)} Kills`

@@ -45,6 +45,7 @@ const stubStage = (
   nameEn: '',
   difficulty: 'easy',
   stageType: 'random',
+  playMode: 'survival',
   chordSuffix: '',
   chordDisplayName: '',
   chordDisplayNameEn: '',

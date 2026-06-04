@@ -10,6 +10,7 @@ const baseStage = (overrides: Partial<StageDefinition>): StageDefinition => ({
   nameEn: 'Test',
   difficulty: 'easy',
   stageType: 'random',
+  playMode: 'survival',
   chordSuffix: '',
   chordDisplayName: '',
   chordDisplayNameEn: '',

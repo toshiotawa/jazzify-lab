@@ -34,6 +34,7 @@ export function buildTutorialStageDefinition(
     nameEn: stage.nameEn,
     difficulty: 'easy',
     stageType: stage.stageType,
+    playMode: 'survival',
     chordSuffix: '',
     chordDisplayName: stage.chordDisplayName,
     chordDisplayNameEn: stage.chordDisplayNameEn,

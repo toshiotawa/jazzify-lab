@@ -59,6 +59,7 @@ describe('survivalLessonConfig', () => {
       stageNumber: 1,
       mapCategory: 'basic' as const,
       stageType: 'random' as const,
+      playMode: 'survival' as const,
       blockKey: 'test',
       difficulty: 'easy' as const,
       name: 'T',

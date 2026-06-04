@@ -2638,12 +2638,17 @@ struct LessonDetailView: View {
             || SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
 
         let timeLimitSec = requirement.survivalLessonOverrides?.timeLimitSec
+            ?? stage.runTimeLimitSec
             ?? Int(SurvivalConstants.stageTimeLimitSec)
         let killQuota = requirement.survivalLessonOverrides?.killQuota
             ?? stage.stageKillQuota
 
         let clearCondition: String
-        if isBossEncounter {
+        if stage.playMode == .codeRun {
+            clearCondition = locale == .ja
+                ? "クリア条件: \(timeLimitSec)秒以内にゴール"
+                : "Clear: reach the goal within \(timeLimitSec)s"
+        } else if isBossEncounter {
             clearCondition = locale == .ja ? "クリア条件: ボス撃破" : "Clear: defeat the boss"
         } else {
             clearCondition = locale == .ja

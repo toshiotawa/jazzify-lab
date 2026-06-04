@@ -63,6 +63,7 @@ export const balloonRushToStageDefinition = (stage: BalloonRushResolvedStage): S
     nameEn: stage.titleEn || stage.slug,
     difficulty: 'easy',
     stageType: stage.stageType,
+    playMode: 'survival',
     chordSuffix: stage.chordSuffix,
     chordDisplayName: stage.chordSuffix,
     chordDisplayNameEn: stage.chordSuffix,

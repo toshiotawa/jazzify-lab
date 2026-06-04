@@ -60,6 +60,7 @@ export const TUTORIAL_STAGE_DEFINITION: StageDefinition = {
   nameEn: 'Onboarding ii-V-I',
   difficulty: 'easy',
   stageType: 'progression',
+  playMode: 'survival',
   chordSuffix: '',
   chordDisplayName: 'ii-V-I',
   chordDisplayNameEn: 'ii-V-I',

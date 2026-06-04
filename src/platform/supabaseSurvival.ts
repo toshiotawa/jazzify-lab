@@ -58,6 +58,22 @@ export interface SurvivalDifficultySettings {
   bgmEvenWaveUrl: string | null;
 }
 
+export interface SurvivalRunMap {
+  id: string;
+  name: string;
+  mapData: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface SurvivalRunMapRow {
+  id: string;
+  name: string;
+  map_data: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 interface SurvivalBgmSetting {
   stageType: SurvivalStageType;
   bgmUrl: string;
@@ -135,6 +151,26 @@ export const resolveStageBgmUrl = (
   }
   return resolveSurvivalBgmUrl(stage.stageType, settings);
 };
+
+export async function fetchSurvivalRunMap(mapId: string): Promise<SurvivalRunMap | null> {
+  const id = mapId.trim();
+  if (!id) return null;
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('survival_run_maps')
+    .select('id, name, map_data, created_at, updated_at')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as SurvivalRunMapRow;
+  return {
+    id: row.id,
+    name: row.name,
+    mapData: row.map_data ?? {},
+    ...(row.created_at ? { createdAt: row.created_at } : {}),
+    ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
+  };
+}
 
 async function hasCharacterColumn(supabase: ReturnType<typeof getSupabaseClient>): Promise<boolean> {
   if (hasCharacterColumnCache !== null) {

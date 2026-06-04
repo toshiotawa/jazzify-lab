@@ -10,6 +10,7 @@ import { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
 import SurvivalDescentMap from './descent/SurvivalDescentMap';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import SurvivalGameScreen from './SurvivalGameScreen';
+import CodeRunGameScreen from './codeRun/CodeRunGameScreen';
 import {
   StageDefinition,
   ALL_STAGES,
@@ -693,6 +694,28 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   }
 
   if (screen === 'game' && selectedDifficulty && selectedConfig) {
+    if (activeStageDefinition?.playMode === 'code_run') {
+      return (
+        <CodeRunGameScreen
+          key={`cr-${activeStageDefinition.mapCategory}-${activeStageDefinition.stageNumber}-${activeHintMode}-${survivalSessionNonce}`}
+          difficulty={selectedDifficulty}
+          config={selectedConfig}
+          onBackToSelect={handleBackToSelect}
+          onBackToMenu={handleBackToMenu}
+          character={selectedCharacter}
+          stageDefinition={activeStageDefinition}
+          lessonRuntime={lessonRuntime ?? undefined}
+          lessonProductionHintOverrides={lessonProductionHintOverrides}
+          onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
+          isLessonMode={!!lessonMode}
+          hintMode={activeHintMode}
+          onRetryWithHint={handleRetryWithHint}
+          onRetryWithoutHint={handleRetryWithoutHint}
+          onNextStage={survivalOnNextStage}
+          onSurvivalRunModeRestart={handleSurvivalRunModeRestart}
+        />
+      );
+    }
     return (
       <SurvivalGameScreen
         key={`sv-${activeStageDefinition?.mapCategory ?? 'x'}-${activeStageDefinition?.stageNumber ?? 0}-${activeHintMode}-${survivalSessionNonce}`}

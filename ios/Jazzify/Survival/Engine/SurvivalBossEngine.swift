@@ -273,7 +273,7 @@ enum SurvivalBossEngine {
         stageNumber: Int,
         in mapCategory: SurvivalMapCategory = .basic
     ) -> Bool {
-        if let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory), stage.lessonOnly {
+        if let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory), stage.lessonOnly || stage.playMode == .codeRun {
             return false
         }
         guard let block = SurvivalStageCatalog.block(forStage: stageNumber, in: mapCategory) else { return false }

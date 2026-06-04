@@ -8,6 +8,7 @@ const { basicStages } = vi.hoisted(() => {
     nameEn: `Stage ${stageNumber}`,
     difficulty: 'easy',
     stageType: 'random',
+    playMode: 'survival',
     chordSuffix: '',
     chordDisplayName: 'Major',
     chordDisplayNameEn: 'Major',
