@@ -124,8 +124,9 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
     const drawW = bg.naturalWidth * scale;
     const drawH = bg.naturalHeight * scale;
     const parallax = -(state.cameraX * 0.18) % drawW;
+    const parallaxY = -Math.round(state.cameraY * 0.08);
     for (let x = parallax - drawW; x < map.viewWidth + drawW; x += drawW) {
-      ctx.drawImage(bg, Math.round(x), Math.round((map.viewHeight - drawH) / 2), Math.round(drawW), Math.round(drawH));
+      ctx.drawImage(bg, Math.round(x), Math.round((map.viewHeight - drawH) / 2 + parallaxY), Math.round(drawW), Math.round(drawH));
     }
     ctx.fillStyle = 'rgba(6, 10, 18, 0.22)';
     ctx.fillRect(0, 0, map.viewWidth, map.viewHeight);
@@ -226,13 +227,14 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
 
     drawBackground(ctx, state, images);
     ctx.save();
-    ctx.translate(-Math.round(state.cameraX), 0);
+    ctx.translate(-Math.round(state.cameraX), -Math.round(state.cameraY));
 
     const tileImages = state.map.assets.tiles;
     const groundSurfaceY = map.groundRow * map.tileSize;
     const groundSurfaceColumns = buildGroundSurfaceColumns(map.solids, groundSurfaceY, map.tileSize);
     for (const tile of map.solids) {
       if (tile.x + tile.width < state.cameraX - map.tileSize || tile.x > state.cameraX + map.viewWidth + map.tileSize) continue;
+      if (tile.y + tile.height < state.cameraY - map.tileSize || tile.y > state.cameraY + map.viewHeight + map.tileSize) continue;
       const url = tileImageUrl(tileImages, tile.kind, tile, groundSurfaceY, map.tileSize, groundSurfaceColumns);
       drawImageOrRect(
         ctx,
@@ -247,11 +249,12 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
 
     for (const spike of map.spikes) {
       if (spike.x + spike.width < state.cameraX - map.tileSize || spike.x > state.cameraX + map.viewWidth + map.tileSize) continue;
+      if (spike.y + spike.height < state.cameraY - map.tileSize || spike.y > state.cameraY + map.viewHeight + map.tileSize) continue;
       drawImageOrRect(ctx, images[tileImages.spike], spike.x, spike.y, spike.width, spike.height, '#5a6078');
     }
 
     const flag = images[tileImages.flag];
-    const flagY = map.groundRow * map.tileSize - 84;
+    const flagY = map.goalY ?? map.groundRow * map.tileSize - 84;
     ctx.fillStyle = '#3a3048';
     ctx.fillRect(map.goalX, flagY, 5, 84);
     drawImageOrRect(ctx, flag, map.goalX + 3, flagY, 56, 48, '#e8a040');

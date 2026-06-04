@@ -27,6 +27,13 @@ const overlap = (a: CodeRunRect, b: CodeRunRect): boolean => (
   && a.y + a.height > b.y
 );
 
+const overlapRect = (a: CodeRunRect, x: number, y: number, width: number, height: number): boolean => (
+  a.x < x + width
+  && a.x + a.width > x
+  && a.y < y + height
+  && a.y + a.height > y
+);
+
 const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v));
 
 const solidCollisions = (rect: CodeRunRect, solids: readonly CodeRunTileRect[]): CodeRunTileRect[] => {
@@ -82,6 +89,7 @@ export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunStat
     lives: CODE_RUN_INITIAL_LIVES,
     elapsedSec: 0,
     cameraX: 0,
+    cameraY: 0,
     status: 'playing',
   };
   return { ...state, enemies: makeEnemies(state) };
@@ -260,10 +268,10 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
     elapsedSec: state.elapsedSec + dtSec,
   };
 
-  if (next.player.y > next.map.viewHeight + 96) {
+  if (next.player.y > next.map.worldHeight + 96) {
     next = loseLife(next);
     if (next.status !== 'playing') {
-      return { ...next, cameraX: clampCamera(next) };
+      return { ...next, cameraX: clampCameraX(next), cameraY: clampCameraY(next) };
     }
   }
 
@@ -303,17 +311,27 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   }
 
   const playerCenterX = next.player.x + next.player.width / 2;
-  if (next.status === 'playing' && playerCenterX >= next.map.goalX) {
+  const goalY = next.map.goalY;
+  const touchedGoal = goalY === undefined
+    ? playerCenterX >= next.map.goalX
+    : overlapRect(next.player, next.map.goalX, goalY, next.map.tileSize + 16, 84);
+  if (next.status === 'playing' && touchedGoal) {
     next = { ...next, status: 'clear' };
   } else if (next.status === 'playing' && next.elapsedSec >= next.map.timeLimitSec) {
     next = { ...next, status: 'failed' };
   }
 
-  return { ...next, cameraX: clampCamera(next) };
+  return { ...next, cameraX: clampCameraX(next), cameraY: clampCameraY(next) };
 }
 
-const clampCamera = (state: CodeRunState): number => clamp(
+const clampCameraX = (state: CodeRunState): number => clamp(
   state.player.x + state.player.width / 2 - state.map.viewWidth / 2,
   0,
   Math.max(0, state.map.worldWidth - state.map.viewWidth),
+);
+
+const clampCameraY = (state: CodeRunState): number => clamp(
+  state.player.y + state.player.height / 2 - state.map.viewHeight / 2,
+  0,
+  Math.max(0, state.map.worldHeight - state.map.viewHeight),
 );

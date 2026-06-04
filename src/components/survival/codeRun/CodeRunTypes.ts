@@ -58,6 +58,7 @@ export interface CodeRunMapSpec {
   groundRow: number;
   spawn: { x: number; y: number };
   goalX: number;
+  goalY?: number;
   timeLimitSec: number;
   solids: readonly CodeRunTileRect[];
   spikes: readonly CodeRunRect[];
@@ -99,6 +100,7 @@ export interface CodeRunState {
   lives: number;
   elapsedSec: number;
   cameraX: number;
+  cameraY: number;
   status: CodeRunStatus;
 }
 

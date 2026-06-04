@@ -4,6 +4,7 @@ import {
   createDefaultCodeRunMap,
   createGraveyardRun02Map,
   createGraveyardRun03Map,
+  createTowerRun01Map,
   CODE_RUN_PLAYER_H,
   CODE_RUN_TILE,
 } from './defaultCodeRunMap';
@@ -315,6 +316,41 @@ describe('createGraveyardRun03Map gimmick layout', () => {
   });
 });
 
+describe('createTowerRun01Map vertical layout', () => {
+  const map = createTowerRun01Map();
+
+  it('viewHeight より高い worldHeight と上部ゴールを持つ', () => {
+    expect(map.id).toBe('tower_run_01');
+    expect(map.worldHeight).toBeGreaterThan(map.viewHeight);
+    expect(map.goalY).toBeDefined();
+    expect(map.goalY ?? 9999).toBeLessThan(map.spawn.y);
+  });
+
+  it('縦カメラは下層のプレイヤー位置に追従する', () => {
+    const state = createInitialCodeRunState(map);
+    const lowerState = {
+      ...state,
+      player: { ...state.player, x: map.spawn.x, y: map.spawn.y, onGround: true },
+    };
+    const next = tickCodeRun(lowerState, idleInput, 1 / 60);
+    expect(next.cameraY).toBeGreaterThan(0);
+  });
+
+  it('明示 goal のあるマップは旗エリア接触でクリアする', () => {
+    const state = createInitialCodeRunState(map);
+    const nearGoal = {
+      ...state,
+      player: {
+        ...state.player,
+        x: map.goalX + 8,
+        y: map.goalY ?? 0,
+      },
+    };
+    const next = tickCodeRun(nearGoal, idleInput, 1 / 60);
+    expect(next.status).toBe('clear');
+  });
+});
+
 describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
   it('graveyard_run_02 は stage 112 レイアウトを返す', () => {
     const direct = createGraveyardRun02Map();
@@ -332,6 +368,14 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(byId.solids.length).toBe(direct.solids.length);
     expect(byId.spikes.length).toBe(direct.spikes.length);
     expect(byId.enemies.length).toBe(direct.enemies.length);
+  });
+
+  it('tower_run_01 は縦長ビル型レイアウトを返す', () => {
+    const direct = createTowerRun01Map();
+    const byId = createCodeRunMapById('tower_run_01');
+    expect(byId.id).toBe('tower_run_01');
+    expect(byId.worldHeight).toBe(direct.worldHeight);
+    expect(byId.goalY).toBe(direct.goalY);
   });
 
   it('createCodeRunMapFromDb は mapId に応じたレイアウトを返す', () => {
@@ -355,6 +399,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
       spawn: { c: 1, r: 6 },
       goalColumn: 10,
       goalOffsetX: 3,
+      goal: { c: 9, r: 3 },
       pits: [{ c0: 4, c1: 5 }],
       solids: [{ kind: 'platform', row: 4, c0: 6, c1: 7 }],
       spikes: [{ c: 8 }],
@@ -365,7 +410,8 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.viewWidth).toBe(480);
     expect(fromDb.tileSize).toBe(24);
     expect(fromDb.spawn).toEqual({ x: 24, y: 102 });
-    expect(fromDb.goalX).toBe(243);
+    expect(fromDb.goalX).toBe(219);
+    expect(fromDb.goalY).toBe(-12);
     expect(fromDb.solids.some((solid) => solid.kind === 'platform' && solid.x === 144 && solid.y === 96)).toBe(true);
     expect(fromDb.solids.some((solid) => solid.kind === 'ground' && solid.x === 96)).toBe(false);
     expect(fromDb.spikes).toHaveLength(1);

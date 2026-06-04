@@ -394,6 +394,7 @@ private struct SurvivalCodeRunMapData: Codable, Sendable {
     let worldHeight: CGFloat?
     let groundRow: Int?
     let spawn: SurvivalCodeRunGridPoint?
+    let goal: SurvivalCodeRunGridPoint?
     let goalColumn: Int?
     let goalOffsetX: CGFloat?
     let pits: [SurvivalCodeRunPitPlacement]?
@@ -411,6 +412,7 @@ private struct SurvivalCodeRunMapData: Codable, Sendable {
         worldHeight: CGFloat? = nil,
         groundRow: Int? = 9,
         spawn: SurvivalCodeRunGridPoint? = SurvivalCodeRunGridPoint(c: 2, r: 9),
+        goal: SurvivalCodeRunGridPoint? = nil,
         goalColumn: Int? = 160,
         goalOffsetX: CGFloat? = 18,
         pits: [SurvivalCodeRunPitPlacement],
@@ -427,6 +429,7 @@ private struct SurvivalCodeRunMapData: Codable, Sendable {
         self.worldHeight = worldHeight
         self.groundRow = groundRow
         self.spawn = spawn
+        self.goal = goal
         self.goalColumn = goalColumn
         self.goalOffsetX = goalOffsetX
         self.pits = pits
@@ -563,6 +566,57 @@ private extension SurvivalCodeRunMapData {
         )
     }
 
+    static var towerRun01: SurvivalCodeRunMapData {
+        SurvivalCodeRunMapData(
+            viewWidth: 960,
+            viewHeight: 528,
+            worldTilesWide: 32,
+            worldHeight: 1248,
+            groundRow: 24,
+            spawn: SurvivalCodeRunGridPoint(c: 2, r: 24),
+            goal: SurvivalCodeRunGridPoint(c: 27, r: 3),
+            goalOffsetX: 8,
+            pits: [pit(7, 10), pit(17, 19)],
+            solids: [
+                row("brick", 23, 0, 5),
+                row("brick", 23, 11, 16),
+                row("brick", 23, 20, 31),
+                row("platform", 21, 5, 8),
+                row("platform", 20, 12, 15),
+                row("platform", 18, 18, 21),
+                row("platform", 17, 24, 27),
+                row("platform", 15, 20, 22),
+                row("platform", 14, 14, 17),
+                row("platform", 12, 8, 11),
+                row("platform", 11, 3, 6),
+                row("platform", 9, 8, 10),
+                row("platform", 8, 14, 17),
+                row("platform", 6, 20, 23),
+                row("platform", 5, 25, 28),
+                row("brick", 3, 26, 30),
+                col("brick", 0, 18, 24),
+                col("brick", 31, 15, 24),
+                col("brick", 1, 8, 12),
+                col("brick", 30, 4, 9),
+                single("block", 9, 16),
+                single("block", 16, 10),
+                single("block", 24, 4)
+            ],
+            spikes: [
+                spike(13, 23),
+                spike(14, 23),
+                spike(21, 23),
+                spike(22, 23),
+                spike(15, 14),
+                spike(21, 6)
+            ],
+            enemies: [
+                enemy(13, 20), enemy(20, 18), enemy(25, 17), enemy(15, 14),
+                enemy(9, 12), enemy(16, 8), enemy(27, 5)
+            ]
+        )
+    }
+
     private static func pit(_ c0: Int, _ c1: Int) -> SurvivalCodeRunPitPlacement {
         SurvivalCodeRunPitPlacement(c0: c0, c1: c1)
     }
@@ -579,8 +633,8 @@ private extension SurvivalCodeRunMapData {
         SurvivalCodeRunSolidPlacement(kind: kind, col: c, r0: r0, r1: r1)
     }
 
-    private static func spike(_ c: Int) -> SurvivalCodeRunSpikePlacement {
-        SurvivalCodeRunSpikePlacement(c: c)
+    private static func spike(_ c: Int, _ row: Int? = nil) -> SurvivalCodeRunSpikePlacement {
+        SurvivalCodeRunSpikePlacement(c: c, row: row)
     }
 
     private static func enemy(_ c: Int, _ r: Int = 9) -> SurvivalCodeRunEnemyPlacement {
@@ -599,6 +653,7 @@ private struct SurvivalCodeRunNativeMapSpec {
     let playerSize: CGSize
     let spawn: CGPoint
     let goalX: CGFloat
+    let goalY: CGFloat?
     let solids: [CGRect]
     let spikes: [CGRect]
     private let enemyPlacements: [SurvivalCodeRunEnemyPlacement]
@@ -631,6 +686,8 @@ private struct SurvivalCodeRunNativeMapSpec {
             return bundled(id: "graveyard_run_02", name: "Graveyard Run 02", data: .graveyardRun02)
         case "graveyard_run_03":
             return bundled(id: "graveyard_run_03", name: "Graveyard Run 03", data: .graveyardRun03)
+        case "tower_run_01":
+            return bundled(id: "tower_run_01", name: "Tower Run 01", data: .towerRun01)
         default:
             return bundled(id: "night_city_run_01", name: "Night City Run 01", data: .nightCityRun01)
         }
@@ -673,6 +730,7 @@ private struct SurvivalCodeRunNativeMapSpec {
             playerSize: playerSize,
             spawn: CGPoint(x: 2 * tile, y: CGFloat(groundRow) * tile - playerSize.height),
             goalX: 160 * tile + 18,
+            goalY: nil,
             solids: ground,
             spikes: [],
             enemyPlacements: []
@@ -695,6 +753,7 @@ private struct SurvivalCodeRunNativeMapSpec {
         let worldWidth = CGFloat(worldTilesWide) * tile
         let worldHeight = data.worldHeight ?? viewSize.height
         let spawnGrid = data.spawn ?? SurvivalCodeRunGridPoint(c: 2, r: groundRow)
+        let goalGrid = data.goal
         var solids: [CGRect] = []
 
         func isPit(_ c: Int) -> Bool { pits.contains { c >= $0.c0 && c <= $0.c1 } }
@@ -737,7 +796,8 @@ private struct SurvivalCodeRunNativeMapSpec {
             worldHeight: worldHeight,
             playerSize: playerSize,
             spawn: CGPoint(x: CGFloat(spawnGrid.c) * tile, y: CGFloat(spawnGrid.r) * tile - playerSize.height),
-            goalX: CGFloat(data.goalColumn ?? 160) * tile + (data.goalOffsetX ?? 18),
+            goalX: CGFloat(goalGrid?.c ?? data.goalColumn ?? 160) * tile + (data.goalOffsetX ?? 18),
+            goalY: goalGrid.map { CGFloat($0.r) * tile - 84 },
             solids: solids,
             spikes: spikeRects,
             enemyPlacements: enemyPlacements
@@ -956,8 +1016,9 @@ private struct SurvivalCodeRunGameContent: View {
             let ox = (canvasSize.width - mapSpec.viewSize.width * scale) / 2
             let oy = (canvasSize.height - mapSpec.viewSize.height * scale) / 2
             let camera = max(0, min(player.x + mapSpec.playerSize.width / 2 - mapSpec.viewSize.width / 2, mapSpec.worldWidth - mapSpec.viewSize.width))
+            let cameraY = max(0, min(player.y + mapSpec.playerSize.height / 2 - mapSpec.viewSize.height / 2, mapSpec.worldHeight - mapSpec.viewSize.height))
             context.fill(Path(CGRect(origin: .zero, size: canvasSize)), with: .linearGradient(Gradient(colors: [Color(red: 0.03, green: 0.06, blue: 0.16), Color(red: 0.01, green: 0.015, blue: 0.04)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: canvasSize.height)))
-            context.translateBy(x: ox - camera * scale, y: oy)
+            context.translateBy(x: ox - camera * scale, y: oy - cameraY * scale)
             context.scaleBy(x: scale, y: scale)
             drawWorld(context: &context)
         }
@@ -985,8 +1046,9 @@ private struct SurvivalCodeRunGameContent: View {
             path.closeSubpath()
             context.fill(path, with: .color(.white.opacity(0.9)))
         }
-        context.fill(Path(CGRect(x: mapSpec.goalX, y: 348, width: 5, height: 84)), with: .color(.white.opacity(0.85)))
-        context.fill(Path(CGRect(x: mapSpec.goalX + 5, y: 348, width: 56, height: 34)), with: .color(.blue.opacity(0.85)))
+        let flagY = mapSpec.goalY ?? 348
+        context.fill(Path(CGRect(x: mapSpec.goalX, y: flagY, width: 5, height: 84)), with: .color(.white.opacity(0.85)))
+        context.fill(Path(CGRect(x: mapSpec.goalX + 5, y: flagY, width: 56, height: 34)), with: .color(.blue.opacity(0.85)))
         for enemy in enemies where enemy.alive {
             context.fill(Path(roundedRect: enemy.rect, cornerRadius: 14), with: .color(Color.green.opacity(0.85)))
             context.fill(Path(ellipseIn: CGRect(x: enemy.rect.midX - 7, y: enemy.rect.minY + 8, width: 4, height: 4)), with: .color(.black))
@@ -1015,7 +1077,7 @@ private struct SurvivalCodeRunGameContent: View {
         movePlayer(step: step)
         moveEnemies(step: step)
         resolveHazards(step: step)
-        if player.x + 17 >= mapSpec.goalX { finish(.clear) }
+        if hasReachedGoal() { finish(.clear) }
         if elapsed >= timeLimit { finish(.failed) }
     }
 
@@ -1042,7 +1104,17 @@ private struct SurvivalCodeRunGameContent: View {
             }
         }
         player.y = rect.origin.y
-        if player.y > 620 { respawn() }
+        if player.y > mapSpec.worldHeight + 96 { respawn() }
+    }
+
+    private func hasReachedGoal() -> Bool {
+        guard let goalY = mapSpec.goalY else {
+            return player.x + 17 >= mapSpec.goalX
+        }
+        return player.x < mapSpec.goalX + mapSpec.tile + 16
+            && player.x + 34 > mapSpec.goalX
+            && player.y < goalY + 84
+            && player.y + 42 > goalY
     }
 
     private func moveEnemies(step: CGFloat) {

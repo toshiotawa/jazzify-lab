@@ -106,6 +106,7 @@ interface CodeRunLayoutData {
   readonly worldHeight?: number;
   readonly groundRow?: number;
   readonly spawn?: CodeRunGridPoint;
+  readonly goal?: CodeRunGridPoint;
   readonly goalColumn?: number;
   readonly goalOffsetX?: number;
   readonly pits: readonly CodeRunPitPlacement[];
@@ -234,6 +235,7 @@ const buildMapFromLayout = (
   const worldWidth = worldTilesWide * tileSize;
   const worldHeight = layout.worldHeight ?? viewHeight;
   const spawnPoint = layout.spawn ?? { c: 2, r: groundRow };
+  const goalPoint = layout.goal;
   const solids: CodeRunTileRect[] = [];
 
   buildGround(solids, layout.pits, worldTilesWide, groundRow, tileSize);
@@ -254,7 +256,8 @@ const buildMapFromLayout = (
     tileSize,
     groundRow,
     spawn: { x: spawnPoint.c * tileSize, y: spawnPoint.r * tileSize - PLAYER_H },
-    goalX: (layout.goalColumn ?? 160) * tileSize + (layout.goalOffsetX ?? 18),
+    goalX: (goalPoint?.c ?? layout.goalColumn ?? 160) * tileSize + (layout.goalOffsetX ?? 18),
+    ...(goalPoint ? { goalY: goalPoint.r * tileSize - 84 } : {}),
     timeLimitSec,
     solids,
     spikes,
@@ -436,6 +439,62 @@ const GRAVEYARD_RUN_03_LAYOUT: CodeRunLayoutData = {
   ],
 };
 
+const TOWER_RUN_01_LAYOUT: CodeRunLayoutData = {
+  id: 'tower_run_01',
+  name: 'Tower Run 01',
+  viewWidth: 960,
+  viewHeight: 528,
+  worldTilesWide: 32,
+  worldHeight: 1248,
+  groundRow: 24,
+  spawn: { c: 2, r: 24 },
+  goal: { c: 27, r: 3 },
+  goalOffsetX: 8,
+  pits: [{ c0: 7, c1: 10 }, { c0: 17, c1: 19 }],
+  solids: [
+    row('brick', 23, 0, 5),
+    row('brick', 23, 11, 16),
+    row('brick', 23, 20, 31),
+    row('platform', 21, 5, 8),
+    row('platform', 20, 12, 15),
+    row('platform', 18, 18, 21),
+    row('platform', 17, 24, 27),
+    row('platform', 15, 20, 22),
+    row('platform', 14, 14, 17),
+    row('platform', 12, 8, 11),
+    row('platform', 11, 3, 6),
+    row('platform', 9, 8, 10),
+    row('platform', 8, 14, 17),
+    row('platform', 6, 20, 23),
+    row('platform', 5, 25, 28),
+    row('brick', 3, 26, 30),
+    col('brick', 0, 18, 24),
+    col('brick', 31, 15, 24),
+    col('brick', 1, 8, 12),
+    col('brick', 30, 4, 9),
+    single('block', 9, 16),
+    single('block', 16, 10),
+    single('block', 24, 4),
+  ],
+  spikes: [
+    { c: 13, row: 23 },
+    { c: 14, row: 23 },
+    { c: 21, row: 23 },
+    { c: 22, row: 23 },
+    { c: 15, row: 14 },
+    { c: 21, row: 6 },
+  ],
+  enemies: [
+    enemy(13, 20),
+    enemy(20, 18),
+    enemy(25, 17),
+    enemy(15, 14),
+    enemy(9, 12),
+    enemy(16, 8),
+    enemy(27, 5),
+  ],
+};
+
 export function createDefaultCodeRunMap(
   timeLimitSec = 90,
   assets?: CodeRunAssetsOverride,
@@ -457,10 +516,18 @@ export function createGraveyardRun03Map(
   return buildMapFromLayout(GRAVEYARD_RUN_03_LAYOUT, timeLimitSec, assets);
 }
 
+export function createTowerRun01Map(
+  timeLimitSec = 120,
+  assets?: CodeRunAssetsOverride,
+): CodeRunMapSpec {
+  return buildMapFromLayout(TOWER_RUN_01_LAYOUT, timeLimitSec, assets);
+}
+
 const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
   night_city_run_01: createDefaultCodeRunMap,
   graveyard_run_02: createGraveyardRun02Map,
   graveyard_run_03: createGraveyardRun03Map,
+  tower_run_01: createTowerRun01Map,
 };
 
 export function createCodeRunMapById(
@@ -619,6 +686,7 @@ const parseCodeRunLayoutFromDb = (
     worldHeight: readPositiveNumber(source, 'worldHeight'),
     groundRow: readNonNegativeInteger(source, 'groundRow'),
     spawn: parseGridPoint(source.spawn),
+    goal: parseGridPoint(source.goal),
     goalColumn: readNonNegativeInteger(source, 'goalColumn'),
     goalOffsetX: readNonNegativeNumber(source, 'goalOffsetX'),
     pits,
