@@ -390,7 +390,7 @@ struct LessonListView: View {
                     }
                     .buttonStyle(.plain)
 
-                    ForEach(Array(courses.prefix(3))) { course in
+                    ForEach(MainQuestPreviewCourses.pick(from: courses)) { course in
                         courseRow(course, compact: true)
                     }
                 }

@@ -1,5 +1,5 @@
 -- 目的別コース: 横スクロールコードラン:初級（Chord Run: Beginner）
--- 6ブロック × 3クエスト、Code Run random（Basic 相当）、マップ 5〜10（snow_run_01 / dev_run_06〜10）
+-- 6ブロック × 3クエスト、Code Run random（Basic 相当）、マップ 5〜10 をクエスト順に循環（snow_run_01 / dev_run_06〜10）
 BEGIN;
 
 INSERT INTO public.courses (
@@ -25,12 +25,12 @@ SELECT
   'Learn chords through side-scrolling action.',
   true,
   COALESCE((
-    SELECT MAX(c.order_index)
+    SELECT MIN(c.order_index)
     FROM public.courses c
-    WHERE c.difficulty_tier = 'beginner'
-      AND COALESCE(c.is_developer_only, false) = false
+    WHERE COALESCE(c.is_developer_only, false) = false
       AND COALESCE(c.is_visible, true) = true
-  ), 0) + 1,
+      AND c.is_main_course = false
+  ), 0) - 1,
   'both',
   false,
   true,
@@ -103,22 +103,22 @@ SELECT
 FROM (
   VALUES
     ('basic', 122, 'random', 'code_run', 'コードラン: メジャー CDE', 'Chord Run: Major CDE', 'easy', '', 'メジャー', 'Major', 'cde', 'CDE', 'CDE', 'major', 'snow_run_01'),
-    ('basic', 123, 'random', 'code_run', 'コードラン: メジャー FGAB', 'Chord Run: Major FGAB', 'easy', '', 'メジャー', 'Major', 'fgab', 'FGAB', 'FGAB', 'major', 'snow_run_01'),
-    ('basic', 124, 'random', 'code_run', 'コードラン: メジャー ♭系', 'Chord Run: Major Flats', 'easy', '', 'メジャー', 'Major', 'flat', '♭系のみ', 'Flats', 'major', 'snow_run_01'),
-    ('basic', 125, 'random', 'code_run', 'コードラン: マイナー CDE', 'Chord Run: Minor CDE', 'easy', 'm', 'マイナー', 'Minor', 'cde', 'CDE', 'CDE', 'minor', 'dev_run_06'),
-    ('basic', 126, 'random', 'code_run', 'コードラン: マイナー FGAB', 'Chord Run: Minor FGAB', 'easy', 'm', 'マイナー', 'Minor', 'fgab', 'FGAB', 'FGAB', 'minor', 'dev_run_06'),
-    ('basic', 127, 'random', 'code_run', 'コードラン: マイナー #系', 'Chord Run: Minor Sharps', 'easy', 'm', 'マイナー', 'Minor', 'sharp', '#系のみ', 'Sharps', 'minor', 'dev_run_06'),
-    ('basic', 128, 'random', 'code_run', 'コードラン: M7 CDE', 'Chord Run: M7 CDE', 'easy', 'M7', 'M7', 'M7', 'cde', 'CDE', 'CDE', 'M7', 'dev_run_07'),
-    ('basic', 129, 'random', 'code_run', 'コードラン: M7 FGAB', 'Chord Run: M7 FGAB', 'easy', 'M7', 'M7', 'M7', 'fgab', 'FGAB', 'FGAB', 'M7', 'dev_run_07'),
+    ('basic', 123, 'random', 'code_run', 'コードラン: メジャー FGAB', 'Chord Run: Major FGAB', 'easy', '', 'メジャー', 'Major', 'fgab', 'FGAB', 'FGAB', 'major', 'dev_run_06'),
+    ('basic', 124, 'random', 'code_run', 'コードラン: メジャー ♭系', 'Chord Run: Major Flats', 'easy', '', 'メジャー', 'Major', 'flat', '♭系のみ', 'Flats', 'major', 'dev_run_07'),
+    ('basic', 125, 'random', 'code_run', 'コードラン: マイナー CDE', 'Chord Run: Minor CDE', 'easy', 'm', 'マイナー', 'Minor', 'cde', 'CDE', 'CDE', 'minor', 'dev_run_08'),
+    ('basic', 126, 'random', 'code_run', 'コードラン: マイナー FGAB', 'Chord Run: Minor FGAB', 'easy', 'm', 'マイナー', 'Minor', 'fgab', 'FGAB', 'FGAB', 'minor', 'dev_run_09'),
+    ('basic', 127, 'random', 'code_run', 'コードラン: マイナー #系', 'Chord Run: Minor Sharps', 'easy', 'm', 'マイナー', 'Minor', 'sharp', '#系のみ', 'Sharps', 'minor', 'dev_run_10'),
+    ('basic', 128, 'random', 'code_run', 'コードラン: M7 CDE', 'Chord Run: M7 CDE', 'easy', 'M7', 'M7', 'M7', 'cde', 'CDE', 'CDE', 'M7', 'snow_run_01'),
+    ('basic', 129, 'random', 'code_run', 'コードラン: M7 FGAB', 'Chord Run: M7 FGAB', 'easy', 'M7', 'M7', 'M7', 'fgab', 'FGAB', 'FGAB', 'M7', 'dev_run_06'),
     ('basic', 130, 'random', 'code_run', 'コードラン: M7 ♭系', 'Chord Run: M7 Flats', 'easy', 'M7', 'M7', 'M7', 'flat', '♭系のみ', 'Flats', 'M7', 'dev_run_07'),
     ('basic', 131, 'random', 'code_run', 'コードラン: m7 CDE', 'Chord Run: m7 CDE', 'easy', 'm7', 'm7', 'm7', 'cde', 'CDE', 'CDE', 'm7', 'dev_run_08'),
-    ('basic', 132, 'random', 'code_run', 'コードラン: m7 FGAB', 'Chord Run: m7 FGAB', 'easy', 'm7', 'm7', 'm7', 'fgab', 'FGAB', 'FGAB', 'm7', 'dev_run_08'),
-    ('basic', 133, 'random', 'code_run', 'コードラン: m7 #系', 'Chord Run: m7 Sharps', 'easy', 'm7', 'm7', 'm7', 'sharp', '#系のみ', 'Sharps', 'm7', 'dev_run_08'),
-    ('basic', 134, 'random', 'code_run', 'コードラン: 7 CDE', 'Chord Run: 7 CDE', 'easy', '7', '7', '7', 'cde', 'CDE', 'CDE', '7', 'dev_run_09'),
-    ('basic', 135, 'random', 'code_run', 'コードラン: 7 FGAB', 'Chord Run: 7 FGAB', 'easy', '7', '7', '7', 'fgab', 'FGAB', 'FGAB', '7', 'dev_run_09'),
-    ('basic', 136, 'random', 'code_run', 'コードラン: 7 ♭系', 'Chord Run: 7 Flats', 'easy', '7', '7', '7', 'flat', '♭系のみ', 'Flats', '7', 'dev_run_09'),
-    ('basic', 137, 'random', 'code_run', 'コードラン: m7b5 CDE', 'Chord Run: m7b5 CDE', 'easy', 'm7b5', 'm7b5', 'm7b5', 'cde', 'CDE', 'CDE', 'm7b5', 'dev_run_10'),
-    ('basic', 138, 'random', 'code_run', 'コードラン: m7b5 FGAB', 'Chord Run: m7b5 FGAB', 'easy', 'm7b5', 'm7b5', 'm7b5', 'fgab', 'FGAB', 'FGAB', 'm7b5', 'dev_run_10'),
+    ('basic', 132, 'random', 'code_run', 'コードラン: m7 FGAB', 'Chord Run: m7 FGAB', 'easy', 'm7', 'm7', 'm7', 'fgab', 'FGAB', 'FGAB', 'm7', 'dev_run_09'),
+    ('basic', 133, 'random', 'code_run', 'コードラン: m7 #系', 'Chord Run: m7 Sharps', 'easy', 'm7', 'm7', 'm7', 'sharp', '#系のみ', 'Sharps', 'm7', 'dev_run_10'),
+    ('basic', 134, 'random', 'code_run', 'コードラン: 7 CDE', 'Chord Run: 7 CDE', 'easy', '7', '7', '7', 'cde', 'CDE', 'CDE', '7', 'snow_run_01'),
+    ('basic', 135, 'random', 'code_run', 'コードラン: 7 FGAB', 'Chord Run: 7 FGAB', 'easy', '7', '7', '7', 'fgab', 'FGAB', 'FGAB', '7', 'dev_run_06'),
+    ('basic', 136, 'random', 'code_run', 'コードラン: 7 ♭系', 'Chord Run: 7 Flats', 'easy', '7', '7', '7', 'flat', '♭系のみ', 'Flats', '7', 'dev_run_07'),
+    ('basic', 137, 'random', 'code_run', 'コードラン: m7b5 CDE', 'Chord Run: m7b5 CDE', 'easy', 'm7b5', 'm7b5', 'm7b5', 'cde', 'CDE', 'CDE', 'm7b5', 'dev_run_08'),
+    ('basic', 138, 'random', 'code_run', 'コードラン: m7b5 FGAB', 'Chord Run: m7b5 FGAB', 'easy', 'm7b5', 'm7b5', 'm7b5', 'fgab', 'FGAB', 'FGAB', 'm7b5', 'dev_run_09'),
     ('basic', 139, 'random', 'code_run', 'コードラン: m7b5 #系', 'Chord Run: m7b5 Sharps', 'easy', 'm7b5', 'm7b5', 'm7b5', 'sharp', '#系のみ', 'Sharps', 'm7b5', 'dev_run_10')
 ) AS v(
   map_category,

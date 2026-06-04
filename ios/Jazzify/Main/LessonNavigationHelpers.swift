@@ -66,6 +66,25 @@ enum LessonNavigationHelpers {
     }
 }
 
+/// メインクエスト画面の目的別コースプレビュー（uuid_generate_v5(ns, 'course-chord-run-beginner')）
+enum MainQuestPreviewCourses {
+    static let chordRunBeginnerId = UUID(uuidString: "5FFF9E19-F04A-595F-B666-B9DCF4AA765C")!
+
+    static func pick(from courses: [Course], limit: Int = 3) -> [Course] {
+        let sorted = courses.sorted { lhs, rhs in
+            let lt = lhs.resolvedDifficultyTier.sortIndex
+            let rt = rhs.resolvedDifficultyTier.sortIndex
+            if lt != rt { return lt < rt }
+            return lhs.orderIndex < rhs.orderIndex
+        }
+        guard let chordRun = sorted.first(where: { $0.id == chordRunBeginnerId }) else {
+            return Array(sorted.prefix(limit))
+        }
+        let rest = sorted.filter { $0.id != chordRunBeginnerId }
+        return Array(([chordRun] + rest).prefix(limit))
+    }
+}
+
 struct QuestCompletionSheetModel: Identifiable {
     let id = UUID()
     let kind: QuestCompletionModalKind

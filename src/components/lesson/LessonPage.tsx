@@ -15,6 +15,7 @@ import {
   normalizeCourseDifficultyTier,
   sortCoursesByDifficultyThenOrder,
 } from '@/utils/courseDifficulty';
+import { pickMainQuestPreviewCourses } from '@/utils/mainQuestPreviewCourses';
 import type { CourseDifficultyTier } from '@/types';
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -514,7 +515,7 @@ const LessonPage: React.FC = () => {
 
               <SpecificCoursesSection
                 isEnglishCopy={isEnglishCopy}
-                courses={specificCourses.slice(0, 3)}
+                courses={pickMainQuestPreviewCourses(specificCourses)}
                 renderCourseCard={course => renderCourseCard(course, true)}
                 onSeeAll={() => { window.location.hash = '#lessons?view=courses'; }}
               />
