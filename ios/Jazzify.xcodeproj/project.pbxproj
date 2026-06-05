@@ -26,6 +26,7 @@
 		A1B2C3D4E5F61718293A4C2 /* DrumLoop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */; };
 		BR16BALLOONMP3BFCC03DD04EE05BR01 /* Balloon.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BR16BALLOONMP3FRCC03DD04EE05BR01 /* Balloon.mp3 */; };
 		SF2PIANO01BFCC03DD04EE05BR01 /* UprightPianoKW-small-bright-20190703.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = SF2PIANO01FRCC03DD04EE05BR01 /* UprightPianoKW-small-bright-20190703.sf2 */; };
+		SF2BASS01BFCC03DD04EE05BR01 /* FingerBassYR 20190930.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = SF2BASS01FRCC03DD04EE05BR01 /* FingerBassYR 20190930.sf2 */; };
 		B2C3D4E5F61718293A5003 /* TutorialScriptModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A5002 /* TutorialScriptModels.swift */; };
 		B2C3D4E5F61718293A5005 /* TutorialScriptPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A5004 /* TutorialScriptPresets.swift */; };
 		B2C3D4E5F61718293A5007 /* TutorialScriptInterpreter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A5006 /* TutorialScriptInterpreter.swift */; };
@@ -296,6 +297,7 @@
 		A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = DrumLoop.mp3; sourceTree = "<group>"; };
 		BR16BALLOONMP3FRCC03DD04EE05BR01 /* Balloon.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = Balloon.mp3; sourceTree = "<group>"; };
 		SF2PIANO01FRCC03DD04EE05BR01 /* UprightPianoKW-small-bright-20190703.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "UprightPianoKW-small-bright-20190703.sf2"; sourceTree = "<group>"; };
+		SF2BASS01FRCC03DD04EE05BR01 /* FingerBassYR 20190930.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "FingerBassYR 20190930.sf2"; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF01 /* SurvivalGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameLoop.swift; sourceTree = "<group>"; };
 		BB01AA02CC03DD04EE070001 /* SurvivalJajiiEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalJajiiEngine.swift; sourceTree = "<group>"; };
 		AA01BB02CC03DD04EE05FF21 /* SurvivalPhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseEngine.swift; sourceTree = "<group>"; };
@@ -907,6 +909,7 @@
 				A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */,
 				BR16BALLOONMP3FRCC03DD04EE05BR01 /* Balloon.mp3 */,
 				SF2PIANO01FRCC03DD04EE05BR01 /* UprightPianoKW-small-bright-20190703.sf2 */,
+				SF2BASS01FRCC03DD04EE05BR01 /* FingerBassYR 20190930.sf2 */,
 				QJ04FR01C3D4E5F61718293A04 /* Gameover.mp3 */,
 				QJ05FR01C3D4E5F61718293A05 /* クエスト完了.mp3 */,
 				QJ06FR01C3D4E5F61718293A06 /* 課題完了前 クリアモーダル.mp3 */,
@@ -1150,6 +1153,7 @@
 				A1B2C3D4E5F61718293A4C2 /* DrumLoop.mp3 in Resources */,
 				BR16BALLOONMP3BFCC03DD04EE05BR01 /* Balloon.mp3 in Resources */,
 				SF2PIANO01BFCC03DD04EE05BR01 /* UprightPianoKW-small-bright-20190703.sf2 in Resources */,
+				SF2BASS01BFCC03DD04EE05BR01 /* FingerBassYR 20190930.sf2 in Resources */,
 				B2C3D4E5F61718293A500E /* onboarding-v1.script.json in Resources */,
 				E1E2F3A4B5C60718293A51A /* ear-training-developer-full-v1.script.json in Resources */,
 				EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */,

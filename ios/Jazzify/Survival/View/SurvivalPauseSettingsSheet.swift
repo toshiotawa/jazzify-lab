@@ -19,6 +19,7 @@ struct SurvivalAudioVolumeSection: View {
     var title: String?
 
     @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
+    @State private var rootBassVolume: Float = SurvivalGameAudio.shared.rootBassVolume
     @State private var sfxVolume: Float = SurvivalGameAudio.shared.sfxVolume
     @State private var bgmVolume: Float = SurvivalGameAudio.shared.bgmVolume
 
@@ -36,6 +37,12 @@ struct SurvivalAudioVolumeSection: View {
                 icon: "pianokeys",
                 label: isEnglishCopy ? "Piano" : "ピアノ",
                 value: pianoBinding
+            )
+
+            volumeRow(
+                icon: "circle.fill",
+                label: isEnglishCopy ? "Root" : "正解ルート",
+                value: rootBassBinding
             )
 
             volumeRow(
@@ -71,6 +78,16 @@ struct SurvivalAudioVolumeSection: View {
         )
     }
 
+    private var rootBassBinding: Binding<Float> {
+        Binding(
+            get: { rootBassVolume },
+            set: { newValue in
+                rootBassVolume = newValue
+                SurvivalGameAudio.shared.setRootBassVolume(newValue)
+            }
+        )
+    }
+
     private var sfxBinding: Binding<Float> {
         Binding(
             get: { sfxVolume },
@@ -93,6 +110,7 @@ struct SurvivalAudioVolumeSection: View {
 
     private func syncVolumes() {
         pianoVolume = SurvivalGameAudio.shared.pianoVolume
+        rootBassVolume = SurvivalGameAudio.shared.rootBassVolume
         sfxVolume = SurvivalGameAudio.shared.sfxVolume
         bgmVolume = SurvivalGameAudio.shared.bgmVolume
     }
@@ -105,7 +123,7 @@ struct SurvivalAudioVolumeSection: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.white)
-                .frame(width: 58, alignment: .leading)
+                .frame(width: 82, alignment: .leading)
             Slider(value: value, in: 0...1)
                 .tint(.yellow)
             Text("\(Int((value.wrappedValue * 100).rounded()))")
@@ -127,6 +145,7 @@ struct SurvivalPauseSettingsSheet: View {
     @State private var bgmVolume: Float = SurvivalGameAudio.shared.bgmVolume
     @State private var sfxVolume: Float = SurvivalGameAudio.shared.sfxVolume
     @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
+    @State private var rootBassVolume: Float = SurvivalGameAudio.shared.rootBassVolume
     @State private var isMuted: Bool = SurvivalGameAudio.shared.isMuted
     @StateObject private var midiManager = MIDIManager.shared
     @State private var hintDraft: Bool = false
@@ -168,6 +187,12 @@ struct SurvivalPauseSettingsSheet: View {
                         icon: "pianokeys",
                         label: locale == .ja ? "ピアノ" : "Piano",
                         value: pianoBinding
+                    )
+
+                    volumeRow(
+                        icon: "circle.fill",
+                        label: locale == .ja ? "正解ルート" : "Root",
+                        value: rootBassBinding
                     )
                 }
                 .padding(.horizontal, 18)
@@ -433,6 +458,16 @@ struct SurvivalPauseSettingsSheet: View {
         )
     }
 
+    private var rootBassBinding: Binding<Float> {
+        Binding(
+            get: { rootBassVolume },
+            set: { newValue in
+                rootBassVolume = newValue
+                SurvivalGameAudio.shared.setRootBassVolume(newValue)
+            }
+        )
+    }
+
     private var muteBinding: Binding<Bool> {
         Binding(
             get: { isMuted },
@@ -453,7 +488,7 @@ struct SurvivalPauseSettingsSheet: View {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.white)
-                .frame(width: 64, alignment: .leading)
+                .frame(width: 82, alignment: .leading)
             Slider(value: value, in: 0...1)
                 .tint(.yellow)
                 .disabled(isMuted)
