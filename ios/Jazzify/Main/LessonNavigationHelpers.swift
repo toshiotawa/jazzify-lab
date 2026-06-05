@@ -3,6 +3,7 @@ import Foundation
 enum QuestCompletionModalKind: Equatable {
     case nextQuest
     case chapterCompleteWithNext
+    case chapterCompletePremiumUpsell
     case chapterCompleteOnly
     case none
 }
@@ -166,7 +167,8 @@ enum LessonNavigationHelpers {
         currentLesson: Lesson,
         sortedLessons: [Lesson],
         nextLesson: Lesson?,
-        canGoNext: Bool
+        canGoNext: Bool,
+        nextBlockedReason: NavigationBlockedReason?
     ) -> QuestCompletionModalKind {
         let isLastInChapter = isLastLessonInBlock(currentLesson: currentLesson, sortedLessons: sortedLessons)
         let hasNext = nextLesson != nil
@@ -174,6 +176,9 @@ enum LessonNavigationHelpers {
         if isLastInChapter {
             if hasNext && canGoNext {
                 return .chapterCompleteWithNext
+            }
+            if hasNext && !canGoNext && nextBlockedReason == .premiumRequired {
+                return .chapterCompletePremiumUpsell
             }
             return .chapterCompleteOnly
         }

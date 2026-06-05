@@ -77,6 +77,56 @@ final class LessonNavigationHelpersTests: XCTestCase {
         XCTAssertEqual(state.nextBlockedReason, .premiumRequired)
     }
 
+    func testModalKindReturnsChapterCompletePremiumUpsellForFreeTierBlock() {
+        let block1Last = makeLesson(orderIndex: 1, blockNumber: 1)
+        let block2First = makeLesson(orderIndex: 2, blockNumber: 2)
+        let block1First = makeLesson(orderIndex: 0, blockNumber: 1)
+        let sorted = LessonNavigationHelpers.sortLessonsByOrder([block1First, block1Last, block2First])
+
+        let kind = LessonNavigationHelpers.modalKind(
+            currentLesson: block1Last,
+            sortedLessons: sorted,
+            nextLesson: block2First,
+            canGoNext: false,
+            nextBlockedReason: .premiumRequired
+        )
+
+        XCTAssertEqual(kind, .chapterCompletePremiumUpsell)
+    }
+
+    func testModalKindReturnsChapterCompleteWithNextForPremiumUser() {
+        let block1Last = makeLesson(orderIndex: 1, blockNumber: 1)
+        let block2First = makeLesson(orderIndex: 2, blockNumber: 2)
+        let block1First = makeLesson(orderIndex: 0, blockNumber: 1)
+        let sorted = LessonNavigationHelpers.sortLessonsByOrder([block1First, block1Last, block2First])
+
+        let kind = LessonNavigationHelpers.modalKind(
+            currentLesson: block1Last,
+            sortedLessons: sorted,
+            nextLesson: block2First,
+            canGoNext: true,
+            nextBlockedReason: nil
+        )
+
+        XCTAssertEqual(kind, .chapterCompleteWithNext)
+    }
+
+    func testModalKindReturnsChapterCompleteOnlyForFinalCourseChapter() {
+        let block1Last = makeLesson(orderIndex: 1, blockNumber: 1)
+        let block1First = makeLesson(orderIndex: 0, blockNumber: 1)
+        let sorted = LessonNavigationHelpers.sortLessonsByOrder([block1First, block1Last])
+
+        let kind = LessonNavigationHelpers.modalKind(
+            currentLesson: block1Last,
+            sortedLessons: sorted,
+            nextLesson: nil,
+            canGoNext: false,
+            nextBlockedReason: .lastLesson
+        )
+
+        XCTAssertEqual(kind, .chapterCompleteOnly)
+    }
+
     func testPurposeCourseAllowsSkippingWithinUnlockedBlock() {
         let first = makeLesson(orderIndex: 0, blockNumber: 1)
         let second = makeLesson(orderIndex: 1, blockNumber: 1)

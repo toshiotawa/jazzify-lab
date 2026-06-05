@@ -1898,7 +1898,13 @@ struct LessonDetailView: View {
                         questCompletionSheet = nil
                         activeLesson = next
                     }
-                }
+                },
+                onPremium: sheetModel.kind == .chapterCompletePremiumUpsell
+                    ? {
+                        questCompletionSheet = nil
+                        showSubscriptionSheet = true
+                    }
+                    : nil
             )
         }
         .fullScreenCover(item: $quickLookDocument) { doc in
@@ -2872,7 +2878,8 @@ struct LessonDetailView: View {
                 currentLesson: activeLesson,
                 sortedLessons: sorted,
                 nextLesson: navState.nextLesson,
-                canGoNext: navState.canGoNext
+                canGoNext: navState.canGoNext,
+                nextBlockedReason: navState.nextBlockedReason
             )
             guard kind != .none else { return }
             await MainActor.run {

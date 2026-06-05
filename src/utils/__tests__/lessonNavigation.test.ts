@@ -7,6 +7,7 @@ import {
   isLastLessonInBlock,
   sortLessonsByOrder,
   type LessonNavigationInfo,
+  type NavigationBlockedReason,
 } from '@/utils/lessonNavigation';
 
 const lesson = (id: string, orderIndex: number, blockNumber = 1): Lesson => ({
@@ -27,13 +28,14 @@ const progress = (lessonId: string, completed: boolean): Pick<LessonProgress, 'c
 const navInfo = (
   next: Lesson | null,
   canGoNext: boolean,
+  nextBlockedReason: NavigationBlockedReason | null = canGoNext ? null : 'sequential_lock',
 ): LessonNavigationInfo => ({
   previousLesson: null,
   nextLesson: next,
   canGoPrevious: false,
   canGoNext,
   previousBlockedReason: null,
-  nextBlockedReason: canGoNext ? null : 'sequential_lock',
+  nextBlockedReason,
   course: {
     id: 'course-1',
     hasAccessToPrevious: false,
@@ -204,6 +206,27 @@ describe('getQuestCompletionModalKind', () => {
         lesson('b', 1, 1),
         sorted,
         navInfo(lesson('c', 0, 2), false),
+      ),
+    ).toBe('chapterCompleteOnly');
+  });
+
+  it('returns chapterCompletePremiumUpsell when free tier blocks the next chapter', () => {
+    expect(
+      getQuestCompletionModalKind(
+        lesson('b', 1, 1),
+        sorted,
+        navInfo(lesson('c', 0, 2), false, 'premium_required'),
+      ),
+    ).toBe('chapterCompletePremiumUpsell');
+  });
+
+  it('returns chapterCompleteOnly when finishing the final chapter of a course', () => {
+    const singleChapter = sortLessonsByOrder([lesson('a', 0, 1), lesson('b', 1, 1)]);
+    expect(
+      getQuestCompletionModalKind(
+        lesson('b', 1, 1),
+        singleChapter,
+        navInfo(null, false, 'last_lesson'),
       ),
     ).toBe('chapterCompleteOnly');
   });

@@ -417,6 +417,7 @@ export function getLessonBlockInfo(
 export type QuestCompletionModalKind =
   | 'nextQuest'
   | 'chapterCompleteWithNext'
+  | 'chapterCompletePremiumUpsell'
   | 'chapterCompleteOnly'
   | 'none';
 
@@ -445,6 +446,9 @@ export function getQuestCompletionModalKind(
   if (isLastInChapter) {
     if (hasNext && canGoNext) {
       return 'chapterCompleteWithNext';
+    }
+    if (hasNext && !canGoNext && navigationInfo.nextBlockedReason === 'premium_required') {
+      return 'chapterCompletePremiumUpsell';
     }
     return 'chapterCompleteOnly';
   }

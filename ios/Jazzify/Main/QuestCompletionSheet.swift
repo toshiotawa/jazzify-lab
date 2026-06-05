@@ -5,12 +5,13 @@ struct QuestCompletionSheet: View {
     let locale: AppLocale
     let onStay: () -> Void
     let onContinue: (() -> Void)?
+    let onPremium: (() -> Void)?
 
     private var isJapanese: Bool { locale == .ja }
 
     private var heading: String {
         switch model.kind {
-        case .chapterCompleteWithNext, .chapterCompleteOnly:
+        case .chapterCompleteWithNext, .chapterCompletePremiumUpsell, .chapterCompleteOnly:
             return isJapanese
                 ? "チャプター \(model.chapterNumber) 完了！"
                 : "Chapter \(model.chapterNumber) complete!"
@@ -25,6 +26,10 @@ struct QuestCompletionSheet: View {
             return isJapanese
                 ? "おめでとうございます！次のクエストに進みますか？"
                 : "Congratulations! Ready for the next quest?"
+        case .chapterCompletePremiumUpsell:
+            return isJapanese
+                ? "おめでとうございます！第2チャプター以降はプレミアムでプレイできます。"
+                : "Congratulations! Chapters 2+ require Premium."
         case .chapterCompleteOnly:
             return isJapanese
                 ? "チャプタークリアおめでとうございます！"
@@ -40,6 +45,10 @@ struct QuestCompletionSheet: View {
             : (isJapanese ? "このまま留まる" : "Stay on this page")
     }
 
+    private var showStay: Bool {
+        model.kind != .chapterCompletePremiumUpsell
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             Text("🎉")
@@ -51,19 +60,31 @@ struct QuestCompletionSheet: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            if let next = model.nextLesson, model.kind != .chapterCompleteOnly {
+            if let next = model.nextLesson,
+               model.kind != .chapterCompleteOnly,
+               model.kind != .chapterCompletePremiumUpsell {
                 Text(next.localizedTitle(locale))
                     .font(.subheadline.bold())
                     .foregroundStyle(Color(hex: "93c5fd"))
                     .multilineTextAlignment(.center)
             }
             HStack(spacing: 12) {
-                Button(stayLabel, action: onStay)
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
-                if model.kind != .chapterCompleteOnly, let onContinue {
+                if showStay {
+                    Button(stayLabel, action: onStay)
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                }
+                if model.kind != .chapterCompleteOnly,
+                   model.kind != .chapterCompletePremiumUpsell,
+                   let onContinue {
                     Button(isJapanese ? "次へ進む" : "Continue", action: onContinue)
                         .buttonStyle(.borderedProminent)
+                        .frame(maxWidth: .infinity)
+                }
+                if model.kind == .chapterCompletePremiumUpsell, let onPremium {
+                    Button(isJapanese ? "プレミアムで続ける" : "Continue with Premium", action: onPremium)
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.purple.opacity(0.85))
                         .frame(maxWidth: .infinity)
                 }
             }

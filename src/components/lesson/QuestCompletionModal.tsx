@@ -11,6 +11,7 @@ export interface QuestCompletionModalProps {
   isEnglishCopy: boolean;
   onStay: () => void;
   onContinue?: () => void;
+  onPremium?: () => void;
 }
 
 export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
@@ -20,6 +21,7 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
   isEnglishCopy,
   onStay,
   onContinue,
+  onPremium,
 }) => {
   const blockInfo = getLessonBlockInfo(currentLesson, { isEnglishCopy });
   const chapterLabel = isEnglishCopy
@@ -29,6 +31,7 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
   const heading = (() => {
     switch (kind) {
       case 'chapterCompleteWithNext':
+      case 'chapterCompletePremiumUpsell':
       case 'chapterCompleteOnly':
         return isEnglishCopy
           ? `${chapterLabel} complete!`
@@ -45,6 +48,10 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
         return isEnglishCopy
           ? 'Congratulations! Ready for the next quest?'
           : 'おめでとうございます！次のクエストに進みますか？';
+      case 'chapterCompletePremiumUpsell':
+        return isEnglishCopy
+          ? 'Congratulations! Chapters 2+ require Premium.'
+          : 'おめでとうございます！第2チャプター以降はプレミアムでプレイできます。';
       case 'chapterCompleteOnly':
         return isEnglishCopy
           ? 'Congratulations on clearing this chapter!'
@@ -60,7 +67,12 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
     : (isEnglishCopy ? 'Stay on this page' : 'このまま留まる');
 
   const continueLabel = isEnglishCopy ? 'Continue' : '次へ進む';
-  const showContinue = kind !== 'chapterCompleteOnly' && onContinue !== undefined;
+  const premiumLabel = isEnglishCopy ? 'Continue with Premium' : 'プレミアムで続ける';
+  const showStay = kind !== 'chapterCompletePremiumUpsell';
+  const showContinue = kind !== 'chapterCompleteOnly'
+    && kind !== 'chapterCompletePremiumUpsell'
+    && onContinue !== undefined;
+  const showPremium = kind === 'chapterCompletePremiumUpsell' && onPremium !== undefined;
 
   return (
     <div
@@ -92,13 +104,15 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
           ) : null}
         </div>
         <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onStay}
-            className="flex-1 rounded-lg bg-slate-600 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-500"
-          >
-            {stayLabel}
-          </button>
+          {showStay ? (
+            <button
+              type="button"
+              onClick={onStay}
+              className="flex-1 rounded-lg bg-slate-600 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-500"
+            >
+              {stayLabel}
+            </button>
+          ) : null}
           {showContinue ? (
             <button
               type="button"
@@ -106,6 +120,16 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
               className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500"
             >
               {continueLabel}
+              <FaChevronRight className="h-3 w-3" aria-hidden />
+            </button>
+          ) : null}
+          {showPremium ? (
+            <button
+              type="button"
+              onClick={onPremium}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-500"
+            >
+              {premiumLabel}
               <FaChevronRight className="h-3 w-3" aria-hidden />
             </button>
           ) : null}

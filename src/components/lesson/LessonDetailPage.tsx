@@ -74,6 +74,7 @@ import {
 } from '@/utils/lessonNavigation';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import {
   getStageByNumber,
@@ -366,6 +367,7 @@ const LessonDetailPage: React.FC = () => {
 
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
   const [questCompletionModalKind, setQuestCompletionModalKind] = useState<QuestCompletionModalKind>('none');
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const completionState = resolveLessonCompletionState({
     isCompleted: lessonProgress?.completed === true,
@@ -1359,8 +1361,22 @@ const LessonDetailPage: React.FC = () => {
                       }
                     : undefined
                 }
+                onPremium={
+                  questCompletionModalKind === 'chapterCompletePremiumUpsell'
+                    ? () => {
+                        setShowNextLessonPrompt(false);
+                        setQuestCompletionModalKind('none');
+                        setShowPaywall(true);
+                      }
+                    : undefined
+                }
               />
             ) : null}
+            <WebPaywallModal
+              open={showPaywall}
+              onClose={() => setShowPaywall(false)}
+              isEnglishCopy={isEnglishCopy}
+            />
           </div>
         </div>
       )}
