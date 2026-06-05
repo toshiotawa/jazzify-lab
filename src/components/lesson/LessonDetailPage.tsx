@@ -274,6 +274,7 @@ const LessonDetailPage: React.FC = () => {
       }
 
       // 直接アクセス時のコース受講可否ガード（premium_onlyを唯一の判定）
+      let isMainQuestCourse = false;
       if (lessonData?.course_id && profile?.id) {
         const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
         const [course, completedCourses] = await Promise.all([
@@ -286,6 +287,7 @@ const LessonDetailPage: React.FC = () => {
         if (course) {
           setShouldHideVideos(false);
           setCourseDifficultyTier(normalizeCourseDifficultyTier(course.difficulty_tier));
+          isMainQuestCourse = course.is_main_course === true;
           const access = canAccessCourse(course, effectiveRank, completedCourses, isEnglishCopy);
           if (!access.canAccess) {
             pushToast(
@@ -307,7 +309,7 @@ const LessonDetailPage: React.FC = () => {
             window.location.hash = '#lessons';
             return;
           }
-          setLessonCourseIsMainQuest(course.is_main_course === true);
+          setLessonCourseIsMainQuest(isMainQuestCourse);
         } else {
           setCourseDifficultyTier(null);
           setLessonCourseIsMainQuest(false);
@@ -323,7 +325,15 @@ const LessonDetailPage: React.FC = () => {
       // ナビゲーション情報を取得
       if (lessonData?.course_id) {
           try {
-            const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id, effectiveRank);
+            const navInfo = await getLessonNavigationInfo(
+              targetLessonId,
+              lessonData.course_id,
+              effectiveRank,
+              {
+                isMainQuest: isMainQuestCourse,
+                isPremiumMember,
+              },
+            );
             if (!isStale()) {
               setNavigationInfo(navInfo);
             }
@@ -451,7 +461,16 @@ const LessonDetailPage: React.FC = () => {
       if (lesson.course_id) {
         try {
           clearNavigationCacheForCourse(lesson.course_id);
-          const freshNavInfo = await getLessonNavigationInfo(lessonId, lesson.course_id, effectiveRank, { forceRefresh: true });
+          const freshNavInfo = await getLessonNavigationInfo(
+            lessonId,
+            lesson.course_id,
+            effectiveRank,
+            {
+              forceRefresh: true,
+              isMainQuest: lessonCourseIsMainQuest,
+              isPremiumMember,
+            },
+          );
           setNavigationInfo(freshNavInfo);
           const courseLessons = await fetchLessonsByCourse(lesson.course_id);
           const modalKind = getQuestCompletionModalKind(

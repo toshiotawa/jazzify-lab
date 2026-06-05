@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Lesson } from '@/types';
+import type { Lesson, LessonProgress } from '@/types';
 import {
+  computeLessonNavigationInfo,
   getQuestCompletionModalKind,
   isLastLessonInBlock,
   sortLessonsByOrder,
@@ -18,6 +19,10 @@ const lesson = (id: string, orderIndex: number, blockNumber = 1): Lesson => ({
   updated_at: '',
 });
 
+const progress = (lessonId: string, completed: boolean): Pick<LessonProgress, 'completed'> => ({
+  completed,
+});
+
 const navInfo = (
   next: Lesson | null,
   canGoNext: boolean,
@@ -31,6 +36,90 @@ const navInfo = (
     hasAccessToPrevious: false,
     hasAccessToNext: canGoNext,
   },
+});
+
+describe('computeLessonNavigationInfo', () => {
+  const l1 = lesson('l1', 0, 1);
+  const l2 = lesson('l2', 1, 1);
+  const l3 = lesson('l3', 0, 2);
+
+  it('メインクエスト: block1 lesson1 未完了 → lesson2 へ進めない', () => {
+    const result = computeLessonNavigationInfo(
+      'l1',
+      'course-1',
+      [l1, l2],
+      {},
+      { isMainQuest: true, isPremiumMember: true },
+    );
+    expect(result.nextLesson?.id).toBe('l2');
+    expect(result.canGoNext).toBe(false);
+  });
+
+  it('メインクエスト: block1 lesson1 完了 → lesson2 へ進める', () => {
+    const result = computeLessonNavigationInfo(
+      'l1',
+      'course-1',
+      [l1, l2],
+      { l1: progress('l1', true) },
+      { isMainQuest: true, isPremiumMember: true },
+    );
+    expect(result.nextLesson?.id).toBe('l2');
+    expect(result.canGoNext).toBe(true);
+  });
+
+  it('メインクエスト: フリー会員 block1 最終完了 → block2 lesson1 へ進めない', () => {
+    const block1First = lesson('b1-first', 0, 1);
+    const block1Last = lesson('b1-last', 1, 1);
+    const block2First = lesson('b2-first', 2, 2);
+    const result = computeLessonNavigationInfo(
+      'b1-last',
+      'course-1',
+      [block1First, block1Last, block2First],
+      {
+        'b1-first': progress('b1-first', true),
+        'b1-last': progress('b1-last', true),
+      },
+      { isMainQuest: true, isPremiumMember: false },
+    );
+    expect(result.nextLesson?.id).toBe('b2-first');
+    expect(result.canGoNext).toBe(false);
+  });
+
+  it('目的別コース: 同一ブロック内は順番未完了でも次へ進める', () => {
+    const result = computeLessonNavigationInfo(
+      'l1',
+      'course-1',
+      [l1, l2],
+      {},
+      { isMainQuest: false, isPremiumMember: false },
+    );
+    expect(result.nextLesson?.id).toBe('l2');
+    expect(result.canGoNext).toBe(true);
+  });
+
+  it('最後のレッスンでは canGoNext が false', () => {
+    const result = computeLessonNavigationInfo(
+      'l2',
+      'course-1',
+      [l1, l2],
+      { l1: progress('l1', true), l2: progress('l2', true) },
+      { isMainQuest: true, isPremiumMember: true },
+    );
+    expect(result.nextLesson).toBeNull();
+    expect(result.canGoNext).toBe(false);
+  });
+
+  it('最初のレッスンでは canGoPrevious が false', () => {
+    const result = computeLessonNavigationInfo(
+      'l1',
+      'course-1',
+      [l1, l2],
+      {},
+      { isMainQuest: true, isPremiumMember: true },
+    );
+    expect(result.previousLesson).toBeNull();
+    expect(result.canGoPrevious).toBe(false);
+  });
 });
 
 describe('isLastLessonInBlock', () => {
