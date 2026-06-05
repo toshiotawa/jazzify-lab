@@ -1,0 +1,43 @@
+{
+  "layoutVersion": 1,
+  "viewWidth": 960,
+  "viewHeight": 528,
+  "tileSize": 48,
+  "worldTilesWide": 48,
+  "worldTilesHigh": 15,
+  "worldHeight": 720,
+  "groundRow": 9,
+  "spawn": {
+    "c": 2,
+    "r": 9
+  },
+  "pits": [],
+  "solids": [
+    {
+      "kind": "ground",
+      "row": 13,
+      "c0": 0,
+      "c1": 47
+    },
+    {
+      "kind": "ground",
+      "row": 14,
+      "c0": 0,
+      "c1": 47
+    }
+  ],
+  "spikes": [],
+  "enemies": [
+    {
+      "c": 22,
+      "r": 13,
+      "id": "slime-22-13"
+    }
+  ],
+  "goalOffsetX": 18,
+  "manualGround": true,
+  "goal": {
+    "c": 42,
+    "r": 13
+  }
+}

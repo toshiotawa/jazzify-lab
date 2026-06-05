@@ -3,7 +3,7 @@ import {
   createCodeRunMapFromDb,
   createDefaultCodeRunMap,
   createGraveyardRun02Map,
-  createGraveyardRun03Map,
+  createTutorialMap,
   createSnowRun01Map,
   createTowerRun01Map,
   CODE_RUN_PLAYER_H,
@@ -14,6 +14,8 @@ import devRun08LayoutJson from './layouts/dev_run_08.layout.json';
 import devRun09LayoutJson from './layouts/dev_run_09.layout.json';
 import devRun10LayoutJson from './layouts/dev_run_10.layout.json';
 import devRun11LayoutJson from './layouts/dev_run_11.layout.json';
+import devRun12LayoutJson from './layouts/dev_run_12.layout.json';
+import tutorial2LayoutJson from './layouts/tutorial_2.layout.json';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
@@ -364,27 +366,21 @@ describe('createGraveyardRun02Map reachability', () => {
   });
 });
 
-describe('createGraveyardRun03Map gimmick layout', () => {
-  const map = createGraveyardRun03Map();
-  const groundFootY = map.groundRow * CODE_RUN_TILE;
-  const singleJumpHeight = simulateSingleJumpHeight();
+describe('createTutorialMap gimmick layout', () => {
+  const map = createTutorialMap();
   const platformTopY = (row: number): number => row * CODE_RUN_TILE;
 
-  it('row6/row7 の低い足場でスパイク帯を渡る構成', () => {
-    const row6Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(6));
-    const row7Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(7));
-    expect(row6Platforms.length).toBeGreaterThan(0);
-    expect(row7Platforms.length).toBeGreaterThan(0);
-    expect(map.spikes.length).toBeGreaterThanOrEqual(10);
-  });
-
-  it('最高足場は単発ジャンプで到達できる row6 に収める', () => {
-    const highPlatforms = map.solids.filter(
-      (tile) => tile.kind === 'platform' && tile.y < platformTopY(6),
+  it('縦のちくわ足場とスパイク帯・箱迷路の横長構成', () => {
+    const chikuwaColumn = map.solids.filter(
+      (tile) => tile.kind === 'platform' && tile.x >= 43 * CODE_RUN_TILE && tile.x < 45 * CODE_RUN_TILE,
     );
-    const required = groundFootY - platformTopY(6);
-    expect(highPlatforms).toHaveLength(0);
-    expect(singleJumpHeight).toBeGreaterThanOrEqual(required);
+    expect(chikuwaColumn).toHaveLength(10);
+    expect(chikuwaColumn.some((tile) => tile.y === platformTopY(4))).toBe(true);
+    expect(chikuwaColumn.some((tile) => tile.y === platformTopY(8))).toBe(true);
+    expect(map.spikes).toHaveLength(5);
+    expect(map.enemies).toHaveLength(3);
+    expect(map.worldWidth).toBe(150 * CODE_RUN_TILE);
+    expect(map.assets.tiles.platform).toContain('chikuwa_ashiba.png');
   });
 
   it('ギミック変更として stage 112 とは異なるスパイク数にする', () => {
@@ -450,13 +446,15 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(byId.goalX).toBe(direct.goalX);
   });
 
-  it('graveyard_run_03 は stage 113 レイアウトを返す', () => {
-    const direct = createGraveyardRun03Map();
-    const byId = createCodeRunMapById('graveyard_run_03');
-    expect(byId.id).toBe('graveyard_run_03');
+  it('tutorial は stage 113 レイアウトを返す', () => {
+    const direct = createTutorialMap();
+    const byId = createCodeRunMapById('tutorial');
+    expect(byId.id).toBe('tutorial');
     expect(byId.solids.length).toBe(direct.solids.length);
-    expect(byId.spikes.length).toBe(direct.spikes.length);
-    expect(byId.enemies.length).toBe(direct.enemies.length);
+    expect(byId.spikes.length).toBe(5);
+    expect(byId.enemies.length).toBe(3);
+    expect(byId.worldWidth).toBe(150 * CODE_RUN_TILE);
+    expect(byId.assets.tiles.platform).toContain('chikuwa_ashiba.png');
   });
 
   it('tower_run_01 は縦長ビル型レイアウトを返す', () => {
@@ -481,11 +479,11 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
 
   it('createCodeRunMapFromDb は mapId に応じたレイアウトを返す', () => {
     const nightCity = createDefaultCodeRunMap();
-    const graveyard = createGraveyardRun03Map();
-    const fromDb = createCodeRunMapFromDb('graveyard_run_03', { name: 'Graveyard Run 03' }, 95);
-    expect(fromDb.id).toBe('graveyard_run_03');
-    expect(fromDb.name).toBe('Graveyard Run 03');
-    expect(fromDb.solids.length).toBe(graveyard.solids.length);
+    const tutorial = createTutorialMap();
+    const fromDb = createCodeRunMapFromDb('tutorial', { name: 'Tutorial' }, 95);
+    expect(fromDb.id).toBe('tutorial');
+    expect(fromDb.name).toBe('Tutorial');
+    expect(fromDb.solids.length).toBe(tutorial.solids.length);
     expect(fromDb.solids.length).not.toBe(nightCity.solids.length);
   });
 
@@ -607,6 +605,57 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.solids.filter((solid) => solid.kind === 'block').length).toBe(194);
     expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(202);
     expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(106);
+  });
+
+  it('tower_run_01 は縦長タワー降下レイアウトを返す', () => {
+    const fromDb = createCodeRunMapFromDb('tower_run_01', {
+      name: 'Tower Run 01',
+      ...devRun12LayoutJson,
+    }, 180);
+    expect(fromDb.id).toBe('tower_run_01');
+    expect(fromDb.worldWidth).toBe(20 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(3840);
+    expect(fromDb.groundRow).toBe(9);
+    expect(fromDb.spawn).toEqual({ x: 1 * CODE_RUN_TILE, y: 5 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.goalX).toBe(1 * CODE_RUN_TILE + 18);
+    expect(fromDb.goalY).toBe(69 * CODE_RUN_TILE - 84);
+    expect(fromDb.spikes).toHaveLength(23);
+    expect(fromDb.enemies).toHaveLength(2);
+    expect(fromDb.solids.every((solid) => solid.kind === 'brick')).toBe(true);
+  });
+
+  it('dev_run_12 は縦長タワー降下レイアウトを返す', () => {
+    const fromDb = createCodeRunMapFromDb('dev_run_12', {
+      name: 'Dev Run 12',
+      ...devRun12LayoutJson,
+    }, 180);
+    expect(fromDb.id).toBe('dev_run_12');
+    expect(fromDb.worldWidth).toBe(20 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(3840);
+    expect(fromDb.groundRow).toBe(9);
+    expect(fromDb.spawn).toEqual({ x: 1 * CODE_RUN_TILE, y: 5 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.goalX).toBe(1 * CODE_RUN_TILE + 18);
+    expect(fromDb.goalY).toBe(69 * CODE_RUN_TILE - 84);
+    expect(fromDb.spikes).toHaveLength(23);
+    expect(fromDb.enemies).toHaveLength(2);
+    expect(fromDb.solids.every((solid) => solid.kind === 'brick')).toBe(true);
+  });
+
+  it('tutorial_2 は横長床とスライム1体のレイアウトを返す', () => {
+    const fromDb = createCodeRunMapFromDb('tutorial_2', {
+      name: 'Tutorial 2',
+      ...tutorial2LayoutJson,
+    }, 90);
+    expect(fromDb.id).toBe('tutorial_2');
+    expect(fromDb.worldWidth).toBe(48 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(720);
+    expect(fromDb.groundRow).toBe(9);
+    expect(fromDb.spawn).toEqual({ x: 2 * CODE_RUN_TILE, y: 9 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.goalX).toBe(42 * CODE_RUN_TILE + 18);
+    expect(fromDb.goalY).toBe(13 * CODE_RUN_TILE - 84);
+    expect(fromDb.spikes).toHaveLength(0);
+    expect(fromDb.enemies).toHaveLength(1);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(96);
   });
 
   it('dev_run_11 は横長ちくわ足場とスライムのレイアウトを返す', () => {

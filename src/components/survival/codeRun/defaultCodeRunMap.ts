@@ -7,6 +7,7 @@ import type {
   CodeRunTileRect,
 } from './CodeRunTypes';
 import graveyardRun02LayoutJson from './layouts/graveyard_run_02.layout.json';
+import tutorialLayoutJson from './layouts/tutorial.layout.json';
 import snowRun01LayoutJson from './layouts/snow_run_01.layout.json';
 
 import { CODE_RUN_TIME_LIMIT_SECONDS } from './CodeRunEngine';
@@ -340,6 +341,7 @@ const NIGHT_CITY_RUN_01_LAYOUT: CodeRunLayoutData = {
 };
 
 type GraveyardRun02LayoutFields = Omit<CodeRunLayoutData, 'id' | 'name'>;
+type TutorialLayoutFields = Omit<CodeRunLayoutData, 'id' | 'name'>;
 
 const GRAVEYARD_RUN_02_LAYOUT: CodeRunLayoutData = {
   id: 'graveyard_run_02',
@@ -347,64 +349,10 @@ const GRAVEYARD_RUN_02_LAYOUT: CodeRunLayoutData = {
   ...(graveyardRun02LayoutJson as GraveyardRun02LayoutFields),
 };
 
-const GRAVEYARD_RUN_03_LAYOUT: CodeRunLayoutData = {
-  id: 'graveyard_run_03',
-  name: 'Graveyard Run 03',
-  pits: [{ c0: 30, c1: 31 }, { c0: 66, c1: 68 }, { c0: 104, c1: 106 }, { c0: 144, c1: 145 }],
-  solids: [
-    row('platform', 7, 12, 14),
-    row('platform', 7, 19, 22),
-    row('platform', 6, 25, 26),
-    single('block', 36, 6),
-    single('block', 37, 6),
-    row('platform', 7, 45, 49),
-    row('brick', 8, 56, 58),
-    row('platform', 7, 70, 72),
-    row('platform', 6, 75, 76),
-    row('platform', 7, 81, 84),
-    single('block', 94, 6),
-    single('block', 95, 6),
-    col('brick', 99, 8, 8),
-    col('brick', 100, 7, 8),
-    col('brick', 101, 6, 8),
-    row('platform', 7, 109, 111),
-    row('platform', 6, 114, 116),
-    row('platform', 7, 122, 126),
-    row('platform', 7, 136, 138),
-    row('platform', 6, 140, 141),
-    col('brick', 152, 8, 8),
-    col('brick', 153, 7, 8),
-    col('brick', 154, 6, 8),
-    col('brick', 155, 5, 8),
-    col('brick', 156, 4, 8),
-  ],
-  spikes: [
-    spike(20),
-    spike(21),
-    spike(46),
-    spike(47),
-    spike(48),
-    spike(82),
-    spike(83),
-    spike(123),
-    spike(124),
-    spike(125),
-  ],
-  enemies: [
-    enemy(13, 7),
-    enemy(27),
-    enemy(40),
-    enemy(48, 7),
-    enemy(60),
-    enemy(75, 6),
-    enemy(88),
-    enemy(110, 7),
-    enemy(116, 6),
-    enemy(130),
-    enemy(141, 6),
-    enemy(151),
-    enemy(158),
-  ],
+const TUTORIAL_LAYOUT: CodeRunLayoutData = {
+  id: 'tutorial',
+  name: 'Tutorial',
+  ...(tutorialLayoutJson as TutorialLayoutFields),
 };
 
 type SnowRun01LayoutFields = Omit<CodeRunLayoutData, 'id' | 'name'>;
@@ -485,11 +433,11 @@ export function createGraveyardRun02Map(
   return buildMapFromLayout(GRAVEYARD_RUN_02_LAYOUT, timeLimitSec, assets);
 }
 
-export function createGraveyardRun03Map(
+export function createTutorialMap(
   timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  return buildMapFromLayout(GRAVEYARD_RUN_03_LAYOUT, timeLimitSec, assets);
+  return buildMapFromLayout(TUTORIAL_LAYOUT, timeLimitSec, assets);
 }
 
 export function createTowerRun01Map(
@@ -509,7 +457,7 @@ export function createSnowRun01Map(
 const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
   night_city_run_01: createDefaultCodeRunMap,
   graveyard_run_02: createGraveyardRun02Map,
-  graveyard_run_03: createGraveyardRun03Map,
+  tutorial: createTutorialMap,
   tower_run_01: createTowerRun01Map,
   snow_run_01: createSnowRun01Map,
 };

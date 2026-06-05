@@ -114,14 +114,64 @@ const tileImageUrl = (
   return tiles[kind];
 };
 
-/** 縦長ワールドでは cover 背景がビュー下にはみ出さないよう縦パララックスを切る。 */
-export const computeBackgroundParallaxY = (
-  worldHeight: number,
+export interface CodeRunBackgroundLayout {
+  drawW: number;
+  drawH: number;
+  drawY: number;
+  /** 画像下端より下を埋めるグラデーション開始 Y。不要なら null。 */
+  gradientTop: number | null;
+}
+
+/** 背景画像下端の霧色（グラデーション接続用）。 */
+const CODE_RUN_BG_GRADIENT_TOP = '#6d4a7a';
+const CODE_RUN_BG_GRADIENT_MID = '#452a52';
+const CODE_RUN_BG_GRADIENT_BOTTOM = '#1a0c22';
+const CODE_RUN_BG_PARALLAX_Y = 0.08;
+
+/** 横タイル前提で幅に合わせ、縦長ワールドは cameraY パララックスで上へ流す。 */
+export const computeBackgroundLayout = (
+  viewWidth: number,
   viewHeight: number,
+  naturalWidth: number,
+  naturalHeight: number,
+  worldHeight: number,
   cameraY: number,
-): number => (
-  worldHeight > viewHeight ? 0 : -Math.round(cameraY * 0.08)
-);
+): CodeRunBackgroundLayout => {
+  const drawW = viewWidth;
+  const drawH = naturalHeight * (viewWidth / naturalWidth);
+  const bottomAlignedY = viewHeight - drawH;
+
+  let drawY: number;
+  if (worldHeight > viewHeight) {
+    const rawDrawY = bottomAlignedY - cameraY * CODE_RUN_BG_PARALLAX_Y;
+    drawY = Math.min(0, rawDrawY);
+  } else {
+    drawY = (viewHeight - drawH) / 2 - cameraY * CODE_RUN_BG_PARALLAX_Y;
+  }
+
+  const roundedDrawY = Math.round(drawY);
+  const roundedDrawH = Math.round(drawH);
+  const imageBottom = roundedDrawY + roundedDrawH;
+  const gradientTop = imageBottom < viewHeight ? imageBottom : null;
+
+  return { drawW, drawH, drawY: roundedDrawY, gradientTop };
+};
+
+const drawBackgroundGradient = (
+  ctx: CanvasRenderingContext2D,
+  gradientTop: number,
+  viewWidth: number,
+  viewHeight: number,
+): void => {
+  const topY = Math.max(0, Math.round(gradientTop));
+  if (topY >= viewHeight) return;
+  const gradient = ctx.createLinearGradient(0, topY, 0, viewHeight);
+  gradient.addColorStop(0, CODE_RUN_BG_GRADIENT_TOP);
+  gradient.addColorStop(0.45, CODE_RUN_BG_GRADIENT_MID);
+  gradient.addColorStop(1, CODE_RUN_BG_GRADIENT_BOTTOM);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, topY, viewWidth, viewHeight - topY);
+};
 
 const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, images: ImageMap): void => {
   const { map } = state;
@@ -129,13 +179,22 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
   ctx.fillStyle = '#071026';
   ctx.fillRect(0, 0, map.viewWidth, map.viewHeight);
   if (bg?.complete && bg.naturalWidth > 0) {
-    const scale = Math.max(map.viewWidth / bg.naturalWidth, map.viewHeight / bg.naturalHeight);
-    const drawW = bg.naturalWidth * scale;
-    const drawH = bg.naturalHeight * scale;
+    const layout = computeBackgroundLayout(
+      map.viewWidth,
+      map.viewHeight,
+      bg.naturalWidth,
+      bg.naturalHeight,
+      map.worldHeight,
+      state.cameraY,
+    );
+    const drawW = Math.round(layout.drawW);
+    const drawH = Math.round(layout.drawH);
+    if (layout.gradientTop !== null) {
+      drawBackgroundGradient(ctx, layout.gradientTop, map.viewWidth, map.viewHeight);
+    }
     const parallax = -(state.cameraX * 0.18) % drawW;
-    const parallaxY = computeBackgroundParallaxY(map.worldHeight, map.viewHeight, state.cameraY);
     for (let x = parallax - drawW; x < map.viewWidth + drawW; x += drawW) {
-      ctx.drawImage(bg, Math.round(x), Math.round((map.viewHeight - drawH) / 2 + parallaxY), Math.round(drawW), Math.round(drawH));
+      ctx.drawImage(bg, Math.round(x), layout.drawY, drawW, drawH);
     }
     ctx.fillStyle = 'rgba(6, 10, 18, 0.22)';
     ctx.fillRect(0, 0, map.viewWidth, map.viewHeight);

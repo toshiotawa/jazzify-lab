@@ -609,40 +609,80 @@ private extension SurvivalCodeRunMapData {
         )
     }
 
-    static var graveyardRun03: SurvivalCodeRunMapData {
+    static var tutorialRun: SurvivalCodeRunMapData {
         SurvivalCodeRunMapData(
-            pits: [pit(30, 31), pit(66, 68), pit(104, 106), pit(144, 145)],
+            worldTilesWide: 150,
+            worldHeight: 528,
+            manualGround: true,
+            spawn: SurvivalCodeRunGridPoint(c: 2, r: 8),
+            goal: SurvivalCodeRunGridPoint(c: 148, r: 9),
+            pits: [],
             solids: [
-                row("platform", 7, 12, 14),
-                row("platform", 7, 19, 22),
-                row("platform", 6, 25, 26),
-                single("block", 36, 6),
-                single("block", 37, 6),
-                row("platform", 7, 45, 49),
-                row("brick", 8, 56, 58),
-                row("platform", 7, 70, 72),
-                row("platform", 6, 75, 76),
-                row("platform", 7, 81, 84),
-                single("block", 94, 6),
-                single("block", 95, 6),
-                col("brick", 99, 8, 8),
-                col("brick", 100, 7, 8),
-                col("brick", 101, 6, 8),
-                row("platform", 7, 109, 111),
-                row("platform", 6, 114, 116),
-                row("platform", 7, 122, 126),
-                row("platform", 7, 136, 138),
-                row("platform", 6, 140, 141),
-                col("brick", 152, 8, 8),
-                col("brick", 153, 7, 8),
-                col("brick", 154, 6, 8),
-                col("brick", 155, 5, 8),
-                col("brick", 156, 4, 8)
+                row("ground", 7, 102, 103),
+                row("ground", 7, 110, 111),
+                row("ground", 7, 118, 119),
+                row("ground", 7, 127, 128),
+                row("ground", 7, 136, 137),
+                row("ground", 8, 102, 103),
+                row("ground", 8, 110, 111),
+                row("ground", 8, 118, 119),
+                row("ground", 8, 127, 128),
+                row("ground", 8, 136, 137),
+                row("ground", 9, 0, 149),
+                row("ground", 10, 0, 149),
+                single("brick", 14, 1),
+                row("brick", 1, 72, 76),
+                row("brick", 4, 65, 74),
+                row("brick", 4, 106, 107),
+                row("brick", 4, 114, 115),
+                row("brick", 4, 122, 124),
+                row("brick", 4, 131, 133),
+                single("brick", 6, 5),
+                row("brick", 5, 12, 16),
+                row("brick", 5, 21, 25),
+                row("platform", 4, 43, 44),
+                row("platform", 5, 43, 44),
+                row("platform", 6, 43, 44),
+                row("platform", 7, 43, 44),
+                row("platform", 8, 43, 44),
+                row("block", 0, 59, 60),
+                row("block", 1, 59, 60),
+                row("block", 2, 59, 60),
+                row("block", 2, 95, 96),
+                row("block", 3, 49, 50),
+                row("block", 3, 55, 56),
+                row("block", 3, 59, 60),
+                row("block", 3, 94, 96),
+                row("block", 4, 45, 56),
+                row("block", 4, 59, 60),
+                row("block", 4, 93, 96),
+                row("block", 5, 45, 46),
+                row("block", 5, 92, 96),
+                row("block", 6, 45, 46),
+                row("block", 6, 91, 96),
+                row("block", 7, 45, 46),
+                single("block", 71, 7),
+                single("block", 78, 7),
+                row("block", 7, 90, 96),
+                row("block", 8, 30, 31),
+                row("block", 8, 38, 39),
+                row("block", 8, 45, 46),
+                single("block", 65, 8),
+                single("block", 71, 8),
+                single("block", 78, 8),
+                row("block", 8, 89, 96)
             ],
-            spikes: [spike(20), spike(21), spike(46), spike(47), spike(48), spike(82), spike(83), spike(123), spike(124), spike(125)],
+            spikes: [
+                spike(47, 9),
+                spike(48, 9),
+                spike(49, 9),
+                spike(50, 9),
+                spike(51, 9)
+            ],
             enemies: [
-                enemy(13, 7), enemy(27), enemy(40), enemy(48, 7), enemy(60), enemy(75, 6),
-                enemy(88), enemy(110, 7), enemy(116, 6), enemy(130), enemy(141, 6), enemy(151), enemy(158)
+                enemy(23, 5),
+                enemy(74, 1),
+                enemy(14, 5)
             ]
         )
     }
@@ -765,8 +805,8 @@ private struct SurvivalCodeRunNativeMapSpec {
         switch id {
         case "graveyard_run_02":
             return bundled(id: "graveyard_run_02", name: "Graveyard Run 02", data: .graveyardRun02)
-        case "graveyard_run_03":
-            return bundled(id: "graveyard_run_03", name: "Graveyard Run 03", data: .graveyardRun03)
+        case "tutorial":
+            return bundled(id: "tutorial", name: "Tutorial", data: .tutorialRun)
         case "tower_run_01":
             return bundled(id: "tower_run_01", name: "Tower Run 01", data: .towerRun01)
         default:

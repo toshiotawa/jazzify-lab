@@ -77,6 +77,7 @@ import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import {
+  fetchAllStages,
   getStageByNumber,
   resolveLessonSurvivalMapCategory,
   formatSurvivalEncounterLabel,
@@ -259,6 +260,16 @@ const LessonDetailPage: React.FC = () => {
           is_clear_required: ls.is_clear_required,
         } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
+        const needsSurvivalCatalog = lessonData.lesson_songs.some(
+          (ls) => ls.is_survival && !ls.is_survival_tutorial && !lessonSongHasInlineComposite(ls.survival_composite_config),
+        );
+        if (needsSurvivalCatalog) {
+          try {
+            await fetchAllStages();
+          } catch {
+            /* stage labels fall back to "not configured" */
+          }
+        }
       }
       
       setRequirementsProgress(progressData.progress);
