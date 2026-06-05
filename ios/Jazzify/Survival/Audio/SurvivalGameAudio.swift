@@ -14,7 +14,7 @@ private let kRootBassPlaybackOctaveShift = 0
 
 /// サバイバル ゲーム画面専用の軽量オーディオマネージャ。
 /// - AVAudioEngine + AVAudioUnitSampler で SE 用 MIDI ノート再生（内蔵音色）
-/// - 鍵盤 / 正解ルートは同梱 SF2 を `loadSoundBankInstrument` でゲーム開始前に 1 回ロード
+/// - 鍵盤 / 正解ルートは同梱 SF2 を `loadSoundBankInstrument` でロードし、`engine.stop()` 後の再起動時に再ロード
 /// - 正解ルート音は専用 `rootBassMixer` で FingerBass SF2 を再生する。ロード失敗時は無音
 /// - BGM はステージ種別ごとの 1 URL を `AVQueuePlayer + AVPlayerLooper` でループ再生
 /// - SE (my_attack / enemy_attack / stage_clear / stage_gameover) は内蔵サンプラーで簡易再生
@@ -57,6 +57,8 @@ final class SurvivalGameAudio {
     private let rootBassSampler = AVAudioUnitSampler()
     private var rootBassGMReady = false
     private var rootBassGMLoadAttempted = false
+    /// 遅延 `stopNote` の世代。`stop()` や新規ワンショットで進め、古いタイマーを無効化する。
+    private var rootBassOneShotGeneration: UInt = 0
     private var isEngineStarted = false
     /// `stop()` 中 / 停止後のフラグ。MIDI コールバック (背景スレッド) から
     /// `pianoNoteOnRealtime` が遅延で飛んできた際に停止済みエンジン操作を
@@ -131,6 +133,8 @@ final class SurvivalGameAudio {
         isStopping = true
         stopBgm()
         stopAllKeyboardNotes()
+        stopAllRootBassNotes()
+        rootBassOneShotGeneration &+= 1
         // 遅延コールバック (arpeggio / stopNote) がまだキューに残っていても、
         // `isEngineStarted == false` により `sampler` 操作をスキップさせる。
         isEngineStarted = false
@@ -143,6 +147,7 @@ final class SurvivalGameAudio {
     private func preparePianoIfNeeded() {
         guard !isPianoPrepared else {
             isStopping = false
+            startEngineIfNeeded()
             return
         }
 
@@ -365,10 +370,17 @@ final class SurvivalGameAudio {
     private func playRootBassOneShot(midi: Int) -> Bool {
         guard rootBassGMReady, !isStopping, isEngineStarted, engine.isRunning else { return false }
         let n = UInt8(clamping: midi)
+        rootBassOneShotGeneration &+= 1
+        let generation = rootBassOneShotGeneration
+        rootBassSampler.stopNote(n, onChannel: 0)
         rootBassSampler.startNote(n, withVelocity: 118, onChannel: 0)
         let stopDelay: TimeInterval = 0.45
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + stopDelay) { [weak self] in
-            guard let self, self.rootBassGMReady else { return }
+            guard let self,
+                  self.rootBassGMReady,
+                  self.rootBassOneShotGeneration == generation,
+                  self.isEngineStarted,
+                  self.engine.isRunning else { return }
             self.rootBassSampler.stopNote(n, onChannel: 0)
         }
         return true
@@ -491,6 +503,32 @@ final class SurvivalGameAudio {
         }
     }
 
+    private func stopAllRootBassNotes() {
+        guard rootBassGMReady else { return }
+        for midi in 0...127 {
+            let n = UInt8(clamping: midi)
+            rootBassSampler.stopNote(n, onChannel: 0)
+        }
+    }
+
+    /// `engine.stop()` 後の再起動で SF2 サンプラー状態を復元する。
+    private func reloadSoundBanksAfterEngineStartIfNeeded() {
+        if keyboardGMLoadAttempted, let bankURL = resolvePianoSoundBankURL() {
+            keyboardGMReady = loadSamplerInstrument(
+                keyboardGrandSampler,
+                bankURL: bankURL,
+                program: kSoundBankDefaultProgram
+            )
+        }
+        if rootBassGMLoadAttempted, let bankURL = resolveRootBassSoundBankURL() {
+            rootBassGMReady = loadSamplerInstrument(
+                rootBassSampler,
+                bankURL: bankURL,
+                program: kSoundBankDefaultProgram
+            )
+        }
+    }
+
     private func registerLifecycleObservers() {
         let center = NotificationCenter.default
         interruptionObserver = center.addObserver(
@@ -563,6 +601,7 @@ final class SurvivalGameAudio {
             try engine.start()
             applyVolumesToNodes()
             isEngineStarted = true
+            reloadSoundBanksAfterEngineStartIfNeeded()
         } catch {
             isEngineStarted = false
         }
