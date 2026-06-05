@@ -310,39 +310,35 @@ describe('defaultCodeRunMap reachability', () => {
 
 describe('createGraveyardRun02Map reachability', () => {
   const map = createGraveyardRun02Map();
-  const groundFootY = map.groundRow * CODE_RUN_TILE;
-  const singleJumpHeight = simulateSingleJumpHeight();
   const platformTopY = (row: number): number => row * CODE_RUN_TILE;
 
-  it('row5 以上の platform は存在しない', () => {
-    const highPlatforms = map.solids.filter(
-      (tile) => tile.kind === 'platform' && tile.y < platformTopY(6),
+  it('横120タイル・manualGround の graveyard レイアウト', () => {
+    expect(map.id).toBe('graveyard_run_02');
+    expect(map.worldWidth).toBe(120 * CODE_RUN_TILE);
+    expect(map.worldHeight).toBe(528);
+    expect(map.solids.some((tile) => tile.kind === 'ground')).toBe(true);
+    expect(map.solids.some((tile) => tile.kind === 'platform' && tile.y === platformTopY(3))).toBe(true);
+  });
+
+  it('row3 プラットフォームが2箇所ある', () => {
+    const row3Platforms = map.solids.filter(
+      (tile) => tile.kind === 'platform' && tile.y === platformTopY(3),
     );
-    expect(highPlatforms).toHaveLength(0);
+    expect(row3Platforms).toHaveLength(10);
   });
 
-  it('row6 プラットフォームは単発ジャンプで到達可能', () => {
-    const row6Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(6));
-    expect(row6Platforms.length).toBeGreaterThan(0);
-    const required = groundFootY - platformTopY(6);
-    expect(required).toBe(CODE_RUN_TILE * 3);
-    expect(singleJumpHeight).toBeGreaterThanOrEqual(required);
+  it('スパイクは9本（row12 c84-92）', () => {
+    expect(map.spikes).toHaveLength(9);
   });
 
-  it('row7 プラットフォームは単発ジャンプで到達可能', () => {
-    const row7Platforms = map.solids.filter((tile) => tile.kind === 'platform' && tile.y === platformTopY(7));
-    expect(row7Platforms.length).toBeGreaterThan(0);
-    const required = groundFootY - platformTopY(7);
-    expect(required).toBe(CODE_RUN_TILE * 2);
-    expect(singleJumpHeight).toBeGreaterThanOrEqual(required);
-  });
-
-  it('敵は14体以上配置される', () => {
-    expect(map.enemies.length).toBeGreaterThanOrEqual(14);
+  it('敵は2体（row3 プラットフォーム上）', () => {
+    expect(map.enemies).toHaveLength(2);
+    expect(map.enemies.every((enemy) => enemy.id.startsWith('slime-'))).toBe(true);
   });
 
   it('旗エリアに触れた時だけクリアする', () => {
     expect(map.goalY).toBeDefined();
+    expect(map.goalX).toBe(118 * CODE_RUN_TILE + 18);
     const state = createInitialCodeRunState(map);
     const pastGoalButHigh = {
       ...state,

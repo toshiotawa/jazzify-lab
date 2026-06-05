@@ -6,6 +6,7 @@ import type {
   CodeRunTileKind,
   CodeRunTileRect,
 } from './CodeRunTypes';
+import graveyardRun02LayoutJson from './layouts/graveyard_run_02.layout.json';
 import snowRun01LayoutJson from './layouts/snow_run_01.layout.json';
 
 import { CODE_RUN_TIME_LIMIT_SECONDS } from './CodeRunEngine';
@@ -338,52 +339,12 @@ const NIGHT_CITY_RUN_01_LAYOUT: CodeRunLayoutData = {
   ],
 };
 
+type GraveyardRun02LayoutFields = Omit<CodeRunLayoutData, 'id' | 'name'>;
+
 const GRAVEYARD_RUN_02_LAYOUT: CodeRunLayoutData = {
   id: 'graveyard_run_02',
   name: 'Graveyard Run 02',
-  pits: [{ c0: 22, c1: 24 }, { c0: 54, c1: 56 }, { c0: 92, c1: 94 }, { c0: 132, c1: 133 }],
-  solids: [
-    single('block', 8, 6),
-    row('platform', 7, 28, 31),
-    row('brick', 8, 40, 42),
-    col('brick', 46, 8, 8),
-    col('brick', 47, 7, 8),
-    col('brick', 48, 6, 8),
-    col('brick', 49, 5, 8),
-    row('platform', 7, 62, 63),
-    single('block', 67, 6),
-    single('block', 68, 6),
-    row('platform', 7, 84, 86),
-    row('platform', 6, 88, 89),
-    single('block', 98, 6),
-    single('block', 99, 6),
-    row('platform', 7, 110, 111),
-    row('platform', 6, 113, 114),
-    single('block', 140, 6),
-    col('brick', 152, 8, 8),
-    col('brick', 153, 7, 8),
-    col('brick', 154, 6, 8),
-    col('brick', 155, 5, 8),
-    col('brick', 156, 4, 8),
-  ],
-  spikes: [spike(71), spike(72), spike(122), spike(123)],
-  enemies: [
-    enemy(14),
-    enemy(19),
-    enemy(29, 7),
-    enemy(50),
-    enemy(52),
-    enemy(74),
-    enemy(80),
-    enemy(85, 7),
-    enemy(90),
-    enemy(105),
-    enemy(112, 6),
-    enemy(128),
-    enemy(138),
-    enemy(148),
-    enemy(154),
-  ],
+  ...(graveyardRun02LayoutJson as GraveyardRun02LayoutFields),
 };
 
 const GRAVEYARD_RUN_03_LAYOUT: CodeRunLayoutData = {
