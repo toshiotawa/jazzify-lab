@@ -825,6 +825,8 @@ export interface EarTrainingStage {
   quiz_question_order?: 'random' | 'sequential';
   /** chord_quiz: バトル本番で五線の音符を表示する（false=未押下音を隠す） */
   quiz_show_notation_in_battle?: boolean;
+  /** chord_quiz: コード名を隠し、譜面の音符だけで出題する */
+  hide_chord_names_in_battle?: boolean;
   /** chord_quiz: クリアに必要な正答数（UI 分母・成否判定） */
   quiz_required_correct_count?: number;
   /** chord_voicing/chord_quiz/chord_osmd: 本番モードでも鍵盤上に正解候補をハイライトする */
@@ -918,6 +920,7 @@ export interface BalloonRushStageRow {
   stage_type?: 'random' | 'progression';
   production_staff_hint_mode?: ProductionHintMode;
   production_keyboard_hint_mode?: ProductionHintMode;
+  hide_chord_names_in_battle?: boolean;
 }
 
 export interface LessonSong {

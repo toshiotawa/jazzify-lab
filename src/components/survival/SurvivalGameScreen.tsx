@@ -6625,6 +6625,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
                       staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                       unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                      hideChordLabel={stageDefinition?.hideChordNamesInBattle === true}
                       className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
                     />
                   </SurvivalTutorialStaffBackdrop>
@@ -6637,6 +6638,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     correctPitchClasses={scenarioProgressionStaff.correctPitchClasses}
                     staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                     unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                    hideChordLabel={stageDefinition?.hideChordNamesInBattle === true}
                     className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
                   />
                 )}
@@ -6661,6 +6663,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   rootDisplayName={scenarioRandomStaff.rootDisplayName}
                   staffClef={scenarioRandomStaff.staffClef ?? 'treble'}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
+                  hideChordLabel={stageDefinition?.hideChordNamesInBattle === true}
                   className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
                 />
               </div>
@@ -6733,6 +6736,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
+                  hideChordLabel={stageDefinition?.hideChordNamesInBattle === true}
                   className="max-w-[min(360px,78vw)] md:max-w-[min(400px,75vw)]"
                 />
               </div>

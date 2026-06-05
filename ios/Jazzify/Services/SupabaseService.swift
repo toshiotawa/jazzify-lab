@@ -305,7 +305,10 @@ final class SupabaseService: Sendable {
                     title_en,
                     stage_type,
                     time_limit_sec,
-                    pop_quota
+                    pop_quota,
+                    production_staff_hint_mode,
+                    production_keyboard_hint_mode,
+                    hide_chord_names_in_battle
                 ),
                 earTrainingStage:ear_training_stages (*)
             )
@@ -1142,6 +1145,7 @@ final class SupabaseService: Sendable {
             quizDurationSeconds: raw.quizDurationSeconds,
             quizQuestionOrder: raw.quizQuestionOrder,
             quizShowNotationInBattle: raw.quizShowNotationInBattle,
+            hideChordNamesInBattle: raw.hideChordNamesInBattle,
             quizRequiredCorrectCount: raw.quizRequiredCorrectCount,
             showKeyboardHintsInBattle: raw.showKeyboardHintsInBattle,
             chordQuizItems: raw.sortedChordQuizItems(),
@@ -1246,6 +1250,7 @@ final class SupabaseService: Sendable {
             quizDurationSeconds: detail.quizDurationSeconds,
             quizQuestionOrder: detail.quizQuestionOrder,
             quizShowNotationInBattle: detail.quizShowNotationInBattle,
+            hideChordNamesInBattle: detail.hideChordNamesInBattle,
             quizRequiredCorrectCount: detail.quizRequiredCorrectCount,
             showKeyboardHintsInBattle: detail.showKeyboardHintsInBattle,
             chordQuizItems: detail.chordQuizItems,
@@ -1441,6 +1446,7 @@ final class SupabaseService: Sendable {
             quizDurationSeconds: detail.quizDurationSeconds,
             quizQuestionOrder: detail.quizQuestionOrder,
             quizShowNotationInBattle: detail.quizShowNotationInBattle,
+            hideChordNamesInBattle: detail.hideChordNamesInBattle,
             quizRequiredCorrectCount: detail.quizRequiredCorrectCount,
             showKeyboardHintsInBattle: detail.showKeyboardHintsInBattle,
             chordQuizItems: detail.chordQuizItems,

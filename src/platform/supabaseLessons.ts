@@ -21,7 +21,8 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
           songs (id, title, artist),
           fantasy_stage:fantasy_stages (*),
           balloon_rush_stage:balloon_rush_stages (
-            id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+            id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
+            production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
           ),
           ear_training_stage:ear_training_stages (
             *,
@@ -94,7 +95,8 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
         songs (id, title, artist),
         fantasy_stage:fantasy_stages (*),
         balloon_rush_stage:balloon_rush_stages (
-          id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+          id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
+          production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
         ),
         ear_training_stage:ear_training_stages (
           *,
@@ -699,7 +701,8 @@ export async function addBalloonRushStageToLesson(data: BalloonRushLessonSongDat
     .select(`
       *,
       balloon_rush_stage:balloon_rush_stages (
-        id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+        id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
+        production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
       )
     `)
     .single();

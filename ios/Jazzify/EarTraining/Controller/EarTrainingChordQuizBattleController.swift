@@ -970,17 +970,21 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         if let question = currentActiveQuestion, chipActive {
             for chord in question.chords {
                 chips.append(
-                    EarTrainingChordChip(
-                        id: chord.id,
-                        name: chord.chordName,
-                        active: resolvedShowVoicingHints && chord.id == activeChordId
-                    )
+                EarTrainingChordChip(
+                    id: chord.id,
+                    name: stage.resolvedHideChordNamesInBattle ? "" : chord.chordName,
+                    active: resolvedShowVoicingHints && chord.id == activeChordId
+                )
                 )
             }
         }
         if shouldShowQuizPreviewQuestion, let preview = previewQuestion {
             for chord in preview.chords {
-                chips.append(EarTrainingChordChip(id: chord.id, name: chord.chordName, active: false))
+                chips.append(EarTrainingChordChip(
+                    id: chord.id,
+                    name: stage.resolvedHideChordNamesInBattle ? "" : chord.chordName,
+                    active: false
+                ))
             }
         }
         let questionCompleted = EarTrainingChordQuiz.isQuestionCompleted(

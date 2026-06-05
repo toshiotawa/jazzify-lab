@@ -164,10 +164,11 @@ const getQuestionChordViews = (
   question: EarTrainingChordQuizQuestion | null,
   activeChordId: string | null,
   active: boolean,
+  hideChordNames: boolean,
 ): { id: string; name: string; active: boolean }[] => (
   question?.chords.map(chord => ({
     id: chord.id,
-    name: chord.chord_name,
+    name: hideChordNames ? '' : chord.chord_name,
     active: active && chord.id === activeChordId,
   })) ?? []
 );
@@ -175,10 +176,11 @@ const getQuestionChordViews = (
 const buildQuestionStaffGroups = (
   question: EarTrainingChordQuizQuestion | null,
   measureOffset: 0 | 1,
+  hideChordNames: boolean,
 ): ChordVoicingStaffGroup[] => (
   question?.chords.map((chord, index) => ({
     id: chord.id,
-    chordName: index === 0 ? chord.chord_name : '',
+    chordName: !hideChordNames && index === 0 ? chord.chord_name : '',
     voicing: chord.voicing ?? [],
     voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
     measureOffset,
@@ -224,6 +226,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const quizDurationSec = stage.quiz_duration_seconds ?? 90;
   const requiredCorrect = stage.quiz_required_correct_count ?? 80;
   const hideNotationInBattle = stage.quiz_show_notation_in_battle === false;
+  const hideChordNamesInBattle = stage.hide_chord_names_in_battle === true;
 
   const [statusText, setStatusText] = useState(copy.idlePrompt);
   const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
@@ -984,15 +987,15 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const showKeyboardTargetHints = practiceMode || stage.show_keyboard_hints_in_battle === true;
 
   const staffVoicingGroups = useMemo((): ChordVoicingStaffGroup[] => {
-    const activeGroups = buildQuestionStaffGroups(displayedActiveQuestion, 0);
+    const activeGroups = buildQuestionStaffGroups(displayedActiveQuestion, 0, hideChordNamesInBattle);
     if (!displayedPreviewQuestion || displayedPreviewQuestion.id === displayedActiveQuestion?.id) {
       return activeGroups;
     }
     return [
       ...activeGroups,
-      ...buildQuestionStaffGroups(displayedPreviewQuestion, 1),
+      ...buildQuestionStaffGroups(displayedPreviewQuestion, 1, hideChordNamesInBattle),
     ];
-  }, [displayedActiveQuestion, displayedPreviewQuestion]);
+  }, [displayedActiveQuestion, displayedPreviewQuestion, hideChordNamesInBattle]);
 
   const staffDenseCurrentMeasureLayout = useMemo(() => {
     const currentNoteTotal = getQuestionNoteTotal(displayedActiveQuestion);
@@ -1125,9 +1128,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     enemyAttackGaugePercent: practiceMode || tutorialNoCombat ? 0 : enemyAttackGaugePercent,
     attackGaugeHidden: practiceMode || tutorialNoCombat,
     chords: [
-      ...getQuestionChordViews(activeQuestion, activeChord?.id ?? null, showVoicingTargetHints),
+      ...getQuestionChordViews(activeQuestion, activeChord?.id ?? null, showVoicingTargetHints, hideChordNamesInBattle),
       ...(shouldShowQuizPreview && previewQuestion
-        ? getQuestionChordViews(previewQuestion, null, false)
+        ? getQuestionChordViews(previewQuestion, null, false, hideChordNamesInBattle)
         : []),
     ],
     phraseSlotsHidden: true,
@@ -1169,6 +1172,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     enemyName,
     gameState,
     hudLabels,
+    hideChordNamesInBattle,
     isMidiConnected,
     lessonContext,
     phraseIntroLine,
@@ -1243,11 +1247,12 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
           )}
         >
           <ChordVoicingStaff
-            chordName={activeChord?.chord_name}
+            chordName={hideChordNamesInBattle ? '' : activeChord?.chord_name}
             voicingGroups={staffVoicingGroups}
             activeGroupId={activeChord?.id ?? null}
             showTargetHints={showVoicingTargetHints}
             hideUnpressedNotes={hideStaffNotes}
+            hideChordLabels={hideChordNamesInBattle}
             singleMeasureLayout={!shouldShowQuizPreview}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}

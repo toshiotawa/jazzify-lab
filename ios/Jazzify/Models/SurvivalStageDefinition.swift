@@ -213,6 +213,7 @@ struct SurvivalStageRow: Decodable, Sendable {
     let chord_progression: [SurvivalChordProgressionEntry]?
     let production_staff_hint_mode: String?
     let production_keyboard_hint_mode: String?
+    let hide_chord_names_in_battle: Bool?
     let run_map_id: String?
     let run_time_limit_sec: Int?
     let run_dialogue_script: SurvivalRunDialogueScript?
@@ -326,6 +327,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let compositePhraseBgmUrl: String?
     let productionStaffHintMode: ProductionHintMode
     let productionKeyboardHintMode: ProductionHintMode
+    let hideChordNamesInBattle: Bool
     let runMapId: String?
     let runTimeLimitSec: Int?
     let runDialogueScript: SurvivalRunDialogueScript?
@@ -354,6 +356,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         compositePhraseBgmUrl: String?,
         productionStaffHintMode: ProductionHintMode = .fade15s,
         productionKeyboardHintMode: ProductionHintMode = .fade15s,
+        hideChordNamesInBattle: Bool = false,
         playMode: SurvivalPlayMode = .survival,
         runMapId: String? = nil,
         runTimeLimitSec: Int? = nil,
@@ -383,6 +386,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         self.compositePhraseBgmUrl = compositePhraseBgmUrl
         self.productionStaffHintMode = productionStaffHintMode
         self.productionKeyboardHintMode = productionKeyboardHintMode
+        self.hideChordNamesInBattle = hideChordNamesInBattle
         self.runMapId = runMapId
         self.runTimeLimitSec = runTimeLimitSec
         self.runDialogueScript = runDialogueScript
@@ -765,6 +769,7 @@ enum SurvivalStageCatalog {
                 compositePhraseBgmUrl: nil,
                 productionStaffHintMode: ProductionHintMode.parse(row.production_staff_hint_mode),
                 productionKeyboardHintMode: ProductionHintMode.parse(row.production_keyboard_hint_mode),
+                hideChordNamesInBattle: row.hide_chord_names_in_battle == true,
                 playMode: playMode,
                 runMapId: {
                     let v = row.run_map_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

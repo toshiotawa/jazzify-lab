@@ -169,10 +169,11 @@ extension EarTrainingChordVoicingStaffLayout {
     static func buildQuizGroups(
         active: EarTrainingChordQuiz.Question?,
         preview: EarTrainingChordQuiz.Question?,
+        hideChordNames: Bool = false
     ) -> (groups: [GroupInput], denseCurrentMeasureLayout: Bool) {
-        var groups = quizGroups(for: active, measureOffset: 0)
+        var groups = quizGroups(for: active, measureOffset: 0, hideChordNames: hideChordNames)
         if let preview, preview.id != active?.id {
-            groups.append(contentsOf: quizGroups(for: preview, measureOffset: 1))
+            groups.append(contentsOf: quizGroups(for: preview, measureOffset: 1, hideChordNames: hideChordNames))
         }
         let currentCount = active?.chords.reduce(0) { sum, chord in
             sum + (chord.voicing?.count ?? 0)
@@ -218,14 +219,15 @@ extension EarTrainingChordVoicingStaffLayout {
 
     private static func quizGroups(
         for question: EarTrainingChordQuiz.Question?,
-        measureOffset: Int
+        measureOffset: Int,
+        hideChordNames: Bool
     ) -> [GroupInput] {
         guard let question else { return [] }
         return question.chords.enumerated().map { index, chord in
             let voicing = chord.voicing ?? []
             return GroupInput(
                 id: chord.id,
-                chordName: index == 0 ? chord.chordName : "",
+                chordName: !hideChordNames && index == 0 ? chord.chordName : "",
                 voicing: voicing,
                 voicingStaves: chord.voicingStaves ?? [],
                 measureOffset: measureOffset,

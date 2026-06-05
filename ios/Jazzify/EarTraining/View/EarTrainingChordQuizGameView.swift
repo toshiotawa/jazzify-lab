@@ -309,7 +309,8 @@ private struct EarTrainingChordQuizContent: View {
     private func staffOverlay(size: CGSize) -> some View {
         let layout = EarTrainingChordVoicingStaffLayout.buildQuizGroups(
             active: controller.displayedStaffActiveQuestion,
-            preview: controller.displayedStaffPreviewQuestion
+            preview: controller.displayedStaffPreviewQuestion,
+            hideChordNames: controller.stage.resolvedHideChordNamesInBattle
         )
         let hideNotes = controller.stage.resolvedQuizHideUnpressedNotationInBattle(practiceMode: controller.practiceMode)
         let keyFifths = controller.displayedStaffActiveQuestion?.keyFifths ?? controller.stage.keyFifths ?? 0
@@ -330,7 +331,8 @@ private struct EarTrainingChordQuizContent: View {
                 completionPulse: controller.staffCompletionPulse,
                 showTargetHints: showHints,
                 singleMeasureLayout: controller.displayedStaffPreviewQuestion == nil,
-                hideUnpressedNotes: hideNotes
+                hideUnpressedNotes: hideNotes,
+                hideChordLabels: controller.stage.resolvedHideChordNamesInBattle
             )
             .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
             .position(x: size.width / 2, y: size.height * 0.42)

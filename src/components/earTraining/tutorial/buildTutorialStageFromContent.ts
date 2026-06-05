@@ -147,6 +147,7 @@ const baseStageFields = (
   | 'quiz_duration_seconds'
   | 'quiz_question_order'
   | 'quiz_show_notation_in_battle'
+  | 'hide_chord_names_in_battle'
   | 'quiz_required_correct_count'
   | 'show_keyboard_hints_in_battle'
   | 'chord_voicing_composite_phrase'
@@ -180,6 +181,7 @@ const baseStageFields = (
   quiz_duration_seconds: s.quiz_duration_seconds,
   quiz_question_order: s.quiz_question_order,
   quiz_show_notation_in_battle: s.quiz_show_notation_in_battle,
+  hide_chord_names_in_battle: s.hide_chord_names_in_battle,
   quiz_required_correct_count: s.quiz_required_correct_count,
   show_keyboard_hints_in_battle: s.show_keyboard_hints_in_battle,
   chord_voicing_composite_phrase: s.chord_voicing_composite_phrase,

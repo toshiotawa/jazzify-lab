@@ -27,6 +27,7 @@ export interface BalloonRushResolvedStage {
   readonly keyFifths: number;
   readonly productionStaffHintMode: ProductionHintMode;
   readonly productionKeyboardHintMode: ProductionHintMode;
+  readonly hideChordNamesInBattle: boolean;
 }
 
 function parseChordProgressionBalloon(raw: unknown): SurvivalChordProgressionEntry[] | undefined {
@@ -185,5 +186,6 @@ export const rowToBalloonRushResolvedStage = (row: Record<string, unknown>): Bal
     keyFifths: typeof row.key_fifths === 'number' ? Math.trunc(row.key_fifths) : 0,
     productionStaffHintMode: parseProductionHintMode(row.production_staff_hint_mode),
     productionKeyboardHintMode: parseProductionHintMode(row.production_keyboard_hint_mode),
+    hideChordNamesInBattle: row.hide_chord_names_in_battle === true,
   };
 };

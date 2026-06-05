@@ -89,6 +89,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let quizDurationSeconds: Int?
     let quizQuestionOrder: String?
     let quizShowNotationInBattle: Bool?
+    let hideChordNamesInBattle: Bool?
     let quizRequiredCorrectCount: Int?
     let showKeyboardHintsInBattle: Bool?
     let chordQuizItems: [EarTrainingChordQuizItem]?
@@ -135,6 +136,10 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     func resolvedQuizHideUnpressedNotationInBattle(practiceMode: Bool) -> Bool {
         guard practiceMode != true else { return false }
         return quizShowNotationInBattle == false
+    }
+
+    var resolvedHideChordNamesInBattle: Bool {
+        hideChordNamesInBattle == true
     }
 
     func battleClearConditionText(isEnglish: Bool) -> String {
@@ -187,6 +192,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         case quizDurationSeconds = "quiz_duration_seconds"
         case quizQuestionOrder = "quiz_question_order"
         case quizShowNotationInBattle = "quiz_show_notation_in_battle"
+        case hideChordNamesInBattle = "hide_chord_names_in_battle"
         case quizRequiredCorrectCount = "quiz_required_correct_count"
         case showKeyboardHintsInBattle = "show_keyboard_hints_in_battle"
         case chordQuizItems = "chord_quiz_items"
@@ -227,6 +233,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         quizDurationSeconds = try container.decodeIfPresent(Int.self, forKey: .quizDurationSeconds)
         quizQuestionOrder = try container.decodeIfPresent(String.self, forKey: .quizQuestionOrder)
         quizShowNotationInBattle = try container.decodeIfPresent(Bool.self, forKey: .quizShowNotationInBattle)
+        hideChordNamesInBattle = try container.decodeIfPresent(Bool.self, forKey: .hideChordNamesInBattle)
         quizRequiredCorrectCount = try container.decodeIfPresent(Int.self, forKey: .quizRequiredCorrectCount)
         showKeyboardHintsInBattle = try container.decodeIfPresent(Bool.self, forKey: .showKeyboardHintsInBattle)
         chordQuizItems = try container.decodeIfPresent([EarTrainingChordQuizItem].self, forKey: .chordQuizItems)
@@ -269,6 +276,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         try container.encodeIfPresent(quizDurationSeconds, forKey: .quizDurationSeconds)
         try container.encodeIfPresent(quizQuestionOrder, forKey: .quizQuestionOrder)
         try container.encodeIfPresent(quizShowNotationInBattle, forKey: .quizShowNotationInBattle)
+        try container.encodeIfPresent(hideChordNamesInBattle, forKey: .hideChordNamesInBattle)
         try container.encodeIfPresent(quizRequiredCorrectCount, forKey: .quizRequiredCorrectCount)
         try container.encodeIfPresent(showKeyboardHintsInBattle, forKey: .showKeyboardHintsInBattle)
         try container.encodeIfPresent(chordQuizItems, forKey: .chordQuizItems)
@@ -308,6 +316,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         quizDurationSeconds: Int?,
         quizQuestionOrder: String?,
         quizShowNotationInBattle: Bool?,
+        hideChordNamesInBattle: Bool?,
         quizRequiredCorrectCount: Int?,
         showKeyboardHintsInBattle: Bool?,
         chordQuizItems: [EarTrainingChordQuizItem]?,
@@ -347,6 +356,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         self.quizDurationSeconds = quizDurationSeconds
         self.quizQuestionOrder = quizQuestionOrder
         self.quizShowNotationInBattle = quizShowNotationInBattle
+        self.hideChordNamesInBattle = hideChordNamesInBattle
         self.quizRequiredCorrectCount = quizRequiredCorrectCount
         self.showKeyboardHintsInBattle = showKeyboardHintsInBattle
         self.chordQuizItems = chordQuizItems

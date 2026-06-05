@@ -137,7 +137,8 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
       fantasy_stage:fantasy_stages (*),
       ear_training_stage:ear_training_stages (*),
       balloon_rush_stage:balloon_rush_stages (
-        id, slug, title, title_en, time_limit_sec, pop_quota, stage_type
+        id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
+        production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
       )
     `)
     .eq('lesson_id', lessonId);

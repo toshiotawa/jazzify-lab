@@ -27,6 +27,7 @@ struct BalloonRushStageDefinition: Sendable, Identifiable {
     let keyFifths: Int
     let productionStaffHintMode: ProductionHintMode
     let productionKeyboardHintMode: ProductionHintMode
+    let hideChordNamesInBattle: Bool
 
     init(
         id: UUID,
@@ -48,7 +49,8 @@ struct BalloonRushStageDefinition: Sendable, Identifiable {
         bgmUrl: String?,
         keyFifths: Int,
         productionStaffHintMode: ProductionHintMode = .fade15s,
-        productionKeyboardHintMode: ProductionHintMode = .fade15s
+        productionKeyboardHintMode: ProductionHintMode = .fade15s,
+        hideChordNamesInBattle: Bool = false
     ) {
         self.id = id
         self.slug = slug
@@ -70,6 +72,7 @@ struct BalloonRushStageDefinition: Sendable, Identifiable {
         self.keyFifths = keyFifths
         self.productionStaffHintMode = productionStaffHintMode
         self.productionKeyboardHintMode = productionKeyboardHintMode
+        self.hideChordNamesInBattle = hideChordNamesInBattle
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -149,6 +152,7 @@ struct BalloonRushStageRow: Decodable, Sendable {
     let key_fifths: Int?
     let production_staff_hint_mode: String?
     let production_keyboard_hint_mode: String?
+    let hide_chord_names_in_battle: Bool?
 
     func toDefinition() -> BalloonRushStageDefinition {
         let st: BalloonRushStageDefinition.StageType =
@@ -173,7 +177,8 @@ struct BalloonRushStageRow: Decodable, Sendable {
             bgmUrl: bgm_url,
             keyFifths: key_fifths ?? 0,
             productionStaffHintMode: ProductionHintMode.parse(production_staff_hint_mode),
-            productionKeyboardHintMode: ProductionHintMode.parse(production_keyboard_hint_mode)
+            productionKeyboardHintMode: ProductionHintMode.parse(production_keyboard_hint_mode),
+            hideChordNamesInBattle: hide_chord_names_in_battle == true
         )
     }
 }

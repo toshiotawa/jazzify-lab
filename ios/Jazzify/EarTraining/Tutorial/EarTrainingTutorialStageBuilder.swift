@@ -166,6 +166,7 @@ enum EarTrainingTutorialStageBuilder {
             quizDurationSeconds: stage.quiz_duration_seconds,
             quizQuestionOrder: stage.quiz_question_order,
             quizShowNotationInBattle: stage.quiz_show_notation_in_battle,
+            hideChordNamesInBattle: stage.hide_chord_names_in_battle,
             quizRequiredCorrectCount: stage.quiz_required_correct_count,
             showKeyboardHintsInBattle: (stage.show_keyboard_hints_in_battle == true) || keyboardHintsScriptDefault,
             chordQuizItems: quizItems,

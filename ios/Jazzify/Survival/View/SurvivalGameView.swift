@@ -1829,7 +1829,8 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                !balloonStaff.voicingNames.isEmpty {
                 SurvivalStageCenterStaffOverlay(
                     payload: balloonStaff,
-                    unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity
+                    unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity,
+                    hideChordLabel: stage.hideChordNamesInBattle
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.top, hudHeight + 4)
@@ -1854,7 +1855,8 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                !staffPayload.voicingNames.isEmpty {
                 SurvivalStageCenterStaffOverlay(
                     payload: staffPayload,
-                    unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity
+                    unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity,
+                    hideChordLabel: stage.hideChordNamesInBattle
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.top, hudHeight + 4)
@@ -2248,6 +2250,7 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
 private struct SurvivalStageCenterStaffOverlay: View {
     let payload: SurvivalStageCenterStaffPayload
     let unpressedNoteOpacity: CGFloat
+    let hideChordLabel: Bool
 
     private var grandStaff: Bool {
         SurvivalStaffOverlayLayout.usesGrandStaff(voicingStavesPerNote: payload.voicingStavesPerNote)
@@ -2264,7 +2267,8 @@ private struct SurvivalStageCenterStaffOverlay: View {
             unpressedNoteOpacity: unpressedNoteOpacity,
             compactVerticalLayout: true,
             voicingStavesPerNote: payload.voicingStavesPerNote,
-            staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale
+            staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale,
+            hideChordLabels: hideChordLabel
         )
         .frame(
             maxWidth: SurvivalStaffOverlayLayout.centerStaffMaxWidth(isPad: isPad),

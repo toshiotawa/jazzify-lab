@@ -77,6 +77,7 @@ export const balloonRushToStageDefinition = (stage: BalloonRushResolvedStage): S
     chordProgression: progression,
     productionStaffHintMode: stage.productionStaffHintMode,
     productionKeyboardHintMode: stage.productionKeyboardHintMode,
+    hideChordNamesInBattle: stage.hideChordNamesInBattle,
   };
 };
 

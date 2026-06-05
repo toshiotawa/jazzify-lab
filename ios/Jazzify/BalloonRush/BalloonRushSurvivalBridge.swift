@@ -29,7 +29,8 @@ enum BalloonRushSurvivalBridge {
             compositePhraseKeyFifths: nil,
             compositePhraseBgmUrl: nil,
             productionStaffHintMode: br.productionStaffHintMode,
-            productionKeyboardHintMode: br.productionKeyboardHintMode
+            productionKeyboardHintMode: br.productionKeyboardHintMode,
+            hideChordNamesInBattle: br.hideChordNamesInBattle
         )
     }
 

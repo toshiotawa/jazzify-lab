@@ -19,6 +19,8 @@ struct SurvivalProgressionStaffView: View {
     let voicingStavesPerNote: [Int]?
     /// サバイバル iPad 用: 五線間隔スケール。既定 1。
     let staffSpacingScale: CGFloat
+    /// コード名ラベルを表示しない。
+    let hideChordLabels: Bool
 
     init(
         chordDisplayName: String,
@@ -30,7 +32,8 @@ struct SurvivalProgressionStaffView: View {
         unpressedNoteOpacity: CGFloat = 1,
         compactVerticalLayout: Bool = false,
         voicingStavesPerNote: [Int]? = nil,
-        staffSpacingScale: CGFloat = 1
+        staffSpacingScale: CGFloat = 1,
+        hideChordLabels: Bool = false
     ) {
         self.chordDisplayName = chordDisplayName
         self.voicingNames = voicingNames
@@ -42,6 +45,7 @@ struct SurvivalProgressionStaffView: View {
         self.compactVerticalLayout = compactVerticalLayout
         self.voicingStavesPerNote = voicingStavesPerNote
         self.staffSpacingScale = staffSpacingScale
+        self.hideChordLabels = hideChordLabels
     }
 
     private static let staffGroupId = UUID(uuidString: "A0B99C62-1111-4222-A333-D44444444101")!
@@ -73,7 +77,7 @@ struct SurvivalProgressionStaffView: View {
             completionPulse: nil,
             showTargetHints: false,
             singleMeasureLayout: true,
-            hideChordLabels: false,
+            hideChordLabels: hideChordLabels,
             noteCollisionLayout: noteCollisionLayout,
             unpressedNoteOpacity: unpressedNoteOpacity,
             compactChordLabelGap: true,

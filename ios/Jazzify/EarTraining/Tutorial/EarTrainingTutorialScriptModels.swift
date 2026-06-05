@@ -142,6 +142,7 @@ struct EarTrainingTutorialContentStage: Decodable, Sendable {
     let quiz_duration_seconds: Int?
     let quiz_question_order: String?
     let quiz_show_notation_in_battle: Bool?
+    let hide_chord_names_in_battle: Bool?
     let quiz_required_correct_count: Int?
     let show_keyboard_hints_in_battle: Bool?
 }

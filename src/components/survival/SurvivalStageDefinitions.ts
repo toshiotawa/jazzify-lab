@@ -82,6 +82,8 @@ export interface StageDefinition {
   productionStaffHintMode?: import('@/types').ProductionHintMode;
   /** 本番: 鍵盤 pending HINT ハイライト（DB `production_keyboard_hint_mode`） */
   productionKeyboardHintMode?: import('@/types').ProductionHintMode;
+  /** コード名を隠し、譜面の音符だけで出題する（DB `hide_chord_names_in_battle`） */
+  hideChordNamesInBattle?: boolean;
 }
 
 export interface SurvivalRunDialogueLine {
@@ -433,6 +435,7 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     mapCategory,
     productionStaffHintMode: parseProductionHintMode(row.production_staff_hint_mode),
     productionKeyboardHintMode: parseProductionHintMode(row.production_keyboard_hint_mode),
+    hideChordNamesInBattle: row.hide_chord_names_in_battle === true,
     ...(lessonOnly ? { lessonOnly: true } : {}),
   };
 }

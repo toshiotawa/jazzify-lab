@@ -42,6 +42,8 @@ export interface SurvivalProgressionStaffProps {
   readonly noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
   /** 未正解符頭 opacity（0〜1）。本番 HINT OFF フェード用。 */
   readonly unpressedNoteOpacity?: number;
+  /** コード名ラベルを表示しない。 */
+  readonly hideChordLabel?: boolean;
   readonly className?: string;
 }
 
@@ -56,6 +58,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
     voicingStaves: explicitStaves,
     noteCollisionLayout = 'anchor-low',
     unpressedNoteOpacity = 1,
+    hideChordLabel = false,
     className,
   }) => {
     const staffNumber = staffClef === 'treble' ? (1 as const) : (2 as const);
@@ -104,6 +107,7 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
           noteCollisionLayout={noteCollisionLayout}
           showTargetHints={false}
           activeGroupId="single"
+          hideChordLabels={hideChordLabel}
           smuflUseForeignObject
           voicingGroups={voicingGroups}
         />

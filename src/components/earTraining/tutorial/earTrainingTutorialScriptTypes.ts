@@ -105,6 +105,7 @@ export interface EarTrainingTutorialContentStage {
   quiz_duration_seconds?: number;
   quiz_question_order?: 'random' | 'sequential';
   quiz_show_notation_in_battle?: boolean;
+  hide_chord_names_in_battle?: boolean;
   quiz_required_correct_count?: number;
   show_keyboard_hints_in_battle?: boolean;
   chord_voicing_composite_phrase?: boolean;
