@@ -92,7 +92,6 @@ struct Lesson: Codable, Identifiable, Sendable {
     let blockNameEn: String?
     let blockDescription: String?
     let blockDescriptionEn: String?
-    let manualCompletionDisabled: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -106,11 +105,6 @@ struct Lesson: Codable, Identifiable, Sendable {
         case blockNameEn = "block_name_en"
         case blockDescription = "block_description"
         case blockDescriptionEn = "block_description_en"
-        case manualCompletionDisabled = "manual_completion_disabled"
-    }
-
-    var isManualCompletionDisabled: Bool {
-        manualCompletionDisabled == true
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -142,7 +136,6 @@ struct LessonDetail: Codable, Identifiable, Sendable {
     let blockNameEn: String?
     let blockDescription: String?
     let blockDescriptionEn: String?
-    let manualCompletionDisabled: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
@@ -157,11 +150,6 @@ struct LessonDetail: Codable, Identifiable, Sendable {
         case blockNameEn = "block_name_en"
         case blockDescription = "block_description"
         case blockDescriptionEn = "block_description_en"
-        case manualCompletionDisabled = "manual_completion_disabled"
-    }
-
-    var isManualCompletionDisabled: Bool {
-        manualCompletionDisabled == true
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

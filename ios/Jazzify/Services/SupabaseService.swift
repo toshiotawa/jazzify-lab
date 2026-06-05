@@ -355,31 +355,6 @@ final class SupabaseService: Sendable {
         userId: UUID,
         completed: Bool
     ) async throws {
-        if completed {
-            struct LessonCompletionFlag: Decodable {
-                let manualCompletionDisabled: Bool?
-
-                enum CodingKeys: String, CodingKey {
-                    case manualCompletionDisabled = "manual_completion_disabled"
-                }
-            }
-
-            let lessonRow: LessonCompletionFlag = try await client
-                .from("lessons")
-                .select("manual_completion_disabled")
-                .eq("id", value: lessonId.uuidString)
-                .single()
-                .execute()
-                .value
-
-            if lessonRow.manualCompletionDisabled == true {
-                throw SupabaseServiceError.serverError(
-                    statusCode: 400,
-                    message: "lesson_manual_completion_disabled"
-                )
-            }
-        }
-
         struct Payload: Encodable {
             let user_id: UUID
             let lesson_id: UUID

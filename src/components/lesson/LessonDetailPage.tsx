@@ -377,10 +377,6 @@ const LessonDetailPage: React.FC = () => {
 
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
-
-    if (lesson.manual_completion_disabled === true) {
-      return;
-    }
     
     // 実習課題が全て完了しているかチェック（全ユーザー対象）
     if (!allRequirementsCompleted) {
@@ -1289,8 +1285,7 @@ const LessonDetailPage: React.FC = () => {
                 </div>
               )}
 
-            {/* 完了ボタンセクション（manual_completion_disabled 時は非表示） */}
-            {!lesson?.manual_completion_disabled && (
+            {/* 完了ボタンセクション */}
             <div className="bg-slate-800 rounded-lg p-6 space-y-4">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
                 <FaFlagCheckered className="text-amber-400" aria-hidden />
@@ -1338,7 +1333,6 @@ const LessonDetailPage: React.FC = () => {
                 </span>
               </button>
             </div>
-            )}
 
             {showNextLessonPrompt && lesson && questCompletionModalKind !== 'none' ? (
               <QuestCompletionModal

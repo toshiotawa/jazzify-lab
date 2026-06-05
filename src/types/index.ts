@@ -985,8 +985,6 @@ export interface Lesson {
   block_description?: string | null;
   block_description_en?: string | null;
   nav_links?: NavLinkKey[];
-  /** true のときレッスン詳細の手動完了ボタンを非表示（DB: manual_completion_disabled） */
-  manual_completion_disabled?: boolean;
   created_at: string;
   updated_at: string;
   videos?: LessonVideo[];

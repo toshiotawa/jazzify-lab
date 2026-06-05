@@ -120,21 +120,6 @@ export async function updateLessonProgress(
   // 更新対象のユーザーID（指定がなければ自分）
   const userId = targetUserId || authUserId;
 
-  if (completed) {
-    const { data: lessonRow, error: lessonLookupError } = await supabase
-      .from('lessons')
-      .select('manual_completion_disabled')
-      .eq('id', lessonId)
-      .maybeSingle();
-
-    if (lessonLookupError) {
-      throw new Error(`レッスン情報の取得に失敗しました: ${lessonLookupError.message}`);
-    }
-    if (lessonRow?.manual_completion_disabled === true) {
-      throw new Error('このレッスンは手動完了できません');
-    }
-  }
-
   const now = new Date().toISOString();
   
   const { error } = await supabase

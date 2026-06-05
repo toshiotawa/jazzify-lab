@@ -22,8 +22,7 @@ final class LessonNavigationHelpersTests: XCTestCase {
             blockName: nil,
             blockNameEn: nil,
             blockDescription: nil,
-            blockDescriptionEn: nil,
-            manualCompletionDisabled: nil
+            blockDescriptionEn: nil
         )
     }
 

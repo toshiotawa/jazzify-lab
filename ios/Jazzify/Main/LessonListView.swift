@@ -1682,9 +1682,7 @@ struct LessonDetailView: View {
                         if !visibleAttachments.isEmpty || hiddenAttachmentCount > 0 {
                             attachmentsCard
                         }
-                        if !activeLesson.isManualCompletionDisabled {
-                            completionCard
-                        }
+                        completionCard
                     }
                     .padding()
                 }
@@ -2777,7 +2775,6 @@ struct LessonDetailView: View {
     }
 
     private func completeLesson() async {
-        guard !activeLesson.isManualCompletionDisabled else { return }
         guard !isCompleting, !isLessonCompleted else { return }
         isCompleting = true
         defer { isCompleting = false }
