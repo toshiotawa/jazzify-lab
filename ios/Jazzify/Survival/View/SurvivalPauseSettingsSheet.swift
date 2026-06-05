@@ -14,6 +14,108 @@ struct SurvivalStageRunModeConfig {
     let onApplyHintModeAndRestart: (Bool) -> Void
 }
 
+struct SurvivalAudioVolumeSection: View {
+    let locale: AppLocale
+    var title: String?
+
+    @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
+    @State private var sfxVolume: Float = SurvivalGameAudio.shared.sfxVolume
+    @State private var bgmVolume: Float = SurvivalGameAudio.shared.bgmVolume
+
+    private var isEnglishCopy: Bool { locale == .en }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let title {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color(hex: "fde68a"))
+            }
+
+            volumeRow(
+                icon: "pianokeys",
+                label: isEnglishCopy ? "Piano" : "ピアノ",
+                value: pianoBinding
+            )
+
+            volumeRow(
+                icon: "waveform",
+                label: isEnglishCopy ? "SFX" : "効果音",
+                value: sfxBinding
+            )
+
+            volumeRow(
+                icon: "music.note",
+                label: isEnglishCopy ? "BGM" : "BGM",
+                value: bgmBinding
+            )
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.white.opacity(0.06))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .onAppear(perform: syncVolumes)
+    }
+
+    private var pianoBinding: Binding<Float> {
+        Binding(
+            get: { pianoVolume },
+            set: { newValue in
+                pianoVolume = newValue
+                SurvivalGameAudio.shared.setPianoVolume(newValue)
+            }
+        )
+    }
+
+    private var sfxBinding: Binding<Float> {
+        Binding(
+            get: { sfxVolume },
+            set: { newValue in
+                sfxVolume = newValue
+                SurvivalGameAudio.shared.setSfxVolume(newValue)
+            }
+        )
+    }
+
+    private var bgmBinding: Binding<Float> {
+        Binding(
+            get: { bgmVolume },
+            set: { newValue in
+                bgmVolume = newValue
+                SurvivalGameAudio.shared.setBgmVolume(newValue)
+            }
+        )
+    }
+
+    private func syncVolumes() {
+        pianoVolume = SurvivalGameAudio.shared.pianoVolume
+        sfxVolume = SurvivalGameAudio.shared.sfxVolume
+        bgmVolume = SurvivalGameAudio.shared.bgmVolume
+    }
+
+    private func volumeRow(icon: String, label: String, value: Binding<Float>) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 22)
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+                .frame(width: 58, alignment: .leading)
+            Slider(value: value, in: 0...1)
+                .tint(.yellow)
+            Text("\(Int((value.wrappedValue * 100).rounded()))")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.white.opacity(0.8))
+                .frame(width: 32, alignment: .trailing)
+        }
+    }
+}
+
 struct SurvivalPauseSettingsSheet: View {
     let locale: AppLocale
     /// デモプレイ中は「タイトルに戻る」表記にする。

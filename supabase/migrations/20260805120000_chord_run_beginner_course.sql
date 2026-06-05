@@ -241,7 +241,8 @@ INSERT INTO public.lesson_songs (
   is_ear_training,
   ear_training_stage_id,
   title,
-  title_en
+  title_en,
+  survival_lesson_overrides
 )
 SELECT
   uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'crb-lsong-' || v.lesson_key),
@@ -257,7 +258,8 @@ SELECT
   false,
   NULL,
   v.title,
-  v.title_en
+  v.title_en,
+  '{"bgmUrl":"https://jazzify-cdn.com/fantasy-bgm/survival-composite-phrases-drums160-loop.mp3"}'::jsonb
 FROM (
   VALUES
     ('b1-q1', 'メジャー CDE', 'Major CDE', 122),
@@ -285,6 +287,7 @@ ON CONFLICT (id) DO UPDATE SET
   survival_map_category = EXCLUDED.survival_map_category,
   clear_conditions = EXCLUDED.clear_conditions,
   title = EXCLUDED.title,
-  title_en = EXCLUDED.title_en;
+  title_en = EXCLUDED.title_en,
+  survival_lesson_overrides = EXCLUDED.survival_lesson_overrides;
 
 COMMIT;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { CODE_RUN_DRUM_LOOP_BGM_URL } from '@/utils/codeRunBgm';
 import {
+  CHORD_RUN_INTERMEDIATE_BGM_OVERRIDE,
   CHORD_RUN_INTERMEDIATE_QUESTS,
   buildChordRunIntermediateDbProgression,
   resolveChordRunIntermediateRunMapId,
@@ -8,6 +10,10 @@ import {
 import { analyzeSurvivalChordProgression } from '@/utils/survivalProgressionVoicings';
 
 describe('chordRunIntermediateProgressions', () => {
+  it('中級 BGM はテストコースコードランと同じ Drums160 ループ', () => {
+    expect(CHORD_RUN_INTERMEDIATE_BGM_OVERRIDE.bgmUrl).toBe(CODE_RUN_DRUM_LOOP_BGM_URL);
+  });
+
   it('36 クエスト定義が stage 140〜175 を連続でカバーする', () => {
     expect(CHORD_RUN_INTERMEDIATE_QUESTS).toHaveLength(36);
     const stageNumbers = CHORD_RUN_INTERMEDIATE_QUESTS.map((q) => q.stageNumber);

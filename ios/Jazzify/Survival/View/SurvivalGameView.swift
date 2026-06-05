@@ -1150,6 +1150,10 @@ private struct SurvivalCodeRunGameContent: View {
                         }
                         .buttonStyle(.borderedProminent)
                     }
+                    SurvivalAudioVolumeSection(
+                        locale: locale,
+                        title: locale == .ja ? "音量" : "Audio volume"
+                    )
                     midiSettingsSection
                     Button(locale == .ja ? "閉じる" : "Close") { showSettings = false }
                         .frame(maxWidth: .infinity)

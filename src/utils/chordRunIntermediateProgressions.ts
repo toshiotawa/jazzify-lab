@@ -2,6 +2,7 @@
  * 横スクロールコードラン:中級 — 36 クエストのコード進行定義。
  * DB マイグレーション生成とテストで共有。
  */
+import { CODE_RUN_LESSON_BGM_OVERRIDE } from './codeRunBgm';
 import {
   buildAugmentedChordProgressionForStage,
   type SurvivalProgressionDbChord,
@@ -22,9 +23,7 @@ export interface ChordRunIntermediateQuestDefinition {
   readonly chordNames: readonly string[];
 }
 
-export const CHORD_RUN_INTERMEDIATE_BGM_OVERRIDE = {
-  bgmUrl: 'https://jazzify-cdn.com/fantasy-bgm/727a4d3b-21b9-4889-933b-ba170c6037bc.mp3',
-} as const;
+export const CHORD_RUN_INTERMEDIATE_BGM_OVERRIDE = CODE_RUN_LESSON_BGM_OVERRIDE;
 
 const parseProgressionLine = (line: string): readonly string[] =>
   line.split('-').map((token) => token.trim()).filter(Boolean);

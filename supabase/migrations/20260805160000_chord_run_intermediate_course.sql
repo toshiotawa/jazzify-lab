@@ -290,7 +290,7 @@ SELECT
   NULL,
   v.title,
   v.title_en,
-  '{"bgmUrl":"https://jazzify-cdn.com/fantasy-bgm/727a4d3b-21b9-4889-933b-ba170c6037bc.mp3"}'::jsonb
+  '{"bgmUrl":"https://jazzify-cdn.com/fantasy-bgm/survival-composite-phrases-drums160-loop.mp3"}'::jsonb
 FROM (
   VALUES
     ('b1-q1', 'Chord Run: II-V-I 1', 'Chord Run: II-V-I 1', 140),

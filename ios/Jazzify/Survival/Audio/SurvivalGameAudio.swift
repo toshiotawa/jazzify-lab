@@ -21,10 +21,6 @@ private let kRootGmOctaveVelGrand: UInt8 = 54
 private let kRootGmOctaveVelElectric: UInt8 = 46
 private let kRootGmOctaveVelGrandSpeaker: UInt8 = 68
 private let kRootGmOctaveVelElectricSpeaker: UInt8 = 58
-/// 鍵盤サステイン: ルート正解ワンショット (118/100) 比でエレピを薄く重ねる
-private let kKeyboardGmVelElectricNumerator = 100
-private let kKeyboardGmVelGrandDenominator = 118
-
 private struct SynthBassBufferCacheKey: Hashable {
     let midi: Int
     let speakerBoost: Bool
@@ -62,10 +58,8 @@ final class SurvivalGameAudio {
     private let sampler = AVAudioUnitSampler()
     /// 鍵盤サステイン用: 内蔵 DLS のアコースティックピアノ（`pianoMixer` 経由、低遅延）
     private let keyboardGrandSampler = AVAudioUnitSampler()
-    /// 鍵盤サステイン用: エレピを薄く重ねる（ルート正解音と同系統）
-    private let keyboardElectricSampler = AVAudioUnitSampler()
-    private var keyboardBlendGMReady = false
-    private var keyboardBlendGMLoadAttempted = false
+    private var keyboardGMReady = false
+    private var keyboardGMLoadAttempted = false
     /// `start()` 完了後に鍵盤発音可能。Salamander ロード完了の代わりに GM 準備済みを示す。
     private var isPianoPrepared = false
     /// SFX 音量を独立制御するためのミキサー (main mixer の手前に挟む)。
@@ -130,12 +124,10 @@ final class SurvivalGameAudio {
         engine.attach(rootGrandSampler)
         engine.attach(rootElectricSampler)
         engine.attach(keyboardGrandSampler)
-        engine.attach(keyboardElectricSampler)
         engine.attach(rootBassMixer)
         engine.connect(sampler, to: sfxMixer, format: nil)
         engine.connect(sfxMixer, to: engine.mainMixerNode, format: nil)
         engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
-        engine.connect(keyboardElectricSampler, to: pianoMixer, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
         // 正解ルート音 (シンセ) は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
         // Web 版 `FantasySoundManager._playRootNote` の master gain (0.3 + effectiveVolume * 0.7)
@@ -309,7 +301,7 @@ final class SurvivalGameAudio {
     func pianoChordOn(midis: [Int], velocity: Int = 100) {
         guard !isStopping else { return }
         preparePianoIfNeeded()
-        guard isEngineStarted, engine.isRunning, keyboardBlendGMReady else { return }
+        guard isEngineStarted, engine.isRunning, keyboardGMReady else { return }
         var seen = Set<Int>()
         for midi in midis {
             let clamped = max(0, min(127, midi))
@@ -328,12 +320,12 @@ final class SurvivalGameAudio {
     func pianoNoteOnRealtime(midi: Int, velocity: Int) {
         guard !isStopping, isEngineStarted, engine.isRunning else { return }
         prepareKeyboardGMBankIfNeeded()
-        guard keyboardBlendGMReady else { return }
+        guard keyboardGMReady else { return }
         performKeyboardNoteOn(midi: midi, velocity: velocity)
     }
 
     func pianoNoteOffRealtime(midi: Int) {
-        guard keyboardBlendGMReady else { return }
+        guard keyboardGMReady else { return }
         performKeyboardNoteOff(midi: midi)
     }
 
@@ -547,54 +539,34 @@ final class SurvivalGameAudio {
     }
 
     private func prepareKeyboardGMBankIfNeeded() {
-        guard !keyboardBlendGMLoadAttempted else { return }
-        keyboardBlendGMLoadAttempted = true
+        guard !keyboardGMLoadAttempted else { return }
+        keyboardGMLoadAttempted = true
         keyboardGrandSampler.sendProgramChange(
             kRootBlendGrandProgram,
             bankMSB: kDefaultMelodicBankMSB,
             bankLSB: 0,
             onChannel: 0
         )
-        keyboardElectricSampler.sendProgramChange(
-            kRootBlendElectricProgram,
-            bankMSB: kDefaultMelodicBankMSB,
-            bankLSB: 0,
-            onChannel: 0
-        )
-        keyboardBlendGMReady = true
-    }
-
-    private func keyboardGmVelocities(from velocity: Int) -> (grand: UInt8, electric: UInt8) {
-        let clamped = max(1, min(127, velocity))
-        let grand = UInt8(clamped)
-        let electricScaled = Int(
-            round(Double(clamped) * Double(kKeyboardGmVelElectricNumerator) / Double(kKeyboardGmVelGrandDenominator))
-        )
-        let electric = UInt8(max(1, min(127, electricScaled)))
-        return (grand, electric)
+        keyboardGMReady = true
     }
 
     private func performKeyboardNoteOn(midi: Int, velocity: Int) {
         let n = UInt8(clamping: max(0, min(127, midi)))
-        let (velGrand, velElectric) = keyboardGmVelocities(from: velocity)
+        let vel = UInt8(max(1, min(127, velocity)))
         keyboardGrandSampler.stopNote(n, onChannel: 0)
-        keyboardElectricSampler.stopNote(n, onChannel: 0)
-        keyboardGrandSampler.startNote(n, withVelocity: velGrand, onChannel: 0)
-        keyboardElectricSampler.startNote(n, withVelocity: velElectric, onChannel: 0)
+        keyboardGrandSampler.startNote(n, withVelocity: vel, onChannel: 0)
     }
 
     private func performKeyboardNoteOff(midi: Int) {
         let n = UInt8(clamping: max(0, min(127, midi)))
         keyboardGrandSampler.stopNote(n, onChannel: 0)
-        keyboardElectricSampler.stopNote(n, onChannel: 0)
     }
 
     private func stopAllKeyboardNotes() {
-        guard keyboardBlendGMReady else { return }
+        guard keyboardGMReady else { return }
         for midi in 0...127 {
             let n = UInt8(clamping: midi)
             keyboardGrandSampler.stopNote(n, onChannel: 0)
-            keyboardElectricSampler.stopNote(n, onChannel: 0)
         }
     }
 
