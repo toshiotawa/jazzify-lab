@@ -31,6 +31,7 @@ targets:
       - path: Jazzify/Assets.xcassets
       - path: Jazzify/Resources/piano
         type: folder
+      - path: Jazzify/Resources/UprightPianoKW-small-bright-20190703.sf2
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app
