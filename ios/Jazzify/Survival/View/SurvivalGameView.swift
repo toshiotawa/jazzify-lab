@@ -333,6 +333,27 @@ private struct SurvivalCodeRunNativeSolid: Sendable {
     let rect: CGRect
 }
 
+private enum SurvivalCodeRunNativeLayout {
+    /// Web 版の固定ビューポート表示に対する追加ズームアウト係数。
+    static let zoomOutFactor: CGFloat = 0.88
+    static let chordBadgeTopPadding: CGFloat = 72
+    static let gameAreaBackground = Color(red: 0.027, green: 0.063, blue: 0.149)
+
+    static func computeCanvasSize(available: CGSize, viewSize: CGSize) -> CGSize {
+        guard available.width > 0, available.height > 0, viewSize.width > 0, viewSize.height > 0 else {
+            return CGSize(width: 1, height: 1)
+        }
+        let viewAspect = viewSize.width / viewSize.height
+        let areaAspect = available.width / available.height
+        if areaAspect > viewAspect {
+            let height = available.height
+            return CGSize(width: height * viewAspect, height: height)
+        }
+        let width = available.width
+        return CGSize(width: width, height: width / viewAspect)
+    }
+}
+
 private enum SurvivalCodeRunNativeRules {
     static let maxHP = 10
     static let gravity: CGFloat = 0.8
@@ -1058,18 +1079,31 @@ private struct SurvivalCodeRunGameContent: View {
     var body: some View {
         GeometryReader { proxy in
             let keyboardHeight: CGFloat = min(190, max(150, proxy.size.height * 0.22))
+            let gameAreaHeight = max(1, proxy.size.height - keyboardHeight)
+            let canvasSize = SurvivalCodeRunNativeLayout.computeCanvasSize(
+                available: CGSize(width: proxy.size.width, height: gameAreaHeight),
+                viewSize: mapSpec.viewSize
+            )
             VStack(spacing: 0) {
-                gameCanvas(size: CGSize(width: proxy.size.width, height: max(1, proxy.size.height - keyboardHeight)))
-                    .overlay {
-                        SurvivalJoystickRepresentable(
-                            hitMask: .full,
-                            isInteractive: status == .playing
-                        ) { analog in
-                            inputX = max(-1, min(1, analog.dx))
+                ZStack {
+                    SurvivalCodeRunNativeLayout.gameAreaBackground
+                    gameCanvas(size: canvasSize)
+                        .overlay {
+                            SurvivalJoystickRepresentable(
+                                hitMask: .full,
+                                isInteractive: status == .playing
+                            ) { analog in
+                                inputX = max(-1, min(1, analog.dx))
+                            }
+                            .allowsHitTesting(status == .playing)
                         }
-                        .allowsHitTesting(status == .playing)
-                    }
-                    .frame(height: max(1, proxy.size.height - keyboardHeight))
+                        .overlay(alignment: .top) {
+                            chordBadges.padding(.top, SurvivalCodeRunNativeLayout.chordBadgeTopPadding)
+                        }
+                }
+                .frame(width: proxy.size.width, height: gameAreaHeight)
+                .overlay(alignment: .topLeading) { topButtons }
+                .overlay(alignment: .topTrailing) { statusBadges }
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
                     visibleWhiteKeys: visibleWhiteKeys,
@@ -1083,9 +1117,6 @@ private struct SurvivalCodeRunGameContent: View {
                 .frame(height: keyboardHeight)
             }
             .background(Color.black)
-            .overlay(alignment: .topLeading) { topButtons }
-            .overlay(alignment: .topTrailing) { statusBadges }
-            .overlay(alignment: .top) { chordBadges.padding(.top, 92) }
             .overlay { resultOverlay }
         }
         .onReceive(timer) { now in tick(now: now) }
@@ -1197,23 +1228,31 @@ private struct SurvivalCodeRunGameContent: View {
         }
     }
 
+    private static var isPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
     private func codeBadge(title: String, value: String, primary: Bool) -> some View {
-        VStack(spacing: 2) {
+        let titleFontSize: CGFloat = Self.isPad ? 11 : (primary ? 11 : 10)
+        let valueFontSize: CGFloat = primary ? (Self.isPad ? 42 : 34) : (Self.isPad ? 26 : 20)
+        let minWidth: CGFloat = primary ? (Self.isPad ? 180 : 160) : (Self.isPad ? 110 : 96)
+        let maxWidth: CGFloat = primary ? (Self.isPad ? 280 : 240) : (Self.isPad ? 150 : 128)
+        return VStack(spacing: 2) {
             if !title.isEmpty {
                 Text(title)
-                    .font(.system(size: primary ? 11 : 10, weight: .heavy, design: .rounded))
+                    .font(.system(size: titleFontSize, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white.opacity(0.68))
                     .shadow(color: .black.opacity(0.75), radius: 2, x: 0, y: 1)
             }
             Text(value)
-                .font(.system(size: primary ? 34 : 20, weight: .heavy, design: .rounded))
+                .font(.system(size: valueFontSize, weight: .heavy, design: .rounded))
                 .foregroundStyle(primary ? Color(red: 1.0, green: 0.88, blue: 0.30) : .white.opacity(0.88))
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
                 .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(primary ? 0.9 : 0.55), radius: primary ? 4 : 2, x: 0, y: 2)
                 .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
         }
-        .frame(minWidth: primary ? 160 : 96, maxWidth: primary ? 240 : 128)
+        .frame(minWidth: minWidth, maxWidth: maxWidth)
         .padding(.horizontal, primary ? 12 : 6)
         .padding(.vertical, primary ? 6 : 4)
     }
@@ -1324,17 +1363,20 @@ private struct SurvivalCodeRunGameContent: View {
 
     private func gameCanvas(size: CGSize) -> some View {
         Canvas { context, canvasSize in
-            let fitScale = min(canvasSize.width / mapSpec.viewSize.width, canvasSize.height / mapSpec.viewSize.height)
-            let coverScale = max(canvasSize.width / mapSpec.viewSize.width, canvasSize.height / mapSpec.viewSize.height)
-            let scale = min(coverScale, fitScale * 2.2)
-            let visibleWorldWidth = max(1, canvasSize.width / max(scale, 0.01))
-            let visibleWorldHeight = max(1, canvasSize.height / max(scale, 0.01))
+            let viewW = mapSpec.viewSize.width
+            let viewH = mapSpec.viewSize.height
+            let fitScale = min(canvasSize.width / viewW, canvasSize.height / viewH)
+            let scale = fitScale * SurvivalCodeRunNativeLayout.zoomOutFactor
+            let visibleWorldWidth = viewW
+            let visibleWorldHeight = viewH
             let maxCameraX = max(0, mapSpec.worldWidth - visibleWorldWidth)
             let maxCameraY = max(0, mapSpec.worldHeight - visibleWorldHeight)
             let camera = max(0, min(player.x + mapSpec.playerSize.width / 2 - visibleWorldWidth / 2, maxCameraX))
             let cameraY = max(0, min(player.y + mapSpec.playerSize.height / 2 - visibleWorldHeight / 2, maxCameraY))
-            let ox = max(0, (canvasSize.width - mapSpec.worldWidth * scale) / 2)
-            let oy = max(0, (canvasSize.height - mapSpec.worldHeight * scale) / 2)
+            let viewportPixelW = visibleWorldWidth * scale
+            let viewportPixelH = visibleWorldHeight * scale
+            let ox = (canvasSize.width - viewportPixelW) / 2
+            let oy = (canvasSize.height - viewportPixelH) / 2
             let visibleRect = CGRect(x: camera, y: cameraY, width: visibleWorldWidth, height: visibleWorldHeight)
             context.fill(Path(CGRect(origin: .zero, size: canvasSize)), with: .linearGradient(Gradient(colors: [Color(red: 0.03, green: 0.06, blue: 0.16), Color(red: 0.01, green: 0.015, blue: 0.04)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: canvasSize.height)))
             context.translateBy(x: ox - camera * scale, y: oy - cameraY * scale)
