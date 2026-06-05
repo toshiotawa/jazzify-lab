@@ -10,8 +10,6 @@ import graveyardRun02LayoutJson from './layouts/graveyard_run_02.layout.json';
 import tutorialLayoutJson from './layouts/tutorial.layout.json';
 import snowRun01LayoutJson from './layouts/snow_run_01.layout.json';
 
-import { CODE_RUN_TIME_LIMIT_SECONDS } from './CodeRunEngine';
-
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
 
@@ -231,7 +229,6 @@ const buildEnemySpec = (
 
 const buildMapFromLayout = (
   layout: CodeRunLayoutData,
-  timeLimitSec: number,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec => {
   const tileSize = layout.tileSize ?? TILE;
@@ -267,7 +264,6 @@ const buildMapFromLayout = (
     spawn: { x: spawnPoint.c * tileSize, y: spawnPoint.r * tileSize - PLAYER_H },
     goalX: goalPoint.c * tileSize + (layout.goalOffsetX ?? 18),
     goalY: goalPoint.r * tileSize - 84,
-    timeLimitSec,
     solids,
     spikes,
     enemies,
@@ -275,7 +271,7 @@ const buildMapFromLayout = (
   };
 };
 
-type CodeRunMapBuilder = (timeLimitSec?: number, assets?: CodeRunAssetsOverride) => CodeRunMapSpec;
+type CodeRunMapBuilder = (assets?: CodeRunAssetsOverride) => CodeRunMapSpec;
 
 const mergeAssets = (assets?: CodeRunAssetsOverride): CodeRunAssets => ({
   ...DEFAULT_ASSETS,
@@ -420,38 +416,33 @@ const TOWER_RUN_01_LAYOUT: CodeRunLayoutData = {
 };
 
 export function createDefaultCodeRunMap(
-  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  return buildMapFromLayout(NIGHT_CITY_RUN_01_LAYOUT, timeLimitSec, assets);
+  return buildMapFromLayout(NIGHT_CITY_RUN_01_LAYOUT, assets);
 }
 
 export function createGraveyardRun02Map(
-  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  return buildMapFromLayout(GRAVEYARD_RUN_02_LAYOUT, timeLimitSec, assets);
+  return buildMapFromLayout(GRAVEYARD_RUN_02_LAYOUT, assets);
 }
 
 export function createTutorialMap(
-  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  return buildMapFromLayout(TUTORIAL_LAYOUT, timeLimitSec, assets);
+  return buildMapFromLayout(TUTORIAL_LAYOUT, assets);
 }
 
 export function createTowerRun01Map(
-  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  return buildMapFromLayout(TOWER_RUN_01_LAYOUT, timeLimitSec, assets);
+  return buildMapFromLayout(TOWER_RUN_01_LAYOUT, assets);
 }
 
 export function createSnowRun01Map(
-  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
-  return buildMapFromLayout(SNOW_RUN_01_LAYOUT, timeLimitSec, assets);
+  return buildMapFromLayout(SNOW_RUN_01_LAYOUT, assets);
 }
 
 const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
@@ -464,11 +455,10 @@ const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
 
 export function createCodeRunMapById(
   mapId: string,
-  timeLimitSec = CODE_RUN_TIME_LIMIT_SECONDS,
   assets?: CodeRunAssetsOverride,
 ): CodeRunMapSpec {
   const builder = MAP_BUILDERS[mapId] ?? createDefaultCodeRunMap;
-  return builder(timeLimitSec, assets);
+  return builder(assets);
 }
 
 const stringArray = (raw: unknown): string[] | undefined => {
@@ -629,7 +619,7 @@ const parseCodeRunLayoutFromDb = (
   };
 };
 
-export function createCodeRunMapFromDb(mapId: string, mapData: Record<string, unknown>, timeLimitSec: number): CodeRunMapSpec {
+export function createCodeRunMapFromDb(mapId: string, mapData: Record<string, unknown>): CodeRunMapSpec {
   const assetsRecord = mapData.assets && typeof mapData.assets === 'object'
     ? mapData.assets as Record<string, unknown>
     : {};
@@ -645,8 +635,8 @@ export function createCodeRunMapFromDb(mapId: string, mapData: Record<string, un
   };
   const dbLayout = parseCodeRunLayoutFromDb(mapId, mapData);
   const map = dbLayout
-    ? buildMapFromLayout(dbLayout, timeLimitSec, assetOverride)
-    : createCodeRunMapById(mapId, timeLimitSec, assetOverride);
+    ? buildMapFromLayout(dbLayout, assetOverride)
+    : createCodeRunMapById(mapId, assetOverride);
   return {
     ...map,
     id: mapId || map.id,

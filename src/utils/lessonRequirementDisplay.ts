@@ -81,8 +81,8 @@ export const buildSurvivalLessonRequirementDisplay = (
     return {
       modeEncounterLine,
       clearLine: isEnglish
-        ? `Clear: reach the goal within ${timeLimitSec}s`
-        : `クリア条件: ${timeLimitSec}秒以内にゴール`,
+        ? 'Clear: reach the goal'
+        : 'クリア条件: ゴールに到達',
     };
   }
   const clearLine = isBossEncounter

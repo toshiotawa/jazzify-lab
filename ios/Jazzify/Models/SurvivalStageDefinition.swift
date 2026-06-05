@@ -1219,11 +1219,10 @@ extension SurvivalStageDefinition {
 
     func runPrepClearSummary(locale: AppLocale) -> String {
         if playMode == .codeRun {
-            let sec = runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec)
             if locale == .en {
-                return "Objective: reach the goal within \(sec)s (HINT runs do not record clears)."
+                return "Objective: reach the goal (HINT runs do not record clears)."
             }
-            return "目標: \(sec)秒以内にゴール（HINT時はクリア記録されません）。"
+            return "目標: ゴールに到達（HINT時はクリア記録されません）。"
         }
         let sec = Int(SurvivalConstants.stageTimeLimitSec)
         let quota = stageKillQuota

@@ -59,7 +59,6 @@ export interface CodeRunMapSpec {
   spawn: { x: number; y: number };
   goalX: number;
   goalY?: number;
-  timeLimitSec: number;
   solids: readonly CodeRunTileRect[];
   spikes: readonly CodeRunRect[];
   enemies: readonly CodeRunEnemySpec[];
@@ -93,6 +92,13 @@ export interface CodeRunEnemy extends CodeRunRect {
 
 export type CodeRunStatus = 'playing' | 'clear' | 'failed';
 
+export interface CodeRunJumpFeedbackEffect {
+  x: number;
+  y: number;
+  startedAtSec: number;
+  durationSec: number;
+}
+
 export interface CodeRunState {
   map: CodeRunMapSpec;
   player: CodeRunPlayer;
@@ -101,6 +107,7 @@ export interface CodeRunState {
   cameraX: number;
   cameraY: number;
   status: CodeRunStatus;
+  jumpFeedbackEffect: CodeRunJumpFeedbackEffect | null;
 }
 
 export interface CodeRunInputState {

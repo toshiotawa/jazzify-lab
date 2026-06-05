@@ -60,7 +60,7 @@ export interface StageDefinition {
   chordProgression?: SurvivalChordProgressionEntry[];
   /** CodeRun 用マップ ID（DB `survival_run_maps.id`）。 */
   runMapId?: string;
-  /** CodeRun 用制限時間（秒）。未設定時は CODE_RUN_TIME_LIMIT_SECONDS（110秒 / 1:50）。 */
+  /** 旧 DB 互換フィールド。CodeRun のプレイ制限時間には使用しない。 */
   runTimeLimitSec?: number;
   /** CodeRun 用吹き出し台本。秒数指定で表示し、duration 未設定時は 4 秒。 */
   runDialogueScript?: SurvivalRunDialogueScript;

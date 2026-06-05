@@ -161,17 +161,14 @@ struct SurvivalRunPrepSheet: View {
             return br.runPrepClearSummary(locale: locale)
         }
         if stage.playMode == .codeRun {
-            let limit = lessonRuntime?.timeLimitSec
-                ?? TimeInterval(stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec))
-            let limitText = codeRunClockText(seconds: limit)
             if variant == .lesson {
                 return isEnglishCopy
-                    ? "Clear: reach the goal within \(limitText) (performance mode saves lesson progress)."
-                    : "クリア条件: \(limitText)以内にゴール（本番時のみレッスン進捗が保存されます）。"
+                    ? "Clear: reach the goal (performance mode saves lesson progress)."
+                    : "クリア条件: ゴールに到達（本番時のみレッスン進捗が保存されます）。"
             }
             return isEnglishCopy
-                ? "Objective: reach the goal within \(limitText) (HINT does not record clears)."
-                : "目標: \(limitText)以内にゴール（HINT時はクリア記録されません）。"
+                ? "Objective: reach the goal (HINT does not record clears)."
+                : "目標: ゴールに到達（HINT時はクリア記録されません）。"
         }
 
         let limit = Int(lessonRuntime?.timeLimitSec ?? SurvivalConstants.stageTimeLimitSec)
@@ -206,13 +203,6 @@ struct SurvivalRunPrepSheet: View {
         case .map:
             return isEnglishCopy ? "Start stage" : "ステージを開始"
         }
-    }
-
-    private func codeRunClockText(seconds: TimeInterval) -> String {
-        let totalSeconds = max(0, Int(ceil(seconds)))
-        let minutes = totalSeconds / 60
-        let remainingSeconds = totalSeconds % 60
-        return String(format: "%d:%02d", minutes, remainingSeconds)
     }
 
     private func infoRow(label: String, value: String) -> some View {

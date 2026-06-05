@@ -2711,20 +2711,20 @@ struct LessonDetailView: View {
             || stage.blockKey.rawValue == "lesson_composite"
             || SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber, in: stage.mapCategory)
 
-        let timeLimitSec = requirement.survivalLessonOverrides?.timeLimitSec
-            ?? stage.runTimeLimitSec
-            ?? Int(SurvivalConstants.stageTimeLimitSec)
         let killQuota = requirement.survivalLessonOverrides?.killQuota
             ?? stage.stageKillQuota
 
         let clearCondition: String
         if stage.playMode == .codeRun {
             clearCondition = locale == .ja
-                ? "クリア条件: \(timeLimitSec)秒以内にゴール"
-                : "Clear: reach the goal within \(timeLimitSec)s"
+                ? "クリア条件: ゴールに到達"
+                : "Clear: reach the goal"
         } else if isBossEncounter {
             clearCondition = locale == .ja ? "クリア条件: ボス撃破" : "Clear: defeat the boss"
         } else {
+            let timeLimitSec = requirement.survivalLessonOverrides?.timeLimitSec
+                ?? stage.runTimeLimitSec
+                ?? Int(SurvivalConstants.stageTimeLimitSec)
             clearCondition = locale == .ja
                 ? "クリア条件: \(timeLimitSec)秒生存 + \(killQuota)体撃破"
                 : "Clear: survive \(timeLimitSec)s and defeat \(killQuota) enemies"

@@ -475,8 +475,7 @@ struct SurvivalDescentSidePanel: View {
 
     private func clearConditionText(stage: SurvivalStageDefinition) -> String {
         if stage.playMode == .codeRun {
-            let sec = stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec)
-            return isEnglishCopy ? "Goal within \(sec)s" : "\(sec)秒以内にゴール"
+            return isEnglishCopy ? "Reach the goal" : "ゴールに到達"
         }
         if isBossStage(stage) {
             return isEnglishCopy ? "Boss x1" : "ボス x1"

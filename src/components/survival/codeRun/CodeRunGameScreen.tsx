@@ -25,9 +25,7 @@ import CodeRunCanvas from './CodeRunCanvas';
 import { createCodeRunMapById, createCodeRunMapFromDb } from './defaultCodeRunMap';
 import {
   CODE_RUN_MAX_HP,
-  CODE_RUN_TIME_LIMIT_SECONDS,
   createInitialCodeRunState,
-  formatCodeRunClock,
   tickCodeRun,
   triggerCodeRunJump,
 } from './CodeRunEngine';
@@ -165,7 +163,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   onRetryWithoutHint,
   onNextStage,
   onSurvivalRunModeRestart,
-  lessonRuntime,
   lessonProductionHintOverrides,
 }) => {
   const settings = useGameStore(state => state.settings);
@@ -173,8 +170,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const runMapId = stageDefinition.runMapId ?? 'night_city_run_01';
-  const timeLimitSec = lessonRuntime?.timeLimitSec ?? stageDefinition.runTimeLimitSec ?? CODE_RUN_TIME_LIMIT_SECONDS;
-  const [mapSpec, setMapSpec] = useState<CodeRunMapSpec>(() => createCodeRunMapById(runMapId, timeLimitSec));
+  const [mapSpec, setMapSpec] = useState<CodeRunMapSpec>(() => createCodeRunMapById(runMapId));
   const mapSpecRef = useRef(mapSpec);
   const [runState, setRunState] = useState<CodeRunState>(() => createInitialCodeRunState(mapSpec));
   const stateRef = useRef(runState);
@@ -243,7 +239,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const currentChord = isRandomStage ? randomCurrentChord : progressionCurrentChord;
   const nextChord = isRandomStage ? randomNextChord : progressionNextChord;
   const chordLocked = runState.player.chordLockedUntilLanding;
-  const remainingSec = Math.max(0, mapSpec.timeLimitSec - runState.elapsedSec);
   const keyboardProductionMode = lessonProductionHintOverrides?.keyboard
     ?? stageDefinition.productionKeyboardHintMode
     ?? 'fade_15s';
@@ -281,19 +276,19 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   useEffect(() => {
     let cancelled = false;
     const mapId = stageDefinition.runMapId ?? 'night_city_run_01';
-    const fallback = createCodeRunMapById(mapId, timeLimitSec);
+    const fallback = createCodeRunMapById(mapId);
     setMapSpec(fallback);
     resetRun(fallback);
     fetchSurvivalRunMap(mapId)
       .then((row) => {
         if (cancelled || !row) return;
-        const nextMap = createCodeRunMapFromDb(row.id, { ...row.mapData, name: row.name }, timeLimitSec);
+        const nextMap = createCodeRunMapFromDb(row.id, { ...row.mapData, name: row.name });
         setMapSpec(nextMap);
         resetRun(nextMap);
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [resetRun, stageDefinition.runMapId, timeLimitSec]);
+  }, [resetRun, stageDefinition.runMapId]);
 
   useEffect(() => {
     const host = pianoHostRef.current;
@@ -646,10 +641,11 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
               ))}
             </div>
           </div>
-          <div className="rounded-md border border-white/15 bg-black/50 px-3 py-2 text-right text-sm font-bold tabular-nums backdrop-blur">
-            <div className={cn('text-lg', remainingSec <= 15 ? 'text-red-300' : 'text-white')}>{formatCodeRunClock(remainingSec)}</div>
-            {hintMode && <div className="text-[10px] font-medium text-white/60">HINT</div>}
-          </div>
+          {hintMode && (
+            <div className="rounded-md border border-white/15 bg-black/50 px-3 py-1 text-right text-[10px] font-bold text-white/65 backdrop-blur">
+              HINT
+            </div>
+          )}
         </div>
 
         <div

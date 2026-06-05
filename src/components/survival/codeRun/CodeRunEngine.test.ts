@@ -171,7 +171,7 @@ describe('CodeRunEngine integration', () => {
       solids: [{ kind: 'platform', row: 5, c0: 3, c1: 3 }],
       spikes: [],
       enemies: [],
-    }, 30);
+    });
     const platform = map.solids.find((tile) => tile.kind === 'platform');
     expect(platform).toBeDefined();
     if (!platform) return;
@@ -204,7 +204,7 @@ describe('CodeRunEngine integration', () => {
       solids: [{ kind: 'platform', row: 5, c0: 3, c1: 3 }],
       spikes: [],
       enemies: [],
-    }, 30);
+    });
     const platform = map.solids.find((tile) => tile.kind === 'platform');
     expect(platform).toBeDefined();
     if (!platform) return;
@@ -434,6 +434,17 @@ describe('createTowerRun01Map vertical layout', () => {
     const next = tickCodeRun(nearGoal, idleInput, 1 / 60);
     expect(next.status).toBe('clear');
   });
+
+  it('経過時間だけでは失敗にならない', () => {
+    const state = createInitialCodeRunState(map);
+    const longRunning = {
+      ...state,
+      elapsedSec: 60 * 60,
+      player: { ...state.player, onGround: true },
+    };
+    const next = tickCodeRun(longRunning, idleInput, 1 / 60);
+    expect(next.status).toBe('playing');
+  });
 });
 
 describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
@@ -480,7 +491,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
   it('createCodeRunMapFromDb は mapId に応じたレイアウトを返す', () => {
     const nightCity = createDefaultCodeRunMap();
     const tutorial = createTutorialMap();
-    const fromDb = createCodeRunMapFromDb('tutorial', { name: 'Tutorial' }, 95);
+    const fromDb = createCodeRunMapFromDb('tutorial', { name: 'Tutorial' });
     expect(fromDb.id).toBe('tutorial');
     expect(fromDb.name).toBe('Tutorial');
     expect(fromDb.solids.length).toBe(tutorial.solids.length);
@@ -503,7 +514,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
       solids: [{ kind: 'platform', row: 4, c0: 6, c1: 7 }],
       spikes: [{ c: 8 }],
       enemies: [{ c: 7, r: 4, speed: 2 }],
-    }, 30);
+    });
 
     expect(fromDb.name).toBe('DB Layout');
     expect(fromDb.viewWidth).toBe(480);
@@ -522,7 +533,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('dev_run_07', {
       name: 'Dev Run 07',
       ...devRun07LayoutJson,
-    }, 140);
+    });
     expect(fromDb.id).toBe('dev_run_07');
     expect(fromDb.worldWidth).toBe(135 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(528);
@@ -538,7 +549,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('dev_run_08', {
       name: 'Dev Run 08',
       ...devRun08LayoutJson,
-    }, 150);
+    });
     expect(fromDb.id).toBe('dev_run_08');
     expect(fromDb.worldWidth).toBe(130 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(25 * CODE_RUN_TILE);
@@ -557,7 +568,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('dev_run_09', {
       name: 'Dev Run 09',
       ...devRun09LayoutJson,
-    }, 150);
+    });
     expect(fromDb.id).toBe('dev_run_09');
     expect(fromDb.worldWidth).toBe(125 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(80 * CODE_RUN_TILE);
@@ -584,7 +595,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('dev_run_10', {
       name: 'Dev Run 10',
       ...devRun10LayoutJson,
-    }, 150);
+    });
     expect(fromDb.id).toBe('dev_run_10');
     expect(fromDb.worldWidth).toBe(100 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(40 * CODE_RUN_TILE);
@@ -611,7 +622,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('tower_run_01', {
       name: 'Tower Run 01',
       ...devRun12LayoutJson,
-    }, 180);
+    });
     expect(fromDb.id).toBe('tower_run_01');
     expect(fromDb.worldWidth).toBe(20 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(3840);
@@ -628,7 +639,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('dev_run_12', {
       name: 'Dev Run 12',
       ...devRun12LayoutJson,
-    }, 180);
+    });
     expect(fromDb.id).toBe('dev_run_12');
     expect(fromDb.worldWidth).toBe(20 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(3840);
@@ -645,7 +656,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('tutorial_2', {
       name: 'Tutorial 2',
       ...tutorial2LayoutJson,
-    }, 90);
+    });
     expect(fromDb.id).toBe('tutorial_2');
     expect(fromDb.worldWidth).toBe(48 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(720);
@@ -662,7 +673,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     const fromDb = createCodeRunMapFromDb('dev_run_11', {
       name: 'Dev Run 11',
       ...devRun11LayoutJson,
-    }, 150);
+    });
     expect(fromDb.id).toBe('dev_run_11');
     expect(fromDb.worldWidth).toBe(270 * CODE_RUN_TILE);
     expect(fromDb.worldHeight).toBe(1152);
@@ -688,7 +699,7 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
       solids: [{ kind: 'ground', row: 5, c0: 2, c1: 4 }],
       spikes: [],
       enemies: [],
-    }, 60);
+    });
     const groundTiles = fromDb.solids.filter((solid) => solid.kind === 'ground');
     expect(groundTiles).toHaveLength(3);
     expect(groundTiles.every((solid) => solid.x >= 96 && solid.x <= 192)).toBe(true);

@@ -1,4 +1,13 @@
-import type { CodeRunEnemy, CodeRunInputState, CodeRunMapSpec, CodeRunPlayer, CodeRunRect, CodeRunState, CodeRunTileRect } from './CodeRunTypes';
+import type {
+  CodeRunEnemy,
+  CodeRunInputState,
+  CodeRunJumpFeedbackEffect,
+  CodeRunMapSpec,
+  CodeRunPlayer,
+  CodeRunRect,
+  CodeRunState,
+  CodeRunTileRect,
+} from './CodeRunTypes';
 
 const GRAVITY = 0.8;
 const MAX_FALL = 17;
@@ -11,17 +20,9 @@ const STOMP_BOUNCE = -11.5;
 const COYOTE_FRAMES = 7;
 const JUMP_BUFFER_FRAMES = 8;
 const PLATFORM_LAND_EPSILON = 0.01;
+const JUMP_FEEDBACK_DURATION_SEC = 0.36;
 
 export const CODE_RUN_MAX_HP = 10;
-/** 制限時間（秒）。1:50 */
-export const CODE_RUN_TIME_LIMIT_SECONDS = 110;
-
-export const formatCodeRunClock = (seconds: number): string => {
-  const safe = Math.max(0, Math.ceil(seconds));
-  const mins = Math.floor(safe / 60);
-  const secs = safe % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
 export const CODE_RUN_DAMAGE_INVUL_FRAMES = 90;
 export const CODE_RUN_HURT_FRAMES = 26;
 export const CODE_RUN_START_INVUL_FRAMES = 40;
@@ -104,6 +105,7 @@ export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunStat
     cameraX: 0,
     cameraY: 0,
     status: 'playing',
+    jumpFeedbackEffect: null,
   };
   return { ...state, enemies: makeEnemies(state) };
 }
@@ -322,8 +324,6 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
     : overlapRect(next.player, next.map.goalX, goalY, next.map.tileSize + 16, 84);
   if (next.status === 'playing' && touchedGoal) {
     next = { ...next, status: 'clear' };
-  } else if (next.status === 'playing' && next.elapsedSec >= next.map.timeLimitSec) {
-    next = { ...next, status: 'failed' };
   }
 
   return { ...next, cameraX: clampCameraX(next), cameraY: clampCameraY(next) };

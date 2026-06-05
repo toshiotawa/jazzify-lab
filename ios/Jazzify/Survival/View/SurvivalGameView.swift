@@ -1030,9 +1030,6 @@ private struct SurvivalCodeRunGameContent: View {
 
     private let audio = SurvivalAudioController()
     private let timer = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
-    private var timeLimit: TimeInterval {
-        lessonRuntime?.timeLimitSec ?? TimeInterval(stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec))
-    }
     private var currentChord: SurvivalResolvedChord? {
         if isRandomStage { return randomCurrentChord }
         return progressionChords.isEmpty ? nil : progressionChords[currentChordIndex % progressionChords.count]
@@ -1146,7 +1143,9 @@ private struct SurvivalCodeRunGameContent: View {
     private var statusBadges: some View {
         VStack(alignment: .trailing, spacing: 6) {
             hpBadge
-            timerBadge
+            if hintMode {
+                hintBadge
+            }
         }
         .padding(12)
     }
@@ -1167,20 +1166,14 @@ private struct SurvivalCodeRunGameContent: View {
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.15), lineWidth: 1))
     }
 
-    private var timerBadge: some View {
-        let remaining = max(0, Int(ceil(timeLimit - elapsed)))
-        return VStack(spacing: 0) {
-            Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
-                .font(.title3.monospacedDigit().bold())
-            if hintMode {
-                Text("HINT").font(.caption2.bold()).foregroundStyle(.white.opacity(0.65))
-            }
-        }
-        .foregroundStyle(remaining <= 15 ? Color.red.opacity(0.95) : .white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.15), lineWidth: 1))
+    private var hintBadge: some View {
+        Text("HINT")
+            .font(.caption2.bold())
+            .foregroundStyle(.white.opacity(0.65))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.15), lineWidth: 1))
     }
 
     private var chordBadges: some View {
@@ -1436,7 +1429,6 @@ private struct SurvivalCodeRunGameContent: View {
         moveEnemies(step: step)
         resolveHazards(step: step)
         if hasReachedGoal() { finish(.clear) }
-        if elapsed >= timeLimit { finish(.failed) }
     }
 
     private func updateCoyoteFrames() {

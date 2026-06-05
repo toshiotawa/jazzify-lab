@@ -10,7 +10,6 @@ import {
   STAGE_TIME_LIMIT_SECONDS,
   survivalStageUsesCompositePhrasePattern,
 } from './SurvivalStageDefinitions';
-import { CODE_RUN_TIME_LIMIT_SECONDS, formatCodeRunClock } from './codeRun/CodeRunEngine';
 import { getStageKillQuotaForStage } from './survivalFirstBlockStage';
 import type { ResolvedSurvivalLessonRuntime } from '@/utils/survivalLessonConfig';
 
@@ -78,10 +77,7 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   const startLabel = isEnglishCopy ? 'Start' : '開始';
 
   const stageKillQuota = lessonRuntime?.killQuota ?? getStageKillQuotaForStage(stage);
-  const timeLimitSec = stage.playMode === 'code_run'
-    ? (lessonRuntime?.timeLimitSec ?? stage.runTimeLimitSec ?? CODE_RUN_TIME_LIMIT_SECONDS)
-    : (lessonRuntime?.timeLimitSec ?? stage.runTimeLimitSec ?? STAGE_TIME_LIMIT_SECONDS);
-  const codeRunTimeLimitLabel = formatCodeRunClock(timeLimitSec);
+  const timeLimitSec = lessonRuntime?.timeLimitSec ?? stage.runTimeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
 
   const compositeLocked = stage.playMode !== 'code_run'
     && (survivalStageUsesCompositePhrasePattern(stage) || stage.blockKey === 'lesson_composite');
@@ -96,11 +92,11 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
     : stage.playMode === 'code_run'
       ? (variant === 'lesson'
         ? (isEnglishCopy
-          ? `Clear: reach the goal within ${codeRunTimeLimitLabel} (performance mode saves lesson progress).`
-          : `クリア条件: ${codeRunTimeLimitLabel}以内にゴール（本番時のみレッスン進捗が保存されます）。`)
+          ? 'Clear: reach the goal (performance mode saves lesson progress).'
+          : 'クリア条件: ゴールに到達（本番時のみレッスン進捗が保存されます）。')
         : (isEnglishCopy
-          ? `Objective: reach the goal within ${codeRunTimeLimitLabel} (HINT does not record clears).`
-          : `目標: ${codeRunTimeLimitLabel}以内にゴール（HINT時はクリア記録されません）。`))
+          ? 'Objective: reach the goal (HINT does not record clears).'
+          : '目標: ゴールに到達（HINT時はクリア記録されません）。'))
     : isBossEncounter
       ? (isEnglishCopy
         ? 'Clear: defeat the boss (performance mode saves lesson progress).'

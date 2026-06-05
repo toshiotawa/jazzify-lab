@@ -15,7 +15,6 @@ import {
   survivalStageUsesCompositePhrasePattern,
 } from '../SurvivalStageDefinitions';
 import { getStageKillQuotaForStage } from '../survivalFirstBlockStage';
-import { CODE_RUN_TIME_LIMIT_SECONDS, formatCodeRunClock } from '../codeRun/CodeRunEngine';
 import { BlockMeta } from './descentBlocks';
 import type { SurvivalPhrasePreviewStatus } from '@/hooks/useSurvivalPhrasePreview';
 
@@ -212,8 +211,8 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                 <dd className="mt-0.5 text-[11px] font-bold text-emerald-300">
                   {codeRunPanel
                     ? (isEnglishCopy
-                      ? `Reach the goal within ${formatCodeRunClock(selectedStage.runTimeLimitSec ?? CODE_RUN_TIME_LIMIT_SECONDS)}`
-                      : `${formatCodeRunClock(selectedStage.runTimeLimitSec ?? CODE_RUN_TIME_LIMIT_SECONDS)}以内にゴール`)
+                      ? 'Reach the goal'
+                      : 'ゴールに到達')
                     : isSurvivalStageDetailBossClearCondition(selectedStage)
                     ? (isEnglishCopy ? 'Boss x1' : 'ボス x1')
                     : (isEnglishCopy
