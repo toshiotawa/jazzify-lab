@@ -3,9 +3,11 @@ import {
   applyPitColumn,
   buildMapLayoutJson,
   cellKey,
+  computeWorldHeightFromGrid,
   defaultEditorSettings,
   mergePits,
   parseMapLayoutJson,
+  patchEditorSettings,
   resolveSpikeRow,
 } from './codeRunMapEditorLogic';
 
@@ -18,6 +20,38 @@ describe('codeRunMapEditorLogic', () => {
     expect(pits.has(4)).toBe(false);
     applyPitColumn(pits, 5, true);
     expect(pits.has(5)).toBe(false);
+  });
+
+  it('worldHeight は行数 × tileSize で自動計算される', () => {
+    expect(computeWorldHeightFromGrid(11, 48)).toBe(528);
+    expect(computeWorldHeightFromGrid(14, 48)).toBe(672);
+
+    const defaults = defaultEditorSettings();
+    expect(defaults.gridRows).toBe(11);
+    expect(defaults.worldHeight).toBe(528);
+
+    const patched = patchEditorSettings(defaults, { gridRows: 14 });
+    expect(patched.worldHeight).toBe(672);
+
+    const json = buildMapLayoutJson(new Map(), new Set(), new Set(), [], null, null, patched);
+    expect(json.worldTilesHigh).toBe(14);
+    expect(json.worldHeight).toBe(672);
+  });
+
+  it('JSON 読込時も worldHeight を行数 × tileSize で再計算する', () => {
+    const imported = parseMapLayoutJson(JSON.stringify({
+      worldTilesHigh: 14,
+      worldHeight: 528,
+      tileSize: 48,
+      groundRow: 9,
+      manualGround: true,
+      solids: [],
+      spikes: [],
+      enemies: [],
+      pits: [],
+    }));
+    expect(imported.settings.gridRows).toBe(14);
+    expect(imported.settings.worldHeight).toBe(672);
   });
 
   it('manualGround では pits をエクスポートしない', () => {

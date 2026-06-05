@@ -13,10 +13,12 @@ import { useToast } from '@/stores/toastStore';
 import {
   buildMapLayoutJson,
   cellKey,
+  computeWorldHeightFromGrid,
   defaultEditorSettings,
   defaultEnemyPlacement,
   findEnemyIndexAt,
   parseMapLayoutJson,
+  patchEditorSettings,
   applyPitColumn,
   resolveSpikeRow,
   spikeRowsToClear,
@@ -322,7 +324,7 @@ const CodeRunMapEditor: React.FC = () => {
   };
 
   const patchSettings = (patch: Partial<CodeRunEditorSettings>) => {
-    setSettings((s) => ({ ...s, ...patch }));
+    setSettings((s) => patchEditorSettings(s, patch));
   };
 
   const groundToolDisabled = !settings.manualGround;
@@ -460,12 +462,13 @@ const CodeRunMapEditor: React.FC = () => {
               />
             </label>
             <label className="block col-span-2">
-              <span className="text-xs text-gray-400">worldHeight</span>
+              <span className="text-xs text-gray-400">worldHeight（行数 × tileSize）</span>
               <input
-                className="input input-bordered input-sm w-full mt-0.5"
+                className="input input-bordered input-sm w-full mt-0.5 bg-slate-800/60"
                 type="number"
-                value={settings.worldHeight}
-                onChange={(e) => patchSettings({ worldHeight: Number(e.target.value) })}
+                readOnly
+                aria-readonly
+                value={computeWorldHeightFromGrid(settings.gridRows, settings.tileSize)}
               />
             </label>
             <label className="block">

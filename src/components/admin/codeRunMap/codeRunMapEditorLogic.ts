@@ -10,6 +10,34 @@ import { CODE_RUN_TILE_KINDS, DEFAULT_TILE_SIZE, ENEMY_H, ENEMY_W } from './code
 
 export const cellKey = (c: number, r: number): string => `${c},${r}`;
 
+/** ゲーム側の worldHeight（px）= worldTilesHigh × tileSize */
+export const computeWorldHeightFromGrid = (gridRows: number, tileSize: number): number => {
+  const rows = Math.floor(gridRows);
+  const ts = Math.floor(tileSize);
+  return rows > 0 && ts > 0 ? rows * ts : 0;
+};
+
+const withDerivedWorldHeight = (settings: CodeRunEditorSettings): CodeRunEditorSettings => ({
+  ...settings,
+  worldHeight: computeWorldHeightFromGrid(settings.gridRows, settings.tileSize),
+});
+
+export const patchEditorSettings = (
+  current: CodeRunEditorSettings,
+  patch: Partial<CodeRunEditorSettings>,
+): CodeRunEditorSettings => {
+  const merged = { ...current, ...patch };
+  const gridRows = Math.min(80, Math.max(4, Math.floor(merged.gridRows) || 4));
+  const tileSize = Math.max(16, Math.floor(merged.tileSize) || DEFAULT_TILE_SIZE);
+  const groundRow = Math.min(gridRows - 1, Math.max(0, Math.floor(merged.groundRow) || 0));
+  return withDerivedWorldHeight({
+    ...merged,
+    gridRows,
+    tileSize,
+    groundRow,
+  });
+};
+
 /** 穴列の追加／削除。erase または既存列の再クリックで削除する。 */
 export const applyPitColumn = (
   pitColumns: Set<number>,
@@ -174,7 +202,7 @@ export const buildMapLayoutJson = (
     tileSize: settings.tileSize,
     worldTilesWide: settings.worldTilesWide,
     worldTilesHigh: settings.gridRows,
-    worldHeight: settings.worldHeight,
+    worldHeight: computeWorldHeightFromGrid(settings.gridRows, settings.tileSize),
     groundRow: settings.groundRow,
     spawn: spawn ?? { c: 2, r: settings.groundRow },
     pits: settings.manualGround ? [] : mergePits(pitColumns),
@@ -259,19 +287,19 @@ export const parseMapLayoutJson = (raw: string): ImportedMapState => {
     Math.ceil(positiveInt(source.worldHeight, 528) / tileSize),
   );
 
-  const settings: CodeRunEditorSettings = {
+  const settings: CodeRunEditorSettings = withDerivedWorldHeight({
     worldTilesWide,
     gridRows,
     tileSize,
     groundRow,
     viewWidth: positiveInt(source.viewWidth, 960),
     viewHeight: positiveInt(source.viewHeight, 528),
-    worldHeight: positiveInt(source.worldHeight, 528),
+    worldHeight: 0,
     goalOffsetX: nonNegNumber(source.goalOffsetX, 18),
     manualGround: source.manualGround === true,
     useGoalColumn: !source.goal,
     goalColumn: nonNegInt(source.goalColumn, 60),
-  };
+  });
 
   const cells = new Map<string, string>();
   const pitColumns = new Set<number>();
@@ -338,15 +366,15 @@ export const defaultEnemyPlacement = (c: number, r: number): CodeRunEnemyPlaceme
   id: `slime-${c}-${r}`,
 });
 
-export const defaultEditorSettings = (): CodeRunEditorSettings => ({
+export const defaultEditorSettings = (): CodeRunEditorSettings => withDerivedWorldHeight({
   worldTilesWide: 64,
-  gridRows: 14,
+  gridRows: 11,
   tileSize: DEFAULT_TILE_SIZE,
   groundRow: 9,
   manualGround: true,
   viewWidth: 960,
   viewHeight: 528,
-  worldHeight: 528,
+  worldHeight: 0,
   goalOffsetX: 18,
   useGoalColumn: true,
   goalColumn: 60,
