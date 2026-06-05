@@ -295,7 +295,7 @@ final class SurvivalGameAudio {
     }
 
     func pianoNoteOffRealtime(midi: Int) {
-        guard keyboardGMReady else { return }
+        guard !isStopping, isEngineStarted, engine.isRunning, keyboardGMReady else { return }
         performKeyboardNoteOff(midi: midi)
     }
 
@@ -307,7 +307,7 @@ final class SurvivalGameAudio {
         let clampedDuration = max(0.1, min(0.6, duration))
         let midiCopy = max(0, min(127, midi))
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + clampedDuration) { [weak self] in
-            self?.performKeyboardNoteOff(midi: midiCopy)
+            self?.pianoNoteOffRealtime(midi: midiCopy)
         }
     }
 

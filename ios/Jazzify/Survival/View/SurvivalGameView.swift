@@ -1023,6 +1023,9 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var showResult = false
     @State private var submittedClear = false
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
+    @State private var audioStartupTask: Task<Void, Never>?
+    @State private var mapLoadTask: Task<Void, Never>?
+    @State private var lifecycleID = UUID()
     @StateObject private var midiManager = MIDIManager.shared
 
     private let audio = SurvivalAudioController()
@@ -1076,10 +1079,18 @@ private struct SurvivalCodeRunGameContent: View {
         }
         .onReceive(timer) { now in tick(now: now) }
         .onAppear {
+            let id = UUID()
+            lifecycleID = id
+            lastTick = Date()
             OrientationManager.shared.lock(.portrait)
-            startAudioAndMidi()
+            startAudioAndMidi(lifecycleID: id)
         }
         .onDisappear {
+            lifecycleID = UUID()
+            audioStartupTask?.cancel()
+            audioStartupTask = nil
+            mapLoadTask?.cancel()
+            mapLoadTask = nil
             OrientationManager.shared.lock(.portrait)
             midiSubscriptionHolder.cancel()
             audio.stop()
@@ -1329,21 +1340,21 @@ private struct SurvivalCodeRunGameContent: View {
     private func drawWorld(context: inout GraphicsContext, visibleRect: CGRect) {
         drawBackground(context: &context, visibleRect: visibleRect)
         let groundSurfaceY = mapSpec.groundRow * mapSpec.tile
-        for solid in mapSpec.solids {
+        for solid in mapSpec.solids where solid.rect.intersects(visibleRect) {
             context.draw(
                 SurvivalCodeRunNativeAssets.solidImage(for: solid, groundSurfaceY: groundSurfaceY),
                 in: solid.rect
             )
         }
-        for rect in mapSpec.spikes {
+        for rect in mapSpec.spikes where rect.intersects(visibleRect) {
             context.draw(SurvivalCodeRunNativeAssets.spike, in: rect)
         }
         let flagY = mapSpec.goalY ?? 348
-        context.draw(
-            SurvivalCodeRunNativeAssets.flag,
-            in: CGRect(x: mapSpec.goalX - 4, y: flagY, width: 70, height: 84)
-        )
-        for enemy in enemies where enemy.alive {
+        let flagRect = CGRect(x: mapSpec.goalX - 4, y: flagY, width: 70, height: 84)
+        if flagRect.intersects(visibleRect) {
+            context.draw(SurvivalCodeRunNativeAssets.flag, in: flagRect)
+        }
+        for enemy in enemies where enemy.alive && enemy.rect.intersects(visibleRect) {
             let frameIndex = Int(enemy.anim) % SurvivalCodeRunNativeAssets.slimeFrames.count
             context.draw(SurvivalCodeRunNativeAssets.slimeFrames[frameIndex], in: enemy.rect)
         }
@@ -1653,6 +1664,7 @@ private struct SurvivalCodeRunGameContent: View {
         status = .playing
         showResult = false
         submittedClear = false
+        lastTick = Date()
         currentChordIndex = 0
         inputX = 0
         completedPitchClasses.removeAll()
@@ -1665,25 +1677,29 @@ private struct SurvivalCodeRunGameContent: View {
         audio.start(playBackgroundMusic: true)
     }
 
-    private func startAudioAndMidi() {
+    private func startAudioAndMidi(lifecycleID id: UUID) {
+        audioStartupTask?.cancel()
+        mapLoadTask?.cancel()
         MIDIManager.shared.refreshDevices()
         if isRandomStage {
             drawRandomChords()
         }
         applyMapSpec(SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.runMapId))
-        Task {
+        audioStartupTask = Task {
             let config = (try? await SupabaseService.shared.fetchSurvivalStageConfig(difficulty: stage.difficulty.rawValue, stageType: stage.survivalBgmConfigStageType)) ?? .default
             await MainActor.run {
+                guard lifecycleID == id, status == .playing else { return }
                 audio.setBgmUrl(lessonRuntime?.bgmUrl ?? config.bgmUrl)
                 audio.start(playBackgroundMusic: true)
             }
         }
-        Task {
+        mapLoadTask = Task {
             let mapId = stage.runMapId ?? "night_city_run_01"
             guard let row = try? await SupabaseService.shared.fetchSurvivalCodeRunMap(id: mapId),
                   let nextMap = SurvivalCodeRunNativeMapSpec.from(row: row)
             else { return }
             await MainActor.run {
+                guard lifecycleID == id, status == .playing else { return }
                 applyMapSpec(nextMap)
             }
         }
@@ -1693,6 +1709,7 @@ private struct SurvivalCodeRunGameContent: View {
             let note = Int(data1)
             let velocity = Int(data2)
             DispatchQueue.main.async {
+                guard lifecycleID == id else { return }
                 if messageType == 0x90 && velocity > 0 { noteOn(note) }
                 if messageType == 0x80 || (messageType == 0x90 && velocity == 0) { noteOff(note) }
             }
