@@ -294,7 +294,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
     func chordPadNoteOn(_ note: Int, velocity: Int = 100) {
         guard state != .disposed else { return }
         // Web と同様、発音は常に行いゲーム入力のみブロックする。
-        audioController.pianoNoteOn(midi: note, velocity: velocity)
+        audioController.pianoNoteOnRealtime(midi: note, velocity: velocity)
         if gameLoop.runtime.scenario.blockChordPadInput { return }
         userInputNotePulse &+= 1
         input.enqueueNoteOn(note, velocity: velocity)
@@ -302,7 +302,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
 
     func chordPadNoteOff(_ note: Int) {
         guard state != .disposed else { return }
-        audioController.pianoNoteOff(midi: note)
+        audioController.pianoNoteOffRealtime(midi: note)
         if gameLoop.runtime.scenario.blockChordPadInput { return }
         input.enqueueNoteOff(note)
     }

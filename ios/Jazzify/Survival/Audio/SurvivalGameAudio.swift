@@ -21,6 +21,9 @@ private let kRootGmOctaveVelGrand: UInt8 = 54
 private let kRootGmOctaveVelElectric: UInt8 = 46
 private let kRootGmOctaveVelGrandSpeaker: UInt8 = 68
 private let kRootGmOctaveVelElectricSpeaker: UInt8 = 58
+/// 鍵盤サステイン: ルート正解ワンショット (118/100) 比でエレピを薄く重ねる
+private let kKeyboardGmVelElectricNumerator = 100
+private let kKeyboardGmVelGrandDenominator = 118
 
 private struct SynthBassBufferCacheKey: Hashable {
     let midi: Int
@@ -57,11 +60,13 @@ final class SurvivalGameAudio {
     private let engine = AVAudioEngine()
     /// SFX (攻撃・被弾・ステージクリア等) 用サンプラー。`sfxMixer` 経由で音量制御される。
     private let sampler = AVAudioUnitSampler()
-    /// ピアノ鍵盤タップ音専用サンプラー。`pianoMixer` 経由で音量制御される。
-    /// Web 版 `Tone.Sampler` と同じ Salamander Grand Piano MP3 (C2-C7) を使って
-    /// ボイスプール方式で再生する。`init` で `self` 参照が必要なため `!` で遅延初期化。
-    private var pianoSampler: SurvivalPianoSampler!
-    /// ピアノサンプルのロード + ボイス接続を 1 回だけ行うためのフラグ。
+    /// 鍵盤サステイン用: 内蔵 DLS のアコースティックピアノ（`pianoMixer` 経由、低遅延）
+    private let keyboardGrandSampler = AVAudioUnitSampler()
+    /// 鍵盤サステイン用: エレピを薄く重ねる（ルート正解音と同系統）
+    private let keyboardElectricSampler = AVAudioUnitSampler()
+    private var keyboardBlendGMReady = false
+    private var keyboardBlendGMLoadAttempted = false
+    /// `start()` 完了後に鍵盤発音可能。Salamander ロード完了の代わりに GM 準備済みを示す。
     private var isPianoPrepared = false
     /// SFX 音量を独立制御するためのミキサー (main mixer の手前に挟む)。
     private let sfxMixer = AVAudioMixerNode()
@@ -124,9 +129,13 @@ final class SurvivalGameAudio {
         engine.attach(synthBassPlayer)
         engine.attach(rootGrandSampler)
         engine.attach(rootElectricSampler)
+        engine.attach(keyboardGrandSampler)
+        engine.attach(keyboardElectricSampler)
         engine.attach(rootBassMixer)
         engine.connect(sampler, to: sfxMixer, format: nil)
         engine.connect(sfxMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
+        engine.connect(keyboardElectricSampler, to: pianoMixer, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
         // 正解ルート音 (シンセ) は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
         // Web 版 `FantasySoundManager._playRootNote` の master gain (0.3 + effectiveVolume * 0.7)
@@ -136,7 +145,6 @@ final class SurvivalGameAudio {
         engine.connect(rootElectricSampler, to: rootBassMixer, format: nil)
         engine.connect(rootBassMixer, to: engine.mainMixerNode, format: nil)
         bgmPlayer.actionAtItemEnd = .advance
-        self.pianoSampler = SurvivalPianoSampler(engine: engine, output: pianoMixer)
         registerLifecycleObservers()
     }
 
@@ -175,12 +183,11 @@ final class SurvivalGameAudio {
     /// ゲーム画面の onDisappear で呼ぶ。BGM / エンジンを停止
     func stop() {
         // 最初に isStopping を立てて以降の新規 noteOn を遮断する。
-        // MIDI コールバック (背景スレッド) がこの直後に `pianoNoteOnRealtime`
-        // を呼んでも `performNoteOn` 側で早期 return する。
+        // MIDI コールバック (背景スレッド) がこの直後に `pianoNoteOnRealtime` を呼んでも
+        // `isStopping` / `isEngineStarted` で早期 return する。
         isStopping = true
-        pianoSampler.setStopping(true)
         stopBgm()
-        pianoSampler.stopAll()
+        stopAllKeyboardNotes()
         if synthBassPlayer.isPlaying {
             synthBassPlayer.stop()
         }
@@ -192,27 +199,16 @@ final class SurvivalGameAudio {
         }
     }
 
-    /// ピアノサンプルの事前ロード (非同期) + エンジン接続。初回のみ実行される。
-    /// - Note: MP3 デコードで数百 ms main をブロックしないよう、ロード本体を
-    ///   バックグラウンドへ逃がす。ロードとボイス接続が完了するまで
-    ///   `isPianoReady == false` で noteOn を無音動作させてクラッシュを回避する。
+    /// 鍵盤用 GM バンクの準備 + エンジン起動。初回のみ `isPianoPrepared` を立てる。
     private func preparePianoIfNeeded() {
         guard !isPianoPrepared else {
-            // ステージリスタート等で再度呼ばれた場合、stop() で立てた停止フラグを解除する。
             isStopping = false
-            pianoSampler.setStopping(false)
             return
         }
         isPianoPrepared = true
         isStopping = false
-        pianoSampler.setStopping(false)
-        pianoSampler.loadBundledSamplesAsync { [weak self] _ in
-            // ロード完了後に main で接続 (共有フォーマットの取得に baseBuffers を見るため
-            // 必ず読み込み完了後に呼ぶ)。AVAudioEngine への attach/connect は
-            // `engine.isRunning` の状態を問わず動作するので順序は問題ない。
-            guard let self else { return }
-            self.pianoSampler.attachToEngine()
-        }
+        prepareKeyboardGMBankIfNeeded()
+        startEngineIfNeeded()
     }
 
     /// ステージ種別から BGM URL を注入 (未指定時はランダムステージ用デフォルト URL を維持)
@@ -303,60 +299,53 @@ final class SurvivalGameAudio {
         }
     }
 
-    /// ピアノ音の発音を開始する (サステイン)。`pianoNoteOff` が呼ばれるまで
-    /// サンプルの長さぶん鳴り続ける。Web 版の鍵盤押下時挙動に合わせる。
+    /// ピアノ音の発音を開始する (サステイン)。`pianoNoteOff` が呼ばれるまで鳴り続ける。
     func pianoNoteOn(midi: Int, velocity: Int = 100) {
         guard !isStopping else { return }
         preparePianoIfNeeded()
-        startEngineIfNeeded()
-        guard isEngineStarted, engine.isRunning else { return }
-        pianoSampler.noteOn(midi: midi, velocity: velocity)
+        pianoNoteOnRealtime(midi: midi, velocity: velocity)
     }
 
     func pianoChordOn(midis: [Int], velocity: Int = 100) {
         guard !isStopping else { return }
         preparePianoIfNeeded()
-        startEngineIfNeeded()
-        guard isEngineStarted, engine.isRunning else { return }
-        pianoSampler.chordOn(midis: midis, velocity: velocity)
+        guard isEngineStarted, engine.isRunning, keyboardBlendGMReady else { return }
+        var seen = Set<Int>()
+        for midi in midis {
+            let clamped = max(0, min(127, midi))
+            guard seen.insert(clamped).inserted else { continue }
+            performKeyboardNoteOn(midi: clamped, velocity: velocity)
+        }
     }
 
-    /// ピアノ音の発音を停止する (フェードアウト約 0.5 秒)。
+    /// ピアノ音の発音を停止する。
     func pianoNoteOff(midi: Int) {
-        guard isPianoPrepared else { return }
-        pianoSampler.noteOff(midi: midi)
+        pianoNoteOffRealtime(midi: midi)
     }
 
-    /// `pianoNoteOn` のリアルタイム経路 (任意スレッドから呼び出し可)。
-    /// CoreMIDI コールバックから直接呼ぶことでメインスレッド混雑時の遅延を回避するため、
-    /// `preparePianoIfNeeded` / `startEngineIfNeeded` など内部フラグの mutation 伴う
-    /// 初期化処理をスキップする。代わりに `start()` が main から呼ばれている前提とする。
-    /// - 前提: ゲーム開始時の `SurvivalGameSession.start()` にて engine / sampler 初期化済み。
-    /// - 実体: `SurvivalPianoSampler.noteOn` は内部で `audioQueue.async` に逃がすため
-    ///   この経路自体は呼び出しスレッドをブロックしない。
+    /// 鍵盤の低遅延経路 (任意スレッドから呼び出し可)。内蔵 GM の `startNote` を同期で叩く。
+    /// - 前提: ゲーム開始時の `start()` にて engine 起動済み。
     func pianoNoteOnRealtime(midi: Int, velocity: Int) {
-        guard !isStopping, isPianoPrepared, isEngineStarted else { return }
-        pianoSampler.noteOn(midi: midi, velocity: velocity)
+        guard !isStopping, isEngineStarted, engine.isRunning else { return }
+        prepareKeyboardGMBankIfNeeded()
+        guard keyboardBlendGMReady else { return }
+        performKeyboardNoteOn(midi: midi, velocity: velocity)
     }
 
     func pianoNoteOffRealtime(midi: Int) {
-        guard isPianoPrepared else { return }
-        pianoSampler.noteOff(midi: midi)
+        guard keyboardBlendGMReady else { return }
+        performKeyboardNoteOff(midi: midi)
     }
 
     /// ピアノ音を短時間だけ鳴らす (鍵盤プレビュー等のワンショット)。
-    /// 指定 duration 後にリリースフェードをかける。
-    /// - Note: noteOff の遅延ディスパッチはバックグラウンドキューで行い、
-    ///   main を絶対にブロックしない (ゲームループの 60fps を守るため)。
     func pianoOneShot(midi: Int, duration: TimeInterval = 0.45, velocity: Int = 95) {
         guard !isStopping else { return }
         preparePianoIfNeeded()
-        startEngineIfNeeded()
-        guard isEngineStarted, engine.isRunning else { return }
-        pianoSampler.noteOn(midi: midi, velocity: velocity)
-        let release = max(0.1, min(0.6, duration))
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + duration) { [weak self] in
-            self?.pianoSampler.noteOff(midi: midi, release: release)
+        pianoNoteOnRealtime(midi: midi, velocity: velocity)
+        let clampedDuration = max(0.1, min(0.6, duration))
+        let midiCopy = max(0, min(127, midi))
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + clampedDuration) { [weak self] in
+            self?.performKeyboardNoteOff(midi: midiCopy)
         }
     }
 
@@ -552,7 +541,61 @@ final class SurvivalGameAudio {
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        try? session.setPreferredSampleRate(44_100)
+        try? session.setPreferredIOBufferDuration(0.005)
         try? session.setActive(true, options: [])
+    }
+
+    private func prepareKeyboardGMBankIfNeeded() {
+        guard !keyboardBlendGMLoadAttempted else { return }
+        keyboardBlendGMLoadAttempted = true
+        keyboardGrandSampler.sendProgramChange(
+            kRootBlendGrandProgram,
+            bankMSB: kDefaultMelodicBankMSB,
+            bankLSB: 0,
+            onChannel: 0
+        )
+        keyboardElectricSampler.sendProgramChange(
+            kRootBlendElectricProgram,
+            bankMSB: kDefaultMelodicBankMSB,
+            bankLSB: 0,
+            onChannel: 0
+        )
+        keyboardBlendGMReady = true
+    }
+
+    private func keyboardGmVelocities(from velocity: Int) -> (grand: UInt8, electric: UInt8) {
+        let clamped = max(1, min(127, velocity))
+        let grand = UInt8(clamped)
+        let electricScaled = Int(
+            round(Double(clamped) * Double(kKeyboardGmVelElectricNumerator) / Double(kKeyboardGmVelGrandDenominator))
+        )
+        let electric = UInt8(max(1, min(127, electricScaled)))
+        return (grand, electric)
+    }
+
+    private func performKeyboardNoteOn(midi: Int, velocity: Int) {
+        let n = UInt8(clamping: max(0, min(127, midi)))
+        let (velGrand, velElectric) = keyboardGmVelocities(from: velocity)
+        keyboardGrandSampler.stopNote(n, onChannel: 0)
+        keyboardElectricSampler.stopNote(n, onChannel: 0)
+        keyboardGrandSampler.startNote(n, withVelocity: velGrand, onChannel: 0)
+        keyboardElectricSampler.startNote(n, withVelocity: velElectric, onChannel: 0)
+    }
+
+    private func performKeyboardNoteOff(midi: Int) {
+        let n = UInt8(clamping: max(0, min(127, midi)))
+        keyboardGrandSampler.stopNote(n, onChannel: 0)
+        keyboardElectricSampler.stopNote(n, onChannel: 0)
+    }
+
+    private func stopAllKeyboardNotes() {
+        guard keyboardBlendGMReady else { return }
+        for midi in 0...127 {
+            let n = UInt8(clamping: midi)
+            keyboardGrandSampler.stopNote(n, onChannel: 0)
+            keyboardElectricSampler.stopNote(n, onChannel: 0)
+        }
     }
 
     private func registerLifecycleObservers() {

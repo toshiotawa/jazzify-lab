@@ -825,11 +825,11 @@ final class EarTrainingAudio: NSObject {
     // MARK: - Piano bridge (Survival サンプラー再利用)
 
     func pianoNoteOn(midi: Int, velocity: Int = 100) {
-        SurvivalGameAudio.shared.pianoNoteOn(midi: midi, velocity: velocity)
+        SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
     }
 
     func pianoNoteOff(midi: Int) {
-        SurvivalGameAudio.shared.pianoNoteOff(midi: midi)
+        SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: midi)
     }
 
     func pianoNoteOnRealtime(midi: Int, velocity: Int) {

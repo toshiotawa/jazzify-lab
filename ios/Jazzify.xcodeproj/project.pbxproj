@@ -126,7 +126,6 @@
 		56798F7B79D567C225C5CB37 /* TopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F034080E04C73977D21BFCEC /* TopView.swift */; };
 		DD04BB02EE0599A1B1C1D1E1 /* PlayerLevelHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD04BB02EE0599A1B1C1D1E2 /* PlayerLevelHub.swift */; };
 		5743407F2FA2C8E32B50A2FE /* SurvivalDescentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D635FD067D6C35FA30F9F12 /* SurvivalDescentView.swift */; };
-		5AB241934D6F4982908B967B /* SurvivalPianoSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6430F90E7C009810E9BE4AB /* SurvivalPianoSampler.swift */; };
 		5B733F7752C44E16F2013B1F /* EarTrainingPhraseSlotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */; };
 		607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */; };
 		60BCB75E89D7C46F20FEE1A4 /* C7.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2D32E093A43244C6072305F8 /* C7.mp3 */; };
@@ -438,7 +437,6 @@
 		F1EE770000CC11EE0000CCC1 /* EarTrainingChordVoicingStaffLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingStaffLayout.swift; sourceTree = "<group>"; };
 		F2219FFC2796FA204F7E68DC /* C6.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C6.mp3; sourceTree = "<group>"; };
 		F5FB42EB0BEA73D79132F739 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		F6430F90E7C009810E9BE4AB /* SurvivalPianoSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPianoSampler.swift; sourceTree = "<group>"; };
 		F831419566658890CA84E9E6 /* LessonListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonListView.swift; sourceTree = "<group>"; };
 		F9FCAFC5B4E5655340C7965F /* JazzifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JazzifyApp.swift; sourceTree = "<group>"; };
 		FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordVoicingStaffView.swift; sourceTree = "<group>"; };
@@ -796,7 +794,6 @@
 			children = (
 				EE03BB02CC03DD04EE05AA01 /* SurvivalAudioController.swift */,
 				CB529DBA6D08CBD90704203E /* SurvivalGameAudio.swift */,
-				F6430F90E7C009810E9BE4AB /* SurvivalPianoSampler.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -1348,7 +1345,6 @@
 				FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */,
 				CD3107E623F660267F32BD9A /* SurvivalPauseSettingsSheet.swift in Sources */,
 				F2EE770003DD11EE0000DD02 /* SurvivalRunPrepSheet.swift in Sources */,
-				5AB241934D6F4982908B967B /* SurvivalPianoSampler.swift in Sources */,
 				CC03BB02CC03DD04EE05AA04 /* SurvivalAssetPreloader.swift in Sources */,
 				CC03BB02CC03DD04EE05AA02 /* SurvivalBackgroundCache.swift in Sources */,
 				F102BB02CC03DD04EE05AA02 /* SurvivalMode.swift in Sources */,
