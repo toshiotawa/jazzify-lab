@@ -87,6 +87,7 @@ struct SurvivalGameView: View {
                     locale: locale,
                     lessonRuntime: lessonRuntime,
                     productionHintModes: productionHintModes,
+                    randomChordOverrides: randomChordOverrides,
                     lessonContext: lessonContext,
                     onApplyHintModeAndRestart: isDemo ? nil : { nextHint in
                         activeHintMode = nextHint
@@ -920,10 +921,12 @@ private struct SurvivalCodeRunGameContent: View {
     let locale: AppLocale
     let lessonRuntime: ResolvedSurvivalLessonRuntime?
     let productionHintModes: ResolvedProductionHintModes?
+    let randomChordOverrides: [String: SurvivalResolvedChord]
     let lessonContext: SurvivalLessonContext?
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
     let onClose: () -> Void
-    private let chords: [SurvivalResolvedChord]
+    private let isRandomStage: Bool
+    private let progressionChords: [SurvivalResolvedChord]
     private let keyboardScrollAnchorMidi: Int?
 
     init(
@@ -933,6 +936,7 @@ private struct SurvivalCodeRunGameContent: View {
         locale: AppLocale,
         lessonRuntime: ResolvedSurvivalLessonRuntime?,
         productionHintModes: ResolvedProductionHintModes?,
+        randomChordOverrides: [String: SurvivalResolvedChord] = [:],
         lessonContext: SurvivalLessonContext?,
         onApplyHintModeAndRestart: ((Bool) -> Void)?,
         onClose: @escaping () -> Void
@@ -943,13 +947,18 @@ private struct SurvivalCodeRunGameContent: View {
         self.locale = locale
         self.lessonRuntime = lessonRuntime
         self.productionHintModes = productionHintModes
+        self.randomChordOverrides = randomChordOverrides
         self.lessonContext = lessonContext
         self.onApplyHintModeAndRestart = onApplyHintModeAndRestart
         self.onClose = onClose
-        let resolvedChords = (stage.chordProgression ?? []).enumerated().map { idx, entry in
-            SurvivalResolvedChord.fromProgressionEntry(entry, index: idx)
-        }
-        self.chords = resolvedChords
+        let randomStage = stage.stageType == .random && !stage.allowedChords.isEmpty
+        self.isRandomStage = randomStage
+        let resolvedChords = randomStage
+            ? []
+            : (stage.chordProgression ?? []).enumerated().map { idx, entry in
+                SurvivalResolvedChord.fromProgressionEntry(entry, index: idx)
+            }
+        self.progressionChords = resolvedChords
         if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: resolvedChords) {
             self.keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
         } else {
@@ -965,6 +974,8 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var inputX: CGFloat = 0
     @State private var status: SurvivalCodeRunNativeStatus = .playing
     @State private var currentChordIndex = 0
+    @State private var randomCurrentChord: SurvivalResolvedChord?
+    @State private var randomNextChord: SurvivalResolvedChord?
     @State private var completedPitchClasses: Set<Int> = []
     @State private var heldKeys: Set<Int> = []
     @State private var visibleWhiteKeys = SurvivalChordPadPreferences.loadVisibleWhiteKeys()
@@ -979,8 +990,15 @@ private struct SurvivalCodeRunGameContent: View {
     private var timeLimit: TimeInterval {
         lessonRuntime?.timeLimitSec ?? TimeInterval(stage.runTimeLimitSec ?? Int(SurvivalConstants.stageTimeLimitSec))
     }
-    private var currentChord: SurvivalResolvedChord? { chords.isEmpty ? nil : chords[currentChordIndex % chords.count] }
-    private var nextChord: SurvivalResolvedChord? { chords.isEmpty ? nil : chords[(currentChordIndex + 1) % chords.count] }
+    private var currentChord: SurvivalResolvedChord? {
+        if isRandomStage { return randomCurrentChord }
+        return progressionChords.isEmpty ? nil : progressionChords[currentChordIndex % progressionChords.count]
+    }
+
+    private var nextChord: SurvivalResolvedChord? {
+        if isRandomStage { return randomNextChord }
+        return progressionChords.isEmpty ? nil : progressionChords[(currentChordIndex + 1) % progressionChords.count]
+    }
     private var keyboardHintMode: ProductionHintMode { productionHintModes?.keyboardHintMode ?? stage.productionKeyboardHintMode }
 
     var body: some View {
@@ -1491,9 +1509,55 @@ private struct SurvivalCodeRunGameContent: View {
         if Set(chord.pitchClasses).isSubset(of: completedPitchClasses) {
             audio.playSynthBassRoot(midi: 36 + chord.rootPitchClass)
             triggerJump()
-            currentChordIndex = chords.isEmpty ? 0 : (currentChordIndex + 1) % chords.count
+            advanceChordAfterCompletion(completedChordId: chord.id)
             completedPitchClasses.removeAll()
         }
+    }
+
+    private func advanceChordAfterCompletion(completedChordId: String) {
+        if isRandomStage {
+            let advanced = randomNextChord
+                ?? SurvivalGameEngine.pickRandomResolvedChord(
+                    allowedChordIds: stage.allowedChords,
+                    excludingId: completedChordId,
+                    overrides: randomChordOverrides
+                )
+            let following = advanced.flatMap { next in
+                SurvivalGameEngine.pickRandomResolvedChord(
+                    allowedChordIds: stage.allowedChords,
+                    excludingId: next.id,
+                    overrides: randomChordOverrides
+                )
+            }
+            randomCurrentChord = advanced
+            randomNextChord = following
+            return
+        }
+        currentChordIndex = progressionChords.isEmpty
+            ? 0
+            : (currentChordIndex + 1) % progressionChords.count
+    }
+
+    private func drawRandomChords(excludingId: String? = nil) {
+        guard isRandomStage else {
+            randomCurrentChord = nil
+            randomNextChord = nil
+            return
+        }
+        let current = SurvivalGameEngine.pickRandomResolvedChord(
+            allowedChordIds: stage.allowedChords,
+            excludingId: excludingId,
+            overrides: randomChordOverrides
+        )
+        let next = current.flatMap { chord in
+            SurvivalGameEngine.pickRandomResolvedChord(
+                allowedChordIds: stage.allowedChords,
+                excludingId: chord.id,
+                overrides: randomChordOverrides
+            )
+        }
+        randomCurrentChord = current
+        randomNextChord = next
     }
 
     private func noteOff(_ midi: Int) {
@@ -1552,11 +1616,20 @@ private struct SurvivalCodeRunGameContent: View {
         currentChordIndex = 0
         inputX = 0
         completedPitchClasses.removeAll()
+        if isRandomStage {
+            drawRandomChords()
+        } else {
+            randomCurrentChord = nil
+            randomNextChord = nil
+        }
         audio.start(playBackgroundMusic: true)
     }
 
     private func startAudioAndMidi() {
         MIDIManager.shared.refreshDevices()
+        if isRandomStage {
+            drawRandomChords()
+        }
         applyMapSpec(SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.runMapId))
         Task {
             let config = (try? await SupabaseService.shared.fetchSurvivalStageConfig(difficulty: stage.difficulty.rawValue, stageType: stage.survivalBgmConfigStageType)) ?? .default
