@@ -304,6 +304,13 @@ private struct SurvivalCodeRunNativePlayer {
     var jumpBufferFrames: CGFloat = 0
 }
 
+private struct SurvivalCodeRunJumpFeedbackEffect: Equatable {
+    let x: CGFloat
+    let y: CGFloat
+    let startedAt: TimeInterval
+    let duration: TimeInterval
+}
+
 private struct SurvivalCodeRunNativeEnemy: Identifiable {
     let id: String
     var rect: CGRect
@@ -340,6 +347,7 @@ private enum SurvivalCodeRunNativeRules {
     static let knockbackVY: CGFloat = -7
     static let coyoteFrames: CGFloat = 7
     static let jumpBufferFrames: CGFloat = 8
+    static let jumpFeedbackDuration: TimeInterval = 0.36
     static let startInvulnerability: TimeInterval = 40.0 / 60.0
     static let damageInvulnerability: TimeInterval = 90.0 / 60.0
     static let hurtDuration: TimeInterval = 26.0 / 60.0
@@ -1016,6 +1024,7 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var currentChordIndex = 0
     @State private var randomCurrentChord: SurvivalResolvedChord?
     @State private var randomNextChord: SurvivalResolvedChord?
+    @State private var jumpFeedbackEffect: SurvivalCodeRunJumpFeedbackEffect?
     @State private var completedPitchClasses: Set<Int> = []
     @State private var heldKeys: Set<Int> = []
     @State private var visibleWhiteKeys = SurvivalChordPadPreferences.loadVisibleWhiteKeys()
@@ -1040,6 +1049,11 @@ private struct SurvivalCodeRunGameContent: View {
         return progressionChords.isEmpty ? nil : progressionChords[(currentChordIndex + 1) % progressionChords.count]
     }
     private var keyboardHintMode: ProductionHintMode { productionHintModes?.keyboardHintMode ?? stage.productionKeyboardHintMode }
+    private static let jumpFeedbackParticles: [(symbol: String, dx: CGFloat, dy: CGFloat, color: Color)] = [
+        ("♪", -22, -13, Color(red: 0.50, green: 0.92, blue: 1.00)),
+        ("✦", 0, -20, Color(red: 1.00, green: 0.88, blue: 0.48)),
+        ("♪", 23, -11, Color(red: 1.00, green: 0.96, blue: 0.72))
+    ]
 
     var body: some View {
         GeometryReader { proxy in
@@ -1351,6 +1365,7 @@ private struct SurvivalCodeRunGameContent: View {
             let frameIndex = Int(enemy.anim) % SurvivalCodeRunNativeAssets.slimeFrames.count
             context.draw(SurvivalCodeRunNativeAssets.slimeFrames[frameIndex], in: enemy.rect)
         }
+        drawJumpFeedback(context: &context)
         let playerFootY = player.y + 42
         let playerCenterX = player.x + 17
         let playerDrawSize = CGSize(width: 43, height: 64)
@@ -1385,6 +1400,57 @@ private struct SurvivalCodeRunGameContent: View {
             } else {
                 context.draw(playerImage, in: playerRect)
             }
+        }
+    }
+
+    private func drawJumpFeedback(context: inout GraphicsContext) {
+        guard let effect = jumpFeedbackEffect else { return }
+        let rawProgress = (elapsed - effect.startedAt) / effect.duration
+        guard rawProgress >= 0, rawProgress <= 1 else { return }
+
+        let progress = CGFloat(rawProgress)
+        let inverseProgress = 1 - progress
+        let easeOut = 1 - inverseProgress * inverseProgress * inverseProgress
+        let fade = 1 - progress
+        let center = CGPoint(x: effect.x, y: effect.y - 2)
+        let radiusX = 18 + 24 * easeOut
+        let radiusY = 5 + 7 * easeOut
+        let outerRect = CGRect(
+            x: center.x - radiusX,
+            y: center.y - radiusY,
+            width: radiusX * 2,
+            height: radiusY * 2
+        )
+        let innerRect = CGRect(
+            x: center.x - radiusX * 0.68,
+            y: center.y - radiusY * 0.72,
+            width: radiusX * 1.36,
+            height: radiusY * 1.44
+        )
+
+        context.stroke(
+            Path(ellipseIn: outerRect),
+            with: .color(Color(red: 0.50, green: 0.92, blue: 1.00).opacity(Double(0.48 * fade))),
+            lineWidth: 2
+        )
+        context.stroke(
+            Path(ellipseIn: innerRect),
+            with: .color(Color(red: 1.00, green: 0.87, blue: 0.45).opacity(Double(0.38 * fade))),
+            lineWidth: 1
+        )
+
+        for particle in Self.jumpFeedbackParticles {
+            let spread = 0.72 + easeOut * 0.38
+            let position = CGPoint(
+                x: center.x + particle.dx * spread,
+                y: center.y + particle.dy - progress * 14
+            )
+            context.draw(
+                Text(particle.symbol)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(particle.color.opacity(Double(0.56 * fade))),
+                at: position
+            )
         }
     }
 
@@ -1457,6 +1523,12 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func applyBufferedJump() {
+        jumpFeedbackEffect = SurvivalCodeRunJumpFeedbackEffect(
+            x: player.x + 17,
+            y: player.y + 42,
+            startedAt: elapsed,
+            duration: SurvivalCodeRunNativeRules.jumpFeedbackDuration
+        )
         player.vy = SurvivalCodeRunNativeRules.jumpVelocity
         player.onGround = false
         player.jumpCount += 1
@@ -1637,6 +1709,7 @@ private struct SurvivalCodeRunGameContent: View {
         mapSpec = nextMap
         player = SurvivalCodeRunNativePlayer(x: nextMap.spawn.x, y: nextMap.spawn.y)
         enemies = nextMap.enemies()
+        jumpFeedbackEffect = nil
         completedPitchClasses.removeAll()
         heldKeys.removeAll()
     }
@@ -1652,6 +1725,7 @@ private struct SurvivalCodeRunGameContent: View {
     private func resetRun() {
         player = SurvivalCodeRunNativePlayer(x: mapSpec.spawn.x, y: mapSpec.spawn.y)
         enemies = mapSpec.enemies()
+        jumpFeedbackEffect = nil
         elapsed = 0
         status = .playing
         showResult = false

@@ -104,6 +104,7 @@ describe('CodeRunEngine integration', () => {
     const triggered = triggerCodeRunJump(state);
     expect(triggered.player.vy).toBe(0);
     expect(triggered.player.jumpBufferFrames).toBe(ENGINE_JUMP_BUFFER_FRAMES);
+    expect(triggered.jumpFeedbackEffect).toBeNull();
   });
 
   it('tickCodeRun はバッファ付き入力を次フレームでジャンプに変換する', () => {
@@ -121,6 +122,12 @@ describe('CodeRunEngine integration', () => {
     const next = tickCodeRun(state, idleInput, 1 / 60);
     expect(next.player.vy).toBe(ENGINE_JUMP_VEL);
     expect(next.player.jumpCount).toBe(1);
+    expect(next.jumpFeedbackEffect).toEqual({
+      x: state.player.x + state.player.width / 2,
+      y: state.player.y + state.player.height,
+      startedAtSec: state.elapsedSec,
+      durationSec: 0.36,
+    });
   });
 
   it('2段ジャンプ後は chordLockedUntilLanding になる', () => {

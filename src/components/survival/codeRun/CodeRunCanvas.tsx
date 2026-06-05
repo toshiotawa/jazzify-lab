@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { getEffectiveCanvasDpr } from '@/utils/getEffectiveCanvasDpr';
-import type { CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
+import type { CodeRunJumpFeedbackEffect, CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
 type ImageMap = Record<string, HTMLImageElement>;
 
@@ -127,6 +127,11 @@ const CODE_RUN_BG_GRADIENT_TOP = '#6d4a7a';
 const CODE_RUN_BG_GRADIENT_MID = '#452a52';
 const CODE_RUN_BG_GRADIENT_BOTTOM = '#1a0c22';
 const CODE_RUN_BG_PARALLAX_Y = 0.08;
+const JUMP_FEEDBACK_PARTICLES = [
+  { symbol: '♪', dx: -22, dy: -13, color: 'rgba(126, 233, 255,' },
+  { symbol: '✦', dx: 0, dy: -20, color: 'rgba(255, 229, 122,' },
+  { symbol: '♪', dx: 23, dy: -11, color: 'rgba(255, 245, 185,' },
+] as const;
 
 /** 横タイル前提で幅に合わせ、縦長ワールドは cameraY パララックスで上へ流す。 */
 export const computeBackgroundLayout = (
@@ -237,6 +242,58 @@ const drawPlayerSprite = (
   ctx.drawImage(image, drawX, drawY);
 };
 
+const codeRunJumpFeedbackProgress = (
+  effect: CodeRunJumpFeedbackEffect,
+  elapsedSec: number,
+): number | null => {
+  const progress = (elapsedSec - effect.startedAtSec) / effect.durationSec;
+  if (progress < 0 || progress > 1) return null;
+  return progress;
+};
+
+const drawJumpFeedbackEffect = (
+  ctx: CanvasRenderingContext2D,
+  effect: CodeRunJumpFeedbackEffect | null,
+  elapsedSec: number,
+): void => {
+  if (!effect) return;
+  const progress = codeRunJumpFeedbackProgress(effect, elapsedSec);
+  if (progress === null) return;
+
+  const easeOut = 1 - ((1 - progress) ** 3);
+  const fade = 1 - progress;
+  const centerX = effect.x;
+  const footY = effect.y - 2;
+  const radiusX = 18 + 24 * easeOut;
+  const radiusY = 5 + 7 * easeOut;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = `rgba(126, 233, 255, ${0.48 * fade})`;
+  ctx.beginPath();
+  ctx.ellipse(centerX, footY, radiusX, radiusY, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = `rgba(255, 223, 116, ${0.38 * fade})`;
+  ctx.beginPath();
+  ctx.ellipse(centerX, footY, radiusX * 0.68, radiusY * 0.72, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const particle of JUMP_FEEDBACK_PARTICLES) {
+    const spread = 0.72 + easeOut * 0.38;
+    const px = centerX + particle.dx * spread;
+    const py = footY + particle.dy - progress * 14;
+    ctx.fillStyle = `${particle.color} ${0.56 * fade})`;
+    ctx.fillText(particle.symbol, px, py);
+  }
+  ctx.restore();
+};
+
 const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
   if (state.player.invulFrames <= 0) return false;
   const tick = Math.floor(state.elapsedSec * 60);
@@ -339,6 +396,7 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
       drawImageOrRect(ctx, images[frame], ex, ey, ew, eh, '#7fd75a');
     }
 
+    drawJumpFeedbackEffect(ctx, state.jumpFeedbackEffect, state.elapsedSec);
     if (!shouldBlinkInvulnerable(state)) {
       const playerFrames = map.assets.player;
       const useHurt = state.player.hurtFrames > 0;

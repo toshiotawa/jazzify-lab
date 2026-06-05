@@ -158,6 +158,13 @@ const applyBufferedJump = (player: CodeRunPlayer): CodeRunPlayer => {
   return next;
 };
 
+const makeJumpFeedbackEffect = (player: CodeRunPlayer, startedAtSec: number): CodeRunJumpFeedbackEffect => ({
+  x: player.x + player.width / 2,
+  y: player.y + player.height,
+  startedAtSec,
+  durationSec: JUMP_FEEDBACK_DURATION_SEC,
+});
+
 const updateCoyoteFrames = (player: CodeRunPlayer): CodeRunPlayer => {
   if (player.onGround) {
     return { ...player, coyoteFrames: COYOTE_FRAMES };
@@ -168,12 +175,21 @@ const updateCoyoteFrames = (player: CodeRunPlayer): CodeRunPlayer => {
   return player;
 };
 
-const processJumpBuffer = (player: CodeRunPlayer): CodeRunPlayer => {
-  if (player.jumpBufferFrames <= 0) return player;
+const processJumpBuffer = (
+  player: CodeRunPlayer,
+  startedAtSec: number,
+): { player: CodeRunPlayer; jumpFeedbackEffect: CodeRunJumpFeedbackEffect | null } => {
+  if (player.jumpBufferFrames <= 0) return { player, jumpFeedbackEffect: null };
   if (canExecuteBufferedJump(player)) {
-    return applyBufferedJump(player);
+    return {
+      player: applyBufferedJump(player),
+      jumpFeedbackEffect: makeJumpFeedbackEffect(player, startedAtSec),
+    };
   }
-  return { ...player, jumpBufferFrames: player.jumpBufferFrames - 1 };
+  return {
+    player: { ...player, jumpBufferFrames: player.jumpBufferFrames - 1 },
+    jumpFeedbackEffect: null,
+  };
 };
 
 export function triggerCodeRunJump(state: CodeRunState): CodeRunState {
@@ -261,7 +277,8 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   player.vy = clamp(player.vy + GRAVITY * step, -99, MAX_FALL);
   player.runPhase += Math.abs(player.vx) * 0.035 * step;
   player = updateCoyoteFrames(player);
-  player = processJumpBuffer(player);
+  const jumpResult = processJumpBuffer(player, state.elapsedSec);
+  player = jumpResult.player;
 
   player = movePlayerX(player, state.map.solids, step);
   player.x = clamp(player.x, 0, state.map.worldWidth - player.width);
@@ -273,6 +290,7 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
     player,
     enemies: updateEnemies(state, step),
     elapsedSec: state.elapsedSec + dtSec,
+    jumpFeedbackEffect: jumpResult.jumpFeedbackEffect ?? state.jumpFeedbackEffect,
   };
 
   if (next.player.y > next.map.worldHeight + 96) {
