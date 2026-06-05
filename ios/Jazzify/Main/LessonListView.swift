@@ -1582,6 +1582,7 @@ struct LessonDetailView: View {
     }
 
     @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
 
     let lesson: Lesson
     var onSelectLesson: ((Lesson) -> Void)? = nil
@@ -1607,6 +1608,8 @@ struct LessonDetailView: View {
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
     @State private var courseIsMainQuest = false
+    @State private var navigationState: LessonNavigationState?
+    @State private var isNavigating = false
     @State private var showSubscriptionSheet = false
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
@@ -1663,6 +1666,9 @@ struct LessonDetailView: View {
             } else if let detail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        if let navigationState {
+                            lessonNavigationBar(navigationState)
+                        }
                         summaryCard(detail)
                         if let assignment = detail.localizedAssignmentDescription(locale), !assignment.isEmpty {
                             assignmentCard(assignment)
@@ -1705,6 +1711,11 @@ struct LessonDetailView: View {
             LessonMapAudio.shared.stop()
         }
         .task { await loadLessonDetail() }
+        .onChange(of: lesson.id) { _ in
+            navigationState = nil
+            isNavigating = false
+            Task { await loadLessonDetail() }
+        }
         .onChange(of: appState.locale) { _ in
             Task { await loadLessonDetail() }
         }
@@ -2586,10 +2597,22 @@ struct LessonDetailView: View {
                         userId: userId
                     )
                     isLessonCompleted = progressRows?.first(where: { $0.lessonId == lesson.id })?.completed ?? false
+
+                    if let lessons = try? await SupabaseService.shared.fetchLessons(courseId: courseId) {
+                        let completedIds = Set((progressRows ?? []).filter(\.completed).map(\.lessonId))
+                        navigationState = LessonNavigationHelpers.computeNavigationState(
+                            currentLesson: lesson,
+                            lessons: lessons,
+                            completedIds: completedIds,
+                            isMainQuest: courseIsMainQuest,
+                            isPremium: appState.isPremium
+                        )
+                    }
                 }
             } else {
                 requirementProgress = []
                 isLessonCompleted = false
+                navigationState = nil
             }
         } catch {
             detail = nil
@@ -2827,27 +2850,141 @@ struct LessonDetailView: View {
                 userId: userId
             )
             let completedIds = Set(progressRows.filter(\.completed).map(\.lessonId))
-            let accessGraph = LessonJourneyAccessGraph.build(lessons: sorted, completedIds: completedIds)
-            let next = LessonNavigationHelpers.nextLesson(after: lesson, in: sorted)
-            let canGoNext = next.map {
-                LessonNavigationHelpers.canOpenNextLesson(nextLesson: $0, accessGraph: accessGraph)
-            } ?? false
+            let navState = LessonNavigationHelpers.computeNavigationState(
+                currentLesson: lesson,
+                lessons: lessons,
+                completedIds: completedIds,
+                isMainQuest: courseIsMainQuest,
+                isPremium: appState.isPremium
+            )
             let kind = LessonNavigationHelpers.modalKind(
                 currentLesson: lesson,
                 sortedLessons: sorted,
-                nextLesson: next,
-                canGoNext: canGoNext
+                nextLesson: navState.nextLesson,
+                canGoNext: navState.canGoNext
             )
             guard kind != .none else { return }
             await MainActor.run {
+                navigationState = navState
                 questCompletionSheet = QuestCompletionSheetModel(
                     kind: kind,
                     chapterNumber: lesson.blockNumber ?? 1,
-                    nextLesson: next
+                    nextLesson: navState.nextLesson
                 )
             }
         } catch {
             /* モーダル表示失敗は非致命的 */
+        }
+    }
+
+    @ViewBuilder
+    private func lessonNavigationBar(_ navigationState: LessonNavigationState) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                navigateToPrevious(from: navigationState)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                    Text(locale == .ja ? "前へ" : "Back")
+                        .lineLimit(1)
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    navigationState.canGoPrevious && !isNavigating
+                        ? Color(hex: "2563eb")
+                        : Color(hex: "475569")
+                )
+                .cornerRadius(10)
+            }
+            .disabled(!navigationState.canGoPrevious || isNavigating || onSelectLesson == nil)
+
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "house.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 40)
+                    .background(Color(hex: "475569"))
+                    .cornerRadius(10)
+            }
+            .accessibilityLabel(locale == .ja ? "クエスト一覧に戻る" : "Back to quest list")
+
+            Button {
+                navigateToNext(from: navigationState)
+            } label: {
+                HStack(spacing: 6) {
+                    Text(locale == .ja ? "次へ" : "Next")
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    navigationState.canGoNext && !isNavigating
+                        ? Color(hex: "16a34a")
+                        : Color(hex: "475569")
+                )
+                .cornerRadius(10)
+            }
+            .disabled(!navigationState.canGoNext || isNavigating || onSelectLesson == nil)
+        }
+    }
+
+    private func navigateToPrevious(from navigationState: LessonNavigationState) {
+        guard !isNavigating else { return }
+        guard navigationState.canGoPrevious, let previous = navigationState.previousLesson else {
+            alertMessage = LessonNavigationHelpers.navigationBlockedMessage(
+                direction: .previous,
+                reason: navigationState.previousBlockedReason,
+                locale: locale,
+                nextLesson: navigationState.nextLesson
+            )
+            return
+        }
+        guard let onSelectLesson else {
+            alertMessage = locale == .ja ? "前のクエストへ移動できません。" : "Unable to open the previous quest."
+            return
+        }
+        isNavigating = true
+        onSelectLesson(previous)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            isNavigating = false
+        }
+    }
+
+    private func navigateToNext(from navigationState: LessonNavigationState) {
+        guard !isNavigating else { return }
+        guard navigationState.canGoNext, let next = navigationState.nextLesson else {
+            if navigationState.nextBlockedReason == .premiumRequired {
+                Task {
+                    let premium = await appState.ensureFreshBilling()
+                    if !premium {
+                        await MainActor.run { showSubscriptionSheet = true }
+                    }
+                }
+            }
+            alertMessage = LessonNavigationHelpers.navigationBlockedMessage(
+                direction: .next,
+                reason: navigationState.nextBlockedReason,
+                locale: locale,
+                nextLesson: navigationState.nextLesson
+            )
+            return
+        }
+        guard let onSelectLesson else {
+            alertMessage = locale == .ja ? "次のクエストへ移動できません。" : "Unable to open the next quest."
+            return
+        }
+        isNavigating = true
+        onSelectLesson(next)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            isNavigating = false
         }
     }
 

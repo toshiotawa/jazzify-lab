@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lesson, LessonProgress } from '@/types';
 import {
   computeLessonNavigationInfo,
+  getNavigationErrorMessage,
   getQuestCompletionModalKind,
   isLastLessonInBlock,
   sortLessonsByOrder,
@@ -31,6 +32,8 @@ const navInfo = (
   nextLesson: next,
   canGoPrevious: false,
   canGoNext,
+  previousBlockedReason: null,
+  nextBlockedReason: canGoNext ? null : 'sequential_lock',
   course: {
     id: 'course-1',
     hasAccessToPrevious: false,
@@ -53,6 +56,7 @@ describe('computeLessonNavigationInfo', () => {
     );
     expect(result.nextLesson?.id).toBe('l2');
     expect(result.canGoNext).toBe(false);
+    expect(result.nextBlockedReason).toBe('sequential_lock');
   });
 
   it('メインクエスト: block1 lesson1 完了 → lesson2 へ進める', () => {
@@ -83,6 +87,7 @@ describe('computeLessonNavigationInfo', () => {
     );
     expect(result.nextLesson?.id).toBe('b2-first');
     expect(result.canGoNext).toBe(false);
+    expect(result.nextBlockedReason).toBe('premium_required');
   });
 
   it('目的別コース: 同一ブロック内は順番未完了でも次へ進める', () => {
@@ -119,6 +124,38 @@ describe('computeLessonNavigationInfo', () => {
     );
     expect(result.previousLesson).toBeNull();
     expect(result.canGoPrevious).toBe(false);
+    expect(result.previousBlockedReason).toBe('first_lesson');
+  });
+});
+
+describe('getNavigationErrorMessage', () => {
+  it('順番ロック時は専用メッセージを返す', () => {
+    const first = lesson('l1', 0, 1);
+    const second = lesson('l2', 1, 1);
+    const info = computeLessonNavigationInfo(
+      'l1',
+      'course-1',
+      [first, second],
+      {},
+      { isMainQuest: true, isPremiumMember: true },
+    );
+    expect(getNavigationErrorMessage('next', info, false)).toContain('現在のクエストを完了');
+  });
+
+  it('無料ロック時はプレミアムメッセージを返す', () => {
+    const block1Last = lesson('b1-last', 1, 1);
+    const block2First = lesson('b2-first', 2, 2);
+    const info = computeLessonNavigationInfo(
+      'b1-last',
+      'course-1',
+      [lesson('b1-first', 0, 1), block1Last, block2First],
+      {
+        'b1-first': progress('b1-first', true),
+        'b1-last': progress('b1-last', true),
+      },
+      { isMainQuest: true, isPremiumMember: false },
+    );
+    expect(getNavigationErrorMessage('next', info, false)).toContain('プレミアム');
   });
 });
 

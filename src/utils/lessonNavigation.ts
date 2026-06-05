@@ -4,13 +4,22 @@ import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { buildLessonAccessGraph, MembershipRank } from '@/utils/lessonAccess';
-import { applyMainQuestFreeTierLocks } from '@/utils/mainQuestFreeTier';
+import { applyMainQuestFreeTierLocks, isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
+
+export type NavigationBlockedReason =
+  | 'first_lesson'
+  | 'last_lesson'
+  | 'sequential_lock'
+  | 'previous_block_incomplete'
+  | 'premium_required';
 
 export interface LessonNavigationInfo {
   previousLesson: Lesson | null;
   nextLesson: Lesson | null;
   canGoPrevious: boolean;
   canGoNext: boolean;
+  previousBlockedReason: NavigationBlockedReason | null;
+  nextBlockedReason: NavigationBlockedReason | null;
   course: {
     id: string;
     hasAccessToPrevious: boolean;
@@ -106,6 +115,59 @@ function buildNavigationCacheKey(
   ].join(':');
 }
 
+function resolvePreviousBlockedReason(
+  previousLesson: Lesson | null,
+  canGoPrevious: boolean,
+): NavigationBlockedReason | null {
+  if (previousLesson === null) {
+    return 'first_lesson';
+  }
+  if (canGoPrevious) {
+    return null;
+  }
+  return 'sequential_lock';
+}
+
+function resolveNextBlockedReason(
+  currentLesson: Lesson,
+  nextLesson: Lesson | null,
+  canGoNext: boolean,
+  baseAccessGraph: ReturnType<typeof buildLessonAccessGraph>,
+  completedIds: Set<string>,
+  options: { isMainQuest: boolean; isPremiumMember: boolean },
+): NavigationBlockedReason | null {
+  if (nextLesson === null) {
+    return 'last_lesson';
+  }
+  if (canGoNext) {
+    return null;
+  }
+
+  const nextBlockNumber = nextLesson.block_number ?? 1;
+  if (
+    options.isMainQuest
+    && !isMainQuestBlockPlayable(nextBlockNumber, options.isPremiumMember)
+  ) {
+    return 'premium_required';
+  }
+
+  const nextBlockUnlocked = baseAccessGraph.blockStates[nextBlockNumber]?.isUnlocked === true;
+  if (!nextBlockUnlocked) {
+    return 'previous_block_incomplete';
+  }
+
+  const currentBlockNumber = currentLesson.block_number ?? 1;
+  if (
+    options.isMainQuest
+    && currentBlockNumber === nextBlockNumber
+    && completedIds.has(currentLesson.id) !== true
+  ) {
+    return 'sequential_lock';
+  }
+
+  return 'previous_block_incomplete';
+}
+
 /**
  * レッスン一覧と進捗からナビゲーション情報を算出（純粋関数）
  */
@@ -126,12 +188,13 @@ export function computeLessonNavigationInfo(
   const previousLesson = currentIndex > 0 ? sortedLessons[currentIndex - 1] : null;
   const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
 
-  let accessGraph = buildLessonAccessGraph({
+  const baseAccessGraph = buildLessonAccessGraph({
     lessons: sortedLessons,
     progressMap,
     enforceSequentialWithinBlocks: options.isMainQuest,
   });
 
+  let accessGraph = baseAccessGraph;
   if (options.isMainQuest) {
     accessGraph = applyMainQuestFreeTierLocks(
       accessGraph,
@@ -148,11 +211,28 @@ export function computeLessonNavigationInfo(
     ? accessGraph.lessonStates[nextLesson.id]?.isUnlocked === true
     : false;
 
+  const canGoPrevious = previousLesson !== null && hasAccessToPrevious;
+  const canGoNext = nextLesson !== null && hasAccessToNext;
+  const completedIds = new Set(
+    Object.entries(progressMap)
+      .filter(([, progress]) => progress?.completed === true)
+      .map(([lessonId]) => lessonId),
+  );
+
   return {
     previousLesson,
     nextLesson,
-    canGoPrevious: previousLesson !== null && hasAccessToPrevious,
-    canGoNext: nextLesson !== null && hasAccessToNext,
+    canGoPrevious,
+    canGoNext,
+    previousBlockedReason: resolvePreviousBlockedReason(previousLesson, canGoPrevious),
+    nextBlockedReason: resolveNextBlockedReason(
+      sortedLessons[currentIndex],
+      nextLesson,
+      canGoNext,
+      baseAccessGraph,
+      completedIds,
+      options,
+    ),
     course: {
       id: courseId,
       hasAccessToPrevious,
@@ -229,29 +309,29 @@ export async function getLessonNavigationInfo(
 /**
  * レッスンナビゲーションのエラーメッセージを取得
  */
-export function getNavigationErrorMessage(
-  direction: 'previous' | 'next',
+function blockedReasonMessage(
+  reason: NavigationBlockedReason,
   navigationInfo: LessonNavigationInfo,
-  isEnglishCopy = false,
+  isEnglishCopy: boolean,
 ): string {
-  if (direction === 'previous') {
-    if (!navigationInfo.previousLesson) {
+  switch (reason) {
+    case 'first_lesson':
       return isEnglishCopy
         ? 'This is the first quest in the course.'
         : 'これがコースの最初のクエストです。';
-    }
-    if (!navigationInfo.course.hasAccessToPrevious) {
-      return isEnglishCopy
-        ? 'You cannot open the previous quest. It may still be locked.'
-        : '前のクエストにアクセスできません。クエストが解放されていない可能性があります。';
-    }
-  } else {
-    if (!navigationInfo.nextLesson) {
+    case 'last_lesson':
       return isEnglishCopy
         ? 'This is the last quest. You have finished the course!'
         : 'これがコースの最後のクエストです。すべてのクエストを完了されました！';
-    }
-    if (!navigationInfo.course.hasAccessToNext) {
+    case 'sequential_lock':
+      return isEnglishCopy
+        ? 'Complete the current quest before moving to the next one.'
+        : '先に現在のクエストを完了してください。';
+    case 'premium_required':
+      return isEnglishCopy
+        ? 'Main Quest chapters after Chapter 1 require Premium.'
+        : 'メインクエスト第2チャプター以降はプレミアムが必要です。';
+    case 'previous_block_incomplete': {
       const blockInfo = navigationInfo.nextLesson
         ? getLessonBlockInfo(navigationInfo.nextLesson, { isEnglishCopy })
         : null;
@@ -265,7 +345,26 @@ export function getNavigationErrorMessage(
         : '次のクエストはまだ解放されていません。現在のブロックの全クエストを完了してください。';
     }
   }
-  return '';
+}
+
+export function getNavigationErrorMessage(
+  direction: 'previous' | 'next',
+  navigationInfo: LessonNavigationInfo,
+  isEnglishCopy = false,
+): string {
+  if (direction === 'previous') {
+    if (navigationInfo.canGoPrevious) {
+      return '';
+    }
+    const reason = navigationInfo.previousBlockedReason ?? 'sequential_lock';
+    return blockedReasonMessage(reason, navigationInfo, isEnglishCopy);
+  }
+
+  if (navigationInfo.canGoNext) {
+    return '';
+  }
+  const reason = navigationInfo.nextBlockedReason ?? 'previous_block_incomplete';
+  return blockedReasonMessage(reason, navigationInfo, isEnglishCopy);
 }
 
 /**

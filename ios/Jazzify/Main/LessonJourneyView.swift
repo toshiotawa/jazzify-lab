@@ -275,7 +275,9 @@ struct LessonJourneyView: View {
             )
         ) {
             if let lesson = launchLesson {
-                LessonDetailView(lesson: lesson)
+                LessonDetailView(lesson: lesson) { nextLesson in
+                    launchLesson = nextLesson
+                }
             }
         }
         .onChange(of: launchLesson == nil) { isNil in
