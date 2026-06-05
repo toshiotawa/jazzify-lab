@@ -20,6 +20,7 @@ struct SurvivalGameView: View {
     var inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil
     var lessonRuntime: ResolvedSurvivalLessonRuntime? = nil
     var productionHintModes: ResolvedProductionHintModes? = nil
+    var randomChordOverrides: [String: SurvivalResolvedChord] = [:]
     var lessonContext: SurvivalLessonContext? = nil
     /// チュートリアル等: ステージ intro より優先するジャ爺吹き出し。
     var externalJajiiBubbleText: String = ""
@@ -41,6 +42,7 @@ struct SurvivalGameView: View {
         inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil,
         lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
         productionHintModes: ResolvedProductionHintModes? = nil,
+        randomChordOverrides: [String: SurvivalResolvedChord] = [:],
         lessonContext: SurvivalLessonContext? = nil,
         externalJajiiBubbleText: String = "",
         externalPlayerBubbleText: String = "",
@@ -58,6 +60,7 @@ struct SurvivalGameView: View {
         self.inlineCompositePhrases = inlineCompositePhrases
         self.lessonRuntime = lessonRuntime
         self.productionHintModes = productionHintModes
+        self.randomChordOverrides = randomChordOverrides
         self.lessonContext = lessonContext
         self.externalJajiiBubbleText = externalJajiiBubbleText
         self.externalPlayerBubbleText = externalPlayerBubbleText
@@ -226,7 +229,8 @@ struct SurvivalGameView: View {
             inlinePhraseDefinition: inlinePhraseDefinition,
             inlineCompositePhrases: inlineCompositePhrases,
             lessonRuntime: lessonRuntime,
-            productionHintModes: productionHintModes
+            productionHintModes: productionHintModes,
+            randomChordOverrides: randomChordOverrides
         )
         created.start()
         onSessionReady?(created)

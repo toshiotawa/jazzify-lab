@@ -30,11 +30,16 @@ final class BalloonRushGameSession: SurvivalPlaySession {
         profile: SurvivalCharacterProfile = .defaultFai,
         lessonContext: BalloonRushLessonContext?,
         productionHintModes: ResolvedProductionHintModes? = nil,
+        appliedRandomChords: AppliedSurvivalLessonRandomChords? = nil,
         locale: AppLocale,
         onExit: @escaping () -> Void
     ) {
         self.balloonStage = stage
-        self.presentationStage = BalloonRushSurvivalBridge.presentationStage(from: stage)
+        let allowedIds = appliedRandomChords?.allowedChordIds
+        self.presentationStage = BalloonRushSurvivalBridge.presentationStage(
+            from: stage,
+            allowedChordIds: allowedIds
+        )
         self.hintMode = hintMode
         self.lessonContext = lessonContext
         self.locale = locale
@@ -43,7 +48,9 @@ final class BalloonRushGameSession: SurvivalPlaySession {
             stage: stage,
             hintMode: hintMode,
             profile: profile,
-            productionHintModes: productionHintModes
+            productionHintModes: productionHintModes,
+            allowedChordIds: allowedIds,
+            randomChordOverrides: appliedRandomChords?.overrides ?? [:]
         )
         self.gameLoop = loop
         self.playLoopFacade = BalloonRushPlayLoopFacade(loop: loop, popQuota: stage.popQuota)

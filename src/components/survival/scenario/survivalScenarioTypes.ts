@@ -1,6 +1,6 @@
 /** チュートリアル / シナリオ用。iOS SurvivalScenarioOverrides と同等。 */
 
-export type SurvivalScenarioStaffMode = 'hidden' | 'progression' | 'phrase' | 'demo-timeline';
+export type SurvivalScenarioStaffMode = 'hidden' | 'progression' | 'phrase' | 'demo-timeline' | 'random-staff';
 
 export interface SurvivalScenarioOverrides {
   isActive: boolean;

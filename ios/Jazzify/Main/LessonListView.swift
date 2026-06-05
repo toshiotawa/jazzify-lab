@@ -1537,6 +1537,7 @@ private struct BalloonRushLessonLaunch: Identifiable {
     let stage: BalloonRushStageDefinition
     let hintMode: Bool
     let productionHintModes: ResolvedProductionHintModes
+    let appliedRandomChords: AppliedSurvivalLessonRandomChords?
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
@@ -1547,6 +1548,7 @@ private struct BalloonRushPrepContext: Identifiable {
     let id = UUID()
     let stage: BalloonRushStageDefinition
     let productionHintModes: ResolvedProductionHintModes
+    let appliedRandomChords: AppliedSurvivalLessonRandomChords?
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
@@ -1561,6 +1563,7 @@ private struct SurvivalLessonLaunch: Identifiable {
     let inlineCompositePhrases: [SurvivalPhraseDefinition]?
     let lessonRuntime: ResolvedSurvivalLessonRuntime?
     let productionHintModes: ResolvedProductionHintModes
+    let randomChordOverrides: [String: SurvivalResolvedChord]
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
@@ -1767,6 +1770,7 @@ struct LessonDetailView: View {
                 inlineCompositePhrases: launch.inlineCompositePhrases,
                 lessonRuntime: launch.lessonRuntime,
                 productionHintModes: launch.productionHintModes,
+                randomChordOverrides: launch.randomChordOverrides,
                 lessonContext: SurvivalLessonContext(
                     lessonId: launch.lessonId,
                     lessonSongId: launch.lessonSongId,
@@ -1791,6 +1795,7 @@ struct LessonDetailView: View {
                         inlineCompositePhrases: prep.inlineCompositePhrases,
                         lessonRuntime: prep.lessonRuntime,
                         productionHintModes: prep.productionHintModes,
+                        randomChordOverrides: prep.randomChordOverrides,
                         lessonId: prep.lessonId,
                         lessonSongId: prep.lessonSongId,
                         clearConditions: prep.clearConditions
@@ -1810,6 +1815,7 @@ struct LessonDetailView: View {
                         stage: prep.stage,
                         hintMode: hintMode,
                         productionHintModes: prep.productionHintModes,
+                        appliedRandomChords: prep.appliedRandomChords,
                         lessonId: prep.lessonId,
                         lessonSongId: prep.lessonSongId,
                         clearConditions: prep.clearConditions
@@ -1828,6 +1834,7 @@ struct LessonDetailView: View {
                     clearConditions: launch.clearConditions
                 ),
                 productionHintModes: launch.productionHintModes,
+                appliedRandomChords: launch.appliedRandomChords,
                 onClose: { balloonRushLessonLaunch = nil }
             )
         }
@@ -2951,6 +2958,28 @@ struct LessonDetailView: View {
         return URL(string: "https://iframe.mediadelivery.net/embed/295659/\(video.vimeoUrl)?autoplay=false")
     }
 
+    private static func appliedLessonRandomChords(
+        for requirement: LessonSong,
+        stage: SurvivalStageDefinition
+    ) -> AppliedSurvivalLessonRandomChords {
+        SurvivalLessonRandomChords.applyLessonRandomChords(
+            stageAllowedChordIds: stage.allowedChords,
+            entries: requirement.survivalRandomChords,
+            stageType: stage.stageType
+        )
+    }
+
+    private static func appliedLessonRandomChords(
+        for requirement: LessonSong,
+        balloonStage: BalloonRushStageDefinition
+    ) -> AppliedSurvivalLessonRandomChords {
+        SurvivalLessonRandomChords.applyLessonRandomChords(
+            stageAllowedChordIds: balloonStage.resolvedAllowedChordIds(),
+            entries: requirement.survivalRandomChords,
+            stageType: balloonStage.stageType
+        )
+    }
+
     private func launchRequirement(_ requirement: LessonSong) {
         let bn = lesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
@@ -3026,15 +3055,18 @@ struct LessonDetailView: View {
                         runtime: runtime,
                         stageType: stage.survivalBgmConfigStageType
                     )
+                    let appliedRandom = Self.appliedLessonRandomChords(for: requirement, stage: stage)
+                    let lessonStage = SurvivalLessonRandomChords.survivalStage(stage, applied: appliedRandom)
                     await MainActor.run {
                         LessonMapAudio.shared.stopImmediately()
                         survivalLessonPrep = SurvivalLessonLaunch(
-                            stage: stage,
+                            stage: lessonStage,
                             hintMode: false,
                             configOverride: lessonConfig,
                             inlineCompositePhrases: phrases,
                             lessonRuntime: runtime,
                             productionHintModes: hintModes,
+                            randomChordOverrides: appliedRandom.overrides,
                             lessonId: lesson.id,
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions
@@ -3085,15 +3117,18 @@ struct LessonDetailView: View {
                     runtime: runtime,
                     stageType: stage.survivalBgmConfigStageType
                 )
+                let appliedRandom = Self.appliedLessonRandomChords(for: requirement, stage: stage)
+                let lessonStage = SurvivalLessonRandomChords.survivalStage(stage, applied: appliedRandom)
                 await MainActor.run {
                     LessonMapAudio.shared.stopImmediately()
                     survivalLessonPrep = SurvivalLessonLaunch(
-                        stage: stage,
+                        stage: lessonStage,
                         hintMode: false,
                         configOverride: lessonConfig,
                         inlineCompositePhrases: nil,
                         lessonRuntime: runtime,
                         productionHintModes: hintModes,
+                        randomChordOverrides: appliedRandom.overrides,
                         lessonId: lesson.id,
                         lessonSongId: requirement.id,
                         clearConditions: requirement.clearConditions
@@ -3120,15 +3155,24 @@ struct LessonDetailView: View {
                     }
                     await MainActor.run {
                         LessonMapAudio.shared.stopImmediately()
-                        let presentation = BalloonRushSurvivalBridge.presentationStage(from: stage)
+                        let appliedRandom = Self.appliedLessonRandomChords(for: requirement, balloonStage: stage)
+                        let presentation = BalloonRushSurvivalBridge.presentationStage(
+                            from: stage,
+                            allowedChordIds: appliedRandom.allowedChordIds
+                        )
                         let hintModes = SurvivalLessonConfig.resolveProductionHintModes(
                             stage: presentation,
                             overrideStaffRaw: requirement.overrideProductionStaffHintMode,
                             overrideKeyboardRaw: requirement.overrideProductionKeyboardHintMode
                         )
+                        let appliedForLaunch: AppliedSurvivalLessonRandomChords? = {
+                            guard let entries = requirement.survivalRandomChords, !entries.isEmpty else { return nil }
+                            return appliedRandom
+                        }()
                         balloonRushPrep = BalloonRushPrepContext(
                             stage: stage,
                             productionHintModes: hintModes,
+                            appliedRandomChords: appliedForLaunch,
                             lessonId: lesson.id,
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions

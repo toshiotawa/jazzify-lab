@@ -32,6 +32,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
     /// レッスン課題のインライン複合フレーズ（2 件以上）。
     private let inlineCompositePhrases: [SurvivalPhraseDefinition]?
     private let lessonRuntime: ResolvedSurvivalLessonRuntime?
+    private let randomChordOverrides: [String: SurvivalResolvedChord]
     private let supabase = SupabaseService.shared
     private var uiForward: AnyCancellable?
 
@@ -50,7 +51,8 @@ final class SurvivalGameSession: SurvivalPlaySession {
         inlinePhraseDefinition: SurvivalPhraseDefinition? = nil,
         inlineCompositePhrases: [SurvivalPhraseDefinition]? = nil,
         lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
-        productionHintModes: ResolvedProductionHintModes? = nil
+        productionHintModes: ResolvedProductionHintModes? = nil,
+        randomChordOverrides: [String: SurvivalResolvedChord] = [:]
     ) {
         let loop = SurvivalGameLoop(
             stage: stage,
@@ -59,7 +61,8 @@ final class SurvivalGameSession: SurvivalPlaySession {
             config: config,
             scenarioOverrides: scenarioOverrides,
             lessonRuntime: lessonRuntime,
-            productionHintModes: productionHintModes
+            productionHintModes: productionHintModes,
+            randomChordOverrides: randomChordOverrides
         )
         self.gameLoop = loop
         self.simulation = SurvivalSimulation(gameLoop: loop)
@@ -86,6 +89,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
         self.inlinePhraseDefinition = inlinePhraseDefinition
         self.inlineCompositePhrases = inlineCompositePhrases
         self.lessonRuntime = lessonRuntime
+        self.randomChordOverrides = randomChordOverrides
 
         uiForward = vm.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()

@@ -21,6 +21,16 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private static let chordVoicingSelfPacedDrumLoopURL =
         URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
 
+    private var quizDrumLoopURL: URL {
+        lessonContext != nil
+            ? URL(string: BalloonRushDrumLoopBgm.urlString)!
+            : Self.chordVoicingSelfPacedDrumLoopURL
+    }
+
+    private var quizDrumLoopDurationSec: Int {
+        lessonContext != nil ? 6 : 2
+    }
+
     @Published private(set) var gameState: EarTrainingGameState = .idle {
         didSet { recomputeVoicingHints() }
     }
@@ -416,7 +426,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         drumPrepareTask?.cancel()
         drumPrepareTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let ok = await self.audio.prepareDrumLoop(url: Self.chordVoicingSelfPacedDrumLoopURL)
+            let ok = await self.audio.prepareDrumLoop(url: self.quizDrumLoopURL)
             guard ok else { return }
             self.audio.startDrumLoop()
         }
@@ -471,9 +481,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             title: nil,
             titleEn: nil,
             musicXmlUrl: nil,
-            audioUrl: Self.chordVoicingSelfPacedDrumLoopURL.absoluteString,
-            loopDurationSec: 2,
-            audioDurationSec: 2,
+            audioUrl: quizDrumLoopURL.absoluteString,
+            loopDurationSec: Double(quizDrumLoopDurationSec),
+            audioDurationSec: Double(quizDrumLoopDurationSec),
             noteCount: 0,
             notes: [],
             chords: chords,

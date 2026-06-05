@@ -43,13 +43,20 @@ const BALLOON_RUSH_SCENARIO_OVERRIDES_BASE: SurvivalScenarioOverrides = {
 export const balloonRushScenarioOverrides = (
   stage: BalloonRushResolvedStage,
   hintMode = false,
-): SurvivalScenarioOverrides => ({
-  ...BALLOON_RUSH_SCENARIO_OVERRIDES_BASE,
-  staffMode: stage.stageType === 'progression' ? 'progression' : 'hidden',
-  useChordMidiNotesForHintHighlights: stage.stageType === 'progression',
-  scenarioStaffClef: stage.stageType === 'progression' ? 2 : 1,
-  hideHintBadge: !hintMode,
-});
+): SurvivalScenarioOverrides => {
+  const sightReadingRandom = stage.stageType === 'random' && stage.hideChordNamesInBattle;
+  return {
+    ...BALLOON_RUSH_SCENARIO_OVERRIDES_BASE,
+    staffMode: stage.stageType === 'progression'
+      ? 'progression'
+      : sightReadingRandom
+        ? 'random-staff'
+        : 'hidden',
+    useChordMidiNotesForHintHighlights: stage.stageType === 'progression' || sightReadingRandom,
+    scenarioStaffClef: stage.stageType === 'progression' ? 2 : 1,
+    hideHintBadge: !hintMode,
+  };
+};
 
 export const balloonRushToStageDefinition = (stage: BalloonRushResolvedStage): StageDefinition => {
   const allowed = [...resolveBalloonRushAllowedChordIds(stage)];

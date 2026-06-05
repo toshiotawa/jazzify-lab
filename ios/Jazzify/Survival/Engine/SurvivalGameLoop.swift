@@ -63,6 +63,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     }
 
     private let lessonRuntime: ResolvedSurvivalLessonRuntime?
+    private let randomChordOverrides: [String: SurvivalResolvedChord]
 
     /// DB の `chord_progression` から `SurvivalResolvedChord` 配列を構築する。
     /// - `pitchClasses` が空のエントリは `SurvivalChordResolver.isMatch` が常に false を返すため
@@ -128,7 +129,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         config: SurvivalStageConfig = .default,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
         lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
-        productionHintModes: ResolvedProductionHintModes? = nil
+        productionHintModes: ResolvedProductionHintModes? = nil,
+        randomChordOverrides: [String: SurvivalResolvedChord] = [:]
     ) {
         let mode = SurvivalMode.resolve(stage: stage, hintMode: hintMode)
         self.init(
@@ -138,7 +140,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             config: config,
             scenarioOverrides: scenarioOverrides,
             lessonRuntime: lessonRuntime,
-            productionHintModes: productionHintModes
+            productionHintModes: productionHintModes,
+            randomChordOverrides: randomChordOverrides
         )
     }
 
@@ -149,9 +152,11 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         config: SurvivalStageConfig = .default,
         scenarioOverrides: SurvivalScenarioOverrides = .init(),
         lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
-        productionHintModes: ResolvedProductionHintModes? = nil
+        productionHintModes: ResolvedProductionHintModes? = nil,
+        randomChordOverrides: [String: SurvivalResolvedChord] = [:]
     ) {
         self.lessonRuntime = lessonRuntime
+        self.randomChordOverrides = randomChordOverrides
         self.mode = mode
         self.stage = stage
         self.profile = profile
@@ -181,7 +186,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                 punchOnlyForRandomHint: SurvivalGameEngine.punchOnlyForRandomHint(
                     hintMode: mode.hintMode,
                     mapCategory: stage.mapCategory
-                )
+                ),
+                randomChordOverrides: randomChordOverrides
             )
             if let mx = SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: allowedChords) {
                 stageKeyboardScrollMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: mx)
@@ -354,7 +360,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                 punchOnlyForRandomHint: SurvivalGameEngine.punchOnlyForRandomHint(
                     hintMode: mode.hintMode,
                     mapCategory: stage.mapCategory
-                )
+                ),
+                randomChordOverrides: randomChordOverrides
             )
         }
         var player = SurvivalGameEngine.createStageInitialPlayer(
@@ -1035,7 +1042,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
             newNextChord = SurvivalGameEngine.pickRandomResolvedChord(
                 allowedChordIds: stage.allowedChords,
-                excludingId: upcomingChord.id
+                excludingId: upcomingChord.id,
+                overrides: randomChordOverrides
             ) ?? upcomingChord
         }
         var slotUpdate = runtime.slots[slotIndex]

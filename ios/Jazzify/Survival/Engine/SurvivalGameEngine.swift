@@ -35,9 +35,21 @@ enum SurvivalGameEngine {
 
     // MARK: - 初期値ファクトリ (ステージモード専用)
 
+    static func resolveRandomChord(
+        id: String,
+        overrides: [String: SurvivalResolvedChord] = [:]
+    ) -> SurvivalResolvedChord? {
+        if let override = overrides[id] { return override }
+        return SurvivalChordResolver.resolve(id: id)
+    }
+
     /// Web `selectRandomChord` と同様、`excludingId` があり除外後も候補が残るときだけ直前コードを選ばない。
-    static func pickRandomResolvedChord(allowedChordIds: [String], excludingId: String?) -> SurvivalResolvedChord? {
-        let resolved = allowedChordIds.compactMap { SurvivalChordResolver.resolve(id: $0) }
+    static func pickRandomResolvedChord(
+        allowedChordIds: [String],
+        excludingId: String?,
+        overrides: [String: SurvivalResolvedChord] = [:]
+    ) -> SurvivalResolvedChord? {
+        let resolved = allowedChordIds.compactMap { resolveRandomChord(id: $0, overrides: overrides) }
         guard !resolved.isEmpty else { return nil }
         if let excludingId {
             let available = resolved.filter { $0.id != excludingId }
@@ -93,7 +105,8 @@ enum SurvivalGameEngine {
     static func createStageInitialSlots(
         allowedChords: [String],
         isBossStage: Bool = false,
-        punchOnlyForRandomHint: Bool = false
+        punchOnlyForRandomHint: Bool = false,
+        randomChordOverrides: [String: SurvivalResolvedChord] = [:]
     ) -> [SurvivalCodeSlot] {
         _ = isBossStage // 現行仕様ではボス/通常どちらも A/B のみ
         return SurvivalSlotIndex.allCases.map { idx in
@@ -103,9 +116,15 @@ enum SurvivalGameEngine {
             case .B: enabled = true
             case .C, .D: enabled = false
             }
-            let chord = enabled ? pickRandomResolvedChord(allowedChordIds: allowedChords, excludingId: nil) : nil
+            let chord = enabled
+                ? pickRandomResolvedChord(allowedChordIds: allowedChords, excludingId: nil, overrides: randomChordOverrides)
+                : nil
             let nextChord = enabled
-                ? pickRandomResolvedChord(allowedChordIds: allowedChords, excludingId: chord?.id)
+                ? pickRandomResolvedChord(
+                    allowedChordIds: allowedChords,
+                    excludingId: chord?.id,
+                    overrides: randomChordOverrides
+                )
                 : nil
             return SurvivalCodeSlot(
                 label: idx.label,

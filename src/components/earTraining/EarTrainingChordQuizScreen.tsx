@@ -40,6 +40,7 @@ import { resolveEarTrainingOutcome } from '@/utils/earTrainingEngine';
 import { computeVoicingKeyboardHints } from '@/utils/earTrainingChordVoicingHints';
 import { getEarTrainingBattleHudLabels, getEarTrainingGameCopy, formatEarTrainingChordQuizIntroLine } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { BALLOON_RUSH_DRUM_LOOP_BGM_URL } from '@/utils/balloonRushMap';
 import {
   CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
   EarTrainingChordVoicingDrumLoop,
@@ -77,6 +78,14 @@ interface EarTrainingLessonContext {
   lessonSongId: string;
   clearConditions: ClearConditions;
 }
+
+const resolveQuizDrumLoopUrl = (lessonContext: EarTrainingLessonContext | null): string => (
+  lessonContext !== null ? BALLOON_RUSH_DRUM_LOOP_BGM_URL : CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL
+);
+
+const resolveQuizLoopDurationSec = (lessonContext: EarTrainingLessonContext | null): number => (
+  lessonContext !== null ? 6 : 2
+);
 
 interface EarTrainingChordQuizScreenProps {
   stage: EarTrainingStage;
@@ -133,16 +142,22 @@ const formatTime = (seconds: number): string => {
   return `${minutes}:${rest.toString().padStart(2, '0')}`;
 };
 
-const buildQuizPhrase = (stageId: string, question: EarTrainingChordQuizQuestion, runKey: number): EarTrainingPhrase => {
+const buildQuizPhrase = (
+  stageId: string,
+  question: EarTrainingChordQuizQuestion,
+  runKey: number,
+  lessonContext: EarTrainingLessonContext | null,
+): EarTrainingPhrase => {
   const phraseId = `chord-quiz-${question.id}-${runKey}`;
+  const loopSec = resolveQuizLoopDurationSec(lessonContext);
   return {
     id: phraseId,
     stage_id: stageId,
     order_index: 0,
     key_fifths: question.key_fifths,
-    audio_url: CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
-    loop_duration_sec: 2,
-    audio_duration_sec: 2,
+    audio_url: resolveQuizDrumLoopUrl(lessonContext),
+    loop_duration_sec: loopSec,
+    audio_duration_sec: loopSec,
     note_count: 0,
     chords: question.chords.map(chord => ({
       ...chord,
@@ -590,7 +605,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     const nextPreviewIdx = pickNextQuizIndex(quizQuestions, quizOrder, nextActiveIdx, randRef.current);
     phraseRunNonceRef.current += 1;
     const runKey = phraseRunNonceRef.current;
-    const phrase = buildQuizPhrase(stage.id, nextQuestion, runKey);
+    const phrase = buildQuizPhrase(stage.id, nextQuestion, runKey, lessonContext);
     const nextAttempt = createChordVoicingAttempt(phrase);
     setPhraseRunId(runKey);
     setActiveQuestionIndex(nextActiveIdx);
@@ -601,7 +616,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     setEnemyAttackGaugePercent(0);
     staffShiftQueueRef.current.push({ active: nextActiveIdx, preview: nextPreviewIdx });
     runStaffShiftQueue();
-  }, [previewQuestionIndex, quizQuestions, quizOrder, runStaffShiftQueue, setEnemyAttackGaugePercent, stage.id]);
+  }, [previewQuestionIndex, quizQuestions, quizOrder, runStaffShiftQueue, setEnemyAttackGaugePercent, stage.id, lessonContext]);
 
   const startQuizInternal = useCallback(() => {
     if (quizQuestions.length === 0) {
@@ -641,7 +656,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     if (!question) {
       return;
     }
-    const phrase = buildQuizPhrase(stage.id, question, 0);
+    const phrase = buildQuizPhrase(stage.id, question, 0, lessonContext);
     const nextAttempt = createChordVoicingAttempt(phrase);
     setAttempt(nextAttempt);
     attemptRef.current = nextAttempt;
@@ -687,12 +702,13 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
             chordVoicingPhrasePlayerStubRef.current = new EarTrainingChordVoicingPhrasePlayer();
           }
           const stubPlayer = chordVoicingPhrasePlayerStubRef.current;
-          await stubPlayer.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL);
+          const quizDrumUrl = resolveQuizDrumLoopUrl(lessonContext);
+          await stubPlayer.prepare(quizDrumUrl);
           const phraseCtx = stubPlayer.getAudioContext();
           if (!phraseCtx) {
             return;
           }
-          await drum.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL, phraseCtx);
+          await drum.prepare(quizDrumUrl, phraseCtx);
           drum.setVolume(settings.musicVolume * settings.masterVolume);
           drum.start();
         } catch {
@@ -736,6 +752,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     stage.id,
     stage.player_hp,
     clearStaffShiftQueue,
+    lessonContext,
+    showTutorialQuestionDialogue,
+    tutorial,
   ]);
 
   const startQuiz = useCallback(() => {

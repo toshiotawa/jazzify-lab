@@ -25,6 +25,7 @@ final class BalloonRushGameLoop {
     private(set) var pendingFrameAudio = BalloonRushFrameAudio()
 
     private let allowedChordIds: [String]
+    private let randomChordOverrides: [String: SurvivalResolvedChord]
     private let isProgression: Bool
     let productionHintModes: ResolvedProductionHintModes
 
@@ -32,7 +33,9 @@ final class BalloonRushGameLoop {
         stage: BalloonRushStageDefinition,
         hintMode: Bool,
         profile: SurvivalCharacterProfile = .defaultFai,
-        productionHintModes: ResolvedProductionHintModes? = nil
+        productionHintModes: ResolvedProductionHintModes? = nil,
+        allowedChordIds overrideAllowedIds: [String]? = nil,
+        randomChordOverrides: [String: SurvivalResolvedChord] = [:]
     ) {
         self.stage = stage
         self.hintMode = hintMode
@@ -40,7 +43,9 @@ final class BalloonRushGameLoop {
             staffHintMode: stage.productionStaffHintMode,
             keyboardHintMode: stage.productionKeyboardHintMode
         )
-        allowedChordIds = stage.resolvedAllowedChordIds()
+        let resolvedIds = overrideAllowedIds ?? stage.resolvedAllowedChordIds()
+        allowedChordIds = resolvedIds
+        self.randomChordOverrides = randomChordOverrides
         progressionChords = stage.buildProgressionChords()
         isProgression = stage.stageType == .progression && !progressionChords.isEmpty
 
@@ -59,7 +64,8 @@ final class BalloonRushGameLoop {
             let ids = allowedChordIds.isEmpty ? ["Dm7"] : allowedChordIds
             slots = SurvivalGameEngine.createStageInitialSlots(
                 allowedChords: ids,
-                punchOnlyForRandomHint: true
+                punchOnlyForRandomHint: true,
+                randomChordOverrides: randomChordOverrides
             )
         }
 
@@ -330,8 +336,16 @@ final class BalloonRushGameLoop {
         } else {
             let ids = allowedChordIds.isEmpty ? ["Dm7"] : allowedChordIds
             let used = slots[1].chord?.id
-            let next = SurvivalGameEngine.pickRandomResolvedChord(allowedChordIds: ids, excludingId: used)
-            let nextNext = SurvivalGameEngine.pickRandomResolvedChord(allowedChordIds: ids, excludingId: next?.id)
+            let next = SurvivalGameEngine.pickRandomResolvedChord(
+                allowedChordIds: ids,
+                excludingId: used,
+                overrides: randomChordOverrides
+            )
+            let nextNext = SurvivalGameEngine.pickRandomResolvedChord(
+                allowedChordIds: ids,
+                excludingId: next?.id,
+                overrides: randomChordOverrides
+            )
             slots[1].chord = next
             slots[1].nextChord = nextNext
         }
@@ -360,7 +374,8 @@ final class BalloonRushGameLoop {
             let ids = allowedChordIds.isEmpty ? ["Dm7"] : allowedChordIds
             slots = SurvivalGameEngine.createStageInitialSlots(
                 allowedChords: ids,
-                punchOnlyForRandomHint: true
+                punchOnlyForRandomHint: true,
+                randomChordOverrides: randomChordOverrides
             )
         }
         resetBalloons()

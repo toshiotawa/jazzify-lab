@@ -232,6 +232,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
     /// Web `lesson_songs.survival_map_category`。nil のときアプリ側では basic。
     let survivalMapCategory: String?
     let survivalCompositeConfig: SurvivalLessonCompositeConfig?
+    /// Web `lesson_songs.survival_random_chords`。Random 課題のカスタム出題プール。
+    let survivalRandomChords: [SurvivalLessonRandomChordEntry]?
     let survivalLessonOverrides: SurvivalLessonOverrides?
     let overrideProductionStaffHintMode: String?
     let overrideProductionKeyboardHintMode: String?
@@ -266,6 +268,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case survivalStageNumber = "survival_stage_number"
         case survivalMapCategory = "survival_map_category"
         case survivalCompositeConfig = "survival_composite_config"
+        case survivalRandomChords = "survival_random_chords"
         case survivalLessonOverrides = "survival_lesson_overrides"
         case overrideProductionStaffHintMode = "override_production_staff_hint_mode"
         case overrideProductionKeyboardHintMode = "override_production_keyboard_hint_mode"

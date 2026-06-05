@@ -7,6 +7,7 @@ struct BalloonRushGameView: View {
     let locale: AppLocale
     let lessonContext: BalloonRushLessonContext?
     let productionHintModes: ResolvedProductionHintModes?
+    let appliedRandomChords: AppliedSurvivalLessonRandomChords?
     let onClose: () -> Void
 
     @State private var session: BalloonRushGameSession?
@@ -64,6 +65,7 @@ struct BalloonRushGameView: View {
             profile: profile,
             lessonContext: lessonContext,
             productionHintModes: productionHintModes,
+            appliedRandomChords: appliedRandomChords,
             locale: locale,
             onExit: onClose
         )

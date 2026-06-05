@@ -331,8 +331,8 @@ private struct EarTrainingChordQuizContent: View {
                 completionPulse: controller.staffCompletionPulse,
                 showTargetHints: showHints,
                 singleMeasureLayout: controller.displayedStaffPreviewQuestion == nil,
-                hideUnpressedNotes: hideNotes,
-                hideChordLabels: controller.stage.resolvedHideChordNamesInBattle
+                hideChordLabels: controller.stage.resolvedHideChordNamesInBattle,
+                hideUnpressedNotes: hideNotes
             )
             .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
             .position(x: size.width / 2, y: size.height * 0.42)

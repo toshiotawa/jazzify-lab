@@ -144,6 +144,7 @@
 		6BB2DD43768BDCC704621AE3 /* SurvivalChordResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */; };
 		FCAF770000EE11EE00000004 /* SurvivalQuestionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCAF770000EE11EE00000003 /* SurvivalQuestionTypes.swift */; };
 		FCAF770000EE11EE00000002 /* SurvivalRandomHintStaff.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCAF770000EE11EE00000001 /* SurvivalRandomHintStaff.swift */; };
+		FCAF770000EE11EE00000006 /* SurvivalLessonRandomChords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCAF770000EE11EE00000005 /* SurvivalLessonRandomChords.swift */; };
 		6BFFD02966CF6D54DC197D87 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9287B850DB97CA095340096F /* SubscriptionView.swift */; };
 		6DF0F2EC897BEE7B9120DEA9 /* EarTrainingPianoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */; };
 		6FF3DDCFD71036E375BDCC55 /* C2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 903944BD135D748CB90B813D /* C2.mp3 */; };
@@ -382,6 +383,7 @@
 		99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordResolver.swift; sourceTree = "<group>"; };
 		FCAF770000EE11EE00000003 /* SurvivalQuestionTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalQuestionTypes.swift; sourceTree = "<group>"; };
 		FCAF770000EE11EE00000001 /* SurvivalRandomHintStaff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalRandomHintStaff.swift; sourceTree = "<group>"; };
+		FCAF770000EE11EE00000005 /* SurvivalLessonRandomChords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLessonRandomChords.swift; sourceTree = "<group>"; };
 		9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAudio.swift; sourceTree = "<group>"; };
 		9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyView.swift; sourceTree = "<group>"; };
 		9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -485,6 +487,7 @@
 				99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */,
 				FCAF770000EE11EE00000003 /* SurvivalQuestionTypes.swift */,
 				FCAF770000EE11EE00000001 /* SurvivalRandomHintStaff.swift */,
+				FCAF770000EE11EE00000005 /* SurvivalLessonRandomChords.swift */,
 				C48D6B8D97E8A70D77DF8DDE /* SurvivalDemoStage.swift */,
 				7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */,
 				69CB855F4C23E91D831AFA2B /* SurvivalStageConfig.swift */,
@@ -1295,6 +1298,7 @@
 				6BB2DD43768BDCC704621AE3 /* SurvivalChordResolver.swift in Sources */,
 				FCAF770000EE11EE00000004 /* SurvivalQuestionTypes.swift in Sources */,
 				FCAF770000EE11EE00000002 /* SurvivalRandomHintStaff.swift in Sources */,
+				FCAF770000EE11EE00000006 /* SurvivalLessonRandomChords.swift in Sources */,
 				BB02CC03DD04EE052002 /* SurvivalProgressionStaffView.swift in Sources */,
 				1A3685F8B461FBABFE4C6D1E /* SurvivalDemoStage.swift in Sources */,
 				C486A818677755413CF73152 /* SurvivalDescentLayout.swift in Sources */,
