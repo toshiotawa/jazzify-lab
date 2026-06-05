@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { MIDIController, initializeAudioSystem, playNote, stopNote, updateGlobalVolume } from '@/utils/MidiController';
+import { MIDIController, initializeAudioSystem, playNote, stopNote, updateGlobalVolume, warmupIOSBattleSoundFonts } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
@@ -391,7 +391,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     setCompletedPitchClasses(new Set(nextCompleted));
     if (nextCompleted.size < targetPitchClasses.size) return;
 
-    FantasySoundManager.playRootNote(chord.root).catch(() => undefined);
+    FantasySoundManager.playCorrectRootBassNote(chord.root).catch(() => undefined);
     const jumped = triggerCodeRunJump(stateRef.current);
     stateRef.current = jumped;
     setRunState(jumped);
@@ -437,15 +437,20 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
 
       const initPromise = (async () => {
         try {
+          const seVol = settings.soundEffectVolume ?? 0.8;
+          const rootVol = settings.rootSoundVolume ?? 0.7;
+          FantasySoundManager.setRootVolume(rootVol);
+          FantasySoundManager.enableRootSound(true);
+          warmupIOSBattleSoundFonts();
+          FantasySoundManager.preloadCorrectRootBassSoundFont().catch(() => {});
           if (isIOSWebView()) {
+            FantasySoundManager.init(seVol, rootVol, true).catch(() => {});
             controller.setKeyHighlightCallback((note, active) => {
               pixiRendererRef.current?.highlightKey(note, active);
             });
             setIsMidiInitialized(true);
             return;
           }
-          const seVol = settings.soundEffectVolume ?? 0.8;
-          const rootVol = settings.rootSoundVolume ?? 0.7;
           await Promise.all([
             initializeAudioSystem().then(() => {
               updateGlobalVolume(settings.midiVolume ?? 0.8);

@@ -195,7 +195,7 @@ import {
   type BalloonRushPhysicsState,
 } from '@/utils/balloonRushPhysics';
 import { BALLOON_RUSH_MAP_CONFIG } from '@/utils/balloonRushMap';
-import { playBalloonRushPop, preloadBalloonRushPopAudio } from '@/utils/balloonRushPopAudio';
+import { playBalloonRushPop, preloadBalloonRushPopAudio, setBalloonRushPopVolume } from '@/utils/balloonRushPopAudio';
 import BalloonRushStatusOverlay from '@/components/balloonRush/BalloonRushStatusOverlay';
 import {
   resolveBalloonRushStaffBandHeightPx,
@@ -218,7 +218,7 @@ import {
 import { resolveProductionHintModes } from '@/utils/resolveProductionHintModes';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
-import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
+import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume, warmupIOSBattleSoundFonts } from '@/utils/MidiController';
 import { VoiceInputController } from '@/utils/VoiceInputController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
@@ -1429,6 +1429,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const initPromise = (async () => {
         try {
           if (isIOSWebView()) {
+            warmupIOSBattleSoundFonts();
+            const seVol = settings.soundEffectVolume ?? 0.8;
+            const rootVol = settings.rootSoundVolume ?? 0.7;
+            FantasySoundManager.setRootVolume(rootVol);
+            FantasySoundManager.enableRootSound(true);
+            FantasySoundManager.preloadCorrectRootBassSoundFont().catch(() => {});
+            FantasySoundManager.init(seVol, rootVol, true).catch(() => {});
             controller.setKeyHighlightCallback((note: number, active: boolean) => {
               pixiRendererRef.current?.highlightKey(note, active);
             });
@@ -1437,6 +1444,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
           const seVol = settings.soundEffectVolume ?? 0.8;
           const rootVol = settings.rootSoundVolume ?? 0.7;
+          FantasySoundManager.preloadCorrectRootBassSoundFont().catch(() => {});
           // ファンタジー／レジェンドと同様、GMピアノ読み込みまで待つ（数秒で打ち切ると低品質フォールバックになる）
           await Promise.all([
             initializeAudioSystem().then(() => {
@@ -1940,8 +1948,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   useEffect(() => {
     if (!isBalloonRushMode) return;
+    setBalloonRushPopVolume(settings.soundEffectVolume ?? 0.8);
     preloadBalloonRushPopAudio();
-  }, [isBalloonRushMode]);
+  }, [isBalloonRushMode, settings.soundEffectVolume]);
 
   useEffect(() => {
     stageIntroSchedulerRef.current?.cancel();
@@ -2818,7 +2827,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (completedChord) {
           const rootNote = completedChord.root || completedChord.noteNames?.[0];
           if (rootNote) {
-            FantasySoundManager.playRootNote(rootNote).catch(() => {});
+            FantasySoundManager.playCorrectRootBassNote(rootNote).catch(() => {});
           }
         }
         

@@ -38,6 +38,7 @@ import {
 } from '@/utils/questJingleAssets';
 import { getWindow } from '@/platform';
 import { requestWebPlaybackAudioSession } from '@/utils/iosbridge';
+import { Sf2RootNotePlayer } from '@/utils/sf2RootNotePlayer';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
 import * as Tone from 'tone';
@@ -147,6 +148,18 @@ export class FantasySoundManager {
   public static getVolume() { return this.instance._volume; }
   public static async playRootNote(rootName: string) {
     return this.instance._playRootNote(rootName);
+  }
+  public static async preloadCodeRunRootSoundFont(): Promise<void> {
+    return this.instance._preloadCodeRunRootSoundFont();
+  }
+  public static async playCodeRunRootNote(rootName: string): Promise<void> {
+    return this.instance._playCodeRunRootNote(rootName);
+  }
+  public static async preloadCorrectRootBassSoundFont(): Promise<void> {
+    return this.instance._preloadCodeRunRootSoundFont();
+  }
+  public static async playCorrectRootBassNote(rootName: string): Promise<void> {
+    return this.instance._playCodeRunRootNote(rootName);
   }
   
   // GM音源でMIDIノートを再生（ピアノ演奏用）
@@ -610,19 +623,7 @@ export class FantasySoundManager {
   }
 
   private _playRootTriangleOscillator(midiValue: number) {
-    // Web Audio APIコンテキストを取得または作成（初回のみ）
-    if (!this.rootAudioContext) {
-      try {
-        this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
-        this.rootMasterGain = this.rootAudioContext.createGain();
-        this.rootMasterGain.connect(this.rootAudioContext.destination);
-        this._syncRootBassVolume();
-      } catch {
-        return;
-      }
-    }
-
-    const ctx = this.rootAudioContext;
+    const ctx = this._ensureRootAudioContext();
     if (!ctx || !this.rootMasterGain) return;
 
     if (ctx.state === 'suspended') {
@@ -670,11 +671,65 @@ export class FantasySoundManager {
     } catch { /* ignore */ }
   }
 
+  private _ensureRootAudioContext(): AudioContext | null {
+    if (!this.rootAudioContext) {
+      try {
+        this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+        this.rootMasterGain = this.rootAudioContext.createGain();
+        this.rootMasterGain.connect(this.rootAudioContext.destination);
+        this._syncRootBassVolume();
+      } catch {
+        return null;
+      }
+    }
+    return this.rootAudioContext;
+  }
+
+  private _preloadCodeRunRootSoundFont(): Promise<void> {
+    if (this.codeRunRootPlayer?.ready) {
+      return Promise.resolve();
+    }
+    if (this.codeRunRootLoadPromise) {
+      return this.codeRunRootLoadPromise;
+    }
+    const ctx = this._ensureRootAudioContext();
+    if (!ctx) {
+      return Promise.resolve();
+    }
+    const baseUrl = import.meta.env.BASE_URL || '/';
+    const url = buildPublicAssetUrl(baseUrl, 'FingerBassYR 20190930.sf2');
+    const player = this.codeRunRootPlayer ?? new Sf2RootNotePlayer(ctx);
+    this.codeRunRootPlayer = player;
+    this.codeRunRootLoadPromise = player.load(url).catch(() => {
+      // SF2 が読めない環境では既存ルート音へフォールバック
+    }).finally(() => {
+      this.codeRunRootLoadPromise = null;
+    });
+    return this.codeRunRootLoadPromise;
+  }
+
+  private _playCodeRunRootNote(rootName: string): void {
+    if (!this.bassEnabled) return;
+
+    const n = tonalNote(rootName + '2');
+    if (n.midi == null) return;
+
+    this._ensureContextsRunning();
+    if (this.codeRunRootPlayer?.play(n.midi, this.bassVolume)) {
+      return;
+    }
+
+    this._preloadCodeRunRootSoundFont().catch(() => {});
+    this._playRootNote(rootName);
+  }
+
   // 🎸 ルート音用 Web Audio API リソース（三角波フォールバック用）
   private rootAudioContext: AudioContext | null = null;
   private rootMasterGain: GainNode | null = null;
   private activeRootOscillator: OscillatorNode | null = null;
   private activeRootGain: GainNode | null = null;
+  private codeRunRootPlayer: Sf2RootNotePlayer | null = null;
+  private codeRunRootLoadPromise: Promise<void> | null = null;
   
   // FM合成音でMIDIノートを即時再生（フォールバック用）
   private _playFMNote(midiNote: number, velocity: number = 1.0) {

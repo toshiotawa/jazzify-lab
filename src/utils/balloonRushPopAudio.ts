@@ -1,12 +1,15 @@
 /** 風船破裂 SE (`public/Balloon.mp3`)。ゲーム開始時に preload し、ヒット時にワンショット再生。 */
 
 const BALLOON_POP_URL = '/Balloon.mp3';
-/** 小さめの音量（SE 全体より控えめ） */
-const POP_GAIN = 0.2;
+/** 小さめの音量（SE 全体より控えめ）。設定 80% の既定値で従来の 0.2 になる。 */
+const POP_GAIN_SCALE = 0.25;
 
 let ctx: AudioContext | null = null;
 let buffer: AudioBuffer | null = null;
 let loadPromise: Promise<void> | null = null;
+let popVolume = 0.8;
+
+const effectivePopGain = (): number => Math.max(0, Math.min(1, popVolume)) * POP_GAIN_SCALE;
 
 const ensureContext = (): AudioContext | null => {
   if (ctx) return ctx;
@@ -36,6 +39,10 @@ export const preloadBalloonRushPopAudio = (): void => {
   })();
 };
 
+export const setBalloonRushPopVolume = (volume: number): void => {
+  popVolume = volume;
+};
+
 export const playBalloonRushPop = (): void => {
   void (async () => {
     if (!buffer && loadPromise) {
@@ -45,7 +52,7 @@ export const playBalloonRushPop = (): void => {
     if (!audioCtx || !buffer) {
       try {
         const audio = new Audio(BALLOON_POP_URL);
-        audio.volume = POP_GAIN;
+        audio.volume = effectivePopGain();
         void audio.play();
       } catch {
         /* ignore */
@@ -58,7 +65,7 @@ export const playBalloonRushPop = (): void => {
       }
       const src = audioCtx.createBufferSource();
       const gain = audioCtx.createGain();
-      gain.gain.value = POP_GAIN;
+      gain.gain.value = effectivePopGain();
       src.buffer = buffer;
       src.connect(gain);
       gain.connect(audioCtx.destination);

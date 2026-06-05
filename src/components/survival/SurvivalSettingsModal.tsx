@@ -8,6 +8,7 @@ import { MidiDeviceSelector, AudioDeviceSelector } from '../ui/MidiDeviceManager
 import { updateGlobalVolume } from '@/utils/MidiController';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
+import { setBalloonRushPopVolume } from '@/utils/balloonRushPopAudio';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
@@ -131,6 +132,7 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
     updateSettings({ soundEffectVolume: value });
     FantasySoundManager.setVolume(value);
     SurvivalMapAudio.setSeVolume(value);
+    setBalloonRushPopVolume(value);
   };
 
   const handleToggle = (key: keyof SurvivalDisplaySettings) => {
