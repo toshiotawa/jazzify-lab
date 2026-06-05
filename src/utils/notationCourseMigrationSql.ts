@@ -2,9 +2,12 @@
  * 「音符の読み方」コース Supabase マイグレーション SQL 生成。
  */
 import {
+  NOTATION_COURSE_ALL_TOPICS,
   NOTATION_COURSE_BLOCK_META,
+  NOTATION_COURSE_REMOVED_LESSON_KEYS,
   getNotationCourseTopicsForBlocks,
   getTopicLessonKey,
+  type NotationCourseNoteSpec,
   type NotationCourseTopicSpec,
 } from './notationCourseNotePools';
 
@@ -25,19 +28,200 @@ export interface GenerateNotationMigrationOptions {
   readonly migrationComment: string;
 }
 
+const buildChordsJson = (
+  notes: readonly NotationCourseNoteSpec[],
+  parseMidi: (noteName: string) => number | null,
+): string => JSON.stringify(
+  notes.map(spec => {
+    const midi = parseMidi(spec.noteName);
+    if (midi === null) throw new Error(`Invalid MIDI: ${spec.noteName}`);
+    return {
+      name: spec.noteName,
+      voicing: [midi],
+      voicing_names: [spec.noteName],
+      voicing_staves: [spec.staff],
+      key_fifths: spec.keyFifths ?? 0,
+    };
+  }),
+);
+
+const buildQuestIntro = (topic: NotationCourseTopicSpec): { ja: string; en: string } => ({
+  ja: `${topic.descriptionJa}\n\nこのクエストでは、①風船ラッシュ → ②サバイバル → ③バトルモードの順に挑戦します。`,
+  en: `${topic.descriptionEn}\n\nIn this quest: ① Balloon Rush → ② Survival → ③ Battle mode.`,
+});
+
+const appendEarTrainingStageSql = (
+  lines: string[],
+  topic: NotationCourseTopicSpec,
+  parseMidi: (noteName: string) => number | null,
+): void => {
+  const lessonKey = getTopicLessonKey(topic);
+  lines.push(
+    'INSERT INTO public.ear_training_stages (',
+    '  id, slug, title, title_en, description, description_en,',
+    '  bpm, key_fifths, beats_per_measure, beat_type, loop_measures, max_loops_per_phrase,',
+    '  count_in_beats, time_limit_sec, player_hp, enemy_hp,',
+    '  per_correct_note_damage, good_completion_damage, great_completion_damage, perfect_completion_damage,',
+    '  miss_damage, fail_damage, perfect_max_misses, great_max_misses,',
+    '  background_theme, is_active, mode,',
+    '  quiz_duration_seconds, quiz_question_order, quiz_show_notation_in_battle,',
+    '  hide_chord_names_in_battle, quiz_required_correct_count, show_keyboard_hints_in_battle',
+    ') VALUES (',
+    `  ${uuidV5(`rn-ear-${lessonKey}`)},`,
+    `  ${sqlString(`notation-quiz-${lessonKey}`)},`,
+    `  ${sqlString(`譜読みクイズ: ${topic.titleJa}`)},`,
+    `  ${sqlString(`Sight-reading quiz: ${topic.titleEn}`)},`,
+    `  ${sqlString('30秒以内に30問正解。譜面の音符を読んで弾きましょう。')},`,
+    `  ${sqlString('Answer 30 questions within 30 seconds by reading the staff.')},`,
+    '  120, 0, 4, 4, 2, 6,',
+    '  0, 60, 100, 10000,',
+    '  0, 0, 0, 0, 0, 0, 0, 0,',
+    "  'blue_club', true, 'chord_quiz',",
+    '  30, \'random\', true, true, 30, false',
+    ')',
+    'ON CONFLICT (id) DO UPDATE SET',
+    '  title = EXCLUDED.title,',
+    '  title_en = EXCLUDED.title_en,',
+    '  description = EXCLUDED.description,',
+    '  description_en = EXCLUDED.description_en,',
+    '  quiz_duration_seconds = EXCLUDED.quiz_duration_seconds,',
+    '  quiz_required_correct_count = EXCLUDED.quiz_required_correct_count,',
+    '  hide_chord_names_in_battle = EXCLUDED.hide_chord_names_in_battle,',
+    '  updated_at = now();',
+    '',
+  );
+
+  topic.notes.forEach((spec, noteIndex) => {
+    const midi = parseMidi(spec.noteName);
+    if (midi === null) {
+      throw new Error(`Invalid MIDI for ${spec.noteName}`);
+    }
+    lines.push(
+      'INSERT INTO public.ear_training_chord_quiz_items (',
+      '  id, stage_id, order_index, measure_number, beat_offset, duration_beats,',
+      '  chord_name, voicing, voicing_staves',
+      ') VALUES (',
+      `  ${uuidV5(`rn-ear-item-${lessonKey}-${noteIndex}`)},`,
+      `  ${uuidV5(`rn-ear-${lessonKey}`)},`,
+      `  ${noteIndex}, ${noteIndex + 1}, 1, 4,`,
+      `  ${sqlString(spec.noteName)},`,
+      `  ARRAY[${sqlString(spec.noteName)}]::text[],`,
+      `  ARRAY[${spec.staff}]::smallint[]`,
+      ')',
+      'ON CONFLICT (id) DO UPDATE SET',
+      '  order_index = EXCLUDED.order_index,',
+      '  chord_name = EXCLUDED.chord_name,',
+      '  voicing = EXCLUDED.voicing,',
+      '  voicing_staves = EXCLUDED.voicing_staves,',
+      '  updated_at = now();',
+    );
+  });
+  lines.push('');
+};
+
+const appendLessonAndSongsSql = (
+  lines: string[],
+  topic: NotationCourseTopicSpec,
+  globalOrder: number,
+  parseMidi: (noteName: string) => number | null,
+): void => {
+  const lessonKey = getTopicLessonKey(topic);
+  const blockMeta = NOTATION_COURSE_BLOCK_META[topic.blockNumber];
+  const intro = buildQuestIntro(topic);
+  const chordsJson = buildChordsJson(topic.notes, parseMidi);
+
+  lines.push(
+    'INSERT INTO public.lessons (',
+    '  id, course_id, title, title_en, description, description_en,',
+    '  premium_only, order_index, block_number, block_name, block_name_en,',
+    '  block_description, block_description_en,',
+    '  nav_links, assignment_description, assignment_description_en',
+    ') VALUES (',
+    `  ${uuidV5(`rn-lesson-${lessonKey}`)},`,
+    `  ${uuidV5('course-reading-notation')},`,
+    `  ${sqlString(topic.titleJa)},`,
+    `  ${sqlString(topic.titleEn)},`,
+    `  ${sqlString(intro.ja)},`,
+    `  ${sqlString(intro.en)},`,
+    '  true,',
+    `  ${globalOrder}, ${topic.blockNumber},`,
+    `  ${sqlString(blockMeta.blockNameJa)}, ${sqlString(blockMeta.blockNameEn)},`,
+    `  ${sqlString(blockMeta.blockDescriptionJa)}, ${sqlString(blockMeta.blockDescriptionEn)},`,
+    "  '[]'::jsonb,",
+    "  '①風船: 120秒で80個 ②サバイバル: ランダム ③バトル: 30秒で30問',",
+    "  '① Balloon: 80 in 120s ② Survival: random ③ Battle: 30 in 30s'",
+    ')',
+    'ON CONFLICT (id) DO UPDATE SET',
+    '  title = EXCLUDED.title,',
+    '  title_en = EXCLUDED.title_en,',
+    '  description = EXCLUDED.description,',
+    '  description_en = EXCLUDED.description_en,',
+    '  order_index = EXCLUDED.order_index,',
+    '  block_number = EXCLUDED.block_number,',
+    '  block_name = EXCLUDED.block_name,',
+    '  block_name_en = EXCLUDED.block_name_en,',
+    '  block_description = EXCLUDED.block_description,',
+    '  block_description_en = EXCLUDED.block_description_en,',
+    '  updated_at = now();',
+    '',
+    'INSERT INTO public.lesson_songs (',
+    '  id, lesson_id, song_id, order_index, clear_conditions,',
+    '  is_fantasy, fantasy_stage_id,',
+    '  is_survival, survival_stage_number, survival_map_category,',
+    '  is_balloon_rush, balloon_rush_stage_id,',
+    '  is_ear_training, ear_training_stage_id,',
+    '  survival_random_chords, survival_lesson_overrides,',
+    '  title, title_en, is_clear_required',
+    ') VALUES',
+    `  (${uuidV5(`rn-lsong-${lessonKey}-balloon`)}, ${uuidV5(`rn-lesson-${lessonKey}`)}, NULL, 0, '{"count":1,"rank":"C"}'::jsonb,`,
+    '   false, NULL, false, NULL, NULL, true,',
+    `   ${uuidV5('notation-balloon-random')}, false, NULL,`,
+    `   ${sqlString(chordsJson)}::jsonb, NULL,`,
+    `   '風船ラッシュ', 'Balloon Rush', true),`,
+    `  (${uuidV5(`rn-lsong-${lessonKey}-survival`)}, ${uuidV5(`rn-lesson-${lessonKey}`)}, NULL, 1, '{"count":1,"rank":"C"}'::jsonb,`,
+    '   false, NULL, true, 1100, \'lesson\', false, NULL, false, NULL,',
+    `   ${sqlString(chordsJson)}::jsonb,`,
+    `   '{"bgmUrl":"${NOTATION_COURSE_DRUMS160_BGM}"}'::jsonb,`,
+    `   'サバイバル', 'Survival', true),`,
+    `  (${uuidV5(`rn-lsong-${lessonKey}-battle`)}, ${uuidV5(`rn-lesson-${lessonKey}`)}, NULL, 2, '{"count":1,"rank":"C"}'::jsonb,`,
+    '   false, NULL, false, NULL, NULL, false, NULL, true,',
+    `   ${uuidV5(`rn-ear-${lessonKey}`)}, NULL, NULL,`,
+    `   'バトルモード', 'Battle mode', true)`,
+    'ON CONFLICT (id) DO UPDATE SET',
+    '  order_index = EXCLUDED.order_index,',
+    '  survival_random_chords = EXCLUDED.survival_random_chords,',
+    '  survival_lesson_overrides = EXCLUDED.survival_lesson_overrides,',
+    '  is_balloon_rush = EXCLUDED.is_balloon_rush,',
+    '  balloon_rush_stage_id = EXCLUDED.balloon_rush_stage_id,',
+    '  is_survival = EXCLUDED.is_survival,',
+    '  is_ear_training = EXCLUDED.is_ear_training,',
+    '  ear_training_stage_id = EXCLUDED.ear_training_stage_id,',
+    '  clear_conditions = EXCLUDED.clear_conditions,',
+    '  title = EXCLUDED.title,',
+    '  title_en = EXCLUDED.title_en;',
+    '',
+  );
+};
+
 export const generateNotationCourseMigrationSql = (
   options: GenerateNotationMigrationOptions,
   parseMidi: (noteName: string) => number | null,
 ): string => {
   const topics = getNotationCourseTopicsForBlocks(options.blockNumbers);
-  const includeCourse = options.blockNumbers.includes(1);
   const lines: string[] = [
     `-- ${options.migrationComment}`,
     'BEGIN;',
     '',
+    'ALTER TABLE public.lesson_songs',
+    '  ADD COLUMN IF NOT EXISTS survival_random_chords jsonb DEFAULT NULL;',
+    '',
+    'ALTER TABLE public.lesson_songs',
+    '  ADD COLUMN IF NOT EXISTS survival_lesson_overrides jsonb DEFAULT NULL;',
+    '',
   ];
 
-  if (includeCourse) {
+  // 各フェーズ SQL を単体実行しても FK が通るよう、コースと共通ステージは常に UPSERT する。
+  {
     lines.push(
       'INSERT INTO public.courses (',
       '  id, title, title_en, description, description_en,',
@@ -100,7 +284,7 @@ export const generateNotationCourseMigrationSql = (
       'SELECT',
       `  ${uuidV5('notation-balloon-random')},`,
       "  '譜読み風船', 'Sight-reading balloons',",
-      `  '{"lineDurationSeconds":5,"lines":[{"atSeconds":2,"speaker":"fai","text":{"ja":"譜面の音符を読んで、B列で風船を割ろう！","en":"Read the staff notes and pop balloons with slot B!"}},{"atSeconds":10,"speaker":"jajii","text":{"ja":"120秒以内に80個じゃ。落ち着いて読むのじゃ。","en":"80 in 120 seconds. Take your time reading."}}]}'::jsonb,`,
+      `  '{"lineDurationSeconds":5,"lines":[{"atSeconds":2,"speaker":"fai","text":{"ja":"譜面の音符を読んで、風船を割ろう！","en":"Read the staff notes and pop the balloons!"}},{"atSeconds":10,"speaker":"jajii","text":{"ja":"120秒以内に80個じゃ。落ち着いて読むのじゃ。","en":"80 in 120 seconds. Take your time reading."}}]}'::jsonb,`,
       '  true',
       'ON CONFLICT (stage_id) DO UPDATE SET script = EXCLUDED.script, updated_at = now();',
       '',
@@ -138,51 +322,77 @@ export const generateNotationCourseMigrationSql = (
 
   let orderBase = 0;
   if (options.blockNumbers[0] === 5) {
-    orderBase = 16;
+    orderBase = getNotationCourseTopicsForBlocks([1, 2, 3, 4]).length;
+  }
+
+  for (let ti = 0; ti < topics.length; ti += 1) {
+    appendEarTrainingStageSql(lines, topics[ti], parseMidi);
+  }
+
+  for (let ti = 0; ti < topics.length; ti += 1) {
+    appendLessonAndSongsSql(lines, topics[ti], orderBase + ti, parseMidi);
+  }
+
+  lines.push('COMMIT;', '');
+  return lines.join('\n');
+};
+
+export const generateNotationCoursePatchSql = (
+  parseMidi: (noteName: string) => number | null,
+): string => {
+  const topics = [...NOTATION_COURSE_ALL_TOPICS];
+  const lines: string[] = [
+    '-- 音符の読み方コース: 3音→5音化パッチ（32レッスン）',
+    'BEGIN;',
+    '',
+  ];
+
+  for (const removedKey of NOTATION_COURSE_REMOVED_LESSON_KEYS) {
+    lines.push(
+      `DELETE FROM public.ear_training_chord_quiz_items WHERE stage_id = ${uuidV5(`rn-ear-${removedKey}`)};`,
+      `DELETE FROM public.lessons WHERE id = ${uuidV5(`rn-lesson-${removedKey}`)};`,
+      `DELETE FROM public.ear_training_stages WHERE id = ${uuidV5(`rn-ear-${removedKey}`)};`,
+      '',
+    );
   }
 
   for (let ti = 0; ti < topics.length; ti += 1) {
     const topic = topics[ti];
     const lessonKey = getTopicLessonKey(topic);
     const blockMeta = NOTATION_COURSE_BLOCK_META[topic.blockNumber];
-    const globalOrder = orderBase + ti;
+    const intro = buildQuestIntro(topic);
+    const chordsJson = buildChordsJson(topic.notes, parseMidi);
 
     lines.push(
-      'INSERT INTO public.ear_training_stages (',
-      '  id, slug, title, title_en, description, description_en,',
-      '  bpm, key_fifths, beats_per_measure, beat_type, loop_measures, max_loops_per_phrase,',
-      '  count_in_beats, time_limit_sec, player_hp, enemy_hp,',
-      '  per_correct_note_damage, good_completion_damage, great_completion_damage, perfect_completion_damage,',
-      '  miss_damage, fail_damage, perfect_max_misses, great_max_misses,',
-      '  background_theme, is_active, mode,',
-      '  quiz_duration_seconds, quiz_question_order, quiz_show_notation_in_battle,',
-      '  hide_chord_names_in_battle, quiz_required_correct_count, show_keyboard_hints_in_battle',
-      ') VALUES (',
-      `  ${uuidV5(`rn-ear-${lessonKey}`)},`,
-      `  ${sqlString(`notation-quiz-${lessonKey}`)},`,
-      `  ${sqlString(`譜読みクイズ: ${topic.titleJa}`)},`,
-      `  ${sqlString(`Sight-reading quiz: ${topic.titleEn}`)},`,
-      `  ${sqlString('30秒以内に30問正解。譜面の音符を読んで弾きましょう。')},`,
-      `  ${sqlString('Answer 30 questions within 30 seconds by reading the staff.')},`,
-      '  120, 0, 4, 4, 2, 6,',
-      '  0, 60, 100, 10000,',
-      '  0, 0, 0, 0, 0, 0, 0, 0,',
-      "  'blue_club', true, 'chord_quiz',",
-      '  30, \'random\', true, true, 30, false',
-      ')',
-      'ON CONFLICT (id) DO UPDATE SET',
-      '  quiz_duration_seconds = EXCLUDED.quiz_duration_seconds,',
-      '  quiz_required_correct_count = EXCLUDED.quiz_required_correct_count,',
-      '  hide_chord_names_in_battle = EXCLUDED.hide_chord_names_in_battle,',
-      '  updated_at = now();',
+      'UPDATE public.lessons SET',
+      `  title = ${sqlString(topic.titleJa)},`,
+      `  title_en = ${sqlString(topic.titleEn)},`,
+      `  description = ${sqlString(intro.ja)},`,
+      `  description_en = ${sqlString(intro.en)},`,
+      `  order_index = ${ti},`,
+      `  block_number = ${topic.blockNumber},`,
+      `  block_name = ${sqlString(blockMeta.blockNameJa)},`,
+      `  block_name_en = ${sqlString(blockMeta.blockNameEn)},`,
+      `  block_description = ${sqlString(blockMeta.blockDescriptionJa)},`,
+      `  block_description_en = ${sqlString(blockMeta.blockDescriptionEn)},`,
+      '  updated_at = now()',
+      `WHERE id = ${uuidV5(`rn-lesson-${lessonKey}`)};`,
       '',
+      'UPDATE public.lesson_songs SET',
+      `  survival_random_chords = ${sqlString(chordsJson)}::jsonb`,
+      `WHERE lesson_id = ${uuidV5(`rn-lesson-${lessonKey}`)}`,
+      '  AND (is_balloon_rush = true OR is_survival = true);',
+      '',
+      'UPDATE public.ear_training_stages SET',
+      `  title = ${sqlString(`譜読みクイズ: ${topic.titleJa}`)},`,
+      `  title_en = ${sqlString(`Sight-reading quiz: ${topic.titleEn}`)},`,
+      '  updated_at = now()',
+      `WHERE id = ${uuidV5(`rn-ear-${lessonKey}`)};`,
+      '',
+      `DELETE FROM public.ear_training_chord_quiz_items WHERE stage_id = ${uuidV5(`rn-ear-${lessonKey}`)};`,
     );
 
     topic.notes.forEach((spec, noteIndex) => {
-      const midi = parseMidi(spec.noteName);
-      if (midi === null) {
-        throw new Error(`Invalid MIDI for ${spec.noteName}`);
-      }
       lines.push(
         'INSERT INTO public.ear_training_chord_quiz_items (',
         '  id, stage_id, order_index, measure_number, beat_offset, duration_beats,',
@@ -194,114 +404,10 @@ export const generateNotationCourseMigrationSql = (
         `  ${sqlString(spec.noteName)},`,
         `  ARRAY[${sqlString(spec.noteName)}]::text[],`,
         `  ARRAY[${spec.staff}]::smallint[]`,
-        ')',
-        'ON CONFLICT (id) DO UPDATE SET',
-        '  voicing = EXCLUDED.voicing,',
-        '  voicing_staves = EXCLUDED.voicing_staves,',
-        '  updated_at = now();',
+        ');',
       );
     });
     lines.push('');
-  }
-
-  for (let ti = 0; ti < topics.length; ti += 1) {
-    const topic = topics[ti];
-    const lessonKey = getTopicLessonKey(topic);
-    const blockMeta = NOTATION_COURSE_BLOCK_META[topic.blockNumber];
-    const globalOrder = orderBase + ti;
-
-    const questIntroJa =
-      `${topic.descriptionJa}\n\nこのクエストでは、①風船ラッシュ → ②サバイバル → ③バトルモードの順に挑戦します。`;
-    const questIntroEn =
-      `${topic.descriptionEn}\n\nIn this quest: ① Balloon Rush → ② Survival → ③ Battle mode.`;
-
-    lines.push(
-      'INSERT INTO public.lessons (',
-      '  id, course_id, title, title_en, description, description_en,',
-      '  premium_only, order_index, block_number, block_name, block_name_en,',
-      '  block_description, block_description_en,',
-      '  nav_links, assignment_description, assignment_description_en',
-      ') VALUES (',
-      `  ${uuidV5(`rn-lesson-${lessonKey}`)},`,
-      `  ${uuidV5('course-reading-notation')},`,
-      `  ${sqlString(topic.titleJa)},`,
-      `  ${sqlString(topic.titleEn)},`,
-      `  ${sqlString(questIntroJa)},`,
-      `  ${sqlString(questIntroEn)},`,
-      '  true,',
-      `  ${globalOrder}, ${topic.blockNumber},`,
-      `  ${sqlString(blockMeta.blockNameJa)}, ${sqlString(blockMeta.blockNameEn)},`,
-      `  ${sqlString(blockMeta.blockDescriptionJa)}, ${sqlString(blockMeta.blockDescriptionEn)},`,
-      "  '[]'::jsonb,",
-      "  '①風船: 120秒で80個 ②サバイバル: ランダム ③バトル: 30秒で30問',",
-      "  '① Balloon: 80 in 120s ② Survival: random ③ Battle: 30 in 30s'",
-      ')',
-      'ON CONFLICT (id) DO UPDATE SET',
-      '  title = EXCLUDED.title,',
-      '  title_en = EXCLUDED.title_en,',
-      '  description = EXCLUDED.description,',
-      '  description_en = EXCLUDED.description_en,',
-      '  order_index = EXCLUDED.order_index,',
-      '  block_number = EXCLUDED.block_number,',
-      '  block_name = EXCLUDED.block_name,',
-      '  block_name_en = EXCLUDED.block_name_en,',
-      '  updated_at = now();',
-      '',
-    );
-
-    const chordsJson = JSON.stringify(
-      topic.notes.map(spec => {
-        const midi = parseMidi(spec.noteName);
-        if (midi === null) throw new Error(`Invalid MIDI: ${spec.noteName}`);
-        return {
-          name: spec.noteName,
-          voicing: [midi],
-          voicing_names: [spec.noteName],
-          voicing_staves: [spec.staff],
-          key_fifths: spec.keyFifths ?? 0,
-        };
-      }),
-    );
-
-    lines.push(
-      'INSERT INTO public.lesson_songs (',
-      '  id, lesson_id, song_id, order_index, clear_conditions,',
-      '  is_fantasy, fantasy_stage_id,',
-      '  is_survival, survival_stage_number, survival_map_category,',
-      '  is_balloon_rush, balloon_rush_stage_id,',
-      '  is_ear_training, ear_training_stage_id,',
-      '  survival_random_chords, survival_lesson_overrides,',
-      '  title, title_en, is_clear_required',
-      ') VALUES',
-      `  (${uuidV5(`rn-lsong-${lessonKey}-balloon`)}, ${uuidV5(`rn-lesson-${lessonKey}`)}, NULL, 0, '{"count":1,"rank":"C"}'::jsonb,`,
-      '   false, NULL, false, NULL, NULL, true,',
-      `   ${uuidV5('notation-balloon-random')}, false, NULL,`,
-      `   ${sqlString(chordsJson)}::jsonb, NULL,`,
-      `   '風船ラッシュ', 'Balloon Rush', true),`,
-      `  (${uuidV5(`rn-lsong-${lessonKey}-survival`)}, ${uuidV5(`rn-lesson-${lessonKey}`)}, NULL, 1, '{"count":1,"rank":"C"}'::jsonb,`,
-      '   false, NULL, true, 1100, \'lesson\', false, NULL, false, NULL,',
-      `   ${sqlString(chordsJson)}::jsonb,`,
-      `   '{"bgmUrl":"${NOTATION_COURSE_DRUMS160_BGM}"}'::jsonb,`,
-      `   'サバイバル', 'Survival', true),`,
-      `  (${uuidV5(`rn-lsong-${lessonKey}-battle`)}, ${uuidV5(`rn-lesson-${lessonKey}`)}, NULL, 2, '{"count":1,"rank":"C"}'::jsonb,`,
-      '   false, NULL, false, NULL, NULL, false, NULL, true,',
-      `   ${uuidV5(`rn-ear-${lessonKey}`)}, NULL, NULL,`,
-      `   'バトルモード', 'Battle mode', true)`,
-      'ON CONFLICT (id) DO UPDATE SET',
-      '  order_index = EXCLUDED.order_index,',
-      '  survival_random_chords = EXCLUDED.survival_random_chords,',
-      '  survival_lesson_overrides = EXCLUDED.survival_lesson_overrides,',
-      '  is_balloon_rush = EXCLUDED.is_balloon_rush,',
-      '  balloon_rush_stage_id = EXCLUDED.balloon_rush_stage_id,',
-      '  is_survival = EXCLUDED.is_survival,',
-      '  is_ear_training = EXCLUDED.is_ear_training,',
-      '  ear_training_stage_id = EXCLUDED.ear_training_stage_id,',
-      '  clear_conditions = EXCLUDED.clear_conditions,',
-      '  title = EXCLUDED.title,',
-      '  title_en = EXCLUDED.title_en,',
-      '  updated_at = now();',
-      '',
-    );
   }
 
   lines.push('COMMIT;', '');

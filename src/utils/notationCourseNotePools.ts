@@ -28,6 +28,20 @@ export interface NotationCourseTopicSpec {
   readonly notes: readonly NotationCourseNoteSpec[];
 }
 
+interface TopicMeta {
+  readonly titleJa: string;
+  readonly titleEn: string;
+  readonly descriptionJa: string;
+  readonly descriptionEn: string;
+}
+
+export const LEARNING_NOTES_PER_QUEST = 5;
+
+/** DBパッチで削除する旧レッスン（加線ブロック q3/q4）。 */
+export const NOTATION_COURSE_REMOVED_LESSON_KEYS: readonly string[] = [
+  'b2-q3', 'b2-q4', 'b3-q3', 'b3-q4', 'b6-q3', 'b6-q4', 'b7-q3', 'b7-q4',
+];
+
 const note = (
   noteName: string,
   staff: NotationStaff,
@@ -58,6 +72,39 @@ const mergeTopicNotes = (
   topics: readonly NotationCourseTopicSpec[],
 ): NotationCourseNoteSpec[] => uniqNotes(topics.flatMap(t => [...t.notes]));
 
+const mergeLearningTopicNotes = (
+  ...topicGroups: readonly (readonly NotationCourseTopicSpec[])[]
+): NotationCourseNoteSpec[] => mergeTopicNotes(
+  topicGroups.flatMap(group => group.filter(t => t.questKey !== 'q5')),
+);
+
+const sliceFiveNoteWindow = (
+  pool: readonly NotationCourseNoteSpec[],
+  startIndex: number,
+): NotationCourseNoteSpec[] => pool.slice(startIndex, startIndex + LEARNING_NOTES_PER_QUEST);
+
+const buildLearningTopics = (
+  blockNumber: number,
+  pool: readonly NotationCourseNoteSpec[],
+  metas: readonly TopicMeta[],
+): NotationCourseTopicSpec[] => metas.map((meta, index) => ({
+  blockNumber,
+  questKey: `q${index + 1}`,
+  ...meta,
+  notes: sliceFiveNoteWindow(pool, index),
+}));
+
+const buildReviewTopic = (
+  blockNumber: number,
+  pool: readonly NotationCourseNoteSpec[],
+  meta: TopicMeta,
+): NotationCourseTopicSpec => ({
+  blockNumber,
+  questKey: 'q5',
+  ...meta,
+  notes: [...pool],
+});
+
 export const toRandomChordEntry = (spec: NotationCourseNoteSpec): SurvivalLessonRandomChordEntry => {
   const midi = parseNoteNameToMidi(spec.noteName);
   if (midi === null) {
@@ -76,151 +123,98 @@ export const toRandomChordEntries = (
   specs: readonly NotationCourseNoteSpec[],
 ): SurvivalLessonRandomChordEntry[] => specs.map(toRandomChordEntry);
 
+const block1Pool: NotationCourseNoteSpec[] = [
+  treble('E4'), treble('F4'), treble('G4'), treble('A4'), treble('B4'),
+  treble('C5'), treble('D5'), treble('E5'), treble('F5'),
+];
+
 const block1Topics: NotationCourseTopicSpec[] = [
-  {
-    blockNumber: 1,
-    questKey: 'q1',
-    titleJa: 'ミファソ',
-    titleEn: 'E F G',
-    descriptionJa: 'ト音記号・五線の中。下から2番目の線（ミ）から、ファ・ソまで読みましょう。',
-    descriptionEn: 'Treble clef, notes on the staff. Read E, F, and G from the second line up.',
-    notes: [treble('E4'), treble('F4'), treble('G4')],
-  },
-  {
-    blockNumber: 1,
-    questKey: 'q2',
-    titleJa: 'ソラシ',
-    titleEn: 'G A B',
-    descriptionJa: 'ト音記号・五線の中。ソ・ラ・シの3音です。',
-    descriptionEn: 'Treble clef, notes on the staff: G, A, and B.',
-    notes: [treble('G4'), treble('A4'), treble('B4')],
-  },
-  {
-    blockNumber: 1,
-    questKey: 'q3',
-    titleJa: 'シドレ',
-    titleEn: 'B C D',
-    descriptionJa: 'ト音記号・五線の中。シからレまで読みましょう。',
-    descriptionEn: 'Treble clef, notes on the staff: B, C, and D.',
-    notes: [treble('B4'), treble('C5'), treble('D5')],
-  },
-  {
-    blockNumber: 1,
-    questKey: 'q4',
-    titleJa: 'レミファ',
-    titleEn: 'D E F',
-    descriptionJa: 'ト音記号・五線の中。レ・ミ・ファの3音です。',
-    descriptionEn: 'Treble clef, notes on the staff: D, E, and F.',
-    notes: [treble('D5'), treble('E5'), treble('F5')],
-  },
-  {
-    blockNumber: 1,
-    questKey: 'q5',
+  ...buildLearningTopics(1, block1Pool, [
+    {
+      titleJa: 'ミファソラシ',
+      titleEn: 'E F G A B',
+      descriptionJa: 'ト音記号・五線の中。ミからシまでの5音です。',
+      descriptionEn: 'Treble clef, notes on the staff: E through B.',
+    },
+    {
+      titleJa: 'ファソラシド',
+      titleEn: 'F G A B C',
+      descriptionJa: 'ト音記号・五線の中。ファからドまで読みましょう。',
+      descriptionEn: 'Treble clef, notes on the staff: F through C.',
+    },
+    {
+      titleJa: 'ソラシドレ',
+      titleEn: 'G A B C D',
+      descriptionJa: 'ト音記号・五線の中。ソからレまでの5音です。',
+      descriptionEn: 'Treble clef, notes on the staff: G through D.',
+    },
+    {
+      titleJa: 'ラシドレミ',
+      titleEn: 'A B C D E',
+      descriptionJa: 'ト音記号・五線の中。ラからミまで読みましょう。',
+      descriptionEn: 'Treble clef, notes on the staff: A through E.',
+    },
+  ]),
+  buildReviewTopic(1, block1Pool, {
     titleJa: 'まとめ（全て）',
     titleEn: 'Review (all)',
     descriptionJa: 'ト音記号・五線の中の音符をすべて復習します。',
     descriptionEn: 'Review all treble-clef notes within the staff.',
-    notes: [
-      treble('E4'), treble('F4'), treble('G4'), treble('A4'), treble('B4'),
-      treble('C5'), treble('D5'), treble('E5'), treble('F5'),
-    ],
-  },
+  }),
+];
+
+const block2Pool: NotationCourseNoteSpec[] = [
+  treble('G5'), treble('A5'), treble('B5'), treble('C6'), treble('D6'), treble('E6'),
 ];
 
 const block2Topics: NotationCourseTopicSpec[] = [
-  {
-    blockNumber: 2,
-    questKey: 'q1',
-    titleJa: 'ソラシ',
-    titleEn: 'G A B',
-    descriptionJa: 'ト音記号・上加線。五線の上のソ・ラ・シです。',
-    descriptionEn: 'Treble clef, upper ledger lines: G, A, and B.',
-    notes: [treble('G5'), treble('A5'), treble('B5')],
-  },
-  {
-    blockNumber: 2,
-    questKey: 'q2',
-    titleJa: 'ラシド',
-    titleEn: 'A B C',
-    descriptionJa: 'ト音記号・上加線。ラ・シ・ドの3音です。',
-    descriptionEn: 'Treble clef, upper ledger lines: A, B, and C.',
-    notes: [treble('A5'), treble('B5'), treble('C6')],
-  },
-  {
-    blockNumber: 2,
-    questKey: 'q3',
-    titleJa: 'シドレ',
-    titleEn: 'B C D',
-    descriptionJa: 'ト音記号・上加線。シ・ド・レを読みましょう。',
-    descriptionEn: 'Treble clef, upper ledger lines: B, C, and D.',
-    notes: [treble('B5'), treble('C6'), treble('D6')],
-  },
-  {
-    blockNumber: 2,
-    questKey: 'q4',
-    titleJa: 'ドレミ',
-    titleEn: 'C D E',
-    descriptionJa: 'ト音記号・上加線。ド・レ・ミの3音です。',
-    descriptionEn: 'Treble clef, upper ledger lines: C, D, and E.',
-    notes: [treble('C6'), treble('D6'), treble('E6')],
-  },
-  {
-    blockNumber: 2,
-    questKey: 'q5',
+  ...buildLearningTopics(2, block2Pool, [
+    {
+      titleJa: 'ソラシドレ',
+      titleEn: 'G A B C D',
+      descriptionJa: 'ト音記号・上加線。ソからレまでの5音です。',
+      descriptionEn: 'Treble clef, upper ledger lines: G through D.',
+    },
+    {
+      titleJa: 'ラシドレミ',
+      titleEn: 'A B C D E',
+      descriptionJa: 'ト音記号・上加線。ラからミまで読みましょう。',
+      descriptionEn: 'Treble clef, upper ledger lines: A through E.',
+    },
+  ]),
+  buildReviewTopic(2, block2Pool, {
     titleJa: 'まとめ（全て）',
     titleEn: 'Review (all)',
     descriptionJa: 'ト音記号・上加線の音符をすべて復習します。',
     descriptionEn: 'Review all treble-clef upper-ledger notes.',
-    notes: [treble('G5'), treble('A5'), treble('B5'), treble('C6'), treble('D6'), treble('E6')],
-  },
+  }),
+];
+
+const block3Pool: NotationCourseNoteSpec[] = [
+  treble('F3'), treble('G3'), treble('A3'), treble('B3'), treble('C4'), treble('D4'),
 ];
 
 const block3Topics: NotationCourseTopicSpec[] = [
-  {
-    blockNumber: 3,
-    questKey: 'q1',
-    titleJa: 'ファソラ',
-    titleEn: 'F G A',
-    descriptionJa: 'ト音記号・下加線。ファ・ソ・ラの3音です。',
-    descriptionEn: 'Treble clef, lower ledger lines: F, G, and A.',
-    notes: [treble('F3'), treble('G3'), treble('A3')],
-  },
-  {
-    blockNumber: 3,
-    questKey: 'q2',
-    titleJa: 'ソラシ',
-    titleEn: 'G A B',
-    descriptionJa: 'ト音記号・下加線。ソ・ラ・シを読みましょう。',
-    descriptionEn: 'Treble clef, lower ledger lines: G, A, and B.',
-    notes: [treble('G3'), treble('A3'), treble('B3')],
-  },
-  {
-    blockNumber: 3,
-    questKey: 'q3',
-    titleJa: 'ラシド',
-    titleEn: 'A B C',
-    descriptionJa: 'ト音記号・下加線。ラ・シ・ド（中央ド）です。',
-    descriptionEn: 'Treble clef, lower ledger lines: A, B, and middle C.',
-    notes: [treble('A3'), treble('B3'), treble('C4')],
-  },
-  {
-    blockNumber: 3,
-    questKey: 'q4',
-    titleJa: 'シドレ',
-    titleEn: 'B C D',
-    descriptionJa: 'ト音記号・下加線。シ・ド・レの3音です。',
-    descriptionEn: 'Treble clef, lower ledger lines: B, C, and D.',
-    notes: [treble('B3'), treble('C4'), treble('D4')],
-  },
-  {
-    blockNumber: 3,
-    questKey: 'q5',
+  ...buildLearningTopics(3, block3Pool, [
+    {
+      titleJa: 'ファソラシド',
+      titleEn: 'F G A B C',
+      descriptionJa: 'ト音記号・下加線。ファからドまでの5音です。',
+      descriptionEn: 'Treble clef, lower ledger lines: F through C.',
+    },
+    {
+      titleJa: 'ソラシドレ',
+      titleEn: 'G A B C D',
+      descriptionJa: 'ト音記号・下加線。ソからレまで読みましょう。',
+      descriptionEn: 'Treble clef, lower ledger lines: G through D.',
+    },
+  ]),
+  buildReviewTopic(3, block3Pool, {
     titleJa: 'まとめ（全て）',
     titleEn: 'Review (all)',
-    descriptionEn: 'Review all treble-clef lower-ledger notes.',
     descriptionJa: 'ト音記号・下加線の音符をすべて復習します。',
-    notes: [treble('F3'), treble('G3'), treble('A3'), treble('B3'), treble('C4'), treble('D4')],
-  },
+    descriptionEn: 'Review all treble-clef lower-ledger notes.',
+  }),
 ];
 
 const block4Topics: NotationCourseTopicSpec[] = [
@@ -231,155 +225,102 @@ const block4Topics: NotationCourseTopicSpec[] = [
     titleEn: 'Treble clef review',
     descriptionJa: '五線の中・上加線・下加線のト音記号音符をすべて復習します。',
     descriptionEn: 'Review all treble-clef notes: staff, upper ledger, and lower ledger.',
-    notes: mergeTopicNotes([...block1Topics.slice(0, 4), ...block2Topics.slice(0, 4), ...block3Topics.slice(0, 4)]),
+    notes: mergeLearningTopicNotes(block1Topics, block2Topics, block3Topics),
   },
 ];
 
+const block5Pool: NotationCourseNoteSpec[] = [
+  bass('G2'), bass('A2'), bass('B2'), bass('C3'), bass('D3'),
+  bass('E3'), bass('F3'), bass('G3'), bass('A3'),
+];
+
 const block5Topics: NotationCourseTopicSpec[] = [
-  {
-    blockNumber: 5,
-    questKey: 'q1',
-    titleJa: 'ソラシ',
-    titleEn: 'G A B',
-    descriptionJa: 'ヘ音記号・五線の中。ソ・ラ・シの3音です。',
-    descriptionEn: 'Bass clef, notes on the staff: G, A, and B.',
-    notes: [bass('G2'), bass('A2'), bass('B2')],
-  },
-  {
-    blockNumber: 5,
-    questKey: 'q2',
-    titleJa: 'シドレ',
-    titleEn: 'B C D',
-    descriptionJa: 'ヘ音記号・五線の中。シ・ド・レを読みましょう。',
-    descriptionEn: 'Bass clef, notes on the staff: B, C, and D.',
-    notes: [bass('B2'), bass('C3'), bass('D3')],
-  },
-  {
-    blockNumber: 5,
-    questKey: 'q3',
-    titleJa: 'レミファ',
-    titleEn: 'D E F',
-    descriptionJa: 'ヘ音記号・五線の中。レ・ミ・ファの3音です。',
-    descriptionEn: 'Bass clef, notes on the staff: D, E, and F.',
-    notes: [bass('D3'), bass('E3'), bass('F3')],
-  },
-  {
-    blockNumber: 5,
-    questKey: 'q4',
-    titleJa: 'ファソラ',
-    titleEn: 'F G A',
-    descriptionJa: 'ヘ音記号・五線の中。ファ・ソ・ラを読みましょう。',
-    descriptionEn: 'Bass clef, notes on the staff: F, G, and A.',
-    notes: [bass('F3'), bass('G3'), bass('A3')],
-  },
-  {
-    blockNumber: 5,
-    questKey: 'q5',
+  ...buildLearningTopics(5, block5Pool, [
+    {
+      titleJa: 'ソラシドレ',
+      titleEn: 'G A B C D',
+      descriptionJa: 'ヘ音記号・五線の中。ソからレまでの5音です。',
+      descriptionEn: 'Bass clef, notes on the staff: G through D.',
+    },
+    {
+      titleJa: 'ラシドレミ',
+      titleEn: 'A B C D E',
+      descriptionJa: 'ヘ音記号・五線の中。ラからミまで読みましょう。',
+      descriptionEn: 'Bass clef, notes on the staff: A through E.',
+    },
+    {
+      titleJa: 'シドレミファ',
+      titleEn: 'B C D E F',
+      descriptionJa: 'ヘ音記号・五線の中。シからファまでの5音です。',
+      descriptionEn: 'Bass clef, notes on the staff: B through F.',
+    },
+    {
+      titleJa: 'ドレミファソ',
+      titleEn: 'C D E F G',
+      descriptionJa: 'ヘ音記号・五線の中。ドからソまで読みましょう。',
+      descriptionEn: 'Bass clef, notes on the staff: C through G.',
+    },
+  ]),
+  buildReviewTopic(5, block5Pool, {
     titleJa: 'まとめ（全て）',
     titleEn: 'Review (all)',
     descriptionJa: 'ヘ音記号・五線の中の音符をすべて復習します。',
     descriptionEn: 'Review all bass-clef notes within the staff.',
-    notes: [
-      bass('G2'), bass('A2'), bass('B2'), bass('C3'), bass('D3'),
-      bass('E3'), bass('F3'), bass('G3'), bass('A3'),
-    ],
-  },
+  }),
+];
+
+const block6Pool: NotationCourseNoteSpec[] = [
+  bass('A1'), bass('B1'), bass('C2'), bass('D2'), bass('E2'), bass('F2'),
 ];
 
 const block6Topics: NotationCourseTopicSpec[] = [
-  {
-    blockNumber: 6,
-    questKey: 'q1',
-    titleJa: 'ラシド',
-    titleEn: 'A B C',
-    descriptionJa: 'ヘ音記号・下加線。ラ・シ・ドの3音です。',
-    descriptionEn: 'Bass clef, lower ledger lines: A, B, and C.',
-    notes: [bass('A1'), bass('B1'), bass('C2')],
-  },
-  {
-    blockNumber: 6,
-    questKey: 'q2',
-    titleJa: 'シドレ',
-    titleEn: 'B C D',
-    descriptionJa: 'ヘ音記号・下加線。シ・ド・レを読みましょう。',
-    descriptionEn: 'Bass clef, lower ledger lines: B, C, and D.',
-    notes: [bass('B1'), bass('C2'), bass('D2')],
-  },
-  {
-    blockNumber: 6,
-    questKey: 'q3',
-    titleJa: 'ドレミ',
-    titleEn: 'C D E',
-    descriptionJa: 'ヘ音記号・下加線。ド・レ・ミの3音です。',
-    descriptionEn: 'Bass clef, lower ledger lines: C, D, and E.',
-    notes: [bass('C2'), bass('D2'), bass('E2')],
-  },
-  {
-    blockNumber: 6,
-    questKey: 'q4',
-    titleJa: 'レミファ',
-    titleEn: 'D E F',
-    descriptionJa: 'ヘ音記号・下加線。レ・ミ・ファを読みましょう。',
-    descriptionEn: 'Bass clef, lower ledger lines: D, E, and F.',
-    notes: [bass('D2'), bass('E2'), bass('F2')],
-  },
-  {
-    blockNumber: 6,
-    questKey: 'q5',
+  ...buildLearningTopics(6, block6Pool, [
+    {
+      titleJa: 'ラシドレミ',
+      titleEn: 'A B C D E',
+      descriptionJa: 'ヘ音記号・下加線。ラからミまでの5音です。',
+      descriptionEn: 'Bass clef, lower ledger lines: A through E.',
+    },
+    {
+      titleJa: 'シドレミファ',
+      titleEn: 'B C D E F',
+      descriptionJa: 'ヘ音記号・下加線。シからファまで読みましょう。',
+      descriptionEn: 'Bass clef, lower ledger lines: B through F.',
+    },
+  ]),
+  buildReviewTopic(6, block6Pool, {
     titleJa: 'まとめ（全て）',
     titleEn: 'Review (all)',
     descriptionJa: 'ヘ音記号・下加線の音符をすべて復習します。',
     descriptionEn: 'Review all bass-clef lower-ledger notes.',
-    notes: [bass('A1'), bass('B1'), bass('C2'), bass('D2'), bass('E2'), bass('F2')],
-  },
+  }),
+];
+
+const block7Pool: NotationCourseNoteSpec[] = [
+  bass('B3'), bass('C4'), bass('D4'), bass('E4'), bass('F4'), bass('G4'),
 ];
 
 const block7Topics: NotationCourseTopicSpec[] = [
-  {
-    blockNumber: 7,
-    questKey: 'q1',
-    titleJa: 'シドレ',
-    titleEn: 'B C D',
-    descriptionJa: 'ヘ音記号・上加線。シ・ド・レの3音です。',
-    descriptionEn: 'Bass clef, upper ledger lines: B, C, and D.',
-    notes: [bass('B3'), bass('C4'), bass('D4')],
-  },
-  {
-    blockNumber: 7,
-    questKey: 'q2',
-    titleJa: 'ドレミ',
-    titleEn: 'C D E',
-    descriptionJa: 'ヘ音記号・上加線。中央ドからミまで読みましょう。',
-    descriptionEn: 'Bass clef, upper ledger lines: C, D, and E.',
-    notes: [bass('C4'), bass('D4'), bass('E4')],
-  },
-  {
-    blockNumber: 7,
-    questKey: 'q3',
-    titleJa: 'レミファ',
-    titleEn: 'D E F',
-    descriptionJa: 'ヘ音記号・上加線。レ・ミ・ファの3音です。',
-    descriptionEn: 'Bass clef, upper ledger lines: D, E, and F.',
-    notes: [bass('D4'), bass('E4'), bass('F4')],
-  },
-  {
-    blockNumber: 7,
-    questKey: 'q4',
-    titleJa: 'ミファソ',
-    titleEn: 'E F G',
-    descriptionJa: 'ヘ音記号・上加線。ミ・ファ・ソを読みましょう。',
-    descriptionEn: 'Bass clef, upper ledger lines: E, F, and G.',
-    notes: [bass('E4'), bass('F4'), bass('G4')],
-  },
-  {
-    blockNumber: 7,
-    questKey: 'q5',
+  ...buildLearningTopics(7, block7Pool, [
+    {
+      titleJa: 'シドレミファ',
+      titleEn: 'B C D E F',
+      descriptionJa: 'ヘ音記号・上加線。シからファまでの5音です。',
+      descriptionEn: 'Bass clef, upper ledger lines: B through F.',
+    },
+    {
+      titleJa: 'ドレミファソ',
+      titleEn: 'C D E F G',
+      descriptionJa: 'ヘ音記号・上加線。ドからソまで読みましょう。',
+      descriptionEn: 'Bass clef, upper ledger lines: C through G.',
+    },
+  ]),
+  buildReviewTopic(7, block7Pool, {
     titleJa: 'まとめ（全て）',
     titleEn: 'Review (all)',
     descriptionJa: 'ヘ音記号・上加線の音符をすべて復習します。',
     descriptionEn: 'Review all bass-clef upper-ledger notes.',
-    notes: [bass('B3'), bass('C4'), bass('D4'), bass('E4'), bass('F4'), bass('G4')],
-  },
+  }),
 ];
 
 const block8Topics: NotationCourseTopicSpec[] = [
@@ -390,7 +331,7 @@ const block8Topics: NotationCourseTopicSpec[] = [
     titleEn: 'Bass clef review',
     descriptionJa: '五線の中・下加線・上加線のヘ音記号音符をすべて復習します。',
     descriptionEn: 'Review all bass-clef notes: staff, lower ledger, and upper ledger.',
-    notes: mergeTopicNotes([...block5Topics.slice(0, 4), ...block6Topics.slice(0, 4), ...block7Topics.slice(0, 4)]),
+    notes: mergeLearningTopicNotes(block5Topics, block6Topics, block7Topics),
   },
 ];
 
@@ -410,19 +351,19 @@ const block9Topics: NotationCourseTopicSpec[] = [
 ];
 
 const trebleStaffSharps: NotationCourseNoteSpec[] = [
-  treble('F#4'), treble('G#4'), treble('C#5'), treble('D#5'),
+  treble('F#4'), treble('G#4'), treble('A#4'), treble('C#5'), treble('D#5'),
 ];
 
 const bassStaffSharps: NotationCourseNoteSpec[] = [
-  bass('F#2'), bass('G#2'), bass('C#3'), bass('D#3'),
+  bass('F#2'), bass('G#2'), bass('A#2'), bass('C#3'), bass('D#3'),
 ];
 
 const trebleStaffFlats: NotationCourseNoteSpec[] = [
-  treble('Bb4'), treble('Eb4'), treble('Ab4'), treble('Db5'),
+  treble('Bb4'), treble('Eb4'), treble('Ab4'), treble('Gb4'), treble('Db5'),
 ];
 
 const bassStaffFlats: NotationCourseNoteSpec[] = [
-  bass('Bb2'), bass('Eb3'), bass('Ab2'), bass('Db3'),
+  bass('Bb2'), bass('Eb3'), bass('Ab2'), bass('Gb2'), bass('Db3'),
 ];
 
 const block10Topics: NotationCourseTopicSpec[] = [
@@ -494,8 +435,8 @@ const block12Topics: NotationCourseTopicSpec[] = [
     descriptionJa: 'ト音・ヘ音・上下加線・臨時記号すべてのランダム総復習です。',
     descriptionEn: 'Final random review: treble, bass, ledger lines, and accidentals.',
     notes: uniqNotes([
-      ...mergeTopicNotes([...block1Topics.slice(0, 4), ...block2Topics.slice(0, 4), ...block3Topics.slice(0, 4)]),
-      ...mergeTopicNotes([...block5Topics.slice(0, 4), ...block6Topics.slice(0, 4), ...block7Topics.slice(0, 4)]),
+      ...mergeLearningTopicNotes(block1Topics, block2Topics, block3Topics),
+      ...mergeLearningTopicNotes(block5Topics, block6Topics, block7Topics),
       ...block9Topics[0].notes,
       ...trebleStaffSharps,
       ...bassStaffSharps,
@@ -511,8 +452,8 @@ export const NOTATION_COURSE_BLOCK_META: Readonly<
   1: {
     blockNameJa: '五線の中の音符（ト音記号）',
     blockNameEn: 'Treble clef: notes on the staff',
-    blockDescriptionJa: 'ト音記号の五線の中の音符を、3音ずつ覚えていきます。',
-    blockDescriptionEn: 'Learn treble-clef notes on the staff, three at a time.',
+    blockDescriptionJa: 'ト音記号の五線の中の音符を、5音ずつ覚えていきます。',
+    blockDescriptionEn: 'Learn treble-clef notes on the staff, five at a time.',
   },
   2: {
     blockNameJa: '五線の上加線（ト音記号）',
@@ -535,8 +476,8 @@ export const NOTATION_COURSE_BLOCK_META: Readonly<
   5: {
     blockNameJa: '五線の中の音符（ヘ音記号）',
     blockNameEn: 'Bass clef: notes on the staff',
-    blockDescriptionJa: 'ヘ音記号の五線の中の音符を、3音ずつ覚えていきます。',
-    blockDescriptionEn: 'Learn bass-clef notes on the staff, three at a time.',
+    blockDescriptionJa: 'ヘ音記号の五線の中の音符を、5音ずつ覚えていきます。',
+    blockDescriptionEn: 'Learn bass-clef notes on the staff, five at a time.',
   },
   6: {
     blockNameJa: '五線の下加線（ヘ音記号）',
@@ -638,3 +579,7 @@ export const assertTopicsOrderedByLowestNote = (
     }
   }
 };
+
+export const isLearningTopic = (topic: NotationCourseTopicSpec): boolean => (
+  topic.questKey !== 'q5' && !topic.titleJa.includes('まとめ') && !topic.titleJa.includes('総合') && !topic.titleJa.includes('総仕上げ') && !topic.titleJa.includes('大譜表')
+);
