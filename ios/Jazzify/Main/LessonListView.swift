@@ -128,9 +128,7 @@ struct LessonListView: View {
                 )
             ) {
                 if let lesson = lessonToOpen {
-                    LessonDetailView(lesson: lesson) { nextLesson in
-                        lessonToOpen = nextLesson
-                    }
+                    LessonDetailView(lesson: lesson)
                 }
             }
             .onChange(of: journeyCourse == nil) { isNil in
@@ -1584,8 +1582,8 @@ struct LessonDetailView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
-    let lesson: Lesson
-    var onSelectLesson: ((Lesson) -> Void)? = nil
+    @State private var activeLesson: Lesson
+    @State private var loadGeneration = 0
 
     @State private var detail: LessonDetail?
     @State private var videos: [LessonVideoResource] = []
@@ -1613,6 +1611,10 @@ struct LessonDetailView: View {
     @State private var showSubscriptionSheet = false
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
+
+    init(lesson: Lesson) {
+        _activeLesson = State(initialValue: lesson)
+    }
 
     private var locale: AppLocale { appState.locale }
     private var isPlatinumTier: Bool {
@@ -1680,7 +1682,7 @@ struct LessonDetailView: View {
                         if !visibleAttachments.isEmpty || hiddenAttachmentCount > 0 {
                             attachmentsCard
                         }
-                        if !lesson.isManualCompletionDisabled {
+                        if !activeLesson.isManualCompletionDisabled {
                             completionCard
                         }
                     }
@@ -1702,7 +1704,7 @@ struct LessonDetailView: View {
                 .padding()
             }
         }
-        .navigationTitle(lesson.localizedTitle(locale))
+        .navigationTitle(activeLesson.localizedTitle(locale))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
@@ -1710,11 +1712,9 @@ struct LessonDetailView: View {
         .onAppear {
             LessonMapAudio.shared.stop()
         }
-        .task { await loadLessonDetail() }
-        .onChange(of: lesson.id) { _ in
-            navigationState = nil
+        .task(id: activeLesson.id) {
             isNavigating = false
-            Task { await loadLessonDetail() }
+            await loadLessonDetail()
         }
         .onChange(of: appState.locale) { _ in
             Task { await loadLessonDetail() }
@@ -1898,7 +1898,7 @@ struct LessonDetailView: View {
                 onContinue: sheetModel.nextLesson.map { next in
                     {
                         questCompletionSheet = nil
-                        onSelectLesson?(next)
+                        activeLesson = next
                     }
                 }
             )
@@ -2016,7 +2016,7 @@ struct LessonDetailView: View {
                 Label("\(done)/\(total)", systemImage: "checkmark.circle")
                     .font(.caption)
                     .foregroundStyle(.gray)
-                if let blockNumber = lesson.blockNumber {
+                if let blockNumber = activeLesson.blockNumber {
                     Label(
                         locale == .ja ? "ブロック \(blockNumber)" : "Block \(blockNumber)",
                         systemImage: "square.grid.2x2"
@@ -2556,54 +2556,67 @@ struct LessonDetailView: View {
     }
 
     private func loadLessonDetail() async {
+        loadGeneration += 1
+        let generation = loadGeneration
+        let targetId = activeLesson.id
+
         isLoading = true
-        defer { isLoading = false }
+        currentVideoIndex = 0
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+            }
+        }
 
         do {
             courseIsMainQuest = false
-            async let detailTask = SupabaseService.shared.fetchLessonDetail(lessonId: lesson.id)
+            async let detailTask = SupabaseService.shared.fetchLessonDetail(lessonId: targetId)
             async let courseMetaTask: Course? = {
-                guard let cid = lesson.courseId else { return nil }
+                guard let cid = activeLesson.courseId else { return nil }
                 return try? await SupabaseService.shared.fetchCourseVisible(id: cid)
             }()
             async let videosTask: [LessonVideoResource] = {
-                (try? await SupabaseService.shared.fetchLessonVideos(lessonId: lesson.id)) ?? []
+                (try? await SupabaseService.shared.fetchLessonVideos(lessonId: targetId)) ?? []
             }()
             async let attachmentsTask: [LessonAttachmentResource] = {
-                (try? await SupabaseService.shared.fetchLessonAttachments(lessonId: lesson.id)) ?? []
+                (try? await SupabaseService.shared.fetchLessonAttachments(lessonId: targetId)) ?? []
             }()
 
             let fetchedDetail = try await detailTask
             let courseMeta = await courseMetaTask
+            let rawVideos = await videosTask
+            let rawAttachments = await attachmentsTask
+
+            guard generation == loadGeneration, activeLesson.id == targetId else { return }
+
             courseIsMainQuest = courseMeta?.isMainCourse == true
             detail = fetchedDetail
             prefetchEarTrainingStageDetails(from: fetchedDetail)
             prefetchSurvivalCatalogIfNeeded(from: fetchedDetail)
-            let rawVideos = await videosTask
-            let rawAttachments = await attachmentsTask
             videos = rawVideos.filter { $0.isVisible(for: appState.locale) }
             attachments = rawAttachments.filter { $0.isVisible(for: appState.locale) }
-            currentVideoIndex = 0
 
             if let userId = appState.profile?.id {
                 requirementProgress = (try? await SupabaseService.shared.fetchLessonRequirementProgress(
-                    lessonId: lesson.id,
+                    lessonId: targetId,
                     userId: userId
                 )) ?? []
 
-                if let courseId = lesson.courseId {
+                if let courseId = activeLesson.courseId {
                     let progressRows = try? await SupabaseService.shared.fetchLessonProgress(
                         courseId: courseId,
                         userId: userId
                     )
-                    isLessonCompleted = progressRows?.first(where: { $0.lessonId == lesson.id })?.completed ?? false
+
+                    guard generation == loadGeneration, activeLesson.id == targetId else { return }
+
+                    isLessonCompleted = progressRows?.first(where: { $0.lessonId == targetId })?.completed ?? false
 
                     if let lessons = try? await SupabaseService.shared.fetchLessons(courseId: courseId) {
-                        let completedIds = Set((progressRows ?? []).filter(\.completed).map(\.lessonId))
                         navigationState = LessonNavigationHelpers.computeNavigationState(
-                            currentLesson: lesson,
+                            currentLesson: activeLesson,
                             lessons: lessons,
-                            completedIds: completedIds,
+                            completedIds: Set((progressRows ?? []).filter(\.completed).map(\.lessonId)),
                             isMainQuest: courseIsMainQuest,
                             isPremium: appState.isPremium
                         )
@@ -2615,6 +2628,7 @@ struct LessonDetailView: View {
                 navigationState = nil
             }
         } catch {
+            guard generation == loadGeneration, activeLesson.id == targetId else { return }
             detail = nil
             alertMessage = error.localizedDescription
         }
@@ -2763,12 +2777,12 @@ struct LessonDetailView: View {
     }
 
     private func completeLesson() async {
-        guard !lesson.isManualCompletionDisabled else { return }
+        guard !activeLesson.isManualCompletionDisabled else { return }
         guard !isCompleting, !isLessonCompleted else { return }
         isCompleting = true
         defer { isCompleting = false }
 
-        guard let userId = appState.profile?.id, let courseId = lesson.courseId else {
+        guard let userId = appState.profile?.id, let courseId = activeLesson.courseId else {
             alertMessage = locale == .ja ? "ログイン情報を確認できません。" : "Unable to confirm login state."
             return
         }
@@ -2779,7 +2793,7 @@ struct LessonDetailView: View {
             return
         }
 
-        let bn = lesson.blockNumber ?? 1
+        let bn = activeLesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
             alertMessage = locale == .ja
                 ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
@@ -2797,7 +2811,7 @@ struct LessonDetailView: View {
             QuestJinglePlayer.playPreComplete()
 
             try await SupabaseService.shared.updateLessonProgress(
-                lessonId: lesson.id,
+                lessonId: activeLesson.id,
                 courseId: courseId,
                 userId: userId,
                 completed: true
@@ -2814,7 +2828,7 @@ struct LessonDetailView: View {
             do {
                 let award = try await SupabaseService.shared.awardPlayerXp(
                     reason: "lesson_first_clear",
-                    sourceId: lesson.id.uuidString,
+                    sourceId: activeLesson.id.uuidString,
                     amount: 100
                 )
                 await MainActor.run {
@@ -2851,14 +2865,14 @@ struct LessonDetailView: View {
             )
             let completedIds = Set(progressRows.filter(\.completed).map(\.lessonId))
             let navState = LessonNavigationHelpers.computeNavigationState(
-                currentLesson: lesson,
+                currentLesson: activeLesson,
                 lessons: lessons,
                 completedIds: completedIds,
                 isMainQuest: courseIsMainQuest,
                 isPremium: appState.isPremium
             )
             let kind = LessonNavigationHelpers.modalKind(
-                currentLesson: lesson,
+                currentLesson: activeLesson,
                 sortedLessons: sorted,
                 nextLesson: navState.nextLesson,
                 canGoNext: navState.canGoNext
@@ -2868,7 +2882,7 @@ struct LessonDetailView: View {
                 navigationState = navState
                 questCompletionSheet = QuestCompletionSheetModel(
                     kind: kind,
-                    chapterNumber: lesson.blockNumber ?? 1,
+                    chapterNumber: activeLesson.blockNumber ?? 1,
                     nextLesson: navState.nextLesson
                 )
             }
@@ -2899,7 +2913,7 @@ struct LessonDetailView: View {
                 )
                 .cornerRadius(10)
             }
-            .disabled(!navigationState.canGoPrevious || isNavigating || onSelectLesson == nil)
+            .disabled(!navigationState.canGoPrevious || isNavigating)
 
             Button {
                 dismiss()
@@ -2932,7 +2946,7 @@ struct LessonDetailView: View {
                 )
                 .cornerRadius(10)
             }
-            .disabled(!navigationState.canGoNext || isNavigating || onSelectLesson == nil)
+            .disabled(!navigationState.canGoNext || isNavigating)
         }
     }
 
@@ -2947,15 +2961,8 @@ struct LessonDetailView: View {
             )
             return
         }
-        guard let onSelectLesson else {
-            alertMessage = locale == .ja ? "前のクエストへ移動できません。" : "Unable to open the previous quest."
-            return
-        }
         isNavigating = true
-        onSelectLesson(previous)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            isNavigating = false
-        }
+        activeLesson = previous
     }
 
     private func navigateToNext(from navigationState: LessonNavigationState) {
@@ -2977,15 +2984,8 @@ struct LessonDetailView: View {
             )
             return
         }
-        guard let onSelectLesson else {
-            alertMessage = locale == .ja ? "次のクエストへ移動できません。" : "Unable to open the next quest."
-            return
-        }
         isNavigating = true
-        onSelectLesson(next)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            isNavigating = false
-        }
+        activeLesson = next
     }
 
     private func progress(for requirement: LessonSong) -> LessonRequirementProgressRow? {
@@ -3118,7 +3118,7 @@ struct LessonDetailView: View {
     }
 
     private func launchRequirement(_ requirement: LessonSong) {
-        let bn = lesson.blockNumber ?? 1
+        let bn = activeLesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
             alertMessage = locale == .ja
                 ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
@@ -3134,7 +3134,7 @@ struct LessonDetailView: View {
 
         if requirement.isSurvivalTutorial == true {
             survivalTutorialLaunch = SurvivalTutorialLaunch(
-                lessonId: lesson.id,
+                lessonId: activeLesson.id,
                 lessonSongId: requirement.id,
                 scriptId: requirement.survivalTutorialScriptId ?? "onboarding-v1",
                 clearConditions: requirement.clearConditions
@@ -3204,7 +3204,7 @@ struct LessonDetailView: View {
                             lessonRuntime: runtime,
                             productionHintModes: hintModes,
                             randomChordOverrides: appliedRandom.overrides,
-                            lessonId: lesson.id,
+                            lessonId: activeLesson.id,
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions
                         )
@@ -3266,7 +3266,7 @@ struct LessonDetailView: View {
                         lessonRuntime: runtime,
                         productionHintModes: hintModes,
                         randomChordOverrides: appliedRandom.overrides,
-                        lessonId: lesson.id,
+                        lessonId: activeLesson.id,
                         lessonSongId: requirement.id,
                         clearConditions: requirement.clearConditions
                     )
@@ -3310,7 +3310,7 @@ struct LessonDetailView: View {
                             stage: stage,
                             productionHintModes: hintModes,
                             appliedRandomChords: appliedForLaunch,
-                            lessonId: lesson.id,
+                            lessonId: activeLesson.id,
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions
                         )
@@ -3333,7 +3333,7 @@ struct LessonDetailView: View {
                 return
             }
             var fantasyParams: [String: String] = [
-                "lessonId": lesson.id.uuidString,
+                "lessonId": activeLesson.id.uuidString,
                 "lessonSongId": requirement.id.uuidString,
                 "stageId": stageId.uuidString,
             ]
@@ -3348,7 +3348,7 @@ struct LessonDetailView: View {
 
         if requirement.isEarTrainingTutorial == true {
             earTrainingTutorialLaunch = EarTrainingTutorialLaunch(
-                lessonId: lesson.id,
+                lessonId: activeLesson.id,
                 lessonSongId: requirement.id,
                 scriptId: requirement.earTrainingTutorialScriptId ?? "developer-full-v1",
                 clearConditions: requirement.clearConditions
@@ -3363,7 +3363,7 @@ struct LessonDetailView: View {
             }
             earTrainingLaunch = EarTrainingLaunch(
                 stageId: stageId,
-                lessonId: lesson.id,
+                lessonId: activeLesson.id,
                 lessonSongId: requirement.id,
                 clearConditions: requirement.clearConditions
             )
@@ -3380,7 +3380,7 @@ struct LessonDetailView: View {
                 base: "play-lesson",
                 params: [
                     "id": songId.uuidString,
-                    "lessonId": lesson.id.uuidString,
+                    "lessonId": activeLesson.id.uuidString,
                     "key": String(requirement.clearConditions?.key ?? 0),
                     "speed": String(requirement.clearConditions?.speed ?? 1.0),
                     "rank": requirement.clearConditions?.rank ?? "B",

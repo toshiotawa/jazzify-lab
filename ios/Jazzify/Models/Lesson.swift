@@ -122,6 +122,11 @@ struct Lesson: Codable, Identifiable, Sendable {
     }
 }
 
+extension Lesson: Hashable {
+    static func == (lhs: Lesson, rhs: Lesson) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
 struct LessonDetail: Codable, Identifiable, Sendable {
     let id: UUID
     let courseId: UUID?

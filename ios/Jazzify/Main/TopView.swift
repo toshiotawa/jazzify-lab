@@ -57,9 +57,7 @@ struct TopView: View {
                 Group {
                     if let lesson = mainQuestLessonToOpen {
                         if appState.isPremium || (lesson.blockNumber ?? 1) <= MainQuestFreeTier.maxFreeBlockNumber {
-                            LessonDetailView(lesson: lesson) { nextLesson in
-                                mainQuestLessonToOpen = nextLesson
-                            }
+                            LessonDetailView(lesson: lesson)
                         } else {
                             Color.clear
                                 .frame(width: 0, height: 0)
