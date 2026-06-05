@@ -1,9 +1,10 @@
-import { Lesson } from '@/types';
+import { Lesson, LessonProgress } from '@/types';
 import { lessonDisplayBlockName } from '@/utils/lessonCopy';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { buildLessonAccessGraph, MembershipRank } from '@/utils/lessonAccess';
+import { applyMainQuestFreeTierLocks } from '@/utils/mainQuestFreeTier';
 
 export interface LessonNavigationInfo {
   previousLesson: Lesson | null;
@@ -17,12 +18,17 @@ export interface LessonNavigationInfo {
   };
 }
 
+export interface LessonNavigationOptions {
+  forceRefresh?: boolean;
+  isMainQuest?: boolean;
+  isPremiumMember?: boolean;
+}
+
 // ナビゲーション情報のキャッシュ（メモリ内）
 const navigationCache = new Map<string, {
   data: LessonNavigationInfo;
   expires: number;
   courseId: string;
-  rank: MembershipRank | null | undefined;
 }>();
 
 const NAVIGATION_CACHE_TTL = 5 * 60 * 1000; // 5分
@@ -84,6 +90,77 @@ export function cleanupLessonNavigationCache(currentLessonId: string, courseId: 
   cleanupNavigationCache();
 }
 
+function buildNavigationCacheKey(
+  courseId: string,
+  currentLessonId: string,
+  userRank: MembershipRank | null | undefined,
+  isMainQuest: boolean,
+  isPremiumMember: boolean,
+): string {
+  return [
+    courseId,
+    currentLessonId,
+    userRank ?? 'no-rank',
+    isMainQuest ? 'main' : 'course',
+    isPremiumMember ? 'premium' : 'free',
+  ].join(':');
+}
+
+/**
+ * レッスン一覧と進捗からナビゲーション情報を算出（純粋関数）
+ */
+export function computeLessonNavigationInfo(
+  currentLessonId: string,
+  courseId: string,
+  lessons: readonly Lesson[],
+  progressMap: Record<string, Pick<LessonProgress, 'completed'> | undefined>,
+  options: { isMainQuest: boolean; isPremiumMember: boolean },
+): LessonNavigationInfo {
+  const sortedLessons = sortLessonsByOrder([...lessons]);
+  const currentIndex = sortedLessons.findIndex((lesson) => lesson.id === currentLessonId);
+
+  if (currentIndex === -1) {
+    throw new Error('現在のレッスンが見つかりません');
+  }
+
+  const previousLesson = currentIndex > 0 ? sortedLessons[currentIndex - 1] : null;
+  const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
+
+  let accessGraph = buildLessonAccessGraph({
+    lessons: sortedLessons,
+    progressMap,
+    enforceSequentialWithinBlocks: options.isMainQuest,
+  });
+
+  if (options.isMainQuest) {
+    accessGraph = applyMainQuestFreeTierLocks(
+      accessGraph,
+      sortedLessons,
+      options.isPremiumMember,
+    );
+  }
+
+  const hasAccessToPrevious = previousLesson
+    ? accessGraph.lessonStates[previousLesson.id]?.isUnlocked === true
+    : false;
+
+  const hasAccessToNext = nextLesson
+    ? accessGraph.lessonStates[nextLesson.id]?.isUnlocked === true
+    : false;
+
+  return {
+    previousLesson,
+    nextLesson,
+    canGoPrevious: previousLesson !== null && hasAccessToPrevious,
+    canGoNext: nextLesson !== null && hasAccessToNext,
+    course: {
+      id: courseId,
+      hasAccessToPrevious,
+      hasAccessToNext,
+    },
+  };
+}
+
 /**
  * 現在のレッスンからナビゲーション情報を取得（キャッシュ機能付き）
  */
@@ -91,9 +168,17 @@ export async function getLessonNavigationInfo(
   currentLessonId: string,
   courseId: string,
   userRank?: MembershipRank | null,
-  options?: { forceRefresh?: boolean }
+  options?: LessonNavigationOptions,
 ): Promise<LessonNavigationInfo> {
-  const cacheKey = `${courseId}:${currentLessonId}:${userRank ?? 'no-rank'}`;
+  const isMainQuest = options?.isMainQuest === true;
+  const isPremiumMember = options?.isPremiumMember === true;
+  const cacheKey = buildNavigationCacheKey(
+    courseId,
+    currentLessonId,
+    userRank,
+    isMainQuest,
+    isPremiumMember,
+  );
   const now = Date.now();
   
   if (!options?.forceRefresh) {
@@ -109,61 +194,29 @@ export async function getLessonNavigationInfo(
   cleanupNavigationCache();
   
   try {
-    // コース内の全レッスンを取得
-    const lessons = await fetchLessonsByCourse(courseId);
-    const userProgress = await fetchUserLessonProgress(courseId, undefined, { forceRefresh: !!options?.forceRefresh });
-    
-    // レッスンを order_index でソート
-    const sortedLessons = [...lessons].sort((a, b) => a.order_index - b.order_index);
-    
-    // 現在のレッスンのインデックスを取得
-    const currentIndex = sortedLessons.findIndex(lesson => lesson.id === currentLessonId);
-    
-    if (currentIndex === -1) {
-      throw new Error('現在のレッスンが見つかりません');
-    }
+    const [lessons, userProgress] = await Promise.all([
+      fetchLessonsByCourse(courseId),
+      fetchUserLessonProgress(courseId, undefined, { forceRefresh: !!options?.forceRefresh }),
+    ]);
 
-    const previousLesson = currentIndex > 0 ? sortedLessons[currentIndex - 1] : null;
-    const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
-
-    const progressMap: Record<string, typeof userProgress[number] | undefined> = {};
+    const progressMap: Record<string, Pick<LessonProgress, 'completed'> | undefined> = {};
     userProgress.forEach((progress) => {
       progressMap[progress.lesson_id] = progress;
     });
 
-    const accessGraph = buildLessonAccessGraph({
-      lessons: sortedLessons,
+    const navigationInfo = computeLessonNavigationInfo(
+      currentLessonId,
+      courseId,
+      lessons,
       progressMap,
-      userRank,
-    });
-
-    const hasAccessToPrevious = previousLesson
-      ? accessGraph.lessonStates[previousLesson.id]?.isUnlocked === true
-      : false;
-
-    const hasAccessToNext = nextLesson
-      ? accessGraph.lessonStates[nextLesson.id]?.isUnlocked === true
-      : false;
-
-    const navigationInfo: LessonNavigationInfo = {
-      previousLesson,
-      nextLesson,
-      canGoPrevious: previousLesson !== null && hasAccessToPrevious,
-      canGoNext: nextLesson !== null && hasAccessToNext,
-      course: {
-        id: courseId,
-        hasAccessToPrevious,
-        hasAccessToNext
-      }
-    };
+      { isMainQuest, isPremiumMember },
+    );
     
-    // キャッシュに保存
-      navigationCache.set(cacheKey, {
-        data: navigationInfo,
-        expires: now + NAVIGATION_CACHE_TTL,
-        courseId,
-        rank: userRank,
-      });
+    navigationCache.set(cacheKey, {
+      data: navigationInfo,
+      expires: now + NAVIGATION_CACHE_TTL,
+      courseId,
+    });
     
     return navigationInfo;
     
