@@ -5,9 +5,11 @@ import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
 
 import { CheckIcon } from './LpPricingIcons';
 
-const JPY_PREMIUM_MONTHLY = 4980;
+const JPY_PREMIUM_MONTHLY = 3980;
+const JPY_PREMIUM_YEARLY = 34800;
 const FRANKFURTER_JPY_USD = 'https://api.frankfurter.dev/v1/latest?base=JPY&symbols=USD';
-const FALLBACK_USD_WHOLE = 31;
+const FALLBACK_USD_MONTHLY_WHOLE = 25;
+const FALLBACK_USD_YEARLY_WHOLE = 220;
 
 const PREMIUM_FEATURES = [
   'All Main Quest chapters & Premium topic courses',
@@ -20,7 +22,8 @@ const PREMIUM_FEATURES = [
  * with optional live USD approximation via Frankfurter (ECB-based JPY→USD).
  */
 const LpEnglishPremiumPricing: React.FC = () => {
-  const [usdApproxWhole, setUsdApproxWhole] = useState<number | null>(null);
+  const [usdApproxMonthly, setUsdApproxMonthly] = useState<number | null>(null);
+  const [usdApproxYearly, setUsdApproxYearly] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +43,8 @@ const LpEnglishPremiumPricing: React.FC = () => {
         ) {
           const usd = (data as { rates: { USD?: number } }).rates.USD;
           if (typeof usd === 'number' && !cancelled) {
-            setUsdApproxWhole(jpyAmountToApproxUsdWhole(JPY_PREMIUM_MONTHLY, usd));
+            setUsdApproxMonthly(jpyAmountToApproxUsdWhole(JPY_PREMIUM_MONTHLY, usd));
+            setUsdApproxYearly(jpyAmountToApproxUsdWhole(JPY_PREMIUM_YEARLY, usd));
           }
         }
       } catch {
@@ -53,27 +57,47 @@ const LpEnglishPremiumPricing: React.FC = () => {
     };
   }, []);
 
-  const usdDisplayWhole = usdApproxWhole ?? FALLBACK_USD_WHOLE;
+  const usdMonthlyDisplay = usdApproxMonthly ?? FALLBACK_USD_MONTHLY_WHOLE;
+  const usdYearlyDisplay = usdApproxYearly ?? FALLBACK_USD_YEARLY_WHOLE;
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', border: '1px solid rgba(200,162,77,0.15)' }} data-animate="alt-cards text-up">
-      <div className="text-center px-8 pt-10 pb-6" style={{ borderBottom: '1px solid rgba(200,162,77,0.1)' }}>
-        <span className="lp-btn-gold inline-block px-4 py-1 rounded-full text-xs font-medium mb-4">Premium</span>
-        <div className="flex items-baseline justify-center gap-1">
-          <span className="lp-display text-4xl sm:text-5xl font-bold" style={{ color: 'var(--lp-cream)' }}>¥4,980</span>
-          <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}> / month (tax included)</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2" style={{ borderBottom: '1px solid rgba(200,162,77,0.1)' }}>
+        <div className="text-center px-8 pt-10 pb-8 sm:border-r" style={{ borderColor: 'rgba(200,162,77,0.1)' }}>
+          <span className="lp-btn-gold inline-block px-4 py-1 rounded-full text-xs font-medium mb-4">Premium</span>
+          <div className="flex items-baseline justify-center gap-1">
+            <span className="lp-display text-4xl sm:text-5xl font-bold" style={{ color: 'var(--lp-cream)' }}>¥3,980</span>
+            <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}> / month (tax included)</span>
+          </div>
+          <p className="text-sm mt-3" style={{ color: 'var(--lp-cream-muted)' }}>Cancel anytime</p>
+          <p className="text-sm mt-3" style={{ color: 'var(--lp-cream-muted)' }}>
+            Approx. ${usdMonthlyDisplay} USD / month (reference only; rate updates daily).
+          </p>
         </div>
-        <p className="text-sm mt-3" style={{ color: 'var(--lp-gold)' }}>
+
+        <div className="text-center px-8 pt-10 pb-8">
+          <span className="inline-block px-3 py-1 rounded-full text-xs font-medium mb-4" style={{ background: 'var(--lp-gold)', color: '#0d1321' }}>Best Value</span>
+          <div className="flex items-baseline justify-center gap-1">
+            <span className="lp-display text-4xl sm:text-5xl font-bold" style={{ color: 'var(--lp-cream)' }}>¥34,800</span>
+            <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}> / year (tax included)</span>
+          </div>
+          <p className="text-sm mt-3" style={{ color: 'var(--lp-gold)' }}>¥2,900/mo equivalent</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--lp-gold)' }}>Save ¥12,960/year</p>
+          <p className="text-sm mt-3" style={{ color: 'var(--lp-cream-muted)' }}>
+            Approx. ${usdYearlyDisplay} USD / year (reference only; rate updates daily).
+          </p>
+        </div>
+      </div>
+
+      <div className="text-center px-8 pt-6 pb-2">
+        <p className="text-sm" style={{ color: 'var(--lp-gold)' }}>
           New users receive a 7-day free trial.
         </p>
         <p className="text-sm mt-3 mb-1" style={{ color: 'var(--lp-cream-muted)' }}>
-          Billed monthly via Lemon Squeezy.
+          Billed via Lemon Squeezy (monthly or annual).
         </p>
-        <p className="text-xs mb-1" style={{ color: 'var(--lp-cream-muted)' }}>
+        <p className="text-xs" style={{ color: 'var(--lp-cream-muted)' }}>
           Checkout is displayed in JPY and processed in USD equivalent.
-        </p>
-        <p className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
-          Approx. ${usdDisplayWhole} USD / month (reference only; rate updates daily).
         </p>
       </div>
 

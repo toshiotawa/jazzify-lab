@@ -5,8 +5,9 @@ import StoreKit
 final class StoreManager: ObservableObject {
     static let shared = StoreManager()
 
-    @Published var product: Product?
-    /// 商品カタログ取得中（初回オープン前の分岐用に、未取得かつ失敗なしのときも true 扱いで UI 側がスピナーにできるよう loadProduct 先頭で立てる）
+    @Published var monthlyProduct: Product?
+    @Published var yearlyProduct: Product?
+    /// 商品カタログ取得中（初回オープン前の分岐用に、未取得かつ失敗なしのときも true 扱いで UI 側がスピナーにできるよう loadProducts 先頭で立てる）
     @Published private(set) var isLoadingProduct = false
     /// 取得失敗（タイムアウト・0件・StoreKit エラー）。成功時は nil
     @Published private(set) var productFetchFailure: ProductFetchFailure?
@@ -32,7 +33,7 @@ final class StoreManager: ObservableObject {
     }
 
     /// StoreKit からサブスク商品を取得する。タイムアウト・0件・エラー時は `productFetchFailure` を設定し、無限ローディングにしない。
-    func loadProduct() async {
+    func loadProducts() async {
         isLoadingProduct = true
         productFetchFailure = nil
 
@@ -41,7 +42,7 @@ final class StoreManager: ObservableObject {
         let raceResult: ProductFetchRaceResult = await withTaskGroup(of: ProductFetchRaceResult.self) { group in
             group.addTask { @MainActor in
                 do {
-                    let products = try await Product.products(for: [Config.iapProductID])
+                    let products = try await Product.products(for: [Config.iapProductID, Config.iapYearlyProductID])
                     return .fetched(.success(products))
                 } catch {
                     return .fetched(.failure(error))
@@ -61,20 +62,22 @@ final class StoreManager: ObservableObject {
 
         switch raceResult {
         case .timedOut:
-            product = nil
+            monthlyProduct = nil
+            yearlyProduct = nil
             productFetchFailure = .timedOut
         case .fetched(let result):
             switch result {
             case .success(let products):
-                if let first = products.first {
-                    product = first
-                    productFetchFailure = nil
-                } else {
-                    product = nil
+                monthlyProduct = products.first { $0.id == Config.iapProductID }
+                yearlyProduct = products.first { $0.id == Config.iapYearlyProductID }
+                if monthlyProduct == nil && yearlyProduct == nil {
                     productFetchFailure = .noProducts
+                } else {
+                    productFetchFailure = nil
                 }
             case .failure(let error):
-                product = nil
+                monthlyProduct = nil
+                yearlyProduct = nil
                 productFetchFailure = .storeError(error.localizedDescription)
             }
         }
@@ -97,10 +100,7 @@ final class StoreManager: ObservableObject {
         await checkCurrentEntitlements()
     }
 
-    func purchase() async throws {
-        guard let product else {
-            throw StoreError.productNotAvailable
-        }
+    func purchase(_ product: Product) async throws {
         guard let userId = currentUserId else {
             throw StoreError.notSignedIn
         }
@@ -143,6 +143,10 @@ final class StoreManager: ObservableObject {
         }
     }
 
+    private func isJazzifyProductID(_ id: String) -> Bool {
+        id == Config.iapProductID || id == Config.iapYearlyProductID
+    }
+
     private func checkCurrentEntitlements() async {
         var foundActive = false
         var mismatch = false
@@ -150,7 +154,7 @@ final class StoreManager: ObservableObject {
 
         for await result in Transaction.currentEntitlements {
             if let transaction = try? checkVerified(result) {
-                guard transaction.productID == Config.iapProductID else { continue }
+                guard isJazzifyProductID(transaction.productID) else { continue }
                 switch entitlementAlignment(for: transaction) {
                 case .matches:
                     foundActive = true
@@ -175,7 +179,7 @@ final class StoreManager: ObservableObject {
     }
 
     private func entitlementAlignment(for transaction: Transaction) -> EntitlementAlignment {
-        guard transaction.productID == Config.iapProductID else {
+        guard isJazzifyProductID(transaction.productID) else {
             return .notForThisProduct
         }
         guard let uid = currentUserId else {
@@ -195,7 +199,7 @@ final class StoreManager: ObservableObject {
         guard let transaction = try? checkVerified(result) else { return }
         await transaction.finish()
 
-        if transaction.productID == Config.iapProductID {
+        if isJazzifyProductID(transaction.productID) {
             if transaction.revocationDate != nil {
                 isSubscribed = false
                 currentSubscription = nil
@@ -300,14 +304,11 @@ enum PurchaseState: Equatable {
 }
 
 enum StoreError: LocalizedError {
-    case productNotAvailable
     case verificationFailed
     case notSignedIn
 
     var errorDescription: String? {
         switch self {
-        case .productNotAvailable:
-            return "Product is not available"
         case .verificationFailed:
             return "Transaction verification failed"
         case .notSignedIn:

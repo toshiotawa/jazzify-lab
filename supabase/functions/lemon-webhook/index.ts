@@ -27,6 +27,17 @@ async function computeHmacSha256Hex(secret: string, message: string): Promise<st
   return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * checkout 時に埋め込んだ custom_data.plan からプラン種別を判定する。
+ * 後続イベントで custom_data が欠落するケースに備え、判定できない場合は null を返し、
+ * 呼び出し側で既存レコードの plan_code を維持する（年額→月額の誤上書き防止）。
+ */
+function resolvePlanCodeFromCustomData(customData: { plan?: unknown } | undefined): string | null {
+  if (customData?.plan === "yearly") return "core_yearly";
+  if (customData?.plan === "monthly") return "core_monthly";
+  return null;
+}
+
 function rankForSubscription(provider: string, entitlementState: EntitlementState): string {
   if (
     entitlementState === "active" ||
@@ -155,12 +166,23 @@ Deno.serve(async (req: Request) => {
     const trialEndsAt = attrs?.trial_ends_at;
     const periodEndsAt = endsAt || renewsAt || trialEndsAt || null;
 
+    // plan_code: custom_data を最優先。判定できない後続イベントでは既存値を維持する。
+    let planCode = resolvePlanCodeFromCustomData(customData);
+    if (!planCode) {
+      const { data: existingSub } = await supabase
+        .from("subscriptions")
+        .select("plan_code")
+        .eq("user_id", userId)
+        .maybeSingle();
+      planCode = existingSub?.plan_code ?? "core_monthly";
+    }
+
     const upsertData: Record<string, unknown> = {
       user_id: userId,
       provider: "lemon",
       provider_customer_id: customerId,
       provider_subscription_id: subscriptionId,
-      plan_code: "core_monthly",
+      plan_code: planCode,
       status: mapped.status,
       entitlement_state: mapped.entitlementState,
       updated_at: new Date().toISOString(),

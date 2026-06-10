@@ -52,6 +52,7 @@ enum Config {
     static let reviewEmail = "toshiotawa@me.com"
 
     static let iapProductID = "jp.jazzify.premium.monthly"
+    static let iapYearlyProductID = "jp.jazzify.premium.yearly"
 
     /// App Store 公開ページ（任意アップデート案内など）。Web LP と同じ US 一覧 URL を使用。
     static let iosAppStoreListingURL =

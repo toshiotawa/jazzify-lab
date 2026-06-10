@@ -6,11 +6,6 @@ export interface FAQItem {
   extraLinks?: { href: string; text: string; external?: boolean }[];
 }
 
-export interface PricingFeatureRow {
-  label: string;
-  values: string[];
-}
-
 export interface NavLink {
   id: string;
   label: string;

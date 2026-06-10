@@ -5,6 +5,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView } from '@/utils/iosbridge';
 import PaymentIssueBanner from '@/components/ui/PaymentIssueBanner';
 import GameHeader from '@/components/ui/GameHeader';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 type PlanKey = 'free' | 'premium';
 
@@ -29,7 +30,7 @@ const PLANS: PlanColumn[] = [
   {
     key: 'premium',
     name: 'Premium',
-    price: '¥4,980',
+    price: '¥3,980',
     priceSuffix: '/月（税込）',
     badge: 'おすすめ',
     badgeClass: 'bg-primary-500 text-white',
@@ -50,6 +51,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const [loading, setLoading] = useState<string | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
@@ -168,6 +170,11 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
       return;
     }
 
+    if (profile.rank === 'free') {
+      setShowPaywall(true);
+      return;
+    }
+
     setLoading(plan);
 
     try {
@@ -234,8 +241,8 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               </p>
               <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto">
                 {isEnglishCopy
-                  ? 'Eligible users get a 7-day free trial, then Premium is billed monthly via Lemon Squeezy (JPY; USD equivalent at checkout).'
-                  : '初回は7日間の無料トライアルのあと、月額4,980円（税込）が Lemon Squeezy 経由で課金されます。'}
+                  ? 'Eligible users get a 7-day free trial, then Premium is billed at ¥3,980/month or ¥34,800/year (tax included) via Lemon Squeezy.'
+                  : '初回は7日間の無料トライアルのあと、月額3,980円（税込）または年額34,800円（税込）が Lemon Squeezy 経由で課金されます。'}
               </p>
             </div>
 
@@ -264,6 +271,13 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                         <span className="text-xs text-gray-400 font-normal">{plan.priceSuffix}</span>
                       )}
                     </div>
+                    {plan.key === 'premium' && (
+                      <div className="text-xs text-amber-200/90 mt-1">
+                        {isEnglishCopy
+                          ? 'Or ¥34,800 / year (tax included)'
+                          : '年額 ¥34,800（税込）も選べます'}
+                      </div>
+                    )}
                     {plan.key !== 'free' && (
                       <div className="text-xs text-amber-200/90 mt-1">
                         {isEnglishCopy ? '7-day free trial when eligible' : '初回7日間無料トライアル'}
@@ -336,6 +350,11 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
           </div>
         </div>
       </div>
+      <WebPaywallModal
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        isEnglishCopy={isEnglishCopy}
+      />
     </div>
   );
 };

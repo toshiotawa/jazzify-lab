@@ -33,6 +33,18 @@ function decodeJWSPayload(jws: string): Record<string, unknown> {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** App Store の年額サブスク Product ID（iOS Config.iapYearlyProductID と一致させる） */
+const APPLE_YEARLY_PRODUCT_ID = "jp.jazzify.premium.yearly";
+
+/**
+ * Apple の Product ID からプラン種別を判定する。
+ * Product ID が無い場合は null を返し、呼び出し側で既存値を維持する。
+ */
+function planCodeForAppleProduct(productId: string | undefined): string | null {
+  if (!productId) return null;
+  return productId === APPLE_YEARLY_PRODUCT_ID ? "core_yearly" : "core_monthly";
+}
+
 function normalizeUuidString(value: string): string | null {
   const lower = value.trim().toLowerCase();
   return UUID_RE.test(lower) ? lower : null;
@@ -148,11 +160,15 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      const clientPlanCode =
+        planCodeForAppleProduct(typeof body.productId === "string" ? body.productId : undefined)
+        ?? "core_monthly";
+
       const { error: insertErr } = await supabase.from("subscriptions").insert({
         user_id: user.id,
         provider: "apple",
         provider_subscription_id: body.originalTransactionId,
-        plan_code: "core_monthly",
+        plan_code: clientPlanCode,
         status: "active",
         entitlement_state: "active",
         trial_used: false,
@@ -196,6 +212,7 @@ Deno.serve(async (req: Request) => {
       : null;
     const originalTransactionId = transactionInfo.originalTransactionId as string | undefined;
     const expiresDate = transactionInfo.expiresDate as number | undefined;
+    const productId = transactionInfo.productId as string | undefined;
 
     await supabase.from("subscription_events").insert({
       user_id: appAccountToken,
@@ -213,11 +230,22 @@ Deno.serve(async (req: Request) => {
 
     const mapped = mapAppleNotification(notificationType, subtype, expiresDate);
 
+    // plan_code: 取引情報の Product ID を最優先。欠落時は既存値を維持する。
+    let planCode = planCodeForAppleProduct(productId);
+    if (!planCode) {
+      const { data: existingSub } = await supabase
+        .from("subscriptions")
+        .select("plan_code")
+        .eq("user_id", appAccountToken)
+        .maybeSingle();
+      planCode = existingSub?.plan_code ?? "core_monthly";
+    }
+
     const upsertData: Record<string, unknown> = {
       user_id: appAccountToken,
       provider: "apple",
       provider_subscription_id: originalTransactionId,
-      plan_code: "core_monthly",
+      plan_code: planCode,
       status: mapped.status,
       entitlement_state: mapped.entitlementState,
       updated_at: new Date().toISOString(),

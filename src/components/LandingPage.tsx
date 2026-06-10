@@ -490,7 +490,7 @@ const LandingPage: React.FC = () => {
 
         {/* 料金プラン */}
         <section id="pricing" className="py-24 sm:py-32" data-animate="slide-right text-up">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-6">
               <span className="lp-section-label" data-animate="from-behind">002 — pricing</span>
             </div>
@@ -499,13 +499,29 @@ const LandingPage: React.FC = () => {
             </h2>
 
             <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', border: '1px solid rgba(200,162,77,0.15)' }} data-animate="alt-cards text-up">
-              <div className="text-center px-8 pt-10 pb-6" style={{ borderBottom: '1px solid rgba(200,162,77,0.1)' }}>
-                <span className="lp-btn-gold inline-block px-4 py-1 rounded-full text-xs font-medium mb-4">Premium</span>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="lp-display text-4xl sm:text-5xl font-bold" style={{ color: 'var(--lp-cream)' }}>¥4,980</span>
-                  <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/月（税込）</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2" style={{ borderBottom: '1px solid rgba(200,162,77,0.1)' }}>
+                <div className="text-center px-8 pt-10 pb-8 sm:border-r" style={{ borderColor: 'rgba(200,162,77,0.1)' }}>
+                  <span className="lp-btn-gold inline-block px-4 py-1 rounded-full text-xs font-medium mb-4">Premium</span>
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="lp-display text-4xl sm:text-5xl font-bold" style={{ color: 'var(--lp-cream)' }}>¥3,980</span>
+                    <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/月（税込）</span>
+                  </div>
+                  <p className="text-sm mt-3" style={{ color: 'var(--lp-cream-muted)' }}>いつでも解約できます</p>
                 </div>
-                <p className="text-sm mt-3" style={{ color: 'var(--lp-gold)' }}>初回利用者には7日間の無料トライアルが付与されます</p>
+
+                <div className="text-center px-8 pt-10 pb-8 relative">
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-medium mb-4" style={{ background: 'var(--lp-gold)', color: '#0d1321' }}>おすすめ</span>
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="lp-display text-4xl sm:text-5xl font-bold" style={{ color: 'var(--lp-cream)' }}>¥34,800</span>
+                    <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/年（税込）</span>
+                  </div>
+                  <p className="text-sm mt-3" style={{ color: 'var(--lp-gold)' }}>月あたり¥2,900</p>
+                  <p className="text-sm mt-1" style={{ color: 'var(--lp-gold)' }}>年間¥12,960お得</p>
+                </div>
+              </div>
+
+              <div className="text-center px-8 pt-6 pb-2">
+                <p className="text-sm" style={{ color: 'var(--lp-gold)' }}>初回利用者には7日間の無料トライアルが付与されます</p>
               </div>
 
               <div className="px-8 py-8">

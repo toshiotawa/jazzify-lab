@@ -22,6 +22,7 @@ interface LemonCheckoutCreateResponse {
 }
 
 type LinkVia = 'checkout' | 'portal';
+type Plan = 'monthly' | 'yearly';
 
 const ensureEnv = (key: string): string => {
   const val = process.env[key];
@@ -42,25 +43,65 @@ const responseHeaders: Record<string, string> = {
   'Content-Type': 'application/json',
 };
 
+const resolveVariantId = (plan: Plan, trial: boolean): string => {
+  if (plan === 'monthly') {
+    const trialVariantId =
+      process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL ||
+      process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL ||
+      '';
+    const normalVariantId =
+      process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM ||
+      process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL;
+    if (!normalVariantId) {
+      throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM');
+    }
+    return trial && trialVariantId ? trialVariantId : normalVariantId;
+  }
+
+  const trialVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL || '';
+  const normalVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY;
+  if (!normalVariantId) {
+    throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY');
+  }
+  return trial && trialVariantId ? trialVariantId : normalVariantId;
+};
+
+const parsePlanFromBody = (event: NetlifyEvent): Plan | 'invalid' => {
+  const rawBody = event.body;
+  if (!rawBody || rawBody.trim() === '') {
+    return 'monthly';
+  }
+
+  try {
+    const decodedBody = event.isBase64Encoded
+      ? Buffer.from(rawBody, 'base64').toString('utf8')
+      : rawBody;
+    const parsed: unknown = JSON.parse(decodedBody);
+    if (parsed === null || typeof parsed !== 'object') {
+      return 'monthly';
+    }
+    const plan = (parsed as { plan?: unknown }).plan;
+    if (plan === undefined || plan === null) {
+      return 'monthly';
+    }
+    if (plan === 'monthly' || plan === 'yearly') {
+      return plan;
+    }
+    return 'invalid';
+  } catch {
+    return 'monthly';
+  }
+};
+
 const createCheckout = async (params: {
   email: string;
   userId: string;
   trial: boolean;
+  plan: Plan;
 }): Promise<string> => {
   const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
   const storeId = ensureEnv('LEMONSQUEEZY_STORE_ID');
-  const trialVariantId =
-    process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL ||
-    process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL ||
-    '';
-  const normalVariantId =
-    process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM ||
-    process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL;
-  if (!normalVariantId) {
-    throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM');
-  }
-  const variantId = (params.trial && trialVariantId) ? trialVariantId : normalVariantId;
-
+  const variantId = resolveVariantId(params.plan, params.trial);
   const siteUrl = ensureEnv('SITE_URL');
 
   const payload = {
@@ -71,6 +112,7 @@ const createCheckout = async (params: {
           email: params.email,
           custom: {
             user_id: params.userId,
+            plan: params.plan,
           },
         },
         checkout_options: {
@@ -117,7 +159,9 @@ const createCheckout = async (params: {
     } catch {
       errDetail = errBody || res.statusText;
     }
-    throw new Error(`LemonSqueezy checkout failed (${res.status}): ${errDetail} [store=${storeId}, variant=${variantId}, trial=${params.trial}]`);
+    throw new Error(
+      `LemonSqueezy checkout failed (${res.status}): ${errDetail} [store=${storeId}, variant=${variantId}, plan=${params.plan}, trial=${params.trial}]`,
+    );
   }
 
   const json = (await res.json()) as LemonCheckoutCreateResponse;
@@ -193,6 +237,12 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
   }
 
   try {
+    const planResult = parsePlanFromBody(event);
+    if (planResult === 'invalid') {
+      return { statusCode: 400, headers: responseHeaders, body: JSON.stringify({ error: 'Invalid plan. Must be "monthly" or "yearly".' }) };
+    }
+    const plan = planResult;
+
     const supabase = getSupabaseServiceClient();
     const authHeader = event.headers.authorization || event.headers.Authorization;
     if (!authHeader) {
@@ -230,13 +280,13 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       const customerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
       if (!customerId) {
         // 既存顧客IDが見当たらない場合はチェックアウトにフォールバック
-        url = await createCheckout({ email, userId, trial: false });
+        url = await createCheckout({ email, userId, trial: false, plan });
         via = 'checkout';
       } else {
         url = await getCustomerPortalUrl(customerId);
         if (!url) {
           // ポータルURLが取得できない場合はCheckoutにフォールバック
-          url = await createCheckout({ email, userId, trial: false });
+          url = await createCheckout({ email, userId, trial: false, plan });
           via = 'checkout';
         }
       }
@@ -244,7 +294,6 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       // サブスクなし → DB + LemonSqueezy API の二重チェックでトライアル判定
       let trial = true;
       if (profile.lemon_trial_used === true) {
-        // DB 上で使用済み → トライアルなし
         trial = false;
       } else {
         // DB 上は未使用 → LS 顧客の存在を確認（webhook 取りこぼし対策）
@@ -252,11 +301,10 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
         if (existingCustomerId) {
           // LS 上に顧客が存在 → 過去に購入完了歴あり → トライアルなし
           trial = false;
-          // DB を同期しておく
           await supabase.from('profiles').update({ lemon_trial_used: true, lemon_customer_id: existingCustomerId }).eq('id', userId);
         }
       }
-      url = await createCheckout({ email, userId, trial });
+      url = await createCheckout({ email, userId, trial, plan });
       via = 'checkout';
     }
 
@@ -266,5 +314,3 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     return { statusCode: 500, headers: responseHeaders, body: JSON.stringify({ error: 'Internal server error', details: message }) };
   }
 };
-
-
