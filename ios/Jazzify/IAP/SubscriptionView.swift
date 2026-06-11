@@ -1,11 +1,17 @@
 import SwiftUI
 import StoreKit
 
+private enum IntroOfferEligibility {
+    case unknown
+    case eligible
+    case notEligible
+}
+
 struct SubscriptionView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var store = StoreManager.shared
     @Environment(\.dismiss) private var dismiss
-    @State private var eligibleForIntroOffer = false
+    @State private var introOfferEligibility: IntroOfferEligibility = .unknown
     @State private var selectedPlanID: String?
 
     private var locale: AppLocale { appState.locale }
@@ -29,9 +35,14 @@ struct SubscriptionView: View {
         guard appState.canShowIAP,
               !appState.isPremium,
               let product = selectedProduct,
-              product.subscription?.introductoryOffer != nil
+              product.subscription?.introductoryOffer != nil,
+              introOfferEligibility == .eligible
         else { return false }
-        return eligibleForIntroOffer
+        return true
+    }
+
+    private var isCheckingIntroEligibility: Bool {
+        hasAnyProduct && selectedProduct != nil && introOfferEligibility == .unknown
     }
 
     var body: some View {
@@ -77,12 +88,18 @@ struct SubscriptionView: View {
                 await store.loadProducts()
             }
             .task(id: "\(store.monthlyProduct?.id ?? "")|\(store.yearlyProduct?.id ?? "")") {
+                introOfferEligibility = .unknown
                 let product = store.yearlyProduct ?? store.monthlyProduct
                 guard let product, let sub = product.subscription else {
-                    eligibleForIntroOffer = false
+                    introOfferEligibility = .notEligible
                     return
                 }
-                eligibleForIntroOffer = await sub.isEligibleForIntroOffer
+                guard sub.introductoryOffer != nil else {
+                    introOfferEligibility = .notEligible
+                    return
+                }
+                let eligible = await sub.isEligibleForIntroOffer
+                introOfferEligibility = eligible ? .eligible : .notEligible
                 ensureDefaultPlanSelection()
             }
         }
@@ -366,47 +383,12 @@ struct SubscriptionView: View {
             if hasAnyProduct, let product = selectedProduct {
                 planSelectionSection
 
-                let showIntroDetails = showIntroPaywallDetails
-
                 VStack(spacing: 10) {
-                    if showIntroDetails, let introOffer = product.subscription?.introductoryOffer {
-                        Text(locale == .ja
-                             ? introTrialHeadlineJa(introOffer)
-                             : introTrialHeadlineEn(introOffer))
-                            .font(.headline)
-                            .foregroundStyle(.green)
-                            .multilineTextAlignment(.center)
-
-                        Text(locale == .ja
-                             ? thenPriceLineJa(
-                                displayPrice: product.displayPrice,
-                                periodUnit: product.subscription?.subscriptionPeriod.unit ?? .month
-                             )
-                             : thenPriceLineEn(
-                                displayPrice: product.displayPrice,
-                                periodUnit: product.subscription?.subscriptionPeriod.unit ?? .month
-                             ))
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.95))
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if !showIntroDetails {
-                        Text(locale == .ja
-                             ? nonTrialPriceNoteJa(
-                                displayPrice: product.displayPrice,
-                                periodUnit: product.subscription?.subscriptionPeriod.unit ?? .month
-                             )
-                             : nonTrialPriceNoteEn(
-                                displayPrice: product.displayPrice,
-                                periodUnit: product.subscription?.subscriptionPeriod.unit ?? .month
-                             ))
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.95))
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    Text(purchaseSubtitle(for: product))
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.95))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Button {
@@ -423,12 +405,7 @@ struct SubscriptionView: View {
                         default:
                             HStack(spacing: 8) {
                                 Image(systemName: "music.note")
-                                Text(
-                                    purchaseButtonTitle(
-                                        showIntroDetails: showIntroDetails,
-                                        introOffer: product.subscription?.introductoryOffer
-                                    )
-                                )
+                                Text(purchaseButtonTitle(for: product))
                                 .font(.headline)
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -766,110 +743,106 @@ struct SubscriptionView: View {
         )
     }
 
-    private func purchaseButtonTitle(showIntroDetails: Bool, introOffer: Product.SubscriptionOffer?) -> String {
-        guard showIntroDetails, let offer = introOffer else {
-            return locale == .ja ? "プレミアムに登録" : "Subscribe to Premium"
+    private func purchaseButtonTitle(for product: Product) -> String {
+        let periodUnit = product.subscription?.subscriptionPeriod.unit ?? .month
+        let displayPrice = product.displayPrice
+
+        if isCheckingIntroEligibility {
+            return locale == .ja ? "プランを確認する" : "Review Plan"
         }
+
+        if showIntroPaywallDetails, let offer = product.subscription?.introductoryOffer {
+            return introTrialCTA(offer)
+        }
+
+        if locale == .ja {
+            switch periodUnit {
+            case .year:
+                return "年額\(displayPrice)で始める"
+            default:
+                return "月額\(displayPrice)で始める"
+            }
+        }
+        switch periodUnit {
+        case .year:
+            return "Start for \(displayPrice)/year"
+        default:
+            return "Start for \(displayPrice)/month"
+        }
+    }
+
+    private func purchaseSubtitle(for product: Product) -> String {
+        let periodUnit = product.subscription?.subscriptionPeriod.unit ?? .month
+        let displayPrice = product.displayPrice
+
+        if isCheckingIntroEligibility {
+            return locale == .ja
+                ? "価格と無料トライアルの有無はApp Storeの確認画面で表示されます。"
+                : "Pricing and free trial availability will be shown on the App Store confirmation screen."
+        }
+
+        if showIntroPaywallDetails {
+            if locale == .ja {
+                switch periodUnit {
+                case .year:
+                    return "無料期間後は年額\(displayPrice)。いつでもApp Storeで解約できます。"
+                default:
+                    return "無料期間後は月額\(displayPrice)。いつでもApp Storeで解約できます。"
+                }
+            }
+            switch periodUnit {
+            case .year:
+                return "After the free period, \(displayPrice)/year. Cancel anytime in the App Store."
+            default:
+                return "After the free period, \(displayPrice)/month. Cancel anytime in the App Store."
+            }
+        }
+
+        if locale == .ja {
+            switch periodUnit {
+            case .year:
+                return "年額\(displayPrice)。いつでもApp Storeで解約できます。"
+            default:
+                return "月額\(displayPrice)。いつでもApp Storeで解約できます。"
+            }
+        }
+        switch periodUnit {
+        case .year:
+            return "\(displayPrice)/year. Cancel anytime in the App Store."
+        default:
+            return "\(displayPrice)/month. Cancel anytime in the App Store."
+        }
+    }
+
+    /// トライアル対象者向けCTA（例: 7日間無料で始める）
+    private func introTrialCTA(_ offer: Product.SubscriptionOffer) -> String {
         let unit = offer.period.unit
         let value = offer.period.value
         if locale == .ja {
             switch unit {
             case .day:
-                return "\(value)日間の無料トライアルを開始"
+                return "\(value)日間無料で始める"
             case .week:
-                return value == 1 ? "1週間の無料トライアルを開始" : "\(value)週間の無料トライアルを開始"
+                return value == 1 ? "1週間無料で始める" : "\(value)週間無料で始める"
             case .month:
-                return value == 1 ? "1か月の無料トライアルを開始" : "\(value)か月の無料トライアルを開始"
+                return value == 1 ? "1か月無料で始める" : "\(value)か月無料で始める"
             case .year:
-                return value == 1 ? "1年の無料トライアルを開始" : "\(value)年の無料トライアルを開始"
+                return value == 1 ? "1年無料で始める" : "\(value)年無料で始める"
             @unknown default:
-                return "無料トライアルを開始"
+                return "無料で始める"
             }
         }
         switch unit {
         case .day:
-            return "Start \(value)-day free trial"
+            return value == 1 ? "Start free for 1 day" : "Start free for \(value) days"
         case .week:
-            return value == 1 ? "Start 1-week free trial" : "Start \(value)-week free trial"
+            return value == 1 ? "Start free for 1 week" : "Start free for \(value) weeks"
         case .month:
-            return value == 1 ? "Start 1-month free trial" : "Start \(value)-month free trial"
+            return value == 1 ? "Start free for 1 month" : "Start free for \(value) months"
         case .year:
-            return value == 1 ? "Start 1-year free trial" : "Start \(value)-year free trial"
+            return value == 1 ? "Start free for 1 year" : "Start free for \(value) years"
         @unknown default:
-            return "Start free trial"
-        }
-    }
-
-    /// 緑見出し用（例: 7日間無料）
-    private func introTrialHeadlineJa(_ offer: Product.SubscriptionOffer) -> String {
-        let unit = offer.period.unit
-        let value = offer.period.value
-        switch unit {
-        case .day:
-            return "\(value)日間無料"
-        case .week:
-            return value == 1 ? "1週間無料" : "\(value)週間無料"
-        case .month:
-            return value == 1 ? "1か月無料" : "\(value)か月無料"
-        case .year:
-            return value == 1 ? "1年無料" : "\(value)年無料"
-        @unknown default:
-            return "無料トライアル"
-        }
-    }
-
-    private func introTrialHeadlineEn(_ offer: Product.SubscriptionOffer) -> String {
-        let unit = offer.period.unit
-        let value = offer.period.value
-        switch unit {
-        case .day:
-            return value == 1 ? "1-day free trial" : "\(value)-day free trial"
-        case .week:
-            return value == 1 ? "1-week free trial" : "\(value)-week free trial"
-        case .month:
-            return value == 1 ? "1-month free trial" : "\(value)-month free trial"
-        case .year:
-            return value == 1 ? "1-year free trial" : "\(value)-year free trial"
-        @unknown default:
-            return "Free trial"
-        }
-    }
-
-    /// 価格の直前の1行（トライアル時）
-    private func thenPriceLineJa(displayPrice: String, periodUnit: Product.SubscriptionPeriod.Unit) -> String {
-        switch periodUnit {
-        case .year:
-            return "その後は年額\(displayPrice)。キャンセルしない限り自動更新されます"
-        default:
-            return "その後は月額\(displayPrice)。キャンセルしない限り自動更新されます"
-        }
-    }
-
-    private func thenPriceLineEn(displayPrice: String, periodUnit: Product.SubscriptionPeriod.Unit) -> String {
-        switch periodUnit {
-        case .year:
-            return "Then \(displayPrice)/year, auto-renews unless canceled"
-        default:
-            return "Then \(displayPrice)/month, auto-renews unless canceled"
-        }
-    }
-
-    /// 非トライアル時・価格の直前の1行
-    private func nonTrialPriceNoteJa(displayPrice: String, periodUnit: Product.SubscriptionPeriod.Unit) -> String {
-        switch periodUnit {
-        case .year:
-            return "年額\(displayPrice)。キャンセルしない限り自動更新されます"
-        default:
-            return "月額\(displayPrice)。キャンセルしない限り自動更新されます"
-        }
-    }
-
-    private func nonTrialPriceNoteEn(displayPrice: String, periodUnit: Product.SubscriptionPeriod.Unit) -> String {
-        switch periodUnit {
-        case .year:
-            return "\(displayPrice)/year, auto-renews unless canceled"
-        default:
-            return "\(displayPrice)/month, auto-renews unless canceled"
+            return "Start for free"
         }
     }
 }
