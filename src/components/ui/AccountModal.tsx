@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import GameHeader from '@/components/ui/GameHeader';
 import { persistPreferredLocale, resolveAudienceLocale, shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 /**
@@ -30,7 +31,6 @@ const AccountPage: React.FC = () => {
   const [preferredLocale, setPreferredLocale] = useState<'ja' | 'en'>(
     () => profile?.preferred_locale ?? resolveAudienceLocale(),
   );
-  const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const [localeSaving, setLocaleSaving] = useState(false);
   const [nicknameEditing, setNicknameEditing] = useState(false);
   const [nicknameValue, setNicknameValue] = useState('');
@@ -47,7 +47,9 @@ const AccountPage: React.FC = () => {
     geoCountryHint: geoCountry,
   });
   const localeCode = isEnglishCopy ? 'en' : 'ja';
-  const { planLabel, isPremiumMember } = useBillingAwareMembership(localeCode);
+  const { planLabel, isPremiumMember, billingPayload } = useBillingAwareMembership(localeCode);
+  const showAppleBillingNotice = hasNonExpiredBillingProvider(billingPayload, 'apple');
+  const showLemonBillingPortal = hasNonExpiredBillingProvider(billingPayload, 'lemon');
   const [showPaywall, setShowPaywall] = useState(false);
   const handleNicknameSave = useCallback(async () => {
     const trimmed = nicknameValue.trim();
@@ -113,24 +115,6 @@ const AccountPage: React.FC = () => {
     window.addEventListener('hashchange', syncFromHash);
     return () => window.removeEventListener('hashchange', syncFromHash);
   }, []);
-
-  useEffect(() => {
-    const checkBilling = async () => {
-      try {
-        const token = session?.access_token;
-        if (!token) return;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const res = await fetch(`${supabaseUrl}/functions/v1/billing-status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setBillingProvider(data.provider ?? null);
-        }
-      } catch { /* ignore */ }
-    };
-    if (open) checkBilling();
-  }, [open, session?.access_token]);
 
   // Stripe Checkout など外部遷移から戻った際に最新プロフィールを取得（即時反映）
   useEffect(() => {
@@ -484,7 +468,7 @@ const AccountPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {!isPremiumMember && billingProvider !== 'apple' && (
+                      {!isPremiumMember && !showAppleBillingNotice && (
                         <button
                           type="button"
                           className="w-full py-2.5 rounded-lg font-semibold text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black transition-all duration-200 mt-2"
@@ -494,7 +478,7 @@ const AccountPage: React.FC = () => {
                         </button>
                       )}
 
-                      {billingProvider === 'apple' && (
+                      {showAppleBillingNotice && (
                         <div className="bg-orange-900/20 rounded-lg p-3 border border-orange-700/30 mt-2">
                           <p className="text-sm text-orange-200 font-semibold mb-1">
                             {isEnglishCopy ? 'Subscribed via iOS app' : 'iOS版で手続き済み'}
@@ -506,7 +490,7 @@ const AccountPage: React.FC = () => {
                           </p>
                         </div>
                       )}
-                      {billingProvider === 'lemon' && (
+                      {showLemonBillingPortal && (
                         <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-700/30 mt-2 space-y-2">
                           <p className="text-sm text-blue-200 font-semibold mb-1">
                             {isEnglishCopy ? 'Web billing (Lemon Squeezy)' : 'Web課金（Lemon Squeezy）'}

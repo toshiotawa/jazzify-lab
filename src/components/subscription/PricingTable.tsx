@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -6,6 +6,8 @@ import { isIOSWebView } from '@/utils/iosbridge';
 import PaymentIssueBanner from '@/components/ui/PaymentIssueBanner';
 import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
 
 type PlanKey = 'free' | 'premium';
 
@@ -52,12 +54,14 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   const geoCountry = useGeoStore(state => state.country);
   const [loading, setLoading] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale ?? null,
   });
+  const localeCode = isEnglishCopy ? 'en' : 'ja';
+  const { billingPayload } = useBillingAwareMembership(localeCode);
+  const showAppleBillingNotice = hasNonExpiredBillingProvider(billingPayload, 'apple');
 
   const isIOS = isIOSWebView();
 
@@ -94,24 +98,6 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     },
   ], [isEnglishCopy]);
 
-  useEffect(() => {
-    const checkBilling = async () => {
-      try {
-        const token = useAuthStore.getState().session?.access_token;
-        if (!token) return;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const res = await fetch(`${supabaseUrl}/functions/v1/billing-status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setBillingProvider(data.provider ?? null);
-        }
-      } catch { /* ignore */ }
-    };
-    checkBilling();
-  }, []);
-
   if (isIOS) {
     return (
       <div className="w-full h-full flex items-center justify-center p-8">
@@ -124,7 +110,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     );
   }
 
-  if (billingProvider === 'apple') {
+  if (showAppleBillingNotice) {
     return (
       <div className="w-full h-full flex items-center justify-center p-8">
         <div className="text-center max-w-md">

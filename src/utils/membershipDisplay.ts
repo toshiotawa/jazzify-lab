@@ -20,6 +20,20 @@ export function isBillingEntitlementPremium(payload: BillingStatusPayload): bool
 }
 
 /**
+ * 課金プロバイダ行が残っていても、利用権が expired なら Web 側のプロバイダ案内は出さない。
+ */
+export function hasNonExpiredBillingProvider(
+  payload: BillingStatusPayload | null,
+  provider: 'apple' | 'lemon',
+): boolean {
+  return (
+    payload !== null &&
+    payload.provider === provider &&
+    payload.entitlement_state !== 'expired'
+  );
+}
+
+/**
  * UI・クライアントゲート用: 課金APIが取れたときはそれを優先し、未取得時は profiles.rank にフォールバックする。
  */
 export function isPremiumForDisplay(
