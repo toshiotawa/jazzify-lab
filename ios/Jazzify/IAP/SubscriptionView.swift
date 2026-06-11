@@ -1,17 +1,12 @@
 import SwiftUI
 import StoreKit
 
-private enum IntroOfferEligibility {
-    case unknown
-    case eligible
-    case notEligible
-}
-
 struct SubscriptionView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var store = StoreManager.shared
     @Environment(\.dismiss) private var dismiss
-    @State private var introOfferEligibility: IntroOfferEligibility = .unknown
+    @State private var introEligibleProductIDs: Set<String> = []
+    @State private var introEligibilityChecked = false
     @State private var selectedPlanID: String?
 
     private var locale: AppLocale { appState.locale }
@@ -30,19 +25,49 @@ struct SubscriptionView: View {
         store.monthlyProduct != nil || store.yearlyProduct != nil
     }
 
-    /// 購入ブロックでトライアル説明を出すか（フッター文言の切替にも使用）
-    private var showIntroPaywallDetails: Bool {
+    private var loadedProducts: [Product] {
+        [store.monthlyProduct, store.yearlyProduct].compactMap { $0 }
+    }
+
+    /// 選択プラン向けにトライアルUIを出すか（当該プランの intro offer × 当該プランの StoreKit 資格）
+    private func showsIntroPaywallDetails(for product: Product) -> Bool {
         guard appState.canShowIAP,
               !appState.isPremium,
-              let product = selectedProduct,
               product.subscription?.introductoryOffer != nil,
-              introOfferEligibility == .eligible
+              introEligibleProductIDs.contains(product.id)
         else { return false }
         return true
     }
 
+    /// 購入ブロックでトライアル説明を出すか（フッター文言の切替にも使用）
+    private var showIntroPaywallDetails: Bool {
+        guard let product = selectedProduct else { return false }
+        return showsIntroPaywallDetails(for: product)
+    }
+
+    private var introEligibilityTaskID: String {
+        "\(store.monthlyProduct?.id ?? "")|\(store.yearlyProduct?.id ?? "")"
+    }
+
     private var isCheckingIntroEligibility: Bool {
-        hasAnyProduct && selectedProduct != nil && introOfferEligibility == .unknown
+        hasAnyProduct && selectedProduct != nil && !introEligibilityChecked
+    }
+
+    /// サブスクリプショングループ内に検証済みトランザクションが存在するか
+    private func hasTransactionHistory(inGroup groupID: String, cache: inout [String: Bool]) async -> Bool {
+        if let cached = cache[groupID] {
+            return cached
+        }
+        var found = false
+        for await result in Transaction.all {
+            guard case .verified(let txn) = result else { continue }
+            if txn.subscriptionGroupID == groupID {
+                found = true
+                break
+            }
+        }
+        cache[groupID] = found
+        return found
     }
 
     var body: some View {
@@ -86,20 +111,36 @@ struct SubscriptionView: View {
             }
             .task {
                 await store.loadProducts()
+                await appState.refreshBillingIfNeeded()
             }
-            .task(id: "\(store.monthlyProduct?.id ?? "")|\(store.yearlyProduct?.id ?? "")") {
-                introOfferEligibility = .unknown
-                let product = store.yearlyProduct ?? store.monthlyProduct
-                guard let product, let sub = product.subscription else {
-                    introOfferEligibility = .notEligible
+            .task(id: introEligibilityTaskID) {
+                introEligibilityChecked = false
+                introEligibleProductIDs = []
+                await appState.refreshBillingIfNeeded()
+                guard !loadedProducts.isEmpty else {
+                    introEligibilityChecked = true
+                    ensureDefaultPlanSelection()
                     return
                 }
-                guard sub.introductoryOffer != nil else {
-                    introOfferEligibility = .notEligible
-                    return
+                var groupHistoryCache: [String: Bool] = [:]
+                var eligibleIDs: Set<String> = []
+                for product in loadedProducts {
+                    guard let sub = product.subscription,
+                          sub.introductoryOffer != nil
+                    else { continue }
+                    var eligible = await sub.isEligibleForIntroOffer
+                    if !eligible {
+                        // isEligibleForIntroOffer の偽陰性対策: グループ履歴ゼロなら eligible
+                        eligible = !(await hasTransactionHistory(
+                            inGroup: sub.subscriptionGroupID,
+                            cache: &groupHistoryCache
+                        ))
+                    }
+                    guard eligible else { continue }
+                    eligibleIDs.insert(product.id)
                 }
-                let eligible = await sub.isEligibleForIntroOffer
-                introOfferEligibility = eligible ? .eligible : .notEligible
+                introEligibleProductIDs = eligibleIDs
+                introEligibilityChecked = true
                 ensureDefaultPlanSelection()
             }
         }
@@ -588,7 +629,18 @@ struct SubscriptionView: View {
                             .foregroundStyle(Self.paywallAccent)
                             .cornerRadius(4)
                     }
-                } else {
+                }
+
+                if showsIntroPaywallDetails(for: product),
+                   let offer = product.subscription?.introductoryOffer {
+                    Text(introTrialBadge(offer))
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.2))
+                        .foregroundStyle(.green)
+                        .cornerRadius(4)
+                } else if !isYearly {
                     Text(locale == .ja ? "いつでも解約できます" : "Cancel anytime")
                         .font(.caption)
                         .foregroundStyle(.gray)
@@ -811,6 +863,38 @@ struct SubscriptionView: View {
             return "\(displayPrice)/year. Cancel anytime in the App Store."
         default:
             return "\(displayPrice)/month. Cancel anytime in the App Store."
+        }
+    }
+
+    /// プランカード用の短いトライアル表記（例: 7日間無料）
+    private func introTrialBadge(_ offer: Product.SubscriptionOffer) -> String {
+        let unit = offer.period.unit
+        let value = offer.period.value
+        if locale == .ja {
+            switch unit {
+            case .day:
+                return "\(value)日間無料"
+            case .week:
+                return value == 1 ? "1週間無料" : "\(value)週間無料"
+            case .month:
+                return value == 1 ? "1か月無料" : "\(value)か月無料"
+            case .year:
+                return value == 1 ? "1年無料" : "\(value)年無料"
+            @unknown default:
+                return "無料トライアル"
+            }
+        }
+        switch unit {
+        case .day:
+            return value == 1 ? "1-day free" : "\(value)-day free"
+        case .week:
+            return value == 1 ? "1-week free" : "\(value)-week free"
+        case .month:
+            return value == 1 ? "1-month free" : "\(value)-month free"
+        case .year:
+            return value == 1 ? "1-year free" : "\(value)-year free"
+        @unknown default:
+            return "Free trial"
         }
     }
 
