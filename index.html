@@ -97,8 +97,13 @@
   <link rel="preload" as="image" href="/newLP/hero-poster.webp" type="image/webp" media="(min-width: 768px)" fetchpriority="high">
   <link rel="preload" href="/fonts/lp/space-grotesk-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/lp/space-grotesk-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/lp/zen-kaku-gothic-new-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/lp/zen-kaku-gothic-new-japanese-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/lp/zen-kaku-gothic-new-japanese-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 
-  <!-- LP: ローディングオーバーレイを即時非表示（静的シェルを LCP に使う） -->
+  <!-- Self-hosted fonts (Zen Kaku + Space Grotesk) -->
+  <link rel="stylesheet" href="/fonts/lp/zen-kaku-font-faces.css">
+  
   <script>
     (function () {
       var path = location.pathname;
@@ -108,12 +113,6 @@
     })();
   </script>
 
-  <!-- Zen Kaku (non-blocking, optional). Space Grotesk is self-hosted in landing.css -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&display=optional" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&display=optional" rel="stylesheet"></noscript>
-  
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#0f0f23" />
   <meta name="apple-mobile-web-app-capable" content="yes" />

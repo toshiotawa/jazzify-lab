@@ -1,5 +1,5 @@
 [build]
-  command = "(npm ci --no-audit --no-fund || (sleep 10 && npm ci --no-audit --no-fund)) && npm run build"
+  command = "(npm ci --no-audit --no-fund || (sleep 10 && npm ci --no-audit --no-fund)) && npm run subset-lp-fonts && npm run build"
   publish = "dist"
   
 [build.environment]
@@ -11,7 +11,7 @@
 
 # ステージングブランチ用の設定
 [context.stg]
-  command = "(npm ci --no-audit --no-fund || (sleep 10 && npm ci --no-audit --no-fund)) && npm run build"
+  command = "(npm ci --no-audit --no-fund || (sleep 10 && npm ci --no-audit --no-fund)) && npm run subset-lp-fonts && npm run build"
   
 [context.stg.environment]
   NODE_ENV = "staging"
