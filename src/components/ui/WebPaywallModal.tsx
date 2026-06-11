@@ -1,6 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { FaTimes } from 'react-icons/fa';
+import {
+  FaTimes,
+  FaMusic,
+  FaArrowRight,
+  FaCheck,
+  FaCalendarAlt,
+  FaCrown,
+} from 'react-icons/fa';
 import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
 import { useAuthStore } from '@/stores/authStore';
 import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
@@ -74,6 +81,34 @@ const COPY = {
   },
 } as const;
 
+interface SavingsBadgeProps {
+  label: string;
+}
+
+const SavingsBadge: React.FC<SavingsBadgeProps> = ({ label }) => (
+  <span className="inline-flex rounded-full border border-amber-500/45 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200">
+    {label}
+  </span>
+);
+
+interface PriceRowProps {
+  icon: React.ReactNode;
+  label: string;
+  sublabel?: string;
+}
+
+const PriceRow: React.FC<PriceRowProps> = ({ icon, label, sublabel }) => (
+  <div className="flex items-start gap-3">
+    <span className="mt-0.5 shrink-0 text-gray-400">{icon}</span>
+    <div>
+      <p className="text-sm font-medium text-gray-100">{label}</p>
+      {sublabel !== undefined && (
+        <p className="text-xs text-gray-400 mt-0.5">{sublabel}</p>
+      )}
+    </div>
+  </div>
+);
+
 const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy }) => {
   const { profile } = useAuthStore();
   const [loading, setLoading] = useState(false);
@@ -126,96 +161,130 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
       <button
         type="button"
         aria-label={copy.close}
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900 p-6 text-white shadow-2xl my-auto"
+        className="relative w-full max-w-md rounded-2xl border border-amber-500/35 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 p-6 text-white shadow-2xl shadow-amber-950/25 my-auto"
       >
         <button
           type="button"
           aria-label={copy.close}
-          className="absolute top-3 right-3 p-1.5 rounded-full text-gray-400 hover:text-white hover:bg-slate-700 transition-colors"
+          className="absolute top-3 right-3 p-1.5 rounded-full text-gray-500 hover:text-gray-300 hover:bg-slate-800/80 transition-colors"
           onClick={onClose}
         >
-          <FaTimes className="w-4 h-4" />
+          <FaTimes className="w-3.5 h-3.5" />
         </button>
 
-        <div className="mb-5 pt-2">
+        <div className="flex justify-center mb-4 pt-1">
+          <div className="relative">
+            <div className="flex items-center justify-center w-11 h-11 rounded-full bg-amber-500/15 border border-amber-500/35">
+              <FaMusic className="text-amber-400 text-lg" aria-hidden="true" />
+            </div>
+            <span
+              className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-300/90"
+              aria-hidden="true"
+            />
+            <span
+              className="absolute top-0.5 -left-1 w-1 h-1 rounded-full bg-amber-200/70"
+              aria-hidden="true"
+            />
+            <span
+              className="absolute -bottom-0.5 right-0 w-1 h-1 rounded-full bg-orange-300/60"
+              aria-hidden="true"
+            />
+          </div>
+        </div>
+
+        <div className="text-center mb-5">
           <h3 className="text-xl font-bold leading-snug">{copy.headline}</h3>
           <p className="text-sm text-gray-400 mt-2 leading-relaxed">{copy.subheadline}</p>
         </div>
 
-        <ul className="space-y-2 mb-5 text-sm text-gray-200 list-disc list-inside">
+        <ul className="space-y-3 mb-5">
           {copy.features.map((line) => (
-            <li key={line}>{line}</li>
+            <li key={line} className="flex items-start gap-3 text-sm text-gray-200">
+              <span className="mt-0.5 flex shrink-0 items-center justify-center w-5 h-5 rounded-full bg-amber-500/15 border border-amber-500/40">
+                <FaCheck className="w-2.5 h-2.5 text-amber-400" aria-hidden="true" />
+              </span>
+              <span className="leading-relaxed">{line}</span>
+            </li>
           ))}
         </ul>
 
-        <div className="mb-5 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 space-y-2">
+        <div className="mb-5 rounded-xl border border-slate-600/80 bg-slate-800/40 px-4 py-3.5 space-y-3">
           {isEnglishCopy && usdRate !== null ? (
             <>
-              <div>
-                <p className="text-sm font-medium text-gray-200">{COPY.en.priceMonthly}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {formatUsdReferenceLine(PRICING_JPY.monthly, usdRate)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-200">{COPY.en.priceYearly}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {formatUsdReferenceLine(PRICING_JPY.yearly, usdRate)}
-                </p>
-              </div>
-              <p className="text-sm text-amber-200/90">
+              <PriceRow
+                icon={<FaCalendarAlt className="w-4 h-4" aria-hidden="true" />}
+                label={COPY.en.priceMonthly}
+                sublabel={formatUsdReferenceLine(PRICING_JPY.monthly, usdRate)}
+              />
+              <PriceRow
+                icon={<FaCrown className="w-4 h-4 text-amber-400/90" aria-hidden="true" />}
+                label={COPY.en.priceYearly}
+                sublabel={formatUsdReferenceLine(PRICING_JPY.yearly, usdRate)}
+              />
+              <p className="pl-7 text-xs text-gray-400">
                 {COPY.en.priceYearlyPerMonth}
-                <span className="font-normal text-amber-200/80">
-                  {` ${formatUsdReferenceSuffix(PRICING_JPY.yearlyPerMonth, usdRate)}`}
-                </span>
+                {` ${formatUsdReferenceSuffix(PRICING_JPY.yearlyPerMonth, usdRate)}`}
               </p>
-              <p className="text-sm text-amber-200/90">
-                {COPY.en.priceSavingsAmount}
-                <span className="font-normal text-amber-200/80">
-                  {` ${formatUsdReferenceSuffix(PRICING_JPY.yearlySavings, usdRate)}`}
-                </span>
-              </p>
-              <p className="text-sm text-amber-200/90">{COPY.en.priceSavingsMonths}</p>
+              <div className="flex flex-wrap gap-2 pl-7">
+                <SavingsBadge
+                  label={`${COPY.en.priceSavingsAmount} ${formatUsdReferenceSuffix(PRICING_JPY.yearlySavings, usdRate)}`}
+                />
+                <SavingsBadge label={COPY.en.priceSavingsMonths} />
+              </div>
             </>
           ) : (
             <>
-              <p className="text-sm font-medium text-gray-200">{COPY.ja.priceMonthly}</p>
-              <p className="text-sm font-medium text-gray-200">{COPY.ja.priceYearly}</p>
-              <p className="text-sm text-amber-200/90">{COPY.ja.priceSavingsAmount}</p>
-              <p className="text-sm text-amber-200/90">{COPY.ja.priceSavingsMonths}</p>
+              <PriceRow
+                icon={<FaCalendarAlt className="w-4 h-4" aria-hidden="true" />}
+                label={COPY.ja.priceMonthly}
+              />
+              <PriceRow
+                icon={<FaCrown className="w-4 h-4 text-amber-400/90" aria-hidden="true" />}
+                label={COPY.ja.priceYearly}
+              />
+              <div className="flex flex-wrap gap-2 pl-7">
+                <SavingsBadge label={COPY.ja.priceSavingsAmount} />
+                <SavingsBadge label={COPY.ja.priceSavingsMonths} />
+              </div>
             </>
           )}
         </div>
 
         {error && (
-          <p className="text-red-400 text-xs mb-3">{error}</p>
+          <p className="text-red-400 text-xs text-center mb-3">{error}</p>
         )}
 
         <button
           type="button"
-          className="w-full py-3 rounded-xl font-bold text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black transition-all duration-200 shadow-lg hover:shadow-amber-500/30 disabled:opacity-60"
+          className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black transition-all duration-200 shadow-lg shadow-amber-900/30 hover:shadow-amber-500/25 disabled:opacity-60 flex items-center justify-center gap-2"
           onClick={() => void handleCheckout()}
           disabled={loading}
         >
-          {loading ? copy.processing : ctaLabel}
+          <FaMusic className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1 text-center">
+            {loading ? copy.processing : ctaLabel}
+          </span>
+          {!loading && <FaArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />}
         </button>
 
-        <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">{copy.footnote}</p>
+        <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">{copy.footnote}</p>
 
-        <button
-          type="button"
-          className="mt-3 text-xs text-gray-500 underline hover:text-gray-400 transition-colors"
-          onClick={onClose}
-          disabled={loading}
-        >
-          {copy.dismiss}
-        </button>
+        <div className="text-center mt-3">
+          <button
+            type="button"
+            className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+            onClick={onClose}
+            disabled={loading}
+          >
+            {copy.dismiss}
+          </button>
+        </div>
       </div>
     </div>,
     document.body,
