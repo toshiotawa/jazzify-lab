@@ -8,14 +8,14 @@ const FALLBACK_JPY_TO_USD_RATE = 0.0063;
 
 /**
  * Returns an approximate JPY→USD rate for display on the global landing page.
- * Fetches the live rate once on mount; while loading (or on failure) the static
- * fallback is returned. Returns null when disabled (Japanese audience).
+ * Fetches the live rate once when enabled and fetchReady; while loading (or on failure)
+ * the static fallback is returned. Returns null when disabled (Japanese audience).
  */
-export const useJpyUsdRate = (enabled: boolean): number | null => {
+export const useJpyUsdRate = (enabled: boolean, fetchReady = true): number | null => {
   const [liveRate, setLiveRate] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !fetchReady) {
       return undefined;
     }
     let cancelled = false;
@@ -38,7 +38,7 @@ export const useJpyUsdRate = (enabled: boolean): number | null => {
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, fetchReady]);
 
   if (!enabled) {
     return null;

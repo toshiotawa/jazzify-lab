@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getLandingCopy, type LandingPricingPlan } from '@/components/landing/landingCopy';
 import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
@@ -100,10 +100,28 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized, usdRate }) 
 export const LpPricing: React.FC = () => {
   const isEnglish = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglish);
-  const usdRate = useJpyUsdRate(isEnglish);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [fetchRate, setFetchRate] = useState(false);
+  const usdRate = useJpyUsdRate(isEnglish, fetchRate);
+
+  useEffect(() => {
+    const target = sectionRef.current;
+    if (!target || !isEnglish) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setFetchRate(true);
+        observer.disconnect();
+      }
+    }, { threshold: 0, rootMargin: '0px' });
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isEnglish]);
 
   return (
     <section
+      ref={sectionRef}
       id="pricing"
       className="py-20 sm:py-28 scroll-mt-20"
       style={{ background: 'var(--lp-surface)' }}

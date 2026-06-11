@@ -5,18 +5,30 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 interface ModeBlockProps {
   mode: LandingModeItem;
   imageSrc: string;
+  imageWidth: number;
+  imageHeight: number;
   imageAnimate: 'slide-left' | 'slide-right';
   reversed: boolean;
 }
 
-const ModeBlock: React.FC<ModeBlockProps> = ({ mode, imageSrc, imageAnimate, reversed }) => (
+const ModeBlock: React.FC<ModeBlockProps> = ({
+  mode,
+  imageSrc,
+  imageWidth,
+  imageHeight,
+  imageAnimate,
+  reversed,
+}) => (
   <div className="grid md:grid-cols-2 gap-8 items-center">
     <div className={`lp-shot-stage ${reversed ? 'md:order-2' : ''}`} data-animate={imageAnimate}>
       <div className="lp-shot">
         <img
           src={imageSrc}
           alt={mode.imageAlt}
+          width={imageWidth}
+          height={imageHeight}
           loading="lazy"
+          decoding="async"
           className="w-full h-auto block"
         />
       </div>
@@ -42,24 +54,32 @@ export const LpModes: React.FC = () => {
   const modes: Array<{
     mode: LandingModeItem;
     imageSrc: string;
+    imageWidth: number;
+    imageHeight: number;
     imageAnimate: 'slide-left' | 'slide-right';
     reversed: boolean;
   }> = [
     {
       mode: copy.modes.chordRun,
       imageSrc: '/newLP/chord-run.webp',
+      imageWidth: 1280,
+      imageHeight: 952,
       imageAnimate: 'slide-right',
       reversed: false,
     },
     {
       mode: copy.modes.survival,
       imageSrc: '/newLP/survival.webp',
+      imageWidth: 1280,
+      imageHeight: 733,
       imageAnimate: 'slide-left',
       reversed: true,
     },
     {
       mode: copy.modes.battle,
       imageSrc: '/newLP/battle.webp',
+      imageWidth: 1280,
+      imageHeight: 726,
       imageAnimate: 'slide-right',
       reversed: false,
     },
@@ -81,11 +101,13 @@ export const LpModes: React.FC = () => {
         </h2>
 
         <div className="space-y-16 sm:space-y-20 max-w-5xl mx-auto">
-          {modes.map(({ mode, imageSrc, imageAnimate, reversed }) => (
+          {modes.map(({ mode, imageSrc, imageWidth, imageHeight, imageAnimate, reversed }) => (
             <ModeBlock
               key={mode.title}
               mode={mode}
               imageSrc={imageSrc}
+              imageWidth={imageWidth}
+              imageHeight={imageHeight}
               imageAnimate={imageAnimate}
               reversed={reversed}
             />

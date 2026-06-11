@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { getWindow } from '@/platform';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { LpHeader } from '@/components/landing/sections/LpHeader';
 import { LpHero } from '@/components/landing/sections/LpHero';
+import { LpDemoPlaceholder } from '@/components/landing/sections/LpDemoPlaceholder';
 import { LpPain } from '@/components/landing/sections/LpPain';
 import { LpSolution } from '@/components/landing/sections/LpSolution';
 import { LpMainQuest } from '@/components/landing/sections/LpMainQuest';
@@ -35,7 +36,6 @@ const DemoUnavailable: React.FC = () => {
   );
 };
 
-// チャンク読み込み失敗（オフライン・デプロイ直後等）でLP全体が落ちないようフォールバックする
 const LpDemo = React.lazy(
   () => import('@/components/landing/sections/LpDemo')
     .then((m) => ({ default: m.LpDemo }))
@@ -44,30 +44,14 @@ const LpDemo = React.lazy(
 
 const LandingPage: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const demoSentinelRef = useRef<HTMLDivElement | null>(null);
   const [shouldRenderDemo, setShouldRenderDemo] = useState(false);
   const isEnglishLanding = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglishLanding);
 
-  useEffect(() => {
-    const root = scrollRef.current;
-    const target = demoSentinelRef.current;
-    if (!root || !target || shouldRenderDemo) return;
+  const activateDemo = useCallback(() => {
+    setShouldRenderDemo(true);
+  }, []);
 
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setShouldRenderDemo(true);
-        observer.disconnect();
-      }
-    }, { root, threshold: 0, rootMargin: '600px 0px' });
-
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [shouldRenderDemo]);
-
-  // data-animate 要素に is-inview を付与（スクロール連動アニメーション）
-  // LpDemo は lazy + Suspense のため、初回 effect 時点では DOM に無いことがある。
-  // MutationObserver で後から挿入された [data-animate] も登録しないと opacity:0 のまま残る。
   useEffect(() => {
     const scrollRoot = scrollRef.current;
     if (!scrollRoot) return;
@@ -82,7 +66,7 @@ const LandingPage: React.FC = () => {
           }
         });
       },
-      { root: scrollRoot, threshold: 0.05, rootMargin: '0px 0px -5% 0px' }
+      { root: scrollRoot, threshold: 0.05, rootMargin: '0px 0px -5% 0px' },
     );
 
     const scanAndObserve = () => {
@@ -146,7 +130,6 @@ const LandingPage: React.FC = () => {
         <LpHero />
 
         <div id="demo" className="scroll-mt-20 lp-dark" style={{ background: 'var(--lp-night-2)' }}>
-          <div ref={demoSentinelRef} />
           {shouldRenderDemo ? (
             <React.Suspense
               fallback={(
@@ -158,13 +141,7 @@ const LandingPage: React.FC = () => {
               <LpDemo />
             </React.Suspense>
           ) : (
-            <section className="py-16">
-              <div className="lp-container">
-                <div className="lp-card p-8 text-center" style={{ color: 'var(--lp-ink-muted)' }}>
-                  {copy.demo.lazyPlaceholder}
-                </div>
-              </div>
-            </section>
+            <LpDemoPlaceholder onActivate={activateDemo} />
           )}
         </div>
 

@@ -22,6 +22,7 @@
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist node_modules/.vite",
     "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install",
+    "subset-lp-fonts": "node ./scripts/subset-lp-fonts.mjs",
     "survival-voicing": "node ./scripts/survival-progression-voicings.mjs",
     "verify:node": "node ./scripts/ensure-node.mjs",
     "wrangler:r2": "node ./scripts/ensure-node.mjs && node ./scripts/wrangler-with-r2-env.mjs"
@@ -62,6 +63,8 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@fontsource/space-grotesk": "^5.2.10",
+    "@fontsource/zen-kaku-gothic-new": "^5.2.7",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@types/react": "^18.2.43",

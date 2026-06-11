@@ -1,9 +1,8 @@
 import React, { Suspense, useCallback, useRef, useState } from 'react';
-import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { LpMidiDeviceSelector } from '@/components/landing/LpMidiDeviceSelector';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getLandingCopy } from '@/components/landing/landingCopy';
-import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 
 const OnboardingExperience = React.lazy(
   () => import('@/components/onboarding/OnboardingExperience'),
@@ -44,7 +43,9 @@ export const LpDemo: React.FC = () => {
   }, []);
 
   const openDemo = useCallback(() => {
-    void unlockTutorialAudio().catch(() => { /* autoplay policy */ });
+    void import('@/components/survival/tutorial/tutorialAudioUnlock')
+      .then(({ unlockTutorialAudio }) => unlockTutorialAudio())
+      .catch(() => { /* autoplay policy */ });
     setIsOpen(true);
     try {
       document.body.style.overflow = 'hidden';
@@ -117,14 +118,22 @@ export const LpDemo: React.FC = () => {
             className="relative block w-full group cursor-pointer"
             aria-label={copy.demo.startButton}
           >
-            <img
-              src="/newLP/survival-balloon.webp"
-              alt={copy.modes.survival.imageAlt}
-              className="w-full h-auto block"
-              width={1024}
-              height={587}
-              loading="lazy"
-            />
+            <picture>
+              <source
+                srcSet="/newLP/survival-balloon-640.webp"
+                media="(max-width: 767px)"
+                type="image/webp"
+              />
+              <img
+                src="/newLP/survival-balloon.webp"
+                alt={copy.modes.survival.imageAlt}
+                className="w-full h-auto block"
+                width={1024}
+                height={587}
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
             <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(14,22,38,0.35)' }}>
               <span className="lp-btn-gold px-10 py-5 text-lg sm:text-xl shadow-2xl group-hover:scale-105 transition-transform">
                 <svg viewBox="0 0 24 24" className="w-5 h-5 mr-2" fill="currentColor" aria-hidden="true">
@@ -142,7 +151,7 @@ export const LpDemo: React.FC = () => {
                 className="rounded-xl p-4 text-left"
                 style={{ background: 'var(--lp-night)', border: '1px solid var(--lp-line)' }}
               >
-                <MidiDeviceSelector
+                <LpMidiDeviceSelector
                   value={settings.selectedMidiDevice}
                   onChange={(id) => updateSettings({ selectedMidiDevice: id })}
                 />

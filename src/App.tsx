@@ -52,6 +52,7 @@ const App: React.FC = () => {
     [pathname],
   );
   const shouldLoadFontAwesome = pathname !== '/';
+  const shouldLoadGameFonts = pathname !== '/';
 
   useEffect(() => {
     if (!shouldBootstrapAuth || authReady || authBootstrapStartedRef.current) {
@@ -95,12 +96,20 @@ const App: React.FC = () => {
 
   return (
     <>
-      {shouldLoadFontAwesome && (
+      {(shouldLoadFontAwesome || shouldLoadGameFonts) && (
         <Helmet>
-          <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-          />
+          {shouldLoadFontAwesome && (
+            <link
+              rel="stylesheet"
+              href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+            />
+          )}
+          {shouldLoadGameFonts && (
+            <link
+              rel="stylesheet"
+              href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap"
+            />
+          )}
         </Helmet>
       )}
       <Suspense

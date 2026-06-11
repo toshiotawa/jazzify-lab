@@ -69,12 +69,22 @@ export const LpMainQuest: React.FC = () => {
 
           <div className="lp-shot-stage" data-animate="from-behind">
             <div className="lp-shot">
-              <img
-                src="/newLP/main-quest.webp"
-                alt={copy.mainQuest.imageAlt}
-                loading="lazy"
-                className="w-full h-auto block"
-              />
+              <picture>
+                <source
+                  srcSet="/newLP/main-quest-520.webp"
+                  media="(max-width: 767px)"
+                  type="image/webp"
+                />
+                <img
+                  src="/newLP/main-quest.webp"
+                  alt={copy.mainQuest.imageAlt}
+                  width={1280}
+                  height={564}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-auto block"
+                />
+              </picture>
             </div>
           </div>
         </div>

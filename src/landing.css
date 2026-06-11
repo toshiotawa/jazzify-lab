@@ -1,3 +1,20 @@
+/* LP fonts — Space Grotesk self-hosted (latin); Zen Kaku via Google optional in index.html */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/lp/space-grotesk-latin-600-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/lp/space-grotesk-latin-700-normal.woff2') format('woff2');
+}
+
 /* LP specific styles (LandingPage) — 2026 redesign v2: Night Jazz Arcade */
 .lp-root {
   font-family: var(--lp-font-body);
@@ -434,6 +451,17 @@
 
 [data-animate] {
   will-change: transform, opacity, filter;
+}
+
+/* ヒーローは LCP 候補のため初期非表示アニメーションを適用しない */
+.hero-bg [data-animate] {
+  transform: none;
+  opacity: 1;
+  filter: none;
+}
+
+.lp-hero-media {
+  position: relative;
 }
 
 /* 1) 後ろから出てくる（縮小+ぼかし→等倍） */

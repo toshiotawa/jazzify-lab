@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LpAppStoreButton } from '@/components/landing/LpAppStoreButton';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+
+const HERO_POSTER_SRC = '/newLP/hero-poster.webp';
+const HERO_POSTER_MOBILE_SRC = '/newLP/hero-poster-640.webp';
+const HERO_VIDEO_WEBM = '/newLP/hero.webm';
+const HERO_VIDEO_MP4 = '/newLP/hero.mp4';
 
 const scrollToDemo = (): void => {
   document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -10,6 +15,53 @@ const scrollToDemo = (): void => {
 
 export const LpHero: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoActive, setVideoActive] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let cancelled = false;
+
+    const injectSourcesAndPlay = (): void => {
+      if (cancelled || video.querySelector('source')) return;
+
+      const webm = document.createElement('source');
+      webm.src = HERO_VIDEO_WEBM;
+      webm.type = 'video/webm';
+      const mp4 = document.createElement('source');
+      mp4.src = HERO_VIDEO_MP4;
+      mp4.type = 'video/mp4';
+      video.appendChild(webm);
+      video.appendChild(mp4);
+      video.load();
+      void video.play().then(() => {
+        if (!cancelled) setVideoActive(true);
+      }).catch(() => { /* autoplay policy */ });
+    };
+
+    const scheduleLoad = (): void => {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(injectSourcesAndPlay, { timeout: 4000 });
+      } else {
+        setTimeout(injectSourcesAndPlay, 2000);
+      }
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        scheduleLoad();
+        observer.disconnect();
+      }
+    }, { threshold: 0, rootMargin: '0px' });
+
+    observer.observe(video);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, []);
 
   return (
     <section className="lp-dark hero-bg pt-28 pb-20 sm:pt-36 sm:pb-28">
@@ -52,19 +104,34 @@ export const LpHero: React.FC = () => {
 
         <div className="md:col-span-6 lg:col-span-7">
           <div className="lp-shot-stage" data-animate="from-behind">
-            <div className="lp-shot">
+            <div className="lp-shot lp-hero-media">
+              <picture>
+                <source
+                  srcSet={HERO_POSTER_MOBILE_SRC}
+                  media="(max-width: 767px)"
+                  type="image/webp"
+                />
+                <img
+                  src={HERO_POSTER_SRC}
+                  alt={copy.hero.videoAlt}
+                  width={1280}
+                  height={952}
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
+                  className={`w-full h-auto block transition-opacity duration-300 ${videoActive ? 'opacity-0 absolute inset-0 pointer-events-none' : ''}`}
+                />
+              </picture>
               <video
-                autoPlay
+                ref={videoRef}
                 muted
                 loop
                 playsInline
-                poster="/newLP/hero-poster.webp"
-                className="w-full h-auto block"
+                preload="none"
+                poster={HERO_POSTER_SRC}
+                className={`w-full h-auto block ${videoActive ? '' : 'opacity-0 absolute inset-0 pointer-events-none'}`}
                 aria-label={copy.hero.videoAlt}
-              >
-                <source src="/newLP/hero.webm" type="video/webm" />
-                <source src="/newLP/hero.mp4" type="video/mp4" />
-              </video>
+              />
             </div>
             <span className="lp-shot-note absolute -bottom-3.5 left-5 sm:left-8">
               {copy.hero.videoBadge}

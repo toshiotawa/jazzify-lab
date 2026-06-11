@@ -60,7 +60,8 @@ export default defineConfig(({ mode }) => {
               'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
               'supabase': ['@supabase/supabase-js'],
               'stripe': ['@stripe/stripe-js'],
-              'music': ['opensheetmusicdisplay', 'tonal']
+              'tonal': ['tonal'],
+              'osmd': ['opensheetmusicdisplay'],
             },
           chunkFileNames: 'assets/[name]-[hash].js',
           entryFileNames: 'assets/[name]-[hash].js',

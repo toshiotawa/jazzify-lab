@@ -24,11 +24,12 @@ export const LpHeader: React.FC = () => {
       <div className="lp-container py-3 flex items-center justify-between relative">
         <div className="flex items-center gap-2">
           <img
-            src="/default_avater/default-avater.webp"
+            src="/default_avater/default-avater-64.webp"
             alt={copy.header.logoAlt}
             width={32}
             height={32}
             className="w-8 h-8 rounded-full"
+            decoding="async"
           />
           <span className="font-bold text-lg" style={{ color: 'var(--lp-ink)' }}>
             Jazzify

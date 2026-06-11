@@ -34,12 +34,22 @@ export const LpCourses: React.FC = () => {
 
         <div className="lp-shot-stage max-w-3xl mx-auto mb-12" data-animate="from-behind">
           <div className="lp-shot">
-            <img
-              src="/newLP/courses.webp"
-              alt={copy.courses.imageAlt}
-              loading="lazy"
-              className="w-full h-auto block"
-            />
+            <picture>
+              <source
+                srcSet="/newLP/courses-900.webp"
+                media="(max-width: 1023px)"
+                type="image/webp"
+              />
+              <img
+                src="/newLP/courses.webp"
+                alt={copy.courses.imageAlt}
+                width={1280}
+                height={674}
+                loading="lazy"
+                decoding="async"
+                className="w-full h-auto block"
+              />
+            </picture>
           </div>
         </div>
 

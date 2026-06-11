@@ -93,13 +93,26 @@
   </script>
   
   <!-- LCP image preload -->
-  <link rel="preload" as="image" href="/newLP/hero-poster.webp" type="image/webp">
-  
-  <!-- Fonts (non-blocking) -->
+  <link rel="preload" as="image" href="/newLP/hero-poster-640.webp" type="image/webp" media="(max-width: 767px)" fetchpriority="high">
+  <link rel="preload" as="image" href="/newLP/hero-poster.webp" type="image/webp" media="(min-width: 768px)" fetchpriority="high">
+  <link rel="preload" href="/fonts/lp/space-grotesk-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/lp/space-grotesk-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+
+  <!-- LP: ローディングオーバーレイを即時非表示（静的シェルを LCP に使う） -->
+  <script>
+    (function () {
+      var path = location.pathname;
+      if (path === '/' || path === '') {
+        document.documentElement.classList.add('lp-first-paint');
+      }
+    })();
+  </script>
+
+  <!-- Zen Kaku (non-blocking, optional). Space Grotesk is self-hosted in landing.css -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"></noscript>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&display=optional" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&display=optional" rel="stylesheet"></noscript>
   
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#0f0f23" />
@@ -124,6 +137,10 @@
     .hero-bg{background:radial-gradient(ellipse 50% 40% at 15% 20%,rgba(34,87,197,.06),transparent),radial-gradient(ellipse 40% 35% at 85% 80%,rgba(232,168,33,.05),transparent),linear-gradient(180deg,#ffffff,#f4f6fa)}
     .lp-btn-gold{display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f3b62f,#e8a821);color:#2a1d04;font-weight:700;border:none;cursor:pointer;border-radius:9999px}
     
+    html.lp-first-paint #loading {
+      display: none !important;
+    }
+
     #loading {
       position: fixed;
       top: 0;
@@ -230,7 +247,10 @@
         </header>
 
         <figure style="margin: 2rem 0;">
-          <img src="/newLP/hero-poster.webp" alt="Jazzify サバイバルモードのプレイ画面" width="1280" height="952" loading="eager" decoding="async" fetchpriority="high" style="max-width:100%;height:auto;border-radius:12px;border:1px solid #d8e0ec;">
+          <picture>
+            <source srcset="/newLP/hero-poster-640.webp" media="(max-width: 767px)" type="image/webp">
+            <img src="/newLP/hero-poster.webp" alt="Jazzify サバイバルモードのプレイ画面" width="1280" height="952" loading="eager" decoding="async" fetchpriority="high" style="max-width:100%;height:auto;border-radius:12px;border:1px solid #d8e0ec;">
+          </picture>
         </figure>
 
         <section id="features" aria-labelledby="pain-heading">
