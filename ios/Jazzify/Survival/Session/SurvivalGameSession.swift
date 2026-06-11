@@ -35,6 +35,8 @@ final class SurvivalGameSession: SurvivalPlaySession {
     private let randomChordOverrides: [String: SurvivalResolvedChord]
     private let supabase = SupabaseService.shared
     private var uiForward: AnyCancellable?
+    /// `start()` 内の非同期フレーズ取得タスク。dispose 後に audio/gameLoop を触らないよう保持して cancel する。
+    private var startTask: Task<Void, Never>?
 
     init(
         stage: SurvivalStageDefinition,
@@ -100,6 +102,8 @@ final class SurvivalGameSession: SurvivalPlaySession {
 
     func dispose() {
         guard state != .disposed else { return }
+        startTask?.cancel()
+        startTask = nil
         uiForward?.cancel()
         uiForward = nil
         stopAudio()
@@ -124,6 +128,8 @@ final class SurvivalGameSession: SurvivalPlaySession {
 
     func start() {
         guard state != .disposed else { return }
+        startTask?.cancel()
+        startTask = nil
         let playBackgroundMusic = !gameLoop.runtime.scenario.disableSurvivalBgm
         if gameLoop.isPhraseMode {
             if let inlineComposite = inlineCompositePhrases, inlineComposite.count >= 2 {
@@ -140,7 +146,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                 }
                 audioController.start(playBackgroundMusic: playBackgroundMusic)
             } else if stage.isCompositePhraseBossStage, let nums = stage.compositePhraseSources, !nums.isEmpty {
-                Task {
+                startTask = Task {
                     var collected: [SurvivalPhraseDefinition] = []
                     collected.reserveCapacity(nums.count)
                     for n in nums {
@@ -153,6 +159,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                         }
                         collected.append(phrase)
                     }
+                    guard !Task.isCancelled, state != .disposed else { return }
                     let kf = stage.compositePhraseKeyFifths ?? 0
                     if collected.count == nums.count, !collected.isEmpty {
                         gameLoop.loadCompositePhraseRuntime(sourcePhrases: collected, keyFifths: kf)
@@ -175,11 +182,13 @@ final class SurvivalGameSession: SurvivalPlaySession {
                 }
                 audioController.start(playBackgroundMusic: playBackgroundMusic)
             } else {
-                Task {
-                    if let phrase = try? await supabase.fetchSurvivalPhrase(
+                startTask = Task {
+                    let phrase = try? await supabase.fetchSurvivalPhrase(
                         mapCategory: stage.mapCategory,
                         stageNumber: stage.stageNumber
-                    ) {
+                    )
+                    guard !Task.isCancelled, state != .disposed else { return }
+                    if let phrase {
                         gameLoop.loadPhraseDefinition(phrase)
                         viewModel.syncPhraseStaff(from: gameLoop)
                         viewModel.syncKeyboardScrollAnchor(from: gameLoop)

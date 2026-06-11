@@ -1033,6 +1033,7 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var audioStartupTask: Task<Void, Never>?
     @State private var mapLoadTask: Task<Void, Never>?
     @State private var lifecycleID = UUID()
+    @State private var isViewActive = false
     @State private var frameTick: UInt = 0
     @StateObject private var frameClock = SurvivalCodeRunFrameClock()
     @StateObject private var midiManager = MIDIManager.shared
@@ -1104,12 +1105,14 @@ private struct SurvivalCodeRunGameContent: View {
             tick(deltaTime: dt)
         }
         .onAppear {
+            isViewActive = true
             let id = UUID()
             lifecycleID = id
             OrientationManager.shared.lock(.portrait)
             startAudioAndMidi(lifecycleID: id)
         }
         .onDisappear {
+            isViewActive = false
             lifecycleID = UUID()
             audioStartupTask?.cancel()
             audioStartupTask = nil
@@ -1498,7 +1501,7 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func tick(deltaTime: TimeInterval) {
-        guard status == .playing else { return }
+        guard isViewActive, status == .playing else { return }
         let dt = min(1.0 / 20.0, max(0, deltaTime))
         elapsed += dt
         let step = CGFloat(dt * 60)
@@ -2235,6 +2238,11 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
             rescheduleBlockBossIntroTimedLinesIfEligible()
             reschedulePlayDialogueTimedLinesIfEligible()
         }
+        .onDisappear {
+            stageIntroUIModel.cancelAll()
+            blockBossIntroUIModel.cancelAll()
+            playDialogueUIModel.cancelAll()
+        }
     }
 
     private func reschedulePlayDialogueTimedLinesIfEligible() {
@@ -2708,6 +2716,11 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
         coordinator.detach()
+        // View 破棄後も SpriteKit/Metal の描画ループが走り続けて
+        // teardown と競合しないよう、scene を確実に止めてから外す。
+        uiView.isPaused = true
+        uiView.scene?.removeAllActions()
+        uiView.presentScene(nil)
     }
 
     final class Coordinator {
