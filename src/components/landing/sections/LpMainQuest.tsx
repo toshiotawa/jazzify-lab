@@ -24,24 +24,20 @@ export const LpMainQuest: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
 
   return (
-    <section className="py-20 sm:py-28 scroll-mt-20">
+    <section className="py-16 sm:py-24 scroll-mt-20">
       <div className="lp-container">
-        <div className="text-center mb-4">
-          <span className="lp-eyebrow" data-animate="from-behind">
-            {copy.mainQuest.eyebrow}
-          </span>
-        </div>
-        <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center mb-16"
-          data-animate="from-behind heading-underline"
-        >
-          {copy.mainQuest.heading}
-        </h2>
-
         <div className="grid md:grid-cols-2 gap-10 items-center max-w-5xl mx-auto">
           <div>
+            <div className="lp-heading-tick" />
+            <h2
+              className="lp-display text-2xl sm:text-3xl md:text-4xl"
+              data-animate="from-behind"
+            >
+              {copy.mainQuest.heading}
+            </h2>
+
             <div
-              className="space-y-4 mb-8"
+              className="mt-8 space-y-4 mb-8"
               style={{ color: 'var(--lp-ink-muted)' }}
               data-animate="text-up"
             >
@@ -72,13 +68,15 @@ export const LpMainQuest: React.FC = () => {
             </p>
           </div>
 
-          <div className="lp-shot" data-animate="from-behind">
-            <img
-              src="/newLP/main-quest.webp"
-              alt={copy.mainQuest.imageAlt}
-              loading="lazy"
-              className="w-full h-auto block"
-            />
+          <div className="lp-shot-stage" data-animate="from-behind">
+            <div className="lp-shot">
+              <img
+                src="/newLP/main-quest.webp"
+                alt={copy.mainQuest.imageAlt}
+                loading="lazy"
+                className="w-full h-auto block"
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -26,10 +26,9 @@ export const LpFooter: React.FC = () => {
 
   return (
     <footer
-      className="py-14"
+      className="lp-dark py-14"
       style={{
-        background: 'var(--lp-surface)',
-        borderTop: '1px solid var(--lp-line)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
       }}
     >
       <div className="lp-container">
@@ -43,7 +42,7 @@ export const LpFooter: React.FC = () => {
                 height={32}
                 className="w-8 h-8 rounded-full"
               />
-              <span className="font-bold" style={{ color: 'var(--lp-blue-dark)' }}>
+              <span className="font-bold" style={{ color: 'var(--lp-ink)' }}>
                 Jazzify
               </span>
             </div>
@@ -71,7 +70,7 @@ export const LpFooter: React.FC = () => {
                 <a
                   key={link.id}
                   href={`#${link.id}`}
-                  className="block transition-colors hover:text-[var(--lp-blue)]"
+                  className="block transition-colors hover:text-[var(--lp-gold-deep)]"
                   onClick={(event) => scrollToSection(event, link.id)}
                 >
                   {link.label}
@@ -79,13 +78,13 @@ export const LpFooter: React.FC = () => {
               ))}
               <Link
                 to="/signup"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.signupLink}
               </Link>
               <Link
                 to="/login"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.loginLink}
               </Link>
@@ -97,44 +96,44 @@ export const LpFooter: React.FC = () => {
             <nav className="space-y-2 text-sm text-[var(--lp-ink-muted)]">
               <a
                 href="#faq"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
                 onClick={(event) => scrollToSection(event, 'faq')}
               >
                 {copy.footer.faqLink}
               </a>
               <Link
                 to="/help/ios-midi"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.iosMidiLink}
               </Link>
               <Link
                 to="/help/midi-keyboard-choice"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.midiChoiceLink}
               </Link>
               <Link
                 to="/contact"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.contactLink}
               </Link>
               <Link
                 to="/terms"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.termsLink}
               </Link>
               <Link
                 to="/privacy"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.privacyLink}
               </Link>
               <Link
                 to="/legal/tokushoho"
-                className="block transition-colors hover:text-[var(--lp-blue)]"
+                className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.tokushohoLink}
               </Link>

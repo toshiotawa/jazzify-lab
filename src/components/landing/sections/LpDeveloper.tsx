@@ -7,26 +7,14 @@ export const LpDeveloper: React.FC = () => {
 
   return (
     <section
-      className="py-20 sm:py-28 scroll-mt-20"
+      className="py-16 sm:py-24 scroll-mt-20"
       style={{ background: 'var(--lp-surface)' }}
     >
       <div className="lp-container">
-        <div className="text-center mb-4">
-          <span className="lp-eyebrow" data-animate="from-behind">
-            {copy.developer.eyebrow}
-          </span>
-        </div>
-        <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center mb-16"
-          data-animate="from-behind heading-underline"
-        >
-          {copy.developer.heading}
-        </h2>
-
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-10 items-start">
           <div
             className="w-48 h-60 sm:w-56 sm:h-72 rounded-xl overflow-hidden shrink-0 mx-auto md:mx-0"
-            style={{ border: '1px solid var(--lp-line)' }}
+            style={{ border: '2px solid var(--lp-gold-tint)' }}
           >
             <picture>
               <source srcSet="/profile.webp" type="image/webp" />
@@ -42,6 +30,22 @@ export const LpDeveloper: React.FC = () => {
           </div>
 
           <div className="flex-1">
+            <div className="lp-heading-tick" />
+            <h2
+              className="lp-display text-2xl sm:text-3xl md:text-4xl mb-6"
+              data-animate="from-behind"
+            >
+              {copy.developer.heading}
+            </h2>
+
+            <div className="flex flex-wrap gap-3 mb-6">
+              {copy.developer.stats.map((stat) => (
+                <span key={stat} className="lp-pill-gold lp-pill font-bold">
+                  {stat}
+                </span>
+              ))}
+            </div>
+
             <div
               className="space-y-4"
               style={{ color: 'var(--lp-ink-muted)' }}
@@ -49,14 +53,6 @@ export const LpDeveloper: React.FC = () => {
             >
               {copy.developer.body.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap gap-3 mt-6">
-              {copy.developer.stats.map((stat) => (
-                <span key={stat} className="lp-pill-gold lp-pill font-bold">
-                  {stat}
-                </span>
               ))}
             </div>
 

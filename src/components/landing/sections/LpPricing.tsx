@@ -13,7 +13,7 @@ const CheckIcon: React.FC = () => (
     fill="none"
     aria-hidden="true"
     className="shrink-0"
-    style={{ color: 'var(--lp-blue)' }}
+    style={{ color: 'var(--lp-gold-deep)' }}
   >
     <path
       d="M4 10l4 4 8-8"
@@ -115,11 +115,17 @@ export const LpPricing: React.FC = () => {
           </span>
         </div>
         <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center mb-16"
-          data-animate="from-behind heading-underline"
+          className="lp-display text-3xl sm:text-4xl text-center"
+          data-animate="from-behind"
         >
           {copy.pricing.heading}
         </h2>
+        <p
+          className="text-center text-base sm:text-lg mb-14 max-w-2xl mx-auto mt-4"
+          style={{ color: 'var(--lp-ink-muted)' }}
+        >
+          {copy.pricing.lead}
+        </p>
 
         <div
           className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch"

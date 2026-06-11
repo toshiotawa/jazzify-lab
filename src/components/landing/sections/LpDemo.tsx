@@ -92,14 +92,14 @@ export const LpDemo: React.FC = () => {
   }, []);
 
   return (
-    <section className="py-20 sm:py-28 scroll-mt-20" style={{ background: 'var(--lp-surface)' }}>
+    <section className="lp-dark py-20 sm:py-28 scroll-mt-20">
       <div className="lp-container">
         <div className="text-center mb-4">
           <span className="lp-eyebrow" data-animate="from-behind">{copy.demo.eyebrow}</span>
         </div>
         <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center mb-10"
-          data-animate="from-behind heading-underline"
+          className="lp-display text-3xl sm:text-4xl md:text-5xl text-center mb-10"
+          data-animate="from-behind"
         >
           {copy.demo.heading}
         </h2>
@@ -138,7 +138,10 @@ export const LpDemo: React.FC = () => {
           <div className="p-6 sm:p-8" style={{ borderTop: '1px solid var(--lp-line)' }}>
             <div className="max-w-md mx-auto text-center">
               <p className="text-sm font-semibold mb-3" style={{ color: 'var(--lp-ink)' }}>{copy.demo.midiLabel}</p>
-              <div className="rounded-xl p-4 text-left" style={{ background: 'var(--lp-ink)' }}>
+              <div
+                className="rounded-xl p-4 text-left"
+                style={{ background: 'var(--lp-night)', border: '1px solid var(--lp-line)' }}
+              >
                 <MidiDeviceSelector
                   value={settings.selectedMidiDevice}
                   onChange={(id) => updateSettings({ selectedMidiDevice: id })}

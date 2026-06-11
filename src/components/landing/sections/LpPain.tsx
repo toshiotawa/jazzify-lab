@@ -7,44 +7,53 @@ export const LpPain: React.FC = () => {
   const bodyLastIndex = copy.pain.body.length - 1;
 
   return (
-    <section className="py-20 sm:py-28 scroll-mt-20">
+    <section className="py-16 sm:py-24 scroll-mt-20">
       <div className="lp-container">
-        <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center"
-          data-animate="from-behind heading-underline"
-        >
-          {copy.pain.heading.map((line) => (
-            <span key={line} className="block">
-              {line}
-            </span>
-          ))}
-        </h2>
-
-        <div
-          className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto mt-16"
-          data-animate="alt-cards"
-        >
-          {copy.pain.cards.map((card) => (
-            <div
-              key={card}
-              className="lp-card p-6 text-sm sm:text-base"
-              style={{ color: 'var(--lp-ink-muted)' }}
+        <div className="grid md:grid-cols-12 gap-10 md:gap-12 items-start">
+          <div className="md:col-span-5">
+            <div className="lp-heading-tick" />
+            <h2
+              className="lp-display text-2xl sm:text-3xl md:text-4xl"
+              data-animate="from-behind"
             >
-              {card}
+              {copy.pain.heading.map((line) => (
+                <span key={line} className="block">
+                  {line}
+                </span>
+              ))}
+            </h2>
+
+            <div className="mt-8 space-y-4">
+              {copy.pain.body.map((paragraph, index) => (
+                <p
+                  key={paragraph}
+                  className={index === bodyLastIndex ? 'font-semibold' : undefined}
+                  style={{ color: index === bodyLastIndex ? 'var(--lp-ink)' : 'var(--lp-ink-muted)' }}
+                >
+                  {paragraph}
+                </p>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
 
-        <div className="max-w-2xl mx-auto mt-12 text-center space-y-4">
-          {copy.pain.body.map((paragraph, index) => (
-            <p
-              key={paragraph}
-              className={index === bodyLastIndex ? 'font-semibold' : undefined}
-              style={{ color: index === bodyLastIndex ? 'var(--lp-ink)' : 'var(--lp-ink-muted)' }}
-            >
-              {paragraph}
-            </p>
-          ))}
+          <div
+            className="md:col-span-7 flex flex-col gap-4"
+            data-animate="alt-cards"
+          >
+            {copy.pain.cards.map((card) => (
+              <div
+                key={card}
+                className="py-4 px-5 text-sm sm:text-base rounded-lg"
+                style={{
+                  borderLeft: '3px solid var(--lp-gold)',
+                  background: 'var(--lp-surface)',
+                  color: 'var(--lp-ink-muted)',
+                }}
+              >
+                {card}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

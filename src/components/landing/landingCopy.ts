@@ -16,12 +16,14 @@ interface LandingHeaderCopy {
 }
 
 interface LandingHeroCopy {
-  title: string;
+  /** 改行位置を制御するため行単位で持つ */
+  titleLines: string[];
   subtitle: string[];
   demoCta: string;
   signupCta: string;
   note: string;
   videoAlt: string;
+  videoBadge: string;
 }
 
 interface LandingDemoCopy {
@@ -49,14 +51,12 @@ interface LandingValueItem {
 }
 
 interface LandingSolutionCopy {
-  eyebrow: string;
   heading: string;
   body: string[];
   values: LandingValueItem[];
 }
 
 interface LandingMainQuestCopy {
-  eyebrow: string;
   heading: string;
   body: string[];
   steps: string[];
@@ -70,7 +70,6 @@ interface LandingCourseItem {
 }
 
 interface LandingCoursesCopy {
-  eyebrow: string;
   heading: string;
   body: string[];
   items: LandingCourseItem[];
@@ -93,21 +92,18 @@ interface LandingModesCopy {
 }
 
 interface LandingSkillsCopy {
-  eyebrow: string;
   heading: string;
   body: string[];
   items: string[];
 }
 
 interface LandingRequirementsCopy {
-  eyebrow: string;
   heading: string;
   body: string[];
   badges: string[];
 }
 
 interface LandingDeveloperCopy {
-  eyebrow: string;
   heading: string;
   body: string[];
   stats: string[];
@@ -117,7 +113,6 @@ interface LandingDeveloperCopy {
 }
 
 interface LandingFreeTierCopy {
-  eyebrow: string;
   heading: string;
   body: string[];
   checks: string[];
@@ -144,6 +139,7 @@ export interface LandingPricingPlan {
 interface LandingPricingCopy {
   eyebrow: string;
   heading: string;
+  lead: string;
   free: LandingPricingPlan;
   monthly: LandingPricingPlan;
   yearly: LandingPricingPlan;
@@ -156,7 +152,6 @@ interface LandingFaqItem {
 }
 
 interface LandingFaqCopy {
-  eyebrow: string;
   heading: string;
   items: LandingFaqItem[];
 }
@@ -238,7 +233,7 @@ const COPY_JA: LandingCopy = {
     logoAlt: 'Jazzify ロゴ',
   },
   hero: {
-    title: 'ジャズピアノを、ゲームのように弾いて覚える。',
+    titleLines: ['ジャズピアノを、', 'ゲームのように', '弾いて覚える。'],
     subtitle: [
       'Jazzifyは、MIDIキーボードをつないで遊ぶ、ジャズピアノ学習サービスです。',
       'コード、リズム、耳コピ、アドリブを、実際に鍵盤を弾きながら身につけます。',
@@ -247,6 +242,7 @@ const COPY_JA: LandingCopy = {
     signupCta: '無料で始める',
     note: 'クレジットカード登録不要 / Web・iPhone対応',
     videoAlt: 'Jazzify サバイバルモードのプレイ映像',
+    videoBadge: 'コードを弾く → キャラが動く',
   },
   demo: {
     eyebrow: 'DEMO PLAY',
@@ -277,8 +273,7 @@ const COPY_JA: LandingCopy = {
     ],
   },
   solution: {
-    eyebrow: 'WHY JAZZIFY',
-    heading: '読むだけではなく、弾くことで進むジャズ学習。',
+    heading: '読むだけではなく、弾いて進む。',
     body: [
       'Jazzifyでは、画面の指示に合わせて実際に鍵盤を弾きます。正しいコードを弾く。リズムに合わせる。聴こえたフレーズを弾き返す。限られた音だけでアドリブする。',
       '理解したつもりで終わらず、弾けたことを確認しながら先へ進みます。',
@@ -299,20 +294,18 @@ const COPY_JA: LandingCopy = {
     ],
   },
   mainQuest: {
-    eyebrow: 'MAIN QUEST',
-    heading: '迷わず進める、初心者向けのメインクエスト。',
+    heading: 'まずは、Cブルースから。',
     body: [
       'メインクエストは、ジャズ初心者が順番に進める一本道のコースです。',
       '最初から難しい理論を詰め込むのではなく、少ない音でアドリブするところから始め、コード、リズム、ブルース進行へと少しずつ進んでいきます。',
       '「次に何を練習すればいいか」で迷わず、実際に弾きながらジャズの基本を身につけます。',
     ],
     steps: ['少ない音でアドリブ', 'コードを弾く', 'リズムに合わせる', 'ブルース進行へ'],
-    note: 'まずは、ジャズの第一歩であるCブルースから。',
+    note: '最初のゴールは、Cブルースを1曲とおして演奏すること。',
     imageAlt: 'メインクエストのチャプター画面',
   },
   courses: {
-    eyebrow: 'COURSES',
-    heading: '伸ばしたい力に合わせて選べる、目的別コース。',
+    heading: '目的別に、鍛える。',
     body: [
       'メインクエストで基本を身につけたら、目的に合わせたコースでさらに練習できます。',
       '両手ヴォイシング、アドリブ、コード基礎、耳コピなど、ジャズピアノに必要な力をテーマごとに鍛えられます。',
@@ -369,7 +362,6 @@ const COPY_JA: LandingCopy = {
     },
   },
   skills: {
-    eyebrow: 'OUTCOMES',
     heading: 'バラバラだった練習を、「ジャズを弾く力」につなげる。',
     body: [
       'Jazzifyで練習するのは、知識だけではありません。それぞれの力を別々に覚えるのではなく、演奏しながら結びつけていきます。',
@@ -383,7 +375,6 @@ const COPY_JA: LandingCopy = {
     ],
   },
   requirements: {
-    eyebrow: 'GETTING STARTED',
     heading: 'MIDIキーボードをつなげば、すぐに始められます。',
     body: [
       'Jazzifyは、MIDI対応の電子ピアノやMIDIキーボードと接続して使用します。49鍵以上を推奨しています。61鍵や88鍵の電子ピアノでも利用できます。',
@@ -392,7 +383,6 @@ const COPY_JA: LandingCopy = {
     badges: ['推奨：49鍵以上', '対応：MIDIキーボード / 電子ピアノ', '画面鍵盤で一部体験OK'],
   },
   developer: {
-    eyebrow: 'DEVELOPER',
     heading: '現役ジャズピアニストが、実際のレッスン経験をもとに開発。',
     body: [
       'Jazzifyは、ジャズピアニスト・講師として500名以上を指導してきた永吉俊雄が開発しています。',
@@ -405,7 +395,6 @@ const COPY_JA: LandingCopy = {
     photoAlt: '開発者 ジャズクラブでの演奏風景',
   },
   freeTier: {
-    eyebrow: 'FREE TRIAL',
     heading: 'まずは無料で、実際に弾いてみてください。',
     body: [
       '無料登録後、MIDIキーボードを接続し、Jazzifyの基本的な練習を体験できます。',
@@ -421,7 +410,8 @@ const COPY_JA: LandingCopy = {
   },
   pricing: {
     eyebrow: 'PRICING',
-    heading: '無料で試して、必要になったらプレミアムへ。',
+    heading: '料金',
+    lead: '無料で試して、必要になったらプレミアムへ。',
     free: {
       name: 'フリー',
       price: '¥0',
@@ -461,7 +451,6 @@ const COPY_JA: LandingCopy = {
     ],
   },
   faq: {
-    eyebrow: 'FAQ',
     heading: 'よくある質問',
     items: [
       {
@@ -548,7 +537,7 @@ const COPY_EN: LandingCopy = {
     logoAlt: 'Jazzify logo',
   },
   hero: {
-    title: 'Learn jazz piano by playing it like a game.',
+    titleLines: ['Learn jazz piano', 'by playing it', 'like a game.'],
     subtitle: [
       'Jazzify is a jazz piano learning service you play with a MIDI keyboard.',
       'Build chords, rhythm, ear training, and improvisation by actually playing the keys.',
@@ -557,6 +546,7 @@ const COPY_EN: LandingCopy = {
     signupCta: 'Start for free',
     note: 'No credit card required / Works on Web & iPhone',
     videoAlt: 'Jazzify Survival mode gameplay video',
+    videoBadge: 'Play a chord → your character moves',
   },
   demo: {
     eyebrow: 'DEMO PLAY',
@@ -587,8 +577,7 @@ const COPY_EN: LandingCopy = {
     ],
   },
   solution: {
-    eyebrow: 'WHY JAZZIFY',
-    heading: "Jazz learning that moves forward by playing, not just reading.",
+    heading: "Don't just read. Play your way forward.",
     body: [
       'In Jazzify, you play real keys along with on-screen prompts. Play the right chord. Lock into the rhythm. Echo the phrase you just heard. Improvise with a limited set of notes.',
       "You don't stop at understanding — you confirm you can play it, then move on.",
@@ -609,20 +598,18 @@ const COPY_EN: LandingCopy = {
     ],
   },
   mainQuest: {
-    eyebrow: 'MAIN QUEST',
-    heading: 'A main quest that guides beginners, step by step.',
+    heading: 'It starts with the C blues.',
     body: [
       'The Main Quest is a single guided path for jazz beginners.',
       'Instead of front-loading difficult theory, you start by improvising with just a few notes, then move gradually through chords, rhythm, and the blues progression.',
       'No more wondering what to practice next — you learn the fundamentals of jazz by playing them.',
     ],
     steps: ['Improvise with a few notes', 'Play chords', 'Lock into rhythm', 'On to the blues progression'],
-    note: 'It all starts with the C blues — the first step into jazz.',
+    note: 'Your first goal: play a full C blues, start to finish.',
     imageAlt: 'Main Quest chapter screen',
   },
   courses: {
-    eyebrow: 'COURSES',
-    heading: 'Focused courses for the skills you want to grow.',
+    heading: 'Train with purpose.',
     body: [
       'Once you have the basics from the Main Quest, keep going with courses built around specific goals.',
       'Train the skills jazz piano demands — two-hand voicings, improvisation, chord fundamentals, and ear training — one theme at a time.',
@@ -679,7 +666,6 @@ const COPY_EN: LandingCopy = {
     },
   },
   skills: {
-    eyebrow: 'OUTCOMES',
     heading: 'Connect scattered practice into the ability to play jazz.',
     body: [
       "What you build in Jazzify isn't just knowledge. Instead of learning each skill in isolation, you connect them while you play.",
@@ -693,7 +679,6 @@ const COPY_EN: LandingCopy = {
     ],
   },
   requirements: {
-    eyebrow: 'GETTING STARTED',
     heading: 'Connect a MIDI keyboard and start right away.',
     body: [
       'Jazzify works with MIDI-compatible digital pianos and MIDI keyboards. We recommend 49 keys or more — 61-key and 88-key digital pianos work too.',
@@ -702,7 +687,6 @@ const COPY_EN: LandingCopy = {
     badges: ['Recommended: 49+ keys', 'Works with: MIDI keyboards / digital pianos', 'Partial play with on-screen keys'],
   },
   developer: {
-    eyebrow: 'DEVELOPER',
     heading: 'Built by a working jazz pianist, from real teaching experience.',
     body: [
       'Jazzify is developed by Toshio Nagayoshi, a jazz pianist and instructor who has taught more than 500 students.',
@@ -715,7 +699,6 @@ const COPY_EN: LandingCopy = {
     photoAlt: 'The developer performing at a jazz club',
   },
   freeTier: {
-    eyebrow: 'FREE TRIAL',
     heading: 'Start free — and actually play.',
     body: [
       'After free registration, connect your MIDI keyboard and try Jazzify\u2019s core practice experience.',
@@ -731,7 +714,8 @@ const COPY_EN: LandingCopy = {
   },
   pricing: {
     eyebrow: 'PRICING',
-    heading: 'Try it free. Upgrade to Premium when you need more.',
+    heading: 'Pricing',
+    lead: 'Try it free. Upgrade to Premium when you need more.',
     free: {
       name: 'Free',
       price: '¥0',
@@ -772,7 +756,6 @@ const COPY_EN: LandingCopy = {
     ],
   },
   faq: {
-    eyebrow: 'FAQ',
     heading: 'Frequently asked questions',
     items: [
       {

@@ -29,25 +29,18 @@ export const LpSkills: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
 
   return (
-    <section
-      className="py-20 sm:py-28 scroll-mt-20"
-      style={{ background: 'var(--lp-surface)' }}
-    >
+    <section className="py-14 sm:py-16 scroll-mt-20">
       <div className="lp-container">
-        <div className="text-center mb-4">
-          <span className="lp-eyebrow" data-animate="from-behind">
-            {copy.skills.eyebrow}
-          </span>
-        </div>
+        <div className="lp-heading-tick lp-heading-tick--center" />
         <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center mb-16"
-          data-animate="from-behind heading-underline"
+          className="lp-display text-xl sm:text-2xl md:text-3xl text-center"
+          data-animate="from-behind"
         >
           {copy.skills.heading}
         </h2>
 
         <div
-          className="max-w-2xl mx-auto text-center mb-12"
+          className="max-w-2xl mx-auto text-center mt-8 mb-10"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.skills.body.map((paragraph) => (

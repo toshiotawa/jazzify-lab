@@ -144,7 +144,7 @@ const LandingPage: React.FC = () => {
         <LpHeader />
         <LpHero />
 
-        <div id="demo" className="scroll-mt-20">
+        <div id="demo" className="scroll-mt-20 lp-dark" style={{ background: 'var(--lp-night-2)' }}>
           <div ref={demoSentinelRef} />
           {shouldRenderDemo ? (
             <React.Suspense
@@ -172,9 +172,9 @@ const LandingPage: React.FC = () => {
         <LpMainQuest />
         <LpCourses />
         <LpModes />
+        <LpDeveloper />
         <LpSkills />
         <LpRequirements />
-        <LpDeveloper />
         <LpFreeTier />
         <LpPricing />
         <LpFaq />

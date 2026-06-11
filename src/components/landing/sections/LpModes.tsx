@@ -11,21 +11,18 @@ interface ModeBlockProps {
 
 const ModeBlock: React.FC<ModeBlockProps> = ({ mode, imageSrc, imageAnimate, reversed }) => (
   <div className="grid md:grid-cols-2 gap-8 items-center">
-    <div className={`lp-shot ${reversed ? 'md:order-2' : ''}`} data-animate={imageAnimate}>
-      <img
-        src={imageSrc}
-        alt={mode.imageAlt}
-        loading="lazy"
-        className="w-full h-auto block"
-      />
+    <div className={`lp-shot-stage ${reversed ? 'md:order-2' : ''}`} data-animate={imageAnimate}>
+      <div className="lp-shot">
+        <img
+          src={imageSrc}
+          alt={mode.imageAlt}
+          loading="lazy"
+          className="w-full h-auto block"
+        />
+      </div>
+      <span className="lp-shot-note absolute -bottom-3.5 left-5 sm:left-8">{mode.tagline}</span>
     </div>
     <div className={reversed ? 'md:order-1' : ''}>
-      <span
-        className="lp-eyebrow text-xs tracking-widest mb-3 block"
-        style={{ color: 'var(--lp-gold-deep)' }}
-      >
-        {mode.tagline}
-      </span>
       <h3 className="lp-display text-2xl sm:text-3xl mb-4">{mode.title}</h3>
       <div
         className="space-y-3 text-sm sm:text-base"
@@ -69,7 +66,7 @@ export const LpModes: React.FC = () => {
   ];
 
   return (
-    <section id="modes" className="py-20 sm:py-28 scroll-mt-20">
+    <section id="modes" className="lp-dark modes-bg py-20 sm:py-28 scroll-mt-20">
       <div className="lp-container">
         <div className="text-center mb-4">
           <span className="lp-eyebrow" data-animate="from-behind">
@@ -77,13 +74,13 @@ export const LpModes: React.FC = () => {
           </span>
         </div>
         <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center mb-16"
-          data-animate="from-behind heading-underline"
+          className="lp-display text-3xl sm:text-4xl md:text-5xl text-center mb-16"
+          data-animate="from-behind"
         >
           {copy.modes.heading}
         </h2>
 
-        <div className="space-y-16 max-w-5xl mx-auto">
+        <div className="space-y-16 sm:space-y-20 max-w-5xl mx-auto">
           {modes.map(({ mode, imageSrc, imageAnimate, reversed }) => (
             <ModeBlock
               key={mode.title}

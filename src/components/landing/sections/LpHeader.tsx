@@ -13,11 +13,12 @@ export const LpHeader: React.FC = () => {
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50"
+      className="lp-dark fixed top-0 left-0 right-0 z-50"
       style={{
-        background: 'rgba(255,255,255,0.9)',
+        background: 'rgba(9, 17, 31, 0.78)',
         backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid var(--lp-line)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
       }}
     >
       <div className="lp-container py-3 flex items-center justify-between relative">
@@ -29,17 +30,17 @@ export const LpHeader: React.FC = () => {
             height={32}
             className="w-8 h-8 rounded-full"
           />
-          <span className="font-bold text-lg" style={{ color: 'var(--lp-blue-dark)' }}>
+          <span className="font-bold text-lg" style={{ color: 'var(--lp-ink)' }}>
             Jazzify
           </span>
         </div>
 
-        <nav className="hidden md:flex gap-6 text-sm absolute left-1/2 -translate-x-1/2">
+        <nav className="hidden lg:flex gap-6 text-sm absolute left-1/2 -translate-x-1/2">
           {copy.header.nav.map((link) => (
             <a
               key={link.id}
               href={`#${link.id}`}
-              className="transition-colors text-[var(--lp-ink-muted)] hover:text-[var(--lp-blue)]"
+              className="transition-colors text-[var(--lp-ink-muted)] hover:text-[var(--lp-gold-deep)]"
               onClick={(event) => scrollToSection(event, link.id)}
             >
               {link.label}
@@ -50,7 +51,7 @@ export const LpHeader: React.FC = () => {
         <div className="flex items-center gap-3 sm:gap-4">
           <Link
             to="/login"
-            className="hidden sm:inline-flex text-sm font-semibold transition-colors text-[var(--lp-ink-muted)] hover:text-[var(--lp-blue)]"
+            className="hidden sm:inline-flex text-sm font-semibold transition-colors text-[var(--lp-ink-muted)] hover:text-[var(--lp-gold-deep)]"
           >
             {copy.header.login}
           </Link>

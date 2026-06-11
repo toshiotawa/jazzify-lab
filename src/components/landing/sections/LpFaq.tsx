@@ -11,16 +11,12 @@ export const LpFaq: React.FC = () => {
   };
 
   return (
-    <section id="faq" className="py-20 sm:py-28 scroll-mt-20">
+    <section id="faq" className="py-16 sm:py-24 scroll-mt-20">
       <div className="lp-container">
-        <div className="text-center mb-4">
-          <span className="lp-eyebrow" data-animate="from-behind">
-            {copy.faq.eyebrow}
-          </span>
-        </div>
+        <div className="lp-heading-tick lp-heading-tick--center" />
         <h2
-          className="lp-display section-title text-3xl sm:text-4xl md:text-5xl text-center mb-16"
-          data-animate="from-behind heading-underline"
+          className="lp-display text-2xl sm:text-3xl md:text-4xl text-center mb-12"
+          data-animate="from-behind"
         >
           {copy.faq.heading}
         </h2>
