@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SiteFooter from '@/components/common/SiteFooter';
 
@@ -8,6 +8,15 @@ const diagramBoxClass =
 const connectionImgClass =
   'w-full bg-slate-900/80 object-contain max-h-64 rounded-lg border border-white/10 my-4';
 
+const CONNECTION_IMAGE_FILES = [
+  'iPhone_Lightning_adapter.webp',
+  'iPad_Lightning_adapter.webp',
+  'iPhone_TypeC_Direct.webp',
+  'iPhone_TypeC_hub.webp',
+  'iPad_TypeC_Direct.webp',
+  'iPad_TypeC_hub.webp',
+] as const;
+
 const connectionImgSrc = (file: string): string =>
   encodeURI(`/midi-connection-patterns/${file}`);
 
@@ -16,6 +25,7 @@ interface ConnectionExampleProps {
   imageFile: string;
   imageAlt: string;
   diagram: string;
+  priority?: boolean;
 }
 
 const ConnectionExample: React.FC<ConnectionExampleProps> = ({
@@ -23,6 +33,7 @@ const ConnectionExample: React.FC<ConnectionExampleProps> = ({
   imageFile,
   imageAlt,
   diagram,
+  priority = false,
 }) => (
   <div className="mt-6">
     <h3 className="text-lg font-medium text-white/90 mb-2">{heading}</h3>
@@ -30,7 +41,11 @@ const ConnectionExample: React.FC<ConnectionExampleProps> = ({
       src={connectionImgSrc(imageFile)}
       alt={imageAlt}
       className={connectionImgClass}
-      loading="lazy"
+      width={1448}
+      height={1086}
+      loading="eager"
+      decoding="async"
+      fetchPriority={priority ? 'high' : 'auto'}
     />
     <p className={diagramBoxClass}>{diagram}</p>
   </div>
@@ -38,6 +53,13 @@ const ConnectionExample: React.FC<ConnectionExampleProps> = ({
 
 const HelpIosMidi: React.FC = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    CONNECTION_IMAGE_FILES.forEach((file) => {
+      const img = new Image();
+      img.src = connectionImgSrc(file);
+    });
+  }, []);
   return (
     <div className="bg-slate-900 text-white flex flex-col h-screen overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
       <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur">
@@ -72,14 +94,15 @@ const HelpIosMidi: React.FC = () => {
 
               <ConnectionExample
                 heading="iPhone（Lightning端子）"
-                imageFile="iPhone_Lightning_adapter.png"
+                imageFile="iPhone_Lightning_adapter.webp"
                 imageAlt="Lightning端子のiPhoneとMIDIキーボードの接続例"
                 diagram="iPhone ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
+                priority
               />
 
               <ConnectionExample
                 heading="iPad（Lightning端子）"
-                imageFile="iPad_Lightning_adapter.png"
+                imageFile="iPad_Lightning_adapter.webp"
                 imageAlt="Lightning端子のiPadとMIDIキーボードの接続例"
                 diagram="iPad ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
               />
@@ -93,28 +116,28 @@ const HelpIosMidi: React.FC = () => {
 
               <ConnectionExample
                 heading="iPhone — パターン1（Type-C → Type-Bケーブル）"
-                imageFile="iPhone_TypeC_Direct.png"
+                imageFile="iPhone_TypeC_Direct.webp"
                 imageAlt="USB Type-C端子のiPhoneとMIDIキーボードの直接接続例"
                 diagram="iPhone ― ケーブル（Type-C ↔ Type-B） ― MIDIキーボード"
               />
 
               <ConnectionExample
                 heading="iPhone — パターン2（Type-A → Type-Bケーブル + ハブ）"
-                imageFile="iPhone_TypeC_hub.png"
+                imageFile="iPhone_TypeC_hub.webp"
                 imageAlt="USB Type-C端子のiPhoneとType-Cハブ経由のMIDIキーボード接続例"
                 diagram="iPhone ― TypeCハブ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
               />
 
               <ConnectionExample
                 heading="iPad — パターン1（Type-C → Type-Bケーブル）"
-                imageFile="iPad_TypeC_Direct.png"
+                imageFile="iPad_TypeC_Direct.webp"
                 imageAlt="USB Type-C端子のiPadとMIDIキーボードの直接接続例"
                 diagram="iPad ― ケーブル（Type-C ↔ Type-B） ― MIDIキーボード"
               />
 
               <ConnectionExample
                 heading="iPad — パターン2（Type-A → Type-Bケーブル + ハブ）"
-                imageFile="iPad_TypeC_hub.png"
+                imageFile="iPad_TypeC_hub.webp"
                 imageAlt="USB Type-C端子のiPadとType-Cハブ経由のMIDIキーボード接続例"
                 diagram="iPad ― TypeCハブ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
               />
@@ -136,24 +159,6 @@ const HelpIosMidi: React.FC = () => {
             <p className="text-gray-400 text-sm border-t border-white/10 pt-6">
               同じ内容は、チュートリアルコースのレッスン「MIDIキーボード接続方法」でもご確認いただけます。
             </p>
-
-            <section aria-labelledby="midi-browser-heading" className="rounded-lg bg-slate-800/50 border border-white/10 p-4">
-              <h2 id="midi-browser-heading" className="text-lg font-semibold text-white mb-2">
-                ブラウザ（Safari 等）からご利用の場合
-              </h2>
-              <p className="text-sm">
-                iPhone／iPad の Safari などでは Web MIDI API が利用できないことがあります。ブラウザ経由で MIDI を使う場合は、App Store の{' '}
-                <a
-                  href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-300 underline"
-                >
-                  Web MIDI Browser
-                </a>
-                {' '}のご利用をご検討ください。
-              </p>
-            </section>
 
             <div className="pt-4">
               <Link to="/contact" className="text-blue-300 underline">

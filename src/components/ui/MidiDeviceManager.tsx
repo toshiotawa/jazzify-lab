@@ -72,8 +72,8 @@ export const useMidiDevices = () => {
         const enCopy = shouldUseEnglishCopy();
         const message = isIOS
           ? (enCopy
-              ? 'Web MIDI API is not available on iPhone/iPad Safari.'
-              : 'iPhone/iPad では Safari 等で Web MIDI API が利用できません。')
+              ? 'Web MIDI API is not available in iPhone/iPad browsers. Use the Jazzify iOS app to connect a MIDI keyboard via USB.'
+              : 'iPhone/iPad のブラウザでは Web MIDI API が利用できません。MIDIキーボードは Jazzify iOSアプリからUSB接続してください。')
           : 'Web MIDI API is not supported in this browser';
         throw new Error(message);
       }
@@ -270,42 +270,20 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
               if (isIOS) {
                 return en ? (
                   <div>
-                    <div className="mb-1">❌ Web MIDI API is not available on iPhone/iPad Safari.</div>
-                    <div className="mb-1">
-                      {'Consider using '}
-                      <a
-                        href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline text-blue-300"
-                      >
-                        Web MIDI Browser
-                      </a>
-                      {' from the App Store.'}
-                    </div>
+                    <div className="mb-1">❌ Web MIDI API is not available in iPhone/iPad browsers.</div>
+                    <div className="mb-1">To use a MIDI keyboard, connect via USB in the Jazzify iOS app.</div>
                     <div>
-                      <Link to="/help/ios-midi" className="underline text-blue-300">Learn more</Link>
+                      <Link to="/help/ios-midi" className="underline text-blue-300">Connection guide</Link>
                       <span className="mx-1">/</span>
                       <Link to="/contact" className="underline text-blue-300">Contact</Link>
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <div className="mb-1">❌ iPhone/iPad では Safari 等で Web MIDI API が利用できません。</div>
-                    <div className="mb-1">
-                      App Store の{' '}
-                      <a
-                        href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline text-blue-300"
-                      >
-                        Web MIDI Browser
-                      </a>
-                      {' '}のご利用をご検討ください。
-                    </div>
+                    <div className="mb-1">❌ iPhone/iPad のブラウザでは Web MIDI API が利用できません。</div>
+                    <div className="mb-1">MIDIキーボードは Jazzify iOSアプリからUSB接続してください。</div>
                     <div>
-                      <Link to="/help/ios-midi" className="underline text-blue-300">詳しくはこちら</Link>
+                      <Link to="/help/ios-midi" className="underline text-blue-300">接続方法はこちら</Link>
                       <span className="mx-1">/</span>
                       <Link to="/contact" className="underline text-blue-300">お問い合わせ</Link>
                     </div>

@@ -123,7 +123,7 @@ export class MIDIController {
         const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
         const help = '詳しくは /help/ios-midi をご覧ください。';
         const message = isIOS
-          ? 'iPhone/iPad では Safari 等で Web MIDI API が利用できません。App Store の Web MIDI Browser の利用をご検討ください。'
+          ? 'iPhone/iPad のブラウザでは Web MIDI API が利用できません。MIDIキーボードは Jazzify iOSアプリからUSB接続してください。'
           : 'Web MIDI API is not supported';
         throw new Error(`${message} ${help}`);
       }
