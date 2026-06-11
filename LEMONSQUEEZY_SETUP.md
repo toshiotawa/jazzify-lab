@@ -160,12 +160,17 @@ curl -s "https://api.lemonsqueezy.com/v1/variants?filter[product_id]=YOUR_PRODUC
 **選択するイベント:**
 - `subscription_created`
 - `subscription_updated`
+- `subscription_payment_success`
 - `subscription_cancelled`
 - `subscription_expired`
 - `subscription_resumed`
 - `subscription_paused`
 - `order_created`
 - `order_refunded`
+
+> **プラン判定**: Webhook の `data.attributes.variant_id` を source of truth とする。checkout の `custom_data.plan` は使わない。Netlify `lemonsqueezyWebhook` が `subscriptions.plan_code` を更新する。
+
+> **UX (A案)**: Jazzify 側モーダルでは月額/年額を選ばず、Lemon チェックアウト画面で選択する。checkout API は `enabled_variants` で月額・年額両方を表示する。
 
 4. 「Save」で保存
 

@@ -10,7 +10,7 @@
 
 ## Netlify Functions
 - `lemonsqueezyResolveLink.ts` … サーバー側でユーザー状態を見て Checkout/Portal を分岐してURLを返す
-- `lemonsqueezyWebhook.ts` … Webhookで `profiles` に購読状態を同期（rank や trial_used も更新）
+- `lemonsqueezyWebhook.ts` … 本番 Webhook。`variant_id` で `subscriptions.plan_code` を更新し、`profiles.rank` も同期
 - `lemonsqueezyPortal.ts` … 既存顧客のポータルURL取得（補助）
 
 ## Supabase マイグレーション

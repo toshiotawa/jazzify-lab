@@ -22,7 +22,6 @@ interface LemonCheckoutCreateResponse {
 }
 
 type LinkVia = 'checkout' | 'portal';
-type Plan = 'monthly' | 'yearly';
 
 const ensureEnv = (key: string): string => {
   const val = process.env[key];
@@ -43,66 +42,57 @@ const responseHeaders: Record<string, string> = {
   'Content-Type': 'application/json',
 };
 
-const resolveVariantId = (plan: Plan, trial: boolean): string => {
-  if (plan === 'monthly') {
-    const trialVariantId =
+interface CheckoutVariantPair {
+  monthlyVariantId: string;
+  yearlyVariantId: string;
+}
+
+const resolveCheckoutVariants = (trial: boolean): CheckoutVariantPair => {
+  if (trial) {
+    const monthlyVariantId =
       process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL ||
       process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL ||
       '';
-    const normalVariantId =
-      process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM ||
-      process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL;
-    if (!normalVariantId) {
-      throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM');
+    const yearlyVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL || '';
+    if (!monthlyVariantId && !yearlyVariantId) {
+      throw new Error(
+        'Missing trial variant env: LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL or LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL',
+      );
     }
-    return trial && trialVariantId ? trialVariantId : normalVariantId;
+    if (!monthlyVariantId || !yearlyVariantId) {
+      throw new Error('Both monthly and yearly trial variant IDs are required for checkout');
+    }
+    return { monthlyVariantId, yearlyVariantId };
   }
 
-  const trialVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL || '';
-  const normalVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY;
-  if (!normalVariantId) {
+  const monthlyVariantId =
+    process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM ||
+    process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL ||
+    '';
+  const yearlyVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY || '';
+  if (!monthlyVariantId) {
+    throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM');
+  }
+  if (!yearlyVariantId) {
     throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY');
   }
-  return trial && trialVariantId ? trialVariantId : normalVariantId;
-};
-
-const parsePlanFromBody = (event: NetlifyEvent): Plan | 'invalid' => {
-  const rawBody = event.body;
-  if (!rawBody || rawBody.trim() === '') {
-    return 'monthly';
-  }
-
-  try {
-    const decodedBody = event.isBase64Encoded
-      ? Buffer.from(rawBody, 'base64').toString('utf8')
-      : rawBody;
-    const parsed: unknown = JSON.parse(decodedBody);
-    if (parsed === null || typeof parsed !== 'object') {
-      return 'monthly';
-    }
-    const plan = (parsed as { plan?: unknown }).plan;
-    if (plan === undefined || plan === null) {
-      return 'monthly';
-    }
-    if (plan === 'monthly' || plan === 'yearly') {
-      return plan;
-    }
-    return 'invalid';
-  } catch {
-    return 'monthly';
-  }
+  return { monthlyVariantId, yearlyVariantId };
 };
 
 const createCheckout = async (params: {
   email: string;
   userId: string;
   trial: boolean;
-  plan: Plan;
 }): Promise<string> => {
   const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
   const storeId = ensureEnv('LEMONSQUEEZY_STORE_ID');
-  const variantId = resolveVariantId(params.plan, params.trial);
   const siteUrl = ensureEnv('SITE_URL');
+  const { monthlyVariantId, yearlyVariantId } = resolveCheckoutVariants(params.trial);
+
+  const enabledVariants = [
+    Number(monthlyVariantId),
+    Number(yearlyVariantId),
+  ].filter((id) => Number.isFinite(id));
 
   const payload = {
     data: {
@@ -112,7 +102,6 @@ const createCheckout = async (params: {
           email: params.email,
           custom: {
             user_id: params.userId,
-            plan: params.plan,
           },
         },
         checkout_options: {
@@ -120,6 +109,7 @@ const createCheckout = async (params: {
           skip_trial: !params.trial,
         },
         product_options: {
+          enabled_variants: enabledVariants,
           redirect_url: `${siteUrl}/#dashboard`,
         },
       },
@@ -133,7 +123,7 @@ const createCheckout = async (params: {
         variant: {
           data: {
             type: 'variants',
-            id: variantId,
+            id: yearlyVariantId,
           },
         },
       },
@@ -160,7 +150,7 @@ const createCheckout = async (params: {
       errDetail = errBody || res.statusText;
     }
     throw new Error(
-      `LemonSqueezy checkout failed (${res.status}): ${errDetail} [store=${storeId}, variant=${variantId}, plan=${params.plan}, trial=${params.trial}]`,
+      `LemonSqueezy checkout failed (${res.status}): ${errDetail} [store=${storeId}, monthly=${monthlyVariantId}, yearly=${yearlyVariantId}, trial=${params.trial}]`,
     );
   }
 
@@ -237,12 +227,6 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
   }
 
   try {
-    const planResult = parsePlanFromBody(event);
-    if (planResult === 'invalid') {
-      return { statusCode: 400, headers: responseHeaders, body: JSON.stringify({ error: 'Invalid plan. Must be "monthly" or "yearly".' }) };
-    }
-    const plan = planResult;
-
     const supabase = getSupabaseServiceClient();
     const authHeader = event.headers.authorization || event.headers.Authorization;
     if (!authHeader) {
@@ -279,32 +263,27 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       via = 'portal';
       const customerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
       if (!customerId) {
-        // 既存顧客IDが見当たらない場合はチェックアウトにフォールバック
-        url = await createCheckout({ email, userId, trial: false, plan });
+        url = await createCheckout({ email, userId, trial: false });
         via = 'checkout';
       } else {
         url = await getCustomerPortalUrl(customerId);
         if (!url) {
-          // ポータルURLが取得できない場合はCheckoutにフォールバック
-          url = await createCheckout({ email, userId, trial: false, plan });
+          url = await createCheckout({ email, userId, trial: false });
           via = 'checkout';
         }
       }
     } else {
-      // サブスクなし → DB + LemonSqueezy API の二重チェックでトライアル判定
       let trial = true;
       if (profile.lemon_trial_used === true) {
         trial = false;
       } else {
-        // DB 上は未使用 → LS 顧客の存在を確認（webhook 取りこぼし対策）
         const existingCustomerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
         if (existingCustomerId) {
-          // LS 上に顧客が存在 → 過去に購入完了歴あり → トライアルなし
           trial = false;
           await supabase.from('profiles').update({ lemon_trial_used: true, lemon_customer_id: existingCustomerId }).eq('id', userId);
         }
       }
-      url = await createCheckout({ email, userId, trial, plan });
+      url = await createCheckout({ email, userId, trial });
       via = 'checkout';
     }
 

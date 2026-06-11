@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
           provider: "lemon",
           status: "past_due",
           entitlement_state: "payment_issue_with_access",
-          plan_code: "core_monthly",
+          plan_code: "unknown",
           trial_used: profile?.lemon_trial_used ?? false,
           current_period_ends_at: null,
         }), {
@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
         provider: isLemonActive ? "lemon" : "none",
         status: isLemonActive ? (st === "on_trial" ? "trial" : "active") : "expired",
         entitlement_state: isLemonActive ? "active" : "expired",
-        plan_code: "core_monthly",
+        plan_code: "unknown",
         trial_used: profile?.lemon_trial_used ?? false,
         current_period_ends_at: null,
       }), {
