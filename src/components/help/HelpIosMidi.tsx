@@ -5,6 +5,37 @@ import SiteFooter from '@/components/common/SiteFooter';
 const diagramBoxClass =
   'font-mono text-sm bg-slate-800/80 p-3 rounded border border-white/10 whitespace-pre-wrap my-3';
 
+const connectionImgClass =
+  'w-full bg-slate-900/80 object-contain max-h-64 rounded-lg border border-white/10 my-4';
+
+const connectionImgSrc = (file: string): string =>
+  encodeURI(`/midi-connection-patterns/${file}`);
+
+interface ConnectionExampleProps {
+  heading: string;
+  imageFile: string;
+  imageAlt: string;
+  diagram: string;
+}
+
+const ConnectionExample: React.FC<ConnectionExampleProps> = ({
+  heading,
+  imageFile,
+  imageAlt,
+  diagram,
+}) => (
+  <div className="mt-6">
+    <h3 className="text-lg font-medium text-white/90 mb-2">{heading}</h3>
+    <img
+      src={connectionImgSrc(imageFile)}
+      alt={imageAlt}
+      className={connectionImgClass}
+      loading="lazy"
+    />
+    <p className={diagramBoxClass}>{diagram}</p>
+  </div>
+);
+
 const HelpIosMidi: React.FC = () => {
   const navigate = useNavigate();
   return (
@@ -28,28 +59,66 @@ const HelpIosMidi: React.FC = () => {
 
           <div className="space-y-8 text-gray-300 leading-relaxed">
             <p>
-              MIDIキーボード（電子ピアノ）をiPhoneに接続すると、より本格的な演奏練習が可能になります。ここではiPhoneとの接続方法を説明します。
+              MIDIキーボード（電子ピアノ）をiPhone/iPadに接続すると、より本格的な演奏練習が可能になります。ここでは接続方法を説明します。
             </p>
 
             <section aria-labelledby="midi-lightning-heading">
               <h2 id="midi-lightning-heading" className="text-xl font-semibold text-white mb-3">
-                Lightning端子のiPhoneの場合
+                Lightning端子のiPhone / iPadの場合
               </h2>
               <p>
-                Lightning端子のiPhoneでは、Apple純正の「Lightning - USBカメラアダプタ」が必要です。以下の順番で接続してください。
+                Lightning端子のiPhone/iPadでは、Apple純正の「Lightning - USBカメラアダプタ」が必要です。以下の順番で接続してください。
               </p>
-              <p className={diagramBoxClass}>つまり：iPhone ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード</p>
+
+              <ConnectionExample
+                heading="iPhone（Lightning端子）"
+                imageFile="iPhone_Lightning_adapter.png"
+                imageAlt="Lightning端子のiPhoneとMIDIキーボードの接続例"
+                diagram="iPhone ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
+              />
+
+              <ConnectionExample
+                heading="iPad（Lightning端子）"
+                imageFile="iPad_Lightning_adapter.png"
+                imageAlt="Lightning端子のiPadとMIDIキーボードの接続例"
+                diagram="iPad ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
+              />
             </section>
 
             <section aria-labelledby="midi-usbc-heading">
               <h2 id="midi-usbc-heading" className="text-xl font-semibold text-white mb-3">
-                USB Type-C端子のiPhoneやiPadの場合
+                USB Type-C端子のiPhone / iPadの場合
               </h2>
-              <p>Type-C端子のiPhoneでは、カメラアダプタなしで直接接続できる場合があります。</p>
-              <p className="mt-4 font-medium text-white/90">パターン1（Type-C → Type-Bケーブル）</p>
-              <p className={diagramBoxClass}>iPhone ― ケーブル（Type-C ↔ Type-B） ― MIDIキーボード</p>
-              <p className="mt-4 font-medium text-white/90">パターン2（Type-A → Type-Bケーブル）</p>
-              <p className={diagramBoxClass}>iPhone ― TypeCハブ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード</p>
+              <p>USB Type-C端子のiPhone/iPadでは、カメラアダプタなしで直接接続できる場合があります。</p>
+
+              <ConnectionExample
+                heading="iPhone — パターン1（Type-C → Type-Bケーブル）"
+                imageFile="iPhone_TypeC_Direct.png"
+                imageAlt="USB Type-C端子のiPhoneとMIDIキーボードの直接接続例"
+                diagram="iPhone ― ケーブル（Type-C ↔ Type-B） ― MIDIキーボード"
+              />
+
+              <ConnectionExample
+                heading="iPhone — パターン2（Type-A → Type-Bケーブル + ハブ）"
+                imageFile="iPhone_TypeC_hub.png"
+                imageAlt="USB Type-C端子のiPhoneとType-Cハブ経由のMIDIキーボード接続例"
+                diagram="iPhone ― TypeCハブ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
+              />
+
+              <ConnectionExample
+                heading="iPad — パターン1（Type-C → Type-Bケーブル）"
+                imageFile="iPad_TypeC_Direct.png"
+                imageAlt="USB Type-C端子のiPadとMIDIキーボードの直接接続例"
+                diagram="iPad ― ケーブル（Type-C ↔ Type-B） ― MIDIキーボード"
+              />
+
+              <ConnectionExample
+                heading="iPad — パターン2（Type-A → Type-Bケーブル + ハブ）"
+                imageFile="iPad_TypeC_hub.png"
+                imageAlt="USB Type-C端子のiPadとType-Cハブ経由のMIDIキーボード接続例"
+                diagram="iPad ― TypeCハブ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード"
+              />
+
               <p className="mt-3">お使いのMIDIキーボードの端子に合わせて、適切なケーブルを選んでください。</p>
             </section>
 

@@ -1,3 +1,8 @@
+import {
+  HELP_IOS_MIDI_PATH,
+  HELP_MIDI_KEYBOARD_CHOICE_PATH,
+} from '@/components/landing/landingLinks';
+
 /**
  * 新LP（2026年版）の日英コピーを一元管理するモジュール。
  * セクションコンポーネントは getLandingCopy(shouldUseEnglishCopy()) で参照する。
@@ -101,6 +106,8 @@ interface LandingSkillsCopy {
 interface LandingPlatformCard {
   title: string;
   description: string;
+  linkTo?: string;
+  linkLabel?: string;
 }
 
 interface LandingPlatformsCopy {
@@ -113,6 +120,7 @@ interface LandingPlatformsCopy {
 
 interface LandingRequirementsCopy {
   heading: string;
+  choiceLinkLabel: string;
   body: string[];
   badges: string[];
 }
@@ -160,9 +168,16 @@ interface LandingPricingCopy {
   notes: string[];
 }
 
+interface LandingFaqInlineLink {
+  to: string;
+  label: string;
+  suffix?: string;
+}
+
 interface LandingFaqItem {
   question: string;
   answer: string[];
+  inlineLink?: LandingFaqInlineLink;
 }
 
 interface LandingFaqCopy {
@@ -394,6 +409,8 @@ const COPY_JA: LandingCopy = {
         title: 'iPhone / iPadで使う',
         description:
           'App Storeからダウンロード。対応MIDIキーボードを接続して練習できます。同じアカウントで、コースや進行状況を続けられます。',
+        linkTo: HELP_IOS_MIDI_PATH,
+        linkLabel: '接続方法を見る →',
       },
       {
         title: 'まずは画面鍵盤で体験',
@@ -419,6 +436,7 @@ const COPY_JA: LandingCopy = {
   },
   requirements: {
     heading: 'MIDIキーボードをつなげば、すぐに始められます。',
+    choiceLinkLabel: 'MIDIキーボードの選び方を見る →',
     body: [
       'Jazzifyは、MIDI対応の電子ピアノやMIDIキーボードと接続して使用します。49鍵以上を推奨しています。61鍵や88鍵の電子ピアノでも利用できます。',
       'まず試してみたい場合は、画面上の鍵盤でも一部の課題を体験できます。',
@@ -521,15 +539,25 @@ const COPY_JA: LandingCopy = {
         question: 'スマートフォンだけでも利用できますか？',
         answer: [
           '一部の課題は画面鍵盤でも体験できます。',
-          '本格的に練習する場合は、MIDIキーボードの接続を推奨します。iPhone・iPadではiOSアプリからUSB経由でMIDIキーボードを接続できます。',
+          '本格的に練習する場合は、MIDIキーボードの接続を推奨します。iPhone・iPadではiOSアプリからUSB経由でMIDIキーボードを接続できます。接続方法は「',
         ],
+        inlineLink: {
+          to: HELP_IOS_MIDI_PATH,
+          label: 'iPhone/iPadでMIDIを使う',
+          suffix: '」をご覧ください。',
+        },
       },
       {
         question: 'iPhone/iPadでMIDIを使えますか？',
         answer: [
           'はい。iPhone・iPadでは、JazzifyのiOSアプリからUSB経由でMIDIキーボードを接続できます。',
-          '接続方法や対応機材の詳細は、サポートページ「iPhone/iPadでMIDIを使う」をご覧ください。',
+          '接続方法や対応機材の詳細は、サポートページ「',
         ],
+        inlineLink: {
+          to: HELP_IOS_MIDI_PATH,
+          label: 'iPhone/iPadでMIDIを使う',
+          suffix: '」をご覧ください。',
+        },
       },
       {
         question: '無料で自動課金されますか？',
@@ -733,6 +761,8 @@ const COPY_EN: LandingCopy = {
         title: 'Use on iPhone / iPad',
         description:
           'Download from the App Store. Connect a compatible MIDI keyboard to practice. Pick up your courses and progress with the same account.',
+        linkTo: HELP_IOS_MIDI_PATH,
+        linkLabel: 'See connection guide →',
       },
       {
         title: 'Try with on-screen keys',
@@ -758,6 +788,7 @@ const COPY_EN: LandingCopy = {
   },
   requirements: {
     heading: 'Connect a MIDI keyboard and start right away.',
+    choiceLinkLabel: 'Choosing a MIDI keyboard →',
     body: [
       'Jazzify works with MIDI-compatible digital pianos and MIDI keyboards. We recommend 49 keys or more — 61-key and 88-key digital pianos work too.',
       'Want to try it first? You can experience some exercises with the on-screen keyboard.',
@@ -861,15 +892,25 @@ const COPY_EN: LandingCopy = {
         question: 'Can I use it on just a smartphone?',
         answer: [
           'Some exercises work with the on-screen keyboard.',
-          'For serious practice, we recommend connecting a MIDI keyboard. On iPhone and iPad, you can connect one via USB using the iOS app.',
+          'For serious practice, we recommend connecting a MIDI keyboard. On iPhone and iPad, you can connect one via USB using the iOS app. See ',
         ],
+        inlineLink: {
+          to: HELP_IOS_MIDI_PATH,
+          label: 'MIDI on iPhone / iPad',
+          suffix: ' for setup steps.',
+        },
       },
       {
         question: 'Can I use MIDI on iPhone / iPad?',
         answer: [
           'Yes. On iPhone and iPad, you can connect a MIDI keyboard via USB through the Jazzify iOS app.',
-          'For setup steps and compatible gear, see our support page: MIDI on iPhone / iPad.',
+          'For setup steps and compatible gear, see our support page: ',
         ],
+        inlineLink: {
+          to: HELP_IOS_MIDI_PATH,
+          label: 'MIDI on iPhone / iPad',
+          suffix: '.',
+        },
       },
       {
         question: 'Will I be charged automatically on the free plan?',

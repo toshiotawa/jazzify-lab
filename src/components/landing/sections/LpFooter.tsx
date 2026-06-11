@@ -2,6 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { LpAppStoreButton } from '@/components/landing/LpAppStoreButton';
 import { getLandingCopy } from '@/components/landing/landingCopy';
+import {
+  HELP_IOS_MIDI_PATH,
+  HELP_MIDI_KEYBOARD_CHOICE_PATH,
+} from '@/components/landing/landingLinks';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 const scrollToSection = (event: React.MouseEvent<HTMLAnchorElement>, id: string): void => {
@@ -85,13 +89,13 @@ export const LpFooter: React.FC = () => {
                 {copy.footer.faqLink}
               </a>
               <Link
-                to="/help/ios-midi"
+                to={HELP_IOS_MIDI_PATH}
                 className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.iosMidiLink}
               </Link>
               <Link
-                to="/help/midi-keyboard-choice"
+                to={HELP_MIDI_KEYBOARD_CHOICE_PATH}
                 className="block transition-colors hover:text-[var(--lp-gold-deep)]"
               >
                 {copy.footer.midiChoiceLink}

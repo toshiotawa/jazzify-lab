@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+
+const faqLinkClass =
+  'underline transition-colors hover:text-[var(--lp-gold-deep)]';
 
 export const LpFaq: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
@@ -57,9 +61,24 @@ export const LpFaq: React.FC = () => {
                 className={openIndex === index ? 'lp-faq-content mt-4 space-y-2' : 'hidden'}
                 style={{ color: 'var(--lp-ink-muted)' }}
               >
-                {item.answer.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
+                {item.answer.map((paragraph, paragraphIndex) => {
+                  const isLastParagraph = paragraphIndex === item.answer.length - 1;
+                  const showInlineLink = isLastParagraph && item.inlineLink;
+
+                  return (
+                    <p key={paragraph}>
+                      {paragraph}
+                      {showInlineLink && item.inlineLink && (
+                        <>
+                          <Link to={item.inlineLink.to} className={faqLinkClass}>
+                            {item.inlineLink.label}
+                          </Link>
+                          {item.inlineLink.suffix}
+                        </>
+                      )}
+                    </p>
+                  );
+                })}
               </div>
             </div>
           ))}

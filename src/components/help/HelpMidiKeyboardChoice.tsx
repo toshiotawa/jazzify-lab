@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SiteFooter from '@/components/common/SiteFooter';
 
 const diagramBoxClass =
@@ -140,7 +140,11 @@ const HelpMidiKeyboardChoice: React.FC = () => {
             </section>
 
             <p className="text-gray-400 text-sm border-t border-white/10 pt-6">
-              ケーブルや接続手順は、このサイトのフッターやログイン前画面から開ける「iPhone/iPadでMIDIを使う」もあわせてご覧ください。
+              ケーブルや接続手順は、
+              <Link to="/help/ios-midi" className="text-blue-300 underline">
+                iPhone/iPadでMIDIを使う
+              </Link>
+              もあわせてご覧ください。
             </p>
           </div>
         </div>

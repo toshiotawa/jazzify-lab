@@ -34,6 +34,17 @@ export const LpPlatforms: React.FC = () => {
               <p className="lp-card-body" style={{ color: 'var(--lp-ink-muted)' }}>
                 {card.description}
               </p>
+              {card.linkTo && card.linkLabel && (
+                <p className="mt-4">
+                  <Link
+                    to={card.linkTo}
+                    className="text-sm underline transition-colors hover:text-[var(--lp-gold-deep)]"
+                    style={{ color: 'var(--lp-ink-muted)' }}
+                  >
+                    {card.linkLabel}
+                  </Link>
+                </p>
+              )}
             </div>
           ))}
         </div>
