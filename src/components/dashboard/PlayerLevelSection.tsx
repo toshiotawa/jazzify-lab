@@ -88,7 +88,7 @@ const PlayerLevelSection: React.FC<PlayerLevelSectionProps> = ({ profile }) => {
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-sm font-semibold text-gray-300">{title}</span>
         {level != null && !loading && !error && (
-          <span className="text-sm font-bold text-cyan-400 tabular-nums">
+          <span className="text-sm font-bold text-cyan-400 tabular-nums font-stat">
             Lv.{level}
           </span>
         )}
@@ -107,7 +107,7 @@ const PlayerLevelSection: React.FC<PlayerLevelSectionProps> = ({ profile }) => {
               aria-valuemax={nextNeed}
             />
           </div>
-          <p className="text-xs text-gray-400 mt-1.5 tabular-nums">{subline}</p>
+          <p className="text-xs text-gray-400 mt-1.5 tabular-nums font-stat">{subline}</p>
         </>
       ) : null}
     </div>

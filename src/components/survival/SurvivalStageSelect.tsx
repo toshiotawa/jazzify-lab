@@ -549,7 +549,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                                 <div className="font-semibold text-yellow-400">
                                   {isEnglishCopy ? 'Best' : 'ベスト'}: {formatTime(score.survivalTimeSeconds)}
                                 </div>
-                                <div className="text-gray-400">
+                                <div className="text-gray-400 font-stat">
                                   Lv.{score.finalLevel} / {score.enemiesDefeated} {isEnglishCopy ? 'kills' : '撃破'}
                                 </div>
                               </div>

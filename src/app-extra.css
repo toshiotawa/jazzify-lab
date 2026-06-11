@@ -218,7 +218,7 @@
     height: 0 !important;
   }
   
-  /* Removed DotGothic16 import and utility; use Tailwind font-sans (Kaisei Opti) */
+  /* Removed DotGothic16 import and utility; use Tailwind font-sans (Zen Kaku Gothic New) */
   
   /* 楽譜エリア: 再生中はスクロールバーを非表示 */
   .overflow-hidden.custom-sheet-scrollbar::-webkit-scrollbar {
@@ -688,6 +688,32 @@
   /* ゲーム特有のスタイル */
   .game-container {
     @apply w-full h-screen bg-gradient-game flex flex-col overflow-hidden;
+    font-family: var(--font-ja);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+  }
+
+  .game-container h1,
+  .game-container h2,
+  .game-container h3,
+  .game-container .game-title,
+  .game-container .quest-title,
+  .game-container .user-name {
+    font-family: var(--font-ja);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .game-container header button,
+  .game-container .btn-accent-font {
+    font-family: var(--font-en);
+    font-weight: 700;
+  }
+
+  .game-container .font-stat {
+    font-family: var(--font-en);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
   
   .notes-area {
@@ -930,19 +956,19 @@
     @apply bg-background text-foreground;
   }
 
-/* ファンタジーモード用フォント - Kaisei Opti + 絵文字フォールバック */
+/* ファンタジーモード用フォント - Zen Kaku Gothic New + 絵文字フォールバック */
 .fantasy-pixel-font {
-  font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
+  font-family: var(--font-ja);
   font-weight: normal;
 }
 
 .fantasy-game-screen {
-  font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
+  font-family: var(--font-ja);
   font-weight: normal;
 }
 
 .fantasy-game-screen * {
-  font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif !important;
+  font-family: var(--font-ja) !important;
   font-weight: normal !important;
 }
 

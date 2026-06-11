@@ -156,7 +156,7 @@ const Dashboard: React.FC = () => {
                   className="w-16 h-16 rounded-full object-cover"
                 />
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold">{profile.nickname}</h2>
+                  <h2 className="text-2xl font-extrabold tracking-tight user-name">{profile.nickname}</h2>
 
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
                     <div className="flex items-center space-x-1">
@@ -170,7 +170,7 @@ const Dashboard: React.FC = () => {
                       <span className="animate-pulse">{statsLoadingText}</span>
                     </div>
                   ) : userStats ? (
-                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
+                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2 font-stat">
                       <span>
                         {isEnglishCopy ? 'Quests cleared' : 'クエストクリア数'} {userStats.lessonCompletedCount}
                       </span>

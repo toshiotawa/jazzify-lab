@@ -65,7 +65,7 @@ const MainQuestProgressSection: React.FC = () => {
     <div className="bg-slate-800 rounded-lg border border-slate-700 p-5">
       <div className="flex items-center gap-2 mb-3">
         <FaStar className="text-cyan-400 text-lg" />
-        <h3 className="text-base font-semibold">{sectionTitle}</h3>
+        <h3 className="text-base font-extrabold">{sectionTitle}</h3>
       </div>
 
       <div className="flex items-center gap-5">
@@ -92,7 +92,7 @@ const MainQuestProgressSection: React.FC = () => {
               className="transition-all duration-500"
             />
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white font-stat">
             {completedLessons}/{totalLessons}
           </span>
         </div>
@@ -115,7 +115,7 @@ const MainQuestProgressSection: React.FC = () => {
               </div>
               <button
                 onClick={handlePlay}
-                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors w-full sm:w-auto"
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold font-accent transition-colors w-full sm:w-auto"
                 aria-label={isEnglishCopy ? `Start ${nextLessonDisplayTitle}` : `${nextLessonDisplayTitle} を開始`}
               >
                 <FaPlay className="text-xs ml-0.5" />

@@ -263,7 +263,7 @@ const DiaryPage: React.FC = () => {
                         className="w-16 h-16 rounded-full object-cover"
                       />
                       <div>
-                        <h3 className="text-xl font-semibold">{profile.nickname}</h3>
+                        <h3 className="text-xl font-extrabold tracking-tight user-name">{profile.nickname}</h3>
                         {/* 称号表示（standard_globalユーザーは非表示、閲覧者がstd_globalの場合も非表示） */}
                         {!isStandardGlobal && profile.rank !== 'standard_global' && (
                         <div className="relative mb-2 mt-1">
@@ -289,7 +289,7 @@ const DiaryPage: React.FC = () => {
                           )}
                         </div>
                         )}
-                        <div className="flex items-center space-x-3 text-sm text-gray-400">
+                        <div className="flex items-center space-x-3 text-sm text-gray-400 font-stat">
                           <span>Lv.{profile.level}</span>
                           <div className="flex items-center space-x-1">
                             {getRankIcon(profile.rank)}
@@ -301,12 +301,12 @@ const DiaryPage: React.FC = () => {
                           <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Missions Completed' : 'ミッション完了数'}>
                             <FaTrophy className="text-purple-400" aria-hidden="true" />
                             <span className="text-gray-400">{isEnglishCopy ? 'Missions' : 'ミッション完了'}</span>
-                            <span className="font-semibold text-white">{userStats?.missionCompletedCount ?? 0}</span>
+                            <span className="font-semibold text-white font-stat">{userStats?.missionCompletedCount ?? 0}</span>
                           </div>
                           <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Quests Cleared' : 'クエストクリア数'}>
                             <FaGraduationCap className="text-blue-400" aria-hidden="true" />
                             <span className="text-gray-400">{isEnglishCopy ? 'Quests' : 'クエストクリア'}</span>
-                            <span className="font-semibold text-white">{userStats?.lessonCompletedCount ?? 0}</span>
+                            <span className="font-semibold text-white font-stat">{userStats?.lessonCompletedCount ?? 0}</span>
                           </div>
                           {(userStats?.survivalBestTimeSeconds ?? 0) > 0 && (
                             <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Survival Best Time' : 'サバイバル最高生存時間'}>
@@ -419,7 +419,7 @@ const DiaryPage: React.FC = () => {
                                     <img src={u.avatar_url||DEFAULT_AVATAR_URL} className="w-6 h-6 rounded-full object-cover" />
                                   </button>
                                   <button className="truncate hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${u.user_id}`;}}>{u.nickname}</button>
-                                  <span className="text-yellow-400">Lv.{u.level}</span>
+                                  <span className="text-yellow-400 font-stat">Lv.{u.level}</span>
                                   <div className="flex items-center space-x-1">
                                     {getRankIcon(u.rank)}
                                     <span className="text-xs text-green-400">

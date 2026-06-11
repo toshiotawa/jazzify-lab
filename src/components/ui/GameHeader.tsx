@@ -27,7 +27,7 @@ const GameHeader: React.FC = () => {
         <div className="flex-1 min-w-0 flex items-center space-x-1 sm:space-x-2 overflow-x-auto whitespace-nowrap pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
             {/* トップ (ダッシュボード) */}
           <button
-            className="text-white hover:text-primary-400 font-bold px-2"
+            className="text-white hover:text-primary-400 font-accent font-bold px-2"
             onClick={() => {
               if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
               window.location.href = '/main#dashboard';
@@ -76,7 +76,7 @@ const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick, disabl
           onClick?.();
         }
       }}
-      className={`px-2 py-1 text-xs sm:text-sm whitespace-nowrap ${active ? 'tab-active' : 'tab-inactive'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`px-2 py-1 text-xs sm:text-sm whitespace-nowrap font-accent font-bold ${active ? 'tab-active' : 'tab-inactive'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       disabled={disabled}
     >
       {children}
@@ -102,7 +102,7 @@ const HeaderRightControls: React.FC<HeaderRightControlsProps> = ({ isEnglishCopy
           >
             <FaUserCircle size={24} />
           </a>
-          <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
+          <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary font-accent font-bold">
             {isEnglishCopy ? 'Account' : 'アカウント'}
           </a>
         </>

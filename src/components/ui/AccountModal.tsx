@@ -196,8 +196,8 @@ const AccountPage: React.FC = () => {
 
       {/* Page body */}
       <div className="flex-1 w-full flex flex-col items-center overflow-auto p-6">
-        <div className="w-full max-w-md space-y-6">
-          <h2 className="text-xl font-bold text-center">{isEnglishCopy ? 'Account' : 'アカウント'}</h2>
+        <div className="w-full max-w-md space-y-6 [&_button]:font-accent [&_button]:font-bold">
+          <h2 className="text-xl font-extrabold tracking-tight text-center user-name">{isEnglishCopy ? 'Account' : 'アカウント'}</h2>
           
           {profile ? (
             <div className="space-y-4">
@@ -232,7 +232,7 @@ const AccountPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="flex justify-between items-center mt-1">
-                        <span className="font-medium text-sm">{profile?.nickname}</span>
+                        <span className="font-extrabold text-sm user-name">{profile?.nickname}</span>
                         <button
                           className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-gray-200 transition-colors"
                           onClick={() => { setNicknameValue(profile?.nickname ?? ''); setNicknameEditing(true); }}

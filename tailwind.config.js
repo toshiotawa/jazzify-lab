@@ -89,11 +89,16 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Kaisei Opti',
+  				'Zen Kaku Gothic New',
   				'Apple Color Emoji',
   				'Segoe UI Emoji',
   				'Noto Color Emoji',
-  				'serif'
+  				'sans-serif'
+  			],
+  			accent: [
+  				'Space Grotesk',
+  				'Zen Kaku Gothic New',
+  				'sans-serif'
   			],
   			mono: [
   				'JetBrains Mono',

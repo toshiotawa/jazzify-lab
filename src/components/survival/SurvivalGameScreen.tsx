@@ -6471,7 +6471,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   ) : isStageMode && scenarioHideTimer ? null : (
                     <span className="font-bold shrink-0">{formatTime(gameState.elapsedTime)}</span>
                   )}
-                  {!isStageMode && <span className="shrink-0">Lv.{gameState.player.level}</span>}
+                  {!isStageMode && <span className="shrink-0 font-stat">Lv.{gameState.player.level}</span>}
                   {isStageMode && hintMode && (!scenarioHideHintBadge || isBalloonRushMode) && (
                     <span className="bg-yellow-500/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0 text-[9px]">HINT</span>
                   )}
@@ -6512,7 +6512,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
                     />
                   </div>
-                  <span className="text-white font-sans text-[10px] md:text-xs tabular-nums">{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
+                  <span className="text-white font-sans text-[10px] md:text-xs tabular-nums font-stat">{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
                 </div>
                 ) : null}
                 {!scenarioHidePause ? (
@@ -6752,11 +6752,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 <div className="bg-gray-900/90 rounded-lg p-3 mb-3 text-left text-sm max-h-[50vh] overflow-y-auto">
                   {/* 基本情報 */}
                   <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-700">
-                    <span className="text-gray-400 font-sans">Lv.{gameState.player.level}</span>
+                    <span className="text-gray-400 font-sans font-stat">Lv.{gameState.player.level}</span>
                     <span className="text-gray-400 font-sans">WAVE {gameState.wave.currentWave}</span>
                     <span className="font-sans">
                       <span className="text-red-400">HP</span>{' '}
-                      <span className="text-white">{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
+                      <span className="text-white font-stat">{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
                     </span>
                   </div>
                   
