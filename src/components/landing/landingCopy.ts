@@ -21,6 +21,7 @@ interface LandingHeroCopy {
   subtitle: string[];
   demoCta: string;
   signupCta: string;
+  appStoreCta: string;
   note: string;
   videoAlt: string;
   videoBadge: string;
@@ -95,6 +96,19 @@ interface LandingSkillsCopy {
   heading: string;
   body: string[];
   items: string[];
+}
+
+interface LandingPlatformCard {
+  title: string;
+  description: string;
+}
+
+interface LandingPlatformsCopy {
+  heading: string;
+  body: string[];
+  cards: LandingPlatformCard[];
+  appStoreCta: string;
+  webCta: string;
 }
 
 interface LandingRequirementsCopy {
@@ -194,6 +208,7 @@ interface LandingCopy {
   mainQuest: LandingMainQuestCopy;
   courses: LandingCoursesCopy;
   modes: LandingModesCopy;
+  platforms: LandingPlatformsCopy;
   skills: LandingSkillsCopy;
   requirements: LandingRequirementsCopy;
   developer: LandingDeveloperCopy;
@@ -240,7 +255,8 @@ const COPY_JA: LandingCopy = {
     ],
     demoCta: '1分だけ体験する',
     signupCta: '無料で始める',
-    note: 'クレジットカード登録不要 / Web・iPhone対応',
+    appStoreCta: 'App Storeでダウンロード',
+    note: 'クレジットカード登録不要 / Web・iPhone・iPad対応 / 画面鍵盤でも一部体験OK',
     videoAlt: 'Jazzify サバイバルモードのプレイ映像',
     videoBadge: 'コードを弾く → キャラが動く',
   },
@@ -360,6 +376,33 @@ const COPY_JA: LandingCopy = {
       ],
       imageAlt: 'バトルモードのプレイ画面',
     },
+  },
+  platforms: {
+    heading: 'Webでも、iPhone/iPadでも。',
+    body: [
+      'Jazzifyは、PCブラウザでもiPhone/iPadアプリでも使えます。',
+      'MIDIキーボードを接続すれば、画面の指示に合わせて実際に弾きながら練習できます。',
+      'まずは画面上の鍵盤でも、一部の課題を体験できます。',
+    ],
+    cards: [
+      {
+        title: 'Webで使う',
+        description:
+          'PC / Mac のブラウザで利用できます。MIDIキーボードを接続して練習できます。',
+      },
+      {
+        title: 'iPhone / iPadで使う',
+        description:
+          'App Storeからダウンロード。対応MIDIキーボードを接続して練習できます。同じアカウントで、コースや進行状況を続けられます。',
+      },
+      {
+        title: 'まずは画面鍵盤で体験',
+        description:
+          'MIDIキーボードがなくても、一部課題は画面上の鍵盤で試せます。',
+      },
+    ],
+    appStoreCta: 'App Storeでダウンロード',
+    webCta: 'Webで無料体験する',
   },
   skills: {
     heading: 'バラバラだった練習を、「ジャズを弾く力」につなげる。',
@@ -482,6 +525,13 @@ const COPY_JA: LandingCopy = {
         ],
       },
       {
+        question: 'iPhone/iPadでMIDIを使えますか？',
+        answer: [
+          'はい。iPhone・iPadでは、JazzifyのiOSアプリからUSB経由でMIDIキーボードを接続できます。',
+          '接続方法や対応機材の詳細は、サポートページ「iPhone/iPadでMIDIを使う」をご覧ください。',
+        ],
+      },
+      {
         question: '無料で自動課金されますか？',
         answer: [
           '無料範囲の利用に、クレジットカード登録は必要ありません。',
@@ -505,7 +555,7 @@ const COPY_JA: LandingCopy = {
       '小さな成功を積み重ねれば、ジャズは「難しい音楽」から、自分で演奏できる音楽に変わります。',
     ],
     cta: '無料でJazzifyを始める',
-    note: 'クレジットカード登録不要 / Web・iPhone対応',
+    note: 'クレジットカード登録不要 / Web・iPhone・iPad対応 / 画面鍵盤でも一部体験OK',
   },
   footer: {
     blurb: 'ジャズピアノを、ゲームのように弾いて覚える学習サービス。',
@@ -544,7 +594,8 @@ const COPY_EN: LandingCopy = {
     ],
     demoCta: 'Try the 1-minute demo',
     signupCta: 'Start for free',
-    note: 'No credit card required / Works on Web & iPhone',
+    appStoreCta: 'Download on the App Store',
+    note: 'No credit card required / Works on Web, iPhone & iPad / On-screen keys for some exercises',
     videoAlt: 'Jazzify Survival mode gameplay video',
     videoBadge: 'Play a chord → your character moves',
   },
@@ -664,6 +715,33 @@ const COPY_EN: LandingCopy = {
       ],
       imageAlt: 'Battle mode gameplay screen',
     },
+  },
+  platforms: {
+    heading: 'Works on Web, iPhone, and iPad.',
+    body: [
+      'Use Jazzify in your PC browser or on the iPhone/iPad app.',
+      'Connect a MIDI keyboard and practice by actually playing along with on-screen prompts.',
+      'You can also try some exercises with the on-screen keyboard first.',
+    ],
+    cards: [
+      {
+        title: 'Use on the Web',
+        description:
+          'Play in a PC or Mac browser. Connect a MIDI keyboard to practice.',
+      },
+      {
+        title: 'Use on iPhone / iPad',
+        description:
+          'Download from the App Store. Connect a compatible MIDI keyboard to practice. Pick up your courses and progress with the same account.',
+      },
+      {
+        title: 'Try with on-screen keys',
+        description:
+          'No MIDI keyboard yet? Some exercises work with the on-screen keyboard.',
+      },
+    ],
+    appStoreCta: 'Download on the App Store',
+    webCta: 'Try free on the Web',
   },
   skills: {
     heading: 'Connect scattered practice into the ability to play jazz.',
@@ -787,6 +865,13 @@ const COPY_EN: LandingCopy = {
         ],
       },
       {
+        question: 'Can I use MIDI on iPhone / iPad?',
+        answer: [
+          'Yes. On iPhone and iPad, you can connect a MIDI keyboard via USB through the Jazzify iOS app.',
+          'For setup steps and compatible gear, see our support page: MIDI on iPhone / iPad.',
+        ],
+      },
+      {
         question: 'Will I be charged automatically on the free plan?',
         answer: [
           'No credit card is required for the free tier.',
@@ -810,7 +895,7 @@ const COPY_EN: LandingCopy = {
       'Stack up small wins, and jazz changes from "difficult music" into music you can play yourself.',
     ],
     cta: 'Start Jazzify for free',
-    note: 'No credit card required / Works on Web & iPhone',
+    note: 'No credit card required / Works on Web, iPhone & iPad / On-screen keys for some exercises',
   },
   footer: {
     blurb: 'A learning service where you learn jazz piano by playing it like a game.',

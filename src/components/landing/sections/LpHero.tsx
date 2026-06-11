@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { LpAppStoreButton } from '@/components/landing/LpAppStoreButton';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -35,6 +36,11 @@ export const LpHero: React.FC = () => {
             >
               {copy.hero.demoCta}
             </button>
+            <LpAppStoreButton
+              label={copy.hero.appStoreCta}
+              ariaLabel={copy.footer.appStoreAria}
+              size="md"
+            />
             <Link to="/signup" className="lp-btn-outline px-8 py-4 text-lg">
               {copy.hero.signupCta}
             </Link>

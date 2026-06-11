@@ -10,6 +10,7 @@ import { LpSolution } from '@/components/landing/sections/LpSolution';
 import { LpMainQuest } from '@/components/landing/sections/LpMainQuest';
 import { LpCourses } from '@/components/landing/sections/LpCourses';
 import { LpModes } from '@/components/landing/sections/LpModes';
+import { LpPlatforms } from '@/components/landing/sections/LpPlatforms';
 import { LpSkills } from '@/components/landing/sections/LpSkills';
 import { LpRequirements } from '@/components/landing/sections/LpRequirements';
 import { LpDeveloper } from '@/components/landing/sections/LpDeveloper';
@@ -172,6 +173,7 @@ const LandingPage: React.FC = () => {
         <LpMainQuest />
         <LpCourses />
         <LpModes />
+        <LpPlatforms />
         <LpDeveloper />
         <LpSkills />
         <LpRequirements />
