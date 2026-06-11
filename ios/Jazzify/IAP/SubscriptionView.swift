@@ -620,6 +620,14 @@ struct SubscriptionView: View {
                         .font(.caption)
                         .foregroundStyle(Self.paywallAccent)
 
+                    Text(locale == .ja ? "約3ヶ月分お得" : "Save ~3 months")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Self.paywallAccent.opacity(0.2))
+                        .foregroundStyle(Self.paywallAccent)
+                        .cornerRadius(4)
+
                     if let monthly = monthlyProduct, let savings = yearlySavingsText(monthly: monthly, yearly: product) {
                         Text(savings)
                             .font(.caption2.bold())
