@@ -311,28 +311,6 @@ private struct SurvivalCodeRunJumpFeedbackEffect: Equatable {
     let duration: TimeInterval
 }
 
-private struct SurvivalCodeRunNativeEnemy: Identifiable {
-    let id: String
-    var rect: CGRect
-    var vx: CGFloat
-    let minX: CGFloat
-    let maxX: CGFloat
-    var alive: Bool = true
-    var anim: CGFloat = 0
-}
-
-private enum SurvivalCodeRunNativeTileKind: String, Sendable {
-    case ground
-    case brick
-    case platform
-    case block
-}
-
-private struct SurvivalCodeRunNativeSolid: Sendable {
-    let kind: SurvivalCodeRunNativeTileKind
-    let rect: CGRect
-}
-
 private enum SurvivalCodeRunNativeLayout {
     /// Web 版の固定ビューポート表示に対する追加ズームアウト係数。
     static let zoomOutFactor: CGFloat = 0.88
@@ -1039,7 +1017,6 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var player = SurvivalCodeRunNativePlayer()
     @State private var enemies = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil).enemies()
     @State private var elapsed: TimeInterval = 0
-    @State private var lastTick = Date()
     @State private var inputX: CGFloat = 0
     @State private var status: SurvivalCodeRunNativeStatus = .playing
     @State private var currentChordIndex = 0
@@ -1056,10 +1033,11 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var audioStartupTask: Task<Void, Never>?
     @State private var mapLoadTask: Task<Void, Never>?
     @State private var lifecycleID = UUID()
+    @State private var frameTick: UInt = 0
+    @StateObject private var frameClock = SurvivalCodeRunFrameClock()
     @StateObject private var midiManager = MIDIManager.shared
 
     private let audio = SurvivalAudioController()
-    private let timer = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
     private var currentChord: SurvivalResolvedChord? {
         if isRandomStage { return randomCurrentChord }
         return progressionChords.isEmpty ? nil : progressionChords[currentChordIndex % progressionChords.count]
@@ -1119,11 +1097,15 @@ private struct SurvivalCodeRunGameContent: View {
             .background(Color.black)
             .overlay { resultOverlay }
         }
-        .onReceive(timer) { now in tick(now: now) }
+        .background {
+            SurvivalCodeRunDisplayLinkDriver(frameClock: frameClock)
+        }
+        .onReceive(frameClock.publisher) { dt in
+            tick(deltaTime: dt)
+        }
         .onAppear {
             let id = UUID()
             lifecycleID = id
-            lastTick = Date()
             OrientationManager.shared.lock(.portrait)
             startAudioAndMidi(lifecycleID: id)
         }
@@ -1384,6 +1366,7 @@ private struct SurvivalCodeRunGameContent: View {
             drawWorld(context: &context, visibleRect: visibleRect)
         }
         .frame(width: size.width, height: size.height)
+        .id(frameTick)
     }
 
     private func drawWorld(context: inout GraphicsContext, visibleRect: CGRect) {
@@ -1514,49 +1497,80 @@ private struct SurvivalCodeRunGameContent: View {
         context.draw(SurvivalCodeRunNativeAssets.background, in: drawRect)
     }
 
-    private func tick(now: Date) {
+    private func tick(deltaTime: TimeInterval) {
         guard status == .playing else { return }
-        let dt = min(1.0 / 20.0, max(0, now.timeIntervalSince(lastTick)))
-        lastTick = now
+        let dt = min(1.0 / 20.0, max(0, deltaTime))
         elapsed += dt
         let step = CGFloat(dt * 60)
+        var nextPlayer = player
         if abs(inputX) > 0.08 {
-            player.vx = max(-SurvivalCodeRunNativeRules.walkMax, min(SurvivalCodeRunNativeRules.walkMax, player.vx + SurvivalCodeRunNativeRules.walkAccel * inputX * step))
-            player.facing = inputX >= 0 ? 1 : -1
+            nextPlayer.vx = max(-SurvivalCodeRunNativeRules.walkMax, min(SurvivalCodeRunNativeRules.walkMax, nextPlayer.vx + SurvivalCodeRunNativeRules.walkAccel * inputX * step))
+            nextPlayer.facing = inputX >= 0 ? 1 : -1
         } else {
-            let decel = (player.onGround ? SurvivalCodeRunNativeRules.groundDecel : SurvivalCodeRunNativeRules.airDecel) * step
-            if abs(player.vx) <= decel { player.vx = 0 } else { player.vx -= player.vx.sign == .minus ? -decel : decel }
+            let decel = (nextPlayer.onGround ? SurvivalCodeRunNativeRules.groundDecel : SurvivalCodeRunNativeRules.airDecel) * step
+            if abs(nextPlayer.vx) <= decel { nextPlayer.vx = 0 } else { nextPlayer.vx -= nextPlayer.vx.sign == .minus ? -decel : decel }
         }
-        player.vy = min(SurvivalCodeRunNativeRules.maxFall, player.vy + SurvivalCodeRunNativeRules.gravity * step)
-        player.runPhase += abs(player.vx) * 0.035 * step
-        updateCoyoteFrames()
-        processJumpBuffer()
-        movePlayer(step: step)
-        player.invulnerableTime = max(0, player.invulnerableTime - dt)
-        player.hurtTime = max(0, player.hurtTime - dt)
-        moveEnemies(step: step)
+        nextPlayer.vy = min(SurvivalCodeRunNativeRules.maxFall, nextPlayer.vy + SurvivalCodeRunNativeRules.gravity * step)
+        nextPlayer.runPhase += abs(nextPlayer.vx) * 0.035 * step
+        nextPlayer = updateCoyoteFrames(player: nextPlayer)
+        let jumpResult = processJumpBuffer(player: nextPlayer)
+        nextPlayer = jumpResult.player
+        if let feedback = jumpResult.jumpFeedbackEffect {
+            jumpFeedbackEffect = feedback
+        }
+        let movedPlayer = movePlayer(player: nextPlayer, step: step)
+        nextPlayer = movedPlayer.player
+        if movedPlayer.fellOffWorld {
+            player = nextPlayer
+            failRun()
+            return
+        }
+        nextPlayer.invulnerableTime = max(0, nextPlayer.invulnerableTime - dt)
+        nextPlayer.hurtTime = max(0, nextPlayer.hurtTime - dt)
+        player = nextPlayer
+        enemies = SurvivalCodeRunNativeEngine.moveEnemies(
+            enemies: enemies,
+            solids: mapSpec.solids,
+            step: step
+        )
         resolveHazards(step: step)
+        frameTick &+= 1
         if hasReachedGoal() { finish(.clear) }
     }
 
-    private func updateCoyoteFrames() {
-        if player.onGround {
-            player.coyoteFrames = SurvivalCodeRunNativeRules.coyoteFrames
-        } else if player.coyoteFrames > 0 {
-            player.coyoteFrames -= 1
-        }
+    private struct CodeRunJumpBufferResult {
+        var player: SurvivalCodeRunNativePlayer
+        var jumpFeedbackEffect: SurvivalCodeRunJumpFeedbackEffect?
     }
 
-    private func processJumpBuffer() {
-        guard player.jumpBufferFrames > 0 else { return }
-        if canExecuteBufferedJump() {
-            applyBufferedJump()
-        } else {
-            player.jumpBufferFrames -= 1
-        }
+    private struct CodeRunMovePlayerResult {
+        var player: SurvivalCodeRunNativePlayer
+        var fellOffWorld: Bool
     }
 
-    private func canExecuteBufferedJump() -> Bool {
+    private func updateCoyoteFrames(player: SurvivalCodeRunNativePlayer) -> SurvivalCodeRunNativePlayer {
+        var next = player
+        if next.onGround {
+            next.coyoteFrames = SurvivalCodeRunNativeRules.coyoteFrames
+        } else if next.coyoteFrames > 0 {
+            next.coyoteFrames -= 1
+        }
+        return next
+    }
+
+    private func processJumpBuffer(player: SurvivalCodeRunNativePlayer) -> CodeRunJumpBufferResult {
+        guard player.jumpBufferFrames > 0 else {
+            return CodeRunJumpBufferResult(player: player, jumpFeedbackEffect: nil)
+        }
+        if canExecuteBufferedJump(player: player) {
+            return applyBufferedJump(player: player)
+        }
+        var next = player
+        next.jumpBufferFrames -= 1
+        return CodeRunJumpBufferResult(player: next, jumpFeedbackEffect: nil)
+    }
+
+    private func canExecuteBufferedJump(player: SurvivalCodeRunNativePlayer) -> Bool {
         if player.chordLockedUntilLanding || player.jumpCount >= 2 { return false }
         if player.jumpCount == 0 {
             return player.onGround || player.coyoteFrames > 0
@@ -1564,52 +1578,55 @@ private struct SurvivalCodeRunGameContent: View {
         return true
     }
 
-    private func applyBufferedJump() {
-        jumpFeedbackEffect = SurvivalCodeRunJumpFeedbackEffect(
-            x: player.x + 17,
-            y: player.y + 42,
+    private func applyBufferedJump(player: SurvivalCodeRunNativePlayer) -> CodeRunJumpBufferResult {
+        var next = player
+        let feedback = SurvivalCodeRunJumpFeedbackEffect(
+            x: next.x + 17,
+            y: next.y + 42,
             startedAt: elapsed,
             duration: SurvivalCodeRunNativeRules.jumpFeedbackDuration
         )
-        player.vy = SurvivalCodeRunNativeRules.jumpVelocity
-        player.onGround = false
-        player.jumpCount += 1
-        player.coyoteFrames = 0
-        player.jumpBufferFrames = 0
-        if player.jumpCount >= 2 {
-            player.chordLockedUntilLanding = true
+        next.vy = SurvivalCodeRunNativeRules.jumpVelocity
+        next.onGround = false
+        next.jumpCount += 1
+        next.coyoteFrames = 0
+        next.jumpBufferFrames = 0
+        if next.jumpCount >= 2 {
+            next.chordLockedUntilLanding = true
             completedPitchClasses.removeAll()
         }
+        return CodeRunJumpBufferResult(player: next, jumpFeedbackEffect: feedback)
     }
 
-    private func movePlayer(step: CGFloat) {
-        var rect = CGRect(x: player.x + player.vx * step, y: player.y, width: 34, height: 42)
+    private func movePlayer(player: SurvivalCodeRunNativePlayer, step: CGFloat) -> CodeRunMovePlayerResult {
+        var next = player
+        var rect = CGRect(x: next.x + next.vx * step, y: next.y, width: 34, height: 42)
         for solid in mapSpec.solids where solid.kind != .platform && rect.intersects(solid.rect) {
-            if player.vx > 0 { rect.origin.x = solid.rect.minX - rect.width }
-            if player.vx < 0 { rect.origin.x = solid.rect.maxX }
-            player.vx = 0
+            if next.vx > 0 { rect.origin.x = solid.rect.minX - rect.width }
+            if next.vx < 0 { rect.origin.x = solid.rect.maxX }
+            next.vx = 0
         }
-        player.x = max(0, min(mapSpec.worldWidth - rect.width, rect.origin.x))
-        rect = CGRect(x: player.x, y: player.y + player.vy * step, width: 34, height: 42)
-        player.onGround = false
+        next.x = max(0, min(mapSpec.worldWidth - rect.width, rect.origin.x))
+        rect = CGRect(x: next.x, y: next.y + next.vy * step, width: 34, height: 42)
+        next.onGround = false
         for solid in mapSpec.solids where rect.intersects(solid.rect) {
-            if solid.kind == .platform && !canLandOnPlatform(solid: solid) { continue }
-            if player.vy > 0 {
+            if solid.kind == .platform && !canLandOnPlatform(player: next, solid: solid) { continue }
+            if next.vy > 0 {
                 rect.origin.y = solid.rect.minY - rect.height
-                player.vy = 0
-                player.onGround = true
-                player.jumpCount = 0
-                player.chordLockedUntilLanding = false
-            } else if player.vy < 0 {
+                next.vy = 0
+                next.onGround = true
+                next.jumpCount = 0
+                next.chordLockedUntilLanding = false
+            } else if next.vy < 0 {
                 rect.origin.y = solid.rect.maxY
-                player.vy = 0
+                next.vy = 0
             }
         }
-        player.y = rect.origin.y
-        if player.y > mapSpec.worldHeight + 96 { failRun() }
+        next.y = rect.origin.y
+        return CodeRunMovePlayerResult(player: next, fellOffWorld: next.y > mapSpec.worldHeight + 96)
     }
 
-    private func canLandOnPlatform(solid: SurvivalCodeRunNativeSolid) -> Bool {
+    private func canLandOnPlatform(player: SurvivalCodeRunNativePlayer, solid: SurvivalCodeRunNativeSolid) -> Bool {
         solid.kind == .platform
             && player.vy > 0
             && player.y + 42 <= solid.rect.minY + SurvivalCodeRunNativeRules.oneWayPlatformLandingEpsilon
@@ -1625,17 +1642,6 @@ private struct SurvivalCodeRunGameContent: View {
             && player.y + 42 > goalY
     }
 
-    private func moveEnemies(step: CGFloat) {
-        for i in enemies.indices where enemies[i].alive {
-            enemies[i].rect.origin.x += enemies[i].vx * step
-            if enemies[i].rect.minX < enemies[i].minX || enemies[i].rect.maxX > enemies[i].maxX {
-                enemies[i].vx *= -1
-                enemies[i].rect.origin.x = max(enemies[i].minX, min(enemies[i].maxX, enemies[i].rect.origin.x))
-            }
-            enemies[i].anim += 0.15 * step
-        }
-    }
-
     private func resolveHazards(step: CGFloat) {
         guard player.invulnerableTime <= 0 else { return }
         let rect = CGRect(x: player.x, y: player.y, width: 34, height: 42)
@@ -1643,16 +1649,22 @@ private struct SurvivalCodeRunGameContent: View {
             applyDamage(sourceCenterX: spike.midX)
             return
         }
-        for i in enemies.indices where enemies[i].alive && rect.intersects(enemies[i].rect) {
-            let bottomBefore = rect.maxY - player.vy * step
-            if player.vy > 0 && bottomBefore <= enemies[i].rect.minY + 12 {
-                enemies[i].alive = false
-                player.vy = SurvivalCodeRunNativeRules.stompBounce
-                player.onGround = false
-            } else {
-                applyDamage(sourceCenterX: enemies[i].rect.midX)
-            }
-            return
+        switch SurvivalCodeRunNativeEngine.resolveEnemyContact(
+            enemies: enemies,
+            playerRect: rect,
+            playerVy: player.vy,
+            step: step
+        ) {
+        case .none:
+            break
+        case .stomped(let nextEnemies):
+            enemies = nextEnemies
+            var nextPlayer = player
+            nextPlayer.vy = SurvivalCodeRunNativeRules.stompBounce
+            nextPlayer.onGround = false
+            player = nextPlayer
+        case .damaged(let sourceCenterX):
+            applyDamage(sourceCenterX: sourceCenterX)
         }
     }
 
@@ -1724,19 +1736,23 @@ private struct SurvivalCodeRunGameContent: View {
 
     private func triggerJump() {
         guard player.jumpCount < 2, !player.chordLockedUntilLanding else { return }
-        player.jumpBufferFrames = SurvivalCodeRunNativeRules.jumpBufferFrames
+        var nextPlayer = player
+        nextPlayer.jumpBufferFrames = SurvivalCodeRunNativeRules.jumpBufferFrames
+        player = nextPlayer
     }
 
     private func applyDamage(sourceCenterX: CGFloat) {
         guard status == .playing, player.invulnerableTime <= 0 else { return }
         let playerCenterX = player.x + 17
         let dir: CGFloat = playerCenterX < sourceCenterX ? -1 : 1
-        player.hp -= 1
-        player.hurtTime = SurvivalCodeRunNativeRules.hurtDuration
-        player.invulnerableTime = SurvivalCodeRunNativeRules.damageInvulnerability
-        player.vx = dir * SurvivalCodeRunNativeRules.knockbackVX
-        player.vy = SurvivalCodeRunNativeRules.knockbackVY
-        player.onGround = false
+        var nextPlayer = player
+        nextPlayer.hp -= 1
+        nextPlayer.hurtTime = SurvivalCodeRunNativeRules.hurtDuration
+        nextPlayer.invulnerableTime = SurvivalCodeRunNativeRules.damageInvulnerability
+        nextPlayer.vx = dir * SurvivalCodeRunNativeRules.knockbackVX
+        nextPlayer.vy = SurvivalCodeRunNativeRules.knockbackVY
+        nextPlayer.onGround = false
+        player = nextPlayer
         if player.hp <= 0 {
             failRun()
         }
@@ -1769,10 +1785,10 @@ private struct SurvivalCodeRunGameContent: View {
         enemies = mapSpec.enemies()
         jumpFeedbackEffect = nil
         elapsed = 0
+        frameTick = 0
         status = .playing
         showResult = false
         submittedClear = false
-        lastTick = Date()
         currentChordIndex = 0
         inputX = 0
         completedPitchClasses.removeAll()
