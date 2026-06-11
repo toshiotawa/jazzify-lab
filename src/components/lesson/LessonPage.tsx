@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
-import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgressAll, LessonProgressBasic } from '@/platform/supabaseLessonProgress';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
@@ -243,9 +242,10 @@ const LessonPage: React.FC = () => {
       setLoading(true);
       try {
         const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
-        const [coursesData, completedCourses] = await Promise.all([
+        const [coursesData, completedCourses, progressRows] = await Promise.all([
           fetchCoursesWithDetails({ includeDeveloperCourses: includeDevCourses }),
           fetchUserCompletedCourses(profile.id, { includeDeveloperCourses: includeDevCourses }),
+          fetchUserLessonProgressAll(),
         ]);
 
         const audienceFilter = isEnglishCopy ? 'global' : 'japan';
@@ -266,16 +266,11 @@ const LessonPage: React.FC = () => {
         setMainQuestCourse(mainCourse);
         setCompletedCourseIds(completedCourses);
 
-        const [progressRows, lessonsLists] = await Promise.all([
-          fetchUserLessonProgressAll(),
-          Promise.all(coursesToLoad.map(course => fetchLessonsByCourse(course.id))),
-        ]);
-
-        if (cancelled) return;
-
+        // fetchCoursesWithDetails のネスト取得済み lessons をそのまま使う
+        // （本ページで必要なのはスカラー列のみ。並びは buildMainQuestSummary 側でソート）
         const lessonsMap: Record<string, Lesson[]> = {};
-        coursesToLoad.forEach((course, index) => {
-          lessonsMap[course.id] = lessonsLists[index] ?? [];
+        coursesToLoad.forEach(course => {
+          lessonsMap[course.id] = course.lessons ?? [];
         });
 
         const counts: Record<string, number> = {};

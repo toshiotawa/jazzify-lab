@@ -1,7 +1,7 @@
 /**
  * サバイバルモード関連のSupabase操作
  */
-import { getSupabaseClient } from './supabaseClient';
+import { clearCacheByKey, fetchWithCache, getSupabaseClient } from './supabaseClient';
 
 export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
 export type SurvivalStageType = 'random' | 'progression' | 'phrases';
@@ -338,12 +338,13 @@ export async function fetchUserBestSurvivalTime(userId: string): Promise<UserBes
  */
 export async function fetchSurvivalDifficultySettings(): Promise<SurvivalDifficultySettings[]> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
-    .from('survival_difficulty_settings')
-    .select('*')
-    .order('difficulty');
-  
+
+  const { data, error } = await fetchWithCache(
+    'survival_difficulty_settings',
+    async () => await supabase.from('survival_difficulty_settings').select('*').order('difficulty'),
+    10 * 60 * 1000,
+  );
+
   if (error) throw error;
   return (data ?? []).map(convertDifficultySettings);
 }
@@ -355,10 +356,11 @@ export async function fetchSurvivalDifficultySettings(): Promise<SurvivalDifficu
 export async function fetchSurvivalBgmSettings(): Promise<SurvivalBgmSetting[]> {
   const supabase = getSupabaseClient();
 
-  const { data, error } = await supabase
-    .from('survival_bgm_settings')
-    .select('stage_type, bgm_url')
-    .order('stage_type');
+  const { data, error } = await fetchWithCache(
+    'survival_bgm_settings',
+    async () => await supabase.from('survival_bgm_settings').select('stage_type, bgm_url').order('stage_type'),
+    10 * 60 * 1000,
+  );
 
   if (error) throw error;
   return (data ?? []).map(convertBgmSetting).filter((row): row is SurvivalBgmSetting => row !== null);
@@ -396,6 +398,7 @@ export async function updateSurvivalDifficultySettings(
     .single();
   
   if (error) throw error;
+  clearCacheByKey('survival_difficulty_settings');
   return convertDifficultySettings(data);
 }
 
@@ -425,6 +428,7 @@ export async function updateSurvivalBgmSetting(
   if (!converted) {
     throw new Error('Invalid survival BGM setting returned from database');
   }
+  clearCacheByKey('survival_bgm_settings');
   return converted;
 }
 
@@ -455,12 +459,13 @@ export interface SurvivalCharacterRow {
  */
 export async function fetchSurvivalCharacters(): Promise<SurvivalCharacterRow[]> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
-    .from('survival_characters')
-    .select('*')
-    .order('sort_order');
-  
+
+  const { data, error } = await fetchWithCache(
+    'survival_characters',
+    async () => await supabase.from('survival_characters').select('*').order('sort_order'),
+    10 * 60 * 1000,
+  );
+
   if (error) throw error;
   return (data ?? []).map(convertCharacter);
 }

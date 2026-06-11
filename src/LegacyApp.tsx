@@ -11,6 +11,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import Dashboard from '@/components/dashboard/Dashboard';
 import { isIOSWebView, getIOSMode, getIOSParam } from '@/utils/iosbridge';
+import { runWhenIdle } from '@/utils/idlePrefetch';
 import MidiWarningModal from '@/components/ui/MidiWarningModal';
 
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
@@ -161,7 +162,49 @@ const App: React.FC = () => {
     window.addEventListener('hashchange', ensureHeaderVisible);
     return () => window.removeEventListener('hashchange', ensureHeaderVisible);
   }, [updateGameSettings]);
-  
+
+  useEffect(() => {
+    if (!isInitialized || !user || isIOSWebView()) return;
+    const cancels = [
+      runWhenIdle('chunk:lesson-page', () => {
+        void import('@/components/lesson/LessonPage').catch(() => {});
+      }),
+      runWhenIdle('chunk:survival-main', () => {
+        void import('@/components/survival/SurvivalMain').catch(() => {});
+      }),
+      runWhenIdle('chunk:ear-training-main', () => {
+        void import('@/components/earTraining/EarTrainingMain').catch(() => {});
+      }),
+    ];
+    if (isPremiumMember) {
+      cancels.push(
+        runWhenIdle('chunk:fantasy-main', () => {
+          void import('@/components/fantasy/FantasyMain').catch(() => {});
+        }),
+      );
+    }
+    return () => {
+      cancels.forEach(cancel => cancel());
+    };
+  }, [isInitialized, user, isPremiumMember]);
+
+  useEffect(() => {
+    if (!isInitialized || !user || !profile || isIOSWebView()) return;
+    const cancel = runWhenIdle('warm:courses-details', () => {
+      void (async () => {
+        const [{ fetchCoursesWithDetails }, { shouldIncludeDeveloperLessonCoursesForUser }] =
+          await Promise.all([
+            import('@/platform/supabaseCourses'),
+            import('@/utils/environment'),
+          ]);
+        await fetchCoursesWithDetails({
+          includeDeveloperCourses: shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin),
+        });
+      })().catch(() => {});
+    });
+    return cancel;
+  }, [isInitialized, user, profile]);
+
   // 初期化中の表示
   if (!isInitialized) {
     return (

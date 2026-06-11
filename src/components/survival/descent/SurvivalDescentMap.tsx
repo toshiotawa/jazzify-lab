@@ -23,6 +23,8 @@ import {
   resolveStageBgmUrl,
   SurvivalBgmSettingsMap,
   SurvivalCharacterRow,
+  SurvivalStageClear,
+  SurvivalStageProgress,
   toSurvivalBgmSettingsMap,
 } from '@/platform/supabaseSurvival';
 import { DIFFICULTY_CONFIGS } from '../SurvivalStageSelect';
@@ -171,6 +173,12 @@ const loadSurvivalMapStaticData = async (): Promise<SurvivalMapStaticData> => {
   survivalMapStaticDataPromise = (async () => {
     const imagesPreload = preloadDescentImages();
 
+    const settingsPromise = Promise.all([
+      fetchSurvivalDifficultySettings().catch(() => []),
+      fetchSurvivalCharacters().catch(() => []),
+      fetchSurvivalBgmSettings().catch(() => []),
+    ]);
+
     try {
       await fetchAllStages();
       rebuildDescentBlocks();
@@ -179,11 +187,7 @@ const loadSurvivalMapStaticData = async (): Promise<SurvivalMapStaticData> => {
       /* fallback handled inside fetchAllStages */
     }
 
-    const [settingsData, charRows, bgmRows] = await Promise.all([
-      fetchSurvivalDifficultySettings().catch(() => []),
-      fetchSurvivalCharacters().catch(() => []),
-      fetchSurvivalBgmSettings().catch(() => []),
-    ]);
+    const [settingsData, charRows, bgmRows] = await settingsPromise;
     const bgmSettings = toSurvivalBgmSettingsMap(bgmRows);
 
     await Promise.race([
@@ -356,6 +360,25 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const didLoadInitialProgressRef = useRef(false);
   const lastProfileIdRef = useRef<string | null>(profile?.id ?? null);
 
+  interface SurvivalProgressFetchResult {
+    progress: SurvivalStageProgress | null;
+    clears: SurvivalStageClear[];
+  }
+
+  const progressFetchRef = useRef<{ key: string; promise: Promise<SurvivalProgressFetchResult> } | null>(null);
+
+  const ensureProgressFetch = useCallback((profileId: string, category: SurvivalMapCategory): Promise<SurvivalProgressFetchResult> => {
+    const key = `${profileId}:${category}`;
+    const current = progressFetchRef.current;
+    if (current && current.key === key) return current.promise;
+    const promise = Promise.all([
+      fetchSurvivalStageProgress(profileId, category).catch(() => null),
+      fetchSurvivalStageClears(profileId, category).catch((): SurvivalStageClear[] => []),
+    ]).then(([progress, clears]) => ({ progress, clears }));
+    progressFetchRef.current = { key, promise };
+    return promise;
+  }, []);
+
   const handleToggleSound = useCallback(() => {
     const next = SurvivalMapAudio.toggleMuted();
     setSoundMuted(next);
@@ -457,6 +480,12 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }, []);
 
   useEffect(() => {
+    const profileId = profile?.id ?? null;
+    if (!profileId) return;
+    void ensureProgressFetch(profileId, mapCategory);
+  }, [ensureProgressFetch, mapCategory, profile?.id]);
+
+  useEffect(() => {
     if (!staticDataReady) return;
 
     let cancelled = false;
@@ -479,10 +508,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       let snapshot = createDefaultProgressSnapshot();
 
       if (profileId) {
-        const [progress, clears] = await Promise.all([
-          fetchSurvivalStageProgress(profileId, mapCategory).catch(() => null),
-          fetchSurvivalStageClears(profileId, mapCategory).catch(() => []),
-        ]);
+        const { progress, clears } = await ensureProgressFetch(profileId, mapCategory);
+        if (progressFetchRef.current?.key === `${profileId}:${mapCategory}`) {
+          progressFetchRef.current = null;
+        }
         const stageClearCountsNext = new Map<number, number>();
         clears.forEach(c => {
           stageClearCountsNext.set(c.stageNumber, c.clearCount);
@@ -525,7 +554,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [applyProgressSnapshot, mapCategory, profile?.id, staticDataReady]);
+  }, [applyProgressSnapshot, ensureProgressFetch, mapCategory, profile?.id, staticDataReady]);
 
   useEffect(() => {
     if (typeof soundEffectVolume === 'number') {
