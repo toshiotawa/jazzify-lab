@@ -11,17 +11,17 @@ export const LpFaq: React.FC = () => {
   };
 
   return (
-    <section id="faq" className="py-16 sm:py-24 scroll-mt-20">
+    <section id="faq" className="py-12 sm:py-20 scroll-mt-20">
       <div className="lp-container">
         <div className="lp-heading-tick lp-heading-tick--center" />
         <h2
-          className="lp-display text-2xl sm:text-3xl md:text-4xl text-center mb-12"
+          className="lp-section-title text-2xl sm:text-3xl text-center mb-8"
           data-animate="from-behind"
         >
           {copy.faq.heading}
         </h2>
 
-        <div className="max-w-3xl mx-auto space-y-3">
+        <div className="max-w-2xl mx-auto space-y-3">
           {copy.faq.items.map((item, index) => (
             <div key={item.question} className="faq-item p-6">
               <button
@@ -31,7 +31,7 @@ export const LpFaq: React.FC = () => {
                 aria-expanded={openIndex === index}
                 aria-controls={`lp-faq-${index}`}
               >
-                <h3 className="font-bold text-base sm:text-lg">{item.question}</h3>
+                <h3 className="lp-subtitle text-base sm:text-lg">{item.question}</h3>
                 <span aria-hidden="true" className="shrink-0">
                   <svg
                     width="20"

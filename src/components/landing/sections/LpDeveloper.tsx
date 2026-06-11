@@ -7,7 +7,7 @@ export const LpDeveloper: React.FC = () => {
 
   return (
     <section
-      className="py-16 sm:py-24 scroll-mt-20"
+      className="py-12 sm:py-20 scroll-mt-20"
       style={{ background: 'var(--lp-surface)' }}
     >
       <div className="lp-container">
@@ -30,9 +30,8 @@ export const LpDeveloper: React.FC = () => {
           </div>
 
           <div className="flex-1">
-            <div className="lp-heading-tick" />
             <h2
-              className="lp-display text-2xl sm:text-3xl md:text-4xl mb-6"
+              className="lp-section-title text-2xl sm:text-3xl mb-6"
               data-animate="from-behind"
             >
               {copy.developer.heading}

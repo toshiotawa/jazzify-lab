@@ -13,6 +13,7 @@ export const LpFinalCta: React.FC = () => {
   return (
     <section className="lp-dark lp-cta-night py-24 sm:py-32">
       <div className="lp-container">
+        <div className="lp-heading-tick lp-heading-tick--center" />
         <h2
           className="lp-display-hero text-3xl sm:text-4xl md:text-5xl text-center"
           style={{ color: 'var(--lp-ink)' }}

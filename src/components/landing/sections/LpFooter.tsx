@@ -47,7 +47,7 @@ export const LpFooter: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="font-bold mb-4">{copy.footer.serviceHeading}</h3>
+            <h3 className="lp-subtitle mb-4">{copy.footer.serviceHeading}</h3>
             <nav className="space-y-2 text-sm text-[var(--lp-ink-muted)]">
               {copy.header.nav.map((link) => (
                 <a
@@ -75,7 +75,7 @@ export const LpFooter: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="font-bold mb-4">{copy.footer.supportHeading}</h3>
+            <h3 className="lp-subtitle mb-4">{copy.footer.supportHeading}</h3>
             <nav className="space-y-2 text-sm text-[var(--lp-ink-muted)]">
               <a
                 href="#faq"

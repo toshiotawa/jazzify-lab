@@ -8,15 +8,14 @@ export const LpCourses: React.FC = () => {
   return (
     <section
       id="courses"
-      className="py-16 sm:py-24 scroll-mt-20"
+      className="py-12 sm:py-20 scroll-mt-20"
       style={{ background: 'var(--lp-surface)' }}
     >
       <div className="lp-container">
         <div className="grid md:grid-cols-12 gap-8 md:gap-12 items-start mb-12">
           <div className="md:col-span-5">
-            <div className="lp-heading-tick" />
             <h2
-              className="lp-display text-2xl sm:text-3xl md:text-4xl"
+              className="lp-section-title text-2xl sm:text-3xl"
               data-animate="from-behind"
             >
               {copy.courses.heading}
@@ -51,7 +50,7 @@ export const LpCourses: React.FC = () => {
           {copy.courses.items.map((item) => (
             <div key={item.title} className="lp-card lp-card-hover p-7">
               <h3
-                className="font-bold text-lg mb-2 flex items-center gap-2"
+                className="lp-subtitle text-lg mb-2 flex items-center gap-2"
                 style={{ color: 'var(--lp-ink)' }}
               >
                 <span

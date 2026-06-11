@@ -27,17 +27,16 @@ export const LpFreeTier: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
 
   return (
-    <section className="py-14 sm:py-16 scroll-mt-20">
+    <section className="py-12 sm:py-14 scroll-mt-20">
       <div className="lp-container">
-        <div className="lp-heading-tick lp-heading-tick--center" />
         <h2
-          className="lp-display text-2xl sm:text-3xl text-center mb-10"
+          className="lp-section-title text-xl sm:text-2xl text-center mb-8"
           data-animate="from-behind"
         >
           {copy.freeTier.heading}
         </h2>
 
-        <div className="lp-card p-8 sm:p-10 text-center max-w-2xl mx-auto">
+        <div className="lp-card p-8 sm:p-10 text-center max-w-xl mx-auto">
           <div
             className="space-y-3"
             style={{ color: 'var(--lp-ink-muted)' }}

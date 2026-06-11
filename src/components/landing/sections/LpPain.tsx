@@ -7,13 +7,12 @@ export const LpPain: React.FC = () => {
   const bodyLastIndex = copy.pain.body.length - 1;
 
   return (
-    <section className="py-16 sm:py-24 scroll-mt-20">
+    <section className="py-12 sm:py-20 scroll-mt-20">
       <div className="lp-container">
         <div className="grid md:grid-cols-12 gap-10 md:gap-12 items-start">
           <div className="md:col-span-5">
-            <div className="lp-heading-tick" />
             <h2
-              className="lp-display text-2xl sm:text-3xl md:text-4xl"
+              className="lp-section-title text-2xl sm:text-3xl"
               data-animate="from-behind"
             >
               {copy.pain.heading.map((line) => (

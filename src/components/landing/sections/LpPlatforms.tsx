@@ -8,11 +8,10 @@ export const LpPlatforms: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
 
   return (
-    <section className="py-14 sm:py-16 scroll-mt-20" style={{ background: 'var(--lp-surface)' }}>
+    <section className="py-12 sm:py-14 scroll-mt-20" style={{ background: 'var(--lp-surface)' }}>
       <div className="lp-container">
-        <div className="lp-heading-tick lp-heading-tick--center" />
         <h2
-          className="lp-display text-xl sm:text-2xl md:text-3xl text-center mb-8"
+          className="lp-section-title text-xl sm:text-2xl text-center mb-8"
           data-animate="from-behind"
         >
           {copy.platforms.heading}
@@ -33,7 +32,7 @@ export const LpPlatforms: React.FC = () => {
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {copy.platforms.cards.map((card) => (
             <div key={card.title} className="lp-card p-6 sm:p-8" data-animate="from-behind">
-              <h3 className="font-bold text-lg mb-3">{card.title}</h3>
+              <h3 className="lp-subtitle text-lg mb-3">{card.title}</h3>
               <p className="text-sm" style={{ color: 'var(--lp-ink-muted)' }}>
                 {card.description}
               </p>

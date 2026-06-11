@@ -29,11 +29,10 @@ export const LpSkills: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
 
   return (
-    <section className="py-14 sm:py-16 scroll-mt-20">
+    <section className="py-12 sm:py-14 scroll-mt-20">
       <div className="lp-container">
-        <div className="lp-heading-tick lp-heading-tick--center" />
         <h2
-          className="lp-display text-xl sm:text-2xl md:text-3xl text-center"
+          className="lp-section-title text-xl sm:text-2xl text-center"
           data-animate="from-behind"
         >
           {copy.skills.heading}
