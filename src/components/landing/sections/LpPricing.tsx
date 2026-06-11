@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { getLandingCopy, type LandingPricingPlan } from '@/components/landing/landingCopy';
+import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
 
 const CheckIcon: React.FC = () => (
   <svg
@@ -26,9 +28,10 @@ const CheckIcon: React.FC = () => (
 interface PricingCardProps {
   plan: LandingPricingPlan;
   emphasized: boolean;
+  usdRate: number | null;
 }
 
-const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized }) => (
+const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized, usdRate }) => (
   <div
     className="lp-card p-8 flex flex-col relative"
     style={emphasized ? { border: '2px solid var(--lp-gold)' } : undefined}
@@ -50,17 +53,27 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized }) => (
           {plan.priceSuffix}
         </span>
       )}
+      {usdRate !== null && plan.jpyAmount !== null && (
+        <p className="text-xs mt-1" style={{ color: 'var(--lp-ink-muted)' }}>
+          ≈ ${jpyAmountToApproxUsdWhole(plan.jpyAmount, usdRate)} USD
+        </p>
+      )}
     </div>
 
     {plan.highlights.length > 0 && (
       <div className="mt-4 space-y-1">
         {plan.highlights.map((highlight) => (
           <p
-            key={highlight}
+            key={highlight.text}
             className="text-sm font-semibold"
             style={{ color: 'var(--lp-gold-deep)' }}
           >
-            {highlight}
+            {highlight.text}
+            {usdRate !== null && highlight.jpyAmount !== null && (
+              <span className="font-normal">
+                {` (≈ $${jpyAmountToApproxUsdWhole(highlight.jpyAmount, usdRate)} USD)`}
+              </span>
+            )}
           </p>
         ))}
       </div>
@@ -85,7 +98,9 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized }) => (
 );
 
 export const LpPricing: React.FC = () => {
-  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const isEnglish = shouldUseEnglishCopy();
+  const copy = getLandingCopy(isEnglish);
+  const usdRate = useJpyUsdRate(isEnglish);
 
   return (
     <section
@@ -110,9 +125,9 @@ export const LpPricing: React.FC = () => {
           className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch"
           data-animate="alt-cards"
         >
-          <PricingCard plan={copy.pricing.free} emphasized={false} />
-          <PricingCard plan={copy.pricing.monthly} emphasized={false} />
-          <PricingCard plan={copy.pricing.yearly} emphasized />
+          <PricingCard plan={copy.pricing.free} emphasized={false} usdRate={usdRate} />
+          <PricingCard plan={copy.pricing.monthly} emphasized={false} usdRate={usdRate} />
+          <PricingCard plan={copy.pricing.yearly} emphasized usdRate={usdRate} />
         </div>
 
         <div

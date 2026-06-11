@@ -125,12 +125,18 @@ interface LandingFreeTierCopy {
   note: string;
 }
 
+interface LandingPricingHighlight {
+  text: string;
+  jpyAmount: number | null;
+}
+
 export interface LandingPricingPlan {
   name: string;
   price: string;
+  jpyAmount: number | null;
   priceSuffix: string;
   badge: string | null;
-  highlights: string[];
+  highlights: LandingPricingHighlight[];
   features: string[];
   cta: string;
 }
@@ -419,6 +425,7 @@ const COPY_JA: LandingCopy = {
     free: {
       name: 'フリー',
       price: '¥0',
+      jpyAmount: null,
       priceSuffix: '',
       badge: null,
       highlights: [],
@@ -428,6 +435,7 @@ const COPY_JA: LandingCopy = {
     monthly: {
       name: 'プレミアム 月額',
       price: '¥3,980',
+      jpyAmount: 3980,
       priceSuffix: '/月（税込）',
       badge: null,
       highlights: [],
@@ -437,9 +445,13 @@ const COPY_JA: LandingCopy = {
     yearly: {
       name: 'プレミアム 年額',
       price: '¥34,800',
+      jpyAmount: 34800,
       priceSuffix: '/年（税込）',
       badge: 'おすすめ',
-      highlights: ['月あたり¥2,900', '月額払いより年間¥12,960お得'],
+      highlights: [
+        { text: '月あたり¥2,900', jpyAmount: null },
+        { text: '月額払いより年間¥12,960お得', jpyAmount: null },
+      ],
       features: ['すべてのコース', 'すべてのモード', '目的別コース', '学習記録・称号'],
       cta: '年額プランを始める',
     },
@@ -723,6 +735,7 @@ const COPY_EN: LandingCopy = {
     free: {
       name: 'Free',
       price: '¥0',
+      jpyAmount: null,
       priceSuffix: '',
       badge: null,
       highlights: [],
@@ -732,6 +745,7 @@ const COPY_EN: LandingCopy = {
     monthly: {
       name: 'Premium Monthly',
       price: '¥3,980',
+      jpyAmount: 3980,
       priceSuffix: '/month (tax incl.)',
       badge: null,
       highlights: [],
@@ -741,15 +755,20 @@ const COPY_EN: LandingCopy = {
     yearly: {
       name: 'Premium Yearly',
       price: '¥34,800',
+      jpyAmount: 34800,
       priceSuffix: '/year (tax incl.)',
       badge: 'Best value',
-      highlights: ['¥2,900 per month', 'Save ¥12,960 a year vs monthly'],
+      highlights: [
+        { text: '¥2,900 per month', jpyAmount: 2900 },
+        { text: 'Save ¥12,960 a year vs monthly', jpyAmount: 12960 },
+      ],
       features: ['All courses', 'All game modes', 'Focused courses', 'Progress tracking & titles'],
       cta: 'Start yearly plan',
     },
     notes: [
       'Cancel anytime. After cancellation, you keep access until the end of the period you have paid for.',
       'New users receive a 7-day free trial.',
+      'Prices are charged in Japanese yen (JPY). USD amounts are approximate, based on daily exchange rates, and shown for reference only.',
     ],
   },
   faq: {
