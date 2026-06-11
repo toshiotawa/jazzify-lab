@@ -23,7 +23,7 @@ export const LpCourses: React.FC = () => {
           </div>
 
           <div
-            className="md:col-span-7 space-y-4"
+            className="lp-section-lead md:col-span-7 space-y-4"
             style={{ color: 'var(--lp-ink-muted)' }}
           >
             {copy.courses.body.map((paragraph) => (
@@ -63,7 +63,7 @@ export const LpCourses: React.FC = () => {
                 />
                 {item.title}
               </h3>
-              <p className="text-sm" style={{ color: 'var(--lp-ink-muted)' }}>
+              <p className="lp-card-body" style={{ color: 'var(--lp-ink-muted)' }}>
                 {item.description}
               </p>
             </div>

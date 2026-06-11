@@ -54,13 +54,11 @@ export const LpFaq: React.FC = () => {
 
               <div
                 id={`lp-faq-${index}`}
-                className={openIndex === index ? 'mt-4 space-y-2' : 'hidden'}
+                className={openIndex === index ? 'lp-faq-content mt-4 space-y-2' : 'hidden'}
                 style={{ color: 'var(--lp-ink-muted)' }}
               >
                 {item.answer.map((paragraph) => (
-                  <p key={paragraph} className="text-sm sm:text-base">
-                    {paragraph}
-                  </p>
+                  <p key={paragraph}>{paragraph}</p>
                 ))}
               </div>
             </div>

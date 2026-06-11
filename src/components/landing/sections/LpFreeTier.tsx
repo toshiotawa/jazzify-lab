@@ -38,7 +38,7 @@ export const LpFreeTier: React.FC = () => {
 
         <div className="lp-card p-8 sm:p-10 text-center max-w-xl mx-auto">
           <div
-            className="space-y-3"
+            className="lp-section-lead space-y-3"
             style={{ color: 'var(--lp-ink-muted)' }}
           >
             {copy.freeTier.body.map((paragraph) => (
@@ -59,7 +59,7 @@ export const LpFreeTier: React.FC = () => {
             {copy.freeTier.cta}
           </Link>
 
-          <p className="mt-3 text-xs" style={{ color: 'var(--lp-ink-muted)' }}>
+          <p className="lp-note mt-3" style={{ color: 'var(--lp-ink-muted)' }}>
             {copy.freeTier.note}
           </p>
         </div>

@@ -104,9 +104,9 @@ export const LpDemo: React.FC = () => {
           {copy.demo.heading}
         </h2>
 
-        <div className="max-w-2xl mx-auto text-center space-y-2 mb-12" style={{ color: 'var(--lp-ink-muted)' }} data-animate="text-up">
+        <div className="lp-section-lead max-w-2xl mx-auto text-center space-y-2 mb-12" style={{ color: 'var(--lp-ink-muted)' }} data-animate="text-up">
           {copy.demo.sub.map((line) => (
-            <p key={line} className="text-base sm:text-lg">{line}</p>
+            <p key={line}>{line}</p>
           ))}
         </div>
 
@@ -147,7 +147,7 @@ export const LpDemo: React.FC = () => {
                   onChange={(id) => updateSettings({ selectedMidiDevice: id })}
                 />
               </div>
-              <p className="text-xs mt-3" style={{ color: 'var(--lp-ink-muted)' }}>{copy.demo.midiHelper}</p>
+              <p className="lp-note mt-3" style={{ color: 'var(--lp-ink-muted)' }}>{copy.demo.midiHelper}</p>
             </div>
           </div>
         </div>

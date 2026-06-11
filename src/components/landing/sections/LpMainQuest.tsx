@@ -36,7 +36,7 @@ export const LpMainQuest: React.FC = () => {
             </h2>
 
             <div
-              className="mt-8 space-y-4 mb-8"
+              className="lp-section-lead mt-8 space-y-4 mb-8"
               style={{ color: 'var(--lp-ink-muted)' }}
               data-animate="text-up"
             >

@@ -46,7 +46,7 @@ export const LpDeveloper: React.FC = () => {
             </div>
 
             <div
-              className="space-y-4"
+              className="lp-section-lead space-y-4"
               style={{ color: 'var(--lp-ink-muted)' }}
               data-animate="text-up"
             >

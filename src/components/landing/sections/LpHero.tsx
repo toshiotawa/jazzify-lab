@@ -22,7 +22,7 @@ export const LpHero: React.FC = () => {
               </span>
             ))}
           </h1>
-          <div className="mt-6 space-y-2 text-base sm:text-lg" style={{ color: 'var(--lp-ink-muted)' }}>
+          <div className="lp-hero-description mt-6 space-y-2" style={{ color: 'var(--lp-ink-muted)' }}>
             {copy.hero.subtitle.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
@@ -45,7 +45,7 @@ export const LpHero: React.FC = () => {
               {copy.hero.signupCta}
             </Link>
           </div>
-          <p className="mt-4 text-xs sm:text-sm" style={{ color: 'var(--lp-ink-muted)' }}>
+          <p className="lp-note mt-4" style={{ color: 'var(--lp-ink-muted)' }}>
             {copy.hero.note}
           </p>
         </div>

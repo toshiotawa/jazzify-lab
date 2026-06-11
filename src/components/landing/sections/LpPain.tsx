@@ -22,7 +22,7 @@ export const LpPain: React.FC = () => {
               ))}
             </h2>
 
-            <div className="mt-8 space-y-4">
+            <div className="lp-section-lead mt-8 space-y-4">
               {copy.pain.body.map((paragraph, index) => (
                 <p
                   key={paragraph}
@@ -42,7 +42,7 @@ export const LpPain: React.FC = () => {
             {copy.pain.cards.map((card) => (
               <div
                 key={card}
-                className="py-4 px-5 text-sm sm:text-base rounded-lg"
+                className="lp-body py-4 px-5 rounded-lg"
                 style={{
                   borderLeft: '3px solid var(--lp-gold)',
                   background: 'var(--lp-surface)',

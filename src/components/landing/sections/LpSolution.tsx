@@ -22,7 +22,7 @@ export const LpSolution: React.FC = () => {
             </h2>
 
             <div
-              className="mt-8 space-y-4"
+              className="lp-section-lead mt-8 space-y-4"
               style={{ color: 'var(--lp-ink-muted)' }}
             >
               {copy.solution.body.map((paragraph) => (
@@ -51,7 +51,7 @@ export const LpSolution: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="lp-subtitle text-lg mb-2">{value.title}</h3>
-                  <p className="text-sm" style={{ color: 'var(--lp-ink-muted)' }}>
+                  <p className="lp-card-body" style={{ color: 'var(--lp-ink-muted)' }}>
                     {value.description}
                   </p>
                 </div>

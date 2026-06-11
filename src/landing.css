@@ -1,6 +1,8 @@
 /* LP specific styles (LandingPage) — 2026 redesign v2: Night Jazz Arcade */
 .lp-root {
   font-family: var(--lp-font-body);
+  font-size: 16px;
+  line-height: 1.9;
   font-weight: 400;
   letter-spacing: 0.02em;
   /* base: ivory daylight */
@@ -101,15 +103,89 @@
   color: var(--lp-gold-deep);
 }
 
-/* LP body copy */
+/* LP body copy — headings (.lp-display / .lp-section-title / .lp-subtitle) unchanged */
 .lp-root p {
   line-height: 1.9;
 }
 
-.lp-root p.text-base,
-.lp-root p.text-lg,
 .lp-root p:not([class*='text-']) {
-  font-size: 16px;
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.lp-section-lead,
+.lp-body {
+  font-size: 17px;
+  line-height: 1.9;
+  font-weight: 400;
+}
+
+.lp-section-lead p,
+.lp-body p {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.lp-hero-description {
+  font-size: 17px;
+  line-height: 2;
+  font-weight: 400;
+}
+
+.lp-hero-description p {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.lp-card-body {
+  font-size: 17px;
+  line-height: 1.9;
+  font-weight: 400;
+}
+
+.lp-faq-content {
+  font-weight: 400;
+}
+
+.lp-faq-content p {
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.lp-root p.lp-note,
+.lp-note,
+.lp-note p {
+  font-size: 14px;
+  line-height: 1.85;
+  font-weight: 400;
+}
+
+@media (min-width: 640px) {
+  .lp-root p.lp-note,
+  .lp-note,
+  .lp-note p {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .lp-root p:not([class*='text-']) {
+    font-size: 16px;
+    line-height: 1.85;
+  }
+
+  .lp-section-lead,
+  .lp-body,
+  .lp-hero-description,
+  .lp-card-body,
+  .lp-faq-content p {
+    font-size: 16px;
+    line-height: 1.85;
+  }
+
+  .lp-hero-description {
+    line-height: 1.9;
+  }
 }
 
 /* Accent typography: nav, logo, buttons */

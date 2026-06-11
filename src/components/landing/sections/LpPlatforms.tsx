@@ -18,14 +18,12 @@ export const LpPlatforms: React.FC = () => {
         </h2>
 
         <div
-          className="max-w-3xl mx-auto text-center space-y-3 mb-10"
+          className="lp-section-lead max-w-3xl mx-auto text-center space-y-3 mb-10"
           style={{ color: 'var(--lp-ink-muted)' }}
           data-animate="from-behind"
         >
           {copy.platforms.body.map((paragraph) => (
-            <p key={paragraph} className="text-sm sm:text-base">
-              {paragraph}
-            </p>
+            <p key={paragraph}>{paragraph}</p>
           ))}
         </div>
 
@@ -33,7 +31,7 @@ export const LpPlatforms: React.FC = () => {
           {copy.platforms.cards.map((card) => (
             <div key={card.title} className="lp-card p-6 sm:p-8" data-animate="from-behind">
               <h3 className="lp-subtitle text-lg mb-3">{card.title}</h3>
-              <p className="text-sm" style={{ color: 'var(--lp-ink-muted)' }}>
+              <p className="lp-card-body" style={{ color: 'var(--lp-ink-muted)' }}>
                 {card.description}
               </p>
             </div>

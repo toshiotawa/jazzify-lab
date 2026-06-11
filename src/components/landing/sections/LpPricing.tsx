@@ -83,7 +83,7 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized, usdRate }) 
       {plan.features.map((feature) => (
         <li key={feature} className="flex items-start gap-2">
           <CheckIcon />
-          <span className="text-sm">{feature}</span>
+          <span className="lp-card-body">{feature}</span>
         </li>
       ))}
     </ul>
@@ -121,7 +121,7 @@ export const LpPricing: React.FC = () => {
           {copy.pricing.heading}
         </h2>
         <p
-          className="text-center text-base sm:text-lg mb-14 max-w-2xl mx-auto mt-4"
+          className="lp-section-lead text-center mb-14 max-w-2xl mx-auto mt-4"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.pricing.lead}
@@ -137,7 +137,7 @@ export const LpPricing: React.FC = () => {
         </div>
 
         <div
-          className="text-center text-xs sm:text-sm mt-10 space-y-1"
+          className="lp-note text-center mt-10 space-y-1"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.pricing.notes.map((note) => (

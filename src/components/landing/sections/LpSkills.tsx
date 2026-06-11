@@ -39,7 +39,7 @@ export const LpSkills: React.FC = () => {
         </h2>
 
         <div
-          className="max-w-2xl mx-auto text-center mt-8 mb-10"
+          className="lp-section-lead max-w-2xl mx-auto text-center mt-8 mb-10"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.skills.body.map((paragraph) => (
@@ -57,7 +57,7 @@ export const LpSkills: React.FC = () => {
               className="lp-card px-6 py-5 flex items-center gap-3"
             >
               <CheckIcon />
-              <span className="font-semibold text-sm sm:text-base">{item}</span>
+              <span className="lp-body font-semibold">{item}</span>
             </div>
           ))}
         </div>

@@ -17,7 +17,7 @@ export const LpRequirements: React.FC = () => {
 
         <div className="lp-card p-8 sm:p-10 text-center max-w-3xl mx-auto">
           <div
-            className="space-y-3 text-sm sm:text-base"
+            className="lp-section-lead space-y-3"
             style={{ color: 'var(--lp-ink-muted)' }}
           >
             {copy.requirements.body.map((paragraph) => (

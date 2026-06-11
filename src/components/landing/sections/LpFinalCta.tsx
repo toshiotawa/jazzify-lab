@@ -23,7 +23,7 @@ export const LpFinalCta: React.FC = () => {
         </h2>
 
         <div
-          className="max-w-2xl mx-auto text-center space-y-3 mt-8"
+          className="lp-section-lead max-w-2xl mx-auto text-center space-y-3 mt-8"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.finalCta.body.map((paragraph) => (
@@ -46,7 +46,7 @@ export const LpFinalCta: React.FC = () => {
         </div>
 
         <p
-          className="mt-4 text-xs sm:text-sm text-center"
+          className="lp-note mt-4 text-center"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.finalCta.note}

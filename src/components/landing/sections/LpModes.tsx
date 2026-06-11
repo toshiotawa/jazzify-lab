@@ -25,7 +25,7 @@ const ModeBlock: React.FC<ModeBlockProps> = ({ mode, imageSrc, imageAnimate, rev
     <div className={reversed ? 'md:order-1' : ''}>
       <h3 className="lp-subtitle text-2xl sm:text-3xl mb-4">{mode.title}</h3>
       <div
-        className="space-y-3 text-sm sm:text-base"
+        className="lp-section-lead space-y-3"
         style={{ color: 'var(--lp-ink-muted)' }}
       >
         {mode.description.map((paragraph) => (
