@@ -6,6 +6,7 @@ import Foundation
 /// - 画面表示中は BGM をループ再生
 /// - ステージ遷移 (ゲーム起動) / 画面離脱時に `stop()` を呼ぶ
 /// - ミュート状態と音量は `UserDefaults` に保存する
+@MainActor
 final class SurvivalMapAudio {
     static let shared = SurvivalMapAudio()
 
@@ -15,6 +16,7 @@ final class SurvivalMapAudio {
     private var looper: AVPlayerLooper?
     private var currentURL: URL?
     private var isRequestedPlaying = false
+    private var playbackGeneration: UInt = 0
     private let userDefaults = UserDefaults.standard
     private let volumeKey = "survival_map_bgm_volume_v1"
     private let mutedKey = "survival_map_bgm_mute_v1"
@@ -60,31 +62,42 @@ final class SurvivalMapAudio {
             return
         }
 
-        configureAudioSession()
+        playbackGeneration &+= 1
+        let generation = playbackGeneration
+        cancelFade()
+        teardownPlayback()
 
-        queuePlayer.removeAllItems()
-        looper = nil
+        configureAudioSession()
 
         let asset = AVAsset(url: url)
         let item = AVPlayerItem(asset: asset)
-        looper = AVPlayerLooper(player: queuePlayer, templateItem: item)
-        currentURL = url
-        queuePlayer.volume = 0
-        queuePlayer.play()
-        fade(to: effectiveVolume(), duration: 0.6)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard self.playbackGeneration == generation, self.isRequestedPlaying else { return }
+            self.looper = AVPlayerLooper(player: self.queuePlayer, templateItem: item)
+            self.currentURL = url
+            self.queuePlayer.volume = 0
+            self.queuePlayer.play()
+            self.fade(to: self.effectiveVolume(), duration: 0.6, generation: generation)
+        }
     }
 
     /// フェードアウトして停止（画面離脱など）。
     func stop() {
         isRequestedPlaying = false
-        fade(to: 0, duration: 0.28) { [weak self] in
-            self?.finalizeStop()
+        playbackGeneration &+= 1
+        let generation = playbackGeneration
+        fade(to: 0, duration: 0.28, generation: generation) { [weak self] in
+            guard let self else { return }
+            guard self.playbackGeneration == generation else { return }
+            self.finalizeStop()
         }
     }
 
     /// ステージ開始など、フェードなしで即座に停止する。Web `stopBgmImmediately()` 相当。
     func stopImmediately() {
         isRequestedPlaying = false
+        playbackGeneration &+= 1
         cancelFade()
         finalizeStop()
     }
@@ -124,20 +137,33 @@ final class SurvivalMapAudio {
         fadeTimer = nil
     }
 
-    private func finalizeStop() {
+    private func teardownPlayback() {
         queuePlayer.pause()
-        queuePlayer.removeAllItems()
         looper = nil
+        queuePlayer.removeAllItems()
         currentURL = nil
     }
 
-    private func fade(to target: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
+    private func finalizeStop() {
+        teardownPlayback()
+    }
+
+    private func fade(
+        to target: Float,
+        duration: TimeInterval,
+        generation: UInt,
+        completion: (() -> Void)? = nil
+    ) {
         cancelFade()
         let fromValue = queuePlayer.volume
         let start = Date()
         let totalSteps = max(1, Int(duration * 60))
         fadeTimer = Timer.scheduledTimer(withTimeInterval: duration / Double(totalSteps), repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
+            guard self.playbackGeneration == generation else {
+                timer.invalidate()
+                return
+            }
             let elapsed = min(duration, Date().timeIntervalSince(start))
             let t = Float(elapsed / duration)
             self.queuePlayer.volume = fromValue + (target - fromValue) * t

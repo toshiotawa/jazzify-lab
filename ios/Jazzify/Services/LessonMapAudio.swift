@@ -6,6 +6,7 @@ import Foundation
 /// - CDN の MP3 をループ再生する
 /// - マップ離脱時・ゲーム起動時に `stop()` を呼ぶ
 /// - ミュート状態と音量は UserDefaults に保存する
+@MainActor
 final class LessonMapAudio {
     static let shared = LessonMapAudio()
 
@@ -15,6 +16,8 @@ final class LessonMapAudio {
     private var looper: AVPlayerLooper?
     private var currentURL: URL?
     private var isRequestedPlaying = false
+    /// play/stop の競合で古いフェードや AVPlayerLooper 初期化が走らないよう世代管理する。
+    private var playbackGeneration: UInt = 0
     private let userDefaults = UserDefaults.standard
     private let volumeKey = "lesson_map_bgm_volume_v1"
     private let mutedKey = "lesson_map_bgm_mute_v1"
@@ -60,31 +63,44 @@ final class LessonMapAudio {
             return
         }
 
-        configureAudioSession()
+        playbackGeneration &+= 1
+        let generation = playbackGeneration
+        cancelFade()
+        teardownPlayback()
 
-        queuePlayer.removeAllItems()
-        looper = nil
+        configureAudioSession()
 
         let asset = AVAsset(url: url)
         let item = AVPlayerItem(asset: asset)
-        looper = AVPlayerLooper(player: queuePlayer, templateItem: item)
-        currentURL = url
-        queuePlayer.volume = 0
-        queuePlayer.play()
-        fade(to: effectiveVolume(), duration: 0.6)
+        // AVPlayerLooper は init 後に main queue で item を insert する。
+        // 直前の teardown と競合して SIGABRT にならないよう、次 run loop で作成する。
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard self.playbackGeneration == generation, self.isRequestedPlaying else { return }
+            self.looper = AVPlayerLooper(player: self.queuePlayer, templateItem: item)
+            self.currentURL = url
+            self.queuePlayer.volume = 0
+            self.queuePlayer.play()
+            self.fade(to: self.effectiveVolume(), duration: 0.6, generation: generation)
+        }
     }
 
     /// フェードアウトして停止。
     func stop() {
         isRequestedPlaying = false
-        fade(to: 0, duration: 0.28) { [weak self] in
-            self?.finalizeStop()
+        playbackGeneration &+= 1
+        let generation = playbackGeneration
+        fade(to: 0, duration: 0.28, generation: generation) { [weak self] in
+            guard let self else { return }
+            guard self.playbackGeneration == generation else { return }
+            self.finalizeStop()
         }
     }
 
     /// サバイバル起動など、フェードなしで即座に停止する。
     func stopImmediately() {
         isRequestedPlaying = false
+        playbackGeneration &+= 1
         cancelFade()
         finalizeStop()
     }
@@ -109,20 +125,33 @@ final class LessonMapAudio {
         fadeTimer = nil
     }
 
-    private func finalizeStop() {
+    private func teardownPlayback() {
         queuePlayer.pause()
-        queuePlayer.removeAllItems()
         looper = nil
+        queuePlayer.removeAllItems()
         currentURL = nil
     }
 
-    private func fade(to target: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
+    private func finalizeStop() {
+        teardownPlayback()
+    }
+
+    private func fade(
+        to target: Float,
+        duration: TimeInterval,
+        generation: UInt,
+        completion: (() -> Void)? = nil
+    ) {
         cancelFade()
         let fromValue = queuePlayer.volume
         let start = Date()
         let totalSteps = max(1, Int(duration * 60))
         fadeTimer = Timer.scheduledTimer(withTimeInterval: duration / Double(totalSteps), repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
+            guard self.playbackGeneration == generation else {
+                timer.invalidate()
+                return
+            }
             let elapsed = min(duration, Date().timeIntervalSince(start))
             let t = Float(elapsed / duration)
             self.queuePlayer.volume = fromValue + (target - fromValue) * t
