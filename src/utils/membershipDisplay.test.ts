@@ -3,6 +3,7 @@ import {
   effectiveRankForAccess,
   getDisplayMembershipTier,
   getMembershipDisplayLabel,
+  hasLemonBillingHistory,
   hasNonExpiredBillingProvider,
   isBillingEntitlementPremium,
   isPremiumForDisplay,
@@ -23,6 +24,7 @@ const payload = (entitlement_state: string): BillingStatusPayload => ({
   can_resume: false,
   can_manage_payment: false,
   can_cancel_pending_plan_change: false,
+  has_lemon_billing_history: false,
 });
 
 describe('membershipDisplay', () => {
@@ -85,6 +87,17 @@ describe('membershipDisplay', () => {
     it('returns false when provider does not match', () => {
       expect(hasNonExpiredBillingProvider(payload('active'), 'lemon')).toBe(false);
       expect(hasNonExpiredBillingProvider(null, 'apple')).toBe(false);
+    });
+  });
+
+  describe('hasLemonBillingHistory', () => {
+    it('returns true when has_lemon_billing_history is true', () => {
+      expect(hasLemonBillingHistory({ ...payload('active'), has_lemon_billing_history: true })).toBe(true);
+    });
+
+    it('returns false when flag is false or payload is null', () => {
+      expect(hasLemonBillingHistory(payload('active'))).toBe(false);
+      expect(hasLemonBillingHistory(null)).toBe(false);
     });
   });
 

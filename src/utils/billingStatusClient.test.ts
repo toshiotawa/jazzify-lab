@@ -66,6 +66,27 @@ describe('normalizeBillingStatusPayload', () => {
     expect(payload.can_resume).toBe(true);
   });
 
+  it('defaults has_lemon_billing_history to false when omitted', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'apple',
+      status: 'active',
+      entitlement_state: 'active',
+      plan_code: 'core_monthly',
+    });
+    expect(payload.has_lemon_billing_history).toBe(false);
+  });
+
+  it('preserves has_lemon_billing_history from API', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'apple',
+      status: 'active',
+      entitlement_state: 'active',
+      plan_code: 'core_monthly',
+      has_lemon_billing_history: true,
+    });
+    expect(payload.has_lemon_billing_history).toBe(true);
+  });
+
   it('optimistically clears scheduled cancellation for immediate UI', () => {
     const scheduled = normalizeBillingStatusPayload({
       provider: 'lemon',
