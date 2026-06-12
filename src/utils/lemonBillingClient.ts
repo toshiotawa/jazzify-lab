@@ -56,12 +56,25 @@ export async function resumeLemonSubscription(): Promise<{ ok: boolean; error?: 
   return { ok: false, error: err?.error ?? 'Failed to resume subscription' };
 }
 
+function isScheduledCancelResponse(value: unknown): value is { scheduled: true } {
+  return typeof value === 'object' && value !== null && (value as { scheduled?: unknown }).scheduled === true;
+}
+
 export async function cancelLemonSubscriptionRequest(): Promise<{ ok: boolean; error?: string }> {
   const response = await fetch('/.netlify/functions/lemonsqueezyCancelSubscription', {
     method: 'POST',
     headers: await authHeaders(),
   });
-  if (response.ok) return { ok: true };
+  if (response.ok) {
+    const data: unknown = await response.json().catch(() => null);
+    if (!isScheduledCancelResponse(data)) {
+      return {
+        ok: false,
+        error: '解約の予約に失敗しました。課金APIが未更新の可能性があります。しばらくしてから再度お試しください。',
+      };
+    }
+    return { ok: true };
+  }
   const err = (await response.json().catch(() => null)) as { error?: string } | null;
   return { ok: false, error: err?.error ?? 'Failed to cancel subscription' };
 }

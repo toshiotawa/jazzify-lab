@@ -2,7 +2,8 @@
  * Lemon Squeezy Webhook（本番）。
  *
  * 責務: Lemon の現在状態を subscriptions / profiles にミラーするだけ。
- * - pending 系カラム（自前予約プラン変更）には一切触れない。
+ * - pending 系カラム（自前予約プラン変更・予約解約）には一切触れない。
+ * - pending_cancel_status=scheduled 中の Lemon cancelled はミラーしない（cron 適用前の早期解約を無視）。
  * - invoice 系イベント（subscription_payment_*）の payload は Subscription invoice object であり、
  *   サブスク状態の信頼ソースにしない。GET /v1/subscriptions/:id の結果のみミラーする。
  *   GET 失敗時は subscriptions を一切更新せず、イベント記録のみ行う。
@@ -23,6 +24,7 @@ import {
   type LemonSubscriptionObjectAttrs,
 } from './lib/lemonSubscriptionMirror';
 import { fetchLemonSubscription } from './lib/lemonNetlifyCommon';
+import { shouldBlockCancellationMirror } from './lib/lemonPendingCancelMirrorGuard';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -163,7 +165,7 @@ const fetchExistingSnapshot = async (
 ): Promise<ExistingSubscriptionSnapshot | null> => {
   const { data } = await supabase
     .from('subscriptions')
-    .select('plan_code, trial_used, provider_updated_at')
+    .select('plan_code, trial_used, provider_updated_at, pending_cancel_status')
     .eq('user_id', userId)
     .maybeSingle();
   if (!data) return null;
@@ -172,6 +174,8 @@ const fetchExistingSnapshot = async (
     trial_used: data.trial_used === true,
     provider_updated_at:
       typeof data.provider_updated_at === 'string' ? data.provider_updated_at : null,
+    pending_cancel_status:
+      typeof data.pending_cancel_status === 'string' ? data.pending_cancel_status : null,
   };
 };
 
@@ -290,6 +294,22 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const { yearlyVariantIds, monthlyVariantIds } = getVariantIdLists();
     const variantPlanCode = planCodeForLemonVariant(source.attrs.variant_id, yearlyVariantIds, monthlyVariantIds);
     const existing = await fetchExistingSnapshot(supabase, userId);
+
+    if (
+      shouldBlockCancellationMirror(
+        existing?.pending_cancel_status ?? null,
+        String(source.attrs.status ?? ''),
+        source.attrs.cancelled === true,
+      )
+    ) {
+      await insertAuditEvent(supabase, userId, 'pending_cancel_external_mirror_blocked', providerEventId, {
+        original_event: eventName,
+        pending_cancel_status: existing?.pending_cancel_status ?? null,
+        incoming_status: source.attrs.status ?? null,
+        incoming_cancelled: source.attrs.cancelled ?? null,
+      });
+      return ok({ received: true, skipped: 'pending_cancel_scheduled' });
+    }
 
     const mirror = buildSubscriptionMirror(source.attrs, existing, {
       variantPlanCode,

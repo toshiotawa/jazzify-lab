@@ -29,6 +29,7 @@ export interface ExistingSubscriptionSnapshot {
   plan_code: string | null;
   trial_used: boolean;
   provider_updated_at: string | null;
+  pending_cancel_status?: string | null;
 }
 
 export interface SubscriptionMirrorContext {

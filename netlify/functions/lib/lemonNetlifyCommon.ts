@@ -149,8 +149,8 @@ export async function patchLemonSubscriptionVariant(
 }
 
 /**
- * サブスクリプションを解約する（DELETE）。Lemon 側は cancelled: true / ends_at 付きで返す。
- * grace period（期間末までアクセス維持）は Lemon の標準挙動。
+ * Lemon サブスクリプションを解約する（DELETE）。呼び出しは cron 適用のみ。
+ * UI / 解約 API からは呼ばない（予約は DB のみ、cron が期間終了窓で実行）。
  */
 export async function cancelLemonSubscription(
   subscriptionId: string,
