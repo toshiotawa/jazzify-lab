@@ -1,4 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+  readGeoCountryFromHeaders,
+  resolveCheckoutDefaults,
+  type CheckoutCountryCode,
+  type CheckoutLocale,
+} from './lib/lemonCheckoutDefaults';
 import { resolveCheckoutVariants } from './lib/lemonPlanCatalog';
 
 interface NetlifyEvent {
@@ -47,6 +53,8 @@ const createCheckout = async (params: {
   email: string;
   userId: string;
   trial: boolean;
+  country: CheckoutCountryCode;
+  locale: CheckoutLocale;
 }): Promise<string> => {
   const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
   const storeId = ensureEnv('LEMONSQUEEZY_STORE_ID');
@@ -67,10 +75,14 @@ const createCheckout = async (params: {
           custom: {
             user_id: params.userId,
           },
+          billing_address: {
+            country: params.country,
+          },
         },
         checkout_options: {
           embed: false,
           skip_trial: !params.trial,
+          locale: params.locale,
         },
         product_options: {
           enabled_variants: enabledVariants,
@@ -181,7 +193,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const userEmail = auth.data.user.email ?? auth.data.user.user_metadata?.email ?? '';
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('email, rank, lemon_customer_id, lemon_trial_used')
+      .select('email, rank, lemon_customer_id, lemon_trial_used, country, preferred_locale')
       .eq('id', userId)
       .single();
 
@@ -215,7 +227,18 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
         await supabase.from('profiles').update({ lemon_trial_used: true, lemon_customer_id: existingCustomerId }).eq('id', userId);
       }
     }
-    const url = await createCheckout({ email, userId, trial });
+    const checkoutDefaults = resolveCheckoutDefaults({
+      profileCountry: profile.country,
+      geoCountry: readGeoCountryFromHeaders(event.headers),
+      preferredLocale: profile.preferred_locale,
+    });
+    const url = await createCheckout({
+      email,
+      userId,
+      trial,
+      country: checkoutDefaults.country,
+      locale: checkoutDefaults.locale,
+    });
     const via: LinkVia = 'checkout';
 
     return { statusCode: 200, headers: responseHeaders, body: JSON.stringify({ url, via }) };
