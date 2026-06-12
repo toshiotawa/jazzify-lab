@@ -3,6 +3,7 @@ import {
   billingCorsHeaders,
 } from './lib/lemonNetlifyCommon';
 import { listBillingInvoicesForUser } from './lib/lemonBillingPersistence';
+import { syncUserBillingInvoicesFromLemon } from './lib/lemonBillingInvoiceSync';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -61,7 +62,13 @@ export const handler = async (event: NetlifyEvent) => {
     }
 
     const { supabase, userId } = authResult;
-    const rows = await listBillingInvoicesForUser(supabase, userId);
+    let rows = await listBillingInvoicesForUser(supabase, userId);
+
+    if (rows.length === 0) {
+      await syncUserBillingInvoicesFromLemon(supabase, userId);
+      rows = await listBillingInvoicesForUser(supabase, userId);
+    }
+
     const sorted = [...rows].sort((a, b) => invoiceSortKey(b) - invoiceSortKey(a));
 
     const invoices = sorted.map((row) => ({

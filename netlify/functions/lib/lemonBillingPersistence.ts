@@ -147,7 +147,10 @@ export async function listBillingInvoicesForUser(
     .eq('provider', LEMON_BILLING_PROVIDER)
     .limit(limit);
 
-  if (error || !data) return [];
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) return [];
 
   const subscriptionIds = [
     ...new Set(
