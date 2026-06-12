@@ -21,11 +21,16 @@ export interface LemonSubscriptionSnapshot {
   ends_at: string | null;
 }
 
+export interface SubscriptionGuardOptions {
+  pendingCancelScheduled?: boolean;
+}
+
 export function deriveBillingCapabilities(
   provider: string,
   entitlementState: string,
   status: string,
   pendingPlanCode: string | null = null,
+  pendingCancelScheduled: boolean = false,
 ): BillingCapabilities {
   if (provider !== 'lemon') {
     return {
@@ -42,10 +47,10 @@ export function deriveBillingCapabilities(
   const hasPendingPlanChange = pendingPlanCode !== null;
 
   return {
-    can_change_plan: isActiveEntitlement && !hasPendingPlanChange,
-    can_resume: isCancelledGrace,
+    can_change_plan: isActiveEntitlement && !hasPendingPlanChange && !pendingCancelScheduled,
+    can_resume: pendingCancelScheduled || isCancelledGrace,
     can_manage_payment: isActiveEntitlement || isCancelledGrace || isPastDue,
-    can_cancel_pending_plan_change: isActiveEntitlement && hasPendingPlanChange,
+    can_cancel_pending_plan_change: isActiveEntitlement && hasPendingPlanChange && !pendingCancelScheduled,
   };
 }
 
@@ -60,12 +65,17 @@ export function assertSubscriptionActionAllowed(
   dbEntitlementState: string,
   action: SubscriptionAction,
   nowMs: number = Date.now(),
+  options: SubscriptionGuardOptions = {},
 ): { allowed: boolean; reason?: string } {
   const lemonStatus = snapshot.status.toLowerCase();
   const periodStillActive = periodEndMs(snapshot.ends_at) > nowMs;
+  const pendingCancelScheduled = options.pendingCancelScheduled === true;
 
   switch (action) {
     case 'change_plan': {
+      if (pendingCancelScheduled) {
+        return { allowed: false, reason: 'Cannot change plan while cancellation is scheduled' };
+      }
       if (dbEntitlementState !== 'active') {
         return { allowed: false, reason: 'Plan changes are not allowed in the current subscription state' };
       }
@@ -78,6 +88,9 @@ export function assertSubscriptionActionAllowed(
       return { allowed: true };
     }
     case 'resume': {
+      if (pendingCancelScheduled) {
+        return { allowed: true };
+      }
       if (dbEntitlementState !== 'cancelled_but_active_until_end') {
         return { allowed: false, reason: 'Subscription is not in cancelled grace period' };
       }
@@ -91,13 +104,22 @@ export function assertSubscriptionActionAllowed(
     }
     case 'manage_payment':
     case 'cancel': {
-      const caps = deriveBillingCapabilities('lemon', dbEntitlementState, lemonStatus === 'on_trial' ? 'trial' : lemonStatus);
+      const caps = deriveBillingCapabilities(
+        'lemon',
+        dbEntitlementState,
+        lemonStatus === 'on_trial' ? 'trial' : lemonStatus,
+        null,
+        pendingCancelScheduled,
+      );
       if (action === 'manage_payment' && !caps.can_manage_payment) {
         return { allowed: false, reason: 'Payment management is not available' };
       }
       if (action === 'cancel') {
         if (dbEntitlementState !== 'active') {
           return { allowed: false, reason: 'Cancellation is not available in the current state' };
+        }
+        if (pendingCancelScheduled) {
+          return { allowed: false, reason: 'Cancellation already scheduled' };
         }
         if (snapshot.cancelled) {
           return { allowed: false, reason: 'Subscription is already cancelled' };
@@ -112,4 +134,8 @@ export function assertSubscriptionActionAllowed(
 
 export function targetPlanCodeForChange(currentPlanCode: string, target: 'monthly' | 'yearly'): string {
   return target === 'yearly' ? 'core_yearly' : 'core_monthly';
+}
+
+export function isPendingCancelScheduled(pendingCancelStatus: string | null): boolean {
+  return pendingCancelStatus === 'scheduled' || pendingCancelStatus === 'failed';
 }

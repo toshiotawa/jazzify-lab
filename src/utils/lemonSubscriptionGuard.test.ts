@@ -26,6 +26,13 @@ describe('deriveBillingCapabilities', () => {
     expect(caps.can_manage_payment).toBe(true);
   });
 
+  it('allows resume and blocks plan change when cancellation is scheduled', () => {
+    const caps = deriveBillingCapabilities('lemon', 'active', 'active', null, true);
+    expect(caps.can_change_plan).toBe(false);
+    expect(caps.can_resume).toBe(true);
+    expect(caps.can_manage_payment).toBe(true);
+  });
+
   it('allows payment management for past_due', () => {
     const caps = deriveBillingCapabilities('lemon', 'payment_issue_with_access', 'past_due');
     expect(caps.can_change_plan).toBe(false);
@@ -62,6 +69,26 @@ describe('assertSubscriptionActionAllowed', () => {
 
   it('allows cancel portal link for active subscription', () => {
     expect(assertSubscriptionActionAllowed(activeSnapshot, 'active', 'cancel').allowed).toBe(true);
+  });
+
+  it('blocks cancel when cancellation already scheduled', () => {
+    expect(assertSubscriptionActionAllowed(
+      activeSnapshot,
+      'active',
+      'cancel',
+      Date.now(),
+      { pendingCancelScheduled: true },
+    ).allowed).toBe(false);
+  });
+
+  it('allows resume when cancellation is only scheduled in Jazzify', () => {
+    expect(assertSubscriptionActionAllowed(
+      activeSnapshot,
+      'active',
+      'resume',
+      Date.now(),
+      { pendingCancelScheduled: true },
+    ).allowed).toBe(true);
   });
 });
 

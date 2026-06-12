@@ -1,8 +1,10 @@
-import { assertSubscriptionActionAllowed } from './lib/lemonSubscriptionGuard';
+import {
+  assertSubscriptionActionAllowed,
+  isPendingCancelScheduled,
+} from './lib/lemonSubscriptionGuard';
 import {
   authenticateRequest,
   billingCorsHeaders,
-  cancelLemonSubscription,
   fetchLemonSubscription,
   getUserLemonSubscription,
 } from './lib/lemonNetlifyCommon';
@@ -11,6 +13,12 @@ interface NetlifyEvent {
   httpMethod: string;
   headers: Record<string, string | undefined>;
 }
+
+const resolveEffectiveAt = (
+  renewsAt: string | null,
+  endsAt: string | null,
+  fallback: string | null,
+): string | null => renewsAt ?? endsAt ?? fallback;
 
 export const handler = async (event: NetlifyEvent) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -45,6 +53,14 @@ export const handler = async (event: NetlifyEvent) => {
       };
     }
 
+    if (isPendingCancelScheduled(subscriptionRow.pending_cancel_status)) {
+      return {
+        statusCode: 409,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Cancellation already scheduled', scheduled: true }),
+      };
+    }
+
     const lemonSub = await fetchLemonSubscription(subscriptionRow.provider_subscription_id);
     if (!lemonSub) {
       return {
@@ -63,6 +79,8 @@ export const handler = async (event: NetlifyEvent) => {
       },
       subscriptionRow.entitlement_state,
       'cancel',
+      Date.now(),
+      { pendingCancelScheduled: false },
     );
     if (!guard.allowed) {
       return {
@@ -72,26 +90,28 @@ export const handler = async (event: NetlifyEvent) => {
       };
     }
 
-    const cancelResult = await cancelLemonSubscription(subscriptionRow.provider_subscription_id);
-    if (!cancelResult.ok) {
+    const effectiveAt = resolveEffectiveAt(
+      attrs.renews_at ?? null,
+      attrs.ends_at ?? null,
+      subscriptionRow.current_period_ends_at,
+    );
+    if (!effectiveAt) {
       return {
-        statusCode: 502,
+        statusCode: 409,
         headers: billingCorsHeaders,
-        body: JSON.stringify({
-          error: 'Failed to cancel subscription on Lemon Squeezy',
-          details: cancelResult.details,
-        }),
+        body: JSON.stringify({ error: 'Cannot determine subscription period end' }),
       };
     }
 
     const subscriptionUpdates: Record<string, unknown> = {
-      status: 'canceled',
-      entitlement_state: 'cancelled_but_active_until_end',
+      pending_cancel_effective_at: effectiveAt,
+      pending_cancel_effective_at_snapshot: effectiveAt,
+      pending_cancel_status: 'scheduled',
+      pending_cancel_locked_at: null,
+      pending_cancel_failed_reason: null,
+      pending_cancel_attempts: 0,
       updated_at: new Date().toISOString(),
     };
-    if (cancelResult.endsAt) {
-      subscriptionUpdates.current_period_ends_at = cancelResult.endsAt;
-    }
 
     if (subscriptionRow.pending_status !== null) {
       Object.assign(subscriptionUpdates, {
@@ -117,7 +137,7 @@ export const handler = async (event: NetlifyEvent) => {
       return {
         statusCode: 500,
         headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Failed to update subscription state' }),
+        body: JSON.stringify({ error: 'Failed to record scheduled cancellation' }),
       };
     }
 
@@ -128,20 +148,26 @@ export const handler = async (event: NetlifyEvent) => {
         event_type: 'pending_plan_cancelled',
         provider_event_id: subscriptionRow.provider_subscription_id,
         payload: {
-          reason: 'subscription_cancelled',
+          reason: 'subscription_cancel_scheduled',
           cancelled_pending_plan_code: subscriptionRow.pending_plan_code,
         },
       });
     }
 
-    await supabase.from('profiles').update({
-      lemon_subscription_status: 'cancelled',
-    }).eq('id', userId);
+    await supabase.from('subscription_events').insert({
+      user_id: userId,
+      provider: 'lemon',
+      event_type: 'pending_cancel_scheduled',
+      provider_event_id: subscriptionRow.provider_subscription_id,
+      payload: {
+        pending_cancel_effective_at: effectiveAt,
+      },
+    });
 
     return {
       statusCode: 200,
       headers: billingCorsHeaders,
-      body: JSON.stringify({ ok: true, ends_at: cancelResult.endsAt }),
+      body: JSON.stringify({ ok: true, scheduled: true, effective_at: effectiveAt }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

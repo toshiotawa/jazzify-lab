@@ -81,6 +81,7 @@ export interface UserLemonSubscriptionRow {
   status: string;
   pending_plan_code: string | null;
   pending_status: string | null;
+  pending_cancel_status: string | null;
   current_period_ends_at: string | null;
 }
 
@@ -90,7 +91,7 @@ export async function getUserLemonSubscription(
 ): Promise<UserLemonSubscriptionRow | null> {
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('provider, provider_subscription_id, plan_code, entitlement_state, status, pending_plan_code, pending_status, current_period_ends_at')
+    .select('provider, provider_subscription_id, plan_code, entitlement_state, status, pending_plan_code, pending_status, pending_cancel_status, current_period_ends_at')
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !data || data.provider !== 'lemon' || !data.provider_subscription_id) {
@@ -104,6 +105,7 @@ export async function getUserLemonSubscription(
     status: data.status,
     pending_plan_code: data.pending_plan_code ?? null,
     pending_status: data.pending_status ?? null,
+    pending_cancel_status: data.pending_cancel_status ?? null,
     current_period_ends_at: data.current_period_ends_at ?? null,
   };
 }

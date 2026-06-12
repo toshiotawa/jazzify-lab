@@ -172,8 +172,8 @@ const AccountPage: React.FC = () => {
       if (result.ok) {
         pushToast(
           isEnglishCopy
-            ? 'Cancellation confirmed. You can use premium until the period ends'
-            : '解約を受け付けました。期間終了までご利用いただけます',
+            ? 'Cancellation scheduled. You can use premium until the period ends'
+            : '解約を予約しました。期間終了までご利用いただけます',
           'success',
         );
         setShowCancelConfirm(false);
@@ -232,12 +232,16 @@ const AccountPage: React.FC = () => {
   const pendingEffectiveLabel = formatPeriodEnd(
     billingPayload?.pending_plan_effective_at ?? billingPayload?.current_period_ends_at,
   );
+  const isCancelScheduled = billingPayload?.pending_cancel_effective_at != null;
   const isCancelledGrace = billingPayload?.entitlement_state === 'cancelled_but_active_until_end';
+  const cancelEffectiveLabel = formatPeriodEnd(
+    billingPayload?.pending_cancel_effective_at ?? billingPayload?.current_period_ends_at,
+  );
   const canChangePlan = billingPayload?.can_change_plan === true;
   const canCancelPendingPlanChange = billingPayload?.can_cancel_pending_plan_change === true;
   const canResume = billingPayload?.can_resume === true;
   const canManagePayment = billingPayload?.can_manage_payment === true;
-  const canCancelSubscription = billingPayload?.entitlement_state === 'active';
+  const canCancelSubscription = billingPayload?.entitlement_state === 'active' && !isCancelScheduled;
   const pendingPlanCode = billingPayload?.pending_plan_code ?? null;
   const pendingIntervalLabel = pendingPlanCode
     ? getPlanIntervalLabel(pendingPlanCode, localeCode)
@@ -251,7 +255,7 @@ const AccountPage: React.FC = () => {
   const showChangeToYearly = canChangePlan && billingPayload?.plan_code === 'core_monthly';
   const showChangeToMonthly = canChangePlan && billingPayload?.plan_code === 'core_yearly';
   /** フリー・期限切れでは次回更新日・請求額を出さない（DBに period 残存していても） */
-  const showBillingSchedule = isPremiumMember && !pendingPlanCode;
+  const showBillingSchedule = isPremiumMember && !pendingPlanCode && !isCancelScheduled && !isCancelledGrace;
 
   useEffect(() => {
     const syncFromHash = () => {
@@ -662,11 +666,11 @@ const AccountPage: React.FC = () => {
                           {isEnglishCopy ? 'No additional charge today' : '本日の追加請求：なし'}
                         </p>
                       )}
-                      {periodEndLabel && isCancelledGrace && (
+                      {cancelEffectiveLabel && (isCancelledGrace || isCancelScheduled) && (
                         <p className="text-xs text-amber-300">
                           {isEnglishCopy
-                            ? `Access until: ${periodEndLabel}`
-                            : `利用期限: ${periodEndLabel}（解約予定）`}
+                            ? `Access until: ${cancelEffectiveLabel}`
+                            : `利用期限: ${cancelEffectiveLabel}（解約予定）`}
                         </p>
                       )}
 

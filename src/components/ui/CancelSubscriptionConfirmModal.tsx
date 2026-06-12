@@ -29,12 +29,12 @@ const CancelSubscriptionConfirmModal: React.FC<CancelSubscriptionConfirmModalPro
 
   const bodyLines = isEnglishCopy
     ? [
-      'You can keep using premium features until the end of the current billing period. Your subscription will not renew after that.',
+      'Your cancellation will be scheduled. You can keep using premium features until the end of the current billing period.',
       periodEndLabel ? `Access until: ${periodEndLabel}` : null,
       pendingPlanCode ? 'Your scheduled plan change will also be cancelled.' : null,
     ]
     : [
-      '解約しても、現在の請求期間の終了日まではプレミアム機能を利用できます。期間終了後は自動更新されません。',
+      '解約を予約しても、現在の請求期間の終了日まではプレミアム機能を利用できます。期間終了後は自動更新されません。',
       periodEndLabel ? `利用期限: ${periodEndLabel}` : null,
       pendingPlanCode ? '予約中のプラン変更も取り消されます。' : null,
     ];

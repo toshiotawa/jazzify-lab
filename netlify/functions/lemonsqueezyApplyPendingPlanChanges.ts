@@ -1,10 +1,10 @@
 /**
- * 予約プラン変更の定期適用（Netlify Scheduled Function、netlify.toml で10分間隔）。
+ * 予約プラン変更・予約解約の定期適用（Netlify Scheduled Function、netlify.toml で10分間隔）。
  *
  * 設計:
  * - 予約適用はこの cron だけが行う（Webhook・他APIは pending を適用しない）。
  * - CAS ロック（scheduled/failed → applying）で重複実行に耐える冪等設計。
- * - 適用前に Lemon の現在状態を再確認し、前提が崩れていたら PATCH しない。
+ * - 適用前に Lemon の現在状態を再確認し、前提が崩れていたら PATCH / DELETE しない。
  * - applied / cancelled / failed_permanently は subscriptions に状態として残さず、
  *   subscription_events に監査ログとして記録する。
  */
@@ -16,6 +16,7 @@ import {
   MAX_PENDING_ATTEMPTS,
   type PendingPlanRow,
 } from './lib/lemonPendingPlanApply';
+import { applyPendingCancellations } from './lib/lemonApplyPendingCancellation';
 import {
   fetchLemonSubscription,
   getSupabaseServiceClient,
@@ -257,5 +258,21 @@ export const handler = async () => {
     results[row.user_id] = await processRow(supabase, row, nowMs);
   }
 
-  return { statusCode: 200, body: JSON.stringify({ processed: rows.length, results }) };
+  let cancelResults: Record<string, string> = {};
+  let cancelError: string | null = null;
+  try {
+    cancelResults = await applyPendingCancellations(supabase, nowMs);
+  } catch (err) {
+    cancelError = err instanceof Error ? err.message : 'Unknown error';
+  }
+
+  return {
+    statusCode: cancelError ? 500 : 200,
+    body: JSON.stringify({
+      plan_changes: { processed: rows.length, results },
+      cancellations: cancelError
+        ? { error: cancelError }
+        : { processed: Object.keys(cancelResults).length, results: cancelResults },
+    }),
+  };
 };

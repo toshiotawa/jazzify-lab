@@ -88,6 +88,6 @@
   function = "geo"
   path = "/.netlify/functions/getGeoCountry"
 
-# 予約プラン変更の定期適用（10分間隔）
+# 予約プラン変更・予約解約の定期適用（10分間隔）
 [functions."lemonsqueezyApplyPendingPlanChanges"]
   schedule = "*/10 * * * *"

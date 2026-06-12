@@ -14,11 +14,16 @@ type BillingCapabilities = {
   can_cancel_pending_plan_change: boolean;
 };
 
+function isPendingCancelScheduled(status: string | null | undefined): boolean {
+  return status === "scheduled" || status === "failed";
+}
+
 function deriveBillingCapabilities(
   provider: string,
   entitlementState: string,
   status: string,
   pendingPlanCode: string | null = null,
+  pendingCancelScheduled: boolean = false,
 ): BillingCapabilities {
   if (provider !== "lemon") {
     return {
@@ -35,10 +40,10 @@ function deriveBillingCapabilities(
   const hasPendingPlanChange = pendingPlanCode !== null;
 
   return {
-    can_change_plan: isActiveEntitlement && !hasPendingPlanChange,
-    can_resume: isCancelledGrace,
+    can_change_plan: isActiveEntitlement && !hasPendingPlanChange && !pendingCancelScheduled,
+    can_resume: pendingCancelScheduled || isCancelledGrace,
     can_manage_payment: isActiveEntitlement || isCancelledGrace || isPastDue,
-    can_cancel_pending_plan_change: isActiveEntitlement && hasPendingPlanChange,
+    can_cancel_pending_plan_change: isActiveEntitlement && hasPendingPlanChange && !pendingCancelScheduled,
   };
 }
 
@@ -63,8 +68,19 @@ function buildBillingResponse(
   currentPeriodEndsAt: string | null,
   pendingPlanCode: string | null = null,
   pendingPlanEffectiveAt: string | null = null,
+  pendingCancelEffectiveAt: string | null = null,
+  pendingCancelScheduled: boolean = false,
 ) {
-  const caps = deriveBillingCapabilities(provider, entitlementState, status, pendingPlanCode);
+  const caps = deriveBillingCapabilities(
+    provider,
+    entitlementState,
+    status,
+    pendingPlanCode,
+    pendingCancelScheduled,
+  );
+  const hideNextBilling = entitlementState === "expired"
+    || pendingCancelScheduled
+    || entitlementState === "cancelled_but_active_until_end";
   return {
     provider,
     status,
@@ -75,8 +91,10 @@ function buildBillingResponse(
     current_period_ends_at: entitlementState === "expired" ? null : currentPeriodEndsAt,
     pending_plan_code: pendingPlanCode,
     pending_plan_effective_at: pendingPlanEffectiveAt,
-    next_billing_amount_jpy:
-      entitlementState === "expired" ? null : nextBillingAmountJpy(planCode, pendingPlanCode),
+    pending_cancel_effective_at: pendingCancelEffectiveAt,
+    next_billing_amount_jpy: hideNextBilling
+      ? null
+      : nextBillingAmountJpy(planCode, pendingPlanCode),
     can_change_plan: caps.can_change_plan,
     can_resume: caps.can_resume,
     can_manage_payment: caps.can_manage_payment,
@@ -162,6 +180,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const pendingCancelScheduled = isPendingCancelScheduled(subscription.pending_cancel_status ?? null);
+
     return new Response(JSON.stringify(buildBillingResponse(
       subscription.provider,
       subscription.status,
@@ -172,6 +192,8 @@ Deno.serve(async (req: Request) => {
       subscription.current_period_ends_at,
       subscription.pending_plan_code ?? null,
       subscription.pending_plan_effective_at ?? null,
+      pendingCancelScheduled ? subscription.pending_cancel_effective_at ?? null : null,
+      pendingCancelScheduled,
     )), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

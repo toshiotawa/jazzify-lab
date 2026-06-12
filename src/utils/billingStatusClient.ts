@@ -13,6 +13,7 @@ export interface BillingStatusPayload {
   current_period_ends_at: string | null;
   pending_plan_code: string | null;
   pending_plan_effective_at: string | null;
+  pending_cancel_effective_at: string | null;
   next_billing_amount_jpy: number | null;
   can_change_plan: boolean;
   can_resume: boolean;
@@ -55,11 +56,13 @@ export function normalizeBillingStatusPayload(
   raw: Partial<BillingStatusPayload> & Pick<BillingStatusPayload, 'provider' | 'entitlement_state' | 'status'>,
 ): BillingStatusPayload {
   const pendingPlanCode = raw.pending_plan_code ?? null;
+  const pendingCancelScheduled = raw.pending_cancel_effective_at != null;
   const derived = deriveBillingCapabilities(
     raw.provider,
     raw.entitlement_state,
     raw.status,
     pendingPlanCode,
+    pendingCancelScheduled,
   );
   const planCode = raw.plan_code ?? 'unknown';
   return {
@@ -72,8 +75,11 @@ export function normalizeBillingStatusPayload(
     current_period_ends_at: raw.current_period_ends_at ?? null,
     pending_plan_code: pendingPlanCode,
     pending_plan_effective_at: raw.pending_plan_effective_at ?? null,
+    pending_cancel_effective_at: raw.pending_cancel_effective_at ?? null,
     next_billing_amount_jpy: raw.next_billing_amount_jpy
       ?? (raw.entitlement_state === 'expired'
+        || pendingCancelScheduled
+        || raw.entitlement_state === 'cancelled_but_active_until_end'
         ? null
         : nextBillingAmountJpy(planCode, pendingPlanCode)),
     can_change_plan: raw.can_change_plan ?? derived.can_change_plan,
@@ -124,6 +130,7 @@ export async function fetchBillingStatusPayload(
     current_period_ends_at: raw.current_period_ends_at,
     pending_plan_code: raw.pending_plan_code,
     pending_plan_effective_at: raw.pending_plan_effective_at,
+    pending_cancel_effective_at: raw.pending_cancel_effective_at,
     next_billing_amount_jpy: raw.next_billing_amount_jpy,
     can_change_plan: raw.can_change_plan,
     can_resume: raw.can_resume,

@@ -1,6 +1,7 @@
 import { noTrialVariantForPlanCode } from './lib/lemonPlanCatalog';
 import {
   assertSubscriptionActionAllowed,
+  isPendingCancelScheduled,
   targetPlanCodeForChange,
 } from './lib/lemonSubscriptionGuard';
 import {
@@ -92,6 +93,13 @@ export const handler = async (event: NetlifyEvent) => {
         body: JSON.stringify({ error: 'Plan change already scheduled', scheduled: true }),
       };
     }
+    if (isPendingCancelScheduled(subscriptionRow.pending_cancel_status)) {
+      return {
+        statusCode: 409,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Cancellation already scheduled', scheduled: true }),
+      };
+    }
 
     const lemonSub = await fetchLemonSubscription(subscriptionRow.provider_subscription_id);
     if (!lemonSub) {
@@ -111,6 +119,8 @@ export const handler = async (event: NetlifyEvent) => {
       },
       subscriptionRow.entitlement_state,
       'change_plan',
+      Date.now(),
+      { pendingCancelScheduled: false },
     );
     if (!guard.allowed) {
       return {

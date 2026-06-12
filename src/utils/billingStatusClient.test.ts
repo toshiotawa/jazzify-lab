@@ -35,6 +35,21 @@ describe('normalizeBillingStatusPayload', () => {
     expect(payload.next_billing_amount_jpy).toBe(34800);
   });
 
+  it('derives resume when cancellation is scheduled', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'lemon',
+      status: 'active',
+      entitlement_state: 'active',
+      plan_code: 'core_yearly',
+      pending_cancel_effective_at: '2027-06-12T05:30:46.000000Z',
+      trial_used: false,
+      current_period_ends_at: '2027-06-12T05:30:46.000000Z',
+    });
+    expect(payload.can_resume).toBe(true);
+    expect(payload.can_change_plan).toBe(false);
+    expect(payload.next_billing_amount_jpy).toBeNull();
+  });
+
   it('preserves explicit false from API', () => {
     const payload = normalizeBillingStatusPayload({
       provider: 'lemon',

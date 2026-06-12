@@ -1,4 +1,7 @@
-import { assertSubscriptionActionAllowed } from './lib/lemonSubscriptionGuard';
+import {
+  assertSubscriptionActionAllowed,
+  isPendingCancelScheduled,
+} from './lib/lemonSubscriptionGuard';
 import {
   authenticateRequest,
   billingCorsHeaders,
@@ -11,6 +14,15 @@ interface NetlifyEvent {
   httpMethod: string;
   headers: Record<string, string | undefined>;
 }
+
+const CLEAR_PENDING_CANCEL_FIELDS = {
+  pending_cancel_effective_at: null,
+  pending_cancel_effective_at_snapshot: null,
+  pending_cancel_status: null,
+  pending_cancel_locked_at: null,
+  pending_cancel_failed_reason: null,
+  pending_cancel_attempts: 0,
+} as const;
 
 export const handler = async (event: NetlifyEvent) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -42,6 +54,41 @@ export const handler = async (event: NetlifyEvent) => {
         statusCode: 404,
         headers: billingCorsHeaders,
         body: JSON.stringify({ error: 'Lemon subscription not found' }),
+      };
+    }
+
+    const pendingCancelScheduled = isPendingCancelScheduled(subscriptionRow.pending_cancel_status);
+
+    if (pendingCancelScheduled) {
+      const { error: updateError } = await supabase
+        .from('subscriptions')
+        .update({
+          ...CLEAR_PENDING_CANCEL_FIELDS,
+          last_pending_cancel_cleared_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      if (updateError) {
+        return {
+          statusCode: 500,
+          headers: billingCorsHeaders,
+          body: JSON.stringify({ error: 'Failed to clear scheduled cancellation' }),
+        };
+      }
+
+      await supabase.from('subscription_events').insert({
+        user_id: userId,
+        provider: 'lemon',
+        event_type: 'pending_cancel_cleared',
+        provider_event_id: subscriptionRow.provider_subscription_id,
+        payload: { reason: 'user_resume_before_apply' },
+      });
+
+      return {
+        statusCode: 200,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ ok: true, cleared_scheduled_cancel: true }),
       };
     }
 
