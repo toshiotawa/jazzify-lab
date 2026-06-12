@@ -7,6 +7,9 @@
  */
 
 import { LEMON_BILLING_PROVIDER } from './lemonBillingSubscriptionMirror';
+import {
+  normalizeLemonAmountToMajorUnits,
+} from './lemonMonetaryAmount';
 
 export interface LemonInvoiceWebhookAttrs {
   subscription_id?: number | string | null;
@@ -161,10 +164,10 @@ export function buildBillingInvoiceRow(
     billing_reason: attrs.billing_reason ?? null,
     status: attrs.status ?? null,
     currency: attrs.currency ?? null,
-    total: typeof attrs.total === 'number' ? attrs.total : null,
-    subtotal: typeof attrs.subtotal === 'number' ? attrs.subtotal : null,
-    tax: typeof attrs.tax === 'number' ? attrs.tax : null,
-    refunded_amount: parseRefundedAmount(attrs),
+    total: normalizeLemonAmountToMajorUnits(attrs.total),
+    subtotal: normalizeLemonAmountToMajorUnits(attrs.subtotal),
+    tax: normalizeLemonAmountToMajorUnits(attrs.tax),
+    refunded_amount: normalizeLemonAmountToMajorUnits(parseRefundedAmount(attrs)),
     invoice_url: attrs.urls?.invoice_url ?? null,
     paid_at: parsePaidAt(attrs),
     provider_created_at: attrs.created_at ?? null,

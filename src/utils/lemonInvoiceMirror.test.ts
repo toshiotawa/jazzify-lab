@@ -109,6 +109,24 @@ describe('buildBillingInvoiceRow', () => {
     });
   });
 
+  it('normalizes Lemon minor-unit amounts to yen on ingest', () => {
+    const row = buildBillingInvoiceRow(
+      'inv_1',
+      'user-1',
+      {
+        subscription_id: 'sub_1',
+        customer_id: 'cust_1',
+        status: 'paid',
+        total: 397979,
+        currency: 'JPY',
+      },
+      10,
+      5,
+    );
+
+    expect(row?.total).toBe(3980);
+  });
+
   it('returns null when required provider ids missing', () => {
     expect(
       buildBillingInvoiceRow('inv_1', 'user-1', { subscription_id: '', customer_id: '' }, null, null),
@@ -178,10 +196,11 @@ describe('duplicate webhook upsert key', () => {
       subscription_id: 'sub_1',
       customer_id: 'cust_1',
       status: 'paid',
-      total: 3980,
+      total: 397979,
+      refunded_amount: 397979,
     };
     const first = buildBillingInvoiceRow('inv_dup', 'user-1', attrs, 1, 1);
-    const second = buildBillingInvoiceRow('inv_dup', 'user-1', { ...attrs, status: 'refunded', refunded_amount: 3980 }, 1, 1);
+    const second = buildBillingInvoiceRow('inv_dup', 'user-1', { ...attrs, status: 'refunded' }, 1, 1);
 
     expect(first?.provider_invoice_id).toBe(second?.provider_invoice_id);
     expect(second?.status).toBe('refunded');

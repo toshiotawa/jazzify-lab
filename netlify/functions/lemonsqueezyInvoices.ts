@@ -4,6 +4,7 @@ import {
 } from './lib/lemonNetlifyCommon';
 import { listBillingInvoicesForUser } from './lib/lemonBillingPersistence';
 import { syncUserBillingInvoicesFromLemon } from './lib/lemonBillingInvoiceSync';
+import { coerceStoredAmountToMajorUnits, formatInvoiceAmountLabel } from './lib/lemonMonetaryAmount';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -30,13 +31,8 @@ const formatStatusLabel = (status: string | null): string | null => {
   return status;
 };
 
-const formatTotalLabel = (total: number | null, currency: string | null): string | null => {
-  if (total === null) return null;
-  if (currency?.toUpperCase() === 'JPY') {
-    return `¥${total.toLocaleString('ja-JP')}`;
-  }
-  return `${total}`;
-};
+const formatTotalLabel = (total: number | null, currency: string | null): string | null =>
+  formatInvoiceAmountLabel(coerceStoredAmountToMajorUnits(total), currency);
 
 export const handler = async (event: NetlifyEvent) => {
   if (event.httpMethod === 'OPTIONS') {
