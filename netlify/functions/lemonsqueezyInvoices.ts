@@ -1,14 +1,41 @@
 import {
   authenticateRequest,
   billingCorsHeaders,
-  fetchLemonSubscriptionInvoices,
-  getUserLemonSubscription,
 } from './lib/lemonNetlifyCommon';
+import { listBillingInvoicesForUser } from './lib/lemonBillingPersistence';
 
 interface NetlifyEvent {
   httpMethod: string;
   headers: Record<string, string | undefined>;
 }
+
+const invoiceSortKey = (row: {
+  paid_at: string | null;
+  provider_created_at: string | null;
+  created_at: string;
+}): number => {
+  const raw = row.paid_at ?? row.provider_created_at ?? row.created_at;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+};
+
+const formatStatusLabel = (status: string | null): string | null => {
+  if (!status) return null;
+  const normalized = status.toLowerCase();
+  if (normalized === 'paid') return '支払い済み';
+  if (normalized === 'refunded') return '返金済み';
+  if (normalized === 'pending') return '処理中';
+  if (normalized === 'failed') return '失敗';
+  return status;
+};
+
+const formatTotalLabel = (total: number | null, currency: string | null): string | null => {
+  if (total === null) return null;
+  if (currency?.toUpperCase() === 'JPY') {
+    return `¥${total.toLocaleString('ja-JP')}`;
+  }
+  return `${total}`;
+};
 
 export const handler = async (event: NetlifyEvent) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -34,23 +61,18 @@ export const handler = async (event: NetlifyEvent) => {
     }
 
     const { supabase, userId } = authResult;
-    const subscriptionRow = await getUserLemonSubscription(supabase, userId);
-    if (!subscriptionRow?.provider_subscription_id) {
-      return {
-        statusCode: 404,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Lemon subscription not found' }),
-      };
-    }
+    const rows = await listBillingInvoicesForUser(supabase, userId);
+    const sorted = [...rows].sort((a, b) => invoiceSortKey(b) - invoiceSortKey(a));
 
-    const invoices = await fetchLemonSubscriptionInvoices(subscriptionRow.provider_subscription_id);
-    if (invoices === null) {
-      return {
-        statusCode: 502,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Failed to fetch invoices from Lemon Squeezy' }),
-      };
-    }
+    const invoices = sorted.map((row) => ({
+      id: row.provider_invoice_id,
+      created_at: row.provider_created_at ?? row.paid_at ?? row.created_at,
+      status: row.status,
+      status_formatted: formatStatusLabel(row.status),
+      total_formatted: formatTotalLabel(row.total, row.currency),
+      invoice_url: row.invoice_url,
+      plan_code: row.plan_code,
+    }));
 
     return {
       statusCode: 200,

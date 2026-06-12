@@ -810,6 +810,24 @@ const AccountPage: React.FC = () => {
                                     <ul className="space-y-2">
                                       {invoices.map((invoice) => {
                                         const dateLabel = formatPeriodEnd(invoice.created_at);
+                                        const planLabel = invoice.plan_code
+                                          ? getPlanIntervalLabel(
+                                              invoice.plan_code,
+                                              isEnglishCopy ? 'en' : 'ja',
+                                            )
+                                          : null;
+                                        const statusLabel = (() => {
+                                          if (!invoice.status) return invoice.status_formatted;
+                                          const normalized = invoice.status.toLowerCase();
+                                          if (isEnglishCopy) {
+                                            if (normalized === 'paid') return 'Paid';
+                                            if (normalized === 'refunded') return 'Refunded';
+                                            if (normalized === 'pending') return 'Pending';
+                                            if (normalized === 'failed') return 'Failed';
+                                            return invoice.status;
+                                          }
+                                          return invoice.status_formatted ?? invoice.status;
+                                        })();
                                         return (
                                           <li
                                             key={invoice.id}
@@ -819,11 +837,14 @@ const AccountPage: React.FC = () => {
                                               {dateLabel && (
                                                 <p className="text-gray-200">{dateLabel}</p>
                                               )}
-                                              {invoice.status_formatted && (
-                                                <p className="text-gray-400">{invoice.status_formatted}</p>
+                                              {planLabel && (
+                                                <p className="text-gray-300">{planLabel}</p>
                                               )}
                                               {invoice.total_formatted && (
                                                 <p className="text-gray-300">{invoice.total_formatted}</p>
+                                              )}
+                                              {statusLabel && (
+                                                <p className="text-gray-400">{statusLabel}</p>
                                               )}
                                             </div>
                                             {invoice.invoice_url && (
@@ -856,15 +877,8 @@ const AccountPage: React.FC = () => {
                     <p className="text-xs text-gray-400">
                       {isEnglishCopy 
                         ? 'Deleting your account will prevent you from logging in. Public data will be anonymized as "Deleted User". You must be on the Free plan to delete your account.'
-                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。退会はフリープランのみ可能です。'}
+                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。'}
                     </p>
-                    {isPremiumMember && (
-                      <p className="text-xs text-amber-400">
-                        {isEnglishCopy
-                          ? 'Your subscription period has not ended yet. Please cancel first and wait until your plan expires.'
-                          : 'まだサブスクリプションの利用期間が残っているため、退会できません。先に解約のうえ、利用期間終了後に退会してください。'}
-                      </p>
-                    )}
                     <div className="flex gap-2">
                       <button
                         className={`btn btn-sm ${!isPremiumMember ? 'btn-danger' : 'btn-disabled'}`}

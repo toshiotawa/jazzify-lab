@@ -1,14 +1,13 @@
 /**
  * Lemon Squeezy Webhook（本番）。
  *
- * 責務: Lemon の現在状態を subscriptions / profiles にミラーするだけ。
- * - pending 系カラム（自前予約プラン変更・予約解約）には一切触れない。
- * - pending_cancel_status=scheduled/applying 中の Lemon cancelled はミラーしない。
- * - last_pending_cancel_applied_at ありの cancelled は expired に上書き（即フリー化）。
- * - invoice 系イベント（subscription_payment_*）の payload は Subscription invoice object であり、
- *   サブスク状態の信頼ソースにしない。GET /v1/subscriptions/:id の結果のみミラーする。
- *   GET 失敗時は subscriptions を一切更新せず、イベント記録のみ行う。
- * - 古いイベントによる巻き戻りは provider_updated_at 比較で防御する。
+ * 責務:
+ * - subscription_* → subscriptions / profiles（現行 entitlement）+ billing_* 履歴
+ * - subscription_payment_* → billing_invoices のみ（entitlement 非接触）
+ * - order_refunded → Phase 1: 既存 entitlement 失効 + billing_invoices 更新
+ *
+ * IMPORTANT:
+ * Invoice events must never mutate current entitlement.
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -24,11 +23,15 @@ import {
   type ExistingSubscriptionSnapshot,
   type LemonSubscriptionObjectAttrs,
 } from './lib/lemonSubscriptionMirror';
-import { fetchLemonSubscription } from './lib/lemonNetlifyCommon';
 import {
   applyImmediateExpireAfterPendingCancelApply,
   shouldBlockCancellationMirror,
 } from './lib/lemonPendingCancelMirrorGuard';
+import {
+  handleInvoiceWebhookEvent,
+  handleOrderRefundedBillingInvoice,
+  handleSubscriptionBillingHistoryFromWebhook,
+} from './lib/lemonBillingWebhookHandlers';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -83,6 +86,16 @@ interface LemonWebhookPayload {
       ends_at?: string | null;
       trial_ends_at?: string | null;
       updated_at?: string | null;
+      billing_reason?: string | null;
+      total?: number | null;
+      subtotal?: number | null;
+      tax?: number | null;
+      refunded?: number | null;
+      refunded_amount?: number | null;
+      created_at?: string | null;
+      paid_at?: string | null;
+      currency?: string | null;
+      urls?: { invoice_url?: string | null };
     };
     relationships?: Record<string, unknown>;
   };
@@ -196,6 +209,105 @@ const ok = (body: Record<string, unknown>) => ({
   body: JSON.stringify(body),
 });
 
+const mirrorSubscriptionEntitlement = async (
+  supabase: SupabaseClient,
+  userId: string,
+  eventName: string,
+  providerEventId: string,
+  source: MirrorSource,
+): Promise<Record<string, unknown>> => {
+  const { yearlyVariantIds, monthlyVariantIds } = getVariantIdLists();
+  const variantPlanCode = planCodeForLemonVariant(source.attrs.variant_id, yearlyVariantIds, monthlyVariantIds);
+  const existing = await fetchExistingSnapshot(supabase, userId);
+
+  if (
+    shouldBlockCancellationMirror(
+      existing?.pending_cancel_status ?? null,
+      String(source.attrs.status ?? ''),
+      source.attrs.cancelled === true,
+    )
+  ) {
+    await insertAuditEvent(supabase, userId, 'pending_cancel_external_mirror_blocked', providerEventId, {
+      original_event: eventName,
+      pending_cancel_status: existing?.pending_cancel_status ?? null,
+      incoming_status: source.attrs.status ?? null,
+      incoming_cancelled: source.attrs.cancelled ?? null,
+    });
+    return { received: true, skipped: 'pending_cancel_scheduled' };
+  }
+
+  const mirror = buildSubscriptionMirror(source.attrs, existing, {
+    variantPlanCode,
+    variantIsTrial: isTrialVariant(source.attrs.variant_id),
+    nowMs: Date.now(),
+  });
+
+  if (mirror.kind === 'skipped') {
+    await insertAuditEvent(supabase, userId, 'stale_provider_update', providerEventId, {
+      original_event: eventName,
+      incoming_updated_at: source.attrs.updated_at ?? null,
+      existing_provider_updated_at: existing?.provider_updated_at ?? null,
+    });
+    return { received: true, skipped: mirror.reason };
+  }
+
+  const mirrorColumns = applyImmediateExpireAfterPendingCancelApply(
+    mirror.columns,
+    existing?.last_pending_cancel_applied_at ?? null,
+  );
+
+  const upsertData: Record<string, unknown> = {
+    user_id: userId,
+    provider: 'lemon',
+    provider_subscription_id: source.subscriptionId || null,
+    ...mirrorColumns,
+    updated_at: new Date().toISOString(),
+  };
+  if (mirrorColumns.entitlement_state === 'active') {
+    upsertData.last_pending_cancel_applied_at = null;
+  }
+  if (mirror.trialBecameUsed) {
+    upsertData.trial_used_at = new Date().toISOString();
+  }
+
+  await supabase.from('subscriptions').upsert(upsertData, { onConflict: 'user_id' });
+
+  const rank = rankForSubscription('lemon', mirrorColumns.entitlement_state);
+  const lemonStatus = String(source.attrs.status ?? '').toLowerCase();
+  const profileUpdates: Record<string, unknown> = {
+    rank,
+    lemon_subscription_id: source.subscriptionId || null,
+    lemon_subscription_status:
+      mirrorColumns.entitlement_state === 'expired' ? 'expired' : (lemonStatus || null),
+  };
+  if (mirror.columns.provider_customer_id) {
+    profileUpdates.lemon_customer_id = mirror.columns.provider_customer_id;
+  }
+  if (mirror.columns.trial_used) {
+    profileUpdates.lemon_trial_used = true;
+    if (mirror.trialBecameUsed) {
+      profileUpdates.lemon_trial_used_at = new Date().toISOString();
+    }
+  }
+
+  await supabase.from('profiles').update(profileUpdates).eq('id', userId);
+
+  await handleSubscriptionBillingHistoryFromWebhook(supabase, userId, source.subscriptionId, {
+    status: source.attrs.status ?? null,
+    cancelled: source.attrs.cancelled ?? null,
+    variant_id: source.attrs.variant_id ?? null,
+    customer_id: source.attrs.customer_id ?? null,
+    product_id: null,
+    renews_at: source.attrs.renews_at ?? null,
+    ends_at: source.attrs.ends_at ?? null,
+    created_at: null,
+    updated_at: source.attrs.updated_at ?? null,
+    user_email: null,
+  });
+
+  return { received: true, status: mirrorColumns.status };
+};
+
 export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers };
   if (event.httpMethod !== 'POST') {
@@ -229,11 +341,50 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
 
     await insertAuditEvent(supabase, userId, eventName, providerEventId, payload);
 
+    if (INVOICE_EVENT_NAMES.has(eventName)) {
+      const invoiceResult = await handleInvoiceWebhookEvent(
+        supabase,
+        providerEventId,
+        {
+          subscription_id: attrs.subscription_id ?? null,
+          customer_id: attrs.customer_id ?? null,
+          customer_email: attrs.customer_email ?? null,
+          user_email: attrs.user_email ?? null,
+          billing_reason: attrs.billing_reason ?? null,
+          status: attrs.status ?? null,
+          currency: attrs.currency ?? null,
+          total: attrs.total ?? null,
+          subtotal: attrs.subtotal ?? null,
+          tax: attrs.tax ?? null,
+          refunded: attrs.refunded ?? null,
+          refunded_amount: attrs.refunded_amount ?? null,
+          created_at: attrs.created_at ?? null,
+          updated_at: attrs.updated_at ?? null,
+          paid_at: attrs.paid_at ?? null,
+          urls: attrs.urls,
+        },
+        customData,
+        async (auditType, auditPayload) => {
+          await insertAuditEvent(supabase, userId, auditType, providerEventId, auditPayload);
+        },
+      );
+
+      return ok({
+        received: true,
+        billing: invoiceResult.kind,
+        ...(invoiceResult.kind === 'skipped' || invoiceResult.kind === 'failed_resolution'
+          ? { reason: invoiceResult.reason }
+          : {}),
+      });
+    }
+
     if (!userId || !eventName) {
       return ok({ received: true, skipped: !userId ? 'user not found' : 'no event name' });
     }
 
-    // order_refunded のみ会員資格を失効させる（plan / variant / trial / pending は触らない）
+    // TODO Phase 2:
+    // Refund events should not be treated as entitlement truth.
+    // Entitlement should be derived from subscription status, not refund status.
     if (eventName === 'order_refunded') {
       await supabase
         .from('subscriptions')
@@ -244,136 +395,44 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
         })
         .eq('user_id', userId);
       await supabase.from('profiles').update({ rank: 'free' }).eq('id', userId);
+
+      const refundedAmount =
+        typeof attrs.refunded_amount === 'number'
+          ? attrs.refunded_amount
+          : typeof attrs.refunded === 'number'
+            ? attrs.refunded
+            : null;
+      await handleOrderRefundedBillingInvoice(supabase, providerEventId, refundedAmount);
+
       return ok({ received: true, status: 'expired' });
     }
 
-    // ミラー対象の Subscription object を決定する
-    let source: MirrorSource | null = null;
-
-    if (SUBSCRIPTION_EVENT_NAMES.has(eventName)) {
-      source = {
-        subscriptionId: String(payload.data?.id ?? ''),
-        attrs: {
-          status: attrs.status ?? null,
-          cancelled: attrs.cancelled ?? null,
-          variant_id: attrs.variant_id ?? null,
-          customer_id: attrs.customer_id ?? null,
-          renews_at: attrs.renews_at ?? null,
-          ends_at: attrs.ends_at ?? null,
-          trial_ends_at: attrs.trial_ends_at ?? null,
-          updated_at: attrs.updated_at ?? null,
-        },
-      };
-    } else if (INVOICE_EVENT_NAMES.has(eventName)) {
-      // invoice payload はサブスク状態の信頼ソースにせず、最新 Subscription を取りに行くトリガーとして使う
-      const subscriptionId = String(attrs.subscription_id ?? '');
-      if (!subscriptionId) {
-        return ok({ received: true, skipped: 'invoice without subscription_id' });
-      }
-      const lemonSub = await fetchLemonSubscription(subscriptionId);
-      if (!lemonSub) {
-        await insertAuditEvent(supabase, userId, 'lemon_subscription_get_failed', providerEventId, {
-          original_event: eventName,
-          subscription_id: subscriptionId,
-        });
-        return ok({ received: true, skipped: 'subscription fetch failed' });
-      }
-      const subAttrs = lemonSub.data.attributes;
-      source = {
-        subscriptionId: lemonSub.data.id,
-        attrs: {
-          status: subAttrs.status ?? null,
-          cancelled: subAttrs.cancelled ?? null,
-          variant_id: subAttrs.variant_id ?? null,
-          customer_id: subAttrs.customer_id ?? null,
-          renews_at: subAttrs.renews_at ?? null,
-          ends_at: subAttrs.ends_at ?? null,
-          trial_ends_at: subAttrs.trial_ends_at ?? null,
-          updated_at: subAttrs.updated_at ?? null,
-        },
-      };
-    } else {
-      // order_created 等はイベント記録のみ（subscription_created 側で状態が同期される）
+    if (!SUBSCRIPTION_EVENT_NAMES.has(eventName)) {
       return ok({ received: true, skipped: 'event recorded only' });
     }
 
-    const { yearlyVariantIds, monthlyVariantIds } = getVariantIdLists();
-    const variantPlanCode = planCodeForLemonVariant(source.attrs.variant_id, yearlyVariantIds, monthlyVariantIds);
-    const existing = await fetchExistingSnapshot(supabase, userId);
+    const source: MirrorSource = {
+      subscriptionId: String(payload.data?.id ?? ''),
+      attrs: {
+        status: attrs.status ?? null,
+        cancelled: attrs.cancelled ?? null,
+        variant_id: attrs.variant_id ?? null,
+        customer_id: attrs.customer_id ?? null,
+        renews_at: attrs.renews_at ?? null,
+        ends_at: attrs.ends_at ?? null,
+        trial_ends_at: attrs.trial_ends_at ?? null,
+        updated_at: attrs.updated_at ?? null,
+      },
+    };
 
-    if (
-      shouldBlockCancellationMirror(
-        existing?.pending_cancel_status ?? null,
-        String(source.attrs.status ?? ''),
-        source.attrs.cancelled === true,
-      )
-    ) {
-      await insertAuditEvent(supabase, userId, 'pending_cancel_external_mirror_blocked', providerEventId, {
-        original_event: eventName,
-        pending_cancel_status: existing?.pending_cancel_status ?? null,
-        incoming_status: source.attrs.status ?? null,
-        incoming_cancelled: source.attrs.cancelled ?? null,
-      });
-      return ok({ received: true, skipped: 'pending_cancel_scheduled' });
-    }
-
-    const mirror = buildSubscriptionMirror(source.attrs, existing, {
-      variantPlanCode,
-      variantIsTrial: isTrialVariant(source.attrs.variant_id),
-      nowMs: Date.now(),
-    });
-
-    if (mirror.kind === 'skipped') {
-      await insertAuditEvent(supabase, userId, 'stale_provider_update', providerEventId, {
-        original_event: eventName,
-        incoming_updated_at: source.attrs.updated_at ?? null,
-        existing_provider_updated_at: existing?.provider_updated_at ?? null,
-      });
-      return ok({ received: true, skipped: mirror.reason });
-    }
-
-    const mirrorColumns = applyImmediateExpireAfterPendingCancelApply(
-      mirror.columns,
-      existing?.last_pending_cancel_applied_at ?? null,
+    const result = await mirrorSubscriptionEntitlement(
+      supabase,
+      userId,
+      eventName,
+      providerEventId,
+      source,
     );
-
-    const upsertData: Record<string, unknown> = {
-      user_id: userId,
-      provider: 'lemon',
-      provider_subscription_id: source.subscriptionId || null,
-      ...mirrorColumns,
-      updated_at: new Date().toISOString(),
-    };
-    if (mirrorColumns.entitlement_state === 'active') {
-      upsertData.last_pending_cancel_applied_at = null;
-    }
-    if (mirror.trialBecameUsed) {
-      upsertData.trial_used_at = new Date().toISOString();
-    }
-
-    await supabase.from('subscriptions').upsert(upsertData, { onConflict: 'user_id' });
-
-    const rank = rankForSubscription('lemon', mirrorColumns.entitlement_state);
-    const lemonStatus = String(source.attrs.status ?? '').toLowerCase();
-    const profileUpdates: Record<string, unknown> = {
-      rank,
-      lemon_subscription_id: source.subscriptionId || null,
-      lemon_subscription_status:
-        mirrorColumns.entitlement_state === 'expired' ? 'expired' : (lemonStatus || null),
-    };
-    if (mirror.columns.provider_customer_id) {
-      profileUpdates.lemon_customer_id = mirror.columns.provider_customer_id;
-    }
-    if (mirror.columns.trial_used) {
-      profileUpdates.lemon_trial_used = true;
-      if (mirror.trialBecameUsed) {
-        profileUpdates.lemon_trial_used_at = new Date().toISOString();
-      }
-    }
-
-    await supabase.from('profiles').update(profileUpdates).eq('id', userId);
-
-    return ok({ received: true, status: mirrorColumns.status });
+    return ok(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', details: message }) };

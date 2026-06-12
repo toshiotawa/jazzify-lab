@@ -86,6 +86,7 @@ export interface LemonInvoiceItem {
   status_formatted: string | null;
   total_formatted: string | null;
   invoice_url: string | null;
+  plan_code: string | null;
 }
 
 function isNullableString(value: unknown): value is string | null {
@@ -100,6 +101,7 @@ function isLemonInvoiceItem(value: unknown): value is LemonInvoiceItem {
   if (!('status_formatted' in value) || !isNullableString(value.status_formatted)) return false;
   if (!('total_formatted' in value) || !isNullableString(value.total_formatted)) return false;
   if (!('invoice_url' in value) || !isNullableString(value.invoice_url)) return false;
+  if (!('plan_code' in value) || !isNullableString(value.plan_code)) return false;
   return true;
 }
 

@@ -174,31 +174,108 @@ export async function cancelLemonSubscription(
 export interface LemonSubscriptionInvoiceSummary {
   id: string;
   created_at: string | null;
+  updated_at: string | null;
+  paid_at: string | null;
   status: string | null;
   status_formatted: string | null;
   billing_reason: string | null;
+  total: number | null;
   total_formatted: string | null;
+  subtotal: number | null;
+  tax: number | null;
+  refunded_amount: number | null;
   currency: string | null;
+  subscription_id: string | null;
+  customer_id: string | null;
   card_brand: string | null;
   card_last_four: string | null;
   invoice_url: string | null;
 }
 
+interface LemonInvoiceAttributes {
+  created_at?: string | null;
+  updated_at?: string | null;
+  paid_at?: string | null;
+  status?: string | null;
+  status_formatted?: string | null;
+  billing_reason?: string | null;
+  total?: number | null;
+  total_formatted?: string | null;
+  subtotal?: number | null;
+  tax?: number | null;
+  refunded?: number | null;
+  refunded_amount?: number | null;
+  currency?: string | null;
+  subscription_id?: number | string | null;
+  customer_id?: number | string | null;
+  card_brand?: string | null;
+  card_last_four?: string | null;
+  urls?: { invoice_url?: string | null };
+}
+
 interface LemonInvoiceListResponse {
   data?: Array<{
     id: string;
-    attributes?: {
-      created_at?: string | null;
-      status?: string | null;
-      status_formatted?: string | null;
-      billing_reason?: string | null;
-      total_formatted?: string | null;
-      currency?: string | null;
-      card_brand?: string | null;
-      card_last_four?: string | null;
-      urls?: { invoice_url?: string | null };
-    };
+    attributes?: LemonInvoiceAttributes;
   }>;
+}
+
+interface LemonInvoiceRetrieveResponse {
+  data?: {
+    id: string;
+    attributes?: LemonInvoiceAttributes;
+  };
+}
+
+const mapLemonInvoiceAttributes = (
+  id: string,
+  attrs: LemonInvoiceAttributes,
+): LemonSubscriptionInvoiceSummary => ({
+  id,
+  created_at: attrs.created_at ?? null,
+  updated_at: attrs.updated_at ?? null,
+  paid_at: attrs.paid_at ?? null,
+  status: attrs.status ?? null,
+  status_formatted: attrs.status_formatted ?? null,
+  billing_reason: attrs.billing_reason ?? null,
+  total: typeof attrs.total === 'number' ? attrs.total : null,
+  total_formatted: attrs.total_formatted ?? null,
+  subtotal: typeof attrs.subtotal === 'number' ? attrs.subtotal : null,
+  tax: typeof attrs.tax === 'number' ? attrs.tax : null,
+  refunded_amount:
+    typeof attrs.refunded_amount === 'number'
+      ? attrs.refunded_amount
+      : typeof attrs.refunded === 'number'
+        ? attrs.refunded
+        : null,
+  currency: attrs.currency ?? null,
+  subscription_id:
+    attrs.subscription_id !== null && attrs.subscription_id !== undefined
+      ? String(attrs.subscription_id)
+      : null,
+  customer_id:
+    attrs.customer_id !== null && attrs.customer_id !== undefined
+      ? String(attrs.customer_id)
+      : null,
+  card_brand: attrs.card_brand ?? null,
+  card_last_four: attrs.card_last_four ?? null,
+  invoice_url: attrs.urls?.invoice_url ?? null,
+});
+
+export async function fetchLemonSubscriptionInvoice(
+  invoiceId: string,
+): Promise<LemonSubscriptionInvoiceSummary | null> {
+  const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
+  const res = await fetch(`https://api.lemonsqueezy.com/v1/subscription-invoices/${invoiceId}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/vnd.api+json',
+    },
+  });
+  if (!res.ok) return null;
+  const body = (await res.json()) as LemonInvoiceRetrieveResponse;
+  if (!body.data?.id) return null;
+  return mapLemonInvoiceAttributes(body.data.id, body.data.attributes ?? {});
 }
 
 /**
@@ -221,19 +298,5 @@ export async function fetchLemonSubscriptionInvoices(
   if (!res.ok) return null;
   const body = (await res.json()) as LemonInvoiceListResponse;
   const items = body.data ?? [];
-  return items.map((item) => {
-    const attrs = item.attributes ?? {};
-    return {
-      id: item.id,
-      created_at: attrs.created_at ?? null,
-      status: attrs.status ?? null,
-      status_formatted: attrs.status_formatted ?? null,
-      billing_reason: attrs.billing_reason ?? null,
-      total_formatted: attrs.total_formatted ?? null,
-      currency: attrs.currency ?? null,
-      card_brand: attrs.card_brand ?? null,
-      card_last_four: attrs.card_last_four ?? null,
-      invoice_url: attrs.urls?.invoice_url ?? null,
-    };
-  });
+  return items.map((item) => mapLemonInvoiceAttributes(item.id, item.attributes ?? {}));
 }
