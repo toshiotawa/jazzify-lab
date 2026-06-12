@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { FaSyncAlt } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -70,9 +71,22 @@ const AccountPage: React.FC = () => {
   const [invoices, setInvoices] = useState<LemonInvoiceItem[] | null>(null);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [invoicesError, setInvoicesError] = useState(false);
+  const [billingRefreshing, setBillingRefreshing] = useState(false);
 
   const refreshBillingStatus = useCallback(async () => {
     await refetchBilling();
+  }, [refetchBilling]);
+
+  const handleRefreshBillingStatus = useCallback(async () => {
+    setBillingRefreshing(true);
+    try {
+      await Promise.all([
+        refetchBilling(),
+        useAuthStore.getState().fetchProfile({ forceRefresh: true }),
+      ]);
+    } finally {
+      setBillingRefreshing(false);
+    }
   }, [refetchBilling]);
 
   const formatPeriodEnd = useCallback((iso: string | null | undefined): string | null => {
@@ -592,7 +606,26 @@ const AccountPage: React.FC = () => {
 
                   {/* あなたのプラン */}
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Your Plan' : 'あなたのプラン'}</h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Your Plan' : 'あなたのプラン'}</h3>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost gap-1.5 text-gray-400 hover:text-gray-200 shrink-0"
+                        disabled={billingRefreshing || billingActionLoading !== null}
+                        onClick={() => void handleRefreshBillingStatus()}
+                        aria-label={isEnglishCopy ? 'Refresh plan status' : 'プラン状態を更新'}
+                      >
+                        <FaSyncAlt
+                          className={`w-3 h-3 ${billingRefreshing ? 'animate-spin' : ''}`}
+                          aria-hidden
+                        />
+                        <span>
+                          {billingRefreshing
+                            ? (isEnglishCopy ? 'Updating…' : '更新中…')
+                            : (isEnglishCopy ? 'Refresh' : '状態を更新')}
+                        </span>
+                      </button>
+                    </div>
                     <div className="bg-slate-800 p-4 rounded-lg space-y-2">
                       <div className="flex justify-between items-center">
                         <span>{isEnglishCopy ? 'Current Plan' : 'ご利用中のプラン'}</span>
