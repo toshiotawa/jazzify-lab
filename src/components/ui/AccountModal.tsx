@@ -22,6 +22,7 @@ import PlanChangeConfirmModal from '@/components/ui/PlanChangeConfirmModal';
 import CancelSubscriptionConfirmModal from '@/components/ui/CancelSubscriptionConfirmModal';
 import { getPlanIntervalLabel } from '@/utils/membershipDisplay';
 import { formatBillingAmountLabel } from '@/utils/premiumPricing';
+import { applyOptimisticBillingAfterResume } from '@/utils/billingStatusClient';
 /**
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
  */
@@ -60,7 +61,7 @@ const AccountPage: React.FC = () => {
     geoCountryHint: geoCountry,
   });
   const localeCode = isEnglishCopy ? 'en' : 'ja';
-  const { planLabel, isPremiumMember, billingPayload, refetchBilling } = useBillingAwareMembership(localeCode);
+  const { planLabel, isPremiumMember, billingPayload, refetchBilling, primeBillingPayload } = useBillingAwareMembership(localeCode);
   const showAppleBillingNotice = hasNonExpiredBillingProvider(billingPayload, 'apple');
   const showLemonBillingPortal = hasNonExpiredBillingProvider(billingPayload, 'lemon');
   const [showPaywall, setShowPaywall] = useState(false);
@@ -155,6 +156,13 @@ const AccountPage: React.FC = () => {
     try {
       const result = await resumeLemonSubscription();
       if (result.ok) {
+        const optimistic = applyOptimisticBillingAfterResume(
+          billingPayload,
+          result.clearedScheduledCancel === true,
+        );
+        if (optimistic) {
+          primeBillingPayload(optimistic);
+        }
         pushToast(isEnglishCopy ? 'Subscription resumed' : '解約を取り消しました', 'success');
         await refreshBillingStatus();
       } else {
@@ -163,7 +171,7 @@ const AccountPage: React.FC = () => {
     } finally {
       setBillingActionLoading(null);
     }
-  }, [isEnglishCopy, pushToast, refreshBillingStatus]);
+  }, [billingPayload, isEnglishCopy, primeBillingPayload, pushToast, refreshBillingStatus]);
 
   const handleConfirmCancelSubscription = useCallback(async () => {
     setBillingActionLoading('cancel');

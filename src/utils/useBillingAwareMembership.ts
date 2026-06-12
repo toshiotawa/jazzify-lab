@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useAuthStore } from '@/stores/authStore';
 import {
   fetchBillingStatusPayload,
+  getBillingFetchGeneration,
   getBillingRefreshNonce,
+  primeBillingStatusCache,
   refreshBillingStatusPayload,
   subscribeBillingRefresh,
   type BillingStatusPayload,
@@ -20,6 +22,7 @@ export interface BillingAwareMembership {
   planLabel: string;
   effectiveRank: MembershipRank;
   refetchBilling: () => Promise<void>;
+  primeBillingPayload: (payload: BillingStatusPayload) => void;
 }
 
 /**
@@ -40,6 +43,11 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
     setBillingPayload(payload);
   }, [session?.access_token]);
 
+  const primeBillingPayload = useCallback((payload: BillingStatusPayload): void => {
+    primeBillingStatusCache(payload);
+    setBillingPayload(payload);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const run = async (): Promise<void> => {
@@ -48,7 +56,10 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
         if (!cancelled) setBillingPayload(null);
         return;
       }
-      const p = await fetchBillingStatusPayload(token);
+      const p = await fetchBillingStatusPayload(token, {
+        force: billingRefreshNonce > 0,
+        generation: getBillingFetchGeneration(),
+      });
       if (!cancelled) setBillingPayload(p);
     };
     void run();
@@ -78,5 +89,6 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
     planLabel,
     effectiveRank,
     refetchBilling,
+    primeBillingPayload,
   };
 }

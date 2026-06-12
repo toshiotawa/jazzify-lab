@@ -26,6 +26,8 @@ const CACHE_MS = 45_000;
 
 const refreshSubscribers = new Set<() => void>();
 let refreshNonce = 0;
+/** 古い in-flight 取得がキャッシュを上書きしないよう世代管理する */
+let fetchGeneration = 0;
 
 export function clearBillingStatusCache(): void {
   cache = null;
@@ -41,9 +43,20 @@ export function getBillingRefreshNonce(): number {
   return refreshNonce;
 }
 
+export function getBillingFetchGeneration(): number {
+  return fetchGeneration;
+}
+
 function notifyBillingRefresh(): void {
   refreshNonce += 1;
   refreshSubscribers.forEach((listener) => listener());
+}
+
+function beginBillingStatusRefresh(): number {
+  clearBillingStatusCache();
+  fetchGeneration += 1;
+  notifyBillingRefresh();
+  return fetchGeneration;
 }
 
 function nextBillingAmountJpy(planCode: string, pendingPlanCode: string | null): number | null {
@@ -93,6 +106,46 @@ export function normalizeBillingStatusPayload(
 export interface FetchBillingStatusOptions {
   /** true のときメモリキャッシュを無視（課金操作直後の再取得用） */
   force?: boolean;
+  /** 開始時世代。refresh 後に古い in-flight 応答が cache を汚さないようにする */
+  generation?: number;
+}
+
+/** 解約取り消し成功直後の UI 用に、billing-status 相当の payload を即時導出する */
+export function applyOptimisticBillingAfterResume(
+  current: BillingStatusPayload | null,
+  clearedScheduledCancel: boolean,
+): BillingStatusPayload | null {
+  if (!current) {
+    return null;
+  }
+  const shared = {
+    provider: current.provider,
+    plan_code: current.plan_code,
+    trial_used: current.trial_used,
+    trial_used_at: current.trial_used_at,
+    current_period_ends_at: current.current_period_ends_at,
+    pending_plan_code: current.pending_plan_code,
+    pending_plan_effective_at: current.pending_plan_effective_at,
+    pending_cancel_effective_at: null as string | null,
+  };
+  if (clearedScheduledCancel) {
+    return normalizeBillingStatusPayload({
+      ...shared,
+      status: current.status,
+      entitlement_state: current.entitlement_state,
+    });
+  }
+  return normalizeBillingStatusPayload({
+    ...shared,
+    status: 'active',
+    entitlement_state: 'active',
+  });
+}
+
+/** 楽観更新を cache に載せ、他コンポーネントへ通知する */
+export function primeBillingStatusCache(payload: BillingStatusPayload): void {
+  cache = { payload, fetchedAt: Date.now() };
+  notifyBillingRefresh();
 }
 
 export async function fetchBillingStatusPayload(
@@ -102,6 +155,7 @@ export async function fetchBillingStatusPayload(
   if (!accessToken) {
     return null;
   }
+  const generationAtStart = options.generation ?? fetchGeneration;
   if (!options.force && cache && Date.now() - cache.fetchedAt < CACHE_MS) {
     return cache.payload;
   }
@@ -137,7 +191,9 @@ export async function fetchBillingStatusPayload(
     can_manage_payment: raw.can_manage_payment,
     can_cancel_pending_plan_change: raw.can_cancel_pending_plan_change,
   });
-  cache = { payload, fetchedAt: Date.now() };
+  if (generationAtStart === fetchGeneration) {
+    cache = { payload, fetchedAt: Date.now() };
+  }
   return payload;
 }
 
@@ -147,12 +203,11 @@ export async function fetchBillingStatusPayload(
 export async function refreshBillingStatusPayload(
   accessToken: string | null,
 ): Promise<BillingStatusPayload | null> {
-  clearBillingStatusCache();
-  notifyBillingRefresh();
+  const generation = beginBillingStatusRefresh();
   if (!accessToken) {
     return null;
   }
-  return fetchBillingStatusPayload(accessToken, { force: true });
+  return fetchBillingStatusPayload(accessToken, { force: true, generation });
 }
 
 export function bannerVariantFromPayload(

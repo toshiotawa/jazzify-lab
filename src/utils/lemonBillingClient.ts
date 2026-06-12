@@ -46,12 +46,22 @@ export async function changeLemonPlan(target: 'monthly' | 'yearly'): Promise<{ o
   return { ok: false, error: err?.error ?? 'Failed to change plan' };
 }
 
-export async function resumeLemonSubscription(): Promise<{ ok: boolean; error?: string }> {
+export async function resumeLemonSubscription(): Promise<{
+  ok: boolean;
+  clearedScheduledCancel?: boolean;
+  error?: string;
+}> {
   const response = await fetch('/.netlify/functions/lemonsqueezyResumeSubscription', {
     method: 'POST',
     headers: await authHeaders(),
   });
-  if (response.ok) return { ok: true };
+  if (response.ok) {
+    const data = (await response.json().catch(() => null)) as { cleared_scheduled_cancel?: unknown } | null;
+    return {
+      ok: true,
+      clearedScheduledCancel: data?.cleared_scheduled_cancel === true,
+    };
+  }
   const err = (await response.json().catch(() => null)) as { error?: string } | null;
   return { ok: false, error: err?.error ?? 'Failed to resume subscription' };
 }
