@@ -85,7 +85,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     {
       label: isEnglishCopy ? 'Survival (stage mode)' : 'サバイバル（ステージ）',
       values: {
-        free: isEnglishCopy ? 'First tier per map (Basic & Songs)' : 'Basic / Songs 各マップの第一階層まで',
+        free: isEnglishCopy ? 'First tier per map (Basic, Songs & Phrases)' : 'Basic / Songs / Phrases 各マップの第一階層まで',
         premium: isEnglishCopy ? 'Unlimited' : '無制限',
       },
     },

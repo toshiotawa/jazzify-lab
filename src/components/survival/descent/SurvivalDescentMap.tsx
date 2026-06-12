@@ -111,7 +111,7 @@ interface SurvivalDescentMapProps {
   embedded?: boolean;
   /**
    * true のときフリープラン扱い: 閲覧は全ステージ可能だが、プレイは当該マップの第一ブロックのみ
-   *（Basic / Songs それぞれで `getFreeTierStageNumbers` と同じ集合）。
+   *（Basic / Songs / Phrases それぞれで `getFreeTierStageNumbers` と同じ集合）。
    */
   freeTierAccessOnly?: boolean;
   /** 初期表示マップ。省略時は 'basic' */
@@ -883,8 +883,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           onClick={() => setShowPaywall(true)}
         >
           {isEnglishCopy
-            ? 'Free plan: play the first tier (first block) on Basic & Songs maps. Tap for Premium →'
-            : 'フリープランは Basic / Songs それぞれで第一階層（最初のブロック）までプレイ可能です。タップしてプレミアムプランを見る →'}
+            ? 'Free plan: play the first tier (first block) on Basic, Songs & Phrases maps. Tap for Premium →'
+            : 'フリープランは Basic / Songs / Phrases それぞれで第一階層（最初のブロック）までプレイ可能です。タップしてプレミアムプランを見る →'}
         </button>
       )}
 

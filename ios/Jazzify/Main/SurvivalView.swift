@@ -7,7 +7,7 @@ import UIKit
 /// - iPhone: 画面全体を降下マップで覆う 1 カラム構成。ステージタップでボトムシート表示。
 /// - iPad: 左マップ + 右サイドパネル (固定 320pt) の 2 カラム構成で、選択したステージ詳細
 ///   がサイドパネルに表示される。Web 版 (`SurvivalDescentMap.tsx`) と同一レイアウト。
-/// - 無料プランは **各マップ（Basic / Songs）の第一ブロック** が遊べる。それ以外はステージをタップすると
+/// - 無料プランは **各マップ（Basic / Songs / Phrases）の第一ブロック** が遊べる。それ以外はステージをタップすると
 ///   `SubscriptionView` に誘導する。
 /// - ステージはクリア状況によりアンロック。1 ステージ目は常時解放、
 ///   それ以外は「前のステージがクリア済み」で解放。
@@ -317,8 +317,8 @@ struct SurvivalView: View {
                     .foregroundStyle(.yellow)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(locale == .ja
-                         ? "フリープランは Basic / Songs それぞれで第一階層（最初のブロック）まで遊べます"
-                         : "Free plan: first tier (first block) on Basic & Songs maps")
+                         ? "フリープランは Basic / Songs / Phrases それぞれで第一階層（最初のブロック）まで遊べます"
+                         : "Free plan: first tier (first block) on Basic, Songs & Phrases maps")
                         .font(.caption.bold())
                         .foregroundStyle(.white)
                     Text(locale == .ja
