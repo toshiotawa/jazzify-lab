@@ -19,6 +19,7 @@ export interface BillingStatusPayload {
   can_resume: boolean;
   can_manage_payment: boolean;
   can_cancel_pending_plan_change: boolean;
+  has_lemon_billing_history: boolean;
 }
 
 let cache: { payload: BillingStatusPayload; fetchedAt: number } | null = null;
@@ -100,6 +101,7 @@ export function normalizeBillingStatusPayload(
     can_manage_payment: raw.can_manage_payment ?? derived.can_manage_payment,
     can_cancel_pending_plan_change: raw.can_cancel_pending_plan_change
       ?? derived.can_cancel_pending_plan_change,
+    has_lemon_billing_history: raw.has_lemon_billing_history ?? false,
   };
 }
 
@@ -127,6 +129,7 @@ export function applyOptimisticBillingAfterResume(
     pending_plan_code: current.pending_plan_code,
     pending_plan_effective_at: current.pending_plan_effective_at,
     pending_cancel_effective_at: null as string | null,
+    has_lemon_billing_history: current.has_lemon_billing_history,
   };
   if (clearedScheduledCancel) {
     return normalizeBillingStatusPayload({
@@ -190,6 +193,7 @@ export async function fetchBillingStatusPayload(
     can_resume: raw.can_resume,
     can_manage_payment: raw.can_manage_payment,
     can_cancel_pending_plan_change: raw.can_cancel_pending_plan_change,
+    has_lemon_billing_history: raw.has_lemon_billing_history,
   });
   if (generationAtStart === fetchGeneration) {
     cache = { payload, fetchedAt: Date.now() };

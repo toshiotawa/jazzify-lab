@@ -7,7 +7,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import GameHeader from '@/components/ui/GameHeader';
 import { persistPreferredLocale, resolveAudienceLocale, shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
-import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
+import { hasLemonBillingHistory, hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import {
   changeLemonPlan,
@@ -64,6 +64,7 @@ const AccountPage: React.FC = () => {
   const { planLabel, isPremiumMember, billingPayload, refetchBilling, primeBillingPayload } = useBillingAwareMembership(localeCode);
   const showAppleBillingNotice = hasNonExpiredBillingProvider(billingPayload, 'apple');
   const showLemonBillingPortal = hasNonExpiredBillingProvider(billingPayload, 'lemon');
+  const showLemonBillingHistory = hasLemonBillingHistory(billingPayload);
   const [showPaywall, setShowPaywall] = useState(false);
   const [billingActionLoading, setBillingActionLoading] = useState<string | null>(null);
   const [planChangeTarget, setPlanChangeTarget] = useState<'monthly' | 'yearly' | null>(null);
@@ -774,107 +775,112 @@ const AccountPage: React.FC = () => {
                             </button>
                           )}
                           {canManagePayment && (
-                            <>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline w-full"
-                                disabled={billingActionLoading !== null}
-                                onClick={() => void openBillingLink('payment_method')}
-                              >
-                                {billingActionLoading === 'payment_method'
-                                  ? (isEnglishCopy ? 'Opening…' : '開いています…')
-                                  : (isEnglishCopy ? 'Update payment method' : '支払い方法を変更する')}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline w-full"
-                                disabled={billingActionLoading !== null || invoicesLoading}
-                                onClick={() => void handleToggleInvoices()}
-                              >
-                                {invoicesLoading
-                                  ? (isEnglishCopy ? 'Loading…' : '読み込み中…')
-                                  : (isEnglishCopy
-                                    ? (invoicesExpanded ? 'Hide billing history' : 'View billing history')
-                                    : (invoicesExpanded ? '請求履歴を閉じる' : '請求履歴を見る'))}
-                              </button>
-                              {invoicesExpanded && (
-                                <div className="rounded-lg border border-blue-700/20 bg-slate-900/40 p-2 space-y-2">
-                                  {invoicesLoading && (
-                                    <p className="text-xs text-gray-400">
-                                      {isEnglishCopy ? 'Loading…' : '読み込み中…'}
-                                    </p>
-                                  )}
-                                  {!invoicesLoading && invoicesError && (
-                                    <p className="text-xs text-red-300">
-                                      {isEnglishCopy
-                                        ? 'Failed to load billing history'
-                                        : '請求履歴を取得できませんでした'}
-                                    </p>
-                                  )}
-                                  {!invoicesLoading && !invoicesError && invoices?.length === 0 && (
-                                    <p className="text-xs text-gray-400">
-                                      {isEnglishCopy ? 'No billing history yet' : '請求履歴はまだありません'}
-                                    </p>
-                                  )}
-                                  {!invoicesLoading && !invoicesError && invoices && invoices.length > 0 && (
-                                    <ul className="space-y-2">
-                                      {invoices.map((invoice) => {
-                                        const dateLabel = formatPeriodEnd(invoice.created_at);
-                                        const planLabel = invoice.plan_code
-                                          ? getPlanIntervalLabel(
-                                              invoice.plan_code,
-                                              isEnglishCopy ? 'en' : 'ja',
-                                            )
-                                          : null;
-                                        const statusLabel = (() => {
-                                          if (!invoice.status) return invoice.status_formatted;
-                                          const normalized = invoice.status.toLowerCase();
-                                          if (isEnglishCopy) {
-                                            if (normalized === 'paid') return 'Paid';
-                                            if (normalized === 'refunded') return 'Refunded';
-                                            if (normalized === 'pending') return 'Pending';
-                                            if (normalized === 'failed') return 'Failed';
-                                            return invoice.status;
-                                          }
-                                          return invoice.status_formatted ?? invoice.status;
-                                        })();
-                                        return (
-                                          <li
-                                            key={invoice.id}
-                                            className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-gray-300 border-b border-slate-700/50 pb-2 last:border-0 last:pb-0"
-                                          >
-                                            <div className="space-y-0.5">
-                                              {dateLabel && (
-                                                <p className="text-gray-200">{dateLabel}</p>
-                                              )}
-                                              {planLabel && (
-                                                <p className="text-gray-300">{planLabel}</p>
-                                              )}
-                                              {invoice.total_formatted && (
-                                                <p className="text-gray-300">{invoice.total_formatted}</p>
-                                              )}
-                                              {statusLabel && (
-                                                <p className="text-gray-400">{statusLabel}</p>
-                                              )}
-                                            </div>
-                                            {invoice.invoice_url && (
-                                              <a
-                                                href={invoice.invoice_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-300 hover:text-blue-200 underline shrink-0"
-                                              >
-                                                {isEnglishCopy ? 'Receipt' : '領収書'}
-                                              </a>
-                                            )}
-                                          </li>
-                                        );
-                                      })}
-                                    </ul>
-                                  )}
-                                </div>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void openBillingLink('payment_method')}
+                            >
+                              {billingActionLoading === 'payment_method'
+                                ? (isEnglishCopy ? 'Opening…' : '開いています…')
+                                : (isEnglishCopy ? 'Update payment method' : '支払い方法を変更する')}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {showLemonBillingHistory && (
+                        <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-700/30 mt-2 space-y-2">
+                          <p className="text-sm text-blue-200 font-semibold mb-1">
+                            {isEnglishCopy ? 'Web billing history (Lemon Squeezy)' : 'Web課金の請求履歴（Lemon Squeezy）'}
+                          </p>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline w-full"
+                            disabled={billingActionLoading !== null || invoicesLoading}
+                            onClick={() => void handleToggleInvoices()}
+                          >
+                            {invoicesLoading
+                              ? (isEnglishCopy ? 'Loading…' : '読み込み中…')
+                              : (isEnglishCopy
+                                ? (invoicesExpanded ? 'Hide billing history' : 'View billing history')
+                                : (invoicesExpanded ? '請求履歴を閉じる' : '請求履歴を見る'))}
+                          </button>
+                          {invoicesExpanded && (
+                            <div className="rounded-lg border border-blue-700/20 bg-slate-900/40 p-2 space-y-2">
+                              {invoicesLoading && (
+                                <p className="text-xs text-gray-400">
+                                  {isEnglishCopy ? 'Loading…' : '読み込み中…'}
+                                </p>
                               )}
-                            </>
+                              {!invoicesLoading && invoicesError && (
+                                <p className="text-xs text-red-300">
+                                  {isEnglishCopy
+                                    ? 'Failed to load billing history'
+                                    : '請求履歴を取得できませんでした'}
+                                </p>
+                              )}
+                              {!invoicesLoading && !invoicesError && invoices?.length === 0 && (
+                                <p className="text-xs text-gray-400">
+                                  {isEnglishCopy ? 'No billing history yet' : '請求履歴はまだありません'}
+                                </p>
+                              )}
+                              {!invoicesLoading && !invoicesError && invoices && invoices.length > 0 && (
+                                <ul className="space-y-2">
+                                  {invoices.map((invoice) => {
+                                    const dateLabel = formatPeriodEnd(invoice.created_at);
+                                    const invoicePlanLabel = invoice.plan_code
+                                      ? getPlanIntervalLabel(
+                                          invoice.plan_code,
+                                          isEnglishCopy ? 'en' : 'ja',
+                                        )
+                                      : null;
+                                    const statusLabel = (() => {
+                                      if (!invoice.status) return invoice.status_formatted;
+                                      const normalized = invoice.status.toLowerCase();
+                                      if (isEnglishCopy) {
+                                        if (normalized === 'paid') return 'Paid';
+                                        if (normalized === 'refunded') return 'Refunded';
+                                        if (normalized === 'pending') return 'Pending';
+                                        if (normalized === 'failed') return 'Failed';
+                                        return invoice.status;
+                                      }
+                                      return invoice.status_formatted ?? invoice.status;
+                                    })();
+                                    return (
+                                      <li
+                                        key={invoice.id}
+                                        className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-gray-300 border-b border-slate-700/50 pb-2 last:border-0 last:pb-0"
+                                      >
+                                        <div className="space-y-0.5">
+                                          {dateLabel && (
+                                            <p className="text-gray-200">{dateLabel}</p>
+                                          )}
+                                          {invoicePlanLabel && (
+                                            <p className="text-gray-300">{invoicePlanLabel}</p>
+                                          )}
+                                          {invoice.total_formatted && (
+                                            <p className="text-gray-300">{invoice.total_formatted}</p>
+                                          )}
+                                          {statusLabel && (
+                                            <p className="text-gray-400">{statusLabel}</p>
+                                          )}
+                                        </div>
+                                        {invoice.invoice_url && (
+                                          <a
+                                            href={invoice.invoice_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-blue-300 hover:text-blue-200 underline shrink-0"
+                                          >
+                                            {isEnglishCopy ? 'Receipt' : '領収書'}
+                                          </a>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}

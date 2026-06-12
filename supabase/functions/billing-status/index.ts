@@ -58,6 +58,31 @@ function nextBillingAmountJpy(planCode: string, pendingPlanCode: string | null):
   return billingAmountJpyForPlanCode(effectivePlanCode);
 }
 
+async function hasLemonBillingHistory(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data: invoiceRow } = await supabase
+    .from("billing_invoices")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("provider", "lemon")
+    .limit(1)
+    .maybeSingle();
+
+  if (invoiceRow) {
+    return true;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("lemon_customer_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return profile?.lemon_customer_id != null && profile.lemon_customer_id !== "";
+}
+
 function buildBillingResponse(
   provider: string,
   status: string,
@@ -70,6 +95,7 @@ function buildBillingResponse(
   pendingPlanEffectiveAt: string | null = null,
   pendingCancelEffectiveAt: string | null = null,
   pendingCancelScheduled: boolean = false,
+  hasLemonBillingHistoryFlag: boolean = false,
 ) {
   const caps = deriveBillingCapabilities(
     provider,
@@ -99,6 +125,7 @@ function buildBillingResponse(
     can_resume: caps.can_resume,
     can_manage_payment: caps.can_manage_payment,
     can_cancel_pending_plan_change: caps.can_cancel_pending_plan_change,
+    has_lemon_billing_history: hasLemonBillingHistoryFlag,
   };
 }
 
@@ -143,6 +170,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const lemonBillingHistory = await hasLemonBillingHistory(supabase, user.id);
+
     if (!subscription) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -160,6 +189,11 @@ Deno.serve(async (req: Request) => {
           profile?.lemon_trial_used ?? false,
           profile?.lemon_trial_used_at ?? null,
           null,
+          null,
+          null,
+          null,
+          false,
+          lemonBillingHistory,
         )), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -175,6 +209,11 @@ Deno.serve(async (req: Request) => {
         profile?.lemon_trial_used ?? false,
         profile?.lemon_trial_used_at ?? null,
         null,
+        null,
+        null,
+        null,
+        false,
+        lemonBillingHistory,
       )), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -194,6 +233,7 @@ Deno.serve(async (req: Request) => {
       subscription.pending_plan_effective_at ?? null,
       pendingCancelScheduled ? subscription.pending_cancel_effective_at ?? null : null,
       pendingCancelScheduled,
+      lemonBillingHistory,
     )), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

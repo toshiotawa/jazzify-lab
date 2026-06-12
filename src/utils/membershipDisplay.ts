@@ -34,6 +34,13 @@ export function hasNonExpiredBillingProvider(
 }
 
 /**
+ * Lemon Squeezy の請求履歴が存在するか（現在の provider に関わらず read-only 表示用）。
+ */
+export function hasLemonBillingHistory(payload: BillingStatusPayload | null): boolean {
+  return payload?.has_lemon_billing_history === true;
+}
+
+/**
  * UI・クライアントゲート用: 課金APIが取れたときはそれを優先し、未取得時は profiles.rank にフォールバックする。
  */
 export function isPremiumForDisplay(
