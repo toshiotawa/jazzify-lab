@@ -856,8 +856,15 @@ const AccountPage: React.FC = () => {
                     <p className="text-xs text-gray-400">
                       {isEnglishCopy 
                         ? 'Deleting your account will prevent you from logging in. Public data will be anonymized as "Deleted User". You must be on the Free plan to delete your account.'
-                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。'}
+                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。退会はフリープランのみ可能です。'}
                     </p>
+                    {isPremiumMember && (
+                      <p className="text-xs text-amber-400">
+                        {isEnglishCopy
+                          ? 'Your subscription period has not ended yet. Please cancel first and wait until your plan expires.'
+                          : 'まだサブスクリプションの利用期間が残っているため、退会できません。先に解約のうえ、利用期間終了後に退会してください。'}
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <button
                         className={`btn btn-sm ${!isPremiumMember ? 'btn-danger' : 'btn-disabled'}`}
