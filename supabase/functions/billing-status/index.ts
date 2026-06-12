@@ -72,10 +72,11 @@ function buildBillingResponse(
     plan_code: planCode,
     trial_used: trialUsed,
     trial_used_at: trialUsedAt,
-    current_period_ends_at: currentPeriodEndsAt,
+    current_period_ends_at: entitlementState === "expired" ? null : currentPeriodEndsAt,
     pending_plan_code: pendingPlanCode,
     pending_plan_effective_at: pendingPlanEffectiveAt,
-    next_billing_amount_jpy: nextBillingAmountJpy(planCode, pendingPlanCode),
+    next_billing_amount_jpy:
+      entitlementState === "expired" ? null : nextBillingAmountJpy(planCode, pendingPlanCode),
     can_change_plan: caps.can_change_plan,
     can_resume: caps.can_resume,
     can_manage_payment: caps.can_manage_payment,

@@ -250,6 +250,8 @@ const AccountPage: React.FC = () => {
     : null;
   const showChangeToYearly = canChangePlan && billingPayload?.plan_code === 'core_monthly';
   const showChangeToMonthly = canChangePlan && billingPayload?.plan_code === 'core_yearly';
+  /** フリー・期限切れでは次回更新日・請求額を出さない（DBに period 残存していても） */
+  const showBillingSchedule = isPremiumMember && !pendingPlanCode;
 
   useEffect(() => {
     const syncFromHash = () => {
@@ -633,12 +635,12 @@ const AccountPage: React.FC = () => {
                           {planLabel}
                         </span>
                       </div>
-                      {periodEndLabel && !isCancelledGrace && !pendingPlanCode && (
+                      {periodEndLabel && showBillingSchedule && !isCancelledGrace && (
                         <p className="text-xs text-gray-400">
                           {isEnglishCopy ? `Next renewal: ${periodEndLabel}` : `次回更新日: ${periodEndLabel}`}
                         </p>
                       )}
-                      {!isCancelledGrace && !pendingPlanCode && nextBillingLabel && (
+                      {showBillingSchedule && !isCancelledGrace && nextBillingLabel && (
                         <p className="text-xs text-gray-400">
                           {isEnglishCopy ? `Next charge: ${nextBillingLabel}` : `次回請求額: ${nextBillingLabel}`}
                         </p>

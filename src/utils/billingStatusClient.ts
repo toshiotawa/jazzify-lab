@@ -73,7 +73,9 @@ export function normalizeBillingStatusPayload(
     pending_plan_code: pendingPlanCode,
     pending_plan_effective_at: raw.pending_plan_effective_at ?? null,
     next_billing_amount_jpy: raw.next_billing_amount_jpy
-      ?? nextBillingAmountJpy(planCode, pendingPlanCode),
+      ?? (raw.entitlement_state === 'expired'
+        ? null
+        : nextBillingAmountJpy(planCode, pendingPlanCode)),
     can_change_plan: raw.can_change_plan ?? derived.can_change_plan,
     can_resume: raw.can_resume ?? derived.can_resume,
     can_manage_payment: raw.can_manage_payment ?? derived.can_manage_payment,
