@@ -1,5 +1,6 @@
 import type { PaymentIssueBannerVariant } from '@/utils/paymentIssueBanner';
 import { resolvePaymentIssueBanner } from '@/utils/paymentIssueBanner';
+import { deriveBillingCapabilities } from '../../netlify/functions/lib/lemonSubscriptionGuard';
 
 export interface BillingStatusPayload {
   provider: string;
@@ -21,6 +22,25 @@ export function clearBillingStatusCache(): void {
   cache = null;
 }
 
+/** billing-status 未デプロイ時など can_* が欠けるレスポンスを正規化する */
+export function normalizeBillingStatusPayload(
+  raw: Partial<BillingStatusPayload> & Pick<BillingStatusPayload, 'provider' | 'entitlement_state' | 'status'>,
+): BillingStatusPayload {
+  const derived = deriveBillingCapabilities(raw.provider, raw.entitlement_state, raw.status);
+  return {
+    provider: raw.provider,
+    status: raw.status,
+    entitlement_state: raw.entitlement_state,
+    plan_code: raw.plan_code ?? 'unknown',
+    trial_used: raw.trial_used ?? false,
+    trial_used_at: raw.trial_used_at ?? null,
+    current_period_ends_at: raw.current_period_ends_at ?? null,
+    can_change_plan: raw.can_change_plan ?? derived.can_change_plan,
+    can_resume: raw.can_resume ?? derived.can_resume,
+    can_manage_payment: raw.can_manage_payment ?? derived.can_manage_payment,
+  };
+}
+
 export async function fetchBillingStatusPayload(
   accessToken: string | null,
 ): Promise<BillingStatusPayload | null> {
@@ -40,7 +60,22 @@ export async function fetchBillingStatusPayload(
   if (!res.ok) {
     return null;
   }
-  const payload = (await res.json()) as BillingStatusPayload;
+  const raw = (await res.json()) as Partial<BillingStatusPayload>;
+  if (typeof raw.provider !== 'string' || typeof raw.entitlement_state !== 'string' || typeof raw.status !== 'string') {
+    return null;
+  }
+  const payload = normalizeBillingStatusPayload({
+    provider: raw.provider,
+    status: raw.status,
+    entitlement_state: raw.entitlement_state,
+    plan_code: raw.plan_code,
+    trial_used: raw.trial_used,
+    trial_used_at: raw.trial_used_at,
+    current_period_ends_at: raw.current_period_ends_at,
+    can_change_plan: raw.can_change_plan,
+    can_resume: raw.can_resume,
+    can_manage_payment: raw.can_manage_payment,
+  });
   cache = { payload, fetchedAt: Date.now() };
   return payload;
 }
