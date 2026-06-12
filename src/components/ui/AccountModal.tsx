@@ -256,6 +256,8 @@ const AccountPage: React.FC = () => {
   const showChangeToMonthly = canChangePlan && billingPayload?.plan_code === 'core_yearly';
   /** フリー・期限切れでは次回更新日・請求額を出さない（DBに period 残存していても） */
   const showBillingSchedule = isPremiumMember && !pendingPlanCode && !isCancelScheduled && !isCancelledGrace;
+  /** deleteAccount と同様: profiles.rank が free かつ課金上もフリー相当のときのみ退会可 */
+  const canWithdrawAccount = (profile?.rank ?? 'free') === 'free' && !isPremiumMember;
 
   useEffect(() => {
     const syncFromHash = () => {
@@ -877,12 +879,23 @@ const AccountPage: React.FC = () => {
                     <p className="text-xs text-gray-400">
                       {isEnglishCopy 
                         ? 'Deleting your account will prevent you from logging in. Public data will be anonymized as "Deleted User". You must be on the Free plan to delete your account.'
-                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。'}
+                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。退会はフリープランのみ可能です。'}
                     </p>
+                    {!canWithdrawAccount && (
+                      <p className="text-xs text-amber-400">
+                        {isPremiumMember
+                          ? (isEnglishCopy
+                            ? 'Your subscription period has not ended yet. Please cancel first and wait until your plan expires.'
+                            : 'まだサブスクリプションの利用期間が残っているため、退会できません。先に解約のうえ、利用期間終了後に退会してください。')
+                          : (isEnglishCopy
+                            ? 'Your account is not on the Free plan yet. Use Refresh to update your plan status, then try again after it shows Free.'
+                            : 'まだフリープランではないため、退会できません。「状態を更新」でプラン表示を確認し、フリーになってから退会してください。')}
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <button
-                        className={`btn btn-sm ${!isPremiumMember ? 'btn-danger' : 'btn-disabled'}`}
-                        disabled={isPremiumMember}
+                        className={`btn btn-sm ${canWithdrawAccount ? 'btn-danger' : 'btn-secondary'}`}
+                        disabled={!canWithdrawAccount}
                         onClick={async () => {
                           if (!confirm(isEnglishCopy ? 'Are you sure you want to delete your account? This action cannot be undone.' : '本当に退会しますか？この操作は取り消せません。')) return;
                           try {
@@ -907,7 +920,11 @@ const AccountPage: React.FC = () => {
                             alert(isEnglishCopy ? 'An error occurred while deleting account' : '退会処理中にエラーが発生しました');
                           }
                         }}
-                        title={isPremiumMember ? (isEnglishCopy ? 'Your subscription period has not ended yet. Please cancel first.' : 'まだサブスクリプションの利用期間が残っています。先に解約してください。') : ''}
+                        title={!canWithdrawAccount
+                          ? (isPremiumMember
+                            ? (isEnglishCopy ? 'Your subscription period has not ended yet. Please cancel first.' : 'まだサブスクリプションの利用期間が残っています。先に解約してください。')
+                            : (isEnglishCopy ? 'You must be on the Free plan to delete your account.' : 'フリープランになるまで退会できません。'))
+                          : ''}
                       >
                         {isEnglishCopy ? 'Delete Account' : '退会する'}
                       </button>
