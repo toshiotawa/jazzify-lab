@@ -13,8 +13,26 @@ describe('normalizeBillingStatusPayload', () => {
       current_period_ends_at: '2026-07-12T00:00:00.000Z',
     });
     expect(payload.can_change_plan).toBe(true);
+    expect(payload.can_cancel_pending_plan_change).toBe(false);
+    expect(payload.next_billing_amount_jpy).toBe(3980);
     expect(payload.can_manage_payment).toBe(true);
     expect(payload.can_resume).toBe(false);
+  });
+
+  it('derives pending plan capabilities and next billing amount', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'lemon',
+      status: 'active',
+      entitlement_state: 'active',
+      plan_code: 'core_monthly',
+      pending_plan_code: 'core_yearly',
+      pending_plan_effective_at: '2026-07-12T00:00:00.000Z',
+      trial_used: false,
+      current_period_ends_at: '2026-07-12T00:00:00.000Z',
+    });
+    expect(payload.can_change_plan).toBe(false);
+    expect(payload.can_cancel_pending_plan_change).toBe(true);
+    expect(payload.next_billing_amount_jpy).toBe(34800);
   });
 
   it('preserves explicit false from API', () => {

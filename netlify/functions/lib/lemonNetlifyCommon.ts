@@ -76,6 +76,8 @@ export interface UserLemonSubscriptionRow {
   plan_code: string;
   entitlement_state: string;
   status: string;
+  pending_plan_code: string | null;
+  current_period_ends_at: string | null;
 }
 
 export async function getUserLemonSubscription(
@@ -84,11 +86,57 @@ export async function getUserLemonSubscription(
 ): Promise<UserLemonSubscriptionRow | null> {
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('provider, provider_subscription_id, plan_code, entitlement_state, status')
+    .select('provider, provider_subscription_id, plan_code, entitlement_state, status, pending_plan_code, current_period_ends_at')
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !data || data.provider !== 'lemon' || !data.provider_subscription_id) {
     return null;
   }
-  return data as UserLemonSubscriptionRow;
+  return {
+    provider: data.provider,
+    provider_subscription_id: data.provider_subscription_id,
+    plan_code: data.plan_code,
+    entitlement_state: data.entitlement_state,
+    status: data.status,
+    pending_plan_code: data.pending_plan_code ?? null,
+    current_period_ends_at: data.current_period_ends_at ?? null,
+  };
+}
+
+export async function patchLemonSubscriptionVariant(
+  subscriptionId: string,
+  variantId: string,
+): Promise<{ ok: true; renewsAt: string | null; endsAt: string | null } | { ok: false; details: string }> {
+  const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
+  const res = await fetch(`https://api.lemonsqueezy.com/v1/subscriptions/${subscriptionId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/vnd.api+json',
+      Accept: 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: {
+        type: 'subscriptions',
+        id: subscriptionId,
+        attributes: {
+          variant_id: Number(variantId),
+          disable_prorations: true,
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    return { ok: false, details: errBody };
+  }
+
+  const body = (await res.json()) as LemonSubscriptionRetrieveResponse;
+  const attrs = body.data.attributes;
+  return {
+    ok: true,
+    renewsAt: attrs.renews_at ?? null,
+    endsAt: attrs.ends_at ?? null,
+  };
 }

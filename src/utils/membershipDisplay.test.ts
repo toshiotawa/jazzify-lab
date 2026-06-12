@@ -16,9 +16,13 @@ const payload = (entitlement_state: string): BillingStatusPayload => ({
   trial_used: false,
   trial_used_at: null,
   current_period_ends_at: null,
+  pending_plan_code: null,
+  pending_plan_effective_at: null,
+  next_billing_amount_jpy: 3980,
   can_change_plan: false,
   can_resume: false,
   can_manage_payment: false,
+  can_cancel_pending_plan_change: false,
 });
 
 describe('membershipDisplay', () => {

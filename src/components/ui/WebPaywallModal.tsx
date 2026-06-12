@@ -11,19 +11,13 @@ import {
 import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
 import { useAuthStore } from '@/stores/authStore';
 import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
+import { PREMIUM_PRICING_JPY } from '@/utils/premiumPricing';
 
 interface WebPaywallModalProps {
   open: boolean;
   onClose: () => void;
   isEnglishCopy: boolean;
 }
-
-const PRICING_JPY = {
-  monthly: 3980,
-  yearly: 34800,
-  yearlyPerMonth: 2900,
-  yearlySavings: 12960,
-} as const;
 
 const formatUsdReferenceLine = (jpyAmount: number, usdRate: number): string =>
   `≈ $${jpyAmountToApproxUsdWhole(jpyAmount, usdRate)} USD`;
@@ -220,20 +214,20 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
               <PriceRow
                 icon={<FaCalendarAlt className="w-4 h-4" aria-hidden="true" />}
                 label={COPY.en.priceMonthly}
-                sublabel={formatUsdReferenceLine(PRICING_JPY.monthly, usdRate)}
+                sublabel={formatUsdReferenceLine(PREMIUM_PRICING_JPY.monthly, usdRate)}
               />
               <PriceRow
                 icon={<FaCrown className="w-4 h-4 text-amber-400/90" aria-hidden="true" />}
                 label={COPY.en.priceYearly}
-                sublabel={formatUsdReferenceLine(PRICING_JPY.yearly, usdRate)}
+                sublabel={formatUsdReferenceLine(PREMIUM_PRICING_JPY.yearly, usdRate)}
               />
               <p className="pl-7 text-xs text-gray-400">
                 {COPY.en.priceYearlyPerMonth}
-                {` ${formatUsdReferenceSuffix(PRICING_JPY.yearlyPerMonth, usdRate)}`}
+                {` ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlyPerMonth, usdRate)}`}
               </p>
               <div className="flex flex-wrap gap-2 pl-7">
                 <SavingsBadge
-                  label={`${COPY.en.priceSavingsAmount} ${formatUsdReferenceSuffix(PRICING_JPY.yearlySavings, usdRate)}`}
+                  label={`${COPY.en.priceSavingsAmount} ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlySavings, usdRate)}`}
                 />
                 <SavingsBadge label={COPY.en.priceSavingsMonths} />
               </div>

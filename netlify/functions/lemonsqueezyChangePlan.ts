@@ -6,9 +6,9 @@ import {
 import {
   authenticateRequest,
   billingCorsHeaders,
-  ensureEnv,
   fetchLemonSubscription,
   getUserLemonSubscription,
+  patchLemonSubscriptionVariant,
 } from './lib/lemonNetlifyCommon';
 
 interface NetlifyEvent {
@@ -29,6 +29,12 @@ const parseTarget = (body: string | null): 'monthly' | 'yearly' | null => {
     return null;
   }
 };
+
+const resolveEffectiveAt = (
+  renewsAt: string | null,
+  endsAt: string | null,
+  fallback: string | null,
+): string | null => renewsAt ?? endsAt ?? fallback;
 
 export const handler = async (event: NetlifyEvent) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -80,6 +86,13 @@ export const handler = async (event: NetlifyEvent) => {
         body: JSON.stringify({ error: 'Already on the requested plan' }),
       };
     }
+    if (subscriptionRow.pending_plan_code === nextPlanCode) {
+      return {
+        statusCode: 409,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Plan change already scheduled', scheduled: true }),
+      };
+    }
 
     const lemonSub = await fetchLemonSubscription(subscriptionRow.provider_subscription_id);
     if (!lemonSub) {
@@ -109,41 +122,45 @@ export const handler = async (event: NetlifyEvent) => {
     }
 
     const variantId = noTrialVariantForPlanCode(nextPlanCode);
-    const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
-    const subscriptionId = subscriptionRow.provider_subscription_id;
+    const patchResult = await patchLemonSubscriptionVariant(
+      subscriptionRow.provider_subscription_id,
+      variantId,
+    );
 
-    const res = await fetch(`https://api.lemonsqueezy.com/v1/subscriptions/${subscriptionId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/vnd.api+json',
-        Accept: 'application/vnd.api+json',
-      },
-      body: JSON.stringify({
-        data: {
-          type: 'subscriptions',
-          id: subscriptionId,
-          attributes: {
-            variant_id: Number(variantId),
-            disable_prorations: true,
-          },
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text();
+    if (!patchResult.ok) {
       return {
         statusCode: 502,
         headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Failed to change plan on Lemon Squeezy', details: errBody }),
+        body: JSON.stringify({ error: 'Failed to change plan on Lemon Squeezy', details: patchResult.details }),
+      };
+    }
+
+    const pendingEffectiveAt = resolveEffectiveAt(
+      patchResult.renewsAt,
+      patchResult.endsAt,
+      subscriptionRow.current_period_ends_at,
+    );
+
+    const { error: updateError } = await supabase
+      .from('subscriptions')
+      .update({
+        pending_plan_code: nextPlanCode,
+        pending_plan_effective_at: pendingEffectiveAt,
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      return {
+        statusCode: 500,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Failed to record scheduled plan change' }),
       };
     }
 
     return {
       statusCode: 200,
       headers: billingCorsHeaders,
-      body: JSON.stringify({ ok: true }),
+      body: JSON.stringify({ ok: true, scheduled: true }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

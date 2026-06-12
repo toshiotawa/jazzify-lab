@@ -13,6 +13,7 @@ export interface BillingCapabilities {
   can_change_plan: boolean;
   can_resume: boolean;
   can_manage_payment: boolean;
+  can_cancel_pending_plan_change: boolean;
 }
 
 export interface LemonSubscriptionSnapshot {
@@ -25,23 +26,27 @@ export function deriveBillingCapabilities(
   provider: string,
   entitlementState: string,
   status: string,
+  pendingPlanCode: string | null = null,
 ): BillingCapabilities {
   if (provider !== 'lemon') {
     return {
       can_change_plan: false,
       can_resume: false,
       can_manage_payment: false,
+      can_cancel_pending_plan_change: false,
     };
   }
 
   const isActiveEntitlement = entitlementState === 'active';
   const isCancelledGrace = entitlementState === 'cancelled_but_active_until_end';
   const isPastDue = entitlementState === 'payment_issue_with_access' || status === 'past_due';
+  const hasPendingPlanChange = pendingPlanCode !== null;
 
   return {
-    can_change_plan: isActiveEntitlement,
+    can_change_plan: isActiveEntitlement && !hasPendingPlanChange,
     can_resume: isCancelledGrace,
     can_manage_payment: isActiveEntitlement || isCancelledGrace || isPastDue,
+    can_cancel_pending_plan_change: isActiveEntitlement && hasPendingPlanChange,
   };
 }
 

@@ -8,6 +8,10 @@ import {
   mapLemonStatusToSubscription,
   rankForSubscription,
 } from './lib/lemonSubscriptionMapping';
+import {
+  resolvePlanCodeOnSubscriptionUpdated,
+  resolvePlanFieldsOnPaymentSuccess,
+} from './lib/pendingPlanChange';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -170,20 +174,55 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const mapped = mapLemonStatusToSubscription(eventName, lemonStatus, attrs as Record<string, unknown>);
 
     const { yearlyVariantIds, monthlyVariantIds } = getVariantIdLists();
-    let planCode = planCodeForLemonVariant(variantId, yearlyVariantIds, monthlyVariantIds);
-    if (!planCode) {
-      const { data: existingSub } = await supabase
-        .from('subscriptions')
-        .select('plan_code')
-        .eq('user_id', userId)
-        .maybeSingle();
-      planCode = existingSub?.plan_code ?? 'core_monthly';
+    const variantPlanCode = planCodeForLemonVariant(variantId, yearlyVariantIds, monthlyVariantIds);
+
+    const { data: existingSub } = await supabase
+      .from('subscriptions')
+      .select('plan_code, pending_plan_code, pending_plan_effective_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const existingPlanCode = existingSub?.plan_code ?? 'core_monthly';
+    const existingPendingPlanCode = existingSub?.pending_plan_code ?? null;
+
+    let planCode = variantPlanCode ?? existingPlanCode;
+    let pendingPlanCode: string | null = existingPendingPlanCode;
+    let pendingPlanEffectiveAt: string | null = existingSub?.pending_plan_effective_at ?? null;
+
+    if (eventName === 'subscription_payment_success') {
+      const resolved = resolvePlanFieldsOnPaymentSuccess(planCode);
+      planCode = resolved.plan_code;
+      pendingPlanCode = resolved.pending_plan_code;
+      pendingPlanEffectiveAt = resolved.pending_plan_effective_at;
+    } else if (eventName === 'subscription_updated' && variantPlanCode) {
+      if (existingPendingPlanCode !== null) {
+        planCode = resolvePlanCodeOnSubscriptionUpdated(
+          existingPlanCode,
+          existingPendingPlanCode,
+          variantPlanCode,
+        );
+        if (variantPlanCode === existingPlanCode) {
+          pendingPlanCode = null;
+          pendingPlanEffectiveAt = null;
+        } else {
+          pendingPlanCode = existingPendingPlanCode;
+        }
+      } else if (variantPlanCode !== existingPlanCode) {
+        planCode = existingPlanCode;
+        pendingPlanCode = variantPlanCode;
+      } else {
+        planCode = variantPlanCode;
+      }
     }
 
     const renewsAt = attrs.renews_at;
     const endsAt = attrs.ends_at;
     const trialEndsAt = attrs.trial_ends_at;
     const periodEndsAt = endsAt || renewsAt || trialEndsAt || null;
+
+    if (pendingPlanCode !== null && periodEndsAt) {
+      pendingPlanEffectiveAt = periodEndsAt;
+    }
 
     const upsertData: Record<string, unknown> = {
       user_id: userId,
@@ -192,6 +231,8 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       provider_subscription_id: subscriptionId || null,
       provider_variant_id: variantId != null ? String(variantId) : null,
       plan_code: planCode,
+      pending_plan_code: pendingPlanCode,
+      pending_plan_effective_at: pendingPlanEffectiveAt,
       status: mapped.status,
       entitlement_state: mapped.entitlementState,
       updated_at: new Date().toISOString(),

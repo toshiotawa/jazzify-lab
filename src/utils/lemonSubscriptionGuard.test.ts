@@ -5,11 +5,18 @@ import {
 } from '../../netlify/functions/lib/lemonSubscriptionGuard';
 
 describe('deriveBillingCapabilities', () => {
-  it('allows plan change only when active', () => {
+  it('allows plan change only when active and no pending change', () => {
     const caps = deriveBillingCapabilities('lemon', 'active', 'active');
     expect(caps.can_change_plan).toBe(true);
+    expect(caps.can_cancel_pending_plan_change).toBe(false);
     expect(caps.can_resume).toBe(false);
     expect(caps.can_manage_payment).toBe(true);
+  });
+
+  it('blocks plan change and allows cancel when pending change exists', () => {
+    const caps = deriveBillingCapabilities('lemon', 'active', 'active', 'core_yearly');
+    expect(caps.can_change_plan).toBe(false);
+    expect(caps.can_cancel_pending_plan_change).toBe(true);
   });
 
   it('allows resume only in cancelled grace period', () => {

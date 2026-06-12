@@ -11,30 +11,46 @@ type BillingCapabilities = {
   can_change_plan: boolean;
   can_resume: boolean;
   can_manage_payment: boolean;
+  can_cancel_pending_plan_change: boolean;
 };
 
 function deriveBillingCapabilities(
   provider: string,
   entitlementState: string,
   status: string,
+  pendingPlanCode: string | null = null,
 ): BillingCapabilities {
   if (provider !== "lemon") {
     return {
       can_change_plan: false,
       can_resume: false,
       can_manage_payment: false,
+      can_cancel_pending_plan_change: false,
     };
   }
 
   const isActiveEntitlement = entitlementState === "active";
   const isCancelledGrace = entitlementState === "cancelled_but_active_until_end";
   const isPastDue = entitlementState === "payment_issue_with_access" || status === "past_due";
+  const hasPendingPlanChange = pendingPlanCode !== null;
 
   return {
-    can_change_plan: isActiveEntitlement,
+    can_change_plan: isActiveEntitlement && !hasPendingPlanChange,
     can_resume: isCancelledGrace,
     can_manage_payment: isActiveEntitlement || isCancelledGrace || isPastDue,
+    can_cancel_pending_plan_change: isActiveEntitlement && hasPendingPlanChange,
   };
+}
+
+function billingAmountJpyForPlanCode(planCode: string): number | null {
+  if (planCode === "core_monthly") return 3980;
+  if (planCode === "core_yearly") return 34800;
+  return null;
+}
+
+function nextBillingAmountJpy(planCode: string, pendingPlanCode: string | null): number | null {
+  const effectivePlanCode = pendingPlanCode ?? planCode;
+  return billingAmountJpyForPlanCode(effectivePlanCode);
 }
 
 function buildBillingResponse(
@@ -45,8 +61,10 @@ function buildBillingResponse(
   trialUsed: boolean,
   trialUsedAt: string | null,
   currentPeriodEndsAt: string | null,
+  pendingPlanCode: string | null = null,
+  pendingPlanEffectiveAt: string | null = null,
 ) {
-  const caps = deriveBillingCapabilities(provider, entitlementState, status);
+  const caps = deriveBillingCapabilities(provider, entitlementState, status, pendingPlanCode);
   return {
     provider,
     status,
@@ -55,9 +73,13 @@ function buildBillingResponse(
     trial_used: trialUsed,
     trial_used_at: trialUsedAt,
     current_period_ends_at: currentPeriodEndsAt,
+    pending_plan_code: pendingPlanCode,
+    pending_plan_effective_at: pendingPlanEffectiveAt,
+    next_billing_amount_jpy: nextBillingAmountJpy(planCode, pendingPlanCode),
     can_change_plan: caps.can_change_plan,
     can_resume: caps.can_resume,
     can_manage_payment: caps.can_manage_payment,
+    can_cancel_pending_plan_change: caps.can_cancel_pending_plan_change,
   };
 }
 
@@ -147,6 +169,8 @@ Deno.serve(async (req: Request) => {
       subscription.trial_used,
       subscription.trial_used_at ?? null,
       subscription.current_period_ends_at,
+      subscription.pending_plan_code ?? null,
+      subscription.pending_plan_effective_at ?? null,
     )), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

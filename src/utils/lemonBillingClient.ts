@@ -25,6 +25,16 @@ export async function fetchLemonBillingLink(purpose: BillingLinkPurpose): Promis
   return typeof data.url === 'string' ? data.url : null;
 }
 
+export async function cancelPendingLemonPlanChange(): Promise<{ ok: boolean; error?: string }> {
+  const response = await fetch('/.netlify/functions/lemonsqueezyCancelPendingPlanChange', {
+    method: 'POST',
+    headers: await authHeaders(),
+  });
+  if (response.ok) return { ok: true };
+  const err = (await response.json().catch(() => null)) as { error?: string } | null;
+  return { ok: false, error: err?.error ?? 'Failed to cancel pending plan change' };
+}
+
 export async function changeLemonPlan(target: 'monthly' | 'yearly'): Promise<{ ok: boolean; error?: string }> {
   const response = await fetch('/.netlify/functions/lemonsqueezyChangePlan', {
     method: 'POST',

@@ -10,9 +10,13 @@ import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import {
   changeLemonPlan,
+  cancelPendingLemonPlanChange,
   fetchLemonBillingLink,
   resumeLemonSubscription,
 } from '@/utils/lemonBillingClient';
+import PlanChangeConfirmModal from '@/components/ui/PlanChangeConfirmModal';
+import { getPlanIntervalLabel } from '@/utils/membershipDisplay';
+import { formatBillingAmountLabel } from '@/utils/premiumPricing';
 /**
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
  */
@@ -56,6 +60,7 @@ const AccountPage: React.FC = () => {
   const showLemonBillingPortal = hasNonExpiredBillingProvider(billingPayload, 'lemon');
   const [showPaywall, setShowPaywall] = useState(false);
   const [billingActionLoading, setBillingActionLoading] = useState<string | null>(null);
+  const [planChangeTarget, setPlanChangeTarget] = useState<'monthly' | 'yearly' | null>(null);
 
   const refreshBillingStatus = useCallback(async () => {
     await refetchBilling();
@@ -83,21 +88,35 @@ const AccountPage: React.FC = () => {
   }, [isEnglishCopy]);
 
   const handleChangePlan = useCallback(async (target: 'monthly' | 'yearly') => {
-    const label = target === 'yearly'
-      ? (isEnglishCopy ? 'yearly' : '年額')
-      : (isEnglishCopy ? 'monthly' : '月額');
-    const msg = isEnglishCopy
-      ? `Switch to the ${label} plan?`
-      : `${label}プランに変更しますか？`;
-    if (!confirm(msg)) return;
-    setBillingActionLoading(`change_${target}`);
+    setPlanChangeTarget(target);
+  }, []);
+
+  const confirmPlanChange = useCallback(async () => {
+    if (!planChangeTarget) return;
+    setBillingActionLoading(`change_${planChangeTarget}`);
     try {
-      const result = await changeLemonPlan(target);
+      const result = await changeLemonPlan(planChangeTarget);
       if (result.ok) {
-        pushToast(isEnglishCopy ? 'Plan change requested' : 'プラン変更を受け付けました', 'success');
+        pushToast(isEnglishCopy ? 'Plan change scheduled' : 'プラン変更を予約しました', 'success');
+        setPlanChangeTarget(null);
         await refreshBillingStatus();
       } else {
         alert(result.error ?? (isEnglishCopy ? 'Failed to change plan' : 'プラン変更に失敗しました'));
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, [isEnglishCopy, planChangeTarget, pushToast, refreshBillingStatus]);
+
+  const handleCancelPendingPlanChange = useCallback(async () => {
+    setBillingActionLoading('cancel_pending');
+    try {
+      const result = await cancelPendingLemonPlanChange();
+      if (result.ok) {
+        pushToast(isEnglishCopy ? 'Scheduled plan change cancelled' : 'プラン変更の予約を取り消しました', 'success');
+        await refreshBillingStatus();
+      } else {
+        alert(result.error ?? (isEnglishCopy ? 'Failed to cancel plan change' : 'プラン変更の取り消しに失敗しました'));
       }
     } finally {
       setBillingActionLoading(null);
@@ -140,10 +159,24 @@ const AccountPage: React.FC = () => {
   }, [nicknameValue, profile?.nickname, updateNickname, pushToast, isEnglishCopy]);
 
   const periodEndLabel = formatPeriodEnd(billingPayload?.current_period_ends_at);
+  const pendingEffectiveLabel = formatPeriodEnd(
+    billingPayload?.pending_plan_effective_at ?? billingPayload?.current_period_ends_at,
+  );
   const isCancelledGrace = billingPayload?.entitlement_state === 'cancelled_but_active_until_end';
   const canChangePlan = billingPayload?.can_change_plan === true;
+  const canCancelPendingPlanChange = billingPayload?.can_cancel_pending_plan_change === true;
   const canResume = billingPayload?.can_resume === true;
   const canManagePayment = billingPayload?.can_manage_payment === true;
+  const pendingPlanCode = billingPayload?.pending_plan_code ?? null;
+  const pendingIntervalLabel = pendingPlanCode
+    ? getPlanIntervalLabel(pendingPlanCode, localeCode)
+    : null;
+  const nextBillingLabel = billingPayload?.next_billing_amount_jpy != null
+    ? formatBillingAmountLabel(
+      pendingPlanCode ?? billingPayload.plan_code,
+      localeCode,
+    )
+    : null;
   const showChangeToYearly = canChangePlan && billingPayload?.plan_code === 'core_monthly';
   const showChangeToMonthly = canChangePlan && billingPayload?.plan_code === 'core_yearly';
 
@@ -507,9 +540,31 @@ const AccountPage: React.FC = () => {
                           {planLabel}
                         </span>
                       </div>
-                      {periodEndLabel && !isCancelledGrace && (
+                      {periodEndLabel && !isCancelledGrace && !pendingPlanCode && (
                         <p className="text-xs text-gray-400">
                           {isEnglishCopy ? `Next renewal: ${periodEndLabel}` : `次回更新日: ${periodEndLabel}`}
+                        </p>
+                      )}
+                      {!isCancelledGrace && !pendingPlanCode && nextBillingLabel && (
+                        <p className="text-xs text-gray-400">
+                          {isEnglishCopy ? `Next charge: ${nextBillingLabel}` : `次回請求額: ${nextBillingLabel}`}
+                        </p>
+                      )}
+                      {pendingPlanCode && pendingEffectiveLabel && pendingIntervalLabel && (
+                        <p className="text-xs text-blue-200">
+                          {isEnglishCopy
+                            ? `Switching to ${pendingIntervalLabel} plan on ${pendingEffectiveLabel}`
+                            : `${pendingEffectiveLabel}から${pendingIntervalLabel}プランに切り替わります`}
+                        </p>
+                      )}
+                      {pendingPlanCode && nextBillingLabel && (
+                        <p className="text-xs text-gray-400">
+                          {isEnglishCopy ? `Next charge: ${nextBillingLabel}` : `次回請求額: ${nextBillingLabel}`}
+                        </p>
+                      )}
+                      {pendingPlanCode && (
+                        <p className="text-xs text-gray-400">
+                          {isEnglishCopy ? 'No additional charge today' : '本日の追加請求：なし'}
                         </p>
                       )}
                       {periodEndLabel && isCancelledGrace && (
@@ -569,6 +624,20 @@ const AccountPage: React.FC = () => {
                               {billingActionLoading === 'change_monthly'
                                 ? (isEnglishCopy ? 'Processing…' : '処理中…')
                                 : (isEnglishCopy ? 'Switch to monthly plan' : '月額プランに変更する')}
+                            </button>
+                          )}
+                          {canCancelPendingPlanChange && pendingIntervalLabel && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void handleCancelPendingPlanChange()}
+                            >
+                              {billingActionLoading === 'cancel_pending'
+                                ? (isEnglishCopy ? 'Processing…' : '処理中…')
+                                : (isEnglishCopy
+                                  ? `Cancel switch to ${pendingIntervalLabel} plan`
+                                  : `${pendingIntervalLabel}プランへの変更を取り消す`)}
                             </button>
                           )}
                           {canResume && (
@@ -691,6 +760,15 @@ const AccountPage: React.FC = () => {
       </div>
 
       <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
+      <PlanChangeConfirmModal
+        open={planChangeTarget !== null}
+        target={planChangeTarget ?? 'yearly'}
+        periodEndLabel={periodEndLabel}
+        isEnglishCopy={isEnglishCopy}
+        loading={billingActionLoading === 'change_monthly' || billingActionLoading === 'change_yearly'}
+        onClose={() => setPlanChangeTarget(null)}
+        onConfirm={() => void confirmPlanChange()}
+      />
     </div>
   );
 };
