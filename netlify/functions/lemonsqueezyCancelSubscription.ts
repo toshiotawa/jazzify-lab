@@ -84,33 +84,44 @@ export const handler = async (event: NetlifyEvent) => {
       };
     }
 
+    const subscriptionUpdates: Record<string, unknown> = {
+      status: 'canceled',
+      entitlement_state: 'cancelled_but_active_until_end',
+      updated_at: new Date().toISOString(),
+    };
+    if (cancelResult.endsAt) {
+      subscriptionUpdates.current_period_ends_at = cancelResult.endsAt;
+    }
+
     if (subscriptionRow.pending_status !== null) {
-      const cancelledPendingPlanCode = subscriptionRow.pending_plan_code;
+      Object.assign(subscriptionUpdates, {
+        pending_plan_code: null,
+        pending_plan_effective_at: null,
+        pending_provider_variant_id: null,
+        pending_from_provider_variant_id: null,
+        pending_effective_at_snapshot: null,
+        pending_status: null,
+        pending_locked_at: null,
+        pending_failed_reason: null,
+        pending_attempts: 0,
+        last_pending_plan_cancelled_at: new Date().toISOString(),
+      });
+    }
 
-      const { error: updateError } = await supabase
-        .from('subscriptions')
-        .update({
-          pending_plan_code: null,
-          pending_plan_effective_at: null,
-          pending_provider_variant_id: null,
-          pending_from_provider_variant_id: null,
-          pending_effective_at_snapshot: null,
-          pending_status: null,
-          pending_locked_at: null,
-          pending_failed_reason: null,
-          pending_attempts: 0,
-          last_pending_plan_cancelled_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
+    const { error: updateError } = await supabase
+      .from('subscriptions')
+      .update(subscriptionUpdates)
+      .eq('user_id', userId);
 
-      if (updateError) {
-        return {
-          statusCode: 500,
-          headers: billingCorsHeaders,
-          body: JSON.stringify({ error: 'Failed to clear pending plan change' }),
-        };
-      }
+    if (updateError) {
+      return {
+        statusCode: 500,
+        headers: billingCorsHeaders,
+        body: JSON.stringify({ error: 'Failed to update subscription state' }),
+      };
+    }
 
+    if (subscriptionRow.pending_status !== null) {
       await supabase.from('subscription_events').insert({
         user_id: userId,
         provider: 'lemon',
@@ -118,10 +129,14 @@ export const handler = async (event: NetlifyEvent) => {
         provider_event_id: subscriptionRow.provider_subscription_id,
         payload: {
           reason: 'subscription_cancelled',
-          cancelled_pending_plan_code: cancelledPendingPlanCode,
+          cancelled_pending_plan_code: subscriptionRow.pending_plan_code,
         },
       });
     }
+
+    await supabase.from('profiles').update({
+      lemon_subscription_status: 'cancelled',
+    }).eq('id', userId);
 
     return {
       statusCode: 200,

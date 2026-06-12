@@ -23,8 +23,26 @@ export interface BillingStatusPayload {
 let cache: { payload: BillingStatusPayload; fetchedAt: number } | null = null;
 const CACHE_MS = 45_000;
 
+const refreshSubscribers = new Set<() => void>();
+let refreshNonce = 0;
+
 export function clearBillingStatusCache(): void {
   cache = null;
+}
+
+/** 課金操作後など、全 useBillingAwareMembership インスタンスに再取得を促す */
+export function subscribeBillingRefresh(listener: () => void): () => void {
+  refreshSubscribers.add(listener);
+  return () => refreshSubscribers.delete(listener);
+}
+
+export function getBillingRefreshNonce(): number {
+  return refreshNonce;
+}
+
+function notifyBillingRefresh(): void {
+  refreshNonce += 1;
+  refreshSubscribers.forEach((listener) => listener());
 }
 
 function nextBillingAmountJpy(planCode: string, pendingPlanCode: string | null): number | null {
@@ -64,13 +82,19 @@ export function normalizeBillingStatusPayload(
   };
 }
 
+export interface FetchBillingStatusOptions {
+  /** true のときメモリキャッシュを無視（課金操作直後の再取得用） */
+  force?: boolean;
+}
+
 export async function fetchBillingStatusPayload(
   accessToken: string | null,
+  options: FetchBillingStatusOptions = {},
 ): Promise<BillingStatusPayload | null> {
   if (!accessToken) {
     return null;
   }
-  if (cache && Date.now() - cache.fetchedAt < CACHE_MS) {
+  if (!options.force && cache && Date.now() - cache.fetchedAt < CACHE_MS) {
     return cache.payload;
   }
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -79,6 +103,7 @@ export async function fetchBillingStatusPayload(
   }
   const res = await fetch(`${supabaseUrl}/functions/v1/billing-status`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
   });
   if (!res.ok) {
     return null;
@@ -105,6 +130,20 @@ export async function fetchBillingStatusPayload(
   });
   cache = { payload, fetchedAt: Date.now() };
   return payload;
+}
+
+/**
+ * 課金操作後に呼ぶ。キャッシュを破棄し、全フックへ再取得を通知したうえで最新 payload を返す。
+ */
+export async function refreshBillingStatusPayload(
+  accessToken: string | null,
+): Promise<BillingStatusPayload | null> {
+  clearBillingStatusCache();
+  notifyBillingRefresh();
+  if (!accessToken) {
+    return null;
+  }
+  return fetchBillingStatusPayload(accessToken, { force: true });
 }
 
 export function bannerVariantFromPayload(

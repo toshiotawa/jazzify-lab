@@ -246,7 +246,7 @@ const AccountPage: React.FC = () => {
     return () => window.removeEventListener('hashchange', syncFromHash);
   }, []);
 
-  // Stripe Checkout など外部遷移から戻った際に最新プロフィールを取得（即時反映）
+  // アカウント画面を開いたとき・Checkout 戻り時に最新状態を取得（即時反映）
   useEffect(() => {
     if (!open || !profile?.id) return;
     let cancelled = false;
@@ -254,7 +254,10 @@ const AccountPage: React.FC = () => {
     const hasCheckoutSession = window.location.hash.includes('session_id=');
 
     const refreshOnce = async () => {
-      await useAuthStore.getState().fetchProfile({ forceRefresh: true });
+      await Promise.all([
+        useAuthStore.getState().fetchProfile({ forceRefresh: true }),
+        refetchBilling(),
+      ]);
     };
 
     const refreshWithPolling = async () => {
@@ -280,7 +283,7 @@ const AccountPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [open, profile?.id]);
+  }, [open, profile?.id, refetchBilling]);
 
   useEffect(() => {
     setPreferredLocale(profile?.preferred_locale ?? resolveAudienceLocale());
@@ -610,8 +613,8 @@ const AccountPage: React.FC = () => {
                       {pendingPlanCode && pendingEffectiveLabel && pendingIntervalLabel && (
                         <p className="text-xs text-blue-200">
                           {isEnglishCopy
-                            ? `Switching to ${pendingIntervalLabel} plan on ${pendingEffectiveLabel}`
-                            : `${pendingEffectiveLabel}から${pendingIntervalLabel}プランに切り替わります`}
+                            ? `Switching to ${pendingIntervalLabel} on ${pendingEffectiveLabel}`
+                            : `${pendingEffectiveLabel}から${pendingIntervalLabel}に切り替わります`}
                         </p>
                       )}
                       {pendingPlanCode && nextBillingLabel && (
@@ -693,8 +696,8 @@ const AccountPage: React.FC = () => {
                               {billingActionLoading === 'cancel_pending'
                                 ? (isEnglishCopy ? 'Processing…' : '処理中…')
                                 : (isEnglishCopy
-                                  ? `Cancel switch to ${pendingIntervalLabel} plan`
-                                  : `${pendingIntervalLabel}プランへの変更を取り消す`)}
+                                  ? `Cancel switch to ${pendingIntervalLabel}`
+                                  : `${pendingIntervalLabel}への変更を取り消す`)}
                             </button>
                           )}
                           {canResume && (
