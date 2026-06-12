@@ -56,6 +56,41 @@ describe('mapLemonStatusToSubscription', () => {
       entitlementState: 'payment_issue_with_access',
     });
   });
+
+  it('maps subscription_updated cancelled with future period end to cancelled_but_active_until_end', () => {
+    expect(
+      mapLemonStatusToSubscription(
+        'subscription_updated',
+        'cancelled',
+        { ends_at: futureEnd },
+        Date.now(),
+      ),
+    ).toEqual({
+      status: 'canceled',
+      entitlementState: 'cancelled_but_active_until_end',
+    });
+  });
+
+  it('maps subscription_updated cancelled with past period end to expired', () => {
+    expect(
+      mapLemonStatusToSubscription(
+        'subscription_updated',
+        'cancelled',
+        { ends_at: pastEnd },
+        Date.now(),
+      ),
+    ).toEqual({
+      status: 'canceled',
+      entitlementState: 'expired',
+    });
+  });
+
+  it('maps subscription_updated expired to expired', () => {
+    expect(mapLemonStatusToSubscription('subscription_updated', 'expired', {})).toEqual({
+      status: 'expired',
+      entitlementState: 'expired',
+    });
+  });
 });
 
 describe('rankForSubscription', () => {

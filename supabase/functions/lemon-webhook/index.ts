@@ -1,4 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+/**
+ * @deprecated 本番 Webhook は Netlify `lemonsqueezyWebhook` を使用すること。
+ * Lemon Squeezy ダッシュボードには Netlify URL のみ登録し、この Edge Function は登録解除すること。
+ * 二重 webhook により plan_code / trial 状態が上書きされる事故を防ぐため、ここではイベントを記録のみ行う。
+ */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -6,13 +12,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-signature",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-type EntitlementState =
-  | "active"
-  | "payment_issue_with_access"
-  | "payment_issue_no_access"
-  | "cancelled_but_active_until_end"
-  | "expired";
 
 async function computeHmacSha256Hex(secret: string, message: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -25,84 +24,6 @@ async function computeHmacSha256Hex(secret: string, message: string): Promise<st
   );
   const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(message));
   return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-/**
- * checkout 時に埋め込んだ custom_data.plan からプラン種別を判定する。
- * 後続イベントで custom_data が欠落するケースに備え、判定できない場合は null を返し、
- * 呼び出し側で既存レコードの plan_code を維持する（年額→月額の誤上書き防止）。
- */
-function resolvePlanCodeFromCustomData(customData: { plan?: unknown } | undefined): string | null {
-  if (customData?.plan === "yearly") return "core_yearly";
-  if (customData?.plan === "monthly") return "core_monthly";
-  return null;
-}
-
-function rankForSubscription(provider: string, entitlementState: EntitlementState): string {
-  if (
-    entitlementState === "active" ||
-    entitlementState === "payment_issue_with_access" ||
-    entitlementState === "cancelled_but_active_until_end"
-  ) {
-    return provider === "lemon" ? "standard_global" : "standard";
-  }
-  return "free";
-}
-
-function periodEndMsFromAttrs(attrs: Record<string, unknown> | undefined): number {
-  if (!attrs) return 0;
-  const endsAt = attrs.ends_at as string | undefined;
-  const renewsAt = attrs.renews_at as string | undefined;
-  const trialEndsAt = attrs.trial_ends_at as string | undefined;
-  const raw = endsAt || renewsAt || trialEndsAt;
-  if (!raw) return 0;
-  const ms = new Date(raw).getTime();
-  return Number.isFinite(ms) ? ms : 0;
-}
-
-function mapLemonStatusToSubscription(
-  eventName: string,
-  lemonStatus: string | undefined,
-  attrs: Record<string, unknown> | undefined,
-): { status: string; entitlementState: EntitlementState; trialUsed?: boolean } {
-  const periodEndMs = periodEndMsFromAttrs(attrs);
-  const periodStillActive = periodEndMs > Date.now();
-
-  switch (eventName) {
-    case "subscription_created":
-      if (lemonStatus === "on_trial") return { status: "trial", entitlementState: "active", trialUsed: true };
-      return { status: "active", entitlementState: "active" };
-    case "subscription_updated":
-      if (lemonStatus === "on_trial") return { status: "trial", entitlementState: "active" };
-      if (lemonStatus === "active") return { status: "active", entitlementState: "active" };
-      if (lemonStatus === "past_due") return { status: "past_due", entitlementState: "payment_issue_with_access" };
-      if (lemonStatus === "unpaid") return { status: "expired", entitlementState: "expired" };
-      if (lemonStatus === "paused") {
-        return {
-          status: "canceled",
-          entitlementState: periodStillActive ? "cancelled_but_active_until_end" : "expired",
-        };
-      }
-      return { status: "active", entitlementState: "active" };
-    case "subscription_cancelled":
-      return {
-        status: "canceled",
-        entitlementState: periodStillActive ? "cancelled_but_active_until_end" : "expired",
-      };
-    case "subscription_expired":
-      return { status: "expired", entitlementState: "expired" };
-    case "subscription_resumed":
-      return { status: "active", entitlementState: "active" };
-    case "subscription_paused":
-      return {
-        status: "canceled",
-        entitlementState: periodStillActive ? "cancelled_but_active_until_end" : "expired",
-      };
-    case "order_refunded":
-      return { status: "expired", entitlementState: "expired" };
-    default:
-      return { status: "active", entitlementState: "active" };
-  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -135,7 +56,6 @@ Deno.serve(async (req: Request) => {
     const eventName = body.meta?.event_name;
     const customData = body.meta?.custom_data;
     const userId = customData?.user_id;
-    const attrs = body.data?.attributes as Record<string, unknown> | undefined;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -150,63 +70,10 @@ Deno.serve(async (req: Request) => {
       payload: body,
     });
 
-    if (!userId || !eventName) {
-      return new Response(JSON.stringify({ received: true, skipped: "no_user" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const lemonStatus = attrs?.status as string | undefined;
-    const mapped = mapLemonStatusToSubscription(eventName, lemonStatus, attrs);
-
-    const customerId = String(attrs?.customer_id ?? "");
-    const subscriptionId = String(body.data?.id ?? "");
-    const renewsAt = attrs?.renews_at;
-    const endsAt = attrs?.ends_at;
-    const trialEndsAt = attrs?.trial_ends_at;
-    const periodEndsAt = endsAt || renewsAt || trialEndsAt || null;
-
-    // plan_code: custom_data を最優先。判定できない後続イベントでは既存値を維持する。
-    let planCode = resolvePlanCodeFromCustomData(customData);
-    if (!planCode) {
-      const { data: existingSub } = await supabase
-        .from("subscriptions")
-        .select("plan_code")
-        .eq("user_id", userId)
-        .maybeSingle();
-      planCode = existingSub?.plan_code ?? "core_monthly";
-    }
-
-    const upsertData: Record<string, unknown> = {
-      user_id: userId,
-      provider: "lemon",
-      provider_customer_id: customerId,
-      provider_subscription_id: subscriptionId,
-      plan_code: planCode,
-      status: mapped.status,
-      entitlement_state: mapped.entitlementState,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (periodEndsAt) {
-      upsertData.current_period_ends_at = periodEndsAt;
-    }
-    if (mapped.trialUsed !== undefined) {
-      upsertData.trial_used = mapped.trialUsed;
-    }
-
-    await supabase.from("subscriptions").upsert(upsertData, { onConflict: "user_id" });
-
-    const rank = rankForSubscription("lemon", mapped.entitlementState);
-    await supabase.from("profiles").update({
-      rank,
-      lemon_customer_id: customerId,
-      lemon_subscription_id: subscriptionId,
-      lemon_subscription_status: lemonStatus,
-      lemon_trial_used: mapped.trialUsed ?? false,
-    }).eq("id", userId);
-
-    return new Response(JSON.stringify({ received: true, status: mapped.status }), {
+    return new Response(JSON.stringify({
+      received: true,
+      skipped: "deprecated_use_netlify_webhook",
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (_err) {

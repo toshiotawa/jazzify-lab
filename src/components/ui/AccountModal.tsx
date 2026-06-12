@@ -8,7 +8,11 @@ import { persistPreferredLocale, resolveAudienceLocale, shouldUseEnglishCopy } f
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
-
+import {
+  changeLemonPlan,
+  fetchLemonBillingLink,
+  resumeLemonSubscription,
+} from '@/utils/lemonBillingClient';
 /**
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
  */
@@ -47,10 +51,77 @@ const AccountPage: React.FC = () => {
     geoCountryHint: geoCountry,
   });
   const localeCode = isEnglishCopy ? 'en' : 'ja';
-  const { planLabel, isPremiumMember, billingPayload } = useBillingAwareMembership(localeCode);
+  const { planLabel, isPremiumMember, billingPayload, refetchBilling } = useBillingAwareMembership(localeCode);
   const showAppleBillingNotice = hasNonExpiredBillingProvider(billingPayload, 'apple');
   const showLemonBillingPortal = hasNonExpiredBillingProvider(billingPayload, 'lemon');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [billingActionLoading, setBillingActionLoading] = useState<string | null>(null);
+
+  const refreshBillingStatus = useCallback(async () => {
+    await refetchBilling();
+  }, [refetchBilling]);
+
+  const formatPeriodEnd = useCallback((iso: string | null | undefined): string | null => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return null;
+    return d.toLocaleDateString(isEnglishCopy ? 'en-US' : 'ja-JP');
+  }, [isEnglishCopy]);
+
+  const openBillingLink = useCallback(async (purpose: 'payment_method' | 'billing_history' | 'cancel') => {
+    setBillingActionLoading(purpose);
+    try {
+      const url = await fetchLemonBillingLink(purpose);
+      if (url) {
+        window.open(url, '_blank');
+      } else {
+        alert(isEnglishCopy ? 'Failed to open billing page' : '請求ページを開けませんでした');
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, [isEnglishCopy]);
+
+  const handleChangePlan = useCallback(async (target: 'monthly' | 'yearly') => {
+    const label = target === 'yearly'
+      ? (isEnglishCopy ? 'yearly' : '年額')
+      : (isEnglishCopy ? 'monthly' : '月額');
+    const msg = isEnglishCopy
+      ? `Switch to the ${label} plan?`
+      : `${label}プランに変更しますか？`;
+    if (!confirm(msg)) return;
+    setBillingActionLoading(`change_${target}`);
+    try {
+      const result = await changeLemonPlan(target);
+      if (result.ok) {
+        pushToast(isEnglishCopy ? 'Plan change requested' : 'プラン変更を受け付けました', 'success');
+        await refreshBillingStatus();
+      } else {
+        alert(result.error ?? (isEnglishCopy ? 'Failed to change plan' : 'プラン変更に失敗しました'));
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, [isEnglishCopy, pushToast, refreshBillingStatus]);
+
+  const handleResumeSubscription = useCallback(async () => {
+    const msg = isEnglishCopy
+      ? 'Resume your subscription? Billing will continue as before.'
+      : '解約を取り消してサブスクリプションを再開しますか？';
+    if (!confirm(msg)) return;
+    setBillingActionLoading('resume');
+    try {
+      const result = await resumeLemonSubscription();
+      if (result.ok) {
+        pushToast(isEnglishCopy ? 'Subscription resumed' : '解約を取り消しました', 'success');
+        await refreshBillingStatus();
+      } else {
+        alert(result.error ?? (isEnglishCopy ? 'Failed to resume subscription' : '解約取り消しに失敗しました'));
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, [isEnglishCopy, pushToast, refreshBillingStatus]);
   const handleNicknameSave = useCallback(async () => {
     const trimmed = nicknameValue.trim();
     if (!trimmed || trimmed === profile?.nickname) {
@@ -68,44 +139,13 @@ const AccountPage: React.FC = () => {
     }
   }, [nicknameValue, profile?.nickname, updateNickname, pushToast, isEnglishCopy]);
 
-  const handleOpenBillingPortal = useCallback(async () => {
-    const readPortalUrl = (data: unknown): string | null => {
-      if (typeof data !== 'object' || data === null || !('url' in data)) return null;
-      const url = Reflect.get(data, 'url');
-      return typeof url === 'string' ? url : null;
-    };
-    const readErrorFields = (data: unknown): { error: string; details: string } => {
-      if (typeof data !== 'object' || data === null) return { error: '', details: '' };
-      const e = Reflect.get(data, 'error');
-      const d = Reflect.get(data, 'details');
-      return {
-        error: typeof e === 'string' ? e : '',
-        details: typeof d === 'string' ? d : '',
-      };
-    };
-    try {
-      const response = await fetch('/.netlify/functions/lemonsqueezyPortal', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${useAuthStore.getState().session?.access_token ?? ''}`,
-        },
-      });
-      if (response.ok) {
-        const portalUrl = readPortalUrl(await response.json());
-        if (portalUrl) window.open(portalUrl, '_blank');
-      } else if (response.status === 404) {
-        alert(isEnglishCopy ? 'No subscription found. Please select Premium first.' : 'Premium プランが見つかりません。先にプランを選択してください。');
-        window.location.href = '/main#pricing';
-      } else {
-        const err = readErrorFields(await response.json().catch(() => null));
-        const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to open billing portal' : '請求ポータルの表示に失敗しました');
-        alert(msg);
-      }
-    } catch {
-      alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
-    }
-  }, [isEnglishCopy]);
+  const periodEndLabel = formatPeriodEnd(billingPayload?.current_period_ends_at);
+  const isCancelledGrace = billingPayload?.entitlement_state === 'cancelled_but_active_until_end';
+  const canChangePlan = billingPayload?.can_change_plan === true;
+  const canResume = billingPayload?.can_resume === true;
+  const canManagePayment = billingPayload?.can_manage_payment === true;
+  const showChangeToYearly = canChangePlan && billingPayload?.plan_code === 'core_monthly';
+  const showChangeToMonthly = canChangePlan && billingPayload?.plan_code === 'core_yearly';
 
   useEffect(() => {
     const syncFromHash = () => {
@@ -467,6 +507,18 @@ const AccountPage: React.FC = () => {
                           {planLabel}
                         </span>
                       </div>
+                      {periodEndLabel && !isCancelledGrace && (
+                        <p className="text-xs text-gray-400">
+                          {isEnglishCopy ? `Next renewal: ${periodEndLabel}` : `次回更新日: ${periodEndLabel}`}
+                        </p>
+                      )}
+                      {periodEndLabel && isCancelledGrace && (
+                        <p className="text-xs text-amber-300">
+                          {isEnglishCopy
+                            ? `Access until: ${periodEndLabel}`
+                            : `利用期限: ${periodEndLabel}（解約予定）`}
+                        </p>
+                      )}
 
                       {!isPremiumMember && !showAppleBillingNotice && (
                         <button
@@ -495,18 +547,78 @@ const AccountPage: React.FC = () => {
                           <p className="text-sm text-blue-200 font-semibold mb-1">
                             {isEnglishCopy ? 'Web billing (Lemon Squeezy)' : 'Web課金（Lemon Squeezy）'}
                           </p>
-                          <p className="text-xs text-gray-400">
-                            {isEnglishCopy
-                              ? 'Open the billing portal to manage subscriptions, trials, and payment history when available for your account email.'
-                              : '登録メールに紐づく Lemon Squeezy の顧客ポータルがあれば、トライアル・契約・支払履歴の確認ができます。'}
-                          </p>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline w-full"
-                            onClick={() => void handleOpenBillingPortal()}
-                          >
-                            {isEnglishCopy ? 'Open Billing Portal' : '請求ポータルを開く'}
-                          </button>
+                          {showChangeToYearly && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void handleChangePlan('yearly')}
+                            >
+                              {billingActionLoading === 'change_yearly'
+                                ? (isEnglishCopy ? 'Processing…' : '処理中…')
+                                : (isEnglishCopy ? 'Switch to yearly plan' : '年額プランに変更する')}
+                            </button>
+                          )}
+                          {showChangeToMonthly && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void handleChangePlan('monthly')}
+                            >
+                              {billingActionLoading === 'change_monthly'
+                                ? (isEnglishCopy ? 'Processing…' : '処理中…')
+                                : (isEnglishCopy ? 'Switch to monthly plan' : '月額プランに変更する')}
+                            </button>
+                          )}
+                          {canResume && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void handleResumeSubscription()}
+                            >
+                              {billingActionLoading === 'resume'
+                                ? (isEnglishCopy ? 'Processing…' : '処理中…')
+                                : (isEnglishCopy ? 'Resume subscription' : '解約を取り消す')}
+                            </button>
+                          )}
+                          {canManagePayment && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void openBillingLink('payment_method')}
+                            >
+                              {billingActionLoading === 'payment_method'
+                                ? (isEnglishCopy ? 'Opening…' : '開いています…')
+                                : (isEnglishCopy ? 'Update payment method' : '支払い方法を変更する')}
+                            </button>
+                          )}
+                          {canManagePayment && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void openBillingLink('billing_history')}
+                            >
+                              {billingActionLoading === 'billing_history'
+                                ? (isEnglishCopy ? 'Opening…' : '開いています…')
+                                : (isEnglishCopy ? 'Billing history & receipts' : '領収書・請求履歴を見る')}
+                            </button>
+                          )}
+                          {canChangePlan && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full text-red-300 border-red-700/50"
+                              disabled={billingActionLoading !== null}
+                              onClick={() => void openBillingLink('cancel')}
+                            >
+                              {billingActionLoading === 'cancel'
+                                ? (isEnglishCopy ? 'Opening…' : '開いています…')
+                                : (isEnglishCopy ? 'Cancel subscription' : '解約する')}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

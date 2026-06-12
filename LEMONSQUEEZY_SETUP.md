@@ -176,6 +176,42 @@ curl -s "https://api.lemonsqueezy.com/v1/variants?filter[product_id]=YOUR_PRODUC
 
 > **注意**: テストモードで作成したWebhookはテスト環境専用です。本番移行時に再作成が必要です。
 
+> **重要**: Webhook URL は **Netlify `lemonsqueezyWebhook` のみ** を登録すること。Supabase Edge `lemon-webhook` は deprecated（イベント記録のみ）であり、ダッシュボードに登録しないこと。二重 webhook により `plan_code` / `trial` 状態が上書きされる事故を防ぐ。
+
+#### 年額バリアント（追加）
+
+月額と同様に、**trial なし年額** と **trial あり年額** の 2 バリアントを作成する（計 4 variant）:
+
+| バリアント | env 変数（優先名） |
+|-----------|-------------------|
+| 月額（trial なし） | `LEMONSQUEEZY_VARIANT_ID_PREMIUM` |
+| 月額（trial あり） | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL` |
+| 年額（trial なし） | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY` |
+| 年額（trial あり） | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL` |
+
+### Step 6: Customer Portal 設定
+
+**Store → Design → Portal** タブで、Jazzify マイページから誘導する Portal の表示項目を制限する。
+
+**ON（表示）**
+
+| 項目 | 理由 |
+|------|------|
+| Cancel subscriptions | 解約は Portal 委譲 |
+| Billing history | 領収書・請求履歴 |
+| Payment methods | カード変更（Portal 経由でも可。Jazzify は `update_payment_method` URL も使用） |
+
+**OFF（非表示）**
+
+| 項目 | 理由 |
+|------|------|
+| Pause subscriptions | Jazzify 側で制御 |
+| Update subscription plans | プラン変更は Jazzify API |
+| Update subscription quantity | 未使用 |
+| Discounts / License keys / Files / Expired subscriptions | 未使用 |
+
+> Portal で非表示にしても Lemon API 経由の操作は可能なため、Jazzify 側でも状態ガード（`lemonsqueezyChangePlan` 等）を必ず通す。
+
 ---
 
 ## Phase 2: 環境変数設定
@@ -357,8 +393,12 @@ supabase/migrations/
 |--------|------------|------|
 | `LEMONSQUEEZY_API_KEY` | テストモードキー | API認証 |
 | `LEMONSQUEEZY_STORE_ID` | 共通 | ストア識別 |
-| `LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL` | テスト用バリアントID | 通常月額 |
-| `LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL` | テスト用バリアントID | トライアル付き月額 |
+| `LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL` | テスト用バリアントID | 通常月額（レガシー名） |
+| `LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL` | テスト用バリアントID | トライアル付き月額（レガシー名） |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM` | テスト用バリアントID | 通常月額 |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL` | テスト用バリアントID | トライアル付き月額 |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY` | テスト用バリアントID | 通常年額 |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL` | テスト用バリアントID | トライアル付き年額 |
 | `LEMONSQUEEZY_WEBHOOK_SECRET` | テスト用シークレット | Webhook署名検証 |
 | `SUPABASE_URL` | 既存 | Supabase接続 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 既存 | Supabase管理者権限 |

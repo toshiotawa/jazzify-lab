@@ -161,29 +161,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
       return;
     }
 
-    setLoading(plan);
-
-    try {
-      const response = await fetch('/.netlify/functions/lemonsqueezyResolveLink', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${useAuthStore.getState().session?.access_token || ''}`,
-        },
-      });
-
-      if (response.ok) {
-        const { url } = await response.json();
-        window.location.href = url;
-      } else {
-        const error = await response.json().catch(() => ({ error: isEnglishCopy ? 'Failed to open checkout' : 'チェックアウトの起動に失敗しました' }));
-        alert(`Error: ${error.error}`);
-      }
-    } catch {
-      alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
-    } finally {
-      setLoading(null);
-    }
+    window.location.href = '/main#account';
   };
 
   const renderCellValue = (value: string) => {

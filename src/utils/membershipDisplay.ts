@@ -59,7 +59,23 @@ export function getMembershipDisplayLabel(
   locale: 'ja' | 'en',
 ): string {
   const tier = getDisplayMembershipTier(rank, billingPayload);
-  return getMembershipLabel(tier === 'premium' ? 'premium' : 'free', locale);
+  const base = getMembershipLabel(tier === 'premium' ? 'premium' : 'free', locale);
+  if (tier !== 'premium' || !billingPayload) {
+    return base;
+  }
+  const interval = getPlanIntervalLabel(billingPayload.plan_code, locale);
+  if (!interval) return base;
+  return locale === 'en' ? `${base} (${interval})` : `${base}（${interval}）`;
+}
+
+export function getPlanIntervalLabel(planCode: string, locale: 'ja' | 'en'): string | null {
+  if (planCode === 'core_monthly') {
+    return locale === 'en' ? 'Monthly plan' : '月額プラン';
+  }
+  if (planCode === 'core_yearly') {
+    return locale === 'en' ? 'Yearly plan' : '年額プラン';
+  }
+  return null;
 }
 
 /**

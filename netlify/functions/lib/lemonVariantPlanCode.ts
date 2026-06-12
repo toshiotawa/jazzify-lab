@@ -1,3 +1,10 @@
+import {
+  buildLemonVariantIdLists as buildCatalogVariantIdLists,
+  planCodeForVariantId,
+  readLemonPlanCatalogFromProcessEnv,
+  type LemonPlanCatalogEnv,
+} from './lemonPlanCatalog';
+
 /**
  * Lemon Squeezy variant_id から plan_code を判定する。
  * Webhook 側の source of truth。custom_data.plan は使わない。
@@ -20,25 +27,15 @@ export function planCodeForLemonVariant(
   return null;
 }
 
-export function buildLemonVariantIdLists(env: {
-  premium?: string;
-  premiumTrial?: string;
-  premiumYearly?: string;
-  premiumYearlyTrial?: string;
-  standardGlobal?: string;
-  standardGlobalTrial?: string;
-}): { yearlyVariantIds: string[]; monthlyVariantIds: string[] } {
-  const monthlyVariantIds = [
-    env.premium,
-    env.premiumTrial,
-    env.standardGlobal,
-    env.standardGlobalTrial,
-  ].filter((v): v is string => Boolean(v));
-
-  const yearlyVariantIds = [
-    env.premiumYearly,
-    env.premiumYearlyTrial,
-  ].filter((v): v is string => Boolean(v));
-
-  return { yearlyVariantIds, monthlyVariantIds };
+export function buildLemonVariantIdLists(env: LemonPlanCatalogEnv): {
+  yearlyVariantIds: string[];
+  monthlyVariantIds: string[];
+} {
+  const lists = buildCatalogVariantIdLists(env);
+  return {
+    yearlyVariantIds: lists.yearlyVariantIds,
+    monthlyVariantIds: lists.monthlyVariantIds,
+  };
 }
+
+export { planCodeForVariantId, readLemonPlanCatalogFromProcessEnv };

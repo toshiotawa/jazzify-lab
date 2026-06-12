@@ -22,6 +22,13 @@ export function periodEndMsFromAttrs(attrs: Record<string, unknown> | undefined)
   return Number.isFinite(ms) ? ms : 0;
 }
 
+function mapCancelledEntitlement(periodStillActive: boolean): LemonSubscriptionMapping {
+  return {
+    status: 'canceled',
+    entitlementState: periodStillActive ? 'cancelled_but_active_until_end' : 'expired',
+  };
+}
+
 export function mapLemonStatusToSubscription(
   eventName: string,
   lemonStatus: string | undefined,
@@ -44,30 +51,22 @@ export function mapLemonStatusToSubscription(
         return { status: 'past_due', entitlementState: 'payment_issue_with_access' };
       }
       if (lemonStatus === 'unpaid') return { status: 'expired', entitlementState: 'expired' };
-      if (lemonStatus === 'paused') {
-        return {
-          status: 'canceled',
-          entitlementState: periodStillActive ? 'cancelled_but_active_until_end' : 'expired',
-        };
+      if (lemonStatus === 'expired') return { status: 'expired', entitlementState: 'expired' };
+      if (lemonStatus === 'cancelled' || lemonStatus === 'paused') {
+        return mapCancelledEntitlement(periodStillActive);
       }
       return { status: 'active', entitlementState: 'active' };
     case 'subscription_payment_success':
       if (lemonStatus === 'on_trial') return { status: 'trial', entitlementState: 'active' };
       return { status: 'active', entitlementState: 'active' };
     case 'subscription_cancelled':
-      return {
-        status: 'canceled',
-        entitlementState: periodStillActive ? 'cancelled_but_active_until_end' : 'expired',
-      };
+      return mapCancelledEntitlement(periodStillActive);
     case 'subscription_expired':
       return { status: 'expired', entitlementState: 'expired' };
     case 'subscription_resumed':
       return { status: 'active', entitlementState: 'active' };
     case 'subscription_paused':
-      return {
-        status: 'canceled',
-        entitlementState: periodStillActive ? 'cancelled_but_active_until_end' : 'expired',
-      };
+      return mapCancelledEntitlement(periodStillActive);
     case 'order_refunded':
       return { status: 'expired', entitlementState: 'expired' };
     default:

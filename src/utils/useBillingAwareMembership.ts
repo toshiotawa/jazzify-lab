@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import {
+  clearBillingStatusCache,
   fetchBillingStatusPayload,
   type BillingStatusPayload,
 } from '@/utils/billingStatusClient';
@@ -16,6 +17,7 @@ export interface BillingAwareMembership {
   isPremiumMember: boolean;
   planLabel: string;
   effectiveRank: MembershipRank;
+  refetchBilling: () => Promise<void>;
 }
 
 /**
@@ -25,6 +27,12 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
   const session = useAuthStore(s => s.session);
   const profile = useAuthStore(s => s.profile);
   const [billingPayload, setBillingPayload] = useState<BillingStatusPayload | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+
+  const refetchBilling = useCallback(async (): Promise<void> => {
+    clearBillingStatusCache();
+    setRefreshNonce(n => n + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,7 +49,7 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
     return () => {
       cancelled = true;
     };
-  }, [session?.access_token]);
+  }, [session?.access_token, refreshNonce]);
 
   const isPremiumMember = useMemo(
     () => isPremiumForDisplay(profile?.rank, billingPayload),
@@ -63,5 +71,6 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
     isPremiumMember,
     planLabel,
     effectiveRank,
+    refetchBilling,
   };
 }

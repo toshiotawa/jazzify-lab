@@ -14,7 +14,11 @@ const payload = (entitlement_state: string): BillingStatusPayload => ({
   entitlement_state,
   plan_code: 'core_monthly',
   trial_used: false,
+  trial_used_at: null,
   current_period_ends_at: null,
+  can_change_plan: false,
+  can_resume: false,
+  can_manage_payment: false,
 });
 
 describe('membershipDisplay', () => {
@@ -52,9 +56,9 @@ describe('membershipDisplay', () => {
   });
 
   describe('getMembershipDisplayLabel', () => {
-    it('returns localized labels from display tier', () => {
-      expect(getMembershipDisplayLabel('free', payload('active'), 'ja')).toBe('プレミアム');
-      expect(getMembershipDisplayLabel('free', payload('active'), 'en')).toBe('Premium');
+    it('returns localized labels from display tier with plan interval when available', () => {
+      expect(getMembershipDisplayLabel('free', payload('active'), 'ja')).toBe('プレミアム（月額プラン）');
+      expect(getMembershipDisplayLabel('free', payload('active'), 'en')).toBe('Premium (Monthly plan)');
       expect(getMembershipDisplayLabel('free', null, 'ja')).toBe('フリー');
     });
   });

@@ -7,7 +7,11 @@ export interface BillingStatusPayload {
   entitlement_state: string;
   plan_code: string;
   trial_used: boolean;
+  trial_used_at: string | null;
   current_period_ends_at: string | null;
+  can_change_plan: boolean;
+  can_resume: boolean;
+  can_manage_payment: boolean;
 }
 
 let cache: { payload: BillingStatusPayload; fetchedAt: number } | null = null;

@@ -202,6 +202,15 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     }
     if (mapped.trialUsed !== undefined) {
       upsertData.trial_used = mapped.trialUsed;
+      if (mapped.trialUsed) {
+        upsertData.trial_used_at = new Date().toISOString();
+      }
+    } else if (
+      eventName === 'subscription_created' &&
+      (lemonStatus === 'on_trial' || trialEndsAt)
+    ) {
+      upsertData.trial_used = true;
+      upsertData.trial_used_at = new Date().toISOString();
     }
 
     await supabase.from('subscriptions').upsert(upsertData, { onConflict: 'user_id' });
@@ -217,8 +226,12 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     }
     if (mapped.trialUsed !== undefined) {
       profileUpdates.lemon_trial_used = mapped.trialUsed;
+      if (mapped.trialUsed) {
+        profileUpdates.lemon_trial_used_at = new Date().toISOString();
+      }
     } else if (lemonStatus === 'on_trial') {
       profileUpdates.lemon_trial_used = true;
+      profileUpdates.lemon_trial_used_at = new Date().toISOString();
     }
 
     await supabase.from('profiles').update(profileUpdates).eq('id', userId);

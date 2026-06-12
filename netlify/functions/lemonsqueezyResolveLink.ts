@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { resolveCheckoutVariants } from './lib/lemonPlanCatalog';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -42,43 +43,6 @@ const responseHeaders: Record<string, string> = {
   'Content-Type': 'application/json',
 };
 
-interface CheckoutVariantPair {
-  monthlyVariantId: string;
-  yearlyVariantId: string;
-}
-
-const resolveCheckoutVariants = (trial: boolean): CheckoutVariantPair => {
-  if (trial) {
-    const monthlyVariantId =
-      process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL ||
-      process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL ||
-      '';
-    const yearlyVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL || '';
-    if (!monthlyVariantId && !yearlyVariantId) {
-      throw new Error(
-        'Missing trial variant env: LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL or LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL',
-      );
-    }
-    if (!monthlyVariantId || !yearlyVariantId) {
-      throw new Error('Both monthly and yearly trial variant IDs are required for checkout');
-    }
-    return { monthlyVariantId, yearlyVariantId };
-  }
-
-  const monthlyVariantId =
-    process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM ||
-    process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL ||
-    '';
-  const yearlyVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY || '';
-  if (!monthlyVariantId) {
-    throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM');
-  }
-  if (!yearlyVariantId) {
-    throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY');
-  }
-  return { monthlyVariantId, yearlyVariantId };
-};
-
 const createCheckout = async (params: {
   email: string;
   userId: string;
@@ -110,7 +74,7 @@ const createCheckout = async (params: {
         },
         product_options: {
           enabled_variants: enabledVariants,
-          redirect_url: `${siteUrl}/#dashboard`,
+          redirect_url: `${siteUrl}/main#account`,
         },
       },
       relationships: {

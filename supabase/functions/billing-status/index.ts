@@ -7,6 +7,60 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 
+type BillingCapabilities = {
+  can_change_plan: boolean;
+  can_resume: boolean;
+  can_manage_payment: boolean;
+};
+
+function deriveBillingCapabilities(
+  provider: string,
+  entitlementState: string,
+  status: string,
+): BillingCapabilities {
+  if (provider !== "lemon") {
+    return {
+      can_change_plan: false,
+      can_resume: false,
+      can_manage_payment: false,
+    };
+  }
+
+  const isActiveEntitlement = entitlementState === "active";
+  const isCancelledGrace = entitlementState === "cancelled_but_active_until_end";
+  const isPastDue = entitlementState === "payment_issue_with_access" || status === "past_due";
+
+  return {
+    can_change_plan: isActiveEntitlement,
+    can_resume: isCancelledGrace,
+    can_manage_payment: isActiveEntitlement || isCancelledGrace || isPastDue,
+  };
+}
+
+function buildBillingResponse(
+  provider: string,
+  status: string,
+  entitlementState: string,
+  planCode: string,
+  trialUsed: boolean,
+  trialUsedAt: string | null,
+  currentPeriodEndsAt: string | null,
+) {
+  const caps = deriveBillingCapabilities(provider, entitlementState, status);
+  return {
+    provider,
+    status,
+    entitlement_state: entitlementState,
+    plan_code: planCode,
+    trial_used: trialUsed,
+    trial_used_at: trialUsedAt,
+    current_period_ends_at: currentPeriodEndsAt,
+    can_change_plan: caps.can_change_plan,
+    can_resume: caps.can_resume,
+    can_manage_payment: caps.can_manage_payment,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -51,46 +105,49 @@ Deno.serve(async (req: Request) => {
     if (!subscription) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("rank, lemon_subscription_status, lemon_trial_used")
+        .select("rank, lemon_subscription_status, lemon_trial_used, lemon_trial_used_at")
         .eq("id", user.id)
         .single();
 
       const st = profile?.lemon_subscription_status;
       if (st === "past_due") {
-        return new Response(JSON.stringify({
-          provider: "lemon",
-          status: "past_due",
-          entitlement_state: "payment_issue_with_access",
-          plan_code: "unknown",
-          trial_used: profile?.lemon_trial_used ?? false,
-          current_period_ends_at: null,
-        }), {
+        return new Response(JSON.stringify(buildBillingResponse(
+          "lemon",
+          "past_due",
+          "payment_issue_with_access",
+          "unknown",
+          profile?.lemon_trial_used ?? false,
+          profile?.lemon_trial_used_at ?? null,
+          null,
+        )), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       const isLemonActive = st === "active" || st === "on_trial";
 
-      return new Response(JSON.stringify({
-        provider: isLemonActive ? "lemon" : "none",
-        status: isLemonActive ? (st === "on_trial" ? "trial" : "active") : "expired",
-        entitlement_state: isLemonActive ? "active" : "expired",
-        plan_code: "unknown",
-        trial_used: profile?.lemon_trial_used ?? false,
-        current_period_ends_at: null,
-      }), {
+      return new Response(JSON.stringify(buildBillingResponse(
+        isLemonActive ? "lemon" : "none",
+        isLemonActive ? (st === "on_trial" ? "trial" : "active") : "expired",
+        isLemonActive ? "active" : "expired",
+        "unknown",
+        profile?.lemon_trial_used ?? false,
+        profile?.lemon_trial_used_at ?? null,
+        null,
+      )), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({
-      provider: subscription.provider,
-      status: subscription.status,
-      entitlement_state: subscription.entitlement_state,
-      plan_code: subscription.plan_code,
-      trial_used: subscription.trial_used,
-      current_period_ends_at: subscription.current_period_ends_at,
-    }), {
+    return new Response(JSON.stringify(buildBillingResponse(
+      subscription.provider,
+      subscription.status,
+      subscription.entitlement_state,
+      subscription.plan_code,
+      subscription.trial_used,
+      subscription.trial_used_at ?? null,
+      subscription.current_period_ends_at,
+    )), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (_err) {
