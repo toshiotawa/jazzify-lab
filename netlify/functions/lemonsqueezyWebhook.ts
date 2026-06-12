@@ -3,7 +3,8 @@
  *
  * 責務: Lemon の現在状態を subscriptions / profiles にミラーするだけ。
  * - pending 系カラム（自前予約プラン変更・予約解約）には一切触れない。
- * - pending_cancel_status=scheduled 中の Lemon cancelled はミラーしない（cron 適用前の早期解約を無視）。
+ * - pending_cancel_status=scheduled/applying 中の Lemon cancelled はミラーしない。
+ * - last_pending_cancel_applied_at ありの cancelled は expired に上書き（即フリー化）。
  * - invoice 系イベント（subscription_payment_*）の payload は Subscription invoice object であり、
  *   サブスク状態の信頼ソースにしない。GET /v1/subscriptions/:id の結果のみミラーする。
  *   GET 失敗時は subscriptions を一切更新せず、イベント記録のみ行う。
@@ -24,7 +25,10 @@ import {
   type LemonSubscriptionObjectAttrs,
 } from './lib/lemonSubscriptionMirror';
 import { fetchLemonSubscription } from './lib/lemonNetlifyCommon';
-import { shouldBlockCancellationMirror } from './lib/lemonPendingCancelMirrorGuard';
+import {
+  applyImmediateExpireAfterPendingCancelApply,
+  shouldBlockCancellationMirror,
+} from './lib/lemonPendingCancelMirrorGuard';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -165,7 +169,7 @@ const fetchExistingSnapshot = async (
 ): Promise<ExistingSubscriptionSnapshot | null> => {
   const { data } = await supabase
     .from('subscriptions')
-    .select('plan_code, trial_used, provider_updated_at, pending_cancel_status')
+    .select('plan_code, trial_used, provider_updated_at, pending_cancel_status, last_pending_cancel_applied_at')
     .eq('user_id', userId)
     .maybeSingle();
   if (!data) return null;
@@ -176,6 +180,8 @@ const fetchExistingSnapshot = async (
       typeof data.provider_updated_at === 'string' ? data.provider_updated_at : null,
     pending_cancel_status:
       typeof data.pending_cancel_status === 'string' ? data.pending_cancel_status : null,
+    last_pending_cancel_applied_at:
+      typeof data.last_pending_cancel_applied_at === 'string' ? data.last_pending_cancel_applied_at : null,
   };
 };
 
@@ -326,25 +332,34 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       return ok({ received: true, skipped: mirror.reason });
     }
 
+    const mirrorColumns = applyImmediateExpireAfterPendingCancelApply(
+      mirror.columns,
+      existing?.last_pending_cancel_applied_at ?? null,
+    );
+
     const upsertData: Record<string, unknown> = {
       user_id: userId,
       provider: 'lemon',
       provider_subscription_id: source.subscriptionId || null,
-      ...mirror.columns,
+      ...mirrorColumns,
       updated_at: new Date().toISOString(),
     };
+    if (mirrorColumns.entitlement_state === 'active') {
+      upsertData.last_pending_cancel_applied_at = null;
+    }
     if (mirror.trialBecameUsed) {
       upsertData.trial_used_at = new Date().toISOString();
     }
 
     await supabase.from('subscriptions').upsert(upsertData, { onConflict: 'user_id' });
 
-    const rank = rankForSubscription('lemon', mirror.columns.entitlement_state);
+    const rank = rankForSubscription('lemon', mirrorColumns.entitlement_state);
     const lemonStatus = String(source.attrs.status ?? '').toLowerCase();
     const profileUpdates: Record<string, unknown> = {
       rank,
       lemon_subscription_id: source.subscriptionId || null,
-      lemon_subscription_status: lemonStatus || null,
+      lemon_subscription_status:
+        mirrorColumns.entitlement_state === 'expired' ? 'expired' : (lemonStatus || null),
     };
     if (mirror.columns.provider_customer_id) {
       profileUpdates.lemon_customer_id = mirror.columns.provider_customer_id;
@@ -358,7 +373,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
 
     await supabase.from('profiles').update(profileUpdates).eq('id', userId);
 
-    return ok({ received: true, status: mirror.columns.status });
+    return ok({ received: true, status: mirrorColumns.status });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', details: message }) };

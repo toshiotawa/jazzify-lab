@@ -97,6 +97,32 @@ const clearCancelWithEvent = async (
   await insertCancelEvent(supabase, row, eventType, details);
 };
 
+/** cron 適用後は Lemon grace を使わず即 expired（フリー）にする */
+const expireAfterPendingCancelApply = async (
+  supabase: SupabaseClient,
+  row: PendingCancelCandidateRow,
+  eventType: string,
+  details: Record<string, unknown>,
+): Promise<void> => {
+  const appliedAt = new Date().toISOString();
+  await supabase
+    .from('subscriptions')
+    .update({
+      ...CLEAR_PENDING_CANCEL_FIELDS,
+      status: 'expired',
+      entitlement_state: 'expired',
+      current_period_ends_at: null,
+      last_pending_cancel_applied_at: appliedAt,
+      updated_at: appliedAt,
+    })
+    .eq('user_id', row.user_id);
+  await supabase.from('profiles').update({
+    rank: 'free',
+    lemon_subscription_status: 'expired',
+  }).eq('id', row.user_id);
+  await insertCancelEvent(supabase, row, eventType, { ...details, immediate_expire: true });
+};
+
 const markCancelFailure = async (
   supabase: SupabaseClient,
   row: PendingCancelCandidateRow,
@@ -156,13 +182,9 @@ const processCancelRow = async (
       );
       return decision.reason;
     case 'mark_applied':
-      await clearCancelWithEvent(
-        supabase,
-        row,
-        'pending_cancel_applied',
-        { reason: decision.reason },
-        { last_pending_cancel_applied_at: new Date().toISOString() },
-      );
+      await expireAfterPendingCancelApply(supabase, row, 'pending_cancel_applied', {
+        reason: decision.reason,
+      });
       return decision.reason;
     case 'reschedule':
       await supabase
@@ -190,21 +212,7 @@ const processCancelRow = async (
         );
         return 'delete_failed';
       }
-      const subscriptionUpdates: Record<string, unknown> = {
-        ...CLEAR_PENDING_CANCEL_FIELDS,
-        status: 'canceled',
-        entitlement_state: 'cancelled_but_active_until_end',
-        last_pending_cancel_applied_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      if (cancelResult.endsAt) {
-        subscriptionUpdates.current_period_ends_at = cancelResult.endsAt;
-      }
-      await supabase.from('subscriptions').update(subscriptionUpdates).eq('user_id', row.user_id);
-      await supabase.from('profiles').update({
-        lemon_subscription_status: 'cancelled',
-      }).eq('id', row.user_id);
-      await insertCancelEvent(supabase, row, 'pending_cancel_applied', {
+      await expireAfterPendingCancelApply(supabase, row, 'pending_cancel_applied', {
         ends_at: cancelResult.endsAt,
       });
       return 'applied';

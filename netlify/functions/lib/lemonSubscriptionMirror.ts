@@ -30,6 +30,7 @@ export interface ExistingSubscriptionSnapshot {
   trial_used: boolean;
   provider_updated_at: string | null;
   pending_cancel_status?: string | null;
+  last_pending_cancel_applied_at?: string | null;
 }
 
 export interface SubscriptionMirrorContext {
