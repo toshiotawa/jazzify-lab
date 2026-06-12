@@ -1,17 +1,28 @@
+/**
+ * Lemon Squeezy Webhook（本番）。
+ *
+ * 責務: Lemon の現在状態を subscriptions / profiles にミラーするだけ。
+ * - pending 系カラム（自前予約プラン変更）には一切触れない。
+ * - invoice 系イベント（subscription_payment_*）の payload は Subscription invoice object であり、
+ *   サブスク状態の信頼ソースにしない。GET /v1/subscriptions/:id の結果のみミラーする。
+ *   GET 失敗時は subscriptions を一切更新せず、イベント記録のみ行う。
+ * - 古いイベントによる巻き戻りは provider_updated_at 比較で防御する。
+ */
+
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createHmac } from 'node:crypto';
 import {
   buildLemonVariantIdLists,
   planCodeForLemonVariant,
 } from './lib/lemonVariantPlanCode';
+import { isTrialVariant } from './lib/lemonPlanCatalog';
+import { rankForSubscription } from './lib/lemonSubscriptionMapping';
 import {
-  mapLemonStatusToSubscription,
-  rankForSubscription,
-} from './lib/lemonSubscriptionMapping';
-import {
-  resolvePlanCodeOnSubscriptionUpdated,
-  resolvePlanFieldsOnPaymentSuccess,
-} from './lib/pendingPlanChange';
+  buildSubscriptionMirror,
+  type ExistingSubscriptionSnapshot,
+  type LemonSubscriptionObjectAttrs,
+} from './lib/lemonSubscriptionMirror';
+import { fetchLemonSubscription } from './lib/lemonNetlifyCommon';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -22,20 +33,27 @@ interface NetlifyEvent {
 
 interface NetlifyContext {}
 
-type LemonEventType =
-  | 'subscription_created'
-  | 'subscription_updated'
-  | 'subscription_payment_success'
-  | 'subscription_expired'
-  | 'subscription_cancelled'
-  | 'subscription_resumed'
-  | 'subscription_paused'
-  | 'order_created'
-  | 'order_refunded';
+const SUBSCRIPTION_EVENT_NAMES = new Set([
+  'subscription_created',
+  'subscription_updated',
+  'subscription_cancelled',
+  'subscription_resumed',
+  'subscription_expired',
+  'subscription_paused',
+  'subscription_unpaused',
+  'subscription_plan_changed',
+]);
+
+const INVOICE_EVENT_NAMES = new Set([
+  'subscription_payment_success',
+  'subscription_payment_failed',
+  'subscription_payment_recovered',
+  'subscription_payment_refunded',
+]);
 
 interface LemonWebhookPayload {
   meta?: {
-    event_name?: LemonEventType;
+    event_name?: string;
     test_mode?: boolean;
     custom_data?: {
       user_id?: string;
@@ -46,17 +64,19 @@ interface LemonWebhookPayload {
     type: string;
     attributes: {
       status?: string;
+      cancelled?: boolean;
       user_name?: string | null;
       user_email?: string | null;
       product_id?: number | null;
       variant_id?: number | null;
       customer_id?: number | string | null;
       customer_email?: string | null;
-      subscription_id?: string | null;
+      subscription_id?: number | string | null;
       store_id?: number;
       renews_at?: string | null;
       ends_at?: string | null;
       trial_ends_at?: string | null;
+      updated_at?: string | null;
     };
     relationships?: Record<string, unknown>;
   };
@@ -121,6 +141,51 @@ const resolveUserId = async (
   return null;
 };
 
+const insertAuditEvent = async (
+  supabase: SupabaseClient,
+  userId: string | null,
+  eventType: string,
+  providerEventId: string,
+  payload: unknown,
+): Promise<void> => {
+  await supabase.from('subscription_events').insert({
+    user_id: userId,
+    provider: 'lemon',
+    event_type: eventType,
+    provider_event_id: providerEventId,
+    payload,
+  });
+};
+
+const fetchExistingSnapshot = async (
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<ExistingSubscriptionSnapshot | null> => {
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('plan_code, trial_used, provider_updated_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    plan_code: typeof data.plan_code === 'string' ? data.plan_code : null,
+    trial_used: data.trial_used === true,
+    provider_updated_at:
+      typeof data.provider_updated_at === 'string' ? data.provider_updated_at : null,
+  };
+};
+
+interface MirrorSource {
+  subscriptionId: string;
+  attrs: LemonSubscriptionObjectAttrs;
+}
+
+const ok = (body: Record<string, unknown>) => ({
+  statusCode: 200,
+  headers,
+  body: JSON.stringify(body),
+});
+
 export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers };
   if (event.httpMethod !== 'POST') {
@@ -132,8 +197,8 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const rawBody = event.isBase64Encoded ? Buffer.from(event.body ?? '', 'base64') : (event.body ?? '');
 
     try {
-      const ok = await verifySignature(rawBody, typeof signature === 'string' ? signature : undefined);
-      if (!ok) {
+      const verified = verifySignature(rawBody, typeof signature === 'string' ? signature : undefined);
+      if (!verified) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid signature' }) };
       }
     } catch {
@@ -146,138 +211,134 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const attrs = payload.data?.attributes ?? {};
 
     const customerId = String(attrs.customer_id ?? '');
-    const subscriptionId = String(attrs.subscription_id ?? payload.data?.id ?? '');
-    const lemonStatus = String(attrs.status ?? '').toLowerCase();
     const email = String(attrs.customer_email ?? attrs.user_email ?? '');
-    const variantId = attrs.variant_id;
+    const providerEventId = String(payload.data?.id ?? '');
 
     const supabase = getSupabaseServiceClient();
-
     const userId = await resolveUserId(supabase, customData?.user_id, customerId, email);
 
-    await supabase.from('subscription_events').insert({
-      user_id: userId,
-      provider: 'lemon',
-      event_type: eventName,
-      provider_event_id: String(payload.data?.id ?? ''),
-      payload,
-    });
+    await insertAuditEvent(supabase, userId, eventName, providerEventId, payload);
 
     if (!userId || !eventName) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ received: true, skipped: !userId ? 'user not found' : 'no event name' }),
-      };
+      return ok({ received: true, skipped: !userId ? 'user not found' : 'no event name' });
     }
 
-    const mapped = mapLemonStatusToSubscription(eventName, lemonStatus, attrs as Record<string, unknown>);
+    // order_refunded のみ会員資格を失効させる（plan / variant / trial / pending は触らない）
+    if (eventName === 'order_refunded') {
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'expired',
+          entitlement_state: 'expired',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+      await supabase.from('profiles').update({ rank: 'free' }).eq('id', userId);
+      return ok({ received: true, status: 'expired' });
+    }
+
+    // ミラー対象の Subscription object を決定する
+    let source: MirrorSource | null = null;
+
+    if (SUBSCRIPTION_EVENT_NAMES.has(eventName)) {
+      source = {
+        subscriptionId: String(payload.data?.id ?? ''),
+        attrs: {
+          status: attrs.status ?? null,
+          cancelled: attrs.cancelled ?? null,
+          variant_id: attrs.variant_id ?? null,
+          customer_id: attrs.customer_id ?? null,
+          renews_at: attrs.renews_at ?? null,
+          ends_at: attrs.ends_at ?? null,
+          trial_ends_at: attrs.trial_ends_at ?? null,
+          updated_at: attrs.updated_at ?? null,
+        },
+      };
+    } else if (INVOICE_EVENT_NAMES.has(eventName)) {
+      // invoice payload はサブスク状態の信頼ソースにせず、最新 Subscription を取りに行くトリガーとして使う
+      const subscriptionId = String(attrs.subscription_id ?? '');
+      if (!subscriptionId) {
+        return ok({ received: true, skipped: 'invoice without subscription_id' });
+      }
+      const lemonSub = await fetchLemonSubscription(subscriptionId);
+      if (!lemonSub) {
+        await insertAuditEvent(supabase, userId, 'lemon_subscription_get_failed', providerEventId, {
+          original_event: eventName,
+          subscription_id: subscriptionId,
+        });
+        return ok({ received: true, skipped: 'subscription fetch failed' });
+      }
+      const subAttrs = lemonSub.data.attributes;
+      source = {
+        subscriptionId: lemonSub.data.id,
+        attrs: {
+          status: subAttrs.status ?? null,
+          cancelled: subAttrs.cancelled ?? null,
+          variant_id: subAttrs.variant_id ?? null,
+          customer_id: subAttrs.customer_id ?? null,
+          renews_at: subAttrs.renews_at ?? null,
+          ends_at: subAttrs.ends_at ?? null,
+          trial_ends_at: subAttrs.trial_ends_at ?? null,
+          updated_at: subAttrs.updated_at ?? null,
+        },
+      };
+    } else {
+      // order_created 等はイベント記録のみ（subscription_created 側で状態が同期される）
+      return ok({ received: true, skipped: 'event recorded only' });
+    }
 
     const { yearlyVariantIds, monthlyVariantIds } = getVariantIdLists();
-    const variantPlanCode = planCodeForLemonVariant(variantId, yearlyVariantIds, monthlyVariantIds);
+    const variantPlanCode = planCodeForLemonVariant(source.attrs.variant_id, yearlyVariantIds, monthlyVariantIds);
+    const existing = await fetchExistingSnapshot(supabase, userId);
 
-    const { data: existingSub } = await supabase
-      .from('subscriptions')
-      .select('plan_code, pending_plan_code, pending_plan_effective_at')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const mirror = buildSubscriptionMirror(source.attrs, existing, {
+      variantPlanCode,
+      variantIsTrial: isTrialVariant(source.attrs.variant_id),
+      nowMs: Date.now(),
+    });
 
-    const existingPlanCode = existingSub?.plan_code ?? 'core_monthly';
-    const existingPendingPlanCode = existingSub?.pending_plan_code ?? null;
-
-    let planCode = variantPlanCode ?? existingPlanCode;
-    let pendingPlanCode: string | null = existingPendingPlanCode;
-    let pendingPlanEffectiveAt: string | null = existingSub?.pending_plan_effective_at ?? null;
-
-    if (eventName === 'subscription_payment_success') {
-      const resolved = resolvePlanFieldsOnPaymentSuccess(planCode);
-      planCode = resolved.plan_code;
-      pendingPlanCode = resolved.pending_plan_code;
-      pendingPlanEffectiveAt = resolved.pending_plan_effective_at;
-    } else if (eventName === 'subscription_updated' && variantPlanCode) {
-      if (existingPendingPlanCode !== null) {
-        planCode = resolvePlanCodeOnSubscriptionUpdated(
-          existingPlanCode,
-          existingPendingPlanCode,
-          variantPlanCode,
-        );
-        if (variantPlanCode === existingPlanCode) {
-          pendingPlanCode = null;
-          pendingPlanEffectiveAt = null;
-        } else {
-          pendingPlanCode = existingPendingPlanCode;
-        }
-      } else if (variantPlanCode !== existingPlanCode) {
-        planCode = existingPlanCode;
-        pendingPlanCode = variantPlanCode;
-      } else {
-        planCode = variantPlanCode;
-      }
-    }
-
-    const renewsAt = attrs.renews_at;
-    const endsAt = attrs.ends_at;
-    const trialEndsAt = attrs.trial_ends_at;
-    const periodEndsAt = endsAt || renewsAt || trialEndsAt || null;
-
-    if (pendingPlanCode !== null && periodEndsAt) {
-      pendingPlanEffectiveAt = periodEndsAt;
+    if (mirror.kind === 'skipped') {
+      await insertAuditEvent(supabase, userId, 'stale_provider_update', providerEventId, {
+        original_event: eventName,
+        incoming_updated_at: source.attrs.updated_at ?? null,
+        existing_provider_updated_at: existing?.provider_updated_at ?? null,
+      });
+      return ok({ received: true, skipped: mirror.reason });
     }
 
     const upsertData: Record<string, unknown> = {
       user_id: userId,
       provider: 'lemon',
-      provider_customer_id: customerId || null,
-      provider_subscription_id: subscriptionId || null,
-      provider_variant_id: variantId != null ? String(variantId) : null,
-      plan_code: planCode,
-      pending_plan_code: pendingPlanCode,
-      pending_plan_effective_at: pendingPlanEffectiveAt,
-      status: mapped.status,
-      entitlement_state: mapped.entitlementState,
+      provider_subscription_id: source.subscriptionId || null,
+      ...mirror.columns,
       updated_at: new Date().toISOString(),
     };
-
-    if (periodEndsAt) {
-      upsertData.current_period_ends_at = periodEndsAt;
-    }
-    if (mapped.trialUsed !== undefined) {
-      upsertData.trial_used = mapped.trialUsed;
-      if (mapped.trialUsed) {
-        upsertData.trial_used_at = new Date().toISOString();
-      }
-    } else if (
-      eventName === 'subscription_created' &&
-      (lemonStatus === 'on_trial' || trialEndsAt)
-    ) {
-      upsertData.trial_used = true;
+    if (mirror.trialBecameUsed) {
       upsertData.trial_used_at = new Date().toISOString();
     }
 
     await supabase.from('subscriptions').upsert(upsertData, { onConflict: 'user_id' });
 
-    const rank = rankForSubscription('lemon', mapped.entitlementState);
+    const rank = rankForSubscription('lemon', mirror.columns.entitlement_state);
+    const lemonStatus = String(source.attrs.status ?? '').toLowerCase();
     const profileUpdates: Record<string, unknown> = {
       rank,
-      lemon_subscription_id: subscriptionId || null,
+      lemon_subscription_id: source.subscriptionId || null,
       lemon_subscription_status: lemonStatus || null,
     };
-    if (customerId) {
-      profileUpdates.lemon_customer_id = customerId;
+    if (mirror.columns.provider_customer_id) {
+      profileUpdates.lemon_customer_id = mirror.columns.provider_customer_id;
     }
-    if (mapped.trialUsed !== undefined) {
-      profileUpdates.lemon_trial_used = mapped.trialUsed;
-      if (mapped.trialUsed) {
+    if (mirror.columns.trial_used) {
+      profileUpdates.lemon_trial_used = true;
+      if (mirror.trialBecameUsed) {
         profileUpdates.lemon_trial_used_at = new Date().toISOString();
       }
-    } else if (lemonStatus === 'on_trial') {
-      profileUpdates.lemon_trial_used = true;
-      profileUpdates.lemon_trial_used_at = new Date().toISOString();
     }
 
     await supabase.from('profiles').update(profileUpdates).eq('id', userId);
 
-    return { statusCode: 200, headers, body: JSON.stringify({ received: true, status: mapped.status }) };
+    return ok({ received: true, status: mirror.columns.status });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', details: message }) };

@@ -1,11 +1,7 @@
-import { noTrialVariantForPlanCode } from './lib/lemonPlanCatalog';
-import { assertSubscriptionActionAllowed } from './lib/lemonSubscriptionGuard';
 import {
   authenticateRequest,
   billingCorsHeaders,
-  fetchLemonSubscription,
   getUserLemonSubscription,
-  patchLemonSubscriptionVariant,
 } from './lib/lemonNetlifyCommon';
 
 interface NetlifyEvent {
@@ -46,63 +42,36 @@ export const handler = async (event: NetlifyEvent) => {
       };
     }
 
-    if (!subscriptionRow.pending_plan_code) {
+    if (subscriptionRow.pending_status === null) {
       return {
         statusCode: 409,
         headers: billingCorsHeaders,
         body: JSON.stringify({ error: 'No pending plan change to cancel' }),
       };
     }
-
-    const lemonSub = await fetchLemonSubscription(subscriptionRow.provider_subscription_id);
-    if (!lemonSub) {
+    if (subscriptionRow.pending_status === 'applying') {
       return {
-        statusCode: 502,
+        statusCode: 409,
         headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Failed to fetch subscription from Lemon Squeezy' }),
+        body: JSON.stringify({ error: 'Plan change is currently being applied' }),
       };
     }
 
-    const attrs = lemonSub.data.attributes;
-    const guard = assertSubscriptionActionAllowed(
-      {
-        status: String(attrs.status ?? ''),
-        cancelled: attrs.cancelled === true,
-        ends_at: attrs.ends_at ?? null,
-      },
-      subscriptionRow.entitlement_state,
-      'change_plan',
-    );
-    if (!guard.allowed) {
-      return {
-        statusCode: 403,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: guard.reason ?? 'Plan change cancellation not allowed' }),
-      };
-    }
-
-    const variantId = noTrialVariantForPlanCode(subscriptionRow.plan_code);
-    const patchResult = await patchLemonSubscriptionVariant(
-      subscriptionRow.provider_subscription_id,
-      variantId,
-    );
-
-    if (!patchResult.ok) {
-      return {
-        statusCode: 502,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({
-          error: 'Failed to cancel pending plan change on Lemon Squeezy',
-          details: patchResult.details,
-        }),
-      };
-    }
+    const cancelledPendingPlanCode = subscriptionRow.pending_plan_code;
 
     const { error: updateError } = await supabase
       .from('subscriptions')
       .update({
         pending_plan_code: null,
         pending_plan_effective_at: null,
+        pending_provider_variant_id: null,
+        pending_from_provider_variant_id: null,
+        pending_effective_at_snapshot: null,
+        pending_status: null,
+        pending_locked_at: null,
+        pending_failed_reason: null,
+        pending_attempts: 0,
+        last_pending_plan_cancelled_at: new Date().toISOString(),
       })
       .eq('user_id', userId);
 
@@ -113,6 +82,17 @@ export const handler = async (event: NetlifyEvent) => {
         body: JSON.stringify({ error: 'Failed to clear pending plan change' }),
       };
     }
+
+    await supabase.from('subscription_events').insert({
+      user_id: userId,
+      provider: 'lemon',
+      event_type: 'pending_plan_cancelled',
+      provider_event_id: subscriptionRow.provider_subscription_id,
+      payload: {
+        reason: 'user_cancelled',
+        cancelled_pending_plan_code: cancelledPendingPlanCode,
+      },
+    });
 
     return {
       statusCode: 200,

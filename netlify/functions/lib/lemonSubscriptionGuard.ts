@@ -6,7 +6,6 @@ export type SubscriptionAction =
   | 'change_plan'
   | 'resume'
   | 'manage_payment'
-  | 'billing_history'
   | 'cancel';
 
 export interface BillingCapabilities {
@@ -91,14 +90,10 @@ export function assertSubscriptionActionAllowed(
       return { allowed: true };
     }
     case 'manage_payment':
-    case 'billing_history':
     case 'cancel': {
       const caps = deriveBillingCapabilities('lemon', dbEntitlementState, lemonStatus === 'on_trial' ? 'trial' : lemonStatus);
       if (action === 'manage_payment' && !caps.can_manage_payment) {
         return { allowed: false, reason: 'Payment management is not available' };
-      }
-      if (action === 'billing_history' && !caps.can_manage_payment) {
-        return { allowed: false, reason: 'Billing history is not available' };
       }
       if (action === 'cancel') {
         if (dbEntitlementState !== 'active') {

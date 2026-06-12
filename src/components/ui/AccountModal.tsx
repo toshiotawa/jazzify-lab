@@ -11,10 +11,14 @@ import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import {
   changeLemonPlan,
   cancelPendingLemonPlanChange,
+  cancelLemonSubscriptionRequest,
   fetchLemonBillingLink,
+  fetchLemonInvoices,
   resumeLemonSubscription,
+  type LemonInvoiceItem,
 } from '@/utils/lemonBillingClient';
 import PlanChangeConfirmModal from '@/components/ui/PlanChangeConfirmModal';
+import CancelSubscriptionConfirmModal from '@/components/ui/CancelSubscriptionConfirmModal';
 import { getPlanIntervalLabel } from '@/utils/membershipDisplay';
 import { formatBillingAmountLabel } from '@/utils/premiumPricing';
 /**
@@ -61,6 +65,11 @@ const AccountPage: React.FC = () => {
   const [showPaywall, setShowPaywall] = useState(false);
   const [billingActionLoading, setBillingActionLoading] = useState<string | null>(null);
   const [planChangeTarget, setPlanChangeTarget] = useState<'monthly' | 'yearly' | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [invoicesExpanded, setInvoicesExpanded] = useState(false);
+  const [invoices, setInvoices] = useState<LemonInvoiceItem[] | null>(null);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoicesError, setInvoicesError] = useState(false);
 
   const refreshBillingStatus = useCallback(async () => {
     await refetchBilling();
@@ -73,7 +82,7 @@ const AccountPage: React.FC = () => {
     return d.toLocaleDateString(isEnglishCopy ? 'en-US' : 'ja-JP');
   }, [isEnglishCopy]);
 
-  const openBillingLink = useCallback(async (purpose: 'payment_method' | 'billing_history' | 'cancel') => {
+  const openBillingLink = useCallback(async (purpose: 'payment_method') => {
     setBillingActionLoading(purpose);
     try {
       const url = await fetchLemonBillingLink(purpose);
@@ -141,6 +150,53 @@ const AccountPage: React.FC = () => {
       setBillingActionLoading(null);
     }
   }, [isEnglishCopy, pushToast, refreshBillingStatus]);
+
+  const handleConfirmCancelSubscription = useCallback(async () => {
+    setBillingActionLoading('cancel');
+    try {
+      const result = await cancelLemonSubscriptionRequest();
+      if (result.ok) {
+        pushToast(
+          isEnglishCopy
+            ? 'Cancellation confirmed. You can use premium until the period ends'
+            : '解約を受け付けました。期間終了までご利用いただけます',
+          'success',
+        );
+        setShowCancelConfirm(false);
+        await refreshBillingStatus();
+      } else {
+        pushToast(
+          result.error ?? (isEnglishCopy ? 'Failed to cancel subscription' : '解約に失敗しました'),
+          'error',
+        );
+      }
+    } finally {
+      setBillingActionLoading(null);
+    }
+  }, [isEnglishCopy, pushToast, refreshBillingStatus]);
+
+  const handleToggleInvoices = useCallback(async () => {
+    if (invoicesExpanded) {
+      setInvoicesExpanded(false);
+      return;
+    }
+    setInvoicesExpanded(true);
+    if (invoicesLoading) return;
+    if (invoices !== null && !invoicesError) return;
+    setInvoicesLoading(true);
+    setInvoicesError(false);
+    try {
+      const fetched = await fetchLemonInvoices();
+      if (fetched === null) {
+        // invoices を null のままにして、次回展開時に再試行できるようにする
+        setInvoicesError(true);
+      } else {
+        setInvoices(fetched);
+      }
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }, [invoices, invoicesError, invoicesExpanded, invoicesLoading]);
   const handleNicknameSave = useCallback(async () => {
     const trimmed = nicknameValue.trim();
     if (!trimmed || trimmed === profile?.nickname) {
@@ -167,6 +223,7 @@ const AccountPage: React.FC = () => {
   const canCancelPendingPlanChange = billingPayload?.can_cancel_pending_plan_change === true;
   const canResume = billingPayload?.can_resume === true;
   const canManagePayment = billingPayload?.can_manage_payment === true;
+  const canCancelSubscription = billingPayload?.entitlement_state === 'active';
   const pendingPlanCode = billingPayload?.pending_plan_code ?? null;
   const pendingIntervalLabel = pendingPlanCode
     ? getPlanIntervalLabel(pendingPlanCode, localeCode)
@@ -652,41 +709,99 @@ const AccountPage: React.FC = () => {
                                 : (isEnglishCopy ? 'Resume subscription' : '解約を取り消す')}
                             </button>
                           )}
-                          {canManagePayment && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline w-full"
-                              disabled={billingActionLoading !== null}
-                              onClick={() => void openBillingLink('payment_method')}
-                            >
-                              {billingActionLoading === 'payment_method'
-                                ? (isEnglishCopy ? 'Opening…' : '開いています…')
-                                : (isEnglishCopy ? 'Update payment method' : '支払い方法を変更する')}
-                            </button>
-                          )}
-                          {canManagePayment && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline w-full"
-                              disabled={billingActionLoading !== null}
-                              onClick={() => void openBillingLink('billing_history')}
-                            >
-                              {billingActionLoading === 'billing_history'
-                                ? (isEnglishCopy ? 'Opening…' : '開いています…')
-                                : (isEnglishCopy ? 'Billing history & receipts' : '領収書・請求履歴を見る')}
-                            </button>
-                          )}
-                          {canChangePlan && (
+                          {canCancelSubscription && (
                             <button
                               type="button"
                               className="btn btn-sm btn-outline w-full text-red-300 border-red-700/50"
                               disabled={billingActionLoading !== null}
-                              onClick={() => void openBillingLink('cancel')}
+                              onClick={() => setShowCancelConfirm(true)}
                             >
                               {billingActionLoading === 'cancel'
-                                ? (isEnglishCopy ? 'Opening…' : '開いています…')
+                                ? (isEnglishCopy ? 'Processing…' : '処理中…')
                                 : (isEnglishCopy ? 'Cancel subscription' : '解約する')}
                             </button>
+                          )}
+                          {canManagePayment && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline w-full"
+                                disabled={billingActionLoading !== null}
+                                onClick={() => void openBillingLink('payment_method')}
+                              >
+                                {billingActionLoading === 'payment_method'
+                                  ? (isEnglishCopy ? 'Opening…' : '開いています…')
+                                  : (isEnglishCopy ? 'Update payment method' : '支払い方法を変更する')}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline w-full"
+                                disabled={billingActionLoading !== null || invoicesLoading}
+                                onClick={() => void handleToggleInvoices()}
+                              >
+                                {invoicesLoading
+                                  ? (isEnglishCopy ? 'Loading…' : '読み込み中…')
+                                  : (isEnglishCopy
+                                    ? (invoicesExpanded ? 'Hide billing history' : 'View billing history')
+                                    : (invoicesExpanded ? '請求履歴を閉じる' : '請求履歴を見る'))}
+                              </button>
+                              {invoicesExpanded && (
+                                <div className="rounded-lg border border-blue-700/20 bg-slate-900/40 p-2 space-y-2">
+                                  {invoicesLoading && (
+                                    <p className="text-xs text-gray-400">
+                                      {isEnglishCopy ? 'Loading…' : '読み込み中…'}
+                                    </p>
+                                  )}
+                                  {!invoicesLoading && invoicesError && (
+                                    <p className="text-xs text-red-300">
+                                      {isEnglishCopy
+                                        ? 'Failed to load billing history'
+                                        : '請求履歴を取得できませんでした'}
+                                    </p>
+                                  )}
+                                  {!invoicesLoading && !invoicesError && invoices?.length === 0 && (
+                                    <p className="text-xs text-gray-400">
+                                      {isEnglishCopy ? 'No billing history yet' : '請求履歴はまだありません'}
+                                    </p>
+                                  )}
+                                  {!invoicesLoading && !invoicesError && invoices && invoices.length > 0 && (
+                                    <ul className="space-y-2">
+                                      {invoices.map((invoice) => {
+                                        const dateLabel = formatPeriodEnd(invoice.created_at);
+                                        return (
+                                          <li
+                                            key={invoice.id}
+                                            className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-gray-300 border-b border-slate-700/50 pb-2 last:border-0 last:pb-0"
+                                          >
+                                            <div className="space-y-0.5">
+                                              {dateLabel && (
+                                                <p className="text-gray-200">{dateLabel}</p>
+                                              )}
+                                              {invoice.status_formatted && (
+                                                <p className="text-gray-400">{invoice.status_formatted}</p>
+                                              )}
+                                              {invoice.total_formatted && (
+                                                <p className="text-gray-300">{invoice.total_formatted}</p>
+                                              )}
+                                            </div>
+                                            {invoice.invoice_url && (
+                                              <a
+                                                href={invoice.invoice_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-300 hover:text-blue-200 underline shrink-0"
+                                              >
+                                                {isEnglishCopy ? 'Receipt' : '領収書'}
+                                              </a>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  )}
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
@@ -768,6 +883,15 @@ const AccountPage: React.FC = () => {
         loading={billingActionLoading === 'change_monthly' || billingActionLoading === 'change_yearly'}
         onClose={() => setPlanChangeTarget(null)}
         onConfirm={() => void confirmPlanChange()}
+      />
+      <CancelSubscriptionConfirmModal
+        open={showCancelConfirm}
+        periodEndLabel={periodEndLabel}
+        pendingPlanCode={pendingPlanCode}
+        isEnglishCopy={isEnglishCopy}
+        loading={billingActionLoading === 'cancel'}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={() => void handleConfirmCancelSubscription()}
       />
     </div>
   );

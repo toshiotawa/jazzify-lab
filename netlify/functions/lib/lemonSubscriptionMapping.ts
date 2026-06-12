@@ -5,73 +5,37 @@ export type EntitlementState =
   | 'cancelled_but_active_until_end'
   | 'expired';
 
-export interface LemonSubscriptionMapping {
+export interface LemonSubscriptionStateMapping {
   status: string;
   entitlementState: EntitlementState;
-  trialUsed?: boolean;
 }
 
-export function periodEndMsFromAttrs(attrs: Record<string, unknown> | undefined): number {
-  if (!attrs) return 0;
-  const endsAt = attrs.ends_at as string | undefined;
-  const renewsAt = attrs.renews_at as string | undefined;
-  const trialEndsAt = attrs.trial_ends_at as string | undefined;
-  const raw = endsAt || renewsAt || trialEndsAt;
-  if (!raw) return 0;
-  const ms = new Date(raw).getTime();
-  return Number.isFinite(ms) ? ms : 0;
-}
-
-function mapCancelledEntitlement(periodStillActive: boolean): LemonSubscriptionMapping {
-  return {
-    status: 'canceled',
-    entitlementState: periodStillActive ? 'cancelled_but_active_until_end' : 'expired',
-  };
-}
-
-export function mapLemonStatusToSubscription(
-  eventName: string,
-  lemonStatus: string | undefined,
-  attrs: Record<string, unknown> | undefined,
+/**
+ * Lemon Subscription object の現在状態から DB の status / entitlement_state を導出する。
+ * イベント名には依存しない（Webhook はオブジェクト状態のミラーに徹する）。
+ */
+export function mapLemonSubscriptionObjectState(
+  lemonStatus: string,
+  cancelled: boolean,
+  periodEndMs: number,
   nowMs: number = Date.now(),
-): LemonSubscriptionMapping {
-  const periodEndMs = periodEndMsFromAttrs(attrs);
-  const periodStillActive = periodEndMs > nowMs;
-
-  switch (eventName) {
-    case 'subscription_created':
-      if (lemonStatus === 'on_trial') {
-        return { status: 'trial', entitlementState: 'active', trialUsed: true };
-      }
-      return { status: 'active', entitlementState: 'active' };
-    case 'subscription_updated':
-      if (lemonStatus === 'on_trial') return { status: 'trial', entitlementState: 'active' };
-      if (lemonStatus === 'active') return { status: 'active', entitlementState: 'active' };
-      if (lemonStatus === 'past_due') {
-        return { status: 'past_due', entitlementState: 'payment_issue_with_access' };
-      }
-      if (lemonStatus === 'unpaid') return { status: 'expired', entitlementState: 'expired' };
-      if (lemonStatus === 'expired') return { status: 'expired', entitlementState: 'expired' };
-      if (lemonStatus === 'cancelled' || lemonStatus === 'paused') {
-        return mapCancelledEntitlement(periodStillActive);
-      }
-      return { status: 'active', entitlementState: 'active' };
-    case 'subscription_payment_success':
-      if (lemonStatus === 'on_trial') return { status: 'trial', entitlementState: 'active' };
-      return { status: 'active', entitlementState: 'active' };
-    case 'subscription_cancelled':
-      return mapCancelledEntitlement(periodStillActive);
-    case 'subscription_expired':
-      return { status: 'expired', entitlementState: 'expired' };
-    case 'subscription_resumed':
-      return { status: 'active', entitlementState: 'active' };
-    case 'subscription_paused':
-      return mapCancelledEntitlement(periodStillActive);
-    case 'order_refunded':
-      return { status: 'expired', entitlementState: 'expired' };
-    default:
-      return { status: 'active', entitlementState: 'active' };
+): LemonSubscriptionStateMapping {
+  if (lemonStatus === 'expired' || lemonStatus === 'unpaid') {
+    return { status: 'expired', entitlementState: 'expired' };
   }
+  if (cancelled || lemonStatus === 'cancelled' || lemonStatus === 'paused') {
+    return {
+      status: 'canceled',
+      entitlementState: periodEndMs > nowMs ? 'cancelled_but_active_until_end' : 'expired',
+    };
+  }
+  if (lemonStatus === 'on_trial') {
+    return { status: 'trial', entitlementState: 'active' };
+  }
+  if (lemonStatus === 'past_due') {
+    return { status: 'past_due', entitlementState: 'payment_issue_with_access' };
+  }
+  return { status: 'active', entitlementState: 'active' };
 }
 
 export function rankForSubscription(

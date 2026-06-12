@@ -8,7 +8,6 @@ import {
   billingCorsHeaders,
   fetchLemonSubscription,
   getUserLemonSubscription,
-  patchLemonSubscriptionVariant,
 } from './lib/lemonNetlifyCommon';
 
 interface NetlifyEvent {
@@ -86,7 +85,7 @@ export const handler = async (event: NetlifyEvent) => {
         body: JSON.stringify({ error: 'Already on the requested plan' }),
       };
     }
-    if (subscriptionRow.pending_plan_code === nextPlanCode) {
+    if (subscriptionRow.pending_status !== null) {
       return {
         statusCode: 409,
         headers: billingCorsHeaders,
@@ -121,31 +120,34 @@ export const handler = async (event: NetlifyEvent) => {
       };
     }
 
-    const variantId = noTrialVariantForPlanCode(nextPlanCode);
-    const patchResult = await patchLemonSubscriptionVariant(
-      subscriptionRow.provider_subscription_id,
-      variantId,
+    const effectiveAt = resolveEffectiveAt(
+      attrs.renews_at ?? null,
+      attrs.ends_at ?? null,
+      subscriptionRow.current_period_ends_at,
     );
-
-    if (!patchResult.ok) {
+    if (!effectiveAt) {
       return {
-        statusCode: 502,
+        statusCode: 409,
         headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Failed to change plan on Lemon Squeezy', details: patchResult.details }),
+        body: JSON.stringify({ error: 'Cannot determine next renewal date' }),
       };
     }
 
-    const pendingEffectiveAt = resolveEffectiveAt(
-      patchResult.renewsAt,
-      patchResult.endsAt,
-      subscriptionRow.current_period_ends_at,
-    );
+    const fromVariantId = attrs.variant_id != null ? String(attrs.variant_id) : null;
+    const pendingProviderVariantId = noTrialVariantForPlanCode(nextPlanCode);
 
     const { error: updateError } = await supabase
       .from('subscriptions')
       .update({
         pending_plan_code: nextPlanCode,
-        pending_plan_effective_at: pendingEffectiveAt,
+        pending_provider_variant_id: pendingProviderVariantId,
+        pending_from_provider_variant_id: fromVariantId,
+        pending_plan_effective_at: effectiveAt,
+        pending_effective_at_snapshot: effectiveAt,
+        pending_status: 'scheduled',
+        pending_locked_at: null,
+        pending_failed_reason: null,
+        pending_attempts: 0,
       })
       .eq('user_id', userId);
 
@@ -157,10 +159,23 @@ export const handler = async (event: NetlifyEvent) => {
       };
     }
 
+    await supabase.from('subscription_events').insert({
+      user_id: userId,
+      provider: 'lemon',
+      event_type: 'pending_plan_scheduled',
+      provider_event_id: subscriptionRow.provider_subscription_id,
+      payload: {
+        pending_plan_code: nextPlanCode,
+        pending_provider_variant_id: pendingProviderVariantId,
+        pending_from_provider_variant_id: fromVariantId,
+        pending_plan_effective_at: effectiveAt,
+      },
+    });
+
     return {
       statusCode: 200,
       headers: billingCorsHeaders,
-      body: JSON.stringify({ ok: true, scheduled: true }),
+      body: JSON.stringify({ ok: true, scheduled: true, effective_at: effectiveAt }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

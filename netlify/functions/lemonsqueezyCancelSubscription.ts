@@ -2,6 +2,7 @@ import { assertSubscriptionActionAllowed } from './lib/lemonSubscriptionGuard';
 import {
   authenticateRequest,
   billingCorsHeaders,
+  cancelLemonSubscription,
   fetchLemonSubscription,
   getUserLemonSubscription,
 } from './lib/lemonNetlifyCommon';
@@ -9,18 +10,7 @@ import {
 interface NetlifyEvent {
   httpMethod: string;
   headers: Record<string, string | undefined>;
-  body: string | null;
 }
-
-const parsePaymentMethodPurpose = (body: string | null): boolean => {
-  if (!body) return false;
-  try {
-    const parsed = JSON.parse(body) as { purpose?: unknown };
-    return parsed.purpose === 'payment_method';
-  } catch {
-    return false;
-  }
-};
 
 export const handler = async (event: NetlifyEvent) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -35,14 +25,6 @@ export const handler = async (event: NetlifyEvent) => {
   }
 
   try {
-    if (!parsePaymentMethodPurpose(event.body)) {
-      return {
-        statusCode: 400,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Invalid purpose. Use payment_method.' }),
-      };
-    }
-
     const authHeader = event.headers.authorization || event.headers.Authorization;
     const authResult = await authenticateRequest(authHeader);
     if ('error' in authResult) {
@@ -80,30 +62,71 @@ export const handler = async (event: NetlifyEvent) => {
         ends_at: attrs.ends_at ?? null,
       },
       subscriptionRow.entitlement_state,
-      'manage_payment',
+      'cancel',
     );
     if (!guard.allowed) {
       return {
         statusCode: 403,
         headers: billingCorsHeaders,
-        body: JSON.stringify({ error: guard.reason ?? 'Action not allowed' }),
+        body: JSON.stringify({ error: guard.reason ?? 'Cancellation not allowed' }),
       };
     }
 
-    const url = attrs.urls?.update_payment_method ?? null;
-
-    if (!url) {
+    const cancelResult = await cancelLemonSubscription(subscriptionRow.provider_subscription_id);
+    if (!cancelResult.ok) {
       return {
-        statusCode: 404,
+        statusCode: 502,
         headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Billing URL not available' }),
+        body: JSON.stringify({
+          error: 'Failed to cancel subscription on Lemon Squeezy',
+          details: cancelResult.details,
+        }),
       };
+    }
+
+    if (subscriptionRow.pending_status !== null) {
+      const cancelledPendingPlanCode = subscriptionRow.pending_plan_code;
+
+      const { error: updateError } = await supabase
+        .from('subscriptions')
+        .update({
+          pending_plan_code: null,
+          pending_plan_effective_at: null,
+          pending_provider_variant_id: null,
+          pending_from_provider_variant_id: null,
+          pending_effective_at_snapshot: null,
+          pending_status: null,
+          pending_locked_at: null,
+          pending_failed_reason: null,
+          pending_attempts: 0,
+          last_pending_plan_cancelled_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      if (updateError) {
+        return {
+          statusCode: 500,
+          headers: billingCorsHeaders,
+          body: JSON.stringify({ error: 'Failed to clear pending plan change' }),
+        };
+      }
+
+      await supabase.from('subscription_events').insert({
+        user_id: userId,
+        provider: 'lemon',
+        event_type: 'pending_plan_cancelled',
+        provider_event_id: subscriptionRow.provider_subscription_id,
+        payload: {
+          reason: 'subscription_cancelled',
+          cancelled_pending_plan_code: cancelledPendingPlanCode,
+        },
+      });
     }
 
     return {
       statusCode: 200,
       headers: billingCorsHeaders,
-      body: JSON.stringify({ url, purpose: 'payment_method' }),
+      body: JSON.stringify({ ok: true, ends_at: cancelResult.endsAt }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

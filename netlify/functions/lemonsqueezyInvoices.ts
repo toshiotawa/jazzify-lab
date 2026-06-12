@@ -1,26 +1,14 @@
-import { assertSubscriptionActionAllowed } from './lib/lemonSubscriptionGuard';
 import {
   authenticateRequest,
   billingCorsHeaders,
-  fetchLemonSubscription,
+  fetchLemonSubscriptionInvoices,
   getUserLemonSubscription,
 } from './lib/lemonNetlifyCommon';
 
 interface NetlifyEvent {
   httpMethod: string;
   headers: Record<string, string | undefined>;
-  body: string | null;
 }
-
-const parsePaymentMethodPurpose = (body: string | null): boolean => {
-  if (!body) return false;
-  try {
-    const parsed = JSON.parse(body) as { purpose?: unknown };
-    return parsed.purpose === 'payment_method';
-  } catch {
-    return false;
-  }
-};
 
 export const handler = async (event: NetlifyEvent) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -35,14 +23,6 @@ export const handler = async (event: NetlifyEvent) => {
   }
 
   try {
-    if (!parsePaymentMethodPurpose(event.body)) {
-      return {
-        statusCode: 400,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Invalid purpose. Use payment_method.' }),
-      };
-    }
-
     const authHeader = event.headers.authorization || event.headers.Authorization;
     const authResult = await authenticateRequest(authHeader);
     if ('error' in authResult) {
@@ -63,47 +43,19 @@ export const handler = async (event: NetlifyEvent) => {
       };
     }
 
-    const lemonSub = await fetchLemonSubscription(subscriptionRow.provider_subscription_id);
-    if (!lemonSub) {
+    const invoices = await fetchLemonSubscriptionInvoices(subscriptionRow.provider_subscription_id);
+    if (invoices === null) {
       return {
         statusCode: 502,
         headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Failed to fetch subscription from Lemon Squeezy' }),
-      };
-    }
-
-    const attrs = lemonSub.data.attributes;
-    const guard = assertSubscriptionActionAllowed(
-      {
-        status: String(attrs.status ?? ''),
-        cancelled: attrs.cancelled === true,
-        ends_at: attrs.ends_at ?? null,
-      },
-      subscriptionRow.entitlement_state,
-      'manage_payment',
-    );
-    if (!guard.allowed) {
-      return {
-        statusCode: 403,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: guard.reason ?? 'Action not allowed' }),
-      };
-    }
-
-    const url = attrs.urls?.update_payment_method ?? null;
-
-    if (!url) {
-      return {
-        statusCode: 404,
-        headers: billingCorsHeaders,
-        body: JSON.stringify({ error: 'Billing URL not available' }),
+        body: JSON.stringify({ error: 'Failed to fetch invoices from Lemon Squeezy' }),
       };
     }
 
     return {
       statusCode: 200,
       headers: billingCorsHeaders,
-      body: JSON.stringify({ url, purpose: 'payment_method' }),
+      body: JSON.stringify({ invoices }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

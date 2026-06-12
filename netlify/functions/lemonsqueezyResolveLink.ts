@@ -22,7 +22,7 @@ interface LemonCheckoutCreateResponse {
   };
 }
 
-type LinkVia = 'checkout' | 'portal';
+type LinkVia = 'checkout';
 
 const ensureEnv = (key: string): string => {
   const val = process.env[key];
@@ -157,31 +157,6 @@ const resolveCustomerIdByEmail = async (email: string): Promise<string | null> =
   return first?.id ?? null;
 };
 
-interface LemonCustomerRetrieveResponse {
-  data: {
-    id: string;
-    type: 'customers';
-    attributes: {
-      email: string;
-      urls?: Record<string, string | undefined>;
-    };
-  };
-}
-
-const getCustomerPortalUrl = async (customerId: string): Promise<string | null> => {
-  const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
-  const res = await fetch(`https://api.lemonsqueezy.com/v1/customers/${customerId}`, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: 'application/vnd.api+json',
-    },
-  });
-  if (!res.ok) return null;
-  const json = (await res.json()) as LemonCustomerRetrieveResponse;
-  const urls = json?.data?.attributes?.urls ?? {};
-  return urls['customer_portal'] || urls['portal'] || urls['update_billing'] || null;
-};
-
 export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: responseHeaders };
@@ -219,37 +194,29 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       return { statusCode: 400, headers: responseHeaders, body: JSON.stringify({ error: 'Email is required for checkout. Please set your email in account settings.' }) };
     }
 
+    // 加入済みユーザーには新規チェックアウトを作らせない（二重課金防止）。
+    // 課金管理はアカウント画面の自前導線（プラン変更・解約・請求履歴）で行う。
     const hasSubscription = profile.rank && profile.rank !== 'free';
-    let via: LinkVia;
-    let url: string | null = null;
-
     if (hasSubscription) {
-      via = 'portal';
-      const customerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
-      if (!customerId) {
-        url = await createCheckout({ email, userId, trial: false });
-        via = 'checkout';
-      } else {
-        url = await getCustomerPortalUrl(customerId);
-        if (!url) {
-          url = await createCheckout({ email, userId, trial: false });
-          via = 'checkout';
-        }
-      }
-    } else {
-      let trial = true;
-      if (profile.lemon_trial_used === true) {
-        trial = false;
-      } else {
-        const existingCustomerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
-        if (existingCustomerId) {
-          trial = false;
-          await supabase.from('profiles').update({ lemon_trial_used: true, lemon_customer_id: existingCustomerId }).eq('id', userId);
-        }
-      }
-      url = await createCheckout({ email, userId, trial });
-      via = 'checkout';
+      return {
+        statusCode: 409,
+        headers: responseHeaders,
+        body: JSON.stringify({ error: 'Already subscribed. Manage your plan from the account page.' }),
+      };
     }
+
+    let trial = true;
+    if (profile.lemon_trial_used === true) {
+      trial = false;
+    } else {
+      const existingCustomerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
+      if (existingCustomerId) {
+        trial = false;
+        await supabase.from('profiles').update({ lemon_trial_used: true, lemon_customer_id: existingCustomerId }).eq('id', userId);
+      }
+    }
+    const url = await createCheckout({ email, userId, trial });
+    const via: LinkVia = 'checkout';
 
     return { statusCode: 200, headers: responseHeaders, body: JSON.stringify({ url, via }) };
   } catch (err) {

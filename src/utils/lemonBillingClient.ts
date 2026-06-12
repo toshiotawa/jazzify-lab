@@ -4,7 +4,7 @@
 
 import { useAuthStore } from '@/stores/authStore';
 
-export type BillingLinkPurpose = 'payment_method' | 'billing_history' | 'cancel';
+export type BillingLinkPurpose = 'payment_method';
 
 async function authHeaders(): Promise<Record<string, string>> {
   const token = useAuthStore.getState().session?.access_token ?? '';
@@ -54,4 +54,50 @@ export async function resumeLemonSubscription(): Promise<{ ok: boolean; error?: 
   if (response.ok) return { ok: true };
   const err = (await response.json().catch(() => null)) as { error?: string } | null;
   return { ok: false, error: err?.error ?? 'Failed to resume subscription' };
+}
+
+export async function cancelLemonSubscriptionRequest(): Promise<{ ok: boolean; error?: string }> {
+  const response = await fetch('/.netlify/functions/lemonsqueezyCancelSubscription', {
+    method: 'POST',
+    headers: await authHeaders(),
+  });
+  if (response.ok) return { ok: true };
+  const err = (await response.json().catch(() => null)) as { error?: string } | null;
+  return { ok: false, error: err?.error ?? 'Failed to cancel subscription' };
+}
+
+export interface LemonInvoiceItem {
+  id: string;
+  created_at: string | null;
+  status: string | null;
+  status_formatted: string | null;
+  total_formatted: string | null;
+  invoice_url: string | null;
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isLemonInvoiceItem(value: unknown): value is LemonInvoiceItem {
+  if (typeof value !== 'object' || value === null) return false;
+  if (!('id' in value) || typeof value.id !== 'string') return false;
+  if (!('created_at' in value) || !isNullableString(value.created_at)) return false;
+  if (!('status' in value) || !isNullableString(value.status)) return false;
+  if (!('status_formatted' in value) || !isNullableString(value.status_formatted)) return false;
+  if (!('total_formatted' in value) || !isNullableString(value.total_formatted)) return false;
+  if (!('invoice_url' in value) || !isNullableString(value.invoice_url)) return false;
+  return true;
+}
+
+export async function fetchLemonInvoices(): Promise<LemonInvoiceItem[] | null> {
+  const response = await fetch('/.netlify/functions/lemonsqueezyInvoices', {
+    method: 'POST',
+    headers: await authHeaders(),
+  });
+  if (!response.ok) return null;
+  const data = (await response.json().catch(() => null)) as { invoices?: unknown } | null;
+  if (!data || !Array.isArray(data.invoices)) return null;
+  if (!data.invoices.every(isLemonInvoiceItem)) return null;
+  return data.invoices;
 }
