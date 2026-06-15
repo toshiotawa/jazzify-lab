@@ -9,6 +9,7 @@ import {
   CHARACTER_DISPLAY_SIZE,
   CHARACTER_SHADOW_HEIGHT,
   CHARACTER_SHADOW_WIDTH,
+  EFFECT_ASSET_PATH,
   clampPercent,
   colorForHp,
   getChordHudLayout,
@@ -59,6 +60,71 @@ import {
 } from './earTrainingBattleBackground';
 
 const HUD_FONT = 'Arial, sans-serif';
+
+const RIM_SCALE = 1.048;
+const RIM_ALPHA = 0.12;
+const RIM_TINT_PLAYER = 'rgb(255, 195, 130)';
+const RIM_TINT_ENEMY = 'rgb(255, 175, 150)';
+
+let tintCanvas: HTMLCanvasElement | null = null;
+let tintCtx: CanvasRenderingContext2D | null = null;
+
+const getTintCanvasContext = (width: number, height: number): CanvasRenderingContext2D | null => {
+  if (typeof document === 'undefined') return null;
+  if (!tintCanvas) {
+    tintCanvas = document.createElement('canvas');
+    tintCtx = tintCanvas.getContext('2d');
+  }
+  if (!tintCtx || !tintCanvas) return null;
+  if (tintCanvas.width < width) tintCanvas.width = width;
+  if (tintCanvas.height < height) tintCanvas.height = height;
+  tintCtx.setTransform(1, 0, 0, 1, 0, 0);
+  tintCtx.globalCompositeOperation = 'source-over';
+  tintCtx.globalAlpha = 1;
+  tintCtx.clearRect(0, 0, width, height);
+  return tintCtx;
+};
+
+const drawTintedImageCopy = (
+  targetCtx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  tintColor: string,
+  tintAlpha: number,
+): void => {
+  const offCtx = getTintCanvasContext(width, height);
+  if (!offCtx || !tintCanvas) return;
+  offCtx.drawImage(img, 0, 0, width, height);
+  offCtx.globalCompositeOperation = 'source-atop';
+  offCtx.fillStyle = tintColor;
+  offCtx.fillRect(0, 0, width, height);
+  targetCtx.save();
+  targetCtx.globalAlpha = tintAlpha;
+  targetCtx.drawImage(tintCanvas, x, y, width, height);
+  targetCtx.restore();
+};
+
+const drawCharacterImage = (
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  drawX: number,
+  drawY: number,
+  drawW: number,
+  drawH: number,
+  flip: boolean,
+): void => {
+  ctx.save();
+  if (flip) {
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, -drawW / 2, drawY, drawW, drawH);
+  } else {
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+  }
+  ctx.restore();
+};
 
 const drawRoundedRect = (
   ctx: CanvasRenderingContext2D,
@@ -266,7 +332,7 @@ const drawCharacter = (
   const poseImg = poseKey && side === 'player' ? runtime.loadedImages.get(poseKey) : null;
   const img = poseImg ?? runtime.loadedImages.get(view.avatarUrl);
   const flashAlpha = getCharacterFlashAlpha(view, now);
-  const rimColor = side === 'player' ? 'rgba(255, 195, 130, 0.12)' : 'rgba(255, 175, 150, 0.12)';
+  const rimTint = side === 'player' ? RIM_TINT_PLAYER : RIM_TINT_ENEMY;
 
   ctx.save();
   ctx.translate(x, floorY + view.yOffset);
@@ -282,45 +348,38 @@ const drawCharacter = (
     const drawX = -drawW / 2;
     const drawY = -drawH;
     const flip = view.flipX && !poseImg;
-
-    ctx.save();
-    if (flip) {
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, -drawW / 2, drawY, drawW, drawH);
-    } else {
-      ctx.drawImage(img, drawX, drawY, drawW, drawH);
-    }
-    ctx.restore();
+    const rimW = drawW * RIM_SCALE;
+    const rimH = drawH * RIM_SCALE;
+    const rimOffsetX = (rimW - drawW) * 0.5;
+    const rimOffsetY = (rimH - drawH) * 0.5;
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 1;
-    const rimW = drawW * 1.048;
-    const rimH = drawH * 1.048;
     if (flip) {
       ctx.scale(-1, 1);
-      ctx.drawImage(img, -rimW / 2, drawY - (rimH - drawH) * 0.5, rimW, rimH);
+      drawTintedImageCopy(ctx, img, -rimW / 2, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
     } else {
-      ctx.drawImage(img, drawX - (rimW - drawW) * 0.5, drawY - (rimH - drawH) * 0.5, rimW, rimH);
+      drawTintedImageCopy(ctx, img, drawX - rimOffsetX, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
     }
-    ctx.globalCompositeOperation = 'source-atop';
-    ctx.fillStyle = rimColor;
-    ctx.fillRect(flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
     ctx.restore();
 
     ctx.save();
     ctx.globalAlpha = flashAlpha;
-    if (flip) {
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, -drawW / 2, drawY, drawW, drawH);
-    } else {
-      ctx.drawImage(img, drawX, drawY, drawW, drawH);
-    }
+    drawCharacterImage(ctx, img, drawX, drawY, drawW, drawH, flip);
     if (view.tintColor && now < view.tintUntil) {
-      ctx.globalCompositeOperation = 'source-atop';
-      ctx.fillStyle = view.tintColor;
-      ctx.globalAlpha = 0.45 * flashAlpha;
-      ctx.fillRect(flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
+      ctx.save();
+      if (flip) ctx.scale(-1, 1);
+      drawTintedImageCopy(
+        ctx,
+        img,
+        flip ? -drawW / 2 : drawX,
+        drawY,
+        drawW,
+        drawH,
+        view.tintColor,
+        0.45 * flashAlpha,
+      );
+      ctx.restore();
     }
     ctx.restore();
   } else {
@@ -684,59 +743,15 @@ const drawLobbyOverlay = (
   }
 };
 
-const drawLightningGuide = (
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  startY: number,
-  endY: number,
-  color: string,
-): void => {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 7;
-  ctx.beginPath();
-  ctx.moveTo(x, startY);
-  ctx.lineTo(x - 18, startY + 34);
-  ctx.lineTo(x + 16, startY + 70);
-  ctx.lineTo(x - 8, endY);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x + 2, startY);
-  ctx.lineTo(x - 12, startY + 34);
-  ctx.lineTo(x + 18, startY + 70);
-  ctx.lineTo(x - 4, endY);
-  ctx.stroke();
-};
-
-const drawSnowflakeGuide = (
+const drawEffectSpriteFallback = (
   ctx: CanvasRenderingContext2D,
   size: number,
+  color: string,
 ): void => {
-  ctx.strokeStyle = 'rgba(224, 242, 254, 0.96)';
-  ctx.lineWidth = 5;
-  for (let index = 0; index < 6; index += 1) {
-    const angle = (Math.PI * index) / 3;
-    const endX = Math.cos(angle) * size;
-    const endY = Math.sin(angle) * size;
-    ctx.beginPath();
-    ctx.moveTo(-endX, -endY);
-    ctx.lineTo(endX, endY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(endX * 0.68, endY * 0.68);
-    ctx.lineTo(Math.cos(angle + 0.52) * size * 0.82, Math.sin(angle + 0.52) * size * 0.82);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(endX * 0.68, endY * 0.68);
-    ctx.lineTo(Math.cos(angle - 0.52) * size * 0.82, Math.sin(angle - 0.52) * size * 0.82);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = 'rgba(56, 189, 248, 0.95)';
-  ctx.lineWidth = 2;
+  ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(0, 0, size * 0.46, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.ellipse(0, 0, size * 0.42, size * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
 };
 
 const drawStarShape = (
@@ -779,12 +794,13 @@ const drawEffectVisual = (
   ctx.rotate(rotation);
 
   const img = visual.imageKey ? runtime.loadedImages.get(visual.imageKey) : null;
-  if (img && (visual.kind === 'projectile' || visual.kind === 'meteor' || visual.kind === 'snowflake' || visual.kind === 'lightning' || visual.kind === 'cloud' || visual.kind === 'hammer' || visual.kind === 'magicCircle')) {
-    ctx.drawImage(img, -size / 2, -size / 2, size, size);
-  } else if (visual.kind === 'lightningGuide') {
-    drawLightningGuide(ctx, 0, -size / 2, size / 2, visual.color);
-  } else if (visual.kind === 'snowflakeGuide') {
-    drawSnowflakeGuide(ctx, size);
+  const spriteKinds: CanvasEffectVisual['kind'][] = ['projectile', 'meteor', 'snowflake', 'lightning', 'cloud', 'hammer', 'magicCircle'];
+  if (spriteKinds.includes(visual.kind)) {
+    if (img) {
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      drawEffectSpriteFallback(ctx, size, visual.color || '#ff851f');
+    }
   } else if (visual.kind === 'chantText' && visual.label) {
     ctx.fillStyle = '#fef08a';
     ctx.strokeStyle = '#7c2d12';
@@ -814,21 +830,11 @@ const drawEffectVisual = (
       ctx.lineWidth = visual.kind === 'aura' ? 5 : 2;
       ctx.stroke();
     }
-  } else if (visual.kind === 'lightning') {
-    drawLightningGuide(ctx, 0, -size / 2, size / 2, visual.color);
   } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark' || visual.kind === 'tail') {
     ctx.fillStyle = visual.color;
     ctx.beginPath();
     ctx.arc(0, 0, visual.size / 2, 0, Math.PI * 2);
     ctx.fill();
-  } else if (visual.kind === 'hammer') {
-    const hammerImg = runtime.loadedImages.get('hammer');
-    if (hammerImg) {
-      ctx.drawImage(hammerImg, -size / 2, -size / 2, size, size);
-    } else {
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillRect(-size / 4, -size / 2, size / 2, size);
-    }
   }
 
   ctx.restore();
@@ -976,12 +982,12 @@ export const preloadEarTrainingBattleImages = (
 };
 
 export const EFFECT_IMAGE_URLS: Record<string, string> = {
-  fireball: '/ear-training/tutorial-earcopy-test/transparent-fireball.webp',
-  fireRing: '/ear-training/tutorial-earcopy-test/transparent-fire-ring.webp',
-  snowflake: '/ear-training/tutorial-earcopy-test/transparent-snowflake.webp',
-  lightning: '/ear-training/tutorial-earcopy-test/transparent-lightning.webp',
-  meteor: '/ear-training/tutorial-earcopy-test/transparent-meteor.webp',
-  cloud: '/ear-training/tutorial-earcopy-test/transparent-cloud.webp',
+  fireball: `${EFFECT_ASSET_PATH}effect-fireball-transparent.webp`,
+  fireRing: `${EFFECT_ASSET_PATH}effect-fire-ring-transparent.webp`,
+  snowflake: `${EFFECT_ASSET_PATH}effect-snowflake-transparent.webp`,
+  lightning: `${EFFECT_ASSET_PATH}effect-lightning-transparent.webp`,
+  meteor: `${EFFECT_ASSET_PATH}effect-meteor-transparent.webp`,
+  cloud: `${EFFECT_ASSET_PATH}effect-cloud-transparent.webp`,
   hammer: '/hammer.svg',
   fukidashi: FUKIDASHI_ASSET_URL,
   magicCircle: MAGIC_CIRCLE_ASSET_URL,
