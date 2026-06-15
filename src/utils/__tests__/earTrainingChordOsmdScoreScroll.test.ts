@@ -1,5 +1,6 @@
 import {
   OSMD_BATTLE_PLAYHEAD_PX,
+  computeOsmdActiveMeasureHighlight,
   computeOsmdMeasureJumpScrollOffset,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 
@@ -68,5 +69,41 @@ describe('computeOsmdMeasureJumpScrollOffset', () => {
       viewportWidth: 400,
     });
     expect(result.offsetPx).toBe(0);
+  });
+});
+
+describe('computeOsmdActiveMeasureHighlight', () => {
+  it('現在小節の幅をプレイヘッド位置から塗りつぶす', () => {
+    const result = computeOsmdActiveMeasureHighlight({
+      activeMeasureNumber: 2,
+      measureBoundsByNumber: bounds,
+      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      effectiveScale: 1,
+    });
+    expect(result).toEqual({
+      leftPx: OSMD_BATTLE_PLAYHEAD_PX,
+      widthPx: 120,
+      visible: true,
+    });
+  });
+
+  it('effectiveScale を幅に反映する', () => {
+    const result = computeOsmdActiveMeasureHighlight({
+      activeMeasureNumber: 1,
+      measureBoundsByNumber: bounds,
+      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      effectiveScale: 1.5,
+    });
+    expect(result.widthPx).toBe(120);
+  });
+
+  it('小節境界が無い場合は非表示', () => {
+    const result = computeOsmdActiveMeasureHighlight({
+      activeMeasureNumber: 2,
+      measureBoundsByNumber: {},
+      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      effectiveScale: 1,
+    });
+    expect(result.visible).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay'
 import { cn } from '@/utils/cn';
 import {
   OSMD_BATTLE_PLAYHEAD_PX,
+  computeOsmdActiveMeasureHighlight,
   computeOsmdMeasureJumpScrollOffset,
   type OsmdMeasureBounds,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
@@ -424,6 +425,16 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
 
   const statusText = renderError ?? scoreErrorText;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
+  const effectiveScale = cssScale * userZoom;
+  const measureHighlight = useMemo(
+    () => computeOsmdActiveMeasureHighlight({
+      activeMeasureNumber,
+      measureBoundsByNumber: layout.measureBoundsByNumber,
+      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      effectiveScale,
+    }),
+    [activeMeasureNumber, effectiveScale, layout.measureBoundsByNumber],
+  );
 
   return (
     <>
@@ -436,6 +447,16 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
           hidden && 'invisible',
         )}
       >
+        {showPlayhead && measureHighlight.visible && (
+          <div
+            className="pointer-events-none absolute bottom-0 top-0 z-[9] bg-red-500/15"
+            style={{
+              left: `${measureHighlight.leftPx}px`,
+              width: `${measureHighlight.widthPx}px`,
+            }}
+            aria-hidden
+          />
+        )}
         {showPlayhead && (
           <div
             className="pointer-events-none absolute bottom-0 top-0 z-10 w-0.5 bg-red-500"

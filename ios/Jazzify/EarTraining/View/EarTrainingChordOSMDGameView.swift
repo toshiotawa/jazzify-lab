@@ -513,6 +513,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var lastRenderedKey: Int?
         private var lastRenderedZoom: Double?
         private var lastMeasureNumber: Int?
+        private var pendingOverlayVisible = false
 
         func attach(webView: WKWebView) {
             self.webView = webView
@@ -530,10 +531,11 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
 
         func configurePlayhead(show: Bool) {
+            pendingOverlayVisible = show
             guard let webView, htmlReady, !isTornDown else { return }
-            let display = show ? "block" : "none"
+            let visible = show ? "true" : "false"
             webView.evaluateJavaScript(
-                "var p=document.getElementById('playhead'); if(p){p.style.display='\(display)';}",
+                "window.JazzifyOSMD && window.JazzifyOSMD.setScoreOverlayVisible(\(visible));",
                 completionHandler: nil
             )
         }
@@ -594,8 +596,10 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 lastMeasureNumber = measure
                 let literal = Self.javaScriptStringLiteral(xml)
                 let z = Self.javascriptNumber(nextZoom)
+                let overlayVisible = pendingOverlayVisible ? "true" : "false"
                 let script = """
                 window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
+                  window.JazzifyOSMD.setScoreOverlayVisible(\(overlayVisible));
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
@@ -691,6 +695,17 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           z-index: 10;
           display: none;
         }
+        #measure-highlight {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 120px;
+          width: 0;
+          background: rgba(239, 68, 68, 0.15);
+          pointer-events: none;
+          z-index: 9;
+          display: none;
+        }
         #score canvas, #score svg {
           display: block;
           background: transparent !important;
@@ -709,6 +724,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     </head>
     <body>
       <div id="viewport">
+        <div id="measure-highlight"></div>
         <div id="playhead"></div>
         <div id="score"></div>
         <div id="status">Loading OSMD...</div>
@@ -724,6 +740,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let measureBoundsByNumber = {};
           let scoreWidth = 0;
           let cssScale = 1;
+          let overlayVisible = false;
+          let activeMeasureNumber = 1;
 
           function finiteNum(value) {
             return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -1056,14 +1074,51 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
           }
 
+          function updateMeasureHighlight() {
+            const highlight = document.getElementById('measure-highlight');
+            if (!highlight) {
+              return;
+            }
+            if (!overlayVisible) {
+              highlight.style.display = 'none';
+              return;
+            }
+            const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
+            const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
+            if (!bounds || !Number.isFinite(bounds.left) || !Number.isFinite(bounds.right)) {
+              highlight.style.display = 'none';
+              return;
+            }
+            const measureWidth = bounds.right - bounds.left;
+            if (!Number.isFinite(measureWidth) || measureWidth <= 0) {
+              highlight.style.display = 'none';
+              return;
+            }
+            highlight.style.left = PLAYHEAD_PX + 'px';
+            highlight.style.width = (measureWidth * cssScale) + 'px';
+            highlight.style.display = 'block';
+          }
+
+          function setScoreOverlayVisible(show) {
+            overlayVisible = !!show;
+            const playhead = document.getElementById('playhead');
+            if (playhead) {
+              playhead.style.display = overlayVisible ? 'block' : 'none';
+            }
+            updateMeasureHighlight();
+          }
+
           function setActiveMeasure(measureNumber) {
-            const offset = computeScrollOffset(measureNumber);
+            activeMeasureNumber = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            const offset = computeScrollOffset(activeMeasureNumber);
             score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
+            updateMeasureHighlight();
           }
 
           window.JazzifyOSMD = {
             renderMusicXML,
-            setActiveMeasure
+            setActiveMeasure,
+            setScoreOverlayVisible
           };
         })();
       </script>
