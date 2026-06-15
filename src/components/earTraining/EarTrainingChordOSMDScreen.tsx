@@ -929,7 +929,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           phraseLoopDurationSec: safeLoopDurationSec,
           timedLines: tutorial.scene.timedLines,
           isEnglishCopy,
-          onLine: tutorial.bindings.setCharacterText,
+          onLine: (text) => {
+            phaserGameRef.current?.setPlayerQuote(text);
+          },
           loopIndex: tutorialOsmdLoopRef.current,
           skipCountInForLoop: loopIdx => loopIdx > 0,
         });

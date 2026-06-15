@@ -386,6 +386,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 guard let self else { return }
                 guard self.phraseRunId == capturedRunId else { return }
                 guard self.gameState == .countIn || self.gameState == .playingPhrase else { return }
+                self.scene?.setPlayerQuote(text)
                 self.tutorialHooks?.onCharacterText(text)
             }
             tutorialOsmdTimedLineWorks.append(work)
