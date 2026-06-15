@@ -32,6 +32,7 @@ import {
   stopNote,
   updateGlobalVolume,
 } from '@/utils/MidiController';
+import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import {
   createChordVoicingAttempt,
   handleChordVoicingNoteOn,
@@ -406,8 +407,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
 
   useEffect(() => {
-    updateGlobalVolume(settings.midiVolume * settings.masterVolume);
-  }, [settings.masterVolume, settings.midiVolume]);
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
+  }, [settings.midiVolume]);
 
   const ensureSelfPacedDrumLoop = useCallback((): EarTrainingChordVoicingDrumLoop => {
     if (!selfPacedDrumLoopRef.current) {
@@ -969,7 +970,11 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     controller.setKeyHighlightCallback((note, active) => {
       pianoOverlayRef.current?.highlightKey(note, active);
     });
-    void controller.initialize().then(async () => {
+    void ensureBattlePianoAudio({
+      midiVolume: settings.midiVolume,
+      soundEffectVolume: settings.soundEffectVolume,
+      rootSoundVolume: settings.rootSoundVolume,
+    }).then(() => controller.initialize()).then(async () => {
       if (settings.selectedMidiDevice) {
         const connected = await controller.connectDevice(settings.selectedMidiDevice);
         setIsMidiConnected(connected);
@@ -995,7 +1000,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
-    void playNote(midiNote);
+    void playNote(midiNote, 100);
     handleNoteInputRef.current(midiNote);
   }, []);
 

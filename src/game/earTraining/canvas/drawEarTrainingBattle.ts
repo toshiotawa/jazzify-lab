@@ -20,6 +20,7 @@ import {
   getPhraseIntroY,
   getPhraseSlotViewport,
   HUD_HEIGHT,
+  MAGIC_CIRCLE_ASSET_URL,
   PHRASE_INTRO_EMPHASIS_FADE_MS,
   PHRASE_INTRO_FADE_MS,
   PLAYER_QUOTE_CORNER_RADIUS,
@@ -44,7 +45,18 @@ import {
   getEffectProgress,
   lerp,
 } from './earTrainingBattleDrawState';
-import { updateCharacterPositions } from './earTrainingBattleCharacterMotion';
+import {
+  getCharacterFlashAlpha,
+  updateCharacterPositions,
+} from './earTrainingBattleCharacterMotion';
+import {
+  applyWorldCameraTransform,
+  computeCameraTransform,
+} from './earTrainingBattleCamera';
+import {
+  drawCachedBackground,
+  PLAYER_POSE_IMAGE_URLS,
+} from './earTrainingBattleBackground';
 
 const HUD_FONT = 'Arial, sans-serif';
 
@@ -70,21 +82,13 @@ const drawRoundedRect = (
   ctx.closePath();
 };
 
-const drawBackground = (ctx: CanvasRenderingContext2D, width: number, height: number): void => {
-  ctx.fillStyle = '#0e0705';
-  ctx.fillRect(0, 0, width, height);
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, '#160b08');
-  grad.addColorStop(1, '#050505');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
-  const floorY = getFloorY(height);
-  ctx.strokeStyle = 'rgba(213, 138, 42, 0.35)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, floorY);
-  ctx.lineTo(width, floorY);
-  ctx.stroke();
+const drawBackground = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  runtime: EarTrainingBattleDrawRuntime,
+): void => {
+  drawCachedBackground(ctx, width, height, runtime.backgroundCache, runtime.loadedImages);
 };
 
 const drawHpBar = (
@@ -258,13 +262,18 @@ const drawCharacter = (
   updateCharacterPositions(view, now);
   const floorY = getFloorY(runtime.height);
   const x = view.x;
-  const img = runtime.loadedImages.get(view.avatarUrl);
+  const poseKey = view.poseKey && now < view.poseUntil ? view.poseKey : null;
+  const poseImg = poseKey && side === 'player' ? runtime.loadedImages.get(poseKey) : null;
+  const img = poseImg ?? runtime.loadedImages.get(view.avatarUrl);
+  const flashAlpha = getCharacterFlashAlpha(view, now);
+  const rimColor = side === 'player' ? 'rgba(255, 195, 130, 0.12)' : 'rgba(255, 175, 150, 0.12)';
 
   ctx.save();
-  ctx.translate(x, floorY);
+  ctx.translate(x, floorY + view.yOffset);
+  ctx.rotate(view.rotation * Math.PI / 180);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
   ctx.beginPath();
-  ctx.ellipse(0, 4, CHARACTER_SHADOW_WIDTH / 2, CHARACTER_SHADOW_HEIGHT / 2, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 4 - view.yOffset, CHARACTER_SHADOW_WIDTH / 2, CHARACTER_SHADOW_HEIGHT / 2, 0, 0, Math.PI * 2);
   ctx.fill();
 
   if (img) {
@@ -272,23 +281,46 @@ const drawCharacter = (
     const drawH = CHARACTER_DISPLAY_SIZE;
     const drawX = -drawW / 2;
     const drawY = -drawH;
+    const flip = view.flipX && !poseImg;
+
     ctx.save();
-    if (view.flipX) {
+    if (flip) {
       ctx.scale(-1, 1);
       ctx.drawImage(img, -drawW / 2, drawY, drawW, drawH);
     } else {
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
     }
-    if (now < view.flashUntil) {
-      ctx.globalCompositeOperation = 'source-atop';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.fillRect(view.flipX ? -drawW / 2 : drawX, drawY, drawW, drawH);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 1;
+    const rimW = drawW * 1.048;
+    const rimH = drawH * 1.048;
+    if (flip) {
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -rimW / 2, drawY - (rimH - drawH) * 0.5, rimW, rimH);
+    } else {
+      ctx.drawImage(img, drawX - (rimW - drawW) * 0.5, drawY - (rimH - drawH) * 0.5, rimW, rimH);
+    }
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = rimColor;
+    ctx.fillRect(flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = flashAlpha;
+    if (flip) {
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -drawW / 2, drawY, drawW, drawH);
+    } else {
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
     }
     if (view.tintColor && now < view.tintUntil) {
       ctx.globalCompositeOperation = 'source-atop';
       ctx.fillStyle = view.tintColor;
-      ctx.globalAlpha = 0.45;
-      ctx.fillRect(view.flipX ? -drawW / 2 : drawX, drawY, drawW, drawH);
+      ctx.globalAlpha = 0.45 * flashAlpha;
+      ctx.fillRect(flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
     }
     ctx.restore();
   } else {
@@ -296,7 +328,9 @@ const drawCharacter = (
     ctx.font = `900 48px ${HUD_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
+    ctx.globalAlpha = flashAlpha;
     ctx.fillText(side === 'player' ? 'P' : 'E', 0, 0);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 };
@@ -650,17 +684,93 @@ const drawLobbyOverlay = (
   }
 };
 
+const drawLightningGuide = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  startY: number,
+  endY: number,
+  color: string,
+): void => {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(x, startY);
+  ctx.lineTo(x - 18, startY + 34);
+  ctx.lineTo(x + 16, startY + 70);
+  ctx.lineTo(x - 8, endY);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + 2, startY);
+  ctx.lineTo(x - 12, startY + 34);
+  ctx.lineTo(x + 18, startY + 70);
+  ctx.lineTo(x - 4, endY);
+  ctx.stroke();
+};
+
+const drawSnowflakeGuide = (
+  ctx: CanvasRenderingContext2D,
+  size: number,
+): void => {
+  ctx.strokeStyle = 'rgba(224, 242, 254, 0.96)';
+  ctx.lineWidth = 5;
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (Math.PI * index) / 3;
+    const endX = Math.cos(angle) * size;
+    const endY = Math.sin(angle) * size;
+    ctx.beginPath();
+    ctx.moveTo(-endX, -endY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(endX * 0.68, endY * 0.68);
+    ctx.lineTo(Math.cos(angle + 0.52) * size * 0.82, Math.sin(angle + 0.52) * size * 0.82);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(endX * 0.68, endY * 0.68);
+    ctx.lineTo(Math.cos(angle - 0.52) * size * 0.82, Math.sin(angle - 0.52) * size * 0.82);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.95)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.46, 0, Math.PI * 2);
+  ctx.stroke();
+};
+
+const drawStarShape = (
+  ctx: CanvasRenderingContext2D,
+  outerRadius: number,
+  innerRadius: number,
+): void => {
+  const points = 5;
+  ctx.beginPath();
+  for (let index = 0; index < points * 2; index += 1) {
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    const angle = (Math.PI * index) / points - Math.PI / 2;
+    const px = Math.cos(angle) * radius;
+    const py = Math.sin(angle) * radius;
+    if (index === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+};
+
 const drawEffectVisual = (
   ctx: CanvasRenderingContext2D,
   visual: CanvasEffectVisual,
   runtime: EarTrainingBattleDrawRuntime,
   now: number,
 ): void => {
+  if (now < visual.startedAt) return;
   const t = getEffectProgress(visual, now);
   const x = lerp(visual.fromX, visual.toX, easeCubicIn(t));
   const y = lerp(visual.fromY, visual.toY, easeCubicIn(t));
   const size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
-  const alpha = visual.alpha * (visual.kind === 'aura' ? 1 - easeCubicOut(t) : 1);
+  const alpha = visual.alpha * (visual.kind === 'aura' || visual.kind === 'magicCircle' || visual.kind === 'chantText'
+    ? 1 - easeCubicOut(t)
+    : 1);
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
 
   ctx.save();
@@ -669,28 +779,44 @@ const drawEffectVisual = (
   ctx.rotate(rotation);
 
   const img = visual.imageKey ? runtime.loadedImages.get(visual.imageKey) : null;
-  if (img) {
+  if (img && (visual.kind === 'projectile' || visual.kind === 'meteor' || visual.kind === 'snowflake' || visual.kind === 'lightning' || visual.kind === 'cloud' || visual.kind === 'hammer' || visual.kind === 'magicCircle')) {
     ctx.drawImage(img, -size / 2, -size / 2, size, size);
-  } else if (visual.kind === 'burst' || visual.kind === 'aura' || visual.kind === 'ring' || visual.kind === 'castRing') {
+  } else if (visual.kind === 'lightningGuide') {
+    drawLightningGuide(ctx, 0, -size / 2, size / 2, visual.color);
+  } else if (visual.kind === 'snowflakeGuide') {
+    drawSnowflakeGuide(ctx, size);
+  } else if (visual.kind === 'chantText' && visual.label) {
+    ctx.fillStyle = '#fef08a';
+    ctx.strokeStyle = '#7c2d12';
+    ctx.lineWidth = 6;
+    ctx.font = `900 18px ${HUD_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labelY = -t * 34;
+    const labelScale = 1 + t * 0.32;
+    ctx.scale(labelScale, labelScale);
+    ctx.strokeText(visual.label, 0, labelY);
+    ctx.fillText(visual.label, 0, labelY);
+  } else if (visual.kind === 'starSparkle') {
+    ctx.fillStyle = visual.color;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+    ctx.lineWidth = 1;
+    drawStarShape(ctx, visual.size, visual.size * 0.4);
+    ctx.fill();
+    ctx.stroke();
+  } else if (visual.kind === 'burst' || visual.kind === 'aura' || visual.kind === 'ring' || visual.kind === 'castRing' || visual.kind === 'glow') {
     ctx.fillStyle = visual.color;
     ctx.beginPath();
     ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
     ctx.fill();
     if (visual.kind === 'ring' || visual.kind === 'castRing' || visual.kind === 'aura') {
-      ctx.strokeStyle = visual.color;
+      ctx.strokeStyle = visual.kind === 'aura' ? visual.color : 'rgba(255, 255, 255, 0.72)';
       ctx.lineWidth = visual.kind === 'aura' ? 5 : 2;
       ctx.stroke();
     }
   } else if (visual.kind === 'lightning') {
-    ctx.strokeStyle = visual.color;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(0, -size / 2);
-    ctx.lineTo(-8, 0);
-    ctx.lineTo(6, 0);
-    ctx.lineTo(0, size / 2);
-    ctx.stroke();
-  } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark') {
+    drawLightningGuide(ctx, 0, -size / 2, size / 2, visual.color);
+  } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark' || visual.kind === 'tail') {
     ctx.fillStyle = visual.color;
     ctx.beginPath();
     ctx.arc(0, 0, visual.size / 2, 0, Math.PI * 2);
@@ -760,19 +886,25 @@ export const drawEarTrainingBattle = (
 ): void => {
   const { width, height } = runtime;
   ctx.clearRect(0, 0, width, height);
-  drawBackground(ctx, width, height);
-  drawHud(ctx, snapshot, runtime);
-  drawEnemyAttackGauge(ctx, snapshot, runtime);
+
+  const cameraTransform = computeCameraTransform(runtime.camera, width, height, now);
+  ctx.save();
+  applyWorldCameraTransform(ctx, cameraTransform);
+  drawBackground(ctx, width, height, runtime);
   drawCharacter(ctx, runtime, 'player', now);
   drawCharacter(ctx, runtime, 'enemy', now);
+  drawPhraseIntro(ctx, runtime, now);
+  drawEffects(ctx, runtime, now);
+  ctx.restore();
+
+  drawHud(ctx, snapshot, runtime);
+  drawEnemyAttackGauge(ctx, snapshot, runtime);
   const floorY = getFloorY(height);
   drawQuoteBubble(ctx, runtime.playerQuote, runtime.player.x, floorY, now);
   drawQuoteBubble(ctx, runtime.partnerQuote, runtime.enemy.x, floorY, now);
   drawDemoBubble(ctx, snapshot, runtime);
   drawPhraseSlots(ctx, snapshot, runtime, now);
-  drawPhraseIntro(ctx, runtime, now);
   drawCountIn(ctx, snapshot, runtime);
-  drawEffects(ctx, runtime, now);
   drawLobbyOverlay(ctx, snapshot, runtime, now);
 };
 
@@ -852,4 +984,6 @@ export const EFFECT_IMAGE_URLS: Record<string, string> = {
   cloud: '/ear-training/tutorial-earcopy-test/transparent-cloud.webp',
   hammer: '/hammer.svg',
   fukidashi: FUKIDASHI_ASSET_URL,
+  magicCircle: MAGIC_CIRCLE_ASSET_URL,
+  ...PLAYER_POSE_IMAGE_URLS,
 };

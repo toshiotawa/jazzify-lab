@@ -24,6 +24,7 @@ import {
   clearCharacterMotionTimers,
   createCharacterMotionTimers,
   createCharacterRuntime,
+  isCharacterKnockbackActive,
   scheduleCharacterIdle,
   shouldRunCharacterAutoMotion,
   syncCharactersFromSnapshot,
@@ -33,6 +34,8 @@ import {
   EFFECT_IMAGE_URLS,
   preloadEarTrainingBattleImages,
 } from '@/game/earTraining/canvas/drawEarTrainingBattle';
+import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
+import { createCameraRuntime, isCameraActive } from '@/game/earTraining/canvas/earTrainingBattleCamera';
 import { getBattleAnchors } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
@@ -68,6 +71,8 @@ const createInitialRuntime = (
   screenFlash: null,
   startButtonPulsePhase: 0,
   loadedImages: new Map(),
+  backgroundCache: { width: 0, height: 0, canvas: null },
+  camera: createCameraRuntime(),
   structuralKey: '',
   hudLayoutKey: '',
   phraseSlotKey: '',
@@ -269,9 +274,17 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       snapshotRef.current.playerAvatarUrl,
       snapshotRef.current.enemyAvatarUrl,
     ];
-    void preloadEarTrainingBattleImages([...avatarUrls, ...Object.values(EFFECT_IMAGE_URLS)]).then((map) => {
+    void preloadEarTrainingBattleImages([
+      ...avatarUrls,
+      ...Object.values(EFFECT_IMAGE_URLS),
+      ...Object.values(BACKGROUND_IMAGE_URLS),
+    ]).then((map) => {
       if (cancelled || !runtimeRef.current) return;
       Object.entries(EFFECT_IMAGE_URLS).forEach(([key, url]) => {
+        const img = map.get(url);
+        if (img) runtimeRef.current?.loadedImages.set(key, img);
+      });
+      Object.entries(BACKGROUND_IMAGE_URLS).forEach(([key, url]) => {
         const img = map.get(url);
         if (img) runtimeRef.current?.loadedImages.set(key, img);
       });
@@ -358,12 +371,15 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       const hasActiveMotion =
         runtime.player.motionState === 'walk'
         || runtime.enemy.motionState === 'walk'
+        || isCharacterKnockbackActive(runtime.player)
+        || isCharacterKnockbackActive(runtime.enemy)
         || runtime.effects.length > 0
         || runtime.floatingTexts.length > 0
         || runtime.damageTexts.length > 0
         || runtime.phraseIntro !== null
         || runtime.screenFlash !== null
-        || snapshotRef.current.showLobbyControls;
+        || snapshotRef.current.showLobbyControls
+        || isCameraActive(runtime.camera, now);
 
       if (!dirtyRef.current && !hasActiveMotion) {
         rafRef.current = 0;

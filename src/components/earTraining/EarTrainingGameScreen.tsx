@@ -24,12 +24,12 @@ import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
   MIDIController,
-  initializeAudioSystem,
   markAudioUserInteraction,
   playNote,
   stopNote,
   updateGlobalVolume,
 } from '@/utils/MidiController';
+import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import {
   calculateEarTrainingRank,
   createPhraseAttempt,
@@ -319,8 +319,8 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   }, [copy.idlePrompt, gameState]);
 
   useEffect(() => {
-    updateGlobalVolume(settings.midiVolume * settings.masterVolume);
-  }, [settings.masterVolume, settings.midiVolume]);
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
+  }, [settings.midiVolume]);
 
   const clearFailTimer = useCallback(() => {
     if (failTimerRef.current) {
@@ -611,7 +611,11 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     }
 
     markAudioUserInteraction();
-    void initializeAudioSystem().catch(() => undefined);
+    void ensureBattlePianoAudio({
+      midiVolume: settings.midiVolume,
+      soundEffectVolume: settings.soundEffectVolume,
+      rootSoundVolume: settings.rootSoundVolume,
+    }).catch(() => undefined);
     primePhraseAudio(phrases[0]);
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
@@ -833,7 +837,11 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     controller.setKeyHighlightCallback((note, active) => {
       pianoOverlayRef.current?.highlightKey(note, active);
     });
-    void controller.initialize().then(async () => {
+    void ensureBattlePianoAudio({
+      midiVolume: settings.midiVolume,
+      soundEffectVolume: settings.soundEffectVolume,
+      rootSoundVolume: settings.rootSoundVolume,
+    }).then(() => controller.initialize()).then(async () => {
       if (settings.selectedMidiDevice) {
         const connected = await controller.connectDevice(settings.selectedMidiDevice);
         setIsMidiConnected(connected);
@@ -860,7 +868,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
-    void playNote(midiNote);
+    void playNote(midiNote, 100);
     handleNoteInputRef.current(midiNote);
   }, []);
 

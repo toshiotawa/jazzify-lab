@@ -10,11 +10,17 @@ import type {
 } from './earTrainingBattleDrawState';
 import { hexColor } from './earTrainingBattleDrawState';
 import {
+  flashCharacter,
   holdCharacterForAction,
   knockCharacter,
+  scheduleCharacterRecover,
 } from './earTrainingBattleCharacterMotion';
 import type { CharacterMotionTimers } from './earTrainingBattleCharacterMotion';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
+import {
+  triggerCameraShake,
+  triggerZoomToPlayer,
+} from './earTrainingBattleCamera';
 
 const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
@@ -27,6 +33,8 @@ const METEOR_IMPACT_MS = 980;
 const AWESOME_METEOR_START_MS = 180 + 1080 + 340;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
+const SKILL_PLAYER_POSE_SEQUENCE = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'] as const;
+const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
 
 let visualIdCounter = 0;
 const nextVisualId = (): string => {
@@ -95,15 +103,6 @@ const showDamageText = (
   });
 };
 
-const flashCharacter = (view: CanvasCharacterRuntime, durationMs: number): void => {
-  view.flashUntil = performance.now() + durationMs;
-};
-
-const tintCharacter = (view: CanvasCharacterRuntime, color: string, durationMs: number): void => {
-  view.tintColor = color;
-  view.tintUntil = performance.now() + durationMs;
-};
-
 const showScreenFlash = (
   runtime: EarTrainingBattleDrawRuntime,
   color: number,
@@ -117,28 +116,232 @@ const showScreenFlash = (
   };
 };
 
+const tintCharacter = (view: CanvasCharacterRuntime, color: string, durationMs: number): void => {
+  view.tintColor = color;
+  view.tintUntil = performance.now() + durationMs;
+};
+
 const scheduleEnemyKnockback = (
-  enemy: CanvasCharacterRuntime,
+  ctx: EffectSchedulerContext,
   distance: number,
   durationMs: number,
+): void => {
+  const { runtime, snapshot, width, enemyTimers, onDirty } = ctx;
+  setTimeout(() => {
+    knockCharacter(runtime.enemy, distance, durationMs, snapshot, runtime.player.x, width, enemyTimers, onDirty);
+    const totalMs = durationMs + 360;
+    setTimeout(() => {
+      if (runtime.enemy.knockbackPhase === 'none') {
+        scheduleCharacterRecover(runtime.enemy, runtime.player.x, width, snapshot, enemyTimers, onDirty);
+      }
+    }, totalMs);
+  }, 16);
+};
+
+const schedulePlayerKnockback = (
+  ctx: EffectSchedulerContext,
+  distance: number,
+  durationMs: number,
+): void => {
+  const { runtime, snapshot, width, playerTimers, onDirty } = ctx;
+  knockCharacter(runtime.player, distance, durationMs, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
+  const totalMs = durationMs + 360;
+  setTimeout(() => {
+    if (runtime.player.knockbackPhase === 'none') {
+      scheduleCharacterRecover(runtime.player, runtime.enemy.x, width, snapshot, playerTimers, onDirty);
+    }
+  }, totalMs);
+};
+
+const addImpactBurst = (
+  runtime: EarTrainingBattleDrawRuntime,
+  x: number,
+  y: number,
+  color: string,
+  heavy: boolean,
+): void => {
+  const startedAt = performance.now();
+  const visuals: CanvasEffectVisual[] = [];
+  addVisual(visuals, {
+    kind: 'burst',
+    startedAt,
+    durationMs: heavy ? 740 : 420,
+    fromX: x,
+    fromY: y,
+    toX: x,
+    toY: y,
+    color,
+    size: heavy ? 92 : 48,
+    alpha: heavy ? 0.16 : 0.16,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 1,
+    scaleEnd: heavy ? 2.25 : 1.6,
+  });
+  const sparkCount = heavy ? 22 : 9;
+  const sparkDistanceX = heavy ? 104 : 44;
+  const sparkDistanceY = heavy ? 68 : 30;
+  const sparkDuration = heavy ? 680 : 360;
+  for (let index = 0; index < sparkCount; index += 1) {
+    const angle = (Math.PI * 2 * index) / sparkCount;
+    addVisual(visuals, {
+      kind: 'spark',
+      startedAt,
+      durationMs: sparkDuration,
+      fromX: x,
+      fromY: y,
+      toX: x + Math.cos(angle) * sparkDistanceX,
+      toY: y + Math.sin(angle) * sparkDistanceY,
+      color,
+      size: heavy ? 10 : 6,
+      alpha: 0.9,
+      rotation: 0,
+      rotationEnd: 0,
+      scaleStart: 1,
+      scaleEnd: 0.4,
+    });
+  }
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'correct' },
+    startedAt,
+    impactAt: startedAt,
+    impactFired: true,
+    visuals,
+  });
+};
+
+const addCastEffect = (
+  runtime: EarTrainingBattleDrawRuntime,
+  x: number,
+  y: number,
+  power: number,
+): void => {
+  const startedAt = performance.now();
+  const visuals: CanvasEffectVisual[] = [];
+  addVisual(visuals, {
+    kind: 'castRing',
+    startedAt,
+    durationMs: 520,
+    fromX: x,
+    fromY: y,
+    toX: x,
+    toY: y,
+    color: 'rgba(56, 189, 248, 0.12)',
+    size: 60 * power,
+    alpha: 0.9,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 1,
+    scaleEnd: 1.5,
+  });
+  for (let index = 0; index < 8; index += 1) {
+    const angle = (Math.PI * 2 * index) / 8;
+    addVisual(visuals, {
+      kind: 'spark',
+      startedAt,
+      durationMs: 440,
+      fromX: x,
+      fromY: y,
+      toX: x + Math.cos(angle) * 44 * power,
+      toY: y + Math.sin(angle) * 30 * power,
+      color: '#fef3c7',
+      size: 6 + power,
+      alpha: 0.86,
+      rotation: 0,
+      rotationEnd: 0,
+      scaleStart: 1,
+      scaleEnd: 0.3,
+    });
+  }
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'complete' },
+    startedAt,
+    impactAt: startedAt,
+    impactFired: true,
+    visuals,
+  });
+};
+
+const addPlayerSparkles = (
+  runtime: EarTrainingBattleDrawRuntime,
+  x: number,
+  y: number,
+  durationMs: number,
+  color: string,
+  intense: boolean,
+): void => {
+  const burstCount = intense ? 18 : 8;
+  const sparklesPerBurst = intense ? 5 : 3;
+  const intervalMs = Math.max(48, Math.floor(durationMs / burstCount));
+  for (let burstIndex = 0; burstIndex < burstCount; burstIndex += 1) {
+    setTimeout(() => {
+      const startedAt = performance.now();
+      const visuals: CanvasEffectVisual[] = [];
+      for (let sparkIndex = 0; sparkIndex < sparklesPerBurst; sparkIndex += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const startRadius = 18 + Math.random() * (intense ? 54 : 34);
+        const endRadius = startRadius + 28 + Math.random() * (intense ? 64 : 26);
+        addVisual(visuals, {
+          kind: 'starSparkle',
+          startedAt,
+          durationMs: 520,
+          fromX: x + Math.cos(angle) * startRadius,
+          fromY: y + Math.sin(angle) * startRadius,
+          toX: x + Math.cos(angle) * endRadius,
+          toY: y + Math.sin(angle) * endRadius,
+          color,
+          size: intense ? 8 : 6,
+          alpha: 0.94,
+          rotation: 0,
+          rotationEnd: 180,
+          scaleStart: 1,
+          scaleEnd: 0.2,
+        });
+      }
+      runtime.effects.push({
+        commandId: -1,
+        command: { id: -1, kind: 'complete' },
+        startedAt,
+        impactAt: startedAt,
+        impactFired: true,
+        visuals,
+      });
+    }, burstIndex * intervalMs);
+  }
+};
+
+const showPlayerPoseSequence = (
+  runtime: EarTrainingBattleDrawRuntime,
   onDirty: () => void,
 ): void => {
+  const startedAt = performance.now();
+  SKILL_PLAYER_POSE_SEQUENCE.forEach((poseKey, index) => {
+    setTimeout(() => {
+      runtime.player.poseKey = poseKey;
+      runtime.player.poseUntil = performance.now() + SKILL_PLAYER_POSE_FRAME_MS;
+      onDirty();
+    }, index * SKILL_PLAYER_POSE_FRAME_MS);
+  });
   setTimeout(() => {
-    knockCharacter(enemy, distance, durationMs, onDirty);
-  }, 16);
+    runtime.player.poseKey = null;
+    onDirty();
+  }, SKILL_PLAYER_POSE_SEQUENCE.length * SKILL_PLAYER_POSE_FRAME_MS);
 };
 
 const playCorrectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
   const { runtime, anchors, onDirty, scheduleImpact, playerTimers, snapshot, width } = ctx;
   holdCharacterForAction(runtime.player, 'cast', 720, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
-  runtime.player.poseKey = 'cast';
+  runtime.player.poseKey = 'correct3';
   runtime.player.poseUntil = performance.now() + CORRECT_PLAYER_POSE_DURATION_MS;
 
+  const startedAt = performance.now();
   const visuals: CanvasEffectVisual[] = [];
   if (command.originPoint) {
     addVisual(visuals, {
       kind: 'energyOrb',
-      startedAt: performance.now(),
+      startedAt,
       durationMs: 140,
       fromX: command.originPoint.x,
       fromY: command.originPoint.y,
@@ -155,7 +358,7 @@ const playCorrectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBatt
   }
   addVisual(visuals, {
     kind: 'projectile',
-    startedAt: performance.now(),
+    startedAt,
     durationMs: CORRECT_IMPACT_MS,
     fromX: anchors.player.x + 44,
     fromY: anchors.player.castY,
@@ -171,71 +374,70 @@ const playCorrectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBatt
     imageKey: 'fireball',
   });
   addVisual(visuals, {
-    kind: 'ring',
-    startedAt: performance.now(),
+    kind: 'glow',
+    startedAt,
     durationMs: CORRECT_IMPACT_MS,
     fromX: anchors.player.x + 44,
     fromY: anchors.player.castY,
     toX: anchors.enemy.x,
     toY: anchors.enemy.bodyY,
-    color: '#f97316',
-    size: 22,
+    color: 'rgba(249, 115, 22, 0.34)',
+    size: 44,
     alpha: 0.34,
     rotation: 0,
     rotationEnd: 0,
     scaleStart: 1,
     scaleEnd: 0.72,
   });
+  addVisual(visuals, {
+    kind: 'tail',
+    startedAt,
+    durationMs: CORRECT_IMPACT_MS,
+    fromX: anchors.player.x + 14,
+    fromY: anchors.player.castY + 6,
+    toX: anchors.enemy.x,
+    toY: anchors.enemy.bodyY,
+    color: 'rgba(251, 146, 60, 0.72)',
+    size: 16,
+    alpha: 0.72,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 1,
+    scaleEnd: 0.5,
+  });
+  addVisual(visuals, {
+    kind: 'tail',
+    startedAt,
+    durationMs: CORRECT_IMPACT_MS,
+    fromX: anchors.player.x - 10,
+    fromY: anchors.player.castY + 10,
+    toX: anchors.enemy.x,
+    toY: anchors.enemy.bodyY,
+    color: 'rgba(239, 68, 68, 0.52)',
+    size: 10,
+    alpha: 0.52,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 1,
+    scaleEnd: 0.4,
+  });
 
   runtime.effects.push({
     commandId: command.id,
     command,
-    startedAt: performance.now(),
-    impactAt: performance.now() + CORRECT_IMPACT_MS,
+    startedAt,
+    impactAt: startedAt + CORRECT_IMPACT_MS,
     impactFired: false,
     visuals,
   });
   scheduleImpact(command.id, CORRECT_IMPACT_MS);
   setTimeout(() => {
-    flashCharacter(runtime.enemy, 180);
+    flashCharacter(runtime.enemy, 2, 70);
     addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, '#fb923c', false);
     showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
-    scheduleEnemyKnockback(runtime.enemy, 24, 170, onDirty);
+    scheduleEnemyKnockback(ctx, 24, 170);
     onDirty();
   }, CORRECT_IMPACT_MS);
-};
-
-const addImpactBurst = (
-  runtime: EarTrainingBattleDrawRuntime,
-  x: number,
-  y: number,
-  color: string,
-  heavy: boolean,
-): void => {
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'correct' },
-    startedAt: performance.now(),
-    impactAt: performance.now(),
-    impactFired: true,
-    visuals: [{
-      id: nextVisualId(),
-      kind: 'burst',
-      startedAt: performance.now(),
-      durationMs: heavy ? 520 : 380,
-      fromX: x,
-      fromY: y,
-      toX: x,
-      toY: y,
-      color,
-      size: heavy ? 72 : 48,
-      alpha: 0.9,
-      rotation: 0,
-      rotationEnd: 0,
-      scaleStart: 0.4,
-      scaleEnd: heavy ? 1.8 : 1.4,
-    }],
-  });
 };
 
 const playEnemyAttackEffect = (
@@ -249,6 +451,7 @@ const playEnemyAttackEffect = (
   if (heavy) {
     showFloatingText(runtime, command.label ?? 'Fail', anchors.player.x, anchors.player.resultTextY, '#fecaca');
   }
+  triggerCameraShake(runtime.camera, heavy ? 8 : 5, heavy ? 240 : 150);
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'hammer',
@@ -277,9 +480,9 @@ const playEnemyAttackEffect = (
   });
   scheduleImpact(command.id, impactMs);
   setTimeout(() => {
-    flashCharacter(runtime.player, 180);
+    flashCharacter(runtime.player, 3, 70);
     addImpactBurst(runtime, anchors.player.x, anchors.player.bodyY, '#fb7185', heavy);
-    knockCharacter(runtime.player, heavy ? -52 : -32, heavy ? 290 : 210, onDirty);
+    schedulePlayerKnockback(ctx, heavy ? -52 : -32, heavy ? 290 : 210);
     onDirty();
   }, impactMs);
 };
@@ -318,9 +521,9 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
   runtime.effects.push(effect);
   scheduleImpact(command.id, impactMs);
   setTimeout(() => {
-    flashCharacter(runtime.player, 180);
+    flashCharacter(runtime.player, 2, 70);
     addImpactBurst(runtime, anchors.player.x, anchors.player.bodyY, '#fb7185', false);
-    knockCharacter(runtime.player, -28, 180, onDirty);
+    schedulePlayerKnockback(ctx, -28, 180);
     effect.osmdHammerActive = false;
     onDirty();
   }, impactMs);
@@ -359,10 +562,10 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   });
   scheduleImpact(command.id, OSMD_REFLECT_IMPACT_MS);
   setTimeout(() => {
-    flashCharacter(runtime.enemy, 180);
+    flashCharacter(runtime.enemy, 2, 70);
     addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, '#facc15', false);
     showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
-    scheduleEnemyKnockback(runtime.enemy, 22, 160, onDirty);
+    scheduleEnemyKnockback(ctx, 22, 160);
     onDirty();
   }, OSMD_REFLECT_IMPACT_MS);
 };
@@ -380,7 +583,7 @@ const applyCompletionImpact = (
   const { runtime, anchors, onDirty, scheduleImpact } = ctx;
   scheduleImpact(command.id, impactDelayMs);
   setTimeout(() => {
-    flashCharacter(runtime.enemy, 180);
+    flashCharacter(runtime.enemy, 2, 70);
     tintCharacter(runtime.enemy, hexColor(tintColor, 1), knockbackDuration + 260);
     addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, hexColor(color, 1), true);
     showScreenFlash(runtime, color, 0.16);
@@ -410,7 +613,7 @@ const applyCompletionImpact = (
     });
     showDamageText(runtime, damage, anchors.enemy.x, anchors.enemy.bodyY);
     runtime.player.poseKey = null;
-    scheduleEnemyKnockback(runtime.enemy, knockbackDistance, knockbackDuration, onDirty);
+    scheduleEnemyKnockback(ctx, knockbackDistance, knockbackDuration);
     onDirty();
   }, impactDelayMs);
 };
@@ -419,6 +622,7 @@ const playGoodCompleteEffect = (ctx: EffectSchedulerContext, command: EarTrainin
   const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
   holdCharacterForAction(runtime.player, 'attack', 1120, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
   showFloatingText(runtime, command.label ?? 'Good', anchors.player.x, anchors.player.resultTextY, getRankColor(command.label ?? 'Good'));
+  showPlayerPoseSequence(runtime, onDirty);
   const startedAt = performance.now();
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, { kind: 'castRing', startedAt, durationMs: 520, fromX: anchors.player.x, fromY: anchors.player.castY, toX: anchors.player.x, toY: anchors.player.castY, color: '#38bdf8', size: 40, alpha: 0.5, rotation: 0, rotationEnd: 0, scaleStart: 1, scaleEnd: 1.5 });
@@ -431,9 +635,11 @@ const playSnowflakeEffect = (ctx: EffectSchedulerContext, command: EarTrainingBa
   const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
   holdCharacterForAction(runtime.player, 'attack', 1120, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
   showFloatingText(runtime, command.label ?? 'Great', anchors.player.x, anchors.player.resultTextY, getRankColor('Great'));
+  showPlayerPoseSequence(runtime, onDirty);
   const startedAt = performance.now();
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, { kind: 'castRing', startedAt, durationMs: 520, fromX: anchors.player.x, fromY: anchors.player.castY, toX: anchors.player.x, toY: anchors.player.castY, color: '#38bdf8', size: 48, alpha: 0.5, rotation: 0, rotationEnd: 0, scaleStart: 1, scaleEnd: 1.6 });
+  addVisual(visuals, { kind: 'snowflakeGuide', startedAt, durationMs: GREAT_COMPLETE_IMPACT_MS, fromX: anchors.player.x + 42, fromY: anchors.player.castY, toX: anchors.enemy.x, toY: anchors.enemy.bodyY, color: '#93c5fd', size: 72, alpha: 0.8, rotation: 0, rotationEnd: 720, scaleStart: 1, scaleEnd: 2.14 });
   addVisual(visuals, { kind: 'snowflake', startedAt, durationMs: GREAT_COMPLETE_IMPACT_MS, fromX: anchors.player.x + 42, fromY: anchors.player.castY, toX: anchors.enemy.x, toY: anchors.enemy.bodyY, color: '#93c5fd', size: 72, alpha: 1, rotation: 0, rotationEnd: 720, scaleStart: 1, scaleEnd: 2.14, imageKey: 'snowflake' });
   runtime.effects.push({ commandId: command.id, command, startedAt, impactAt: startedAt + GREAT_COMPLETE_IMPACT_MS, impactFired: false, visuals });
   applyCompletionImpact(ctx, command, 0x93c5fd, 106, 360, 0x7dd3fc, command.damage, GREAT_COMPLETE_IMPACT_MS);
@@ -443,9 +649,12 @@ const playLightningEffect = (ctx: EffectSchedulerContext, command: EarTrainingBa
   const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
   holdCharacterForAction(runtime.player, 'attack', 1120, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
   showFloatingText(runtime, command.label ?? 'Perfect', anchors.player.x, anchors.player.resultTextY, getRankColor('Perfect'));
+  showPlayerPoseSequence(runtime, onDirty);
+  triggerCameraShake(runtime.camera, 4, 200);
   const startedAt = performance.now();
   const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, { kind: 'projectile', startedAt, durationMs: 300, fromX: anchors.enemy.x, fromY: anchors.enemy.headY - 32, toX: anchors.enemy.x, toY: anchors.enemy.headY - 32, color: '#ffffff', size: 148, alpha: 0.9, rotation: 0, rotationEnd: 0, scaleStart: 1, scaleEnd: 1, imageKey: 'cloud' });
+  addVisual(visuals, { kind: 'cloud', startedAt, durationMs: 300, fromX: anchors.enemy.x, fromY: anchors.enemy.headY - 32, toX: anchors.enemy.x, toY: anchors.enemy.headY - 32, color: '#ffffff', size: 148, alpha: 0.9, rotation: 0, rotationEnd: 0, scaleStart: 1, scaleEnd: 1, imageKey: 'cloud' });
+  addVisual(visuals, { kind: 'lightningGuide', startedAt: startedAt + PERFECT_LIGHTNING_IMPACT_MS, durationMs: 420, fromX: anchors.enemy.x, fromY: anchors.enemy.headY - 18, toX: anchors.enemy.x, toY: anchors.enemy.bodyY + 8, color: '#fef08a', size: 190, alpha: 1, rotation: 4, rotationEnd: 4, scaleStart: 1, scaleEnd: 1 });
   addVisual(visuals, { kind: 'lightning', startedAt: startedAt + PERFECT_LIGHTNING_IMPACT_MS, durationMs: 420, fromX: anchors.enemy.x, fromY: anchors.enemy.headY - 18, toX: anchors.enemy.x, toY: anchors.enemy.bodyY + 8, color: '#fef08a', size: 190, alpha: 1, rotation: 4, rotationEnd: 4, scaleStart: 1, scaleEnd: 1, imageKey: 'lightning' });
   runtime.effects.push({ commandId: command.id, command, startedAt, impactAt: startedAt + PERFECT_LIGHTNING_IMPACT_MS, impactFired: false, visuals });
   applyCompletionImpact(ctx, command, 0xfef08a, 122, 390, 0xfef08a, command.damage, PERFECT_LIGHTNING_IMPACT_MS);
@@ -488,9 +697,65 @@ const launchMeteor = (ctx: EffectSchedulerContext, command: EarTrainingBattleEff
 };
 
 const playMeteorEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
-  const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
+  const { runtime, anchors, onDirty, playerTimers, snapshot, width, height } = ctx;
   holdCharacterForAction(runtime.player, 'attack', 1780, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
   showFloatingText(runtime, 'Awesome!', anchors.player.x, anchors.player.resultTextY, '#fde68a', 1600);
+  triggerZoomToPlayer(runtime.camera, anchors.player.x, anchors.player.bodyY, width / 2, height / 2, 1080);
+  setTimeout(() => showPlayerPoseSequence(runtime, onDirty), 180);
+  addCastEffect(runtime, anchors.player.x, anchors.player.castY, 2.65);
+  addPlayerSparkles(runtime, anchors.player.x, anchors.player.bodyY, 1380, '#fef08a', true);
+  const chantStartedAt = performance.now();
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'complete' },
+    startedAt: chantStartedAt,
+    impactAt: chantStartedAt,
+    impactFired: true,
+    visuals: [{
+      id: nextVisualId(),
+      kind: 'chantText',
+      startedAt: chantStartedAt,
+      durationMs: 1380,
+      fromX: anchors.player.x,
+      fromY: anchors.player.headY - 38,
+      toX: anchors.player.x,
+      toY: anchors.player.headY - 38,
+      color: '#fef08a',
+      size: 18,
+      alpha: 1,
+      rotation: 0,
+      rotationEnd: 0,
+      scaleStart: 1,
+      scaleEnd: 1.32,
+      label: 'Awesome!',
+    }],
+  });
+  const magicStartedAt = performance.now();
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'complete' },
+    startedAt: magicStartedAt,
+    impactAt: magicStartedAt,
+    impactFired: true,
+    visuals: [{
+      id: nextVisualId(),
+      kind: 'magicCircle',
+      startedAt: magicStartedAt,
+      durationMs: 1080,
+      fromX: anchors.player.x,
+      fromY: anchors.player.footY - 12,
+      toX: anchors.player.x,
+      toY: anchors.player.footY - 12,
+      color: '#ffffff',
+      size: 220,
+      alpha: AWESOME_MAGIC_CIRCLE_ALPHA,
+      rotation: 0,
+      rotationEnd: 180,
+      scaleStart: 1,
+      scaleEnd: 1.14,
+      imageKey: 'magicCircle',
+    }],
+  });
   launchMeteor(ctx, command, AWESOME_METEOR_START_MS);
   onDirty();
 };

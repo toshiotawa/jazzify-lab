@@ -22,12 +22,12 @@ import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
   MIDIController,
-  initializeAudioSystem,
   markAudioUserInteraction,
   playNote,
   stopNote,
   updateGlobalVolume,
 } from '@/utils/MidiController';
+import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import {
   getCompletionDamage,
   getNextPhraseIndex,
@@ -264,8 +264,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [practiceMode, showKeyboardHintsInBattle]);
 
   useEffect(() => {
-    updateGlobalVolume(settings.midiVolume * settings.masterVolume);
-  }, [settings.masterVolume, settings.midiVolume]);
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
+  }, [settings.midiVolume]);
 
   const ensurePhrasePlayer = useCallback((): EarTrainingChordVoicingPhrasePlayer => {
     if (!phrasePlayerRef.current) {
@@ -1017,7 +1017,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     pendingImpactHandlersRef.current.clear();
     markAudioUserInteraction();
-    void initializeAudioSystem().catch(() => undefined);
+    void ensureBattlePianoAudio({
+      midiVolume: settings.midiVolume,
+      soundEffectVolume: settings.soundEffectVolume,
+      rootSoundVolume: settings.rootSoundVolume,
+    }).catch(() => undefined);
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     lastInputAtByNoteRef.current.clear();
@@ -1119,7 +1123,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     controller.setKeyHighlightCallback((note, active) => {
       pianoOverlayRef.current?.highlightKey(note, active);
     });
-    void controller.initialize().then(async () => {
+    void ensureBattlePianoAudio({
+      midiVolume: settings.midiVolume,
+      soundEffectVolume: settings.soundEffectVolume,
+      rootSoundVolume: settings.rootSoundVolume,
+    }).then(() => controller.initialize()).then(async () => {
       if (settings.selectedMidiDevice) {
         const connected = await controller.connectDevice(settings.selectedMidiDevice);
         setIsMidiConnected(connected);
@@ -1145,7 +1153,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
-    void playNote(midiNote);
+    void playNote(midiNote, 100);
     handleNoteInputRef.current(midiNote);
   }, []);
 

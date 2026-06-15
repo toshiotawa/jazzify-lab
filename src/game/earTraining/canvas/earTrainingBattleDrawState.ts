@@ -1,12 +1,17 @@
 import type { EarTrainingBattleEffectCommand } from '@/game/earTraining/types';
 import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
+import type { CanvasCameraRuntime } from './earTrainingBattleCamera';
 import type { EarTrainingRect } from './earTrainingBattleLayout';
 
-export type CanvasCharacterMotionState = 'idle' | 'walk' | 'cast' | 'attack' | 'recover' | 'dead';
+export type CanvasCharacterMotionState = 'idle' | 'walk' | 'cast' | 'attack' | 'recover' | 'knockback' | 'dead';
+
+export type CanvasKnockbackPhase = 'none' | 'push' | 'return';
 
 export interface CanvasCharacterRuntime {
   side: 'player' | 'enemy';
   x: number;
+  yOffset: number;
+  rotation: number;
   homeX: number;
   minX: number;
   maxX: number;
@@ -19,9 +24,16 @@ export interface CanvasCharacterRuntime {
   walkDurationMs: number;
   knockbackFromX: number;
   knockbackToX: number;
+  knockbackFromY: number;
+  knockbackToY: number;
+  knockbackRotation: number;
   knockbackStartedAt: number;
-  knockbackDurationMs: number;
-  flashUntil: number;
+  knockbackPushDurationMs: number;
+  knockbackReturnDurationMs: number;
+  knockbackPhase: CanvasKnockbackPhase;
+  flashStartedAt: number;
+  flashDurationMs: number;
+  flashRepeat: number;
   tintColor: string | null;
   tintUntil: number;
   poseKey: string | null;
@@ -74,8 +86,16 @@ export type CanvasEffectVisualKind =
   | 'spark'
   | 'meteor'
   | 'lightning'
+  | 'lightningGuide'
   | 'snowflake'
-  | 'energyOrb';
+  | 'snowflakeGuide'
+  | 'cloud'
+  | 'energyOrb'
+  | 'glow'
+  | 'tail'
+  | 'magicCircle'
+  | 'chantText'
+  | 'starSparkle';
 
 export interface CanvasEffectVisual {
   id: string;
@@ -113,11 +133,18 @@ export interface CanvasHudHitRegion {
   onClick: () => void;
 }
 
+export interface BackgroundCacheState {
+  width: number;
+  height: number;
+  canvas: HTMLCanvasElement | null;
+}
+
 export interface EarTrainingBattleDrawRuntime {
   width: number;
   height: number;
   player: CanvasCharacterRuntime;
   enemy: CanvasCharacterRuntime;
+  camera: CanvasCameraRuntime;
   enemyAttackGaugePercent: number;
   playerQuote: CanvasQuoteState;
   partnerQuote: CanvasQuoteState;
@@ -129,6 +156,7 @@ export interface EarTrainingBattleDrawRuntime {
   screenFlash: { color: string; startedAt: number; durationMs: number; alpha: number } | null;
   startButtonPulsePhase: number;
   loadedImages: Map<string, HTMLImageElement>;
+  backgroundCache: BackgroundCacheState;
   structuralKey: string;
   hudLayoutKey: string;
   phraseSlotKey: string;
