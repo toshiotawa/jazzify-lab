@@ -1675,7 +1675,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
             return (
               <text
                 key={shouldGlow ? `${label.groupId}-label-${activePulse?.eventKey}` : `${label.groupId}-label`}
-                className={shouldGlow ? 'voicing-chord-name-glow' : undefined}
+                className={cn('voicing-chord-name', shouldGlow && 'voicing-chord-name-glow')}
                 data-voicing-group-active={label.fill === ACTIVE_CHORD_LABEL_COLOR ? 'true' : 'false'}
                 data-voicing-group-id={label.groupId}
                 x={label.x}

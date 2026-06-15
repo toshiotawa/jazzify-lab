@@ -270,7 +270,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                   !hasValidChord && 'text-red-400'
                 )}>
                   <span className={cn(
-                    'font-bold font-sans',
+                    'survival-chord-font font-bold font-sans',
                     isCompact ? 'text-xs' : 'text-sm'
                   )}>
                     {hasValidChord ? option.chord.displayName : '---'}

@@ -972,9 +972,12 @@
   font-weight: normal !important;
 }
 
-/* コードラン: コード出題・next はネオン用ラウンドフォント（Zen Kaku 統一の対象外） */
+/* サバイバル: コード名表示はネオン用ラウンドフォント（Zen Kaku 統一の対象外） */
 .code-run-chord-display,
-.fantasy-game-screen .code-run-chord-display {
+.fantasy-game-screen .code-run-chord-display,
+.fantasy-game-screen .voicing-chord-name,
+.fantasy-game-screen .voicing-chord-name-glow,
+.fantasy-game-screen .survival-chord-font {
   font-family: ui-rounded, "SF Pro Rounded", "Avenir Next", "Helvetica Neue", Arial, sans-serif !important;
   font-weight: 800 !important;
   font-style: normal !important;
