@@ -86,21 +86,6 @@ const computeHudLayoutSnapshotKey = (
 ): string => {
   const chordsKey = snapshot.chords.map(chord => `${chord.id}:${chord.name}`).join(',');
   const slotsKey = snapshot.phraseSlots.join(',');
-  let phraseSlotViewportKey = 'hidden';
-  if (!snapshot.phraseSlotsHidden) {
-    const slots = snapshot.phraseSlots.length > 0 ? snapshot.phraseSlots : ['_'];
-    const slotSize = Phaser.Math.Clamp((width - 48) / Math.min(Math.max(8, slots.length), 11), 22, 36);
-    const gap = 5;
-    const availableWidth = Math.max(slotSize, width - 40);
-    const visibleCount = Math.max(1, Math.min(slots.length, Math.floor((availableWidth + gap) / (slotSize + gap))));
-    const focusedIndex = Phaser.Math.Clamp(snapshot.currentNoteIndex, 0, Math.max(0, slots.length - 1));
-    const firstVisibleIndex = Phaser.Math.Clamp(
-      focusedIndex - Math.floor(visibleCount / 2),
-      0,
-      Math.max(0, slots.length - visibleCount),
-    );
-    phraseSlotViewportKey = `${slots.length}|${snapshot.slotKind}|${slotSize}|${visibleCount}|${firstVisibleIndex}`;
-  }
   return [
     snapshot.hidePlayerHpBar ? 1 : 0,
     snapshot.hideSettingsButton ? 1 : 0,
@@ -110,9 +95,30 @@ const computeHudLayoutSnapshotKey = (
     chordsKey,
     slotsKey,
     snapshot.slotKind,
-    phraseSlotViewportKey,
     width,
   ].join('|');
+};
+
+/** フレーズスロット表示窓のスクロール位置のみをキー化（局所再構築用）。 */
+const computePhraseSlotViewportKey = (
+  snapshot: EarTrainingBattleSnapshot,
+  width: number,
+): string => {
+  if (snapshot.phraseSlotsHidden) {
+    return 'hidden';
+  }
+  const slots = snapshot.phraseSlots.length > 0 ? snapshot.phraseSlots : ['_'];
+  const slotSize = Phaser.Math.Clamp((width - 48) / Math.min(Math.max(8, slots.length), 11), 22, 36);
+  const gap = 5;
+  const availableWidth = Math.max(slotSize, width - 40);
+  const visibleCount = Math.max(1, Math.min(slots.length, Math.floor((availableWidth + gap) / (slotSize + gap))));
+  const focusedIndex = Phaser.Math.Clamp(snapshot.currentNoteIndex, 0, Math.max(0, slots.length - 1));
+  const firstVisibleIndex = Phaser.Math.Clamp(
+    focusedIndex - Math.floor(visibleCount / 2),
+    0,
+    Math.max(0, slots.length - visibleCount),
+  );
+  return `${slots.length}|${snapshot.slotKind}|${slotSize}|${visibleCount}|${firstVisibleIndex}`;
 };
 
 const AUTO_IDLE_MIN_MS = 1500;
@@ -375,6 +381,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private sceneRebuildTimer: Phaser.Time.TimerEvent | null = null;
   private lastStructuralSnapshotKey: string | null = null;
   private lastHudLayoutSnapshotKey: string | null = null;
+  private lastPhraseSlotViewportKey: string | null = null;
   private playerHpRefs: HpBarLiveRefs | null = null;
   private enemyHpRefs: HpBarLiveRefs | null = null;
   private timeText: Phaser.GameObjects.Text | null = null;
@@ -408,6 +415,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.isReady = false;
     this.lastStructuralSnapshotKey = null;
     this.lastHudLayoutSnapshotKey = null;
+    this.lastPhraseSlotViewportKey = null;
     this.pendingSceneRebuild = false;
     this.clearLiveHudRefs();
     this.clearOsmdHammers();
@@ -450,13 +458,19 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const width = Math.max(320, this.scale.width);
     const structuralKey = computeStructuralSnapshotKey(snapshot);
     const hudLayoutKey = computeHudLayoutSnapshotKey(snapshot, width);
+    const phraseSlotViewportKey = computePhraseSlotViewportKey(snapshot, width);
     if (structuralKey !== this.lastStructuralSnapshotKey) {
       this.lastStructuralSnapshotKey = structuralKey;
       this.lastHudLayoutSnapshotKey = hudLayoutKey;
+      this.lastPhraseSlotViewportKey = phraseSlotViewportKey;
       this.queueSceneRebuild();
     } else if (hudLayoutKey !== this.lastHudLayoutSnapshotKey) {
       this.lastHudLayoutSnapshotKey = hudLayoutKey;
+      this.lastPhraseSlotViewportKey = phraseSlotViewportKey;
       this.rebuildHudLayers();
+    } else if (phraseSlotViewportKey !== this.lastPhraseSlotViewportKey) {
+      this.lastPhraseSlotViewportKey = phraseSlotViewportKey;
+      this.rebuildPhraseSlotsLayer();
     } else {
       this.updateLiveHud(snapshot);
     }
@@ -693,6 +707,23 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.hudLayer = this.add.container(0, 0);
     this.phraseLayer = this.add.container(0, 0);
     this.drawHudLayers(width, height);
+    if (this.effectLayer) {
+      this.children.bringToTop(this.effectLayer);
+    }
+  }
+
+  /** フレーズスロット表示窓のスクロール時のみ phraseLayer を再構築。HUD 全体は触らない。 */
+  private rebuildPhraseSlotsLayer(): void {
+    if (!this.isReady || !this.snapshot) {
+      return;
+    }
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    this.stopPhraseSlotCurrentTween();
+    this.phraseSlotRefs = null;
+    this.phraseLayer?.destroy(true);
+    this.phraseLayer = this.add.container(0, 0);
+    this.drawPhraseSlots(width, height);
     if (this.effectLayer) {
       this.children.bringToTop(this.effectLayer);
     }

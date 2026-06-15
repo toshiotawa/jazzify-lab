@@ -1,8 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import EarTrainingPhaserGame from '@/components/earTraining/EarTrainingPhaserGame';
-import type { EarTrainingBattleSceneHandle } from '@/game/earTraining/types';
-import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import {
   earTrainingPartnerJajiiDisplayName,
   EAR_TRAINING_PARTNER_JAJII_AVATAR_FLIP_X,
@@ -13,16 +10,14 @@ import {
   EarTrainingChordVoicingDrumLoop,
   CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
-import { getEarTrainingBattleHudLabels } from '@/utils/earTrainingUiCopy';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
 import type { EarTrainingTutorialDialogueOnlyScene } from './earTrainingTutorialScriptTypes';
 import { localizedText, resolveDialogueLineSpeaker } from './earTrainingTutorialScriptTypes';
 
-/** dialogue_only 用（標準プレイヤーセリフよりやや大きめ・はみ出しにくいサイズ） */
-const DIALOGUE_QUOTE_FONT_PX = 26;
 const DIALOGUE_LINE_ADVANCE_MS = 5000;
+const CHARACTER_SIZE_PX = 120;
 
 interface EarTrainingTutorialDialogueSceneProps {
   scene: EarTrainingTutorialDialogueOnlyScene;
@@ -31,62 +26,31 @@ interface EarTrainingTutorialDialogueSceneProps {
   onComplete: () => void;
 }
 
-const buildIdleSnapshot = (
-  hudLabels: EarTrainingBattleSnapshot['hudLabels'],
-  playerAvatarUrl: string,
-  partnerAvatarUrl: string,
-  partnerAvatarFlipX: boolean,
-  partnerNameLine: string,
-): EarTrainingBattleSnapshot => ({
-  gameState: 'playingPhrase',
-  resultState: null,
-  stageTitle: '',
-  statusText: '',
-  hudLabels,
-  phraseIntroLine: '',
-  resultRankLine: null,
-  timeLabel: '',
-  timeLabelHidden: true,
-  practiceMode: true,
-  isMidiConnected: false,
-  playerHp: 100,
-  playerMaxHp: 100,
-  enemyHp: 100,
-  enemyMaxHp: 100,
-  enemyName: partnerNameLine,
-  enemyAvatarUrl: partnerAvatarUrl,
-  enemyAvatarFlipX: partnerAvatarFlipX,
-  playerAvatarUrl,
-  phraseIndex: 0,
-  phraseRunId: 0,
-  phraseIntroSeq: 0,
-  totalPhrases: 1,
-  activeLoop: 1,
-  maxLoops: 1,
-  demoLoopActive: false,
-  enemyAttackGaugePercent: 0,
-  attackGaugeHidden: true,
-  chordHudHidden: true,
-  chords: [],
-  phraseSlotsHidden: true,
-  phraseSlots: [],
-  revealedNotes: [],
-  currentNoteIndex: 0,
-  slotKind: 'noteName',
-  chordCompleted: [],
-  countInValue: 0,
-  lastRank: null,
-  showLobbyControls: false,
-  canChangePracticeMode: false,
-  startButtonLabel: '',
-  lessonProgressText: null,
-  hidePlayerHpBar: true,
-  hideSettingsButton: true,
-  hideBackButton: true,
-  hideLobbyControls: true,
-  hideMidiStatus: true,
-  fixedCharacterPositions: true,
-});
+interface DialogueQuoteBubbleProps {
+  text: string;
+  align: 'left' | 'right';
+}
+
+const DialogueQuoteBubble: React.FC<DialogueQuoteBubbleProps> = ({ text, align }) => (
+  <div
+    className={[
+      'absolute bottom-[calc(100%+12px)] z-10 max-w-[min(72vw,320px)] rounded-lg border border-white/10 bg-black/70 px-4 py-3 text-left shadow-lg backdrop-blur-sm',
+      align === 'left' ? 'left-0' : 'right-0',
+    ].join(' ')}
+    aria-live="polite"
+  >
+    <p className="whitespace-pre-wrap text-[26px] font-bold leading-snug text-white">
+      {text}
+    </p>
+    <div
+      className={[
+        'absolute -bottom-2 h-4 w-4 rotate-45 border border-white/10 bg-black/70',
+        align === 'left' ? 'left-8' : 'right-8',
+      ].join(' ')}
+      aria-hidden
+    />
+  </div>
+);
 
 export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialogueSceneProps> = ({
   scene,
@@ -96,22 +60,10 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
 }) => {
   const drumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const completedRef = useRef(false);
-  const phaserRef = useRef<EarTrainingBattleSceneHandle | null>(null);
 
   const [lineIndex, setLineIndex] = useState(0);
 
-  const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(bindings.isEnglishCopy), [bindings.isEnglishCopy]);
-
-  const snapshot = useMemo(
-    () => buildIdleSnapshot(
-      hudLabels,
-      EAR_TRAINING_PLAYER_AVATAR_URL,
-      EAR_TRAINING_PARTNER_JAJII_AVATAR_URL,
-      EAR_TRAINING_PARTNER_JAJII_AVATAR_FLIP_X,
-      earTrainingPartnerJajiiDisplayName(bindings.isEnglishCopy),
-    ),
-    [bindings.isEnglishCopy, hudLabels],
-  );
+  const partnerName = earTrainingPartnerJajiiDisplayName(bindings.isEnglishCopy);
 
   const finalizeComplete = useCallback(() => {
     if (completedRef.current) {
@@ -119,16 +71,12 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
     }
     completedRef.current = true;
     drumLoopRef.current?.stop();
-    phaserRef.current?.setPlayerQuote(null);
-    phaserRef.current?.setPartnerQuote(null);
     onComplete();
   }, [onComplete]);
 
   useEffect(() => {
     completedRef.current = false;
     setLineIndex(0);
-    phaserRef.current?.setPlayerQuote(null);
-    phaserRef.current?.setPartnerQuote(null);
   }, [scene.lines]);
 
   useEffect(() => {
@@ -187,63 +135,76 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       return undefined;
     }
 
-    const line = lines[lineIndex];
-    if (!line) {
-      return undefined;
-    }
-
-    const quoteText = localizedText(line, bindings.isEnglishCopy);
-    const speaker = resolveDialogueLineSpeaker(line);
-
-    const rafId = window.requestAnimationFrame(() => {
-      if (completedRef.current) {
-        return;
-      }
-      const h = phaserRef.current;
-      if (!h) {
-        return;
-      }
-      const opts = {
-        fontSizePx: DIALOGUE_QUOTE_FONT_PX,
-        showAdvanceCue: false,
-      } as const;
-      if (speaker === 'partner') {
-        h.setPlayerQuote(null);
-        h.setPartnerQuote(quoteText, opts);
-      } else {
-        h.setPartnerQuote(null);
-        h.setPlayerQuote(quoteText, opts);
-      }
-    });
-
     const timerId = window.setTimeout(() => {
       advanceLine();
     }, DIALOGUE_LINE_ADVANCE_MS);
 
     return () => {
-      window.cancelAnimationFrame(rafId);
       window.clearTimeout(timerId);
     };
-  }, [advanceLine, bindings.isEnglishCopy, lineIndex, scene.lines]);
+  }, [advanceLine, lineIndex, scene.lines]);
+
+  const currentLine = scene.lines[lineIndex];
+  const quoteText = currentLine ? localizedText(currentLine, bindings.isEnglishCopy) : '';
+  const speaker = currentLine ? resolveDialogueLineSpeaker(currentLine) : 'player';
+  const playerSpeaking = speaker !== 'partner';
+  const partnerSpeaking = speaker === 'partner';
 
   return (
-    <div className="relative h-full w-full">
-      <EarTrainingPhaserGame
-        ref={phaserRef}
-        snapshot={snapshot}
-        effectCommand={null}
-        callbacks={{
-          onStart: () => undefined,
-          onBack: () => undefined,
-          onOpenSettings: () => undefined,
-          onPracticeModeChange: () => undefined,
-          onPianoKeyDown: () => undefined,
-          onPianoKeyUp: () => undefined,
-          onEffectImpact: () => undefined,
+    <div className="relative h-full w-full overflow-hidden bg-[#0e0705] text-white">
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          background: [
+            'radial-gradient(ellipse 34% 50% at 24% 32%, rgba(0,0,0,0.16) 0%, transparent 70%)',
+            'radial-gradient(ellipse 31% 45% at 76% 30%, rgba(0,0,0,0.15) 0%, transparent 70%)',
+            'linear-gradient(180deg, #160b08 0%, #2a160e 55%, #0e0705 100%)',
+          ].join(', '),
         }}
-        className="absolute inset-0"
-        disableCorrectSe
       />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/50 to-transparent"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-x-[8%] bottom-[18%] h-px bg-[#d58a2a]/30"
+        aria-hidden
+      />
+
+      <div className="absolute inset-x-0 bottom-[22%] flex items-end justify-between px-[8%]">
+        <div className="relative flex flex-col items-center" style={{ width: CHARACTER_SIZE_PX }}>
+          {playerSpeaking && quoteText ? (
+            <DialogueQuoteBubble text={quoteText} align="left" />
+          ) : null}
+          <img
+            src={EAR_TRAINING_PLAYER_AVATAR_URL}
+            alt=""
+            width={CHARACTER_SIZE_PX}
+            height={CHARACTER_SIZE_PX}
+            className="h-auto w-full select-none object-contain drop-shadow-lg"
+            draggable={false}
+          />
+        </div>
+
+        <div className="relative flex flex-col items-center" style={{ width: CHARACTER_SIZE_PX }}>
+          {partnerSpeaking && quoteText ? (
+            <DialogueQuoteBubble text={quoteText} align="right" />
+          ) : null}
+          <img
+            src={EAR_TRAINING_PARTNER_JAJII_AVATAR_URL}
+            alt={partnerName}
+            width={CHARACTER_SIZE_PX}
+            height={CHARACTER_SIZE_PX}
+            className={[
+              'h-auto w-full select-none object-contain drop-shadow-lg',
+              EAR_TRAINING_PARTNER_JAJII_AVATAR_FLIP_X ? 'scale-x-[-1]' : '',
+            ].join(' ')}
+            draggable={false}
+          />
+        </div>
+      </div>
+
       <button
         type="button"
         className="absolute inset-0 z-20 cursor-pointer bg-transparent focus:outline-none"

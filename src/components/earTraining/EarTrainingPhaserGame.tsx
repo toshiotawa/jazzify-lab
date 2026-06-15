@@ -67,8 +67,11 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
       input: {
         activePointers: 3,
       },
+      fps: {
+        target: 30,
+      },
       render: {
-        antialias: true,
+        antialias: false,
         pixelArt: false,
       },
     });
