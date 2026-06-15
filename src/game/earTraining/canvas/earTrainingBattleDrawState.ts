@@ -93,7 +93,8 @@ export type CanvasEffectVisualKind =
   | 'tail'
   | 'magicCircle'
   | 'chantText'
-  | 'starSparkle';
+  | 'starSparkle'
+  | 'slash';
 
 export interface CanvasEffectVisual {
   id: string;

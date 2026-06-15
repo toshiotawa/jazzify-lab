@@ -783,7 +783,7 @@ const drawEffectVisual = (
   const x = lerp(visual.fromX, visual.toX, easeCubicIn(t));
   const y = lerp(visual.fromY, visual.toY, easeCubicIn(t));
   const size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
-  const alpha = visual.alpha * (visual.kind === 'aura' || visual.kind === 'magicCircle' || visual.kind === 'chantText' || visual.kind === 'ring'
+  const alpha = visual.alpha * (visual.kind === 'aura' || visual.kind === 'magicCircle' || visual.kind === 'chantText' || visual.kind === 'ring' || visual.kind === 'slash'
     ? 1 - easeCubicOut(t)
     : 1);
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
@@ -835,6 +835,22 @@ const drawEffectVisual = (
     ctx.beginPath();
     ctx.arc(0, 0, visual.size / 2, 0, Math.PI * 2);
     ctx.fill();
+  } else if (visual.kind === 'slash') {
+    const w = size * 1.9;
+    const h = Math.max(5, size * 0.075);
+
+    const gradient = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+    gradient.addColorStop(0, 'rgba(255,255,255,0)');
+    gradient.addColorStop(0.42, 'rgba(255,255,255,0.12)');
+    gradient.addColorStop(0.5, visual.color || 'rgba(255,255,255,0.95)');
+    gradient.addColorStop(0.58, 'rgba(255,255,255,0.12)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillRect(-w * 0.42, -1, w * 0.84, 2);
   }
 
   ctx.restore();
