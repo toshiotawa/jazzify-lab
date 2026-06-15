@@ -211,10 +211,7 @@ const drawSegmentedSpeechBubbleInner = (
   const blockHeight = lineRunsList.length * lineHeight;
   const bubbleWidth = Math.min(
     maxWidth,
-    Math.max(
-      innerMax + BUBBLE_PAD_X * 2,
-      ...lineRunsList.map((row) => lineRunsWidth(ctx, row) + BUBBLE_PAD_X * 2),
-    ),
+    Math.max(...lineRunsList.map((row) => lineRunsWidth(ctx, row) + BUBBLE_PAD_X * 2)),
   );
   const bubbleHeight = blockHeight + BUBBLE_PAD_Y * 2;
   const left = centerX - bubbleWidth / 2;
@@ -283,10 +280,7 @@ export const drawSurvivalSpeechBubble = (p: DrawSurvivalSpeechBubbleParams): voi
   const blockHeight = lines.length * lineHeight;
   const bubbleWidth = Math.min(
     maxWidth,
-    Math.max(
-      innerMax + BUBBLE_PAD_X * 2,
-      ...lines.map((ln) => ctx.measureText(ln).width + BUBBLE_PAD_X * 2),
-    ),
+    Math.max(...lines.map((ln) => ctx.measureText(ln).width + BUBBLE_PAD_X * 2)),
   );
   const bubbleHeight = blockHeight + BUBBLE_PAD_Y * 2;
   const left = centerX - bubbleWidth / 2;
