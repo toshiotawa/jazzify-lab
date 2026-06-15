@@ -283,7 +283,7 @@ const addPreciseParryRing = (
     rotation: 0,
     rotationEnd: 0,
     scaleStart: 0.45,
-    scaleEnd: 4.8,
+    scaleEnd: 3.6,
     fadeOut: true,
   });
   runtime.effects.push({

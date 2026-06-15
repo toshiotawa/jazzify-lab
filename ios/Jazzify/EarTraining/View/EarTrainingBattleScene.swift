@@ -2320,7 +2320,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         effectLayer.addChild(ring)
         ring.run(SKAction.sequence([
             SKAction.group([
-                SKAction.scale(to: 4.8, duration: 1.0),
+                SKAction.scale(to: 3.6, duration: 1.0),
                 SKAction.sequence([
                     SKAction.wait(forDuration: 0.75),
                     SKAction.fadeOut(withDuration: 0.25),
