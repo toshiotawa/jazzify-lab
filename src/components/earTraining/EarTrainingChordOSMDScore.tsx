@@ -82,15 +82,13 @@ const assignMeasureLayout = (
   measureCentersByNumber: Record<number, number>,
   measureBoundsByNumber: Record<number, OsmdMeasureBounds>,
 ): void => {
-  if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
-    measureCentersByNumber[measureNumber] = (noteMinX + noteMaxX) / 2;
-    measureBoundsByNumber[measureNumber] = { left: noteMinX, right: noteMaxX };
+  const left = Number.isFinite(measureMinX) ? measureMinX : noteMinX;
+  const right = Number.isFinite(measureMaxX) ? measureMaxX : noteMaxX;
+  if (!Number.isFinite(left) || !Number.isFinite(right)) {
     return;
   }
-  if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
-    measureCentersByNumber[measureNumber] = (measureMinX + measureMaxX) / 2;
-    measureBoundsByNumber[measureNumber] = { left: measureMinX, right: measureMaxX };
-  }
+  measureCentersByNumber[measureNumber] = (left + right) / 2;
+  measureBoundsByNumber[measureNumber] = { left, right };
 };
 
 const collectMeasureCenters = (
@@ -414,6 +412,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     const effectiveScale = cssScale * userZoom;
     const { offsetPx } = computeOsmdMeasureJumpScrollOffset({
       activeMeasureNumber,
+      measureBoundsByNumber: layout.measureBoundsByNumber,
       measureCentersByNumber: layout.measureCentersByNumber,
       playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
       effectiveScale,

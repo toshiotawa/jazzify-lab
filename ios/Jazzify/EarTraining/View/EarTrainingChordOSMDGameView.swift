@@ -737,15 +737,13 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds) {
-            if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
-              centers[measureNumber] = (noteMinX + noteMaxX) / 2;
-              bounds[measureNumber] = { left: noteMinX, right: noteMaxX };
+            const left = Number.isFinite(measureMinX) ? measureMinX : noteMinX;
+            const right = Number.isFinite(measureMaxX) ? measureMaxX : noteMaxX;
+            if (!Number.isFinite(left) || !Number.isFinite(right)) {
               return;
             }
-            if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
-              centers[measureNumber] = (measureMinX + measureMaxX) / 2;
-              bounds[measureNumber] = { left: measureMinX, right: measureMaxX };
-            }
+            centers[measureNumber] = (left + right) / 2;
+            bounds[measureNumber] = { left: left, right: right };
           }
 
           function collectMeasureCentersFromMeasureList(gs, surface, viewportWidth) {
@@ -935,13 +933,16 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function computeScrollOffset(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
-            const center = measureCentersByNumber[mn]
-              || measureCentersByNumber[1]
-              || viewport.clientWidth / 2;
+            const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
+            const xPos = bounds
+              ? bounds.left
+              : (measureCentersByNumber[mn]
+                || measureCentersByNumber[1]
+                || viewport.clientWidth / 2);
             const viewportWidth = viewport.clientWidth || 0;
             const effectiveScale = cssScale;
             const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
-            return Math.max(0, Math.min(maxOffset, center * effectiveScale - PLAYHEAD_PX));
+            return Math.max(0, Math.min(maxOffset, xPos * effectiveScale - PLAYHEAD_PX));
           }
 
           function postOsmdMessage(type, detail) {
