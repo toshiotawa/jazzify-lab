@@ -102,12 +102,18 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   snapshotRef.current = snapshot;
   callbacksRef.current = callbacks;
 
+  const scheduleDrawFrame = useCallback(() => {
+    if (rafRef.current !== 0) return;
+    rafRef.current = requestAnimationFrame((now) => {
+      rafRef.current = 0;
+      drawFrameRef.current(now);
+    });
+  }, []);
+
   const markDirty = useCallback(() => {
     dirtyRef.current = true;
-    if (rafRef.current === 0) {
-      rafRef.current = requestAnimationFrame((now) => drawFrameRef.current(now));
-    }
-  }, []);
+    scheduleDrawFrame();
+  }, [scheduleDrawFrame]);
 
   const scheduleImpact = useCallback((effectId: number, delayMs: number) => {
     const existing = impactTimersRef.current.get(effectId);
@@ -405,18 +411,21 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
 
     drawFrameRef.current = drawFrame;
 
-    const startLoop = (): void => {
-      if (rafRef.current === 0) {
-        rafRef.current = requestAnimationFrame(drawFrame);
-      }
-    };
+    if (rafRef.current !== 0) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    if (dirtyRef.current) {
+      scheduleDrawFrame();
+    } else {
+      rafRef.current = requestAnimationFrame(drawFrame);
+    }
 
-    startLoop();
     return () => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };
-  }, [bindHudHitRegions]);
+  }, [bindHudHitRegions, scheduleDrawFrame]);
 
   const handlePointer = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;

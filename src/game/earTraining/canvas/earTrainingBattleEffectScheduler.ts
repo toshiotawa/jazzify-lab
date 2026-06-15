@@ -278,12 +278,12 @@ const addPreciseParryRing = (
     toX: x,
     toY: y,
     color: 'rgba(249, 115, 22, 0.85)',
-    size: 56,
+    size: 80,
     alpha: 0.85,
     rotation: 0,
     rotationEnd: 0,
-    scaleStart: 0.4,
-    scaleEnd: 2.6,
+    scaleStart: 0.5,
+    scaleEnd: 3.2,
     fadeOut: true,
   });
   runtime.effects.push({
