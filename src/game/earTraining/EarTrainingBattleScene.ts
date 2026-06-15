@@ -380,7 +380,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private timeText: Phaser.GameObjects.Text | null = null;
   private attackGaugeRefs: AttackGaugeLiveRefs | null = null;
   private liveEnemyAttackGaugePercent = 0;
-  private renderLoopIdleTimer: ReturnType<typeof setTimeout> | null = null;
   private chordHudRefs: ChordHudLiveRefs | null = null;
   private midiStatusText: Phaser.GameObjects.Text | null = null;
   private phraseSlotRefs: PhraseSlotLiveRefs | null = null;
@@ -399,9 +398,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.isReady = true;
     this.cameras.main.setBackgroundColor('#0e0705');
     this.scale.on('resize', this.handleResize, this);
-    this.tweens.on('complete', () => {
-      this.scheduleRenderLoopSleepIfIdle();
-    });
     this.rebuildScene();
     if (this.snapshot) {
       this.loadAvatarTextures(this.snapshot);
@@ -410,7 +406,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   shutdown(): void {
     this.isReady = false;
-    this.clearRenderLoopIdleTimer();
     this.lastStructuralSnapshotKey = null;
     this.lastHudLayoutSnapshotKey = null;
     this.pendingSceneRebuild = false;
@@ -434,11 +429,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     this.liveEnemyAttackGaugePercent = clamped;
-    this.ensureSceneAwake();
     if (this.attackGaugeRefs) {
       this.updateAttackGaugeRefs(this.attackGaugeRefs, this.liveEnemyAttackGaugePercent);
     }
-    this.refreshRenderLoopPolicy();
   }
 
   updateSnapshot(snapshot: EarTrainingBattleSnapshot): void {
@@ -469,7 +462,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     this.loadAvatarTextures(snapshot);
     this.syncCharacterLifeState(snapshot);
-    this.refreshRenderLoopPolicy();
   }
 
   triggerEffect(command: EarTrainingBattleEffectCommand): void {
@@ -480,8 +472,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     this.lastEffectId = command.id;
-    this.ensureSceneAwake();
-    this.clearRenderLoopIdleTimer();
 
     if (command.kind === 'correct') {
       this.playCorrectEffect(command);
@@ -572,7 +562,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.cachedPlayerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
       this.cachedPlayerQuoteShowCue = false;
       this.layoutPlayerQuoteBubble();
-      this.refreshRenderLoopPolicy();
       return;
     }
     if (fp === this.cachedPlayerQuoteFingerprint) {
@@ -583,7 +572,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.cachedPlayerQuoteFontPx = fontPx;
     this.cachedPlayerQuoteShowCue = showCue;
     this.layoutPlayerQuoteBubble();
-    this.refreshRenderLoopPolicy();
   }
 
   setPartnerQuote(content: EarTrainingQuotePayload | null, options?: EarTrainingPlayerQuoteOptions): void {
@@ -605,7 +593,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.cachedPartnerQuoteFontPx = PLAYER_QUOTE_FONT_PX;
       this.cachedPartnerQuoteShowCue = false;
       this.layoutPartnerQuoteBubble();
-      this.refreshRenderLoopPolicy();
       return;
     }
     if (fp === this.cachedPartnerQuoteFingerprint) {
@@ -616,7 +603,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.cachedPartnerQuoteFontPx = fontPx;
     this.cachedPartnerQuoteShowCue = showCue;
     this.layoutPartnerQuoteBubble();
-    this.refreshRenderLoopPolicy();
   }
   private stopQuoteCueTween(): void {
     if (this.playerQuoteCueTween) {
@@ -3065,106 +3051,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         this.startCharacterAutoMotion(view, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
       }
     }
-  }
-
-  private clearRenderLoopIdleTimer(): void {
-    if (this.renderLoopIdleTimer !== null) {
-      clearTimeout(this.renderLoopIdleTimer);
-      this.renderLoopIdleTimer = null;
-    }
-  }
-
-  private ensureSceneAwake(): void {
-    if (this.scene.isSleeping()) {
-      this.scene.wake();
-    }
-  }
-
-  private hasActiveVisualMotion(): boolean {
-    if (this.tweens.getAllTweens().length > 0) {
-      return true;
-    }
-    const snapshot = this.snapshot;
-    if (!snapshot) {
-      return false;
-    }
-    if (snapshot.showLobbyControls) {
-      return true;
-    }
-    if (!snapshot.fixedCharacterPositions && this.shouldRunCharacterAutoMotion()) {
-      return true;
-    }
-    if (!snapshot.fixedCharacterPositions && this.hasPendingCharacterMotion()) {
-      return true;
-    }
-    if (
-      !snapshot.attackGaugeHidden
-      && this.liveEnemyAttackGaugePercent > 0
-      && this.liveEnemyAttackGaugePercent < 1
-    ) {
-      return true;
-    }
-    if (snapshot.gameState === 'countIn' && snapshot.countInValue > 0) {
-      return true;
-    }
-    if (this.phraseSlotCurrentTween) {
-      return true;
-    }
-    if (this.playerQuoteCueTween || this.partnerQuoteCueTween) {
-      return true;
-    }
-    return false;
-  }
-
-  private hasPendingCharacterMotion(): boolean {
-    for (const view of [this.playerView, this.enemyView]) {
-      if (!view) {
-        continue;
-      }
-      if (
-        view.motion.idleEvent
-        || view.motion.motionTween
-        || view.motion.resumeEvent
-        || view.motion.state === 'walk'
-      ) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private canSleepRenderLoop(): boolean {
-    if (!this.isReady || !this.snapshot) {
-      return false;
-    }
-    return !this.hasActiveVisualMotion();
-  }
-
-  private scheduleRenderLoopSleepIfIdle(): void {
-    this.clearRenderLoopIdleTimer();
-    if (!this.canSleepRenderLoop()) {
-      this.ensureSceneAwake();
-      return;
-    }
-    this.renderLoopIdleTimer = setTimeout(() => {
-      this.renderLoopIdleTimer = null;
-      if (this.canSleepRenderLoop() && !this.scene.isSleeping()) {
-        this.scene.sleep();
-      }
-    }, 150);
-  }
-
-  private refreshRenderLoopPolicy(): void {
-    if (!this.isReady) {
-      return;
-    }
-    if (this.hasActiveVisualMotion()) {
-      this.ensureSceneAwake();
-      this.clearRenderLoopIdleTimer();
-      return;
-    }
-    this.ensureSceneAwake();
-    this.scheduleRenderLoopSleepIfIdle();
   }
 
   private shouldRunCharacterAutoMotion(): boolean {
