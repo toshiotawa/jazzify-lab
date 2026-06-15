@@ -141,6 +141,20 @@ function buildOsmdChords24(measureOffset = 0) {
   });
 }
 
+/** OSMD チュートリアル: 聴く／返す小節ごとの timedLines（count-in 後 measure 2〜25） */
+function buildOsmdListenAnswerTimedLines(measureOffset = 0) {
+  return BLUES_CHORD_NAMES.map((_, i) => {
+    const measureNumber = i + 1 + measureOffset;
+    const listen = (i + 1) % 2 === 1;
+    return {
+      at: { loop: 0, measure: measureNumber, beat: 1 },
+      text: listen
+        ? { ja: '聴く', en: 'Listen' }
+        : { ja: '返す（ドとソ）', en: 'Answer (Do & Sol)' },
+    };
+  });
+}
+
 function buildAdlibChords24() {
   return BLUES_CHORD_NAMES.map((name, i) => {
     const m = i + 1;
@@ -288,10 +302,7 @@ const mqB1Q1OsmdScript = {
       type: 'chord_osmd',
       contentRef: 'mq-b1-q1-osmd',
       requiredLoops: 1,
-      timedLines: [
-        { at: { loop: 0, measure: 2, beat: 1 }, text: { ja: '聴く', en: 'Listen' } },
-        { at: { loop: 0, measure: 3, beat: 1 }, text: { ja: '返す（ドとソ）', en: 'Answer (Do & Sol)' } },
-      ],
+      timedLines: buildOsmdListenAnswerTimedLines(COUNT_IN_MEASURES),
     },
     {
       type: 'dialogue_only',
