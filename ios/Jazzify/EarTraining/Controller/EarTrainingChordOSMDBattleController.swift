@@ -9,6 +9,8 @@ import os.log
 final class EarTrainingChordOSMDBattleController: ObservableObject {
     /// ターゲット時刻を中心に前後これだけ秒（±250ms）
     private static let judgmentWindowSec: Double = 0.25
+    /// 正解報酬: |Δ|≤100ms で追加パリィリング
+    private static let preciseWindowSec: Double = 0.1
     private static let osmdVoicingHintStrongSec: Double = 0.03
     private static let osmdVoicingHintMediumSec: Double = 0.07
     private static let hammerLeadSec: Double = 2.4
@@ -288,7 +290,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         if targets[matchedIndex].isComplete {
-            completeTarget(at: matchedIndex)
+            let timingOffsetSec = abs(phraseTime - targets[matchedIndex].targetTimeSec)
+            completeTarget(at: matchedIndex, timingOffsetSec: timingOffsetSec)
         }
         refreshPracticeVoicingHints()
     }
@@ -792,7 +795,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
-    private func completeTarget(at index: Int) {
+    private func completeTarget(at index: Int, timingOffsetSec: Double) {
         guard targets.indices.contains(index) else { return }
         guard targets[index].completed == false, targets[index].failed == false else { return }
         targets[index].completed = true
@@ -809,7 +812,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             label: chordName,
             damage: damage,
             phraseNoteCount: nil,
-            relatedEffectId: reflectRelatedId
+            relatedEffectId: reflectRelatedId,
+            precise: timingOffsetSec <= Self.preciseWindowSec
         )
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
             self?.applyEnemyDamage(damage)
@@ -1063,7 +1067,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         damage: Int?,
         phraseNoteCount: Int?,
         relatedEffectId: Int? = nil,
-        travelDurationSec: Double? = nil
+        travelDurationSec: Double? = nil,
+        precise: Bool = false
     ) -> Int {
         battleEffectIdCounter += 1
         let id = battleEffectIdCounter
@@ -1074,7 +1079,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             damage: damage,
             phraseNoteCount: phraseNoteCount,
             relatedEffectId: relatedEffectId,
-            travelDurationSec: travelDurationSec
+            travelDurationSec: travelDurationSec,
+            precise: precise
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id

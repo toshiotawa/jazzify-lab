@@ -45,6 +45,7 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
     let originPoint: CGPoint?
     let relatedEffectId: Int?
     let travelDurationSec: Double?
+    let precise: Bool
 
     init(
         id: Int,
@@ -54,7 +55,8 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         phraseNoteCount: Int? = nil,
         originPoint: CGPoint? = nil,
         relatedEffectId: Int? = nil,
-        travelDurationSec: Double? = nil
+        travelDurationSec: Double? = nil,
+        precise: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -64,6 +66,7 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         self.originPoint = originPoint
         self.relatedEffectId = relatedEffectId
         self.travelDurationSec = travelDurationSec
+        self.precise = precise
     }
 }
 

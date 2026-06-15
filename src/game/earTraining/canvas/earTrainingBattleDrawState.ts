@@ -77,24 +77,17 @@ export type CanvasEffectVisualKind =
   | 'projectile'
   | 'burst'
   | 'ring'
-  | 'screenFlash'
-  | 'aura'
   | 'particle'
   | 'hammer'
-  | 'floatingLabel'
-  | 'castRing'
   | 'spark'
   | 'meteor'
   | 'lightning'
   | 'snowflake'
   | 'cloud'
   | 'energyOrb'
-  | 'glow'
-  | 'tail'
   | 'magicCircle'
-  | 'chantText'
-  | 'starSparkle'
-  | 'slash';
+  | 'slash'
+  | 'thinRing';
 
 export interface CanvasEffectVisual {
   id: string;

@@ -10,6 +10,7 @@ import {
   CHARACTER_SHADOW_HEIGHT,
   CHARACTER_SHADOW_WIDTH,
   EFFECT_ASSET_PATH,
+  ENEMY_ATTACK_HAMMER_ASSET_URL,
   clampPercent,
   colorForHp,
   getChordHudLayout,
@@ -754,24 +755,6 @@ const drawEffectSpriteFallback = (
   ctx.fill();
 };
 
-const drawStarShape = (
-  ctx: CanvasRenderingContext2D,
-  outerRadius: number,
-  innerRadius: number,
-): void => {
-  const points = 5;
-  ctx.beginPath();
-  for (let index = 0; index < points * 2; index += 1) {
-    const radius = index % 2 === 0 ? outerRadius : innerRadius;
-    const angle = (Math.PI * index) / points - Math.PI / 2;
-    const px = Math.cos(angle) * radius;
-    const py = Math.sin(angle) * radius;
-    if (index === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-};
-
 const drawEffectVisual = (
   ctx: CanvasRenderingContext2D,
   visual: CanvasEffectVisual,
@@ -783,7 +766,7 @@ const drawEffectVisual = (
   const x = lerp(visual.fromX, visual.toX, easeCubicIn(t));
   const y = lerp(visual.fromY, visual.toY, easeCubicIn(t));
   const size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
-  const alpha = visual.alpha * (visual.fadeOut || visual.kind === 'aura' || visual.kind === 'magicCircle' || visual.kind === 'chantText' || visual.kind === 'ring' || visual.kind === 'slash'
+  const alpha = visual.alpha * (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'thinRing' || visual.kind === 'slash'
     ? 1 - easeCubicOut(t)
     : 1);
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
@@ -801,36 +784,23 @@ const drawEffectVisual = (
     } else {
       drawEffectSpriteFallback(ctx, size, visual.color || '#ff851f');
     }
-  } else if (visual.kind === 'chantText' && visual.label) {
-    ctx.fillStyle = '#fef08a';
-    ctx.strokeStyle = '#7c2d12';
-    ctx.lineWidth = 6;
-    ctx.font = `900 18px ${HUD_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const labelY = -t * 34;
-    const labelScale = 1 + t * 0.32;
-    ctx.scale(labelScale, labelScale);
-    ctx.strokeText(visual.label, 0, labelY);
-    ctx.fillText(visual.label, 0, labelY);
-  } else if (visual.kind === 'starSparkle') {
-    ctx.fillStyle = visual.color;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
-    ctx.lineWidth = 1;
-    drawStarShape(ctx, visual.size, visual.size * 0.4);
-    ctx.fill();
-    ctx.stroke();
-  } else if (visual.kind === 'burst' || visual.kind === 'aura' || visual.kind === 'ring' || visual.kind === 'castRing' || visual.kind === 'glow') {
+  } else if (visual.kind === 'burst' || visual.kind === 'ring') {
     ctx.fillStyle = visual.color;
     ctx.beginPath();
     ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
     ctx.fill();
-    if (visual.kind === 'ring' || visual.kind === 'castRing' || visual.kind === 'aura') {
-      ctx.strokeStyle = visual.kind === 'aura' ? visual.color : 'rgba(255, 255, 255, 0.72)';
-      ctx.lineWidth = visual.kind === 'aura' ? 5 : 2;
+    if (visual.kind === 'ring') {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
-  } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark' || visual.kind === 'tail') {
+  } else if (visual.kind === 'thinRing') {
+    ctx.beginPath();
+    ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = visual.color;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark') {
     ctx.fillStyle = visual.color;
     ctx.beginPath();
     ctx.arc(0, 0, visual.size / 2, 0, Math.PI * 2);
@@ -1004,7 +974,7 @@ export const EFFECT_IMAGE_URLS: Record<string, string> = {
   lightning: `${EFFECT_ASSET_PATH}effect-lightning-transparent.webp`,
   meteor: `${EFFECT_ASSET_PATH}effect-meteor-transparent.webp`,
   cloud: `${EFFECT_ASSET_PATH}effect-cloud-transparent.webp`,
-  hammer: '/hammer.svg',
+  hammer: ENEMY_ATTACK_HAMMER_ASSET_URL,
   fukidashi: FUKIDASHI_ASSET_URL,
   magicCircle: MAGIC_CIRCLE_ASSET_URL,
   ...PLAYER_POSE_IMAGE_URLS,

@@ -1940,6 +1940,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
 
         showParryGuardEffect(at: guardPoint)
+        if command.precise {
+            showPreciseParryRing(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY))
+        }
         showParrySlashEffect(from: guardPoint, toEnemyX: anchors.enemy.x)
 
         run(.wait(forDuration: 0.14)) { [weak self] in
@@ -2296,6 +2299,26 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         effectLayer.addChild(slowRing)
         slowRing.run(SKAction.sequence([
             SKAction.wait(forDuration: 0.035),
+            SKAction.group([
+                SKAction.scale(to: 2.6, duration: 0.42),
+                SKAction.fadeOut(withDuration: 0.42),
+            ]),
+            SKAction.removeFromParent(),
+        ]))
+    }
+
+    private func showPreciseParryRing(at position: CGPoint) {
+        let ringRadius = Self.battleLayoutPt(28)
+        let ring = SKShapeNode(circleOfRadius: ringRadius)
+        ring.fillColor = .clear
+        ring.strokeColor = UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 0.85)
+        ring.lineWidth = Self.battleLayoutPt(2.5)
+        ring.position = position
+        ring.alpha = 0.85
+        ring.setScale(0.4)
+        ring.zPosition = 65
+        effectLayer.addChild(ring)
+        ring.run(SKAction.sequence([
             SKAction.group([
                 SKAction.scale(to: 2.6, duration: 0.42),
                 SKAction.fadeOut(withDuration: 0.42),

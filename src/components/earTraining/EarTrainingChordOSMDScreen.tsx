@@ -119,6 +119,8 @@ const INPUT_COOLDOWN_MS = 20;
 const OSMD_VOICING_HINT_STRONG_SEC = 0.03;
 /** OSMD 鍵盤ヒント: |Δ|≤70ms で中間（alpha 0.55） */
 const OSMD_VOICING_HINT_MEDIUM_SEC = 0.07;
+/** OSMD 正解報酬: |Δ|≤100ms で追加パリィリング */
+const CHORD_OSMD_PRECISE_WINDOW_SEC = 0.1;
 const BATTLE_EFFECT_CLEAR_MS = 900;
 const NO_DAMAGE_CONFIG = {
   perCorrectNote: 0,
@@ -383,6 +385,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       phraseNoteCount?: number;
       relatedEffectId?: number;
       travelDurationSec?: number;
+      precise?: boolean;
     } = {},
   ): number => {
     clearBattleEffectTimers();
@@ -396,6 +399,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       phraseNoteCount: options.phraseNoteCount,
       relatedEffectId: options.relatedEffectId,
       travelDurationSec: options.travelDurationSec,
+      precise: options.precise,
     });
     const clearDelay = Math.max(
       BATTLE_EFFECT_CLEAR_MS,
@@ -1037,7 +1041,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     startPhrase(0);
   }, [copy.noPhrases, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
 
-  const completeTarget = useCallback((target: ChordOsmdRhythmTarget, state: RuntimeTargetState) => {
+  const completeTarget = useCallback((
+    target: ChordOsmdRhythmTarget,
+    state: RuntimeTargetState,
+    timingOffsetSec: number,
+  ) => {
     state.completed = true;
     syncPracticeVoicingHints();
     if (state.hammerEffectId !== undefined) {
@@ -1051,6 +1059,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       label: target.label,
       damage,
       relatedEffectId: state.hammerEffectId,
+      precise: timingOffsetSec <= CHORD_OSMD_PRECISE_WINDOW_SEC,
     });
     registerBattleEffectImpact(effectId, () => {
       applyEnemyDamage(damage, lastRankRef.current);
@@ -1100,7 +1109,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         syncPracticeVoicingHints();
       }
       if (chordOsmdTargetIsComplete(nextRemaining)) {
-        completeTarget(target, state);
+        completeTarget(target, state, Math.abs(phraseT - target.targetTimeSec));
       }
       return;
     }

@@ -9,8 +9,8 @@ import { getFloorY } from './earTrainingBattleLayout';
 import type { CanvasCharacterRuntime } from './earTrainingBattleDrawState';
 import { easeCubicOut, easeSineInOut } from './earTrainingBattleDrawState';
 
-const AUTO_IDLE_MIN_MS = 1500;
-const AUTO_IDLE_MAX_MS = 3500;
+const AUTO_IDLE_MIN_MS = 1000;
+const AUTO_IDLE_MAX_MS = 2500;
 const RECOVER_IDLE_MIN_MS = 500;
 const RECOVER_IDLE_MAX_MS = 1200;
 const ACTION_RESUME_IDLE_MS = 900;
@@ -126,7 +126,54 @@ export const clearCharacterMotionTimers = (timers: CharacterMotionTimers): void 
 };
 
 export const shouldRunCharacterAutoMotion = (snapshot: EarTrainingBattleSnapshot): boolean =>
-  snapshot.showLobbyControls && !snapshot.fixedCharacterPositions;
+  !snapshot.fixedCharacterPositions;
+
+const isCharacterMotionSettled = (view: CanvasCharacterRuntime): boolean =>
+  view.motionState === 'idle'
+  && view.knockbackPhase === 'none';
+
+export const ensureCharacterAutoMotion = (
+  runtime: { player: CanvasCharacterRuntime; enemy: CanvasCharacterRuntime },
+  snapshot: EarTrainingBattleSnapshot,
+  width: number,
+  playerTimers: CharacterMotionTimers,
+  enemyTimers: CharacterMotionTimers,
+  onDirty: () => void,
+): void => {
+  if (!shouldRunCharacterAutoMotion(snapshot)) {
+    clearCharacterMotionTimers(playerTimers);
+    clearCharacterMotionTimers(enemyTimers);
+    return;
+  }
+
+  if (
+    isCharacterMotionSettled(runtime.player)
+    && !playerTimers.idleTimer
+    && !playerTimers.resumeTimer
+  ) {
+    scheduleCharacterIdle(
+      runtime.player,
+      runtime.enemy.x,
+      width,
+      playerTimers,
+      onDirty,
+    );
+  }
+
+  if (
+    isCharacterMotionSettled(runtime.enemy)
+    && !enemyTimers.idleTimer
+    && !enemyTimers.resumeTimer
+  ) {
+    scheduleCharacterIdle(
+      runtime.enemy,
+      runtime.player.x,
+      width,
+      enemyTimers,
+      onDirty,
+    );
+  }
+};
 
 export const scheduleCharacterIdle = (
   view: CanvasCharacterRuntime,

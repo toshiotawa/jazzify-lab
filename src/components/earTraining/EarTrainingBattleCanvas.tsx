@@ -24,8 +24,8 @@ import {
   clearCharacterMotionTimers,
   createCharacterMotionTimers,
   createCharacterRuntime,
+  ensureCharacterAutoMotion,
   isCharacterKnockbackActive,
-  scheduleCharacterIdle,
   shouldRunCharacterAutoMotion,
   syncCharactersFromSnapshot,
 } from '@/game/earTraining/canvas/earTrainingBattleCharacterMotion';
@@ -180,17 +180,11 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     }
 
     if (shouldRunCharacterAutoMotion(nextSnapshot)) {
-      scheduleCharacterIdle(
-        runtime.player,
-        runtime.enemy.x,
+      ensureCharacterAutoMotion(
+        runtime,
+        nextSnapshot,
         width,
         playerTimersRef.current,
-        markDirty,
-      );
-      scheduleCharacterIdle(
-        runtime.enemy,
-        runtime.player.x,
-        width,
         enemyTimersRef.current,
         markDirty,
       );
@@ -378,7 +372,6 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
         || runtime.damageTexts.length > 0
         || runtime.phraseIntro !== null
         || runtime.screenFlash !== null
-        || snapshotRef.current.showLobbyControls
         || isCameraActive(runtime.camera, now);
 
       if (!dirtyRef.current && !hasActiveMotion) {

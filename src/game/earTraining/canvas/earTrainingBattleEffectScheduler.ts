@@ -262,6 +262,40 @@ const addParryGuardEffect = (
   });
 };
 
+const addPreciseParryRing = (
+  runtime: EarTrainingBattleDrawRuntime,
+  x: number,
+  y: number,
+): void => {
+  const startedAt = performance.now();
+  const visuals: CanvasEffectVisual[] = [];
+  addVisual(visuals, {
+    kind: 'thinRing',
+    startedAt,
+    durationMs: 420,
+    fromX: x,
+    fromY: y,
+    toX: x,
+    toY: y,
+    color: 'rgba(249, 115, 22, 0.85)',
+    size: 56,
+    alpha: 0.85,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 0.4,
+    scaleEnd: 2.6,
+    fadeOut: true,
+  });
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'osmdHammerReflect' },
+    startedAt,
+    impactAt: startedAt,
+    impactFired: true,
+    visuals,
+  });
+};
+
 const dismissIncomingOsmdHammer = (
   runtime: EarTrainingBattleDrawRuntime,
   relatedEffectId: number | undefined,
@@ -301,112 +335,10 @@ const dismissIncomingOsmdHammer = (
   }];
 };
 
-const addCastEffect = (
-  runtime: EarTrainingBattleDrawRuntime,
-  x: number,
-  y: number,
-  power: number,
-): void => {
-  const startedAt = performance.now();
-  const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, {
-    kind: 'castRing',
-    startedAt,
-    durationMs: 520,
-    fromX: x,
-    fromY: y,
-    toX: x,
-    toY: y,
-    color: 'rgba(56, 189, 248, 0.12)',
-    size: 60 * power,
-    alpha: 0.9,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 1,
-    scaleEnd: 1.5,
-  });
-  for (let index = 0; index < 8; index += 1) {
-    const angle = (Math.PI * 2 * index) / 8;
-    addVisual(visuals, {
-      kind: 'spark',
-      startedAt,
-      durationMs: 440,
-      fromX: x,
-      fromY: y,
-      toX: x + Math.cos(angle) * 44 * power,
-      toY: y + Math.sin(angle) * 30 * power,
-      color: '#fef3c7',
-      size: 6 + power,
-      alpha: 0.86,
-      rotation: 0,
-      rotationEnd: 0,
-      scaleStart: 1,
-      scaleEnd: 0.3,
-    });
-  }
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'complete' },
-    startedAt,
-    impactAt: startedAt,
-    impactFired: true,
-    visuals,
-  });
-};
-
-const addPlayerSparkles = (
-  runtime: EarTrainingBattleDrawRuntime,
-  x: number,
-  y: number,
-  durationMs: number,
-  color: string,
-  intense: boolean,
-): void => {
-  const burstCount = intense ? 18 : 8;
-  const sparklesPerBurst = intense ? 5 : 3;
-  const intervalMs = Math.max(48, Math.floor(durationMs / burstCount));
-  for (let burstIndex = 0; burstIndex < burstCount; burstIndex += 1) {
-    setTimeout(() => {
-      const startedAt = performance.now();
-      const visuals: CanvasEffectVisual[] = [];
-      for (let sparkIndex = 0; sparkIndex < sparklesPerBurst; sparkIndex += 1) {
-        const angle = Math.random() * Math.PI * 2;
-        const startRadius = 18 + Math.random() * (intense ? 54 : 34);
-        const endRadius = startRadius + 28 + Math.random() * (intense ? 64 : 26);
-        addVisual(visuals, {
-          kind: 'starSparkle',
-          startedAt,
-          durationMs: 520,
-          fromX: x + Math.cos(angle) * startRadius,
-          fromY: y + Math.sin(angle) * startRadius,
-          toX: x + Math.cos(angle) * endRadius,
-          toY: y + Math.sin(angle) * endRadius,
-          color,
-          size: intense ? 8 : 6,
-          alpha: 0.94,
-          rotation: 0,
-          rotationEnd: 180,
-          scaleStart: 1,
-          scaleEnd: 0.2,
-        });
-      }
-      runtime.effects.push({
-        commandId: -1,
-        command: { id: -1, kind: 'complete' },
-        startedAt,
-        impactAt: startedAt,
-        impactFired: true,
-        visuals,
-      });
-    }, burstIndex * intervalMs);
-  }
-};
-
 const showPlayerPoseSequence = (
   runtime: EarTrainingBattleDrawRuntime,
   onDirty: () => void,
 ): void => {
-  const startedAt = performance.now();
   SKILL_PLAYER_POSE_SEQUENCE.forEach((poseKey, index) => {
     setTimeout(() => {
       runtime.player.poseKey = poseKey;
@@ -462,54 +394,6 @@ const playCorrectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBatt
     scaleStart: 1,
     scaleEnd: 1.23,
     imageKey: 'fireball',
-  });
-  addVisual(visuals, {
-    kind: 'glow',
-    startedAt,
-    durationMs: CORRECT_IMPACT_MS,
-    fromX: anchors.player.x + 44,
-    fromY: anchors.player.castY,
-    toX: anchors.enemy.x,
-    toY: anchors.enemy.bodyY,
-    color: 'rgba(249, 115, 22, 0.34)',
-    size: 44,
-    alpha: 0.34,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 1,
-    scaleEnd: 0.72,
-  });
-  addVisual(visuals, {
-    kind: 'tail',
-    startedAt,
-    durationMs: CORRECT_IMPACT_MS,
-    fromX: anchors.player.x + 14,
-    fromY: anchors.player.castY + 6,
-    toX: anchors.enemy.x,
-    toY: anchors.enemy.bodyY,
-    color: 'rgba(251, 146, 60, 0.72)',
-    size: 16,
-    alpha: 0.72,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 1,
-    scaleEnd: 0.5,
-  });
-  addVisual(visuals, {
-    kind: 'tail',
-    startedAt,
-    durationMs: CORRECT_IMPACT_MS,
-    fromX: anchors.player.x - 10,
-    fromY: anchors.player.castY + 10,
-    toX: anchors.enemy.x,
-    toY: anchors.enemy.bodyY,
-    color: 'rgba(239, 68, 68, 0.52)',
-    size: 10,
-    alpha: 0.52,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 1,
-    scaleEnd: 0.4,
   });
 
   runtime.effects.push({
@@ -644,6 +528,9 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
 
   dismissIncomingOsmdHammer(runtime, command.relatedEffectId);
   addParryGuardEffect(runtime, guardX, guardY);
+  if (command.precise === true) {
+    addPreciseParryRing(runtime, anchors.player.x, anchors.player.bodyY);
+  }
 
   const visuals: CanvasEffectVisual[] = [];
 
@@ -703,30 +590,6 @@ const applyCompletionImpact = (
     tintCharacter(runtime.enemy, hexColor(tintColor, 1), knockbackDuration + 260);
     addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, hexColor(color, 1), true);
     showScreenFlash(runtime, color, 0.16);
-    runtime.effects.push({
-      commandId: -1,
-      command: { id: -1, kind: 'complete' },
-      startedAt: performance.now(),
-      impactAt: performance.now(),
-      impactFired: true,
-      visuals: [{
-        id: nextVisualId(),
-        kind: 'aura',
-        startedAt: performance.now(),
-        durationMs: 820,
-        fromX: anchors.enemy.x,
-        fromY: anchors.enemy.bodyY,
-        toX: anchors.enemy.x,
-        toY: anchors.enemy.bodyY,
-        color: hexColor(color, 1),
-        size: 60,
-        alpha: 0.14,
-        rotation: 0,
-        rotationEnd: 0,
-        scaleStart: 1,
-        scaleEnd: 2.15,
-      }],
-    });
     showDamageText(runtime, damage, anchors.enemy.x, anchors.enemy.bodyY);
     runtime.player.poseKey = null;
     scheduleEnemyKnockback(ctx, knockbackDistance, knockbackDuration);
@@ -741,7 +604,6 @@ const playGoodCompleteEffect = (ctx: EffectSchedulerContext, command: EarTrainin
   showPlayerPoseSequence(runtime, onDirty);
   const startedAt = performance.now();
   const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, { kind: 'castRing', startedAt, durationMs: 520, fromX: anchors.player.x, fromY: anchors.player.castY, toX: anchors.player.x, toY: anchors.player.castY, color: '#38bdf8', size: 40, alpha: 0.5, rotation: 0, rotationEnd: 0, scaleStart: 1, scaleEnd: 1.5 });
   addVisual(visuals, { kind: 'projectile', startedAt, durationMs: GOOD_COMPLETE_IMPACT_MS, fromX: anchors.player.x + 42, fromY: anchors.player.castY, toX: anchors.enemy.x, toY: anchors.enemy.bodyY, color: '#facc15', size: 64, alpha: 0.92, rotation: 0, rotationEnd: 540, scaleStart: 1, scaleEnd: 2.75, imageKey: 'fireRing' });
   runtime.effects.push({ commandId: command.id, command, startedAt, impactAt: startedAt + GOOD_COMPLETE_IMPACT_MS, impactFired: false, visuals });
   applyCompletionImpact(ctx, command, 0xfacc15, 84, 330, 0xfef08a, command.damage, GOOD_COMPLETE_IMPACT_MS);
@@ -754,7 +616,6 @@ const playSnowflakeEffect = (ctx: EffectSchedulerContext, command: EarTrainingBa
   showPlayerPoseSequence(runtime, onDirty);
   const startedAt = performance.now();
   const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, { kind: 'castRing', startedAt, durationMs: 520, fromX: anchors.player.x, fromY: anchors.player.castY, toX: anchors.player.x, toY: anchors.player.castY, color: '#38bdf8', size: 48, alpha: 0.5, rotation: 0, rotationEnd: 0, scaleStart: 1, scaleEnd: 1.6 });
   addVisual(visuals, { kind: 'snowflake', startedAt, durationMs: GREAT_COMPLETE_IMPACT_MS, fromX: anchors.player.x + 42, fromY: anchors.player.castY, toX: anchors.enemy.x, toY: anchors.enemy.bodyY, color: '#93c5fd', size: 72, alpha: 1, rotation: 0, rotationEnd: 720, scaleStart: 1, scaleEnd: 2.14, imageKey: 'snowflake' });
   runtime.effects.push({ commandId: command.id, command, startedAt, impactAt: startedAt + GREAT_COMPLETE_IMPACT_MS, impactFired: false, visuals });
   applyCompletionImpact(ctx, command, 0x93c5fd, 106, 360, 0x7dd3fc, command.damage, GREAT_COMPLETE_IMPACT_MS);
@@ -816,34 +677,6 @@ const playMeteorEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattl
   showFloatingText(runtime, 'Awesome!', anchors.player.x, anchors.player.resultTextY, '#fde68a', 1600);
   triggerZoomToPlayer(runtime.camera, anchors.player.x, anchors.player.bodyY, width / 2, height / 2, 1080);
   setTimeout(() => showPlayerPoseSequence(runtime, onDirty), 180);
-  addCastEffect(runtime, anchors.player.x, anchors.player.castY, 2.65);
-  addPlayerSparkles(runtime, anchors.player.x, anchors.player.bodyY, 1380, '#fef08a', true);
-  const chantStartedAt = performance.now();
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'complete' },
-    startedAt: chantStartedAt,
-    impactAt: chantStartedAt,
-    impactFired: true,
-    visuals: [{
-      id: nextVisualId(),
-      kind: 'chantText',
-      startedAt: chantStartedAt,
-      durationMs: 1380,
-      fromX: anchors.player.x,
-      fromY: anchors.player.headY - 38,
-      toX: anchors.player.x,
-      toY: anchors.player.headY - 38,
-      color: '#fef08a',
-      size: 18,
-      alpha: 1,
-      rotation: 0,
-      rotationEnd: 0,
-      scaleStart: 1,
-      scaleEnd: 1.32,
-      label: 'Awesome!',
-    }],
-  });
   const magicStartedAt = performance.now();
   runtime.effects.push({
     commandId: -1,
