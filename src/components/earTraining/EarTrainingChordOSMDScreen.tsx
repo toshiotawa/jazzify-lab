@@ -3,7 +3,9 @@ import { useQuestCompleteJingleOnStageClear, useGameOverJingleOnGameOver } from 
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingBattleRenderer from './EarTrainingBattleRenderer';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
-import EarTrainingChordOSMDScore from './EarTrainingChordOSMDScore';
+import EarTrainingChordOSMDScore, {
+  type EarTrainingChordOSMDScoreHandle,
+} from './EarTrainingChordOSMDScore';
 import type {
   ClearConditions,
   EarTrainingGameState,
@@ -56,6 +58,7 @@ import {
 import {
   computeChordOsmdActiveMeasureNumber,
   computeChordOsmdPhraseLoopEndSec,
+  computeChordOsmdScoreMaxMeasure,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
@@ -224,6 +227,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
+  const scoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
   const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
   const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
@@ -803,6 +807,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
 
+    scoreRef.current?.updateScroll(phraseTimeSec);
+
     if (phraseTimeSec >= 0) {
       updateActiveMeasureForPhraseTime(phraseTimeSec);
     }
@@ -1318,6 +1324,24 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     [onPracticeModeRestartFromSettings, practiceMode],
   );
 
+  const scoreMeasureDurationSec = useMemo(
+    () => (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure),
+    [stage.beats_per_measure, stage.bpm],
+  );
+
+  const scoreMaxMeasure = useMemo(
+    () => computeChordOsmdScoreMaxMeasure(
+      phraseLoopDurationSecRef.current,
+      stage.bpm,
+      stage.beats_per_measure,
+      stage.loop_measures,
+      targets,
+    ),
+    [stage.beats_per_measure, stage.bpm, stage.loop_measures, targets, phraseRunId],
+  );
+
+  const scoreScrollActive = gameState === 'countIn' || gameState === 'playingPhrase';
+
   const battleCallbacks = useMemo(() => ({
     onStart: startBattle,
     onBack,
@@ -1357,9 +1381,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       </div>
 
       <EarTrainingChordOSMDScore
+        ref={scoreRef}
         musicXmlText={musicXmlText}
         scoreErrorText={scoreErrorText}
-        activeMeasureNumber={activeMeasureNumber}
+        measureDurationSec={scoreMeasureDurationSec}
+        maxMeasure={scoreMaxMeasure}
+        scrollActive={scoreScrollActive}
         renderKeyValue={phraseRunId}
         isEnglishCopy={isEnglishCopy}
         hidden={showLobbyControls}

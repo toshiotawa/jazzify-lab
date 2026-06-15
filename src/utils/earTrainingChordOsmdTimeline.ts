@@ -58,6 +58,22 @@ export const countChordOsmdHammersDueFromIndex = (
   return count;
 };
 
+export const computeChordOsmdScoreMaxMeasure = (
+  phraseLoopDurationSec: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  loopMeasures: number,
+  targets: readonly Pick<ChordOsmdRhythmTarget, 'measureNumber'>[],
+): number => {
+  const beatDurationSec = 60 / Math.max(1, bpm);
+  const measureDurationSec = beatDurationSec * Math.max(1, beatsPerMeasure);
+  const targetMaxMeasure = targets.reduce((max, t) => Math.max(max, t.measureNumber), 1);
+  const loopMeasureCapFromPhraseDuration = phraseLoopDurationSec > 0
+    ? Math.min(512, Math.max(1, Math.ceil(phraseLoopDurationSec / measureDurationSec)))
+    : loopMeasures;
+  return Math.max(loopMeasureCapFromPhraseDuration, loopMeasures, targetMaxMeasure);
+};
+
 export const computeChordOsmdActiveMeasureNumber = (
   phraseTimeSec: number,
   bpm: number,
@@ -72,10 +88,12 @@ export const computeChordOsmdActiveMeasureNumber = (
     return 1;
   }
   const rawMeasure = Math.floor(phraseTimeSec / measureDurationSec) + 1;
-  const targetMaxMeasure = targets.reduce((max, t) => Math.max(max, t.measureNumber), 1);
-  const loopMeasureCapFromPhraseDuration = phraseLoopDurationSec > 0
-    ? Math.min(512, Math.max(1, Math.ceil(phraseLoopDurationSec / measureDurationSec)))
-    : loopMeasures;
-  const maxMeasure = Math.max(loopMeasureCapFromPhraseDuration, loopMeasures, targetMaxMeasure);
+  const maxMeasure = computeChordOsmdScoreMaxMeasure(
+    phraseLoopDurationSec,
+    bpm,
+    beatsPerMeasure,
+    loopMeasures,
+    targets,
+  );
   return Math.max(1, Math.min(maxMeasure, rawMeasure));
 };
