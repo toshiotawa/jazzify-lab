@@ -209,7 +209,7 @@ import {
   SurvivalPhraseDrumLoop,
   SURVIVAL_PHRASE_DEFAULT_DRUM_LOOP_URL,
 } from '@/utils/survivalPhraseDrumLoop';
-import { buildSurvivalRandomDirectStaffVoicing } from '@/utils/survivalRandomHintStaff';
+import { buildRandomStaffSnapshotFromChord } from '@/utils/survivalRandomStaffSnapshot';
 import {
   applySurvivalVoicingHintsWithOpacity,
   computeKeyboardHintOpacity,
@@ -5775,9 +5775,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const ch = slot.chord;
     if (!slot.isEnabled || !ch || ch.quality === 'progression') return null;
 
-    const built = buildSurvivalRandomDirectStaffVoicing(ch.id);
-    if (!built) return null;
-
     const survivalQuestion = parseSurvivalQuestionId(ch.id);
     const typeLabel = survivalQuestion
       ? (isEnglishCopy
@@ -5785,14 +5782,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           : (stageDefinition?.chordDisplayName || ch.displayName))
       : ch.displayName;
 
-    return {
-      voicingNames: built.voicingNames,
-      keyFifths: built.keyFifths,
+    return buildRandomStaffSnapshotFromChord({
+      chord: ch,
       correctPitchClasses: slot.correctNotes,
       chordDisplayName: typeLabel,
       rootDisplayName: survivalQuestion ? ch.root : undefined,
-      staffClef: 'treble',
-    };
+    });
   }, [
     isBalloonRushMode,
     isProgressionStage,
@@ -5807,6 +5802,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     gameState.codeSlots.current[1].chord?.displayName,
     gameState.codeSlots.current[1].chord?.quality,
     gameState.codeSlots.current[1].chord?.root,
+    gameState.codeSlots.current[1].chord?.progressionStaffVoicingNames,
+    gameState.codeSlots.current[1].chord?.progressionStaffKeyFifths,
+    gameState.codeSlots.current[1].chord?.progressionStaffVoicingStaves,
   ]);
 
   const scenarioUi = useMemo(() => {
@@ -6058,9 +6056,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const ch = slot.chord;
     if (!slot.isEnabled || !ch || ch.quality === 'progression') return null;
 
-    const tutNames = ch.progressionStaffVoicingNames;
-    const tutKf = ch.progressionStaffKeyFifths;
-
     const survivalQuestion = parseSurvivalQuestionId(ch.id);
     const typeLabel = survivalQuestion
       ? (isEnglishCopy
@@ -6068,40 +6063,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           : (stageDefinition?.chordDisplayName || ch.displayName))
       : ch.displayName;
 
-    if (tutNames && tutNames.length > 0 && typeof tutKf === 'number') {
-      const staves = ch.progressionStaffVoicingStaves;
-      const allBass = staves && staves.length === tutNames.length && staves.every(s => s === 2);
-      const baseRand: SurvivalProgressionStaffSnapshot = {
-        voicingNames: tutNames,
-        keyFifths: tutKf,
-        correctPitchClasses: slot.correctNotes,
-        chordDisplayName: typeLabel,
-        rootDisplayName: survivalQuestion ? ch.root : undefined,
-        staffClef: allBass ? 'bass' : 'treble',
-      };
-      if (staves && staves.length === tutNames.length) {
-        return { ...baseRand, voicingStaves: staves };
-      }
-      return baseRand;
-    }
-
-    const built = buildSurvivalRandomDirectStaffVoicing(ch.id);
-    if (!built) return null;
-
-    const typeLabelResolved = survivalQuestion
-      ? (isEnglishCopy
-          ? (stageDefinition?.chordDisplayNameEn || ch.displayName)
-          : (stageDefinition?.chordDisplayName || ch.displayName))
-      : ch.displayName;
-
-    return {
-      voicingNames: built.voicingNames,
-      keyFifths: built.keyFifths,
+    return buildRandomStaffSnapshotFromChord({
+      chord: ch,
       correctPitchClasses: slot.correctNotes,
-      chordDisplayName: typeLabelResolved,
+      chordDisplayName: typeLabel,
       rootDisplayName: survivalQuestion ? ch.root : undefined,
-      staffClef: 'treble',
-    };
+    });
   }, [
     isStageMode,
     hintMode,
@@ -6116,6 +6083,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.chord?.displayName,
     progressionPunchSlot.chord?.quality,
     progressionPunchSlot.chord?.root,
+    progressionPunchSlot.chord?.progressionStaffVoicingNames,
+    progressionPunchSlot.chord?.progressionStaffKeyFifths,
+    progressionPunchSlot.chord?.progressionStaffVoicingStaves,
     scenarioUiTick,
     scenarioMode,
   ]);
