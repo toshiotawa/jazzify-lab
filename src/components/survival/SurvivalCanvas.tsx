@@ -1748,10 +1748,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       drawSurvivalSpeechBubble({
         ctx,
         centerX: playerScreenX,
-        anchorY: playerScreenY + PLAYER_SIZE / 2 + 6,
+        anchorY: playerScreenY - PLAYER_SIZE * 0.85 - 14,
         text: faiQuote,
         maxWidth: bubbleMax,
-        placement: 'below',
+        placement: 'above',
       });
     }
 

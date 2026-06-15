@@ -178,7 +178,7 @@ export interface DrawSurvivalSpeechBubbleParams {
   /** 複数色セグメント（優先）。`segmentsToPlainString` が空なら描画しない。 */
   readonly segments?: readonly TutorialResolvedTextSegment[];
   readonly maxWidth: number;
-  /** 既定は頭上（ジャ爺）。ファイ Web は `below`。 */
+  /** 既定は頭上（ジャ爺・ファイ共通）。`below` は足下＋尾上向き。 */
   readonly placement?: SurvivalSpeechBubblePlacement;
 }
 

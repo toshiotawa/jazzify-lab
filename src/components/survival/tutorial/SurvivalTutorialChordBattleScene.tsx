@@ -105,13 +105,15 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
   const userPulseRef = useRef(0);
   const midiRef = useRef(false);
   const tutorialJajiiSpeechTextRef = useRef('');
+  const tutorialFaiSpeechTextRef = useRef('');
 
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
 
   const linePresentationSink = useMemo(
     () => ({
       setCharacterText: (text: string) => {
-        bindingsRef.current.setCharacterText(text);
+        tutorialFaiSpeechTextRef.current = text;
+        bindingsRef.current.setCharacterText('');
       },
       setNarrationText: (text: string) => {
         bindingsRef.current.setNarrationText(text);
@@ -278,6 +280,7 @@ export const SurvivalTutorialChordBattleScene: React.FC<SurvivalTutorialChordBat
         initialScenarioOverrides={mergeSurvivalTutorialV3Baseline(script)}
         tutorialDialogueJajii
         tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
+        tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
         onScenarioHandleReady={(x) => {
           setScenarioHandle(x);
         }}

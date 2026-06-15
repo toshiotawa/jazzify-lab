@@ -50,6 +50,23 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
   bindingsRef.current = bindings;
 
   const tutorialJajiiSpeechTextRef = useRef('');
+  const tutorialFaiSpeechTextRef = useRef('');
+
+  const linePresentationSink = useMemo(
+    () => ({
+      setCharacterText: (text: string) => {
+        tutorialFaiSpeechTextRef.current = text;
+        bindingsRef.current.setCharacterText('');
+      },
+      setNarrationText: (text: string) => {
+        bindingsRef.current.setNarrationText(text);
+      },
+      setJajiiSpeechText: (text: string) => {
+        tutorialJajiiSpeechTextRef.current = text;
+      },
+    }),
+    [],
+  );
 
   const sceneHasJajii = useMemo(
     () => scene.lines.some((l) => dialogueSpeakerOf(l) === 'jajii'),
@@ -75,6 +92,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
     const ac = new AbortController();
     const lines = scene.lines ?? [];
     tutorialJajiiSpeechTextRef.current = '';
+    tutorialFaiSpeechTextRef.current = '';
 
     if (lines.length === 0) {
       onSceneComplete();
@@ -90,25 +108,12 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
           line,
           bindingsRef.current.isEnglishCopy,
           'dialogue_only',
-          {
-            setCharacterText: bindingsRef.current.setCharacterText,
-            setNarrationText: bindingsRef.current.setNarrationText,
-            setJajiiSpeechText: (text) => {
-              tutorialJajiiSpeechTextRef.current = text;
-            },
-          },
+          linePresentationSink,
         );
         await bindingsRef.current.waitForTapOrTimeout(lineSeconds, ac.signal);
         if (ac.signal.aborted) return;
       }
-      bindingsRef.current.setCharacterText('');
-      clearSurvivalTutorialV3LinePresentation({
-        setCharacterText: bindingsRef.current.setCharacterText,
-        setNarrationText: bindingsRef.current.setNarrationText,
-        setJajiiSpeechText: (text) => {
-          tutorialJajiiSpeechTextRef.current = text;
-        },
-      });
+      clearSurvivalTutorialV3LinePresentation(linePresentationSink);
       if (!ac.signal.aborted) {
         onSceneComplete();
       }
@@ -119,15 +124,9 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
     return () => {
       ac.abort();
       bindingsRef.current.setTapAdvanceCueVisible(false);
-      clearSurvivalTutorialV3LinePresentation({
-        setCharacterText: bindingsRef.current.setCharacterText,
-        setNarrationText: bindingsRef.current.setNarrationText,
-        setJajiiSpeechText: (text) => {
-          tutorialJajiiSpeechTextRef.current = text;
-        },
-      });
+      clearSurvivalTutorialV3LinePresentation(linePresentationSink);
     };
-  }, [lineSeconds, onSceneComplete, scene.lines]);
+  }, [linePresentationSink, lineSeconds, onSceneComplete, scene.lines]);
 
   return (
     <div className="relative h-full min-h-0 w-full bg-black">
@@ -146,6 +145,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
         initialScenarioOverrides={dialogueScenarioOverrides}
         tutorialDialogueJajii={sceneHasJajii}
         tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
+        tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
         onBackToSelect={() => bindingsRef.current.onExit()}
         onBackToMenu={() => bindingsRef.current.onExit()}
       />
