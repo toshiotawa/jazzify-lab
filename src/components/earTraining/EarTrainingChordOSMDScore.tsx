@@ -243,6 +243,39 @@ const measureLayoutFromOsmd = (
   return collectMeasureCentersFromStaffLines(osmd, surface, viewportWidth);
 };
 
+/** OSMD cursor (type:3) を指定小節へ移動。小節変化時のみ呼ぶ（イベント駆動）。 */
+const moveOsmdCursorToMeasure = (
+  osmd: OpenSheetMusicDisplay,
+  measureNumber: number,
+): void => {
+  const cursor = osmd.cursor;
+  if (!cursor) {
+    return;
+  }
+  const targetIndex = Math.max(0, Math.floor(measureNumber) - 1);
+  cursor.reset();
+  const maxSteps = 10_000;
+  let steps = 0;
+  while (
+    !cursor.iterator.EndReached
+    && cursor.iterator.CurrentMeasureIndex < targetIndex
+    && steps < maxSteps
+  ) {
+    cursor.next();
+    steps += 1;
+  }
+  cursor.update();
+};
+
+const OSMD_MEASURE_CURSOR_OPTIONS: IOSMDOptions['cursorsOptions'] = [
+  {
+    type: 3,
+    color: '#33e02f',
+    alpha: 0.18,
+    follow: false,
+  },
+];
+
 const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   musicXmlText,
   scoreErrorText,
@@ -314,6 +347,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       defaultColorLabel: '#ffffff',
       defaultColorTitle: '#ffffff',
       defaultColorLyrics: '#ffffff',
+      cursorsOptions: OSMD_MEASURE_CURSOR_OPTIONS,
     };
 
     try {
@@ -329,6 +363,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       (osmd as OpenSheetMusicDisplayZoomable).zoom = osmdZoom;
       score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
       osmd.render();
+      osmd.enableOrDisableCursors(true);
+      osmd.cursor.show();
       await waitNextPaint();
 
       const readSurface = (): { el: HTMLElement | null; height: number } => {
@@ -387,6 +423,10 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       Math.min(maxOffset, center * effectiveScale - viewport.clientWidth / 2),
     );
     score.style.transform = `translate3d(${-offset}px, -50%, 0) scale(${effectiveScale})`;
+    const osmd = osmdRef.current;
+    if (osmd) {
+      moveOsmdCursorToMeasure(osmd, measureNumber);
+    }
   }, [activeMeasureNumber, cssScale, layout, userZoom]);
 
   const statusText = renderError ?? scoreErrorText;

@@ -926,8 +926,36 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               defaultColorStem: '#ffffff',
               defaultColorLabel: '#ffffff',
               defaultColorTitle: '#ffffff',
-              defaultColorLyrics: '#ffffff'
+              defaultColorLyrics: '#ffffff',
+              cursorsOptions: [
+                {
+                  type: 3,
+                  color: '#33e02f',
+                  alpha: 0.18,
+                  follow: false
+                }
+              ]
             });
+          }
+
+          function moveOsmdCursorToMeasure(measureNumber) {
+            if (!osmd || !osmd.cursor) {
+              return;
+            }
+            const cursor = osmd.cursor;
+            const targetIndex = Math.max(0, Math.floor(Number(measureNumber || 1)) - 1);
+            cursor.reset();
+            const maxSteps = 10000;
+            let steps = 0;
+            while (
+              !cursor.iterator.EndReached
+              && cursor.iterator.CurrentMeasureIndex < targetIndex
+              && steps < maxSteps
+            ) {
+              cursor.next();
+              steps += 1;
+            }
+            cursor.update();
           }
 
           function measureSurfaceHeight() {
@@ -962,6 +990,10 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               osmd.zoom = z;
               await osmd.load(displayXml);
               osmd.render();
+              osmd.enableOrDisableCursors(true);
+              if (osmd.cursor) {
+                osmd.cursor.show();
+              }
               await new Promise(function (resolve) {
                 requestAnimationFrame(function () {
                   requestAnimationFrame(resolve);
@@ -1012,6 +1044,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             const maxOffset = Math.max(0, scoreWidth - viewport.clientWidth);
             const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
             score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
+            moveOsmdCursorToMeasure(mn);
           }
 
           window.JazzifyOSMD = {
