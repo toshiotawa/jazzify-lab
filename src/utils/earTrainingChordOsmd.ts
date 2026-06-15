@@ -1,5 +1,34 @@
-import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank } from '@/types';
+import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank, EarTrainingStage } from '@/types';
 import { musicXmlKeySignatureAlter, parseVoicingNoteName } from '@/utils/voicingMusicXml';
+
+/** chord_osmd ステージ／チュートリアル content.stage の既定値（MusicXML 譜面から判定ターゲットを生成） */
+export const EAR_TRAINING_OSMD_SCORE_TARGET_DEFAULTS = {
+  show_keyboard_hints_in_battle: true,
+  osmd_targets_from_score: true,
+} as const;
+
+type EarTrainingOsmdScoreTargetStage = Pick<EarTrainingStage, 'mode' | 'osmd_targets_from_score'>;
+
+/** chord_osmd では MusicXML 譜面ベース判定を既定とする（明示的 false のみ従来の chords タイミング） */
+export const earTrainingOsmdUsesScoreTargets = (
+  stage: EarTrainingOsmdScoreTargetStage,
+): boolean => (
+  stage.osmd_targets_from_score === true
+  || (stage.mode === 'chord_osmd' && stage.osmd_targets_from_score !== false)
+);
+
+/** OSMD ステージ保存用: chord_osmd なら未指定時 true、明示 false は維持 */
+export const resolveEarTrainingOsmdTargetsFromScore = (
+  stage: EarTrainingOsmdScoreTargetStage,
+): boolean | undefined => {
+  if (stage.mode !== 'chord_osmd') {
+    return stage.osmd_targets_from_score;
+  }
+  if (stage.osmd_targets_from_score === false) {
+    return false;
+  }
+  return true;
+};
 
 /** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 250ms） */
 export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.25;

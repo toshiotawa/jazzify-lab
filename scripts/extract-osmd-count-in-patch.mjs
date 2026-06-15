@@ -1,3 +1,7 @@
+/**
+ * 既存マイグレーションから OSMD チュートリアル script ブロックを抽出してパッチ SQL を生成する。
+ * 生成結果は script JSON 全体を上書きする。stage フラグは生成元 SQL に含めること。
+ */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuestCompleteJingleOnStageClear, useGameOverJingleOnGameOver } from '@/hooks/useQuestCompleteJingle';
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
-import EarTrainingPhaserGame from './EarTrainingPhaserGame';
+import EarTrainingBattleRenderer from './EarTrainingBattleRenderer';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
 import EarTrainingChordOSMDScore from './EarTrainingChordOSMDScore';
 import type {
@@ -70,6 +70,7 @@ import {
   chordOsmdTargetIsComplete,
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
+  earTrainingOsmdUsesScoreTargets,
   getChordOsmdTotalNoteCount,
   normalizeChordOsmdMusicXml,
   type ChordOsmdLyricEvent,
@@ -542,13 +543,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         stage.bpm,
         stage.beats_per_measure,
         chordOsmdXmlAttacks,
-        stage.osmd_targets_from_score === true,
+        earTrainingOsmdUsesScoreTargets(stage),
       );
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
       setCompletedTargetCount(0);
     }
-  }, [chordOsmdXmlAttacks, gameState, loadMusicXml, phrases, stage.bpm, stage.beats_per_measure, stage.osmd_targets_from_score]);
+  }, [chordOsmdXmlAttacks, gameState, loadMusicXml, phrases, stage, stage.bpm, stage.beats_per_measure]);
 
   const resetPhraseTimelineIndices = useCallback(() => {
     nextHammerTargetIndexRef.current = 0;
@@ -880,7 +881,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         stage.bpm,
         stage.beats_per_measure,
         attacks,
-        stage.osmd_targets_from_score === true,
+        earTrainingOsmdUsesScoreTargets(stage),
       );
       if (phraseTargets.length === 0) {
         finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');
@@ -1328,7 +1329,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       feedback === 'clear' && 'bg-white text-slate-950',
     )}>
       <div className={cn('relative h-full w-full', showLobbyControls ? 'z-30' : 'z-0')}>
-        <EarTrainingPhaserGame
+        <EarTrainingBattleRenderer
           ref={phaserGameRef}
           snapshot={battleSnapshot}
           effectCommand={battleEffectCommand}

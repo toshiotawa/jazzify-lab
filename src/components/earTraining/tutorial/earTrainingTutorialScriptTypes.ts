@@ -108,6 +108,7 @@ export interface EarTrainingTutorialContentStage {
   hide_chord_names_in_battle?: boolean;
   quiz_required_correct_count?: number;
   show_keyboard_hints_in_battle?: boolean;
+  /** 省略時は chord_osmd で true（MusicXML 譜面から判定ターゲット生成） */
   osmd_targets_from_score?: boolean;
   chord_voicing_composite_phrase?: boolean;
 }

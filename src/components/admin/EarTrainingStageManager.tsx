@@ -21,6 +21,7 @@ import {
   type EarTrainingPhraseImportPayload,
 } from '@/platform/supabaseEarTraining';
 import { uploadEarTrainingMusicXml, uploadEarTrainingPhraseAudio } from '@/platform/r2Storage';
+import { resolveEarTrainingOsmdTargetsFromScore } from '@/utils/earTrainingChordOsmd';
 import { midiToPitchClass, noteNameToPitchClass } from '@/utils/earTrainingEngine';
 import {
   buildEarTrainingChordVoicingDraftsFromMusicXml,
@@ -165,6 +166,10 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
   mode: stage.mode ?? 'phrase',
   chord_voicing_self_paced: stage.chord_voicing_self_paced ?? false,
   show_keyboard_hints_in_battle: stage.show_keyboard_hints_in_battle ?? false,
+  osmd_targets_from_score: resolveEarTrainingOsmdTargetsFromScore({
+    mode: stage.mode ?? 'phrase',
+    osmd_targets_from_score: stage.osmd_targets_from_score,
+  }),
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -375,11 +380,15 @@ const EarTrainingStageManager: React.FC = () => {
 
     setSaving(true);
     try {
+      const stagePayload: StageForm = {
+        ...stageForm,
+        osmd_targets_from_score: resolveEarTrainingOsmdTargetsFromScore(stageForm),
+      };
       if (selectedStage) {
-        await updateEarTrainingStage(selectedStage.id, stageForm);
+        await updateEarTrainingStage(selectedStage.id, stagePayload);
         toast.success('ステージを更新しました');
       } else {
-        const created = await createEarTrainingStage(stageForm);
+        const created = await createEarTrainingStage(stagePayload);
         setSelectedStageId(created.id);
         toast.success('ステージを作成しました');
       }
@@ -660,6 +669,9 @@ const EarTrainingStageManager: React.FC = () => {
                         show_keyboard_hints_in_battle: nextMode === 'chord_osmd'
                           ? true
                           : prev.show_keyboard_hints_in_battle,
+                        osmd_targets_from_score: nextMode === 'chord_osmd'
+                          ? true
+                          : prev.osmd_targets_from_score,
                       }));
                     }
                   }}
@@ -697,6 +709,20 @@ const EarTrainingStageManager: React.FC = () => {
                     }))}
                   />
                   本番モードでも鍵盤ハイライトを表示
+                </label>
+              )}
+              {stageForm.mode === 'chord_osmd' && (
+                <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm"
+                    checked={stageForm.osmd_targets_from_score !== false}
+                    onChange={event => setStageForm(prev => ({
+                      ...prev,
+                      osmd_targets_from_score: event.target.checked,
+                    }))}
+                  />
+                  MusicXML 譜面から判定ターゲットを生成（既定ON・OFFで chords タイミングに戻す）
                 </label>
               )}
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />

@@ -8,7 +8,9 @@ import {
   collectChordOsmdMusicXmlLyrics,
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
+  earTrainingOsmdUsesScoreTargets,
   normalizeChordOsmdMusicXml,
+  resolveEarTrainingOsmdTargetsFromScore,
 } from '@/utils/earTrainingChordOsmd';
 
 const chord = (overrides: Partial<EarTrainingPhraseChord> & { id: string; order_index: number }): EarTrainingPhraseChord => ({
@@ -434,5 +436,37 @@ describe('collectChordOsmdMusicXmlAttacks — tie handling', () => {
     const attacks = collectChordOsmdMusicXmlAttacks(xml);
     expect(attacks).toHaveLength(1);
     expect(attacks[0].midis).toEqual([64]);
+  });
+});
+
+describe('earTrainingOsmdUsesScoreTargets', () => {
+  it('chord_osmd かつ未指定なら MusicXML 譜面ベース判定を使う', () => {
+    expect(earTrainingOsmdUsesScoreTargets({ mode: 'chord_osmd', osmd_targets_from_score: undefined })).toBe(true);
+  });
+
+  it('chord_osmd で明示 true なら MusicXML 譜面ベース判定を使う', () => {
+    expect(earTrainingOsmdUsesScoreTargets({ mode: 'chord_osmd', osmd_targets_from_score: true })).toBe(true);
+  });
+
+  it('chord_osmd で明示 false なら従来の chords タイミングに戻す', () => {
+    expect(earTrainingOsmdUsesScoreTargets({ mode: 'chord_osmd', osmd_targets_from_score: false })).toBe(false);
+  });
+
+  it('chord_osmd 以外では false 扱い', () => {
+    expect(earTrainingOsmdUsesScoreTargets({ mode: 'phrase', osmd_targets_from_score: undefined })).toBe(false);
+  });
+});
+
+describe('resolveEarTrainingOsmdTargetsFromScore', () => {
+  it('chord_osmd 未指定時は true を返す', () => {
+    expect(resolveEarTrainingOsmdTargetsFromScore({ mode: 'chord_osmd', osmd_targets_from_score: undefined })).toBe(true);
+  });
+
+  it('chord_osmd 明示 false は false を返す', () => {
+    expect(resolveEarTrainingOsmdTargetsFromScore({ mode: 'chord_osmd', osmd_targets_from_score: false })).toBe(false);
+  });
+
+  it('phrase モードでは undefined を維持', () => {
+    expect(resolveEarTrainingOsmdTargetsFromScore({ mode: 'phrase', osmd_targets_from_score: undefined })).toBeUndefined();
   });
 });

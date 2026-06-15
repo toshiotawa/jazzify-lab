@@ -55,6 +55,12 @@ const earTutorialUi = {
   keyboardHintsDefault: true,
 };
 
+/** Web `EAR_TRAINING_OSMD_SCORE_TARGET_DEFAULTS` と同等（chord_osmd 新規クエスト用） */
+const chordOsmdStageDefaults = {
+  show_keyboard_hints_in_battle: true,
+  osmd_targets_from_score: true,
+};
+
 const survivalTutorialUi = {
   hidePlayerHpBar: true,
   hideSettingsButton: true,
@@ -221,8 +227,7 @@ const mqB1Q1OsmdScript = {
         fail_damage: 0,
         background_theme: 'blue_club',
         mode: 'chord_osmd',
-        show_keyboard_hints_in_battle: true,
-        osmd_targets_from_score: true,
+        ...chordOsmdStageDefaults,
       },
       phrases: [
         {
@@ -514,7 +519,7 @@ const mqB1Q3OsmdScript = {
         fail_damage: 0,
         background_theme: 'blue_club',
         mode: 'chord_osmd',
-        show_keyboard_hints_in_battle: true,
+        ...chordOsmdStageDefaults,
       },
       phrases: [
         {

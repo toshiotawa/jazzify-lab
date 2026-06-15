@@ -831,7 +831,7 @@ export interface EarTrainingStage {
   quiz_required_correct_count?: number;
   /** chord_voicing/chord_quiz/chord_osmd: 本番モードでも鍵盤上に正解候補をハイライトする */
   show_keyboard_hints_in_battle?: boolean;
-  /** chord_osmd: MusicXML の音符アタックから判定ターゲットを生成する（1音=1ターゲット） */
+  /** chord_osmd: MusicXML の音符アタックから判定ターゲットを生成する（省略時は chord_osmd で true） */
   osmd_targets_from_score?: boolean;
   created_at?: string;
   updated_at?: string;

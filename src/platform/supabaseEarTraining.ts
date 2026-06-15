@@ -1,3 +1,4 @@
+import { resolveEarTrainingOsmdTargetsFromScore } from '@/utils/earTrainingChordOsmd';
 import { EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA } from '@/utils/earTrainingUiCopy';
 import { enrichEarTrainingStageWithComposite } from '@/platform/enrichEarTrainingCompositePhrase';
 import { enrichEarTrainingStageWithPhrasePairAdlib } from '@/platform/enrichEarTrainingPhrasePairAdlib';
@@ -80,10 +81,16 @@ const normalizeEarTrainingMode = (raw: unknown): EarTrainingStage['mode'] => {
   return 'phrase';
 };
 
-const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
-  ...stage,
-  mode: normalizeEarTrainingMode(stage.mode),
-  phrases: (stage.phrases ?? [])
+const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => {
+  const mode = normalizeEarTrainingMode(stage.mode);
+  return {
+    ...stage,
+    mode,
+    osmd_targets_from_score: resolveEarTrainingOsmdTargetsFromScore({
+      mode,
+      osmd_targets_from_score: stage.osmd_targets_from_score,
+    }),
+    phrases: (stage.phrases ?? [])
     .map(phrase => ({
       ...phrase,
       notes: (phrase.notes ?? []).slice().sort((a, b) => a.note_index - b.note_index),
@@ -103,7 +110,8 @@ const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
       voicing_staves: (item.voicing_staves ?? []).map(n => Number(n)),
     }))
     .sort((a, b) => a.order_index - b.order_index) as EarTrainingChordQuizItem[],
-});
+  };
+};
 
 const invalidateEarTrainingCache = (): void => {
   clearCacheByPattern(EAR_TRAINING_CACHE_PREFIX);
