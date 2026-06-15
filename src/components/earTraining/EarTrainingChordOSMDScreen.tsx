@@ -542,12 +542,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         stage.bpm,
         stage.beats_per_measure,
         chordOsmdXmlAttacks,
+        stage.osmd_targets_from_score === true,
       );
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
       setCompletedTargetCount(0);
     }
-  }, [chordOsmdXmlAttacks, gameState, loadMusicXml, phrases, stage.bpm, stage.beats_per_measure]);
+  }, [chordOsmdXmlAttacks, gameState, loadMusicXml, phrases, stage.bpm, stage.beats_per_measure, stage.osmd_targets_from_score]);
 
   const resetPhraseTimelineIndices = useCallback(() => {
     nextHammerTargetIndexRef.current = 0;
