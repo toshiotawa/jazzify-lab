@@ -2021,7 +2021,9 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
 
     private var wantsStagePlayDialogue: Bool {
         if balloonRushPlayDialogueStageId != nil {
-            return !isDemo && !vm.uiSnapshot.scenario.isActive
+            // 風船ラッシュは UI 制御のため scenario.isActive == true になり、
+            // サバイバル本編のシナリオ台本とは別物なので isActive は見ない。
+            return !isDemo
         }
         return !isDemo
             && stage.mapCategory == .basic
