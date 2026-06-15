@@ -169,14 +169,19 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       return undefined;
     }
 
+    let cancelled = false;
     const loop = drumLoopRef.current ?? new EarTrainingChordVoicingDrumLoop();
     drumLoopRef.current = loop;
     const audioContext = new AudioContext();
     void loop.prepare(drumLoopUrl || CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL, audioContext).then(() => {
+      if (cancelled) {
+        return;
+      }
       loop.start();
     });
 
     return () => {
+      cancelled = true;
       loop.stop();
     };
   }, [drumLoopUrl, scene.lines]);
