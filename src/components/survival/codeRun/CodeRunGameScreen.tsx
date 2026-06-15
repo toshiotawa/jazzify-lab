@@ -648,12 +648,9 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           )}
         </div>
 
-        <div
-          className="absolute left-1/2 top-24 flex -translate-x-1/2 flex-col items-center gap-1.5 text-center sm:top-[12%]"
-          style={{ fontFamily: '"Avenir Next Rounded", "Avenir Next", "Nunito", system-ui, sans-serif' }}
-        >
+        <div className="code-run-chord-display absolute left-1/2 top-24 flex -translate-x-1/2 flex-col items-center gap-1.5 text-center sm:top-[12%]">
           <div
-            className="min-w-40 max-w-60 px-3 py-1 text-[34px] font-black leading-none text-[#ffe04d] sm:text-[40px]"
+            className="min-w-40 max-w-60 px-3 py-1 text-[34px] leading-none text-[#ffe04d] sm:text-[40px]"
             style={{
               textShadow: '0 3px 8px rgba(230,56,87,0.9), 0 1px 2px rgba(0,0,0,0.85)',
             }}
@@ -662,14 +659,16 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           </div>
           <div className="min-w-24 max-w-32 px-1 py-0.5">
             <div
-              className="text-[10px] font-black uppercase leading-none text-white/70"
+              className="text-[10px] uppercase leading-none text-white/70"
               style={{ textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}
             >
               next
             </div>
             <div
-              className="mt-0.5 text-xl font-black leading-none text-white/90"
-              style={{ textShadow: '0 2px 5px rgba(230,56,87,0.55), 0 1px 2px rgba(0,0,0,0.85)' }}
+              className="mt-0.5 text-xl leading-none text-white/90"
+              style={{
+                textShadow: '0 2px 5px rgba(230,56,87,0.55), 0 1px 2px rgba(0,0,0,0.85)',
+              }}
             >
               {nextLabel}
             </div>

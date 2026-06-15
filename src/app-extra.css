@@ -972,6 +972,15 @@
   font-weight: normal !important;
 }
 
+/* コードラン: コード出題・next はネオン用ラウンドフォント（Zen Kaku 統一の対象外） */
+.code-run-chord-display,
+.fantasy-game-screen .code-run-chord-display {
+  font-family: ui-rounded, "SF Pro Rounded", "Avenir Next", "Helvetica Neue", Arial, sans-serif !important;
+  font-weight: 800 !important;
+  font-style: normal !important;
+  letter-spacing: 0.01em;
+}
+
 /*
  * iOS WKWebView での GPU 合成負荷軽減
  * backdrop-filter は iOS WebKit で非常に高コストなため、
