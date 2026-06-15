@@ -78,8 +78,45 @@ const computeStructuralSnapshotKey = (snapshot: EarTrainingBattleSnapshot): stri
   snapshot.lessonProgressText ?? '',
   snapshot.demoLoopActive ? 1 : 0,
 ].join('|');
-const AUTO_IDLE_MIN_MS = 1000;
-const AUTO_IDLE_MAX_MS = 2500;
+
+/** HP・ゲージ・時間・アクティブコード・スロット進行を除く HUD レイアウトキー。 */
+const computeHudLayoutSnapshotKey = (
+  snapshot: EarTrainingBattleSnapshot,
+  width: number,
+): string => {
+  const chordsKey = snapshot.chords.map(chord => `${chord.id}:${chord.name}`).join(',');
+  const slotsKey = snapshot.phraseSlots.join(',');
+  let phraseSlotViewportKey = 'hidden';
+  if (!snapshot.phraseSlotsHidden) {
+    const slots = snapshot.phraseSlots.length > 0 ? snapshot.phraseSlots : ['_'];
+    const slotSize = Phaser.Math.Clamp((width - 48) / Math.min(Math.max(8, slots.length), 11), 22, 36);
+    const gap = 5;
+    const availableWidth = Math.max(slotSize, width - 40);
+    const visibleCount = Math.max(1, Math.min(slots.length, Math.floor((availableWidth + gap) / (slotSize + gap))));
+    const focusedIndex = Phaser.Math.Clamp(snapshot.currentNoteIndex, 0, Math.max(0, slots.length - 1));
+    const firstVisibleIndex = Phaser.Math.Clamp(
+      focusedIndex - Math.floor(visibleCount / 2),
+      0,
+      Math.max(0, slots.length - visibleCount),
+    );
+    phraseSlotViewportKey = `${slots.length}|${snapshot.slotKind}|${slotSize}|${visibleCount}|${firstVisibleIndex}`;
+  }
+  return [
+    snapshot.hidePlayerHpBar ? 1 : 0,
+    snapshot.hideSettingsButton ? 1 : 0,
+    snapshot.hideBackButton ? 1 : 0,
+    snapshot.hideMidiStatus ? 1 : 0,
+    snapshot.isMidiConnected ? 1 : 0,
+    chordsKey,
+    slotsKey,
+    snapshot.slotKind,
+    phraseSlotViewportKey,
+    width,
+  ].join('|');
+};
+
+const AUTO_IDLE_MIN_MS = 1500;
+const AUTO_IDLE_MAX_MS = 3500;
 const RECOVER_IDLE_MIN_MS = 500;
 const RECOVER_IDLE_MAX_MS = 1200;
 const ACTION_RESUME_IDLE_MS = 900;
@@ -260,6 +297,44 @@ interface BattleAnchors {
   enemy: CharacterAnchors;
 }
 
+interface HpBarLiveRefs {
+  frame: Phaser.GameObjects.Rectangle;
+  fill: Phaser.GameObjects.Rectangle;
+  barWidth: number;
+  barX: number;
+  barY: number;
+  isPlayer: boolean;
+}
+
+interface AttackGaugeLiveRefs {
+  label: Phaser.GameObjects.Text;
+  frame: Phaser.GameObjects.Rectangle;
+  fill: Phaser.GameObjects.Rectangle;
+  x: number;
+  y: number;
+  width: number;
+}
+
+interface ChordHudLiveRefs {
+  boxes: Phaser.GameObjects.Rectangle[];
+  texts: Phaser.GameObjects.Text[];
+  firstVisibleIndex: number;
+}
+
+interface PhraseSlotLiveEntry {
+  index: number;
+  box: Phaser.GameObjects.Rectangle;
+  text?: Phaser.GameObjects.Text;
+  ring?: Phaser.GameObjects.Arc;
+}
+
+interface PhraseSlotLiveRefs {
+  entries: PhraseSlotLiveEntry[];
+  isCircleMode: boolean;
+  slotSize: number;
+  revealedNotes: string[];
+}
+
 export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingBattleSceneHandle {
   private callbacks: EarTrainingBattleCallbacks = EMPTY_CALLBACKS;
   private snapshot: EarTrainingBattleSnapshot | null = null;
@@ -283,6 +358,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private cachedPartnerQuoteShowCue = false;
   private partnerQuoteCueTween: Phaser.Tweens.Tween | null = null;
   private partnerQuoteBubbleRoot: Phaser.GameObjects.Container | null = null;
+  private quoteTextMeasureCtx: CanvasRenderingContext2D | null = null;
   private phraseIntroText: Phaser.GameObjects.Text | null = null;
   private lastPhraseIntroKey: string | null = null;
   private countInOverlayNodes: Phaser.GameObjects.GameObject[] = [];
@@ -298,6 +374,16 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private lastSceneRebuildAt = 0;
   private sceneRebuildTimer: Phaser.Time.TimerEvent | null = null;
   private lastStructuralSnapshotKey: string | null = null;
+  private lastHudLayoutSnapshotKey: string | null = null;
+  private playerHpRefs: HpBarLiveRefs | null = null;
+  private enemyHpRefs: HpBarLiveRefs | null = null;
+  private timeText: Phaser.GameObjects.Text | null = null;
+  private attackGaugeRefs: AttackGaugeLiveRefs | null = null;
+  private chordHudRefs: ChordHudLiveRefs | null = null;
+  private midiStatusText: Phaser.GameObjects.Text | null = null;
+  private phraseSlotRefs: PhraseSlotLiveRefs | null = null;
+  private phraseSlotCurrentTween: Phaser.Tweens.Tween | null = null;
+  private phraseSlotCurrentBox: Phaser.GameObjects.Rectangle | null = null;
 
   constructor() {
     super({ key: 'EarTrainingBattleScene' });
@@ -320,7 +406,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   shutdown(): void {
     this.isReady = false;
     this.lastStructuralSnapshotKey = null;
+    this.lastHudLayoutSnapshotKey = null;
     this.pendingSceneRebuild = false;
+    this.clearLiveHudRefs();
     this.clearOsmdHammers();
     this.stopQuoteCueTween();
     this.stopPartnerQuoteCueTween();
@@ -347,12 +435,18 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.isReady) {
       return;
     }
+    const width = Math.max(320, this.scale.width);
     const structuralKey = computeStructuralSnapshotKey(snapshot);
+    const hudLayoutKey = computeHudLayoutSnapshotKey(snapshot, width);
     if (structuralKey !== this.lastStructuralSnapshotKey) {
       this.lastStructuralSnapshotKey = structuralKey;
+      this.lastHudLayoutSnapshotKey = hudLayoutKey;
       this.queueSceneRebuild();
-    } else {
+    } else if (hudLayoutKey !== this.lastHudLayoutSnapshotKey) {
+      this.lastHudLayoutSnapshotKey = hudLayoutKey;
       this.rebuildHudLayers();
+    } else {
+      this.updateLiveHud(snapshot);
     }
     this.loadAvatarTextures(snapshot);
     this.syncCharacterLifeState(snapshot);
@@ -407,14 +501,34 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     void _active;
   }
 
+  private getQuoteTextMeasureCtx(): CanvasRenderingContext2D | null {
+    if (this.quoteTextMeasureCtx) {
+      return this.quoteTextMeasureCtx;
+    }
+    if (typeof document === 'undefined') {
+      return null;
+    }
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      this.quoteTextMeasureCtx = ctx;
+    }
+    return ctx;
+  }
+
   private measureBoldInterQuoteText(text: string, fontPx: number): number {
-    const canvas = this.sys.game.canvas as HTMLCanvasElement | undefined;
-    const ctx = canvas?.getContext('2d');
+    const ctx = this.getQuoteTextMeasureCtx();
     if (!ctx) {
       return text.length * fontPx * 0.56;
     }
     ctx.font = `bold ${fontPx}px Inter, ui-sans-serif, system-ui, sans-serif`;
     return ctx.measureText(text).width;
+  }
+
+  private computeQuoteBubbleMaxOuterWidth(sceneW: number, charX: number): number {
+    const margin = 12;
+    const fit = 2 * Math.max(96, Math.min(charX, sceneW - charX) - margin);
+    return Math.min(sceneW * 0.72, 480, fit);
   }
 
   setPlayerQuote(content: EarTrainingQuotePayload | null, options?: EarTrainingPlayerQuoteOptions): void {
@@ -643,10 +757,30 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private clearUiScene(): void {
+    this.clearLiveHudRefs();
     this.hudLayer?.destroy(true);
     this.phraseLayer?.destroy(true);
     this.hudLayer = null;
     this.phraseLayer = null;
+  }
+
+  private clearLiveHudRefs(): void {
+    this.stopPhraseSlotCurrentTween();
+    this.playerHpRefs = null;
+    this.enemyHpRefs = null;
+    this.timeText = null;
+    this.attackGaugeRefs = null;
+    this.chordHudRefs = null;
+    this.midiStatusText = null;
+    this.phraseSlotRefs = null;
+  }
+
+  private stopPhraseSlotCurrentTween(): void {
+    if (this.phraseSlotCurrentTween) {
+      this.phraseSlotCurrentTween.stop();
+      this.phraseSlotCurrentTween = null;
+    }
+    this.phraseSlotCurrentBox = null;
   }
 
   private clearBackgroundScene(): void {
@@ -908,6 +1042,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         fontStyle: '900',
       }).setOrigin(0.5, 0);
       this.hudLayer.add(time);
+      this.timeText = time;
     }
 
     const utilBtnW = 58;
@@ -960,13 +1095,18 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         fontStyle: '900',
       }).setOrigin(0, 0);
       this.hudLayer.add(midiStatus);
+      this.midiStatusText = midiStatus;
     }
   }
 
-  private drawHpBar(x: number, y: number, width: number, hp: number, maxHp: number, isPlayer: boolean): void {
-    if (!this.hudLayer) {
-      return;
-    }
+  private createHpBarRefs(
+    x: number,
+    y: number,
+    width: number,
+    hp: number,
+    maxHp: number,
+    isPlayer: boolean,
+  ): HpBarLiveRefs {
     const percent = clampPercent(hp, maxHp);
     const barColor = isPlayer
       ? colorForHp(percent, 0x34d399, 0xfbbf24, 0xef4444)
@@ -977,7 +1117,33 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const fillW = Math.max(0, innerWidth * percent);
     const fillX = isPlayer ? x + 2 + innerWidth - fillW : x + 2;
     const fill = this.add.rectangle(fillX, y + 2, fillW, 8, barColor, 1).setOrigin(0, 0);
-    this.hudLayer.add([frame, fill]);
+    this.hudLayer?.add([frame, fill]);
+    return { frame, fill, barWidth: width, barX: x, barY: y, isPlayer };
+  }
+
+  private updateHpBarRefs(refs: HpBarLiveRefs, hp: number, maxHp: number): void {
+    const percent = clampPercent(hp, maxHp);
+    const barColor = refs.isPlayer
+      ? colorForHp(percent, 0x34d399, 0xfbbf24, 0xef4444)
+      : colorForHp(percent, 0xfb7185, 0xf59e0b, 0xbe123c);
+    const innerWidth = Math.max(0, refs.barWidth - 4);
+    const fillW = Math.max(0, innerWidth * percent);
+    const fillX = refs.isPlayer ? refs.barX + 2 + innerWidth - fillW : refs.barX + 2;
+    refs.fill.setPosition(fillX, refs.barY + 2);
+    refs.fill.width = fillW;
+    refs.fill.setFillStyle(barColor, 1);
+  }
+
+  private drawHpBar(x: number, y: number, width: number, hp: number, maxHp: number, isPlayer: boolean): void {
+    if (!this.hudLayer) {
+      return;
+    }
+    const refs = this.createHpBarRefs(x, y, width, hp, maxHp, isPlayer);
+    if (isPlayer) {
+      this.playerHpRefs = refs;
+    } else {
+      this.enemyHpRefs = refs;
+    }
   }
 
   private drawChordHud(width: number, y: number): void {
@@ -986,6 +1152,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     if (snapshot.chords.length === 0) {
+      this.chordHudRefs = null;
       return;
     }
 
@@ -1002,6 +1169,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     );
     const chords = snapshot.chords.slice(firstVisibleIndex, firstVisibleIndex + visibleCount);
     const startX = Math.max(leftMargin, leftMargin + (availableWidth - itemWidth * chords.length) / 2);
+    const chordBoxes: Phaser.GameObjects.Rectangle[] = [];
+    const chordTexts: Phaser.GameObjects.Text[] = [];
     chords.forEach((chord, index) => {
       const x = startX + index * itemWidth;
       const bg = this.add.rectangle(x + itemWidth / 2, y + 13, itemWidth - 6, 26, chord.active ? 0xfacc15 : 0x020617, chord.active ? 1 : 0.72);
@@ -1013,7 +1182,14 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         fontStyle: '900',
       }).setOrigin(0.5, 0.5);
       this.hudLayer?.add([bg, text]);
+      chordBoxes.push(bg);
+      chordTexts.push(text);
     });
+    this.chordHudRefs = {
+      boxes: chordBoxes,
+      texts: chordTexts,
+      firstVisibleIndex,
+    };
   }
 
   private drawUtilityButton(
@@ -1049,8 +1225,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.playerView = this.createCharacter(width * 0.23, floorY, true, snapshot.playerAvatarUrl, false);
     this.enemyView = this.createCharacter(width * 0.77, floorY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
     if (!snapshot.fixedCharacterPositions) {
-      this.startCharacterAutoMotion(this.playerView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
-      this.startCharacterAutoMotion(this.enemyView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+      if (this.shouldRunCharacterAutoMotion()) {
+        this.startCharacterAutoMotion(this.playerView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+        this.startCharacterAutoMotion(this.enemyView, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+      }
     }
     this.layoutPlayerQuoteBubble();
     this.layoutPartnerQuoteBubble();
@@ -1098,7 +1276,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     };
 
     const sceneW = Math.max(320, this.scale.width);
-    const maxBubbleOuter = Math.min(sceneW * 0.72, 480);
+    const maxBubbleOuter = this.computeQuoteBubbleMaxOuterWidth(sceneW, footContainer.x);
 
     let cueLabel: Phaser.GameObjects.Text | null = null;
     let cueColumnWidth = 0;
@@ -1222,7 +1400,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     };
 
     const sceneW = Math.max(320, this.scale.width);
-    const maxBubbleOuter = Math.min(sceneW * 0.72, 480);
+    const maxBubbleOuter = this.computeQuoteBubbleMaxOuterWidth(sceneW, footContainer.x);
 
     let cueLabel: Phaser.GameObjects.Text | null = null;
     let cueColumnWidth = 0;
@@ -1359,23 +1537,40 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     };
   }
 
-  private drawEnemyAttackGauge(x: number, y: number): void {
-    const snapshot = this.snapshot;
-    if (!snapshot || !this.hudLayer) {
-      return;
-    }
+  private createAttackGaugeRefs(x: number, y: number, percent: number): AttackGaugeLiveRefs {
     const width = 126;
-    const percent = Phaser.Math.Clamp(snapshot.enemyAttackGaugePercent, 0, 1);
+    const clamped = Phaser.Math.Clamp(percent, 0, 1);
+    const highAlert = clamped >= 0.92;
     const label = this.add.text(x, y - 12, 'ATTACK', {
-      color: percent >= 0.92 ? '#fecaca' : '#fda4af',
+      color: highAlert ? '#fecaca' : '#fda4af',
       fontFamily: 'Arial, sans-serif',
       fontSize: '10px',
       fontStyle: '900',
     }).setOrigin(0.5, 0.5);
     const frame = this.add.rectangle(x, y + 4, width, 12, 0x020617, 0.84).setOrigin(0.5, 0.5);
-    frame.setStrokeStyle(1, percent >= 0.92 ? 0xfca5a5 : 0xfb7185, 0.78);
-    const fill = this.add.rectangle(x - width / 2 + 2, y + 4, Math.max(0, (width - 4) * percent), 8, 0xfb7185, 0.95).setOrigin(0, 0.5);
-    this.hudLayer.add([label, frame, fill]);
+    frame.setStrokeStyle(1, highAlert ? 0xfca5a5 : 0xfb7185, 0.78);
+    const fillW = Math.max(0, (width - 4) * clamped);
+    const fill = this.add.rectangle(x - width / 2 + 2, y + 4, fillW, 8, 0xfb7185, 0.95).setOrigin(0, 0.5);
+    this.hudLayer?.add([label, frame, fill]);
+    return { label, frame, fill, x, y, width };
+  }
+
+  private updateAttackGaugeRefs(refs: AttackGaugeLiveRefs, percent: number): void {
+    const clamped = Phaser.Math.Clamp(percent, 0, 1);
+    const highAlert = clamped >= 0.92;
+    refs.label.setColor(highAlert ? '#fecaca' : '#fda4af');
+    refs.frame.setStrokeStyle(1, highAlert ? 0xfca5a5 : 0xfb7185, 0.78);
+    const fillW = Math.max(0, (refs.width - 4) * clamped);
+    refs.fill.width = fillW;
+    refs.fill.setPosition(refs.x - refs.width / 2 + 2, refs.y + 4);
+  }
+
+  private drawEnemyAttackGauge(x: number, y: number): void {
+    const snapshot = this.snapshot;
+    if (!snapshot || !this.hudLayer) {
+      return;
+    }
+    this.attackGaugeRefs = this.createAttackGaugeRefs(x, y, snapshot.enemyAttackGaugePercent);
   }
 
   private drawDemoBubble(x: number, y: number): void {
@@ -1540,6 +1735,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const startX = Math.max(16, (width - totalWidth) / 2);
     const y = height - getPianoHeight() - slotSize - 18;
     const isCircleMode = snapshot.slotKind === 'circle';
+    const entries: PhraseSlotLiveEntry[] = [];
 
     visibleSlots.forEach((_slot, visibleIndex) => {
       const index = firstVisibleIndex + visibleIndex;
@@ -1573,6 +1769,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
           completed ? 0.95 : 0.85,
         );
         this.phraseLayer?.add([box, ring]);
+        entries.push({ index, box, ring });
         return;
       }
 
@@ -1589,10 +1786,18 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         fontStyle: '900',
       }).setOrigin(0.5, 0.5);
       this.phraseLayer?.add([box, text]);
+      entries.push({ index, box, text });
       if (current) {
-        this.tweens.add({ targets: box, alpha: 0.92, yoyo: true, repeat: -1, duration: 360 });
+        this.startPhraseSlotCurrentTween(box);
       }
     });
+
+    this.phraseSlotRefs = {
+      entries,
+      isCircleMode,
+      slotSize,
+      revealedNotes: [...snapshot.revealedNotes],
+    };
 
     if (firstVisibleIndex > 0) {
       const left = this.add.text(startX - 12, y + slotSize / 2, '‹', {
@@ -1739,6 +1944,130 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }).setOrigin(0.5, 0.5);
     this.tweens.add({ targets: button, scale: 1.04, yoyo: true, repeat: -1, duration: 620 });
     this.hudLayer.add([button, text]);
+  }
+
+  private startPhraseSlotCurrentTween(box: Phaser.GameObjects.Rectangle): void {
+    this.stopPhraseSlotCurrentTween();
+    this.phraseSlotCurrentBox = box;
+    box.setAlpha(1);
+    this.phraseSlotCurrentTween = this.tweens.add({
+      targets: box,
+      alpha: 0.92,
+      yoyo: true,
+      repeat: -1,
+      duration: 360,
+    });
+  }
+
+  private updateLiveHud(snapshot: EarTrainingBattleSnapshot): void {
+    if (!this.isReady || !this.hudLayer) {
+      return;
+    }
+
+    if (this.playerHpRefs) {
+      this.updateHpBarRefs(this.playerHpRefs, snapshot.playerHp, snapshot.playerMaxHp);
+    }
+    if (this.enemyHpRefs) {
+      this.updateHpBarRefs(this.enemyHpRefs, snapshot.enemyHp, snapshot.enemyMaxHp);
+    }
+
+    if (this.timeText) {
+      this.timeText.setText(snapshot.timeLabel);
+      this.timeText.setColor(snapshot.timeLabel === '∞' ? '#67e8f9' : '#ffffff');
+    }
+
+    if (this.attackGaugeRefs) {
+      this.updateAttackGaugeRefs(this.attackGaugeRefs, snapshot.enemyAttackGaugePercent);
+    }
+
+    if (this.chordHudRefs) {
+      const activeIndex = snapshot.chords.findIndex(chord => chord.active);
+      const chordRefs = this.chordHudRefs;
+      chordRefs.boxes.forEach((box, visibleIndex) => {
+        const chordIndex = chordRefs.firstVisibleIndex + visibleIndex;
+        const active = chordIndex === activeIndex;
+        box.setFillStyle(active ? 0xfacc15 : 0x020617, active ? 1 : 0.72);
+        box.setStrokeStyle(1, active ? 0xfef08a : 0xffffff, active ? 0.9 : 0.12);
+        chordRefs.texts[visibleIndex].setColor(active ? '#020617' : '#e2e8f0');
+      });
+    }
+
+    this.updateLivePhraseSlots(snapshot);
+    this.updateCountInOverlayLive(snapshot);
+  }
+
+  private updateLivePhraseSlots(snapshot: EarTrainingBattleSnapshot): void {
+    const refs = this.phraseSlotRefs;
+    if (!refs || snapshot.phraseSlotsHidden) {
+      return;
+    }
+
+    let currentTweenBox: Phaser.GameObjects.Rectangle | null = null;
+    refs.entries.forEach(entry => {
+      const index = entry.index;
+      if (refs.isCircleMode) {
+        const completed = Boolean(snapshot.chordCompleted[index]);
+        entry.box.setFillStyle(completed ? 0x10b981 : 0x020617, completed ? 0.32 : 0.78);
+        entry.box.setStrokeStyle(1, completed ? 0xa7f3d0 : 0xffffff, completed ? 0.9 : 0.14);
+        if (entry.ring) {
+          entry.ring.setFillStyle(completed ? 0x10b981 : 0x020617, completed ? 0.95 : 0);
+          entry.ring.setStrokeStyle(
+            completed ? 4 : 3,
+            completed ? 0xbbf7d0 : 0x64748b,
+            completed ? 0.95 : 0.85,
+          );
+        }
+        return;
+      }
+
+      const revealed = index < snapshot.revealedNotes.length;
+      const current = index === snapshot.currentNoteIndex && snapshot.gameState === 'playingPhrase';
+      const bgColor = current ? 0x22d3ee : revealed ? 0x10b981 : 0x020617;
+      const textColor = current ? '#ecfeff' : revealed ? '#d1fae5' : '#64748b';
+      entry.box.setFillStyle(bgColor, current ? 0.38 : revealed ? 0.28 : 0.78);
+      entry.box.setStrokeStyle(current ? 3 : 1, current ? 0xa5f3fc : 0xffffff, current ? 0.9 : 0.14);
+      if (entry.text) {
+        entry.text.setText(revealed ? snapshot.revealedNotes[index] : '_');
+        entry.text.setColor(textColor);
+      }
+      if (current) {
+        currentTweenBox = entry.box;
+      }
+    });
+
+    if (currentTweenBox) {
+      if (this.phraseSlotCurrentBox !== currentTweenBox) {
+        this.startPhraseSlotCurrentTween(currentTweenBox);
+      }
+    } else {
+      this.stopPhraseSlotCurrentTween();
+    }
+    refs.revealedNotes = [...snapshot.revealedNotes];
+  }
+
+  private updateCountInOverlayLive(snapshot: EarTrainingBattleSnapshot): void {
+    if (
+      snapshot.showLobbyControls
+      || snapshot.gameState !== 'countIn'
+      || snapshot.countInValue <= 0
+    ) {
+      if (this.countInOverlayNodes.length > 0) {
+        this.clearCountInOverlay();
+      }
+      return;
+    }
+
+    if (this.countInOverlayNodes.length >= 3) {
+      const textNode = this.countInOverlayNodes[2];
+      if (textNode instanceof Phaser.GameObjects.Text) {
+        textNode.setText(String(snapshot.countInValue));
+      }
+      return;
+    }
+
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    this.drawCountInOverlay(width, height);
   }
 
   private drawLobbyBackButton(x: number, y: number): void {
@@ -2688,6 +3017,36 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private syncCharacterLifeState(snapshot: EarTrainingBattleSnapshot): void {
     this.syncCharacterDeadState(this.playerView, snapshot.playerHp <= 0);
     this.syncCharacterDeadState(this.enemyView, snapshot.enemyHp <= 0);
+    this.syncCharacterAutoMotionPolicy();
+  }
+
+  private syncCharacterAutoMotionPolicy(): void {
+    const allowAuto = this.shouldRunCharacterAutoMotion();
+    const views = [this.playerView, this.enemyView];
+    for (const view of views) {
+      if (!view || view.motion.state === 'dead') {
+        continue;
+      }
+      if (!allowAuto && (view.motion.state === 'idle' || view.motion.state === 'walk')) {
+        this.stopCharacterMotion(view);
+      }
+      if (
+        allowAuto
+        && view.motion.state === 'idle'
+        && view.motion.idleEvent === null
+        && view.motion.motionTween === null
+      ) {
+        this.startCharacterAutoMotion(view, AUTO_IDLE_MIN_MS, AUTO_IDLE_MAX_MS);
+      }
+    }
+  }
+
+  private shouldRunCharacterAutoMotion(): boolean {
+    const snapshot = this.snapshot;
+    if (!snapshot || snapshot.fixedCharacterPositions) {
+      return false;
+    }
+    return snapshot.showLobbyControls || snapshot.gameState === 'idle';
   }
 
   private syncCharacterDeadState(view: CharacterView | null, dead: boolean): void {
@@ -2704,7 +3063,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     if (view.motion.state === 'dead') {
       view.motion.state = 'idle';
-      if (!this.snapshot?.fixedCharacterPositions) {
+      if (this.shouldRunCharacterAutoMotion()) {
         this.startCharacterAutoMotion(view, RECOVER_IDLE_MIN_MS, RECOVER_IDLE_MAX_MS);
       }
     }

@@ -283,6 +283,9 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const lastInputAtRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
   const enemyAttackGaugePercentRef = useRef(0);
+  const activeLoopRef = useRef(1);
+  const activeChordIdRef = useRef<string | null>(null);
+  const demoBubbleVisibleRef = useRef(false);
 
   const currentPhrase = phrases[phraseIndex];
 
@@ -873,10 +876,23 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       return;
     }
     const loop = Math.floor(audio.currentTime / Number(phrase.loop_duration_sec)) + 1;
-    setActiveLoop(Math.max(1, Math.min(stage.max_loops_per_phrase, loop)));
+    const nextLoop = Math.max(1, Math.min(stage.max_loops_per_phrase, loop));
+    if (nextLoop !== activeLoopRef.current) {
+      activeLoopRef.current = nextLoop;
+      setActiveLoop(nextLoop);
+    }
     const loopTime = audio.currentTime % Number(phrase.loop_duration_sec);
-    setActiveChord(getActiveChord(phrase, loopTime));
-    setDemoBubbleVisible(shouldShowDemoBubble(phrase, stage, loop, loopTime));
+    const nextChord = getActiveChord(phrase, loopTime);
+    const nextChordId = nextChord?.id ?? null;
+    if (nextChordId !== activeChordIdRef.current) {
+      activeChordIdRef.current = nextChordId;
+      setActiveChord(nextChord);
+    }
+    const nextDemoVisible = shouldShowDemoBubble(phrase, stage, nextLoop, loopTime);
+    if (nextDemoVisible !== demoBubbleVisibleRef.current) {
+      demoBubbleVisibleRef.current = nextDemoVisible;
+      setDemoBubbleVisible(nextDemoVisible);
+    }
     const loopDurationSec = Number(phrase.loop_duration_sec);
     const gaugeDurationSec = loopDurationSec * ATTACK_GAUGE_TARGET_LOOPS;
     setEnemyAttackGaugePercent(

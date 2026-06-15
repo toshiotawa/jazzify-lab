@@ -363,8 +363,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
     let rafId = 0;
+    let frameSkip = 0;
     const tick = (): void => {
-      syncPracticeVoicingHints();
+      frameSkip += 1;
+      if (frameSkip >= 2) {
+        frameSkip = 0;
+        syncPracticeVoicingHints();
+      }
       rafId = window.requestAnimationFrame(tick);
     };
     rafId = window.requestAnimationFrame(tick);

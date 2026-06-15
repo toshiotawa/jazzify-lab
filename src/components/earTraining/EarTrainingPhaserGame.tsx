@@ -67,8 +67,9 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
         activePointers: 3,
       },
       render: {
-        antialias: true,
+        antialias: false,
         pixelArt: false,
+        roundPixels: true,
       },
     });
     gameRef.current = game;

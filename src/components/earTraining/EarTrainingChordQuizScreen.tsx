@@ -119,6 +119,8 @@ const EMPTY_STAVES: readonly number[] = [];
 
 const clampGaugeRatio = (value: number): number => Math.min(1, Math.max(0, value));
 
+const QUIZ_ATTACK_GAUGE_QUANTIZE_STEP = 0.02;
+
 const randomIntInclusive = (min: number, max: number, rand: () => number): number => (
   Math.floor(rand() * (max - min + 1)) + min
 );
@@ -319,8 +321,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, [isEnglishCopy, tutorial]);
 
   const setEnemyAttackGaugePercent = useCallback((value: number) => {
-    const next = clampGaugeRatio(value);
-    if (Math.abs(next - enemyAttackGaugePercentRef.current) < 0.004 && next !== 0 && next !== 1) {
+    const next = Math.round(clampGaugeRatio(value) / QUIZ_ATTACK_GAUGE_QUANTIZE_STEP) * QUIZ_ATTACK_GAUGE_QUANTIZE_STEP;
+    if (Math.abs(next - enemyAttackGaugePercentRef.current) < QUIZ_ATTACK_GAUGE_QUANTIZE_STEP && next !== 0 && next !== 1) {
       return;
     }
     enemyAttackGaugePercentRef.current = next;
