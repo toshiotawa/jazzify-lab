@@ -1100,7 +1100,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         case .osmdMeteor:
             return 2_100
         case .osmdHammerReflect:
-            return 1_100
+            return 550
         default:
             return 1_600
         }

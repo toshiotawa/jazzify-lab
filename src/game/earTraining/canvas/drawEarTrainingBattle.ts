@@ -783,7 +783,7 @@ const drawEffectVisual = (
   const x = lerp(visual.fromX, visual.toX, easeCubicIn(t));
   const y = lerp(visual.fromY, visual.toY, easeCubicIn(t));
   const size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
-  const alpha = visual.alpha * (visual.kind === 'aura' || visual.kind === 'magicCircle' || visual.kind === 'chantText' || visual.kind === 'ring' || visual.kind === 'slash'
+  const alpha = visual.alpha * (visual.fadeOut || visual.kind === 'aura' || visual.kind === 'magicCircle' || visual.kind === 'chantText' || visual.kind === 'ring' || visual.kind === 'slash'
     ? 1 - easeCubicOut(t)
     : 1);
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;

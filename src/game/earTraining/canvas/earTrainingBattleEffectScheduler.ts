@@ -8,7 +8,7 @@ import type {
   CanvasFloatingText,
   EarTrainingBattleDrawRuntime,
 } from './earTrainingBattleDrawState';
-import { hexColor } from './earTrainingBattleDrawState';
+import { easeCubicIn, getEffectProgress, hexColor, lerp } from './earTrainingBattleDrawState';
 import {
   flashCharacter,
   holdCharacterForAction,
@@ -35,6 +35,8 @@ const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const SKILL_PLAYER_POSE_SEQUENCE = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'] as const;
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
+const HAMMER_FALL_MS = 420;
+const HAMMER_FALL_DISTANCE = 130;
 
 let visualIdCounter = 0;
 const nextVisualId = (): string => {
@@ -268,7 +270,35 @@ const dismissIncomingOsmdHammer = (
   const incoming = runtime.effects.find(effect => effect.commandId === relatedEffectId);
   if (!incoming) return;
   incoming.osmdHammerActive = false;
-  incoming.visuals = [];
+  const now = performance.now();
+  const hammerVisual = incoming.visuals.find(visual => visual.kind === 'hammer');
+  if (!hammerVisual) {
+    incoming.visuals = [];
+    return;
+  }
+  const progress = getEffectProgress(hammerVisual, now);
+  const currentX = lerp(hammerVisual.fromX, hammerVisual.toX, easeCubicIn(progress));
+  const currentY = lerp(hammerVisual.fromY, hammerVisual.toY, easeCubicIn(progress));
+  const currentRotation = lerp(hammerVisual.rotation, hammerVisual.rotationEnd, progress);
+  incoming.visuals = [{
+    id: nextVisualId(),
+    kind: 'hammer',
+    startedAt: now,
+    durationMs: HAMMER_FALL_MS,
+    fromX: currentX,
+    fromY: currentY,
+    toX: currentX,
+    toY: currentY + HAMMER_FALL_DISTANCE,
+    color: '#ffffff',
+    size: hammerVisual.size,
+    alpha: 1,
+    rotation: currentRotation,
+    rotationEnd: currentRotation,
+    scaleStart: 1,
+    scaleEnd: 1,
+    imageKey: 'hammer',
+    fadeOut: true,
+  }];
 };
 
 const addCastEffect = (
@@ -591,7 +621,7 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
 };
 
 const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
-  const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
+  const { runtime, anchors, onDirty, onImpact, playerTimers, snapshot, width } = ctx;
   const now = performance.now();
 
   const guardDirection = anchors.enemy.x < anchors.player.x ? -1 : 1;
@@ -617,21 +647,23 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
 
   const visuals: CanvasEffectVisual[] = [];
 
+  const slashCenterX = (guardX + anchors.enemy.x) / 2;
+  const slashSpan = Math.abs(anchors.enemy.x - guardX) + 48;
   addVisual(visuals, {
     kind: 'slash',
     startedAt: now,
-    durationMs: 120,
-    fromX: guardX,
+    durationMs: 160,
+    fromX: slashCenterX,
     fromY: guardY,
-    toX: guardX,
+    toX: slashCenterX,
     toY: guardY,
     color: 'rgba(255, 255, 255, 0.95)',
-    size: 150,
+    size: slashSpan / 1.9,
     alpha: 1,
     rotation: -4,
     rotationEnd: -4,
-    scaleStart: 0.35,
-    scaleEnd: 1.45,
+    scaleStart: 0.5,
+    scaleEnd: 1,
   });
 
   runtime.effects.push({
@@ -643,6 +675,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     visuals,
   });
 
+  onImpact(command.id);
   onDirty();
 };
 

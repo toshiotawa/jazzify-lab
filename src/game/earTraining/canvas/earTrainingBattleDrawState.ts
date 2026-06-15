@@ -114,6 +114,7 @@ export interface CanvasEffectVisual {
   scaleEnd: number;
   imageKey?: string;
   label?: string;
+  fadeOut?: boolean;
 }
 
 export interface CanvasEffectRuntime {

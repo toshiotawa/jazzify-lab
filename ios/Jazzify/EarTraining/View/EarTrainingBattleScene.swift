@@ -1891,9 +1891,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     func dismissOsmdHammerEffect(effectId: Int) {
-        if let hammer = osmdHammerNodesByEffectId.removeValue(forKey: effectId) {
-            hammer.removeAllActions()
-            hammer.removeFromParent()
+        guard let hammer = osmdHammerNodesByEffectId.removeValue(forKey: effectId) else { return }
+        hammer.removeAllActions()
+        let fall = SKAction.moveBy(x: 0, y: -Self.battleLayoutPt(130), duration: 0.42)
+        fall.timingMode = .easeIn
+        let fade = SKAction.fadeOut(withDuration: 0.42)
+        hammer.run(SKAction.group([fall, fade])) { [weak hammer] in
+            hammer?.removeFromParent()
         }
     }
 
@@ -1922,44 +1926,23 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playOSMDHammerReflectEffect(_ command: EarTrainingBattleEffectCommand) {
-        holdCharacterForAction(.player, state: .cast, durationMs: Self.correctPlayerPoseDurationMs)
-        showPlayerPose(assetName: PlayerAvatarPoseAsset.castName, durationMs: Self.correctPlayerPoseDurationMs)
+        holdCharacterForAction(.player, state: .cast, durationMs: 300)
+        showPlayerPose(assetName: PlayerAvatarPoseAsset.castName, durationMs: 180)
         let anchors = battleAnchors()
-        let contact = CGPoint(x: anchors.player.x, y: anchors.player.bodyY)
-        showParryGuardEffect(at: contact)
-        let hammer: SKSpriteNode
-        if let relatedId = command.relatedEffectId,
-           let existing = osmdHammerNodesByEffectId.removeValue(forKey: relatedId) {
-            existing.removeAllActions()
-            existing.position = contact
-            hammer = existing
-        } else {
-            if let relatedId = command.relatedEffectId {
-                dismissOsmdHammerEffect(effectId: relatedId)
-            }
-            hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
-            hammer.position = contact
-            effectLayer.addChild(hammer)
-        }
-        if hammer.parent == nil {
-            effectLayer.addChild(hammer)
-        }
-        hammer.zPosition = 55
 
-        let target = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY)
-        let hold = SKAction.wait(forDuration: 0.07)
-        let move = SKAction.move(to: target, duration: 0.22)
-        move.timingMode = .easeIn
-        let spin = SKAction.rotate(byAngle: -900 * (.pi / 180), duration: 0.22)
-        let reflect = SKAction.group([move, spin])
-        hammer.run(SKAction.sequence([hold, reflect])) { [weak self, weak hammer] in
-            guard let self else { return }
-            hammer?.removeFromParent()
-            self.flashCharacter(.enemy)
-            self.showImpactBurst(at: target, color: UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1.0), large: false)
-            self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
-            self.onEffectImpact?(command.id)
+        let guardDirection: CGFloat = anchors.enemy.x < anchors.player.x ? -1 : 1
+        let guardPoint = CGPoint(
+            x: anchors.player.x + guardDirection * Self.battleLayoutPt(54),
+            y: anchors.player.bodyY - Self.battleLayoutPt(22)
+        )
+
+        if let relatedId = command.relatedEffectId {
+            dismissOsmdHammerEffect(effectId: relatedId)
         }
+
+        showParryGuardEffect(at: guardPoint)
+        showParrySlashEffect(from: guardPoint, toEnemyX: anchors.enemy.x)
+        onEffectImpact?(command.id)
     }
 
     private func playOSMDMeteorEffect(_ command: EarTrainingBattleEffectCommand) {
@@ -2272,56 +2255,85 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func showParryGuardEffect(at position: CGPoint) {
-        let flashRadius = Self.battleLayoutPt(24)
-        let flash = SKShapeNode(circleOfRadius: flashRadius)
-        flash.fillColor = UIColor.white.withAlphaComponent(0.95)
-        flash.strokeColor = .clear
-        flash.lineWidth = 0
-        flash.position = position
-        flash.setScale(0.3)
-        flash.zPosition = 65
-        effectLayer.addChild(flash)
-        flash.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.scale(to: 1.6, duration: 0.11),
-                SKAction.fadeOut(withDuration: 0.11),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
-
-        let fastRingRadius = Self.battleLayoutPt(24)
+        let fastRingRadius = Self.battleLayoutPt(21)
         let fastRing = SKShapeNode(circleOfRadius: fastRingRadius)
         fastRing.fillColor = .clear
         fastRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
         fastRing.lineWidth = Self.battleLayoutPt(2)
         fastRing.position = position
-        fastRing.setScale(0.35)
+        fastRing.alpha = 0.75
+        fastRing.setScale(0.45)
         fastRing.zPosition = 64
         effectLayer.addChild(fastRing)
         fastRing.run(SKAction.sequence([
             SKAction.group([
-                SKAction.scale(to: 1.5, duration: 0.15),
-                SKAction.fadeOut(withDuration: 0.15),
+                SKAction.scale(to: 1.35, duration: 0.13),
+                SKAction.fadeOut(withDuration: 0.13),
             ]),
             SKAction.removeFromParent(),
         ]))
 
-        let slowRingRadius = Self.battleLayoutPt(30)
+        let slowRingRadius = Self.battleLayoutPt(28)
         let slowRing = SKShapeNode(circleOfRadius: slowRingRadius)
         slowRing.fillColor = .clear
         slowRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
         slowRing.lineWidth = Self.battleLayoutPt(2)
         slowRing.position = position
-        slowRing.alpha = 0.45
-        slowRing.setScale(0.75)
+        slowRing.alpha = 0.24
+        slowRing.setScale(0.7)
         slowRing.zPosition = 63
         effectLayer.addChild(slowRing)
         slowRing.run(SKAction.sequence([
             SKAction.wait(forDuration: 0.035),
             SKAction.group([
-                SKAction.scale(to: 3.0, duration: 0.46),
-                SKAction.fadeOut(withDuration: 0.46),
+                SKAction.scale(to: 2.6, duration: 0.42),
+                SKAction.fadeOut(withDuration: 0.42),
             ]),
+            SKAction.removeFromParent(),
+        ]))
+    }
+
+    private func showParrySlashEffect(from start: CGPoint, toEnemyX enemyX: CGFloat) {
+        let span = abs(enemyX - start.x) + Self.battleLayoutPt(48)
+        let width = span
+        let height = max(Self.battleLayoutPt(5), Self.battleLayoutPt(150) * 0.075)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
+        let image = renderer.image { rendererContext in
+            let cg = rendererContext.cgContext
+            let rgb = CGColorSpaceCreateDeviceRGB()
+            let gradientColors = [
+                UIColor.white.withAlphaComponent(0).cgColor,
+                UIColor.white.withAlphaComponent(0.12).cgColor,
+                UIColor.white.withAlphaComponent(0.95).cgColor,
+                UIColor.white.withAlphaComponent(0.12).cgColor,
+                UIColor.white.withAlphaComponent(0).cgColor,
+            ] as CFArray
+            let locations: [CGFloat] = [0, 0.42, 0.5, 0.58, 1]
+            if let gradient = CGGradient(colorsSpace: rgb, colors: gradientColors, locations: locations) {
+                cg.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: 0, y: height / 2),
+                    end: CGPoint(x: width, y: height / 2),
+                    options: []
+                )
+            }
+            cg.setFillColor(UIColor.white.withAlphaComponent(0.9).cgColor)
+            cg.fill(CGRect(x: width * 0.08, y: height / 2 - 1, width: width * 0.84, height: 2))
+        }
+
+        let slash = SKSpriteNode(texture: SKTexture(image: image))
+        slash.position = CGPoint(x: (start.x + enemyX) / 2, y: start.y)
+        slash.zRotation = -4 * (.pi / 180)
+        slash.zPosition = 66
+        slash.xScale = 0.5
+        slash.yScale = 1.0
+        effectLayer.addChild(slash)
+        let scaleUp = SKAction.scaleX(to: 1.0, duration: 0.14)
+        scaleUp.timingMode = .easeInEaseOut
+        let fadeOut = SKAction.fadeOut(withDuration: 0.16)
+        fadeOut.timingMode = .easeOut
+        slash.run(SKAction.sequence([
+            SKAction.group([scaleUp, fadeOut]),
             SKAction.removeFromParent(),
         ]))
     }
