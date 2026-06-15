@@ -270,6 +270,12 @@ export function isEarTrainingTutorialScriptPayload(
   return o.version === 1 && Array.isArray(o.scenes) && typeof o.content === 'object';
 }
 
+/** OSMD チュートリアル: 会話用 drum_loop ではなく content のフレーズ MP3（count-in 等）を補助ループ URL に使う。 */
+export const resolveTutorialOsmdDrumLoopUrl = (
+  content: Record<string, EarTrainingTutorialContentRef>,
+  contentRef: string,
+): string => content[contentRef]?.phrases?.[0]?.audio_url?.trim() ?? '';
+
 export function localizedText(
   text: TutorialLocalizedText,
   isEnglishCopy: boolean,

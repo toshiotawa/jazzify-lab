@@ -5,9 +5,10 @@ import type { EarTrainingStage } from '@/types';
 
 import { resolveTutorialContentStage } from './buildTutorialStageFromContent';
 import { EarTrainingTutorialDialogueScene } from './EarTrainingTutorialDialogueScene';
-import type {
-  EarTrainingTutorialScene,
-  EarTrainingTutorialScriptPayload,
+import {
+  resolveTutorialOsmdDrumLoopUrl,
+  type EarTrainingTutorialScene,
+  type EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
 
@@ -134,6 +135,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
   }
 
   if (scene.type === 'chord_osmd') {
+    const osmdDrumLoopUrl = resolveTutorialOsmdDrumLoopUrl(script.content, scene.contentRef);
     return (
       <React.Suspense fallback={null}>
         <EarTrainingChordOSMDScreen
@@ -147,7 +149,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
             scene,
             bindings,
             onSceneComplete: completeOnce,
-            drumLoopUrl,
+            drumLoopUrl: osmdDrumLoopUrl,
           }}
         />
       </React.Suspense>

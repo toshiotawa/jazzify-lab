@@ -364,3 +364,27 @@ struct EarTrainingTutorialSceneHooks {
     /// `composite` のフレーズ完成数クリア条件。
     var requiredCompletedPhrases: Int? = nil
 }
+
+/// OSMD チュートリアル: 会話用 `drum_loop` ではなく content のフレーズ MP3（count-in 等）を補助ループ URL に使う。
+enum EarTrainingTutorialOsmdDrumLoopResolver {
+    static func resolveTutorialOsmdDrumLoopUrl(
+        content: [String: EarTrainingTutorialContentRef],
+        contentRef: String
+    ) -> String? {
+        let trimmed = content[contentRef]?.phrases?.first?.audio_url?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Web `shouldStartTutorialOsmdDrumLoop` と同じ。フレーズ MP3 があるときは補助ドラムループを開始しない。
+    static func shouldStartTutorialOsmdDrumLoop(
+        phraseAudioUrl: String?,
+        drumLoopUrl: String?
+    ) -> Bool {
+        let phrase = phraseAudioUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let drum = drumLoopUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if drum.isEmpty { return false }
+        if !phrase.isEmpty { return false }
+        return phrase != drum
+    }
+}

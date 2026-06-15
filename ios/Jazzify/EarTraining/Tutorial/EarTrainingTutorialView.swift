@@ -230,7 +230,11 @@ struct EarTrainingTutorialView: View {
                         script: script,
                         requiredLoops: osmdScene.requiredLoops,
                         onLoopSuccess: nil,
-                        osmdTimedLines: osmdScene.timedLines
+                        osmdTimedLines: osmdScene.timedLines,
+                        tutorialDrumLoopUrlOverride: EarTrainingTutorialOsmdDrumLoopResolver.resolveTutorialOsmdDrumLoopUrl(
+                            content: script.content,
+                            contentRef: osmdScene.contentRef
+                        )
                     ),
                     hostedLandscapeSize: hostedLandscapeSize,
                     prewarmOsmdPack: pack,
@@ -329,7 +333,8 @@ struct EarTrainingTutorialView: View {
         osmdTimedLines: [EarTrainingTutorialOsmdTimedLine]? = nil,
         selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil,
         requiredMeasures: Int? = nil,
-        requiredCompletedPhrases: Int? = nil
+        requiredCompletedPhrases: Int? = nil,
+        tutorialDrumLoopUrlOverride: String? = nil
     ) -> EarTrainingTutorialSceneHooks {
         EarTrainingTutorialSceneHooks(
             ui: script.ui,
@@ -340,7 +345,7 @@ struct EarTrainingTutorialView: View {
             onLoopSuccess: onLoopSuccess,
             quiz: quiz,
             osmdTimedLines: osmdTimedLines,
-            tutorialDrumLoopUrl: script.audioTracks?.drum_loop?.url,
+            tutorialDrumLoopUrl: tutorialDrumLoopUrlOverride ?? script.audioTracks?.drum_loop?.url,
             selfPacedTimedLines: selfPacedTimedLines,
             requiredMeasures: requiredMeasures,
             requiredCompletedPhrases: requiredCompletedPhrases
@@ -457,7 +462,11 @@ struct EarTrainingTutorialView: View {
                 script: script,
                 requiredLoops: osmdScene.requiredLoops,
                 onLoopSuccess: nil,
-                osmdTimedLines: osmdScene.timedLines
+                osmdTimedLines: osmdScene.timedLines,
+                tutorialDrumLoopUrlOverride: EarTrainingTutorialOsmdDrumLoopResolver.resolveTutorialOsmdDrumLoopUrl(
+                    content: script.content,
+                    contentRef: osmdScene.contentRef
+                )
             )
                   guard let built = try? EarTrainingTutorialBattleWarmup.buildOsmdPack(
                       stage: stage,

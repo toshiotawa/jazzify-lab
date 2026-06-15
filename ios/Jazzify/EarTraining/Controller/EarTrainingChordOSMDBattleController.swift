@@ -402,8 +402,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         return URL(string: raw)
     }
 
-    private func startTutorialDrumIfNeeded() {
+    private func startTutorialDrumIfNeeded(phraseAudioUrl: String) {
         guard tutorialHooks != nil else { return }
+        guard EarTrainingTutorialOsmdDrumLoopResolver.shouldStartTutorialOsmdDrumLoop(
+            phraseAudioUrl: phraseAudioUrl,
+            drumLoopUrl: tutorialHooks?.tutorialDrumLoopUrl
+        ) else { return }
         guard let url = resolvedTutorialDrumLoopURL() else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -496,7 +500,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             self.countInValue = 0
             self.gameState = .playingPhrase
             self.statusText = self.copy.phraseLabel(indexOneBased: index + 1)
-            self.startTutorialDrumIfNeeded()
+            self.startTutorialDrumIfNeeded(phraseAudioUrl: phrase.audioUrl)
             self.handleAudioTimeUpdate(currentTime: 0)
             self.publishSnapshot()
         }
