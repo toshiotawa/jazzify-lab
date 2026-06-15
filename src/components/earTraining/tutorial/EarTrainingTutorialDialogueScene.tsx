@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   earTrainingPartnerJajiiDisplayName,
@@ -10,6 +10,7 @@ import {
   EarTrainingChordVoicingDrumLoop,
   CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
+import { computeQuoteBubbleMaxOuterWidth } from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
@@ -18,6 +19,17 @@ import { localizedText, resolveDialogueLineSpeaker } from './earTrainingTutorial
 
 const DIALOGUE_LINE_ADVANCE_MS = 5000;
 const CHARACTER_SIZE_PX = 120;
+const QUOTE_BUBBLE_GAP_ABOVE_CHARACTER_PX = 12;
+const QUOTE_BUBBLE_HORIZONTAL_PADDING_PX = 32;
+
+interface DialogueLayoutMetrics {
+  sceneWidthPx: number;
+  sceneHeightPx: number;
+  playerCenterXPx: number;
+  partnerCenterXPx: number;
+  playerTopPx: number;
+  partnerTopPx: number;
+}
 
 interface EarTrainingTutorialDialogueSceneProps {
   scene: EarTrainingTutorialDialogueOnlyScene;
@@ -29,14 +41,52 @@ interface EarTrainingTutorialDialogueSceneProps {
 interface DialogueQuoteBubbleProps {
   text: string;
   align: 'left' | 'right';
+  centerXPx: number;
+  bottomPx: number;
+  maxWidthPx: number;
 }
 
-const DialogueQuoteBubble: React.FC<DialogueQuoteBubbleProps> = ({ text, align }) => (
+const computeDialogueQuoteTextMaxWidthPx = (
+  sceneWidthPx: number,
+  charCenterXPx: number,
+): number => {
+  const outer = computeQuoteBubbleMaxOuterWidth(sceneWidthPx, charCenterXPx);
+  return Math.max(96, outer - QUOTE_BUBBLE_HORIZONTAL_PADDING_PX);
+};
+
+const measureDialogueLayout = (
+  sceneEl: HTMLElement,
+  playerAnchorEl: HTMLElement,
+  partnerAnchorEl: HTMLElement,
+): DialogueLayoutMetrics => {
+  const sceneRect = sceneEl.getBoundingClientRect();
+  const playerRect = playerAnchorEl.getBoundingClientRect();
+  const partnerRect = partnerAnchorEl.getBoundingClientRect();
+  return {
+    sceneWidthPx: sceneRect.width,
+    sceneHeightPx: sceneRect.height,
+    playerCenterXPx: playerRect.left + playerRect.width / 2 - sceneRect.left,
+    partnerCenterXPx: partnerRect.left + partnerRect.width / 2 - sceneRect.left,
+    playerTopPx: playerRect.top - sceneRect.top,
+    partnerTopPx: partnerRect.top - sceneRect.top,
+  };
+};
+
+const DialogueQuoteBubble: React.FC<DialogueQuoteBubbleProps> = ({
+  text,
+  align,
+  centerXPx,
+  bottomPx,
+  maxWidthPx,
+}) => (
   <div
-    className={[
-      'absolute bottom-[calc(100%+12px)] z-10 max-w-[min(72vw,320px)] rounded-lg border border-white/10 bg-black/70 px-4 py-3 text-left shadow-lg backdrop-blur-sm',
-      align === 'left' ? 'left-0' : 'right-0',
-    ].join(' ')}
+    className="pointer-events-none absolute z-10 rounded-lg border border-white/10 bg-black/70 px-4 py-3 text-left shadow-lg backdrop-blur-sm"
+    style={{
+      left: centerXPx,
+      bottom: bottomPx,
+      maxWidth: maxWidthPx,
+      transform: 'translateX(-50%)',
+    }}
     aria-live="polite"
   >
     <p className="whitespace-pre-wrap text-[26px] font-bold leading-snug text-white">
@@ -60,10 +110,37 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
 }) => {
   const drumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const completedRef = useRef(false);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const playerAnchorRef = useRef<HTMLDivElement>(null);
+  const partnerAnchorRef = useRef<HTMLDivElement>(null);
 
   const [lineIndex, setLineIndex] = useState(0);
+  const [layout, setLayout] = useState<DialogueLayoutMetrics | null>(null);
 
   const partnerName = earTrainingPartnerJajiiDisplayName(bindings.isEnglishCopy);
+
+  const updateLayout = useCallback(() => {
+    const sceneEl = sceneRef.current;
+    const playerAnchorEl = playerAnchorRef.current;
+    const partnerAnchorEl = partnerAnchorRef.current;
+    if (!sceneEl || !playerAnchorEl || !partnerAnchorEl) {
+      return;
+    }
+    setLayout(measureDialogueLayout(sceneEl, playerAnchorEl, partnerAnchorEl));
+  }, []);
+
+  useLayoutEffect(() => {
+    updateLayout();
+    const sceneEl = sceneRef.current;
+    if (!sceneEl || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const observer = new ResizeObserver(updateLayout);
+    observer.observe(sceneEl);
+    return () => {
+      observer.disconnect();
+    };
+  }, [updateLayout]);
 
   const finalizeComplete = useCallback(() => {
     if (completedRef.current) {
@@ -150,8 +227,24 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
   const playerSpeaking = speaker !== 'partner';
   const partnerSpeaking = speaker === 'partner';
 
+  const playerBubbleLayout = layout && playerSpeaking && quoteText
+    ? {
+      centerXPx: layout.playerCenterXPx,
+      bottomPx: layout.sceneHeightPx - layout.playerTopPx + QUOTE_BUBBLE_GAP_ABOVE_CHARACTER_PX,
+      maxWidthPx: computeDialogueQuoteTextMaxWidthPx(layout.sceneWidthPx, layout.playerCenterXPx),
+    }
+    : null;
+
+  const partnerBubbleLayout = layout && partnerSpeaking && quoteText
+    ? {
+      centerXPx: layout.partnerCenterXPx,
+      bottomPx: layout.sceneHeightPx - layout.partnerTopPx + QUOTE_BUBBLE_GAP_ABOVE_CHARACTER_PX,
+      maxWidthPx: computeDialogueQuoteTextMaxWidthPx(layout.sceneWidthPx, layout.partnerCenterXPx),
+    }
+    : null;
+
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#0e0705] text-white">
+    <div ref={sceneRef} className="relative h-full w-full overflow-hidden bg-[#0e0705] text-white">
       <div
         className="pointer-events-none absolute inset-0"
         aria-hidden
@@ -172,11 +265,28 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
         aria-hidden
       />
 
+      {playerBubbleLayout ? (
+        <DialogueQuoteBubble
+          text={quoteText}
+          align="left"
+          centerXPx={playerBubbleLayout.centerXPx}
+          bottomPx={playerBubbleLayout.bottomPx}
+          maxWidthPx={playerBubbleLayout.maxWidthPx}
+        />
+      ) : null}
+
+      {partnerBubbleLayout ? (
+        <DialogueQuoteBubble
+          text={quoteText}
+          align="right"
+          centerXPx={partnerBubbleLayout.centerXPx}
+          bottomPx={partnerBubbleLayout.bottomPx}
+          maxWidthPx={partnerBubbleLayout.maxWidthPx}
+        />
+      ) : null}
+
       <div className="absolute inset-x-0 bottom-[22%] flex items-end justify-between px-[8%]">
-        <div className="relative flex flex-col items-center" style={{ width: CHARACTER_SIZE_PX }}>
-          {playerSpeaking && quoteText ? (
-            <DialogueQuoteBubble text={quoteText} align="left" />
-          ) : null}
+        <div ref={playerAnchorRef} className="flex flex-col items-center" style={{ width: CHARACTER_SIZE_PX }}>
           <img
             src={EAR_TRAINING_PLAYER_AVATAR_URL}
             alt=""
@@ -187,10 +297,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
           />
         </div>
 
-        <div className="relative flex flex-col items-center" style={{ width: CHARACTER_SIZE_PX }}>
-          {partnerSpeaking && quoteText ? (
-            <DialogueQuoteBubble text={quoteText} align="right" />
-          ) : null}
+        <div ref={partnerAnchorRef} className="flex flex-col items-center" style={{ width: CHARACTER_SIZE_PX }}>
           <img
             src={EAR_TRAINING_PARTNER_JAJII_AVATAR_URL}
             alt={partnerName}

@@ -20,6 +20,7 @@ import {
   earTrainingQuoteSegmentsCacheKey,
   normalizeEarTrainingQuotePayload,
 } from '@/utils/earTrainingQuotePayload';
+import { computeQuoteBubbleMaxOuterWidth } from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
 import {
   maxLineRenderedWidthPx,
   totalQuoteLinesHeightPx,
@@ -549,12 +550,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     ctx.font = `bold ${fontPx}px Inter, ui-sans-serif, system-ui, sans-serif`;
     return ctx.measureText(text).width;
-  }
-
-  private computeQuoteBubbleMaxOuterWidth(sceneW: number, charX: number): number {
-    const margin = 12;
-    const fit = 2 * Math.max(96, Math.min(charX, sceneW - charX) - margin);
-    return Math.min(sceneW * 0.72, 480, fit);
   }
 
   setPlayerQuote(content: EarTrainingQuotePayload | null, options?: EarTrainingPlayerQuoteOptions): void {
@@ -1319,7 +1314,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     };
 
     const sceneW = Math.max(320, this.scale.width);
-    const maxBubbleOuter = this.computeQuoteBubbleMaxOuterWidth(sceneW, footContainer.x);
+    const maxBubbleOuter = computeQuoteBubbleMaxOuterWidth(sceneW, footContainer.x);
 
     let cueLabel: Phaser.GameObjects.Text | null = null;
     let cueColumnWidth = 0;
@@ -1443,7 +1438,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     };
 
     const sceneW = Math.max(320, this.scale.width);
-    const maxBubbleOuter = this.computeQuoteBubbleMaxOuterWidth(sceneW, footContainer.x);
+    const maxBubbleOuter = computeQuoteBubbleMaxOuterWidth(sceneW, footContainer.x);
 
     let cueLabel: Phaser.GameObjects.Text | null = null;
     let cueColumnWidth = 0;
