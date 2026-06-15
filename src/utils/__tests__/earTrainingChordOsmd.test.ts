@@ -101,6 +101,138 @@ describe('buildChordOsmdRhythmTargets', () => {
 
     expect(targets.map(target => target.targetTimeSec)).toEqual([2, 3.5]);
   });
+
+  it('fromScore=true のとき MusicXML アタックから1音=1ターゲットを生成する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>2</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration></note>
+<note><rest/><duration>2</duration></note>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>2</duration></note>
+<note><rest/><duration>2</duration></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([
+        chord({
+          id: 'listen',
+          order_index: 0,
+          chord_name: '—',
+          measure_number: 1,
+          beat_offset: 1,
+          voicing: [],
+          input_disabled: true,
+        }),
+        chord({
+          id: 'answer',
+          order_index: 1,
+          chord_name: 'C/G',
+          measure_number: 1,
+          beat_offset: 1,
+          voicing: ['C4', 'G4'],
+        }),
+      ]),
+      100,
+      4,
+      attacks,
+      true,
+    );
+
+    expect(targets).toHaveLength(2);
+    expect(targets[0].targetTimeSec).toBeCloseTo(0);
+    expect(targets[0].midiCounts).toEqual([{ midi: 60, count: 1 }]);
+    expect(targets[1].targetTimeSec).toBeCloseTo(1.2);
+    expect(targets[1].midiCounts).toEqual([{ midi: 67, count: 1 }]);
+    expect(targets.every(target => target.label === 'C/G')).toBe(true);
+  });
+
+  it('fromScore=true の和音アタックは1ターゲットにまとめ、全構成音が必要', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><chord/><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([
+        chord({
+          id: 'answer',
+          order_index: 0,
+          chord_name: 'C',
+          measure_number: 1,
+          beat_offset: 1,
+          voicing: ['C4'],
+        }),
+      ]),
+      120,
+      4,
+      attacks,
+      true,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].midiCounts).toEqual([
+      { midi: 60, count: 1 },
+      { midi: 64, count: 1 },
+      { midi: 67, count: 1 },
+    ]);
+    const remaining = createChordOsmdRemainingCounts(targets[0]);
+    const afterC = consumeChordOsmdMidi(remaining, 60);
+    const afterE = afterC ? consumeChordOsmdMidi(afterC, 64) : null;
+    const afterG = afterE ? consumeChordOsmdMidi(afterE, 67) : null;
+    expect(afterG ? chordOsmdTargetIsComplete(afterG) : false).toBe(true);
+  });
+
+  it('fromScore=true でも聴く小節（input_disabled）のアタックはターゲット化しない', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([
+        chord({
+          id: 'listen',
+          order_index: 0,
+          chord_name: '—',
+          measure_number: 1,
+          beat_offset: 1,
+          voicing: [],
+          input_disabled: true,
+        }),
+      ]),
+      120,
+      4,
+      attacks,
+      true,
+    );
+
+    expect(targets).toHaveLength(0);
+  });
+
+  it('fromScore=false のとき従来どおり phrase.chords の拍1ターゲットのみ', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>2</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration></note>
+<note><rest/><duration>2</duration></note>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>2</duration></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([
+        chord({
+          id: 'answer',
+          order_index: 0,
+          chord_name: 'C/G',
+          measure_number: 1,
+          beat_offset: 1,
+          voicing: ['C4', 'G4'],
+        }),
+      ]),
+      100,
+      4,
+      attacks,
+      false,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].targetTimeSec).toBe(0);
+    expect(targets[0].midiCounts).toEqual([{ midi: 60, count: 1 }]);
+  });
 });
 
 describe('Chord OSMD target consumption', () => {

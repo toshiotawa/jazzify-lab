@@ -456,7 +456,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             phrase: phrase,
             bpm: stage.bpm,
             beatsPerMeasure: stage.beatsPerMeasure,
-            attacks: xmlAttacks
+            attacks: xmlAttacks,
+            fromScore: stage.osmdTargetsFromScore == true
         )
         guard !preparedTargets.isEmpty else {
             finishGameOver(message: isEnglishCopy ? "No chord timings are registered." : "判定用コードタイミングが登録されていません")
@@ -1192,12 +1193,108 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         return chips
     }
 
+    private static func chordOsmdAttackTargetTimeSec(
+        measureNumber: Int,
+        beatStartInMeasure: Double,
+        bpm: Int,
+        beatsPerMeasure: Int
+    ) -> Double {
+        let beatDurationSec = 60.0 / Double(max(1, bpm))
+        let bpmSafe = max(1, beatsPerMeasure)
+        let measureIndex = max(0, measureNumber - 1)
+        let beatIndex = max(0.0, beatStartInMeasure - 1)
+        return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
+    }
+
+    /// Web `buildChordOsmdRhythmTargetsFromScore` と同等。
+    static func buildRhythmTargetsFromScore(
+        chords: [EarTrainingPhraseChordDetail],
+        bpm: Int,
+        beatsPerMeasure: Int,
+        attacks: [ChordOsmdMusicXmlAttack]
+    ) -> [(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, midiCounts: [Int: Int])] {
+        var measureLabels: [Int: String] = [:]
+        var playableMeasures = Set<Int>()
+        for chord in chords where !chord.inputDisabled {
+            guard let measureNumber = chord.measureNumber else { continue }
+            let measure = max(1, measureNumber)
+            playableMeasures.insert(measure)
+            if measureLabels[measure] == nil {
+                measureLabels[measure] = chord.chordName
+            }
+        }
+        guard !playableMeasures.isEmpty, !attacks.isEmpty else { return [] }
+
+        let sortedAttacks = attacks
+            .filter { playableMeasures.contains($0.measureNumber) }
+            .sorted { lhs, rhs in
+                let lhsTime = chordOsmdAttackTargetTimeSec(
+                    measureNumber: lhs.measureNumber,
+                    beatStartInMeasure: lhs.beatStartInMeasure,
+                    bpm: bpm,
+                    beatsPerMeasure: beatsPerMeasure
+                )
+                let rhsTime = chordOsmdAttackTargetTimeSec(
+                    measureNumber: rhs.measureNumber,
+                    beatStartInMeasure: rhs.beatStartInMeasure,
+                    bpm: bpm,
+                    beatsPerMeasure: beatsPerMeasure
+                )
+                if abs(lhsTime - rhsTime) > 0.0005 { return lhsTime < rhsTime }
+                if lhs.measureNumber != rhs.measureNumber { return lhs.measureNumber < rhs.measureNumber }
+                return lhs.beatStartInMeasure < rhs.beatStartInMeasure
+            }
+
+        return sortedAttacks.map { attack in
+            var midiCounts: [Int: Int] = [:]
+            for midi in attack.midis {
+                midiCounts[midi, default: 0] += 1
+            }
+            let targetTimeSec = chordOsmdAttackTargetTimeSec(
+                measureNumber: attack.measureNumber,
+                beatStartInMeasure: attack.beatStartInMeasure,
+                bpm: bpm,
+                beatsPerMeasure: beatsPerMeasure
+            )
+            let beatKey = Int((attack.beatStartInMeasure * 10_000).rounded())
+            let lo = UInt64(max(0, attack.measureNumber)) << 32 | UInt64(bitPattern: Int64(beatKey))
+            let idString = String(format: "a0000000-0000-4000-8000-%012llx", lo & 0x0000FFFFFFFFFFFF)
+            let id = UUID(uuidString: idString) ?? UUID()
+            return (
+                id: id,
+                label: measureLabels[attack.measureNumber] ?? "—",
+                targetTimeSec: targetTimeSec,
+                measureNumber: attack.measureNumber,
+                midiCounts: midiCounts
+            )
+        }
+    }
+
     private static func makeRhythmTargets(
         phrase: EarTrainingPhraseDetail,
         bpm: Int,
         beatsPerMeasure: Int,
-        attacks: [ChordOsmdMusicXmlAttack]
+        attacks: [ChordOsmdMusicXmlAttack],
+        fromScore: Bool = false
     ) -> [RhythmTarget] {
+        if fromScore, !attacks.isEmpty {
+            let drafts = Self.buildRhythmTargetsFromScore(
+                chords: phrase.chords ?? [],
+                bpm: bpm,
+                beatsPerMeasure: beatsPerMeasure,
+                attacks: attacks
+            )
+            return drafts.map {
+                RhythmTarget(
+                    id: $0.id,
+                    label: $0.label,
+                    targetTimeSec: $0.targetTimeSec,
+                    measureNumber: $0.measureNumber,
+                    midiCounts: $0.midiCounts
+                )
+            }
+        }
+
         let beatDuration = 60.0 / Double(max(1, bpm))
         let sorted = (phrase.chords ?? []).sorted { lhs, rhs in
             let lhsTime = chordStartTime(lhs, beatDuration: beatDuration, beatsPerMeasure: beatsPerMeasure)

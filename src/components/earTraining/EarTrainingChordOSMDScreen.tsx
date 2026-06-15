@@ -879,6 +879,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         stage.bpm,
         stage.beats_per_measure,
         attacks,
+        stage.osmd_targets_from_score === true,
       );
       if (phraseTargets.length === 0) {
         finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');

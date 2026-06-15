@@ -15,12 +15,17 @@ const COURSE_KEY = 'course-developer-test';
 const CDN = 'https://jazzify-cdn.com/sozai';
 const CBLUES = `${CDN}/Cblues_24bars_100BPM.mp3`;
 const CBLUES_DRUM = `${CDN}/Cblues_24bars_100BPM_Drum.mp3`;
+const CBLUES_CI = `${CDN}/Cblues_24bars_100BPM_count-in.mp3`;
 const XML_1_1 = `${CDN}/1-1.musicxml`;
 const XML_2_3 = `${CDN}/2-3.musicxml`;
+const XML_1_1_CI = `${CDN}/1-1_count-in.musicxml`;
+const XML_2_3_CI = `${CDN}/2-3_count-in.musicxml`;
 const BPM = 100;
 const BEATS_PER_MEASURE = 4;
 const MEASURE_SEC = (60 / BPM) * BEATS_PER_MEASURE;
 const LOOP_24_SEC = 57.6;
+const LOOP_24_CI_SEC = 60.0;
+const COUNT_IN_MEASURES = 1;
 
 const BLUES_CHORD_NAMES = [
   'C7', 'F7', 'C7', 'C7', 'F7', 'F7', 'C7', 'C7',
@@ -92,11 +97,12 @@ function bluesProgressionSurvival() {
   }));
 }
 
-/** @param {number} measureNumber @param {boolean} listen */
-function measureTiming(measureNumber) {
-  const start = (measureNumber - 1) * MEASURE_SEC;
+/** @param {number} measureNumber @param {number} [measureOffset] */
+function measureTiming(measureNumber, measureOffset = 0) {
+  const logicalMeasure = measureNumber + measureOffset;
+  const start = (logicalMeasure - 1) * MEASURE_SEC;
   return {
-    measure_number: measureNumber,
+    measure_number: logicalMeasure,
     beat_offset: 1,
     duration_beats: 4,
     start_time_sec: start,
@@ -104,11 +110,11 @@ function measureTiming(measureNumber) {
   };
 }
 
-function buildOsmdChords24() {
+function buildOsmdChords24(measureOffset = 0) {
   return BLUES_CHORD_NAMES.map((name, i) => {
     const m = i + 1;
     const listen = m % 2 === 1;
-    const t = measureTiming(m);
+    const t = measureTiming(m, measureOffset);
     if (listen) {
       return {
         order_index: i,
@@ -156,24 +162,27 @@ function buildAdlibChords24() {
   });
 }
 
-function buildVoicingChords24() {
+function buildDemoPlayChords24() {
   return BLUES_CHORD_NAMES.map((name, i) => {
     const g = GUIDE_VOICINGS[name];
-    const t = measureTiming(i + 1);
+    const measureNumber = i + 1;
     return {
-      order_index: i,
-      chord_name: name,
-      ...t,
-      voicing: g.names,
+      startBeat: (measureNumber - 1) * BEATS_PER_MEASURE,
+      durationBeats: BEATS_PER_MEASURE,
+      chordName: name,
+      voicing: g.midi,
+      voicingNames: g.names,
       voicing_staves: [1, 1],
+      measureNumber,
+      keyFifths: 0,
     };
   });
 }
 
-function buildOsmdRhythmChords24() {
+function buildOsmdRhythmChords24(measureOffset = 0) {
   return BLUES_CHORD_NAMES.map((name, i) => {
     const g = GUIDE_VOICINGS[name];
-    const t = measureTiming(i + 1);
+    const t = measureTiming(i + 1, measureOffset);
     return {
       order_index: i,
       chord_name: name,
@@ -187,7 +196,7 @@ function buildOsmdRhythmChords24() {
 const mqB1Q1OsmdScript = {
   version: 1,
   audioTracks: {
-    drum_loop: { url: CBLUES, volume: 0.5 },
+    drum_loop: { url: CBLUES_CI, volume: 0.5 },
   },
   ui: earTutorialUi,
   content: {
@@ -213,19 +222,20 @@ const mqB1Q1OsmdScript = {
         background_theme: 'blue_club',
         mode: 'chord_osmd',
         show_keyboard_hints_in_battle: true,
+        osmd_targets_from_score: true,
       },
       phrases: [
         {
           order_index: 0,
           title: 'Cブルース・ドとソ',
           title_en: 'C Blues Do/Sol',
-          music_xml_url: XML_1_1,
-          audio_url: CBLUES,
-          loop_duration_sec: LOOP_24_SEC,
-          audio_duration_sec: LOOP_24_SEC,
+          music_xml_url: XML_1_1_CI,
+          audio_url: CBLUES_CI,
+          loop_duration_sec: LOOP_24_CI_SEC,
+          audio_duration_sec: LOOP_24_CI_SEC,
           note_count: 24,
           key_fifths: 0,
-          chords: buildOsmdChords24(),
+          chords: buildOsmdChords24(COUNT_IN_MEASURES),
         },
       ],
     },
@@ -274,8 +284,8 @@ const mqB1Q1OsmdScript = {
       contentRef: 'mq-b1-q1-osmd',
       requiredLoops: 1,
       timedLines: [
-        { at: { loop: 0, measure: 1, beat: 1 }, text: { ja: '聴く', en: 'Listen' } },
-        { at: { loop: 0, measure: 2, beat: 1 }, text: { ja: '返す（ドとソ）', en: 'Answer (Do & Sol)' } },
+        { at: { loop: 0, measure: 2, beat: 1 }, text: { ja: '聴く', en: 'Listen' } },
+        { at: { loop: 0, measure: 3, beat: 1 }, text: { ja: '返す（ドとソ）', en: 'Answer (Do & Sol)' } },
       ],
     },
     {
@@ -421,77 +431,54 @@ const mqB1Q3SurvivalScript = {
   finish: { showCta: true },
 };
 
-const mqB1Q3VoicingScript = {
-  version: 1,
+const mqB1Q3DemoPlayScript = {
+  version: 3,
   audioTracks: {
     drum_loop: { url: CBLUES, volume: 0.35 },
   },
-  ui: earTutorialUi,
-  content: {
-    'mq-b1-q3-voicing': {
-      stage: {
-        slug: 'mq-b1-q3-voicing',
-        title: 'Cブルースを通して弾く',
-        title_en: 'Play through C blues',
-        bpm: BPM,
-        key_fifths: 0,
-        beats_per_measure: BEATS_PER_MEASURE,
-        beat_type: 4,
-        loop_measures: 24,
-        max_loops_per_phrase: 2,
-        count_in_beats: 0,
-        time_limit_sec: 600,
-        player_hp: 100,
-        enemy_hp: 10000,
-        miss_damage: 0,
-        fail_damage: 0,
-        background_theme: 'blue_club',
-        mode: 'chord_voicing',
-        chord_voicing_self_paced: true,
-        show_keyboard_hints_in_battle: true,
-      },
-      phrases: [
-        {
-          order_index: 0,
-          title: 'Cブルース 24小節',
-          title_en: 'C blues 24 bars',
-          audio_url: CBLUES,
-          loop_duration_sec: LOOP_24_SEC,
-          audio_duration_sec: LOOP_24_SEC,
-          note_count: 0,
-          key_fifths: 0,
-          chords: buildVoicingChords24(),
-        },
-      ],
-    },
-  },
+  ui: survivalTutorialUi,
+  scenarioOverrides: survivalScenarioAlwaysStaff,
+  content: {},
   scenes: [
     {
       type: 'dialogue_only',
       lineIntervalSeconds: 4,
       lines: [
-        { speaker: 'partner', ja: 'ここではCブルースを通して進む。', en: 'Here we move through the whole C blues.' },
-        { speaker: 'player', ja: '途中で止まらず、最後まで行くんだね。', en: "Don't stop — go to the end." },
-        { speaker: 'partner', ja: 'うむ。完璧でなくてよい。流れを止めないことが大事じゃ。', en: "Aye. Perfection isn't required. Keep the flow going." },
-        { speaker: 'player', ja: '間違えても、次のコードに戻ればいいんだな。', en: 'If I miss one, I just catch the next chord.' },
-        { speaker: 'partner', ja: 'その意気じゃ。耳で聴きながら、手で追いかけよ。', en: "That's the spirit. Listen and follow with your hands." },
-        { speaker: 'player', ja: 'Cブルースを1周、コードで通して弾こう。', en: 'Play one chorus of C blues with the chord shapes.' },
+        { speaker: 'jajii', ja: 'ここではCブルースを通して進む。', en: 'Here we move through the whole C blues.' },
+        { speaker: 'fai', ja: '今度は自分で弾くんじゃなくて、見るんだね。', en: "This time I watch instead of playing." },
+        { speaker: 'jajii', ja: 'そうじゃ。まずは流れを目で追うのじゃ。', en: 'Aye. Follow the flow with your eyes first.' },
+        { speaker: 'fai', ja: 'BGMに合わせてコードが進むのを見よう。', en: 'Watch the chords move with the BGM.' },
       ],
     },
     {
-      type: 'chord_voicing_self_paced',
-      contentRef: 'mq-b1-q3-voicing',
-      requiredSuccessfulLoops: 1,
-      dialogue: {},
+      type: 'demo_play',
+      bpm: BPM,
+      beatsPerMeasure: BEATS_PER_MEASURE,
+      keyFifths: 0,
+      introLines: [
+        { speaker: 'fai', ja: 'デモプレイ、始まる！', en: 'Demo play — here we go!' },
+        { speaker: 'jajii', ja: 'BGMに合わせてコードが進む。お前は見るだけじゃ。', en: 'Chords move with the BGM. You just watch.' },
+      ],
+      chords: buildDemoPlayChords24(),
+      lines: [
+        { speaker: 'fai', ja: 'C7から始まる！', en: 'It starts on C7!', startBeat: 0, durationBeats: 4 },
+        { speaker: 'jajii', ja: 'F7に変わったぞ。', en: 'Now F7.', startBeat: 16, durationBeats: 4 },
+        { speaker: 'fai', ja: 'G7が来た！', en: 'Here comes G7!', startBeat: 32, durationBeats: 4 },
+        { speaker: 'jajii', ja: '戻るんだ。C7じゃ。', en: 'Back to C7.', startBeat: 40, durationBeats: 4 },
+        { speaker: 'fai', ja: '曲の流れ、わかってきた！', en: 'I feel the flow now!', startBeat: 64, durationBeats: 4 },
+        { speaker: 'jajii', ja: 'ラストのターンアラウンドじゃ。', en: 'The final turnaround.', startBeat: 80, durationBeats: 4 },
+        { speaker: 'fai', ja: '1周、通しで見えた！', en: 'I saw the whole chorus!', startBeat: 92, durationBeats: 4 },
+      ],
+      endHoldBeats: 4,
     },
     {
       type: 'dialogue_only',
       lineIntervalSeconds: 4,
       lines: [
-        { speaker: 'partner', ja: 'よし。ブルースの形がつながってきた。', en: 'Good. The blues shape is connecting.' },
-        { speaker: 'player', ja: 'コードだけでも、曲っぽくなってきた！', en: 'Even chords alone sound like a tune now!' },
-        { speaker: 'partner', ja: '次はリズムじゃ。1拍目だけをねらって弾く。', en: 'Next is rhythm — aim for beat one only.' },
-        { speaker: 'player', ja: 'リズムに合わせて、1拍目だけコードを弾こう。', en: 'Hit the chords on beat one with the groove.' },
+        { speaker: 'jajii', ja: 'よし。ブルースの形がつながってきたのう。', en: 'Good. The blues shape is connecting.' },
+        { speaker: 'fai', ja: 'コードだけでも、曲っぽくなってきた！', en: 'Even chords alone sound like a tune now!' },
+        { speaker: 'jajii', ja: '次はリズムじゃ。1拍目だけをねらって弾く。', en: 'Next is rhythm — aim for beat one only.' },
+        { speaker: 'fai', ja: 'リズムに合わせて、1拍目だけコードを弾こう。', en: 'Hit the chords on beat one with the groove.' },
       ],
     },
     { type: 'finish' },
@@ -502,7 +489,7 @@ const mqB1Q3VoicingScript = {
 const mqB1Q3OsmdScript = {
   version: 1,
   audioTracks: {
-    drum_loop: { url: CBLUES, volume: 0.5 },
+    drum_loop: { url: CBLUES_CI, volume: 0.5 },
   },
   ui: earTutorialUi,
   content: {
@@ -534,13 +521,13 @@ const mqB1Q3OsmdScript = {
           order_index: 0,
           title: 'Cブルース・1拍目',
           title_en: 'C blues beat one',
-          music_xml_url: XML_2_3,
-          audio_url: CBLUES,
-          loop_duration_sec: LOOP_24_SEC,
-          audio_duration_sec: LOOP_24_SEC,
+          music_xml_url: XML_2_3_CI,
+          audio_url: CBLUES_CI,
+          loop_duration_sec: LOOP_24_CI_SEC,
+          audio_duration_sec: LOOP_24_CI_SEC,
           note_count: 24,
           key_fifths: 0,
-          chords: buildOsmdRhythmChords24(),
+          chords: buildOsmdRhythmChords24(COUNT_IN_MEASURES),
         },
       ],
     },
@@ -563,7 +550,7 @@ const mqB1Q3OsmdScript = {
       contentRef: 'mq-b1-q3-osmd',
       requiredLoops: 1,
       timedLines: [
-        { at: { loop: 0, measure: 1, beat: 1 }, text: { ja: '1拍目', en: 'Beat 1' } },
+        { at: { loop: 0, measure: 2, beat: 1 }, text: { ja: '1拍目', en: 'Beat 1' } },
       ],
     },
     {
@@ -657,7 +644,7 @@ BEGIN;
 ${insertTutorialScript('mq-b1-q1-osmd-v1', 'MQ B1: ドとソをまねしよう', 'MQ B1: Copy Do and Sol', mqB1Q1OsmdScript)}
 ${insertSurvivalTutorialScript('mq-b1-q2-survival-v1', 'MQ B1: 2音コード', 'MQ B1: Two-note chords', mqB1Q2SurvivalScript)}
 ${insertSurvivalTutorialScript('mq-b1-q3-survival-v1', 'MQ B1: 進行をゆっくり', 'MQ B1: Slow progression', mqB1Q3SurvivalScript)}
-${insertTutorialScript('mq-b1-q3-voicing-v1', 'MQ B1: Cブルース1周', 'MQ B1: One chorus C blues', mqB1Q3VoicingScript)}
+${insertSurvivalTutorialScript('mq-b1-q3-demo-play-v1', 'MQ B1: Cブルースデモ', 'MQ B1: C blues demo play', mqB1Q3DemoPlayScript)}
 ${insertTutorialScript('mq-b1-q3-osmd-v1', 'MQ B1: 1拍目リズム', 'MQ B1: Beat-one rhythm', mqB1Q3OsmdScript)}
 
 -- ---------------------------------------------------------------------------
@@ -982,8 +969,8 @@ INSERT INTO public.lesson_songs (
     ${uuid('mq-b1-q3-2-lsong')}, ${uuid('mq-b1-q3-lesson')}, NULL, 1,
     '{"count":1,"rank":"C"}'::jsonb,
     false, NULL, false, NULL, NULL, false, NULL,
-    true, 'mq-b1-q3-voicing-v1', false, NULL, false, NULL, NULL, NULL, NULL, NULL,
-    '3-2. Cブルースを通して弾く', '3-2. Play through C blues'
+    false, NULL, true, 'mq-b1-q3-demo-play-v1', false, NULL, NULL, NULL, NULL, NULL,
+    '3-2. Cブルースを通して見る', '3-2. Watch through C blues'
   ),
   (
     ${uuid('mq-b1-q3-3-lsong')}, ${uuid('mq-b1-q3-lesson')}, NULL, 2,

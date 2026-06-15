@@ -36,8 +36,11 @@ const CLOUDFLARE_ACCOUNT_ID = r2AccountIdFrom(envR2);
 const FILES = [
   { name: 'Cblues_24bars_100BPM.mp3', contentType: 'audio/mpeg' },
   { name: 'Cblues_24bars_100BPM_Drum.mp3', contentType: 'audio/mpeg' },
+  { name: 'Cblues_24bars_100BPM_count-in.mp3', contentType: 'audio/mpeg' },
   { name: '1-1.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
+  { name: '1-1_count-in.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: '2-3.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
+  { name: '2-3_count-in.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
 ];
 
 /** @type {S3Client | null} */

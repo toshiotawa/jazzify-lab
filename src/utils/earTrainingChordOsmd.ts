@@ -835,13 +835,112 @@ const midiCountArray = (counts: ReadonlyMap<number, number>): ChordOsmdMidiCount
     .sort((a, b) => a.midi - b.midi)
 );
 
+const buildPlayableMeasureLabels = (
+  chords: readonly EarTrainingPhraseChord[],
+): Map<number, string> => {
+  const labels = new Map<number, string>();
+  for (const chord of chords) {
+    if (chord.input_disabled === true) {
+      continue;
+    }
+    if (typeof chord.measure_number !== 'number' || !Number.isFinite(chord.measure_number)) {
+      continue;
+    }
+    const measureNumber = Math.max(1, Math.trunc(chord.measure_number));
+    if (!labels.has(measureNumber)) {
+      labels.set(measureNumber, chord.chord_name);
+    }
+  }
+  return labels;
+};
+
+const buildPlayableMeasures = (chords: readonly EarTrainingPhraseChord[]): Set<number> => {
+  const measures = new Set<number>();
+  for (const chord of chords) {
+    if (chord.input_disabled === true) {
+      continue;
+    }
+    if (typeof chord.measure_number !== 'number' || !Number.isFinite(chord.measure_number)) {
+      continue;
+    }
+    measures.add(Math.max(1, Math.trunc(chord.measure_number)));
+  }
+  return measures;
+};
+
+const attackMidiCounts = (midis: readonly number[]): Map<number, number> => {
+  const counts = new Map<number, number>();
+  for (const midi of midis) {
+    counts.set(midi, (counts.get(midi) ?? 0) + 1);
+  }
+  return counts;
+};
+
+const scoreTargetId = (measureNumber: number, beatStartInMeasure: number): string => (
+  `score:${measureNumber}:${beatStartInMeasure.toFixed(4)}`
+);
+
+const buildChordOsmdRhythmTargetsFromScore = (
+  phrase: EarTrainingPhrase,
+  bpm: number,
+  beatsPerMeasure: number,
+  attacks: readonly ChordOsmdMusicXmlAttack[],
+): ChordOsmdRhythmTarget[] => {
+  const chords = phrase.chords ?? [];
+  const playableMeasures = buildPlayableMeasures(chords);
+  const measureLabels = buildPlayableMeasureLabels(chords);
+  if (playableMeasures.size === 0 || attacks.length === 0) {
+    return [];
+  }
+
+  const sortedAttacks = attacks
+    .filter(attack => playableMeasures.has(attack.measureNumber))
+    .sort((a, b) => {
+      const timeA = chordOsmdLyricTargetTimeSec(a.measureNumber, a.beatStartInMeasure, bpm, beatsPerMeasure);
+      const timeB = chordOsmdLyricTargetTimeSec(b.measureNumber, b.beatStartInMeasure, bpm, beatsPerMeasure);
+      if (Math.abs(timeA - timeB) > SAME_TARGET_EPSILON_SEC) {
+        return timeA - timeB;
+      }
+      if (a.measureNumber !== b.measureNumber) {
+        return a.measureNumber - b.measureNumber;
+      }
+      return a.beatStartInMeasure - b.beatStartInMeasure;
+    });
+
+  return sortedAttacks.map((attack, orderIndex) => {
+    const targetTimeSec = chordOsmdLyricTargetTimeSec(
+      attack.measureNumber,
+      attack.beatStartInMeasure,
+      bpm,
+      beatsPerMeasure,
+    );
+    return {
+      id: scoreTargetId(attack.measureNumber, attack.beatStartInMeasure),
+      label: measureLabels.get(attack.measureNumber) ?? '—',
+      orderIndex,
+      targetTimeSec,
+      measureNumber: attack.measureNumber,
+      midiCounts: midiCountArray(attackMidiCounts(attack.midis)),
+    };
+  });
+};
+
 export const buildChordOsmdRhythmTargets = (
   phrase: EarTrainingPhrase | undefined,
   bpm: number,
   beatsPerMeasure: number,
   attacks?: readonly ChordOsmdMusicXmlAttack[] | null,
+  fromScore = false,
 ): ChordOsmdRhythmTarget[] => {
-  const chords = phrase?.chords ?? [];
+  if (!phrase) {
+    return [];
+  }
+
+  if (fromScore && attacks && attacks.length > 0) {
+    return buildChordOsmdRhythmTargetsFromScore(phrase, bpm, beatsPerMeasure, attacks);
+  }
+
+  const chords = phrase.chords ?? [];
   if (chords.length === 0) {
     return [];
   }
