@@ -2308,20 +2308,23 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func showPreciseParryRing(at position: CGPoint) {
-        let ringRadius = Self.battleLayoutPt(36)
+        let ringRadius = Self.battleLayoutPt(40)
         let ring = SKShapeNode(circleOfRadius: ringRadius)
         ring.fillColor = .clear
-        ring.strokeColor = UIColor(red: 0.918, green: 0.345, blue: 0.047, alpha: 1)
-        ring.lineWidth = Self.battleLayoutPt(5.5)
+        ring.strokeColor = UIColor(red: 0.761, green: 0.255, blue: 0.047, alpha: 1)
+        ring.lineWidth = Self.battleLayoutPt(6)
         ring.position = position
         ring.alpha = 1
-        ring.setScale(0.5)
+        ring.setScale(0.45)
         ring.zPosition = 65
         effectLayer.addChild(ring)
         ring.run(SKAction.sequence([
             SKAction.group([
-                SKAction.scale(to: 3.2, duration: 0.42),
-                SKAction.fadeOut(withDuration: 0.42),
+                SKAction.scale(to: 4.8, duration: 1.0),
+                SKAction.sequence([
+                    SKAction.wait(forDuration: 0.75),
+                    SKAction.fadeOut(withDuration: 0.25),
+                ]),
             ]),
             SKAction.removeFromParent(),
         ]))

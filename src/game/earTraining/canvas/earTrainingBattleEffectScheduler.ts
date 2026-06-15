@@ -272,18 +272,18 @@ const addPreciseParryRing = (
   addVisual(visuals, {
     kind: 'thinRing',
     startedAt,
-    durationMs: 420,
+    durationMs: 1000,
     fromX: x,
     fromY: y,
     toX: x,
     toY: y,
-    color: 'rgba(234, 88, 12, 1)',
-    size: 80,
+    color: 'rgba(194, 65, 12, 1)',
+    size: 96,
     alpha: 1,
     rotation: 0,
     rotationEnd: 0,
-    scaleStart: 0.5,
-    scaleEnd: 3.2,
+    scaleStart: 0.45,
+    scaleEnd: 4.8,
     fadeOut: true,
   });
   runtime.effects.push({

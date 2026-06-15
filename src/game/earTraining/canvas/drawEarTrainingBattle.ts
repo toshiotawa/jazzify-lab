@@ -44,6 +44,7 @@ import {
   easeCubicInOut,
   easeCubicOut,
   easeLinear,
+  easeSineInOut,
   getEffectProgress,
   lerp,
 } from './earTrainingBattleDrawState';
@@ -765,10 +766,17 @@ const drawEffectVisual = (
   const t = getEffectProgress(visual, now);
   const x = lerp(visual.fromX, visual.toX, easeCubicIn(t));
   const y = lerp(visual.fromY, visual.toY, easeCubicIn(t));
-  const size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
-  const alpha = visual.alpha * (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'thinRing' || visual.kind === 'slash'
-    ? 1 - easeCubicOut(t)
-    : 1);
+  let size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
+  let alpha = visual.alpha;
+  if (visual.kind === 'thinRing') {
+    const expandT = easeSineInOut(t);
+    size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, expandT);
+    const fadeStart = 0.75;
+    const fadeT = t <= fadeStart ? 0 : (t - fadeStart) / (1 - fadeStart);
+    alpha = visual.alpha * (1 - easeCubicOut(fadeT));
+  } else if (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'slash') {
+    alpha = visual.alpha * (1 - easeCubicOut(t));
+  }
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
 
   ctx.save();
@@ -798,7 +806,7 @@ const drawEffectVisual = (
     ctx.beginPath();
     ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
     ctx.strokeStyle = visual.color;
-    ctx.lineWidth = 5.5;
+    ctx.lineWidth = 6;
     ctx.stroke();
   } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark') {
     ctx.fillStyle = visual.color;
