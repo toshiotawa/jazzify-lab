@@ -16,6 +16,7 @@ import devRun10LayoutJson from './layouts/dev_run_10.layout.json';
 import devRun11LayoutJson from './layouts/dev_run_11.layout.json';
 import devRun12LayoutJson from './layouts/dev_run_12.layout.json';
 import tutorial2LayoutJson from './layouts/tutorial_2.layout.json';
+import tutorial3LayoutJson from './layouts/tutorial_3.layout.json';
 import {
   applyDamage,
   CODE_RUN_DAMAGE_INVUL_FRAMES,
@@ -674,6 +675,25 @@ describe('createCodeRunMapById / createCodeRunMapFromDb', () => {
     expect(fromDb.spikes).toHaveLength(0);
     expect(fromDb.enemies).toHaveLength(1);
     expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(96);
+  });
+
+  it('tutorial_3 は段差レンガとスライム3体の横長レイアウトを返す', () => {
+    const fromDb = createCodeRunMapFromDb('tutorial_3', {
+      name: 'Tutorial 3',
+      ...tutorial3LayoutJson,
+    });
+    expect(fromDb.id).toBe('tutorial_3');
+    expect(fromDb.worldWidth).toBe(150 * CODE_RUN_TILE);
+    expect(fromDb.worldHeight).toBe(528);
+    expect(fromDb.groundRow).toBe(9);
+    expect(fromDb.spawn).toEqual({ x: 2 * CODE_RUN_TILE, y: 9 * CODE_RUN_TILE - CODE_RUN_PLAYER_H });
+    expect(fromDb.goalX).toBe(147 * CODE_RUN_TILE + 18);
+    expect(fromDb.goalY).toBe(10 * CODE_RUN_TILE - 84);
+    expect(fromDb.spikes).toHaveLength(0);
+    expect(fromDb.enemies).toHaveLength(3);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'ground').length).toBe(150);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'platform').length).toBe(3);
+    expect(fromDb.solids.filter((solid) => solid.kind === 'brick').length).toBe(80);
   });
 
   it('dev_run_11 は超横長ブロック迷路と大量スライムのレイアウトを返す', () => {

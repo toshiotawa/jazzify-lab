@@ -1,0 +1,198 @@
+{
+  "layoutVersion": 1,
+  "viewWidth": 960,
+  "viewHeight": 528,
+  "tileSize": 48,
+  "worldTilesWide": 150,
+  "worldTilesHigh": 11,
+  "worldHeight": 528,
+  "groundRow": 9,
+  "spawn": {
+    "c": 2,
+    "r": 9
+  },
+  "pits": [],
+  "solids": [
+    {
+      "kind": "ground",
+      "row": 10,
+      "c0": 0,
+      "c1": 149
+    },
+    {
+      "kind": "brick",
+      "c": 143,
+      "r": 4
+    },
+    {
+      "kind": "brick",
+      "row": 5,
+      "c0": 142,
+      "c1": 143
+    },
+    {
+      "kind": "brick",
+      "c": 71,
+      "r": 6
+    },
+    {
+      "kind": "brick",
+      "c": 77,
+      "r": 6
+    },
+    {
+      "kind": "brick",
+      "c": 83,
+      "r": 6
+    },
+    {
+      "kind": "brick",
+      "row": 6,
+      "c0": 141,
+      "c1": 143
+    },
+    {
+      "kind": "brick",
+      "c": 49,
+      "r": 7
+    },
+    {
+      "kind": "brick",
+      "row": 7,
+      "c0": 66,
+      "c1": 86
+    },
+    {
+      "kind": "brick",
+      "row": 7,
+      "c0": 140,
+      "c1": 143
+    },
+    {
+      "kind": "brick",
+      "c": 39,
+      "r": 8
+    },
+    {
+      "kind": "brick",
+      "row": 8,
+      "c0": 48,
+      "c1": 50
+    },
+    {
+      "kind": "brick",
+      "c": 66,
+      "r": 8
+    },
+    {
+      "kind": "brick",
+      "c": 86,
+      "r": 8
+    },
+    {
+      "kind": "brick",
+      "row": 8,
+      "c0": 139,
+      "c1": 143
+    },
+    {
+      "kind": "brick",
+      "c": 11,
+      "r": 9
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 20,
+      "c1": 21
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 30,
+      "c1": 32
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 38,
+      "c1": 40
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 47,
+      "c1": 51
+    },
+    {
+      "kind": "brick",
+      "c": 66,
+      "r": 9
+    },
+    {
+      "kind": "brick",
+      "c": 86,
+      "r": 9
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 94,
+      "c1": 96
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 104,
+      "c1": 106
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 116,
+      "c1": 118
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 128,
+      "c1": 130
+    },
+    {
+      "kind": "brick",
+      "row": 9,
+      "c0": 138,
+      "c1": 143
+    },
+    {
+      "kind": "platform",
+      "row": 8,
+      "c0": 63,
+      "c1": 65
+    }
+  ],
+  "spikes": [],
+  "enemies": [
+    {
+      "c": 83,
+      "r": 10,
+      "id": "slime-83-10"
+    },
+    {
+      "c": 71,
+      "r": 10,
+      "id": "slime-71-10"
+    },
+    {
+      "c": 77,
+      "r": 10,
+      "id": "slime-77-10"
+    }
+  ],
+  "goalOffsetX": 18,
+  "manualGround": true,
+  "goal": {
+    "c": 147,
+    "r": 10
+  }
+}
