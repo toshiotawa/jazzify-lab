@@ -1,28 +1,4 @@
 declare module 'opensheetmusicdisplay' {
-  /** 0: note highlight, 1: thin line, 2: short line on stave, 3: current measure, 4: measure to left of notes */
-  export type CursorType = 0 | 1 | 2 | 3 | 4;
-
-  export interface CursorOptions {
-    type: CursorType;
-    color: string;
-    alpha: number;
-    follow: boolean;
-  }
-
-  export interface MusicPartManagerIterator {
-    readonly EndReached: boolean;
-    readonly CurrentMeasureIndex: number;
-  }
-
-  export interface Cursor {
-    readonly iterator: MusicPartManagerIterator;
-    show(): void;
-    hide(): void;
-    next(): void;
-    reset(): void;
-    update(): void;
-  }
-
   export interface IOSMDOptions {
     autoResize?: boolean;
     backend?: 'svg' | 'canvas';
@@ -42,7 +18,6 @@ declare module 'opensheetmusicdisplay' {
     defaultColorLabel?: string;
     defaultColorTitle?: string;
     defaultColorLyrics?: string;
-    cursorsOptions?: CursorOptions[];
   }
 
   export interface GraphicalNote {
@@ -119,11 +94,8 @@ declare module 'opensheetmusicdisplay' {
     render(): void;
     updateGraphic(): void;
     clear(): void;
-    enableOrDisableCursors(enable: boolean): void;
     GraphicSheet: GraphicSheet;
     Sheet: MusicSheet;
     TransposeCalculator?: TransposeCalculator;
-    cursors: Cursor[];
-    cursor: Cursor;
   }
 }
