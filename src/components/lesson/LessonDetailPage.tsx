@@ -399,6 +399,16 @@ const LessonDetailPage: React.FC = () => {
     );
   }, [loading, requirements.length, allRequirementsCompleted, lessonProgress?.completed, lessonId]);
 
+  // 完了プロンプト表示時に SE を先行ロード（詳細ページ単体では init されないため）
+  useEffect(() => {
+    if (!showReadyToCompletePrompt) {
+      return;
+    }
+    void FantasySoundManager.init(FantasySoundManager.getVolume()).catch(() => {
+      /* 先行ロード失敗は非致命 */
+    });
+  }, [showReadyToCompletePrompt]);
+
   const completionState = resolveLessonCompletionState({
     isCompleted: lessonProgress?.completed === true,
     isSubmitting: completing,
@@ -415,10 +425,15 @@ const LessonDetailPage: React.FC = () => {
       toast.warning(lessonCompletionBlockedToastCopy(isEnglishCopy));
       return;
     }
+
+    // ユーザー操作コンテキスト内で音声を解放・再生（詳細ページ単体では SE 未 init のことがある）
+    markAudioUserInteraction();
     
     setCompleting(true);
     try {
       try {
+        await FantasySoundManager.init(FantasySoundManager.getVolume());
+        await FantasySoundManager.unlock();
         FantasySoundManager.playQuestPreCompleteJingle();
       } catch {
         /* noop */
