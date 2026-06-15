@@ -14,17 +14,16 @@ import {
 } from '@/utils/earTrainingChordOsmd';
 
 const chord = (overrides: Partial<EarTrainingPhraseChord> & { id: string; order_index: number }): EarTrainingPhraseChord => ({
-  id: overrides.id,
   phrase_id: 'phrase-1',
-  order_index: overrides.order_index,
-  chord_name: overrides.chord_name ?? 'C',
-  measure_number: overrides.measure_number ?? 1,
-  beat_offset: overrides.beat_offset ?? 1,
-  duration_beats: overrides.duration_beats ?? 1,
-  start_time_sec: overrides.start_time_sec ?? null,
-  end_time_sec: overrides.end_time_sec ?? null,
-  voicing: overrides.voicing ?? ['C4'],
-  voicing_staves: overrides.voicing_staves ?? [1],
+  chord_name: 'C',
+  measure_number: 1,
+  beat_offset: 1,
+  duration_beats: 1,
+  start_time_sec: null,
+  end_time_sec: null,
+  voicing: ['C4'],
+  voicing_staves: [1],
+  ...overrides,
 });
 
 const phrase = (chords: EarTrainingPhraseChord[]): EarTrainingPhrase => ({

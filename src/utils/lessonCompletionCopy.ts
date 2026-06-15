@@ -93,3 +93,21 @@ export const lessonCompletionSuccessToastTitleCopy = (isEnglish: boolean): strin
 
 export const lessonCompletionErrorToastCopy = (isEnglish: boolean): string =>
   isEnglish ? 'Could not complete the quest.' : '完了処理に失敗しました。';
+
+export type QuestReadyToCompletePromptCopy = {
+  heading: string;
+  body: string;
+  complete: string;
+  later: string;
+};
+
+export const questReadyToCompletePromptCopy = (
+  isEnglish: boolean,
+): QuestReadyToCompletePromptCopy => ({
+  heading: isEnglish ? 'Quest ready to complete!' : 'クエスト完了です！',
+  body: isEnglish
+    ? 'All practice tasks are complete. Ready to finish this quest!'
+    : '全ての課題が完了しました、クエスト完了です！',
+  complete: isEnglish ? 'Complete' : '完了',
+  later: isEnglish ? 'Later' : 'あとで',
+});

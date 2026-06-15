@@ -21,8 +21,8 @@ SELECT
         "atSeconds": 8,
         "speaker": "fai",
         "text": {
-          "ja": "譜面を読んで、合う風船を割ろう！",
-          "en": "Read the staff and pop the matching balloons!"
+          "ja": "譜面を読んで、風船を割ろう！",
+          "en": "Read the staff and pop the balloons!"
         }
       },
       {

@@ -1611,6 +1611,7 @@ struct LessonDetailView: View {
     @State private var showSubscriptionSheet = false
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
+    @State private var showReadyToCompletePrompt = false
 
     init(lesson: Lesson) {
         _activeLesson = State(initialValue: lesson)
@@ -1905,6 +1906,16 @@ struct LessonDetailView: View {
                         showSubscriptionSheet = true
                     }
                     : nil
+            )
+        }
+        .sheet(isPresented: $showReadyToCompletePrompt) {
+            QuestReadyToCompleteSheet(
+                locale: locale,
+                onComplete: {
+                    showReadyToCompletePrompt = false
+                    Task { await completeLesson() }
+                },
+                onLater: { showReadyToCompletePrompt = false }
             )
         }
         .fullScreenCover(item: $quickLookDocument) { doc in
@@ -2566,6 +2577,7 @@ struct LessonDetailView: View {
 
         isLoading = true
         currentVideoIndex = 0
+        showReadyToCompletePrompt = false
         defer {
             if generation == loadGeneration {
                 isLoading = false
@@ -2625,6 +2637,12 @@ struct LessonDetailView: View {
                             isPremium: appState.isPremium
                         )
                     }
+
+                    showReadyToCompletePrompt = LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
+                        hasRequirements: !sortedRequirements.isEmpty,
+                        allRequirementsCompleted: allRequirementsCompleted,
+                        isLessonCompleted: isLessonCompleted
+                    )
                 }
             } else {
                 requirementProgress = []

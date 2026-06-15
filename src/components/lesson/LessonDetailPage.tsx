@@ -74,6 +74,8 @@ import {
 } from '@/utils/lessonNavigation';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
+import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteModal';
+import { shouldShowQuestReadyToCompletePrompt } from '@/utils/lessonRequirementProgress';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import {
@@ -379,6 +381,23 @@ const LessonDetailPage: React.FC = () => {
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
   const [questCompletionModalKind, setQuestCompletionModalKind] = useState<QuestCompletionModalKind>('none');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showReadyToCompletePrompt, setShowReadyToCompletePrompt] = useState(false);
+
+  // 詳細ページ表示時、課題が全完了かつ未完了なら完了プロンプトを自動表示する。
+  // state 変化に反応するイベント駆動。lessonId 変更（再選択/次クエスト遷移）で再評価される。
+  useEffect(() => {
+    if (loading) {
+      setShowReadyToCompletePrompt(false);
+      return;
+    }
+    setShowReadyToCompletePrompt(
+      shouldShowQuestReadyToCompletePrompt({
+        hasRequirements: requirements.length > 0,
+        allRequirementsCompleted,
+        isLessonCompleted: lessonProgress?.completed === true,
+      }),
+    );
+  }, [loading, requirements.length, allRequirementsCompleted, lessonProgress?.completed, lessonId]);
 
   const completionState = resolveLessonCompletionState({
     isCompleted: lessonProgress?.completed === true,
@@ -1381,6 +1400,16 @@ const LessonDetailPage: React.FC = () => {
                       }
                     : undefined
                 }
+              />
+            ) : null}
+            {showReadyToCompletePrompt && !showNextLessonPrompt ? (
+              <QuestReadyToCompleteModal
+                isEnglishCopy={isEnglishCopy}
+                onComplete={() => {
+                  setShowReadyToCompletePrompt(false);
+                  void handleComplete();
+                }}
+                onLater={() => setShowReadyToCompletePrompt(false)}
               />
             ) : null}
             <WebPaywallModal

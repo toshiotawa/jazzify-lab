@@ -2,6 +2,7 @@ import {
   areAllClearRequiredLessonSongsCompleted,
   isLessonSongRequirementCompleted,
   lessonSongUsesLessonSongIdForProgress,
+  shouldShowQuestReadyToCompletePrompt,
   type LessonSongProgressMatch,
 } from '@/utils/lessonRequirementProgress';
 
@@ -61,5 +62,47 @@ describe('areAllClearRequiredLessonSongsCompleted', () => {
       { id: 'opt', song_id: null, is_ear_training_tutorial: true, is_clear_required: false },
     ];
     expect(areAllClearRequiredLessonSongsCompleted(requirements, [])).toBe(false);
+  });
+});
+
+describe('shouldShowQuestReadyToCompletePrompt', () => {
+  it('課題があり全完了かつ未完了なら true', () => {
+    expect(
+      shouldShowQuestReadyToCompletePrompt({
+        hasRequirements: true,
+        allRequirementsCompleted: true,
+        isLessonCompleted: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('課題が無いクエストでは false', () => {
+    expect(
+      shouldShowQuestReadyToCompletePrompt({
+        hasRequirements: false,
+        allRequirementsCompleted: true,
+        isLessonCompleted: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('課題が未完了なら false', () => {
+    expect(
+      shouldShowQuestReadyToCompletePrompt({
+        hasRequirements: true,
+        allRequirementsCompleted: false,
+        isLessonCompleted: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('すでにクエスト完了済みなら false', () => {
+    expect(
+      shouldShowQuestReadyToCompletePrompt({
+        hasRequirements: true,
+        allRequirementsCompleted: true,
+        isLessonCompleted: true,
+      }),
+    ).toBe(false);
   });
 });

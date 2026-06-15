@@ -55,3 +55,16 @@ export const areAllClearRequiredLessonSongsCompleted = (
     progress.some(p => isLessonSongRequirementCompleted(req, p)),
   );
 };
+
+/**
+ * クエスト詳細を開いたときに「完了を促すプロンプト」を自動表示すべきか判定する。
+ * 課題が1つ以上あり、全課題クリア済みで、まだクエスト未完了のときだけ true。
+ */
+export const shouldShowQuestReadyToCompletePrompt = (input: {
+  hasRequirements: boolean;
+  allRequirementsCompleted: boolean;
+  isLessonCompleted: boolean;
+}): boolean =>
+  input.hasRequirements
+  && input.allRequirementsCompleted
+  && !input.isLessonCompleted;

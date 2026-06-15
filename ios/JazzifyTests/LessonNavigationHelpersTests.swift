@@ -142,4 +142,44 @@ final class LessonNavigationHelpersTests: XCTestCase {
         XCTAssertTrue(state.canGoNext)
         XCTAssertNil(state.nextBlockedReason)
     }
+
+    func testShouldShowQuestReadyToCompletePromptWhenAllTasksDoneAndNotCompleted() {
+        XCTAssertTrue(
+            LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
+                hasRequirements: true,
+                allRequirementsCompleted: true,
+                isLessonCompleted: false
+            )
+        )
+    }
+
+    func testShouldNotShowReadyPromptWithoutRequirements() {
+        XCTAssertFalse(
+            LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
+                hasRequirements: false,
+                allRequirementsCompleted: true,
+                isLessonCompleted: false
+            )
+        )
+    }
+
+    func testShouldNotShowReadyPromptWhenTasksIncomplete() {
+        XCTAssertFalse(
+            LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
+                hasRequirements: true,
+                allRequirementsCompleted: false,
+                isLessonCompleted: false
+            )
+        )
+    }
+
+    func testShouldNotShowReadyPromptWhenAlreadyCompleted() {
+        XCTAssertFalse(
+            LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
+                hasRequirements: true,
+                allRequirementsCompleted: true,
+                isLessonCompleted: true
+            )
+        )
+    }
 }

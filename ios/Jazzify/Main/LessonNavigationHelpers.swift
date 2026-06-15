@@ -190,6 +190,16 @@ enum LessonNavigationHelpers {
         return .none
     }
 
+    /// クエスト詳細を開いたときに「完了を促すプロンプト」を自動表示すべきか判定する。
+    /// 課題が1つ以上あり、全課題クリア済みで、まだクエスト未完了のときだけ true。
+    static func shouldShowQuestReadyToCompletePrompt(
+        hasRequirements: Bool,
+        allRequirementsCompleted: Bool,
+        isLessonCompleted: Bool
+    ) -> Bool {
+        hasRequirements && allRequirementsCompleted && !isLessonCompleted
+    }
+
     static func nextLesson(
         after currentLesson: Lesson,
         in sortedLessons: [Lesson]
