@@ -2,7 +2,6 @@ import SwiftUI
 import SpriteKit
 import UIKit
 import WebKit
-import QuartzCore
 import os.log
 
 /// OSMD リズム判定バトル（`mode == chord_osmd`）ネイティブ画面。
@@ -473,24 +472,19 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
         webView.scrollView.contentInset = .zero
-        context.coordinator.attach(webView: webView, controller: controller)
+        context.coordinator.attach(webView: webView)
         webView.loadHTMLString(Self.html, baseURL: Bundle.main.bundleURL)
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        context.coordinator.configureScroll(
-            scrollActive: controller.scoreScrollActive,
-            measureDurationSec: controller.scoreMeasureDurationSec,
-            maxMeasure: controller.scoreMaxMeasure()
-        )
+        context.coordinator.configurePlayhead(show: controller.scoreScrollActive)
         context.coordinator.update(
             webView: webView,
             musicXMLText: musicXMLText,
             renderKey: renderKey,
-            zoom: zoom,
-            measureDurationSec: controller.scoreMeasureDurationSec,
-            maxMeasure: controller.scoreMaxMeasure()
+            activeMeasureNumber: controller.activeMeasureNumber,
+            zoom: zoom
         )
     }
 
@@ -508,82 +502,34 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private weak var webView: WKWebView?
-        private weak var controller: EarTrainingChordOSMDBattleController?
         private var htmlReady = false
         private var isTornDown = false
         private var renderGeneration: Int = 0
         private var pendingMusicXMLText: String?
         private var pendingRenderKey: Int?
+        private var pendingMeasureNumber: Int?
         private var pendingZoom: Double = 1.0
-        private var pendingMeasureDurationSec: Double = 2
-        private var pendingMaxMeasure: Int = 1
         private var lastRenderedMusicXMLText: String?
         private var lastRenderedKey: Int?
         private var lastRenderedZoom: Double?
-        private var scrollActive = false
-        private var scrollMeasureDurationSec: Double = 2
-        private var scrollMaxMeasure: Int = 1
-        private var displayLink: CADisplayLink?
-        private var displayLinkFrameSkip = 0
+        private var lastMeasureNumber: Int?
 
-        func attach(webView: WKWebView, controller: EarTrainingChordOSMDBattleController) {
+        func attach(webView: WKWebView) {
             self.webView = webView
-            self.controller = controller
         }
 
         func tearDown() {
             isTornDown = true
-            stopDisplayLink()
             renderGeneration += 1
             htmlReady = false
             pendingMusicXMLText = nil
             pendingRenderKey = nil
+            pendingMeasureNumber = nil
             webView?.stopLoading()
             webView = nil
-            controller = nil
         }
 
-        func configureScroll(scrollActive: Bool, measureDurationSec: Double, maxMeasure: Int) {
-            self.scrollActive = scrollActive
-            scrollMeasureDurationSec = measureDurationSec
-            scrollMaxMeasure = maxMeasure
-            if scrollActive {
-                startDisplayLinkIfNeeded()
-            } else {
-                stopDisplayLink()
-                updatePlayheadVisibility(show: false)
-            }
-        }
-
-        private func startDisplayLinkIfNeeded() {
-            guard displayLink == nil, !isTornDown else { return }
-            let link = CADisplayLink(target: self, selector: #selector(onDisplayLink(_:)))
-            link.add(to: .main, forMode: .common)
-            displayLink = link
-        }
-
-        private func stopDisplayLink() {
-            displayLink?.invalidate()
-            displayLink = nil
-            displayLinkFrameSkip = 0
-        }
-
-        @objc private func onDisplayLink(_ link: CADisplayLink) {
-            displayLinkFrameSkip += 1
-            if displayLinkFrameSkip < 2 {
-                return
-            }
-            displayLinkFrameSkip = 0
-            guard !isTornDown, htmlReady, scrollActive, let webView else { return }
-            let phraseTime = controller?.scorePhraseTimelineSec ?? 0
-            let md = Self.javascriptNumber(scrollMeasureDurationSec)
-            let mm = max(1, scrollMaxMeasure)
-            updatePlayheadVisibility(show: true)
-            let script = "window.JazzifyOSMD.updateTimeline(\(Self.javascriptNumber(phraseTime)), \(md), \(mm));"
-            webView.evaluateJavaScript(script, completionHandler: nil)
-        }
-
-        private func updatePlayheadVisibility(show: Bool) {
+        func configurePlayhead(show: Bool) {
             guard let webView, htmlReady, !isTornDown else { return }
             let display = show ? "block" : "none"
             webView.evaluateJavaScript(
@@ -618,16 +564,14 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             webView: WKWebView,
             musicXMLText: String,
             renderKey: Int,
-            zoom: Double,
-            measureDurationSec: Double,
-            maxMeasure: Int
+            activeMeasureNumber: Int,
+            zoom: Double
         ) {
             guard !isTornDown else { return }
             pendingMusicXMLText = musicXMLText
             pendingRenderKey = renderKey
+            pendingMeasureNumber = activeMeasureNumber
             pendingZoom = zoom
-            pendingMeasureDurationSec = measureDurationSec
-            pendingMaxMeasure = maxMeasure
             guard htmlReady else { return }
             flushPending(webView: webView)
         }
@@ -635,10 +579,9 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private func flushPending(webView: WKWebView) {
             guard !isTornDown, htmlReady else { return }
             guard let xml = pendingMusicXMLText,
-                  let key = pendingRenderKey else { return }
+                  let key = pendingRenderKey,
+                  let measure = pendingMeasureNumber else { return }
             let nextZoom = pendingZoom
-            let measureDuration = pendingMeasureDurationSec
-            let maxMeasure = pendingMaxMeasure
             let needsRender = lastRenderedMusicXMLText != xml
                 || lastRenderedKey != key
                 || lastRenderedZoom.map { abs($0 - nextZoom) > 0.000_1 } ?? true
@@ -648,15 +591,26 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 lastRenderedMusicXMLText = xml
                 lastRenderedKey = key
                 lastRenderedZoom = nextZoom
+                lastMeasureNumber = measure
                 let literal = Self.javaScriptStringLiteral(xml)
                 let z = Self.javascriptNumber(nextZoom)
-                let md = Self.javascriptNumber(measureDuration)
                 let script = """
                 window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
-                  window.JazzifyOSMD.updateTimeline(0, \(md), \(maxMeasure));
+                  window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
                 Self.evaluate(script, on: webView, generation: generation, coordinator: self)
+                return
+            }
+            if lastMeasureNumber != measure {
+                lastMeasureNumber = measure
+                let generation = renderGeneration
+                Self.evaluate(
+                    "window.JazzifyOSMD.setActiveMeasure(\(measure));",
+                    on: webView,
+                    generation: generation,
+                    coordinator: self
+                )
             }
         }
 
@@ -676,7 +630,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
         private static func javascriptNumber(_ value: Double) -> String {
             if !value.isFinite {
-                return "0"
+                return "1"
             }
             return String(value)
         }
@@ -723,6 +677,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           min-width: 100%;
           transform: translate3d(0, -50%, 0);
           transform-origin: left center;
+          transition: transform 160ms ease-out;
           will-change: transform;
         }
         #playhead {
@@ -978,29 +933,15 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             scoreWidth = fallback.scoreWidth;
           }
 
-          function computeScrollOffset(phraseTimeSec, measureDurationSec, maxMeasure) {
+          function computeScrollOffset(measureNumber) {
+            const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            const center = measureCentersByNumber[mn]
+              || measureCentersByNumber[1]
+              || viewport.clientWidth / 2;
             const viewportWidth = viewport.clientWidth || 0;
-            const safeMax = Math.max(1, Math.floor(Number(maxMeasure) || 1));
-            let activeMeasure = 1;
-            let timeInMeasure = 0;
-            if (phraseTimeSec >= 0 && measureDurationSec > 0) {
-              const rawMeasure = Math.floor(phraseTimeSec / measureDurationSec) + 1;
-              activeMeasure = Math.max(1, Math.min(safeMax, rawMeasure));
-              timeInMeasure = Math.max(0, phraseTimeSec - (activeMeasure - 1) * measureDurationSec);
-            }
-            const bounds = measureBoundsByNumber[activeMeasure] || measureBoundsByNumber[1];
-            let xPos;
-            if (bounds && measureDurationSec > 0) {
-              const t = Math.max(0, Math.min(1, timeInMeasure / measureDurationSec));
-              xPos = bounds.left + t * (bounds.right - bounds.left);
-            } else {
-              xPos = measureCentersByNumber[activeMeasure]
-                || measureCentersByNumber[1]
-                || viewportWidth / 2;
-            }
             const effectiveScale = cssScale;
             const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
-            return Math.max(0, Math.min(maxOffset, xPos * effectiveScale - PLAYHEAD_PX));
+            return Math.max(0, Math.min(maxOffset, center * effectiveScale - PLAYHEAD_PX));
           }
 
           function postOsmdMessage(type, detail) {
@@ -1114,14 +1055,14 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
           }
 
-          function updateTimeline(phraseTimeSec, measureDurationSec, maxMeasure) {
-            const offset = computeScrollOffset(phraseTimeSec, measureDurationSec, maxMeasure);
+          function setActiveMeasure(measureNumber) {
+            const offset = computeScrollOffset(measureNumber);
             score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
           }
 
           window.JazzifyOSMD = {
             renderMusicXML,
-            updateTimeline
+            setActiveMeasure
           };
         })();
       </script>

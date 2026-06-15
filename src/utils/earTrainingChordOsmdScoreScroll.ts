@@ -5,21 +5,17 @@ export interface OsmdMeasureBounds {
   right: number;
 }
 
-export interface OsmdScoreScrollInput {
-  phraseTimeSec: number;
-  measureBoundsByNumber: Readonly<Record<number, OsmdMeasureBounds>>;
+export interface OsmdMeasureJumpScrollInput {
+  activeMeasureNumber: number;
   measureCentersByNumber: Readonly<Record<number, number>>;
-  measureDurationSec: number;
-  maxMeasure: number;
   playheadPx: number;
   effectiveScale: number;
   scoreWidth: number;
   viewportWidth: number;
 }
 
-export interface OsmdScoreScrollResult {
+export interface OsmdMeasureJumpScrollResult {
   offsetPx: number;
-  activeMeasureNumber: number;
   xPos: number;
 }
 
@@ -27,75 +23,26 @@ const clamp = (value: number, min: number, max: number): number => (
   Math.max(min, Math.min(max, value))
 );
 
-const resolveActiveMeasureNumber = (
-  phraseTimeSec: number,
-  measureDurationSec: number,
-  maxMeasure: number,
-): number => {
-  if (measureDurationSec <= 0) {
-    return 1;
-  }
-  const rawMeasure = Math.floor(Math.max(0, phraseTimeSec) / measureDurationSec) + 1;
-  return clamp(rawMeasure, 1, Math.max(1, maxMeasure));
-};
-
-const resolveMeasureX = (
-  activeMeasureNumber: number,
-  timeInMeasure: number,
-  measureDurationSec: number,
-  measureBoundsByNumber: Readonly<Record<number, OsmdMeasureBounds>>,
-  measureCentersByNumber: Readonly<Record<number, number>>,
-  viewportWidth: number,
-): number => {
-  const bounds = measureBoundsByNumber[activeMeasureNumber]
-    ?? measureBoundsByNumber[1];
-  if (bounds && measureDurationSec > 0) {
-    const t = clamp(timeInMeasure / measureDurationSec, 0, 1);
-    return bounds.left + t * (bounds.right - bounds.left);
-  }
-
-  const center = measureCentersByNumber[activeMeasureNumber]
-    ?? measureCentersByNumber[1]
-    ?? viewportWidth / 2;
-  return center;
-};
-
-export const computeOsmdScoreScrollOffset = (input: OsmdScoreScrollInput): OsmdScoreScrollResult => {
+/** 現在小節の中心を固定プレイヘッド位置へ合わせるオフセット（小節更新時のみジャンプ）。 */
+export const computeOsmdMeasureJumpScrollOffset = (
+  input: OsmdMeasureJumpScrollInput,
+): OsmdMeasureJumpScrollResult => {
   const {
-    phraseTimeSec,
-    measureBoundsByNumber,
+    activeMeasureNumber,
     measureCentersByNumber,
-    measureDurationSec,
-    maxMeasure,
     playheadPx,
     effectiveScale,
     scoreWidth,
     viewportWidth,
   } = input;
 
-  const safeMaxMeasure = Math.max(1, maxMeasure);
-  const activeMeasureNumber = phraseTimeSec < 0
-    ? 1
-    : resolveActiveMeasureNumber(phraseTimeSec, measureDurationSec, safeMaxMeasure);
-  const timeInMeasure = phraseTimeSec < 0
-    ? 0
-    : Math.max(0, phraseTimeSec - (activeMeasureNumber - 1) * measureDurationSec);
-
-  const xPos = resolveMeasureX(
-    activeMeasureNumber,
-    timeInMeasure,
-    measureDurationSec,
-    measureBoundsByNumber,
-    measureCentersByNumber,
-    viewportWidth,
-  );
+  const measureNumber = Math.max(1, Math.floor(activeMeasureNumber));
+  const xPos = measureCentersByNumber[measureNumber]
+    ?? measureCentersByNumber[1]
+    ?? viewportWidth / 2;
 
   const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
   const offsetPx = clamp(xPos * effectiveScale - playheadPx, 0, maxOffset);
 
-  return {
-    offsetPx,
-    activeMeasureNumber,
-    xPos,
-  };
+  return { offsetPx, xPos };
 };

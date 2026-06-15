@@ -34,8 +34,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var timeRemaining: Int = 0
     @Published private(set) var countInValue: Int
     @Published private(set) var activeMeasureNumber: Int = 1
-    /// 譜面連続スクロール用（`@Published` しない。DisplayLink から読む）。
-    private(set) var scorePhraseTimelineSec: Double = 0
     @Published private(set) var musicXMLText: String?
     /// MusicXML 上の段数の目安（`<staves>` と note 直下 `<staff>` の最大）。OSMD 初期 zoom に使用。
     @Published private(set) var musicXMLMaxStaffLayers: Int = 1
@@ -61,29 +59,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     /// 設定で有効なとき、判定窓内の未押下構成音（OSMD: 距離で濃さが変わるマリーゴールド）。
     @Published private(set) var voicingHintIntensities: [Int: VoicingHintIntensity] = [:]
 
-    var scoreMeasureDurationSec: Double {
-        let beatDuration = 60.0 / Double(max(1, stage.bpm))
-        return beatDuration * Double(max(1, stage.beatsPerMeasure))
-    }
-
     var scoreScrollActive: Bool {
         gameState == .countIn || gameState == .playingPhrase
-    }
-
-    func scoreMaxMeasure() -> Int {
-        let measureDuration = scoreMeasureDurationSec
-        guard measureDuration > 0 else { return 1 }
-        let targetMaxMeasure = targets.map(\.measureNumber).max() ?? 1
-        let loopMeasureCapFromPhraseDuration: Int
-        if phrases.indices.contains(phraseIndex), phrases[phraseIndex].loopDurationSec > 0 {
-            loopMeasureCapFromPhraseDuration = min(
-                512,
-                max(1, Int(ceil(phrases[phraseIndex].loopDurationSec / measureDuration)))
-            )
-        } else {
-            loopMeasureCapFromPhraseDuration = stage.loopMeasures
-        }
-        return max(loopMeasureCapFromPhraseDuration, stage.loopMeasures, targetMaxMeasure)
     }
 
     let stage: EarTrainingStageDetail
@@ -654,7 +631,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         } else {
             phraseTime = max(0, currentTime)
         }
-        scorePhraseTimelineSec = phraseTime
 
         if phraseTime >= 0 {
             updateActiveMeasure(for: phraseTime)
