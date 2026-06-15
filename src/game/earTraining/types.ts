@@ -128,6 +128,8 @@ export interface EarTrainingPlayerQuoteOptions {
 
 export interface EarTrainingBattleSceneHandle {
   updateSnapshot: (snapshot: EarTrainingBattleSnapshot) => void;
+  /** 敵アタックゲージを React を経由せず直接更新する（高頻度更新用） */
+  setEnemyAttackGaugePercent: (percent: number) => void;
   triggerEffect: (command: EarTrainingBattleEffectCommand) => void;
   highlightKey: (midiNote: number, active: boolean) => void;
   /** 主人公頭上のヴォイシング台詞吹き出し。null で非表示。文字列または `segments` で部分色指定。 */

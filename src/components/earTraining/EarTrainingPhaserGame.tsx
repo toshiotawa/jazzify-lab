@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import Phaser from 'phaser';
+import { EarTrainingBattlePerfOverlay } from '@/components/earTraining/debug/EarTrainingBattlePerfOverlay';
 import { EarTrainingBattleScene } from '@/game/earTraining/EarTrainingBattleScene';
 import type {
   EarTrainingBattleCallbacks,
@@ -8,6 +9,7 @@ import type {
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
 import { playFireMagicSe, preloadFireMagicSe } from '@/utils/earTrainingFireMagicSe';
+import { isEarTrainingBattlePerfDebugEnabled } from '@/utils/earTrainingBattlePerfDebug';
 
 interface EarTrainingPhaserGameProps {
   snapshot: EarTrainingBattleSnapshot;
@@ -30,12 +32,14 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
   const sceneRef = useRef<EarTrainingBattleScene | null>(null);
   const latestSnapshotRef = useRef(snapshot);
   const latestCallbacksRef = useRef(callbacks);
+  const showPerfOverlay = isEarTrainingBattlePerfDebugEnabled();
 
   latestSnapshotRef.current = snapshot;
   latestCallbacksRef.current = callbacks;
 
   useImperativeHandle(ref, () => ({
     updateSnapshot: nextSnapshot => sceneRef.current?.updateSnapshot(nextSnapshot),
+    setEnemyAttackGaugePercent: percent => sceneRef.current?.setEnemyAttackGaugePercent(percent),
     triggerEffect: command => sceneRef.current?.triggerEffect(command),
     highlightKey: (midiNote, active) => sceneRef.current?.highlightKey(midiNote, active),
     setPlayerQuote: (text, options) => sceneRef.current?.setPlayerQuote(text, options),
@@ -118,7 +122,11 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
     sceneRef.current?.triggerEffect(effectCommand);
   }, [disableCorrectSe, effectCommand]);
 
-  return <div ref={containerRef} className={className} />;
+  return (
+    <div ref={containerRef} className={className}>
+      {showPerfOverlay ? <EarTrainingBattlePerfOverlay /> : null}
+    </div>
+  );
 });
 
 EarTrainingPhaserGame.displayName = 'EarTrainingPhaserGame';

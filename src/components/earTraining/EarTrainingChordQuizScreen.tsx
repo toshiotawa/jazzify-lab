@@ -263,7 +263,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [enemyHp, setEnemyHp] = useState(QUIZ_BATTLE_ENEMY_HP);
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
   const [countInValue, setCountInValue] = useState(0);
-  const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [feedback, setFeedback] = useState<'clear' | null>(null);
@@ -326,7 +325,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       return;
     }
     enemyAttackGaugePercentRef.current = next;
-    setEnemyAttackGaugePercentState(next);
+    phaserGameRef.current?.setEnemyAttackGaugePercent(next);
   }, []);
 
   const clearStaffShiftQueue = useCallback(() => {
@@ -1146,7 +1145,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     activeLoop: 1,
     maxLoops: 1,
     demoLoopActive: false,
-    enemyAttackGaugePercent: practiceMode || tutorialNoCombat ? 0 : enemyAttackGaugePercent,
+    enemyAttackGaugePercent: 0,
     attackGaugeHidden: practiceMode || tutorialNoCombat,
     chords: [
       ...getQuestionChordViews(activeQuestion, activeChord?.id ?? null, showVoicingTargetHints, hideChordNamesInBattle),
@@ -1186,7 +1185,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     clearConditionLine,
     chordQuizBannerLine,
     countInValue,
-    enemyAttackGaugePercent,
     enemyAvatar,
     enemyAvatarFlipX,
     enemyHp,

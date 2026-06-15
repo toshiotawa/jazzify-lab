@@ -344,7 +344,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
-  const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
   const [completionPulse, setCompletionPulse] = useState<ChordVoicingCompletionPulse | null>(null);
 
   const [compositeUiTick, setCompositeUiTick] = useState(0);
@@ -515,7 +514,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return;
     }
     enemyAttackGaugePercentRef.current = next;
-    setEnemyAttackGaugePercentState(next);
+    phaserGameRef.current?.setEnemyAttackGaugePercent(next);
   }, []);
 
   const clearBattleEffectTimers = useCallback(() => {
@@ -2093,7 +2092,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     activeLoop,
     maxLoops: stage.max_loops_per_phrase,
     demoLoopActive: false,
-    enemyAttackGaugePercent: tutorialNoCombat ? 0 : enemyAttackGaugePercent,
+    enemyAttackGaugePercent: 0,
     chords: harmonyHudRowsForHud.map(row => ({
       id: row.representativeId,
       name: row.chordName,
@@ -2136,7 +2135,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     currentChordSlotIndex,
     enemyAvatar,
     enemyAvatarFlipX,
-    enemyAttackGaugePercent,
     enemyHp,
     enemyName,
     gameState,

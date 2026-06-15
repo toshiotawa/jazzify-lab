@@ -257,7 +257,6 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
-  const [enemyAttackGaugePercent, setEnemyAttackGaugePercentState] = useState(0);
   const [demoBubbleVisible, setDemoBubbleVisible] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -364,7 +363,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       return;
     }
     enemyAttackGaugePercentRef.current = next;
-    setEnemyAttackGaugePercentState(next);
+    phaserGameRef.current?.setEnemyAttackGaugePercent(next);
   }, []);
 
   const stopPhraseAudio = useCallback(() => {
@@ -989,7 +988,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     activeLoop,
     maxLoops: stage.max_loops_per_phrase,
     demoLoopActive,
-    enemyAttackGaugePercent,
+    enemyAttackGaugePercent: 0,
     chords: (currentPhrase?.chords ?? []).map(chord => ({
       id: chord.id,
       name: chord.chord_name,
@@ -1019,7 +1018,6 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     demoLoopActive,
     enemyAvatar,
     enemyAvatarFlipX,
-    enemyAttackGaugePercent,
     enemyHp,
     enemyName,
     gameState,
