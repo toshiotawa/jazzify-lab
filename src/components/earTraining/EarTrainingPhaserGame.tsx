@@ -1,6 +1,5 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import Phaser from 'phaser';
-import { EarTrainingBattlePerfOverlay } from '@/components/earTraining/debug/EarTrainingBattlePerfOverlay';
 import { EarTrainingBattleScene } from '@/game/earTraining/EarTrainingBattleScene';
 import type {
   EarTrainingBattleCallbacks,
@@ -9,7 +8,6 @@ import type {
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
 import { playFireMagicSe, preloadFireMagicSe } from '@/utils/earTrainingFireMagicSe';
-import { isEarTrainingBattlePerfDebugEnabled } from '@/utils/earTrainingBattlePerfDebug';
 
 interface EarTrainingPhaserGameProps {
   snapshot: EarTrainingBattleSnapshot;
@@ -32,7 +30,6 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
   const sceneRef = useRef<EarTrainingBattleScene | null>(null);
   const latestSnapshotRef = useRef(snapshot);
   const latestCallbacksRef = useRef(callbacks);
-  const showPerfOverlay = isEarTrainingBattlePerfDebugEnabled();
 
   latestSnapshotRef.current = snapshot;
   latestCallbacksRef.current = callbacks;
@@ -122,11 +119,7 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
     sceneRef.current?.triggerEffect(effectCommand);
   }, [disableCorrectSe, effectCommand]);
 
-  return (
-    <div ref={containerRef} className={className}>
-      {showPerfOverlay ? <EarTrainingBattlePerfOverlay /> : null}
-    </div>
-  );
+  return <div ref={containerRef} className={className} />;
 });
 
 EarTrainingPhaserGame.displayName = 'EarTrainingPhaserGame';
