@@ -10,7 +10,10 @@ import {
   EarTrainingChordVoicingDrumLoop,
   CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
-import { computeQuoteBubbleMaxOuterWidth } from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
+import {
+  computeDialogueQuoteBubbleLayout,
+  type DialogueQuoteBubbleAlign,
+} from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
@@ -20,7 +23,6 @@ import { localizedText, resolveDialogueLineSpeaker } from './earTrainingTutorial
 const DIALOGUE_LINE_ADVANCE_MS = 5000;
 const CHARACTER_SIZE_PX = 120;
 const QUOTE_BUBBLE_GAP_ABOVE_CHARACTER_PX = 12;
-const QUOTE_BUBBLE_HORIZONTAL_PADDING_PX = 32;
 
 interface DialogueLayoutMetrics {
   sceneWidthPx: number;
@@ -40,19 +42,12 @@ interface EarTrainingTutorialDialogueSceneProps {
 
 interface DialogueQuoteBubbleProps {
   text: string;
-  align: 'left' | 'right';
-  centerXPx: number;
+  align: DialogueQuoteBubbleAlign;
+  anchorLeftPx?: number;
+  anchorRightPx?: number;
   bottomPx: number;
   maxWidthPx: number;
 }
-
-const computeDialogueQuoteTextMaxWidthPx = (
-  sceneWidthPx: number,
-  charCenterXPx: number,
-): number => {
-  const outer = computeQuoteBubbleMaxOuterWidth(sceneWidthPx, charCenterXPx);
-  return Math.max(96, outer - QUOTE_BUBBLE_HORIZONTAL_PADDING_PX);
-};
 
 const measureDialogueLayout = (
   sceneEl: HTMLElement,
@@ -75,17 +70,18 @@ const measureDialogueLayout = (
 const DialogueQuoteBubble: React.FC<DialogueQuoteBubbleProps> = ({
   text,
   align,
-  centerXPx,
+  anchorLeftPx,
+  anchorRightPx,
   bottomPx,
   maxWidthPx,
 }) => (
   <div
     className="pointer-events-none absolute z-10 rounded-lg border border-white/10 bg-black/70 px-4 py-3 text-left shadow-lg backdrop-blur-sm"
     style={{
-      left: centerXPx,
+      left: anchorLeftPx,
+      right: anchorRightPx,
       bottom: bottomPx,
       maxWidth: maxWidthPx,
-      transform: 'translateX(-50%)',
     }}
     aria-live="polite"
   >
@@ -229,17 +225,15 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
 
   const playerBubbleLayout = layout && playerSpeaking && quoteText
     ? {
-      centerXPx: layout.playerCenterXPx,
+      ...computeDialogueQuoteBubbleLayout(layout.sceneWidthPx, layout.playerCenterXPx, 'left'),
       bottomPx: layout.sceneHeightPx - layout.playerTopPx + QUOTE_BUBBLE_GAP_ABOVE_CHARACTER_PX,
-      maxWidthPx: computeDialogueQuoteTextMaxWidthPx(layout.sceneWidthPx, layout.playerCenterXPx),
     }
     : null;
 
   const partnerBubbleLayout = layout && partnerSpeaking && quoteText
     ? {
-      centerXPx: layout.partnerCenterXPx,
+      ...computeDialogueQuoteBubbleLayout(layout.sceneWidthPx, layout.partnerCenterXPx, 'right'),
       bottomPx: layout.sceneHeightPx - layout.partnerTopPx + QUOTE_BUBBLE_GAP_ABOVE_CHARACTER_PX,
-      maxWidthPx: computeDialogueQuoteTextMaxWidthPx(layout.sceneWidthPx, layout.partnerCenterXPx),
     }
     : null;
 
@@ -269,7 +263,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
         <DialogueQuoteBubble
           text={quoteText}
           align="left"
-          centerXPx={playerBubbleLayout.centerXPx}
+          anchorLeftPx={playerBubbleLayout.anchorLeftPx}
           bottomPx={playerBubbleLayout.bottomPx}
           maxWidthPx={playerBubbleLayout.maxWidthPx}
         />
@@ -279,7 +273,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
         <DialogueQuoteBubble
           text={quoteText}
           align="right"
-          centerXPx={partnerBubbleLayout.centerXPx}
+          anchorRightPx={partnerBubbleLayout.anchorRightPx}
           bottomPx={partnerBubbleLayout.bottomPx}
           maxWidthPx={partnerBubbleLayout.maxWidthPx}
         />
