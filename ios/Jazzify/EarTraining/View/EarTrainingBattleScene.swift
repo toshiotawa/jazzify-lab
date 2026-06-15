@@ -1390,6 +1390,16 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         return collapsed.isEmpty ? [] : wrapQuoteParagraph(collapsed, font: font, maxWidth: maxWidth)
     }
 
+    private static func quoteBubbleMaxOuterWidth(
+        sceneWidth: CGFloat,
+        sceneShort: CGFloat,
+        charX: CGFloat
+    ) -> CGFloat {
+        let margin: CGFloat = 12
+        let fit = 2 * max(battleLayoutPt(96), min(charX, sceneWidth - charX) - margin)
+        return min(sceneShort * 0.86, 340, fit)
+    }
+
     private func layoutPlayerQuoteBubble() {
         guard let player = playerNode else { return }
         let footContainer = player.container
@@ -1428,7 +1438,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         let sceneWidth = max(320, size.width)
         let sceneShort = min(size.width, size.height)
-        let maxBubbleOuter = min(sceneShort * 0.86, 340)
+        let charX = footContainer.convert(CGPoint.zero, to: self).x
+        let maxBubbleOuter = Self.quoteBubbleMaxOuterWidth(
+            sceneWidth: sceneWidth,
+            sceneShort: sceneShort,
+            charX: charX
+        )
 
         var cueColumnWidth: CGFloat = 0
         var cueLabel: SKLabelNode?
@@ -1554,8 +1569,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let tailH = Self.battleLayoutPt(10)
         let cueGap = Self.battleLayoutPt(8)
 
+        let sceneWidth = max(320, size.width)
         let sceneShort = min(size.width, size.height)
-        let maxBubbleOuter = min(sceneShort * 0.86, 340)
+        let charX = footContainer.convert(CGPoint.zero, to: self).x
+        let maxBubbleOuter = Self.quoteBubbleMaxOuterWidth(
+            sceneWidth: sceneWidth,
+            sceneShort: sceneShort,
+            charX: charX
+        )
 
         var cueColumnWidth: CGFloat = 0
         var cueLabel: SKLabelNode?
