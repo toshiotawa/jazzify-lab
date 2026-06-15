@@ -26,6 +26,8 @@ const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
 const OSMD_REFLECT_IMPACT_MS = 360;
+const OSMD_PARRY_HOLD_MS = 70;
+const PARRY_GUARD_SLOW_RING_DELAY_MS = 35;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
 const PERFECT_LIGHTNING_IMPACT_MS = 470;
@@ -209,6 +211,82 @@ const addImpactBurst = (
     impactFired: true,
     visuals,
   });
+};
+
+const addParryGuardEffect = (
+  runtime: EarTrainingBattleDrawRuntime,
+  x: number,
+  y: number,
+): void => {
+  const startedAt = performance.now();
+  const visuals: CanvasEffectVisual[] = [];
+  addVisual(visuals, {
+    kind: 'burst',
+    startedAt,
+    durationMs: 110,
+    fromX: x,
+    fromY: y,
+    toX: x,
+    toY: y,
+    color: 'rgba(255, 255, 255, 0.95)',
+    size: 48,
+    alpha: 1,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 0.3,
+    scaleEnd: 1.6,
+  });
+  addVisual(visuals, {
+    kind: 'ring',
+    startedAt,
+    durationMs: 150,
+    fromX: x,
+    fromY: y,
+    toX: x,
+    toY: y,
+    color: 'rgba(255, 255, 255, 0)',
+    size: 48,
+    alpha: 1,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 0.35,
+    scaleEnd: 1.5,
+  });
+  addVisual(visuals, {
+    kind: 'ring',
+    startedAt: startedAt + PARRY_GUARD_SLOW_RING_DELAY_MS,
+    durationMs: 460,
+    fromX: x,
+    fromY: y,
+    toX: x,
+    toY: y,
+    color: 'rgba(255, 255, 255, 0)',
+    size: 60,
+    alpha: 0.45,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 0.75,
+    scaleEnd: 3,
+  });
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'osmdHammerReflect' },
+    startedAt,
+    impactAt: startedAt,
+    impactFired: true,
+    visuals,
+  });
+};
+
+const dismissIncomingOsmdHammer = (
+  runtime: EarTrainingBattleDrawRuntime,
+  relatedEffectId: number | undefined,
+): void => {
+  if (relatedEffectId === undefined) return;
+  const incoming = runtime.effects.find(effect => effect.commandId === relatedEffectId);
+  if (!incoming) return;
+  incoming.osmdHammerActive = false;
+  incoming.visuals = [];
 };
 
 const addCastEffect = (
@@ -521,6 +599,7 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
   runtime.effects.push(effect);
   scheduleImpact(command.id, impactMs);
   setTimeout(() => {
+    if (!effect.osmdHammerActive) return;
     flashCharacter(runtime.player, 2, 70);
     addImpactBurst(runtime, anchors.player.x, anchors.player.bodyY, '#fb7185', false);
     schedulePlayerKnockback(ctx, -28, 180);
@@ -531,16 +610,22 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
 
 const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
   const { runtime, anchors, onDirty, scheduleImpact, playerTimers, snapshot, width } = ctx;
+  const now = performance.now();
+  const contactX = anchors.player.x;
+  const contactY = anchors.player.bodyY;
+  const totalImpactMs = OSMD_PARRY_HOLD_MS + OSMD_REFLECT_IMPACT_MS;
   holdCharacterForAction(runtime.player, 'cast', 620, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
   runtime.player.poseKey = 'cast';
-  runtime.player.poseUntil = performance.now() + CORRECT_PLAYER_POSE_DURATION_MS;
+  runtime.player.poseUntil = now + CORRECT_PLAYER_POSE_DURATION_MS;
+  addParryGuardEffect(runtime, contactX, contactY);
+  dismissIncomingOsmdHammer(runtime, command.relatedEffectId);
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'hammer',
-    startedAt: performance.now(),
+    startedAt: now + OSMD_PARRY_HOLD_MS,
     durationMs: OSMD_REFLECT_IMPACT_MS,
-    fromX: anchors.player.x,
-    fromY: anchors.player.bodyY,
+    fromX: contactX,
+    fromY: contactY,
     toX: anchors.enemy.x,
     toY: anchors.enemy.bodyY,
     color: '#ffffff',
@@ -555,19 +640,19 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   runtime.effects.push({
     commandId: command.id,
     command,
-    startedAt: performance.now(),
-    impactAt: performance.now() + OSMD_REFLECT_IMPACT_MS,
+    startedAt: now,
+    impactAt: now + totalImpactMs,
     impactFired: false,
     visuals,
   });
-  scheduleImpact(command.id, OSMD_REFLECT_IMPACT_MS);
+  scheduleImpact(command.id, totalImpactMs);
   setTimeout(() => {
     flashCharacter(runtime.enemy, 2, 70);
     addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, '#facc15', false);
     showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
     scheduleEnemyKnockback(ctx, 22, 160);
     onDirty();
-  }, OSMD_REFLECT_IMPACT_MS);
+  }, totalImpactMs);
 };
 
 const applyCompletionImpact = (

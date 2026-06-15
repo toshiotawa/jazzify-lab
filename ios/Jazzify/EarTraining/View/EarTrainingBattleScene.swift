@@ -1925,14 +1925,20 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         holdCharacterForAction(.player, state: .cast, durationMs: Self.correctPlayerPoseDurationMs)
         showPlayerPose(assetName: PlayerAvatarPoseAsset.castName, durationMs: Self.correctPlayerPoseDurationMs)
         let anchors = battleAnchors()
+        let contact = CGPoint(x: anchors.player.x, y: anchors.player.bodyY)
+        showParryGuardEffect(at: contact)
         let hammer: SKSpriteNode
         if let relatedId = command.relatedEffectId,
            let existing = osmdHammerNodesByEffectId.removeValue(forKey: relatedId) {
             existing.removeAllActions()
+            existing.position = contact
             hammer = existing
         } else {
+            if let relatedId = command.relatedEffectId {
+                dismissOsmdHammerEffect(effectId: relatedId)
+            }
             hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
-            hammer.position = CGPoint(x: anchors.player.x + Self.battleLayoutPt(26), y: anchors.player.castY)
+            hammer.position = contact
             effectLayer.addChild(hammer)
         }
         if hammer.parent == nil {
@@ -1941,10 +1947,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         hammer.zPosition = 55
 
         let target = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY)
+        let hold = SKAction.wait(forDuration: 0.07)
         let move = SKAction.move(to: target, duration: 0.22)
         move.timingMode = .easeIn
         let spin = SKAction.rotate(byAngle: -900 * (.pi / 180), duration: 0.22)
-        hammer.run(SKAction.group([move, spin])) { [weak self, weak hammer] in
+        let reflect = SKAction.group([move, spin])
+        hammer.run(SKAction.sequence([hold, reflect])) { [weak self, weak hammer] in
             guard let self else { return }
             hammer?.removeFromParent()
             self.flashCharacter(.enemy)
@@ -2258,6 +2266,61 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 SKAction.moveBy(x: Self.battleLayoutPt(10), y: Self.battleLayoutPt(36), duration: 0.72),
                 SKAction.fadeOut(withDuration: 0.72),
                 SKAction.scale(to: 1.08, duration: 0.72),
+            ]),
+            SKAction.removeFromParent(),
+        ]))
+    }
+
+    private func showParryGuardEffect(at position: CGPoint) {
+        let flashRadius = Self.battleLayoutPt(24)
+        let flash = SKShapeNode(circleOfRadius: flashRadius)
+        flash.fillColor = UIColor.white.withAlphaComponent(0.95)
+        flash.strokeColor = .clear
+        flash.lineWidth = 0
+        flash.position = position
+        flash.setScale(0.3)
+        flash.zPosition = 65
+        effectLayer.addChild(flash)
+        flash.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 1.6, duration: 0.11),
+                SKAction.fadeOut(withDuration: 0.11),
+            ]),
+            SKAction.removeFromParent(),
+        ]))
+
+        let fastRingRadius = Self.battleLayoutPt(24)
+        let fastRing = SKShapeNode(circleOfRadius: fastRingRadius)
+        fastRing.fillColor = .clear
+        fastRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
+        fastRing.lineWidth = Self.battleLayoutPt(2)
+        fastRing.position = position
+        fastRing.setScale(0.35)
+        fastRing.zPosition = 64
+        effectLayer.addChild(fastRing)
+        fastRing.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 1.5, duration: 0.15),
+                SKAction.fadeOut(withDuration: 0.15),
+            ]),
+            SKAction.removeFromParent(),
+        ]))
+
+        let slowRingRadius = Self.battleLayoutPt(30)
+        let slowRing = SKShapeNode(circleOfRadius: slowRingRadius)
+        slowRing.fillColor = .clear
+        slowRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
+        slowRing.lineWidth = Self.battleLayoutPt(2)
+        slowRing.position = position
+        slowRing.alpha = 0.45
+        slowRing.setScale(0.75)
+        slowRing.zPosition = 63
+        effectLayer.addChild(slowRing)
+        slowRing.run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.035),
+            SKAction.group([
+                SKAction.scale(to: 3.0, duration: 0.46),
+                SKAction.fadeOut(withDuration: 0.46),
             ]),
             SKAction.removeFromParent(),
         ]))
