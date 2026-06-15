@@ -767,6 +767,43 @@ export function formatSurvivalEncounterLabel(stage: StageDefinition, isEnglish: 
   return boss ? (isEnglish ? 'Boss' : 'ボス') : (isEnglish ? 'Regular' : '通常');
 }
 
+interface SurvivalStageClearAchievementLabelParams {
+  isEnglish: boolean;
+  isBossStage: boolean;
+  isCodeRunStage: boolean;
+  isBalloonRushStage: boolean;
+  stageTimeLimitSec: number;
+  stageKillQuota: number;
+}
+
+/** ステージクリア画面の達成条件サブタイトル（`SurvivalGameOver` ヘッダー下）。 */
+export function formatSurvivalStageClearAchievementLabel(
+  params: SurvivalStageClearAchievementLabelParams,
+): string {
+  const {
+    isEnglish,
+    isBossStage,
+    isCodeRunStage,
+    isBalloonRushStage,
+    stageTimeLimitSec,
+    stageKillQuota,
+  } = params;
+  if (isBossStage) {
+    return isEnglish ? 'Boss defeated!' : 'ボス撃破達成！';
+  }
+  if (isCodeRunStage) {
+    return isEnglish ? 'Goal reached!' : 'ゴール到達！';
+  }
+  if (isBalloonRushStage) {
+    return isEnglish
+      ? `Popped ${stageKillQuota} balloons within ${stageTimeLimitSec}s!`
+      : `${stageTimeLimitSec}秒以内に風船を${stageKillQuota}個割る達成！`;
+  }
+  return isEnglish
+    ? `${stageTimeLimitSec}s survival + ${stageKillQuota} defeats achieved!`
+    : `${stageTimeLimitSec}秒生存 + ${stageKillQuota}体撃破達成！`;
+}
+
 /** DB `survival_composite_phrase_*` と紐付く複合フレーズ出題ステージか */
 export function survivalStageUsesCompositePhrasePattern(stage: StageDefinition): boolean {
   const n = stage.compositePhraseSources?.length ?? 0;

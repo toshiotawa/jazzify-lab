@@ -20,7 +20,8 @@ import {
 } from './survivalFirstBlockStage';
 import {
   StageDefinition,
-  isBlockLastStage,
+  STAGE_TIME_LIMIT_SECONDS,
+  formatSurvivalStageClearAchievementLabel,
   getTotalStagesByCategory,
 } from './SurvivalStageDefinitions';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
@@ -40,6 +41,11 @@ interface SurvivalGameOverProps {
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
   onNextStage?: () => void;
+  /** `SurvivalGameScreen` が算出したボス戦判定（複合フレーズボス等を含む） */
+  isBossStage?: boolean;
+  isBalloonRushMode?: boolean;
+  stageTimeLimitSec?: number;
+  stageKillQuota?: number;
 }
 
 const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
@@ -57,6 +63,10 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   onRetryWithHint,
   onRetryWithoutHint,
   onNextStage,
+  isBossStage: isBossStageProp,
+  isBalloonRushMode = false,
+  stageTimeLimitSec: stageTimeLimitSecProp,
+  stageKillQuota: stageKillQuotaProp,
 }) => {
   const { profile, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -69,8 +79,19 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isCodeRunStage = stageDefinition?.playMode === 'code_run';
   const isStageClear = result.isStageClear === true && isStageMode && !hintMode;
   const isStageClearHint = result.isStageClear === true && isStageMode && hintMode;
-  const isBossStage = isStageMode && isBlockLastStage(stageDefinition!.stageNumber, stageDefinition!.mapCategory);
-  const stageKillQuota = stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150;
+  const isBalloonRushStage = isBalloonRushMode || stageDefinition?.blockKey === 'balloon_rush';
+  const isBossStage = isBossStageProp ?? false;
+  const stageTimeLimitSec = stageTimeLimitSecProp ?? STAGE_TIME_LIMIT_SECONDS;
+  const stageKillQuota = stageKillQuotaProp
+    ?? (stageDefinition ? getStageKillQuotaForStage(stageDefinition) : 150);
+  const stageClearAchievementLabel = formatSurvivalStageClearAchievementLabel({
+    isEnglish: isEnglishCopy,
+    isBossStage,
+    isCodeRunStage,
+    isBalloonRushStage,
+    stageTimeLimitSec,
+    stageKillQuota,
+  });
 
   const handleBackToSelect = () => {
     if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
@@ -230,11 +251,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   {isEnglishCopy ? stageDefinition!.nameEn : stageDefinition!.name}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
-                  {isBossStage
-                    ? (isEnglishCopy ? 'Boss defeated!' : 'ボス撃破達成！')
-                    : isCodeRunStage
-                      ? (isEnglishCopy ? 'Goal reached!' : 'ゴール到達！')
-                    : (isEnglishCopy ? '90 seconds survived!' : '90秒間生存達成！')}
+                  {stageClearAchievementLabel}
                 </div>
               </div>
             </>

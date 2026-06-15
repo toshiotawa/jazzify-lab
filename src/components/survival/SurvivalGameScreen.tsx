@@ -6948,6 +6948,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           onRetryWithHint={onRetryWithHint}
           onRetryWithoutHint={onRetryWithoutHint}
           onNextStage={onNextStage}
+          isBossStage={isBossStage}
+          isBalloonRushMode={isBalloonRushMode}
+          stageTimeLimitSec={stageTimeLimitSec}
+          stageKillQuota={stageKillQuota}
         />
       )}
       
