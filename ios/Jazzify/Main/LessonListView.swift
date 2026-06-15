@@ -1660,6 +1660,282 @@ struct LessonDetailView: View {
     }
 
     var body: some View {
+        lessonDetailWithDialogs
+    }
+
+    @ViewBuilder
+    private var lessonDetailWithDialogs: some View {
+        lessonDetailWithQuestSheets
+            .fullScreenCover(item: $quickLookDocument) { doc in
+                ZStack(alignment: .topTrailing) {
+                    LessonAttachmentQuickLookView(fileURL: doc.fileURL, title: doc.title)
+                        .ignoresSafeArea()
+                    Button {
+                        quickLookDocument = nil
+                    } label: {
+                        Text(locale == .ja ? "閉じる" : "Close")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .padding()
+                }
+                .background(Color.black)
+                .onDisappear {
+                    removeTempAttachmentFile(at: doc.fileURL)
+                }
+            }
+            .sheet(item: $attachmentSharePayload) { payload in
+                LessonAttachmentShareSheet(items: [payload.fileURL])
+                    .presentationDetents([.medium, .large])
+                    .onDisappear {
+                        removeTempAttachmentFile(at: payload.fileURL)
+                    }
+            }
+            .sheet(isPresented: $showSubscriptionSheet) {
+                SubscriptionView()
+            }
+    }
+
+    @ViewBuilder
+    private var lessonDetailWithQuestSheets: some View {
+        lessonDetailWithReloadHooks
+            .alert(
+                locale == .ja ? "お知らせ" : "Notice",
+                isPresented: Binding(
+                    get: { alertMessage != nil },
+                    set: { if !$0 { alertMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(alertMessage ?? "")
+            }
+            .sheet(item: $questCompletionSheet) { sheetModel in
+                QuestCompletionSheet(
+                    model: sheetModel,
+                    locale: locale,
+                    onStay: { questCompletionSheet = nil },
+                    onContinue: sheetModel.nextLesson.map { next in
+                        {
+                            questCompletionSheet = nil
+                            activeLesson = next
+                        }
+                    },
+                    onPremium: sheetModel.kind == .chapterCompletePremiumUpsell
+                        ? {
+                            questCompletionSheet = nil
+                            showSubscriptionSheet = true
+                        }
+                        : nil
+                )
+            }
+            .sheet(isPresented: $showReadyToCompletePrompt) {
+                QuestReadyToCompleteSheet(
+                    locale: locale,
+                    onComplete: {
+                        showReadyToCompletePrompt = false
+                        Task { await completeLesson() }
+                    },
+                    onLater: { showReadyToCompletePrompt = false }
+                )
+            }
+    }
+
+    @ViewBuilder
+    private var lessonDetailWithReloadHooks: some View {
+        lessonDetailWithGameLaunchers
+            .onChange(of: launchDestination == nil) { isNil in
+                if isNil {
+                    Task { await loadLessonDetail() }
+                }
+            }
+            .onChange(of: earTrainingLaunch == nil) { isNil in
+                if isNil {
+                    Task { await loadLessonDetail() }
+                }
+            }
+            .onChange(of: earTrainingTutorialLaunch == nil) { isNil in
+                if isNil {
+                    Task { await loadLessonDetail() }
+                }
+            }
+            .onChange(of: survivalTutorialLaunch == nil) { isNil in
+                if isNil {
+                    Task { await loadLessonDetail() }
+                }
+            }
+            .onChange(of: survivalLessonLaunch == nil) { isNil in
+                if isNil {
+                    Task { await loadLessonDetail() }
+                }
+            }
+            .onChange(of: balloonRushLessonLaunch == nil) { isNil in
+                if isNil {
+                    Task { await loadLessonDetail() }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var lessonDetailWithGameLaunchers: some View {
+        lessonDetailWithNavigation
+            .fullScreenCover(item: $launchDestination) { destination in
+                GameWebView(
+                    mode: .webPage(hash: destination.hash),
+                    locale: locale,
+                    onClose: { launchDestination = nil }
+                )
+            }
+            .fullScreenCover(item: $earTrainingLaunch) { launch in
+                EarTrainingGameView(
+                    stageId: launch.stageId,
+                    lessonContext: EarTrainingLessonContext(
+                        lessonId: launch.lessonId,
+                        lessonSongId: launch.lessonSongId,
+                        clearConditions: launch.clearConditions
+                    ),
+                    locale: locale,
+                    initialPracticeMode: launch.initialPracticeMode,
+                    onClose: { earTrainingLaunch = nil }
+                )
+            }
+            .fullScreenCover(item: $earTrainingTutorialLaunch) { launch in
+                EarTrainingTutorialView(
+                    scriptId: launch.scriptId,
+                    locale: locale,
+                    onClose: { earTrainingTutorialLaunch = nil },
+                    onComplete: {
+                        _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
+                            lessonId: launch.lessonId,
+                            lessonSongId: launch.lessonSongId,
+                            rank: launch.clearConditions?.rank ?? "S",
+                            clearConditions: launch.clearConditions
+                        )
+                    }
+                )
+            }
+            .fullScreenCover(item: $survivalTutorialLaunch) { launch in
+                SurvivalTutorialView(
+                    scriptId: launch.scriptId,
+                    locale: locale,
+                    showSkip: false,
+                    onClose: { survivalTutorialLaunch = nil },
+                    onComplete: {
+                        _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
+                            lessonId: launch.lessonId,
+                            lessonSongId: launch.lessonSongId,
+                            rank: launch.clearConditions?.rank ?? "S",
+                            clearConditions: launch.clearConditions
+                        )
+                    }
+                )
+            }
+            .fullScreenCover(item: $survivalLessonLaunch) { launch in
+                SurvivalGameView(
+                    stage: launch.stage,
+                    hintMode: launch.hintMode,
+                    characterId: "fai",
+                    locale: locale,
+                    onClose: { survivalLessonLaunch = nil },
+                    configOverride: launch.configOverride,
+                    inlineCompositePhrases: launch.inlineCompositePhrases,
+                    lessonRuntime: launch.lessonRuntime,
+                    productionHintModes: launch.productionHintModes,
+                    randomChordOverrides: launch.randomChordOverrides,
+                    lessonContext: SurvivalLessonContext(
+                        lessonId: launch.lessonId,
+                        lessonSongId: launch.lessonSongId,
+                        clearConditions: launch.clearConditions
+                    )
+                )
+            }
+            .sheet(item: $survivalLessonPrep) { prep in
+                SurvivalRunPrepSheet(
+                    stage: prep.stage,
+                    locale: locale,
+                    variant: .lesson,
+                    initialHintMode: prep.hintMode,
+                    lessonRuntime: prep.lessonRuntime,
+                    onCancel: { survivalLessonPrep = nil },
+                    onConfirm: { hintMode in
+                        survivalLessonPrep = nil
+                        survivalLessonLaunch = SurvivalLessonLaunch(
+                            stage: prep.stage,
+                            hintMode: hintMode,
+                            configOverride: prep.configOverride,
+                            inlineCompositePhrases: prep.inlineCompositePhrases,
+                            lessonRuntime: prep.lessonRuntime,
+                            productionHintModes: prep.productionHintModes,
+                            randomChordOverrides: prep.randomChordOverrides,
+                            lessonId: prep.lessonId,
+                            lessonSongId: prep.lessonSongId,
+                            clearConditions: prep.clearConditions
+                        )
+                    }
+                )
+            }
+            .sheet(item: $balloonRushPrep) { prep in
+                SurvivalRunPrepSheet(
+                    balloonStage: prep.stage,
+                    locale: locale,
+                    initialHintMode: false,
+                    onCancel: { balloonRushPrep = nil },
+                    onConfirm: { hintMode in
+                        balloonRushPrep = nil
+                        balloonRushLessonLaunch = BalloonRushLessonLaunch(
+                            stage: prep.stage,
+                            hintMode: hintMode,
+                            productionHintModes: prep.productionHintModes,
+                            appliedRandomChords: prep.appliedRandomChords,
+                            lessonId: prep.lessonId,
+                            lessonSongId: prep.lessonSongId,
+                            clearConditions: prep.clearConditions
+                        )
+                    }
+                )
+            }
+            .fullScreenCover(item: $balloonRushLessonLaunch) { launch in
+                BalloonRushGameView(
+                    stage: launch.stage,
+                    hintMode: launch.hintMode,
+                    locale: locale,
+                    lessonContext: BalloonRushLessonContext(
+                        lessonId: launch.lessonId,
+                        lessonSongId: launch.lessonSongId,
+                        clearConditions: launch.clearConditions
+                    ),
+                    productionHintModes: launch.productionHintModes,
+                    appliedRandomChords: launch.appliedRandomChords,
+                    onClose: { balloonRushLessonLaunch = nil }
+                )
+            }
+    }
+
+    @ViewBuilder
+    private var lessonDetailWithNavigation: some View {
+        lessonDetailMainContent
+            .navigationTitle(activeLesson.localizedTitle(locale))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .onAppear {
+                LessonMapAudio.shared.stop()
+            }
+            .task(id: activeLesson.id) {
+                isNavigating = false
+                await loadLessonDetail()
+            }
+            .onChange(of: appState.locale) { _ in
+                Task { await loadLessonDetail() }
+            }
+    }
+
+    @ViewBuilder
+    private var lessonDetailMainContent: some View {
         ZStack {
             Color(hex: "0f172a").ignoresSafeArea()
 
@@ -1702,252 +1978,6 @@ struct LessonDetailView: View {
                 }
                 .padding()
             }
-        }
-        .navigationTitle(activeLesson.localizedTitle(locale))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .onAppear {
-            LessonMapAudio.shared.stop()
-        }
-        .task(id: activeLesson.id) {
-            isNavigating = false
-            await loadLessonDetail()
-        }
-        .onChange(of: appState.locale) { _ in
-            Task { await loadLessonDetail() }
-        }
-        .fullScreenCover(item: $launchDestination) { destination in
-            GameWebView(
-                mode: .webPage(hash: destination.hash),
-                locale: locale,
-                onClose: { launchDestination = nil }
-            )
-        }
-        .fullScreenCover(item: $earTrainingLaunch) { launch in
-            EarTrainingGameView(
-                stageId: launch.stageId,
-                lessonContext: EarTrainingLessonContext(
-                    lessonId: launch.lessonId,
-                    lessonSongId: launch.lessonSongId,
-                    clearConditions: launch.clearConditions
-                ),
-                locale: locale,
-                initialPracticeMode: launch.initialPracticeMode,
-                onClose: { earTrainingLaunch = nil }
-            )
-        }
-        .fullScreenCover(item: $earTrainingTutorialLaunch) { launch in
-            EarTrainingTutorialView(
-                scriptId: launch.scriptId,
-                locale: locale,
-                onClose: { earTrainingTutorialLaunch = nil },
-                onComplete: {
-                    _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
-                        lessonId: launch.lessonId,
-                        lessonSongId: launch.lessonSongId,
-                        rank: launch.clearConditions?.rank ?? "S",
-                        clearConditions: launch.clearConditions
-                    )
-                }
-            )
-        }
-        .fullScreenCover(item: $survivalTutorialLaunch) { launch in
-            SurvivalTutorialView(
-                scriptId: launch.scriptId,
-                locale: locale,
-                showSkip: false,
-                onClose: { survivalTutorialLaunch = nil },
-                onComplete: {
-                    _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
-                        lessonId: launch.lessonId,
-                        lessonSongId: launch.lessonSongId,
-                        rank: launch.clearConditions?.rank ?? "S",
-                        clearConditions: launch.clearConditions
-                    )
-                }
-            )
-        }
-        .fullScreenCover(item: $survivalLessonLaunch) { launch in
-            SurvivalGameView(
-                stage: launch.stage,
-                hintMode: launch.hintMode,
-                characterId: "fai",
-                locale: locale,
-                onClose: { survivalLessonLaunch = nil },
-                configOverride: launch.configOverride,
-                inlineCompositePhrases: launch.inlineCompositePhrases,
-                lessonRuntime: launch.lessonRuntime,
-                productionHintModes: launch.productionHintModes,
-                randomChordOverrides: launch.randomChordOverrides,
-                lessonContext: SurvivalLessonContext(
-                    lessonId: launch.lessonId,
-                    lessonSongId: launch.lessonSongId,
-                    clearConditions: launch.clearConditions
-                )
-            )
-        }
-        .sheet(item: $survivalLessonPrep) { prep in
-            SurvivalRunPrepSheet(
-                stage: prep.stage,
-                locale: locale,
-                variant: .lesson,
-                initialHintMode: prep.hintMode,
-                lessonRuntime: prep.lessonRuntime,
-                onCancel: { survivalLessonPrep = nil },
-                onConfirm: { hintMode in
-                    survivalLessonPrep = nil
-                    survivalLessonLaunch = SurvivalLessonLaunch(
-                        stage: prep.stage,
-                        hintMode: hintMode,
-                        configOverride: prep.configOverride,
-                        inlineCompositePhrases: prep.inlineCompositePhrases,
-                        lessonRuntime: prep.lessonRuntime,
-                        productionHintModes: prep.productionHintModes,
-                        randomChordOverrides: prep.randomChordOverrides,
-                        lessonId: prep.lessonId,
-                        lessonSongId: prep.lessonSongId,
-                        clearConditions: prep.clearConditions
-                    )
-                }
-            )
-        }
-        .sheet(item: $balloonRushPrep) { prep in
-            SurvivalRunPrepSheet(
-                balloonStage: prep.stage,
-                locale: locale,
-                initialHintMode: false,
-                onCancel: { balloonRushPrep = nil },
-                onConfirm: { hintMode in
-                    balloonRushPrep = nil
-                    balloonRushLessonLaunch = BalloonRushLessonLaunch(
-                        stage: prep.stage,
-                        hintMode: hintMode,
-                        productionHintModes: prep.productionHintModes,
-                        appliedRandomChords: prep.appliedRandomChords,
-                        lessonId: prep.lessonId,
-                        lessonSongId: prep.lessonSongId,
-                        clearConditions: prep.clearConditions
-                    )
-                }
-            )
-        }
-        .fullScreenCover(item: $balloonRushLessonLaunch) { launch in
-            BalloonRushGameView(
-                stage: launch.stage,
-                hintMode: launch.hintMode,
-                locale: locale,
-                lessonContext: BalloonRushLessonContext(
-                    lessonId: launch.lessonId,
-                    lessonSongId: launch.lessonSongId,
-                    clearConditions: launch.clearConditions
-                ),
-                productionHintModes: launch.productionHintModes,
-                appliedRandomChords: launch.appliedRandomChords,
-                onClose: { balloonRushLessonLaunch = nil }
-            )
-        }
-        .onChange(of: launchDestination == nil) { isNil in
-            if isNil {
-                Task { await loadLessonDetail() }
-            }
-        }
-        .onChange(of: earTrainingLaunch == nil) { isNil in
-            if isNil {
-                Task { await loadLessonDetail() }
-            }
-        }
-        .onChange(of: earTrainingTutorialLaunch == nil) { isNil in
-            if isNil {
-                Task { await loadLessonDetail() }
-            }
-        }
-        .onChange(of: survivalTutorialLaunch == nil) { isNil in
-            if isNil {
-                Task { await loadLessonDetail() }
-            }
-        }
-        .onChange(of: survivalLessonLaunch == nil) { isNil in
-            if isNil {
-                Task { await loadLessonDetail() }
-            }
-        }
-        .onChange(of: balloonRushLessonLaunch == nil) { isNil in
-            if isNil {
-                Task { await loadLessonDetail() }
-            }
-        }
-        .alert(
-            locale == .ja ? "お知らせ" : "Notice",
-            isPresented: Binding(
-                get: { alertMessage != nil },
-                set: { if !$0 { alertMessage = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(alertMessage ?? "")
-        }
-        .sheet(item: $questCompletionSheet) { sheetModel in
-            QuestCompletionSheet(
-                model: sheetModel,
-                locale: locale,
-                onStay: { questCompletionSheet = nil },
-                onContinue: sheetModel.nextLesson.map { next in
-                    {
-                        questCompletionSheet = nil
-                        activeLesson = next
-                    }
-                },
-                onPremium: sheetModel.kind == .chapterCompletePremiumUpsell
-                    ? {
-                        questCompletionSheet = nil
-                        showSubscriptionSheet = true
-                    }
-                    : nil
-            )
-        }
-        .sheet(isPresented: $showReadyToCompletePrompt) {
-            QuestReadyToCompleteSheet(
-                locale: locale,
-                onComplete: {
-                    showReadyToCompletePrompt = false
-                    Task { await completeLesson() }
-                },
-                onLater: { showReadyToCompletePrompt = false }
-            )
-        }
-        .fullScreenCover(item: $quickLookDocument) { doc in
-            ZStack(alignment: .topTrailing) {
-                LessonAttachmentQuickLookView(fileURL: doc.fileURL, title: doc.title)
-                    .ignoresSafeArea()
-                Button {
-                    quickLookDocument = nil
-                } label: {
-                    Text(locale == .ja ? "閉じる" : "Close")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
-                }
-                .padding()
-            }
-            .background(Color.black)
-            .onDisappear {
-                removeTempAttachmentFile(at: doc.fileURL)
-            }
-        }
-        .sheet(item: $attachmentSharePayload) { payload in
-            LessonAttachmentShareSheet(items: [payload.fileURL])
-                .presentationDetents([.medium, .large])
-                .onDisappear {
-                    removeTempAttachmentFile(at: payload.fileURL)
-                }
-        }
-        .sheet(isPresented: $showSubscriptionSheet) {
-            SubscriptionView()
         }
     }
 
@@ -2574,6 +2604,7 @@ struct LessonDetailView: View {
         loadGeneration += 1
         let generation = loadGeneration
         let targetId = activeLesson.id
+        let targetCourseId = activeLesson.courseId
 
         isLoading = true
         currentVideoIndex = 0
@@ -2588,7 +2619,7 @@ struct LessonDetailView: View {
             courseIsMainQuest = false
             async let detailTask = SupabaseService.shared.fetchLessonDetail(lessonId: targetId)
             async let courseMetaTask: Course? = {
-                guard let cid = activeLesson.courseId else { return nil }
+                guard let cid = targetCourseId else { return nil }
                 return try? await SupabaseService.shared.fetchCourseVisible(id: cid)
             }()
             async let videosTask: [LessonVideoResource] = {

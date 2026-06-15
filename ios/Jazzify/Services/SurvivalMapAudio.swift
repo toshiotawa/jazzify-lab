@@ -10,7 +10,7 @@ import Foundation
 final class SurvivalMapAudio {
     static let shared = SurvivalMapAudio()
 
-    static let bgmURL = URL(string: "https://jazzify-cdn.com/fantasy-bgm/116797c5-c714-4a4d-85c6-5212af860d0b.mp3")!
+    nonisolated static let bgmURL = URL(string: "https://jazzify-cdn.com/fantasy-bgm/116797c5-c714-4a4d-85c6-5212af860d0b.mp3")!
 
     private let queuePlayer = AVQueuePlayer()
     private var looper: AVPlayerLooper?
@@ -55,7 +55,11 @@ final class SurvivalMapAudio {
     }
 
     /// CDN の BGM をループ再生開始。同一URLで既に再生中なら何もしない。
-    func play(url: URL = SurvivalMapAudio.bgmURL) {
+    func play() {
+        play(url: Self.bgmURL)
+    }
+
+    func play(url: URL) {
         isRequestedPlaying = true
         if currentURL == url, queuePlayer.timeControlStatus == .playing {
             queuePlayer.volume = effectiveVolume()
@@ -71,7 +75,7 @@ final class SurvivalMapAudio {
 
         let asset = AVAsset(url: url)
         let item = AVPlayerItem(asset: asset)
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.playbackGeneration == generation, self.isRequestedPlaying else { return }
             self.looper = AVPlayerLooper(player: self.queuePlayer, templateItem: item)
@@ -159,18 +163,20 @@ final class SurvivalMapAudio {
         let start = Date()
         let totalSteps = max(1, Int(duration * 60))
         fadeTimer = Timer.scheduledTimer(withTimeInterval: duration / Double(totalSteps), repeats: true) { [weak self] timer in
-            guard let self else { timer.invalidate(); return }
-            guard self.playbackGeneration == generation else {
-                timer.invalidate()
-                return
-            }
-            let elapsed = min(duration, Date().timeIntervalSince(start))
-            let t = Float(elapsed / duration)
-            self.queuePlayer.volume = fromValue + (target - fromValue) * t
-            if t >= 1 {
-                self.queuePlayer.volume = target
-                timer.invalidate()
-                completion?()
+            MainActor.assumeIsolated {
+                guard let self else { timer.invalidate(); return }
+                guard self.playbackGeneration == generation else {
+                    timer.invalidate()
+                    return
+                }
+                let elapsed = min(duration, Date().timeIntervalSince(start))
+                let t = Float(elapsed / duration)
+                self.queuePlayer.volume = fromValue + (target - fromValue) * t
+                if t >= 1 {
+                    self.queuePlayer.volume = target
+                    timer.invalidate()
+                    completion?()
+                }
             }
         }
     }

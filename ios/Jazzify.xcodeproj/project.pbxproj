@@ -231,6 +231,7 @@
 		DLS01BF01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = DLS01FR01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */; };
 		QJ02BF01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = QJ02FR01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift */; };
 		QJ03BF01C3D4E5F61718293A03 /* QuestCompletionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = QJ03FR01C3D4E5F61718293A03 /* QuestCompletionSheet.swift */; };
+		QJ07BF01C3D4E5F61718293A07 /* QuestReadyToCompleteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = QJ07FR01C3D4E5F61718293A07 /* QuestReadyToCompleteSheet.swift */; };
 		QJ04BF01C3D4E5F61718293A04 /* Gameover.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = QJ04FR01C3D4E5F61718293A04 /* Gameover.mp3 */; };
 		QJ05BF01C3D4E5F61718293A05 /* クエスト完了.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = QJ05FR01C3D4E5F61718293A05 /* クエスト完了.mp3 */; };
 		QJ06BF01C3D4E5F61718293A06 /* 課題完了前 クリアモーダル.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = QJ06FR01C3D4E5F61718293A06 /* 課題完了前 クリアモーダル.mp3 */; };
@@ -465,6 +466,7 @@
 		DLS01FR01C3D4E5F61718293A01 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DrumLoopSourceResolver.swift; sourceTree = "<group>"; };
 		QJ02FR01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonNavigationHelpers.swift; sourceTree = "<group>"; };
 		QJ03FR01C3D4E5F61718293A03 /* QuestCompletionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestCompletionSheet.swift; sourceTree = "<group>"; };
+		QJ07FR01C3D4E5F61718293A07 /* QuestReadyToCompleteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestReadyToCompleteSheet.swift; sourceTree = "<group>"; };
 		QJ04FR01C3D4E5F61718293A04 /* Gameover.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = Gameover.mp3; sourceTree = "<group>"; };
 		QJ05FR01C3D4E5F61718293A05 /* クエスト完了.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "クエスト完了.mp3"; sourceTree = "<group>"; };
 		QJ06FR01C3D4E5F61718293A06 /* 課題完了前 クリアモーダル.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "課題完了前 クリアモーダル.mp3"; sourceTree = "<group>"; };
@@ -1049,6 +1051,7 @@
 				F034080E04C73977D21BFCEC /* TopView.swift */,
 				DD04BB02EE0599A1B1C1D1E2 /* PlayerLevelHub.swift */,
 				QJ03FR01C3D4E5F61718293A03 /* QuestCompletionSheet.swift */,
+				QJ07FR01C3D4E5F61718293A07 /* QuestReadyToCompleteSheet.swift */,
 				1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */,
 				KBDSC002E2606031400000002 /* PianoKeyboardScrollChrome.swift */,
 				PKBTH001E2606041400000001 /* PianoKeyboardTheme.swift */,
@@ -1353,6 +1356,7 @@
 				RAC01BF01C3D4E5F61718293A01 /* RemoteAudioFileCache.swift in Sources */,
 				QJ02BF01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift in Sources */,
 				QJ03BF01C3D4E5F61718293A03 /* QuestCompletionSheet.swift in Sources */,
+				QJ07BF01C3D4E5F61718293A07 /* QuestReadyToCompleteSheet.swift in Sources */,
 				28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */,
 				F37CC0E92DB50C43CD5F4A1B /* SurvivalItemEngine.swift in Sources */,
 				A897865FDFA86F5BDD5C104A /* SurvivalJoystickView.swift in Sources */,

@@ -1674,7 +1674,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private func scheduleCompositeTutorialDialogueIfNeeded(runId: Int) {
         guard let hooks = tutorialHooks else { return }
         cancelTutorialTimedLineWorks()
-        guard let boot = stage.compositePhraseBootstrap else { return }
+        guard stage.compositePhraseBootstrap != nil else { return }
         let beatDuration = 60.0 / Double(max(1, stage.bpm))
         let loopDur = beatDuration * Double(max(1, stage.loopMeasures))
         guard let lines = hooks.osmdTimedLines, !lines.isEmpty else { return }
