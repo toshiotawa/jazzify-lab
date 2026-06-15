@@ -14,7 +14,9 @@ import {
   computeDialogueQuoteBubbleLayout,
   type DialogueQuoteBubbleAlign,
 } from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
+import { unlockFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 import { markAudioUserInteraction } from '@/utils/MidiController';
+import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
 import type { EarTrainingTutorialDialogueOnlyScene } from './earTrainingTutorialScriptTypes';
@@ -180,6 +182,9 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
   }, [drumLoopUrl, scene.lines]);
 
   const advanceLine = useCallback(() => {
+    markAudioUserInteraction();
+    unlockFireMagicSe();
+    void unlockTutorialAudio();
     if (completedRef.current) {
       return;
     }

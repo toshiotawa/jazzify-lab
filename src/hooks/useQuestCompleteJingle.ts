@@ -33,6 +33,7 @@ export function useQuestCompleteJingleWhenVisible(visible: boolean): void {
       if (!playedRef.current) {
         playedRef.current = true;
         try {
+          FantasySoundManager.ensureContextsRunning();
           FantasySoundManager.playQuestCompleteJingle();
         } catch {
           /* noop */

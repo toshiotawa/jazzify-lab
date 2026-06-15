@@ -17,6 +17,7 @@ import type {
   EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
 import { useQuestCompleteJingleWhenVisible } from '@/hooks/useQuestCompleteJingle';
+import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { preloadEarTrainingTutorialBattleChunks } from './preloadEarTrainingTutorialBattleChunks';
 
 export interface EarTrainingLessonTutorialExperienceProps {
@@ -52,11 +53,12 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const [scriptRow, setScriptRow] = useState<Awaited<ReturnType<typeof fetchEarTrainingTutorialScript>> | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [showCta, setShowCta] = useState(false);
-
-  useQuestCompleteJingleWhenVisible(showCta);
   const [greatInterstitialVisible, setGreatInterstitialVisible] = useState(false);
   const finalizedRef = useRef(false);
   const sceneCompleteTimerRef = useRef<number | null>(null);
+  const audioUnlockedRef = useRef(false);
+
+  useQuestCompleteJingleWhenVisible(showCta);
 
   const noopSetCharacterText = useCallback((_text: string) => undefined, []);
 
@@ -70,6 +72,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
         setScriptRow(row);
         setSceneIndex(0);
         setGate('ready');
+        void unlockTutorialAudio();
         const needsEnemyAvatar = row.script.scenes.some(
           (scene) => scene.type !== 'dialogue_only',
         );
@@ -97,6 +100,18 @@ export const EarTrainingLessonTutorialExperience: React.FC<
       window.clearTimeout(sceneCompleteTimerRef.current);
       sceneCompleteTimerRef.current = null;
     }
+  }, []);
+
+  useEffect(() => {
+    const unlockOnce = (): void => {
+      if (audioUnlockedRef.current) {
+        return;
+      }
+      audioUnlockedRef.current = true;
+      void unlockTutorialAudio();
+    };
+    window.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
+    return () => window.removeEventListener('pointerdown', unlockOnce);
   }, []);
 
   const script = scriptRow?.script ?? null;
