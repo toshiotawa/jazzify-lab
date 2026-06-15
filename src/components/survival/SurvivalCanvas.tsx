@@ -116,6 +116,8 @@ interface SurvivalCanvasProps {
   tutorialJajiiSpeechTextRef?: React.MutableRefObject<string>;
   /** プレイヤー足下の吹き出し（空で非表示） */
   faiBubbleText?: string;
+  /** チュートリアル用ファイ台詞（`.current` 優先。親が毎フレーム参照） */
+  tutorialFaiSpeechTextRef?: React.MutableRefObject<string>;
   /** 風船ラッシュ時: 敵の代わりに風船を描画 */
   balloonRushDraw?: BalloonRushDrawSnapshot | null;
   /** プレイフィールド寸法（未指定時は `MAP_CONFIG`） */
@@ -285,6 +287,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   jajiiBubbleText = '',
   tutorialJajiiSpeechTextRef,
   faiBubbleText = '',
+  tutorialFaiSpeechTextRef,
   balloonRushDraw = null,
   mapConfig,
 }) => {
@@ -1738,7 +1741,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       void bossUiTickRef.current;
     }
 
-    const faiQuote = faiBubbleTextRef.current.trim();
+    const tutorialFaiQuote = tutorialFaiSpeechTextRef?.current.trim() ?? '';
+    const faiQuote = tutorialFaiQuote || faiBubbleTextRef.current.trim();
     if (faiQuote) {
       const bubbleMax = Math.min(SURVIVAL_FAI_BUBBLE_MAX_WIDTH_PX, logicalWidth - 32);
       drawSurvivalSpeechBubble({

@@ -412,6 +412,8 @@ interface SurvivalGameScreenProps {
   tutorialDialogueJajii?: boolean;
   /** ジャ爺吹き出しの台詞。`.current` を親が書き換え、Canvas が毎フレーム参照 */
   tutorialJajiiSpeechTextRef?: React.MutableRefObject<string>;
+  /** demo_play: ファイ吹き出しの台詞。`.current` を親が書き換え、Canvas が毎フレーム参照 */
+  tutorialFaiSpeechTextRef?: React.MutableRefObject<string>;
   /** demo_play: 親が更新する譜面スナップショット */
   tutorialDemoStaffSnapshotRef?: React.MutableRefObject<
     import('@/components/survival/tutorial/SurvivalTutorialDemoStaff').SurvivalTutorialDemoStaffSnapshot | null
@@ -459,6 +461,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   scenarioPhraseFullLoopPulseRef,
   tutorialDialogueJajii = false,
   tutorialJajiiSpeechTextRef,
+  tutorialFaiSpeechTextRef,
   tutorialDemoStaffSnapshotRef,
   lessonInlineCompositePhrases,
   lessonRuntime,
@@ -6555,6 +6558,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             jajiiWorldPosRef={jajiiWorldPosRef}
             jajiiBubbleText={timedJajiiBubbleLine}
             tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
+            tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
             faiBubbleText={timedFaiBubbleCharacterLine}
             balloonRushDraw={isBalloonRushMode ? balloonDrawSnapshot : null}
             mapConfig={isBalloonRushMode ? BALLOON_RUSH_MAP_CONFIG : undefined}

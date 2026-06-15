@@ -73,6 +73,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
   bindingsRef.current = bindings;
 
   const tutorialJajiiSpeechTextRef = useRef('');
+  const tutorialFaiSpeechTextRef = useRef('');
   const demoStaffSnapshotRef = useRef<SurvivalTutorialDemoStaffSnapshot | null>(null);
   const windowMeasureRef = useRef<number | null>(null);
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
@@ -89,7 +90,8 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
   const linePresentationSink = useMemo(
     () => ({
       setCharacterText: (text: string) => {
-        bindingsRef.current.setCharacterText(text);
+        tutorialFaiSpeechTextRef.current = text;
+        bindingsRef.current.setCharacterText('');
       },
       setNarrationText: (text: string) => {
         bindingsRef.current.setNarrationText(text);
@@ -140,6 +142,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
 
     const clearLine = (): void => {
       activeLineIndex = null;
+      tutorialFaiSpeechTextRef.current = '';
       clearSurvivalTutorialV3LinePresentation(linePresentationSink);
     };
 
@@ -276,6 +279,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
         initialScenarioOverrides={survivalTutorialDemoPlayIntroOverrides(baseline)}
         tutorialDialogueJajii={introHasJajii}
         tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
+        tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
         tutorialDemoStaffSnapshotRef={demoStaffSnapshotRef}
         onScenarioHandleReady={(x) => {
           setScenarioHandle(x);
