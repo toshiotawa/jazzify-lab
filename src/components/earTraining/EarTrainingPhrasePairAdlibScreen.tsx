@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuestCompleteJingleOnStageClear, useGameOverJingleOnGameOver } from '@/hooks/useQuestCompleteJingle';
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
-import EarTrainingPhaserGame from './EarTrainingPhaserGame';
+import EarTrainingBattleRenderer from './EarTrainingBattleRenderer';
 import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
 import ChordVoicingStaff, {
   type ChordVoicingCompletionPulse,
@@ -1054,7 +1054,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
         ref={phaserContainerRef}
         className={cn('relative h-full w-full', showLobbyControls ? 'z-30' : 'z-0')}
       >
-        <EarTrainingPhaserGame
+        <EarTrainingBattleRenderer
           ref={phaserGameRef}
           snapshot={battleSnapshot}
           effectCommand={battleEffectCommand}
