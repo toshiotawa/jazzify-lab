@@ -798,7 +798,7 @@ const drawEffectVisual = (
     ctx.beginPath();
     ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
     ctx.strokeStyle = visual.color;
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 5.5;
     ctx.stroke();
   } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark') {
     ctx.fillStyle = visual.color;

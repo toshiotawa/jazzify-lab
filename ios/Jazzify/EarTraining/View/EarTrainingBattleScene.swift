@@ -2311,10 +2311,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let ringRadius = Self.battleLayoutPt(36)
         let ring = SKShapeNode(circleOfRadius: ringRadius)
         ring.fillColor = .clear
-        ring.strokeColor = UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 0.85)
-        ring.lineWidth = Self.battleLayoutPt(3.5)
+        ring.strokeColor = UIColor(red: 0.918, green: 0.345, blue: 0.047, alpha: 1)
+        ring.lineWidth = Self.battleLayoutPt(5.5)
         ring.position = position
-        ring.alpha = 0.85
+        ring.alpha = 1
         ring.setScale(0.5)
         ring.zPosition = 65
         effectLayer.addChild(ring)
