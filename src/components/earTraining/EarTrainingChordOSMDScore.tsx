@@ -243,8 +243,8 @@ const measureLayoutFromOsmd = (
   return collectMeasureCentersFromStaffLines(osmd, surface, viewportWidth);
 };
 
-/** OSMD cursor (type:3) を指定小節へ移動。小節変化時のみ呼ぶ（イベント駆動）。 */
-const moveOsmdCursorToMeasure = (
+/** OSMD cursor (type:3) を指定小節へ移動し表示。小節変化時のみ呼ぶ（イベント駆動）。 */
+const syncOsmdMeasureCursor = (
   osmd: OpenSheetMusicDisplay,
   measureNumber: number,
 ): void => {
@@ -264,6 +264,7 @@ const moveOsmdCursorToMeasure = (
     cursor.next();
     steps += 1;
   }
+  cursor.show();
   cursor.update();
 };
 
@@ -271,7 +272,7 @@ const OSMD_MEASURE_CURSOR_OPTIONS: IOSMDOptions['cursorsOptions'] = [
   {
     type: 3,
     color: '#33e02f',
-    alpha: 0.18,
+    alpha: 0.32,
     follow: false,
   },
 ];
@@ -364,7 +365,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
       osmd.render();
       osmd.enableOrDisableCursors(true);
-      osmd.cursor.show();
+      syncOsmdMeasureCursor(osmd, activeMeasureNumber);
       await waitNextPaint();
 
       const readSurface = (): { el: HTMLElement | null; height: number } => {
@@ -397,7 +398,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     } finally {
       setIsRendering(false);
     }
-  }, [isEnglishCopy, musicXmlText, mobileLandscapeOsmdShrink, osmdDisplayMusicXml]);
+  }, [activeMeasureNumber, isEnglishCopy, musicXmlText, mobileLandscapeOsmdShrink, osmdDisplayMusicXml]);
 
   useEffect(() => {
     void renderScore();
@@ -425,7 +426,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     score.style.transform = `translate3d(${-offset}px, -50%, 0) scale(${effectiveScale})`;
     const osmd = osmdRef.current;
     if (osmd) {
-      moveOsmdCursorToMeasure(osmd, measureNumber);
+      syncOsmdMeasureCursor(osmd, measureNumber);
     }
   }, [activeMeasureNumber, cssScale, layout, userZoom]);
 
@@ -447,6 +448,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
           className={cn(
             'absolute left-0 top-1/2 min-w-full origin-left transition-transform duration-150 ease-out',
             '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
+            "[&_img[id^='cursorImg-']]:!z-[1] [&_img[id^='cursorImg-']]:pointer-events-none",
           )}
         />
         {(isRendering || statusText) && (

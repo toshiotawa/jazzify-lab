@@ -668,6 +668,10 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           display: block;
           background: transparent !important;
         }
+        #score img[id^="cursorImg-"] {
+          z-index: 1 !important;
+          pointer-events: none;
+        }
         #status {
           position: fixed;
           inset: 0;
@@ -931,14 +935,14 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 {
                   type: 3,
                   color: '#33e02f',
-                  alpha: 0.18,
+                  alpha: 0.32,
                   follow: false
                 }
               ]
             });
           }
 
-          function moveOsmdCursorToMeasure(measureNumber) {
+          function syncOsmdMeasureCursor(measureNumber) {
             if (!osmd || !osmd.cursor) {
               return;
             }
@@ -955,6 +959,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               cursor.next();
               steps += 1;
             }
+            cursor.show();
             cursor.update();
           }
 
@@ -991,9 +996,6 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               await osmd.load(displayXml);
               osmd.render();
               osmd.enableOrDisableCursors(true);
-              if (osmd.cursor) {
-                osmd.cursor.show();
-              }
               await new Promise(function (resolve) {
                 requestAnimationFrame(function () {
                   requestAnimationFrame(resolve);
@@ -1044,7 +1046,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             const maxOffset = Math.max(0, scoreWidth - viewport.clientWidth);
             const offset = Math.max(0, Math.min(maxOffset, center - viewport.clientWidth / 2));
             score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
-            moveOsmdCursorToMeasure(mn);
+            syncOsmdMeasureCursor(mn);
           }
 
           window.JazzifyOSMD = {
