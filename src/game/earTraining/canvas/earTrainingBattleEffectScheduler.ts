@@ -35,8 +35,8 @@ const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const SKILL_PLAYER_POSE_SEQUENCE = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'] as const;
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
-const HAMMER_FALL_MS = 420;
-const HAMMER_FALL_DISTANCE = 130;
+const HAMMER_DISMISS_FADE_MS = 280;
+const OSMD_REFLECT_HIT_DELAY_MS = 140;
 
 let visualIdCounter = 0;
 const nextVisualId = (): string => {
@@ -284,11 +284,11 @@ const dismissIncomingOsmdHammer = (
     id: nextVisualId(),
     kind: 'hammer',
     startedAt: now,
-    durationMs: HAMMER_FALL_MS,
+    durationMs: HAMMER_DISMISS_FADE_MS,
     fromX: currentX,
     fromY: currentY,
     toX: currentX,
-    toY: currentY + HAMMER_FALL_DISTANCE,
+    toY: currentY,
     color: '#ffffff',
     size: hammerVisual.size,
     alpha: 1,
@@ -639,8 +639,8 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     onDirty,
   );
 
-  runtime.player.poseKey = 'cast';
-  runtime.player.poseUntil = now + 180;
+  runtime.player.poseKey = 'yokoIssen';
+  runtime.player.poseUntil = now + 300;
 
   dismissIncomingOsmdHammer(runtime, command.relatedEffectId);
   addParryGuardEffect(runtime, guardX, guardY);
@@ -670,12 +670,19 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     commandId: command.id,
     command,
     startedAt: now,
-    impactAt: now,
-    impactFired: true,
+    impactAt: now + OSMD_REFLECT_HIT_DELAY_MS,
+    impactFired: false,
     visuals,
   });
 
-  onImpact(command.id);
+  setTimeout(() => {
+    flashCharacter(runtime.enemy, 2, 70);
+    addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, '#fb923c', false);
+    showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
+    scheduleEnemyKnockback(ctx, 22, 160);
+    onImpact(command.id);
+    onDirty();
+  }, OSMD_REFLECT_HIT_DELAY_MS);
   onDirty();
 };
 

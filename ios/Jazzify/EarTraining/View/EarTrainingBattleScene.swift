@@ -56,6 +56,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private enum PlayerAvatarPoseAsset {
         static let correctName = "correct3"
         static let castName = "eishou"
+        static let yokoIssenName = "yoko_issen"
         static let skillNames = ["Frame1", "Frame2", "Frame3", "Frame4", "Frame5"]
     }
 
@@ -1893,10 +1894,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     func dismissOsmdHammerEffect(effectId: Int) {
         guard let hammer = osmdHammerNodesByEffectId.removeValue(forKey: effectId) else { return }
         hammer.removeAllActions()
-        let fall = SKAction.moveBy(x: 0, y: -Self.battleLayoutPt(130), duration: 0.42)
-        fall.timingMode = .easeIn
-        let fade = SKAction.fadeOut(withDuration: 0.42)
-        hammer.run(SKAction.group([fall, fade])) { [weak hammer] in
+        let fade = SKAction.fadeOut(withDuration: 0.28)
+        hammer.run(fade) { [weak hammer] in
             hammer?.removeFromParent()
         }
     }
@@ -1927,7 +1926,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func playOSMDHammerReflectEffect(_ command: EarTrainingBattleEffectCommand) {
         holdCharacterForAction(.player, state: .cast, durationMs: 300)
-        showPlayerPose(assetName: PlayerAvatarPoseAsset.castName, durationMs: 180)
+        showPlayerPose(assetName: PlayerAvatarPoseAsset.yokoIssenName, durationMs: 300)
         let anchors = battleAnchors()
 
         let guardDirection: CGFloat = anchors.enemy.x < anchors.player.x ? -1 : 1
@@ -1942,7 +1941,19 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         showParryGuardEffect(at: guardPoint)
         showParrySlashEffect(from: guardPoint, toEnemyX: anchors.enemy.x)
-        onEffectImpact?(command.id)
+
+        run(.wait(forDuration: 0.14)) { [weak self] in
+            guard let self else { return }
+            self.flashCharacter(.enemy)
+            self.showImpactBurst(
+                at: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY),
+                color: UIColor(red: 0.984, green: 0.576, blue: 0.235, alpha: 1.0),
+                large: false
+            )
+            self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
+            self.knockEnemyAfterDamage(distance: Self.battleLayoutPt(22), durationMs: 160)
+            self.onEffectImpact?(command.id)
+        }
     }
 
     private func playOSMDMeteorEffect(_ command: EarTrainingBattleEffectCommand) {
@@ -2303,12 +2314,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             let rgb = CGColorSpaceCreateDeviceRGB()
             let gradientColors = [
                 UIColor.white.withAlphaComponent(0).cgColor,
-                UIColor.white.withAlphaComponent(0.12).cgColor,
+                UIColor.white.withAlphaComponent(0.88).cgColor,
                 UIColor.white.withAlphaComponent(0.95).cgColor,
-                UIColor.white.withAlphaComponent(0.12).cgColor,
+                UIColor.white.withAlphaComponent(0.88).cgColor,
                 UIColor.white.withAlphaComponent(0).cgColor,
             ] as CFArray
-            let locations: [CGFloat] = [0, 0.42, 0.5, 0.58, 1]
+            let locations: [CGFloat] = [0, 0.04, 0.5, 0.96, 1]
             if let gradient = CGGradient(colorsSpace: rgb, colors: gradientColors, locations: locations) {
                 cg.drawLinearGradient(
                     gradient,
