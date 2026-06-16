@@ -36,7 +36,7 @@ import {
 } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import { createCameraRuntime, isCameraActive } from '@/game/earTraining/canvas/earTrainingBattleCamera';
-import { getBattleAnchors } from '@/game/earTraining/canvas/earTrainingBattleLayout';
+import { getBattleAnchors, resolveStaffReservedBottomY } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
   pruneExpiredEffects,
@@ -77,6 +77,7 @@ const createInitialRuntime = (
   hudLayoutKey: '',
   phraseSlotKey: '',
   lastEffectId: 0,
+  staffReservedBottomY: resolveStaffReservedBottomY(height, width, snapshot.staffBand),
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({
@@ -131,6 +132,11 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     }
     runtimeRef.current.width = width;
     runtimeRef.current.height = height;
+    runtimeRef.current.staffReservedBottomY = resolveStaffReservedBottomY(
+      height,
+      width,
+      snapshotRef.current.staffBand,
+    );
     return runtimeRef.current;
   }, []);
 

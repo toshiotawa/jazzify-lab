@@ -52,6 +52,18 @@ export interface EarTrainingBattleHudLabels {
   resultTimeOver: string;
 }
 
+/** 中央五線譜が占有する縦帯。各 Screen が譜面ジオメトリから設定する。 */
+export interface EarTrainingStaffBandConfig {
+  /** 譜面帯中心の viewport 高さ比率（例: OSMD 0.42, ChordVoicing 0.44） */
+  centerRatio: number;
+  /** OSMD 等: min(heightMaxPx, viewportHeight * heightRatio) */
+  heightRatio?: number;
+  heightMaxPx?: number;
+  /** ChordVoicingStaff の SVG 高さ推定を使う */
+  chordVoicing?: boolean;
+  hideChordLabels?: boolean;
+}
+
 export interface EarTrainingBattleSnapshot {
   gameState: EarTrainingGameState;
   resultState: 'win' | 'lose' | 'timeOver' | null;
@@ -109,6 +121,8 @@ export interface EarTrainingBattleSnapshot {
   hideBackButton?: boolean;
   hideLobbyControls?: boolean;
   hideMidiStatus?: boolean;
+  /** 未指定時は予約帯なし（吹き出しは従来位置） */
+  staffBand?: EarTrainingStaffBandConfig;
 }
 
 export interface EarTrainingBattleCallbacks {

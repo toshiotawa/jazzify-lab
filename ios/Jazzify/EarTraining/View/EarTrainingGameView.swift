@@ -255,10 +255,17 @@ private struct EarTrainingGameContent: View {
 
     private func landscapeContent(size: CGSize) -> some View {
         ZStack(alignment: .top) {
-            EarTrainingSceneContainer(driver: controller, sceneSize: size)
+            EarTrainingSceneContainer(
+                driver: controller,
+                sceneSize: size,
+                staffReservedBandBottomY: nil
+            )
                 .ignoresSafeArea()
 
-            EarTrainingDemoBubbleView(controller: controller)
+            EarTrainingDemoBubbleView(
+                controller: controller,
+                staffReservedBandBottomY: nil
+            )
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
 
@@ -302,6 +309,7 @@ private struct EarTrainingGameContent: View {
 private struct EarTrainingSceneContainer<Driver: EarTrainingBattleSceneDriving>: UIViewRepresentable {
     let driver: Driver
     let sceneSize: CGSize
+    let staffReservedBandBottomY: CGFloat?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -329,7 +337,10 @@ private struct EarTrainingSceneContainer<Driver: EarTrainingBattleSceneDriving>:
     }
 
     func updateUIView(_ uiView: SKView, context: Context) {
-        context.coordinator.update(sceneSize: normalizedSceneSize(sceneSize))
+        context.coordinator.update(
+            sceneSize: normalizedSceneSize(sceneSize),
+            staffReservedBandBottomY: staffReservedBandBottomY
+        )
     }
 
     private func normalizedSceneSize(_ size: CGSize) -> CGSize {
@@ -360,10 +371,14 @@ private struct EarTrainingSceneContainer<Driver: EarTrainingBattleSceneDriving>:
             }
         }
 
-        func update(sceneSize: CGSize) {
+        @MainActor
+        func update(sceneSize: CGSize, staffReservedBandBottomY: CGFloat?) {
             view?.bounds = CGRect(origin: .zero, size: sceneSize)
-            guard let scene, scene.size != sceneSize else { return }
-            scene.size = sceneSize
+            guard let scene else { return }
+            if scene.size != sceneSize {
+                scene.size = sceneSize
+            }
+            scene.setStaffReservedBandBottomY(staffReservedBandBottomY)
         }
 
         func detach() {

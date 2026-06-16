@@ -154,6 +154,7 @@ export interface EarTrainingBattleDrawRuntime {
   hudLayoutKey: string;
   phraseSlotKey: string;
   lastEffectId: number;
+  staffReservedBottomY: number;
 }
 
 export const easeCubicIn = (t: number): number => t * t * t;

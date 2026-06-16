@@ -23,6 +23,7 @@ import type {
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
+import { createEarTrainingChordVoicingStaffBand } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -1171,6 +1172,9 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     startButtonLabel,
     lessonProgressText,
     ...(tutorial ? { fixedCharacterPositions: true } : {}),
+    ...(staffVoicingGroups.length > 0
+      ? { staffBand: createEarTrainingChordVoicingStaffBand(hideChordNamesInBattle) }
+      : {}),
   }, tutorialUi ?? {
     hidePlayerHpBar: false,
     hideSettingsButton: false,
@@ -1219,6 +1223,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     timeLabel,
     isEnglishCopy,
     tutorial,
+    staffVoicingGroups.length,
   ]);
 
   const battleCallbacks = useMemo(() => ({

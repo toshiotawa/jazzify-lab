@@ -249,9 +249,14 @@ private struct EarTrainingChordVoicingContent: View {
     }
 
     private func landscapeContent(size: CGSize) -> some View {
-        ZStack {
+        let staffBottomY = staffReservedBandBottomY(size: size)
+        return ZStack {
             feedbackBackground
-            ChordVoicingEarTrainingSceneContainer(driver: controller, sceneSize: size)
+            ChordVoicingEarTrainingSceneContainer(
+                driver: controller,
+                sceneSize: size,
+                staffReservedBandBottomY: staffBottomY
+            )
                 .ignoresSafeArea()
                 .background(
                     GeometryReader { proxy in
@@ -299,6 +304,33 @@ private struct EarTrainingChordVoicingContent: View {
         .onPreferenceChange(ChordVoicingSceneFrameKey.self) { frame in
             controller.battleSceneGlobalFrame = frame
         }
+    }
+
+    private func staffReservedBandBottomY(size: CGSize) -> CGFloat? {
+        if controller.stage.isChordVoicingCompositePhraseConfigured {
+            let artifact = EarTrainingCompositePhraseAdapter.compositeStaffArtifact(
+                runtime: controller.compositePhraseRuntime,
+                stageId: controller.stage.id
+            )
+            if !artifact.groups.isEmpty {
+                return EarTrainingBattleStaffBandLayout.canvasStaffBottomY(sceneSize: size)
+            }
+        } else if let phrase = controller.currentPhrase {
+            let build = EarTrainingChordVoicingStaffLayout.buildGroups(
+                input: EarTrainingChordVoicingStaffLayout.BuildInput(
+                    phrase: phrase,
+                    stageLoopMeasures: controller.stage.loopMeasures,
+                    activeMeasureNumber: controller.displayedActiveMeasureNumber,
+                    activeChordId: controller.activeChord?.id,
+                    attempt: controller.attempt,
+                    selfPaced: controller.stage.resolvedChordVoicingSelfPaced
+                )
+            )
+            if !build.groups.isEmpty {
+                return EarTrainingBattleStaffBandLayout.canvasStaffBottomY(sceneSize: size)
+            }
+        }
+        return nil
     }
 
     @ViewBuilder
@@ -475,6 +507,7 @@ private struct ChordVoicingBottomSlotsView: View {
 private struct ChordVoicingEarTrainingSceneContainer<Driver: EarTrainingBattleSceneDriving>: UIViewRepresentable {
     let driver: Driver
     let sceneSize: CGSize
+    let staffReservedBandBottomY: CGFloat?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -502,7 +535,10 @@ private struct ChordVoicingEarTrainingSceneContainer<Driver: EarTrainingBattleSc
     }
 
     func updateUIView(_ uiView: SKView, context: Context) {
-        context.coordinator.update(sceneSize: normalizedSceneSize(sceneSize))
+        context.coordinator.update(
+            sceneSize: normalizedSceneSize(sceneSize),
+            staffReservedBandBottomY: staffReservedBandBottomY
+        )
     }
 
     private func normalizedSceneSize(_ size: CGSize) -> CGSize {
@@ -533,10 +569,14 @@ private struct ChordVoicingEarTrainingSceneContainer<Driver: EarTrainingBattleSc
             }
         }
 
-        func update(sceneSize: CGSize) {
+        @MainActor
+        func update(sceneSize: CGSize, staffReservedBandBottomY: CGFloat?) {
             view?.bounds = CGRect(origin: .zero, size: sceneSize)
-            guard let scene, scene.size != sceneSize else { return }
-            scene.size = sceneSize
+            guard let scene else { return }
+            if scene.size != sceneSize {
+                scene.size = sceneSize
+            }
+            scene.setStaffReservedBandBottomY(staffReservedBandBottomY)
         }
 
         func detach() {

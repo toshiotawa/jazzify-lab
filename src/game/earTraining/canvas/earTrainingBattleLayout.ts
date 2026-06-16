@@ -1,4 +1,5 @@
-import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
+import type { EarTrainingBattleSnapshot, EarTrainingStaffBandConfig } from '@/game/earTraining/types';
+import { computeBattleStaffSvgHeight, CHORD_VOICING_BATTLE_STAFF_CONTAINER_MAX_WIDTH_RATIO, CHORD_VOICING_BATTLE_STAFF_RENDER_WIDTH } from '@/components/earTraining/ChordVoicingStaff';
 
 export const PIANO_OVERLAY_HEIGHT = 88;
 export const HUD_HEIGHT = 150;
@@ -15,6 +16,25 @@ export const PLAYER_QUOTE_CORNER_RADIUS = 8;
 export const PLAYER_QUOTE_TAIL_HEIGHT = 10;
 export const PLAYER_QUOTE_FONT_PX = 16;
 export const PLAYER_QUOTE_CUE_GAP_PX = 8;
+export const STAFF_RESERVED_MARGIN_PX = 10;
+export const DEMO_BUBBLE_DISPLAY_HEIGHT = 84;
+export const DEMO_BUBBLE_ANCHOR_OFFSET_Y = 18;
+export const DEMO_BUBBLE_ORIGIN_Y = 0.72;
+
+/** OSMD 譜面 overlay と揃える */
+export const EAR_TRAINING_OSMD_STAFF_BAND: EarTrainingStaffBandConfig = {
+  centerRatio: 0.42,
+  heightRatio: 0.42,
+  heightMaxPx: 280,
+};
+
+export const createEarTrainingChordVoicingStaffBand = (
+  hideChordLabels = false,
+): EarTrainingStaffBandConfig => ({
+  centerRatio: 0.44,
+  chordVoicing: true,
+  hideChordLabels,
+});
 
 export const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
 export const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.webp`;
@@ -160,11 +180,91 @@ export const getEnemyAttackGaugePosition = (width: number, height: number): { x:
   };
 };
 
-export const getDemoBubblePosition = (width: number, height: number): { x: number; y: number } => {
+export const estimateChordVoicingStaffRenderedHeightPx = (
+  viewportWidth: number,
+  hideChordLabels = false,
+): number => {
+  const containerWidth = Math.min(
+    CHORD_VOICING_BATTLE_STAFF_RENDER_WIDTH,
+    viewportWidth * CHORD_VOICING_BATTLE_STAFF_CONTAINER_MAX_WIDTH_RATIO,
+  );
+  const svgHeight = computeBattleStaffSvgHeight(2, hideChordLabels);
+  return svgHeight * (containerWidth / CHORD_VOICING_BATTLE_STAFF_RENDER_WIDTH);
+};
+
+export const resolveStaffBandHeightPx = (
+  viewportHeight: number,
+  viewportWidth: number,
+  staffBand: EarTrainingStaffBandConfig,
+): number => {
+  if (staffBand.chordVoicing) {
+    return estimateChordVoicingStaffRenderedHeightPx(
+      viewportWidth,
+      staffBand.hideChordLabels ?? false,
+    );
+  }
+  if (staffBand.heightRatio !== undefined) {
+    const raw = viewportHeight * staffBand.heightRatio;
+    return staffBand.heightMaxPx !== undefined
+      ? Math.min(staffBand.heightMaxPx, raw)
+      : raw;
+  }
+  return Math.min(280, viewportHeight * 0.42);
+};
+
+export const resolveStaffReservedBottomY = (
+  viewportHeight: number,
+  viewportWidth: number,
+  staffBand?: EarTrainingStaffBandConfig,
+): number => {
+  if (!staffBand) return 0;
+  const bandHeight = resolveStaffBandHeightPx(viewportHeight, viewportWidth, staffBand);
+  return viewportHeight * staffBand.centerRatio + bandHeight / 2 + STAFF_RESERVED_MARGIN_PX;
+};
+
+export const computeQuoteBubbleTopY = (
+  anchorFootY: number,
+  bubbleHeight: number,
+  staffReservedBottomY = 0,
+): number => {
+  const legacyTopY = anchorFootY
+    - CHARACTER_DISPLAY_SIZE
+    - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX
+    - bubbleHeight
+    - PLAYER_QUOTE_TAIL_HEIGHT;
+  if (staffReservedBottomY <= 0) return legacyTopY;
+  return Math.max(legacyTopY, staffReservedBottomY);
+};
+
+export const computeQuoteBubbleRootOffsetY = (
+  anchorFootY: number,
+  bubbleHeight: number,
+  staffReservedBottomY = 0,
+): number => {
+  const topY = computeQuoteBubbleTopY(anchorFootY, bubbleHeight, staffReservedBottomY);
+  return topY - anchorFootY + PLAYER_QUOTE_TAIL_HEIGHT + bubbleHeight;
+};
+
+export const getDemoBubbleVisualTopY = (anchorY: number): number =>
+  anchorY + DEMO_BUBBLE_ANCHOR_OFFSET_Y - DEMO_BUBBLE_DISPLAY_HEIGHT * DEMO_BUBBLE_ORIGIN_Y;
+
+export const getDemoBubblePosition = (
+  width: number,
+  height: number,
+  staffReservedBottomY = 0,
+): { x: number; y: number } => {
   const floorY = getFloorY(height);
+  const legacyY = Math.max(HUD_HEIGHT + 46, floorY - CHARACTER_DISPLAY_SIZE - 38);
+  let y = legacyY;
+  if (staffReservedBottomY > 0) {
+    const legacyTop = getDemoBubbleVisualTopY(legacyY);
+    if (legacyTop < staffReservedBottomY) {
+      y = staffReservedBottomY - (DEMO_BUBBLE_ANCHOR_OFFSET_Y - DEMO_BUBBLE_DISPLAY_HEIGHT * DEMO_BUBBLE_ORIGIN_Y);
+    }
+  }
   return {
     x: clamp(width * 0.77 + 62, 56, Math.max(320, width) - 56),
-    y: Math.max(HUD_HEIGHT + 46, floorY - CHARACTER_DISPLAY_SIZE - 38),
+    y,
   };
 };
 

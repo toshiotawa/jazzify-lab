@@ -25,6 +25,7 @@ import type {
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
+import { createEarTrainingChordVoicingStaffBand } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -2121,6 +2122,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     lessonProgressText,
     quizRulesLine: tutorial ? undefined : clearConditionLine,
     ...(tutorial ? { fixedCharacterPositions: true } : {}),
+    ...(!showLobbyControls
+      ? { staffBand: createEarTrainingChordVoicingStaffBand() }
+      : {}),
   }, tutorialUi ?? {
     hidePlayerHpBar: false,
     hideSettingsButton: false,

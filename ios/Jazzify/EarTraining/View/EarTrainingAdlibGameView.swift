@@ -212,9 +212,14 @@ private struct EarTrainingAdlibContent: View {
     }
 
     private func landscapeContent(size: CGSize) -> some View {
-        ZStack {
+        let staffBottomY = staffReservedBandBottomY(size: size)
+        return ZStack {
             feedbackBackground
-            EarTrainingAdlibSceneContainer(driver: controller, sceneSize: size)
+            EarTrainingAdlibSceneContainer(
+                driver: controller,
+                sceneSize: size,
+                staffReservedBandBottomY: staffBottomY
+            )
                 .ignoresSafeArea()
             VStack(spacing: 0) {
                 EarTrainingHUDView(
@@ -242,6 +247,17 @@ private struct EarTrainingAdlibContent: View {
             }
             EarTrainingResultView(host: controller)
         }
+    }
+
+    private func staffReservedBandBottomY(size: CGSize) -> CGFloat? {
+        guard let phrase = controller.currentPhrase,
+              let chord = controller.activeChord,
+              let row = EarTrainingAdlibEngine.harmonyRow(containingChordId: chord.id, phrase: phrase) else {
+            return nil
+        }
+        let groups = EarTrainingAdlibEngine.staffGroups(phrase: phrase, row: row)
+        guard !groups.isEmpty, !groups.allSatisfy(\.isRest) else { return nil }
+        return EarTrainingBattleStaffBandLayout.canvasStaffBottomY(sceneSize: size)
     }
 
     @ViewBuilder
@@ -304,6 +320,7 @@ private struct EarTrainingAdlibContent: View {
 private struct EarTrainingAdlibSceneContainer<Driver: EarTrainingBattleSceneDriving>: UIViewRepresentable {
     let driver: Driver
     let sceneSize: CGSize
+    let staffReservedBandBottomY: CGFloat?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -331,7 +348,10 @@ private struct EarTrainingAdlibSceneContainer<Driver: EarTrainingBattleSceneDriv
     }
 
     func updateUIView(_ uiView: SKView, context: Context) {
-        context.coordinator.update(sceneSize: normalizedSceneSize(sceneSize))
+        context.coordinator.update(
+            sceneSize: normalizedSceneSize(sceneSize),
+            staffReservedBandBottomY: staffReservedBandBottomY
+        )
     }
 
     private func normalizedSceneSize(_ size: CGSize) -> CGSize {
@@ -353,10 +373,14 @@ private struct EarTrainingAdlibSceneContainer<Driver: EarTrainingBattleSceneDriv
             self.driver = driver
         }
 
-        func update(sceneSize: CGSize) {
+        @MainActor
+        func update(sceneSize: CGSize, staffReservedBandBottomY: CGFloat?) {
             view?.bounds = CGRect(origin: .zero, size: sceneSize)
-            guard let scene, scene.size != sceneSize else { return }
-            scene.size = sceneSize
+            guard let scene else { return }
+            if scene.size != sceneSize {
+                scene.size = sceneSize
+            }
+            scene.setStaffReservedBandBottomY(staffReservedBandBottomY)
         }
 
         func detach() {

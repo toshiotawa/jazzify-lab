@@ -22,6 +22,11 @@ import {
 } from '@/utils/earTrainingQuotePayload';
 import { computeQuoteBubbleMaxOuterWidth } from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
 import {
+  computeQuoteBubbleRootOffsetY,
+  getDemoBubblePosition,
+  resolveStaffReservedBottomY,
+} from '@/game/earTraining/canvas/earTrainingBattleLayout';
+import {
   maxLineRenderedWidthPx,
   totalQuoteLinesHeightPx,
   wrapTutorialQuoteSegmentsToLines,
@@ -393,6 +398,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private phraseSlotRefs: PhraseSlotLiveRefs | null = null;
   private phraseSlotCurrentTween: Phaser.Tweens.Tween | null = null;
   private phraseSlotCurrentBox: Phaser.GameObjects.Rectangle | null = null;
+  private staffReservedBottomY = 0;
+  private lastStaffBandKey = '';
 
   constructor() {
     super({ key: 'EarTrainingBattleScene' });
@@ -446,6 +453,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   updateSnapshot(snapshot: EarTrainingBattleSnapshot): void {
     const previousPhraseRunId = this.lastPhraseRunId;
     this.snapshot = snapshot;
+    const staffBandLayoutChanged = this.syncStaffReservedBottomY();
     this.lastPhraseRunId = snapshot.phraseRunId;
     if (previousPhraseRunId !== null && previousPhraseRunId !== snapshot.phraseRunId) {
       this.playerPoseToken += 1;
@@ -477,6 +485,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     this.loadAvatarTextures(snapshot);
     this.syncCharacterLifeState(snapshot);
+    if (staffBandLayoutChanged) {
+      this.layoutPlayerQuoteBubble();
+      this.layoutPartnerQuoteBubble();
+    }
   }
 
   triggerEffect(command: EarTrainingBattleEffectCommand): void {
@@ -628,9 +640,24 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private handleResize = (): void => {
+    this.syncStaffReservedBottomY();
     this.clearBackgroundScene();
     this.queueSceneRebuild();
   };
+
+  private syncStaffReservedBottomY(): boolean {
+    const height = Math.max(480, this.scale.height);
+    const width = Math.max(320, this.scale.width);
+    const band = this.snapshot?.staffBand;
+    const nextKey = band
+      ? `${band.centerRatio}|${band.heightRatio ?? ''}|${band.heightMaxPx ?? ''}|${band.chordVoicing ? 1 : 0}|${band.hideChordLabels ? 1 : 0}`
+      : '';
+    const nextY = resolveStaffReservedBottomY(height, width, band);
+    const changed = nextKey !== this.lastStaffBandKey || nextY !== this.staffReservedBottomY;
+    this.lastStaffBandKey = nextKey;
+    this.staffReservedBottomY = nextY;
+    return changed;
+  }
 
   private loadBattleEffectSprites(): void {
     Object.values(BATTLE_EFFECT_SPRITE_ASSETS).forEach(asset => {
@@ -665,6 +692,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private rebuildScene(): void {
     this.pendingSceneRebuild = false;
     this.lastSceneRebuildAt = this.time.now;
+    this.syncStaffReservedBottomY();
 
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
@@ -1290,9 +1318,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     const footContainer = view.container;
     const existingRoot = this.playerQuoteBubbleRoot;
+    const sceneH = Math.max(480, this.scale.height);
+    const floorY = getFloorY(sceneH);
     if (!existingRoot || existingRoot.parentContainer !== footContainer) {
       existingRoot?.destroy(true);
-      const root = this.make.container({ x: 0, y: -CHARACTER_DISPLAY_SIZE - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX, add: false });
+      const root = this.make.container({ x: 0, y: 0, add: false });
       footContainer.add(root);
       this.playerQuoteBubbleRoot = root;
     }
@@ -1346,6 +1376,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const bubbleWidth = innerWidth + horizontalPadding;
     const bubbleHeight = textBlockHeight + PLAYER_QUOTE_PAD_Y * 2;
     const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
+    root.setY(computeQuoteBubbleRootOffsetY(floorY, bubbleHeight, this.staffReservedBottomY));
 
     const bubble = this.make.graphics({ x: 0, y: 0 }, false);
     bubble.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
@@ -1414,9 +1445,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     const footContainer = view.container;
     const existingRoot = this.partnerQuoteBubbleRoot;
+    const sceneH = Math.max(480, this.scale.height);
+    const floorY = getFloorY(sceneH);
     if (!existingRoot || existingRoot.parentContainer !== footContainer) {
       existingRoot?.destroy(true);
-      const root = this.make.container({ x: 0, y: -CHARACTER_DISPLAY_SIZE - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX, add: false });
+      const root = this.make.container({ x: 0, y: 0, add: false });
       footContainer.add(root);
       this.partnerQuoteBubbleRoot = root;
     }
@@ -1470,6 +1503,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const bubbleWidth = innerWidth + horizontalPadding;
     const bubbleHeight = textBlockHeight + PLAYER_QUOTE_PAD_Y * 2;
     const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
+    root.setY(computeQuoteBubbleRootOffsetY(floorY, bubbleHeight, this.staffReservedBottomY));
 
     const bubble = this.make.graphics({ x: 0, y: 0 }, false);
     bubble.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
@@ -1531,7 +1565,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const floorY = getFloorY(height);
     this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, floorY - 166));
     if (snapshot.demoLoopActive) {
-      this.drawDemoBubble(width * 0.77, Math.max(HUD_HEIGHT + 46, floorY - CHARACTER_DISPLAY_SIZE - 38));
+      const demoPos = getDemoBubblePosition(width, height, this.staffReservedBottomY);
+      this.drawDemoBubble(demoPos.x, demoPos.y);
     }
   }
 
@@ -1616,8 +1651,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    const bubbleX = Phaser.Math.Clamp(x + 62, 56, Math.max(320, this.scale.width) - 56);
-    const bubble = this.add.image(bubbleX, y + 18, FUKIDASHI_ASSET_KEY)
+    const bubble = this.add.image(x, y + 18, FUKIDASHI_ASSET_KEY)
       .setOrigin(0.5, 0.72)
       .setDisplaySize(112, 84)
       .setAlpha(0.96);

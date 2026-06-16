@@ -4,6 +4,8 @@ import SwiftUI
 /// HUD と鍵盤の間、敵キャラ頭上に重なるよう絶対配置する。
 struct EarTrainingDemoBubbleView: View {
     @ObservedObject var controller: EarTrainingBattleController
+    /// 五線譜予約帯下端 Y（SwiftUI 上端基準）。phrase モードなど帯なしのとき nil。
+    var staffReservedBandBottomY: CGFloat?
 
     var body: some View {
         if controller.demoBubbleVisible, controller.gameState == .playingPhrase {
@@ -15,6 +17,11 @@ struct EarTrainingDemoBubbleView: View {
                 let bubbleX = min(
                     max(bubbleWidth / 2 + 12, desiredBubbleX),
                     proxy.size.width - bubbleWidth / 2 - 12
+                )
+                let bubbleY = EarTrainingBattleStaffBandLayout.demoBubbleCenterY(
+                    sceneHeight: proxy.size.height,
+                    staffBottomY: staffReservedBandBottomY,
+                    bubbleHeight: bubbleHeight
                 )
                 ZStack {
                     if let bubble = bubbleImage {
@@ -35,7 +42,7 @@ struct EarTrainingDemoBubbleView: View {
                 }
                 .position(
                     x: bubbleX,
-                    y: max(82, proxy.size.height * 0.38)
+                    y: bubbleY
                 )
                 .transition(.opacity.combined(with: .scale))
                 .animation(.easeOut(duration: 0.18), value: controller.demoBubbleVisible)

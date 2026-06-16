@@ -112,6 +112,7 @@
 		A1B2C3D4E5F6071890123452 /* MidiConnectionGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071890123451 /* MidiConnectionGuideView.swift */; };
 		A1B2C3D4E5F6071890123462 /* MidiKeyboardBuyingGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071890123461 /* MidiKeyboardBuyingGuideView.swift */; };
 		4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */; };
+		F3EE880001CC11EE0000CC02 /* EarTrainingBattleStaffBandLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3EE880001CC11EE0000CC01 /* EarTrainingBattleStaffBandLayout.swift */; };
 		4B3D81798B36AE658E36B28E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B4665837C213B33E7EA39A7E /* Assets.xcassets */; };
 		4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */; };
 		4EE732EF69290F9B474AB3AF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */; };
@@ -406,6 +407,7 @@
 		AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingGameView.swift; sourceTree = "<group>"; };
 		AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
 		B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleScene.swift; sourceTree = "<group>"; };
+		F3EE880001CC11EE0000CC01 /* EarTrainingBattleStaffBandLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleStaffBandLayout.swift; sourceTree = "<group>"; };
 		B4665837C213B33E7EA39A7E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B97734F6F02D7D4A8F9DCC03 /* SurvivalBossEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBossEngine.swift; sourceTree = "<group>"; };
 		BCFC653695FDC6395887F72A /* C5.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C5.mp3; sourceTree = "<group>"; };
@@ -1065,6 +1067,7 @@
 			children = (
 				FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */,
 				B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */,
+				F3EE880001CC11EE0000CC01 /* EarTrainingBattleStaffBandLayout.swift */,
 				F2EE770002BB11EE0000BB01 /* EarTrainingChordOSMDGameView.swift */,
 				F2EE770001FF11EE0000FF01 /* EarTrainingChordQuizGameView.swift */,
 				86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */,
@@ -1198,6 +1201,7 @@
 				B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */,
 				F1EE770000AA11EE0000AAA2 /* EarTrainingBattleProtocols.swift in Sources */,
 				4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */,
+				F3EE880001CC11EE0000CC02 /* EarTrainingBattleStaffBandLayout.swift in Sources */,
 				F2EE770002AA11EE0000AA02 /* EarTrainingChordOSMDBattleController.swift in Sources */,
 				F2EE770002CC11EE0000CC02 /* EarTrainingChordOsmdMusicXmlNormalizer.swift in Sources */,
 				F2EE770002BB11EE0000BB02 /* EarTrainingChordOSMDGameView.swift in Sources */,

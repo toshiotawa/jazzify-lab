@@ -19,6 +19,7 @@ import type {
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
+import { createEarTrainingChordVoicingStaffBand } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -980,6 +981,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     startButtonLabel,
     lessonProgressText,
     quizRulesLine: lessonContext ? undefined : clearConditionLine,
+    ...(showStaff ? { staffBand: createEarTrainingChordVoicingStaffBand(true) } : {}),
   }, tutorialUi ?? {
     hidePlayerHpBar: false,
     hideSettingsButton: false,
@@ -1021,6 +1023,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     timeLabel,
     isMidiConnected,
     tutorialUi,
+    showStaff,
   ]);
 
   const battleCallbacks = useMemo(() => ({

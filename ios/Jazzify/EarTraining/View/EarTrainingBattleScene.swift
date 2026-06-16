@@ -192,6 +192,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var cachedPartnerQuoteFontPoints: CGFloat?
     private var cachedPartnerQuoteShowAdvanceCue = false
     private var partnerQuoteBubbleRoot: SKNode?
+    /// SwiftUI 上端基準。nil のとき五線譜予約帯なし。
+    private var staffReservedBandBottomY: CGFloat?
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
     private var osmdHammerNodesByEffectId: [Int: SKSpriteNode] = [:]
@@ -318,6 +320,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         cachedPartnerQuoteText = next
         cachedPartnerQuoteFontPoints = quoteFontPoints
         cachedPartnerQuoteShowAdvanceCue = showAdvanceCue
+        layoutPartnerQuoteBubble()
+    }
+
+    func setStaffReservedBandBottomY(_ y: CGFloat?) {
+        let normalized = y.map { max(0, $0) }
+        guard staffReservedBandBottomY != normalized else { return }
+        staffReservedBandBottomY = normalized
+        layoutPlayerQuoteBubble()
         layoutPartnerQuoteBubble()
     }
 
@@ -1422,7 +1432,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             let root = SKNode()
             // 五線譜オーバーレイ (`phraseLayer.zPosition = 20`) より奥に配置。
             root.zPosition = -3
-            root.position = CGPoint(x: 0, y: Self.characterDisplaySize + 12)
             footContainer.addChild(root)
             playerQuoteBubbleRoot = root
         }
@@ -1480,6 +1489,19 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         let bubbleWidth = innerWidth + padX * 2
         let bubbleHeight = blockHeight + padY * 2
+
+        let defaultRootY = Self.characterDisplaySize + 12
+        root.position = CGPoint(
+            x: 0,
+            y: EarTrainingBattleStaffBandLayout.quoteBubbleRootY(
+                sceneHeight: size.height,
+                footY: footContainer.position.y,
+                defaultRootY: defaultRootY,
+                bubbleExtentAboveFoot: tailH + bubbleHeight,
+                staffBottomY: staffReservedBandBottomY,
+                minRootY: Self.battleLayoutPt(20)
+            )
+        )
 
         let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
         let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
@@ -1555,7 +1577,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             partnerQuoteBubbleRoot?.removeFromParent()
             let root = SKNode()
             root.zPosition = -3
-            root.position = CGPoint(x: 0, y: Self.characterDisplaySize + 12)
             footContainer.addChild(root)
             partnerQuoteBubbleRoot = root
         }
@@ -1613,6 +1634,19 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         let bubbleWidth = innerWidth + padX * 2
         let bubbleHeight = blockHeight + padY * 2
+
+        let defaultRootY = Self.characterDisplaySize + 12
+        root.position = CGPoint(
+            x: 0,
+            y: EarTrainingBattleStaffBandLayout.quoteBubbleRootY(
+                sceneHeight: size.height,
+                footY: footContainer.position.y,
+                defaultRootY: defaultRootY,
+                bubbleExtentAboveFoot: tailH + bubbleHeight,
+                staffBottomY: staffReservedBandBottomY,
+                minRootY: Self.battleLayoutPt(20)
+            )
+        )
 
         let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
         let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath

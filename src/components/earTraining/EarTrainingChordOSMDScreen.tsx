@@ -18,6 +18,7 @@ import type {
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
+import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -1265,6 +1266,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     lessonProgressText,
     fixedCharacterPositions: true,
     quizRulesLine: tutorial ? undefined : clearConditionLine,
+    staffBand: EAR_TRAINING_OSMD_STAFF_BAND,
   }, tutorialUi ?? {
     hidePlayerHpBar: false,
     hideSettingsButton: false,

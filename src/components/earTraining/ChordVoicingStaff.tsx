@@ -983,6 +983,23 @@ export const layoutBattleChordLabels = (
   }));
 };
 
+/** Battle overlay SVG の viewBox 高さ（論理 px、`w-full h-auto` スケール前） */
+export const computeBattleStaffSvgHeight = (
+  staffCount = 2,
+  hideChordLabels = false,
+): number => {
+  const labelTopPadding = SP * 0.4;
+  const labelBandCore = Math.min(34, Math.max(24, SP * 2.6));
+  const reservedLabelTop = hideChordLabels ? 0 : labelTopPadding + labelBandCore;
+  const labelBottomGap = hideChordLabels ? 0 : SP * 0.9;
+  const firstStaffTopY = reservedLabelTop + labelBottomGap + LEDGER_LINE_PADDING;
+  const staffBlockHeight = (staffCount - 1) * STAFF_TOP_STEP + STAFF_HEIGHT;
+  return firstStaffTopY + staffBlockHeight + LEDGER_LINE_PADDING + SP * 0.5;
+};
+
+export const CHORD_VOICING_BATTLE_STAFF_RENDER_WIDTH = STAFF_WIDTH;
+export const CHORD_VOICING_BATTLE_STAFF_CONTAINER_MAX_WIDTH_RATIO = 0.82;
+
 /** コード名レーンを確保し、その下に五線系を置く縦レイアウト（論理座標系） */
 const computeBattleStaffSystemLayout = (
   activeStaves: readonly StaffNumber[],

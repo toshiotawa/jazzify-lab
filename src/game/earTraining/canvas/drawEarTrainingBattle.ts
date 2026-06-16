@@ -15,6 +15,7 @@ import {
   colorForHp,
   getChordHudLayout,
   getCountInOverlayLayout,
+  computeQuoteBubbleTopY,
   getDemoBubblePosition,
   getEnemyAttackGaugePosition,
   getFloorY,
@@ -472,7 +473,7 @@ const drawDemoBubble = (
 ): void => {
   if (!snapshot.demoLoopActive) return;
   const img = runtime.loadedImages.get(FUKIDASHI_ASSET_URL);
-  const pos = getDemoBubblePosition(runtime.width, runtime.height);
+  const pos = getDemoBubblePosition(runtime.width, runtime.height, runtime.staffReservedBottomY);
   if (!img) return;
   const w = 112;
   const h = 84;
@@ -538,6 +539,7 @@ const drawQuoteBubble = (
   centerX: number,
   anchorFootY: number,
   now: number,
+  staffReservedBottomY = 0,
 ): void => {
   if (!quote.segments || quote.segments.length === 0) return;
   const measure = (text: string): number => {
@@ -551,7 +553,7 @@ const drawQuoteBubble = (
   const bubbleW = textW + PLAYER_QUOTE_PAD_X * 2 + (quote.showCue ? PLAYER_QUOTE_CUE_GAP_PX + quote.fontPx : 0);
   const bubbleH = textH + PLAYER_QUOTE_PAD_Y * 2;
   const bubbleX = centerX - bubbleW / 2;
-  const bubbleY = anchorFootY - CHARACTER_DISPLAY_SIZE - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX - bubbleH - PLAYER_QUOTE_TAIL_HEIGHT;
+  const bubbleY = computeQuoteBubbleTopY(anchorFootY, bubbleH, staffReservedBottomY);
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
   drawRoundedRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, PLAYER_QUOTE_CORNER_RADIUS);
@@ -900,8 +902,8 @@ export const drawEarTrainingBattle = (
   drawHud(ctx, snapshot, runtime);
   drawEnemyAttackGauge(ctx, snapshot, runtime);
   const floorY = getFloorY(height);
-  drawQuoteBubble(ctx, runtime.playerQuote, runtime.player.x, floorY, now);
-  drawQuoteBubble(ctx, runtime.partnerQuote, runtime.enemy.x, floorY, now);
+  drawQuoteBubble(ctx, runtime.playerQuote, runtime.player.x, floorY, now, runtime.staffReservedBottomY);
+  drawQuoteBubble(ctx, runtime.partnerQuote, runtime.enemy.x, floorY, now, runtime.staffReservedBottomY);
   drawDemoBubble(ctx, snapshot, runtime);
   drawPhraseSlots(ctx, snapshot, runtime, now);
   drawCountIn(ctx, snapshot, runtime);
