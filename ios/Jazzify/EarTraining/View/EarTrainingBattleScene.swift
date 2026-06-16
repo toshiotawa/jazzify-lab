@@ -1430,8 +1430,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         if playerQuoteBubbleRoot == nil || playerQuoteBubbleRoot?.parent !== footContainer {
             playerQuoteBubbleRoot?.removeFromParent()
             let root = SKNode()
-            // 五線譜オーバーレイ (`phraseLayer.zPosition = 20`) より奥に配置。
-            root.zPosition = -3
+            root.zPosition = 50
             footContainer.addChild(root)
             playerQuoteBubbleRoot = root
         }
@@ -1490,20 +1489,31 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let bubbleWidth = innerWidth + padX * 2
         let bubbleHeight = blockHeight + padY * 2
 
-        let defaultRootY = Self.characterDisplaySize + 12
-        root.position = CGPoint(
-            x: 0,
-            y: EarTrainingBattleStaffBandLayout.quoteBubbleRootY(
-                sceneHeight: size.height,
-                footY: footContainer.position.y,
-                defaultRootY: defaultRootY,
-                bubbleExtentAboveFoot: tailH + bubbleHeight,
-                staffBottomY: staffReservedBandBottomY,
-                minRootY: Self.battleLayoutPt(20)
-            )
+        root.position = .zero
+
+        let placement = EarTrainingBattleStaffBandLayout.quoteBubbleSidePlacement(
+            sceneSize: size,
+            charXInScene: charX,
+            footYFromBottom: footContainer.position.y,
+            bubbleWidth: bubbleWidth,
+            bubbleHeight: bubbleHeight,
+            tailLength: tailH,
+            charHalfWidth: Self.characterDisplaySize / 2,
+            preferredSide: .left,
+            staffBottomY: staffReservedBandBottomY,
+            keyboardVisualTopFromBottom: Self.approximateEarTrainingKeyboardVisualTopFromBottom,
+            sideSpacing: Self.battleLayoutPt(4)
         )
 
-        let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
+        let bubbleCenterX = placement.bubbleCenterOffsetX
+        let bubbleCenterY = placement.bubbleCenterOffsetY
+
+        let bubbleRect = CGRect(
+            x: bubbleCenterX - bubbleWidth / 2,
+            y: bubbleCenterY - bubbleHeight / 2,
+            width: bubbleWidth,
+            height: bubbleHeight
+        )
         let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
         let bubbleNode = SKShapeNode(path: bubblePath)
         bubbleNode.fillColor = UIColor.black.withAlphaComponent(0.7)
@@ -1511,10 +1521,20 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         bubbleNode.lineWidth = 0
         bubbleNode.zPosition = 0
 
+        let tailHalfSpan = Self.battleLayoutPt(7)
         let tailPath = CGMutablePath()
-        tailPath.move(to: CGPoint(x: -Self.battleLayoutPt(7), y: tailH))
-        tailPath.addLine(to: CGPoint(x: Self.battleLayoutPt(7), y: tailH))
-        tailPath.addLine(to: CGPoint(x: 0, y: -Self.battleLayoutPt(2)))
+        switch placement.tailSide {
+        case .left:
+            let edgeX = bubbleCenterX - bubbleWidth / 2
+            tailPath.move(to: CGPoint(x: edgeX, y: bubbleCenterY - tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX, y: bubbleCenterY + tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX - tailH, y: bubbleCenterY))
+        case .right:
+            let edgeX = bubbleCenterX + bubbleWidth / 2
+            tailPath.move(to: CGPoint(x: edgeX, y: bubbleCenterY - tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX, y: bubbleCenterY + tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX + tailH, y: bubbleCenterY))
+        }
         tailPath.closeSubpath()
         let tailNode = SKShapeNode(path: tailPath)
         tailNode.fillColor = UIColor.black.withAlphaComponent(0.7)
@@ -1522,7 +1542,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         tailNode.zPosition = -0.25
 
         let row = SKNode()
-        row.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
+        row.position = CGPoint(x: bubbleCenterX, y: bubbleCenterY)
         row.zPosition = 0.5
 
         let textBlock = SKNode()
@@ -1576,7 +1596,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         if partnerQuoteBubbleRoot == nil || partnerQuoteBubbleRoot?.parent !== footContainer {
             partnerQuoteBubbleRoot?.removeFromParent()
             let root = SKNode()
-            root.zPosition = -3
+            root.zPosition = 50
             footContainer.addChild(root)
             partnerQuoteBubbleRoot = root
         }
@@ -1635,20 +1655,31 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let bubbleWidth = innerWidth + padX * 2
         let bubbleHeight = blockHeight + padY * 2
 
-        let defaultRootY = Self.characterDisplaySize + 12
-        root.position = CGPoint(
-            x: 0,
-            y: EarTrainingBattleStaffBandLayout.quoteBubbleRootY(
-                sceneHeight: size.height,
-                footY: footContainer.position.y,
-                defaultRootY: defaultRootY,
-                bubbleExtentAboveFoot: tailH + bubbleHeight,
-                staffBottomY: staffReservedBandBottomY,
-                minRootY: Self.battleLayoutPt(20)
-            )
+        root.position = .zero
+
+        let placement = EarTrainingBattleStaffBandLayout.quoteBubbleSidePlacement(
+            sceneSize: size,
+            charXInScene: charX,
+            footYFromBottom: footContainer.position.y,
+            bubbleWidth: bubbleWidth,
+            bubbleHeight: bubbleHeight,
+            tailLength: tailH,
+            charHalfWidth: Self.characterDisplaySize / 2,
+            preferredSide: .right,
+            staffBottomY: staffReservedBandBottomY,
+            keyboardVisualTopFromBottom: Self.approximateEarTrainingKeyboardVisualTopFromBottom,
+            sideSpacing: Self.battleLayoutPt(4)
         )
 
-        let bubbleRect = CGRect(x: -bubbleWidth / 2, y: tailH, width: bubbleWidth, height: bubbleHeight)
+        let bubbleCenterX = placement.bubbleCenterOffsetX
+        let bubbleCenterY = placement.bubbleCenterOffsetY
+
+        let bubbleRect = CGRect(
+            x: bubbleCenterX - bubbleWidth / 2,
+            y: bubbleCenterY - bubbleHeight / 2,
+            width: bubbleWidth,
+            height: bubbleHeight
+        )
         let bubblePath = UIBezierPath(roundedRect: bubbleRect, cornerRadius: corner).cgPath
         let bubbleNode = SKShapeNode(path: bubblePath)
         bubbleNode.fillColor = UIColor.black.withAlphaComponent(0.7)
@@ -1656,10 +1687,20 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         bubbleNode.lineWidth = 0
         bubbleNode.zPosition = 0
 
+        let tailHalfSpan = Self.battleLayoutPt(7)
         let tailPath = CGMutablePath()
-        tailPath.move(to: CGPoint(x: -Self.battleLayoutPt(7), y: tailH))
-        tailPath.addLine(to: CGPoint(x: Self.battleLayoutPt(7), y: tailH))
-        tailPath.addLine(to: CGPoint(x: 0, y: -Self.battleLayoutPt(2)))
+        switch placement.tailSide {
+        case .left:
+            let edgeX = bubbleCenterX - bubbleWidth / 2
+            tailPath.move(to: CGPoint(x: edgeX, y: bubbleCenterY - tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX, y: bubbleCenterY + tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX - tailH, y: bubbleCenterY))
+        case .right:
+            let edgeX = bubbleCenterX + bubbleWidth / 2
+            tailPath.move(to: CGPoint(x: edgeX, y: bubbleCenterY - tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX, y: bubbleCenterY + tailHalfSpan))
+            tailPath.addLine(to: CGPoint(x: edgeX + tailH, y: bubbleCenterY))
+        }
         tailPath.closeSubpath()
         let tailNode = SKShapeNode(path: tailPath)
         tailNode.fillColor = UIColor.black.withAlphaComponent(0.7)
@@ -1667,7 +1708,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         tailNode.zPosition = -0.25
 
         let row = SKNode()
-        row.position = CGPoint(x: 0, y: tailH + bubbleHeight / 2)
+        row.position = CGPoint(x: bubbleCenterX, y: bubbleCenterY)
         row.zPosition = 0.5
 
         let textBlock = SKNode()

@@ -15,7 +15,9 @@ import {
   colorForHp,
   getChordHudLayout,
   getCountInOverlayLayout,
-  computeQuoteBubbleTopY,
+  computeQuoteBubbleSidePlacement,
+  SIDE_BUBBLE_TAIL_LENGTH_PX,
+  type QuoteBubbleSide,
   getDemoBubblePosition,
   getEnemyAttackGaugePosition,
   getFloorY,
@@ -28,10 +30,8 @@ import {
   PHRASE_INTRO_FADE_MS,
   PLAYER_QUOTE_CORNER_RADIUS,
   PLAYER_QUOTE_CUE_GAP_PX,
-  PLAYER_QUOTE_GAP_BELOW_SPRITE_PX,
   PLAYER_QUOTE_PAD_X,
   PLAYER_QUOTE_PAD_Y,
-  PLAYER_QUOTE_TAIL_HEIGHT,
   FUKIDASHI_ASSET_URL,
   type EarTrainingRect,
 } from './earTrainingBattleLayout';
@@ -540,6 +540,7 @@ const drawQuoteBubble = (
   anchorFootY: number,
   now: number,
   staffReservedBottomY = 0,
+  preferredSide: QuoteBubbleSide,
 ): void => {
   if (!quote.segments || quote.segments.length === 0) return;
   const measure = (text: string): number => {
@@ -552,16 +553,32 @@ const drawQuoteBubble = (
   const textH = totalQuoteLinesHeightPx(lines.length, quote.fontPx);
   const bubbleW = textW + PLAYER_QUOTE_PAD_X * 2 + (quote.showCue ? PLAYER_QUOTE_CUE_GAP_PX + quote.fontPx : 0);
   const bubbleH = textH + PLAYER_QUOTE_PAD_Y * 2;
-  const bubbleX = centerX - bubbleW / 2;
-  const bubbleY = computeQuoteBubbleTopY(anchorFootY, bubbleH, staffReservedBottomY);
+  const placement = computeQuoteBubbleSidePlacement(
+    centerX,
+    anchorFootY,
+    bubbleW,
+    bubbleH,
+    ctx.canvas.width,
+    ctx.canvas.height,
+    preferredSide,
+    staffReservedBottomY,
+  );
+  const { bubbleX, bubbleY, tailSide } = placement;
+  const bubbleMidY = bubbleY + bubbleH / 2;
 
   ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
   drawRoundedRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, PLAYER_QUOTE_CORNER_RADIUS);
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(centerX - 8, bubbleY + bubbleH);
-  ctx.lineTo(centerX + 8, bubbleY + bubbleH);
-  ctx.lineTo(centerX, bubbleY + bubbleH + PLAYER_QUOTE_TAIL_HEIGHT);
+  if (tailSide === 'left') {
+    ctx.moveTo(bubbleX, bubbleMidY - 8);
+    ctx.lineTo(bubbleX, bubbleMidY + 8);
+    ctx.lineTo(bubbleX - SIDE_BUBBLE_TAIL_LENGTH_PX, bubbleMidY);
+  } else {
+    ctx.moveTo(bubbleX + bubbleW, bubbleMidY - 8);
+    ctx.lineTo(bubbleX + bubbleW, bubbleMidY + 8);
+    ctx.lineTo(bubbleX + bubbleW + SIDE_BUBBLE_TAIL_LENGTH_PX, bubbleMidY);
+  }
   ctx.closePath();
   ctx.fill();
 
@@ -902,8 +919,8 @@ export const drawEarTrainingBattle = (
   drawHud(ctx, snapshot, runtime);
   drawEnemyAttackGauge(ctx, snapshot, runtime);
   const floorY = getFloorY(height);
-  drawQuoteBubble(ctx, runtime.playerQuote, runtime.player.x, floorY, now, runtime.staffReservedBottomY);
-  drawQuoteBubble(ctx, runtime.partnerQuote, runtime.enemy.x, floorY, now, runtime.staffReservedBottomY);
+  drawQuoteBubble(ctx, runtime.playerQuote, runtime.player.x, floorY, now, runtime.staffReservedBottomY, 'left');
+  drawQuoteBubble(ctx, runtime.partnerQuote, runtime.enemy.x, floorY, now, runtime.staffReservedBottomY, 'right');
   drawDemoBubble(ctx, snapshot, runtime);
   drawPhraseSlots(ctx, snapshot, runtime, now);
   drawCountIn(ctx, snapshot, runtime);

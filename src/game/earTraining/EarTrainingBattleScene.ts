@@ -22,9 +22,11 @@ import {
 } from '@/utils/earTrainingQuotePayload';
 import { computeQuoteBubbleMaxOuterWidth } from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
 import {
-  computeQuoteBubbleRootOffsetY,
+  computeQuoteBubbleRootOffsetFromPlacement,
+  computeQuoteBubbleSidePlacement,
   getDemoBubblePosition,
   resolveStaffReservedBottomY,
+  SIDE_BUBBLE_TAIL_LENGTH_PX,
 } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import {
   maxLineRenderedWidthPx,
@@ -42,10 +44,7 @@ const CHARACTER_SHADOW_WIDTH = 104;
 const CHARACTER_SHADOW_HEIGHT = 22;
 const PLAYER_QUOTE_PAD_X = 10;
 const PLAYER_QUOTE_PAD_Y = 6;
-/** 足元コンテナ直上のキャラ表示下端から吹き出しルートまでの余白（大きくすると画面上で吹き出しが上がる）。 */
-const PLAYER_QUOTE_GAP_BELOW_SPRITE_PX = 12 + 18;
 const PLAYER_QUOTE_CORNER_RADIUS = 8;
-const PLAYER_QUOTE_TAIL_HEIGHT = 10;
 const PLAYER_QUOTE_BG_ALPHA = 0.7;
 const PLAYER_QUOTE_FONT_PX = 16;
 const PLAYER_QUOTE_CUE_GAP_PX = 8;
@@ -1375,20 +1374,42 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const textBlockHeight = totalQuoteLinesHeightPx(lineRows.length, lineHeightApprox);
     const bubbleWidth = innerWidth + horizontalPadding;
     const bubbleHeight = textBlockHeight + PLAYER_QUOTE_PAD_Y * 2;
-    const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
-    root.setY(computeQuoteBubbleRootOffsetY(floorY, bubbleHeight, this.staffReservedBottomY));
+    const placement = computeQuoteBubbleSidePlacement(
+      footContainer.x,
+      floorY,
+      bubbleWidth,
+      bubbleHeight,
+      sceneW,
+      sceneH,
+      'left',
+      this.staffReservedBottomY,
+    );
+    const rootOffset = computeQuoteBubbleRootOffsetFromPlacement(placement, footContainer.x, floorY);
+    root.setPosition(rootOffset.x, rootOffset.y);
 
     const bubble = this.make.graphics({ x: 0, y: 0 }, false);
     bubble.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
-    bubble.fillRoundedRect(-bubbleWidth / 2, -tailH - bubbleHeight, bubbleWidth, bubbleHeight, PLAYER_QUOTE_CORNER_RADIUS);
+    bubble.fillRoundedRect(0, 0, bubbleWidth, bubbleHeight, PLAYER_QUOTE_CORNER_RADIUS);
 
     const tail = this.make.graphics({ x: 0, y: 0 }, false);
     tail.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
-    tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
+    const bubbleMidY = bubbleHeight / 2;
+    if (placement.tailSide === 'left') {
+      tail.fillTriangle(0, bubbleMidY - 8, 0, bubbleMidY + 8, -SIDE_BUBBLE_TAIL_LENGTH_PX, bubbleMidY);
+    } else {
+      tail.fillTriangle(
+        bubbleWidth,
+        bubbleMidY - 8,
+        bubbleWidth,
+        bubbleMidY + 8,
+        bubbleWidth + SIDE_BUBBLE_TAIL_LENGTH_PX,
+        bubbleMidY,
+      );
+    }
 
-    const rowAnchorY = -tailH - bubbleHeight / 2;
+    const rowAnchorY = bubbleHeight / 2;
     const blockTopY = rowAnchorY - textBlockHeight / 2 + lineHeightApprox / 2;
-    const textLeft = -innerWidth / 2;
+    const textLeft = PLAYER_QUOTE_PAD_X;
 
     const lineNodes: Phaser.GameObjects.Text[] = [];
     lineRows.forEach((row, lineIndex) => {
@@ -1502,20 +1523,42 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const textBlockHeight = totalQuoteLinesHeightPx(lineRows.length, lineHeightApprox);
     const bubbleWidth = innerWidth + horizontalPadding;
     const bubbleHeight = textBlockHeight + PLAYER_QUOTE_PAD_Y * 2;
-    const tailH = PLAYER_QUOTE_TAIL_HEIGHT;
-    root.setY(computeQuoteBubbleRootOffsetY(floorY, bubbleHeight, this.staffReservedBottomY));
+    const placement = computeQuoteBubbleSidePlacement(
+      footContainer.x,
+      floorY,
+      bubbleWidth,
+      bubbleHeight,
+      sceneW,
+      sceneH,
+      'right',
+      this.staffReservedBottomY,
+    );
+    const rootOffset = computeQuoteBubbleRootOffsetFromPlacement(placement, footContainer.x, floorY);
+    root.setPosition(rootOffset.x, rootOffset.y);
 
     const bubble = this.make.graphics({ x: 0, y: 0 }, false);
     bubble.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
-    bubble.fillRoundedRect(-bubbleWidth / 2, -tailH - bubbleHeight, bubbleWidth, bubbleHeight, PLAYER_QUOTE_CORNER_RADIUS);
+    bubble.fillRoundedRect(0, 0, bubbleWidth, bubbleHeight, PLAYER_QUOTE_CORNER_RADIUS);
 
     const tail = this.make.graphics({ x: 0, y: 0 }, false);
     tail.fillStyle(0x000000, PLAYER_QUOTE_BG_ALPHA);
-    tail.fillTriangle(-7, -tailH, 7, -tailH, 0, 6);
+    const bubbleMidY = bubbleHeight / 2;
+    if (placement.tailSide === 'left') {
+      tail.fillTriangle(0, bubbleMidY - 8, 0, bubbleMidY + 8, -SIDE_BUBBLE_TAIL_LENGTH_PX, bubbleMidY);
+    } else {
+      tail.fillTriangle(
+        bubbleWidth,
+        bubbleMidY - 8,
+        bubbleWidth,
+        bubbleMidY + 8,
+        bubbleWidth + SIDE_BUBBLE_TAIL_LENGTH_PX,
+        bubbleMidY,
+      );
+    }
 
-    const rowAnchorY = -tailH - bubbleHeight / 2;
+    const rowAnchorY = bubbleHeight / 2;
     const blockTopY = rowAnchorY - textBlockHeight / 2 + lineHeightApprox / 2;
-    const textLeft = -innerWidth / 2;
+    const textLeft = PLAYER_QUOTE_PAD_X;
 
     const lineNodes: Phaser.GameObjects.Text[] = [];
     lineRows.forEach((row, lineIndex) => {

@@ -1,15 +1,17 @@
 import {
   CHARACTER_DISPLAY_SIZE,
-  computeQuoteBubbleRootOffsetY,
-  computeQuoteBubbleTopY,
+  computeQuoteBubbleRootOffsetFromPlacement,
+  computeQuoteBubbleSidePlacement,
   createEarTrainingChordVoicingStaffBand,
   EAR_TRAINING_OSMD_STAFF_BAND,
   getDemoBubblePosition,
   getDemoBubbleVisualTopY,
   getFloorY,
-  PLAYER_QUOTE_GAP_BELOW_SPRITE_PX,
-  PLAYER_QUOTE_TAIL_HEIGHT,
+  PIANO_OVERLAY_HEIGHT,
   resolveStaffReservedBottomY,
+  SIDE_BUBBLE_CHAR_GAP_PX,
+  SIDE_BUBBLE_EDGE_MARGIN_PX,
+  SIDE_BUBBLE_TAIL_LENGTH_PX,
   STAFF_RESERVED_MARGIN_PX,
 } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 
@@ -34,30 +36,102 @@ describe('earTrainingBattleLayout staff band', () => {
 });
 
 describe('earTrainingBattleLayout quote bubble placement', () => {
-  const anchorFootY = getFloorY(800);
+  const viewportWidth = 900;
+  const viewportHeight = 800;
+  const footY = getFloorY(viewportHeight);
+  const playerX = viewportWidth * 0.23;
+  const partnerX = viewportWidth * 0.77;
+  const bubbleWidth = 100;
   const bubbleHeight = 48;
+  const gap = SIDE_BUBBLE_CHAR_GAP_PX + SIDE_BUBBLE_TAIL_LENGTH_PX;
+  const charHalf = CHARACTER_DISPLAY_SIZE / 2;
 
-  it('keeps legacy top when staff band is absent', () => {
-    const legacyTop = anchorFootY
-      - CHARACTER_DISPLAY_SIZE
-      - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX
-      - bubbleHeight
-      - PLAYER_QUOTE_TAIL_HEIGHT;
-    expect(computeQuoteBubbleTopY(anchorFootY, bubbleHeight, 0)).toBe(legacyTop);
+  it('places player bubble on the left with tail toward character', () => {
+    const placement = computeQuoteBubbleSidePlacement(
+      playerX,
+      footY,
+      bubbleWidth,
+      bubbleHeight,
+      viewportWidth,
+      viewportHeight,
+      'left',
+    );
+    expect(placement.bubbleX).toBe(playerX - charHalf - gap - bubbleWidth);
+    expect(placement.tailSide).toBe('right');
+    expect(placement.bubbleY).toBe(footY - bubbleHeight / 2);
   });
 
-  it('pushes bubble below staff reserved band when legacy would overlap', () => {
-    const staffBottom = 420;
-    const topY = computeQuoteBubbleTopY(anchorFootY, bubbleHeight, staffBottom);
-    expect(topY).toBeGreaterThanOrEqual(staffBottom);
-    expect(topY).toBe(staffBottom);
+  it('places partner bubble on the right with tail toward character', () => {
+    const placement = computeQuoteBubbleSidePlacement(
+      partnerX,
+      footY,
+      bubbleWidth,
+      bubbleHeight,
+      viewportWidth,
+      viewportHeight,
+      'right',
+    );
+    expect(placement.bubbleX).toBe(partnerX + charHalf + gap);
+    expect(placement.tailSide).toBe('left');
   });
 
-  it('derives phaser root offset from clamped bubble top', () => {
-    const staffBottom = 420;
-    const topY = computeQuoteBubbleTopY(anchorFootY, bubbleHeight, staffBottom);
-    const rootOffset = computeQuoteBubbleRootOffsetY(anchorFootY, bubbleHeight, staffBottom);
-    expect(rootOffset).toBe(topY - anchorFootY + PLAYER_QUOTE_TAIL_HEIGHT + bubbleHeight);
+  it('clamps bubble top to staff reserved bottom', () => {
+    const staffBottom = footY - 10;
+    const placement = computeQuoteBubbleSidePlacement(
+      playerX,
+      footY,
+      bubbleWidth,
+      bubbleHeight,
+      viewportWidth,
+      viewportHeight,
+      'left',
+      staffBottom,
+    );
+    expect(placement.bubbleY).toBeGreaterThanOrEqual(staffBottom);
+  });
+
+  it('clamps bubble bottom above piano overlay', () => {
+    const placement = computeQuoteBubbleSidePlacement(
+      playerX,
+      footY,
+      bubbleWidth,
+      bubbleHeight,
+      viewportWidth,
+      viewportHeight,
+      'left',
+    );
+    const maxTop = viewportHeight - PIANO_OVERLAY_HEIGHT - 4 - bubbleHeight;
+    expect(placement.bubbleY).toBeLessThanOrEqual(maxTop);
+  });
+
+  it('derives phaser root offset from side placement', () => {
+    const placement = computeQuoteBubbleSidePlacement(
+      playerX,
+      footY,
+      bubbleWidth,
+      bubbleHeight,
+      viewportWidth,
+      viewportHeight,
+      'left',
+    );
+    const rootOffset = computeQuoteBubbleRootOffsetFromPlacement(placement, playerX, footY);
+    expect(rootOffset.x).toBe(placement.bubbleX - playerX);
+    expect(rootOffset.y).toBe(placement.bubbleY - footY);
+  });
+
+  it('flips to opposite side when preferred side overflows screen edge', () => {
+    const wideBubbleWidth = 200;
+    const placement = computeQuoteBubbleSidePlacement(
+      playerX,
+      footY,
+      wideBubbleWidth,
+      bubbleHeight,
+      viewportWidth,
+      viewportHeight,
+      'left',
+    );
+    expect(placement.bubbleX).toBe(playerX + charHalf + gap);
+    expect(placement.tailSide).toBe('left');
   });
 });
 

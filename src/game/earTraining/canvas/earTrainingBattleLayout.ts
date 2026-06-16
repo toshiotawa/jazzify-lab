@@ -9,11 +9,9 @@ export const FLOOR_CLEARANCE_FROM_PIANO = 100;
 export const CHARACTER_DISPLAY_SIZE = 116;
 export const CHARACTER_SHADOW_WIDTH = 104;
 export const CHARACTER_SHADOW_HEIGHT = 22;
-export const PLAYER_QUOTE_GAP_BELOW_SPRITE_PX = 12 + 18;
 export const PLAYER_QUOTE_PAD_X = 10;
 export const PLAYER_QUOTE_PAD_Y = 6;
 export const PLAYER_QUOTE_CORNER_RADIUS = 8;
-export const PLAYER_QUOTE_TAIL_HEIGHT = 10;
 export const PLAYER_QUOTE_FONT_PX = 16;
 export const PLAYER_QUOTE_CUE_GAP_PX = 8;
 export const STAFF_RESERVED_MARGIN_PX = 10;
@@ -222,28 +220,95 @@ export const resolveStaffReservedBottomY = (
   return viewportHeight * staffBand.centerRatio + bandHeight / 2 + STAFF_RESERVED_MARGIN_PX;
 };
 
-export const computeQuoteBubbleTopY = (
-  anchorFootY: number,
-  bubbleHeight: number,
-  staffReservedBottomY = 0,
-): number => {
-  const legacyTopY = anchorFootY
-    - CHARACTER_DISPLAY_SIZE
-    - PLAYER_QUOTE_GAP_BELOW_SPRITE_PX
-    - bubbleHeight
-    - PLAYER_QUOTE_TAIL_HEIGHT;
-  if (staffReservedBottomY <= 0) return legacyTopY;
-  return Math.max(legacyTopY, staffReservedBottomY);
+export type QuoteBubbleSide = 'left' | 'right';
+
+export interface QuoteBubbleSidePlacement {
+  bubbleX: number;
+  bubbleY: number;
+  tailSide: QuoteBubbleSide;
+}
+
+export interface QuoteBubbleRootOffset {
+  x: number;
+  y: number;
+}
+
+export const SIDE_BUBBLE_CHAR_GAP_PX = 10;
+export const SIDE_BUBBLE_TAIL_LENGTH_PX = 10;
+export const SIDE_BUBBLE_EDGE_MARGIN_PX = 12;
+
+const computeBubbleXForPreferredSide = (
+  charX: number,
+  bubbleWidth: number,
+  preferredSide: QuoteBubbleSide,
+): { bubbleX: number; tailSide: QuoteBubbleSide } => {
+  const charHalf = CHARACTER_DISPLAY_SIZE / 2;
+  const gap = SIDE_BUBBLE_CHAR_GAP_PX + SIDE_BUBBLE_TAIL_LENGTH_PX;
+  if (preferredSide === 'left') {
+    return {
+      bubbleX: charX - charHalf - gap - bubbleWidth,
+      tailSide: 'right',
+    };
+  }
+  return {
+    bubbleX: charX + charHalf + gap,
+    tailSide: 'left',
+  };
 };
 
-export const computeQuoteBubbleRootOffsetY = (
-  anchorFootY: number,
-  bubbleHeight: number,
-  staffReservedBottomY = 0,
-): number => {
-  const topY = computeQuoteBubbleTopY(anchorFootY, bubbleHeight, staffReservedBottomY);
-  return topY - anchorFootY + PLAYER_QUOTE_TAIL_HEIGHT + bubbleHeight;
+const isBubbleHorizontallyOverflowing = (
+  bubbleX: number,
+  bubbleWidth: number,
+  viewportWidth: number,
+): boolean => {
+  const minX = SIDE_BUBBLE_EDGE_MARGIN_PX;
+  const maxX = viewportWidth - SIDE_BUBBLE_EDGE_MARGIN_PX - bubbleWidth;
+  return bubbleX < minX || bubbleX > maxX;
 };
+
+export const computeQuoteBubbleSidePlacement = (
+  charX: number,
+  footY: number,
+  bubbleWidth: number,
+  bubbleHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  preferredSide: QuoteBubbleSide,
+  staffReservedBottomY = 0,
+): QuoteBubbleSidePlacement => {
+  const preferred = computeBubbleXForPreferredSide(charX, bubbleWidth, preferredSide);
+  let bubbleX = preferred.bubbleX;
+  let tailSide = preferred.tailSide;
+
+  if (isBubbleHorizontallyOverflowing(bubbleX, bubbleWidth, viewportWidth)) {
+    const flippedSide: QuoteBubbleSide = preferredSide === 'left' ? 'right' : 'left';
+    const flipped = computeBubbleXForPreferredSide(charX, bubbleWidth, flippedSide);
+    bubbleX = flipped.bubbleX;
+    tailSide = flipped.tailSide;
+
+    if (isBubbleHorizontallyOverflowing(bubbleX, bubbleWidth, viewportWidth)) {
+      const minX = SIDE_BUBBLE_EDGE_MARGIN_PX;
+      const maxX = viewportWidth - SIDE_BUBBLE_EDGE_MARGIN_PX - bubbleWidth;
+      bubbleX = clamp(bubbleX, minX, maxX);
+      tailSide = preferred.tailSide;
+    }
+  }
+
+  let bubbleY = footY - bubbleHeight / 2;
+  bubbleY = Math.min(bubbleY, viewportHeight - PIANO_OVERLAY_HEIGHT - 4 - bubbleHeight);
+  bubbleY = Math.max(bubbleY, staffReservedBottomY);
+
+  return { bubbleX, bubbleY, tailSide };
+};
+
+export const computeQuoteBubbleRootOffsetFromPlacement = (
+  placement: QuoteBubbleSidePlacement,
+  charX: number,
+  footY: number,
+): QuoteBubbleRootOffset => ({
+  x: placement.bubbleX - charX,
+  y: placement.bubbleY - footY,
+});
 
 export const getDemoBubbleVisualTopY = (anchorY: number): number =>
   anchorY + DEMO_BUBBLE_ANCHOR_OFFSET_Y - DEMO_BUBBLE_DISPLAY_HEIGHT * DEMO_BUBBLE_ORIGIN_Y;

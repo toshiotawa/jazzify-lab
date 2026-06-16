@@ -46,18 +46,103 @@ enum EarTrainingBattleStaffBandLayout {
         return max(belowStaffY, 82)
     }
 
-    /// SpriteKit 台詞吹き出し root の Y（足元コンテナ基準）。帯下端より下に収める。
-    static func quoteBubbleRootY(
-        sceneHeight: CGFloat,
-        footY: CGFloat,
-        defaultRootY: CGFloat,
-        bubbleExtentAboveFoot: CGFloat,
+    enum QuoteBubblePreferredSide {
+        case left
+        case right
+    }
+
+    enum QuoteBubbleTailSide {
+        case left
+        case right
+    }
+
+    struct QuoteBubbleSidePlacement {
+        let bubbleCenterOffsetX: CGFloat
+        let bubbleCenterOffsetY: CGFloat
+        let tailSide: QuoteBubbleTailSide
+    }
+
+    /// 台詞吹き出しをキャラ横 × 足元高さへ置く（`footContainer` 原点基準の bubble 中心オフセット）。
+    static func quoteBubbleSidePlacement(
+        sceneSize: CGSize,
+        charXInScene: CGFloat,
+        footYFromBottom: CGFloat,
+        bubbleWidth: CGFloat,
+        bubbleHeight: CGFloat,
+        tailLength: CGFloat,
+        charHalfWidth: CGFloat,
+        preferredSide: QuoteBubblePreferredSide,
         staffBottomY: CGFloat?,
-        minRootY: CGFloat
-    ) -> CGFloat {
-        guard let staffBottomY else { return defaultRootY }
-        let height = max(320, sceneHeight)
-        let maxRootY = height - footY - bubbleExtentAboveFoot - staffBottomY - bandMargin
-        return min(defaultRootY, max(maxRootY, minRootY))
+        keyboardVisualTopFromBottom: CGFloat,
+        sideSpacing: CGFloat = 4,
+        sceneMargin: CGFloat = 12,
+        keyboardClearance: CGFloat = 4
+    ) -> QuoteBubbleSidePlacement {
+        let gap = sideSpacing + tailLength
+        let sceneWidth = sceneSize.width
+        let sceneHeight = sceneSize.height
+
+        func bubbleCenterX(for side: QuoteBubblePreferredSide) -> CGFloat {
+            switch side {
+            case .left:
+                return -charHalfWidth - gap - bubbleWidth / 2
+            case .right:
+                return charHalfWidth + gap + bubbleWidth / 2
+            }
+        }
+
+        func tailSide(for side: QuoteBubblePreferredSide) -> QuoteBubbleTailSide {
+            switch side {
+            case .left:
+                return .right
+            case .right:
+                return .left
+            }
+        }
+
+        func fitsHorizontally(_ centerX: CGFloat) -> Bool {
+            let left = charXInScene + centerX - bubbleWidth / 2
+            let right = charXInScene + centerX + bubbleWidth / 2
+            return left >= sceneMargin && right <= sceneWidth - sceneMargin
+        }
+
+        func clampedCenterX(_ centerX: CGFloat) -> CGFloat {
+            let minCenter = sceneMargin + bubbleWidth / 2 - charXInScene
+            let maxCenter = sceneWidth - sceneMargin - bubbleWidth / 2 - charXInScene
+            return min(max(centerX, minCenter), maxCenter)
+        }
+
+        var chosenSide = preferredSide
+        var centerOffsetX = bubbleCenterX(for: chosenSide)
+        if !fitsHorizontally(centerOffsetX) {
+            let flipped: QuoteBubblePreferredSide = chosenSide == .left ? .right : .left
+            let flippedX = bubbleCenterX(for: flipped)
+            if fitsHorizontally(flippedX) {
+                chosenSide = flipped
+                centerOffsetX = flippedX
+            } else {
+                centerOffsetX = clampedCenterX(centerOffsetX)
+            }
+        }
+
+        let minCenterY =
+            keyboardVisualTopFromBottom + keyboardClearance + bubbleHeight / 2 - footYFromBottom
+        var maxCenterY = CGFloat.greatestFiniteMagnitude
+        if let staffBottomY {
+            maxCenterY = sceneHeight - staffBottomY - footYFromBottom - bubbleHeight / 2
+        }
+
+        let centerOffsetY: CGFloat
+        if minCenterY <= maxCenterY {
+            centerOffsetY = min(max(0, minCenterY), maxCenterY)
+        } else {
+            centerOffsetY = minCenterY
+        }
+
+        return QuoteBubbleSidePlacement(
+            bubbleCenterOffsetX: centerOffsetX,
+            bubbleCenterOffsetY: centerOffsetY,
+            tailSide: tailSide(for: chosenSide)
+        )
     }
 }
