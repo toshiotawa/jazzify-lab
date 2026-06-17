@@ -20,6 +20,7 @@ interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
   clearConditions: ClearConditions;
+  bgmUrl?: string | null;
 }
 
 const EarTrainingGameScreen = React.lazy(() => import('./EarTrainingGameScreen'));
@@ -82,10 +83,12 @@ const EarTrainingMain: React.FC = () => {
     if (!lessonId || !lessonSongId) {
       return null;
     }
+    const bgmUrlRaw = params.get('bgmUrl');
     return {
       lessonId,
       lessonSongId,
       clearConditions: parseClearConditions(params.get('clearConditions')),
+      bgmUrl: bgmUrlRaw && bgmUrlRaw.length > 0 ? bgmUrlRaw : null,
     };
   }, [params]);
   const initialPracticeMode = useMemo(

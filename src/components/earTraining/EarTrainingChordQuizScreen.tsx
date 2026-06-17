@@ -79,11 +79,18 @@ interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
   clearConditions: ClearConditions;
+  bgmUrl?: string | null;
 }
 
-const resolveQuizDrumLoopUrl = (lessonContext: EarTrainingLessonContext | null): string => (
-  lessonContext !== null ? BALLOON_RUSH_DRUM_LOOP_BGM_URL : CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL
-);
+const resolveQuizDrumLoopUrl = (lessonContext: EarTrainingLessonContext | null): string => {
+  const override = lessonContext?.bgmUrl?.trim();
+  if (override && override.length > 0) {
+    return override;
+  }
+  return lessonContext !== null
+    ? BALLOON_RUSH_DRUM_LOOP_BGM_URL
+    : CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL;
+};
 
 const resolveQuizLoopDurationSec = (lessonContext: EarTrainingLessonContext | null): number => (
   lessonContext !== null ? 6 : 2

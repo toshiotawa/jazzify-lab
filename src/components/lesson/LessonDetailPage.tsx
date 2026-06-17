@@ -1177,6 +1177,10 @@ const LessonDetailPage: React.FC = () => {
                               params.set('lessonSongId', req.lesson_song_id);
                               params.set('stageId', req.ear_training_stage?.id || req.ear_training_stage_id || '');
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
+                              const lessonBgmUrl = req.survival_lesson_overrides?.bgmUrl?.trim();
+                              if (lessonBgmUrl && lessonBgmUrl.length > 0) {
+                                params.set('bgmUrl', lessonBgmUrl);
+                              }
                               window.location.hash = `#ear-training-lesson?${params.toString()}`;
                             } else {
                               // 通常の楽曲の場合
