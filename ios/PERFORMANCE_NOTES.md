@@ -12,5 +12,6 @@
 - prefetch 未完で即タップしたあとも、レッスン読込完了後に frontier が中央付近で安定するか。
 - プレミアムコースを開いた直後（billing refresh 中）も drift しないか。
 - iPhone で**スクロール全体が勝手にずれない**か（viewport 連動・scrollTarget 重複適用の回帰確認）。
+- サバイバル降下マップでも同様に、表示後しばらく手を離して上下 drift しないか。
 
 ビルド検証: `xcodebuild -project Jazzify.xcodeproj -scheme Jazzify -configuration Debug -destination 'generic/platform=iOS' build`

@@ -22,9 +22,6 @@ struct SurvivalDescentView: View {
     @State private var scrollTargetY: CGFloat?
     @State private var scrollAnimated: Bool = false
     @State private var didInitialScroll: Bool = false
-    @State private var viewport: UIKitVerticalViewport = .zero
-
-    private let logicalCullMargin: CGFloat = 640
 
     private var blocks: [SurvivalBlockMeta] { SurvivalStageCatalog.blocks(in: mapCategory) }
 
@@ -75,27 +72,30 @@ struct SurvivalDescentView: View {
         !meta.stageNumbers.isEmpty && meta.stageNumbers.allSatisfy { clearedStages.contains($0) }
     }
 
-    private func visibleBlockLayouts(scale: CGFloat, fallbackViewportHeight: CGFloat) -> [SurvivalDescentBlockLayout] {
-        let safeScale = max(scale, 0.001)
-        let viewportHeight = max(1, viewport.height > 0 ? viewport.height : fallbackViewportHeight)
-
-        let logicalMinY = max(0, viewport.offsetY / safeScale - logicalCullMargin)
-        let logicalMaxY = viewport.offsetY / safeScale + viewportHeight / safeScale + logicalCullMargin
-
-        var visible = layout.blocks.filter {
-            $0.endY >= logicalMinY && $0.startY <= logicalMaxY
+    /// スクロール位置の再計算が必要なときだけ変わるシグネチャ（viewport 連動は使わない）。
+    private var mapScrollSignature: String {
+        var hasher = Hasher()
+        hasher.combine(catalogSignature)
+        hasher.combine(mapCategory.rawValue)
+        hasher.combine(frontierStageNumber)
+        hasher.combine(accessibleBlockIndex)
+        hasher.combine(locale.rawValue)
+        for stageNumber in clearedStages.sorted() {
+            hasher.combine(stageNumber)
         }
+        return String(hasher.finalize())
+    }
 
-        var seen = Set(visible.map(\.blockKey))
-        for stageNumber in [frontierStageNumber, selectedStageNumber].compactMap({ $0 }) {
-            if let block = layout.blockLayout(for: stageNumber),
-               seen.insert(block.blockKey).inserted {
-                visible.append(block)
-            }
+    private func mapContentToken(selectedStage: Int?) -> AnyHashable {
+        var hasher = Hasher()
+        hasher.combine(mapScrollSignature)
+        hasher.combine(selectedStage)
+        hasher.combine(playLockedForUpsell)
+        hasher.combine(freeStageNumbers.count)
+        for stageNumber in freeStageNumbers.sorted() {
+            hasher.combine(stageNumber)
         }
-
-        visible.sort { $0.blockIndex < $1.blockIndex }
-        return visible
+        return hasher.finalize()
     }
 
     /// フロンティアキャラクターの向き (次に進むステージの方向を見る)
@@ -125,20 +125,17 @@ struct SurvivalDescentView: View {
     var body: some View {
         GeometryReader { proxy in
             let width = proxy.size.width
-            let mapScale = min(max(0.6, width / SurvivalDescentLayoutConstants.logicalWidth), 2.2)
-            let worldWidth = max(width, SurvivalDescentLayoutConstants.logicalWidth * mapScale)
-            let worldHeight = layout.totalHeight * mapScale
-
-            let visibleBlocks = visibleBlockLayouts(
-                scale: mapScale,
-                fallbackViewportHeight: proxy.size.height
-            )
+            let rawScale = min(max(0.6, width / SurvivalDescentLayoutConstants.logicalWidth), 2.2)
+            let mapScale = (rawScale * 100).rounded() / 100
+            let worldWidth = max(width, ceil(SurvivalDescentLayoutConstants.logicalWidth * mapScale))
+            let worldHeight = ceil(layout.totalHeight * mapScale)
+            let contentToken = mapContentToken(selectedStage: selectedStageNumber)
 
             UIKitVerticalScrollView(
                 contentSize: CGSize(width: worldWidth, height: worldHeight),
                 scrollTargetY: $scrollTargetY,
-                viewport: $viewport,
-                animated: scrollAnimated
+                animated: scrollAnimated,
+                contentToken: contentToken
             ) {
                 SurvivalDescentMapContent(
                     layout: layout,
@@ -152,7 +149,6 @@ struct SurvivalDescentView: View {
                     frontierStageNumber: frontierStageNumber,
                     frontierFacing: frontierFacing,
                     selectedStageNumber: $selectedStageNumber,
-                    visibleBlocks: visibleBlocks,
                     worldWidth: worldWidth,
                     worldHeight: worldHeight,
                     scale: mapScale,
@@ -168,30 +164,15 @@ struct SurvivalDescentView: View {
             .onAppear {
                 refreshScrollIfLayoutReady(scale: mapScale, animated: false)
             }
-            .onChange(of: catalogSignature) { _ in
+            .onChange(of: mapScrollSignature) { _ in
                 didInitialScroll = false
                 refreshScrollIfLayoutReady(scale: mapScale, animated: false)
-            }
-            .onChange(of: clearedStages) { _ in
-                refreshScrollIfLayoutReady(scale: mapScale, animated: false)
-            }
-            .onChange(of: worldHeight) { _ in
-                if !didInitialScroll {
-                    refreshScrollIfLayoutReady(scale: mapScale, animated: false)
-                }
-            }
-            .onChange(of: frontierStageNumber) { _ in
-                requestScrollToFrontier(scale: mapScale, animated: false)
             }
             .onChange(of: selectedStageNumber) { target in
                 guard let target,
                       let pos = layout.position(for: target) else { return }
                 scrollAnimated = false
-                scrollTargetY = pos.y * mapScale
-            }
-            .onChange(of: mapCategory) { _ in
-                didInitialScroll = false
-                refreshScrollIfLayoutReady(scale: mapScale, animated: false)
+                scrollTargetY = ceil(pos.y * mapScale)
             }
         }
     }
@@ -208,14 +189,12 @@ struct SurvivalDescentView: View {
 
     private func requestScrollToFrontier(scale: CGFloat, animated: Bool) {
         let target = frontierStageNumber
-        let targetY: CGFloat = {
-            if let pos = layout.position(for: target) {
-                return pos.y * scale
-            }
-            return 0
-        }()
         scrollAnimated = animated
-        scrollTargetY = targetY
+        if let pos = layout.position(for: target) {
+            scrollTargetY = ceil(pos.y * scale)
+        } else {
+            scrollTargetY = 0
+        }
         didInitialScroll = true
     }
 }
@@ -234,7 +213,6 @@ private struct SurvivalDescentMapContent: View {
     let frontierStageNumber: Int
     let frontierFacing: SurvivalDescentCharacterView.Facing
     @Binding var selectedStageNumber: Int?
-    let visibleBlocks: [SurvivalDescentBlockLayout]
     let worldWidth: CGFloat
     let worldHeight: CGFloat
     let scale: CGFloat
@@ -254,11 +232,11 @@ private struct SurvivalDescentMapContent: View {
                 widthPx: worldWidth,
                 heightPx: worldHeight,
                 scale: scale,
-                tintBlocks: visibleBlocks,
+                tintBlocks: layout.blocks,
                 accessibleBlockIndex: accessibleBlockIndex
             )
 
-            ForEach(visibleBlocks) { blockLayout in
+            ForEach(layout.blocks) { blockLayout in
                 if let meta = block(blockLayout.blockIndex) {
                     SurvivalDescentMapBlockContent(
                         meta: meta,
@@ -284,7 +262,7 @@ private struct SurvivalDescentMapContent: View {
                 }
             }
 
-            ForEach(visibleBlocks) { blockLayout in
+            ForEach(layout.blocks) { blockLayout in
                 if blockLayout.blockIndex > accessibleBlockIndex {
                     SurvivalDescentDimVeil(
                         startY: blockLayout.startY,
@@ -295,7 +273,7 @@ private struct SurvivalDescentMapContent: View {
                 }
             }
 
-            if let frontierBlock = visibleBlocks.first(where: { $0.blockIndex == accessibleBlockIndex }) {
+            if let frontierBlock = layout.blocks.first(where: { $0.blockIndex == accessibleBlockIndex }) {
                 let theme = SurvivalDescentThemeCatalog.theme(for: frontierBlock.blockIndex)
                 SurvivalDescentFloatingEmber(
                     startY: frontierBlock.startY,
@@ -312,7 +290,8 @@ private struct SurvivalDescentMapContent: View {
                     xPx: frontierPos.x * scale + horizontalOffset,
                     yPx: frontierPos.y * scale,
                     scale: scale,
-                    facing: frontierFacing
+                    facing: frontierFacing,
+                    animateBreathe: false
                 )
             }
         }
