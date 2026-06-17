@@ -789,37 +789,73 @@ final class EarTrainingAudio: NSObject {
     }()
 
     private func rebuildClickBuffer(for format: AVAudioFormat) {
-        clickPCM = Self.makeClickPcmBuffer(format: format, peakAmplitude: 0.28)
-        clickPCMFirstBeat = Self.makeClickPcmBuffer(format: format, peakAmplitude: 0.55)
+        clickPCM = Self.loadDrumstickClickBuffer(for: format, peakAmplitude: 0.28)
+        clickPCMFirstBeat = Self.loadDrumstickClickBuffer(for: format, peakAmplitude: 0.55)
     }
 
-    private static func makeClickPcmBuffer(format: AVAudioFormat, peakAmplitude: Double) -> AVAudioPCMBuffer? {
-        let sampleRate = format.sampleRate
-        let channelCount = Int(format.channelCount)
-        let durationSec = 0.045
-        let frameCount = AVAudioFrameCount(max(1, min(Int(Double(sampleRate) * durationSec), 96_000)))
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+    private static func loadDrumstickClickBuffer(for format: AVAudioFormat, peakAmplitude: Double) -> AVAudioPCMBuffer? {
+        guard let url = Bundle.main.url(forResource: "drumstick-count", withExtension: "mp3") else {
             return nil
         }
-        buffer.frameLength = frameCount
-
-        guard let data = buffer.floatChannelData else {
+        guard let file = try? AVAudioFile(forReading: url),
+              let decoded = decodeEntireFile(file: file),
+              let scaled = scaleBuffer(decoded, peakAmplitude: peakAmplitude) else {
             return nil
         }
+        if scaled.format.isEqual(format) {
+            return scaled
+        }
+        return convertBuffer(scaled, to: format)
+    }
 
-        let n = Int(frameCount)
-        let freq = 2_200.0
-        let amp = peakAmplitude
-        for ch in 0..<channelCount {
-            let channel = data[ch]
-            for i in 0..<n {
-                let t = Double(i) / sampleRate
-                let env = exp(-t * 100)
-                let s = sin(2.0 * Double.pi * freq * t) * env * amp
-                channel[i] = Float(s)
+    private static func scaleBuffer(_ source: AVAudioPCMBuffer, peakAmplitude: Double) -> AVAudioPCMBuffer? {
+        guard let copy = AVAudioPCMBuffer(pcmFormat: source.format, frameCapacity: source.frameLength) else {
+            return nil
+        }
+        copy.frameLength = source.frameLength
+        guard let srcData = source.floatChannelData,
+              let dstData = copy.floatChannelData else {
+            return nil
+        }
+        let channels = Int(source.format.channelCount)
+        let frames = Int(source.frameLength)
+        let gain = Float(peakAmplitude)
+        for ch in 0..<channels {
+            let src = srcData[ch]
+            let dst = dstData[ch]
+            for i in 0..<frames {
+                dst[i] = src[i] * gain
             }
         }
-        return buffer
+        return copy
+    }
+
+    private static func convertBuffer(_ source: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard let converter = AVAudioConverter(from: source.format, to: format) else {
+            return nil
+        }
+        let ratio = format.sampleRate / source.format.sampleRate
+        let outCapacity = AVAudioFrameCount(ceil(Double(source.frameLength) * ratio))
+        guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: outCapacity) else {
+            return nil
+        }
+
+        var error: NSError?
+        var consumed = false
+        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+            if consumed {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            consumed = true
+            outStatus.pointee = .haveData
+            return source
+        }
+        converter.convert(to: output, error: &error, withInputFrom: inputBlock)
+        guard error == nil, output.frameLength > 0 else {
+            return nil
+        }
+        return output
     }
 
     // MARK: - Piano bridge (Survival サンプラー再利用)

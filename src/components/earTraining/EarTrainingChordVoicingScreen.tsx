@@ -92,7 +92,6 @@ import {
   resolveChordVoicingSelfPacedPhraseClockUrl,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
-import { unlockFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 import { getChordVoicingQuoteDisplayText } from '@/utils/earTrainingChordVoicingQuote';
 import {
   buildEarTrainingEnemyBattleSourceKey,
@@ -1229,7 +1228,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       soundEffectVolume: settings.soundEffectVolume,
       rootSoundVolume: settings.rootSoundVolume,
     }).catch(() => undefined);
-    unlockFireMagicSe();
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     countInEarlyInputRef.current = false;

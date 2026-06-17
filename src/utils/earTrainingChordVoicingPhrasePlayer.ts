@@ -10,21 +10,25 @@ const halfBeatSecForBpm = (bpm: number): number => {
   return 30 / safe;
 };
 
-/** 短いクリック1発を `output` へ `when` にスケジュールする（woodblock 風の減衰） */
-const scheduleClickOsc = (ctx: BaseAudioContext, when: number, peakGain: number, output: AudioNode): void => {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(880, when);
+const COUNT_IN_CLICK_URL = '/drumstick-count.mp3';
+
+/** ドラムスティック1打を `when` にスケジュールする */
+const scheduleClickBuffer = (
+  ctx: BaseAudioContext,
+  buffer: AudioBuffer,
+  when: number,
+  peakGain: number,
+  output: AudioNode,
+): void => {
   const gMin = 0.001;
   const safePeak = Math.max(gMin, Math.min(1, peakGain));
-  gain.gain.setValueAtTime(gMin, when);
-  gain.gain.linearRampToValueAtTime(safePeak, when + 0.004);
-  gain.gain.exponentialRampToValueAtTime(gMin, when + 0.07);
-  osc.connect(gain);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(safePeak, when);
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(gain);
   gain.connect(output);
-  osc.start(when);
-  osc.stop(when + 0.085);
+  source.start(when);
 };
 
 interface PreparedChordVoicingPhrase {
@@ -82,6 +86,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
   private phraseGain: GainNode | null = null;
   private volume = 1;
   private readonly decodeByUrl = new Map<string, Promise<AudioBuffer>>();
+  private countInClickBuffer: AudioBuffer | null = null;
   private generation = 0;
   private phraseStartCtxTime: number | null = null;
   private phraseBufferDurationSec = 0;
@@ -127,6 +132,28 @@ export class EarTrainingChordVoicingPhrasePlayer {
   /** フレーズ音源を再生しない複合モード等で、ドラム BGM 用にコンテキストを確保する。 */
   ensureAudioContext(): AudioContext {
     return this.createCtx();
+  }
+
+  private async ensureCountInClickBuffer(ctx: AudioContext): Promise<AudioBuffer> {
+    if (this.countInClickBuffer) {
+      return this.countInClickBuffer;
+    }
+    let promise = this.decodeByUrl.get(COUNT_IN_CLICK_URL);
+    if (!promise) {
+      promise = (async () => {
+        const response = await fetch(COUNT_IN_CLICK_URL);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch count-in click: ${response.status}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        const copy = arrayBuffer.slice(0);
+        return await ctx.decodeAudioData(copy);
+      })();
+      this.decodeByUrl.set(COUNT_IN_CLICK_URL, promise);
+    }
+    const buffer = await promise;
+    this.countInClickBuffer = buffer;
+    return buffer;
   }
 
   async prepare(url: string): Promise<PreparedChordVoicingPhrase> {
@@ -279,11 +306,21 @@ export class EarTrainingChordVoicingPhrasePlayer {
       return;
     }
 
-    void ctx.resume().then(() => {
+    void ctx.resume().then(async () => {
       if (gen !== this.generation) {
         return;
       }
       phraseOut.gain.value = phraseGainLinear;
+
+      let clickBuffer: AudioBuffer;
+      try {
+        clickBuffer = await this.ensureCountInClickBuffer(ctx);
+      } catch {
+        return;
+      }
+      if (gen !== this.generation) {
+        return;
+      }
 
       const bpm = Math.max(20, Math.min(400, params.bpm));
       const safeGain = Math.max(0, Math.min(1, params.beatGain));
@@ -293,7 +330,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
       for (let i = 0; i < beats; i += 1) {
         const clickGain = i === 0 ? COUNT_IN_FIRST_CLICK_GAIN : COUNT_IN_CLICK_GAIN;
-        scheduleClickOsc(ctx, firstClick + i * spb, safeGain * clickGain, master);
+        scheduleClickBuffer(ctx, clickBuffer, firstClick + i * spb, safeGain * clickGain, master);
       }
 
       if (params.onBeat) {

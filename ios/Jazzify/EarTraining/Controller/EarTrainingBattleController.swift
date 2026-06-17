@@ -468,9 +468,6 @@ final class EarTrainingBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
-            if kind == .correct || kind == .voicingCast || kind == .complete {
-                audio.playFireMagicSe()
-            }
             scene?.runEffect(command)
         }
         // 長尺の Awesome メテオは着弾が通常エフェクトより遅い。

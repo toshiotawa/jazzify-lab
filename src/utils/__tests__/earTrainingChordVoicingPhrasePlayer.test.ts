@@ -27,19 +27,7 @@ class MockGainNode {
   connect = vi.fn();
 }
 
-class MockBufferSourceNode {
-  buffer: AudioBuffer | null = null;
-  onended: (() => void) | null = null;
-  connect = vi.fn();
-  start = vi.fn((when?: number) => {
-    if (typeof when === 'number') {
-      phraseStarts.push(when);
-    }
-  });
-  stop = vi.fn();
-}
-
-const fakeBuffer: AudioBuffer = {
+const fakePhraseBuffer: AudioBuffer = {
   duration: 8,
   sampleRate: 44100,
   length: 352800,
@@ -48,6 +36,28 @@ const fakeBuffer: AudioBuffer = {
   copyFromChannel: () => undefined,
   copyToChannel: () => undefined,
 };
+
+const fakeClickBuffer: AudioBuffer = {
+  duration: 0.6,
+  sampleRate: 44100,
+  length: 26460,
+  numberOfChannels: 2,
+  getChannelData: () => new Float32Array(0),
+  copyFromChannel: () => undefined,
+  copyToChannel: () => undefined,
+};
+
+class MockBufferSourceNode {
+  buffer: AudioBuffer | null = null;
+  onended: (() => void) | null = null;
+  connect = vi.fn();
+  start = vi.fn((when?: number) => {
+    if (typeof when === 'number' && this.buffer === fakePhraseBuffer) {
+      phraseStarts.push(when);
+    }
+  });
+  stop = vi.fn();
+}
 
 class MockAudioContext {
   currentTime = 0;
@@ -58,7 +68,7 @@ class MockAudioContext {
 
   decodeAudioData = vi.fn().mockImplementation(() => {
     decodeCallCount += 1;
-    return Promise.resolve(fakeBuffer);
+    return Promise.resolve(decodeCallCount === 1 ? fakeClickBuffer : fakePhraseBuffer);
   });
 
   createOscillator = (): MockOscillatorNode => new MockOscillatorNode();
@@ -68,6 +78,12 @@ class MockAudioContext {
 
 describe('EarTrainingChordVoicingPhrasePlayer', () => {
   const originalFetch = globalThis.fetch;
+
+  const flushPromises = async (): Promise<void> => {
+    for (let i = 0; i < 8; i += 1) {
+      await Promise.resolve();
+    }
+  };
 
   beforeEach(() => {
     phraseStarts.length = 0;
@@ -100,7 +116,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     mockCtx.currentTime = 0;
     const prepared = {
       url: 'https://example.com/a.mp3',
-      buffer: fakeBuffer,
+      buffer: fakePhraseBuffer,
     };
     player.schedulePreparedPhraseWithCountIn({
       prepared,
@@ -108,8 +124,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
       bpm: 60,
       beatGain: 1,
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
     const leadIn = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
     const spb = 1;
     const firstClick = mockCtx.currentTime + leadIn;
@@ -125,7 +140,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     const onInputWindowStart = vi.fn();
     const prepared = {
       url: 'https://example.com/b.mp3',
-      buffer: fakeBuffer,
+      buffer: fakePhraseBuffer,
     };
     player.schedulePreparedPhraseWithCountIn({
       prepared,
@@ -135,8 +150,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
       onBeat,
       onInputWindowStart,
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
     await vi.advanceTimersByTimeAsync(CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC * 1000);
     expect(onBeat).toHaveBeenLastCalledWith(3);
     await vi.advanceTimersByTimeAsync(3520);
@@ -167,7 +181,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     mockCtx.currentTime = 0;
     const prepared = {
       url: 'https://example.com/d.mp3',
-      buffer: fakeBuffer,
+      buffer: fakePhraseBuffer,
     };
     player.schedulePreparedPhraseWithCountIn({
       prepared,
@@ -175,8 +189,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
       bpm: 60,
       beatGain: 1,
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
     expect(player.getCurrentTime()).toBe(0);
     const phraseStart = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC + 1;
     mockCtx.currentTime = phraseStart + 0.5;
@@ -193,7 +206,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
       return g;
     });
     mockCtx.currentTime = 0;
-    const prepared = { url: 'https://example.com/a.mp3', buffer: fakeBuffer };
+    const prepared = { url: 'https://example.com/a.mp3', buffer: fakePhraseBuffer };
     player.playPrepared({ prepared, phraseGain: 0 });
     await Promise.resolve();
     await Promise.resolve();
@@ -215,7 +228,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     mockCtx.currentTime = 0;
     const prepared = {
       url: 'https://example.com/timeline.mp3',
-      buffer: fakeBuffer,
+      buffer: fakePhraseBuffer,
     };
     player.schedulePreparedPhraseWithCountIn({
       prepared,
@@ -223,8 +236,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
       bpm: 60,
       beatGain: 1,
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
     const phraseStart = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC + 1;
     mockCtx.currentTime = phraseStart - 0.05;
     expect(player.getCurrentTime()).toBe(0);

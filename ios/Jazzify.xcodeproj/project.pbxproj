@@ -214,6 +214,7 @@
 		FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F76672005EE666A9B39BC95 /* SurvivalModels.swift */; };
 		FB81F1928B9632D5FF13FC83 /* C4.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 857DD3059AA2EE3BAFAE0DE9 /* C4.mp3 */; };
 		F1FE000000FE11FE000FE002 /* fire_magic_1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */; };
+		F1FE000000FE11FE000FE004 /* drumstick-count.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F1FE000000FE11FE000FE003 /* drumstick-count.mp3 */; };
 		E92EE770002DD11EE000DD02 /* opensheetmusicdisplay.min.js in Resources */ = {isa = PBXBuildFile; fileRef = E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */; };
 		BR01MODELSTAGEBFCC03DD04EE05BR01 /* BalloonRushStageDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR01MODELSTAGEFRCC03DD04EE05BR01 /* BalloonRushStageDefinition.swift */; };
 		BR02MODELTYPESBFCC03DD04EE05BR01 /* BalloonRushTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BR02MODELTYPESFRCC03DD04EE05BR01 /* BalloonRushTypes.swift */; };
@@ -248,6 +249,7 @@
 		A1B2C3D4E5F6071890123461 /* MidiKeyboardBuyingGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidiKeyboardBuyingGuideView.swift; sourceTree = "<group>"; };
 		0E7D765BC46E4F868B334BAF /* Bravura.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Bravura.otf; sourceTree = "<group>"; };
 		F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = fire_magic_1.mp3; sourceTree = "<group>"; };
+		F1FE000000FE11FE000FE003 /* drumstick-count.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "drumstick-count.mp3"; sourceTree = "<group>"; };
 		E92EE770002DD11EE000DD01 /* opensheetmusicdisplay.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = opensheetmusicdisplay.min.js; sourceTree = "<group>"; };
 		0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyLayout.swift; sourceTree = "<group>"; };
 		E199AA0100000202 /* MainQuestFreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainQuestFreeTier.swift; sourceTree = "<group>"; };
@@ -916,6 +918,7 @@
 				4C41E7C1555DBD179FEBC98A /* piano */,
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 				F1FE000000FE11FE000FE001 /* fire_magic_1.mp3 */,
+				F1FE000000FE11FE000FE003 /* drumstick-count.mp3 */,
 				A1B2C3D4E5F61718293A4C1 /* DrumLoop.mp3 */,
 				BR16BALLOONMP3FRCC03DD04EE05BR01 /* Balloon.mp3 */,
 				SF2PIANO01FRCC03DD04EE05BR01 /* UprightPianoKW-small-bright-20190703.sf2 */,
@@ -1170,6 +1173,7 @@
 				E1E2F3A4B5C60718293A51A /* ear-training-developer-full-v1.script.json in Resources */,
 				EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */,
 				F1FE000000FE11FE000FE002 /* fire_magic_1.mp3 in Resources */,
+				F1FE000000FE11FE000FE004 /* drumstick-count.mp3 in Resources */,
 				E92EE770002DD11EE000DD02 /* opensheetmusicdisplay.min.js in Resources */,
 				QJ04BF01C3D4E5F61718293A04 /* Gameover.mp3 in Resources */,
 				QJ05BF01C3D4E5F61718293A05 /* クエスト完了.mp3 in Resources */,

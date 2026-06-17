@@ -923,9 +923,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
-            if kind == .correct || kind == .voicingCast || kind == .complete {
-                audio.playFireMagicSe()
-            }
             scene?.runEffect(command)
         }
         battleEffectClearTask?.cancel()

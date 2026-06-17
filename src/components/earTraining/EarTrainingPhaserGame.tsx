@@ -23,7 +23,7 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
   effectCommand,
   callbacks,
   className,
-  disableCorrectSe = false,
+  disableCorrectSe = true,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);

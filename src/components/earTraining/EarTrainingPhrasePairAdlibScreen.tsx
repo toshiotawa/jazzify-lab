@@ -58,7 +58,6 @@ import {
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { EarTrainingChordVoicingDrumLoop } from '@/utils/earTrainingChordVoicingDrumLoop';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
-import { unlockFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 import {
   buildEarTrainingEnemyBattleSourceKey,
   EAR_TRAINING_PLAYER_AVATAR_URL,
@@ -640,7 +639,6 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
       soundEffectVolume: settings.soundEffectVolume,
       rootSoundVolume: settings.rootSoundVolume,
     }).catch(() => undefined);
-    unlockFireMagicSe();
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     countInEarlyInputRef.current = false;

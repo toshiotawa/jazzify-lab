@@ -85,7 +85,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   effectCommand,
   callbacks,
   className,
-  disableCorrectSe = false,
+  disableCorrectSe = true,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

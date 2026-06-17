@@ -1582,9 +1582,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
-            if kind == .correct || kind == .voicingCast || kind == .complete {
-                audio.playFireMagicSe()
-            }
             scene?.runEffect(command)
         }
         let effectTimeoutMs = Self.effectDurationMs(kind: kind, label: label, phraseNoteCount: phraseNoteCount)
