@@ -67,5 +67,6 @@ final class SurvivalScenarioController: ObservableObject {
 
     func setDemoKeyboardHints(_ midis: [Int]) {
         session?.gameLoop.applyScenarioMutation { $0.demoKeyboardMidis = midis }
+        session?.viewModel.syncDemoKeyboardHints(midis)
     }
 }

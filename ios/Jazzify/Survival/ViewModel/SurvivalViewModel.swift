@@ -93,6 +93,14 @@ final class SurvivalViewModel: ObservableObject {
         clearReportInFlight = false
     }
 
+    /// demo_play: 外部スケジューラが HINT を更新した直後に鍵盤へ反映する（SpriteKit フレーム待ちを避ける）。
+    func syncDemoKeyboardHints(_ midis: [Int]) {
+        let next = Set(midis)
+        if next != chordPadHintMidis {
+            chordPadHintMidis = next
+        }
+    }
+
     /// `SKScene.update` の末尾で呼び、HUD / スロット用スナップショットだけ更新する。
     func syncAfterFrame(gameLoop: SurvivalGameLoop, now: TimeInterval) {
         let nextSnapshot = SurvivalUISnapshot.make(from: gameLoop.runtime, hintSlotIndex: gameLoop.currentHintSlotIndex)

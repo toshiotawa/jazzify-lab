@@ -190,36 +190,34 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
                     elapsedSeconds: elapsed
                 )
                 let delayNs = UInt64(delaySeconds * 1_000_000_000)
-                group.addTask {
+                group.addTask { @MainActor in
                     try? await Task.sleep(nanoseconds: delayNs)
                     guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        switch event.kind {
-                        case .chordStart:
-                            if let idx = event.chordIndex {
-                                activeChordIndex = idx
-                                setActiveChord(idx)
-                            }
-                        case .chordEnd:
-                            if event.chordIndex == activeChordIndex {
-                                activeChordIndex = nil
-                                setActiveChord(nil)
-                            }
-                        case .lineStart:
-                            if let idx = event.lineIndex {
-                                activeLineIndex = idx
-                                presentLine(at: idx)
-                            }
-                        case .lineEnd:
-                            if event.lineIndex == activeLineIndex {
-                                activeLineIndex = nil
-                                clearLines()
-                            }
-                        case .demoEnd:
-                            clearLines()
-                            setActiveChord(nil)
-                            onDone()
+                    switch event.kind {
+                    case .chordStart:
+                        if let idx = event.chordIndex {
+                            activeChordIndex = idx
+                            setActiveChord(idx)
                         }
+                    case .chordEnd:
+                        if event.chordIndex == activeChordIndex {
+                            activeChordIndex = nil
+                            setActiveChord(nil)
+                        }
+                    case .lineStart:
+                        if let idx = event.lineIndex {
+                            activeLineIndex = idx
+                            presentLine(at: idx)
+                        }
+                    case .lineEnd:
+                        if event.lineIndex == activeLineIndex {
+                            activeLineIndex = nil
+                            clearLines()
+                        }
+                    case .demoEnd:
+                        clearLines()
+                        setActiveChord(nil)
+                        onDone()
                     }
                 }
             }
