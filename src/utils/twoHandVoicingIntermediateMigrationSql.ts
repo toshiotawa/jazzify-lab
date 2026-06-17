@@ -273,8 +273,7 @@ const appendVoicingStageSql = (
         'ON CONFLICT (id) DO UPDATE SET',
         '  chord_name = EXCLUDED.chord_name,',
         '  voicing = EXCLUDED.voicing,',
-        '  voicing_staves = EXCLUDED.voicing_staves,',
-        '  updated_at = now();',
+        '  voicing_staves = EXCLUDED.voicing_staves;',
       );
     }
     lines.push('');

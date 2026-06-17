@@ -669,8 +669,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -688,8 +687,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -707,8 +705,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -726,8 +723,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -765,8 +761,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -784,8 +779,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -803,8 +797,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -822,8 +815,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -1036,8 +1028,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1055,8 +1046,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1074,8 +1064,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1093,8 +1082,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -1132,8 +1120,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1151,8 +1138,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1170,8 +1156,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1189,8 +1174,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -1403,8 +1387,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1422,8 +1405,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1441,8 +1423,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1460,8 +1441,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -1499,8 +1479,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1518,8 +1497,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1537,8 +1515,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1556,8 +1533,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -1770,8 +1746,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1789,8 +1764,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1808,8 +1782,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1827,8 +1800,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -1866,8 +1838,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1885,8 +1856,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1904,8 +1874,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -1923,8 +1892,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -2137,8 +2105,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2156,8 +2123,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2175,8 +2141,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2194,8 +2159,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -2233,8 +2197,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2252,8 +2215,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2271,8 +2233,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2290,8 +2251,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -2504,8 +2464,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2523,8 +2482,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2542,8 +2500,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2561,8 +2518,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -2600,8 +2556,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2619,8 +2574,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2638,8 +2592,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -2657,8 +2610,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -3554,8 +3506,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3573,8 +3524,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3592,8 +3542,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3611,8 +3560,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -3650,8 +3598,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3669,8 +3616,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3688,8 +3634,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3707,8 +3652,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -3921,8 +3865,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3940,8 +3883,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3959,8 +3901,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -3978,8 +3919,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -4017,8 +3957,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4036,8 +3975,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4055,8 +3993,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4074,8 +4011,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -4288,8 +4224,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4307,8 +4242,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4326,8 +4260,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4345,8 +4278,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -4384,8 +4316,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4403,8 +4334,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4422,8 +4352,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4441,8 +4370,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -4655,8 +4583,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4674,8 +4601,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4693,8 +4619,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4712,8 +4637,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -4751,8 +4675,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4770,8 +4693,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4789,8 +4711,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -4808,8 +4729,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -5022,8 +4942,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5041,8 +4960,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5060,8 +4978,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5079,8 +4996,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -5118,8 +5034,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5137,8 +5052,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5156,8 +5070,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5175,8 +5088,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
@@ -5389,8 +5301,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5408,8 +5319,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5427,8 +5337,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5446,8 +5355,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_phrases (
   id, stage_id, order_index, title, title_en,
@@ -5485,8 +5393,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5504,8 +5411,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5523,8 +5429,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 INSERT INTO public.ear_training_phrase_chords (
   id, phrase_id, order_index, chord_name,
   measure_number, beat_offset, duration_beats, start_time_sec, end_time_sec,
@@ -5542,8 +5447,7 @@ INSERT INTO public.ear_training_phrase_chords (
 ON CONFLICT (id) DO UPDATE SET
   chord_name = EXCLUDED.chord_name,
   voicing = EXCLUDED.voicing,
-  voicing_staves = EXCLUDED.voicing_staves,
-  updated_at = now();
+  voicing_staves = EXCLUDED.voicing_staves;
 
 INSERT INTO public.ear_training_stages (
   id, slug, title, title_en, description, description_en,
