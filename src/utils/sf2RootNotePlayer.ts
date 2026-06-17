@@ -282,7 +282,21 @@ const findInstrumentIndex = (generators: readonly Sf2Generator[]): number | null
   return generator ? generator.rawAmount : null;
 };
 
-const parseSampleZones = (arrayBuffer: ArrayBuffer): { readonly samples: Int16Array; readonly zones: readonly Sf2SampleZone[] } => {
+export interface OfflineSf2Zone {
+  readonly keyRange: Sf2KeyRange;
+  readonly rootMidi: number;
+  readonly coarseTune: number;
+  readonly fineTune: number;
+  readonly sampleModes: number;
+  readonly initialAttenuation: number;
+  readonly pitchCorrection: number;
+  readonly pcm: Float32Array;
+  readonly sampleRate: number;
+  readonly loopStartFrame: number;
+  readonly loopEndFrame: number;
+}
+
+export const parseSampleZones = (arrayBuffer: ArrayBuffer): { readonly samples: Int16Array; readonly zones: readonly Sf2SampleZone[] } => {
   const view = new DataView(arrayBuffer);
   if (readId(view, 0) !== 'RIFF' || readId(view, 8) !== 'sfbk') {
     throw new Error('Unsupported SF2 file');
@@ -406,6 +420,13 @@ const midiNotesFromPitchClasses = (baseOctaveMidi: number): readonly number[] =>
   Array.from({ length: 12 }, (_, index) => baseOctaveMidi + index)
 );
 
+/** サバイバル codeRunRootPlayer.load() のデフォルト（C2〜B2） */
+export const SURVIVAL_CODE_RUN_ROOT_BASE_MIDI = 36;
+
+export const survivalCodeRunRootMidiNotes = (): readonly number[] => (
+  midiNotesFromPitchClasses(SURVIVAL_CODE_RUN_ROOT_BASE_MIDI)
+);
+
 const makeAudioBuffer = (
   context: AudioContext,
   samples: Int16Array,
@@ -420,6 +441,98 @@ const makeAudioBuffer = (
     channel[i] = samples[start + i] / 32768;
   }
   return buffer;
+};
+
+const floatPcmFromSample = (samples: Int16Array, sample: Sf2SampleHeader): Float32Array => {
+  const start = Math.max(0, Math.min(samples.length, sample.start));
+  const end = Math.max(start + 1, Math.min(samples.length, sample.end));
+  const frameCount = end - start;
+  const pcm = new Float32Array(frameCount);
+  for (let i = 0; i < frameCount; i += 1) {
+    pcm[i] = samples[start + i] / 32768;
+  }
+  return pcm;
+};
+
+const toOfflineSf2Zone = (
+  samples: Int16Array,
+  zone: Sf2SampleZone,
+): OfflineSf2Zone => {
+  const loopStartFrames = Math.max(0, zone.sample.startLoop - zone.sample.start);
+  const loopEndFrames = Math.max(loopStartFrames, zone.sample.endLoop - zone.sample.start);
+  return {
+    keyRange: zone.keyRange,
+    rootMidi: zone.overridingRootKey ?? zone.sample.originalPitch,
+    coarseTune: zone.coarseTune,
+    fineTune: zone.fineTune,
+    sampleModes: zone.sampleModes,
+    initialAttenuation: zone.initialAttenuation,
+    pitchCorrection: zone.sample.pitchCorrection,
+    pcm: floatPcmFromSample(samples, zone.sample),
+    sampleRate: zone.sample.sampleRate,
+    loopStartFrame: loopStartFrames,
+    loopEndFrame: loopEndFrames,
+  };
+};
+
+/** オフライン MP3 生成用: Sf2RootNotePlayer.load と同様に MIDI ノートごとにゾーンを選ぶ。 */
+export const loadOfflineSf2ZonesForMidiNotes = (
+  arrayBuffer: ArrayBuffer,
+  midiNotes: readonly number[],
+): OfflineSf2Zone[] => {
+  const parsed = parseSampleZones(arrayBuffer);
+  const selectedZones: Sf2SampleZone[] = [];
+
+  for (const midiNote of midiNotes) {
+    const candidates = parsed.zones.filter(zone => zone.sample.sampleType !== 0);
+    const pickedMeta = pickSf2ZoneForMidi(
+      candidates.map(zone => ({
+        keyRange: zone.keyRange,
+        rootMidi: zone.overridingRootKey ?? zone.sample.originalPitch,
+      })),
+      midiNote,
+    );
+    if (!pickedMeta) {
+      continue;
+    }
+    const selected = candidates.find(
+      zone => zone.keyRange[0] === pickedMeta.keyRange[0]
+        && zone.keyRange[1] === pickedMeta.keyRange[1]
+        && (zone.overridingRootKey ?? zone.sample.originalPitch) === pickedMeta.rootMidi,
+    );
+    if (selected && !selectedZones.includes(selected)) {
+      selectedZones.push(selected);
+    }
+  }
+
+  return selectedZones.map(zone => toOfflineSf2Zone(parsed.samples, zone));
+};
+
+/** FingerBass SF2 をサバイバル正解ルート音と同じゾーンセットで読み込む */
+export const loadOfflineSf2ZonesForSurvivalCodeRunRoots = (
+  arrayBuffer: ArrayBuffer,
+): OfflineSf2Zone[] => loadOfflineSf2ZonesForMidiNotes(arrayBuffer, survivalCodeRunRootMidiNotes());
+
+/** オフライン MP3 生成用: 指定 MIDI 範囲と重なる SF2 ゾーンをすべて読み込む。 */
+export const loadOfflineSf2ZonesForMidiRange = (
+  arrayBuffer: ArrayBuffer,
+  minMidi: number,
+  maxMidi: number,
+): OfflineSf2Zone[] => {
+  const parsed = parseSampleZones(arrayBuffer);
+  const prepared: OfflineSf2Zone[] = [];
+
+  for (const zone of parsed.zones) {
+    if (zone.sample.sampleType === 0) {
+      continue;
+    }
+    if (zone.keyRange[1] < minMidi || zone.keyRange[0] > maxMidi) {
+      continue;
+    }
+
+    prepared.push(toOfflineSf2Zone(parsed.samples, zone));
+  }
+  return prepared;
 };
 
 export class Sf2RootNotePlayer {

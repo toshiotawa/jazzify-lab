@@ -1,6 +1,7 @@
 /**
  * 両手ヴォイシングコース(中級) Supabase マイグレーション SQL 生成。
  */
+import { buildDrop2IIVIABADemoScript } from '@/components/survival/tutorial/buildDrop2IIVIABADemoScript';
 import {
   TWO_HAND_VOICING_BGM_URL,
   TWO_HAND_VOICING_BLOCK_META,
@@ -26,7 +27,7 @@ const uuidV5 = (key: string): string => (
 
 const BGM_OVERRIDE_JSON = sqlJson({ bgmUrl: TWO_HAND_VOICING_BGM_URL });
 
-const DEMO_SCRIPT = (blockNumber: number): string => sqlJson({
+const QUEST1_PLACEHOLDER_DEMO_SCRIPT = (blockNumber: number): string => sqlJson({
   version: 3,
   audioTracks: {
     drum_loop: { url: TWO_HAND_VOICING_BGM_URL, volume: 0.5 },
@@ -68,6 +69,12 @@ const DEMO_SCRIPT = (blockNumber: number): string => sqlJson({
   ],
   finish: { showCta: true },
 });
+
+const quest1DemoScriptJson = (lesson: TwoHandVoicingLessonSpec): string => (
+  lesson.lessonKey === 'b1-q1'
+    ? sqlJson(buildDrop2IIVIABADemoScript())
+    : QUEST1_PLACEHOLDER_DEMO_SCRIPT(lesson.blockNumber)
+);
 
 const appendSurvivalStageSql = (
   lines: string[],
@@ -484,7 +491,7 @@ export const generateTwoHandVoicingIntermediateMigrationSql = (): string => {
         `  ${sqlString(scriptId)},`,
         `  ${sqlString(`両手ヴォイシング デモ (${lesson.titleJa})`)},`,
         `  ${sqlString(`Two-hand voicing demo (${lesson.titleEn})`)},`,
-        `  ${DEMO_SCRIPT(lesson.blockNumber)}`,
+        `  ${quest1DemoScriptJson(lesson)}`,
         ')',
         'ON CONFLICT (id) DO UPDATE SET',
         '  title = EXCLUDED.title,',
