@@ -45,25 +45,18 @@ export const buildDemoStaffVoicingGroups = (
     .map((chord, index) => ({ chord, index }))
     .filter(({ chord }) => chord.measureNumber === windowStartMeasure);
 
-  const slotByMeasure = new Map<number, number>();
-
   return visible.flatMap(({ chord, index }) => {
     if (chord.voicing.length === 0) {
       return [];
     }
 
-    const measure = chord.measureNumber;
-    const slotIndex = slotByMeasure.get(measure) ?? 0;
-    slotByMeasure.set(measure, slotIndex + 1);
-
     const names = voicingNamesFor(chord);
     const staves = voicingStavesFor(chord, names);
     const isActive = activeChordIndex === index;
-    const showLabel = slotIndex === 0;
 
     return [{
       id: chordEventId(chord, index),
-      chordName: showLabel ? chord.chordName : '',
+      chordName: isActive ? chord.chordName : '',
       voicing: names,
       voicingStaves: staves,
       correctPitchClasses: isActive ? chord.voicing.map((m) => ((m % 12) + 12) % 12) : [],

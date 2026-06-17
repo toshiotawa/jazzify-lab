@@ -3,12 +3,68 @@ import {
   beatToSeconds,
   buildDemoPlaySchedule,
 } from '@/components/survival/tutorial/survivalTutorialDemoPlayScheduler';
+import type { SurvivalTutorialV3DemoChordEvent } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import {
   buildDemoStaffVoicingGroups,
   isDemoStaffRestWindow,
   resolveDemoStaffWindowStartMeasure,
 } from '@/components/survival/tutorial/SurvivalTutorialDemoStaff';
 import { buildSurvivalDeveloperDemoPlayV3Script, DEMO_PLAY_HALF_BEAT_SCALE_START_MIDI } from '@/components/survival/tutorial/buildSurvivalDeveloperDemoPlayV3Script';
+
+const SAME_MEASURE_HALF_BAR_CHORDS: readonly SurvivalTutorialV3DemoChordEvent[] = [
+  {
+    startBeat: 100,
+    durationBeats: 2,
+    chordName: 'Dm7',
+    voicing: [48, 53, 57, 64],
+    voicingNames: ['C3', 'F3', 'A3', 'E4'],
+    voicing_staves: [2, 2, 2, 1],
+    measureNumber: 26,
+    keyFifths: 0,
+  },
+  {
+    startBeat: 102,
+    durationBeats: 2,
+    chordName: 'G7',
+    voicing: [47, 53, 57, 64],
+    voicingNames: ['B2', 'F3', 'A3', 'E4'],
+    voicing_staves: [2, 2, 2, 1],
+    measureNumber: 26,
+    keyFifths: 0,
+  },
+  {
+    startBeat: 104,
+    durationBeats: 4,
+    chordName: 'CM7',
+    voicing: [47, 52, 55, 62],
+    voicingNames: ['B2', 'E3', 'G3', 'D4'],
+    voicing_staves: [2, 2, 2, 1],
+    measureNumber: 27,
+    keyFifths: 0,
+  },
+];
+
+const findActiveDemoChordAtBeat = (
+  chords: readonly SurvivalTutorialV3DemoChordEvent[],
+  currentBeat: number,
+): SurvivalTutorialV3DemoChordEvent | undefined =>
+  chords.find(
+    (chord) =>
+      currentBeat >= chord.startBeat &&
+      currentBeat < chord.startBeat + chord.durationBeats,
+  );
+
+const findActiveDemoChordIndexAtBeat = (
+  chords: readonly SurvivalTutorialV3DemoChordEvent[],
+  currentBeat: number,
+): number | null => {
+  const index = chords.findIndex(
+    (chord) =>
+      currentBeat >= chord.startBeat &&
+      currentBeat < chord.startBeat + chord.durationBeats,
+  );
+  return index >= 0 ? index : null;
+};
 
 describe('survivalTutorialDemoPlayScheduler', () => {
   const script = buildSurvivalDeveloperDemoPlayV3Script();
@@ -87,5 +143,38 @@ describe('survivalTutorialDemoPlayScheduler', () => {
       }
       expect(current).toBeGreaterThan(prev);
     }
+  });
+
+  it('resolves active chord by startBeat for same-measure half-bar switches', () => {
+    const measure26Start = (26 - 1) * 4;
+    expect(findActiveDemoChordAtBeat(SAME_MEASURE_HALF_BAR_CHORDS, measure26Start)?.chordName).toBe('Dm7');
+    expect(findActiveDemoChordAtBeat(SAME_MEASURE_HALF_BAR_CHORDS, measure26Start + 1)?.chordName).toBe('Dm7');
+    expect(findActiveDemoChordAtBeat(SAME_MEASURE_HALF_BAR_CHORDS, measure26Start + 2)?.chordName).toBe('G7');
+    expect(findActiveDemoChordAtBeat(SAME_MEASURE_HALF_BAR_CHORDS, measure26Start + 3)?.chordName).toBe('G7');
+    expect(findActiveDemoChordAtBeat(SAME_MEASURE_HALF_BAR_CHORDS, measure26Start + 4)?.chordName).toBe('CM7');
+
+    const dm7Index = findActiveDemoChordIndexAtBeat(SAME_MEASURE_HALF_BAR_CHORDS, measure26Start);
+    const g7Index = findActiveDemoChordIndexAtBeat(SAME_MEASURE_HALF_BAR_CHORDS, measure26Start + 2);
+    expect(dm7Index).not.toBeNull();
+    expect(g7Index).not.toBeNull();
+    expect(dm7Index).not.toBe(g7Index);
+
+    const dm7Snapshot = {
+      chords: SAME_MEASURE_HALF_BAR_CHORDS,
+      activeChordIndex: dm7Index,
+      keyFifths: 0,
+      windowStartMeasure: 26,
+    };
+    const g7Snapshot = {
+      ...dm7Snapshot,
+      activeChordIndex: g7Index,
+    };
+
+    const dm7Groups = buildDemoStaffVoicingGroups(dm7Snapshot);
+    const g7Groups = buildDemoStaffVoicingGroups(g7Snapshot);
+    expect(dm7Groups.find((g) => g.isActive)?.chordName).toBe('Dm7');
+    expect(g7Groups.find((g) => g.isActive)?.chordName).toBe('G7');
+    expect(dm7Groups.filter((g) => g.chordName.length > 0)).toHaveLength(1);
+    expect(g7Groups.filter((g) => g.chordName.length > 0)).toHaveLength(1);
   });
 });

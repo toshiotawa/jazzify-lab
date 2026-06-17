@@ -45,7 +45,6 @@ struct SurvivalTutorialDemoStaffView: View {
     }
 
     private static func buildPresentation(snapshot: SurvivalTutorialDemoStaffSnapshot) -> Presentation {
-        var slotByMeasure: [Int: Int] = [:]
         var groups: [EarTrainingChordVoicingStaffLayout.GroupInput] = []
         var correctByGroupId: [UUID: Set<Int>] = [:]
         var activeGroupId: UUID?
@@ -64,8 +63,6 @@ struct SurvivalTutorialDemoStaffView: View {
             }
             hasVoicedInWindow = true
 
-            let slotIndex = slotByMeasure[chord.measure_number, default: 0]
-            slotByMeasure[chord.measure_number] = slotIndex + 1
             let names = SurvivalTutorialDemoStaffBuilder.voicingNames(for: chord)
             let staves = SurvivalTutorialDemoStaffBuilder.voicingStaves(for: chord, names: names)
             let measureOffset = 0
@@ -80,7 +77,7 @@ struct SurvivalTutorialDemoStaffView: View {
             groups.append(
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: groupId,
-                    chordName: slotIndex == 0 ? chord.chordName : "",
+                    chordName: isActive ? chord.chordName : "",
                     voicing: names,
                     voicingStaves: staves,
                     measureOffset: measureOffset,
