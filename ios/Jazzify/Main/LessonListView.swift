@@ -1507,6 +1507,8 @@ private struct EarTrainingLaunch: Identifiable {
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
+    /// レッスン課題の `survival_lesson_overrides.bgmUrl`（コードクイズ BGM 上書き）。
+    let bgmUrl: String?
     /// Web `#ear-training-lesson?practice=1` 相当。
     var initialPracticeMode: Bool = false
 }
@@ -1795,7 +1797,8 @@ struct LessonDetailView: View {
                     lessonContext: EarTrainingLessonContext(
                         lessonId: launch.lessonId,
                         lessonSongId: launch.lessonSongId,
-                        clearConditions: launch.clearConditions
+                        clearConditions: launch.clearConditions,
+                        bgmUrl: launch.bgmUrl
                     ),
                     locale: locale,
                     initialPracticeMode: launch.initialPracticeMode,
@@ -3414,11 +3417,14 @@ struct LessonDetailView: View {
                 alertMessage = locale == .ja ? "バトルモードステージ設定がありません。" : "Missing battle mode stage setting."
                 return
             }
+            let overrideBgm = requirement.survivalLessonOverrides?.bgmUrl?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             earTrainingLaunch = EarTrainingLaunch(
                 stageId: stageId,
                 lessonId: activeLesson.id,
                 lessonSongId: requirement.id,
-                clearConditions: requirement.clearConditions
+                clearConditions: requirement.clearConditions,
+                bgmUrl: (overrideBgm?.isEmpty == false) ? overrideBgm : nil
             )
             return
         }

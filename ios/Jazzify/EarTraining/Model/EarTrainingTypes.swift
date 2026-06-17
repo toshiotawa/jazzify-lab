@@ -186,4 +186,6 @@ struct EarTrainingLessonContext: Sendable {
     let lessonId: UUID
     let lessonSongId: UUID
     let clearConditions: LessonClearConditions?
+    /// レッスン課題の `survival_lesson_overrides.bgmUrl`（コードクイズ BGM 上書き。未設定時は従来どおり）。
+    let bgmUrl: String?
 }

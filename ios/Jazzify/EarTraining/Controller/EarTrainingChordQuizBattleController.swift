@@ -21,10 +21,21 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private static let chordVoicingSelfPacedDrumLoopURL =
         URL(string: "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3")!
 
+    /// Web `resolveQuizDrumLoopUrl` と同等。`bgmUrl` 未設定のレッスンは従来の drums160 ループ。
+    static func resolveQuizDrumLoopURL(lessonContext: EarTrainingLessonContext?) -> URL {
+        if let raw = lessonContext?.bgmUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty,
+           let url = URL(string: raw) {
+            return url
+        }
+        if lessonContext != nil {
+            return URL(string: BalloonRushDrumLoopBgm.urlString)!
+        }
+        return chordVoicingSelfPacedDrumLoopURL
+    }
+
     private var quizDrumLoopURL: URL {
-        lessonContext != nil
-            ? URL(string: BalloonRushDrumLoopBgm.urlString)!
-            : Self.chordVoicingSelfPacedDrumLoopURL
+        Self.resolveQuizDrumLoopURL(lessonContext: lessonContext)
     }
 
     private var quizDrumLoopDurationSec: Int {
