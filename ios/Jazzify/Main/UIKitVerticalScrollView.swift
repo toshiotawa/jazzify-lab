@@ -92,6 +92,8 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
         var scrollTargetYBinding: Binding<CGFloat?>
         var viewportBinding: Binding<UIKitVerticalViewport>
         var lastContentToken: AnyHashable?
+        var lastContentHeight: CGFloat = 0
+        var lastAppliedScrollTargetY: CGFloat?
 
         private var lastPublishedViewport: UIKitVerticalViewport = .zero
         /// 1px 単位で publish すると SwiftUI 再評価が多すぎるので粗く丸める
@@ -193,11 +195,17 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
 
         let newWidth = max(1, contentSize.width)
         let newHeight = max(1, contentSize.height)
-        if context.coordinator.widthConstraint?.constant != newWidth {
-            context.coordinator.widthConstraint?.constant = newWidth
+        if abs((context.coordinator.lastContentHeight) - newHeight) > 0.5 {
+            context.coordinator.lastAppliedScrollTargetY = nil
+            context.coordinator.lastContentHeight = newHeight
         }
-        if context.coordinator.heightConstraint?.constant != newHeight {
-            context.coordinator.heightConstraint?.constant = newHeight
+        if let widthConstraint = context.coordinator.widthConstraint,
+           abs(widthConstraint.constant - newWidth) > 0.5 {
+            widthConstraint.constant = newWidth
+        }
+        if let heightConstraint = context.coordinator.heightConstraint,
+           abs(heightConstraint.constant - newHeight) > 0.5 {
+            heightConstraint.constant = newHeight
         }
 
         context.coordinator.publishViewportIfNeeded(from: uiView)
@@ -208,25 +216,34 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
 
         targeted.alwaysCancelContentTouches = delaysContentTouches
 
-        if let targetY = scrollTargetY {
-            targeted.pendingTargetY = targetY
-            targeted.pendingAnimated = animated
-            targeted.onApplied = { [weak coordinator = context.coordinator] in
-                // SwiftUI の view update / layout サイクル中に Binding を書き戻すと
-                // "Modifying state during view update" 警告になるので必ず次の runloop に逃がす。
-                DispatchQueue.main.async {
-                    guard let coordinator else { return }
-                    if coordinator.scrollTargetYBinding.wrappedValue != nil {
-                        coordinator.scrollTargetYBinding.wrappedValue = nil
-                    }
+        guard let targetY = scrollTargetY else { return }
+
+        if let lastApplied = context.coordinator.lastAppliedScrollTargetY,
+           abs(lastApplied - targetY) < 0.5 {
+            DispatchQueue.main.async {
+                if context.coordinator.scrollTargetYBinding.wrappedValue != nil {
+                    context.coordinator.scrollTargetYBinding.wrappedValue = nil
                 }
             }
-            targeted.layoutIfNeeded()
-            targeted.applyPendingIfReady()
+            return
+        }
+
+        context.coordinator.lastAppliedScrollTargetY = targetY
+        targeted.pendingTargetY = targetY
+        targeted.pendingAnimated = animated
+        targeted.onApplied = { [weak coordinator = context.coordinator] in
             DispatchQueue.main.async {
-                targeted.applyPendingIfReady()
-                context.coordinator.publishViewportIfNeeded(from: targeted)
+                guard let coordinator else { return }
+                if coordinator.scrollTargetYBinding.wrappedValue != nil {
+                    coordinator.scrollTargetYBinding.wrappedValue = nil
+                }
             }
+        }
+        targeted.layoutIfNeeded()
+        targeted.applyPendingIfReady()
+        DispatchQueue.main.async {
+            targeted.applyPendingIfReady()
+            context.coordinator.publishViewportIfNeeded(from: targeted)
         }
     }
 }

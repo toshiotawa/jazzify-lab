@@ -693,6 +693,8 @@ struct SurvivalDescentCharacterView: View {
     let scale: CGFloat
     /// 'right' → 右を向く (通常) / 'left' → 左を向く / 'center' → 大踊り場で正面
     var facing: Facing = .right
+    /// 学びの旅マップの UIScrollView 内では `false` にし、呼吸アニメによる再描画を避ける。
+    var animateBreathe: Bool = true
 
     enum Facing { case left, right, center }
 
@@ -746,6 +748,7 @@ struct SurvivalDescentCharacterView: View {
         )
         .allowsHitTesting(false)
         .onAppear {
+            guard animateBreathe else { return }
             withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
                 breathe = true
             }

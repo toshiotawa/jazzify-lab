@@ -119,6 +119,7 @@ struct LessonListView: View {
                             lessonsMap[launch.course.id] = lessons
                         }
                     )
+                    .id(launch.course.id)
                 }
             }
             .navigationDestination(

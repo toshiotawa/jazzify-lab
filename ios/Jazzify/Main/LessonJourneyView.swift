@@ -30,6 +30,7 @@ struct LessonJourneyView: View {
     @State private var scrollTargetY: CGFloat?
     @State private var scrollAnimated: Bool = false
     @State private var didInitialScroll: Bool = false
+    @State private var layoutSignature: String = ""
 
     private var locale: AppLocale { appState.locale }
 
@@ -60,6 +61,16 @@ struct LessonJourneyView: View {
         self._frontierLessonId = State(initialValue: derived.frontierLessonId)
         self._accessibleBlockIndex = State(initialValue: derived.accessibleBlockIndex)
         self._allCleared = State(initialValue: derived.allCleared)
+        self._layoutSignature = State(
+            initialValue: Self.makeLayoutSignature(
+                lessons: lessons,
+                completedLessonIds: completedLessonIds,
+                layout: derived.layout,
+                locale: .ja,
+                isMainCourse: course.isMainCourse == true,
+                isPremium: true
+            )
+        )
     }
 
     private static func computeDerived(
@@ -127,6 +138,52 @@ struct LessonJourneyView: View {
         frontierLessonId = d.frontierLessonId
         accessibleBlockIndex = d.accessibleBlockIndex
         allCleared = d.allCleared
+        layoutSignature = Self.makeLayoutSignature(
+            lessons: lessons,
+            completedLessonIds: completedLessonIds,
+            layout: d.layout,
+            locale: locale,
+            isMainCourse: course.isMainCourse == true,
+            isPremium: appState.isPremium
+        )
+    }
+
+    private static func makeLayoutSignature(
+        lessons: [Lesson],
+        completedLessonIds: Set<UUID>,
+        layout: LessonJourneyLayout,
+        locale: AppLocale,
+        isMainCourse: Bool,
+        isPremium: Bool
+    ) -> String {
+        var hasher = Hasher()
+        hasher.combine(lessons.count)
+        for lesson in lessons {
+            hasher.combine(lesson.id)
+            hasher.combine(lesson.blockNumber ?? 1)
+            hasher.combine(lesson.orderIndex)
+        }
+        for id in completedLessonIds.sorted(by: { $0.uuidString < $1.uuidString }) {
+            hasher.combine(id)
+        }
+        hasher.combine(layout.totalHeight)
+        hasher.combine(layout.blocks.count)
+        hasher.combine(locale.rawValue)
+        if isMainCourse {
+            hasher.combine(isPremium)
+        }
+        return String(hasher.finalize())
+    }
+
+    private func mapContentToken(useSplitLayout: Bool) -> AnyHashable {
+        var hasher = Hasher()
+        hasher.combine(layoutSignature)
+        hasher.combine(frontierLessonId)
+        hasher.combine(accessibleBlockIndex)
+        hasher.combine(allCleared)
+        hasher.combine(selectedLesson?.id)
+        hasher.combine(useSplitLayout)
+        return hasher.finalize()
     }
 
     private var completedCount: Int {
@@ -238,13 +295,23 @@ struct LessonJourneyView: View {
             onCompletedIdsChanged?(completedLessonIds)
         }
         .task {
+            let hadLessons = !lessons.isEmpty
             await loadCourseContentIfNeeded()
-            recomputeJourney()
+            if !hadLessons {
+                recomputeJourney()
+            } else if locale == .en {
+                recomputeJourney()
+            }
         }
         .onChange(of: appState.locale) { _ in
             recomputeJourney()
         }
         .onChange(of: appState.profile?.rank) { _ in
+            guard course.isMainCourse == true else { return }
+            recomputeJourney()
+        }
+        .onChange(of: appState.isPremium) { _ in
+            guard course.isMainCourse == true else { return }
             recomputeJourney()
         }
         .sheet(isPresented: $showSheet) {
@@ -295,30 +362,46 @@ struct LessonJourneyView: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             let height = proxy.size.height
-            let scale = min(max(0.7, width / LessonJourneyLayoutConstants.logicalWidth), 2.2)
-            let contentHeight = layout.totalHeight * scale
+            let rawScale = min(max(0.7, width / LessonJourneyLayoutConstants.logicalWidth), 2.2)
+            let scale = (rawScale * 100).rounded() / 100
+            let contentHeight = ceil(layout.totalHeight * scale)
+            let splitLayout = useSplitLayout
+            let contentToken = mapContentToken(useSplitLayout: splitLayout)
 
             ZStack {
-                // 背景 (星空 + ネビュラ) は viewport 固定。
-                // contentHeight は数千 pt になりうるため、巨大な背景を
-                // スクロール内に置くと描画破綻 (星が出ない) と負荷増に直結する。
                 LessonJourneyBackgroundView(widthPx: width, heightPx: height)
                     .allowsHitTesting(false)
 
                 UIKitVerticalScrollView(
                     contentSize: CGSize(width: width, height: contentHeight),
                     scrollTargetY: $scrollTargetY,
-                    animated: scrollAnimated
+                    animated: scrollAnimated,
+                    contentToken: contentToken
                 ) {
-                    mapContentBody(width: width, scale: scale, contentHeight: contentHeight)
+                    LessonJourneyMapContent(
+                        layout: layout,
+                        lessons: lessons,
+                        locale: locale,
+                        courseTitle: course.localizedTitle(locale),
+                        accessGraph: accessGraph,
+                        frontierLessonId: frontierLessonId,
+                        accessibleBlockIndex: accessibleBlockIndex,
+                        allCleared: allCleared,
+                        selectedLessonId: selectedLesson?.id,
+                        useSplitLayout: splitLayout,
+                        width: width,
+                        scale: scale,
+                        contentHeight: contentHeight,
+                        bandYPx: bandYPx(for:scale:),
+                        onSelect: handleSelect
+                    )
                 }
                 .onAppear {
                     requestScrollToFrontier(scale: scale, animated: false)
                 }
-                .onChange(of: contentHeight) { _ in
-                    if !didInitialScroll {
-                        requestScrollToFrontier(scale: scale, animated: false)
-                    }
+                .onChange(of: layoutSignature) { _ in
+                    didInitialScroll = false
+                    requestScrollToFrontier(scale: scale, animated: false)
                 }
                 .onChange(of: scrollTargetLessonId) { target in
                     guard let target,
@@ -331,200 +414,13 @@ struct LessonJourneyView: View {
         }
     }
 
-    @ViewBuilder
-    private func mapContentBody(width: CGFloat, scale: CGFloat, contentHeight: CGFloat) -> some View {
-        // 背景はスクロールの外 (viewport サイズ固定) に置いているため、
-        // ここではマップ本体 (経路・ブロック・ノード・キャラ等) のみを描く。
-        ZStack(alignment: .topLeading) {
-            // 中央カラム
-            ZStack(alignment: .topLeading) {
-                LessonJourneyPathCanvas(
-                    layout: layout,
-                    scale: scale,
-                    accessGraph: accessGraph,
-                    frontierLessonId: frontierLessonId
-                )
-                .frame(
-                    width: layout.logicalWidth * scale,
-                    height: contentHeight
-                )
-
-                ForEach(layout.blocks) { block in
-                    LessonJourneyBlockThemeOverlay(
-                        topY: block.topY,
-                        bottomY: block.bottomY,
-                        widthPx: layout.logicalWidth * scale,
-                        scale: scale,
-                        theme: block.theme,
-                        dim: block.blockIndex > accessibleBlockIndex
-                    )
-                }
-
-                ForEach(layout.blocks) { block in
-                    let labels = bandLabels(for: block)
-                    LessonJourneyBandView(
-                        widthPx: layout.logicalWidth * scale,
-                        yPx: bandYPx(for: block, scale: scale),
-                        label: labels.main,
-                        sublabel: labels.sub,
-                        theme: block.theme,
-                        dim: block.blockIndex > accessibleBlockIndex
-                    )
-                }
-
-                ForEach(layout.blocks) { block in
-                    if block.blockIndex > accessibleBlockIndex {
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.black.opacity(0.82),
-                                        Color.black.opacity(0.62),
-                                        Color.black.opacity(0.78),
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .frame(
-                                width: layout.logicalWidth * scale,
-                                height: (block.bottomY - block.topY) * scale
-                            )
-                            .position(
-                                x: layout.logicalWidth * scale / 2,
-                                y: (block.topY + block.bottomY) / 2 * scale
-                            )
-                            .allowsHitTesting(false)
-                    }
-                }
-
-                LessonJourneyGoalView(
-                    xPx: layout.goal.x * scale,
-                    yPx: layout.goal.y * scale,
-                    scale: scale,
-                    cleared: allCleared,
-                    label: course.localizedTitle(locale)
-                )
-
-                ForEach(layout.blocks) { block in
-                    ForEach(block.lessonNodes) { node in
-                        LessonJourneyNodeView(
-                            node: node,
-                            scale: scale,
-                            accessState: accessState(for: node),
-                            isFrontier: node.lessonId == frontierLessonId && block.blockIndex <= accessibleBlockIndex,
-                            selected: selectedLesson?.id == node.lessonId,
-                            dim: block.blockIndex > accessibleBlockIndex,
-                            onSelect: {
-                                if let lessonId = node.lessonId,
-                                   let lesson = lessons.first(where: { $0.id == lessonId }) {
-                                    handleSelect(lesson)
-                                }
-                            }
-                        )
-                    }
-                }
-
-                if !useSplitLayout {
-                    ForEach(layout.blocks) { block in
-                        ForEach(block.lessonNodes) { node in
-                            if let lessonId = node.lessonId,
-                               let lesson = lessons.first(where: { $0.id == lessonId }) {
-                                let dimBlock = block.blockIndex > accessibleBlockIndex
-                                let titleMaxLogical = max(84, layout.logicalWidth - node.x - 8)
-                                let titleMaxPx = titleMaxLogical * scale
-                                let nodeRadiusPx = 24 * scale
-                                let gapPx: CGFloat = 8
-                                let titleCenterX = node.x * scale + nodeRadiusPx + gapPx + titleMaxPx / 2
-                                Text(lesson.localizedTitle(locale))
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.white.opacity(dimBlock ? 0.38 : 0.92))
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                    .frame(width: titleMaxPx, alignment: .leading)
-                                    .position(x: titleCenterX, y: node.y * scale)
-                                    .allowsHitTesting(false)
-                            }
-                        }
-                    }
-                }
-
-                if let frontierNode = layout.allNodes.first(where: { $0.lessonId == frontierLessonId }) {
-                    SurvivalDescentCharacterView(
-                        xPx: frontierNode.x * scale,
-                        yPx: frontierNode.y * scale,
-                        scale: scale,
-                        facing: lessonJourneyFrontierFacing(for: frontierNode)
-                    )
-                } else if allCleared {
-                    SurvivalDescentCharacterView(
-                        xPx: layout.goal.x * scale,
-                        yPx: layout.goal.y * scale,
-                        scale: scale,
-                        facing: .center
-                    )
-                }
-            }
-            .frame(width: layout.logicalWidth * scale, height: contentHeight)
-            .offset(x: max(0, (width - layout.logicalWidth * scale) / 2))
-        }
-        .frame(width: width, height: contentHeight)
-    }
-
     // MARK: - Helpers
-
-    /// WEB `LessonJourneyMap` の `frontierFacing` と同値（次ノード方向で左右／ほぼ同じ X は正面）。
-    private func lessonJourneyFrontierFacing(for frontierNode: LessonJourneyNode) -> SurvivalDescentCharacterView.Facing {
-        guard frontierNode.blockIndex >= 0, frontierNode.blockIndex < layout.blocks.count else {
-            return .center
-        }
-        let block = layout.blocks[frontierNode.blockIndex]
-        guard let indexInBlock = block.lessonNodes.firstIndex(where: { $0.id == frontierNode.id }) else {
-            return .center
-        }
-        let nextInBlock: LessonJourneyNode? = {
-            let j = indexInBlock + 1
-            guard j < block.lessonNodes.count else { return nil }
-            return block.lessonNodes[j]
-        }()
-        let nextBlockFirst: LessonJourneyNode? = {
-            let bi = frontierNode.blockIndex + 1
-            guard bi < layout.blocks.count else { return nil }
-            return layout.blocks[bi].lessonNodes.first
-        }()
-        let next = nextInBlock ?? nextBlockFirst ?? layout.goal
-
-        if next.x > frontierNode.x + 1 { return .right }
-        if next.x < frontierNode.x - 1 { return .left }
-        return .center
-    }
-
-    private func accessState(for node: LessonJourneyNode) -> LessonJourneyAccessGraph.LessonState {
-        guard let id = node.lessonId else {
-            return LessonJourneyAccessGraph.LessonState(isUnlocked: false, isCompleted: false)
-        }
-        return accessGraph.lessonStates[id] ?? LessonJourneyAccessGraph.LessonState(isUnlocked: false, isCompleted: false)
-    }
 
     private func blockLabel(for lesson: Lesson) -> String {
         if locale == .en, let en = lesson.blockNameEn, !en.isEmpty { return en }
         if let name = lesson.blockName, !name.isEmpty { return name }
         let bn = lesson.blockNumber ?? 1
         return locale == .ja ? "ブロック \(bn)" : "Block \(bn)"
-    }
-
-    /// 帯ラベル: 表示言語に応じて主・副を入れ替える。
-    /// - 英語UI: 主のみ（`blockNameEn` があればそれ、なければ `blockName`）。副行は出さない。
-    /// - 日本語UI: JA を主、EN を副
-    private func bandLabels(for block: LessonJourneyBlockLayout) -> (main: String, sub: String?) {
-        let en = block.blockNameEn?.isEmpty == false ? block.blockNameEn : nil
-        if locale == .en {
-            if let en {
-                return (main: en, sub: nil)
-            }
-            return (main: block.blockName, sub: nil)
-        }
-        return (main: block.blockName, sub: en)
     }
 
     private func handleSelect(_ lesson: Lesson) {
@@ -554,10 +450,9 @@ struct LessonJourneyView: View {
         }()
         scrollAnimated = animated
         if let node = targetNode {
-            scrollTargetY = node.y * scale
+            scrollTargetY = ceil(node.y * scale)
         } else {
-            // ノードが一つも無い → マップ最下端へ
-            scrollTargetY = layout.totalHeight * scale
+            scrollTargetY = ceil(layout.totalHeight * scale)
         }
         didInitialScroll = true
     }
@@ -612,6 +507,211 @@ struct LessonJourneyView: View {
         } catch {
             lessons = []
         }
+    }
+}
+
+// MARK: - Map content
+
+private struct LessonJourneyMapContent: View {
+    let layout: LessonJourneyLayout
+    let lessons: [Lesson]
+    let locale: AppLocale
+    let courseTitle: String
+    let accessGraph: LessonJourneyAccessGraph
+    let frontierLessonId: UUID?
+    let accessibleBlockIndex: Int
+    let allCleared: Bool
+    let selectedLessonId: UUID?
+    let useSplitLayout: Bool
+    let width: CGFloat
+    let scale: CGFloat
+    let contentHeight: CGFloat
+    let bandYPx: (LessonJourneyBlockLayout, CGFloat) -> CGFloat
+    let onSelect: (Lesson) -> Void
+
+    private var lessonsById: [UUID: Lesson] {
+        Dictionary(uniqueKeysWithValues: lessons.map { ($0.id, $0) })
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                LessonJourneyPathCanvas(
+                    layout: layout,
+                    scale: scale,
+                    accessGraph: accessGraph,
+                    frontierLessonId: frontierLessonId
+                )
+                .frame(
+                    width: layout.logicalWidth * scale,
+                    height: contentHeight
+                )
+
+                ForEach(layout.blocks) { block in
+                    LessonJourneyBlockThemeOverlay(
+                        topY: block.topY,
+                        bottomY: block.bottomY,
+                        widthPx: layout.logicalWidth * scale,
+                        scale: scale,
+                        theme: block.theme,
+                        dim: block.blockIndex > accessibleBlockIndex
+                    )
+                }
+
+                ForEach(layout.blocks) { block in
+                    let labels = bandLabels(for: block)
+                    LessonJourneyBandView(
+                        widthPx: layout.logicalWidth * scale,
+                        yPx: bandYPx(block, scale),
+                        label: labels.main,
+                        sublabel: labels.sub,
+                        theme: block.theme,
+                        dim: block.blockIndex > accessibleBlockIndex
+                    )
+                }
+
+                ForEach(layout.blocks) { block in
+                    if block.blockIndex > accessibleBlockIndex {
+                        Rectangle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.black.opacity(0.82),
+                                        Color.black.opacity(0.62),
+                                        Color.black.opacity(0.78),
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(
+                                width: layout.logicalWidth * scale,
+                                height: (block.bottomY - block.topY) * scale
+                            )
+                            .position(
+                                x: layout.logicalWidth * scale / 2,
+                                y: (block.topY + block.bottomY) / 2 * scale
+                            )
+                            .allowsHitTesting(false)
+                    }
+                }
+
+                LessonJourneyGoalView(
+                    xPx: layout.goal.x * scale,
+                    yPx: layout.goal.y * scale,
+                    scale: scale,
+                    cleared: allCleared,
+                    label: courseTitle
+                )
+
+                ForEach(layout.blocks) { block in
+                    ForEach(block.lessonNodes) { node in
+                        LessonJourneyNodeView(
+                            node: node,
+                            scale: scale,
+                            accessState: accessState(for: node),
+                            isFrontier: node.lessonId == frontierLessonId && block.blockIndex <= accessibleBlockIndex,
+                            selected: selectedLessonId == node.lessonId,
+                            dim: block.blockIndex > accessibleBlockIndex,
+                            onSelect: {
+                                if let lessonId = node.lessonId,
+                                   let lesson = lessonsById[lessonId] {
+                                    onSelect(lesson)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                if !useSplitLayout {
+                    ForEach(layout.blocks) { block in
+                        ForEach(block.lessonNodes) { node in
+                            if let lessonId = node.lessonId,
+                               let lesson = lessonsById[lessonId] {
+                                let dimBlock = block.blockIndex > accessibleBlockIndex
+                                let titleMaxLogical = max(84, layout.logicalWidth - node.x - 8)
+                                let titleMaxPx = titleMaxLogical * scale
+                                let nodeRadiusPx = 24 * scale
+                                let gapPx: CGFloat = 8
+                                let titleCenterX = node.x * scale + nodeRadiusPx + gapPx + titleMaxPx / 2
+                                Text(lesson.localizedTitle(locale))
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.white.opacity(dimBlock ? 0.38 : 0.92))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(width: titleMaxPx, alignment: .leading)
+                                    .position(x: titleCenterX, y: node.y * scale)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    }
+                }
+
+                if let frontierNode = layout.allNodes.first(where: { $0.lessonId == frontierLessonId }) {
+                    SurvivalDescentCharacterView(
+                        xPx: frontierNode.x * scale,
+                        yPx: frontierNode.y * scale,
+                        scale: scale,
+                        facing: frontierFacing(for: frontierNode),
+                        animateBreathe: false
+                    )
+                } else if allCleared {
+                    SurvivalDescentCharacterView(
+                        xPx: layout.goal.x * scale,
+                        yPx: layout.goal.y * scale,
+                        scale: scale,
+                        facing: .center,
+                        animateBreathe: false
+                    )
+                }
+            }
+            .frame(width: layout.logicalWidth * scale, height: contentHeight)
+            .offset(x: max(0, (width - layout.logicalWidth * scale) / 2))
+        }
+        .frame(width: width, height: contentHeight)
+    }
+
+    private func accessState(for node: LessonJourneyNode) -> LessonJourneyAccessGraph.LessonState {
+        guard let id = node.lessonId else {
+            return LessonJourneyAccessGraph.LessonState(isUnlocked: false, isCompleted: false)
+        }
+        return accessGraph.lessonStates[id] ?? LessonJourneyAccessGraph.LessonState(isUnlocked: false, isCompleted: false)
+    }
+
+    private func bandLabels(for block: LessonJourneyBlockLayout) -> (main: String, sub: String?) {
+        let en = block.blockNameEn?.isEmpty == false ? block.blockNameEn : nil
+        if locale == .en {
+            if let en {
+                return (main: en, sub: nil)
+            }
+            return (main: block.blockName, sub: nil)
+        }
+        return (main: block.blockName, sub: en)
+    }
+
+    private func frontierFacing(for frontierNode: LessonJourneyNode) -> SurvivalDescentCharacterView.Facing {
+        guard frontierNode.blockIndex >= 0, frontierNode.blockIndex < layout.blocks.count else {
+            return .center
+        }
+        let block = layout.blocks[frontierNode.blockIndex]
+        guard let indexInBlock = block.lessonNodes.firstIndex(where: { $0.id == frontierNode.id }) else {
+            return .center
+        }
+        let nextInBlock: LessonJourneyNode? = {
+            let j = indexInBlock + 1
+            guard j < block.lessonNodes.count else { return nil }
+            return block.lessonNodes[j]
+        }()
+        let nextBlockFirst: LessonJourneyNode? = {
+            let bi = frontierNode.blockIndex + 1
+            guard bi < layout.blocks.count else { return nil }
+            return layout.blocks[bi].lessonNodes.first
+        }()
+        let next = nextInBlock ?? nextBlockFirst ?? layout.goal
+
+        if next.x > frontierNode.x + 1 { return .right }
+        if next.x < frontierNode.x - 1 { return .left }
+        return .center
     }
 }
 
