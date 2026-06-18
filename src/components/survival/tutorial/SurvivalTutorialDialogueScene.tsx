@@ -7,6 +7,7 @@ import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tuto
 import type { SurvivalTutorialV3DialogueLine } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 
 import type { SurvivalTutorialV3Bindings } from './survivalTutorialV3Bindings';
+import type { SurvivalTutorialSharedRuntime } from './survivalTutorialSharedRuntime';
 
 import {
   clearSurvivalTutorialV3LinePresentation,
@@ -37,6 +38,7 @@ interface SurvivalTutorialDialogueSceneProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
+  readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
 }
 
 export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSceneProps> = ({
@@ -45,12 +47,15 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
   bindings,
   embeddedFullHeight,
   onSceneComplete,
+  sharedRuntime,
 }) => {
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
 
-  const tutorialJajiiSpeechTextRef = useRef('');
-  const tutorialFaiSpeechTextRef = useRef('');
+  const localJajiiSpeechTextRef = useRef('');
+  const localFaiSpeechTextRef = useRef('');
+  const tutorialJajiiSpeechTextRef = sharedRuntime?.tutorialJajiiSpeechTextRef ?? localJajiiSpeechTextRef;
+  const tutorialFaiSpeechTextRef = sharedRuntime?.tutorialFaiSpeechTextRef ?? localFaiSpeechTextRef;
 
   const linePresentationSink = useMemo(
     () => ({
@@ -128,7 +133,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
     };
   }, [linePresentationSink, lineSeconds, onSceneComplete, scene.lines]);
 
-  return (
+  return sharedRuntime ? null : (
     <div className="relative h-full min-h-0 w-full bg-black">
       <SurvivalGameScreen
         key={screenKey}

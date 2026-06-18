@@ -12,6 +12,8 @@ import {
   SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS,
   SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT,
   SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS,
+  SURVIVAL_TUTORIAL_V3_PLAY_END_SKIP_SECONDS,
+  SURVIVAL_TUTORIAL_V3_PLAY_REST_SECONDS,
 } from '@/components/survival/tutorial/survivalTutorialV3Constants';
 import {
   survivalTutorialPhraseBattleBaseline,
@@ -26,6 +28,8 @@ import {
   presentSurvivalTutorialV3ResolvedLine,
 } from '@/components/survival/tutorial/survivalTutorialV3DialogueSpeaker';
 import { survivalTutorialLocalizedWithRemaining } from '@/components/survival/tutorial/survivalTutorialV3Locales';
+import type { SurvivalTutorialSharedRuntime } from '@/components/survival/tutorial/survivalTutorialSharedRuntime';
+import { mergeSurvivalTutorialV3Baseline } from '@/components/survival/tutorial/survivalTutorialV3Scenario';
 
 type PhraseScene = Extract<
   SurvivalTutorialScriptPayloadV3['scenes'][number],
@@ -51,8 +55,8 @@ function sleepSeconds(seconds: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** `scenarioPhraseFullLoopPulseRef` の増分だけ待つ（低頻ポーリングのみ） */
-function waitPhraseLoopPulseDelta(
+/** pulse ref の増分だけ待つ（低頻ポーリングのみ。ループ完了/塊正解いずれにも使用） */
+function waitPulseDelta(
   getPulse: () => number,
   startPulse: number,
   delta: number,
@@ -86,6 +90,7 @@ export interface SurvivalTutorialPhraseBattleSceneProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
+  readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
 }
 
 export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseBattleSceneProps> = ({
@@ -94,6 +99,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
   bindings,
   embeddedFullHeight,
   onSceneComplete,
+  sharedRuntime,
 }) => {
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
@@ -114,14 +120,23 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
     [stageDefinition, block],
   );
 
-  const pulseRef = useRef(0);
-  const slotBPulseRef = useRef(0);
-  const userPulseRef = useRef(0);
-  const midiRef = useRef(false);
-  const tutorialJajiiSpeechTextRef = useRef('');
-  const tutorialFaiSpeechTextRef = useRef('');
+  const localPulseRef = useRef(0);
+  const localChordCompleteRef = useRef(0);
+  const localSlotBPulseRef = useRef(0);
+  const localUserPulseRef = useRef(0);
+  const localMidiRef = useRef(false);
+  const localJajiiSpeechTextRef = useRef('');
+  const localFaiSpeechTextRef = useRef('');
+  const pulseRef = sharedRuntime?.phraseFullLoopPulseRef ?? localPulseRef;
+  const chordCompleteRef = sharedRuntime?.phraseChordCompletePulseRef ?? localChordCompleteRef;
+  const slotBPulseRef = sharedRuntime?.slotBCompletionPulseRef ?? localSlotBPulseRef;
+  const userPulseRef = sharedRuntime?.userInputPulseRef ?? localUserPulseRef;
+  const midiRef = sharedRuntime?.midiNoteReceivedRef ?? localMidiRef;
+  const tutorialJajiiSpeechTextRef = sharedRuntime?.tutorialJajiiSpeechTextRef ?? localJajiiSpeechTextRef;
+  const tutorialFaiSpeechTextRef = sharedRuntime?.tutorialFaiSpeechTextRef ?? localFaiSpeechTextRef;
 
-  const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
+  const [localScenarioHandle, setLocalScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
+  const scenarioHandle = sharedRuntime?.scenarioHandle ?? localScenarioHandle;
 
   const linePresentationSink = useMemo(
     () => ({
@@ -157,8 +172,139 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
     }
 
     const ac = new AbortController();
-    const baseline = survivalTutorialPhraseBattleBaseline(script);
-    bindingsRef.current.pauseSharedDrumLoop?.();
+    const baseline = scene.playAlong
+      ? mergeSurvivalTutorialV3Baseline(script)
+      : survivalTutorialPhraseBattleBaseline(script);
+    if (!scene.playAlong) {
+      bindingsRef.current.pauseSharedDrumLoop?.();
+    }
+
+    const playChords = block.phrases[0]?.chords ?? [];
+
+    /** 従来: フレーズ全周回を requiredLoops 回撃破する撃破バトル。 */
+    const runBattleLoop = async (
+      h2: SurvivalScenarioHandle,
+      signal: AbortSignal,
+    ): Promise<boolean> => {
+      h2.setOverrides(survivalTutorialPhraseIntroBlockOverrides(baseline));
+      presentSurvivalTutorialV3Line(
+        scene.dialogue.intro,
+        bindingsRef.current.isEnglishCopy,
+        'battle',
+        linePresentationSink,
+      );
+      await bindingsRef.current.waitForTapOrTimeout(
+        scene.introDelaySeconds ?? SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS,
+        signal,
+      );
+      if (signal.aborted) return false;
+
+      const introPulse = pulseRef.current;
+      h2.setOverrides(survivalTutorialPhraseRevealOverrides(baseline));
+      presentSurvivalTutorialV3Line(
+        scene.dialogue.onReveal,
+        bindingsRef.current.isEnglishCopy,
+        'battle',
+        linePresentationSink,
+      );
+      h2.clearEnemies();
+      h2.spawnStationaryRing(
+        SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT,
+        SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS,
+      );
+
+      const loopsOk = await waitPulseDelta(
+        () => pulseRef.current,
+        introPulse,
+        scene.requiredLoops,
+        signal,
+      );
+      if (!loopsOk || signal.aborted) return false;
+
+      presentSurvivalTutorialV3ResolvedLine(
+        scene.dialogue.onCorrectRemaining,
+        survivalTutorialLocalizedWithRemaining(
+          scene.dialogue.onCorrectRemaining,
+          bindingsRef.current.isEnglishCopy,
+          0,
+        ),
+        'battle',
+        linePresentationSink,
+      );
+      h2.emitSpecialShockwave();
+      return true;
+    };
+
+    /**
+     * play(一緒に弾かせる): 塊を1つずつ正解で進める。塊の quote セリフを小節/拍に
+     * 同期（=塊単位）で提示し、休符塊は自動送り(タップでも送れる)。staff3 bass は
+     * 正解時に SurvivalGameScreen 側で発音する。最後の塊正解後にスキップ提示。
+     */
+    const runPlayAlong = async (
+      h2: SurvivalScenarioHandle,
+      signal: AbortSignal,
+    ): Promise<boolean> => {
+      if (playChords.length === 0) return false;
+      h2.setOverrides(survivalTutorialPhraseRevealOverrides(baseline));
+      h2.clearEnemies();
+      h2.spawnStationaryRing(
+        SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT,
+        SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS,
+      );
+      if (scene.dialogue.intro.ja || scene.dialogue.intro.en) {
+        presentSurvivalTutorialV3Line(
+          scene.dialogue.intro,
+          bindingsRef.current.isEnglishCopy,
+          'battle',
+          linePresentationSink,
+        );
+      }
+
+      let prevPulse = chordCompleteRef.current;
+      for (let i = 0; i < playChords.length; i += 1) {
+        if (signal.aborted) return false;
+        const ch = playChords[i];
+        if (ch.quote && (ch.quote.ja || ch.quote.en)) {
+          presentSurvivalTutorialV3Line(
+            ch.quote,
+            bindingsRef.current.isEnglishCopy,
+            'battle',
+            linePresentationSink,
+          );
+        }
+        if (ch.voicing.length === 0) {
+          // 会話だけの小節（休符塊）: 自動送り + タップ送り。
+          bindingsRef.current.setTapAdvanceCueVisible(true);
+          await bindingsRef.current.waitForTapOrTimeout(
+            SURVIVAL_TUTORIAL_V3_PLAY_REST_SECONDS,
+            signal,
+          );
+          bindingsRef.current.setTapAdvanceCueVisible(false);
+          if (signal.aborted) return false;
+          h2.advancePhraseRestChord();
+          prevPulse = chordCompleteRef.current;
+        } else {
+          const ok = await waitPulseDelta(
+            () => chordCompleteRef.current,
+            prevPulse,
+            1,
+            signal,
+          );
+          if (!ok) return false;
+          prevPulse += 1;
+        }
+      }
+
+      if (signal.aborted) return false;
+      bindingsRef.current.setTapAdvanceCueVisible(true);
+      await bindingsRef.current.waitForTapOrTimeout(
+        SURVIVAL_TUTORIAL_V3_PLAY_END_SKIP_SECONDS,
+        signal,
+      );
+      bindingsRef.current.setTapAdvanceCueVisible(false);
+      h2.emitSpecialShockwave();
+      return true;
+    };
 
     const run = async (): Promise<void> => {
       h.setOverrides({ ...baseline });
@@ -169,62 +315,18 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
       let progressed = false;
 
       try {
-        h.setOverrides(survivalTutorialPhraseIntroBlockOverrides(baseline));
-        presentSurvivalTutorialV3Line(
-          scene.dialogue.intro,
-          bindingsRef.current.isEnglishCopy,
-          'battle',
-          linePresentationSink,
-        );
-
-        await bindingsRef.current.waitForTapOrTimeout(
-          scene.introDelaySeconds ?? SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS,
-          ac.signal,
-        );
-        if (ac.signal.aborted) {
-          return;
-        }
-
-        const introPulse = pulseRef.current;
-        h.setOverrides(survivalTutorialPhraseRevealOverrides(baseline));
-        presentSurvivalTutorialV3Line(
-          scene.dialogue.onReveal,
-          bindingsRef.current.isEnglishCopy,
-          'battle',
-          linePresentationSink,
-        );
-        h.clearEnemies();
-        h.spawnStationaryRing(
-          SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT,
-          SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS,
-        );
-
-        const loopsOk = await waitPhraseLoopPulseDelta(
-          () => pulseRef.current,
-          introPulse,
-          scene.requiredLoops,
-          ac.signal,
-        );
-
-        if (loopsOk && !ac.signal.aborted) {
-          progressed = true;
-          presentSurvivalTutorialV3ResolvedLine(
-            scene.dialogue.onCorrectRemaining,
-            survivalTutorialLocalizedWithRemaining(
-              scene.dialogue.onCorrectRemaining,
-              bindingsRef.current.isEnglishCopy,
-              0,
-            ),
-            'battle',
-            linePresentationSink,
-          );
-          h.emitSpecialShockwave();
+        if (scene.playAlong) {
+          progressed = await runPlayAlong(h, ac.signal);
+        } else {
+          progressed = await runBattleLoop(h, ac.signal);
         }
       } catch {
         /* ignore */
       } finally {
         clearSurvivalTutorialV3LinePresentation(linePresentationSink);
-        bindingsRef.current.resumeSharedDrumLoop?.();
+        if (!scene.playAlong) {
+          bindingsRef.current.resumeSharedDrumLoop?.();
+        }
         bindingsRef.current.setTapAdvanceCueVisible(false);
         if (progressed) {
           onSceneComplete();
@@ -236,7 +338,9 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
     return () => {
       ac.abort();
-      bindingsRef.current.resumeSharedDrumLoop?.();
+      if (!scene.playAlong) {
+        bindingsRef.current.resumeSharedDrumLoop?.();
+      }
       bindingsRef.current.setTapAdvanceCueVisible(false);
     };
   }, [
@@ -256,7 +360,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
 
   const cfg = difficultyConfig;
 
-  return (
+  return sharedRuntime ? null : (
     <div className="relative h-full min-h-0 w-full bg-black">
       <SurvivalGameScreen
         key={`tutorial-v3-phrase:${scene.contentRef}`}
@@ -276,8 +380,9 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
         tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
         tutorialPhraseInlineDefinition={phraseInline}
         scenarioPhraseFullLoopPulseRef={pulseRef}
+        scenarioPhraseChordCompletePulseRef={chordCompleteRef}
         onScenarioHandleReady={(x) => {
-          setScenarioHandle(x);
+          setLocalScenarioHandle(x);
         }}
         scenarioUserInputPulseRef={userPulseRef}
         scenarioSlotBCompletionPulseRef={slotBPulseRef}

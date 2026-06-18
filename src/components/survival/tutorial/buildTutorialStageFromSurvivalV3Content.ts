@@ -215,6 +215,7 @@ export function buildTutorialPhraseDefinitionFromV3Block(
       chordName: ch.name,
       measureNumber: ch.measure_number,
       notes,
+      ...(ch.bass && ch.bass.length > 0 ? { bass: [...ch.bass] } : {}),
     };
   });
 

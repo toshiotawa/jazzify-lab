@@ -157,6 +157,7 @@ import {
   evaluatePhraseNoteOn,
   getPhraseDisplayChords,
   getPhraseTargetMidi,
+  skipRestPhraseChord,
   type SurvivalPhraseRuntimeState,
 } from './phrases/SurvivalPhraseEngine';
 import {
@@ -409,6 +410,10 @@ interface SurvivalGameScreenProps {
   tutorialPhraseInlineDefinition?: import('@/utils/survivalPhraseDefinitions').SurvivalPhraseDefinition | null;
   /** phrases モードで全コードを一周して先頭コードに戻ったタイミングでのみインクリメント（親が tutorial 終了判定に利用） */
   scenarioPhraseFullLoopPulseRef?: React.MutableRefObject<number>;
+  /** phrases モードで塊(コード)を1つ正解/休符送りするごとにインクリメント（play 用の逐次セリフ駆動） */
+  scenarioPhraseChordCompletePulseRef?: React.MutableRefObject<number>;
+  /** phrases モードの現在出題塊 index（play 用。塊完了/休符送りで更新） */
+  scenarioPhraseCurrentIndexRef?: React.MutableRefObject<number>;
   /** v3 dialogue_only でジャ爺話者があるシーンのみ。`shouldEnableJajiiSupport` の特例へ渡す */
   tutorialDialogueJajii?: boolean;
   /** ジャ爺吹き出しの台詞。`.current` を親が書き換え、Canvas が毎フレーム参照 */
@@ -460,6 +465,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   scenarioMidiNoteReceivedRef,
   tutorialPhraseInlineDefinition = null,
   scenarioPhraseFullLoopPulseRef,
+  scenarioPhraseChordCompletePulseRef,
+  scenarioPhraseCurrentIndexRef,
   tutorialDialogueJajii = false,
   tutorialJajiiSpeechTextRef,
   tutorialFaiSpeechTextRef,
@@ -2431,16 +2438,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
 
       if (isPhraseMode && phraseStateRef.current) {
+        const preState = phraseStateRef.current;
         const noteMod12 = ((note % 12) + 12) % 12;
-        const evaluation = evaluatePhraseNoteOn(phraseStateRef.current, noteMod12);
+        const evaluation = evaluatePhraseNoteOn(preState, noteMod12);
         phraseStateRef.current = evaluation.nextState;
 
-        if (
-          evaluation.result === 'measure-complete'
-          && scenarioPhraseFullLoopPulseRef
-          && evaluation.nextState.chordIndex === 0
-        ) {
-          scenarioPhraseFullLoopPulseRef.current += 1;
+        if (evaluation.result === 'measure-complete') {
+          // play(V4 由来): 塊を正解した瞬間に staff3 ベースをアプリ音源で発音。
+          const completedChord = preState.phrase.chords[preState.chordIndex];
+          if (completedChord?.bass && completedChord.bass.length > 0) {
+            for (const bassMidi of completedChord.bass) {
+              FantasySoundManager.playBassMidiNote(bassMidi);
+            }
+          }
+          if (scenarioPhraseChordCompletePulseRef) {
+            scenarioPhraseChordCompletePulseRef.current += 1;
+          }
+          if (scenarioPhraseCurrentIndexRef) {
+            scenarioPhraseCurrentIndexRef.current = evaluation.nextState.chordIndex;
+          }
+          if (scenarioPhraseFullLoopPulseRef && evaluation.nextState.chordIndex === 0) {
+            scenarioPhraseFullLoopPulseRef.current += 1;
+          }
         }
 
         setPhraseUiTick((t) => t + 1);
@@ -4176,6 +4195,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       setDemoKeyboardHints: (midis) => {
         scenarioDemoKeyboardMidisRef.current = midis;
         bumpScenarioUi();
+      },
+      advancePhraseRestChord: () => {
+        const state = phraseStateRef.current;
+        if (!state) return;
+        const skip = skipRestPhraseChord(state);
+        if (!skip.advanced) return;
+        phraseStateRef.current = skip.nextState;
+        setPhraseUiTick((t) => t + 1);
+        if (scenarioPhraseChordCompletePulseRef) {
+          scenarioPhraseChordCompletePulseRef.current += 1;
+        }
+        if (scenarioPhraseCurrentIndexRef) {
+          scenarioPhraseCurrentIndexRef.current = skip.nextState.chordIndex;
+        }
+        if (skip.wrapped && scenarioPhraseFullLoopPulseRef) {
+          scenarioPhraseFullLoopPulseRef.current += 1;
+        }
       },
     };
 

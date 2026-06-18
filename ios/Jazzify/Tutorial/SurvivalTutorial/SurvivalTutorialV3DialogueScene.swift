@@ -7,6 +7,7 @@ struct SurvivalTutorialV3DialogueScene: View {
     let scene: SurvivalTutorialV3DialogueOnlyScene
     let locale: AppLocale
     let tapHub: SurvivalTutorialTapAdvanceHub
+    let worldSessionBox: SurvivalTutorialWorldSessionBox
     @Binding var faiBubbleLine: String
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
@@ -30,7 +31,7 @@ struct SurvivalTutorialV3DialogueScene: View {
             inlinePhraseDefinition: nil,
             externalJajiiBubbleText: jajiiBubbleLine,
             externalPlayerBubbleText: faiBubbleLine,
-            onSessionReady: { _ in }
+            onSessionReady: { worldSessionBox.activate($0) }
         )
         .task(id: runIdentity) {
             await runDialogue()

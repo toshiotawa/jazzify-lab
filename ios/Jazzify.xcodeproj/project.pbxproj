@@ -34,6 +34,7 @@
 		B2C3D4E5F61718293A500B /* SurvivalTutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293A500A /* SurvivalTutorialView.swift */; };
 		B2C3D4E5F61718293B5112 /* SurvivalTutorialScriptModelsV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5111 /* SurvivalTutorialScriptModelsV3.swift */; };
 		B2C3D4E5F61718293B5202 /* SurvivalTutorialV4Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5201 /* SurvivalTutorialV4Models.swift */; };
+		B2C3D4E5F61718293B5302 /* SurvivalTutorialV4Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5301 /* SurvivalTutorialV4Bridge.swift */; };
 		B2C3D4E5F61718293B5114 /* SurvivalTutorialV3StageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5113 /* SurvivalTutorialV3StageBuilder.swift */; };
 		B2C3D4E5F61718293B5116 /* SurvivalTutorialV3Scenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5115 /* SurvivalTutorialV3Scenario.swift */; };
 		B2C3D4E5F61718293B5118 /* SurvivalTutorialV3LessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */; };
@@ -272,6 +273,7 @@
 		B2C3D4E5F61718293A500A /* SurvivalTutorialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialView.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5111 /* SurvivalTutorialScriptModelsV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialScriptModelsV3.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5201 /* SurvivalTutorialV4Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV4Models.swift; sourceTree = "<group>"; };
+		B2C3D4E5F61718293B5301 /* SurvivalTutorialV4Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV4Bridge.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5113 /* SurvivalTutorialV3StageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3StageBuilder.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5115 /* SurvivalTutorialV3Scenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3Scenario.swift; sourceTree = "<group>"; };
 		B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LessonView.swift; sourceTree = "<group>"; };
@@ -993,6 +995,7 @@
 			children = (
 				B2C3D4E5F61718293B5111 /* SurvivalTutorialScriptModelsV3.swift */,
 				B2C3D4E5F61718293B5201 /* SurvivalTutorialV4Models.swift */,
+				B2C3D4E5F61718293B5301 /* SurvivalTutorialV4Bridge.swift */,
 				B2C3D4E5F61718293B5113 /* SurvivalTutorialV3StageBuilder.swift */,
 				B2C3D4E5F61718293B5115 /* SurvivalTutorialV3Scenario.swift */,
 				B2C3D4E5F61718293B5117 /* SurvivalTutorialV3LessonView.swift */,
@@ -1274,6 +1277,7 @@
 				B2C3D4E5F61718293A500B /* SurvivalTutorialView.swift in Sources */,
 				B2C3D4E5F61718293B5112 /* SurvivalTutorialScriptModelsV3.swift in Sources */,
 				B2C3D4E5F61718293B5202 /* SurvivalTutorialV4Models.swift in Sources */,
+				B2C3D4E5F61718293B5302 /* SurvivalTutorialV4Bridge.swift in Sources */,
 				B2C3D4E5F61718293B5114 /* SurvivalTutorialV3StageBuilder.swift in Sources */,
 				B2C3D4E5F61718293B5116 /* SurvivalTutorialV3Scenario.swift in Sources */,
 				B2C3D4E5F61718293B5118 /* SurvivalTutorialV3LessonView.swift in Sources */,

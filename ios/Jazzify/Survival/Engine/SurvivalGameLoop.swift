@@ -38,6 +38,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     private(set) var phraseState: SurvivalPhraseRuntimeState?
     /// フレーズ全周回ごとに増分（`chordIndex` が末尾から 0 に戻ったとき）。チュートリアル検知のみ。
     private(set) var phraseFullLoopPulse: UInt64 = 0
+    /// 塊(コード)を1つ正解/休符送りするごとに増分。play の逐次セリフ駆動用。
+    private(set) var phraseChordCompletePulse: UInt64 = 0
 
     /// 狭い鍵盤で trailing アンカーにスクロールする MIDI（白鍵）。フレーズはロード確定後にセット。
     private(set) var keyboardScrollAnchorMidi: Int?
@@ -268,6 +270,13 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         } else {
             keyboardScrollAnchorMidi = nil
         }
+    }
+
+    /// チュートリアルのシーン用セッション切替時だけ、見た目の位置と向きを引き継ぐ。
+    func restoreTutorialPlayerPose(x: CGFloat, y: CGFloat, direction: SurvivalDirection8) {
+        runtime.player.x = x
+        runtime.player.y = y
+        runtime.player.direction = direction
     }
 
     func loadPhraseDefinition(_ phrase: SurvivalPhraseDefinition) {
@@ -774,13 +783,37 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         case .resync:
             return []
         case .progress, .measureComplete:
-            if evaluation.result == .measureComplete,
-               evaluation.nextState.chordIndex == 0,
-               !evaluation.nextState.phrase.chords.isEmpty {
-                phraseFullLoopPulse &+= 1
+            var events: [SurvivalFrameEvent] = []
+            if evaluation.result == .measureComplete {
+                if evaluation.nextState.chordIndex == 0,
+                   !evaluation.nextState.phrase.chords.isEmpty {
+                    phraseFullLoopPulse &+= 1
+                }
+                phraseChordCompletePulse &+= 1
+                // play(V4 由来): 正解した塊の staff3 ベースをアプリ音源で発音。
+                let completedChords = state.phrase.chords
+                if state.chordIndex >= 0, state.chordIndex < completedChords.count,
+                   let bass = completedChords[state.chordIndex].bass {
+                    for midi in bass {
+                        events.append(.playSynthBassRoot(midi: midi))
+                    }
+                }
             }
             runtime.comboCount += 1
-            return firePhraseCombat(measureComplete: evaluation.result == .measureComplete)
+            events.append(contentsOf: firePhraseCombat(measureComplete: evaluation.result == .measureComplete))
+            return events
+        }
+    }
+
+    /// play(一緒に弾かせる): 現在塊が休符(notes 空)なら入力なしで次塊へ送る。
+    func advancePhraseRestChord() {
+        guard isPhraseMode, let state = phraseState else { return }
+        let skip = SurvivalPhraseEngine.skipRestChord(state)
+        guard skip.advanced else { return }
+        phraseState = skip.nextState
+        phraseChordCompletePulse &+= 1
+        if skip.wrapped {
+            phraseFullLoopPulse &+= 1
         }
     }
 

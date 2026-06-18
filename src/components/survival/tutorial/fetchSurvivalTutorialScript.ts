@@ -9,7 +9,7 @@ import {
   isSurvivalTutorialScriptPayloadV3,
   type SurvivalTutorialScriptPayloadV3,
 } from './survivalTutorialV3ScriptTypes';
-import { isSurvivalTutorialV4Manifest, type SurvivalTutorialV4Manifest } from './v4/survivalTutorialV4Types';
+import { isSurvivalTutorialV4Manifest } from './v4/survivalTutorialV4Types';
 import { survivalTutorialV4ManifestToV3Payload } from './v4/survivalTutorialV4ManifestToV3Payload';
 import sampleV4ManifestJson from './v4/__fixtures__/sampleStageV4.manifest.json';
 
@@ -61,41 +61,6 @@ function parseLegacyPayload(raw: Record<string, unknown>): SurvivalTutorialLegac
   const builtinRunner =
     typeof raw.builtinRunner === 'string' ? raw.builtinRunner : undefined;
   return { version: 1, audioTracks, builtinRunner };
-}
-
-/** ネイティブ V4 ランタイム用のバンドル manifest（DB 未配置時の fallback）。 */
-const BUNDLED_V4_NATIVE_ID = 'survival-tutorial-v4-native';
-
-function resolveBundledV4Manifest(scriptId: string): SurvivalTutorialV4Manifest | null {
-  if (scriptId !== BUNDLED_V4_SAMPLE_ID && scriptId !== BUNDLED_V4_NATIVE_ID) {
-    return null;
-  }
-  if (!isSurvivalTutorialV4Manifest(sampleV4ManifestJson)) return null;
-  return sampleV4ManifestJson;
-}
-
-/** version 4 manifest をそのまま返す（V3 ブリッジ変換なし）。見つからなければ null。 */
-export async function fetchSurvivalTutorialV4Manifest(
-  scriptId: string,
-): Promise<SurvivalTutorialV4Manifest | null> {
-  const bundled = resolveBundledV4Manifest(scriptId);
-  if (bundled) return bundled;
-
-  try {
-    const { data, error } = await getSupabaseClient()
-      .from('survival_tutorial_scripts')
-      .select('script')
-      .eq('id', scriptId)
-      .eq('is_active', true)
-      .maybeSingle();
-    if (error || !data) return null;
-    if (isSurvivalTutorialV4Manifest(data.script)) {
-      return data.script;
-    }
-  } catch {
-    return null;
-  }
-  return null;
 }
 
 function parsePayload(raw: unknown): SurvivalTutorialScriptPayload | null {

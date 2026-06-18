@@ -19,6 +19,11 @@ export interface SurvivalPhraseChord {
   readonly chordName: string;
   readonly measureNumber: number;
   readonly notes: readonly SurvivalPhraseChordNote[];
+  /**
+   * staff3(ベース) の実音高 MIDI。表示・判定対象外で、塊を正解した瞬間にアプリ音源で発音する。
+   * チュートリアル play(V4 由来) のみ設定。通常フレーズは未設定。
+   */
+  readonly bass?: readonly number[];
 }
 
 export interface SurvivalPhraseDefinition {

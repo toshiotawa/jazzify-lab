@@ -32,4 +32,6 @@ export interface SurvivalScenarioHandle {
   setStaffMode: (mode: SurvivalScenarioStaffMode) => void;
   /** demo_play: 鍵盤ハイライト MIDI（外部スケジューラ） */
   setDemoKeyboardHints: (midis: readonly number[]) => void;
+  /** play(一緒に弾かせる): 現在塊が休符(notes 空)なら次塊へ送る。non-rest では無効。 */
+  advancePhraseRestChord: () => void;
 }

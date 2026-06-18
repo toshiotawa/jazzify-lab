@@ -1,6 +1,7 @@
 import {
   createInitialPhraseState,
   evaluatePhraseNoteOn,
+  skipRestPhraseChord,
 } from './SurvivalPhraseEngine';
 import type { SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
 
@@ -156,5 +157,53 @@ describe('SurvivalPhraseEngine', () => {
     const miss = evaluatePhraseNoteOn(state, 0);
     expect(miss.result).toBe('miss');
     expect(miss.nextState.chordIndex).toBe(0);
+  });
+
+  it('skipRestPhraseChord advances when current chord is a rest (empty notes)', () => {
+    const restPhrase: SurvivalPhraseDefinition = {
+      id: 'rest',
+      mapCategory: 'phrases',
+      stageNumber: 1,
+      title: 'Rest',
+      bgmUrl: null,
+      keyFifths: 0,
+      chords: [
+        { id: 'r0', orderIndex: 0, chordName: '', measureNumber: 1, notes: [] },
+        {
+          id: 'c1',
+          orderIndex: 1,
+          chordName: 'CM7',
+          measureNumber: 2,
+          notes: [{ orderIndex: 0, pitchMidi: 67, pitchClass: 7, noteName: 'G4', staff: 1 }],
+        },
+      ],
+    };
+    const state = createInitialPhraseState(restPhrase);
+    const skip = skipRestPhraseChord(state);
+    expect(skip.advanced).toBe(true);
+    expect(skip.wrapped).toBe(false);
+    expect(skip.nextState.chordIndex).toBe(1);
+  });
+
+  it('skipRestPhraseChord is a no-op on a playable chord', () => {
+    const state = createInitialPhraseState(samplePhrase);
+    const skip = skipRestPhraseChord(state);
+    expect(skip.advanced).toBe(false);
+    expect(skip.nextState.chordIndex).toBe(0);
+  });
+
+  it('skipRestPhraseChord wraps to head when rest is the last chord', () => {
+    const trailingRest: SurvivalPhraseDefinition = {
+      ...samplePhrase,
+      chords: [
+        samplePhrase.chords[0],
+        { id: 'rEnd', orderIndex: 1, chordName: '', measureNumber: 9, notes: [] },
+      ],
+    };
+    const state = { ...createInitialPhraseState(trailingRest), chordIndex: 1 };
+    const skip = skipRestPhraseChord(state);
+    expect(skip.advanced).toBe(true);
+    expect(skip.wrapped).toBe(true);
+    expect(skip.nextState.chordIndex).toBe(0);
   });
 });

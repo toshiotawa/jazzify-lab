@@ -19,6 +19,7 @@ export type TutorialAudioTracksMap = Record<string, TutorialAudioTrackDef>;
 interface ActivePlayer {
   audio: HTMLAudioElement;
   trackId: string;
+  url: string;
 }
 
 export class TutorialAudioController {
@@ -69,7 +70,7 @@ export class TutorialAudioController {
     const audio = new Audio(url);
     audio.loop = loop;
     audio.volume = Math.max(0, Math.min(1, volume));
-    this.players.set(trackId, { audio, trackId });
+    this.players.set(trackId, { audio, trackId, url });
     void audio.play().catch(() => {
       /* autoplay policy */
     });
@@ -94,7 +95,7 @@ export class TutorialAudioController {
     const clampedVolume = Math.max(0, Math.min(1, volume));
 
     const existing = this.players.get(trackId);
-    if (existing) {
+    if (existing?.url === url) {
       const { audio } = existing;
       audio.loop = loop;
       audio.volume = clampedVolume;
@@ -102,11 +103,42 @@ export class TutorialAudioController {
       return this.waitForPlaying(audio);
     }
 
+    if (existing) this.stopAudio(trackId);
     const audio = new Audio(url);
     audio.loop = loop;
     audio.volume = clampedVolume;
-    this.players.set(trackId, { audio, trackId });
+    this.players.set(trackId, { audio, trackId, url });
     return this.waitForPlaying(audio);
+  }
+
+  /** 同じ URL の要素は破棄せず、停止位置から再開する。 */
+  ensurePlaying(
+    trackId: string,
+    options?: { loop?: boolean; volume?: number },
+  ): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    const url = this.resolveTrackUrl(trackId);
+    if (!url) return Promise.resolve();
+
+    const def = this.tracks[trackId];
+    const loop = options?.loop ?? def?.defaultLoop ?? true;
+    const volume = options?.volume ?? def?.defaultVolume ?? 0.45;
+    const existing = this.players.get(trackId);
+    if (existing?.url === url) {
+      existing.audio.loop = loop;
+      existing.audio.volume = Math.max(0, Math.min(1, volume));
+      return this.waitForPlaying(existing.audio);
+    }
+    if (existing) this.stopAudio(trackId);
+    const audio = new Audio(url);
+    audio.loop = loop;
+    audio.volume = Math.max(0, Math.min(1, volume));
+    this.players.set(trackId, { audio, trackId, url });
+    return this.waitForPlaying(audio);
+  }
+
+  pauseAudio(trackId: string): void {
+    this.players.get(trackId)?.audio.pause();
   }
 
   private waitForPlaying(audio: HTMLAudioElement): Promise<void> {

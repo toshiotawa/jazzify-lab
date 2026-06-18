@@ -52,6 +52,8 @@ export interface SurvivalTutorialV3ProgressionContent {
 export interface SurvivalTutorialV3PhraseChordDef extends SurvivalTutorialV3ChordDef {
   readonly measure_number: number;
   readonly quote?: SurvivalTutorialLocalizedText;
+  /** staff3(ベース) の実音高 MIDI。塊を正解した瞬間にアプリ音源で発音(play 専用)。 */
+  readonly bass?: readonly number[];
 }
 
 export interface SurvivalTutorialV3PhraseDef {
@@ -89,13 +91,22 @@ export interface SurvivalTutorialV3BattleDialogue {
   readonly onCorrectRemaining: SurvivalTutorialLocalizedText;
 }
 
-export interface SurvivalTutorialV3DialogueOnlyScene {
+export interface SurvivalTutorialV3SceneBgm {
+  readonly url?: string;
+  readonly resetOnEnter?: boolean;
+}
+
+interface SurvivalTutorialV3SceneWithBgm {
+  readonly bgm?: SurvivalTutorialV3SceneBgm;
+}
+
+export interface SurvivalTutorialV3DialogueOnlyScene extends SurvivalTutorialV3SceneWithBgm {
   readonly type: 'dialogue_only';
   readonly lines: readonly SurvivalTutorialV3DialogueLine[];
   readonly lineIntervalSeconds?: number;
 }
 
-export interface SurvivalTutorialV3ProgressionBattleScene {
+export interface SurvivalTutorialV3ProgressionBattleScene extends SurvivalTutorialV3SceneWithBgm {
   readonly type: 'progression_battle';
   readonly contentRef: string;
   /** chordProgression を先頭から何問繰り返すか（合計問題数）。 */
@@ -104,7 +115,7 @@ export interface SurvivalTutorialV3ProgressionBattleScene {
   readonly dialogue: SurvivalTutorialV3BattleDialogue;
 }
 
-export interface SurvivalTutorialV3RandomBattleScene {
+export interface SurvivalTutorialV3RandomBattleScene extends SurvivalTutorialV3SceneWithBgm {
   readonly type: 'random_battle';
   readonly contentRef: string;
   readonly questionCount: number;
@@ -113,13 +124,19 @@ export interface SurvivalTutorialV3RandomBattleScene {
   readonly dialogue: SurvivalTutorialV3BattleDialogue;
 }
 
-export interface SurvivalTutorialV3PhraseBattleScene {
+export interface SurvivalTutorialV3PhraseBattleScene extends SurvivalTutorialV3SceneWithBgm {
   readonly type: 'phrase_battle';
   readonly contentRef: string;
   /** 同一フレーズを何ループ達成したらシーン終了するか */
   readonly requiredLoops: number;
   readonly introDelaySeconds?: number;
   readonly dialogue: SurvivalTutorialV3BattleDialogue;
+  /**
+   * true のとき「一緒に弾かせる(V4 play)」モード。塊を1つ正解するごとに
+   * 塊の quote セリフを提示し、休符塊は自動送り(タップでも送れる)、staff3 bass を正解時発音する。
+   * 未指定/false は従来のループ撃破バトル。
+   */
+  readonly playAlong?: boolean;
 }
 
 export interface SurvivalTutorialV3FinishScene {
@@ -158,7 +175,7 @@ export interface SurvivalTutorialV3DemoPlayAudio {
 }
 
 /** demo_play: BGM 拍同期の自動デモ（無音・入力無効） */
-export interface SurvivalTutorialV3DemoPlayScene {
+export interface SurvivalTutorialV3DemoPlayScene extends SurvivalTutorialV3SceneWithBgm {
   readonly type: 'demo_play';
   readonly bpm: number;
   readonly beatsPerMeasure?: number;

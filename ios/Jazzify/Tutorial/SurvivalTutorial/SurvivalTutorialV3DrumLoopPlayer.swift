@@ -23,6 +23,24 @@ final class SurvivalTutorialV3DrumLoopPlayer: ObservableObject {
         await beginPlayback(urlString: urlString, volume: volume)
     }
 
+    /// 同じ URL ならプレイヤーと currentTime を保持して再生を継続する。
+    func ensurePlaying(urlString: String?, volume: Float = 0.35) async {
+        configureAudioSession()
+        let targetURL = await resolvePlayURL(urlString: urlString)
+        if let player, let loadedPlayURL, loadedPlayURL == targetURL {
+            player.volume = volume
+            if !player.isPlaying { player.play() }
+            await waitForPlaying()
+            return
+        }
+        stop()
+        await beginPlayback(urlString: urlString, volume: volume)
+    }
+
+    func pause() {
+        player?.pause()
+    }
+
     /// 既存プレイヤーを先頭から再生し直す（demo 拍同期用）。未開始または URL 変更時は再ロードする。
     func restartFromStart(urlString: String?, volume: Float = 0.35) async {
         configureAudioSession()

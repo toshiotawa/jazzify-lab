@@ -5,6 +5,34 @@ private final class SurvivalTutorialSessionBox: ObservableObject {
     @Published var session: SurvivalGameSession?
 }
 
+@MainActor
+final class SurvivalTutorialWorldSessionBox: ObservableObject {
+    private struct PlayerPose {
+        let x: CGFloat
+        let y: CGFloat
+        let direction: SurvivalDirection8
+    }
+
+    weak var session: SurvivalGameSession?
+    private var pose: PlayerPose?
+
+    func activate(_ nextSession: SurvivalGameSession) {
+        if let pose {
+            nextSession.gameLoop.restoreTutorialPlayerPose(
+                x: pose.x,
+                y: pose.y,
+                direction: pose.direction
+            )
+        }
+        session = nextSession
+    }
+
+    func capture() {
+        guard let player = session?.gameLoop.runtime.player else { return }
+        pose = PlayerPose(x: player.x, y: player.y, direction: player.direction)
+    }
+}
+
 /// DB survival_tutorial_scripts v3（scene ベース）。
 struct SurvivalTutorialV3LessonView: View {
     let script: SurvivalTutorialScriptPayloadV3
@@ -20,6 +48,7 @@ struct SurvivalTutorialV3LessonView: View {
     @State private var narrationLine = ""
     @StateObject private var tapHub = SurvivalTutorialTapAdvanceHub()
     @StateObject private var drumPlayer = SurvivalTutorialV3DrumLoopPlayer()
+    @StateObject private var worldSessionBox = SurvivalTutorialWorldSessionBox()
 
     private var isJapanese: Bool { locale == .ja }
 
@@ -31,7 +60,6 @@ struct SurvivalTutorialV3LessonView: View {
         ZStack {
             if script.scenes.indices.contains(sceneIndex) {
                 sceneHost(scene: script.scenes[sceneIndex])
-                    .id(sceneIndex)
             }
 
             OnboardingNarrationCaptionView(text: narrationLine)
@@ -111,17 +139,10 @@ struct SurvivalTutorialV3LessonView: View {
         .onAppear {
             OrientationManager.shared.lock(.portrait)
             sceneAdvanceIfFinish(from: script, index: sceneIndex)
-            let firstScene = script.scenes.first
-            let skipInitialBgm = firstScene?.isPhraseBattle == true
-                || firstScene?.isDemoPlay == true
-                || firstScene?.isFinish == true
             let drumUrl = script.audioTracks?.drum_loop?.url
-            let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
             Task {
                 await drumPlayer.prepare(urlString: drumUrl)
-                if !skipInitialBgm {
-                    await drumPlayer.start(urlString: drumUrl, volume: vol)
-                }
+                applyBgmPolicyForScene(at: sceneIndex)
             }
         }
         .onDisappear {
@@ -135,7 +156,7 @@ struct SurvivalTutorialV3LessonView: View {
             narrationLine = ""
             showFinishCta = false
             sceneAdvanceIfFinish(from: script, index: newIdx)
-            restartDrumLoopForScene(at: newIdx)
+            applyBgmPolicyForScene(at: newIdx)
         }
         .onChange(of: showFinishCta) { visible in
             if visible {
@@ -160,6 +181,7 @@ struct SurvivalTutorialV3LessonView: View {
                 scene: diag,
                 locale: locale,
                 tapHub: tapHub,
+                worldSessionBox: worldSessionBox,
                 faiBubbleLine: $faiBubbleLine,
                 jajiiBubbleLine: $jajiiBubbleLine,
                 onFai: { faiBubbleLine = $0 },
@@ -175,6 +197,7 @@ struct SurvivalTutorialV3LessonView: View {
                     locale: locale,
                     payload: payload,
                     tapHub: tapHub,
+                    worldSessionBox: worldSessionBox,
                     faiBubbleLine: $faiBubbleLine,
                     jajiiBubbleLine: $jajiiBubbleLine,
                     onFai: { faiBubbleLine = $0 },
@@ -192,6 +215,7 @@ struct SurvivalTutorialV3LessonView: View {
                     locale: locale,
                     payload: payload,
                     tapHub: tapHub,
+                    worldSessionBox: worldSessionBox,
                     faiBubbleLine: $faiBubbleLine,
                     jajiiBubbleLine: $jajiiBubbleLine,
                     onFai: { faiBubbleLine = $0 },
@@ -210,6 +234,7 @@ struct SurvivalTutorialV3LessonView: View {
                 locale: locale,
                 tapHub: tapHub,
                 drumPlayer: drumPlayer,
+                worldSessionBox: worldSessionBox,
                 faiBubbleLine: $faiBubbleLine,
                 jajiiBubbleLine: $jajiiBubbleLine,
                 onFai: { faiBubbleLine = $0 },
@@ -224,6 +249,7 @@ struct SurvivalTutorialV3LessonView: View {
                 locale: locale,
                 tapHub: tapHub,
                 drumPlayer: drumPlayer,
+                worldSessionBox: worldSessionBox,
                 faiBubbleLine: $faiBubbleLine,
                 jajiiBubbleLine: $jajiiBubbleLine,
                 onFai: { faiBubbleLine = $0 },
@@ -245,21 +271,36 @@ struct SurvivalTutorialV3LessonView: View {
         }
     }
 
-    private func restartDrumLoopForScene(at index: Int) {
+    private func applyBgmPolicyForScene(at index: Int) {
         guard script.scenes.indices.contains(index) else { return }
         let scene = script.scenes[index]
-        if scene.isPhraseBattle || scene.isDemoPlay || scene.isFinish {
+        guard !scene.isFinish else {
             drumPlayer.stop()
             return
         }
         let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
-        let drumUrl = script.audioTracks?.drum_loop?.url
+        let sceneBgmUrl = scene.bgm?.url?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let drumUrl = sceneBgmUrl?.isEmpty == false
+            ? sceneBgmUrl
+            : script.audioTracks?.drum_loop?.url
+        guard drumUrl != nil else {
+            drumPlayer.stop()
+            return
+        }
         Task {
-            await drumPlayer.start(urlString: drumUrl, volume: vol)
+            if scene.isDemoPlay, scene.bgm?.resetOnEnter == true {
+                // demo は intro 終了時を時刻0として開始する。
+                drumPlayer.stop()
+            } else if scene.bgm?.resetOnEnter == true {
+                await drumPlayer.restartFromStart(urlString: drumUrl, volume: vol)
+            } else {
+                await drumPlayer.ensurePlaying(urlString: drumUrl, volume: vol)
+            }
         }
     }
 
     private func advanceScene() {
+        worldSessionBox.capture()
         guard sceneIndex &+ 1 < script.scenes.count else {
             Task {
                 await onComplete?()
@@ -324,6 +365,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
     let locale: AppLocale
     let payload: Payload
     let tapHub: SurvivalTutorialTapAdvanceHub
+    let worldSessionBox: SurvivalTutorialWorldSessionBox
     @Binding var faiBubbleLine: String
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
@@ -335,6 +377,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
         locale: AppLocale,
         payload: Payload,
         tapHub: SurvivalTutorialTapAdvanceHub,
+        worldSessionBox: SurvivalTutorialWorldSessionBox,
         faiBubbleLine: Binding<String>,
         jajiiBubbleLine: Binding<String>,
         onFai: @escaping (String) -> Void,
@@ -345,6 +388,7 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
         self.locale = locale
         self.payload = payload
         self.tapHub = tapHub
+        self.worldSessionBox = worldSessionBox
         _faiBubbleLine = faiBubbleLine
         _jajiiBubbleLine = jajiiBubbleLine
         self.onFai = onFai
@@ -373,7 +417,10 @@ private struct SurvivalTutorialChordBattleLessonScene: View {
                 inlinePhraseDefinition: nil,
                 externalJajiiBubbleText: jajiiBubbleLine,
                 externalPlayerBubbleText: faiBubbleLine,
-                onSessionReady: { s in sessionBox.session = s }
+                onSessionReady: { s in
+                    worldSessionBox.activate(s)
+                    sessionBox.session = s
+                }
             )
             .allowsHitTesting(true)
         }
@@ -525,6 +572,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
     let locale: AppLocale
     let tapHub: SurvivalTutorialTapAdvanceHub
     let drumPlayer: SurvivalTutorialV3DrumLoopPlayer
+    let worldSessionBox: SurvivalTutorialWorldSessionBox
     @Binding var faiBubbleLine: String
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
@@ -538,6 +586,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         locale: AppLocale,
         tapHub: SurvivalTutorialTapAdvanceHub,
         drumPlayer: SurvivalTutorialV3DrumLoopPlayer,
+        worldSessionBox: SurvivalTutorialWorldSessionBox,
         faiBubbleLine: Binding<String>,
         jajiiBubbleLine: Binding<String>,
         onFai: @escaping (String) -> Void,
@@ -550,6 +599,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         self.locale = locale
         self.tapHub = tapHub
         self.drumPlayer = drumPlayer
+        self.worldSessionBox = worldSessionBox
         _faiBubbleLine = faiBubbleLine
         _jajiiBubbleLine = jajiiBubbleLine
         self.onFai = onFai
@@ -578,7 +628,10 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
                     inlinePhraseDefinition: built.phrase,
                     externalJajiiBubbleText: jajiiBubbleLine,
                     externalPlayerBubbleText: faiBubbleLine,
-                    onSessionReady: { s in sessionBox.session = s }
+                    onSessionReady: { s in
+                        worldSessionBox.activate(s)
+                        sessionBox.session = s
+                    }
                 )
 
             } else {
@@ -594,10 +647,12 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             tapHub.cancelWait()
             sessionBox.session?.dispose()
             sessionBox.session = nil
-            let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
-            let drumUrl = script.audioTracks?.drum_loop?.url
-            Task {
-                await drumPlayer.start(urlString: drumUrl, volume: vol)
+            if scene.playAlong != true {
+                let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
+                let drumUrl = script.audioTracks?.drum_loop?.url
+                Task {
+                    await drumPlayer.ensurePlaying(urlString: drumUrl, volume: vol)
+                }
             }
         }
     }
@@ -657,8 +712,8 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             await MainActor.run { onDone() }
             return
         }
-        await MainActor.run {
-            drumPlayer.stop()
+        if scene.playAlong != true {
+            await MainActor.run { drumPlayer.stop() }
         }
         guard let sess = await pollPhraseSession(timeoutSeconds: 12) else {
             await MainActor.run { onDone() }
@@ -668,6 +723,18 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             scenarioController.setOverrides(built.baseline)
             scenarioController.clearEnemies()
         }
+        if scene.playAlong == true {
+            await phraseRunPlayAlong(sess: sess, built: built)
+        } else {
+            await phraseRunBattleLoop(sess: sess, built: built)
+        }
+    }
+
+    /// 従来: フレーズ全周回を requiredLoops 回撃破する撃破バトル。
+    private func phraseRunBattleLoop(
+        sess: SurvivalGameSession,
+        built: (stage: SurvivalStageDefinition, cfg: SurvivalStageConfig, baseline: SurvivalScenarioOverrides, phrase: SurvivalPhraseDefinition)
+    ) async {
         await MainActor.run {
             scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseIntroBlock(base: built.baseline))
             presentLine(scene.dialogue.intro)
@@ -716,6 +783,80 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
                 },
                 onNarration: onNarration
             )
+            scenarioController.emitSpecialShockwaveOnly()
+            clearLines()
+            onDone()
+        }
+    }
+
+    /// play(一緒に弾かせる): 塊を1つずつ正解で進める。塊の quote セリフを塊単位で同期提示し、
+    /// 休符塊は自動送り(タップでも送れる)。staff3 bass は正解時に GameLoop が発音する。
+    private func phraseRunPlayAlong(
+        sess: SurvivalGameSession,
+        built: (stage: SurvivalStageDefinition, cfg: SurvivalStageConfig, baseline: SurvivalScenarioOverrides, phrase: SurvivalPhraseDefinition)
+    ) async {
+        guard let raw = script.content[scene.contentRef],
+              case let .phraseStage(ph) = raw,
+              let chordDefs = ph.phrases.first?.chords,
+              !chordDefs.isEmpty else {
+            await MainActor.run { onDone() }
+            return
+        }
+
+        await MainActor.run {
+            scenarioController.setOverrides(SurvivalTutorialV3Scenario.phraseReveal(base: built.baseline))
+            scenarioController.clearEnemies()
+            scenarioController.spawnStationaryRing(
+                count: SurvivalTutorialV3Constants.phraseRevealEnemyCount,
+                radius: SurvivalTutorialV3Constants.phraseRevealEnemyRadius
+            )
+            sess.viewModel.syncPhraseStaff(from: sess.gameLoop)
+            sess.resumeScenarioBackgroundMusicIfEnabled()
+            if !(scene.dialogue.intro.ja.isEmpty && scene.dialogue.intro.en.isEmpty) {
+                presentLine(scene.dialogue.intro)
+            }
+        }
+
+        var prevPulse = await MainActor.run { sess.gameLoop.phraseChordCompletePulse }
+
+        for chord in chordDefs {
+            if Task.isCancelled { return }
+            await MainActor.run {
+                if let quote = chord.quote, !(quote.ja.isEmpty && quote.en.isEmpty) {
+                    presentLine(quote)
+                }
+            }
+
+            if chord.voicing.isEmpty {
+                // 会話だけの小節（休符塊）: 自動送り + タップ送り。
+                await tapHub.waitForTapOrTimeout(seconds: SurvivalTutorialV3Constants.playRestSeconds)
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    sess.gameLoop.advancePhraseRestChord()
+                    sess.viewModel.syncPhraseStaff(from: sess.gameLoop)
+                }
+                prevPulse = await MainActor.run { sess.gameLoop.phraseChordCompletePulse }
+            } else {
+                let ok = await SurvivalTutorialPhraseWait.waitLoops(
+                    getPulse: { sess.gameLoop.phraseChordCompletePulse },
+                    start: prevPulse,
+                    delta: 1,
+                    timeoutSeconds: 320
+                )
+                if !ok {
+                    await MainActor.run {
+                        clearLines()
+                        onDone()
+                    }
+                    return
+                }
+                prevPulse &+= 1
+            }
+        }
+
+        if Task.isCancelled { return }
+        await tapHub.waitForTapOrTimeout(seconds: SurvivalTutorialV3Constants.playEndSkipSeconds)
+        await MainActor.run {
             scenarioController.emitSpecialShockwaveOnly()
             clearLines()
             onDone()

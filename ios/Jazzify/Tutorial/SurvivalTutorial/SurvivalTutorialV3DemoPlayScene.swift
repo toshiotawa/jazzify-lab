@@ -2,12 +2,18 @@ import AVFoundation
 import SwiftUI
 
 @MainActor
+private final class SurvivalTutorialDemoSessionBox: ObservableObject {
+    weak var session: SurvivalGameSession?
+}
+
+@MainActor
 struct SurvivalTutorialV3DemoPlayLessonScene: View {
     let script: SurvivalTutorialScriptPayloadV3
     let scene: SurvivalTutorialV3DemoPlayScene
     let locale: AppLocale
     let tapHub: SurvivalTutorialTapAdvanceHub
     let drumPlayer: SurvivalTutorialV3DrumLoopPlayer
+    let worldSessionBox: SurvivalTutorialWorldSessionBox
     @Binding var faiBubbleLine: String
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
@@ -16,6 +22,7 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
     let onDone: () -> Void
 
     @StateObject private var scenarioController = SurvivalScenarioController()
+    @StateObject private var sessionBox = SurvivalTutorialDemoSessionBox()
     @State private var demoStaffSnapshot: SurvivalTutorialDemoStaffSnapshot?
     @State private var demoRevealActive = false
     @State private var windowStartMeasure: Int?
@@ -37,7 +44,9 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
                 externalJajiiBubbleText: jajiiBubbleLine,
                 externalPlayerBubbleText: faiBubbleLine,
                 onSessionReady: { session in
+                    worldSessionBox.activate(session)
                     scenarioController.bind(session: session)
+                    sessionBox.session = session
                     let scrollChords = SurvivalTutorialDemoPlayScheduler.resolvedChordsForKeyboardScroll(
                         in: scene.chords
                     )
@@ -109,7 +118,16 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
     private func setActiveChord(_ index: Int?) {
         updateStaff(activeChordIndex: index)
         if let index, scene.chords.indices.contains(index) {
-            scenarioController.setDemoKeyboardHints(scene.chords[index].voicing)
+            let chord = scene.chords[index]
+            scenarioController.setDemoKeyboardHints(chord.voicing)
+            if scene.livePlayback == true {
+                if !chord.voicing.isEmpty {
+                    sessionBox.session?.playOnboardingChord(midis: chord.voicing)
+                }
+                if let bass = chord.bass, !bass.isEmpty {
+                    sessionBox.session?.playOnboardingBass(midis: bass)
+                }
+            }
         } else {
             scenarioController.setDemoKeyboardHints([])
         }

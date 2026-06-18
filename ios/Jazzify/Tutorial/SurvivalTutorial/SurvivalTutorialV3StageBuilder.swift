@@ -211,13 +211,15 @@ enum SurvivalTutorialV3StageBuilder {
                     )
                 )
             }
+            let bass = (ch.bass?.isEmpty ?? true) ? nil : ch.bass
             chordModels.append(
                 SurvivalPhraseChord(
                     id: "tutorial-phrase:\(chordIndex):\(ch.name)",
                     orderIndex: chordIndex,
                     chordName: ch.name,
                     measureNumber: ch.measure_number,
-                    notes: notes
+                    notes: notes,
+                    bass: bass
                 )
             )
         }

@@ -101,6 +101,10 @@ extension SurvivalTutorialScriptPayload: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let version = try container.decode(Int.self, forKey: .version)
         switch version {
+        case 4:
+            // V4 manifest は既存 V3 ランタイム(V3 デモデザイン)へブリッジ変換して駆動する。
+            let manifest = try SurvivalTutorialV4Manifest(from: decoder)
+            self = .v3(try SurvivalTutorialV4Bridge.toV3Payload(manifest))
         case 3:
             self = .v3(try SurvivalTutorialScriptPayloadV3(from: decoder))
         default:

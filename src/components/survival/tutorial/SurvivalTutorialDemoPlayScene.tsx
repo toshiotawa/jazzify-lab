@@ -25,6 +25,7 @@ import {
 import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tutorial/survivalTutorialV3ScriptTypes';
 import { survivalTutorialLocalized } from '@/components/survival/tutorial/survivalTutorialV3Locales';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
+import type { SurvivalTutorialSharedRuntime } from '@/components/survival/tutorial/survivalTutorialSharedRuntime';
 
 type DemoScene = Extract<
   SurvivalTutorialScriptPayloadV3['scenes'][number],
@@ -60,6 +61,7 @@ export interface SurvivalTutorialDemoPlaySceneProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
+  readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
 }
 
 export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySceneProps> = ({
@@ -68,15 +70,20 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
   bindings,
   embeddedFullHeight,
   onSceneComplete,
+  sharedRuntime,
 }) => {
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
 
-  const tutorialJajiiSpeechTextRef = useRef('');
-  const tutorialFaiSpeechTextRef = useRef('');
-  const demoStaffSnapshotRef = useRef<SurvivalTutorialDemoStaffSnapshot | null>(null);
+  const localJajiiSpeechTextRef = useRef('');
+  const localFaiSpeechTextRef = useRef('');
+  const localDemoStaffSnapshotRef = useRef<SurvivalTutorialDemoStaffSnapshot | null>(null);
+  const tutorialJajiiSpeechTextRef = sharedRuntime?.tutorialJajiiSpeechTextRef ?? localJajiiSpeechTextRef;
+  const tutorialFaiSpeechTextRef = sharedRuntime?.tutorialFaiSpeechTextRef ?? localFaiSpeechTextRef;
+  const demoStaffSnapshotRef = sharedRuntime?.demoStaffSnapshotRef ?? localDemoStaffSnapshotRef;
   const windowMeasureRef = useRef<number | null>(null);
-  const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
+  const [localScenarioHandle, setLocalScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
+  const scenarioHandle = sharedRuntime?.scenarioHandle ?? localScenarioHandle;
 
   const introHasJajii = useMemo(
     () => (scene.introLines ?? []).some((l) => dialogueSpeakerOf(l) === 'jajii'),
@@ -151,11 +158,13 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       updateStaffSnapshot(index);
       const chord = index !== null ? scene.chords[index] : null;
       h.setDemoKeyboardHints(chord?.voicing ?? []);
-      if (chord && scene.livePlayback && chord.voicing.length > 0) {
-        bindingsRef.current.playDemoChordAudio?.([
-          ...chord.voicing,
-          ...(chord.bass ?? []),
-        ]);
+      if (chord && scene.livePlayback) {
+        if (chord.voicing.length > 0) {
+          bindingsRef.current.playDemoChordAudio?.(chord.voicing);
+        }
+        if (chord.bass && chord.bass.length > 0) {
+          bindingsRef.current.playDemoBassAudio?.(chord.bass);
+        }
       }
     };
 
@@ -257,7 +266,6 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       clearLine();
       h.setDemoKeyboardHints([]);
       bindingsRef.current.setTapAdvanceCueVisible(false);
-      bindingsRef.current.stopDemoBgm?.();
     };
   }, [
     baseline,
@@ -269,7 +277,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     updateStaffSnapshot,
   ]);
 
-  return (
+  return sharedRuntime ? null : (
     <div className="relative h-full min-h-0 w-full bg-black">
       <SurvivalGameScreen
         key={`tutorial-v3-demo:${scene.bpm}:${scene.chords.length}`}
@@ -289,7 +297,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
         tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
         tutorialDemoStaffSnapshotRef={demoStaffSnapshotRef}
         onScenarioHandleReady={(x) => {
-          setScenarioHandle(x);
+          setLocalScenarioHandle(x);
         }}
         onBackToSelect={() => bindingsRef.current.onExit()}
         onBackToMenu={() => bindingsRef.current.onExit()}

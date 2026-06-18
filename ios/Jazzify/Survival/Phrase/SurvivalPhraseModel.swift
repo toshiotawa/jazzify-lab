@@ -14,6 +14,8 @@ struct SurvivalPhraseChord: Codable, Sendable, Equatable, Identifiable {
     let chordName: String
     let measureNumber: Int
     let notes: [SurvivalPhraseChordNote]
+    /// staff3(ベース) の実音高 MIDI。表示・判定対象外で、塊を正解した瞬間にアプリ音源で発音する（play 専用）。
+    var bass: [Int]?
 }
 
 struct SurvivalPhraseDefinition: Codable, Sendable, Equatable {

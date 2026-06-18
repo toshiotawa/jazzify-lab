@@ -27,7 +27,7 @@ export const resolveSurvivalTutorialDemoPlayAudio = (
   const localeUrl = isEnglishCopy
     ? trimUrl(audio?.url_en) ?? trimUrl(audio?.url)
     : trimUrl(audio?.url_ja) ?? trimUrl(audio?.url);
-  const fallbackUrl = trimUrl(drumLoop?.url);
+  const fallbackUrl = trimUrl(scene.bgm?.url) ?? trimUrl(drumLoop?.url);
   const url = localeUrl ?? fallbackUrl;
 
   const volume = audio?.volume ?? drumLoop?.volume ?? DEFAULT_SURVIVAL_TUTORIAL_DRUM_LOOP_VOLUME;
@@ -35,22 +35,35 @@ export const resolveSurvivalTutorialDemoPlayAudio = (
   return { url, volume };
 };
 
-export const shouldMuteTutorialV3Bgm = (scene: SurvivalTutorialV3Scene): boolean =>
-  scene.type === 'phrase_battle' || scene.type === 'demo_play' || scene.type === 'finish';
-
 /** シーン切替時の共有 BGM(main_bgm) の扱い。 */
 export type TutorialV3BgmAction = 'keep' | 'restart' | 'stop';
 
+export interface TutorialV3BgmState {
+  readonly currentUrl: string | null;
+  readonly isPlaying: boolean;
+}
+
+export const resolveTutorialV3SceneBgmUrl = (
+  scene: SurvivalTutorialV3Scene,
+  fallbackUrl: string | undefined,
+): string | null => {
+  if (scene.type === 'finish') return null;
+  return trimUrl(scene.bgm?.url) ?? trimUrl(fallbackUrl);
+};
+
 /**
  * シーン切替時の共有 BGM アクションを決める。
- * - ミュート対象シーン(demo/phrase/finish): `stop`
- * - 非ミュートで既に再生中(同一 BGM 継続): `keep`(再生位置を維持し再生成しない)
- * - 非ミュートで停止中: `restart`(先頭から再生開始)
+ * - URL なし/finish: `stop`
+ * - resetOnEnter=true: `restart`
+ * - 同じ URL が再生中: `keep`(再生位置を維持し再生成しない)
+ * - URL が変わった、または停止中: `restart`
  */
 export const resolveTutorialV3BgmAction = (
   scene: SurvivalTutorialV3Scene,
-  isCurrentlyPlaying: boolean,
+  nextUrl: string | null,
+  state: TutorialV3BgmState,
 ): TutorialV3BgmAction => {
-  if (shouldMuteTutorialV3Bgm(scene)) return 'stop';
-  return isCurrentlyPlaying ? 'keep' : 'restart';
+  if (!nextUrl || scene.type === 'finish') return 'stop';
+  if (scene.bgm?.resetOnEnter === true) return 'restart';
+  return state.isPlaying && state.currentUrl === nextUrl ? 'keep' : 'restart';
 };

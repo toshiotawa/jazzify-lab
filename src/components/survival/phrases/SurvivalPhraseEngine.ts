@@ -117,6 +117,33 @@ export function evaluatePhraseNoteOn(
   };
 }
 
+export interface SurvivalPhraseRestSkip {
+  /** 現在塊が休符(notes 空)で実際に送ったか。 */
+  readonly advanced: boolean;
+  /** 送った結果、先頭(index 0)に巻き戻ったか(= 1 周完了)。 */
+  readonly wrapped: boolean;
+  readonly nextState: SurvivalPhraseRuntimeState;
+}
+
+/**
+ * 現在塊が休符(notes 空)のとき、入力なしで次塊へ送る。play(一緒に弾かせる)の
+ * 「会話だけの小節」を自動送り/クリック送りするために外部(シーン)から駆動する。
+ */
+export function skipRestPhraseChord(
+  state: SurvivalPhraseRuntimeState,
+): SurvivalPhraseRestSkip {
+  const chord = getCurrentChord(state);
+  if (!chord || chord.notes.length === 0) {
+    const nextState = advanceChord(state);
+    return {
+      advanced: state.phrase.chords.length > 0,
+      wrapped: nextState.chordIndex === 0,
+      nextState,
+    };
+  }
+  return { advanced: false, wrapped: false, nextState: state };
+}
+
 export function getPhraseTargetMidi(state: SurvivalPhraseRuntimeState): number | null {
   return getTargetNote(state)?.pitchMidi ?? null;
 }

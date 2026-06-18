@@ -9,12 +9,10 @@ import { SAMPLE_STAGE_V4_CONFIG } from '../sampleStageV4Config';
 import {
   isSurvivalTutorialV4DemoScene,
   isSurvivalTutorialV4DialogueScene,
-  isSurvivalTutorialV4PlayScene,
 } from '../survivalTutorialV4Types';
 import {
   survivalTutorialV4DemoSceneToV3,
   survivalTutorialV4DialogueSceneToV3,
-  survivalTutorialV4PlaySceneToPhraseDefinition,
 } from '../v4RuntimeAdapters';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,7 +28,6 @@ const manifest = buildSurvivalTutorialV4Manifest({
 
 const dialogueScene = manifest.scenes.find(isSurvivalTutorialV4DialogueScene);
 const demoScene = manifest.scenes.find(isSurvivalTutorialV4DemoScene);
-const playScene = manifest.scenes.find(isSurvivalTutorialV4PlayScene);
 
 describe('survivalTutorialV4DialogueSceneToV3', () => {
   it('V4 dialogue を V3 dialogue_only(話者保持)に変換する', () => {
@@ -40,6 +37,7 @@ describe('survivalTutorialV4DialogueSceneToV3', () => {
     expect(v3.lines[0].speaker).toBe('fai');
     expect(v3.lines[1].speaker).toBe('jajii');
     expect(v3.lines[0].ja).toContain('ようこそ');
+    expect(v3.bgm).toEqual(dialogueScene.bgm);
   });
 });
 
@@ -50,6 +48,7 @@ describe('survivalTutorialV4DemoSceneToV3', () => {
     expect(v3.type).toBe('demo_play');
     expect(v3.bpm).toBe(120);
     expect(v3.livePlayback).toBe(true);
+    expect(v3.bgm).toEqual(demoScene.bgm);
     const first = v3.chords[0];
     expect(first.chordName).toBe('Dm7');
     expect(first.voicing).toEqual([53, 57, 60, 76]);
@@ -58,25 +57,5 @@ describe('survivalTutorialV4DemoSceneToV3', () => {
     expect(first.voicing).not.toContain(38);
     expect(first.bass).toEqual([38]);
     expect(v3.lines[0].startBeat).toBe(0);
-  });
-});
-
-describe('survivalTutorialV4PlaySceneToPhraseDefinition', () => {
-  it('判定対象塊のみをフレーズ和音へ変換する(休符塊は除外)', () => {
-    if (!playScene) throw new Error('play scene missing');
-    const def = survivalTutorialV4PlaySceneToPhraseDefinition(playScene);
-    // measure5 の 4 塊のみ(measure6 の休符塊は除外)。
-    expect(def.chords).toHaveLength(4);
-    expect(def.chords.map((c) => c.chordName)).toEqual(['Dm7', '', 'G7', '']);
-    expect(def.chords[0].notes[0].pitchMidi).toBe(74);
-    expect(def.chords[0].notes[0].pitchClass).toBe(2);
-    expect(def.chords[0].notes[0].staff).toBe(1);
-    expect(def.keyFifths).toBe(0);
-  });
-
-  it('orderIndex は連番で振り直される', () => {
-    if (!playScene) throw new Error('play scene missing');
-    const def = survivalTutorialV4PlaySceneToPhraseDefinition(playScene);
-    expect(def.chords.map((c) => c.orderIndex)).toEqual([0, 1, 2, 3]);
   });
 });

@@ -303,6 +303,14 @@ final class SurvivalGameSession: SurvivalPlaySession {
         audioController.playSynthBassRoot(midi: 36 + chord.rootPitchClass)
     }
 
+    /// staff3 ベースを実音高(MIDI)でアプリ音源(FingerBass)再生する。demo/play 用。
+    func playOnboardingBass(midis: [Int]) {
+        guard state != .disposed else { return }
+        for midi in midis {
+            audioController.playSynthBassRoot(midi: midi)
+        }
+    }
+
     /// タッチ鍵盤: ピアノ音はここで即座に鳴らし、ノートオンは次フレームの `drain` でシミュへ渡す。
     func chordPadNoteOn(_ note: Int, velocity: Int = 100) {
         guard state != .disposed else { return }

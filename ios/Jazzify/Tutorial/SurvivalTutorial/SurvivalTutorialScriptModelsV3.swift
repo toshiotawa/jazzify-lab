@@ -77,6 +77,8 @@ struct SurvivalTutorialV3PhraseChordDef: Decodable, Sendable {
     let voicing_staves: [Int]?
     let measure_number: Int
     let quote: SurvivalTutorialV3LocalizedText?
+    /// staff3(ベース) の実音高 MIDI。塊を正解した瞬間にアプリ音源で発音(play 専用)。
+    let bass: [Int]?
 }
 
 struct SurvivalTutorialV3PhraseDef: Decodable, Sendable {
@@ -115,10 +117,16 @@ struct SurvivalTutorialV3BattleDialogue: Decodable, Sendable {
     let onCorrectRemaining: SurvivalTutorialV3LocalizedText
 }
 
+struct SurvivalTutorialV3SceneBgm: Decodable, Sendable, Equatable {
+    let url: String?
+    let resetOnEnter: Bool?
+}
+
 // MARK: - Scenes
 
 struct SurvivalTutorialV3DialogueOnlyScene: Decodable, Sendable {
     let type: String
+    let bgm: SurvivalTutorialV3SceneBgm?
     let lines: [SurvivalTutorialV3LocalizedText]
     let lineIntervalSeconds: Double?
 
@@ -129,6 +137,7 @@ struct SurvivalTutorialV3DialogueOnlyScene: Decodable, Sendable {
 
 struct SurvivalTutorialV3ProgressionBattleScene: Decodable, Sendable {
     let type: String
+    let bgm: SurvivalTutorialV3SceneBgm?
     let contentRef: String
     let loopCount: Int
     let introDelaySeconds: Double?
@@ -137,6 +146,7 @@ struct SurvivalTutorialV3ProgressionBattleScene: Decodable, Sendable {
 
 struct SurvivalTutorialV3RandomBattleScene: Decodable, Sendable {
     let type: String
+    let bgm: SurvivalTutorialV3SceneBgm?
     let contentRef: String
     let questionCount: Int
     let hardQuestions: Bool?
@@ -146,10 +156,13 @@ struct SurvivalTutorialV3RandomBattleScene: Decodable, Sendable {
 
 struct SurvivalTutorialV3PhraseBattleScene: Decodable, Sendable {
     let type: String
+    let bgm: SurvivalTutorialV3SceneBgm?
     let contentRef: String
     let requiredLoops: Int
     let introDelaySeconds: Double?
     let dialogue: SurvivalTutorialV3BattleDialogue
+    /// true のとき「一緒に弾かせる(V4 play)」モード。塊ごとに quote セリフ/休符自動送り/正解時 bass。
+    let playAlong: Bool?
 }
 
 struct SurvivalTutorialV3FinishScene: Decodable, Sendable {
@@ -167,6 +180,8 @@ struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
     let voicing_staves: [Int]?
     /// DB / Web: `measureNumber`。phrase 系は `measure_number` のため demo_play のみ別キー。
     let measure_number: Int
+    /// staff3(ベース) の MIDI。表示はせず livePlayback 時にアプリ音源で再生する。
+    let bass: [Int]?
 
     private enum CodingKeys: String, CodingKey {
         case startBeat
@@ -178,6 +193,7 @@ struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
         case voicing_staves
         case measureNumber
         case measure_number
+        case bass
     }
 
     init(from decoder: Decoder) throws {
@@ -189,6 +205,7 @@ struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
         voicingNames = try c.decodeIfPresent([String].self, forKey: .voicingNames)
         keyFifths = try c.decodeIfPresent(Int.self, forKey: .keyFifths)
         voicing_staves = try c.decodeIfPresent([Int].self, forKey: .voicing_staves)
+        bass = try c.decodeIfPresent([Int].self, forKey: .bass)
         if let n = try c.decodeIfPresent(Int.self, forKey: .measureNumber) {
             measure_number = n
         } else {
@@ -214,6 +231,7 @@ struct SurvivalTutorialV3DemoPlayAudio: Decodable, Sendable {
 
 struct SurvivalTutorialV3DemoPlayScene: Decodable, Sendable {
     let type: String
+    let bgm: SurvivalTutorialV3SceneBgm?
     let bpm: Double
     let beatsPerMeasure: Double?
     let keyFifths: Int?
@@ -222,6 +240,8 @@ struct SurvivalTutorialV3DemoPlayScene: Decodable, Sendable {
     let lines: [SurvivalTutorialV3DemoLine]
     let endHoldBeats: Double?
     let audio: SurvivalTutorialV3DemoPlayAudio?
+    /// true のとき各和音開始でアプリ音源(ピアノ)で voicing+bass を発音する。V4 由来。
+    let livePlayback: Bool?
 }
 
 enum SurvivalTutorialV3Scene: Decodable, Sendable {
@@ -272,6 +292,17 @@ enum SurvivalTutorialV3Scene: Decodable, Sendable {
     var isFinish: Bool {
         if case .finish = self { return true }
         return false
+    }
+
+    var bgm: SurvivalTutorialV3SceneBgm? {
+        switch self {
+        case let .dialogueOnly(scene): scene.bgm
+        case let .progressionBattle(scene): scene.bgm
+        case let .randomBattle(scene): scene.bgm
+        case let .phraseBattle(scene): scene.bgm
+        case let .demoPlay(scene): scene.bgm
+        case .finish: nil
+        }
     }
 }
 

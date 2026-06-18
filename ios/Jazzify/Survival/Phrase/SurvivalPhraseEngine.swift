@@ -63,6 +63,18 @@ enum SurvivalPhraseEngine {
         return (result, progressed)
     }
 
+    /// 現在塊が休符(notes 空)のとき入力なしで次塊へ送る。play の「会話だけの小節」用。
+    /// non-rest では advanced=false を返し何もしない。
+    static func skipRestChord(
+        _ state: SurvivalPhraseRuntimeState
+    ) -> (advanced: Bool, wrapped: Bool, nextState: SurvivalPhraseRuntimeState) {
+        guard let chord = state.phrase.chords[safe: state.chordIndex], !chord.notes.isEmpty else {
+            let next = advanceChord(state)
+            return (!state.phrase.chords.isEmpty, next.chordIndex == 0, next)
+        }
+        return (false, false, state)
+    }
+
     static func targetMidi(state: SurvivalPhraseRuntimeState) -> Int? {
         guard let chord = state.phrase.chords[safe: state.chordIndex],
               let note = chord.notes[safe: state.targetNoteIndex] else { return nil }

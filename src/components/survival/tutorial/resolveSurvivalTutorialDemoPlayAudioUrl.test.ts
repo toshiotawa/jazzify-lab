@@ -3,7 +3,7 @@ import {
   DEFAULT_SURVIVAL_TUTORIAL_DRUM_LOOP_VOLUME,
   resolveSurvivalTutorialDemoPlayAudio,
   resolveTutorialV3BgmAction,
-  shouldMuteTutorialV3Bgm,
+  resolveTutorialV3SceneBgmUrl,
 } from '@/components/survival/tutorial/resolveSurvivalTutorialDemoPlayAudioUrl';
 
 const demoScene = {
@@ -96,43 +96,65 @@ describe('resolveSurvivalTutorialDemoPlayAudio', () => {
   });
 });
 
-describe('shouldMuteTutorialV3Bgm', () => {
-  it('mutes demo_play, phrase_battle, and finish', () => {
-    expect(shouldMuteTutorialV3Bgm({ type: 'demo_play', bpm: 100, chords: [], lines: [] })).toBe(true);
+describe('resolveTutorialV3SceneBgmUrl', () => {
+  it('scene URL を優先し、未指定なら共有 URL へフォールバックする', () => {
     expect(
-      shouldMuteTutorialV3Bgm({
-        type: 'phrase_battle',
-        contentRef: 'x',
-        requiredLoops: 1,
-        dialogue: {
-          intro: { ja: '', en: '' },
-          onReveal: { ja: '', en: '' },
-          onCorrectRemaining: { ja: '', en: '' },
-        },
-      }),
-    ).toBe(true);
-    expect(shouldMuteTutorialV3Bgm({ type: 'finish' })).toBe(true);
+      resolveTutorialV3SceneBgmUrl(
+        { type: 'dialogue_only', lines: [], bgm: { url: ' scene.mp3 ' } },
+        'fallback.mp3',
+      ),
+    ).toBe('scene.mp3');
+    expect(
+      resolveTutorialV3SceneBgmUrl({ type: 'dialogue_only', lines: [] }, 'fallback.mp3'),
+    ).toBe('fallback.mp3');
   });
 
-  it('does not mute dialogue_only', () => {
-    expect(shouldMuteTutorialV3Bgm({ type: 'dialogue_only', lines: [] })).toBe(false);
+  it('finish は BGM なし', () => {
+    expect(resolveTutorialV3SceneBgmUrl({ type: 'finish' }, 'fallback.mp3')).toBeNull();
   });
 });
 
 describe('resolveTutorialV3BgmAction', () => {
-  const dialogue = { type: 'dialogue_only' as const, lines: [] };
-  const demo = { type: 'demo_play' as const, bpm: 100, chords: [], lines: [] };
+  const playing = { currentUrl: 'same.mp3', isPlaying: true };
 
-  it('ミュート対象シーンは stop', () => {
-    expect(resolveTutorialV3BgmAction(demo, true)).toBe('stop');
-    expect(resolveTutorialV3BgmAction({ type: 'finish' }, true)).toBe('stop');
+  it('URL なしと finish は stop', () => {
+    expect(
+      resolveTutorialV3BgmAction({ type: 'dialogue_only', lines: [] }, null, playing),
+    ).toBe('stop');
+    expect(resolveTutorialV3BgmAction({ type: 'finish' }, 'same.mp3', playing)).toBe('stop');
   });
 
-  it('非ミュートで再生中なら keep(位置維持)', () => {
-    expect(resolveTutorialV3BgmAction(dialogue, true)).toBe('keep');
+  it('同一 URL が再生中なら keep(位置維持)', () => {
+    expect(
+      resolveTutorialV3BgmAction(
+        { type: 'dialogue_only', lines: [], bgm: { url: 'same.mp3' } },
+        'same.mp3',
+        playing,
+      ),
+    ).toBe('keep');
   });
 
-  it('非ミュートで停止中なら restart', () => {
-    expect(resolveTutorialV3BgmAction(dialogue, false)).toBe('restart');
+  it('resetOnEnter、URL 変更、停止中は restart', () => {
+    expect(
+      resolveTutorialV3BgmAction(
+        { type: 'demo_play', bpm: 100, chords: [], lines: [], bgm: { resetOnEnter: true } },
+        'same.mp3',
+        playing,
+      ),
+    ).toBe('restart');
+    expect(
+      resolveTutorialV3BgmAction(
+        { type: 'dialogue_only', lines: [] },
+        'next.mp3',
+        playing,
+      ),
+    ).toBe('restart');
+    expect(
+      resolveTutorialV3BgmAction(
+        { type: 'dialogue_only', lines: [] },
+        'same.mp3',
+        { currentUrl: 'same.mp3', isPlaying: false },
+      ),
+    ).toBe('restart');
   });
 });

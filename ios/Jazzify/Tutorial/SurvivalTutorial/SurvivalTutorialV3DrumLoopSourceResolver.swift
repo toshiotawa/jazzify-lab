@@ -47,7 +47,7 @@ enum SurvivalTutorialV3DemoPlayAudioResolver {
             return trimUrl(audio?.url_ja) ?? trimUrl(audio?.url)
         }()
 
-        return localeUrl ?? trimUrl(drumLoop?.url)
+        return localeUrl ?? trimUrl(scene.bgm?.url) ?? trimUrl(drumLoop?.url)
     }
 
     static func resolveVolume(
