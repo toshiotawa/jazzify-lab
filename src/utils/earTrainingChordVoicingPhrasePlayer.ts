@@ -336,13 +336,13 @@ export class EarTrainingChordVoicingPhrasePlayer {
       if (params.onBeat) {
         for (let i = 0; i < beats; i += 1) {
           const when = firstClick + i * spb;
-          const remaining = Math.max(0, beats - i - 1);
+          const displayBeat = Math.max(1, beats - i);
           const delayMs = Math.max(0, Math.ceil((when - ctx.currentTime) * 1000));
           const timer = window.setTimeout(() => {
             if (gen !== this.generation) {
               return;
             }
-            params.onBeat?.(remaining);
+            params.onBeat?.(displayBeat);
           }, delayMs);
           this.pendingTimeouts.push(timer);
         }

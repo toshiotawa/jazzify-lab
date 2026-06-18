@@ -663,7 +663,6 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     }
 
     const beats = Math.max(0, Math.min(32, stage.count_in_beats));
-    setCountInValue(beats);
 
     const scheduleTutorialSession = (): void => {
       if (!tutorial) {
@@ -739,6 +738,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     gameStateRef.current = 'countIn';
     setGameState('countIn');
     setStatusText(copy.countIn);
+    setCountInValue(0);
     void (async () => {
       const player = ensurePhrasePlayer();
       let prepared;

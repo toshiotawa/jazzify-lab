@@ -449,7 +449,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let runId = phraseRunId
         targets = []
         resetPhraseRuntimeState()
-        countInValue = sanitizedCountInBeats
+        countInValue = 0
         gameState = .countIn
         statusText = copy.countIn
         publishSnapshot()
@@ -543,7 +543,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             publishSnapshot()
             return
         }
-        countInValue = beats
+        countInValue = 0
         statusText = copy.countIn
         publishSnapshot()
         for beatIndex in 0..<beats {
@@ -553,8 +553,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(sleepSec * 1_000_000_000))
             }
             if Task.isCancelled { return }
-            let next = max(beats - beatIndex - 1, 0)
-            countInValue = next
+            countInValue = max(beats - beatIndex, 1)
             statusText = copy.countIn
             publishSnapshot()
         }

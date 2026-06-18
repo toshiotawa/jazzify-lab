@@ -294,7 +294,8 @@ final class EarTrainingAdlibBattleController: ObservableObject {
         phraseIndex = 0
         phraseRunId += 1
         phraseIntroSeq += 1
-        countInValue = max(0, min(32, stage.countInBeats))
+        let beats = max(0, min(32, stage.countInBeats))
+        countInValue = 0
         pendingImpactHandlers.removeAll()
         adlibWindow = EarTrainingAdlibEngine.createWindow()
         activeChord = nil
@@ -303,7 +304,6 @@ final class EarTrainingAdlibBattleController: ObservableObject {
         audio.stopDrumLoop()
         audio.stopPhrase()
 
-        let beats = countInValue
         let runId = phraseRunId
 
         let onPhraseBodyStarted: () -> Void = { [weak self] in
@@ -385,16 +385,18 @@ final class EarTrainingAdlibBattleController: ObservableObject {
             return
         }
         let beatDurationSec = meta.beatDurationSec
-        for i in 0..<beats {
+        let leadInSec = meta.leadInSec
+        countInValue = 0
+        publishSnapshot()
+        for beatIndex in 0..<beats {
+            let targetClick = scheduleStart + leadInSec + Double(beatIndex) * beatDurationSec
+            let sleepSec = targetClick - CACurrentMediaTime()
+            if sleepSec > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(sleepSec * 1_000_000_000))
+            }
             if Task.isCancelled { return }
-            let elapsed = CACurrentMediaTime() - scheduleStart
-            let beatIndex = Int(floor(elapsed / beatDurationSec))
-            let remaining = max(0, beats - beatIndex - 1)
-            countInValue = remaining
+            countInValue = max(beats - beatIndex, 1)
             publishSnapshot()
-            try? await Task.sleep(nanoseconds: UInt64(beatDurationSec * 1_000_000_000))
-            if Task.isCancelled { return }
-            _ = i
         }
         countInValue = 0
         publishSnapshot()

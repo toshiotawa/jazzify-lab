@@ -527,7 +527,7 @@ final class EarTrainingBattleController: ObservableObject {
         phraseIndex = 0
         phraseRunId = 0
         phraseIntroSeq = 0
-        countInValue = stage.countInBeats
+        countInValue = 0
         pendingImpactHandlers.removeAll()
         enemyAttackGaugePercent = 0
         demoBubbleVisible = false
@@ -551,14 +551,14 @@ final class EarTrainingBattleController: ObservableObject {
                 _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
             }
             if Task.isCancelled { return }
-            var remaining = initialBeats
-            while remaining > 0 {
+            for remaining in stride(from: initialBeats, through: 1, by: -1) {
+                self.countInValue = remaining
+                self.publishSnapshot()
                 try? await Task.sleep(nanoseconds: UInt64(beatIntervalMs * 1_000_000))
                 if Task.isCancelled { return }
-                remaining -= 1
-                self.countInValue = max(0, remaining)
             }
             if Task.isCancelled { return }
+            self.countInValue = 0
             self.startPhrase(at: 0, startsTimeLimit: true)
         }
         publishSnapshot()

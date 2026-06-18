@@ -133,7 +133,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     player.dispose();
   });
 
-  it('onBeat が各クリック後に残り拍を通知し、onInputWindowStart はフレーズ頭の半拍前に1回', async () => {
+  it('onBeat が各クリック時に 4→1 の表示拍を通知し、onInputWindowStart はフレーズ頭の半拍前に1回', async () => {
     vi.useFakeTimers();
     const { player } = makePlayer();
     const onBeat = vi.fn();
@@ -151,9 +151,11 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
       onInputWindowStart,
     });
     await flushPromises();
-    await vi.advanceTimersByTimeAsync(CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC * 1000);
-    expect(onBeat).toHaveBeenLastCalledWith(3);
-    await vi.advanceTimersByTimeAsync(3520);
+    await vi.advanceTimersByTimeAsync(Math.ceil(CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC * 1000));
+    expect(onBeat).toHaveBeenLastCalledWith(4);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(onBeat.mock.calls.map(call => call[0])).toEqual([4, 3, 2, 1]);
+    await vi.advanceTimersByTimeAsync(520);
     expect(onInputWindowStart).toHaveBeenCalledTimes(1);
     player.dispose();
   });

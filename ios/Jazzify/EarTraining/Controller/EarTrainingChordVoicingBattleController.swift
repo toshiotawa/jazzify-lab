@@ -875,7 +875,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         phraseIndex = 0
         phraseRunId = 0
         phraseIntroSeq = 0
-        countInValue = sanitizedCountInBeats
+        countInValue = 0
         lastLoopAttackApplied = 0
         pendingImpactHandlers.removeAll()
         enemyAttackGaugePercent = 0
@@ -985,7 +985,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
         let beatDurationSec = meta.beatDurationSec
         let leadInSec = meta.leadInSec
-        countInValue = beats
+        countInValue = 0
         publishSnapshot()
         for beatIndex in 0..<beats {
             let targetClick = scheduleStart + leadInSec + Double(beatIndex) * beatDurationSec
@@ -994,7 +994,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(sleepSec * 1_000_000_000))
             }
             if Task.isCancelled { return }
-            countInValue = max(beats - beatIndex - 1, 0)
+            countInValue = max(beats - beatIndex, 1)
             publishSnapshot()
         }
         let measureEnd = scheduleStart + leadInSec + Double(beats) * beatDurationSec

@@ -398,20 +398,19 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
         if beats > 0 {
             gameState = .countIn
-            countInValue = beats
+            countInValue = 0
             statusText = copy.countIn
             countdownTask = Task { @MainActor [weak self] in
                 guard let self else { return }
-                var remaining = beats
-                while remaining > 0 {
+                for remaining in stride(from: beats, through: 1, by: -1) {
+                    if Task.isCancelled { return }
+                    self.countInValue = remaining
+                    self.publishSnapshot()
                     let delayNs = UInt64(beatSec * 1_000_000_000)
                     try? await Task.sleep(nanoseconds: delayNs)
-                    if Task.isCancelled { return }
-                    remaining -= 1
-                    self.countInValue = max(0, remaining)
-                    self.publishSnapshot()
                 }
                 if Task.isCancelled { return }
+                self.countInValue = 0
                 self.beginQuizPlayingPhrase()
             }
         } else {

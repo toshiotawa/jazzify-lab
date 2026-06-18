@@ -1122,7 +1122,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         setGameState('countIn');
         setStatusText(copy.countIn);
         const beats = Math.max(0, Math.min(32, stage.count_in_beats));
-        setCountInValue(beats);
+        setCountInValue(0);
         stopPhraseAudio();
         if (!prepareChordVoicingPhrasePlayback(nextPhraseIndex)) {
           return;
@@ -1375,7 +1375,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     setGameState('countIn');
     setStatusText(copy.countIn);
     const beats = Math.max(0, Math.min(32, stage.count_in_beats));
-    setCountInValue(beats);
+    setCountInValue(0);
     void (async () => {
       countInEarlyInputRef.current = false;
       setCountInEarlyInputActive(false);
