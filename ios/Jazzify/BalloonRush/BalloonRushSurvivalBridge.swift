@@ -104,7 +104,8 @@ enum BalloonRushSurvivalBridge {
             staffPhase: staffOpacity == 0 ? .pressedOnly : .fullHint,
             unpressedNoteOpacity: staffOpacity,
             comboCount: 0,
-            scenario: scenarioOverrides(for: loop.stage).toRuntimeState()
+            scenario: scenarioOverrides(for: loop.stage).toRuntimeState(),
+            grandStaffMode: stage.grandStaffMode
         )
     }
 

@@ -224,6 +224,55 @@ export const buildProgressionChordDefinition = (
   return base;
 };
 
+const isGrandStaffSplit = (staves: readonly (1 | 2)[]): boolean =>
+  staves.some((s) => s === 1) && staves.some((s) => s === 2);
+
+const inferVoicingStavesFromMidis = (
+  midis: readonly number[],
+): readonly (1 | 2)[] => midis.map((m) => (m >= 60 ? (1 as const) : (2 as const)));
+
+export interface ResolveProgressionStaffVoicingStavesParams {
+  readonly voicingNames: readonly string[];
+  readonly explicitStaves?: readonly (1 | 2)[];
+  readonly midis?: readonly number[];
+  readonly grandStaffMode: boolean;
+}
+
+/**
+ * Progression 譜面の staff 割当。DB `voicing_staves` を優先し、
+ * `grandStaffMode` かつ欠落／単一 staff のときのみ MIDI から推定する。
+ */
+export const resolveProgressionStaffVoicingStaves = (
+  params: ResolveProgressionStaffVoicingStavesParams,
+): readonly (1 | 2)[] | undefined => {
+  const { voicingNames, explicitStaves, midis, grandStaffMode } = params;
+  const nameLen = voicingNames.length;
+
+  if (
+    explicitStaves
+    && explicitStaves.length === nameLen
+    && (!grandStaffMode || isGrandStaffSplit(explicitStaves))
+  ) {
+    return explicitStaves;
+  }
+
+  if (!grandStaffMode) {
+    if (explicitStaves && explicitStaves.length === nameLen) {
+      return explicitStaves;
+    }
+    return undefined;
+  }
+
+  if (midis && midis.length === nameLen) {
+    return inferVoicingStavesFromMidis(midis);
+  }
+
+  if (explicitStaves && explicitStaves.length === nameLen) {
+    return explicitStaves;
+  }
+  return undefined;
+};
+
 export const buildProgressionChordDefinitions = (
   entries: readonly SurvivalChordProgressionEntry[] | undefined,
 ): SurvivalProgressionBuiltChord[] => {

@@ -37,6 +37,8 @@ export interface JajiiSupportEnableParams {
   readonly survivalTutorialLayout: boolean;
   readonly mapCategory: SurvivalMapCategory | undefined;
   readonly tutorialDialogueJajii?: boolean;
+  /** 大譜表モード（両手ヴォイシングコース等）。lesson カテゴリでもジャ爺を有効化する。 */
+  readonly grandStaffMode?: boolean;
 }
 
 export interface JajiiState {
@@ -90,13 +92,17 @@ export const shouldEnableJajiiSupport = (p: JajiiSupportEnableParams): boolean =
   if (p.tutorialDialogueJajii) {
     return p.isStageMode;
   }
-  return (
-    p.isStageMode
-    && !p.scenarioMode
-    && !p.survivalTutorialLayout
-    && p.mapCategory !== undefined
-    && p.mapCategory !== 'lesson'
-  );
+  if (!p.isStageMode || p.scenarioMode || p.survivalTutorialLayout) {
+    return false;
+  }
+  if (p.mapCategory === undefined) {
+    return false;
+  }
+  // 大譜表モードは lesson カテゴリ（両手ヴォイシングコース等）でもジャ爺を有効化する。
+  if (p.mapCategory === 'lesson') {
+    return p.grandStaffMode === true;
+  }
+  return true;
 };
 
 export const createTutorialDemoFixedJajiiState = (

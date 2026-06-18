@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildProgressionChordDefinition } from '@/utils/survivalProgressionChords';
+import { buildProgressionChordDefinition, resolveProgressionStaffVoicingStaves } from '@/utils/survivalProgressionChords';
 import {
   analyzeSurvivalChordProgression,
   SURVIVAL_PROGRESSION_VOICING_MAP,
@@ -202,5 +202,55 @@ describe('survivalProgressionChords', () => {
     );
     expect(def.progressionStaffVoicingNames).toEqual(['F3', 'Ab3', 'Bb3', 'Db4']);
     expect(def.progressionStaffKeyFifths).toBe(-6);
+  });
+
+  it('resolveProgressionStaffVoicingStaves: DB voicing_staves を優先する', () => {
+    expect(
+      resolveProgressionStaffVoicingStaves({
+        voicingNames: ['F3', 'A3', 'C4', 'E4'],
+        explicitStaves: [2, 2, 1, 1],
+        midis: [53, 57, 60, 64],
+        grandStaffMode: true,
+      }),
+    ).toEqual([2, 2, 1, 1]);
+  });
+
+  it('resolveProgressionStaffVoicingStaves: grandStaffMode + 欠落時は MIDI から推定', () => {
+    expect(
+      resolveProgressionStaffVoicingStaves({
+        voicingNames: ['F3', 'A3', 'C4', 'E4'],
+        midis: [53, 57, 60, 64],
+        grandStaffMode: true,
+      }),
+    ).toEqual([2, 2, 1, 1]);
+  });
+
+  it('resolveProgressionStaffVoicingStaves: grandStaffMode + 全 bass は MIDI フォールバック', () => {
+    expect(
+      resolveProgressionStaffVoicingStaves({
+        voicingNames: ['F3', 'A3', 'C4', 'E4'],
+        explicitStaves: [2, 2, 2, 2],
+        midis: [53, 57, 60, 64],
+        grandStaffMode: true,
+      }),
+    ).toEqual([2, 2, 1, 1]);
+  });
+
+  it('resolveProgressionStaffVoicingStaves: 非 grandStaffMode は explicit のみ', () => {
+    expect(
+      resolveProgressionStaffVoicingStaves({
+        voicingNames: ['F3', 'A3', 'C4', 'E4'],
+        explicitStaves: [2, 2, 2, 2],
+        midis: [53, 57, 60, 64],
+        grandStaffMode: false,
+      }),
+    ).toEqual([2, 2, 2, 2]);
+    expect(
+      resolveProgressionStaffVoicingStaves({
+        voicingNames: ['F3', 'A3', 'C4', 'E4'],
+        midis: [53, 57, 60, 64],
+        grandStaffMode: false,
+      }),
+    ).toBeUndefined();
   });
 });

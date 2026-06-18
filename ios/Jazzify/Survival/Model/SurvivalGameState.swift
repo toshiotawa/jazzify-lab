@@ -823,6 +823,8 @@ struct SurvivalUISnapshot: Equatable {
     var comboCount: Int
     /// オンボーディング等の UI 抑制フラグ（毎フレーム同一なら Equatable で弾ける）
     var scenario: SurvivalScenarioRuntimeState
+    /// DB `grand_staff_mode`。大譜表ステージの中央楽譜レイアウト切替用。
+    var grandStaffMode: Bool
 
     static func make(from runtime: SurvivalStageRuntime, hintSlotIndex: Int?) -> SurvivalUISnapshot {
         let remaining = max(0, runtime.remainingSeconds)
@@ -844,7 +846,8 @@ struct SurvivalUISnapshot: Equatable {
             staffPhase: Self.deriveStaffPhase(from: runtime),
             unpressedNoteOpacity: Self.deriveUnpressedNoteOpacity(from: runtime),
             comboCount: runtime.comboCount,
-            scenario: runtime.scenario
+            scenario: runtime.scenario,
+            grandStaffMode: runtime.stage.grandStaffMode
         )
     }
 }

@@ -37,6 +37,7 @@ enum SurvivalDemoStage {
             isMixedStage: false,
             chordProgression: base.chordProgression,
             lessonOnly: false,
+            grandStaffMode: base.grandStaffMode,
             compositePhraseSources: nil,
             compositePhraseBossType: nil,
             compositePhraseKeyFifths: nil,

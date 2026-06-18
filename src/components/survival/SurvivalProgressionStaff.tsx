@@ -44,6 +44,8 @@ export interface SurvivalProgressionStaffProps {
   readonly unpressedNoteOpacity?: number;
   /** コード名ラベルを表示しない。 */
   readonly hideChordLabel?: boolean;
+  /** 大譜表（ト音＋ヘ音）向け demo レイアウト。`grandStaffMode` ステージ限定。 */
+  readonly grandStaffLayout?: boolean;
   readonly className?: string;
 }
 
@@ -59,8 +61,10 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
     noteCollisionLayout = 'anchor-low',
     unpressedNoteOpacity = 1,
     hideChordLabel = false,
+    grandStaffLayout = false,
     className,
   }) => {
+    const useGrandStaffLayout = grandStaffLayout === true;
     const staffNumber = staffClef === 'treble' ? (1 as const) : (2 as const);
     const voicingStaves = useMemo(() => {
       if (explicitStaves && explicitStaves.length === voicingNames.length) {
@@ -93,14 +97,18 @@ export const SurvivalProgressionStaff = React.memo<SurvivalProgressionStaffProps
     return (
       <div
         className={cn(
-          'min-w-0 flex-1 max-w-[min(280px,60vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[0.92] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[0.88]',
+          useGrandStaffLayout
+            ? 'min-w-0 flex-1 max-w-[min(420px,78vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.35] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.22]'
+            : 'min-w-0 flex-1 max-w-[min(280px,60vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[0.92] [&_svg]:transform-gpu [&_svg]:transform [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[0.88]',
           className,
           'pointer-events-none',
         )}
         aria-hidden
       >
         <ChordVoicingStaff
-          compactSingleMeasure
+          {...(useGrandStaffLayout
+            ? { singleMeasureLayout: true as const }
+            : { compactSingleMeasure: true as const })}
           completionPulse={null}
           unpressedNoteOpacity={unpressedNoteOpacity}
           keyFifths={keyFifths}

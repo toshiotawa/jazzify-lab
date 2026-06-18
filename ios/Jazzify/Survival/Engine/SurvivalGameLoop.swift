@@ -75,7 +75,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     nonisolated static func buildProgressionChords(for stage: SurvivalStageDefinition) -> [SurvivalResolvedChord] {
         guard stage.stageType == .progression, let entries = stage.chordProgression else { return [] }
         let resolved = entries.enumerated().map { index, entry in
-            SurvivalResolvedChord.fromProgressionEntry(entry, index: index)
+            SurvivalResolvedChord.fromProgressionEntry(entry, index: index, grandStaffMode: stage.grandStaffMode)
         }
         let valid = resolved.filter { !$0.pitchClasses.isEmpty }
         if !valid.isEmpty { return valid }
@@ -950,7 +950,10 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
         switch SurvivalSlotIndex(rawValue: slotIndex) {
         case .A?, .B?:
-            if slotIndex == SurvivalSlotIndex.B.rawValue, runtime.scenario.bChordCompletionUseSpecial {
+            // 大譜表モード（両手ヴォイシングコース等）はコンボゲージを使わず、毎正解で 360° 必殺を発動する。
+            let grandStaffForceSpecial = runtime.stage.grandStaffMode
+            if grandStaffForceSpecial
+                || (slotIndex == SurvivalSlotIndex.B.rawValue && runtime.scenario.bChordCompletionUseSpecial) {
                 let wave = SurvivalGameEngine.createSpecialShockwave(
                     from: runtime.player,
                     effectiveBAtk: effectiveStats.bAtk,

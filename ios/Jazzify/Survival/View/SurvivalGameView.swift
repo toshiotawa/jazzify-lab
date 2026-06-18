@@ -1003,7 +1003,7 @@ private struct SurvivalCodeRunGameContent: View {
         let resolvedChords = randomStage
             ? []
             : (stage.chordProgression ?? []).enumerated().map { idx, entry in
-                SurvivalResolvedChord.fromProgressionEntry(entry, index: idx)
+                SurvivalResolvedChord.fromProgressionEntry(entry, index: idx, grandStaffMode: stage.grandStaffMode)
             }
         self.progressionChords = resolvedChords
         if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: resolvedChords) {
@@ -2053,7 +2053,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
         guard let balloonSession = session as? BalloonRushGameSession else {
             return nil
         }
-        return SurvivalStageCenterStaffPayload.make(from: balloonSession.gameLoop)
+        return SurvivalStageCenterStaffPayload.make(from: balloonSession.gameLoop, grandStaffMode: stage.grandStaffMode)
     }
 
     private var balloonRushStaffVisible: Bool {
@@ -2430,6 +2430,21 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
     let staffClef: Int
     /// 中央スタッフ用。`progressionStaffVoicingStaves` があれば構成音単位。
     let voicingStavesPerNote: [Int]?
+    /// DB `grand_staff_mode`。demo 準拠の大譜表レイアウト切替用。
+    let grandStaffMode: Bool
+
+    private static func resolvedVoicingStaves(
+        chord: SurvivalResolvedChord,
+        staffNames: [String],
+        grandStaffMode: Bool
+    ) -> [Int]? {
+        SurvivalResolvedChord.displayVoicingStavesPerNote(
+            voicingNames: staffNames,
+            storedStaves: chord.progressionStaffVoicingStaves,
+            midiNotesAscending: chord.midiNotes.sorted(),
+            grandStaffMode: grandStaffMode
+        )
+    }
 
     static func make(from snapshot: SurvivalUISnapshot) -> Self? {
         guard snapshot.slots.indices.contains(1) else { return nil }
@@ -2451,7 +2466,12 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
                 keyFifths: keyFf,
                 correctPitchClasses: pcs,
                 staffClef: 2,
-                voicingStavesPerNote: chord.progressionStaffVoicingStaves
+                voicingStavesPerNote: resolvedVoicingStaves(
+                    chord: chord,
+                    staffNames: staffNames,
+                    grandStaffMode: snapshot.grandStaffMode
+                ),
+                grandStaffMode: snapshot.grandStaffMode
             )
         }
 
@@ -2469,7 +2489,8 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
                 keyFifths: directVoicing.keyFifths,
                 correctPitchClasses: pcs,
                 staffClef: 1,
-                voicingStavesPerNote: nil
+                voicingStavesPerNote: nil,
+                grandStaffMode: snapshot.grandStaffMode
             )
         }
 
@@ -2477,7 +2498,7 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
     }
 
     @MainActor
-    static func make(from loop: BalloonRushGameLoop) -> Self? {
+    static func make(from loop: BalloonRushGameLoop, grandStaffMode: Bool) -> Self? {
         guard loop.slots.indices.contains(SurvivalSlotIndex.B.rawValue) else { return nil }
         let slot = loop.slots[SurvivalSlotIndex.B.rawValue]
         guard slot.isEnabled, let chord = slot.chord else { return nil }
@@ -2496,7 +2517,12 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
                 keyFifths: keyFf,
                 correctPitchClasses: pcs,
                 staffClef: 2,
-                voicingStavesPerNote: chord.progressionStaffVoicingStaves
+                voicingStavesPerNote: resolvedVoicingStaves(
+                    chord: chord,
+                    staffNames: staffNames,
+                    grandStaffMode: grandStaffMode
+                ),
+                grandStaffMode: grandStaffMode
             )
         }
 
@@ -2508,7 +2534,8 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
                 keyFifths: directVoicing.keyFifths,
                 correctPitchClasses: pcs,
                 staffClef: 1,
-                voicingStavesPerNote: nil
+                voicingStavesPerNote: nil,
+                grandStaffMode: grandStaffMode
             )
         }
 
@@ -2521,8 +2548,11 @@ private struct SurvivalStageCenterStaffOverlay: View {
     let unpressedNoteOpacity: CGFloat
     let hideChordLabel: Bool
 
-    private var grandStaff: Bool {
-        SurvivalStaffOverlayLayout.usesGrandStaff(voicingStavesPerNote: payload.voicingStavesPerNote)
+    private var usesGrandStaffLayout: Bool {
+        if payload.grandStaffMode {
+            return true
+        }
+        return SurvivalStaffOverlayLayout.usesGrandStaff(voicingStavesPerNote: payload.voicingStavesPerNote)
     }
 
     var body: some View {
@@ -2534,14 +2564,18 @@ private struct SurvivalStageCenterStaffOverlay: View {
             correctPitchClasses: payload.correctPitchClasses,
             staffClef: payload.staffClef,
             unpressedNoteOpacity: unpressedNoteOpacity,
-            compactVerticalLayout: true,
+            compactVerticalLayout: !payload.grandStaffMode,
             voicingStavesPerNote: payload.voicingStavesPerNote,
             staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale,
             hideChordLabels: hideChordLabel
         )
         .frame(
-            maxWidth: SurvivalStaffOverlayLayout.centerStaffMaxWidth(isPad: isPad),
-            maxHeight: SurvivalStaffOverlayLayout.centerStaffMaxHeight(isPad: isPad, grandStaff: grandStaff),
+            maxWidth: payload.grandStaffMode
+                ? SurvivalStaffOverlayLayout.scenarioStaffMaxWidth(isPad: isPad)
+                : SurvivalStaffOverlayLayout.centerStaffMaxWidth(isPad: isPad),
+            maxHeight: payload.grandStaffMode
+                ? SurvivalStaffOverlayLayout.scenarioStaffMaxHeight(isPad: isPad, grandStaff: usesGrandStaffLayout)
+                : SurvivalStaffOverlayLayout.centerStaffMaxHeight(isPad: isPad, grandStaff: usesGrandStaffLayout),
             alignment: .top
         )
     }

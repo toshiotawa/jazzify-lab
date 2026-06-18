@@ -96,7 +96,7 @@ import {
   isFirstBlockBossStageDef,
 } from './survivalFirstBlockStage';
 import { getBlockForStage } from './descent/descentBlocks';
-import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
+import { buildProgressionChordDefinitions, resolveProgressionStaffVoicingStaves } from '@/utils/survivalProgressionChords';
 import {
   computeSurvivalKeyboardScrollAnchor,
   maxPitchMidiFromPhraseDefinition,
@@ -528,6 +528,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // 出題ロジック判定だけは `stageType === 'progression'` を直接見る。
   const isProgressionStage = stageDefinition?.stageType === 'progression';
   const isBasicMapStage = stageDefinition?.mapCategory === 'basic';
+  // 大譜表モード（両手ヴォイシングコース等）。毎正解で 360° 必殺を発動し、lesson でもジャ爺を有効化する。
+  const isGrandStaffMode = stageDefinition?.grandStaffMode === true;
   const isPhraseMode = stageDefinition?.mapCategory === 'phrases';
   const isCompositePhraseBossStage =
     isLessonInlineCompositeBoss
@@ -612,6 +614,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         survivalTutorialLayout,
         mapCategory: stageDefinition?.mapCategory,
         tutorialDialogueJajii: tutorialDialogueJajii || undefined,
+        grandStaffMode: isGrandStaffMode,
       }),
     [
       isBalloonRushMode,
@@ -620,6 +623,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       survivalTutorialLayout,
       stageDefinition?.mapCategory,
       tutorialDialogueJajii,
+      isGrandStaffMode,
     ],
   );
 
@@ -2880,7 +2884,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.comboGauge = comboAB.comboGauge;
             newState.comboReady = comboAB.comboReady;
             newState.lastComboHitAt = comboAB.lastComboHitAt;
-            const triggeredSpecialA = comboAB.triggeredSpecial;
+            // 大譜表モードはコンボゲージを使わず、毎正解で 360° 必殺を発動する。
+            if (isGrandStaffMode) {
+              newState.comboGauge = 0;
+              newState.comboReady = false;
+            }
+            const triggeredSpecialA = isGrandStaffMode || comboAB.triggeredSpecial;
 
             const attackInstanceId = isBossStage ? `a_${performance.now()}` : undefined;
             const newProjectiles = createAProjectilesFromPlayer(
@@ -3103,7 +3112,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.comboGauge = comboBB.comboGauge;
             newState.comboReady = comboBB.comboReady;
             newState.lastComboHitAt = comboBB.lastComboHitAt;
-            const triggeredSpecialB = comboBB.triggeredSpecial;
+            // 大譜表モードはコンボゲージを使わず、毎正解で 360° 必殺を発動する。
+            if (isGrandStaffMode) {
+              newState.comboGauge = 0;
+              newState.comboReady = false;
+            }
+            const triggeredSpecialB = isGrandStaffMode || comboBB.triggeredSpecial;
 
             const baseRange = 80;
             const bonusRange = prev.player.skills.bRangeBonus * 20;
@@ -3509,6 +3523,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     isBossStage,
     isStageMode,
     isPhraseMode,
+    isGrandStaffMode,
     scenarioPhraseFullLoopPulseRef,
     jajiiEnabled,
     bumpScenarioUi,
@@ -5751,7 +5766,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (!names || names.length === 0 || typeof kf !== 'number') return null;
 
-    const staves = ch.progressionStaffVoicingStaves;
+    const staves = resolveProgressionStaffVoicingStaves({
+      voicingNames: names,
+      explicitStaves: ch.progressionStaffVoicingStaves,
+      midis: ch.notes,
+      grandStaffMode: isGrandStaffMode,
+    });
     const snapshot: SurvivalProgressionStaffSnapshot = {
       voicingNames: names,
       keyFifths: kf,
@@ -5766,10 +5786,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }, [
     scenarioMode,
     scenarioUiTick,
+    isGrandStaffMode,
     gameState.codeSlots.current[1].correctNotes,
     gameState.codeSlots.current[1].isEnabled,
     gameState.codeSlots.current[1].chord?.id,
+    gameState.codeSlots.current[1].chord?.notes,
     gameState.codeSlots.current[1].chord?.progressionStaffVoicingNames,
+    gameState.codeSlots.current[1].chord?.progressionStaffVoicingStaves,
   ]);
 
   const scenarioDemoStaffSnapshot = useMemo(() => {
@@ -6021,7 +6044,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (!names || names.length === 0 || typeof kf !== 'number') return null;
 
-    const staves = ch.progressionStaffVoicingStaves;
+    const staves = resolveProgressionStaffVoicingStaves({
+      voicingNames: names,
+      explicitStaves: ch.progressionStaffVoicingStaves,
+      midis: ch.notes,
+      grandStaffMode: isGrandStaffMode,
+    });
     const base: SurvivalProgressionStaffSnapshot = {
       voicingNames: names,
       keyFifths: kf,
@@ -6038,6 +6066,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     hintMode,
     playerHasHintBuff,
     isProgressionStage,
+    isGrandStaffMode,
     progressionPunchSlot.isEnabled,
     progressionStaffCorrectNotesSig,
     progressionPunchSlot.chord?.id,
@@ -6045,6 +6074,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionStaffVoicingNamesSig,
     progressionPunchSlot.chord?.progressionStaffKeyFifths,
     progressionPunchSlot.chord?.quality,
+    progressionPunchSlot.chord?.notes,
     progressionPunchSlot.chord?.progressionStaffVoicingStaves,
     scenarioUiTick,
     scenarioMode,
@@ -6622,7 +6652,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                       unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                       hideChordLabel={stageDefinition?.hideChordNamesInBattle === true}
-                      className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
+                      grandStaffLayout={isGrandStaffMode}
+                      className={
+                        isGrandStaffMode
+                          ? 'max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]'
+                          : 'max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]'
+                      }
                     />
                   </SurvivalTutorialStaffBackdrop>
                 ) : (
@@ -6635,8 +6670,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     staffClef={scenarioProgressionStaff.staffClef ?? 'treble'}
                     unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                     hideChordLabel={stageDefinition?.hideChordNamesInBattle === true}
-                    className="max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]"
-                  />
+                    grandStaffLayout={isGrandStaffMode}
+                    className={
+                      isGrandStaffMode
+                        ? 'max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]'
+                        : 'max-w-[min(420px,78vw)] md:max-w-[min(440px,75vw)]'
+                      }
+                    />
                 )}
               </div>
             )}
@@ -6728,12 +6768,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   chordDisplayName={punchStaffSnapshot.chordDisplayName}
                   rootDisplayName={punchStaffSnapshot.rootDisplayName}
                   voicingNames={punchStaffSnapshot.voicingNames}
+                  voicingStaves={punchStaffSnapshot.voicingStaves}
                   keyFifths={punchStaffSnapshot.keyFifths}
                   correctPitchClasses={punchStaffSnapshot.correctPitchClasses}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   staffClef={punchStaffSnapshot.staffClef ?? 'bass'}
                   hideChordLabel={stageDefinition?.hideChordNamesInBattle === true}
-                  className="max-w-[min(360px,78vw)] md:max-w-[min(400px,75vw)]"
+                  grandStaffLayout={isGrandStaffMode}
+                  className={
+                    isGrandStaffMode
+                      ? 'max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]'
+                      : 'max-w-[min(360px,78vw)] md:max-w-[min(400px,75vw)]'
+                  }
                 />
               </div>
             )}

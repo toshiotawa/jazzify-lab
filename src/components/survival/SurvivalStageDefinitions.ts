@@ -84,6 +84,8 @@ export interface StageDefinition {
   productionKeyboardHintMode?: import('@/types').ProductionHintMode;
   /** コード名を隠し、譜面の音符だけで出題する（DB `hide_chord_names_in_battle`） */
   hideChordNamesInBattle?: boolean;
+  /** 大譜表モード（DB `grand_staff_mode`） */
+  grandStaffMode: boolean;
 }
 
 export interface SurvivalRunDialogueLine {
@@ -388,8 +390,37 @@ function parseRunDialogueScript(raw: unknown): SurvivalRunDialogueScript | undef
   return { lines };
 }
 
+/** Supabase `survival_stages` 行（snake_case）。fetch / localStorage キャッシュの生データ。 */
+interface SurvivalStageRow {
+  stage_number: number;
+  name: string;
+  name_en: string;
+  difficulty: string;
+  stage_type?: string;
+  play_mode?: string;
+  chord_suffix?: string;
+  chord_display_name?: string;
+  chord_display_name_en?: string;
+  root_pattern?: string | null;
+  root_pattern_name?: string;
+  root_pattern_name_en?: string;
+  block_key: string;
+  is_mixed_stage?: boolean;
+  mixed_group_key?: string | null;
+  chord_progression?: unknown;
+  map_category?: string;
+  lesson_only?: boolean;
+  run_map_id?: string;
+  run_time_limit_sec?: number;
+  run_dialogue_script?: unknown;
+  production_staff_hint_mode?: string;
+  production_keyboard_hint_mode?: string;
+  hide_chord_names_in_battle?: boolean;
+  grand_staff_mode?: boolean;
+}
+
 /** survival_stages 行 → StageDefinition への変換（ランダムタイプの allowedChords を実行時生成） */
-function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
+function rowToStageDefinition(row: SurvivalStageRow | Record<string, unknown>): StageDefinition {
   const stageType: StageType = (row.stage_type as StageType) || 'random';
   const playMode = parseSurvivalPlayMode(row.play_mode);
   const isMixedStage = Boolean(row.is_mixed_stage);
@@ -436,6 +467,7 @@ function rowToStageDefinition(row: Record<string, unknown>): StageDefinition {
     productionStaffHintMode: parseProductionHintMode(row.production_staff_hint_mode),
     productionKeyboardHintMode: parseProductionHintMode(row.production_keyboard_hint_mode),
     hideChordNamesInBattle: row.hide_chord_names_in_battle === true,
+    grandStaffMode: row.grand_staff_mode === true,
     ...(lessonOnly ? { lessonOnly: true } : {}),
   };
 }

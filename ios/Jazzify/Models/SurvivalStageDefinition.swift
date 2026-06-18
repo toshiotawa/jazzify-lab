@@ -209,6 +209,8 @@ struct SurvivalStageRow: Decodable, Sendable {
     let mixed_group_key: String?
     /// DB `lesson_only`。レッスン専用等のフラグ。カタログには含め、降下マップ UI は `.lesson` カテゴリ等で非表示。
     let lesson_only: Bool?
+    /// DB `grand_staff_mode`。大譜表モード。
+    let grand_staff_mode: Bool?
     /// Progression 用コード進行（`[{"name": "FM7", "voicing": [65, 69, 72, 76]}, ...]`）
     let chord_progression: [SurvivalChordProgressionEntry]?
     let production_staff_hint_mode: String?
@@ -317,6 +319,8 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let chordProgression: [SurvivalChordProgressionEntry]?
     /// DB `lesson_only`。降下マップのブロック構成・ボス判定からは除外する。
     let lessonOnly: Bool
+    /// DB `grand_staff_mode`。大譜表モード。
+    let grandStaffMode: Bool
     /// 複合フレーズの参照元ステージ番号（昇順、`survival_composite_phrase_sources`）。無ければ単一フレーズ。
     let compositePhraseSources: [Int]?
     /// DB `survival_composite_phrase_stages.boss_type`（複合のみ）。
@@ -350,6 +354,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         isMixedStage: Bool,
         chordProgression: [SurvivalChordProgressionEntry]?,
         lessonOnly: Bool,
+        grandStaffMode: Bool = false,
         compositePhraseSources: [Int]?,
         compositePhraseBossType: SurvivalBossType?,
         compositePhraseKeyFifths: Int?,
@@ -380,6 +385,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         self.isMixedStage = isMixedStage
         self.chordProgression = chordProgression
         self.lessonOnly = lessonOnly
+        self.grandStaffMode = grandStaffMode
         self.compositePhraseSources = compositePhraseSources
         self.compositePhraseBossType = compositePhraseBossType
         self.compositePhraseKeyFifths = compositePhraseKeyFifths
@@ -642,6 +648,7 @@ enum SurvivalStageCatalog {
                 isMixedStage: def.isMixedStage,
                 chordProgression: def.chordProgression,
                 lessonOnly: def.lessonOnly,
+                grandStaffMode: def.grandStaffMode,
                 compositePhraseSources: meta.sources,
                 compositePhraseBossType: meta.bossType,
                 compositePhraseKeyFifths: meta.keyFifths,
@@ -763,6 +770,7 @@ enum SurvivalStageCatalog {
                 isMixedStage: isMixedStage,
                 chordProgression: progression,
                 lessonOnly: row.lesson_only == true,
+                grandStaffMode: row.grand_staff_mode ?? false,
                 compositePhraseSources: nil,
                 compositePhraseBossType: nil,
                 compositePhraseKeyFifths: nil,

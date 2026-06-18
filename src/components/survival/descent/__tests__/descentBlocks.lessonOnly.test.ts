@@ -18,6 +18,7 @@ const { basicStages } = vi.hoisted(() => {
     allowedChords: ['C_note'],
     blockKey: 'major',
     mapCategory: 'basic',
+    grandStaffMode: false,
   });
 
   return {

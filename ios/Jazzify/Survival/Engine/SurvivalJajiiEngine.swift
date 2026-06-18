@@ -28,8 +28,11 @@ enum SurvivalJajiiEngine {
         if scenario.tutorialDialogueJajii {
             return true
         }
-        guard stage.mapCategory != .lesson else { return false }
         guard !scenario.isActive else { return false }
+        // 大譜表モード（両手ヴォイシングコース等）は lesson カテゴリでもジャ爺を有効化する。
+        if stage.mapCategory == .lesson {
+            return stage.grandStaffMode
+        }
         return true
     }
 

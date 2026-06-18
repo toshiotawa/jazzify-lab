@@ -72,6 +72,7 @@ export const TUTORIAL_STAGE_DEFINITION: StageDefinition = {
   mapCategory: 'lesson',
   lessonOnly: true,
   chordProgression: PROGRESSION_ENTRIES,
+  grandStaffMode: false,
 };
 
 export function chordToPhraseChord(chord: ChordDefinition, orderIndex: number): SurvivalPhraseChord {

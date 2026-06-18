@@ -42,6 +42,7 @@ export function buildStageDefinitionFromSurvivalV3Content(
       blockKey: 'lesson_practice',
       mapCategory: 'phrases',
       lessonOnly: block.stage.lessonOnly ?? true,
+      grandStaffMode: false,
     };
   }
 
@@ -71,6 +72,7 @@ export function buildStageDefinitionFromSurvivalV3Content(
     mapCategory: prog.stage.mapCategory ?? 'lesson',
     lessonOnly: prog.stage.lessonOnly ?? true,
     chordProgression: prog.stage.stageType === 'progression' ? chordProgression : undefined,
+    grandStaffMode: false,
   };
 }
 

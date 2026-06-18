@@ -155,6 +155,7 @@ export const buildLessonCompositeStageDefinition = (
   lessonOnly: true,
   compositePhraseBossType: normalizeBossType(config.bossType),
   compositePhraseKeyFifths: config.keyFifths ?? 0,
+  grandStaffMode: false,
 });
 
 export const resolveCompositeDamageOverrides = (

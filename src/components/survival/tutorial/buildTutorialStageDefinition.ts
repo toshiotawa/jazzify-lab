@@ -51,6 +51,7 @@ export function buildTutorialStageDefinition(
       voicingNames: entry.voicingNames ? [...entry.voicingNames] : undefined,
       keyFifths: entry.keyFifths ?? 0,
     })),
+    grandStaffMode: false,
   };
 }
 

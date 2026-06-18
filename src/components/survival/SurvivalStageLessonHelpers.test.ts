@@ -20,6 +20,7 @@ const baseStage = (overrides: Partial<StageDefinition>): StageDefinition => ({
   allowedChords: [],
   blockKey: 'major',
   mapCategory: 'basic',
+  grandStaffMode: false,
   ...overrides,
 });
 

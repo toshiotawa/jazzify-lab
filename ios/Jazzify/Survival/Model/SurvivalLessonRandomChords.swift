@@ -173,6 +173,7 @@ enum SurvivalLessonRandomChords {
             isMixedStage: stage.isMixedStage,
             chordProgression: stage.chordProgression,
             lessonOnly: stage.lessonOnly,
+            grandStaffMode: stage.grandStaffMode,
             compositePhraseSources: stage.compositePhraseSources,
             compositePhraseBossType: stage.compositePhraseBossType,
             compositePhraseKeyFifths: stage.compositePhraseKeyFifths,

@@ -55,6 +55,7 @@ const stubStage = (
   allowedChords: [],
   blockKey: 'major',
   mapCategory: 'basic',
+  grandStaffMode: false,
   ...partial,
 });
 

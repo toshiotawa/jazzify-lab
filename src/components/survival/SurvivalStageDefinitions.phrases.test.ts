@@ -18,6 +18,7 @@ const phraseStage = (overrides: Partial<StageDefinition> = {}): StageDefinition 
   blockKey: 'phrases_ii_v_c_1',
   mapCategory: 'phrases',
   compositePhraseSources: [1, 2, 3, 4, 5],
+  grandStaffMode: false,
   ...overrides,
 });
 

@@ -117,7 +117,8 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
     /// - `pitchClasses` は重複除去した 0..<12 の集合（オクターブ無視判定用）。
     public static func fromProgressionEntry(
         _ entry: SurvivalChordProgressionEntry,
-        index: Int
+        index: Int,
+        grandStaffMode: Bool = false
     ) -> SurvivalResolvedChord {
         let sortedMidi = Array(Set(entry.voicing)).sorted()
         var pcs: [Int] = []
@@ -126,7 +127,7 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             let pc = ((note % 12) + 12) % 12
             if seen.insert(pc).inserted { pcs.append(pc) }
         }
-        let layout = Self.ascendingProgressionStaffLayout(entry: entry)
+        let layout = Self.ascendingProgressionStaffLayout(entry: entry, grandStaffMode: grandStaffMode)
         let staffNames = layout?.names
         let staffRows = layout?.staves
         // 採用範囲は -6..+5（F# キーは Gb で表現する方針）。
@@ -146,9 +147,32 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         )
     }
 
+    /// 大譜表フォールバック: MIDI 60 以上はト音(1)、未満はヘ音(2)。
+    public static func staffFromMidi(_ midi: Int) -> Int {
+        midi >= 60 ? 1 : 2
+    }
+
+    /// 譜面表示用。DB `voicing_staves` を優先し、欠落時は `grandStaffMode` のときのみ MIDI 振り分け。
+    public static func displayVoicingStavesPerNote(
+        voicingNames: [String],
+        storedStaves: [Int]?,
+        midiNotesAscending: [Int],
+        grandStaffMode: Bool
+    ) -> [Int]? {
+        if let stored = storedStaves, stored.count == voicingNames.count {
+            return stored.map { $0 == 1 ? 1 : 2 }
+        }
+        guard grandStaffMode else { return nil }
+        guard midiNotesAscending.count == voicingNames.count else { return nil }
+        return midiNotesAscending.map { staffFromMidi($0) }
+    }
+
     /// `voicing` の各 MIDI と並列の綴りを昇順 MIDI に並べる。重複ピッチクラス時はレイアウト不可。
-    /// `voicing_names` が無いときはピッチクラスの簡易綴りを使う。`voicing_staves` 省略時はヘ音のみ。
-    private static func ascendingProgressionStaffLayout(entry: SurvivalChordProgressionEntry) -> (names: [String], staves: [Int])? {
+    /// `voicing_names` が無いときはピッチクラスの簡易綴りを使う。`voicing_staves` 省略時はヘ音のみ（大譜表モード時は MIDI 振り分け）。
+    private static func ascendingProgressionStaffLayout(
+        entry: SurvivalChordProgressionEntry,
+        grandStaffMode: Bool
+    ) -> (names: [String], staves: [Int]?)? {
         let voices = entry.voicing
         guard !voices.isEmpty else { return nil }
         let pitchClassesUnique = Set(voices.map { (($0 % 12) + 12) % 12 })
@@ -168,11 +192,13 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
             nameStrings = voices.map { letterPitchName(midi: $0) }
         }
 
-        let stavesParallel: [Int]
+        let stavesParallel: [Int]?
         if let vs = entry.voicingStaves, vs.count == voices.count {
             stavesParallel = vs.map { $0 == 1 ? 1 : 2 }
+        } else if grandStaffMode {
+            stavesParallel = voices.map { staffFromMidi($0) }
         } else {
-            stavesParallel = Array(repeating: 2, count: voices.count)
+            stavesParallel = nil
         }
 
         let sortedVoicing = voices.sorted()
@@ -181,12 +207,15 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         for idx in voices.indices {
             let rawMidi = voices[idx]
             let nmRaw = nameStrings[idx]
-            let rawStaff = stavesParallel[idx]
+            let rawStaff = stavesParallel?[idx] ?? 2
             let adjustedName = alignNameOctaveToMidi(name: nmRaw, targetMidi: rawMidi)
             tuples.append((midi: rawMidi, nm: adjustedName, st: rawStaff))
         }
         tuples.sort { $0.midi < $1.midi }
-        return (tuples.map(\.nm), tuples.map(\.st))
+        if stavesParallel != nil {
+            return (tuples.map(\.nm), tuples.map(\.st))
+        }
+        return (tuples.map(\.nm), nil)
     }
 
     private static func letterPitchName(midi: Int) -> String {
