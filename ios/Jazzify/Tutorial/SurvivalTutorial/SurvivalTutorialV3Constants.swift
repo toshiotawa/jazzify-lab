@@ -12,4 +12,7 @@ enum SurvivalTutorialV3Constants {
     static let phraseRevealEnemyCount: Int = 1
     /// フレーズバトル reveal 時の静止敵リング半径。
     static let phraseRevealEnemyRadius: CGFloat = 180
+    /// demo_play 鍵盤ハイライトの先行発火秒数（@Published 反映の SwiftUI フレーム + iPhone 88 鍵再構築など描画レイテンシ補正）。
+    /// 大きいほど点灯が早まる。出力レイテンシ（Bluetooth 等）はこの値から差し引かれる。
+    static let demoHighlightRenderLeadSeconds: Double = 0.05
 }

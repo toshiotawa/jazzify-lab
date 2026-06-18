@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 @MainActor
@@ -180,14 +181,26 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
         let elapsed = Date().timeIntervalSince(anchor)
 
         let schedule = SurvivalTutorialDemoPlayScheduler.buildSchedule(scene: scene)
+        // 鍵盤ハイライトの描画レイテンシを見越した先行発火量（出力レイテンシ分は後ろ倒し）。
+        // セリフ・終了イベントには適用せず、コード点灯のみ補正する。
+        let outputLatency = AVAudioSession.sharedInstance().outputLatency
+        let chordHighlightAdvance = SurvivalTutorialV3Constants.demoHighlightRenderLeadSeconds - outputLatency
         var activeChordIndex: Int?
         var activeLineIndex: Int?
 
         await withTaskGroup(of: Void.self) { group in
             for event in schedule {
+                let advance: Double
+                switch event.kind {
+                case .chordStart, .chordEnd:
+                    advance = chordHighlightAdvance
+                case .lineStart, .lineEnd, .demoEnd:
+                    advance = 0
+                }
                 let delaySeconds = SurvivalTutorialDemoPlayScheduler.anchoredDelaySeconds(
                     atSeconds: event.atSeconds,
-                    elapsedSeconds: elapsed
+                    elapsedSeconds: elapsed,
+                    advanceSeconds: advance
                 )
                 let delayNs = UInt64(delaySeconds * 1_000_000_000)
                 group.addTask { @MainActor in

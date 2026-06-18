@@ -23,8 +23,13 @@ enum SurvivalTutorialDemoPlayScheduler {
     }
 
     /// BGM アンカー時刻からの残り遅延秒（負値は 0 にクランプ）。
-    static func anchoredDelaySeconds(atSeconds: Double, elapsedSeconds: Double) -> Double {
-        max(0, atSeconds - elapsedSeconds)
+    /// `advanceSeconds` 正値で発火を前倒し（描画レイテンシ補正）、負値で後ろ倒し（出力レイテンシ追従）。
+    static func anchoredDelaySeconds(
+        atSeconds: Double,
+        elapsedSeconds: Double,
+        advanceSeconds: Double = 0
+    ) -> Double {
+        max(0, atSeconds - elapsedSeconds - advanceSeconds)
     }
 
     static func defaultLineDurationBeats(bpm: Double) -> Double {

@@ -64,6 +64,42 @@ final class SurvivalTutorialDemoPlaySchedulerAnchorTests: XCTestCase {
         )
     }
 
+    func testAnchoredDelaySecondsPositiveAdvanceFiresEarlier() {
+        XCTAssertEqual(
+            SurvivalTutorialDemoPlayScheduler.anchoredDelaySeconds(
+                atSeconds: 1.5,
+                elapsedSeconds: 0.5,
+                advanceSeconds: 0.2
+            ),
+            0.8,
+            accuracy: 0.0001
+        )
+    }
+
+    func testAnchoredDelaySecondsNegativeAdvanceFiresLater() {
+        XCTAssertEqual(
+            SurvivalTutorialDemoPlayScheduler.anchoredDelaySeconds(
+                atSeconds: 1.5,
+                elapsedSeconds: 0.5,
+                advanceSeconds: -0.3
+            ),
+            1.3,
+            accuracy: 0.0001
+        )
+    }
+
+    func testAnchoredDelaySecondsAdvanceClampsNegativeToZero() {
+        XCTAssertEqual(
+            SurvivalTutorialDemoPlayScheduler.anchoredDelaySeconds(
+                atSeconds: 0.1,
+                elapsedSeconds: 0,
+                advanceSeconds: 0.3
+            ),
+            0,
+            accuracy: 0.0001
+        )
+    }
+
     func testMaxVoicingMidiIgnoresRestMeasures() throws {
         let scene = try decodeDemoPlayScene(
             chordsJson: """
