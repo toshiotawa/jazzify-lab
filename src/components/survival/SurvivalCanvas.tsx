@@ -118,6 +118,10 @@ interface SurvivalCanvasProps {
   faiBubbleText?: string;
   /** チュートリアル用ファイ台詞（`.current` 優先。親が毎フレーム参照） */
   tutorialFaiSpeechTextRef?: React.MutableRefObject<string>;
+  /** v3 チュートリアル: ファイ吹き出しを足下に配置 */
+  speechBubblesBelowCharacter?: boolean;
+  /** demo_play: ジャ爺吹き出しを頭上に配置（ファイ足下・譜面と被らない） */
+  freezeTutorialDemoJajii?: boolean;
   /** 風船ラッシュ時: 敵の代わりに風船を描画 */
   balloonRushDraw?: BalloonRushDrawSnapshot | null;
   /** プレイフィールド寸法（未指定時は `MAP_CONFIG`） */
@@ -288,6 +292,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   tutorialJajiiSpeechTextRef,
   faiBubbleText = '',
   tutorialFaiSpeechTextRef,
+  speechBubblesBelowCharacter = false,
+  freezeTutorialDemoJajii = false,
   balloonRushDraw = null,
   mapConfig,
 }) => {
@@ -1745,13 +1751,18 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     const faiQuote = tutorialFaiQuote || faiBubbleTextRef.current.trim();
     if (faiQuote) {
       const bubbleMax = Math.min(SURVIVAL_FAI_BUBBLE_MAX_WIDTH_PX, logicalWidth - 32);
+      const faiGap = 14;
+      const faiPlacement = speechBubblesBelowCharacter ? 'below' : 'above';
+      const faiAnchorY = speechBubblesBelowCharacter
+        ? playerScreenY + PLAYER_SIZE * 0.85 + faiGap
+        : playerScreenY - PLAYER_SIZE * 0.85 - faiGap;
       drawSurvivalSpeechBubble({
         ctx,
         centerX: playerScreenX,
-        anchorY: playerScreenY - PLAYER_SIZE * 0.85 - 14,
+        anchorY: faiAnchorY,
         text: faiQuote,
         maxWidth: bubbleMax,
-        placement: 'above',
+        placement: faiPlacement,
       });
     }
 
@@ -1766,13 +1777,20 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
           SURVIVAL_JAJII_BUBBLE_MAX_WIDTH_PX,
           logicalWidth - 32,
         );
+        const jajiiGap = 14;
+        const jajiiPlacement = freezeTutorialDemoJajii
+          ? 'above'
+          : (speechBubblesBelowCharacter ? 'below' : 'above');
+        const jajiiAnchorY = jajiiPlacement === 'above'
+          ? jjy - JAJII_SPRITE_SIZE / 2 - jajiiGap
+          : jjy + JAJII_SPRITE_SIZE / 2 + jajiiGap;
         drawSurvivalSpeechBubble({
           ctx,
           centerX: jjx,
-          anchorY: jjy - JAJII_SPRITE_SIZE / 2 - 6,
+          anchorY: jajiiAnchorY,
           text: jajiiQuote,
           maxWidth: bubbleMax,
-          placement: 'above',
+          placement: jajiiPlacement,
         });
       }
     }

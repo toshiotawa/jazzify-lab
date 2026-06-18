@@ -443,10 +443,17 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
     private func configureJajiiSupportIfNeeded() {
         if SurvivalJajiiEngine.shouldEnable(stage: stage, scenario: runtime.scenario) {
-            runtime.jajii = SurvivalJajiiEngine.makeInitial(
-                playerX: runtime.player.x,
-                playerY: runtime.player.y
-            )
+            if runtime.scenario.freezeTutorialDemoJajii {
+                runtime.jajii = SurvivalJajiiEngine.makeTutorialDemoFixed(
+                    playerX: runtime.player.x,
+                    playerY: runtime.player.y
+                )
+            } else {
+                runtime.jajii = SurvivalJajiiEngine.makeInitial(
+                    playerX: runtime.player.x,
+                    playerY: runtime.player.y
+                )
+            }
         } else {
             runtime.jajii = nil
         }
@@ -501,12 +508,20 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
     private func tickJajii(elapsedSec: TimeInterval, deltaSec: TimeInterval, effectiveBAtk: Int, now: TimeInterval) {
         guard var jajii = runtime.jajii else { return }
-        SurvivalJajiiEngine.updateMovementInPlace(
-            &jajii,
-            playerX: runtime.player.x,
-            playerY: runtime.player.y,
-            deltaSec: deltaSec
-        )
+        if runtime.scenario.freezeTutorialDemoJajii {
+            SurvivalJajiiEngine.syncTutorialDemoFixedPosition(
+                &jajii,
+                playerX: runtime.player.x,
+                playerY: runtime.player.y
+            )
+        } else {
+            SurvivalJajiiEngine.updateMovementInPlace(
+                &jajii,
+                playerX: runtime.player.x,
+                playerY: runtime.player.y,
+                deltaSec: deltaSec
+            )
+        }
         let firedMini = SurvivalJajiiEngine.consumeDueMiniSpecialIfDue(&jajii, nowSec: elapsedSec)
         runtime.jajii = jajii
         if firedMini, !isPhraseMode {

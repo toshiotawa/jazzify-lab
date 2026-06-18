@@ -149,6 +149,8 @@ export function survivalTutorialDemoPlayRevealOverrides(
     blockMidiGameInput: true,
     blockSlotEvaluation: true,
     disableJoystick: true,
+    speechBubblesBelowCharacter: true,
+    freezeTutorialDemoJajii: true,
   };
 }
 

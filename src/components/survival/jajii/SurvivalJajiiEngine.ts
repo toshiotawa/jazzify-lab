@@ -20,6 +20,10 @@ export const JAJII_ARRIVE_EPS = 4;
 export const JAJII_MINI_DELAY_SEC = 2;
 /** ミニ必殺の半径はプレイヤー必殺相当半径に対する倍率 */
 export const JAJII_MINI_RADIUS_MULTIPLIER = 1 / 2;
+/** demo_play: プレイヤーからの固定オフセット（やや右下） */
+export const JAJII_TUTORIAL_DEMO_OFFSET_X = 72;
+export const JAJII_TUTORIAL_DEMO_OFFSET_Y = 56;
+
 /** プレイヤー基底移動速度に対するジャ爺の倍率 */
 export const JAJII_MOVE_SPEED_MULTIPLIER = 0.8;
 /** 歩行速度（Web プレイヤー基底 150 px/s × 0.8） */
@@ -93,6 +97,35 @@ export const shouldEnableJajiiSupport = (p: JajiiSupportEnableParams): boolean =
     && p.mapCategory !== undefined
     && p.mapCategory !== 'lesson'
   );
+};
+
+export const createTutorialDemoFixedJajiiState = (
+  playerX: number,
+  playerY: number,
+): JajiiState => {
+  const x = playerX + JAJII_TUTORIAL_DEMO_OFFSET_X;
+  const y = playerY + JAJII_TUTORIAL_DEMO_OFFSET_Y;
+  return {
+    worldX: x,
+    worldY: y,
+    targetWorldX: x,
+    targetWorldY: y,
+    pendingMiniFireAtSec: null,
+  };
+};
+
+/** demo_play: 漂い移動なし。プレイヤー右下の固定相対位置のみ維持。 */
+export const syncTutorialDemoFixedJajiiPosition = (
+  state: JajiiState,
+  playerX: number,
+  playerY: number,
+): void => {
+  const x = playerX + JAJII_TUTORIAL_DEMO_OFFSET_X;
+  const y = playerY + JAJII_TUTORIAL_DEMO_OFFSET_Y;
+  state.worldX = x;
+  state.worldY = y;
+  state.targetWorldX = x;
+  state.targetWorldY = y;
 };
 
 export const createInitialJajiiState = (

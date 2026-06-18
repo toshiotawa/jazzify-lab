@@ -12,6 +12,9 @@ enum SurvivalJajiiEngine {
     static let miniRadiusMultiplier: CGFloat = 1.0 / 2.0
     static let moveSpeedMultiplier: CGFloat = 0.8
     static let moveSlowdownWhilePending: CGFloat = 0.7
+    /// demo_play: プレイヤーからの固定オフセット（やや右下）
+    static let tutorialDemoOffsetX: CGFloat = 72
+    static let tutorialDemoOffsetY: CGFloat = 56
 
     struct State: Sendable {
         var worldX: CGFloat
@@ -28,6 +31,31 @@ enum SurvivalJajiiEngine {
         guard stage.mapCategory != .lesson else { return false }
         guard !scenario.isActive else { return false }
         return true
+    }
+
+    static func makeTutorialDemoFixed(playerX: CGFloat, playerY: CGFloat) -> State {
+        let x = playerX + tutorialDemoOffsetX
+        let y = playerY + tutorialDemoOffsetY
+        return State(
+            worldX: x,
+            worldY: y,
+            targetWorldX: x,
+            targetWorldY: y,
+            pendingMiniFireAtSec: nil
+        )
+    }
+
+    static func syncTutorialDemoFixedPosition(
+        _ state: inout State,
+        playerX: CGFloat,
+        playerY: CGFloat
+    ) {
+        let x = playerX + tutorialDemoOffsetX
+        let y = playerY + tutorialDemoOffsetY
+        state.worldX = x
+        state.worldY = y
+        state.targetWorldX = x
+        state.targetWorldY = y
     }
 
     static func makeInitial(playerX: CGFloat, playerY: CGFloat) -> State {

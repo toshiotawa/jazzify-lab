@@ -143,6 +143,8 @@ import type { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import {
   shouldEnableJajiiSupport,
   createInitialJajiiState,
+  createTutorialDemoFixedJajiiState,
+  syncTutorialDemoFixedJajiiPosition,
   updateJajiiMovementInPlace,
   getJajiiWorldPosition,
   tryScheduleMiniSpecial,
@@ -4418,11 +4420,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (newState.bSlotCooldown > 0) newState.bSlotCooldown = Math.max(0, newState.bSlotCooldown - deltaTime);
 
           if (jajiiEnabled) {
+            const freezeDemoJajii = scenarioOverridesRef.current.freezeTutorialDemoJajii;
             if (!jajiiStateRef.current) {
-              jajiiStateRef.current = createInitialJajiiState(newState.player.x, newState.player.y);
+              jajiiStateRef.current = freezeDemoJajii
+                ? createTutorialDemoFixedJajiiState(newState.player.x, newState.player.y)
+                : createInitialJajiiState(newState.player.x, newState.player.y);
             }
             const jst = jajiiStateRef.current;
-            updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
+            if (freezeDemoJajii) {
+              syncTutorialDemoFixedJajiiPosition(jst, newState.player.x, newState.player.y);
+            } else {
+              updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
+            }
             const pos = getJajiiWorldPosition(jst);
             jajiiWorldPosRef.current = pos;
             if (!isPhraseMode && !isBalloonRushMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
@@ -4579,11 +4588,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
 
         if (jajiiEnabled) {
+          const freezeDemoJajii = scenarioOverridesRef.current.freezeTutorialDemoJajii;
           if (!jajiiStateRef.current) {
-            jajiiStateRef.current = createInitialJajiiState(newState.player.x, newState.player.y);
+            jajiiStateRef.current = freezeDemoJajii
+              ? createTutorialDemoFixedJajiiState(newState.player.x, newState.player.y)
+              : createInitialJajiiState(newState.player.x, newState.player.y);
           }
           const jst = jajiiStateRef.current;
-          updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
+          if (freezeDemoJajii) {
+            syncTutorialDemoFixedJajiiPosition(jst, newState.player.x, newState.player.y);
+          } else {
+            updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
+          }
           const pos = getJajiiWorldPosition(jst);
           jajiiWorldPosRef.current = pos;
           if (!isPhraseMode && !isBalloonRushMode && consumeDueMiniSpecialIfDue(jst, newState.elapsedTime)) {
@@ -6529,6 +6545,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             jajiiBubbleText={timedJajiiBubbleLine}
             tutorialJajiiSpeechTextRef={tutorialJajiiSpeechTextRef}
             tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
+            speechBubblesBelowCharacter={
+              scenarioMode && scenarioUi.isActive && scenarioUi.speechBubblesBelowCharacter
+            }
+            freezeTutorialDemoJajii={
+              scenarioMode && scenarioUi.isActive && scenarioUi.freezeTutorialDemoJajii
+            }
             faiBubbleText={timedFaiBubbleCharacterLine}
             balloonRushDraw={isBalloonRushMode ? balloonDrawSnapshot : null}
             mapConfig={isBalloonRushMode ? BALLOON_RUSH_MAP_CONFIG : undefined}

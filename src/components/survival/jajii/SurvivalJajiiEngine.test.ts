@@ -2,13 +2,17 @@ import {
   clampOffsetRing,
   consumeDueMiniSpecialIfDue,
   createInitialJajiiState,
+  createTutorialDemoFixedJajiiState,
   JAJII_MIN_RADIUS,
   JAJII_MAX_RADIUS,
   JAJII_FOLLOW_TRIGGER_RADIUS,
   JAJII_MOVE_SPEED_PX_PER_SEC,
+  JAJII_TUTORIAL_DEMO_OFFSET_X,
+  JAJII_TUTORIAL_DEMO_OFFSET_Y,
   tryScheduleMiniSpecial,
   shouldEnableJajiiSupport,
   pickRandomRingOffset,
+  syncTutorialDemoFixedJajiiPosition,
   updateJajiiMovementInPlace,
   getJajiiWorldPosition,
 } from '@/components/survival/jajii/SurvivalJajiiEngine';
@@ -79,6 +83,30 @@ describe('SurvivalJajiiEngine', () => {
       expect(st.pendingMiniFireAtSec).not.toBe(null);
       expect(consumeDueMiniSpecialIfDue(st, 12)).toBe(true);
       expect(st.pendingMiniFireAtSec).toBe(null);
+    });
+  });
+
+  describe('createTutorialDemoFixedJajiiState', () => {
+    it('プレイヤー右下の固定オフセットで生成する', () => {
+      const st = createTutorialDemoFixedJajiiState(100, 200);
+      expect(st.worldX).toBe(100 + JAJII_TUTORIAL_DEMO_OFFSET_X);
+      expect(st.worldY).toBe(200 + JAJII_TUTORIAL_DEMO_OFFSET_Y);
+      expect(st.targetWorldX).toBe(st.worldX);
+      expect(st.targetWorldY).toBe(st.worldY);
+      expect(st.pendingMiniFireAtSec).toBe(null);
+    });
+  });
+
+  describe('syncTutorialDemoFixedJajiiPosition', () => {
+    it('漂い移動なしでプレイヤー相対位置を維持する', () => {
+      const st = createInitialJajiiState(0, 0);
+      syncTutorialDemoFixedJajiiPosition(st, 300, 400);
+      expect(st.worldX).toBe(300 + JAJII_TUTORIAL_DEMO_OFFSET_X);
+      expect(st.worldY).toBe(400 + JAJII_TUTORIAL_DEMO_OFFSET_Y);
+      const before = getJajiiWorldPosition(st);
+      updateJajiiMovementInPlace(st, 300, 400, 0, 1);
+      syncTutorialDemoFixedJajiiPosition(st, 300, 400);
+      expect(getJajiiWorldPosition(st)).toEqual(before);
     });
   });
 

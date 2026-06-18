@@ -36,6 +36,8 @@ const BALLOON_RUSH_SCENARIO_OVERRIDES_BASE: SurvivalScenarioOverrides = {
   blockSlotEvaluation: false,
   disableSurvivalBgm: false,
   suppressAutoSpawn: true,
+  speechBubblesBelowCharacter: false,
+  freezeTutorialDemoJajii: false,
   bChordCompletionAttackSlot: null,
   bChordCompletionUseSpecial: false,
 };

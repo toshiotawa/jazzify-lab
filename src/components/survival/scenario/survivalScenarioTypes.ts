@@ -32,6 +32,10 @@ export interface SurvivalScenarioOverrides {
   blockSlotEvaluation: boolean;
   disableSurvivalBgm: boolean;
   suppressAutoSpawn: boolean;
+  /** v3 チュートリアル: ファイ・ジャ爺の吹き出しを足下に配置 */
+  speechBubblesBelowCharacter: boolean;
+  /** demo_play: ジャ爺をプレイヤー右下に固定し漂い移動を止める */
+  freezeTutorialDemoJajii: boolean;
   bChordCompletionAttackSlot: 'A' | 'B' | null;
   bChordCompletionUseSpecial: boolean;
 }
@@ -66,6 +70,8 @@ export const INACTIVE_SCENARIO_OVERRIDES: SurvivalScenarioOverrides = {
   blockSlotEvaluation: false,
   disableSurvivalBgm: false,
   suppressAutoSpawn: false,
+  speechBubblesBelowCharacter: false,
+  freezeTutorialDemoJajii: false,
   bChordCompletionAttackSlot: null,
   bChordCompletionUseSpecial: false,
 };

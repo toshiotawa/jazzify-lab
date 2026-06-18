@@ -2073,7 +2073,8 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                 session: session,
                 faiBubbleText: faiTimedBubbleText,
                 jajiiBubbleText: jajiiTimedBubbleText,
-                speechBubblesBelowCharacter: vm.uiSnapshot.scenario.speechBubblesBelowCharacter
+                speechBubblesBelowCharacter: vm.uiSnapshot.scenario.speechBubblesBelowCharacter,
+                freezeTutorialDemoJajii: vm.uiSnapshot.scenario.freezeTutorialDemoJajii
             )
                 .ignoresSafeArea()
 
@@ -2650,6 +2651,7 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
     let faiBubbleText: String
     let jajiiBubbleText: String
     let speechBubblesBelowCharacter: Bool
+    let freezeTutorialDemoJajii: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -2682,6 +2684,7 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
     func updateUIView(_ uiView: SKView, context: Context) {
         if let scene = uiView.scene as? SurvivalScene {
             scene.setSpeechBubblesBelowCharacter(speechBubblesBelowCharacter)
+            scene.setFreezeTutorialDemoJajii(freezeTutorialDemoJajii)
             scene.setPlayerQuoteText(faiBubbleText)
             scene.setJajiiQuoteText(jajiiBubbleText)
         }

@@ -584,6 +584,9 @@ public struct SurvivalScenarioRuntimeState: Sendable, Equatable {
     /// v3 チュートリアル: 吹き出しを足下に配置。
     public var speechBubblesBelowCharacter: Bool = false
 
+    /// demo_play: ジャ爺をプレイヤー右下に固定し漂い移動を止める。
+    public var freezeTutorialDemoJajii: Bool = false
+
     /// demo_play: 外部スケジューラが指定する鍵盤ハイライト MIDI。
     public var demoKeyboardMidis: [Int] = []
 

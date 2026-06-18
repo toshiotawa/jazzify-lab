@@ -46,6 +46,9 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
     /// v3 チュートリアル: ファイ・ジャ爺の吹き出しを足下に配置（尾はキャラ向き）。
     var speechBubblesBelowCharacter: Bool = false
 
+    /// demo_play: ジャ爺をプレイヤー右下に固定し漂い移動を止める。
+    var freezeTutorialDemoJajii: Bool = false
+
     /// demo_play: 外部スケジューラが指定する鍵盤ハイライト MIDI。
     var demoKeyboardMidis: [Int] = []
 
@@ -88,6 +91,7 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
             suppressAutoSpawn: suppressAutoSpawn,
             tutorialDialogueJajii: tutorialDialogueJajii,
             speechBubblesBelowCharacter: speechBubblesBelowCharacter,
+            freezeTutorialDemoJajii: freezeTutorialDemoJajii,
             demoKeyboardMidis: demoKeyboardMidis,
             bChordCompletionAttackOverride: bChordCompletionAttackOverride,
             bChordCompletionUseSpecial: bChordCompletionUseSpecial

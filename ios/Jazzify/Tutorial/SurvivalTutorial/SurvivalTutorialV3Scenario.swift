@@ -110,6 +110,8 @@ enum SurvivalTutorialV3Scenario {
         out.disableJoystick = false
         out.suppressScenarioStaff = true
         out.demoKeyboardMidis = []
+        out.speechBubblesBelowCharacter = true
+        out.freezeTutorialDemoJajii = true
         return out
     }
 
