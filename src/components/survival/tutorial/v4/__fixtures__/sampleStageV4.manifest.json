@@ -1,0 +1,345 @@
+{
+  "version": 4,
+  "id": "sample_stage_v4",
+  "assets": {
+    "midi": "sampleStageV4.mid",
+    "bgm": {
+      "url": "sample_bgm_loop.mp3"
+    }
+  },
+  "bpm": 120,
+  "beatsPerMeasure": 4,
+  "keyFifths": 0,
+  "ui": {
+    "hidePlayerHpBar": true,
+    "hideSettingsButton": true,
+    "hideBackButton": true,
+    "hideMidiToggle": true,
+    "showExitButton": true,
+    "playerInvincible": true,
+    "disableEnemyAttacks": true,
+    "keyboardHintsDefault": true
+  },
+  "scenes": [
+    {
+      "id": "S1",
+      "start": {
+        "measure": 1,
+        "beat": 1
+      },
+      "end": {
+        "measure": 3,
+        "beat": 1
+      },
+      "bgm": {
+        "url": "sample_bgm_loop.mp3",
+        "resetOnEnter": false
+      },
+      "keyFifths": 0,
+      "beatsPerMeasure": 4,
+      "bpm": 120,
+      "midi": {
+        "startTick": 0,
+        "endTick": 3840,
+        "startSec": 0,
+        "endSec": 4
+      },
+      "sceneType": "dialogue",
+      "lines": [
+        {
+          "ja": "ようこそ、サバイバルへ。",
+          "en": "",
+          "speaker": "fai",
+          "startBeat": 0,
+          "durationBeats": 2
+        },
+        {
+          "ja": "わしがジャ爺じゃ。",
+          "en": "",
+          "speaker": "jajii",
+          "startBeat": 2,
+          "durationBeats": 2
+        },
+        {
+          "ja": "まずは見て覚えよう。",
+          "en": "",
+          "speaker": "fai",
+          "startBeat": 4
+        }
+      ]
+    },
+    {
+      "id": "S2",
+      "start": {
+        "measure": 3,
+        "beat": 1
+      },
+      "end": {
+        "measure": 5,
+        "beat": 1
+      },
+      "bgm": {
+        "url": "sample_bgm_loop.mp3",
+        "resetOnEnter": true
+      },
+      "keyFifths": 0,
+      "beatsPerMeasure": 4,
+      "bpm": 120,
+      "midi": {
+        "startTick": 3840,
+        "endTick": 7680,
+        "startSec": 4,
+        "endSec": 8
+      },
+      "sceneType": "demo",
+      "chords": [
+        {
+          "startBeat": 0,
+          "durationBeats": 2,
+          "measureNumber": 3,
+          "chordName": "Dm7",
+          "notes": [
+            53,
+            57,
+            60,
+            76
+          ],
+          "noteNames": [
+            "F3",
+            "A3",
+            "C4",
+            "E5"
+          ],
+          "noteStaves": [
+            2,
+            2,
+            2,
+            1
+          ],
+          "bass": [
+            38
+          ],
+          "bassNames": [
+            "D2"
+          ],
+          "keyFifths": 0
+        },
+        {
+          "startBeat": 2,
+          "durationBeats": 2,
+          "measureNumber": 3,
+          "chordName": "G7",
+          "notes": [
+            53,
+            57,
+            59,
+            74
+          ],
+          "noteNames": [
+            "F3",
+            "A3",
+            "B3",
+            "D5"
+          ],
+          "noteStaves": [
+            2,
+            2,
+            2,
+            1
+          ],
+          "bass": [
+            43
+          ],
+          "bassNames": [
+            "G2"
+          ],
+          "keyFifths": 0
+        },
+        {
+          "startBeat": 4,
+          "durationBeats": 4,
+          "measureNumber": 4,
+          "chordName": "CM7",
+          "notes": [
+            52,
+            55,
+            59,
+            72
+          ],
+          "noteNames": [
+            "E3",
+            "G3",
+            "B3",
+            "C5"
+          ],
+          "noteStaves": [
+            2,
+            2,
+            2,
+            1
+          ],
+          "bass": [
+            36
+          ],
+          "bassNames": [
+            "C2"
+          ],
+          "keyFifths": 0
+        }
+      ],
+      "lines": [
+        {
+          "ja": "Dm7、見ていてくれ。",
+          "en": "",
+          "speaker": "fai",
+          "startBeat": 0,
+          "durationBeats": 2
+        },
+        {
+          "ja": "次は G7 じゃ。",
+          "en": "",
+          "speaker": "jajii",
+          "startBeat": 2,
+          "durationBeats": 2
+        },
+        {
+          "ja": "CM7 で着地じゃ。",
+          "en": "",
+          "speaker": "fai",
+          "startBeat": 4
+        }
+      ]
+    },
+    {
+      "id": "S3",
+      "start": {
+        "measure": 5,
+        "beat": 1
+      },
+      "end": {
+        "measure": 7,
+        "beat": 1
+      },
+      "bgm": {
+        "url": "sample_bgm_loop.mp3",
+        "resetOnEnter": false
+      },
+      "keyFifths": 0,
+      "beatsPerMeasure": 4,
+      "bpm": 120,
+      "midi": {
+        "startTick": 7680,
+        "endTick": 11520,
+        "startSec": 8,
+        "endSec": 12
+      },
+      "sceneType": "play",
+      "questions": [
+        {
+          "startBeat": 0,
+          "durationBeats": 1,
+          "measureNumber": 5,
+          "chordName": "Dm7",
+          "notes": [
+            74
+          ],
+          "noteNames": [
+            "D5"
+          ],
+          "noteStaves": [
+            1
+          ],
+          "bass": [
+            38
+          ],
+          "bassNames": [
+            "D2"
+          ],
+          "keyFifths": 0
+        },
+        {
+          "startBeat": 1,
+          "durationBeats": 1,
+          "measureNumber": 5,
+          "chordName": "",
+          "notes": [
+            77
+          ],
+          "noteNames": [
+            "F5"
+          ],
+          "noteStaves": [
+            1
+          ],
+          "bass": [],
+          "bassNames": [],
+          "keyFifths": 0
+        },
+        {
+          "startBeat": 2,
+          "durationBeats": 1,
+          "measureNumber": 5,
+          "chordName": "G7",
+          "notes": [
+            79
+          ],
+          "noteNames": [
+            "G5"
+          ],
+          "noteStaves": [
+            1
+          ],
+          "bass": [
+            43
+          ],
+          "bassNames": [
+            "G2"
+          ],
+          "keyFifths": 0
+        },
+        {
+          "startBeat": 3,
+          "durationBeats": 1,
+          "measureNumber": 5,
+          "chordName": "",
+          "notes": [
+            83
+          ],
+          "noteNames": [
+            "B5"
+          ],
+          "noteStaves": [
+            1
+          ],
+          "bass": [],
+          "bassNames": [],
+          "keyFifths": 0
+        },
+        {
+          "startBeat": 4,
+          "durationBeats": 4,
+          "measureNumber": 6,
+          "chordName": "",
+          "notes": [],
+          "bass": [],
+          "keyFifths": 0
+        }
+      ],
+      "lines": [
+        {
+          "ja": "ドから弾いてみよう。",
+          "en": "",
+          "speaker": "fai",
+          "startBeat": 0,
+          "durationBeats": 2
+        },
+        {
+          "ja": "ここから G7 じゃ。",
+          "en": "",
+          "speaker": "jajii",
+          "startBeat": 2
+        }
+      ]
+    }
+  ]
+}

@@ -161,6 +161,10 @@ export class FantasySoundManager {
   public static async playCorrectRootBassNote(rootName: string): Promise<void> {
     return this.instance._playCodeRunRootNote(rootName);
   }
+  /** staff3 ベースを実音高(MIDI)で1音再生。SF2(FingerBass)優先、未ロード時は GM ルート/三角波。 */
+  public static playBassMidiNote(midiNote: number): void {
+    this.instance._playBassMidiNote(midiNote);
+  }
   
   // GM音源でMIDIノートを再生（ピアノ演奏用）
   public static playGMNote(midiNote: number, velocity: number = 1.0) {
@@ -721,6 +725,21 @@ export class FantasySoundManager {
 
     this._preloadCodeRunRootSoundFont().catch(() => {});
     this._playRootNote(rootName);
+  }
+
+  /** staff3 ベースを実音高(MIDI)で再生。codeRunRoot(SF2) 優先、未ロード時は GM ルート/三角波。 */
+  private _playBassMidiNote(midiNote: number): void {
+    if (!this.bassEnabled) return;
+    this._ensureContextsRunning();
+    if (this.codeRunRootPlayer?.play(midiNote, this.bassVolume)) {
+      return;
+    }
+    this._preloadCodeRunRootSoundFont().catch(() => {});
+    if (this.gmPianoReady && this.gmAudioContext && this.gmAcousticPiano) {
+      this._playCorrectRootGMOneShot(midiNote);
+      return;
+    }
+    this._playRootTriangleOscillator(midiNote);
   }
 
   // 🎸 ルート音用 Web Audio API リソース（三角波フォールバック用）

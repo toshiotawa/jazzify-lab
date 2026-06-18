@@ -151,6 +151,12 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       updateStaffSnapshot(index);
       const chord = index !== null ? scene.chords[index] : null;
       h.setDemoKeyboardHints(chord?.voicing ?? []);
+      if (chord && scene.livePlayback && chord.voicing.length > 0) {
+        bindingsRef.current.playDemoChordAudio?.([
+          ...chord.voicing,
+          ...(chord.bass ?? []),
+        ]);
+      }
     };
 
     const presentDemoLine = (lineIndex: number): void => {

@@ -26,4 +26,6 @@ export interface SurvivalTutorialV3Bindings {
   readonly stopDemoBgm?: () => void;
   /** demo_play 本編開始時にドラムループを先頭から再生し、再生開始まで待つ */
   readonly startDemoBgmFromStart?: (scene: SurvivalTutorialV3DemoPlayScene) => Promise<void>;
+  /** demo_play(livePlayback) で各和音開始時にアプリ音源で MIDI を発音する。 */
+  readonly playDemoChordAudio?: (midis: readonly number[]) => void;
 }

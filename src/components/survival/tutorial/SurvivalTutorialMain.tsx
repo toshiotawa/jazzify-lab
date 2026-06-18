@@ -5,6 +5,11 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import type { ClearConditions } from '@/types';
 
 import { SurvivalLessonTutorialExperience } from './SurvivalLessonTutorialExperience';
+import { SurvivalTutorialV4Player } from './v4/SurvivalTutorialV4Player';
+import { SAMPLE_STAGE_V4_MANIFEST } from './v4/survivalTutorialV4SampleManifest';
+
+/** ネイティブ・シームレス V4 ランタイムを直接起動する scriptId。 */
+const SURVIVAL_TUTORIAL_V4_NATIVE_ID = 'survival-tutorial-v4-native';
 
 function parseHashParams(): Record<string, string> {
   const raw = window.location.hash.split('?')[1] ?? '';
@@ -48,6 +53,16 @@ const SurvivalTutorialMain: React.FC = () => {
       window.location.hash = '#lessons';
     }
   }, [lessonId]);
+
+  if (scriptId === SURVIVAL_TUTORIAL_V4_NATIVE_ID) {
+    return (
+      <SurvivalTutorialV4Player
+        manifest={SAMPLE_STAGE_V4_MANIFEST}
+        onExit={handleExit}
+        onCompleted={handleTutorialCompleted}
+      />
+    );
+  }
 
   return (
     <SurvivalLessonTutorialExperience

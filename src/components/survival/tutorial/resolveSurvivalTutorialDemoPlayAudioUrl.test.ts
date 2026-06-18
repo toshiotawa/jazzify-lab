@@ -2,6 +2,7 @@ import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tuto
 import {
   DEFAULT_SURVIVAL_TUTORIAL_DRUM_LOOP_VOLUME,
   resolveSurvivalTutorialDemoPlayAudio,
+  resolveTutorialV3BgmAction,
   shouldMuteTutorialV3Bgm,
 } from '@/components/survival/tutorial/resolveSurvivalTutorialDemoPlayAudioUrl';
 
@@ -115,5 +116,23 @@ describe('shouldMuteTutorialV3Bgm', () => {
 
   it('does not mute dialogue_only', () => {
     expect(shouldMuteTutorialV3Bgm({ type: 'dialogue_only', lines: [] })).toBe(false);
+  });
+});
+
+describe('resolveTutorialV3BgmAction', () => {
+  const dialogue = { type: 'dialogue_only' as const, lines: [] };
+  const demo = { type: 'demo_play' as const, bpm: 100, chords: [], lines: [] };
+
+  it('ミュート対象シーンは stop', () => {
+    expect(resolveTutorialV3BgmAction(demo, true)).toBe('stop');
+    expect(resolveTutorialV3BgmAction({ type: 'finish' }, true)).toBe('stop');
+  });
+
+  it('非ミュートで再生中なら keep(位置維持)', () => {
+    expect(resolveTutorialV3BgmAction(dialogue, true)).toBe('keep');
+  });
+
+  it('非ミュートで停止中なら restart', () => {
+    expect(resolveTutorialV3BgmAction(dialogue, false)).toBe('restart');
   });
 });

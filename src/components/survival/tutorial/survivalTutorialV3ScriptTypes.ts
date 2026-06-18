@@ -137,6 +137,8 @@ export interface SurvivalTutorialV3DemoChordEvent {
   readonly voicing_staves?: readonly (1 | 2)[];
   readonly measureNumber: number;
   readonly keyFifths?: number;
+  /** staff3(ベース) の MIDI。表示はせず `livePlayback` 時にアプリ音源で再生する。 */
+  readonly bass?: readonly number[];
 }
 
 /** demo_play: 再生中セリフ（startBeat 基準） */
@@ -166,6 +168,11 @@ export interface SurvivalTutorialV3DemoPlayScene {
   readonly lines: readonly SurvivalTutorialV3DemoLine[];
   readonly endHoldBeats?: number;
   readonly audio?: SurvivalTutorialV3DemoPlayAudio;
+  /**
+   * true のとき各和音の開始でアプリ音源(ピアノ)で voicing+bass を発音する。
+   * 事前ミックス mp3 を使う V3 では未指定(=false)。V4 はループ BGM のため true。
+   */
+  readonly livePlayback?: boolean;
 }
 
 export type SurvivalTutorialV3Scene =

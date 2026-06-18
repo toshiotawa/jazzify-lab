@@ -9,6 +9,9 @@ import {
   isSurvivalTutorialScriptPayloadV3,
   type SurvivalTutorialScriptPayloadV3,
 } from './survivalTutorialV3ScriptTypes';
+import { isSurvivalTutorialV4Manifest } from './v4/survivalTutorialV4Types';
+import { survivalTutorialV4ManifestToV3Payload } from './v4/survivalTutorialV4ManifestToV3Payload';
+import sampleV4ManifestJson from './v4/__fixtures__/sampleStageV4.manifest.json';
 
 export interface SurvivalTutorialLegacyPayload {
   version: 1;
@@ -35,6 +38,20 @@ const BUNDLED_ONBOARDING: SurvivalTutorialScriptRow = {
   script: buildOnboardingV1Script(),
 };
 
+/** V4 ブリッジ動作確認用のバンドルサンプル(`#...?scriptId=survival-tutorial-v4-sample`)。 */
+const BUNDLED_V4_SAMPLE_ID = 'survival-tutorial-v4-sample';
+
+function buildBundledV4SampleRow(): SurvivalTutorialScriptRow | null {
+  const parsed = parsePayload(sampleV4ManifestJson);
+  if (!parsed) return null;
+  return {
+    id: BUNDLED_V4_SAMPLE_ID,
+    title: 'サバイバルチュートリアル V4（サンプル）',
+    title_en: 'Survival Tutorial V4 (sample)',
+    script: parsed,
+  };
+}
+
 function parseLegacyPayload(raw: Record<string, unknown>): SurvivalTutorialLegacyPayload | null {
   if (raw.version !== 1) return null;
   const audioTracks =
@@ -49,6 +66,10 @@ function parseLegacyPayload(raw: Record<string, unknown>): SurvivalTutorialLegac
 function parsePayload(raw: unknown): SurvivalTutorialScriptPayload | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
+  // V4 manifest はブリッジ段階では V3 ペイロードへ変換して既存ランタイムで駆動する。
+  if (isSurvivalTutorialV4Manifest(raw)) {
+    return survivalTutorialV4ManifestToV3Payload(raw);
+  }
   if (isSurvivalTutorialScriptPayloadV3(raw)) {
     return raw;
   }
@@ -73,6 +94,12 @@ export function isSurvivalTutorialScriptV3(
 export async function fetchSurvivalTutorialScript(
   scriptId: string,
 ): Promise<SurvivalTutorialScriptRow> {
+  if (scriptId === BUNDLED_V4_SAMPLE_ID) {
+    const row = buildBundledV4SampleRow();
+    if (row) return row;
+    throw new Error(`Invalid bundled v4 sample: ${scriptId}`);
+  }
+
   if (scriptId === 'onboarding-v1') {
     try {
       const { data, error } = await getSupabaseClient()

@@ -33,7 +33,10 @@ import type { RunTutorialIiViScriptParams } from '@/components/survival/tutorial
 import { TutorialAudioController } from '@/components/survival/tutorial/TutorialAudioController';
 import { TutorialTapAdvanceCue } from '@/components/survival/tutorial/TutorialTapAdvanceCue';
 import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
-import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
+import {
+  playTutorialChordPreview,
+  unlockTutorialAudio,
+} from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -41,7 +44,7 @@ import type { TutorialLocalizedText } from '@/components/survival/tutorial/tutor
 import { survivalTutorialLocalized } from '@/components/survival/tutorial/survivalTutorialV3Locales';
 import {
   resolveSurvivalTutorialDemoPlayAudio,
-  shouldMuteTutorialV3Bgm,
+  resolveTutorialV3BgmAction,
 } from '@/components/survival/tutorial/resolveSurvivalTutorialDemoPlayAudioUrl';
 
 const TUTORIAL_CONFIG: DifficultyConfig = {
@@ -294,10 +297,11 @@ export const SurvivalLessonTutorialExperience: React.FC<
     } else {
       setV3FinishCta(false);
     }
-    if (shouldMuteTutorialV3Bgm(s)) {
+    const bgmAction = resolveTutorialV3BgmAction(s, v3DrumPlayingRef.current);
+    if (bgmAction === 'stop') {
       v3AudioRef.current?.stopAudio('main_bgm');
       v3DrumPlayingRef.current = false;
-    } else {
+    } else if (bgmAction === 'restart') {
       const drum = pl.audioTracks?.drum_loop;
       v3AudioRef.current?.stopAudio('main_bgm');
       void v3AudioRef.current?.ensureBgmSettings().then(() => {
@@ -305,6 +309,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
         v3DrumPlayingRef.current = true;
       });
     }
+    // 'keep': 同一 BGM 継続 → 再生位置を維持(何もしない)。
   }, [tutorialV3Payload, gate, v3SceneIndex]);
 
   const waitForTapOrTimeout = useCallback((seconds: number, signal?: AbortSignal): Promise<void> => {
@@ -389,6 +394,10 @@ export const SurvivalLessonTutorialExperience: React.FC<
         });
         await ctl.restartFromStart('main_bgm', { loop: true, volume: resolved.volume });
         v3DrumPlayingRef.current = true;
+      },
+      playDemoChordAudio: (midis) => {
+        if (midis.length === 0) return;
+        void playTutorialChordPreview(midis);
       },
     };
   }, [tutorialV3Payload, isEnglishCopy, finalizeLesson, onLessonTutorialCompleted, waitForTapOrTimeout]);
