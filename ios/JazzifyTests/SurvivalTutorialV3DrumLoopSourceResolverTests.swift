@@ -37,6 +37,94 @@ final class SurvivalTutorialV3DrumLoopSourceResolverTests: XCTestCase {
         }
         XCTAssertEqual(remote.absoluteString, url)
     }
+
+    func testDemoPlayAudioResolverPrefersLocaleUrl() throws {
+        let script = try decodeScript(
+            audioTracksJson: """
+            {"drum_loop":{"url":"https://cdn.example/fallback.mp3","volume":0.5}}
+            """,
+            demoAudioJson: """
+            {"url_ja":"https://cdn.example/ja.mp3","url_en":"https://cdn.example/en.mp3","volume":0.28}
+            """
+        )
+        guard case let .demoPlay(scene) = script.scenes[0] else {
+            return XCTFail("Expected demo_play scene")
+        }
+        XCTAssertEqual(
+            SurvivalTutorialV3DemoPlayAudioResolver.resolveUrlString(
+                scene: scene,
+                script: script,
+                locale: .ja
+            ),
+            "https://cdn.example/ja.mp3"
+        )
+        XCTAssertEqual(
+            SurvivalTutorialV3DemoPlayAudioResolver.resolveUrlString(
+                scene: scene,
+                script: script,
+                locale: .en
+            ),
+            "https://cdn.example/en.mp3"
+        )
+        XCTAssertEqual(
+            SurvivalTutorialV3DemoPlayAudioResolver.resolveVolume(scene: scene, script: script),
+            0.28,
+            accuracy: 0.0001
+        )
+    }
+
+    func testDemoPlayAudioResolverFallsBackToDrumLoop() throws {
+        let script = try decodeScript(
+            audioTracksJson: """
+            {"drum_loop":{"url":"https://cdn.example/fallback.mp3","volume":0.5}}
+            """,
+            demoAudioJson: "null"
+        )
+        guard case let .demoPlay(scene) = script.scenes[0] else {
+            return XCTFail("Expected demo_play scene")
+        }
+        XCTAssertEqual(
+            SurvivalTutorialV3DemoPlayAudioResolver.resolveUrlString(
+                scene: scene,
+                script: script,
+                locale: .en
+            ),
+            "https://cdn.example/fallback.mp3"
+        )
+        XCTAssertEqual(
+            SurvivalTutorialV3DemoPlayAudioResolver.resolveVolume(scene: scene, script: script),
+            0.5,
+            accuracy: 0.0001
+        )
+    }
+
+    private func decodeScript(audioTracksJson: String, demoAudioJson: String) throws -> SurvivalTutorialScriptPayloadV3 {
+        let json = """
+        {
+          "version": 3,
+          "audioTracks": \(audioTracksJson),
+          "ui": {
+            "hidePlayerHpBar": true,
+            "hideSettingsButton": true,
+            "hideBackButton": true,
+            "playerInvincible": true,
+            "disableEnemyAttacks": true,
+            "keyboardHintsDefault": true
+          },
+          "content": {},
+          "scenes": [
+            {
+              "type": "demo_play",
+              "bpm": 100,
+              "chords": [],
+              "lines": [],
+              "audio": \(demoAudioJson)
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+        return try JSONDecoder().decode(SurvivalTutorialScriptPayloadV3.self, from: json)
+    }
 }
 
 final class SurvivalTutorialDemoPlaySchedulerAnchorTests: XCTestCase {

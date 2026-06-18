@@ -27,3 +27,39 @@ enum SurvivalTutorialV3DrumLoopSourceResolver {
         Bundle.main.url(forResource: "DrumLoop", withExtension: "mp3")
     }
 }
+
+enum SurvivalTutorialV3DemoPlayAudioResolver {
+    static let defaultVolume: Double = 0.35
+
+    static func resolveUrlString(
+        scene: SurvivalTutorialV3DemoPlayScene,
+        script: SurvivalTutorialScriptPayloadV3,
+        locale: AppLocale
+    ) -> String? {
+        let audio = scene.audio
+        let drumLoop = script.audioTracks?.drum_loop
+        let isEnglish = locale == .en
+
+        let localeUrl: String? = {
+            if isEnglish {
+                return trimUrl(audio?.url_en) ?? trimUrl(audio?.url)
+            }
+            return trimUrl(audio?.url_ja) ?? trimUrl(audio?.url)
+        }()
+
+        return localeUrl ?? trimUrl(drumLoop?.url)
+    }
+
+    static func resolveVolume(
+        scene: SurvivalTutorialV3DemoPlayScene,
+        script: SurvivalTutorialScriptPayloadV3
+    ) -> Float {
+        let volume = scene.audio?.volume ?? script.audioTracks?.drum_loop?.volume ?? defaultVolume
+        return Float(volume)
+    }
+
+    private static func trimUrl(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}

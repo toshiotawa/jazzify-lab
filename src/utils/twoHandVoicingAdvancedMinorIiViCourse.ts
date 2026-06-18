@@ -13,52 +13,16 @@ import {
   UST_BVI_7ALT_VOICINGS,
   type AdvancedVoicingEntry,
 } from '@/utils/twoHandVoicingAdvancedCourse';
+import {
+  ALL_MINOR_KEYS,
+  KEY_FIFTHS_BY_MINOR,
+  type MinorKey,
+} from '@/utils/twoHandVoicingKeyFifths';
 
 export const ADVANCED_MINOR_II_VI_SURVIVAL_STAGE_BASE = ADVANCED_EXT_SURVIVAL_STAGE_BASE + 12;
 
-export type MinorKey =
-  | 'Am'
-  | 'Bbm'
-  | 'Bm'
-  | 'Cm'
-  | 'C#m'
-  | 'Dm'
-  | 'Ebm'
-  | 'Em'
-  | 'Fm'
-  | 'F#m'
-  | 'Gm'
-  | 'G#m';
-
-export const ALL_MINOR_KEYS: readonly MinorKey[] = [
-  'Am',
-  'Bbm',
-  'Bm',
-  'Cm',
-  'C#m',
-  'Dm',
-  'Ebm',
-  'Em',
-  'Fm',
-  'F#m',
-  'Gm',
-  'G#m',
-];
-
-export const KEY_FIFTHS_BY_MINOR: Record<MinorKey, number> = {
-  Am: 3,
-  Bbm: -2,
-  Bm: 5,
-  Cm: 0,
-  'C#m': 5,
-  Dm: 2,
-  Ebm: -3,
-  Em: 4,
-  Fm: -1,
-  'F#m': 4,
-  Gm: 1,
-  'G#m': 5,
-};
+export type { MinorKey };
+export { ALL_MINOR_KEYS, KEY_FIFTHS_BY_MINOR };
 
 export interface MinorIiViChordSpec {
   readonly symbol: string;

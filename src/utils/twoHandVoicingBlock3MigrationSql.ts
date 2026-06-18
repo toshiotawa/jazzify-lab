@@ -20,6 +20,11 @@ import {
   type Block3ProgressionSpec,
   type TwoHandVoicingBlock3LessonSpec,
 } from './twoHandVoicingBlock3Course';
+import {
+  appendEarTrainingChordQuizItemSql,
+  voicingBattleTitleEn,
+  voicingBattleTitleJa,
+} from './twoHandVoicingMigrationSqlShared';
 
 const sqlEscape = (value: string): string => value.replace(/'/g, "''");
 const sqlString = (value: string): string => `'${sqlEscape(value)}'`;
@@ -173,27 +178,15 @@ const appendQuizStageSql = (
   const items = buildBlock3QuizItems(progression, lesson.category);
   for (const item of items) {
     const itemKey = `${stageKey}-item-${item.orderIndex}`;
-    lines.push(
-      'INSERT INTO public.ear_training_chord_quiz_items (',
-      '  id, stage_id, order_index, measure_number, beat_offset, duration_beats,',
-      '  chord_name, voicing, voicing_staves',
-      ') VALUES (',
-      `  ${uuidV5(itemKey)},`,
-      `  ${uuidV5(stageKey)},`,
-      `  ${item.orderIndex}, ${item.measureNumber}, ${item.beatOffset}, 4,`,
-      `  ${sqlString(item.chordName)},`,
-      `  ARRAY[${item.notes.map(sqlString).join(', ')}]::text[],`,
-      `  ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
-      ')',
-      'ON CONFLICT (id) DO UPDATE SET',
-      '  order_index = EXCLUDED.order_index,',
-      '  measure_number = EXCLUDED.measure_number,',
-      '  beat_offset = EXCLUDED.beat_offset,',
-      '  chord_name = EXCLUDED.chord_name,',
-      '  voicing = EXCLUDED.voicing,',
-      '  voicing_staves = EXCLUDED.voicing_staves,',
-      '  updated_at = now();',
-    );
+    appendEarTrainingChordQuizItemSql(lines, {
+      itemKey,
+      stageKey,
+      item,
+      beatOffset: item.beatOffset,
+      stavesSql: `ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
+      uuidV5,
+      sqlString,
+    });
   }
   lines.push('');
 };
@@ -222,7 +215,7 @@ const appendVoicingStageSql = (
     ') VALUES (',
     `  ${uuidV5(stageKey)},`,
     `  ${sqlString(`thvi-b3-voicing-${lesson.lessonKey}-${progression.progressionKey}`)},`,
-    `  ${sqlString(`耳コピ: ${progression.titleJa}`)},`,
+    `  ${sqlString(voicingBattleTitleJa(progression.titleJa))},`,
     `  ${sqlString(`Ear training: ${progression.titleEn}`)},`,
     `  ${sqlString('BPM100・3ループ以内に進行を弾きましょう。')},`,
     `  ${sqlString('Play the progression within 3 loops at 100 BPM.')},`,
@@ -317,7 +310,7 @@ const appendLessonSql = (
     `  ${sqlString(TWO_HAND_VOICING_BLOCK3_META.blockNameJa)},`,
     `  ${sqlString(TWO_HAND_VOICING_BLOCK3_META.blockNameEn)},`,
     "  '[]'::jsonb,",
-    "  '①デモ ②3進行×クイズ/耳コピ/サバイバル ③全キーまとめ',",
+    "  '①デモ ②3進行×クイズ/バトル/サバイバル ③全キーまとめ',",
     "  '① Demo ② 3 progressions × quiz/ear/survival ③ All-keys review'",
     ')',
     'ON CONFLICT (id) DO UPDATE SET',
@@ -403,8 +396,8 @@ const appendLessonSongsSql = (
       );
       appendEarTrainingRow(
         `${getBlock3LessonKey(lesson)}-${progression.progressionKey}-voicing-lsong`,
-        `耳コピ: ${progression.titleJa}`,
-        `Ear battle: ${progression.titleEn}`,
+        voicingBattleTitleJa(progression.titleJa),
+        voicingBattleTitleEn(progression.titleEn),
         getBlock3StageKey(lesson, progression, 'voicing'),
         'NULL',
       );

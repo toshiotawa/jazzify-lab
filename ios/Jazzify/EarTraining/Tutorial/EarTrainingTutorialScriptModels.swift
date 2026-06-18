@@ -194,6 +194,7 @@ struct EarTrainingTutorialContentQuizItem: Decodable, Sendable {
     let measure_number: Int?
     let voicing: [String]
     let voicing_staves: [Int]?
+    let key_fifths: Int?
 }
 
 enum EarTrainingTutorialScene: Decodable, Sendable {

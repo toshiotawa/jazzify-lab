@@ -4,8 +4,12 @@ import type {
 } from './survivalTutorialV3ScriptTypes';
 
 /** 100BPM Drop2 II-V-I ABA デモ BGM（ピアノ + 2小節ドラムループ）。 */
-export const DROP2_IIVI_ABA_DEMO_BGM_URL =
+export const DROP2_IIVI_ABA_DEMO_BGM_URL_JA =
   'https://jazzify-cdn.com/sozai/drop2_iivi_aba_demo_100bpm_bgm.mp3';
+
+/** 英語ナレーション版（未アップロード時は url_ja / url にフォールバック）。 */
+export const DROP2_IIVI_ABA_DEMO_BGM_URL_EN =
+  'https://jazzify-cdn.com/sozai/drop2_iivi_aba_demo_100bpm_bgm_en.mp3';
 
 const VOICING = {
   dm7Closed: {
@@ -123,10 +127,6 @@ const restMeasureEvent = (
 export const buildDrop2IIVIABADemoScript = (): SurvivalTutorialScriptPayloadV3 => ({
   version: 3,
 
-  audioTracks: {
-    drum_loop: { url: DROP2_IIVI_ABA_DEMO_BGM_URL, volume: 0.28 },
-  },
-
   ui: {
     hidePlayerHpBar: true,
     hideSettingsButton: true,
@@ -146,6 +146,11 @@ export const buildDrop2IIVIABADemoScript = (): SurvivalTutorialScriptPayloadV3 =
       bpm: 100,
       beatsPerMeasure: 4,
       keyFifths: 0,
+      audio: {
+        url_ja: DROP2_IIVI_ABA_DEMO_BGM_URL_JA,
+        url_en: DROP2_IIVI_ABA_DEMO_BGM_URL_EN,
+        volume: 0.28,
+      },
 
       introLines: [
         {

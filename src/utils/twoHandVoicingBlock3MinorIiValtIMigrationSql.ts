@@ -19,6 +19,7 @@ import {
   type MinorIiValtIProgressionSpec,
   type TwoHandVoicingBlock3MinorIiValtILessonSpec,
 } from './twoHandVoicingBlock3MinorIiValtICourse';
+import { appendEarTrainingChordQuizItemSql } from './twoHandVoicingMigrationSqlShared';
 
 const sqlEscape = (value: string): string => value.replace(/'/g, "''");
 const sqlString = (value: string): string => `'${sqlEscape(value)}'`;
@@ -172,26 +173,14 @@ const appendQuizStageSql = (
   const items = buildMinorIiValtIQuizItems(progression);
   for (const item of items) {
     const itemKey = `${stageKey}-item-${item.orderIndex}`;
-    lines.push(
-      'INSERT INTO public.ear_training_chord_quiz_items (',
-      '  id, stage_id, order_index, measure_number, beat_offset, duration_beats,',
-      '  chord_name, voicing, voicing_staves',
-      ') VALUES (',
-      `  ${uuidV5(itemKey)},`,
-      `  ${uuidV5(stageKey)},`,
-      `  ${item.orderIndex}, ${item.measureNumber}, 1, 4,`,
-      `  ${sqlString(item.chordName)},`,
-      `  ARRAY[${item.notes.map(sqlString).join(', ')}]::text[],`,
-      `  ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
-      ')',
-      'ON CONFLICT (id) DO UPDATE SET',
-      '  order_index = EXCLUDED.order_index,',
-      '  measure_number = EXCLUDED.measure_number,',
-      '  chord_name = EXCLUDED.chord_name,',
-      '  voicing = EXCLUDED.voicing,',
-      '  voicing_staves = EXCLUDED.voicing_staves,',
-      '  updated_at = now();',
-    );
+    appendEarTrainingChordQuizItemSql(lines, {
+      itemKey,
+      stageKey,
+      item,
+      stavesSql: `ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
+      uuidV5,
+      sqlString,
+    });
   }
   lines.push('');
 };

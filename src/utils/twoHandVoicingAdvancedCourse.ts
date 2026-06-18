@@ -74,20 +74,20 @@ export const SO_WHAT_M7_VOICINGS: Record<string, AdvancedVoicingEntry> = {
   'G#m7': entry('G#m7', 5, ['G#3', 'C#4', 'F#4', 'B4', 'D#5']),
 };
 
-/** So What M7(#5,9,13) — 表記 M7 */
+/** So What M7(P5,9,13) — 表記 M7 */
 export const SO_WHAT_MAJOR_M7_VOICINGS: Record<string, AdvancedVoicingEntry> = {
-  AbM7: entry('AbM7', -4, ['C3', 'F3', 'Bb3', 'E4', 'G4']),
-  AM7: entry('AM7', 3, ['C#3', 'F#3', 'B3', 'E#4', 'G#4']),
-  BbM7: entry('BbM7', -2, ['D3', 'G3', 'C4', 'F#4', 'A4']),
-  BM7: entry('BM7', 5, ['D#3', 'G#3', 'C#4', 'F##4', 'A#4']),
-  CM7: entry('CM7', 0, ['E3', 'A3', 'D4', 'G#4', 'B4']),
-  DbM7: entry('DbM7', -5, ['F3', 'Bb3', 'Eb4', 'A4', 'C5']),
-  DM7: entry('DM7', 2, ['F#3', 'B3', 'E4', 'A#4', 'C#5']),
-  EbM7: entry('EbM7', -3, ['G3', 'C4', 'F4', 'B4', 'D5']),
-  EM7: entry('EM7', 4, ['G#3', 'C#4', 'F#4', 'B#4', 'D#5']),
-  FM7: entry('FM7', -1, ['A3', 'D4', 'G4', 'C#5', 'E5']),
-  GbM7: entry('GbM7', -6, ['Bb3', 'Eb4', 'Ab4', 'D5', 'F5']),
-  GM7: entry('GM7', 1, ['B3', 'E4', 'A4', 'D#5', 'F#5']),
+  AbM7: entry('AbM7', -4, ['C3', 'F3', 'Bb3', 'Eb4', 'G4']),
+  AM7: entry('AM7', 3, ['C#3', 'F#3', 'B3', 'E4', 'G#4']),
+  BbM7: entry('BbM7', -2, ['D3', 'G3', 'C4', 'F4', 'A4']),
+  BM7: entry('BM7', 5, ['D#3', 'G#3', 'C#4', 'F#4', 'A#4']),
+  CM7: entry('CM7', 0, ['E3', 'A3', 'D4', 'G4', 'B4']),
+  DbM7: entry('DbM7', -5, ['F3', 'Bb3', 'Eb4', 'Ab4', 'C5']),
+  DM7: entry('DM7', 2, ['F#3', 'B3', 'E4', 'A4', 'C#5']),
+  EbM7: entry('EbM7', -3, ['G3', 'C4', 'F4', 'Bb4', 'D5']),
+  EM7: entry('EM7', 4, ['G#3', 'C#4', 'F#4', 'B4', 'D#5']),
+  FM7: entry('FM7', -1, ['A3', 'D4', 'G4', 'C5', 'E5']),
+  GbM7: entry('GbM7', -6, ['Bb3', 'Eb4', 'Ab4', 'Db5', 'F5']),
+  GM7: entry('GM7', 1, ['B3', 'E4', 'A4', 'D5', 'F#5']),
 };
 
 /** UST bVI 7alt — 3rd は b4 表記 */
@@ -99,11 +99,14 @@ export const UST_BVI_7ALT_VOICINGS: Record<string, AdvancedVoicingEntry> = {
   'C#7alt': entry('C#7alt', 5, ['B3', 'F4', 'A4', 'C#5', 'E5']),
   D7alt: entry('D7alt', 2, ['C3', 'Gb3', 'Bb3', 'D4', 'F4']),
   'D#7alt': entry('D#7alt', 4, ['C#3', 'G3', 'B3', 'D#4', 'F#4']),
+  Eb7alt: entry('Eb7alt', -3, ['Db3', 'Abb3', 'Cb4', 'Eb4', 'Gb4']),
   E7alt: entry('E7alt', 4, ['D3', 'Ab3', 'C4', 'E4', 'G4']),
   F7alt: entry('F7alt', -1, ['Eb3', 'Bbb3', 'Db4', 'F4', 'Ab4']),
   'F#7alt': entry('F#7alt', 4, ['E3', 'Bb3', 'D4', 'F#4', 'A4']),
   G7alt: entry('G7alt', 1, ['F3', 'Cb4', 'Eb4', 'G4', 'Bb4']),
   'G#7alt': entry('G#7alt', 5, ['F#3', 'C4', 'E4', 'G#4', 'B4']),
+  Ab7alt: entry('Ab7alt', -4, ['Gb3', 'Dbb4', 'Fb4', 'Ab4', 'Cb5']),
+  Db7alt: entry('Db7alt', -5, ['Cb4', 'Gbb4', 'Bbb4', 'Db5', 'Fb5']),
 };
 
 /** mM7(9,13) — 表記 mM7 */
@@ -182,27 +185,27 @@ const M7_MINOR_PROGRESSIONS: readonly AdvancedProgressionSpec[] = [
 ];
 
 const M7_MAJOR_PROGRESSIONS: readonly AdvancedProgressionSpec[] = [
-  progression('p1', 'AbM7-AM7-BbM7-BM7', 'AbM7-AM7-BbM7-BM7', ['AbM7', 'AM7', 'BbM7', 'BM7']),
-  progression('p2', 'CM7-DbM7-DM7-EbM7', 'CM7-DbM7-DM7-EbM7', ['CM7', 'DbM7', 'DM7', 'EbM7']),
-  progression('p3', 'EM7-FM7-GbM7-GM7', 'EM7-FM7-GbM7-GM7', ['EM7', 'FM7', 'GbM7', 'GM7']),
+  progression('p1', 'CM7-FM7-BbM7-EbM7', 'CM7-FM7-BbM7-EbM7', ['CM7', 'FM7', 'BbM7', 'EbM7']),
+  progression('p2', 'AbM7-DbM7-GbM7-BM7', 'AbM7-DbM7-GbM7-BM7', ['AbM7', 'DbM7', 'GbM7', 'BM7']),
+  progression('p3', 'EM7-AM7-DM7-GM7', 'EM7-AM7-DM7-GM7', ['EM7', 'AM7', 'DM7', 'GM7']),
   progression(
     'summary',
     '全キーまとめ',
     'All keys',
-    ['AbM7', 'AM7', 'BbM7', 'BM7', 'CM7', 'DbM7', 'DM7', 'EbM7', 'EM7', 'FM7', 'GbM7', 'GM7'],
+    ['CM7', 'FM7', 'BbM7', 'EbM7', 'AbM7', 'DbM7', 'GbM7', 'BM7', 'EM7', 'AM7', 'DM7', 'GM7'],
     true,
   ),
 ];
 
 const ALT7_PROGRESSIONS: readonly AdvancedProgressionSpec[] = [
-  progression('p1', 'D7alt-D#7alt-E7alt-F7alt', 'D7alt-D#7alt-E7alt-F7alt', ['D7alt', 'D#7alt', 'E7alt', 'F7alt']),
-  progression('p2', 'F#7alt-G7alt-G#7alt-A7alt', 'F#7alt-G7alt-G#7alt-A7alt', ['F#7alt', 'G7alt', 'G#7alt', 'A7alt']),
-  progression('p3', 'Bb7alt-B7alt-C7alt-C#7alt', 'Bb7alt-B7alt-C7alt-C#7alt', ['Bb7alt', 'B7alt', 'C7alt', 'C#7alt']),
+  progression('p1', 'G7alt-C7alt-F7alt-Bb7alt', 'G7alt-C7alt-F7alt-Bb7alt', ['G7alt', 'C7alt', 'F7alt', 'Bb7alt']),
+  progression('p2', 'Eb7alt-Ab7alt-Db7alt-F#7alt', 'Eb7alt-Ab7alt-Db7alt-F#7alt', ['Eb7alt', 'Ab7alt', 'Db7alt', 'F#7alt']),
+  progression('p3', 'B7alt-E7alt-A7alt-D7alt', 'B7alt-E7alt-A7alt-D7alt', ['B7alt', 'E7alt', 'A7alt', 'D7alt']),
   progression(
     'summary',
     '全キーまとめ',
     'All keys',
-    ['D7alt', 'D#7alt', 'E7alt', 'F7alt', 'F#7alt', 'G7alt', 'G#7alt', 'A7alt', 'Bb7alt', 'B7alt', 'C7alt', 'C#7alt'],
+    ['G7alt', 'C7alt', 'F7alt', 'Bb7alt', 'Eb7alt', 'Ab7alt', 'Db7alt', 'F#7alt', 'B7alt', 'E7alt', 'A7alt', 'D7alt'],
     true,
   ),
 ];

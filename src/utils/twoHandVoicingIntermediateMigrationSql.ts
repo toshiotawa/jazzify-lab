@@ -16,6 +16,12 @@ import {
   resolveSurvivalStageNumber,
   type TwoHandVoicingLessonSpec,
 } from './twoHandVoicingIntermediateCourse';
+import {
+  appendEarTrainingChordQuizItemSql,
+  VOICING_BATTLE_TITLE_EN,
+  VOICING_BATTLE_TITLE_JA,
+  voicingBattleTitleJa,
+} from './twoHandVoicingMigrationSqlShared';
 
 const sqlEscape = (value: string): string => value.replace(/'/g, "''");
 const sqlString = (value: string): string => `'${sqlEscape(value)}'`;
@@ -167,26 +173,14 @@ const appendQuizStageSql = (
   const items = buildQuizItemsForLesson(lesson, form);
   for (const item of items) {
     const itemKey = `${stageKey}-item-${item.orderIndex}`;
-    lines.push(
-      'INSERT INTO public.ear_training_chord_quiz_items (',
-      '  id, stage_id, order_index, measure_number, beat_offset, duration_beats,',
-      '  chord_name, voicing, voicing_staves',
-      ') VALUES (',
-      `  ${uuidV5(itemKey)},`,
-      `  ${uuidV5(stageKey)},`,
-      `  ${item.orderIndex}, ${item.measureNumber}, 1, 4,`,
-      `  ${sqlString(item.chordName)},`,
-      `  ARRAY[${item.notes.map(sqlString).join(', ')}]::text[],`,
-      `  ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
-      ')',
-      'ON CONFLICT (id) DO UPDATE SET',
-      '  order_index = EXCLUDED.order_index,',
-      '  measure_number = EXCLUDED.measure_number,',
-      '  chord_name = EXCLUDED.chord_name,',
-      '  voicing = EXCLUDED.voicing,',
-      '  voicing_staves = EXCLUDED.voicing_staves,',
-      '  updated_at = now();',
-    );
+    appendEarTrainingChordQuizItemSql(lines, {
+      itemKey,
+      stageKey,
+      item,
+      stavesSql: `ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
+      uuidV5,
+      sqlString,
+    });
   }
   lines.push('');
 };
@@ -213,7 +207,7 @@ const appendVoicingStageSql = (
     ') VALUES (',
     `  ${uuidV5(stageKey)},`,
     `  ${sqlString(`thvi-voicing-${lesson.lessonKey}`)},`,
-    `  ${sqlString(`耳コピ: ${lesson.titleJa}`)},`,
+    `  ${sqlString(voicingBattleTitleJa(lesson.titleJa))},`,
     `  ${sqlString(`Ear training: ${lesson.titleEn}`)},`,
     `  ${sqlString('BPM100・3ループ以内に II-V-I を弾きましょう。')},`,
     `  ${sqlString('Play II-V-I within 3 loops at 100 BPM.')},`,
@@ -320,10 +314,10 @@ const appendLessonSql = (
     "  '[]'::jsonb,",
     lesson.isSummary
       ? "  '①クイズ: 60秒20問 ②サバイバル: 全キー順番',"
-      : "  '①クイズ ②耳コピ ③サバイバル',",
+      : "  '①クイズ ②バトル ③サバイバル',",
     lesson.isSummary
       ? "  '① Quiz: 20 in 60s ② Survival: all keys in order'"
-      : "  '① Quiz ② Ear battle ③ Survival'",
+      : "  '① Quiz ② Battle ③ Survival'",
     ')',
     'ON CONFLICT (id) DO UPDATE SET',
     '  title = EXCLUDED.title,',
@@ -392,8 +386,8 @@ const appendLessonSongsSql = (
     );
     appendEarTrainingRow(
       `${getLessonKey(lesson)}-voicing-lsong`,
-      '耳コピバトル',
-      'Ear battle',
+      VOICING_BATTLE_TITLE_JA,
+      VOICING_BATTLE_TITLE_EN,
       `${getLessonKey(lesson)}-voicing`,
       'NULL',
     );
@@ -465,8 +459,8 @@ export const generateTwoHandVoicingIntermediateMigrationSql = (): string => {
     `  ${uuidV5(TWO_HAND_VOICING_COURSE_KEY)},`,
     "  '両手ヴォイシングコース(中級)',",
     "  'Two-Hand Voicing (Intermediate)',",
-    "  'Drop2 の II-V-I ヴォイシングを、クイズ・耳コピ・サバイバルで身につけましょう。',",
-    "  'Master Drop 2 II-V-I voicings through quiz, ear training, and survival modes.',",
+    "  'Drop2 の II-V-I ヴォイシングを、クイズ・バトル・サバイバルで身につけましょう。',",
+    "  'Master Drop 2 II-V-I voicings through quiz, battle, and survival modes.',",
     '  true,',
     '  COALESCE((SELECT MAX(c.order_index) FROM public.courses c',
     '    WHERE COALESCE(c.is_developer_only, false) = false',

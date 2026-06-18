@@ -173,8 +173,12 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
         updateStaff(activeChordIndex: nil)
         scenarioController.setDemoKeyboardHints([])
 
-        let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
-        let drumUrl = script.audioTracks?.drum_loop?.url
+        let vol = SurvivalTutorialV3DemoPlayAudioResolver.resolveVolume(scene: scene, script: script)
+        let drumUrl = SurvivalTutorialV3DemoPlayAudioResolver.resolveUrlString(
+            scene: scene,
+            script: script,
+            locale: locale
+        )
         let anchor = Date()
         await drumPlayer.restartFromStart(urlString: drumUrl, volume: vol)
         if Task.isCancelled { return }

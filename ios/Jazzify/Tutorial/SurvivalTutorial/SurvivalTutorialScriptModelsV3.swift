@@ -205,6 +205,13 @@ struct SurvivalTutorialV3DemoLine: Decodable, Sendable {
     let durationBeats: Double?
 }
 
+struct SurvivalTutorialV3DemoPlayAudio: Decodable, Sendable {
+    let url: String?
+    let url_ja: String?
+    let url_en: String?
+    let volume: Double?
+}
+
 struct SurvivalTutorialV3DemoPlayScene: Decodable, Sendable {
     let type: String
     let bpm: Double
@@ -214,6 +221,7 @@ struct SurvivalTutorialV3DemoPlayScene: Decodable, Sendable {
     let chords: [SurvivalTutorialV3DemoChordEvent]
     let lines: [SurvivalTutorialV3DemoLine]
     let endHoldBeats: Double?
+    let audio: SurvivalTutorialV3DemoPlayAudio?
 }
 
 enum SurvivalTutorialV3Scene: Decodable, Sendable {
@@ -258,6 +266,11 @@ enum SurvivalTutorialV3Scene: Decodable, Sendable {
 
     var isDemoPlay: Bool {
         if case .demoPlay = self { return true }
+        return false
+    }
+
+    var isFinish: Bool {
+        if case .finish = self { return true }
         return false
     }
 }

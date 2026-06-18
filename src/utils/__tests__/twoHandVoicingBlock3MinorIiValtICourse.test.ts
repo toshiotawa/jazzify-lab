@@ -43,7 +43,7 @@ describe('twoHandVoicingBlock3MinorIiValtICourse', () => {
     ))).toBe(true);
   });
 
-  it('まとめは 84 コードプールを生成する', () => {
+  it('まとめクイズは 251 複合（3 コード × 12 キー）', () => {
     const summary = TWO_HAND_VOICING_BLOCK3_MINOR_II_VALT_I_LESSON.progressions.find(
       (entry) => entry.isSummary,
     );
@@ -54,8 +54,11 @@ describe('twoHandVoicingBlock3MinorIiValtICourse', () => {
     const chords = getMinorIiValtIProgressionChords(summary);
     expect(chords).toHaveLength(84);
     const items = buildMinorIiValtIQuizItems(summary);
-    expect(items).toHaveLength(84);
-    expect(resolveMinorIiValtIQuizLoopMeasures(summary)).toBe(7);
+    expect(items).toHaveLength(36);
+    expect(items[0]?.chordName).toBe('Dm7b5');
+    expect(items[1]?.chordName).toBe('G7alt');
+    expect(items[2]?.chordName).toBe('CmM7');
+    expect(resolveMinorIiValtIQuizLoopMeasures(summary)).toBe(3);
   });
 
   it('サバイバル stage_number は 1246 から 7 件連番', () => {

@@ -2,6 +2,10 @@
  * 両手ヴォイシングコース(中級) Block 3 レッスン8 — マイナー II-Valt-I 定義。
  */
 import {
+  KEY_FIFTHS_BY_MINOR,
+  type MinorKey,
+} from '@/utils/twoHandVoicingKeyFifths';
+import {
   TWO_HAND_VOICING_GRAND_STAFF,
   buildSurvivalChordJson,
   type QuizItemSpec,
@@ -10,19 +14,8 @@ import {
 
 export const BLOCK3_MINOR_II_VALT_I_SURVIVAL_STAGE_BASE = 1246;
 
-export type MinorKey =
-  | 'Cm'
-  | 'C#m'
-  | 'Dm'
-  | 'Ebm'
-  | 'Em'
-  | 'Fm'
-  | 'F#m'
-  | 'Gm'
-  | 'G#m'
-  | 'Am'
-  | 'Bbm'
-  | 'Bm';
+export type { MinorKey };
+export { KEY_FIFTHS_BY_MINOR };
 
 export const ALL_MINOR_KEYS: readonly MinorKey[] = [
   'Cm',
@@ -38,21 +31,6 @@ export const ALL_MINOR_KEYS: readonly MinorKey[] = [
   'Bbm',
   'Bm',
 ];
-
-export const KEY_FIFTHS_BY_MINOR: Record<MinorKey, number> = {
-  Cm: 0,
-  'C#m': 5,
-  Dm: 2,
-  Ebm: -3,
-  Em: 4,
-  Fm: -1,
-  'F#m': 4,
-  Gm: 1,
-  'G#m': 5,
-  Am: 3,
-  Bbm: -2,
-  Bm: 5,
-};
 
 export interface MinorIiValtIChordSpec {
   readonly symbol: string;
@@ -303,8 +281,6 @@ export const resolveBlock3MinorIiValtISurvivalStageNumberForProgression = (
   return resolveBlock3MinorIiValtISurvivalStageNumber(progressionIndex);
 };
 
-const CHORDS_PER_KEY = 7;
-
 export const getMinorIiValtIProgressionChords = (
   progressionSpec: MinorIiValtIProgressionSpec,
 ): SurvivalProgressionChordJson[] => {
@@ -318,19 +294,33 @@ export const getMinorIiValtIProgressionChords = (
   return chords;
 };
 
+const CHORDS_PER_KEY = 7;
+const SUMMARY_LOOP_MEASURES = 3;
+const MINOR_II_VALT_I_SUMMARY_CHORD_INDICES = [1, 2, 5] as const;
+
 export const buildMinorIiValtIQuizItems = (
   progressionSpec: MinorIiValtIProgressionSpec,
 ): QuizItemSpec[] => {
-  const progression = getMinorIiValtIProgressionChords(progressionSpec);
   if (progressionSpec.isSummary) {
-    return progression.map((chordEntry, orderIndex) => ({
-      orderIndex,
-      measureNumber: (orderIndex % CHORDS_PER_KEY) + 1,
-      chordName: chordEntry.name,
-      notes: [...chordEntry.voicing_names],
-      keyFifths: chordEntry.key_fifths,
-    }));
+    const items: QuizItemSpec[] = [];
+    let orderIndex = 0;
+    for (const key of progressionSpec.keys) {
+      const keySet = MINOR_II_VALT_I_VOICINGS_BY_KEY[key];
+      for (const chordIndex of MINOR_II_VALT_I_SUMMARY_CHORD_INDICES) {
+        const chordSpec = keySet.chords[chordIndex];
+        items.push({
+          orderIndex,
+          measureNumber: (orderIndex % SUMMARY_LOOP_MEASURES) + 1,
+          chordName: chordSpec.symbol,
+          notes: [...chordSpec.notes],
+          keyFifths: keySet.keyFifths,
+        });
+        orderIndex += 1;
+      }
+    }
+    return items;
   }
+  const progression = getMinorIiValtIProgressionChords(progressionSpec);
   return progression.map((chordEntry, orderIndex) => ({
     orderIndex,
     measureNumber: orderIndex + 1,
@@ -344,7 +334,7 @@ export const resolveMinorIiValtIQuizLoopMeasures = (
   progressionSpec: MinorIiValtIProgressionSpec,
 ): number => (
   progressionSpec.isSummary
-    ? CHORDS_PER_KEY
+    ? SUMMARY_LOOP_MEASURES
     : progressionSpec.keys.length * CHORDS_PER_KEY
 );
 

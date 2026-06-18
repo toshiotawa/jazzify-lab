@@ -175,6 +175,7 @@ const buildEarTrainingChordQuizQuestionsFromItems = (
           id: phraseId,
           orderIndex: item.order_index,
           measureNumber: null,
+          keyFifths: item.key_fifths ?? null,
           chords: [quizItemToPhraseChord(item, phraseId)],
         });
         return;
@@ -186,10 +187,13 @@ const buildEarTrainingChordQuizQuestionsFromItems = (
           id: `chord-quiz-measure-${measureNumber}`,
           orderIndex: item.order_index,
           measureNumber,
+          keyFifths: item.key_fifths ?? null,
           chords: [],
         };
         groupByMeasure.set(measureNumber, group);
         groups.push(group);
+      } else if (group.keyFifths == null && item.key_fifths != null) {
+        group.keyFifths = item.key_fifths;
       }
       group.orderIndex = Math.min(group.orderIndex, item.order_index);
       group.chords.push(quizItemToPhraseChord(item, group.id));

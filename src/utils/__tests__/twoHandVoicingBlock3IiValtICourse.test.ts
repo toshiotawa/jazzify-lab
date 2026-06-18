@@ -64,7 +64,7 @@ describe('twoHandVoicingBlock3IiValtICourse', () => {
     expect(resolveIiValtIQuizLoopMeasures(progression)).toBe(14);
   });
 
-  it('まとめは 84 コードプールを生成する', () => {
+  it('まとめクイズは 251 複合（3 コード × 12 キー）', () => {
     const summary = TWO_HAND_VOICING_BLOCK3_II_VALT_I_LESSON.progressions.find(
       (entry) => entry.isSummary,
     );
@@ -75,11 +75,16 @@ describe('twoHandVoicingBlock3IiValtICourse', () => {
     const chords = getIiValtIProgressionChords(summary);
     expect(chords).toHaveLength(84);
     const items = buildIiValtIQuizItems(summary);
-    expect(items).toHaveLength(84);
-    expect(items[0]?.measureNumber).toBe(1);
-    expect(items[6]?.measureNumber).toBe(7);
-    expect(items[7]?.measureNumber).toBe(1);
-    expect(resolveIiValtIQuizLoopMeasures(summary)).toBe(7);
+    expect(items).toHaveLength(36);
+    expect(items[0]?.chordName).toBe('Dm7');
+    expect(items[1]?.chordName).toBe('G7alt');
+    expect(items[2]?.chordName).toBe('CM7');
+    expect(items.map((item) => item.measureNumber)).toEqual([
+      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
+      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
+      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
+    ]);
+    expect(resolveIiValtIQuizLoopMeasures(summary)).toBe(3);
   });
 
   it('サバイバル stage_number は 1227 から 7 件連番', () => {

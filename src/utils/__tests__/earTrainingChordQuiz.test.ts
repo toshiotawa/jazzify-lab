@@ -137,6 +137,7 @@ const buildQuizItem = (
   chord_name: overrides.chord_name ?? 'CM7',
   voicing: overrides.voicing ?? ['C4', 'E4', 'G4', 'B4'],
   voicing_staves: overrides.voicing_staves ?? [1, 1, 1, 1],
+  key_fifths: overrides.key_fifths,
 });
 
 const buildPhraseChord = (
@@ -185,6 +186,19 @@ describe('buildEarTrainingChordQuizQuestions', () => {
     expect(questions[0].chords.map(chord => chord.id)).toEqual(['m1-b1', 'm1-b2']);
     expect(questions[1].measure_number).toBe(2);
     expect(questions[1].chords.map(chord => chord.id)).toEqual(['m2-b1']);
+  });
+
+  it('propagates quiz item key_fifths to grouped questions', () => {
+    const questions = buildEarTrainingChordQuizQuestions({
+      chord_quiz_items: [
+        buildQuizItem({ id: 'm1-b1', order_index: 0, measure_number: 1, key_fifths: 2 }),
+        buildQuizItem({ id: 'm1-b2', order_index: 1, measure_number: 1, key_fifths: 2 }),
+        buildQuizItem({ id: 'm2-b1', order_index: 2, measure_number: 2, key_fifths: -1 }),
+      ],
+    });
+
+    expect(questions[0].key_fifths).toBe(2);
+    expect(questions[1].key_fifths).toBe(-1);
   });
 
   it('keeps legacy quiz items without measure_number as one chord per question', () => {

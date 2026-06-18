@@ -89,7 +89,7 @@ enum EarTrainingChordQuiz {
         let id: String
         var orderIndex: Int
         let measureNumber: Int?
-        let keyFifths: Int?
+        var keyFifths: Int?
         var chords: [EarTrainingPhraseChordDetail]
     }
 
@@ -167,7 +167,7 @@ enum EarTrainingChordQuiz {
                         id: phraseId,
                         orderIndex: item.orderIndex,
                         measureNumber: nil,
-                        keyFifths: nil,
+                        keyFifths: item.keyFifths,
                         chords: [chord(from: item, phraseId: syntheticPhraseId)]
                     )
                 )
@@ -176,6 +176,9 @@ enum EarTrainingChordQuiz {
 
             if let index = groupIndexByMeasure[measureNumber] {
                 groups[index].orderIndex = min(groups[index].orderIndex, item.orderIndex)
+                if groups[index].keyFifths == nil {
+                    groups[index].keyFifths = item.keyFifths
+                }
                 groups[index].chords.append(chord(from: item, phraseId: syntheticPhraseId))
             } else {
                 groupIndexByMeasure[measureNumber] = groups.count
@@ -184,7 +187,7 @@ enum EarTrainingChordQuiz {
                         id: "chord-quiz-measure-\(measureNumber)",
                         orderIndex: item.orderIndex,
                         measureNumber: measureNumber,
-                        keyFifths: nil,
+                        keyFifths: item.keyFifths,
                         chords: [chord(from: item, phraseId: syntheticPhraseId)]
                     )
                 )

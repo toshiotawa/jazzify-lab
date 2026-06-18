@@ -1,4 +1,7 @@
-import type { SurvivalTutorialV3UiOverrides } from './survivalTutorialV3ScriptTypes';
+import type {
+  SurvivalTutorialV3DemoPlayScene,
+  SurvivalTutorialV3UiOverrides,
+} from './survivalTutorialV3ScriptTypes';
 
 /** v3 SceneHost と各シーンへのコールバック束。親が OnboardingOverlay / CTA と同期する。 */
 export interface SurvivalTutorialV3Bindings {
@@ -22,5 +25,5 @@ export interface SurvivalTutorialV3Bindings {
   /** demo_play 開始前会話中の BGM 停止（無音） */
   readonly stopDemoBgm?: () => void;
   /** demo_play 本編開始時にドラムループを先頭から再生し、再生開始まで待つ */
-  readonly startDemoBgmFromStart?: () => Promise<void>;
+  readonly startDemoBgmFromStart?: (scene: SurvivalTutorialV3DemoPlayScene) => Promise<void>;
 }

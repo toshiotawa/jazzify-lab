@@ -67,6 +67,11 @@ describe('twoHandVoicingIntermediateCourse', () => {
     expect(progression).toHaveLength(36);
     const quizItems = buildQuizItemsForLesson(lesson, 'aba');
     expect(quizItems).toHaveLength(36);
+    expect(quizItems.map((item) => item.measureNumber)).toEqual([
+      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
+      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
+      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
+    ]);
   });
 
   it('耳コピフレーズは各 4 小節 × 2 フレーズ', () => {

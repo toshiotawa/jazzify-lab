@@ -112,7 +112,9 @@ struct SurvivalTutorialV3LessonView: View {
             OrientationManager.shared.lock(.portrait)
             sceneAdvanceIfFinish(from: script, index: sceneIndex)
             let firstScene = script.scenes.first
-            let skipInitialBgm = firstScene?.isPhraseBattle == true || firstScene?.isDemoPlay == true
+            let skipInitialBgm = firstScene?.isPhraseBattle == true
+                || firstScene?.isDemoPlay == true
+                || firstScene?.isFinish == true
             let drumUrl = script.audioTracks?.drum_loop?.url
             let vol = Float(script.audioTracks?.drum_loop?.volume ?? 0.35)
             Task {
@@ -246,7 +248,7 @@ struct SurvivalTutorialV3LessonView: View {
     private func restartDrumLoopForScene(at index: Int) {
         guard script.scenes.indices.contains(index) else { return }
         let scene = script.scenes[index]
-        if scene.isPhraseBattle || scene.isDemoPlay {
+        if scene.isPhraseBattle || scene.isDemoPlay || scene.isFinish {
             drumPlayer.stop()
             return
         }

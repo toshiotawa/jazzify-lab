@@ -236,7 +236,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     const run = async (): Promise<void> => {
       const introOk = await runIntro();
       if (!introOk || ac.signal.aborted) return;
-      await bindingsRef.current.startDemoBgmFromStart?.();
+      await bindingsRef.current.startDemoBgmFromStart?.(scene);
       if (ac.signal.aborted) return;
       runDemo(performance.now());
     };
@@ -251,6 +251,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       clearLine();
       h.setDemoKeyboardHints([]);
       bindingsRef.current.setTapAdvanceCueVisible(false);
+      bindingsRef.current.stopDemoBgm?.();
     };
   }, [
     baseline,

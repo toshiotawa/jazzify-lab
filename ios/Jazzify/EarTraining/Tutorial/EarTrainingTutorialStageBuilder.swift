@@ -110,7 +110,8 @@ enum EarTrainingTutorialStageBuilder {
                 durationBeats: nil,
                 chordName: item.chord_name,
                 voicing: item.voicing,
-                voicingStaves: item.voicing_staves ?? []
+                voicingStaves: item.voicing_staves ?? [],
+                keyFifths: item.key_fifths
             )
         }
         let phrasePairAdlibBootstrap = content.phrase_pair_adlib.map {

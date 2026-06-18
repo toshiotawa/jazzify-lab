@@ -20,10 +20,28 @@ describe('twoHandVoicingAdvancedCourse', () => {
     expect(entry.symbol).toBe('Cm7');
   });
 
-  it('AbM7 は So What M7 基準ヴォイシングを持つ', () => {
+  it('AbM7 は So What M7 P5 基準ヴォイシングを持つ', () => {
     const entry = SO_WHAT_MAJOR_M7_VOICINGS.AbM7;
-    expect(entry.notes).toEqual(['C3', 'F3', 'Bb3', 'E4', 'G4']);
+    expect(entry.notes).toEqual(['C3', 'F3', 'Bb3', 'Eb4', 'G4']);
     expect(entry.symbol).toBe('AbM7');
+  });
+
+  it('CM7 は P5（G4）を使う', () => {
+    expect(SO_WHAT_MAJOR_M7_VOICINGS.CM7.notes).toEqual(['E3', 'A3', 'D4', 'G4', 'B4']);
+  });
+
+  it('M7 進行は Block3 と同じ完全4度循環', () => {
+    const lesson = TWO_HAND_VOICING_ADVANCED_LESSONS.find((entry) => entry.lessonKey === 'b1-M7');
+    expect(lesson?.progressions[0]?.chordSymbols).toEqual(['CM7', 'FM7', 'BbM7', 'EbM7']);
+    expect(lesson?.progressions[1]?.chordSymbols).toEqual(['AbM7', 'DbM7', 'GbM7', 'BM7']);
+    expect(lesson?.progressions[2]?.chordSymbols).toEqual(['EM7', 'AM7', 'DM7', 'GM7']);
+  });
+
+  it('7alt 進行は Block3 と同じ完全4度循環', () => {
+    const lesson = TWO_HAND_VOICING_ADVANCED_LESSONS.find((entry) => entry.lessonKey === 'b1-7alt');
+    expect(lesson?.progressions[0]?.chordSymbols).toEqual(['G7alt', 'C7alt', 'F7alt', 'Bb7alt']);
+    expect(lesson?.progressions[1]?.chordSymbols).toEqual(['Eb7alt', 'Ab7alt', 'Db7alt', 'F#7alt']);
+    expect(lesson?.progressions[2]?.chordSymbols).toEqual(['B7alt', 'E7alt', 'A7alt', 'D7alt']);
   });
 
   it('D7alt は b4th 表記（Gb3）を使う', () => {

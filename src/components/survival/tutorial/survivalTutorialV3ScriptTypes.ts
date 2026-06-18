@@ -146,6 +146,15 @@ export interface SurvivalTutorialV3DemoLine extends SurvivalTutorialLocalizedTex
   readonly speaker?: SurvivalTutorialV3DialogueSpeaker;
 }
 
+/** demo_play: 言語別デモ音声（ナレーション入り混合 MP3 等） */
+export interface SurvivalTutorialV3DemoPlayAudio {
+  /** 後方互換フォールバック */
+  readonly url?: string;
+  readonly url_ja?: string;
+  readonly url_en?: string;
+  readonly volume?: number;
+}
+
 /** demo_play: BGM 拍同期の自動デモ（無音・入力無効） */
 export interface SurvivalTutorialV3DemoPlayScene {
   readonly type: 'demo_play';
@@ -156,6 +165,7 @@ export interface SurvivalTutorialV3DemoPlayScene {
   readonly chords: readonly SurvivalTutorialV3DemoChordEvent[];
   readonly lines: readonly SurvivalTutorialV3DemoLine[];
   readonly endHoldBeats?: number;
+  readonly audio?: SurvivalTutorialV3DemoPlayAudio;
 }
 
 export type SurvivalTutorialV3Scene =

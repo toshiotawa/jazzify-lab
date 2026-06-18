@@ -39,6 +39,10 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import type { TutorialLocalizedText } from '@/components/survival/tutorial/tutorialScriptTypes';
 import { survivalTutorialLocalized } from '@/components/survival/tutorial/survivalTutorialV3Locales';
+import {
+  resolveSurvivalTutorialDemoPlayAudio,
+  shouldMuteTutorialV3Bgm,
+} from '@/components/survival/tutorial/resolveSurvivalTutorialDemoPlayAudioUrl';
 
 const TUTORIAL_CONFIG: DifficultyConfig = {
   difficulty: 'easy',
@@ -290,7 +294,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
     } else {
       setV3FinishCta(false);
     }
-    if (s.type === 'phrase_battle' || s.type === 'demo_play') {
+    if (shouldMuteTutorialV3Bgm(s)) {
       v3AudioRef.current?.stopAudio('main_bgm');
       v3DrumPlayingRef.current = false;
     } else {
@@ -362,11 +366,28 @@ export const SurvivalLessonTutorialExperience: React.FC<
         v3AudioRef.current?.stopAudio('main_bgm');
         v3DrumPlayingRef.current = false;
       },
-      startDemoBgmFromStart: async () => {
-        const drum = tutorialV3Payload.audioTracks?.drum_loop;
+      startDemoBgmFromStart: async (demoScene) => {
         const ctl = v3AudioRef.current;
         if (!ctl) return;
-        await ctl.restartFromStart('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
+        const resolved = resolveSurvivalTutorialDemoPlayAudio(
+          demoScene,
+          tutorialV3Payload,
+          isEnglishCopy,
+        );
+        if (!resolved.url) return;
+        ctl.setTracks({
+          main_bgm: {
+            url: resolved.url,
+            defaultLoop: true,
+            defaultVolume: resolved.volume,
+          },
+          drum_loop: {
+            url: resolved.url,
+            defaultLoop: true,
+            defaultVolume: resolved.volume,
+          },
+        });
+        await ctl.restartFromStart('main_bgm', { loop: true, volume: resolved.volume });
         v3DrumPlayingRef.current = true;
       },
     };

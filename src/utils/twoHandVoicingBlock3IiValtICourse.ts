@@ -262,8 +262,6 @@ export const resolveBlock3IiValtISurvivalStageNumberForProgression = (
   return resolveBlock3IiValtISurvivalStageNumber(progressionIndex);
 };
 
-const CHORDS_PER_KEY = 7;
-
 export const getIiValtIProgressionChords = (
   progressionSpec: IiValtIProgressionSpec,
 ): SurvivalProgressionChordJson[] => {
@@ -277,19 +275,33 @@ export const getIiValtIProgressionChords = (
   return chords;
 };
 
+const CHORDS_PER_KEY = 7;
+const SUMMARY_LOOP_MEASURES = 3;
+const II_VALT_I_SUMMARY_CHORD_INDICES = [1, 2, 4] as const;
+
 export const buildIiValtIQuizItems = (
   progressionSpec: IiValtIProgressionSpec,
 ): QuizItemSpec[] => {
-  const progression = getIiValtIProgressionChords(progressionSpec);
   if (progressionSpec.isSummary) {
-    return progression.map((chordEntry, orderIndex) => ({
-      orderIndex,
-      measureNumber: (orderIndex % CHORDS_PER_KEY) + 1,
-      chordName: chordEntry.name,
-      notes: [...chordEntry.voicing_names],
-      keyFifths: chordEntry.key_fifths,
-    }));
+    const items: QuizItemSpec[] = [];
+    let orderIndex = 0;
+    for (const key of progressionSpec.keys) {
+      const keySet = II_VALT_I_VOICINGS_BY_KEY[key];
+      for (const chordIndex of II_VALT_I_SUMMARY_CHORD_INDICES) {
+        const chordSpec = keySet.chords[chordIndex];
+        items.push({
+          orderIndex,
+          measureNumber: (orderIndex % SUMMARY_LOOP_MEASURES) + 1,
+          chordName: chordSpec.symbol,
+          notes: [...chordSpec.notes],
+          keyFifths: keySet.keyFifths,
+        });
+        orderIndex += 1;
+      }
+    }
+    return items;
   }
+  const progression = getIiValtIProgressionChords(progressionSpec);
   return progression.map((chordEntry, orderIndex) => ({
     orderIndex,
     measureNumber: orderIndex + 1,
@@ -303,7 +315,7 @@ export const resolveIiValtIQuizLoopMeasures = (
   progressionSpec: IiValtIProgressionSpec,
 ): number => (
   progressionSpec.isSummary
-    ? CHORDS_PER_KEY
+    ? SUMMARY_LOOP_MEASURES
     : progressionSpec.keys.length * CHORDS_PER_KEY
 );
 

@@ -124,7 +124,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('Bbm7', ['Bb2', 'Eb3', 'Ab3', 'Db4', 'F4']),
       chord('Eb7alt', ['Db3', 'Abb3', 'Cb4', 'Eb4', 'Gb4']),
-      chord('AbM7', ['C3', 'F3', 'Bb3', 'E4', 'G4']),
+      chord('AbM7', ['C3', 'F3', 'Bb3', 'Eb4', 'G4']),
     ],
   },
   A: {
@@ -133,7 +133,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('Bm7', ['B2', 'E3', 'A3', 'D4', 'F#4']),
       chord('E7alt', ['D3', 'Ab3', 'C4', 'E4', 'G4']),
-      chord('AM7', ['C#3', 'F#3', 'B3', 'E#4', 'G#4']),
+      chord('AM7', ['C#3', 'F#3', 'B3', 'E4', 'G#4']),
     ],
   },
   Bb: {
@@ -142,7 +142,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('Cm7', ['C3', 'F3', 'Bb3', 'Eb4', 'G4']),
       chord('F7alt', ['Eb3', 'Bbb3', 'Db4', 'F4', 'Ab4']),
-      chord('BbM7', ['D3', 'G3', 'C4', 'F#4', 'A4']),
+      chord('BbM7', ['D3', 'G3', 'C4', 'F4', 'A4']),
     ],
   },
   B: {
@@ -151,7 +151,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('C#m7', ['C#3', 'F#3', 'B3', 'E4', 'G#4']),
       chord('F#7alt', ['E3', 'Bb3', 'D4', 'F#4', 'A4']),
-      chord('BM7', ['D#3', 'G#3', 'C#4', 'F##4', 'A#4']),
+      chord('BM7', ['D#3', 'G#3', 'C#4', 'F#4', 'A#4']),
     ],
   },
   Db: {
@@ -160,7 +160,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('Ebm7', ['Eb3', 'Ab3', 'Db4', 'Gb4', 'Bb4']),
       chord('Ab7alt', ['Gb3', 'Dbb4', 'Fb4', 'Ab4', 'Cb5']),
-      chord('DbM7', ['F3', 'Bb3', 'Eb4', 'A4', 'C5']),
+      chord('DbM7', ['F3', 'Bb3', 'Eb4', 'Ab4', 'C5']),
     ],
   },
   Eb: {
@@ -169,7 +169,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('Fm7', ['F3', 'Bb3', 'Eb4', 'Ab4', 'C5']),
       chord('Bb7alt', ['Ab3', 'Ebb4', 'Gb4', 'Bb4', 'Db5']),
-      chord('EbM7', ['G3', 'C4', 'F4', 'B4', 'D5']),
+      chord('EbM7', ['G3', 'C4', 'F4', 'Bb4', 'D5']),
     ],
   },
   F: {
@@ -178,7 +178,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('Gm7', ['G3', 'C4', 'F4', 'Bb4', 'D5']),
       chord('C7alt', ['Bb3', 'Fb4', 'Ab4', 'C5', 'Eb5']),
-      chord('FM7', ['A3', 'D4', 'G4', 'C#5', 'E5']),
+      chord('FM7', ['A3', 'D4', 'G4', 'C5', 'E5']),
     ],
   },
   Gb: {
@@ -187,7 +187,7 @@ const MAJOR_II_VI_REGISTER_OVERRIDES: Partial<Record<MajorKey, MajorIiViKeySet>>
     chords: [
       chord('Abm7', ['Ab3', 'Db4', 'Gb4', 'Cb5', 'Eb5']),
       chord('Db7alt', ['Cb4', 'Gbb4', 'Bbb4', 'Db5', 'Fb5']),
-      chord('GbM7', ['Bb3', 'Eb4', 'Ab4', 'D5', 'F5']),
+      chord('GbM7', ['Bb3', 'Eb4', 'Ab4', 'Db5', 'F5']),
     ],
   },
 };

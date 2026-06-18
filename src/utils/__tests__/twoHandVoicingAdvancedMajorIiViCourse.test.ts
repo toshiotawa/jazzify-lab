@@ -20,7 +20,7 @@ describe('twoHandVoicingAdvancedMajorIiViCourse', () => {
     expect(keySet.chords[1]?.symbol).toBe('G7alt');
     expect(keySet.chords[1]?.notes).toEqual(['F3', 'Cb4', 'Eb4', 'G4', 'Bb4']);
     expect(keySet.chords[2]?.symbol).toBe('CM7');
-    expect(keySet.chords[2]?.notes).toEqual(['E3', 'A3', 'D4', 'G#4', 'B4']);
+    expect(keySet.chords[2]?.notes).toEqual(['E3', 'A3', 'D4', 'G4', 'B4']);
   });
 
   it('C キー トップラインは 6度 → ♭7/#9 → 7度 (A → Bb → B)', () => {

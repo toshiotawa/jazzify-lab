@@ -736,6 +736,7 @@ export interface EarTrainingChordQuizItem {
   chord_name: string;
   voicing: string[];
   voicing_staves: number[];
+  key_fifths?: number | null;
   created_at?: string;
   updated_at?: string;
 }

@@ -40,6 +40,7 @@ struct EarTrainingChordQuizItem: Codable, Identifiable, Sendable {
     let chordName: String
     let voicing: [String]
     let voicingStaves: [Int]
+    let keyFifths: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -51,6 +52,7 @@ struct EarTrainingChordQuizItem: Codable, Identifiable, Sendable {
         case chordName = "chord_name"
         case voicing
         case voicingStaves = "voicing_staves"
+        case keyFifths = "key_fifths"
     }
 }
 

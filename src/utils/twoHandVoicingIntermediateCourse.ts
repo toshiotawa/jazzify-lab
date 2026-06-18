@@ -409,6 +409,8 @@ export const getLessonProgressionChords = (
   return chords;
 };
 
+const CHORDS_PER_KEY_II_VI = 3;
+
 export const buildQuizItemsForLesson = (
   lesson: TwoHandVoicingLessonSpec,
   form: TwoHandVoicingForm,
@@ -417,7 +419,7 @@ export const buildQuizItemsForLesson = (
   if (lesson.isSummary) {
     return progression.map((chordEntry, orderIndex) => ({
       orderIndex,
-      measureNumber: (orderIndex % 6) + 1,
+      measureNumber: (orderIndex % CHORDS_PER_KEY_II_VI) + 1,
       chordName: chordEntry.name,
       notes: [...chordEntry.voicing_names],
       keyFifths: chordEntry.key_fifths,
