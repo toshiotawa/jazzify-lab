@@ -30,7 +30,6 @@ final class SurvivalScene: SKScene {
     private var playerQuotePlacementLaidOut: SurvivalSpeechBubblePlacement?
     private var jajiiQuotePlacementLaidOut: SurvivalSpeechBubblePlacement?
     private var speechBubblesBelowCharacter = false
-    private var freezeTutorialDemoJajii = false
     private var playerBubbleAnchorNode: SKNode?
     private var jajiiBubbleAnchorNode: SKNode?
     private var enemyNodes: [UUID: SKNode] = [:]
@@ -106,13 +105,6 @@ final class SurvivalScene: SKScene {
         playerQuoteTextLaidOut = ""
         jajiiQuoteTextLaidOut = ""
         playerQuotePlacementLaidOut = nil
-        jajiiQuotePlacementLaidOut = nil
-    }
-
-    func setFreezeTutorialDemoJajii(_ freeze: Bool) {
-        guard freeze != freezeTutorialDemoJajii else { return }
-        freezeTutorialDemoJajii = freeze
-        jajiiQuoteTextLaidOut = ""
         jajiiQuotePlacementLaidOut = nil
     }
 
@@ -1474,9 +1466,7 @@ final class SurvivalScene: SKScene {
         guard let host = anchor else { return }
         let gap: CGFloat = 14
         let jajiiHeight: CGFloat = 48
-        let placement: SurvivalSpeechBubblePlacement = freezeTutorialDemoJajii
-            ? .above
-            : (speechBubblesBelowCharacter ? .below : .above)
+        let placement: SurvivalSpeechBubblePlacement = speechBubblesBelowCharacter ? .below : .above
         let anchorOffsetY = placement == .below
             ? -(jajiiHeight / 2 + gap)
             : jajiiHeight / 2 + gap

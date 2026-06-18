@@ -144,7 +144,6 @@ import {
   shouldEnableJajiiSupport,
   createInitialJajiiState,
   createTutorialDemoFixedJajiiState,
-  syncTutorialDemoFixedJajiiPosition,
   updateJajiiMovementInPlace,
   getJajiiWorldPosition,
   tryScheduleMiniSpecial,
@@ -4442,9 +4441,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 : createInitialJajiiState(newState.player.x, newState.player.y);
             }
             const jst = jajiiStateRef.current;
-            if (freezeDemoJajii) {
-              syncTutorialDemoFixedJajiiPosition(jst, newState.player.x, newState.player.y);
-            } else {
+            if (!freezeDemoJajii) {
               updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
             }
             const pos = getJajiiWorldPosition(jst);
@@ -4610,9 +4607,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               : createInitialJajiiState(newState.player.x, newState.player.y);
           }
           const jst = jajiiStateRef.current;
-          if (freezeDemoJajii) {
-            syncTutorialDemoFixedJajiiPosition(jst, newState.player.x, newState.player.y);
-          } else {
+          if (!freezeDemoJajii) {
             updateJajiiMovementInPlace(jst, newState.player.x, newState.player.y, newState.elapsedTime, deltaTime);
           }
           const pos = getJajiiWorldPosition(jst);
@@ -6577,9 +6572,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             tutorialFaiSpeechTextRef={tutorialFaiSpeechTextRef}
             speechBubblesBelowCharacter={
               scenarioMode && scenarioUi.isActive && scenarioUi.speechBubblesBelowCharacter
-            }
-            freezeTutorialDemoJajii={
-              scenarioMode && scenarioUi.isActive && scenarioUi.freezeTutorialDemoJajii
             }
             faiBubbleText={timedFaiBubbleCharacterLine}
             balloonRushDraw={isBalloonRushMode ? balloonDrawSnapshot : null}

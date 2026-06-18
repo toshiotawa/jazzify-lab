@@ -12,7 +12,6 @@ import {
   tryScheduleMiniSpecial,
   shouldEnableJajiiSupport,
   pickRandomRingOffset,
-  syncTutorialDemoFixedJajiiPosition,
   updateJajiiMovementInPlace,
   getJajiiWorldPosition,
 } from '@/components/survival/jajii/SurvivalJajiiEngine';
@@ -87,7 +86,7 @@ describe('SurvivalJajiiEngine', () => {
   });
 
   describe('createTutorialDemoFixedJajiiState', () => {
-    it('プレイヤー右下の固定オフセットで生成する', () => {
+    it('出現時プレイヤー位置 + 固定オフセットでスポーンする', () => {
       const st = createTutorialDemoFixedJajiiState(100, 200);
       expect(st.worldX).toBe(100 + JAJII_TUTORIAL_DEMO_OFFSET_X);
       expect(st.worldY).toBe(200 + JAJII_TUTORIAL_DEMO_OFFSET_Y);
@@ -95,18 +94,14 @@ describe('SurvivalJajiiEngine', () => {
       expect(st.targetWorldY).toBe(st.worldY);
       expect(st.pendingMiniFireAtSec).toBe(null);
     });
-  });
 
-  describe('syncTutorialDemoFixedJajiiPosition', () => {
-    it('漂い移動なしでプレイヤー相対位置を維持する', () => {
-      const st = createInitialJajiiState(0, 0);
-      syncTutorialDemoFixedJajiiPosition(st, 300, 400);
-      expect(st.worldX).toBe(300 + JAJII_TUTORIAL_DEMO_OFFSET_X);
-      expect(st.worldY).toBe(400 + JAJII_TUTORIAL_DEMO_OFFSET_Y);
+    it('demo 固定状態は update を呼ばなければワールド座標が変わらない', () => {
+      const st = createTutorialDemoFixedJajiiState(100, 200);
       const before = getJajiiWorldPosition(st);
-      updateJajiiMovementInPlace(st, 300, 400, 0, 1);
-      syncTutorialDemoFixedJajiiPosition(st, 300, 400);
-      expect(getJajiiWorldPosition(st)).toEqual(before);
+      expect(before).toEqual({
+        x: 100 + JAJII_TUTORIAL_DEMO_OFFSET_X,
+        y: 200 + JAJII_TUTORIAL_DEMO_OFFSET_Y,
+      });
     });
   });
 

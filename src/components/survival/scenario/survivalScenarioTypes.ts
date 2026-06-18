@@ -34,7 +34,7 @@ export interface SurvivalScenarioOverrides {
   suppressAutoSpawn: boolean;
   /** v3 チュートリアル: ファイ・ジャ爺の吹き出しを足下に配置 */
   speechBubblesBelowCharacter: boolean;
-  /** demo_play: ジャ爺をプレイヤー右下に固定し漂い移動を止める */
+  /** demo_play: ジャ爺を出現ワールド座標に固定（漂い・追従なし） */
   freezeTutorialDemoJajii: boolean;
   bChordCompletionAttackSlot: 'A' | 'B' | null;
   bChordCompletionUseSpecial: boolean;

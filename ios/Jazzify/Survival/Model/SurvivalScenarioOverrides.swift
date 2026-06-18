@@ -46,7 +46,7 @@ struct SurvivalScenarioOverrides: Sendable, Equatable {
     /// v3 チュートリアル: ファイ・ジャ爺の吹き出しを足下に配置（尾はキャラ向き）。
     var speechBubblesBelowCharacter: Bool = false
 
-    /// demo_play: ジャ爺をプレイヤー右下に固定し漂い移動を止める。
+    /// demo_play: ジャ爺を出現ワールド座標に固定（漂い・追従なし）。
     var freezeTutorialDemoJajii: Bool = false
 
     /// demo_play: 外部スケジューラが指定する鍵盤ハイライト MIDI。

@@ -20,7 +20,7 @@ export const JAJII_ARRIVE_EPS = 4;
 export const JAJII_MINI_DELAY_SEC = 2;
 /** ミニ必殺の半径はプレイヤー必殺相当半径に対する倍率 */
 export const JAJII_MINI_RADIUS_MULTIPLIER = 1 / 2;
-/** demo_play: プレイヤーからの固定オフセット（やや右下） */
+/** demo_play: 出現時プレイヤー位置からの固定オフセット（やや右下） */
 export const JAJII_TUTORIAL_DEMO_OFFSET_X = 72;
 export const JAJII_TUTORIAL_DEMO_OFFSET_Y = 56;
 
@@ -105,6 +105,7 @@ export const shouldEnableJajiiSupport = (p: JajiiSupportEnableParams): boolean =
   return true;
 };
 
+/** demo_play: 出現時のプレイヤー位置 + 固定オフセット（やや右下）でスポーン。以降ワールド座標固定。 */
 export const createTutorialDemoFixedJajiiState = (
   playerX: number,
   playerY: number,
@@ -118,20 +119,6 @@ export const createTutorialDemoFixedJajiiState = (
     targetWorldY: y,
     pendingMiniFireAtSec: null,
   };
-};
-
-/** demo_play: 漂い移動なし。プレイヤー右下の固定相対位置のみ維持。 */
-export const syncTutorialDemoFixedJajiiPosition = (
-  state: JajiiState,
-  playerX: number,
-  playerY: number,
-): void => {
-  const x = playerX + JAJII_TUTORIAL_DEMO_OFFSET_X;
-  const y = playerY + JAJII_TUTORIAL_DEMO_OFFSET_Y;
-  state.worldX = x;
-  state.worldY = y;
-  state.targetWorldX = x;
-  state.targetWorldY = y;
 };
 
 export const createInitialJajiiState = (

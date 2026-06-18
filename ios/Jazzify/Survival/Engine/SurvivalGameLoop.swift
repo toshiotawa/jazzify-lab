@@ -508,13 +508,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
     private func tickJajii(elapsedSec: TimeInterval, deltaSec: TimeInterval, effectiveBAtk: Int, now: TimeInterval) {
         guard var jajii = runtime.jajii else { return }
-        if runtime.scenario.freezeTutorialDemoJajii {
-            SurvivalJajiiEngine.syncTutorialDemoFixedPosition(
-                &jajii,
-                playerX: runtime.player.x,
-                playerY: runtime.player.y
-            )
-        } else {
+        if !runtime.scenario.freezeTutorialDemoJajii {
             SurvivalJajiiEngine.updateMovementInPlace(
                 &jajii,
                 playerX: runtime.player.x,
