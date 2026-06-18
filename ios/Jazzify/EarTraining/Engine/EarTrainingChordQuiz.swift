@@ -53,6 +53,13 @@ enum EarTrainingChordQuiz {
         correct >= max(0, required)
     }
 
+    /// k問正解後の敵HP目標値（均等割り。required到達でちょうど0）。
+    static func enemyHpAfterCorrect(correct: Int, required: Int, maxHp: Int) -> Int {
+        let r = max(1, required)
+        if correct >= r { return 0 }
+        return Int((Double(maxHp) * Double(r - correct) / Double(r)).rounded())
+    }
+
     static func buildQuestions(stage: EarTrainingStageDetail) -> [Question] {
         let itemQuestions = buildQuestions(
             items: stage.sortedChordQuizItems(),

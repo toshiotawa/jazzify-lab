@@ -319,7 +319,8 @@ private struct EarTrainingChordQuizContent: View {
         let correctMap = EarTrainingChordVoicingStaffLayout.quizStaffCorrectPitchClassesByGroupId(
             attempt: controller.attempt,
             logicalActiveChordId: controller.activeChord?.id,
-            groups: layout.groups
+            groups: layout.groups,
+            hideUnpressedNotes: hideNotes
         )
         if !layout.groups.isEmpty {
             ChordVoicingStaffGroupsView(
@@ -332,7 +333,8 @@ private struct EarTrainingChordQuizContent: View {
                 showTargetHints: showHints,
                 singleMeasureLayout: controller.displayedStaffPreviewQuestion == nil,
                 hideChordLabels: controller.stage.resolvedHideChordNamesInBattle,
-                hideUnpressedNotes: hideNotes
+                hideUnpressedNotes: hideNotes,
+                alwaysShowTopPointer: true
             )
             .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
             .position(x: size.width / 2, y: size.height * 0.42)

@@ -186,7 +186,8 @@ extension EarTrainingChordVoicingStaffLayout {
     static func quizStaffCorrectPitchClassesByGroupId(
         attempt: EarTrainingChordVoicingAttempt?,
         logicalActiveChordId: UUID?,
-        groups: [GroupInput]
+        groups: [GroupInput],
+        hideUnpressedNotes: Bool
     ) -> [UUID: Set<Int>] {
         guard let attempt else { return [:] }
         var map: [UUID: Set<Int>] = [:]
@@ -195,7 +196,8 @@ extension EarTrainingChordVoicingStaffLayout {
                 map[group.id] = pressed
                 continue
             }
-            if group.measureOffset == 0,
+            if !hideUnpressedNotes,
+               group.measureOffset == 0,
                let logicalId = logicalActiveChordId,
                group.id != logicalId {
                 let pcs = pitchClassSetFromVoicingNoteNames(group.voicing)

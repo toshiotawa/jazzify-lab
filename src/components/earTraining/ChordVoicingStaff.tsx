@@ -83,6 +83,8 @@ interface ChordVoicingStaffProps {
   noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
   /** true のとき measureOffset===1（次小節）の未正解符頭にも unpressedNoteOpacity を適用する */
   fadeAllMeasureNotes?: boolean;
+  /** true のとき未正解符頭を隠していても逆三角マーカーを表示する */
+  alwaysShowTopPointer?: boolean;
   className?: string;
 }
 
@@ -1416,6 +1418,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   hideChordLabels = false,
   noteCollisionLayout = 'anchor-low',
   fadeAllMeasureNotes = false,
+  alwaysShowTopPointer = false,
   className,
 }) => {
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
@@ -1573,6 +1576,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   const effectiveActiveGroupId = showTargetHints && effectiveUnpressedNoteOpacity > 0
     ? activeGroupId
     : null;
+  const topPointerActiveGroupId = showTargetHints && (alwaysShowTopPointer || effectiveUnpressedNoteOpacity > 0)
+    ? (activeGroupId ?? null)
+    : null;
   const systemLayout = useMemo(
     () => computeBattleStaffSystemLayout(
       activeStaves,
@@ -1588,14 +1594,14 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     () => computeVoicingBattleHints(
       renderState.groups,
       layout,
-      effectiveActiveGroupId,
+      topPointerActiveGroupId,
       correctPitchClassSets,
       activeStaves,
       systemLayout.firstStaffTopY,
       noteCollisionLayout,
     ),
     [
-      effectiveActiveGroupId,
+      topPointerActiveGroupId,
       activeStaves,
       correctPitchClassSets,
       layout,

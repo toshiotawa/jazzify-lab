@@ -640,7 +640,9 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         }
 
         let origin = chordLabelOriginInScene()
-        let completionDamage = practiceMode ? 0 : Int.random(in: 40...50)
+        let completionDamage = practiceMode
+            ? 0
+            : max(0, enemyHp - EarTrainingChordQuiz.enemyHpAfterCorrect(correct: correctCount, required: requiredCorrectCount, maxHp: Self.quizEnemyHpFixed))
 
         if practiceMode {
             emitChordCompletionVisualEffects(origin: origin)

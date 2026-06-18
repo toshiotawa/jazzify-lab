@@ -6,6 +6,7 @@ import {
   isChordQuizQuestionCompleted,
   pickNextQuizIndex,
   isQuizClear,
+  quizEnemyHpAfterCorrect,
   shouldShowEarTrainingChordQuizPreview,
 } from '@/utils/earTrainingChordQuiz';
 
@@ -54,6 +55,34 @@ describe('isQuizClear', () => {
   it('checks threshold', () => {
     expect(isQuizClear(10, 10)).toBe(true);
     expect(isQuizClear(9, 10)).toBe(false);
+  });
+});
+
+describe('quizEnemyHpAfterCorrect', () => {
+  it('returns maxHp at zero correct and 0 at full clear', () => {
+    expect(quizEnemyHpAfterCorrect(0, 20, 10_000)).toBe(10_000);
+    expect(quizEnemyHpAfterCorrect(20, 20, 10_000)).toBe(0);
+    expect(quizEnemyHpAfterCorrect(10, 20, 10_000)).toBe(5000);
+  });
+
+  it('returns 0 when required is 0 and correct meets guarded threshold', () => {
+    expect(quizEnemyHpAfterCorrect(1, 0, 10_000)).toBe(0);
+  });
+
+  it('accumulated step damage equals maxHp and final HP is 0', () => {
+    const verifyAccumulation = (required: number, maxHp: number) => {
+      let prevHp = maxHp;
+      let totalDamage = 0;
+      for (let correct = 1; correct <= required; correct += 1) {
+        const nextHp = quizEnemyHpAfterCorrect(correct, required, maxHp);
+        totalDamage += prevHp - nextHp;
+        prevHp = nextHp;
+      }
+      expect(totalDamage).toBe(maxHp);
+      expect(prevHp).toBe(0);
+    };
+    verifyAccumulation(20, 10_000);
+    verifyAccumulation(30, 10_000);
   });
 });
 

@@ -43,6 +43,12 @@ export const isQuizClear = (correct: number, required: number): boolean => (
   correct >= Math.max(0, required)
 );
 
+export const quizEnemyHpAfterCorrect = (correct: number, required: number, maxHp: number): number => {
+  const r = Math.max(1, required);
+  if (correct >= r) return 0;
+  return Math.round(maxHp * (r - correct) / r);
+};
+
 export interface ShouldShowEarTrainingChordQuizPreviewParams {
   practiceMode: boolean;
   isTutorial: boolean;

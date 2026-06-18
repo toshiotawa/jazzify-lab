@@ -54,6 +54,7 @@ import {
   isChordQuizQuestionCompleted,
   isQuizClear,
   pickNextQuizIndex,
+  quizEnemyHpAfterCorrect,
   shouldShowEarTrainingChordQuizPreview,
   type EarTrainingChordQuizQuestion,
 } from '@/utils/earTrainingChordQuiz';
@@ -129,10 +130,6 @@ const EMPTY_STAVES: readonly number[] = [];
 const clampGaugeRatio = (value: number): number => Math.min(1, Math.max(0, value));
 
 const QUIZ_ATTACK_GAUGE_QUANTIZE_STEP = 0.02;
-
-const randomIntInclusive = (min: number, max: number, rand: () => number): number => (
-  Math.floor(rand() * (max - min + 1)) + min
-);
 
 const voicingToPitchClasses = (voicing: readonly string[]): readonly number[] => {
   const pcs: number[] = [];
@@ -850,7 +847,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
     const completionDamage = practiceModeRef.current
       ? 0
-      : randomIntInclusive(40, 50, randRef.current);
+      : Math.max(0, enemyHpRef.current - quizEnemyHpAfterCorrect(nextCorrect, requiredCorrect, QUIZ_BATTLE_ENEMY_HP));
 
     const origin = computeChordLabelOriginPoint(judgmentChord.id);
 
@@ -1035,6 +1032,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     return currentNoteTotal >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
   }, [displayedActiveQuestion]);
 
+  const hideStaffNotes = !practiceMode && hideNotationInBattle;
+
   const staffCorrectPitchClassesByGroupId = useMemo(() => {
     const correctPitchClassesByGroupId = new Map<string, readonly number[]>();
     if (!attempt) {
@@ -1046,7 +1045,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
         correctPitchClassesByGroupId.set(group.id, Array.from(pressed));
         return;
       }
-      if (group.measureOffset === 0 && activeChord && group.id !== activeChord.id) {
+      if (!hideStaffNotes && group.measureOffset === 0 && activeChord && group.id !== activeChord.id) {
         const pcs = voicingToPitchClasses(group.voicing);
         if (pcs.length > 0) {
           correctPitchClassesByGroupId.set(group.id, pcs);
@@ -1054,7 +1053,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       }
     });
     return correctPitchClassesByGroupId;
-  }, [attempt, activeChord, staffVoicingGroups]);
+  }, [attempt, activeChord, hideStaffNotes, staffVoicingGroups]);
 
   const voicingKeyboardHints = useMemo(() => {
     if (!showKeyboardTargetHints || !activeChord || !showVoicingTargetHints) {
@@ -1254,8 +1253,6 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     startQuiz,
   ]);
 
-  const hideStaffNotes = !practiceMode && hideNotationInBattle;
-
   return (
     <div className={cn(
       'relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-white',
@@ -1288,6 +1285,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
             activeGroupId={activeChord?.id ?? null}
             showTargetHints={showVoicingTargetHints}
             hideUnpressedNotes={hideStaffNotes}
+            alwaysShowTopPointer={hideStaffNotes}
             hideChordLabels={hideChordNamesInBattle}
             singleMeasureLayout={!shouldShowQuizPreview}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}

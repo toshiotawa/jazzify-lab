@@ -923,6 +923,8 @@ struct ChordVoicingStaffGroupsView: View {
     let compactVerticalLayout: Bool
     /// true のとき measureOffset==1（次小節）の未正解符頭にも unpressedNoteOpacity を適用する。
     let fadeAllMeasureNotes: Bool
+    /// 音符非表示・フェード時も逆三角マーカーを表示する。
+    let alwaysShowTopPointer: Bool
     /// サバイバル iPad 用: 五線間隔（音符・記号・五線の大きさ）のスケール。既定 1 で EarTraining / iPhone は不変。
     let staffSpacingScale: CGFloat
 
@@ -944,6 +946,7 @@ struct ChordVoicingStaffGroupsView: View {
         compactChordLabelGap: Bool = false,
         compactVerticalLayout: Bool = false,
         fadeAllMeasureNotes: Bool = false,
+        alwaysShowTopPointer: Bool = false,
         staffSpacingScale: CGFloat = 1
     ) {
         self.groups = groups
@@ -963,6 +966,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.compactChordLabelGap = compactChordLabelGap
         self.compactVerticalLayout = compactVerticalLayout
         self.fadeAllMeasureNotes = fadeAllMeasureNotes
+        self.alwaysShowTopPointer = alwaysShowTopPointer
         self.staffSpacingScale = staffSpacingScale
     }
 
@@ -982,6 +986,7 @@ struct ChordVoicingStaffGroupsView: View {
     var body: some View {
         GeometryReader { proxy in
             let hintGroupId: UUID? = (showTargetHints && effectiveUnpressedNoteOpacity > 0) ? activeGroupId : nil
+            let pointerGroupId: UUID? = alwaysShowTopPointer ? activeGroupId : hintGroupId
             let w = max(1, proxy.size.width)
             let h = max(1, proxy.size.height)
             let canvasSize = CGSize(width: w, height: h)
@@ -1014,6 +1019,7 @@ struct ChordVoicingStaffGroupsView: View {
                         dense: denseCurrentMeasureLayout,
                         keyFifths: keyFifths,
                         activeGroupId: hintGroupId,
+                        pointerGroupId: pointerGroupId,
                         correctByGroup: correctPitchClassesByGroupId,
                         singleMeasureLayout: singleMeasureLayout,
                         hideChordLabels: hideChordLabels,
@@ -1431,12 +1437,8 @@ struct ChordVoicingStaffGroupsView: View {
         firstTopY: CGFloat,
         staffSpacing: CGFloat,
         staffGap: CGFloat,
-        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
-        unpressedNoteOpacity: CGFloat
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
     ) -> VoicingBattleHints {
-        if unpressedNoteOpacity == 0 {
-            return VoicingBattleHints(nextHintVoicingIndex: nil, topPointer: nil)
-        }
         guard let aid = activeGroupId,
               let activeItem = parsedGroups.first(where: { $0.group.id == aid }),
               activeItem.group.measureOffset == 0,
@@ -1522,6 +1524,7 @@ struct ChordVoicingStaffGroupsView: View {
         dense: Bool,
         keyFifths: Int,
         activeGroupId: UUID?,
+        pointerGroupId: UUID?,
         correctByGroup: [UUID: Set<Int>],
         singleMeasureLayout: Bool,
         hideChordLabels: Bool,
@@ -1577,14 +1580,13 @@ struct ChordVoicingStaffGroupsView: View {
         let battleHints = computeVoicingBattleHints(
             parsedGroups: parsedGroups,
             layout: layout,
-            activeGroupId: activeGroupId,
+            activeGroupId: pointerGroupId,
             correctByGroup: correctByGroup,
             activeStaves: activeStaves,
             firstTopY: geo.firstTopY,
             staffSpacing: geo.staffSpacing,
             staffGap: geo.staffGap,
-            noteCollisionLayout: noteCollisionLayout,
-            unpressedNoteOpacity: unpressedNoteOpacity
+            noteCollisionLayout: noteCollisionLayout
         )
 
         let leftX = w * (24 / 720)
