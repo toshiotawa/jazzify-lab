@@ -155,15 +155,15 @@ private struct StarDotView: View {
             .frame(width: star.radius * 2, height: star.radius * 2)
             .scaleEffect(animate && star.breath ? 1.55 : 1.0)
             .opacity(opacityValue)
+            .animation(
+                .easeInOut(duration: star.duration)
+                    .repeatForever(autoreverses: true)
+                    .delay(star.phaseOffset * 0.25),
+                value: animate
+            )
             .position(x: star.x, y: star.y)
             .onAppear {
-                withAnimation(
-                    .easeInOut(duration: star.duration)
-                        .repeatForever(autoreverses: true)
-                        .delay(star.phaseOffset * 0.25)
-                ) {
-                    animate = true
-                }
+                animate = true
             }
     }
 
@@ -590,13 +590,12 @@ struct LessonJourneyGoalView: View {
                 .shadow(color: .black.opacity(cleared ? 0.6 : 0.3), radius: cleared ? 6 : 2)
         }
         .opacity(cleared ? 1 : 0.85)
+        .animation(cleared ? .easeInOut(duration: 3.4).repeatForever(autoreverses: true) : nil, value: breath)
         .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
         .onAppear {
             guard cleared else { return }
-            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true)) {
-                breath = 1.08
-            }
+            breath = 1.08
         }
     }
 

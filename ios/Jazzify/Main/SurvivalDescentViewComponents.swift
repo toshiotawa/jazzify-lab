@@ -270,18 +270,20 @@ struct SurvivalDescentBlockLantern: View {
             }
         }
         .opacity(dim ? 0.25 : 1.0)
+        .animation(
+            animating ? .easeInOut(duration: 1.3).delay(delay).repeatForever(autoreverses: true) : nil,
+            value: flicker
+        )
+        .animation(
+            animating ? .easeInOut(duration: 2.4).delay(delay).repeatForever(autoreverses: true) : nil,
+            value: glowPulse
+        )
         .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
         .onAppear {
             guard animating else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
-                    flicker = true
-                }
-                withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                    glowPulse = true
-                }
-            }
+            flicker = true
+            glowPulse = true
         }
     }
 }
@@ -460,16 +462,20 @@ struct SurvivalDescentBlockSeal: View {
         }
         .frame(width: size, height: size)
         .opacity(dim ? 0.3 : (opened ? 1.0 : 0.75))
+        .animation(
+            (opened && !dim && animated) ? .linear(duration: 12).repeatForever(autoreverses: false) : nil,
+            value: rotation
+        )
+        .animation(
+            (opened && !dim && animated) ? .easeInOut(duration: 2.0).repeatForever(autoreverses: true) : nil,
+            value: glowPulse
+        )
         .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
         .onAppear {
             guard opened, !dim, animated else { return }
-            withAnimation(.linear(duration: 12).repeatForever(autoreverses: false)) {
-                rotation = 360
-            }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                glowPulse = true
-            }
+            rotation = 360
+            glowPulse = true
         }
     }
 }
@@ -599,12 +605,14 @@ struct SurvivalDescentStageNode: View {
         }
         .opacity(dim ? 0.45 : 1.0)
         .saturation(dim ? 0.4 : 1.0)
+        .animation(
+            (isCurrent && !dim) ? .easeInOut(duration: 1.4).repeatForever(autoreverses: true) : nil,
+            value: pulse
+        )
         .position(x: xPx, y: yPx)
         .onAppear {
             guard isCurrent, !dim else { return }
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                pulse = true
-            }
+            pulse = true
         }
     }
 
@@ -742,6 +750,10 @@ struct SurvivalDescentCharacterView: View {
         }
         .frame(width: size, height: size)
         .offset(y: breathe ? -2 * scale : 2 * scale)
+        .animation(
+            animateBreathe ? .easeInOut(duration: 2.2).repeatForever(autoreverses: true) : nil,
+            value: breathe
+        )
         .position(
             x: xPx + offsetX,
             y: yPx - size * 0.5 - 10 * scale
@@ -749,9 +761,7 @@ struct SurvivalDescentCharacterView: View {
         .allowsHitTesting(false)
         .onAppear {
             guard animateBreathe else { return }
-            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
-                breathe = true
-            }
+            breathe = true
         }
     }
 }
@@ -817,17 +827,21 @@ struct SurvivalDescentBossFigure: View {
         }
         .opacity(opacity)
         .offset(y: bob ? -3 * scale : 3 * scale)
+        .animation(
+            (!dim && animated) ? .easeInOut(duration: 2.6).repeatForever(autoreverses: true) : nil,
+            value: bob
+        )
+        .animation(
+            (!dim && animated && !opened) ? .easeInOut(duration: 1.8).repeatForever(autoreverses: true) : nil,
+            value: pulse
+        )
         .position(x: xPx, y: yPx - size * 0.5)
         .allowsHitTesting(false)
         .onAppear {
             guard !dim, animated else { return }
-            withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
-                bob = true
-            }
+            bob = true
             if !opened {
-                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                    pulse = true
-                }
+                pulse = true
             }
         }
     }
