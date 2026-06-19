@@ -86,7 +86,6 @@ export const survivalTutorialV4DemoSceneToV3 = (
   chords: scene.chords.map(survivalTutorialV4ChunkToDemoChordEvent),
   lines: scene.lines.map(v4LineToDemoLine),
   livePlayback: true,
-  endHoldBeats: 0,
 });
 
 // ts-prune-ignore-next テスト/ブリッジから利用

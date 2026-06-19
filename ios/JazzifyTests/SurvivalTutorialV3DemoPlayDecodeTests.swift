@@ -154,7 +154,6 @@ final class SurvivalTutorialV3DemoPlayDecodeTests: XCTestCase {
                     "durationBeats": 2
                   }
                 ],
-                "endHoldBeats": 4
               },
               { "type": "finish" }
             ],

@@ -465,7 +465,6 @@ export const buildDrop2IIVIABADemoScript = (): SurvivalTutorialScriptPayloadV3 =
         },
       ],
 
-      endHoldBeats: 4,
     },
 
     { type: 'finish' },

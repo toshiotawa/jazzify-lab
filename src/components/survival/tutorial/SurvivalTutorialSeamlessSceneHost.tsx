@@ -165,7 +165,6 @@ export const SurvivalTutorialSeamlessSceneHost: React.FC<
           bindings={bindings}
           embeddedFullHeight={embeddedFullHeight}
           onSceneComplete={onSceneComplete}
-          nextSceneIsFinish={nextSceneIsFinish}
           sharedRuntime={runtime}
           sceneFrozen={sceneFrozen}
         />

@@ -251,7 +251,6 @@ struct SurvivalTutorialV3LessonView: View {
                 onFai: { faiBubbleLine = $0 },
                 onJajii: { jajiiBubbleLine = $0 },
                 onNarration: { narrationLine = $0 },
-                nextSceneIsFinish: nextSceneIsFinish,
                 onDone: { advanceScene() }
             )
         case let .demoPlay(sceneNode):
@@ -599,7 +598,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
     let onFai: (String) -> Void
     let onJajii: (String) -> Void
     let onNarration: (String) -> Void
-    let nextSceneIsFinish: Bool
     let onDone: () -> Void
 
     init(
@@ -614,7 +612,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         onFai: @escaping (String) -> Void,
         onJajii: @escaping (String) -> Void,
         onNarration: @escaping (String) -> Void,
-        nextSceneIsFinish: Bool = false,
         onDone: @escaping () -> Void
     ) {
         self.script = script
@@ -628,7 +625,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         self.onFai = onFai
         self.onJajii = onJajii
         self.onNarration = onNarration
-        self.nextSceneIsFinish = nextSceneIsFinish
         self.onDone = onDone
     }
 
@@ -858,7 +854,7 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
             if chord.voicing.isEmpty {
                 // 会話だけの小節（休符塊）: 自動送り + タップ送り。
                 let isLastChunk = index == chordDefs.count - 1
-                if !(isLastChunk && nextSceneIsFinish) {
+                if !isLastChunk {
                     await tapHub.waitForTapOrTimeout(seconds: SurvivalTutorialV3Constants.playRestSeconds)
                 }
                 if Task.isCancelled { return }

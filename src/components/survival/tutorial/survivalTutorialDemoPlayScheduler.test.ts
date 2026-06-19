@@ -85,11 +85,16 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     expect(anchoredDelayMs(1500, 2000)).toBe(0);
   });
 
-  it('builds sorted schedule with demo-end event', () => {
+  it('builds sorted schedule with demo-end at last content end beat', () => {
     const schedule = buildDemoPlaySchedule(scene);
     expect(schedule.length).toBeGreaterThan(0);
     const end = schedule.find((e) => e.kind === 'demo-end');
     expect(end).toBeDefined();
+    const contentEnds = schedule
+      .filter((e) => e.kind === 'chord-end' || e.kind === 'line-end')
+      .map((e) => e.atBeat);
+    const maxContentEnd = Math.max(...contentEnds);
+    expect(end?.atBeat).toBe(maxContentEnd);
     for (let i = 1; i < schedule.length; i += 1) {
       expect(schedule[i].atSeconds).toBeGreaterThanOrEqual(schedule[i - 1].atSeconds);
     }

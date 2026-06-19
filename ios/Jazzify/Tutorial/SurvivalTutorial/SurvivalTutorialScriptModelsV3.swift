@@ -251,7 +251,6 @@ struct SurvivalTutorialV3DemoPlayScene: Decodable, Sendable {
     let introLines: [SurvivalTutorialV3LocalizedText]?
     let chords: [SurvivalTutorialV3DemoChordEvent]
     let lines: [SurvivalTutorialV3DemoLine]
-    let endHoldBeats: Double?
     let audio: SurvivalTutorialV3DemoPlayAudio?
     /// true のとき各和音開始でアプリ音源(ピアノ)で voicing+bass を発音する。V4 由来。
     let livePlayback: Bool?

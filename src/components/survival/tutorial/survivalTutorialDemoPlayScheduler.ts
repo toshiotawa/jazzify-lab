@@ -33,9 +33,7 @@ export const buildDemoPlaySchedule = (
   scene: SurvivalTutorialV3DemoPlayScene,
 ): readonly SurvivalTutorialDemoScheduleEvent[] => {
   const bpm = scene.bpm;
-  const beatsPerMeasure = scene.beatsPerMeasure ?? 4;
   const defaultLineBeats = defaultLineDurationBeats(bpm);
-  const endHold = scene.endHoldBeats ?? beatsPerMeasure;
 
   let maxEndBeat = 0;
 
@@ -101,7 +99,7 @@ export const buildDemoPlaySchedule = (
     });
   });
 
-  const demoEndBeat = maxEndBeat + endHold;
+  const demoEndBeat = maxEndBeat;
   events.push({
     kind: 'demo-end',
     atBeat: demoEndBeat,

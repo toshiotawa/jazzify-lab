@@ -429,7 +429,6 @@ const mqB1Q3DemoPlayScript = {
         { speaker: 'jajii', ja: 'そろそろ終わるぞい。', en: 'Almost done.', startBeat: 80, durationBeats: 4 },
         { speaker: 'fai', ja: '1周、通しで見えた！', en: 'I saw the whole chorus!', startBeat: 92, durationBeats: 4 },
       ],
-      endHoldBeats: 4,
     },
     {
       type: 'dialogue_only',

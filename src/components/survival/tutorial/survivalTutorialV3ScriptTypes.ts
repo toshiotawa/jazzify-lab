@@ -196,7 +196,6 @@ export interface SurvivalTutorialV3DemoPlayScene extends SurvivalTutorialV3Scene
   readonly introLines?: readonly SurvivalTutorialV3DialogueLine[];
   readonly chords: readonly SurvivalTutorialV3DemoChordEvent[];
   readonly lines: readonly SurvivalTutorialV3DemoLine[];
-  readonly endHoldBeats?: number;
   readonly audio?: SurvivalTutorialV3DemoPlayAudio;
   /**
    * true のとき各和音の開始でアプリ音源(ピアノ)で voicing+bass を発音する。

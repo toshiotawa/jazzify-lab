@@ -76,7 +76,6 @@ export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps>
         bindings={bindings}
         embeddedFullHeight={embeddedFullHeight}
         onSceneComplete={onSceneComplete}
-        nextSceneIsFinish={nextSceneIsFinish}
       />
     );
   }

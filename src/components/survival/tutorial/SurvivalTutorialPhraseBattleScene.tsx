@@ -89,7 +89,6 @@ export interface SurvivalTutorialPhraseBattleSceneProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
-  readonly nextSceneIsFinish?: boolean;
   readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
   readonly sceneFrozen?: boolean;
 }
@@ -100,7 +99,6 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
   bindings,
   embeddedFullHeight,
   onSceneComplete,
-  nextSceneIsFinish = false,
   sharedRuntime,
   sceneFrozen = false,
 }) => {
@@ -284,7 +282,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
         if (ch.voicing.length === 0) {
           // 会話だけの小節（休符塊）: 自動送り + タップ送り。
           const isLastChunk = i === playChords.length - 1;
-          if (!(isLastChunk && nextSceneIsFinish)) {
+          if (!isLastChunk) {
             bindingsRef.current.setTapAdvanceCueVisible(true);
             await bindingsRef.current.waitForTapOrTimeout(
               SURVIVAL_TUTORIAL_V3_PLAY_REST_SECONDS,
@@ -359,7 +357,6 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
     script,
     stageDefinition,
     sceneFrozen,
-    nextSceneIsFinish,
   ]);
 
   if (!block || phraseInline === null || !stageDefinition || !difficultyConfig) {

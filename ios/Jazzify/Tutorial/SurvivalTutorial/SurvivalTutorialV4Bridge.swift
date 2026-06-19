@@ -112,7 +112,6 @@ enum SurvivalTutorialV4Bridge {
             "chords": scene.chords.map(demoChordEvent),
             "lines": scene.lines.map(demoLine),
             "livePlayback": true,
-            "endHoldBeats": 0,
         ]
     }
 

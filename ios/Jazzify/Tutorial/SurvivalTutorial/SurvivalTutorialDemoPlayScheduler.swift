@@ -40,9 +40,7 @@ enum SurvivalTutorialDemoPlayScheduler {
 
     static func buildSchedule(scene: SurvivalTutorialV3DemoPlayScene) -> [ScheduleEvent] {
         let bpm = scene.bpm
-        let beatsPerMeasure = scene.beatsPerMeasure ?? 4
         let defaultLineBeats = defaultLineDurationBeats(bpm: bpm)
-        let endHold = scene.endHoldBeats ?? beatsPerMeasure
         var maxEndBeat: Double = 0
         var events: [ScheduleEvent] = []
 
@@ -128,7 +126,7 @@ enum SurvivalTutorialDemoPlayScheduler {
             )
         }
 
-        let demoEndBeat = maxEndBeat + endHold
+        let demoEndBeat = maxEndBeat
         events.append(
             ScheduleEvent(
                 kind: .demoEnd,

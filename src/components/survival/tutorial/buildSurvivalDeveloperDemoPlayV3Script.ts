@@ -268,7 +268,6 @@ export const buildSurvivalDeveloperDemoPlayV3Script = (): SurvivalTutorialScript
           durationBeats: 2,
         },
       ],
-      endHoldBeats: 4,
     },
     { type: 'finish' },
   ],
