@@ -191,12 +191,12 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     };
 
     const runIntro = async (): Promise<boolean> => {
-      bindingsRef.current.stopDemoBgm?.();
-
       const introLines = scene.introLines ?? [];
       if (introLines.length === 0) {
         return true;
       }
+
+      bindingsRef.current.stopDemoBgm?.();
 
       h.setOverrides(survivalTutorialDemoPlayIntroOverrides(baseline));
       updateStaffSnapshot(null);

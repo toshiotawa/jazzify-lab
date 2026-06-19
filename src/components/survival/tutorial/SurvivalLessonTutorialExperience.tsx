@@ -132,6 +132,9 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const audioUnlockedRef = useRef(false);
   const syncV3SceneBgmRef = useRef<(index: number) => void>(() => undefined);
   const retrySharedBgmIfSilentRef = useRef<() => void>(() => undefined);
+  const startDemoBgmFromStartRef = useRef<
+    SurvivalTutorialV3Bindings['startDemoBgmFromStart']
+  >(async () => undefined);
 
   useEffect(() => {
     const retryBgmAfterGesture = (): void => {
@@ -291,6 +294,9 @@ export const SurvivalLessonTutorialExperience: React.FC<
       v3CurrentBgmUrlRef.current = null;
       return;
     }
+    if (nextScene?.type === 'demo_play') {
+      void startDemoBgmFromStartRef.current?.(nextScene);
+    }
     setV3SceneIndex(nextIdx);
   }, [finalizeLesson, tutorialV3Payload, v3SceneIndex]);
 
@@ -325,9 +331,6 @@ export const SurvivalLessonTutorialExperience: React.FC<
         }
         if (!nextUrl) return;
         if (s.type === 'demo_play' && bgmAction === 'restart') {
-          ctl.stopAudio('main_bgm');
-          v3DrumPlayingRef.current = false;
-          v3CurrentBgmUrlRef.current = null;
           return;
         }
         ctl.setTracks({
@@ -348,9 +351,13 @@ export const SurvivalLessonTutorialExperience: React.FC<
       const pl = tutorialV3Payload;
       if (!pl || gate !== 'ready') return;
       const s = pl.scenes[v3SceneIndex];
-      if (!s || s.type === 'demo_play' || s.type === 'finish') return;
+      if (!s || s.type === 'finish') return;
       const ctl = v3AudioRef.current;
       if (!ctl || ctl.isTrackPlaying('main_bgm')) return;
+      if (s.type === 'demo_play') {
+        void startDemoBgmFromStartRef.current?.(s);
+        return;
+      }
       void ctl.ensureBgmSettings().then(async () => {
         const drum = pl.audioTracks?.drum_loop;
         const fallbackUrl = ctl.resolveTrackUrl('main_bgm') ?? drum?.url;
@@ -415,6 +422,35 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
   const v3Bindings: SurvivalTutorialV3Bindings | null = useMemo(() => {
     if (!tutorialV3Payload) return null;
+    const startDemoBgmFromStart: NonNullable<SurvivalTutorialV3Bindings['startDemoBgmFromStart']> = async (demoScene) => {
+      const ctl = v3AudioRef.current;
+      if (!ctl) return;
+      const resolved = resolveSurvivalTutorialDemoPlayAudio(
+        demoScene,
+        tutorialV3Payload,
+        isEnglishCopy,
+      );
+      if (!resolved.url) return;
+      ctl.setTracks({
+        main_bgm: {
+          url: resolved.url,
+          defaultLoop: true,
+          defaultVolume: resolved.volume,
+        },
+        drum_loop: {
+          url: resolved.url,
+          defaultLoop: true,
+          defaultVolume: resolved.volume,
+        },
+      });
+      const started = await ctl.restartFromStart('main_bgm', {
+        loop: true,
+        volume: resolved.volume,
+      });
+      v3DrumPlayingRef.current = started && ctl.isTrackPlaying('main_bgm');
+      v3CurrentBgmUrlRef.current = v3DrumPlayingRef.current ? resolved.url : null;
+    };
+    startDemoBgmFromStartRef.current = startDemoBgmFromStart;
     return {
       isEnglishCopy,
       ui: tutorialV3Payload.ui,
@@ -451,34 +487,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
         v3DrumPlayingRef.current = false;
         v3CurrentBgmUrlRef.current = null;
       },
-      startDemoBgmFromStart: async (demoScene) => {
-        const ctl = v3AudioRef.current;
-        if (!ctl) return;
-        const resolved = resolveSurvivalTutorialDemoPlayAudio(
-          demoScene,
-          tutorialV3Payload,
-          isEnglishCopy,
-        );
-        if (!resolved.url) return;
-        ctl.setTracks({
-          main_bgm: {
-            url: resolved.url,
-            defaultLoop: true,
-            defaultVolume: resolved.volume,
-          },
-          drum_loop: {
-            url: resolved.url,
-            defaultLoop: true,
-            defaultVolume: resolved.volume,
-          },
-        });
-        const started = await ctl.restartFromStart('main_bgm', {
-          loop: true,
-          volume: resolved.volume,
-        });
-        v3DrumPlayingRef.current = started && ctl.isTrackPlaying('main_bgm');
-        v3CurrentBgmUrlRef.current = v3DrumPlayingRef.current ? resolved.url : null;
-      },
+      startDemoBgmFromStart,
       playDemoChordAudio: (midis) => {
         if (midis.length === 0) return;
         void playTutorialChordPreview(midis);
