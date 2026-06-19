@@ -15,6 +15,48 @@ export interface SurvivalTutorialDemoStaffSnapshot {
   readonly windowStartMeasure: number;
 }
 
+const collectDemoSceneStaves = (
+  chords: readonly SurvivalTutorialV3DemoChordEvent[],
+): Set<1 | 2> => {
+  const staves = new Set<1 | 2>();
+  const addStaves = (values: readonly number[] | undefined): void => {
+    if (!values) {
+      return;
+    }
+    for (const value of values) {
+      if (value === 1 || value === 2) {
+        staves.add(value);
+      }
+    }
+  };
+  for (const chord of chords) {
+    addStaves(chord.voicing_staves);
+    if (chord.rollSteps) {
+      for (const step of chord.rollSteps) {
+        addStaves(step.voicing_staves);
+      }
+    }
+  }
+  return staves;
+};
+
+/** demo シーン全体の voicing / rollSteps から、シーン内で固定する 1|2 段表示を決める。 */
+export const resolveDemoSceneFixedStaves = (
+  chords: readonly SurvivalTutorialV3DemoChordEvent[],
+): readonly (1 | 2)[] => {
+  const staves = collectDemoSceneStaves(chords);
+  if (staves.has(1) && staves.has(2)) {
+    return [1, 2];
+  }
+  if (staves.has(1)) {
+    return [1];
+  }
+  if (staves.has(2)) {
+    return [2];
+  }
+  return [1, 2];
+};
+
 export interface SurvivalTutorialDemoStaffProps {
   readonly snapshot: SurvivalTutorialDemoStaffSnapshot;
   readonly className?: string;
@@ -196,6 +238,10 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
     const groups = useMemo(() => buildDemoStaffVoicingGroups(snapshot), [snapshot]);
     const activeGroupId = useMemo(() => resolveDemoStaffActiveGroupId(snapshot), [snapshot]);
     const showEmptyStaff = useMemo(() => isDemoStaffRestWindow(snapshot), [snapshot]);
+    const fixedActiveStaves = useMemo(
+      () => resolveDemoSceneFixedStaves(snapshot.chords),
+      [snapshot.chords],
+    );
 
     if (groups.length === 0 && !showEmptyStaff) {
       return null;
@@ -219,6 +265,7 @@ export const SurvivalTutorialDemoStaff = React.memo<SurvivalTutorialDemoStaffPro
           singleMeasureLayout
           showTargetHints={false}
           showEmptyStaff={showEmptyStaff}
+          fixedActiveStaves={fixedActiveStaves}
           activeGroupId={activeGroupId}
         />
       </div>

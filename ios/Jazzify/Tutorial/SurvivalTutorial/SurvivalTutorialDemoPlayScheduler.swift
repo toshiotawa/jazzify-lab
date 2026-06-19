@@ -223,4 +223,34 @@ enum SurvivalTutorialDemoStaffBuilder {
         }
         return names.map { _ in 2 }
     }
+
+    static func fixedStaves(for chords: [SurvivalTutorialV3DemoChordEvent]) -> [Int] {
+        var staves = Set<Int>()
+        for chord in chords {
+            if let voicingStaves = chord.voicing_staves {
+                for staff in voicingStaves where staff == 1 || staff == 2 {
+                    staves.insert(staff)
+                }
+            }
+            if let rollSteps = chord.rollSteps {
+                for step in rollSteps {
+                    if let stepStaves = step.voicing_staves {
+                        for staff in stepStaves where staff == 1 || staff == 2 {
+                            staves.insert(staff)
+                        }
+                    }
+                }
+            }
+        }
+        if staves.contains(1), staves.contains(2) {
+            return [1, 2]
+        }
+        if staves.contains(1) {
+            return [1]
+        }
+        if staves.contains(2) {
+            return [2]
+        }
+        return [1, 2]
+    }
 }

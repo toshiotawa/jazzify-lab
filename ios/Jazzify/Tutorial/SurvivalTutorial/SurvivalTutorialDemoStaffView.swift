@@ -25,7 +25,8 @@ struct SurvivalTutorialDemoStaffView: View {
                 noteCollisionLayout: .anchorLow,
                 unpressedNoteOpacity: 0.45,
                 compactChordLabelGap: true,
-                staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale
+                staffSpacingScale: SurvivalStaffOverlayLayout.staffSpacingScale,
+                fixedActiveStaves: built.fixedActiveStaves
             )
             .frame(
                 maxWidth: SurvivalStaffOverlayLayout.scenarioStaffMaxWidth(isPad: isPad),
@@ -42,6 +43,7 @@ struct SurvivalTutorialDemoStaffView: View {
         let correctByGroupId: [UUID: Set<Int>]
         let showEmptyStaff: Bool
         let usesGrandStaffLayout: Bool
+        let fixedActiveStaves: [Int]
     }
 
     private static func voicingForActiveChord(
@@ -105,7 +107,6 @@ struct SurvivalTutorialDemoStaffView: View {
         var totalNotes = 0
         var hasRestInWindow = false
         var hasVoicedInWindow = false
-        var voicedStaves: [Int] = []
 
         for (index, chord) in snapshot.chords.enumerated() {
             guard chord.measure_number == snapshot.windowStartMeasure else {
@@ -143,7 +144,6 @@ struct SurvivalTutorialDemoStaffView: View {
                 correctByGroupId[groupId] = highlightPitchClasses(chord, activeRollStepIndex: snapshot.activeRollStepIndex)
             }
             totalNotes += min(names.count, displayVoicing.count)
-            voicedStaves.append(contentsOf: staves.prefix(displayVoicing.count))
             groups.append(
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: groupId,
@@ -158,8 +158,9 @@ struct SurvivalTutorialDemoStaffView: View {
         }
 
         let showEmptyStaff = hasRestInWindow && !hasVoicedInWindow
+        let fixedActiveStaves = SurvivalTutorialDemoStaffBuilder.fixedStaves(for: snapshot.chords)
         let usesGrandStaffLayout = showEmptyStaff
-            || SurvivalStaffOverlayLayout.usesGrandStaff(voicingStaves: voicedStaves)
+            || SurvivalStaffOverlayLayout.usesGrandStaff(voicingStaves: fixedActiveStaves)
 
         return Presentation(
             groups: groups,
@@ -167,7 +168,8 @@ struct SurvivalTutorialDemoStaffView: View {
             activeGroupId: activeGroupId,
             correctByGroupId: correctByGroupId,
             showEmptyStaff: showEmptyStaff,
-            usesGrandStaffLayout: usesGrandStaffLayout
+            usesGrandStaffLayout: usesGrandStaffLayout,
+            fixedActiveStaves: fixedActiveStaves
         )
     }
 

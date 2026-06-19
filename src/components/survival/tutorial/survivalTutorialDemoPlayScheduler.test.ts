@@ -7,6 +7,7 @@ import type { SurvivalTutorialV3DemoChordEvent } from '@/components/survival/tut
 import {
   buildDemoStaffVoicingGroups,
   isDemoStaffRestWindow,
+  resolveDemoSceneFixedStaves,
   resolveDemoStaffWindowStartMeasure,
 } from '@/components/survival/tutorial/SurvivalTutorialDemoStaff';
 import { buildSurvivalDeveloperDemoPlayV3Script, DEMO_PLAY_HALF_BEAT_SCALE_START_MIDI } from '@/components/survival/tutorial/buildSurvivalDeveloperDemoPlayV3Script';
@@ -179,6 +180,35 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     expect(g7Groups.find((g) => g.isActive)?.chordName).toBe('G7');
     expect(dm7Groups.filter((g) => g.chordName.length > 0)).toHaveLength(1);
     expect(g7Groups.filter((g) => g.chordName.length > 0)).toHaveLength(1);
+  });
+
+  it('fixes demo scene staff layout from all chords and roll steps', () => {
+    const rollChords: readonly SurvivalTutorialV3DemoChordEvent[] = [{
+      startBeat: 0,
+      durationBeats: 4,
+      chordName: 'Dm7',
+      voicing: [50, 53, 57, 74],
+      voicingNames: ['D3', 'F3', 'A3', 'D5'],
+      voicing_staves: [2, 2, 2, 1],
+      measureNumber: 2,
+      keyFifths: 0,
+      rollSteps: [
+        { startBeat: 0, newVoicing: [50], voicing: [50], voicing_staves: [2] },
+        { startBeat: 1, newVoicing: [53], voicing: [50, 53], voicing_staves: [2, 2] },
+        { startBeat: 2, newVoicing: [57], voicing: [50, 53, 57], voicing_staves: [2, 2, 2] },
+        { startBeat: 3, newVoicing: [74], voicing: [50, 53, 57, 74], voicing_staves: [2, 2, 2, 1] },
+      ],
+    }];
+    expect(resolveDemoSceneFixedStaves(rollChords)).toEqual([1, 2]);
+    expect(resolveDemoSceneFixedStaves([{
+      ...rollChords[0],
+      voicing_staves: [2, 2, 2, 2],
+      rollSteps: rollChords[0].rollSteps?.map((step) => ({
+        ...step,
+        voicing_staves: step.voicing_staves?.map(() => 2 as const),
+      })),
+    }])).toEqual([2]);
+    expect(resolveDemoSceneFixedStaves(scene.chords)).toEqual([1, 2]);
   });
 
   it('emits roll-step-start events for rollSteps chords', () => {

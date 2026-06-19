@@ -927,6 +927,8 @@ struct ChordVoicingStaffGroupsView: View {
     let alwaysShowTopPointer: Bool
     /// サバイバル iPad 用: 五線間隔（音符・記号・五線の大きさ）のスケール。既定 1 で EarTraining / iPhone は不変。
     let staffSpacingScale: CGFloat
+    /// 指定時は現フレームの音符有無に関わらず 1|2 段表示を固定する（demo シーン向け）。
+    let fixedActiveStaves: [Int]?
 
     init(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
@@ -947,7 +949,8 @@ struct ChordVoicingStaffGroupsView: View {
         compactVerticalLayout: Bool = false,
         fadeAllMeasureNotes: Bool = false,
         alwaysShowTopPointer: Bool = false,
-        staffSpacingScale: CGFloat = 1
+        staffSpacingScale: CGFloat = 1,
+        fixedActiveStaves: [Int]? = nil
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -968,6 +971,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.fadeAllMeasureNotes = fadeAllMeasureNotes
         self.alwaysShowTopPointer = alwaysShowTopPointer
         self.staffSpacingScale = staffSpacingScale
+        self.fixedActiveStaves = fixedActiveStaves
     }
 
     private var effectiveUnpressedNoteOpacity: CGFloat {
@@ -1003,7 +1007,8 @@ struct ChordVoicingStaffGroupsView: View {
                 compactVerticalLayout: compactVerticalLayout,
                 phraseTightTopLedgerPadding: phraseTightTopLedgerPadding,
                 staffSpacingScale: staffSpacingScale,
-                showEmptyStaff: showEmptyStaff
+                showEmptyStaff: showEmptyStaff,
+                fixedActiveStaves: fixedActiveStaves
             )
             let activeLabelGlobalFrame = activeLabelGlobalRect(
                 proxy: proxy,
@@ -1030,7 +1035,8 @@ struct ChordVoicingStaffGroupsView: View {
                         phraseTightTopLedgerPadding: phraseTightTopLedgerPadding,
                         fadeAllMeasureNotes: fadeAllMeasureNotes,
                         staffSpacingScale: staffSpacingScale,
-                        showEmptyStaff: showEmptyStaff
+                        showEmptyStaff: showEmptyStaff,
+                        fixedActiveStaves: fixedActiveStaves
                     )
                 }
                 .frame(width: w, height: h)
@@ -1535,7 +1541,8 @@ struct ChordVoicingStaffGroupsView: View {
         phraseTightTopLedgerPadding: Bool = false,
         fadeAllMeasureNotes: Bool = false,
         staffSpacingScale: CGFloat = 1,
-        showEmptyStaff: Bool = false
+        showEmptyStaff: Bool = false,
+        fixedActiveStaves: [Int]? = nil
     ) {
         guard !groups.isEmpty || showEmptyStaff else { return }
         let w = size.width
@@ -1548,9 +1555,9 @@ struct ChordVoicingStaffGroupsView: View {
         let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
 
         let hasRest = parsedGroups.contains { $0.group.isRest }
-        let activeStaves = (hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
+        let activeStaves = fixedActiveStaves ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
-        }
+        })
         let geo = computeStaffSystemGeometry(
             size: size,
             width: w,
@@ -2032,7 +2039,8 @@ struct ChordVoicingStaffGroupsView: View {
         compactVerticalLayout: Bool = false,
         phraseTightTopLedgerPadding: Bool = false,
         staffSpacingScale: CGFloat = 1,
-        showEmptyStaff: Bool = false
+        showEmptyStaff: Bool = false,
+        fixedActiveStaves: [Int]? = nil
     ) -> OverlayLayout {
         guard (!groups.isEmpty || showEmptyStaff), size.width > 0, size.height > 0 else {
             return OverlayLayout(
@@ -2050,9 +2058,9 @@ struct ChordVoicingStaffGroupsView: View {
         )
         let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
         let hasRest = parsedGroups.contains { $0.group.isRest }
-        let activeStaves = (hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
+        let activeStaves = fixedActiveStaves ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
-        }
+        })
         let geo = computeStaffSystemGeometry(
             size: size,
             width: w,

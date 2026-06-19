@@ -53,6 +53,8 @@ interface ChordVoicingStaffProps {
   completionPulse?: ChordVoicingCompletionPulse | null;
   /** true のとき voicingGroups が空でも五線・音部記号・調号のみの空大譜表を描画する */
   showEmptyStaff?: boolean;
+  /** 指定時は現フレームの音符有無に関わらず 1|2 段表示を固定する（demo シーン向け）。 */
+  fixedActiveStaves?: readonly (1 | 2)[];
   /** false のとき、次ガイド色・三角・コード名強調など「入力許可」を示す強調のみ抑止する */
   showTargetHints?: boolean;
   /**
@@ -1409,6 +1411,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   denseCurrentMeasureLayout,
   completionPulse,
   showEmptyStaff = false,
+  fixedActiveStaves,
   showTargetHints = true,
   hideUnpressedNotes = false,
   unpressedNoteOpacity: unpressedNoteOpacityProp,
@@ -1551,9 +1554,11 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   }, [smuflUseForeignObject]);
 
   const hasRestGroups = renderState.groups.some(group => group.isRest);
-  const activeStaves = (hasRestGroups || showEmptyStaff) ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
-    renderState.groups.some(group => group.notes.some(note => note.staff === staff))
-  ));
+  const activeStaves = fixedActiveStaves ?? (
+    (hasRestGroups || showEmptyStaff) ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
+      renderState.groups.some(group => group.notes.some(note => note.staff === staff))
+    ))
+  );
   const measureZeroNoteTotal = staffGroups.reduce((sum, group) => {
     if ((group.measureOffset ?? 0) !== 0 || group.isRest === true) {
       return sum;
