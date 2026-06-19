@@ -39,6 +39,7 @@ interface SurvivalTutorialDialogueSceneProps {
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
   readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
+  readonly sceneFrozen?: boolean;
 }
 
 export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSceneProps> = ({
@@ -48,6 +49,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
   embeddedFullHeight,
   onSceneComplete,
   sharedRuntime,
+  sceneFrozen = false,
 }) => {
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
@@ -93,14 +95,20 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
     [scene.lines, sceneHasJajii],
   );
 
+  const onSceneCompleteRef = useRef(onSceneComplete);
+  onSceneCompleteRef.current = onSceneComplete;
+
   useEffect(() => {
+    if (sceneFrozen) {
+      return undefined;
+    }
     const ac = new AbortController();
     const lines = scene.lines ?? [];
     tutorialJajiiSpeechTextRef.current = '';
     tutorialFaiSpeechTextRef.current = '';
 
     if (lines.length === 0) {
-      onSceneComplete();
+      onSceneCompleteRef.current();
       return undefined;
     }
 
@@ -120,7 +128,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
       }
       clearSurvivalTutorialV3LinePresentation(linePresentationSink);
       if (!ac.signal.aborted) {
-        onSceneComplete();
+        onSceneCompleteRef.current();
       }
     };
 
@@ -131,7 +139,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
       bindingsRef.current.setTapAdvanceCueVisible(false);
       clearSurvivalTutorialV3LinePresentation(linePresentationSink);
     };
-  }, [linePresentationSink, lineSeconds, onSceneComplete, scene.lines]);
+  }, [linePresentationSink, lineSeconds, scene.lines, sceneFrozen]);
 
   return sharedRuntime ? null : (
     <div className="relative h-full min-h-0 w-full bg-black">

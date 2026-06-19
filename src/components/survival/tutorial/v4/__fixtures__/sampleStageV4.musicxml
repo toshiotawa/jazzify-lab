@@ -17,7 +17,7 @@
         <clef number="2"><sign>F</sign><line>4</line></clef>
         <clef number="3"><sign>F</sign><line>4</line></clef>
       </attributes>
-      <sound tempo="120"/>
+      <sound tempo="160"/>
       <direction placement="above">
         <direction-type><rehearsal>S1</rehearsal></direction-type>
       </direction>
@@ -91,7 +91,7 @@
       <note>
         <pitch><step>C</step><octave>5</octave></pitch>
         <duration>4</duration><type>whole</type><staff>1</staff>
-        <lyric number="1"><text>CM7 で着地じゃ。</text></lyric>
+        <lyric number="2"><text>CM7 で着地じゃ。</text></lyric>
       </note>
       <backup><duration>4</duration></backup>
       <note><pitch><step>E</step><octave>3</octave></pitch><duration>4</duration><type>whole</type><staff>2</staff></note>

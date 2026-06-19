@@ -28,7 +28,7 @@ describe('parseSurvivalTutorialV4MusicXml', () => {
     const score = parseSurvivalTutorialV4MusicXml(SAMPLE_XML);
     expect(score.rehearsals.map((r) => r.mark)).toEqual(['S1', 'S2', 'S3']);
     expect(score.keyFifths).toBe(0);
-    expect(score.bpm).toBe(120);
+    expect(score.bpm).toBe(160);
     expect(score.measureCount).toBe(6);
   });
 
@@ -111,8 +111,8 @@ describe('buildSurvivalTutorialV4Manifest', () => {
 
   it('measure/beat から MIDI 秒(一定テンポ)を算出する', () => {
     const s1 = buildSample().scenes[0];
-    // 120BPM: 8 四分拍 = 4 秒。
-    expect(s1.midi.endSec).toBeCloseTo(4, 6);
+    // 160BPM: 8 四分拍 = 3 秒。
+    expect(s1.midi.endSec).toBeCloseTo(3, 6);
     expect(s1.midi.startSec).toBeCloseTo(0, 6);
   });
 });

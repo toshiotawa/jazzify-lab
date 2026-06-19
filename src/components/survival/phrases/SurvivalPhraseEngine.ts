@@ -159,3 +159,23 @@ export function getPhraseDisplayChords(
   const next = chords[(state.chordIndex + 1) % chords.length] ?? null;
   return { current, next };
 }
+
+/** 塊 index が同一 measureNumber 内の最終塊か（playalong 衝撃波の小節単位判定）。 */
+export function isLastPhraseChunkInMeasure(
+  chords: ReadonlyArray<Pick<SurvivalPhraseChord, 'measureNumber'>>,
+  chunkIndex: number,
+): boolean {
+  if (chunkIndex < 0 || chunkIndex >= chords.length) {
+    return false;
+  }
+  const measureNum = chords[chunkIndex]?.measureNumber;
+  if (measureNum === undefined) {
+    return true;
+  }
+  for (let i = chunkIndex + 1; i < chords.length; i += 1) {
+    if (chords[i]?.measureNumber === measureNum) {
+      return false;
+    }
+  }
+  return true;
+}

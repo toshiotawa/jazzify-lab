@@ -157,6 +157,7 @@ import {
   evaluatePhraseNoteOn,
   getPhraseDisplayChords,
   getPhraseTargetMidi,
+  isLastPhraseChunkInMeasure,
   skipRestPhraseChord,
   type SurvivalPhraseRuntimeState,
 } from './phrases/SurvivalPhraseEngine';
@@ -1087,6 +1088,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return undefined;
     }
     if (!isPhraseMode || !phraseDrum || !url) {
+      return undefined;
+    }
+    if (
+      scenarioMode
+      && scenarioOverridesRef.current.disableSurvivalBgm
+    ) {
+      phraseDrum.stop();
       return undefined;
     }
     if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
@@ -2462,6 +2470,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
 
+        const phraseChords = preState.phrase.chords;
+        const fireMeasureShockwave =
+          evaluation.result === 'measure-complete'
+          && isLastPhraseChunkInMeasure(phraseChords, preState.chordIndex);
+
         setPhraseUiTick((t) => t + 1);
 
         if (evaluation.result === 'miss') {
@@ -2501,7 +2514,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           );
           newState.projectiles = [...prev.projectiles, ...newProjectiles];
 
-          if (evaluation.result === 'measure-complete') {
+          if (fireMeasureShockwave) {
             const baseRange = 80;
             const bonusRange = prev.player.skills.bRangeBonus * 20;
             const totalRange = (baseRange + bonusRange) * SPECIAL_ATTACK_RADIUS_MULTIPLIER;
@@ -2590,7 +2603,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
 
-        if (jajiiEnabled && jajiiStateRef.current && evaluation.result === 'measure-complete') {
+        if (jajiiEnabled && jajiiStateRef.current && fireMeasureShockwave) {
           const jp = getJajiiWorldPosition(jajiiStateRef.current);
           applyJajiiGaugeSpecialAtWorld({
             draft: newState,

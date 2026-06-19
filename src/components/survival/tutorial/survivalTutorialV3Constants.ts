@@ -18,5 +18,5 @@ export const SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS = 180;
 /** play(一緒に弾かせる): 休符塊(会話のみ小節)の自動送り秒数。タップで即送り可。 */
 export const SURVIVAL_TUTORIAL_V3_PLAY_REST_SECONDS = 3;
 
-/** play: 最後のノーツ正解後にスキップボタンを出して待つ秒数（押さなければ自動）。 */
-export const SURVIVAL_TUTORIAL_V3_PLAY_END_SKIP_SECONDS = 2;
+/** play: 最後の塊正解後に即次シーンへ（待機なし）。 */
+export const SURVIVAL_TUTORIAL_V3_PLAY_END_SKIP_SECONDS = 0;

@@ -14,8 +14,8 @@ enum SurvivalTutorialV3Constants {
     static let phraseRevealEnemyRadius: CGFloat = 180
     /// play(一緒に弾かせる): 休符塊(会話のみ小節)の自動送り秒数。タップで即送り可。
     static let playRestSeconds: Double = 3
-    /// play: 最後のノーツ正解後にスキップを出して待つ秒数（押さなければ自動）。
-    static let playEndSkipSeconds: Double = 2
+    /// play: 最後の塊正解後に即次シーンへ（待機なし）。
+    static let playEndSkipSeconds: Double = 0
     /// demo_play 鍵盤ハイライトの先行発火秒数（@Published 反映の SwiftUI フレーム + iPhone 88 鍵再構築など描画レイテンシ補正）。
     /// 大きいほど点灯が早まる。出力レイテンシ（Bluetooth 等）はこの値から差し引かれる。
     static let demoHighlightRenderLeadSeconds: Double = 0.05

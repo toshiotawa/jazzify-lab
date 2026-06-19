@@ -45,12 +45,13 @@ interface SurvivalTutorialSeamlessSceneHostProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
+  readonly sceneFrozen?: boolean;
 }
 
 /** V4 S1/S2/S3 用。ゲーム画面を一度だけマウントし、シーン制御だけを差し替える。 */
 export const SurvivalTutorialSeamlessSceneHost: React.FC<
   SurvivalTutorialSeamlessSceneHostProps
-> = ({ script, scene, bindings, embeddedFullHeight, onSceneComplete }) => {
+> = ({ script, scene, bindings, embeddedFullHeight, onSceneComplete, sceneFrozen = false }) => {
   const [scenarioHandle, setScenarioHandle] = useState<SurvivalScenarioHandle | null>(null);
   const tutorialJajiiSpeechTextRef = useRef('');
   const tutorialFaiSpeechTextRef = useRef('');
@@ -133,6 +134,7 @@ export const SurvivalTutorialSeamlessSceneHost: React.FC<
           embeddedFullHeight={embeddedFullHeight}
           onSceneComplete={onSceneComplete}
           sharedRuntime={runtime}
+          sceneFrozen={sceneFrozen}
         />
       ) : null}
       {scene.type === 'demo_play' ? (
@@ -143,6 +145,7 @@ export const SurvivalTutorialSeamlessSceneHost: React.FC<
           embeddedFullHeight={embeddedFullHeight}
           onSceneComplete={onSceneComplete}
           sharedRuntime={runtime}
+          sceneFrozen={sceneFrozen}
         />
       ) : null}
       {scene.type === 'phrase_battle' ? (
@@ -153,6 +156,7 @@ export const SurvivalTutorialSeamlessSceneHost: React.FC<
           embeddedFullHeight={embeddedFullHeight}
           onSceneComplete={onSceneComplete}
           sharedRuntime={runtime}
+          sceneFrozen={sceneFrozen}
         />
       ) : null}
     </div>

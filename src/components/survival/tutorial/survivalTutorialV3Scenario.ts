@@ -25,6 +25,7 @@ export function mergeSurvivalTutorialV3Baseline(
     suppressAutoSpawn: true,
     /** 親 `TutorialAudioController` がドラムループを継続再生 */
     disableSurvivalBgm: true,
+    freezeTutorialDemoJajii: true,
   };
 
   return merged;

@@ -12,7 +12,6 @@ import {
   SURVIVAL_TUTORIAL_V3_INTRO_HOLD_SECONDS,
   SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_COUNT,
   SURVIVAL_TUTORIAL_V3_PHRASE_REVEAL_ENEMY_RADIUS,
-  SURVIVAL_TUTORIAL_V3_PLAY_END_SKIP_SECONDS,
   SURVIVAL_TUTORIAL_V3_PLAY_REST_SECONDS,
 } from '@/components/survival/tutorial/survivalTutorialV3Constants';
 import {
@@ -91,6 +90,7 @@ export interface SurvivalTutorialPhraseBattleSceneProps {
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
   readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
+  readonly sceneFrozen?: boolean;
 }
 
 export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseBattleSceneProps> = ({
@@ -100,6 +100,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
   embeddedFullHeight,
   onSceneComplete,
   sharedRuntime,
+  sceneFrozen = false,
 }) => {
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
@@ -154,7 +155,13 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
     [],
   );
 
+  const onSceneCompleteRef = useRef(onSceneComplete);
+  onSceneCompleteRef.current = onSceneComplete;
+
   useEffect(() => {
+    if (sceneFrozen) {
+      return undefined;
+    }
     const h = scenarioHandle;
     if (
       !h ||
@@ -167,7 +174,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
       return undefined;
     }
     if (scene.requiredLoops <= 0) {
-      onSceneComplete();
+      onSceneCompleteRef.current();
       return undefined;
     }
 
@@ -296,12 +303,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
       }
 
       if (signal.aborted) return false;
-      bindingsRef.current.setTapAdvanceCueVisible(true);
-      await bindingsRef.current.waitForTapOrTimeout(
-        SURVIVAL_TUTORIAL_V3_PLAY_END_SKIP_SECONDS,
-        signal,
-      );
-      bindingsRef.current.setTapAdvanceCueVisible(false);
+
       h2.emitSpecialShockwave();
       return true;
     };
@@ -329,7 +331,7 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
         }
         bindingsRef.current.setTapAdvanceCueVisible(false);
         if (progressed) {
-          onSceneComplete();
+          onSceneCompleteRef.current();
         }
       }
     };
@@ -346,12 +348,12 @@ export const SurvivalTutorialPhraseBattleScene: React.FC<SurvivalTutorialPhraseB
   }, [
     block,
     difficultyConfig,
-    onSceneComplete,
     phraseInline,
     scene,
     scenarioHandle,
     script,
     stageDefinition,
+    sceneFrozen,
   ]);
 
   if (!block || phraseInline === null || !stageDefinition || !difficultyConfig) {

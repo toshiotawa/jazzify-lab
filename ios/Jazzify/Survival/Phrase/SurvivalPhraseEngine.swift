@@ -107,6 +107,16 @@ enum SurvivalPhraseEngine {
         next.revealedNoteIndices = []
         return next
     }
+
+    /// 塊 index が同一 measureNumber 内の最終塊か（playalong 衝撃波の小節単位判定）。
+    static func isLastChunkInMeasure(chords: [SurvivalPhraseChord], chunkIndex: Int) -> Bool {
+        guard chunkIndex >= 0, chunkIndex < chords.count else { return false }
+        let measureNum = chords[chunkIndex].measureNumber
+        for i in (chunkIndex + 1)..<chords.count where chords[i].measureNumber == measureNum {
+            return false
+        }
+        return true
+    }
 }
 
 private extension Array {

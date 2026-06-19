@@ -800,7 +800,12 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                 }
             }
             runtime.comboCount += 1
-            events.append(contentsOf: firePhraseCombat(measureComplete: evaluation.result == .measureComplete))
+            let fireMeasureShockwave = evaluation.result == .measureComplete
+                && SurvivalPhraseEngine.isLastChunkInMeasure(
+                    chords: state.phrase.chords,
+                    chunkIndex: state.chordIndex
+                )
+            events.append(contentsOf: firePhraseCombat(measureComplete: fireMeasureShockwave))
             return events
         }
     }

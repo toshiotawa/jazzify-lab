@@ -1,6 +1,7 @@
 import {
   createInitialPhraseState,
   evaluatePhraseNoteOn,
+  isLastPhraseChunkInMeasure,
   skipRestPhraseChord,
 } from './SurvivalPhraseEngine';
 import type { SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
@@ -205,5 +206,18 @@ describe('SurvivalPhraseEngine', () => {
     expect(skip.advanced).toBe(true);
     expect(skip.wrapped).toBe(true);
     expect(skip.nextState.chordIndex).toBe(0);
+  });
+
+  it('isLastPhraseChunkInMeasure is true only for the last chunk in a measure', () => {
+    const chords = [
+      { measureNumber: 5 },
+      { measureNumber: 5 },
+      { measureNumber: 5 },
+      { measureNumber: 5 },
+      { measureNumber: 6 },
+    ];
+    expect(isLastPhraseChunkInMeasure(chords, 0)).toBe(false);
+    expect(isLastPhraseChunkInMeasure(chords, 3)).toBe(true);
+    expect(isLastPhraseChunkInMeasure(chords, 4)).toBe(true);
   });
 });

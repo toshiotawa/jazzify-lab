@@ -14,6 +14,7 @@ enum SurvivalTutorialV3Scenario {
         o.disableSurvivalBgm = true
         o.tutorialDialogueJajii = true
         o.speechBubblesBelowCharacter = true
+        o.freezeTutorialDemoJajii = true
         return o
     }
 

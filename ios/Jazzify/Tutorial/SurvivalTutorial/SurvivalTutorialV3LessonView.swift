@@ -154,8 +154,14 @@ struct SurvivalTutorialV3LessonView: View {
             faiBubbleLine = ""
             jajiiBubbleLine = ""
             narrationLine = ""
-            showFinishCta = false
-            sceneAdvanceIfFinish(from: script, index: newIdx)
+            if case .finish = script.scenes[newIdx] {
+                showFinishCta = SurvivalTutorialV3Scenario.showFinishCta(
+                    script: script,
+                    scene: script.scenes[newIdx]
+                )
+            } else {
+                showFinishCta = false
+            }
             applyBgmPolicyForScene(at: newIdx)
         }
         .onChange(of: showFinishCta) { visible in
@@ -301,14 +307,23 @@ struct SurvivalTutorialV3LessonView: View {
 
     private func advanceScene() {
         worldSessionBox.capture()
-        guard sceneIndex &+ 1 < script.scenes.count else {
+        let nextIdx = sceneIndex &+ 1
+        guard nextIdx < script.scenes.count else {
             Task {
                 await onComplete?()
                 onClose()
             }
             return
         }
-        sceneIndex += 1
+        if case .finish = script.scenes[nextIdx] {
+            showFinishCta = SurvivalTutorialV3Scenario.showFinishCta(
+                script: script,
+                scene: script.scenes[nextIdx]
+            )
+            drumPlayer.stop()
+            return
+        }
+        sceneIndex = nextIdx
     }
 }
 
@@ -664,7 +679,9 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
               let inline = SurvivalTutorialV3StageBuilder.buildInlinePhrase(from: ph)
         else { return nil }
         let cfg = SurvivalTutorialV3StageBuilder.buildStageConfig(stage: stage, content: raw)
-        let baseline = SurvivalTutorialV3Scenario.phraseBattleBaseline(script: script)
+        let baseline = scene.playAlong == true
+            ? SurvivalTutorialV3Scenario.mergeBaseline(script: script)
+            : SurvivalTutorialV3Scenario.phraseBattleBaseline(script: script)
         return (stage, cfg, baseline, inline)
     }
 
@@ -811,7 +828,9 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
                 radius: SurvivalTutorialV3Constants.phraseRevealEnemyRadius
             )
             sess.viewModel.syncPhraseStaff(from: sess.gameLoop)
-            sess.resumeScenarioBackgroundMusicIfEnabled()
+            if scene.playAlong != true {
+                sess.resumeScenarioBackgroundMusicIfEnabled()
+            }
             if !(scene.dialogue.intro.ja.isEmpty && scene.dialogue.intro.en.isEmpty) {
                 presentLine(scene.dialogue.intro)
             }
@@ -855,7 +874,6 @@ private struct SurvivalTutorialPhraseBattleLessonScene: View {
         }
 
         if Task.isCancelled { return }
-        await tapHub.waitForTapOrTimeout(seconds: SurvivalTutorialV3Constants.playEndSkipSeconds)
         await MainActor.run {
             scenarioController.emitSpecialShockwaveOnly()
             clearLines()

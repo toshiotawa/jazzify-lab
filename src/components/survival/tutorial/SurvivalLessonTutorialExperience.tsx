@@ -130,6 +130,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const runnerFnRef = useRef<SurvivalBuiltinTutorialRunner | null>(null);
   const finalizedOnceRef = useRef(false);
   const audioUnlockedRef = useRef(false);
+  const syncV3SceneBgmRef = useRef<(index: number) => void>(() => undefined);
 
   useEffect(() => {
     const unlockOnce = (): void => {
@@ -137,10 +138,11 @@ export const SurvivalLessonTutorialExperience: React.FC<
       audioUnlockedRef.current = true;
       void unlockTutorialAudio();
       void FantasySoundManager.preloadCorrectRootBassSoundFont();
+      syncV3SceneBgmRef.current(v3SceneIndex);
     };
     window.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
     return () => window.removeEventListener('pointerdown', unlockOnce);
-  }, []);
+  }, [v3SceneIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,6 +266,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
       finalizedOnceRef.current = true;
       runnerAbortRef.current?.abort();
       audioRef.current?.stopAllAudio();
+      v3AudioRef.current?.stopAllAudio();
       if (kind === 'completed') await onLessonTutorialCompleted?.();
       onExit();
     },
@@ -278,8 +281,66 @@ export const SurvivalLessonTutorialExperience: React.FC<
       void finalizeLesson('completed');
       return;
     }
+    const nextScene = pl.scenes[nextIdx];
+    if (nextScene?.type === 'finish') {
+      setV3FinishCta(showSurvivalTutorialFinishCta(pl, nextScene));
+      v3AudioRef.current?.stopAudio('main_bgm');
+      v3DrumPlayingRef.current = false;
+      v3CurrentBgmUrlRef.current = null;
+      return;
+    }
     setV3SceneIndex(nextIdx);
   }, [finalizeLesson, tutorialV3Payload, v3SceneIndex]);
+
+  const advanceV3SceneRef = useRef(advanceV3Scene);
+  advanceV3SceneRef.current = advanceV3Scene;
+  const stableAdvanceV3Scene = useCallback(() => {
+    advanceV3SceneRef.current();
+  }, []);
+
+  useEffect(() => {
+    syncV3SceneBgmRef.current = (index: number) => {
+      const pl = tutorialV3Payload;
+      if (!pl || gate !== 'ready') return;
+      const s = pl.scenes[index];
+      if (!s) return;
+      const ctl = v3AudioRef.current;
+      if (!ctl) return;
+      void ctl.ensureBgmSettings().then(async () => {
+        const drum = pl.audioTracks?.drum_loop;
+        const fallbackUrl = ctl.resolveTrackUrl('main_bgm') ?? drum?.url;
+        const nextUrl = resolveTutorialV3SceneBgmUrl(s, fallbackUrl);
+        const bgmAction = resolveTutorialV3BgmAction(s, nextUrl, {
+          currentUrl: v3CurrentBgmUrlRef.current,
+          isPlaying: v3DrumPlayingRef.current,
+        });
+        if (bgmAction === 'stop') {
+          ctl.stopAudio('main_bgm');
+          v3DrumPlayingRef.current = false;
+          v3CurrentBgmUrlRef.current = null;
+          return;
+        }
+        if (bgmAction === 'restart' && nextUrl) {
+          ctl.setTracks({
+            main_bgm: {
+              url: nextUrl,
+              defaultLoop: true,
+              defaultVolume: drum?.volume ?? 0.35,
+            },
+          });
+          if (s.type === 'demo_play') {
+            ctl.stopAudio('main_bgm');
+            v3DrumPlayingRef.current = false;
+            v3CurrentBgmUrlRef.current = null;
+            return;
+          }
+          await ctl.restartFromStart('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
+          v3DrumPlayingRef.current = true;
+          v3CurrentBgmUrlRef.current = nextUrl;
+        }
+      });
+    };
+  }, [gate, tutorialV3Payload]);
 
   useEffect(() => {
     const pl = tutorialV3Payload;
@@ -288,54 +349,8 @@ export const SurvivalLessonTutorialExperience: React.FC<
     setV3NarrationText('');
     const s = pl.scenes[v3SceneIndex];
     if (!s) return;
-    if (s.type === 'finish') {
-      setV3FinishCta(showSurvivalTutorialFinishCta(pl, s));
-    } else {
-      setV3FinishCta(false);
-    }
-    const ctl = v3AudioRef.current;
-    if (!ctl) return;
-    let cancelled = false;
-    void ctl.ensureBgmSettings().then(async () => {
-      if (cancelled) return;
-      const drum = pl.audioTracks?.drum_loop;
-      const fallbackUrl = ctl.resolveTrackUrl('main_bgm') ?? drum?.url;
-      const nextUrl = resolveTutorialV3SceneBgmUrl(s, fallbackUrl);
-      const bgmAction = resolveTutorialV3BgmAction(s, nextUrl, {
-        currentUrl: v3CurrentBgmUrlRef.current,
-        isPlaying: v3DrumPlayingRef.current,
-      });
-      if (bgmAction === 'stop') {
-        ctl.stopAudio('main_bgm');
-        v3DrumPlayingRef.current = false;
-        v3CurrentBgmUrlRef.current = null;
-        return;
-      }
-      if (bgmAction === 'restart' && nextUrl) {
-        ctl.setTracks({
-          main_bgm: {
-            url: nextUrl,
-            defaultLoop: true,
-            defaultVolume: drum?.volume ?? 0.35,
-          },
-        });
-        // demo は intro 終了時を時刻0として開始するため、シーン側に再生開始を委ねる。
-        if (s.type === 'demo_play') {
-          ctl.stopAudio('main_bgm');
-          v3DrumPlayingRef.current = false;
-          v3CurrentBgmUrlRef.current = null;
-          return;
-        }
-        await ctl.restartFromStart('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
-        if (cancelled) return;
-        v3DrumPlayingRef.current = true;
-        v3CurrentBgmUrlRef.current = nextUrl;
-      }
-      // keep: 同一 URL の要素へ触れず、再生位置を維持する。
-    });
-    return () => {
-      cancelled = true;
-    };
+    setV3FinishCta(false);
+    syncV3SceneBgmRef.current(v3SceneIndex);
   }, [tutorialV3Payload, gate, v3SceneIndex]);
 
   const waitForTapOrTimeout = useCallback((seconds: number, signal?: AbortSignal): Promise<void> => {
@@ -652,7 +667,8 @@ export const SurvivalLessonTutorialExperience: React.FC<
             scene={currentScene}
             bindings={v3Bindings}
             embeddedFullHeight={embeddedFullHeight}
-            onSceneComplete={advanceV3Scene}
+            onSceneComplete={stableAdvanceV3Scene}
+            sceneFrozen={v3FinishCta}
           />
         ) : currentScene && currentScene.type !== 'finish' ? (
           <SurvivalTutorialSceneHost
@@ -660,7 +676,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
             scene={currentScene}
             bindings={v3Bindings}
             embeddedFullHeight={embeddedFullHeight}
-            onSceneComplete={advanceV3Scene}
+            onSceneComplete={stableAdvanceV3Scene}
           />
         ) : null}
 

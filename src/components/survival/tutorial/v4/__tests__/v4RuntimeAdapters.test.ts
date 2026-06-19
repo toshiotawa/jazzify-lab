@@ -46,7 +46,8 @@ describe('survivalTutorialV4DemoSceneToV3', () => {
     if (!demoScene) throw new Error('demo scene missing');
     const v3 = survivalTutorialV4DemoSceneToV3(demoScene);
     expect(v3.type).toBe('demo_play');
-    expect(v3.bpm).toBe(120);
+    expect(v3.bpm).toBe(160);
+    expect(v3.endHoldBeats).toBe(0);
     expect(v3.livePlayback).toBe(true);
     expect(v3.bgm).toEqual(demoScene.bgm);
     const first = v3.chords[0];

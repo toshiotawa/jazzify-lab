@@ -62,6 +62,7 @@ export interface SurvivalTutorialDemoPlaySceneProps {
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
   readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
+  readonly sceneFrozen?: boolean;
 }
 
 export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySceneProps> = ({
@@ -71,6 +72,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
   embeddedFullHeight,
   onSceneComplete,
   sharedRuntime,
+  sceneFrozen = false,
 }) => {
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
@@ -127,7 +129,13 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     [keyFifths, scene.chords],
   );
 
+  const onSceneCompleteRef = useRef(onSceneComplete);
+  onSceneCompleteRef.current = onSceneComplete;
+
   useEffect(() => {
+    if (sceneFrozen) {
+      return undefined;
+    }
     const h = scenarioHandle;
     if (!h || scene.chords.length === 0) {
       return undefined;
@@ -242,7 +250,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
             clearLine();
             setActiveChord(null);
             h.setDemoKeyboardHints([]);
-            onSceneComplete();
+            onSceneCompleteRef.current();
           }
         });
       }
@@ -271,10 +279,10 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     baseline,
     introLineSeconds,
     linePresentationSink,
-    onSceneComplete,
     scenarioHandle,
     scene,
     updateStaffSnapshot,
+    sceneFrozen,
   ]);
 
   return sharedRuntime ? null : (
