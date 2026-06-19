@@ -129,6 +129,16 @@ enum SurvivalTutorialV3Scenario {
         return false
     }
 
+    /// 次シーンが `finish` なら true（完了 CTA 直前の自動送り待機スキップ判定用）。
+    static func isNextSceneFinish(script: SurvivalTutorialScriptPayloadV3, sceneIndex: Int) -> Bool {
+        let nextIdx = sceneIndex + 1
+        guard script.scenes.indices.contains(nextIdx) else { return false }
+        if case .finish = script.scenes[nextIdx] {
+            return true
+        }
+        return false
+    }
+
     static func finishCtaLabel(isEnglish: Bool) -> String {
         isEnglish ? "Complete" : "完了する"
     }

@@ -12,6 +12,7 @@ struct SurvivalTutorialV3DialogueScene: View {
     @Binding var jajiiBubbleLine: String
     let onFai: (String) -> Void
     let onNarration: (String) -> Void
+    let nextSceneIsFinish: Bool
     let onDone: () -> Void
 
     @StateObject private var scenarioController = SurvivalScenarioController()
@@ -76,7 +77,7 @@ struct SurvivalTutorialV3DialogueScene: View {
             scenarioController.clearEnemies()
         }
 
-        for line in lines {
+        for (index, line) in lines.enumerated() {
             if Task.isCancelled { return }
             await MainActor.run {
                 SurvivalTutorialV3LineRouter.present(
@@ -88,7 +89,10 @@ struct SurvivalTutorialV3DialogueScene: View {
                     onNarration: onNarration
                 )
             }
-            await tapHub.waitForTapOrTimeout(seconds: interval)
+            let isLastLine = index == lines.count - 1
+            if !(isLastLine && nextSceneIsFinish) {
+                await tapHub.waitForTapOrTimeout(seconds: interval)
+            }
             if Task.isCancelled { return }
         }
 

@@ -38,6 +38,7 @@ interface SurvivalTutorialDialogueSceneProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
+  readonly nextSceneIsFinish?: boolean;
   readonly sharedRuntime?: SurvivalTutorialSharedRuntime;
   readonly sceneFrozen?: boolean;
 }
@@ -48,6 +49,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
   bindings,
   embeddedFullHeight,
   onSceneComplete,
+  nextSceneIsFinish = false,
   sharedRuntime,
   sceneFrozen = false,
 }) => {
@@ -123,7 +125,10 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
           'dialogue_only',
           linePresentationSink,
         );
-        await bindingsRef.current.waitForTapOrTimeout(lineSeconds, ac.signal);
+        const isLastLine = i === lines.length - 1;
+        if (!(isLastLine && nextSceneIsFinish)) {
+          await bindingsRef.current.waitForTapOrTimeout(lineSeconds, ac.signal);
+        }
         if (ac.signal.aborted) return;
       }
       clearSurvivalTutorialV3LinePresentation(linePresentationSink);
@@ -139,7 +144,7 @@ export const SurvivalTutorialDialogueScene: React.FC<SurvivalTutorialDialogueSce
       bindingsRef.current.setTapAdvanceCueVisible(false);
       clearSurvivalTutorialV3LinePresentation(linePresentationSink);
     };
-  }, [linePresentationSink, lineSeconds, scene.lines, sceneFrozen]);
+  }, [linePresentationSink, lineSeconds, nextSceneIsFinish, scene.lines, sceneFrozen]);
 
   return sharedRuntime ? null : (
     <div className="relative h-full min-h-0 w-full bg-black">

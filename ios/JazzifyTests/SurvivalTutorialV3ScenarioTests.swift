@@ -28,6 +28,35 @@ final class SurvivalTutorialV3ScenarioTests: XCTestCase {
         XCTAssertFalse(reveal.suppressScenarioStaff)
     }
 
+    func testIsNextSceneFinishTrueWhenNextSceneIsFinish() throws {
+        let json = """
+        {
+          "version": 3,
+          "ui": {
+            "hidePlayerHpBar": true,
+            "hideSettingsButton": true,
+            "hideBackButton": true,
+            "playerInvincible": true,
+            "disableEnemyAttacks": true,
+            "keyboardHintsDefault": true
+          },
+          "content": {},
+          "scenes": [
+            {
+              "type": "dialogue_only",
+              "lines": [{ "ja": "最終", "en": "Final" }]
+            },
+            { "type": "finish" }
+          ],
+          "finish": { "showCta": true }
+        }
+        """.data(using: .utf8)!
+        let script = try JSONDecoder().decode(SurvivalTutorialScriptPayloadV3.self, from: json)
+        XCTAssertTrue(SurvivalTutorialV3Scenario.isNextSceneFinish(script: script, sceneIndex: 0))
+        XCTAssertFalse(SurvivalTutorialV3Scenario.isNextSceneFinish(script: script, sceneIndex: 1))
+        XCTAssertFalse(SurvivalTutorialV3Scenario.isNextSceneFinish(script: script, sceneIndex: 99))
+    }
+
     func testDemoPlayEmptyKeyboardHintsDoNotFallbackToOnboardingDm7() {
         let overrides = SurvivalTutorialV3Scenario.demoPlayReveal(base: SurvivalScenarioOverrides())
         let loop = SurvivalGameLoop(

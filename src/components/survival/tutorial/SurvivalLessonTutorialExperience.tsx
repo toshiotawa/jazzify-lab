@@ -19,6 +19,7 @@ import type { SurvivalTutorialScriptPayloadV3 } from '@/components/survival/tuto
 import type { SurvivalTutorialV3Bindings } from '@/components/survival/tutorial/survivalTutorialV3Bindings';
 import {
   SurvivalTutorialSceneHost,
+  isSurvivalTutorialNextSceneFinish,
   showSurvivalTutorialFinishCta,
   survivalTutorialDemoPlayCtaLabel,
   survivalTutorialFinishCtaLabel,
@@ -689,6 +690,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
   if (tutorialV3Payload && v3Bindings) {
     const scenes = tutorialV3Payload.scenes;
     const currentScene = scenes[v3SceneIndex];
+    const nextSceneIsFinish = isSurvivalTutorialNextSceneFinish(tutorialV3Payload, v3SceneIndex);
     const showExitV3Top = Boolean(tutorialV3Payload.ui.showExitButton);
     const useSeamlessSceneHost = tutorialV3Payload.scenes.some(
       (scene) => scene.type !== 'finish' && scene.bgm !== undefined,
@@ -724,6 +726,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
             bindings={v3Bindings}
             embeddedFullHeight={embeddedFullHeight}
             onSceneComplete={stableAdvanceV3Scene}
+            nextSceneIsFinish={nextSceneIsFinish}
             sceneFrozen={v3FinishCta}
           />
         ) : currentScene && currentScene.type !== 'finish' ? (
@@ -733,6 +736,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
             bindings={v3Bindings}
             embeddedFullHeight={embeddedFullHeight}
             onSceneComplete={stableAdvanceV3Scene}
+            nextSceneIsFinish={nextSceneIsFinish}
           />
         ) : null}
 

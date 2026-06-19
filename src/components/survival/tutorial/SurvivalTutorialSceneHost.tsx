@@ -7,12 +7,10 @@ import { SurvivalTutorialChordBattleScene } from '@/components/survival/tutorial
 import { SurvivalTutorialPhraseBattleScene } from '@/components/survival/tutorial/SurvivalTutorialPhraseBattleScene';
 import { SurvivalTutorialDemoPlayScene } from '@/components/survival/tutorial/SurvivalTutorialDemoPlayScene';
 
-export function showSurvivalTutorialFinishCta(
-  script: SurvivalTutorialScriptPayloadV3,
-  scene: SurvivalTutorialScriptPayloadV3['scenes'][number],
-): boolean {
-  return scene.type === 'finish' && (script.finish?.showCta ?? true);
-}
+export {
+  isSurvivalTutorialNextSceneFinish,
+  showSurvivalTutorialFinishCta,
+} from '@/components/survival/tutorial/survivalTutorialV3FinishFlow';
 
 /** v3 台本末尾の完了 CTA（固定文言）。 */
 export function survivalTutorialFinishCtaLabel(isEnglishCopy: boolean): string {
@@ -30,6 +28,7 @@ export interface SurvivalTutorialSceneHostProps {
   readonly bindings: SurvivalTutorialV3Bindings;
   readonly embeddedFullHeight: boolean;
   readonly onSceneComplete: () => void;
+  readonly nextSceneIsFinish?: boolean;
 }
 
 export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps> = ({
@@ -38,6 +37,7 @@ export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps>
   bindings,
   embeddedFullHeight,
   onSceneComplete,
+  nextSceneIsFinish = false,
 }) => {
   if (scene.type === 'dialogue_only') {
     return (
@@ -47,6 +47,7 @@ export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps>
         bindings={bindings}
         embeddedFullHeight={embeddedFullHeight}
         onSceneComplete={onSceneComplete}
+        nextSceneIsFinish={nextSceneIsFinish}
       />
     );
   }
@@ -75,6 +76,7 @@ export const SurvivalTutorialSceneHost: React.FC<SurvivalTutorialSceneHostProps>
         bindings={bindings}
         embeddedFullHeight={embeddedFullHeight}
         onSceneComplete={onSceneComplete}
+        nextSceneIsFinish={nextSceneIsFinish}
       />
     );
   }
