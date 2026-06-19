@@ -3,6 +3,7 @@ import Foundation
 enum SurvivalTutorialDemoPlayScheduler {
     enum EventKind: String, Sendable {
         case chordStart
+        case rollStepStart
         case chordEnd
         case lineStart
         case lineEnd
@@ -14,6 +15,7 @@ enum SurvivalTutorialDemoPlayScheduler {
         let atBeat: Double
         let atSeconds: Double
         let chordIndex: Int?
+        let rollStepIndex: Int?
         let lineIndex: Int?
     }
 
@@ -45,6 +47,35 @@ enum SurvivalTutorialDemoPlayScheduler {
         var events: [ScheduleEvent] = []
 
         for (index, chord) in scene.chords.enumerated() {
+            if let rollSteps = chord.rollSteps, !rollSteps.isEmpty {
+                let end = chord.startBeat + chord.durationBeats
+                maxEndBeat = max(maxEndBeat, end)
+                for (rollStepIndex, step) in rollSteps.enumerated() {
+                    let kind: EventKind = rollStepIndex == 0 ? .chordStart : .rollStepStart
+                    events.append(
+                        ScheduleEvent(
+                            kind: kind,
+                            atBeat: step.startBeat,
+                            atSeconds: beatToSeconds(beat: step.startBeat, bpm: bpm),
+                            chordIndex: index,
+                            rollStepIndex: rollStepIndex,
+                            lineIndex: nil
+                        )
+                    )
+                }
+                events.append(
+                    ScheduleEvent(
+                        kind: .chordEnd,
+                        atBeat: end,
+                        atSeconds: beatToSeconds(beat: end, bpm: bpm),
+                        chordIndex: index,
+                        rollStepIndex: nil,
+                        lineIndex: nil
+                    )
+                )
+                continue
+            }
+
             let start = chord.startBeat
             let end = start + chord.durationBeats
             maxEndBeat = max(maxEndBeat, end)
@@ -54,6 +85,7 @@ enum SurvivalTutorialDemoPlayScheduler {
                     atBeat: start,
                     atSeconds: beatToSeconds(beat: start, bpm: bpm),
                     chordIndex: index,
+                    rollStepIndex: nil,
                     lineIndex: nil
                 )
             )
@@ -63,6 +95,7 @@ enum SurvivalTutorialDemoPlayScheduler {
                     atBeat: end,
                     atSeconds: beatToSeconds(beat: end, bpm: bpm),
                     chordIndex: index,
+                    rollStepIndex: nil,
                     lineIndex: nil
                 )
             )
@@ -79,6 +112,7 @@ enum SurvivalTutorialDemoPlayScheduler {
                     atBeat: start,
                     atSeconds: beatToSeconds(beat: start, bpm: bpm),
                     chordIndex: nil,
+                    rollStepIndex: nil,
                     lineIndex: index
                 )
             )
@@ -88,6 +122,7 @@ enum SurvivalTutorialDemoPlayScheduler {
                     atBeat: end,
                     atSeconds: beatToSeconds(beat: end, bpm: bpm),
                     chordIndex: nil,
+                    rollStepIndex: nil,
                     lineIndex: index
                 )
             )
@@ -100,6 +135,7 @@ enum SurvivalTutorialDemoPlayScheduler {
                 atBeat: demoEndBeat,
                 atSeconds: beatToSeconds(beat: demoEndBeat, bpm: bpm),
                 chordIndex: nil,
+                rollStepIndex: nil,
                 lineIndex: nil
             )
         )
@@ -168,6 +204,7 @@ enum SurvivalTutorialDemoPlayScheduler {
 struct SurvivalTutorialDemoStaffSnapshot: Equatable {
     let chords: [SurvivalTutorialV3DemoChordEvent]
     let activeChordIndex: Int?
+    let activeRollStepIndex: Int?
     let keyFifths: Int
     let windowStartMeasure: Int
 }

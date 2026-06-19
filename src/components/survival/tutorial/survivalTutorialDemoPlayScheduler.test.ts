@@ -98,6 +98,7 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     const snapshot = {
       chords: scene.chords,
       activeChordIndex: 0,
+      activeRollStepIndex: null,
       keyFifths: 0,
       windowStartMeasure: resolveDemoStaffWindowStartMeasure(scene.chords, 0),
     };
@@ -121,6 +122,7 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     const snapshot = {
       chords: scene.chords,
       activeChordIndex: restIndex,
+      activeRollStepIndex: null,
       keyFifths: 0,
       windowStartMeasure: restMeasure.measureNumber,
     };
@@ -162,6 +164,7 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     const dm7Snapshot = {
       chords: SAME_MEASURE_HALF_BAR_CHORDS,
       activeChordIndex: dm7Index,
+      activeRollStepIndex: null,
       keyFifths: 0,
       windowStartMeasure: 26,
     };
@@ -176,5 +179,32 @@ describe('survivalTutorialDemoPlayScheduler', () => {
     expect(g7Groups.find((g) => g.isActive)?.chordName).toBe('G7');
     expect(dm7Groups.filter((g) => g.chordName.length > 0)).toHaveLength(1);
     expect(g7Groups.filter((g) => g.chordName.length > 0)).toHaveLength(1);
+  });
+
+  it('emits roll-step-start events for rollSteps chords', () => {
+    const rollChord: SurvivalTutorialV3DemoChordEvent = {
+      startBeat: 0,
+      durationBeats: 4,
+      chordName: 'Dm7',
+      voicing: [50, 53, 57, 60],
+      measureNumber: 1,
+      rollSteps: [
+        { startBeat: 0, newVoicing: [50], voicing: [50] },
+        { startBeat: 1, newVoicing: [53], voicing: [50, 53] },
+        { startBeat: 2, newVoicing: [57], voicing: [50, 53, 57] },
+        { startBeat: 3, newVoicing: [60], voicing: [50, 53, 57, 60] },
+      ],
+    };
+    const schedule = buildDemoPlaySchedule({
+      type: 'demo_play',
+      bgm: { resetOnEnter: true },
+      bpm: 120,
+      chords: [rollChord],
+      lines: [],
+      livePlayback: true,
+    });
+    const rollSteps = schedule.filter((event) => event.kind === 'roll-step-start');
+    expect(rollSteps).toHaveLength(3);
+    expect(schedule.filter((event) => event.kind === 'chord-start')).toHaveLength(1);
   });
 });

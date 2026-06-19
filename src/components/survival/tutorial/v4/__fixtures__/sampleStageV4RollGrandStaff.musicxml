@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <part-list>
+    <score-part id="P1">
+      <part-name>Tutorial Roll</part-name>
+    </score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>3</staves>
+        <clef number="1"><sign>G</sign><line>2</line></clef>
+        <clef number="2"><sign>F</sign><line>4</line></clef>
+        <clef number="3"><sign>F</sign><line>4</line></clef>
+      </attributes>
+      <sound tempo="120"/>
+      <direction placement="above">
+        <direction-type><rehearsal>S1</rehearsal></direction-type>
+      </direction>
+      <note><rest/><duration>4</duration><type>whole</type><staff>1</staff></note>
+      <backup><duration>4</duration></backup>
+      <note><rest/><duration>4</duration><type>whole</type><staff>2</staff></note>
+      <backup><duration>4</duration></backup>
+      <note><rest/><duration>4</duration><type>whole</type><staff>3</staff></note>
+    </measure>
+    <measure number="2">
+      <direction placement="above">
+        <direction-type><rehearsal>S2</rehearsal></direction-type>
+      </direction>
+      <harmony>
+        <root><root-step>D</root-step></root>
+        <kind text="m7">minor-seventh</kind>
+      </harmony>
+      <note><rest/><duration>4</duration><type>whole</type><staff>1</staff></note>
+      <backup><duration>4</duration></backup>
+      <note>
+        <pitch><step>D</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="start"/><notations><tied type="start"/></notations>
+        <lyric number="1"><text>レ、根音じゃ。</text></lyric>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch><step>F</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="start"/><notations><tied type="start"/></notations>
+        <lyric number="2"><text>ファが加わる。</text></lyric>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch><step>F</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch><step>A</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="start"/><notations><tied type="start"/></notations>
+        <lyric number="1"><text>ラも聞こえる。</text></lyric>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch><step>F</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch><step>A</step><octave>3</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>2</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch><step>D</step><octave>5</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>1</staff>
+        <tie type="start"/><notations><tied type="start"/></notations>
+        <lyric number="2"><text>高音レで Dm7 完成じゃ。</text></lyric>
+      </note>
+      <backup><duration>4</duration></backup>
+      <note>
+        <pitch><step>D</step><octave>2</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>3</staff>
+        <tie type="start"/><notations><tied type="start"/></notations>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>2</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>3</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>2</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>3</staff>
+        <tie type="stop"/><tie type="start"/>
+        <notations><tied type="stop"/><tied type="start"/></notations>
+      </note>
+      <note>
+        <pitch><step>D</step><octave>2</octave></pitch>
+        <duration>1</duration><type>quarter</type><staff>3</staff>
+        <tie type="stop"/>
+        <notations><tied type="stop"/></notations>
+      </note>
+    </measure>
+    <measure number="3">
+      <direction placement="above">
+        <direction-type><rehearsal>S3</rehearsal></direction-type>
+      </direction>
+      <note><rest/><duration>4</duration><type>whole</type><staff>1</staff></note>
+      <backup><duration>4</duration></backup>
+      <note><rest/><duration>4</duration><type>whole</type><staff>2</staff></note>
+      <backup><duration>4</duration></backup>
+      <note><rest/><duration>4</duration><type>whole</type><staff>3</staff></note>
+    </measure>
+  </part>
+</score-partwise>

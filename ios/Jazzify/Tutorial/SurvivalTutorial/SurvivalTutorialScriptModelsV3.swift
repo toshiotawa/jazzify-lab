@@ -169,6 +169,16 @@ struct SurvivalTutorialV3FinishScene: Decodable, Sendable {
     let type: String
 }
 
+struct SurvivalTutorialV3DemoRollStep: Decodable, Sendable, Equatable {
+    let startBeat: Double
+    let newVoicing: [Int]
+    let voicing: [Int]
+    let voicingNames: [String]?
+    let voicing_staves: [Int]?
+    let newBass: [Int]?
+    let bass: [Int]?
+}
+
 struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
     let startBeat: Double
     let durationBeats: Double
@@ -182,6 +192,7 @@ struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
     let measure_number: Int
     /// staff3(ベース) の MIDI。表示はせず livePlayback 時にアプリ音源で再生する。
     let bass: [Int]?
+    let rollSteps: [SurvivalTutorialV3DemoRollStep]?
 
     private enum CodingKeys: String, CodingKey {
         case startBeat
@@ -194,6 +205,7 @@ struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
         case measureNumber
         case measure_number
         case bass
+        case rollSteps
     }
 
     init(from decoder: Decoder) throws {
@@ -206,6 +218,7 @@ struct SurvivalTutorialV3DemoChordEvent: Decodable, Sendable, Equatable {
         keyFifths = try c.decodeIfPresent(Int.self, forKey: .keyFifths)
         voicing_staves = try c.decodeIfPresent([Int].self, forKey: .voicing_staves)
         bass = try c.decodeIfPresent([Int].self, forKey: .bass)
+        rollSteps = try c.decodeIfPresent([SurvivalTutorialV3DemoRollStep].self, forKey: .rollSteps)
         if let n = try c.decodeIfPresent(Int.self, forKey: .measureNumber) {
             measure_number = n
         } else {

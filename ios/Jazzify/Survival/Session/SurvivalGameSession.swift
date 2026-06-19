@@ -298,6 +298,27 @@ final class SurvivalGameSession: SurvivalPlaySession {
         }
     }
 
+    private var demoSustainMidis: Set<Int> = []
+
+    /// demo ロール和音: 新音のみ sustain 発音。
+    func playOnboardingChordSustain(midis: [Int]) {
+        guard state != .disposed else { return }
+        for midi in midis where !demoSustainMidis.contains(midi) {
+            audioController.pianoChordOn(midis: [midi], velocity: 92)
+            demoSustainMidis.insert(midi)
+        }
+    }
+
+    /// demo ロール和音: sustain 中の音を note-off。nil で全 release。
+    func releaseOnboardingChordSustain(midis: [Int]? = nil) {
+        guard state != .disposed else { return }
+        let targets = midis ?? Array(demoSustainMidis)
+        for midi in targets {
+            audioController.pianoNoteOff(midi: midi)
+            demoSustainMidis.remove(midi)
+        }
+    }
+
     func playOnboardingRoot(for chord: SurvivalResolvedChord) {
         guard state != .disposed else { return }
         audioController.playSynthBassRoot(midi: 36 + chord.rootPitchClass)

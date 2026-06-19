@@ -16,10 +16,12 @@ import type {
   SurvivalTutorialV3DemoChordEvent,
   SurvivalTutorialV3DemoLine,
   SurvivalTutorialV3DemoPlayScene,
+  SurvivalTutorialV3DemoRollStep,
   SurvivalTutorialV3DialogueLine,
   SurvivalTutorialV3DialogueOnlyScene,
 } from '../survivalTutorialV3ScriptTypes';
 import type {
+  SurvivalTutorialRollStep,
   SurvivalTutorialV4Chunk,
   SurvivalTutorialV4DemoScene,
   SurvivalTutorialV4DialogueScene,
@@ -43,6 +45,18 @@ const v4LineToDialogueLine = (
 });
 
 /** demo 用: 1 塊 → V3 demo 和音イベント(staff1/2 描画。bass=staff3 は再生用に分離保持)。 */
+const survivalTutorialV4RollStepToV3 = (
+  step: SurvivalTutorialRollStep,
+): SurvivalTutorialV3DemoRollStep => ({
+  startBeat: step.startBeat,
+  newVoicing: [...step.newVoicing],
+  voicing: [...step.voicing],
+  ...(step.voicingNames ? { voicingNames: [...step.voicingNames] } : {}),
+  ...(step.voicing_staves ? { voicing_staves: [...step.voicing_staves] } : {}),
+  ...(step.newBass && step.newBass.length > 0 ? { newBass: [...step.newBass] } : {}),
+  ...(step.bass && step.bass.length > 0 ? { bass: [...step.bass] } : {}),
+});
+
 const survivalTutorialV4ChunkToDemoChordEvent = (
   chunk: SurvivalTutorialV4Chunk,
 ): SurvivalTutorialV3DemoChordEvent => ({
@@ -55,6 +69,9 @@ const survivalTutorialV4ChunkToDemoChordEvent = (
   measureNumber: chunk.measureNumber,
   ...(chunk.keyFifths !== undefined ? { keyFifths: chunk.keyFifths } : {}),
   ...(chunk.bass && chunk.bass.length > 0 ? { bass: [...chunk.bass] } : {}),
+  ...(chunk.rollSteps && chunk.rollSteps.length > 0
+    ? { rollSteps: chunk.rollSteps.map(survivalTutorialV4RollStepToV3) }
+    : {}),
 });
 
 // ts-prune-ignore-next テスト/フェーズ2 UI から利用

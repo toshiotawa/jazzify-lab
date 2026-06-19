@@ -34,7 +34,9 @@ import { TutorialAudioController } from '@/components/survival/tutorial/Tutorial
 import { TutorialTapAdvanceCue } from '@/components/survival/tutorial/TutorialTapAdvanceCue';
 import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
 import {
+  playDemoSustainNotes,
   playTutorialChordPreview,
+  releaseDemoSustainNotes,
   unlockTutorialAudio,
 } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
@@ -491,6 +493,13 @@ export const SurvivalLessonTutorialExperience: React.FC<
       playDemoChordAudio: (midis) => {
         if (midis.length === 0) return;
         void playTutorialChordPreview(midis);
+      },
+      playDemoSustainChordAudio: (midis) => {
+        if (midis.length === 0) return;
+        void playDemoSustainNotes(midis);
+      },
+      releaseDemoSustainAudio: (midis) => {
+        releaseDemoSustainNotes(midis);
       },
       playDemoBassAudio: (midis) => {
         for (const midi of midis) {

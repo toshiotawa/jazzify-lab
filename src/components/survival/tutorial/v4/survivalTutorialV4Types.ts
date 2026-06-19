@@ -45,6 +45,19 @@ export interface SurvivalTutorialV4Line extends SurvivalTutorialLocalizedText {
   readonly speaker?: SurvivalTutorialV3DialogueSpeaker;
 }
 
+/** demo ロール和音: タイで段階的に増える 1 step。startBeat はシーン内ローカル拍。 */
+export interface SurvivalTutorialRollStep {
+  readonly startBeat: number;
+  /** この step で新たに attack する MIDI(staff 1|2)。 */
+  readonly newVoicing: readonly number[];
+  /** 累積 voicing(低音→高音)。 */
+  readonly voicing: readonly number[];
+  readonly voicingNames?: readonly string[];
+  readonly voicing_staves?: readonly (1 | 2)[];
+  readonly newBass?: readonly number[];
+  readonly bass?: readonly number[];
+}
+
 /**
  * 音符 onset 単位の「塊」。
  * - notes(staff 1|2): 描画 + 判定 + 再生対象の MIDI。
@@ -65,6 +78,8 @@ export interface SurvivalTutorialV4Chunk {
   readonly bass: readonly number[];
   readonly bassNames?: readonly string[];
   readonly keyFifths?: number;
+  /** タイ付き段階和音。あるとき 1 塊=1 ロール和音。notes/bass は最終 step の累積。 */
+  readonly rollSteps?: readonly SurvivalTutorialRollStep[];
 }
 
 interface SurvivalTutorialV4SceneBase {

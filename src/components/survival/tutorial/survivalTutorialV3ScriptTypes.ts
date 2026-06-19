@@ -143,6 +143,17 @@ export interface SurvivalTutorialV3FinishScene {
   readonly type: 'finish';
 }
 
+/** demo ロール和音: タイで段階的に増える 1 step。 */
+export interface SurvivalTutorialV3DemoRollStep {
+  readonly startBeat: number;
+  readonly newVoicing: readonly number[];
+  readonly voicing: readonly number[];
+  readonly voicingNames?: readonly string[];
+  readonly voicing_staves?: readonly (1 | 2)[];
+  readonly newBass?: readonly number[];
+  readonly bass?: readonly number[];
+}
+
 /** demo_play: 拍ベースの和音イベント */
 export interface SurvivalTutorialV3DemoChordEvent {
   readonly startBeat: number;
@@ -156,6 +167,8 @@ export interface SurvivalTutorialV3DemoChordEvent {
   readonly keyFifths?: number;
   /** staff3(ベース) の MIDI。表示はせず `livePlayback` 時にアプリ音源で再生する。 */
   readonly bass?: readonly number[];
+  /** タイ付き段階和音。voicing/bass は最終 step の累積。 */
+  readonly rollSteps?: readonly SurvivalTutorialV3DemoRollStep[];
 }
 
 /** demo_play: 再生中セリフ（startBeat 基準） */

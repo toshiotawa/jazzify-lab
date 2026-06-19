@@ -85,6 +85,70 @@ export async function playTutorialChordPreview(
   }
 }
 
+const demoSustainMidis = new Set<number>();
+let demoSustainMode: TutorialPreviewAudioMode | null = null;
+
+async function ensureDemoSustainMode(waitInit?: Promise<void>): Promise<TutorialPreviewAudioMode | null> {
+  if (demoSustainMode !== null) {
+    return demoSustainMode;
+  }
+  demoSustainMode = await resolveTutorialPreviewAudioMode(waitInit);
+  return demoSustainMode;
+}
+
+function playDemoSustainNote(midi: number, mode: TutorialPreviewAudioMode): void {
+  if (mode === 'gm') {
+    void playNote(midi, 90);
+    return;
+  }
+  if (mode === 'fm') {
+    FantasySoundManager.playFMNote(midi, 0.85);
+    return;
+  }
+  FantasySoundManager.playLegendBgmDemoNote(midi, 8, 0.75);
+}
+
+function stopDemoSustainNote(midi: number, mode: TutorialPreviewAudioMode): void {
+  if (mode === 'gm' || mode === 'legend') {
+    stopNote(midi);
+    return;
+  }
+  if (mode === 'fm') {
+    FantasySoundManager.stopFMNote(midi);
+  }
+}
+
+/** demo ロール和音: 新音のみ sustain 発音(既存 sustain 音は維持)。 */
+export async function playDemoSustainNotes(
+  midis: readonly number[],
+  waitInit?: Promise<void>,
+): Promise<void> {
+  if (midis.length === 0) return;
+  const mode = await ensureDemoSustainMode(waitInit);
+  if (mode === null) return;
+  for (const midi of midis) {
+    if (demoSustainMidis.has(midi)) continue;
+    playDemoSustainNote(midi, mode);
+    demoSustainMidis.add(midi);
+  }
+}
+
+/** demo ロール和音: sustain 中の音を note-off。引数省略時は全 release。 */
+export function releaseDemoSustainNotes(midis?: readonly number[]): void {
+  const mode = demoSustainMode;
+  if (mode === null) {
+    demoSustainMidis.clear();
+    return;
+  }
+  const targets = midis ?? [...demoSustainMidis];
+  for (const midi of targets) {
+    if (!demoSustainMidis.has(midi)) continue;
+    stopDemoSustainNote(midi, mode);
+    demoSustainMidis.delete(midi);
+  }
+}
+
 export function releaseTutorialPianoAudio(): void {
+  releaseDemoSustainNotes();
   FantasySoundManager.releaseAllGmNotes();
 }

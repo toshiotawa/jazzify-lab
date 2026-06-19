@@ -7,11 +7,19 @@
  * - 歌詞(Verse 番号, テキスト, 絶対拍, 小節番号) → セリフの素材
  * - リハーサルマーク(テキスト, 絶対拍, 小節番号, 拍オフセット) → シーン境界
  * - 調号(fifths), BPM(sound tempo), 拍子
+ * - タイ(tie/tied): demo ロール和音検出用
+ *
+ * demo ロール和音の書き方(MusicXML):
+ * - staff 1|2 に低音から「前音タイ継続 + 新音 `<chord/>`」で段階的に増やす(段をまたいで可)。
+ * - staff 3(ベース)は譜面に書いた MIDI をそのまま使う(コード名からは推測しない)。
+ * - 各新音 onset に歌詞 Verse を付けると demo セリフと同期する。
  *
  * Swing のリズムは MIDI のノート timing に内包される前提のため、ここでは扱わない。
  *
  * 拍はすべて四分音符基準(quarter beats)。`new DOMParser()` を使う(jsdom/ブラウザ)。
  */
+
+import { getTieTypes } from '@/utils/musicXmlOrnamentExpander';
 
 export interface SurvivalTutorialV4ParsedNote {
   /** ステージ先頭からの絶対拍(四分音符基準)。 */
@@ -21,6 +29,11 @@ export interface SurvivalTutorialV4ParsedNote {
   readonly noteName: string;
   readonly staff: 1 | 2 | 3;
   readonly measureNumber: number;
+  readonly voice: number;
+  readonly tieStart: boolean;
+  readonly tieStop: boolean;
+  /** 前 segment からのタイ継続(新 attack ではない)。 */
+  readonly isTiedContinuation: boolean;
 }
 
 export interface SurvivalTutorialV4ParsedHarmony {
@@ -151,6 +164,7 @@ export const parseSurvivalTutorialV4MusicXml = (
   const lyrics: SurvivalTutorialV4ParsedLyric[] = [];
   const rehearsals: SurvivalTutorialV4ParsedRehearsal[] = [];
   const measureStartBeats: number[] = [];
+  const activeTieStarts = new Set<string>();
 
   let divisionsPerQuarter = getNumberFromText(measures[0], 'attributes > divisions', 1);
   let beatsPerMeasure = getNumberFromText(measures[0], 'attributes > time > beats', 4);
@@ -252,17 +266,33 @@ export const parseSurvivalTutorialV4MusicXml = (
         const octave = octaveText ? Number(octaveText) : 4;
         const staffText = child.querySelector('staff')?.textContent?.trim();
         const staff = clampStaff(staffText ? Number(staffText) : 1);
+        const voiceText = child.querySelector('voice')?.textContent?.trim();
+        const voice = voiceText && Number.isFinite(Number(voiceText)) ? Number(voiceText) : 1;
         const endBeat = round(
           startBeat + (Number.isFinite(duration) && duration > 0 ? duration / divisionsPerQuarter : 0),
         );
+        const midi = calculateMidi(step, alter, octave);
+        const tieKey = `${staff}:${voice}:${midi}`;
+        const { hasStart: tieStart, hasStop: tieStop } = getTieTypes(child);
+        const isTiedContinuation = tieStop && activeTieStarts.has(tieKey);
+        if (tieStop && !tieStart) {
+          activeTieStarts.delete(tieKey);
+        }
+        if (tieStart) {
+          activeTieStarts.add(tieKey);
+        }
 
         notes.push({
           startBeat,
           endBeat,
-          midi: calculateMidi(step, alter, octave),
+          midi,
           noteName: stepAlterToName(step, alter, octave),
           staff,
           measureNumber,
+          voice,
+          tieStart,
+          tieStop,
+          isTiedContinuation,
         });
 
         for (const lyricEl of Array.from(child.querySelectorAll('lyric'))) {

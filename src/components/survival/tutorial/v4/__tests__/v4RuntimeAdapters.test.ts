@@ -59,4 +59,28 @@ describe('survivalTutorialV4DemoSceneToV3', () => {
     expect(first.bass).toEqual([38]);
     expect(v3.lines[0].startBeat).toBe(0);
   });
+
+  it('rollSteps を V3 demo 和音イベントへ写像する', () => {
+    const rollXml = readFileSync(
+      resolve(here, '../__fixtures__/sampleStageV4Roll.musicxml'),
+      'utf8',
+    );
+    const rollManifest = buildSurvivalTutorialV4Manifest({
+      musicXml: rollXml,
+      config: {
+        id: 'roll-test',
+        scenes: [
+          { id: 'S1', sceneType: 'dialogue' },
+          { id: 'S2', sceneType: 'demo' },
+          { id: 'S3', sceneType: 'play' },
+        ],
+      },
+    });
+    const rollDemo = rollManifest.scenes.find(isSurvivalTutorialV4DemoScene);
+    if (!rollDemo) throw new Error('demo scene missing');
+    const v3 = survivalTutorialV4DemoSceneToV3(rollDemo);
+    const rollChord = v3.chords.find((chord) => chord.rollSteps && chord.rollSteps.length > 0);
+    expect(rollChord?.rollSteps).toHaveLength(4);
+    expect(rollChord?.rollSteps?.[0]?.newVoicing).toEqual([50]);
+  });
 });

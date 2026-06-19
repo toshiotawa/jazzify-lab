@@ -181,4 +181,52 @@ final class SurvivalTutorialV4BridgeTests: XCTestCase {
         let payload = try makeV3Payload()
         XCTAssertEqual(payload.audioTracks?.drum_loop?.url, "sample_bgm_loop.mp3")
     }
+
+    func testRollStepsMappedToDemoPlay() throws {
+        let json = """
+        {
+          "version": 4,
+          "id": "roll_test",
+          "assets": {},
+          "bpm": 120,
+          "beatsPerMeasure": 4,
+          "keyFifths": 0,
+          "scenes": [{
+            "id": "S2",
+            "start": { "measure": 1, "beat": 1 },
+            "end": { "measure": 2, "beat": 1 },
+            "bgm": { "resetOnEnter": true },
+            "keyFifths": 0,
+            "beatsPerMeasure": 4,
+            "bpm": 120,
+            "midi": { "startTick": 0, "endTick": 1920, "startSec": 0, "endSec": 2 },
+            "sceneType": "demo",
+            "chords": [{
+              "startBeat": 0,
+              "durationBeats": 4,
+              "measureNumber": 1,
+              "chordName": "Dm7",
+              "notes": [50, 53, 57, 60],
+              "bass": [38],
+              "rollSteps": [
+                { "startBeat": 0, "newVoicing": [50], "voicing": [50] },
+                { "startBeat": 1, "newVoicing": [53], "voicing": [50, 53], "newBass": [38], "bass": [38] }
+              ]
+            }],
+            "lines": []
+          }]
+        }
+        """
+        let manifest = try JSONDecoder().decode(
+            SurvivalTutorialV4Manifest.self,
+            from: json.data(using: .utf8)!
+        )
+        let payload = try SurvivalTutorialV4Bridge.toV3Payload(manifest)
+        guard case let .demoPlay(demo) = payload.scenes[0] else {
+            return XCTFail("Expected demo_play scene")
+        }
+        XCTAssertEqual(demo.chords[0].rollSteps?.count, 2)
+        XCTAssertEqual(demo.chords[0].rollSteps?[1].newVoicing, [53])
+        XCTAssertEqual(demo.chords[0].rollSteps?[1].bass, [38])
+    }
 }

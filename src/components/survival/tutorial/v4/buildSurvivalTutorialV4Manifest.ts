@@ -30,6 +30,12 @@ import {
   type SurvivalTutorialV4ParsedScore,
 } from './parseSurvivalTutorialV4MusicXml';
 import {
+  buildRollChunkFromSequence,
+  detectVoicingRollSequences,
+  groupNotesByOnset,
+  type SurvivalTutorialOnsetGroup,
+} from './detectSurvivalTutorialRollChunks';
+import {
   createConstantTempoMap,
   midiTickToSeconds,
   parseSurvivalTutorialV4MidiTempoMap,
@@ -151,25 +157,9 @@ const buildLines = (
   });
 };
 
-interface OnsetGroup {
-  readonly startBeat: number;
-  readonly notes: SurvivalTutorialV4ParsedNote[];
-}
-
 const groupByOnset = (
   notes: readonly SurvivalTutorialV4ParsedNote[],
-): OnsetGroup[] => {
-  const groups: OnsetGroup[] = [];
-  for (const note of notes) {
-    let group = groups.find((item) => Math.abs(item.startBeat - note.startBeat) <= BEAT_EPSILON);
-    if (!group) {
-      group = { startBeat: note.startBeat, notes: [] };
-      groups.push(group);
-    }
-    group.notes.push(note);
-  }
-  return groups.sort((a, b) => a.startBeat - b.startBeat);
-};
+): SurvivalTutorialOnsetGroup[] => groupNotesByOnset(notes);
 
 const sortedUniqueMidis = (
   notes: readonly SurvivalTutorialV4ParsedNote[],
@@ -184,6 +174,36 @@ const sortedUniqueMidis = (
   return result;
 };
 
+const buildRegularChunk = (
+  group: SurvivalTutorialOnsetGroup,
+  chunkEndBeat: number,
+  spanStartBeat: number,
+  chordName: string,
+  bassNotes: readonly SurvivalTutorialV4ParsedNote[],
+  keyFifths: number,
+): SurvivalTutorialV4Chunk => {
+  const playable = sortedUniqueMidis(group.notes);
+  const bassInChunk = sortedUniqueMidis(
+    bassNotes.filter(
+      (note) =>
+        note.startBeat >= group.startBeat - BEAT_EPSILON &&
+        note.startBeat < chunkEndBeat - BEAT_EPSILON,
+    ),
+  );
+  return {
+    startBeat: round(group.startBeat - spanStartBeat),
+    durationBeats: round(chunkEndBeat - group.startBeat),
+    measureNumber: group.notes[0]?.measureNumber ?? 1,
+    chordName,
+    notes: playable.map((note) => note.midi),
+    noteNames: playable.map((note) => note.noteName),
+    noteStaves: playable.map((note) => (note.staff === 2 ? 2 : 1)),
+    bass: bassInChunk.map((note) => note.midi),
+    bassNames: bassInChunk.map((note) => note.noteName),
+    keyFifths,
+  };
+};
+
 const buildChunks = (
   score: SurvivalTutorialV4ParsedScore,
   span: SceneSpan,
@@ -194,7 +214,7 @@ const buildChunks = (
       note.startBeat >= span.startBeat - BEAT_EPSILON &&
       note.startBeat < span.endBeat - BEAT_EPSILON,
   );
-  const playableNotes = sceneNotes.filter((note) => note.staff === 1 || note.staff === 2);
+  const voicingNotes = sceneNotes.filter((note) => note.staff === 1 || note.staff === 2);
   const bassNotes = sceneNotes.filter((note) => note.staff === 3);
 
   const sceneHarmonies = score.harmonies
@@ -214,35 +234,80 @@ const buildChunks = (
     }
     return name;
   };
+  const harmonyStartBeatFor = (beat: number): number => {
+    let startBeat = 0;
+    for (const harmony of sceneHarmonies) {
+      if (harmony.startBeat <= beat + BEAT_EPSILON) startBeat = harmony.startBeat;
+      else break;
+    }
+    return startBeat;
+  };
 
-  const onsetGroups = groupByOnset(playableNotes);
+  const voicingOnsetGroups = groupByOnset(voicingNotes);
+  const rollSequences = detectVoicingRollSequences(voicingOnsetGroups, harmonyStartBeatFor);
+  const rollOnsetBeats = new Set<number>();
+  for (const sequence of rollSequences) {
+    for (let index = sequence.startGroupIndex; index <= sequence.endGroupIndex; index += 1) {
+      const group = voicingOnsetGroups[index];
+      if (group) {
+        rollOnsetBeats.add(round(group.startBeat));
+      }
+    }
+  }
   const measureQuarterBeats = (score.beatsPerMeasure / score.beatType) * 4;
 
-  const chunks: SurvivalTutorialV4Chunk[] = onsetGroups.map((group, index) => {
-    const next = onsetGroups[index + 1];
-    const groupEndBeat = Math.max(...group.notes.map((note) => note.endBeat));
-    const chunkEndBeat = next ? next.startBeat : groupEndBeat;
-    const playable = sortedUniqueMidis(group.notes);
-    const bassInChunk = sortedUniqueMidis(
-      bassNotes.filter(
-        (note) =>
-          note.startBeat >= group.startBeat - BEAT_EPSILON &&
-          note.startBeat < chunkEndBeat - BEAT_EPSILON,
+  const chunks: SurvivalTutorialV4Chunk[] = [];
+
+  const nextOnsetAfter = (startBeat: number, candidates: readonly number[]): number | null => {
+    const later = candidates.filter((beat) => beat > startBeat + BEAT_EPSILON);
+    return later.length > 0 ? Math.min(...later) : null;
+  };
+
+  const allOnsetStarts = voicingOnsetGroups.map((group) => group.startBeat);
+
+  for (const sequence of rollSequences) {
+    const firstGroup = voicingOnsetGroups[sequence.startGroupIndex];
+    const lastGroup = voicingOnsetGroups[sequence.endGroupIndex];
+    if (!firstGroup || !lastGroup) continue;
+    const trailingEnd = nextOnsetAfter(
+      lastGroup.startBeat,
+      allOnsetStarts.filter((beat) => Math.abs(beat - lastGroup.startBeat) > BEAT_EPSILON),
+    );
+    const groupEndBeat = Math.max(...lastGroup.notes.map((note) => note.endBeat));
+    const chunkEndBeat = trailingEnd ?? groupEndBeat;
+    const isHarmonyRegionStart = harmonyRegionStartBeats.has(round(firstGroup.startBeat));
+    chunks.push(
+      buildRollChunkFromSequence(
+        voicingOnsetGroups,
+        sequence,
+        bassNotes,
+        span.startBeat,
+        isHarmonyRegionStart ? chordNameAtBeat(firstGroup.startBeat) : '',
+        keyFifths,
+        chunkEndBeat,
       ),
     );
+  }
+
+  const regularPlayableNotes = voicingNotes.filter(
+    (note) => !rollOnsetBeats.has(round(note.startBeat)),
+  );
+  const regularOnsetGroups = groupByOnset(regularPlayableNotes);
+  regularOnsetGroups.forEach((group, index) => {
+    const nextGroup = regularOnsetGroups[index + 1];
+    const groupEndBeat = Math.max(...group.notes.map((note) => note.endBeat));
+    const chunkEndBeat = nextGroup?.startBeat ?? groupEndBeat;
     const isHarmonyRegionStart = harmonyRegionStartBeats.has(round(group.startBeat));
-    return {
-      startBeat: round(group.startBeat - span.startBeat),
-      durationBeats: round(chunkEndBeat - group.startBeat),
-      measureNumber: group.notes[0].measureNumber,
-      chordName: isHarmonyRegionStart ? chordNameAtBeat(group.startBeat) : '',
-      notes: playable.map((note) => note.midi),
-      noteNames: playable.map((note) => note.noteName),
-      noteStaves: playable.map((note) => (note.staff === 2 ? 2 : 1)),
-      bass: bassInChunk.map((note) => note.midi),
-      bassNames: bassInChunk.map((note) => note.noteName),
-      keyFifths,
-    };
+    chunks.push(
+      buildRegularChunk(
+        group,
+        chunkEndBeat,
+        span.startBeat,
+        isHarmonyRegionStart ? chordNameAtBeat(group.startBeat) : '',
+        bassNotes,
+        keyFifths,
+      ),
+    );
   });
 
   // 休符小節(音符が無い小節)を空塊として補い、空の五線譜表示を可能にする。

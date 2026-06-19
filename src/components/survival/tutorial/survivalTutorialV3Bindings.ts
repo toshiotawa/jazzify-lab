@@ -28,6 +28,10 @@ export interface SurvivalTutorialV3Bindings {
   readonly startDemoBgmFromStart?: (scene: SurvivalTutorialV3DemoPlayScene) => Promise<void>;
   /** demo_play(livePlayback) で各和音開始時にアプリ音源(ピアノ)で voicing を発音する。 */
   readonly playDemoChordAudio?: (midis: readonly number[]) => void;
+  /** demo ロール和音: 新音のみ sustain 発音。 */
+  readonly playDemoSustainChordAudio?: (midis: readonly number[]) => void;
+  /** demo ロール和音: sustain 中の音を release。省略時は全 release。 */
+  readonly releaseDemoSustainAudio?: (midis?: readonly number[]) => void;
   /** demo_play / play で staff3 ベースをアプリ音源(ベース)で発音する。 */
   readonly playDemoBassAudio?: (midis: readonly number[]) => void;
 }

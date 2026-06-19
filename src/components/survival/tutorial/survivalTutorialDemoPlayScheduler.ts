@@ -6,10 +6,11 @@ import type {
 import { SURVIVAL_TUTORIAL_V3_DIALOGUE_LINE_SECONDS } from '@/components/survival/tutorial/survivalTutorialV3Constants';
 
 export interface SurvivalTutorialDemoScheduleEvent {
-  readonly kind: 'chord-start' | 'chord-end' | 'line-start' | 'line-end' | 'demo-end';
+  readonly kind: 'chord-start' | 'roll-step-start' | 'chord-end' | 'line-start' | 'line-end' | 'demo-end';
   readonly atBeat: number;
   readonly atSeconds: number;
   readonly chordIndex?: number;
+  readonly rollStepIndex?: number;
   readonly lineIndex?: number;
 }
 
@@ -41,6 +42,29 @@ export const buildDemoPlaySchedule = (
   const events: SurvivalTutorialDemoScheduleEvent[] = [];
 
   scene.chords.forEach((chord, chordIndex) => {
+    const rollSteps = chord.rollSteps;
+    if (rollSteps && rollSteps.length > 0) {
+      const end = chord.startBeat + chord.durationBeats;
+      maxEndBeat = Math.max(maxEndBeat, end);
+      rollSteps.forEach((step, rollStepIndex) => {
+        const kind = rollStepIndex === 0 ? 'chord-start' : 'roll-step-start';
+        events.push({
+          kind,
+          atBeat: step.startBeat,
+          atSeconds: beatToSeconds(step.startBeat, bpm),
+          chordIndex,
+          rollStepIndex,
+        });
+      });
+      events.push({
+        kind: 'chord-end',
+        atBeat: end,
+        atSeconds: beatToSeconds(end, bpm),
+        chordIndex,
+      });
+      return;
+    }
+
     const start = chord.startBeat;
     const end = start + chord.durationBeats;
     maxEndBeat = Math.max(maxEndBeat, end);

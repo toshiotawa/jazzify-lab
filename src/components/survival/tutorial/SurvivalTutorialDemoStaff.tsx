@@ -10,6 +10,7 @@ import { cn } from '@/utils/cn';
 export interface SurvivalTutorialDemoStaffSnapshot {
   readonly chords: readonly SurvivalTutorialV3DemoChordEvent[];
   readonly activeChordIndex: number | null;
+  readonly activeRollStepIndex: number | null;
   readonly keyFifths: number;
   readonly windowStartMeasure: number;
 }
@@ -36,10 +37,76 @@ const voicingStavesFor = (
   return names.map(() => 2 as const);
 };
 
+const voicingForActiveChord = (
+  chord: SurvivalTutorialV3DemoChordEvent,
+  activeRollStepIndex: number | null,
+): readonly number[] => {
+  if (
+    activeRollStepIndex !== null &&
+    chord.rollSteps &&
+    chord.rollSteps[activeRollStepIndex]
+  ) {
+    return chord.rollSteps[activeRollStepIndex].voicing;
+  }
+  return chord.voicing;
+};
+
+const voicingNamesForActiveChord = (
+  chord: SurvivalTutorialV3DemoChordEvent,
+  names: readonly string[],
+  activeRollStepIndex: number | null,
+): readonly string[] => {
+  if (
+    activeRollStepIndex !== null &&
+    chord.rollSteps &&
+    chord.rollSteps[activeRollStepIndex]?.voicingNames
+  ) {
+    const stepNames = chord.rollSteps[activeRollStepIndex].voicingNames;
+    if (stepNames && stepNames.length === chord.rollSteps[activeRollStepIndex].voicing.length) {
+      return stepNames;
+    }
+  }
+  return names;
+};
+
+const voicingStavesForActiveChord = (
+  chord: SurvivalTutorialV3DemoChordEvent,
+  staves: readonly (1 | 2)[],
+  activeRollStepIndex: number | null,
+): readonly (1 | 2)[] => {
+  if (
+    activeRollStepIndex !== null &&
+    chord.rollSteps &&
+    chord.rollSteps[activeRollStepIndex]?.voicing_staves
+  ) {
+    const stepStaves = chord.rollSteps[activeRollStepIndex].voicing_staves;
+    if (stepStaves && stepStaves.length === chord.rollSteps[activeRollStepIndex].voicing.length) {
+      return stepStaves;
+    }
+  }
+  return staves;
+};
+
+const highlightPitchClassesForActiveChord = (
+  chord: SurvivalTutorialV3DemoChordEvent,
+  activeRollStepIndex: number | null,
+): readonly number[] => {
+  if (
+    activeRollStepIndex !== null &&
+    chord.rollSteps &&
+    chord.rollSteps[activeRollStepIndex]
+  ) {
+    return chord.rollSteps[activeRollStepIndex].newVoicing.map(
+      (midi) => ((midi % 12) + 12) % 12,
+    );
+  }
+  return chord.voicing.map((midi) => ((midi % 12) + 12) % 12);
+};
+
 export const buildDemoStaffVoicingGroups = (
   snapshot: SurvivalTutorialDemoStaffSnapshot,
 ): readonly ChordVoicingStaffGroup[] => {
-  const { chords, activeChordIndex, windowStartMeasure } = snapshot;
+  const { chords, activeChordIndex, activeRollStepIndex, windowStartMeasure } = snapshot;
 
   const visible = chords
     .map((chord, index) => ({ chord, index }))
@@ -50,16 +117,30 @@ export const buildDemoStaffVoicingGroups = (
       return [];
     }
 
-    const names = voicingNamesFor(chord);
-    const staves = voicingStavesFor(chord, names);
     const isActive = activeChordIndex === index;
+    const displayVoicing = isActive
+      ? voicingForActiveChord(chord, activeRollStepIndex)
+      : chord.voicing;
+    if (displayVoicing.length === 0) {
+      return [];
+    }
+
+    const baseNames = voicingNamesFor(chord);
+    const names = isActive
+      ? voicingNamesForActiveChord(chord, baseNames, activeRollStepIndex)
+      : baseNames;
+    const staves = isActive
+      ? voicingStavesForActiveChord(chord, voicingStavesFor(chord, names), activeRollStepIndex)
+      : voicingStavesFor(chord, names);
 
     return [{
       id: chordEventId(chord, index),
       chordName: isActive ? chord.chordName : '',
-      voicing: names,
-      voicingStaves: staves,
-      correctPitchClasses: isActive ? chord.voicing.map((m) => ((m % 12) + 12) % 12) : [],
+      voicing: names.slice(0, displayVoicing.length),
+      voicingStaves: staves.slice(0, displayVoicing.length),
+      correctPitchClasses: isActive
+        ? [...highlightPitchClassesForActiveChord(chord, activeRollStepIndex)]
+        : [],
       measureOffset: 0 as const,
       isActive,
       exemptFromFade: isActive,

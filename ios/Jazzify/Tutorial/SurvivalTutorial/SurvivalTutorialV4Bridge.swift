@@ -222,6 +222,19 @@ enum SurvivalTutorialV4Bridge {
         return dict
     }
 
+    private static func demoRollStep(_ step: SurvivalTutorialRollStep) -> [String: Any] {
+        var dict: [String: Any] = [
+            "startBeat": step.startBeat,
+            "newVoicing": step.newVoicing,
+            "voicing": step.voicing,
+        ]
+        if let names = step.voicingNames { dict["voicingNames"] = names }
+        if let staves = step.voicing_staves { dict["voicing_staves"] = staves }
+        if let newBass = step.newBass, !newBass.isEmpty { dict["newBass"] = newBass }
+        if let bass = step.bass, !bass.isEmpty { dict["bass"] = bass }
+        return dict
+    }
+
     private static func demoChordEvent(_ chunk: SurvivalTutorialV4Chunk) -> [String: Any] {
         var dict: [String: Any] = [
             "startBeat": chunk.startBeat,
@@ -234,6 +247,9 @@ enum SurvivalTutorialV4Bridge {
         if let staves = chunk.noteStaves { dict["voicing_staves"] = staves }
         if let keyFifths = chunk.keyFifths { dict["keyFifths"] = keyFifths }
         if !chunk.bass.isEmpty { dict["bass"] = chunk.bass }
+        if let rollSteps = chunk.rollSteps, !rollSteps.isEmpty {
+            dict["rollSteps"] = rollSteps.map(demoRollStep)
+        }
         return dict
     }
 }

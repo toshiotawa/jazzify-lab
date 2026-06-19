@@ -37,6 +37,17 @@ struct SurvivalTutorialV4Line: Decodable, Sendable {
     }
 }
 
+/// demo ロール和音: タイで段階的に増える 1 step。
+struct SurvivalTutorialRollStep: Decodable, Sendable, Equatable {
+    let startBeat: Double
+    let newVoicing: [Int]
+    let voicing: [Int]
+    let voicingNames: [String]?
+    let voicing_staves: [Int]?
+    let newBass: [Int]?
+    let bass: [Int]?
+}
+
 /// 音符 onset 単位の「塊」。notes=staff1/2(描画+判定+再生)、bass=staff3(再生のみ)。
 struct SurvivalTutorialV4Chunk: Decodable, Sendable {
     let startBeat: Double
@@ -49,6 +60,7 @@ struct SurvivalTutorialV4Chunk: Decodable, Sendable {
     let bass: [Int]
     let bassNames: [String]?
     let keyFifths: Int?
+    let rollSteps: [SurvivalTutorialRollStep]?
 }
 
 struct SurvivalTutorialV4Assets: Decodable, Sendable {

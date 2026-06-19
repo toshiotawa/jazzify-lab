@@ -113,7 +113,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
   );
 
   const updateStaffSnapshot = useCallback(
-    (activeChordIndex: number | null) => {
+    (activeChordIndex: number | null, activeRollStepIndex: number | null = null) => {
       if (activeChordIndex !== null && scene.chords[activeChordIndex]) {
         windowMeasureRef.current = scene.chords[activeChordIndex].measureNumber;
       } else if (windowMeasureRef.current === null) {
@@ -122,6 +122,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       demoStaffSnapshotRef.current = {
         chords: scene.chords,
         activeChordIndex,
+        activeRollStepIndex,
         keyFifths,
         windowStartMeasure: windowMeasureRef.current ?? scene.chords[0]?.measureNumber ?? 1,
       };
@@ -144,6 +145,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
     const ac = new AbortController();
     const timers: number[] = [];
     let activeChordIndex: number | null = null;
+    let activeRollStepIndex: number | null = null;
     let activeLineIndex: number | null = null;
 
     const scheduleTimeout = (delayMs: number, fn: () => void): void => {
@@ -161,12 +163,40 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
       clearSurvivalTutorialV3LinePresentation(linePresentationSink);
     };
 
+    const applyRollStep = (chordIndex: number, rollStepIndex: number): void => {
+      const chord = scene.chords[chordIndex];
+      if (!chord?.rollSteps?.[rollStepIndex]) return;
+      activeChordIndex = chordIndex;
+      activeRollStepIndex = rollStepIndex;
+      const step = chord.rollSteps[rollStepIndex];
+      updateStaffSnapshot(chordIndex, rollStepIndex);
+      h.setDemoKeyboardHints(step.voicing);
+      if (!scene.livePlayback) return;
+      if (step.newVoicing.length > 0) {
+        bindingsRef.current.playDemoSustainChordAudio?.(step.newVoicing);
+      }
+      if (step.newBass && step.newBass.length > 0) {
+        bindingsRef.current.playDemoBassAudio?.(step.newBass);
+      }
+    };
+
     const setActiveChord = (index: number | null): void => {
       activeChordIndex = index;
-      updateStaffSnapshot(index);
-      const chord = index !== null ? scene.chords[index] : null;
-      h.setDemoKeyboardHints(chord?.voicing ?? []);
-      if (chord && scene.livePlayback) {
+      activeRollStepIndex = null;
+      updateStaffSnapshot(index, null);
+      if (index === null) {
+        h.setDemoKeyboardHints([]);
+        bindingsRef.current.releaseDemoSustainAudio?.();
+        return;
+      }
+      const chord = scene.chords[index];
+      if (!chord) return;
+      if (chord.rollSteps && chord.rollSteps.length > 0) {
+        applyRollStep(index, 0);
+        return;
+      }
+      h.setDemoKeyboardHints(chord.voicing);
+      if (scene.livePlayback) {
         if (chord.voicing.length > 0) {
           bindingsRef.current.playDemoChordAudio?.(chord.voicing);
         }
@@ -234,6 +264,14 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
             setActiveChord(event.chordIndex);
             return;
           }
+          if (
+            event.kind === 'roll-step-start' &&
+            typeof event.chordIndex === 'number' &&
+            typeof event.rollStepIndex === 'number'
+          ) {
+            applyRollStep(event.chordIndex, event.rollStepIndex);
+            return;
+          }
           if (event.kind === 'chord-end' && event.chordIndex === activeChordIndex) {
             setActiveChord(null);
             return;
@@ -272,6 +310,7 @@ export const SurvivalTutorialDemoPlayScene: React.FC<SurvivalTutorialDemoPlaySce
         window.clearTimeout(id);
       }
       clearLine();
+      bindingsRef.current.releaseDemoSustainAudio?.();
       h.setDemoKeyboardHints([]);
       bindingsRef.current.setTapAdvanceCueVisible(false);
     };

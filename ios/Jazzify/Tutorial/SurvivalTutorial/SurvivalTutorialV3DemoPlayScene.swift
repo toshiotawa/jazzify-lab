@@ -100,7 +100,7 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
         jajiiBubbleLine = ""
     }
 
-    private func updateStaff(activeChordIndex: Int?) {
+    private func updateStaff(activeChordIndex: Int?, activeRollStepIndex: Int? = nil) {
         if let activeChordIndex,
            scene.chords.indices.contains(activeChordIndex) {
             windowStartMeasure = scene.chords[activeChordIndex].measure_number
@@ -110,26 +110,50 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
         demoStaffSnapshot = SurvivalTutorialDemoStaffSnapshot(
             chords: scene.chords,
             activeChordIndex: activeChordIndex,
+            activeRollStepIndex: activeRollStepIndex,
             keyFifths: scene.keyFifths ?? 0,
             windowStartMeasure: windowStartMeasure ?? scene.chords.first?.measure_number ?? 1
         )
     }
 
+    private func applyRollStep(chordIndex: Int, rollStepIndex: Int) {
+        guard scene.chords.indices.contains(chordIndex),
+              let rollSteps = scene.chords[chordIndex].rollSteps,
+              rollSteps.indices.contains(rollStepIndex) else { return }
+        let step = rollSteps[rollStepIndex]
+        updateStaff(activeChordIndex: chordIndex, activeRollStepIndex: rollStepIndex)
+        scenarioController.setDemoKeyboardHints(step.voicing)
+        guard scene.livePlayback == true else { return }
+        if !step.newVoicing.isEmpty {
+            sessionBox.session?.playOnboardingChordSustain(midis: step.newVoicing)
+        }
+        if let newBass = step.newBass, !newBass.isEmpty {
+            sessionBox.session?.playOnboardingBass(midis: newBass)
+        }
+    }
+
     private func setActiveChord(_ index: Int?) {
-        updateStaff(activeChordIndex: index)
-        if let index, scene.chords.indices.contains(index) {
-            let chord = scene.chords[index]
-            scenarioController.setDemoKeyboardHints(chord.voicing)
-            if scene.livePlayback == true {
-                if !chord.voicing.isEmpty {
-                    sessionBox.session?.playOnboardingChord(midis: chord.voicing)
-                }
-                if let bass = chord.bass, !bass.isEmpty {
-                    sessionBox.session?.playOnboardingBass(midis: bass)
-                }
-            }
-        } else {
+        if index == nil {
+            updateStaff(activeChordIndex: nil, activeRollStepIndex: nil)
             scenarioController.setDemoKeyboardHints([])
+            sessionBox.session?.releaseOnboardingChordSustain()
+            return
+        }
+        guard let index, scene.chords.indices.contains(index) else { return }
+        let chord = scene.chords[index]
+        if let rollSteps = chord.rollSteps, !rollSteps.isEmpty {
+            applyRollStep(chordIndex: index, rollStepIndex: 0)
+            return
+        }
+        updateStaff(activeChordIndex: index, activeRollStepIndex: nil)
+        scenarioController.setDemoKeyboardHints(chord.voicing)
+        if scene.livePlayback == true {
+            if !chord.voicing.isEmpty {
+                sessionBox.session?.playOnboardingChord(midis: chord.voicing)
+            }
+            if let bass = chord.bass, !bass.isEmpty {
+                sessionBox.session?.playOnboardingBass(midis: bass)
+            }
         }
     }
 
@@ -214,7 +238,7 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
             for event in schedule {
                 let advance: Double
                 switch event.kind {
-                case .chordStart, .chordEnd:
+                case .chordStart, .rollStepStart, .chordEnd:
                     advance = chordHighlightAdvance
                 case .lineStart, .lineEnd, .demoEnd:
                     advance = 0
@@ -233,6 +257,11 @@ struct SurvivalTutorialV3DemoPlayLessonScene: View {
                         if let idx = event.chordIndex {
                             activeChordIndex = idx
                             setActiveChord(idx)
+                        }
+                    case .rollStepStart:
+                        if let idx = event.chordIndex, let stepIndex = event.rollStepIndex {
+                            activeChordIndex = idx
+                            applyRollStep(chordIndex: idx, rollStepIndex: stepIndex)
                         }
                     case .chordEnd:
                         if event.chordIndex == activeChordIndex {
