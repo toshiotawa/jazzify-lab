@@ -80,13 +80,13 @@ export class TutorialAudioController {
   restartFromStart(
     trackId: string,
     options?: { loop?: boolean; volume?: number },
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (this.disposed) {
-      return Promise.resolve();
+      return Promise.resolve(false);
     }
     const url = this.resolveTrackUrl(trackId);
     if (!url) {
-      return Promise.resolve();
+      return Promise.resolve(false);
     }
 
     const def = this.tracks[trackId];
@@ -115,10 +115,10 @@ export class TutorialAudioController {
   ensurePlaying(
     trackId: string,
     options?: { loop?: boolean; volume?: number },
-  ): Promise<void> {
-    if (this.disposed) return Promise.resolve();
+  ): Promise<boolean> {
+    if (this.disposed) return Promise.resolve(false);
     const url = this.resolveTrackUrl(trackId);
-    if (!url) return Promise.resolve();
+    if (!url) return Promise.resolve(false);
 
     const def = this.tracks[trackId];
     const loop = options?.loop ?? def?.defaultLoop ?? true;
@@ -141,23 +141,33 @@ export class TutorialAudioController {
     this.players.get(trackId)?.audio.pause();
   }
 
-  private waitForPlaying(audio: HTMLAudioElement): Promise<void> {
+  /** 共有 BGM が実際に再生中か（autoplay 失敗時は false）。 */
+  isTrackPlaying(trackId: string): boolean {
+    const active = this.players.get(trackId);
+    if (!active) return false;
+    const { audio } = active;
+    return !audio.paused && !audio.ended;
+  }
+
+  private waitForPlaying(audio: HTMLAudioElement): Promise<boolean> {
     return new Promise((resolve) => {
       let settled = false;
-      const finish = (): void => {
+      const finish = (playing: boolean): void => {
         if (settled) return;
         settled = true;
         audio.removeEventListener('playing', onPlaying);
         window.clearTimeout(fallbackId);
-        resolve();
+        resolve(playing);
       };
       const onPlaying = (): void => {
-        finish();
+        finish(true);
       };
       audio.addEventListener('playing', onPlaying, { once: true });
-      const fallbackId = window.setTimeout(finish, 120);
+      const fallbackId = window.setTimeout(() => {
+        finish(!audio.paused && !audio.ended);
+      }, 120);
       void audio.play().catch(() => {
-        finish();
+        finish(false);
       });
     });
   }

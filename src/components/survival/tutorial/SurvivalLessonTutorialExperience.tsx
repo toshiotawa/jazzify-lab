@@ -131,17 +131,19 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const finalizedOnceRef = useRef(false);
   const audioUnlockedRef = useRef(false);
   const syncV3SceneBgmRef = useRef<(index: number) => void>(() => undefined);
+  const retrySharedBgmIfSilentRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
-    const unlockOnce = (): void => {
-      if (audioUnlockedRef.current) return;
-      audioUnlockedRef.current = true;
-      void unlockTutorialAudio();
-      void FantasySoundManager.preloadCorrectRootBassSoundFont();
-      syncV3SceneBgmRef.current(v3SceneIndex);
+    const retryBgmAfterGesture = (): void => {
+      if (!audioUnlockedRef.current) {
+        audioUnlockedRef.current = true;
+        void unlockTutorialAudio();
+        void FantasySoundManager.preloadCorrectRootBassSoundFont();
+      }
+      retrySharedBgmIfSilentRef.current();
     };
-    window.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
-    return () => window.removeEventListener('pointerdown', unlockOnce);
+    window.addEventListener('pointerdown', retryBgmAfterGesture, { passive: true });
+    return () => window.removeEventListener('pointerdown', retryBgmAfterGesture);
   }, [v3SceneIndex]);
 
   useEffect(() => {
@@ -310,9 +312,10 @@ export const SurvivalLessonTutorialExperience: React.FC<
         const drum = pl.audioTracks?.drum_loop;
         const fallbackUrl = ctl.resolveTrackUrl('main_bgm') ?? drum?.url;
         const nextUrl = resolveTutorialV3SceneBgmUrl(s, fallbackUrl);
+        const volume = drum?.volume ?? 0.35;
         const bgmAction = resolveTutorialV3BgmAction(s, nextUrl, {
           currentUrl: v3CurrentBgmUrlRef.current,
-          isPlaying: v3DrumPlayingRef.current,
+          isPlaying: v3DrumPlayingRef.current && ctl.isTrackPlaying('main_bgm'),
         });
         if (bgmAction === 'stop') {
           ctl.stopAudio('main_bgm');
@@ -320,27 +323,55 @@ export const SurvivalLessonTutorialExperience: React.FC<
           v3CurrentBgmUrlRef.current = null;
           return;
         }
-        if (bgmAction === 'restart' && nextUrl) {
-          ctl.setTracks({
-            main_bgm: {
-              url: nextUrl,
-              defaultLoop: true,
-              defaultVolume: drum?.volume ?? 0.35,
-            },
-          });
-          if (s.type === 'demo_play') {
-            ctl.stopAudio('main_bgm');
-            v3DrumPlayingRef.current = false;
-            v3CurrentBgmUrlRef.current = null;
-            return;
-          }
-          await ctl.restartFromStart('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 });
-          v3DrumPlayingRef.current = true;
-          v3CurrentBgmUrlRef.current = nextUrl;
+        if (!nextUrl) return;
+        if (s.type === 'demo_play' && bgmAction === 'restart') {
+          ctl.stopAudio('main_bgm');
+          v3DrumPlayingRef.current = false;
+          v3CurrentBgmUrlRef.current = null;
+          return;
         }
+        ctl.setTracks({
+          main_bgm: {
+            url: nextUrl,
+            defaultLoop: true,
+            defaultVolume: volume,
+          },
+        });
+        const started = bgmAction === 'keep'
+          ? await ctl.ensurePlaying('main_bgm', { loop: true, volume })
+          : await ctl.restartFromStart('main_bgm', { loop: true, volume });
+        v3DrumPlayingRef.current = started && ctl.isTrackPlaying('main_bgm');
+        v3CurrentBgmUrlRef.current = v3DrumPlayingRef.current ? nextUrl : null;
       });
     };
-  }, [gate, tutorialV3Payload]);
+    retrySharedBgmIfSilentRef.current = () => {
+      const pl = tutorialV3Payload;
+      if (!pl || gate !== 'ready') return;
+      const s = pl.scenes[v3SceneIndex];
+      if (!s || s.type === 'demo_play' || s.type === 'finish') return;
+      const ctl = v3AudioRef.current;
+      if (!ctl || ctl.isTrackPlaying('main_bgm')) return;
+      void ctl.ensureBgmSettings().then(async () => {
+        const drum = pl.audioTracks?.drum_loop;
+        const fallbackUrl = ctl.resolveTrackUrl('main_bgm') ?? drum?.url;
+        const nextUrl = resolveTutorialV3SceneBgmUrl(s, fallbackUrl);
+        if (!nextUrl) return;
+        ctl.setTracks({
+          main_bgm: {
+            url: nextUrl,
+            defaultLoop: true,
+            defaultVolume: drum?.volume ?? 0.35,
+          },
+        });
+        const started = await ctl.ensurePlaying('main_bgm', {
+          loop: true,
+          volume: drum?.volume ?? 0.35,
+        });
+        v3DrumPlayingRef.current = started && ctl.isTrackPlaying('main_bgm');
+        v3CurrentBgmUrlRef.current = v3DrumPlayingRef.current ? nextUrl : null;
+      });
+    };
+  }, [gate, tutorialV3Payload, v3SceneIndex]);
 
   useEffect(() => {
     const pl = tutorialV3Payload;
@@ -402,14 +433,17 @@ export const SurvivalLessonTutorialExperience: React.FC<
       },
       resumeSharedDrumLoop: () => {
         const drum = tutorialV3Payload.audioTracks?.drum_loop;
-        void v3AudioRef.current?.ensureBgmSettings().then(() => {
-          void v3AudioRef.current
-            ?.ensurePlaying('main_bgm', { loop: true, volume: drum?.volume ?? 0.35 })
-            .then(() => {
-              v3DrumPlayingRef.current = true;
-              v3CurrentBgmUrlRef.current =
-                v3AudioRef.current?.resolveTrackUrl('main_bgm') ?? null;
-            });
+        void v3AudioRef.current?.ensureBgmSettings().then(async () => {
+          const ctl = v3AudioRef.current;
+          if (!ctl) return;
+          const started = await ctl.ensurePlaying('main_bgm', {
+            loop: true,
+            volume: drum?.volume ?? 0.35,
+          });
+          v3DrumPlayingRef.current = started && ctl.isTrackPlaying('main_bgm');
+          v3CurrentBgmUrlRef.current = v3DrumPlayingRef.current
+            ? ctl.resolveTrackUrl('main_bgm')
+            : null;
         });
       },
       stopDemoBgm: () => {
@@ -438,9 +472,12 @@ export const SurvivalLessonTutorialExperience: React.FC<
             defaultVolume: resolved.volume,
           },
         });
-        await ctl.restartFromStart('main_bgm', { loop: true, volume: resolved.volume });
-        v3DrumPlayingRef.current = true;
-        v3CurrentBgmUrlRef.current = resolved.url;
+        const started = await ctl.restartFromStart('main_bgm', {
+          loop: true,
+          volume: resolved.volume,
+        });
+        v3DrumPlayingRef.current = started && ctl.isTrackPlaying('main_bgm');
+        v3CurrentBgmUrlRef.current = v3DrumPlayingRef.current ? resolved.url : null;
       },
       playDemoChordAudio: (midis) => {
         if (midis.length === 0) return;
@@ -456,6 +493,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
 
   const flushV3TapAdvance = useCallback(() => {
     v3TapResolverRef.current?.();
+    retrySharedBgmIfSilentRef.current();
   }, []);
 
   const setRunnerCharacterOverlay = useCallback((line: TutorialLocalizedText | string) => {
