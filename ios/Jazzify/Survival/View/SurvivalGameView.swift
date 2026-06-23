@@ -1059,14 +1059,18 @@ private struct SurvivalCodeRunGameContent: View {
         GeometryReader { proxy in
             let keyboardHeight: CGFloat = min(190, max(150, proxy.size.height * 0.22))
             let gameAreaHeight = max(1, proxy.size.height - keyboardHeight)
-            let canvasSize = SurvivalCodeRunNativeLayout.computeCanvasSize(
-                available: CGSize(width: proxy.size.width, height: gameAreaHeight),
-                viewSize: mapSpec.viewSize
-            )
+            let isPad = Self.isPad
+            let availableGameArea = CGSize(width: proxy.size.width, height: gameAreaHeight)
+            let canvasSize = isPad
+                ? SurvivalCodeRunNativeLayout.computeCanvasSize(
+                    available: availableGameArea,
+                    viewSize: mapSpec.viewSize
+                )
+                : availableGameArea
             VStack(spacing: 0) {
                 ZStack {
                     SurvivalCodeRunNativeLayout.gameAreaBackground
-                    gameCanvas(size: canvasSize)
+                    gameCanvas(size: canvasSize, letterboxed: isPad)
                         .overlay {
                             SurvivalJoystickRepresentable(
                                 hitMask: .full,
@@ -1346,22 +1350,39 @@ private struct SurvivalCodeRunGameContent: View {
         }
     }
 
-    private func gameCanvas(size: CGSize) -> some View {
+    private func gameCanvas(size: CGSize, letterboxed: Bool) -> some View {
         Canvas { context, canvasSize in
             let viewW = mapSpec.viewSize.width
             let viewH = mapSpec.viewSize.height
             let fitScale = min(canvasSize.width / viewW, canvasSize.height / viewH)
-            let scale = fitScale * SurvivalCodeRunNativeLayout.zoomOutFactor
-            let visibleWorldWidth = viewW
-            let visibleWorldHeight = viewH
+            let scale: CGFloat
+            let visibleWorldWidth: CGFloat
+            let visibleWorldHeight: CGFloat
+            if letterboxed {
+                scale = fitScale * SurvivalCodeRunNativeLayout.zoomOutFactor
+                visibleWorldWidth = viewW
+                visibleWorldHeight = viewH
+            } else {
+                let coverScale = max(canvasSize.width / viewW, canvasSize.height / viewH)
+                scale = min(coverScale, fitScale * 2.2)
+                visibleWorldWidth = max(1, canvasSize.width / max(scale, 0.01))
+                visibleWorldHeight = max(1, canvasSize.height / max(scale, 0.01))
+            }
             let maxCameraX = max(0, mapSpec.worldWidth - visibleWorldWidth)
             let maxCameraY = max(0, mapSpec.worldHeight - visibleWorldHeight)
             let camera = max(0, min(player.x + mapSpec.playerSize.width / 2 - visibleWorldWidth / 2, maxCameraX))
             let cameraY = max(0, min(player.y + mapSpec.playerSize.height / 2 - visibleWorldHeight / 2, maxCameraY))
-            let viewportPixelW = visibleWorldWidth * scale
-            let viewportPixelH = visibleWorldHeight * scale
-            let ox = (canvasSize.width - viewportPixelW) / 2
-            let oy = (canvasSize.height - viewportPixelH) / 2
+            let ox: CGFloat
+            let oy: CGFloat
+            if letterboxed {
+                let viewportPixelW = visibleWorldWidth * scale
+                let viewportPixelH = visibleWorldHeight * scale
+                ox = (canvasSize.width - viewportPixelW) / 2
+                oy = (canvasSize.height - viewportPixelH) / 2
+            } else {
+                ox = max(0, (canvasSize.width - mapSpec.worldWidth * scale) / 2)
+                oy = max(0, (canvasSize.height - mapSpec.worldHeight * scale) / 2)
+            }
             let visibleRect = CGRect(x: camera, y: cameraY, width: visibleWorldWidth, height: visibleWorldHeight)
             context.fill(Path(CGRect(origin: .zero, size: canvasSize)), with: .linearGradient(Gradient(colors: [Color(red: 0.03, green: 0.06, blue: 0.16), Color(red: 0.01, green: 0.015, blue: 0.04)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: canvasSize.height)))
             context.translateBy(x: ox - camera * scale, y: oy - cameraY * scale)
