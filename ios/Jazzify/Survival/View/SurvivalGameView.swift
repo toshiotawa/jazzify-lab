@@ -1074,18 +1074,17 @@ private struct SurvivalCodeRunGameContent: View {
                 ZStack {
                     SurvivalCodeRunNativeLayout.gameAreaBackground
                     gameCanvas(size: canvasSize, letterboxed: isPad)
-                        .overlay {
-                            SurvivalJoystickRepresentable(
-                                hitMask: .full,
-                                isInteractive: status == .playing
-                            ) { analog in
-                                inputX = max(-1, min(1, analog.dx))
-                            }
-                            .allowsHitTesting(status == .playing)
-                        }
-                        .overlay(alignment: .top) {
-                            chordBadges.padding(.top, SurvivalCodeRunNativeLayout.chordBadgeTopPadding)
-                        }
+                    SurvivalJoystickRepresentable(
+                        hitMask: .full,
+                        isInteractive: status == .playing
+                    ) { analog in
+                        inputX = max(-1, min(1, analog.dx))
+                    }
+                    .allowsHitTesting(status == .playing)
+                    chordBadges
+                        .padding(.top, SurvivalCodeRunNativeLayout.chordBadgeTopPadding)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .allowsHitTesting(false)
                 }
                 .frame(width: proxy.size.width, height: gameAreaHeight)
                 .overlay(alignment: .topLeading) { topButtons }
