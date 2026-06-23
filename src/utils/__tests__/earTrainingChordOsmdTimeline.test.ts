@@ -70,6 +70,9 @@ describe('computeChordOsmdActiveMeasureNumber', () => {
   it('フレーズ時間から小節番号を算出する（100BPM・4/4）', () => {
     const targets = [{ measureNumber: 25 }];
     expect(computeChordOsmdActiveMeasureNumber(4.8, 100, 4, 60, 24, targets)).toBe(3);
-    expect(computeChordOsmdActiveMeasureNumber(0, 100, 4, 60, 24, targets)).toBe(1);
+    expect(computeChordOsmdActiveMeasureNumber(0, 100, 4, 60, 24, targets)).toBe(2);
+    expect(computeChordOsmdActiveMeasureNumber(2.4, 100, 4, 60, 24, targets)).toBe(2);
+    expect(computeChordOsmdActiveMeasureNumber(2.41, 100, 4, 60, 24, targets)).toBe(2);
+    expect(computeChordOsmdActiveMeasureNumber(4.81, 100, 4, 60, 24, targets)).toBe(3);
   });
 });

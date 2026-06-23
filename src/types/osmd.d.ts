@@ -6,6 +6,7 @@ declare module 'opensheetmusicdisplay' {
     drawComposer?: boolean;
     drawLyricist?: boolean;
     drawPartNames?: boolean;
+    drawMeasureNumbers?: boolean;
     drawingParameters?: string;
     renderSingleHorizontalStaffline?: boolean;
     stretchLastSystemLine?: boolean;

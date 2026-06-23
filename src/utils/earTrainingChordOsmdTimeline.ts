@@ -2,6 +2,7 @@ import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_SEC,
+  CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
 
@@ -81,13 +82,16 @@ export const computeChordOsmdActiveMeasureNumber = (
   phraseLoopDurationSec: number,
   loopMeasures: number,
   targets: readonly Pick<ChordOsmdRhythmTarget, 'measureNumber'>[],
+  countInMeasures: number = CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
 ): number => {
   const beatDurationSec = 60 / Math.max(1, bpm);
   const measureDurationSec = beatDurationSec * Math.max(1, beatsPerMeasure);
   if (measureDurationSec <= 0) {
-    return 1;
+    return 1 + countInMeasures;
   }
   const rawMeasure = Math.floor(phraseTimeSec / measureDurationSec) + 1;
+  const firstPlayableMeasure = 1 + countInMeasures;
+  const adjustedMeasure = Math.max(firstPlayableMeasure, rawMeasure + countInMeasures - 1);
   const maxMeasure = computeChordOsmdScoreMaxMeasure(
     phraseLoopDurationSec,
     bpm,
@@ -95,5 +99,5 @@ export const computeChordOsmdActiveMeasureNumber = (
     loopMeasures,
     targets,
   );
-  return Math.max(1, Math.min(maxMeasure, rawMeasure));
+  return Math.max(firstPlayableMeasure, Math.min(maxMeasure, adjustedMeasure));
 };

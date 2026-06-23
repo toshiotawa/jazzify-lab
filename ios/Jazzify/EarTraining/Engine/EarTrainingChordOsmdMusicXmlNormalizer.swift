@@ -57,6 +57,14 @@ private func deepCopyElement(_ source: ChordOsmdXmlElement) -> ChordOsmdXmlEleme
 
 /// Web の `normalizeChordOsmdMusicXml` と同等。
 enum EarTrainingChordOsmdMusicXmlNormalizer {
+    /// MusicXML 先頭の待機／カウントイン小節数（OSMD 表示・スクロールから除外）
+    static let scoreCountInMeasures = 1
+
+    /// ゲーム側 MusicXML 小節番号 → OSMD 表示用（先頭カウントイン小節を除いた 1-indexed）
+    static func musicXmlMeasureToOsmdDisplayMeasure(_ musicXmlMeasureNumber: Int) -> Int {
+        max(1, musicXmlMeasureNumber - scoreCountInMeasures)
+    }
+
     private static let timingEpsilon = 0.0005
 
     private struct Timing {
@@ -466,6 +474,44 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             return xmlText
         }
         stripLyrics(from: root)
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+    }
+
+    /// OSMD 楽譜表示用に各 `<part>` 先頭のカウントイン小節を除去（Web `stripOsmdCountInMeasuresFromMusicXml` と同等）。
+    static func stripOsmdCountInMeasuresFromMusicXml(
+        _ xmlText: String,
+        countInMeasures: Int = scoreCountInMeasures
+    ) -> String {
+        guard countInMeasures > 0, let root = ChordOsmdXmlParser.parse(xmlText) else {
+            return xmlText
+        }
+        var changed = false
+
+        func stripFromPart(_ element: ChordOsmdXmlElement) {
+            if element.name == "part" {
+                for _ in 0 ..< countInMeasures {
+                    guard let idx = element.children.firstIndex(where: { child in
+                        if case let .element(el) = child, el.name == "measure" {
+                            return true
+                        }
+                        return false
+                    }) else {
+                        break
+                    }
+                    element.children.remove(at: idx)
+                    changed = true
+                }
+                return
+            }
+            for child in element.children {
+                if case let .element(el) = child {
+                    stripFromPart(el)
+                }
+            }
+        }
+
+        stripFromPart(root)
+        guard changed else { return xmlText }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
     }
 

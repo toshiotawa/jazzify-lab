@@ -30,6 +30,9 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
   return true;
 };
 
+/** MusicXML 先頭の待機／カウントイン小節数（OSMD 表示・スクロールから除外。判定タイミングは MusicXML 小節番号のまま） */
+export const CHORD_OSMD_SCORE_COUNT_IN_MEASURES = 1;
+
 /** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 250ms） */
 export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.25;
 /** カウントイン中に最初のターゲットのハンマーも投げきれるよう、リードを短めにする */
@@ -375,6 +378,49 @@ const normalizeMeasureToExplicitTwoStaffVoices = (
     measure.appendChild(marker.node);
   }
   return true;
+};
+
+/** ゲーム側の MusicXML 小節番号 → OSMD 表示用（先頭カウントイン小節を除いた 1-indexed） */
+export const musicXmlMeasureToOsmdDisplayMeasure = (
+  musicXmlMeasureNumber: number,
+  countInMeasures: number = CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
+): number => Math.max(1, Math.trunc(musicXmlMeasureNumber) - countInMeasures);
+
+/**
+ * OSMD 楽譜表示用に各 `<part>` 先頭のカウントイン小節を除去する。
+ * 判定・歌詞収集などゲームロジック用 XML には適用しない。
+ */
+export const stripOsmdCountInMeasuresFromMusicXml = (
+  xmlText: string,
+  countInMeasures: number = CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
+): string => {
+  if (countInMeasures <= 0) {
+    return xmlText;
+  }
+  if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
+    return xmlText;
+  }
+
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    return xmlText;
+  }
+
+  let changed = false;
+  for (const part of Array.from(doc.getElementsByTagName('part'))) {
+    for (let removed = 0; removed < countInMeasures; removed += 1) {
+      const firstMeasure = Array.from(part.children).find(
+        child => child.localName === 'measure',
+      );
+      if (!firstMeasure) {
+        break;
+      }
+      part.removeChild(firstMeasure);
+      changed = true;
+    }
+  }
+
+  return changed ? new XMLSerializer().serializeToString(doc) : xmlText;
 };
 
 /** `<harmony>` の並べ替えは MusicXML の時間位置を壊すため行わない。交互 staff の単一 voice のみ正規化する。 */
