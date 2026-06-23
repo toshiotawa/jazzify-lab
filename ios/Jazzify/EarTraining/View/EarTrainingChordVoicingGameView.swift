@@ -310,7 +310,8 @@ private struct EarTrainingChordVoicingContent: View {
         if controller.stage.isChordVoicingCompositePhraseConfigured {
             let artifact = EarTrainingCompositePhraseAdapter.compositeStaffArtifact(
                 runtime: controller.compositePhraseRuntime,
-                stageId: controller.stage.id
+                stageId: controller.stage.id,
+                hideChordNames: controller.stage.resolvedHideChordNamesInBattle
             )
             if !artifact.groups.isEmpty {
                 return EarTrainingBattleStaffBandLayout.canvasStaffBottomY(sceneSize: size)
@@ -352,7 +353,8 @@ private struct EarTrainingChordVoicingContent: View {
         if controller.stage.isChordVoicingCompositePhraseConfigured {
             let artifact = EarTrainingCompositePhraseAdapter.compositeStaffArtifact(
                 runtime: controller.compositePhraseRuntime,
-                stageId: controller.stage.id
+                stageId: controller.stage.id,
+                hideChordNames: controller.stage.resolvedHideChordNamesInBattle
             )
             let keyFifths = controller.stage.compositePhraseBootstrap?.keyFifths
                 ?? controller.stage.keyFifths ?? 0
@@ -367,7 +369,8 @@ private struct EarTrainingChordVoicingContent: View {
                     showTargetHints: false,
                     singleMeasureLayout: true,
                     unpressedNoteOpacity: 0,
-                    fadeAllMeasureNotes: true
+                    fadeAllMeasureNotes: true,
+                    hideChordLabels: controller.stage.resolvedHideChordNamesInBattle
                 )
                 .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
                 .position(x: size.width / 2, y: size.height * 0.42)
@@ -408,7 +411,9 @@ private struct EarTrainingChordVoicingContent: View {
     @ViewBuilder
     private func chordVoicingSlotsOverlay(size: CGSize) -> some View {
         let hud = controller.hudModel
-        if case let .chordVoicing(slotCount, completed, currentIndex) = hud.slotRow,
+        if controller.stage.isChordVoicingCompositePhraseConfigured || hud.hideSlotsRow {
+            EmptyView()
+        } else if case let .chordVoicing(slotCount, completed, currentIndex) = hud.slotRow,
            !controller.showLobbyControls {
             let slotSize = ChordVoicingBottomSlotsView.slotSize(
                 slotCount: slotCount,
@@ -425,6 +430,8 @@ private struct EarTrainingChordVoicingContent: View {
                 y: size.height - Self.pianoOverlayHeight - slotSize / 2 - 8
             )
             .allowsHitTesting(false)
+        } else {
+            EmptyView()
         }
     }
 

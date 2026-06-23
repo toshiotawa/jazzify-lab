@@ -139,7 +139,8 @@ enum EarTrainingCompositePhraseAdapter {
 
     static func compositeStaffArtifact(
         runtime: EarTrainingCompositePhraseRuntimeState?,
-        stageId: UUID
+        stageId: UUID,
+        hideChordNames: Bool = false
     ) -> (groups: [EarTrainingChordVoicingStaffLayout.GroupInput], dense: Bool, correctMap: [UUID: Set<Int>], activeLabelGroupId: UUID?, chordNamePrefix: String) {
         guard let rt = runtime else {
             return ([], false, [:], nil, "")
@@ -158,7 +159,7 @@ enum EarTrainingCompositePhraseAdapter {
             let gid = compositeStaffGroupUUID(stageId: stageId, chordId: chord.id, noteIndex: i)
             groups.append(EarTrainingChordVoicingStaffLayout.GroupInput(
                 id: gid,
-                chordName: i == 0 ? chord.chordName : "",
+                chordName: !hideChordNames && i == 0 ? chord.chordName : "",
                 voicing: [note.noteName],
                 voicingStaves: [note.staff],
                 measureOffset: 0,

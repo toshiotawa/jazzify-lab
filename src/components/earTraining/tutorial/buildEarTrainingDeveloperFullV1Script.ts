@@ -396,6 +396,7 @@ export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScri
         background_theme: 'blue_club',
         mode: 'chord_voicing',
         chord_voicing_composite_phrase: true,
+        hide_chord_names_in_battle: true,
         show_keyboard_hints_in_battle: true,
       },
       composite_config: {

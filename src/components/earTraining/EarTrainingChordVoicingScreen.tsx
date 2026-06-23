@@ -2155,6 +2155,8 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     return () => clearTimeout(timer);
   }, [startCountIn, tutorial?.bindings.ui.hideLobby]);
 
+  const hideChordNamesInBattle = stage.hide_chord_names_in_battle === true;
+
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
     resultState,
@@ -2190,6 +2192,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       ),
     })),
     phraseSlots: harmonyHudRowsForHud.map(() => '◯'),
+    ...(isChordVoicingCompositePhrase ? { phraseSlotsHidden: true } : {}),
     revealedNotes: [],
     currentNoteIndex: currentChordSlotIndex,
     slotKind: 'circle',
@@ -2298,7 +2301,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       }
       const staffVoicingGroups = chord.notes.map((note, i) => ({
         id: `cmp-${chord.id}-n${i}`,
-        chordName: i === 0 ? chord.chordName : '',
+        chordName: !hideChordNamesInBattle && i === 0 ? chord.chordName : '',
         voicing: [note.noteName] as const,
         voicingStaves: [note.staff] as const,
         measureOffset: 0 as const,
@@ -2395,6 +2398,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     displayedActiveMeasureNumber,
     stage.loop_measures,
     compositeUiTick,
+    hideChordNamesInBattle,
     isChordVoicingCompositePhrase,
   ]);
 
@@ -2470,12 +2474,17 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
           )}
         >
           <ChordVoicingStaff
-            chordName={isChordVoicingCompositePhrase ? (staffVoicingGroups[0]?.chordName ?? undefined) : activeChord?.chord_name}
+            chordName={
+              isChordVoicingCompositePhrase
+                ? (hideChordNamesInBattle ? undefined : staffVoicingGroups[0]?.chordName ?? undefined)
+                : activeChord?.chord_name
+            }
             voicingGroups={staffVoicingGroups}
             activeGroupId={isChordVoicingCompositePhrase ? compositeActiveStaffGroupId : activeChord?.id ?? null}
             showTargetHints={showVoicingTargetHints}
             correctPitchClassesByGroupId={staffCorrectPitchClassesByGroupId}
             denseCurrentMeasureLayout={staffDenseCurrentMeasureLayout}
+            hideChordLabels={hideChordNamesInBattle}
             {...(isChordVoicingCompositePhrase
               ? {
                 singleMeasureLayout: true as const,
