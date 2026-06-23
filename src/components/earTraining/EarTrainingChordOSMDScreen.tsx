@@ -66,6 +66,7 @@ import {
   collectChordOsmdMusicXmlLyrics,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
+  CHORD_OSMD_JUDGMENT_OFFSET_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_SEC,
   CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
   chordOsmdRankForAccuracy,
@@ -760,7 +761,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const phraseTargets = targetsRef.current;
     while (nextMissTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextMissTargetIndexRef.current];
-      if (phraseTimeSec <= target.targetTimeSec + CHORD_OSMD_JUDGMENT_WINDOW_SEC) {
+      if (phraseTimeSec <= target.targetTimeSec + CHORD_OSMD_JUDGMENT_OFFSET_SEC + CHORD_OSMD_JUDGMENT_WINDOW_SEC) {
         break;
       }
       failTargetIfNeeded(target.id);
@@ -1107,7 +1108,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         continue;
       }
-      if (Math.abs(phraseT - target.targetTimeSec) > w) {
+      const judged = target.targetTimeSec + CHORD_OSMD_JUDGMENT_OFFSET_SEC;
+      if (Math.abs(phraseT - judged) > w) {
         continue;
       }
       const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
@@ -1119,7 +1121,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         syncPracticeVoicingHints();
       }
       if (chordOsmdTargetIsComplete(nextRemaining)) {
-        completeTarget(target, state, Math.abs(phraseT - target.targetTimeSec));
+        completeTarget(target, state, Math.abs(phraseT - judged));
       }
       return;
     }

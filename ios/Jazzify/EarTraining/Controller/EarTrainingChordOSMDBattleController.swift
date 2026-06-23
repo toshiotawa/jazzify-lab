@@ -9,6 +9,8 @@ import os.log
 final class EarTrainingChordOSMDBattleController: ObservableObject {
     /// ターゲット時刻を中心に前後これだけ秒（±250ms）
     private static let judgmentWindowSec: Double = 0.25
+    /// 判定中心を後ろへずらす補正（出力レイテンシ吸収。+で late 側を許容）
+    private static let judgmentOffsetSec: Double = 0.04
     /// 正解報酬: |Δ|≤100ms で追加パリィリング
     private static let preciseWindowSec: Double = 0.1
     private static let osmdVoicingHintStrongSec: Double = 0.03
@@ -282,7 +284,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var matchedIndex: Int?
         for index in targets.indices {
             guard targets[index].completed == false, targets[index].failed == false else { continue }
-            let delta = phraseTime - targets[index].targetTimeSec
+            let judged = targets[index].targetTimeSec + Self.judgmentOffsetSec
+            let delta = phraseTime - judged
             guard delta >= -Self.judgmentWindowSec, delta <= Self.judgmentWindowSec else { continue }
             if targets[index].consume(midi: midi) {
                 matchedIndex = index
@@ -294,7 +297,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         if targets[matchedIndex].isComplete {
-            let timingOffsetSec = abs(phraseTime - targets[matchedIndex].targetTimeSec)
+            let timingOffsetSec = abs(phraseTime - (targets[matchedIndex].targetTimeSec + Self.judgmentOffsetSec))
             completeTarget(at: matchedIndex, timingOffsetSec: timingOffsetSec)
         }
         refreshPracticeVoicingHints()
@@ -762,7 +765,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func openJudgmentWindows(at time: Double) {
         while nextActiveTargetIndex < targets.count {
             let target = targets[nextActiveTargetIndex]
-            guard time >= target.targetTimeSec - Self.judgmentWindowSec else { break }
+            guard time >= target.targetTimeSec + Self.judgmentOffsetSec - Self.judgmentWindowSec else { break }
             activeTargetIndices.append(nextActiveTargetIndex)
             nextActiveTargetIndex += 1
         }
@@ -796,7 +799,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var changed = false
         while nextMissTargetIndex < targets.count {
             let target = targets[nextMissTargetIndex]
-            guard time > target.targetTimeSec + Self.judgmentWindowSec else { break }
+            guard time > target.targetTimeSec + Self.judgmentOffsetSec + Self.judgmentWindowSec else { break }
             if targets[nextMissTargetIndex].completed == false, targets[nextMissTargetIndex].failed == false {
                 targets[nextMissTargetIndex].failed = true
                 changed = true
