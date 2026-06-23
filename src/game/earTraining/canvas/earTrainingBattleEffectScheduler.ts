@@ -262,12 +262,28 @@ const addParryGuardEffect = (
   });
 };
 
+const countActiveThinRings = (runtime: EarTrainingBattleDrawRuntime, now: number): number => {
+  let count = 0;
+  for (const effect of runtime.effects) {
+    for (const visual of effect.visuals) {
+      if (visual.kind === 'thinRing' && now < visual.startedAt + visual.durationMs) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+};
+
 const addPreciseParryRing = (
   runtime: EarTrainingBattleDrawRuntime,
   x: number,
   y: number,
 ): void => {
   const startedAt = performance.now();
+  const stackIndex = countActiveThinRings(runtime, startedAt);
+  const scaleStart = 0.45 + stackIndex * 0.12;
+  const scaleEnd = 3.6 + stackIndex * 0.25;
+  const color = stackIndex > 0 ? 'rgba(251, 146, 60, 1)' : 'rgba(194, 65, 12, 1)';
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'thinRing',
@@ -277,13 +293,13 @@ const addPreciseParryRing = (
     fromY: y,
     toX: x,
     toY: y,
-    color: 'rgba(194, 65, 12, 1)',
+    color,
     size: 96,
     alpha: 1,
     rotation: 0,
     rotationEnd: 0,
-    scaleStart: 0.45,
-    scaleEnd: 3.6,
+    scaleStart,
+    scaleEnd,
     fadeOut: true,
   });
   runtime.effects.push({

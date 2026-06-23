@@ -393,7 +393,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     clearBattleEffectTimers();
     battleEffectIdRef.current += 1;
     const effectId = battleEffectIdRef.current;
-    setBattleEffectCommand({
+    const command: EarTrainingBattleEffectCommand = {
       id: effectId,
       kind,
       label: options.label,
@@ -402,7 +402,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       relatedEffectId: options.relatedEffectId,
       travelDurationSec: options.travelDurationSec,
       precise: options.precise,
-    });
+    };
+    // React 18 の setState バッチで連続エフェクトが落ちないよう、即時に描画側へ渡す。
+    phaserGameRef.current?.triggerEffect(command);
+    setBattleEffectCommand(command);
     const clearDelay = Math.max(
       BATTLE_EFFECT_CLEAR_MS,
       Math.round((options.travelDurationSec ?? 0) * 1000) + 120,

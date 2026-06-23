@@ -163,6 +163,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private var snapshot: EarTrainingBattleSceneSnapshot?
     private var lastEffectId: Int = -1
+    private var activePreciseParryRingCount = 0
     private var lastPhraseIntroKey: String?
     private var lastPhraseRunId: Int?
     private var lastBuiltAvatarSignature: String?
@@ -2383,24 +2384,32 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func showPreciseParryRing(at position: CGPoint) {
+        let stackIndex = activePreciseParryRingCount
+        activePreciseParryRingCount += 1
         let ringRadius = Self.battleLayoutPt(40)
         let ring = SKShapeNode(circleOfRadius: ringRadius)
         ring.fillColor = .clear
-        ring.strokeColor = UIColor(red: 0.761, green: 0.255, blue: 0.047, alpha: 1)
+        ring.strokeColor = stackIndex > 0
+            ? UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1)
+            : UIColor(red: 0.761, green: 0.255, blue: 0.047, alpha: 1)
         ring.lineWidth = Self.battleLayoutPt(6)
         ring.position = position
         ring.alpha = 1
-        ring.setScale(0.45)
-        ring.zPosition = 65
+        ring.setScale(0.45 + CGFloat(stackIndex) * 0.12)
+        ring.zPosition = 65 + CGFloat(stackIndex)
         effectLayer.addChild(ring)
         ring.run(SKAction.sequence([
             SKAction.group([
-                SKAction.scale(to: 3.6, duration: 1.0),
+                SKAction.scale(to: 3.6 + CGFloat(stackIndex) * 0.25, duration: 1.0),
                 SKAction.sequence([
                     SKAction.wait(forDuration: 0.75),
                     SKAction.fadeOut(withDuration: 0.25),
                 ]),
             ]),
+            SKAction.run { [weak self] in
+                guard let self else { return }
+                self.activePreciseParryRingCount = max(0, self.activePreciseParryRingCount - 1)
+            },
             SKAction.removeFromParent(),
         ]))
     }
