@@ -1006,7 +1006,10 @@ private struct SurvivalCodeRunGameContent: View {
                 SurvivalResolvedChord.fromProgressionEntry(entry, index: idx, grandStaffMode: stage.grandStaffMode)
             }
         self.progressionChords = resolvedChords
-        if let maxMidi = SurvivalPhraseKeyboardScroll.maxPitchMidi(in: resolvedChords) {
+        let stageMaxMidi: Int? = randomStage
+            ? SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: stage.allowedChords)
+            : SurvivalPhraseKeyboardScroll.maxPitchMidi(in: resolvedChords)
+        if let maxMidi = stageMaxMidi {
             self.keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
         } else {
             self.keyboardScrollAnchorMidi = nil

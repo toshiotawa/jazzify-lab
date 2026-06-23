@@ -58,4 +58,17 @@ final class SurvivalCodeRunRandomChordsTests: XCTestCase {
         XCTAssertFalse(stage.allowedChords.isEmpty)
         XCTAssertTrue(stage.chordProgression == nil || stage.chordProgression?.isEmpty == true)
     }
+
+    func testRandomCodeRunKeyboardScrollAnchorUsesAllowedChordsPoolMaxMidi() {
+        let allowedChords = ["C", "D", "E"]
+        guard let maxMidi = SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: allowedChords) else {
+            XCTFail("expected max hint midi from allowed chord pool")
+            return
+        }
+        XCTAssertEqual(maxMidi, 71)
+        XCTAssertEqual(
+            SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi),
+            72
+        )
+    }
 }
