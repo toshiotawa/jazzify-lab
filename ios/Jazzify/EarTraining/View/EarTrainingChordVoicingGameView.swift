@@ -368,9 +368,9 @@ private struct EarTrainingChordVoicingContent: View {
                     completionPulse: controller.completionPulse,
                     showTargetHints: false,
                     singleMeasureLayout: true,
+                    hideChordLabels: controller.stage.resolvedHideChordNamesInBattle,
                     unpressedNoteOpacity: 0,
-                    fadeAllMeasureNotes: true,
-                    hideChordLabels: controller.stage.resolvedHideChordNamesInBattle
+                    fadeAllMeasureNotes: true
                 )
                 .frame(width: min(size.width * 0.63, 600), height: size.height * 0.5)
                 .position(x: size.width / 2, y: size.height * 0.42)
