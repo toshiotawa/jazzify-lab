@@ -377,7 +377,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         if tutorialHooks != nil {
             if loopIndex != tutorialScheduledLoopIndex {
                 tutorialScheduledLoopIndex = loopIndex
-                schedulePairTutorialDialogue(runId: phraseRunId, loopIndex: loopIndex)
+                schedulePairTutorialDialogue(runId: phraseRunId)
             }
             maybeCompletePairTutorial(loopIndex: loopIndex)
         }
@@ -545,17 +545,18 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
     }
 
-    private func schedulePairTutorialDialogue(runId: Int, loopIndex: Int) {
+    private func schedulePairTutorialDialogue(runId: Int) {
         guard let hooks = tutorialHooks else { return }
         EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
         let loopDur = bootstrap.loopDurationSec
         guard let lines = hooks.osmdTimedLines, !lines.isEmpty else { return }
+        // ループ境界ごとに再スケジュールするため、常にループ先頭からの相対時間（loopIndex: 0）を使う。
         tutorialTimedLineWorks = EarTrainingTutorialOsmdTimedDialogue.schedule(
             lines: lines,
             bpm: stage.bpm,
             beatsPerMeasure: stage.beatsPerMeasure,
             countInBeats: stage.countInBeats,
-            loopIndex: loopIndex,
+            loopIndex: 0,
             phraseLoopDurationSec: loopDur,
             locale: isEnglishCopy ? .en : .ja,
             isActive: { [weak self] in
@@ -596,7 +597,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
             }
         }
 
-        schedulePairTutorialDialogue(runId: runId, loopIndex: 0)
+        schedulePairTutorialDialogue(runId: runId)
         tutorialScheduledLoopIndex = 0
     }
 

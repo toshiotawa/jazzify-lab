@@ -285,7 +285,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     tutorialDialogueHandleRef.current = null;
   }, []);
 
-  const schedulePairTutorialDialogue = useCallback((loopIndex: number) => {
+  const schedulePairTutorialDialogue = useCallback(() => {
     if (tutorial?.scene.type !== 'phrase_pair_adlib') {
       return;
     }
@@ -294,6 +294,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
       return;
     }
     tutorialDialogueHandleRef.current?.cancel();
+    // ループ境界ごとに再スケジュールするため、常にループ先頭からの相対時間（loopIndex: 0）を使う。
     tutorialDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
       bpm: stage.bpm,
       beatsPerMeasure: stage.beats_per_measure,
@@ -305,7 +306,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
       onLine: (text) => {
         phaserGameRef.current?.setPlayerQuote(text);
       },
-      loopIndex,
+      loopIndex: 0,
       skipCountInForLoop: (idx) => idx > 0,
     });
   }, [
@@ -531,7 +532,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     if (tutorial?.scene.type === 'phrase_pair_adlib') {
       if (loopIndex !== tutorialScheduledLoopRef.current) {
         tutorialScheduledLoopRef.current = loopIndex;
-        schedulePairTutorialDialogue(loopIndex);
+        schedulePairTutorialDialogue();
       }
       maybeCompletePairTutorial(loopIndex);
     }
@@ -726,7 +727,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
       clearTutorialTimers();
       tutorialSceneCompletedRef.current = false;
       tutorialScheduledLoopRef.current = -1;
-      schedulePairTutorialDialogue(0);
+      schedulePairTutorialDialogue();
       tutorialScheduledLoopRef.current = 0;
     };
 

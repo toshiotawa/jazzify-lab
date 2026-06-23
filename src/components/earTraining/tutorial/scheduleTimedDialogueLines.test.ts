@@ -47,4 +47,21 @@ describe('computeOsmdTimedLineDelayMs', () => {
     );
     expect(delay).toBe(500);
   });
+
+  it('matches at.loop:0 only when loopIndex is 0 (per-loop reschedule)', () => {
+    const params = {
+      bpm: 100,
+      beatsPerMeasure: 4,
+      countInBeats: 0,
+      loopMeasures: 4,
+      phraseLoopDurationSec: 9.6,
+      timedLines: [],
+      isEnglishCopy: false,
+      onLine: () => undefined,
+      skipCountInForLoop: () => true,
+    };
+    const line = { at: { loop: 0, measure: 2, beat: 1 }, text: { ja: 'm2', en: 'm2' } };
+    expect(computeOsmdTimedLineDelayMs(params, line, 0)).toBe(2400);
+    expect(computeOsmdTimedLineDelayMs(params, line, 1)).toBeNull();
+  });
 });

@@ -257,16 +257,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     var hudModel: EarTrainingHudModel {
         if isChordVoicingCompositePhrase {
-            let definitions = stage.compositePhraseBootstrap?.definitions ?? []
-            let rows = definitions.flatMap(\.chords)
-            let activeChordId = compositePhraseRuntime.flatMap { runtime in
-                EarTrainingCompositePhraseEngine.staffChordView(state: runtime).chord?.id
-            }
-            let chips = rows.map { chord in
-                let active = gameState == .playingPhrase && activeChordId == chord.id
-                return EarTrainingChordChip(id: chord.id, name: chord.chordName, active: active)
-            }
-            let activeIndex = rows.firstIndex(where: { $0.id == activeChordId }) ?? 0
             let base = EarTrainingHudModel(
                 playerHp: playerHp,
                 playerMaxHp: stage.playerHp,
@@ -281,17 +271,13 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 hideBackButton: false,
                 enemyAttackGaugePercent: enemyAttackGaugePercent,
                 hideEnemyAttackGauge: tutorialNoCombat,
-                hideChordChips: false,
+                hideChordChips: true,
                 hideSlotsRow: true,
                 hudLabels: hudLabels,
                 gameState: gameState,
                 phraseRunId: phraseRunId,
-                chordChips: chips,
-                slotRow: .chordVoicing(
-                    slotCount: max(1, rows.count),
-                    completed: rows.map { _ in false },
-                    currentIndex: activeIndex
-                )
+                chordChips: [],
+                slotRow: .chordVoicing(slotCount: 1, completed: [false], currentIndex: 0)
             )
             if let ui = tutorialHooks?.ui {
                 return ui.apply(to: base)
@@ -940,7 +926,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 self.audio.startDrumLoop()
                 self.gameState = .playingPhrase
                 self.statusText = ""
-                self.scheduleCompositeTutorialDialogueIfNeeded(runId: runId, loopIndex: 0)
+                self.scheduleCompositeTutorialDialogueIfNeeded(runId: runId)
                 self.tutorialCompositeScheduledLoopIndex = 0
                 self.publishSnapshot()
             }
@@ -1441,7 +1427,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let loopIndex = max(0, Int(floor(currentTime / loopDur)))
         if loopIndex != tutorialCompositeScheduledLoopIndex {
             tutorialCompositeScheduledLoopIndex = loopIndex
-            scheduleCompositeTutorialDialogueIfNeeded(runId: phraseRunId, loopIndex: loopIndex)
+            scheduleCompositeTutorialDialogueIfNeeded(runId: phraseRunId)
         }
     }
 
@@ -1563,10 +1549,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     /// もう判定対象でないもの）の場合は表示しない。
     private func updatePlayerQuoteBubble() {
         if isChordVoicingCompositePhrase {
-            scene?.setPlayerQuote(Self.compositePlayerQuoteBubbleTextForScene(
-                gameState: gameState,
-                runtime: compositePhraseRuntime
-            ))
+            scene?.setPlayerQuote(nil)
             return
         }
         scene?.setPlayerQuote(Self.playerQuoteBubbleTextForScene(
@@ -1588,17 +1571,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         guard let chord = activeChord else { return nil }
         if completedChordIds.contains(chord.id) { return nil }
         guard let raw = chord.quote?.text else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func compositePlayerQuoteBubbleTextForScene(
-        gameState: EarTrainingGameState,
-        runtime: EarTrainingCompositePhraseRuntimeState?
-    ) -> String? {
-        guard gameState == .playingPhrase, let runtime else { return nil }
-        let view = EarTrainingCompositePhraseEngine.staffChordView(state: runtime)
-        guard let raw = view.chord?.quoteText else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
@@ -1708,18 +1680,19 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
     }
 
-    private func scheduleCompositeTutorialDialogueIfNeeded(runId: Int, loopIndex: Int) {
+    private func scheduleCompositeTutorialDialogueIfNeeded(runId: Int) {
         guard let hooks = tutorialHooks else { return }
         cancelTutorialTimedLineWorks()
         guard stage.compositePhraseBootstrap != nil else { return }
         let loopDur = compositeLoopDurationSec()
         guard let lines = hooks.osmdTimedLines, !lines.isEmpty else { return }
+        // ループ境界ごとに再スケジュールするため、常にループ先頭からの相対時間（loopIndex: 0）を使う。
         tutorialTimedLineWorks = EarTrainingTutorialOsmdTimedDialogue.schedule(
             lines: lines,
             bpm: stage.bpm,
             beatsPerMeasure: stage.beatsPerMeasure,
             countInBeats: 0,
-            loopIndex: loopIndex,
+            loopIndex: 0,
             phraseLoopDurationSec: loopDur,
             locale: isEnglishCopy ? .en : .ja,
             isActive: { [weak self] in
