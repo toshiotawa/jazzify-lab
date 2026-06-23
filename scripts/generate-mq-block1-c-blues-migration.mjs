@@ -262,7 +262,7 @@ const mqB1Q1OsmdScript = {
           order_index: 0,
           title: 'Cブルース・ドとソ',
           title_en: 'C Blues Do/Sol',
-          music_xml_url: XML_1_1_CI,
+          music_xml_url: XML_1_1,
           audio_url: CBLUES_CI,
           loop_duration_sec: LOOP_24_CI_SEC,
           audio_duration_sec: LOOP_24_CI_SEC,

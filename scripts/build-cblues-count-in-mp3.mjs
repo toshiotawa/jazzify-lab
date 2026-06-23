@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Cブルース BGM の先頭に 1 小節（100BPM / 4拍 = 2.4秒）のメトロノーム4クリックを付加する。
+ * Cブルース BGM の先頭に 1 小節（100BPM / 4拍 = 2.4秒）のドラムスティック4打を付加する。
+ * クリック音源は public/drumstick-count.mp3（ゲーム内カウントインと同じ）。
  *
  * Usage:
  *   node scripts/build-cblues-count-in-mp3.mjs
@@ -15,12 +16,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const SOZAI = join(ROOT, 'public', 'sozai');
 const BODY_MP3 = join(SOZAI, 'Cblues_24bars_100BPM.mp3');
+const CLICK_MP3 = join(ROOT, 'public', 'drumstick-count.mp3');
 const OUT_MP3 = join(SOZAI, 'Cblues_24bars_100BPM_count-in.mp3');
 
 const BPM = 100;
 const BEATS = 4;
 const SPB = 60 / BPM;
 const COUNT_IN_SEC = SPB * BEATS;
+/** earTrainingChordVoicingPhrasePlayer と同じ係数 */
+const FIRST_CLICK_GAIN = 1;
+const CLICK_GAIN = 0.82;
 
 const dryRun = process.argv.includes('--dry-run');
 
@@ -31,21 +36,29 @@ function run(cmd, args, label) {
   }
 }
 
-function buildClickTrackSimple(outPath) {
-  const clickExprs = Array.from({ length: BEATS }, (_, i) => {
-    const start = i * SPB;
-    const freq = i === 0 ? 1100 : 880;
-    const vol = i === 0 ? 0.55 : 0.38;
-    return `if(between(t,${start},${start + 0.07}),${vol}*sin(2*PI*${freq}*t)*exp(-30*(t-${start})),0)`;
-  }).join('+');
+function buildDrumstickCountInTrack(outPath) {
+  const delayMs = Math.round(SPB * 1000);
+  const delays = Array.from({ length: BEATS }, (_, i) => i * delayMs);
+  const gains = delays.map((_, i) => (i === 0 ? FIRST_CLICK_GAIN : CLICK_GAIN));
+  const splitLabels = delays.map((_, i) => `[d${i}]`).join('');
+  const delayed = delays.map((ms, i) => `[d${i}]adelay=${ms}|${ms},volume=${gains[i]}[c${i}]`).join(';');
+  const mixInputs = ['[0:a]', ...delays.map((_, i) => `[c${i}]`)].join('');
+  const filter = [
+    `[1:a]asplit=${BEATS}${splitLabels}`,
+    delayed,
+    `${mixInputs}amix=inputs=${BEATS + 1}:duration=first:dropout_transition=0[out]`,
+  ].join(';');
   run('ffmpeg', [
     '-y',
     '-f', 'lavfi',
-    '-i', `aevalsrc='${clickExprs}':sample_rate=44100:duration=${COUNT_IN_SEC}`,
+    '-i', `anullsrc=r=44100:cl=stereo:d=${COUNT_IN_SEC}`,
+    '-i', CLICK_MP3,
+    '-filter_complex', filter,
+    '-map', '[out]',
     '-c:a', 'libmp3lame',
     '-q:a', '2',
     outPath,
-  ], 'ffmpeg click track');
+  ], 'ffmpeg drumstick count-in');
 }
 
 function concatMp3(leadPath, bodyPath, outPath) {
@@ -80,6 +93,10 @@ function main() {
     console.error(`Missing: ${BODY_MP3}`);
     process.exit(1);
   }
+  if (!existsSync(CLICK_MP3)) {
+    console.error(`Missing: ${CLICK_MP3}`);
+    process.exit(1);
+  }
   const probe = spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' });
   if (probe.status !== 0) {
     console.error('ffmpeg が見つかりません。');
@@ -96,7 +113,7 @@ function main() {
 
   const leadPath = join(SOZAI, '.tmp-count-in-lead.mp3');
   try {
-    buildClickTrackSimple(leadPath);
+    buildDrumstickCountInTrack(leadPath);
     concatMp3(leadPath, BODY_MP3, OUT_MP3);
     const outDur = probeDuration(OUT_MP3);
     console.log(`OK ${OUT_MP3} (${outDur?.toFixed(3) ?? '?'}s)`);
