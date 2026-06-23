@@ -230,14 +230,14 @@ export interface EarTrainingTutorialAdlibScene {
 export interface EarTrainingTutorialPhrasePairAdlibScene {
   type: 'phrase_pair_adlib';
   contentRef: string;
-  requiredMeasures: number;
+  requiredLoops: number;
   timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
 }
 
 export interface EarTrainingTutorialCompositeScene {
   type: 'composite';
   contentRef: string;
-  requiredCompletedPhrases: number;
+  requiredLoops: number;
   timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
 }
 

@@ -289,13 +289,13 @@ struct EarTrainingTutorialAdlibScene: Decodable, Sendable {
 
 struct EarTrainingTutorialPhrasePairAdlibScene: Decodable, Sendable {
     let contentRef: String
-    let requiredMeasures: Int
+    let requiredLoops: Int
     let timedLines: [EarTrainingTutorialOsmdTimedLine]?
 }
 
 struct EarTrainingTutorialCompositeScene: Decodable, Sendable {
     let contentRef: String
-    let requiredCompletedPhrases: Int
+    let requiredLoops: Int
     let timedLines: [EarTrainingTutorialOsmdTimedLine]?
 }
 
@@ -360,10 +360,10 @@ struct EarTrainingTutorialSceneHooks {
     var tutorialDrumLoopUrl: String? = nil
     /// `chord_voicing_self_paced` の `dialogue.timedLines` をフレーズ再生開始からのオフセットで表示する。
     var selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil
-    /// `adlib` / `phrase_pair_adlib` の小節数クリア条件。
+    /// `adlib` の小節数クリア条件。
     var requiredMeasures: Int? = nil
-    /// `composite` のフレーズ完成数クリア条件。
-    var requiredCompletedPhrases: Int? = nil
+    /// `phrase_pair_adlib` / `composite` の BGM ループ回数クリア条件。
+    var requiredLoops: Int? = nil
 }
 
 /// OSMD チュートリアル: 会話用 `drum_loop` ではなく content のフレーズ MP3（count-in 等）を補助ループ URL に使う。

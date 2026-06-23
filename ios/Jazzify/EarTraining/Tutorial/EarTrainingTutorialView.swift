@@ -283,10 +283,9 @@ struct EarTrainingTutorialView: View {
                     initialPracticeMode: false,
                     tutorialHooks: makeHooks(
                         script: script,
-                        requiredLoops: 1,
+                        requiredLoops: pairScene.requiredLoops,
                         onLoopSuccess: nil,
-                        osmdTimedLines: pairScene.timedLines,
-                        requiredMeasures: pairScene.requiredMeasures
+                        osmdTimedLines: pairScene.timedLines
                     ),
                     hostedLandscapeSize: hostedLandscapeSize,
                     onClose: onClose
@@ -306,10 +305,9 @@ struct EarTrainingTutorialView: View {
                     initialPracticeMode: false,
                     tutorialHooks: makeHooks(
                         script: script,
-                        requiredLoops: 1,
+                        requiredLoops: compositeScene.requiredLoops,
                         onLoopSuccess: nil,
-                        osmdTimedLines: compositeScene.timedLines,
-                        requiredCompletedPhrases: compositeScene.requiredCompletedPhrases
+                        osmdTimedLines: compositeScene.timedLines
                     ),
                     hostedLandscapeSize: hostedLandscapeSize,
                     onClose: onClose
@@ -333,7 +331,6 @@ struct EarTrainingTutorialView: View {
         osmdTimedLines: [EarTrainingTutorialOsmdTimedLine]? = nil,
         selfPacedTimedLines: [EarTrainingTutorialSelfPacedTimedLine]? = nil,
         requiredMeasures: Int? = nil,
-        requiredCompletedPhrases: Int? = nil,
         tutorialDrumLoopUrlOverride: String? = nil
     ) -> EarTrainingTutorialSceneHooks {
         EarTrainingTutorialSceneHooks(
@@ -348,7 +345,7 @@ struct EarTrainingTutorialView: View {
             tutorialDrumLoopUrl: tutorialDrumLoopUrlOverride ?? script.audioTracks?.drum_loop?.url,
             selfPacedTimedLines: selfPacedTimedLines,
             requiredMeasures: requiredMeasures,
-            requiredCompletedPhrases: requiredCompletedPhrases
+            requiredLoops: max(1, requiredLoops)
         )
     }
 

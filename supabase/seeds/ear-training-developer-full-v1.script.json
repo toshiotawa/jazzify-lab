@@ -430,7 +430,7 @@
       "phrase_pair_adlib": {
         "bgm_url": "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3",
         "key_fifths": 0,
-        "loop_duration_sec": 4,
+        "loop_duration_sec": 9.6,
         "steps": [
           {
             "order_index": 0,
@@ -438,7 +438,7 @@
             "pattern_group_key": "cm7",
             "measure_number": 1,
             "start_time_sec": 0,
-            "end_time_sec": 1,
+            "end_time_sec": 2.4,
             "quote": {
               "ja": "1 小節目",
               "en": "Measure 1"
@@ -446,32 +446,32 @@
           },
           {
             "order_index": 1,
-            "chord_name": "—",
+            "chord_name": "G7",
             "pattern_group_key": "cm7",
             "measure_number": 2,
-            "start_time_sec": 1,
-            "end_time_sec": 2,
-            "input_disabled": true,
-            "quote": {
-              "ja": "2 小節目：聴くだけ",
-              "en": "Measure 2: listen"
-            }
+            "start_time_sec": 2.4,
+            "end_time_sec": 4.8
           },
           {
             "order_index": 2,
-            "chord_name": "G7",
+            "chord_name": "CM7",
             "pattern_group_key": "cm7",
             "measure_number": 3,
-            "start_time_sec": 2,
-            "end_time_sec": 3
+            "start_time_sec": 4.8,
+            "end_time_sec": 7.2,
+            "input_disabled": true,
+            "quote": {
+              "ja": "3 小節目：聴くだけ",
+              "en": "Measure 3: listen"
+            }
           },
           {
             "order_index": 3,
             "chord_name": "CM7",
             "pattern_group_key": "cm7",
             "measure_number": 4,
-            "start_time_sec": 3,
-            "end_time_sec": 4
+            "start_time_sec": 7.2,
+            "end_time_sec": 9.6
           }
         ],
         "patterns": [
@@ -484,7 +484,15 @@
             ],
             "family_id": "CM7-A",
             "carry_tail_length": 0,
-            "priority": 0
+            "priority": 0,
+            "voicing": [
+              "C4",
+              "D4"
+            ],
+            "voicing_staves": [
+              1,
+              1
+            ]
           },
           {
             "group_key": "cm7",
@@ -495,7 +503,15 @@
             ],
             "family_id": "CM7-B",
             "carry_tail_length": 0,
-            "priority": 0
+            "priority": 0,
+            "voicing": [
+              "E4",
+              "G4"
+            ],
+            "voicing_staves": [
+              1,
+              1
+            ]
           }
         ]
       }
@@ -759,7 +775,7 @@
     {
       "type": "phrase_pair_adlib",
       "contentRef": "tutorial-pair-adlib",
-      "requiredMeasures": 4,
+      "requiredLoops": 2,
       "timedLines": [
         {
           "at": {
@@ -777,7 +793,7 @@
     {
       "type": "composite",
       "contentRef": "tutorial-composite",
-      "requiredCompletedPhrases": 2,
+      "requiredLoops": 2,
       "timedLines": [
         {
           "at": {

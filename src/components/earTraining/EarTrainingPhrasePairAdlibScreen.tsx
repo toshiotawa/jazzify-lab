@@ -72,7 +72,6 @@ import {
   isEarTrainingTutorialNoCombat,
 } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
 import type { EarTrainingTutorialPhrasePairAdlibConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
-import { computeTutorialMeasureClearDelayMs } from '@/utils/earTrainingTutorialMeasureClear';
 import {
   scheduleOsmdTimedLinesForLoop,
   type DialogueScheduleHandle,
@@ -180,8 +179,8 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     [stage],
   );
   const activeDamageConfig = useMemo(
-    () => (practiceMode || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
-    [damageConfig, practiceMode, tutorialNoCombat],
+    () => (practiceMode ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceMode],
   );
 
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
@@ -221,8 +220,9 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   const playerHpRef = useRef(stage.player_hp);
   const timeRemainingRef = useRef(stage.time_limit_sec);
   const chordSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tutorialClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
+  const tutorialScheduledLoopRef = useRef(-1);
+  const tutorialSceneCompletedRef = useRef(false);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -283,11 +283,54 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   const clearTutorialTimers = useCallback(() => {
     tutorialDialogueHandleRef.current?.cancel();
     tutorialDialogueHandleRef.current = null;
-    if (tutorialClearTimerRef.current) {
-      clearTimeout(tutorialClearTimerRef.current);
-      tutorialClearTimerRef.current = null;
-    }
   }, []);
+
+  const schedulePairTutorialDialogue = useCallback((loopIndex: number) => {
+    if (tutorial?.scene.type !== 'phrase_pair_adlib') {
+      return;
+    }
+    const timedLines = tutorial.scene.timedLines;
+    if (!timedLines || timedLines.length === 0) {
+      return;
+    }
+    tutorialDialogueHandleRef.current?.cancel();
+    tutorialDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
+      bpm: stage.bpm,
+      beatsPerMeasure: stage.beats_per_measure,
+      countInBeats: stage.count_in_beats,
+      loopMeasures: stage.loop_measures,
+      phraseLoopDurationSec: loopDurationSec,
+      timedLines,
+      isEnglishCopy,
+      onLine: (text) => {
+        phaserGameRef.current?.setPlayerQuote(text);
+      },
+      loopIndex,
+      skipCountInForLoop: (idx) => idx > 0,
+    });
+  }, [
+    isEnglishCopy,
+    loopDurationSec,
+    stage.beats_per_measure,
+    stage.bpm,
+    stage.count_in_beats,
+    stage.loop_measures,
+    tutorial,
+  ]);
+
+  const maybeCompletePairTutorial = useCallback((loopIndex: number) => {
+    if (tutorial?.scene.type !== 'phrase_pair_adlib') {
+      return;
+    }
+    if (tutorialSceneCompletedRef.current) {
+      return;
+    }
+    if (loopIndex < tutorial.scene.requiredLoops) {
+      return;
+    }
+    tutorialSceneCompletedRef.current = true;
+    tutorial.onSceneComplete();
+  }, [tutorial]);
 
   const clearTimeLimitTimer = useCallback(() => {
     if (timeLimitTimerRef.current) {
@@ -484,6 +527,14 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
 
     const audioTimeSec = drum.getPlaybackTimeSec();
     const loopTimeSec = getLoopTimeSec(audioTimeSec, loopDurationSec);
+    const loopIndex = Math.max(0, Math.floor(audioTimeSec / loopDurationSec));
+    if (tutorial?.scene.type === 'phrase_pair_adlib') {
+      if (loopIndex !== tutorialScheduledLoopRef.current) {
+        tutorialScheduledLoopRef.current = loopIndex;
+        schedulePairTutorialDialogue(loopIndex);
+      }
+      maybeCompletePairTutorial(loopIndex);
+    }
     const nextStep = getPhrasePairAdlibStepAtTime(steps, loopTimeSec, loopDurationSec);
     const patterns = getPhrasePairAdlibPatternsForStep(nextStep, patternsByGroupId);
     applyActiveStep(nextStep, patterns);
@@ -495,9 +546,12 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     applyActiveStep,
     bootstrap,
     loopDurationSec,
+    maybeCompletePairTutorial,
     patternsByGroupId,
     scheduleNextAudioTimelineSync,
+    schedulePairTutorialDialogue,
     steps,
+    tutorial?.scene.type,
   ]);
 
   useEffect(() => {
@@ -603,7 +657,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
         phraseCompleted: false,
         phraseFailed: false,
       });
-      if (outcome === 'stageClear') {
+      if (outcome === 'stageClear' && !tutorial) {
         void finishStageClear();
       }
     });
@@ -666,36 +720,14 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     setCountInValue(beats);
 
     const scheduleTutorialSession = (): void => {
-      if (!tutorial) {
+      if (!tutorial || tutorial.scene.type !== 'phrase_pair_adlib') {
         return;
       }
       clearTutorialTimers();
-      const timedLines = tutorial.scene.timedLines;
-      if (timedLines && timedLines.length > 0) {
-        tutorialDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
-          bpm: stage.bpm,
-          beatsPerMeasure: stage.beats_per_measure,
-          countInBeats: stage.count_in_beats,
-          loopMeasures: stage.loop_measures,
-          phraseLoopDurationSec: loopDurationSec,
-          timedLines,
-          isEnglishCopy,
-          onLine: (text) => {
-            phaserGameRef.current?.setPlayerQuote(text);
-          },
-          loopIndex: 0,
-        });
-      }
-      const delayMs = computeTutorialMeasureClearDelayMs(
-        stage.bpm,
-        stage.beats_per_measure,
-        stage.count_in_beats,
-        tutorial.scene.requiredMeasures,
-      );
-      tutorialClearTimerRef.current = setTimeout(() => {
-        tutorialClearTimerRef.current = null;
-        tutorial.onSceneComplete();
-      }, delayMs);
+      tutorialSceneCompletedRef.current = false;
+      tutorialScheduledLoopRef.current = -1;
+      schedulePairTutorialDialogue(0);
+      tutorialScheduledLoopRef.current = 0;
     };
 
     const onPhraseBodyStarted = (): void => {

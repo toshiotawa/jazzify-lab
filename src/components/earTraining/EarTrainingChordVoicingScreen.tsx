@@ -106,6 +106,7 @@ import {
   clampTutorialPlayerHp,
   isEarTrainingTutorialNoCombat,
   shouldTutorialBlockGameOver,
+  shouldTutorialFirePlayerAttacks,
 } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
 import type {
   EarTrainingTutorialCompositeConfig,
@@ -261,6 +262,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const tutorialLoopCountRef = useRef(0);
   const tutorialCompositeCompleteRef = useRef(0);
   const tutorialCompositeDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
+  const tutorialCompositeScheduledLoopRef = useRef(-1);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -463,6 +465,104 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       chordSyncTimerRef.current = null;
     }
   }, []);
+
+  const compositeLoopDurationSec = useMemo(() => {
+    const measureDurationSec = (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure);
+    return measureDurationSec * Math.max(1, stage.loop_measures);
+  }, [stage.bpm, stage.beats_per_measure, stage.loop_measures]);
+
+  const scheduleCompositeTutorialDialogue = useCallback((loopIndex: number) => {
+    if (tutorial?.scene.type !== 'composite') {
+      return;
+    }
+    const timedLines = tutorial.scene.timedLines;
+    if (!timedLines || timedLines.length === 0) {
+      return;
+    }
+    tutorialCompositeDialogueHandleRef.current?.cancel();
+    tutorialCompositeDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
+      bpm: stage.bpm,
+      beatsPerMeasure: stage.beats_per_measure,
+      countInBeats: 0,
+      loopMeasures: stage.loop_measures,
+      phraseLoopDurationSec: compositeLoopDurationSec,
+      timedLines,
+      isEnglishCopy,
+      onLine: (text) => {
+        phaserGameRef.current?.setPlayerQuote(text);
+      },
+      loopIndex,
+      skipCountInForLoop: () => true,
+    });
+  }, [
+    compositeLoopDurationSec,
+    isEnglishCopy,
+    stage.beats_per_measure,
+    stage.bpm,
+    stage.loop_measures,
+    tutorial,
+  ]);
+
+  const scheduleNextCompositeTutorialSync = useCallback(() => {
+    clearChordSyncTimer();
+    if (tutorial?.scene.type !== 'composite' || !isChordVoicingCompositePhrase) {
+      return;
+    }
+    if (gameStateRef.current !== 'playingPhrase') {
+      return;
+    }
+    const drum = selfPacedDrumLoopRef.current;
+    if (!drum) {
+      return;
+    }
+    const audioTimeSec = drum.getPlaybackTimeSec();
+    const loopIndex = Math.max(0, Math.floor(audioTimeSec / compositeLoopDurationSec));
+    const nextLoopStartSec = (loopIndex + 1) * compositeLoopDurationSec;
+    const delayMs = Math.max(
+      MIN_AUDIO_SYNC_TIMER_MS,
+      (nextLoopStartSec - audioTimeSec - AUDIO_SYNC_EPSILON_SEC) * 1000,
+    );
+    chordSyncTimerRef.current = setTimeout(() => {
+      chordSyncTimerRef.current = null;
+      syncCompositeTutorialTimelineRef.current();
+    }, delayMs);
+  }, [
+    clearChordSyncTimer,
+    compositeLoopDurationSec,
+    isChordVoicingCompositePhrase,
+    tutorial?.scene.type,
+  ]);
+
+  const syncCompositeTutorialTimeline = useCallback(() => {
+    if (tutorial?.scene.type !== 'composite' || !isChordVoicingCompositePhrase) {
+      return;
+    }
+    if (gameStateRef.current !== 'playingPhrase') {
+      return;
+    }
+    const drum = selfPacedDrumLoopRef.current;
+    if (!drum) {
+      return;
+    }
+    const audioTimeSec = drum.getPlaybackTimeSec();
+    const loopIndex = Math.max(0, Math.floor(audioTimeSec / compositeLoopDurationSec));
+    if (loopIndex !== tutorialCompositeScheduledLoopRef.current) {
+      tutorialCompositeScheduledLoopRef.current = loopIndex;
+      scheduleCompositeTutorialDialogue(loopIndex);
+    }
+    scheduleNextCompositeTutorialSync();
+  }, [
+    compositeLoopDurationSec,
+    isChordVoicingCompositePhrase,
+    scheduleCompositeTutorialDialogue,
+    scheduleNextCompositeTutorialSync,
+    tutorial?.scene.type,
+  ]);
+
+  const syncCompositeTutorialTimelineRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    syncCompositeTutorialTimelineRef.current = syncCompositeTutorialTimeline;
+  }, [syncCompositeTutorialTimeline]);
 
   const clearMeasureShiftQueue = useCallback(() => {
     if (measureShiftTimerRef.current !== null) {
@@ -1294,25 +1394,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         setStatusText('');
         if (tutorial?.scene.type === 'composite') {
           tutorialCompositeCompleteRef.current = 0;
+          tutorialCompositeScheduledLoopRef.current = -1;
           tutorialCompositeDialogueHandleRef.current?.cancel();
-          const measureDurationSec = (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure);
-          const phraseLoopDurationSec = measureDurationSec * Math.max(1, stage.loop_measures);
-          const timedLines = tutorial.scene.timedLines;
-          if (timedLines && timedLines.length > 0) {
-            tutorialCompositeDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
-              bpm: stage.bpm,
-              beatsPerMeasure: stage.beats_per_measure,
-              countInBeats: 0,
-              loopMeasures: stage.loop_measures,
-              phraseLoopDurationSec,
-              timedLines,
-              isEnglishCopy,
-              onLine: (text) => {
-                phaserGameRef.current?.setPlayerQuote(text);
-              },
-              loopIndex: 0,
-            });
-          }
+          scheduleCompositeTutorialDialogue(0);
+          tutorialCompositeScheduledLoopRef.current = 0;
+          syncCompositeTutorialTimelineRef.current();
         }
       })();
       return;
@@ -1663,12 +1749,15 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     const noteHit = fireCombat ? noteDmg : 0;
     const totalEnemyDamage = noteHit + rangeExtra;
 
-    if (!tutorialNoCombat && totalEnemyDamage > 0) {
+    if (totalEnemyDamage > 0 && shouldTutorialFirePlayerAttacks(tutorialUi)) {
       const effectId = triggerBattleEffect('correct', undefined, totalEnemyDamage, undefined, origin);
       registerBattleEffectImpact(effectId, () => {
         const nextEnemyHp = Math.max(0, enemyHpRef.current - totalEnemyDamage);
         setEnemyHp(nextEnemyHp);
         enemyHpRef.current = nextEnemyHp;
+        if (tutorial) {
+          return;
+        }
         const outcome = resolveEarTrainingOutcome({
           enemyHp: nextEnemyHp,
           playerHp: playerHpRef.current,
@@ -1695,7 +1784,9 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
     if (evaluation.result === 'phrase-complete' && tutorial?.scene.type === 'composite') {
       tutorialCompositeCompleteRef.current += 1;
-      if (tutorialCompositeCompleteRef.current >= tutorial.scene.requiredCompletedPhrases) {
+      const sourceCount = Math.max(1, stage.compositePhraseBootstrap?.definitions.length ?? 1);
+      const completedLoops = Math.floor(tutorialCompositeCompleteRef.current / sourceCount);
+      if (completedLoops >= tutorial.scene.requiredLoops) {
         tutorial.onSceneComplete();
       }
     }
@@ -1705,11 +1796,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     finishStageClear,
     rankRule,
     registerBattleEffectImpact,
+    stage.compositePhraseBootstrap?.definitions.length,
     triggerBattleEffect,
     triggerCompletionPulse,
     triggerFeedback,
     tutorial,
-    tutorialNoCombat,
+    tutorialUi,
   ]);
 
   const handleNoteInput = useCallback((note: number) => {
@@ -1966,7 +2058,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
   const harmonyHudRowsForHud = useMemo(() => {
     if (isChordVoicingCompositePhrase) {
-      return [];
+      void compositeUiTick;
+      const definitions = stage.compositePhraseBootstrap?.definitions ?? [];
+      return definitions.flatMap(def => def.chords.map(chord => ({
+        representativeId: chord.id,
+        chordName: chord.chordName,
+        voicingIds: [chord.id],
+      })));
     }
     const rows = getEarTrainingHarmonyHudRows(currentPhrase);
     if (rows.length > 0) {
@@ -1978,7 +2076,19 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       chordName: chord.chord_name,
       voicingIds: [chord.id],
     }));
-  }, [currentPhrase, isChordVoicingCompositePhrase]);
+  }, [currentPhrase, compositeUiTick, isChordVoicingCompositePhrase, stage.compositePhraseBootstrap?.definitions]);
+
+  const compositeActiveChordId = useMemo(() => {
+    if (!isChordVoicingCompositePhrase) {
+      return null;
+    }
+    void compositeUiTick;
+    const rt = compositePhraseRuntimeRef.current;
+    if (!rt) {
+      return null;
+    }
+    return getCompositePhraseStaffChordView(rt).chord?.id ?? null;
+  }, [compositeUiTick, isChordVoicingCompositePhrase]);
 
   const harmonyCompletedFlags = useMemo(() => {
     if (!attempt) {
@@ -1996,9 +2106,10 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     : Math.max(0, harmonySlotCount - 1);
 
   const showVoicingTargetHints =
-    !isChordVoicingCompositePhrase
-    && (gameState === 'playingPhrase'
-      || (gameState === 'countIn' && countInEarlyInputActive));
+    (isChordVoicingCompositePhrase && gameState === 'playingPhrase')
+    || (!isChordVoicingCompositePhrase
+      && (gameState === 'playingPhrase'
+        || (gameState === 'countIn' && countInEarlyInputActive)));
   const showKeyboardTargetHints = practiceModeEffective || stage.show_keyboard_hints_in_battle === true;
 
   const playerQuoteBubbleText = useMemo(() => {
@@ -2104,7 +2215,11 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       id: row.representativeId,
       name: row.chordName,
       active: Boolean(
-        showVoicingTargetHints && activeChord?.id && row.voicingIds.includes(activeChord.id),
+        showVoicingTargetHints && (
+          isChordVoicingCompositePhrase
+            ? compositeActiveChordId !== null && row.voicingIds.includes(compositeActiveChordId)
+            : activeChord?.id && row.voicingIds.includes(activeChord.id)
+        ),
       ),
     })),
     phraseSlots: harmonyHudRowsForHud.map(() => '◯'),
@@ -2137,6 +2252,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   }), [
     activeChord?.id,
     activeLoop,
+    compositeActiveChordId,
     harmonyHudRowsForHud,
     harmonyCompletedFlags,
     canChangePracticeMode,
@@ -2150,6 +2266,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     gameState,
     hudLabels,
     isMidiConnected,
+    isChordVoicingCompositePhrase,
     lastRank,
     lessonProgressText,
     phraseIndex,

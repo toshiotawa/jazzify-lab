@@ -1,8 +1,14 @@
 import type { EarTrainingTutorialUiOverrides } from './earTrainingTutorialScriptTypes';
 
+/** 敵からの攻撃・敵ゲージ・プレイヤー被ダメージを抑止する（チュートリアル向け）。 */
 export const isEarTrainingTutorialNoCombat = (
   ui?: EarTrainingTutorialUiOverrides | null,
 ): boolean => Boolean(ui?.disableEnemyAttacks ?? ui?.playerInvincible);
+
+/** プレイヤーの火の玉・完成ダメージは通常通り発火させる（`noCombat` でも有効）。 */
+export const shouldTutorialFirePlayerAttacks = (
+  _ui?: EarTrainingTutorialUiOverrides | null,
+): boolean => true;
 
 export interface EarTrainingTutorialBindings {
   ui: EarTrainingTutorialUiOverrides;

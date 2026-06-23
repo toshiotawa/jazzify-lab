@@ -140,6 +140,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     var tutorialNoCombat: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     private var tutorialCompositeCompleteCount = 0
+    private var tutorialCompositeScheduledLoopIndex = -1
     private var tutorialTimedLineWorks: [DispatchWorkItem] = []
     private var tutorialSuccessfulLoopCount: Int = 0
 
@@ -256,6 +257,16 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
     var hudModel: EarTrainingHudModel {
         if isChordVoicingCompositePhrase {
+            let definitions = stage.compositePhraseBootstrap?.definitions ?? []
+            let rows = definitions.flatMap(\.chords)
+            let activeChordId = compositePhraseRuntime.flatMap { runtime in
+                EarTrainingCompositePhraseEngine.staffChordView(state: runtime).chord?.id
+            }
+            let chips = rows.map { chord in
+                let active = gameState == .playingPhrase && activeChordId == chord.id
+                return EarTrainingChordChip(id: chord.id, name: chord.chordName, active: active)
+            }
+            let activeIndex = rows.firstIndex(where: { $0.id == activeChordId }) ?? 0
             let base = EarTrainingHudModel(
                 playerHp: playerHp,
                 playerMaxHp: stage.playerHp,
@@ -270,13 +281,17 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 hideBackButton: false,
                 enemyAttackGaugePercent: enemyAttackGaugePercent,
                 hideEnemyAttackGauge: tutorialNoCombat,
-                hideChordChips: true,
+                hideChordChips: false,
                 hideSlotsRow: true,
                 hudLabels: hudLabels,
                 gameState: gameState,
                 phraseRunId: phraseRunId,
-                chordChips: [],
-                slotRow: .chordVoicing(slotCount: 1, completed: [false], currentIndex: 0)
+                chordChips: chips,
+                slotRow: .chordVoicing(
+                    slotCount: max(1, rows.count),
+                    completed: rows.map { _ in false },
+                    currentIndex: activeIndex
+                )
             )
             if let ui = tutorialHooks?.ui {
                 return ui.apply(to: base)
@@ -666,7 +681,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let noteHit = fireCombat ? noteDmg : 0
         let totalEnemyDamage = noteHit + rangeExtra
 
-        if !tutorialNoCombat && totalEnemyDamage > 0 {
+        if totalEnemyDamage > 0 {
             let origin = chordLabelOriginInScene()
             let effectId = triggerBattleEffect(
                 kind: .correct,
@@ -679,6 +694,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 guard let self else { return }
                 let nextEnemyHp = max(0, self.enemyHp - totalEnemyDamage)
                 self.enemyHp = nextEnemyHp
+                guard self.tutorialHooks == nil else { return }
                 let outcome = EarTrainingEngine.resolveOutcome(
                     enemyHp: nextEnemyHp,
                     playerHp: self.playerHp,
@@ -697,9 +713,11 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
 
         if evaluation.result == .phraseComplete,
-           let required = tutorialHooks?.requiredCompletedPhrases {
+           let requiredLoops = tutorialHooks?.requiredLoops {
             tutorialCompositeCompleteCount += 1
-            if tutorialCompositeCompleteCount >= required {
+            let sourceCount = max(1, stage.compositePhraseBootstrap?.definitions.count ?? 1)
+            let completedLoops = tutorialCompositeCompleteCount / sourceCount
+            if completedLoops >= requiredLoops {
                 cancelTutorialTimedLineWorks()
                 tutorialHooks?.onSceneComplete()
             }
@@ -897,6 +915,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             compositeComboCount = 0
             compositeMissCount = 0
             tutorialCompositeCompleteCount = 0
+            tutorialCompositeScheduledLoopIndex = -1
             attempt = nil
             activeChord = nil
             countInValue = 0
@@ -921,7 +940,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
                 self.audio.startDrumLoop()
                 self.gameState = .playingPhrase
                 self.statusText = ""
-                self.scheduleCompositeTutorialDialogueIfNeeded(runId: runId)
+                self.scheduleCompositeTutorialDialogueIfNeeded(runId: runId, loopIndex: 0)
+                self.tutorialCompositeScheduledLoopIndex = 0
                 self.publishSnapshot()
             }
             publishSnapshot()
@@ -1401,8 +1421,28 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     private func handleAudioTimeUpdate(currentTime: Double) {
-        guard !isChordVoicingCompositePhrase else { return }
+        if isChordVoicingCompositePhrase {
+            syncCompositeTutorialTimeline(currentTime: currentTime)
+            return
+        }
         syncChordTimeline(scheduleNext: false)
+    }
+
+    private func compositeLoopDurationSec() -> Double {
+        let beatDuration = 60.0 / Double(max(1, stage.bpm))
+        return beatDuration * Double(max(1, stage.beatsPerMeasure)) * Double(max(1, stage.loopMeasures))
+    }
+
+    private func syncCompositeTutorialTimeline(currentTime: Double) {
+        guard tutorialHooks?.osmdTimedLines != nil else { return }
+        guard gameState == .playingPhrase else { return }
+        let loopDur = compositeLoopDurationSec()
+        guard loopDur > 0 else { return }
+        let loopIndex = max(0, Int(floor(currentTime / loopDur)))
+        if loopIndex != tutorialCompositeScheduledLoopIndex {
+            tutorialCompositeScheduledLoopIndex = loopIndex
+            scheduleCompositeTutorialDialogueIfNeeded(runId: phraseRunId, loopIndex: loopIndex)
+        }
     }
 
     private func failCurrentPhrase() {
@@ -1668,19 +1708,18 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
     }
 
-    private func scheduleCompositeTutorialDialogueIfNeeded(runId: Int) {
+    private func scheduleCompositeTutorialDialogueIfNeeded(runId: Int, loopIndex: Int) {
         guard let hooks = tutorialHooks else { return }
         cancelTutorialTimedLineWorks()
         guard stage.compositePhraseBootstrap != nil else { return }
-        let beatDuration = 60.0 / Double(max(1, stage.bpm))
-        let loopDur = beatDuration * Double(max(1, stage.loopMeasures))
+        let loopDur = compositeLoopDurationSec()
         guard let lines = hooks.osmdTimedLines, !lines.isEmpty else { return }
         tutorialTimedLineWorks = EarTrainingTutorialOsmdTimedDialogue.schedule(
             lines: lines,
             bpm: stage.bpm,
             beatsPerMeasure: stage.beatsPerMeasure,
             countInBeats: 0,
-            loopIndex: 0,
+            loopIndex: loopIndex,
             phraseLoopDurationSec: loopDur,
             locale: isEnglishCopy ? .en : .ja,
             isActive: { [weak self] in

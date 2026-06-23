@@ -46,7 +46,8 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     var tutorialNoCombat = false
     private var tutorialTimedLineWorks: [DispatchWorkItem] = []
-    private var tutorialClearWork: DispatchWorkItem?
+    private var tutorialScheduledLoopIndex = -1
+    private var tutorialSceneCompleted = false
 
     private var lastInputAt: Double = 0
     private var battleEffectIdCounter = 0
@@ -62,7 +63,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     private var completionPulseEventKey = 0
 
     var damageConfig: EarTrainingDamageConfig {
-        (practiceMode || tutorialNoCombat) ? .zero : EarTrainingDamageConfig(
+        practiceMode ? .zero : EarTrainingDamageConfig(
             perCorrectNote: stage.perCorrectNoteDamage,
             good: stage.goodCompletionDamage,
             great: stage.greatCompletionDamage,
@@ -275,7 +276,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
                 phraseCompleted: false,
                 phraseFailed: false
             )
-            if outcome == .stageClear {
+            if outcome == .stageClear, tutorialHooks == nil {
                 Task { @MainActor in await self.finishStageClear() }
             }
         }
@@ -372,6 +373,14 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         guard loopDurationSec > 0 else { return }
 
         let currentTime = audio.phraseJudgmentTimelineSecNow()
+        let loopIndex = max(0, Int(floor(currentTime / loopDurationSec)))
+        if tutorialHooks != nil {
+            if loopIndex != tutorialScheduledLoopIndex {
+                tutorialScheduledLoopIndex = loopIndex
+                schedulePairTutorialDialogue(runId: phraseRunId, loopIndex: loopIndex)
+            }
+            maybeCompletePairTutorial(loopIndex: loopIndex)
+        }
         let loopTime = currentTime.truncatingRemainder(dividingBy: loopDurationSec)
         let loopTimeSafe = loopTime < 0 ? loopTime + loopDurationSec : loopTime
 
@@ -534,13 +543,45 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
 
     private func cancelTutorialTimers() {
         EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
-        tutorialClearWork?.cancel()
-        tutorialClearWork = nil
+    }
+
+    private func schedulePairTutorialDialogue(runId: Int, loopIndex: Int) {
+        guard let hooks = tutorialHooks else { return }
+        EarTrainingTutorialOsmdTimedDialogue.cancel(&tutorialTimedLineWorks)
+        let loopDur = bootstrap.loopDurationSec
+        guard let lines = hooks.osmdTimedLines, !lines.isEmpty else { return }
+        tutorialTimedLineWorks = EarTrainingTutorialOsmdTimedDialogue.schedule(
+            lines: lines,
+            bpm: stage.bpm,
+            beatsPerMeasure: stage.beatsPerMeasure,
+            countInBeats: stage.countInBeats,
+            loopIndex: loopIndex,
+            phraseLoopDurationSec: loopDur,
+            locale: isEnglishCopy ? .en : .ja,
+            isActive: { [weak self] in
+                guard let self, self.phraseRunId == runId else { return false }
+                return self.gameState == .countIn || self.gameState == .playingPhrase
+            },
+            onLine: { [weak self] text in
+                self?.scene?.setPlayerQuote(text)
+                hooks.onCharacterText(text)
+            }
+        )
+    }
+
+    private func maybeCompletePairTutorial(loopIndex: Int) {
+        guard let hooks = tutorialHooks, let required = hooks.requiredLoops else { return }
+        guard !tutorialSceneCompleted else { return }
+        guard loopIndex >= required else { return }
+        tutorialSceneCompleted = true
+        hooks.onSceneComplete()
     }
 
     private func scheduleTutorialSession(runId: Int) {
         guard let hooks = tutorialHooks else { return }
         cancelTutorialTimers()
+        tutorialSceneCompleted = false
+        tutorialScheduledLoopIndex = -1
 
         if let raw = hooks.tutorialDrumLoopUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
            !raw.isEmpty,
@@ -555,42 +596,8 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
             }
         }
 
-        let loopDur = bootstrap.loopDurationSec
-        if let lines = hooks.osmdTimedLines, !lines.isEmpty {
-            tutorialTimedLineWorks = EarTrainingTutorialOsmdTimedDialogue.schedule(
-                lines: lines,
-                bpm: stage.bpm,
-                beatsPerMeasure: stage.beatsPerMeasure,
-                countInBeats: stage.countInBeats,
-                loopIndex: 0,
-                phraseLoopDurationSec: loopDur,
-                locale: isEnglishCopy ? .en : .ja,
-                isActive: { [weak self] in
-                    guard let self, self.phraseRunId == runId else { return false }
-                    return self.gameState == .countIn || self.gameState == .playingPhrase
-                },
-                onLine: { [weak self] text in
-                    self?.scene?.setPlayerQuote(text)
-                    hooks.onCharacterText(text)
-                }
-            )
-        }
-
-        if let required = hooks.requiredMeasures {
-            let delayMs = EarTrainingTutorialMeasureClear.clearDelayMs(
-                bpm: stage.bpm,
-                beatsPerMeasure: stage.beatsPerMeasure,
-                countInBeats: stage.countInBeats,
-                requiredMeasures: required
-            )
-            let capturedRunId = runId
-            let work = DispatchWorkItem { [weak self] in
-                guard let self, self.phraseRunId == capturedRunId else { return }
-                hooks.onSceneComplete()
-            }
-            tutorialClearWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + delayMs / 1000, execute: work)
-        }
+        schedulePairTutorialDialogue(runId: runId, loopIndex: 0)
+        tutorialScheduledLoopIndex = 0
     }
 
     private func cancelTimeLimitTimer() {

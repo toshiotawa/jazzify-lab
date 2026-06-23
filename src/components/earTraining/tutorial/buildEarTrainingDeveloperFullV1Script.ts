@@ -562,7 +562,7 @@ export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScri
     {
       type: 'phrase_pair_adlib',
       contentRef: 'tutorial-pair-adlib',
-      requiredMeasures: 4,
+      requiredLoops: 2,
       timedLines: [
         { at: { loop: 0, measure: 1, beat: 1 }, text: { ja: 'ペア：1 小節目', en: 'Pair: measure 1' } },
         { at: { loop: 0, measure: 3, beat: 1 }, text: { ja: 'ペア：聴くだけ', en: 'Pair: listen' } },
@@ -571,7 +571,7 @@ export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScri
     {
       type: 'composite',
       contentRef: 'tutorial-composite',
-      requiredCompletedPhrases: 2,
+      requiredLoops: 2,
       timedLines: [
         { at: { loop: 0, measure: 1, beat: 1 }, text: { ja: '複合：1 小節目', en: 'Composite: m1' } },
         { at: { loop: 0, measure: 2, beat: 1 }, text: { ja: '複合：2 小節目', en: 'Composite: m2' } },
