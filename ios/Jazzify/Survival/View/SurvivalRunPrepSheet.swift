@@ -117,21 +117,15 @@ struct SurvivalRunPrepSheet: View {
                             }
                         }
                     }
-
-                    Button {
-                        onConfirm(isCompositeLocked ? false : hintDraft)
-                    } label: {
-                        Text(isEnglishCopy ? "Start" : "開始")
-                            .font(.headline)
-                            .foregroundStyle(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color(hex: "f59e0b"))
-                            .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
                 }
                 .padding(20)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                startButton
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    .background(Color(hex: "0a0610"))
             }
             .background(Color(hex: "0a0610").ignoresSafeArea())
             .navigationTitle(navigationTitleText)
@@ -203,6 +197,21 @@ struct SurvivalRunPrepSheet: View {
         case .map:
             return isEnglishCopy ? "Start stage" : "ステージを開始"
         }
+    }
+
+    private var startButton: some View {
+        Button {
+            onConfirm(isCompositeLocked ? false : hintDraft)
+        } label: {
+            Text(isEnglishCopy ? "Start" : "開始")
+                .font(.headline)
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color(hex: "f59e0b"))
+                .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
     }
 
     private func infoRow(label: String, value: String) -> some View {
