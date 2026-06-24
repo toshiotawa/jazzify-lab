@@ -90,7 +90,14 @@ const assignMeasureLayout = (
     return;
   }
   measureCentersByNumber[measureNumber] = (left + right) / 2;
-  measureBoundsByNumber[measureNumber] = { left, right };
+  const boundsEntry: OsmdMeasureBounds = { left, right };
+  if (Number.isFinite(noteMinX)) {
+    boundsEntry.noteLeft = noteMinX;
+  }
+  if (Number.isFinite(noteMaxX)) {
+    boundsEntry.noteRight = noteMaxX;
+  }
+  measureBoundsByNumber[measureNumber] = boundsEntry;
 };
 
 const collectMeasureCenters = (
@@ -267,6 +274,31 @@ const waitNextPaint = (): Promise<void> =>
     });
   });
 
+/** compacttight の水平圧縮を緩め、1小節目の記号後に音符が押し出されにくくする。 */
+const relaxOsmdCompactTightSpacingForBattle = (osmd: OpenSheetMusicDisplay): void => {
+  const zoomable = osmd as OpenSheetMusicDisplay & {
+    EngravingRules?: {
+      VoiceSpacingMultiplierVexflow?: number;
+      VoiceSpacingAddendVexflow?: number;
+      SoftmaxFactorVexFlow?: number;
+    };
+    rules?: {
+      VoiceSpacingMultiplierVexflow?: number;
+      VoiceSpacingAddendVexflow?: number;
+      SoftmaxFactorVexFlow?: number;
+    };
+  };
+  const rules = zoomable.EngravingRules ?? zoomable.rules;
+  if (!rules) {
+    return;
+  }
+  rules.VoiceSpacingMultiplierVexflow = 1;
+  rules.VoiceSpacingAddendVexflow = 3;
+  if (typeof rules.SoftmaxFactorVexFlow === 'number' && rules.SoftmaxFactorVexFlow < 10) {
+    rules.SoftmaxFactorVexFlow = 10;
+  }
+};
+
 const measureLayoutFromOsmd = (
   osmd: OpenSheetMusicDisplay,
   surface: Element | null,
@@ -298,6 +330,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [isRendering, setIsRendering] = useState(false);
   const [cssScale, setCssScale] = useState(1);
   const [userZoom, setUserZoom] = useState(1.9);
+  const [scrollOffsetPx, setScrollOffsetPx] = useState(0);
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
 
   const osmdDisplayMusicXml = useMemo(
@@ -338,6 +371,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
 
     setIsRendering(true);
     setRenderError(null);
+    setScrollOffsetPx(0);
     score.replaceChildren();
     osmdRef.current?.clear();
     osmdRef.current = null;
@@ -365,6 +399,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       const osmd = new OpenSheetMusicDisplay(score, options);
       osmdRef.current = osmd;
       await osmd.load(osmdDisplayMusicXml);
+      relaxOsmdCompactTightSpacingForBattle(osmd);
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
       const viewportEl = viewportRef.current;
       const viewportHeight = viewportEl?.clientHeight ?? 0;
@@ -432,6 +467,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       viewportWidth: viewport.clientWidth,
     });
     score.style.transform = `translate3d(${-offsetPx}px, -50%, 0) scale(${effectiveScale})`;
+    setScrollOffsetPx(offsetPx);
   }, [cssScale, displayActiveMeasureNumber, layout, userZoom]);
 
   const statusText = renderError ?? scoreErrorText;
@@ -443,8 +479,9 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       measureBoundsByNumber: layout.measureBoundsByNumber,
       playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
       effectiveScale,
+      scrollOffsetPx,
     }),
-    [displayActiveMeasureNumber, effectiveScale, layout.measureBoundsByNumber],
+    [displayActiveMeasureNumber, effectiveScale, layout.measureBoundsByNumber, scrollOffsetPx],
   );
 
   return (
@@ -465,13 +502,6 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
               left: `${measureHighlight.leftPx}px`,
               width: `${measureHighlight.widthPx}px`,
             }}
-            aria-hidden
-          />
-        )}
-        {showPlayhead && (
-          <div
-            className="pointer-events-none absolute bottom-0 top-0 z-10 w-0.5 bg-red-500"
-            style={{ left: `${OSMD_BATTLE_PLAYHEAD_PX}px` }}
             aria-hidden
           />
         )}

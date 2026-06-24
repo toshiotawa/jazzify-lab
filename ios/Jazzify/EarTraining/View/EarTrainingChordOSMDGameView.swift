@@ -695,22 +695,11 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           transition: transform 160ms ease-out;
           will-change: transform;
         }
-        #playhead {
-          position: absolute;
-          top: 0;
-          bottom: 0;
-          left: 120px;
-          width: 2px;
-          background: #ef4444;
-          pointer-events: none;
-          z-index: 10;
-          display: none;
-        }
         #measure-highlight {
           position: absolute;
           top: 0;
           bottom: 0;
-          left: 120px;
+          left: 0;
           width: 0;
           background: rgba(239, 68, 68, 0.15);
           pointer-events: none;
@@ -736,7 +725,6 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     <body>
       <div id="viewport">
         <div id="measure-highlight"></div>
-        <div id="playhead"></div>
         <div id="score"></div>
         <div id="status">Loading OSMD...</div>
       </div>
@@ -753,6 +741,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let cssScale = 1;
           let overlayVisible = false;
           let activeMeasureNumber = 1;
+          let currentScrollOffset = 0;
 
           function finiteNum(value) {
             return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -772,7 +761,14 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               return;
             }
             centers[measureNumber] = (left + right) / 2;
-            bounds[measureNumber] = { left: left, right: right };
+            const entry = { left: left, right: right };
+            if (Number.isFinite(noteMinX)) {
+              entry.noteLeft = noteMinX;
+            }
+            if (Number.isFinite(noteMaxX)) {
+              entry.noteRight = noteMaxX;
+            }
+            bounds[measureNumber] = entry;
           }
 
           function collectMeasureCentersFromMeasureList(gs, surface, viewportWidth) {
@@ -964,7 +960,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
             const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
             const xPos = bounds
-              ? bounds.left
+              ? (Number.isFinite(bounds.noteLeft) ? bounds.noteLeft : bounds.left)
               : (measureCentersByNumber[mn]
                 || measureCentersByNumber[1]
                 || viewport.clientWidth / 2);
@@ -989,6 +985,18 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               });
             } catch (_e) {
               /* no-op */
+            }
+          }
+
+          function relaxOsmdCompactTightSpacingForBattle(osmdInst) {
+            const rules = osmdInst && (osmdInst.EngravingRules || osmdInst.rules);
+            if (!rules) {
+              return;
+            }
+            rules.VoiceSpacingMultiplierVexflow = 1;
+            rules.VoiceSpacingAddendVexflow = 3;
+            if (typeof rules.SoftmaxFactorVexFlow === 'number' && rules.SoftmaxFactorVexFlow < 10) {
+              rules.SoftmaxFactorVexFlow = 10;
             }
           }
 
@@ -1029,6 +1037,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             measureCentersByNumber = {};
             measureBoundsByNumber = {};
             cssScale = 1;
+            currentScrollOffset = 0;
             score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
             status.textContent = 'Rendering...';
             status.style.display = 'grid';
@@ -1049,6 +1058,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               osmd = buildOsmd();
               osmd.zoom = z;
               await osmd.load(displayXml);
+              relaxOsmdCompactTightSpacingForBattle(osmd);
               osmd.render();
               await new Promise(function (resolve) {
                 requestAnimationFrame(function () {
@@ -1106,24 +1116,20 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               highlight.style.display = 'none';
               return;
             }
-            highlight.style.left = PLAYHEAD_PX + 'px';
+            highlight.style.left = (bounds.left * cssScale - currentScrollOffset) + 'px';
             highlight.style.width = (measureWidth * cssScale) + 'px';
             highlight.style.display = 'block';
           }
 
           function setScoreOverlayVisible(show) {
             overlayVisible = !!show;
-            const playhead = document.getElementById('playhead');
-            if (playhead) {
-              playhead.style.display = overlayVisible ? 'block' : 'none';
-            }
             updateMeasureHighlight();
           }
 
           function setActiveMeasure(measureNumber) {
             activeMeasureNumber = Math.max(1, Math.floor(Number(measureNumber || 1)));
-            const offset = computeScrollOffset(activeMeasureNumber);
-            score.style.transform = 'translate3d(' + (-offset) + 'px, -50%, 0) scale(' + cssScale + ')';
+            currentScrollOffset = computeScrollOffset(activeMeasureNumber);
+            score.style.transform = 'translate3d(' + (-currentScrollOffset) + 'px, -50%, 0) scale(' + cssScale + ')';
             updateMeasureHighlight();
           }
 
