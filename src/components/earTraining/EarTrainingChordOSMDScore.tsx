@@ -278,11 +278,15 @@ const waitNextPaint = (): Promise<void> =>
 const relaxOsmdCompactTightSpacingForBattle = (osmd: OpenSheetMusicDisplay): void => {
   const zoomable = osmd as OpenSheetMusicDisplay & {
     EngravingRules?: {
+      ClefRightMargin?: number;
+      RhythmRightMargin?: number;
       VoiceSpacingMultiplierVexflow?: number;
       VoiceSpacingAddendVexflow?: number;
       SoftmaxFactorVexFlow?: number;
     };
     rules?: {
+      ClefRightMargin?: number;
+      RhythmRightMargin?: number;
       VoiceSpacingMultiplierVexflow?: number;
       VoiceSpacingAddendVexflow?: number;
       SoftmaxFactorVexFlow?: number;
@@ -292,8 +296,10 @@ const relaxOsmdCompactTightSpacingForBattle = (osmd: OpenSheetMusicDisplay): voi
   if (!rules) {
     return;
   }
+  rules.ClefRightMargin = 1;
+  rules.RhythmRightMargin = 2.5;
   rules.VoiceSpacingMultiplierVexflow = 1;
-  rules.VoiceSpacingAddendVexflow = 3;
+  rules.VoiceSpacingAddendVexflow = 5;
   if (typeof rules.SoftmaxFactorVexFlow === 'number' && rules.SoftmaxFactorVexFlow < 10) {
     rules.SoftmaxFactorVexFlow = 10;
   }

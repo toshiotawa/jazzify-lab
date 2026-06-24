@@ -993,8 +993,10 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             if (!rules) {
               return;
             }
+            rules.ClefRightMargin = 1;
+            rules.RhythmRightMargin = 2.5;
             rules.VoiceSpacingMultiplierVexflow = 1;
-            rules.VoiceSpacingAddendVexflow = 3;
+            rules.VoiceSpacingAddendVexflow = 5;
             if (typeof rules.SoftmaxFactorVexFlow === 'number' && rules.SoftmaxFactorVexFlow < 10) {
               rules.SoftmaxFactorVexFlow = 10;
             }
