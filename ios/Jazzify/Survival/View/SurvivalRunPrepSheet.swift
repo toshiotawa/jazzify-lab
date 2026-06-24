@@ -6,6 +6,21 @@ enum SurvivalRunPrepVariant: Equatable {
     case balloonRush
 }
 
+private enum SurvivalRunPrepSheetLayout {
+    static let navigationBarHeight: CGFloat = 56
+    static let fallbackSheetHeight: CGFloat = 520
+    static let minimumSheetHeight: CGFloat = 420
+    static let maximumSheetHeightRatio: CGFloat = 0.92
+}
+
+private struct SurvivalRunPrepContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// ステージ開始前の本番 / 練習（HINT）選択。Web 版 `SurvivalRunPrepModal` 相当。
 struct SurvivalRunPrepSheet: View {
     let stage: SurvivalStageDefinition
@@ -18,6 +33,7 @@ struct SurvivalRunPrepSheet: View {
     private let balloonStage: BalloonRushStageDefinition?
 
     @State private var hintDraft: Bool
+    @State private var sheetHeight: CGFloat = SurvivalRunPrepSheetLayout.fallbackSheetHeight
 
     private var isEnglishCopy: Bool { locale == .en }
 
@@ -61,71 +77,81 @@ struct SurvivalRunPrepSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    infoRow(
+                        label: isEnglishCopy ? "Stage" : "ステージ",
+                        value: balloonStage?.localizedTitle(locale) ?? stage.localizedName(locale)
+                    )
+                    infoRow(
+                        label: isEnglishCopy ? "Mode" : "出題",
+                        value: balloonStage?.runPrepModeLabel(locale: locale)
+                            ?? stage.runPrepModeLabel(locale: locale)
+                    )
+                    if balloonStage == nil {
                         infoRow(
-                            label: isEnglishCopy ? "Stage" : "ステージ",
-                            value: balloonStage?.localizedTitle(locale) ?? stage.localizedName(locale)
+                            label: isEnglishCopy ? "Encounter" : "戦闘",
+                            value: stage.runPrepEncounterLabel(locale: locale)
                         )
-                        infoRow(
-                            label: isEnglishCopy ? "Mode" : "出題",
-                            value: balloonStage?.runPrepModeLabel(locale: locale)
-                                ?? stage.runPrepModeLabel(locale: locale)
-                        )
-                        if balloonStage == nil {
-                            infoRow(
-                                label: isEnglishCopy ? "Encounter" : "戦闘",
-                                value: stage.runPrepEncounterLabel(locale: locale)
-                            )
-                        }
-                        Text(clearSummaryText)
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if isCompositeLocked {
-                            Text(isEnglishCopy
-                                ? "This composite phrase boss stage is performance-only."
-                                : "複合フレーズボス専用ステージです。練習（HINT）は利用できません。")
-                                .font(.caption2)
-                                .foregroundStyle(Color(hex: "fde68a"))
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(hex: "451a03").opacity(0.35))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
                     }
+                    Text(clearSummaryText)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if isCompositeLocked {
+                        Text(isEnglishCopy
+                            ? "This composite phrase boss stage is performance-only."
+                            : "複合フレーズボス専用ステージです。練習（HINT）は利用できません。")
+                            .font(.caption2)
+                            .foregroundStyle(Color(hex: "fde68a"))
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: "451a03").opacity(0.35))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
 
-                    if !isCompositeLocked {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(isEnglishCopy ? "Run mode" : "プレイモード")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(Color(hex: "fde68a"))
+                if !isCompositeLocked {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(isEnglishCopy ? "Run mode" : "プレイモード")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Color(hex: "fde68a"))
 
-                            runModeRow(
-                                title: isEnglishCopy ? "Performance" : "本番",
-                                selected: !hintDraft
-                            ) {
-                                hintDraft = false
-                            }
+                        runModeRow(
+                            title: isEnglishCopy ? "Performance" : "本番",
+                            selected: !hintDraft
+                        ) {
+                            hintDraft = false
+                        }
 
-                            runModeRow(
-                                title: isEnglishCopy ? "Practice (HINT)" : "練習（HINT）",
-                                selected: hintDraft
-                            ) {
-                                hintDraft = true
-                            }
+                        runModeRow(
+                            title: isEnglishCopy ? "Practice (HINT)" : "練習（HINT）",
+                            selected: hintDraft
+                        ) {
+                            hintDraft = true
                         }
                     }
                 }
-                .padding(20)
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+
                 startButton
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
-                    .background(Color(hex: "0a0610"))
+            }
+            .padding(20)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: SurvivalRunPrepContentHeightKey.self,
+                        value: proxy.size.height
+                    )
+                }
+            }
+            .onPreferenceChange(SurvivalRunPrepContentHeightKey.self) { contentHeight in
+                guard contentHeight > 0 else { return }
+                let maximumHeight = UIScreen.main.bounds.height * SurvivalRunPrepSheetLayout.maximumSheetHeightRatio
+                let fittedHeight = contentHeight + SurvivalRunPrepSheetLayout.navigationBarHeight
+                sheetHeight = min(
+                    max(fittedHeight, SurvivalRunPrepSheetLayout.minimumSheetHeight),
+                    maximumHeight
+                )
             }
             .background(Color(hex: "0a0610").ignoresSafeArea())
             .navigationTitle(navigationTitleText)
@@ -140,7 +166,7 @@ struct SurvivalRunPrepSheet: View {
             }
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(sheetHeight)])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(.dark)
     }
