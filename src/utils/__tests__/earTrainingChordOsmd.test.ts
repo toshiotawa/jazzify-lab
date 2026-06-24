@@ -11,8 +11,6 @@ import {
   earTrainingOsmdUsesScoreTargets,
   normalizeChordOsmdMusicXml,
   resolveEarTrainingOsmdTargetsFromScore,
-  stripOsmdCountInMeasuresFromMusicXml,
-  musicXmlMeasureToOsmdDisplayMeasure,
 } from '@/utils/earTrainingChordOsmd';
 
 const chord = (overrides: Partial<EarTrainingPhraseChord> & { id: string; order_index: number }): EarTrainingPhraseChord => ({
@@ -347,65 +345,6 @@ describe('normalizeChordOsmdMusicXml', () => {
 <score-partwise version="3.1"><part id="P1"><measure number="1"><note><rest/><duration>4</duration><voice>1</voice></note><backup><duration>4</duration></backup><note><rest/><duration>4</duration><voice>2</voice></note></measure></part></score-partwise>`;
 
     expect(normalizeChordOsmdMusicXml(xml)).toBe(xml);
-  });
-});
-
-describe('stripOsmdCountInMeasuresFromMusicXml', () => {
-  it('各 part の先頭小節を除去する', () => {
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise version="3.1"><part id="P1">
-<measure number="1"><attributes><divisions>1</divisions></attributes><note><rest/><duration>4</duration></note></measure>
-<measure number="2"><note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration></note></measure>
-</part></score-partwise>`;
-    const stripped = stripOsmdCountInMeasuresFromMusicXml(xml);
-    expect(stripped).not.toContain('number="1"');
-    expect(stripped).toContain('number="2"');
-    expect(stripped.match(/<measure/g)?.length).toBe(1);
-    expect(stripped).toContain('<divisions>1</divisions>');
-  });
-
-  it('削除小節の attributes を新しい先頭小節へ引き継ぐ', () => {
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise version="3.1"><part id="P1">
-<measure number="1"><attributes>
-<divisions>2</divisions>
-<key><fifths>0</fifths><mode>major</mode></key>
-<time symbol="common"><beats>4</beats><beat-type>4</beat-type></time>
-<clef><sign>G</sign><line>2</line></clef>
-</attributes><note><rest measure="yes"/><duration>8</duration></note></measure>
-<measure number="2"><note><pitch><step>E</step><octave>4</octave></pitch><duration>8</duration><type>whole</type></note></measure>
-</part></score-partwise>`;
-    const stripped = stripOsmdCountInMeasuresFromMusicXml(xml);
-    expect(stripped.match(/<measure/g)?.length).toBe(1);
-    expect(stripped).toContain('<divisions>2</divisions>');
-    expect(stripped).toContain('<fifths>0</fifths>');
-    expect(stripped).toContain('symbol="common"');
-    expect(stripped).toContain('<sign>G</sign>');
-  });
-
-  it('新先頭小節に既存 attributes がある場合は欠けた子だけ補完する', () => {
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise version="3.1"><part id="P1">
-<measure number="1"><attributes><divisions>2</divisions><key><fifths>-1</fifths></key></attributes><note><rest/><duration>8</duration></note></measure>
-<measure number="2"><attributes><divisions>4</divisions></attributes><note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration></note></measure>
-</part></score-partwise>`;
-    const stripped = stripOsmdCountInMeasuresFromMusicXml(xml);
-    expect(stripped).toContain('<divisions>4</divisions>');
-    expect(stripped).toContain('<fifths>-1</fifths>');
-    expect(stripped).not.toContain('<fifths>0</fifths>');
-  });
-
-  it('countInMeasures が 0 なら変更しない', () => {
-    const xml = miniChordOsmdScorePartwise('<note><rest/><duration>4</duration></note>');
-    expect(stripOsmdCountInMeasuresFromMusicXml(xml, 0)).toBe(xml);
-  });
-});
-
-describe('musicXmlMeasureToOsmdDisplayMeasure', () => {
-  it('MusicXML 小節番号から OSMD 表示用小節番号へ変換する', () => {
-    expect(musicXmlMeasureToOsmdDisplayMeasure(1)).toBe(1);
-    expect(musicXmlMeasureToOsmdDisplayMeasure(2)).toBe(1);
-    expect(musicXmlMeasureToOsmdDisplayMeasure(5)).toBe(4);
   });
 });
 

@@ -68,7 +68,6 @@ import {
   CHORD_OSMD_HAMMER_LEAD_SEC,
   CHORD_OSMD_JUDGMENT_OFFSET_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_SEC,
-  CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
   consumeChordOsmdMidi,
@@ -899,10 +898,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
 
       resetPhraseRuntime(phraseTargets);
-      setActiveMeasureNumber(Math.max(
-        1 + CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
-        phraseTargets[0]?.measureNumber ?? 1,
-      ));
+      setActiveMeasureNumber(Math.max(1, phraseTargets[0]?.measureNumber ?? 1));
 
       let prepared;
       try {

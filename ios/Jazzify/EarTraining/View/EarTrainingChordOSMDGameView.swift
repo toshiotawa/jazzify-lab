@@ -606,11 +606,10 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let literal = Self.javaScriptStringLiteral(xml)
                 let z = Self.javascriptNumber(nextZoom)
                 let overlayVisible = pendingOverlayVisible ? "true" : "false"
-                let displayMeasure = EarTrainingChordOsmdMusicXmlNormalizer.musicXmlMeasureToOsmdDisplayMeasure(measure)
                 let script = """
                 window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
                   window.JazzifyOSMD.setScoreOverlayVisible(\(overlayVisible));
-                  window.JazzifyOSMD.setActiveMeasure(\(displayMeasure));
+                  window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
                 Self.evaluate(script, on: webView, generation: generation, coordinator: self)
@@ -619,9 +618,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             if lastMeasureNumber != measure {
                 lastMeasureNumber = measure
                 let generation = renderGeneration
-                let displayMeasure = EarTrainingChordOsmdMusicXmlNormalizer.musicXmlMeasureToOsmdDisplayMeasure(measure)
                 Self.evaluate(
-                    "window.JazzifyOSMD.setActiveMeasure(\(displayMeasure));",
+                    "window.JazzifyOSMD.setActiveMeasure(\(measure));",
                     on: webView,
                     generation: generation,
                     coordinator: self

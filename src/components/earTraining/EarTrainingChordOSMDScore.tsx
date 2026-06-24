@@ -7,7 +7,6 @@ import {
   computeOsmdMeasureJumpScrollOffset,
   type OsmdMeasureBounds,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
-import { musicXmlMeasureToOsmdDisplayMeasure, stripOsmdCountInMeasuresFromMusicXml } from '@/utils/earTrainingChordOsmd';
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
 import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 
@@ -340,17 +339,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
 
   const osmdDisplayMusicXml = useMemo(
-    () => (
-      musicXmlText
-        ? stripOsmdCountInMeasuresFromMusicXml(stripLyricsFromMusicXml(musicXmlText))
-        : null
-    ),
+    () => (musicXmlText ? stripLyricsFromMusicXml(musicXmlText) : null),
     [musicXmlText],
-  );
-
-  const displayActiveMeasureNumber = useMemo(
-    () => musicXmlMeasureToOsmdDisplayMeasure(activeMeasureNumber),
-    [activeMeasureNumber],
   );
 
   useEffect(() => {
@@ -464,7 +454,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     }
     const effectiveScale = cssScale * userZoom;
     const { offsetPx } = computeOsmdMeasureJumpScrollOffset({
-      activeMeasureNumber: displayActiveMeasureNumber,
+      activeMeasureNumber,
       measureBoundsByNumber: layout.measureBoundsByNumber,
       measureCentersByNumber: layout.measureCentersByNumber,
       playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
@@ -474,20 +464,20 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     });
     score.style.transform = `translate3d(${-offsetPx}px, -50%, 0) scale(${effectiveScale})`;
     setScrollOffsetPx(offsetPx);
-  }, [cssScale, displayActiveMeasureNumber, layout, userZoom]);
+  }, [activeMeasureNumber, cssScale, layout, userZoom]);
 
   const statusText = renderError ?? scoreErrorText;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
   const effectiveScale = cssScale * userZoom;
   const measureHighlight = useMemo(
     () => computeOsmdActiveMeasureHighlight({
-      activeMeasureNumber: displayActiveMeasureNumber,
+      activeMeasureNumber,
       measureBoundsByNumber: layout.measureBoundsByNumber,
       playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
       effectiveScale,
       scrollOffsetPx,
     }),
-    [displayActiveMeasureNumber, effectiveScale, layout.measureBoundsByNumber, scrollOffsetPx],
+    [activeMeasureNumber, effectiveScale, layout.measureBoundsByNumber, scrollOffsetPx],
   );
 
   return (

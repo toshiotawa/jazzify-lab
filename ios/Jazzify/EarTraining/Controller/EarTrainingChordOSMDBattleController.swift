@@ -481,10 +481,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         targets = preparedTargets
         resetPhraseRuntimeState()
-        activeMeasureNumber = max(
-            1 + EarTrainingChordOsmdMusicXmlNormalizer.scoreCountInMeasures,
-            targets.first?.measureNumber ?? 1
-        )
+        activeMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
         publishSnapshot()
 
         let prepared = await audio.preparePhraseForImmediatePlayback(url: audioURL)
@@ -604,9 +601,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 return
             }
             let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
-            let displayXml = EarTrainingChordOsmdMusicXmlNormalizer.stripOsmdCountInMeasuresFromMusicXml(
-                EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(prepared.xml)
-            )
+            let displayXml = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(prepared.xml)
             let lyricEvents = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
                 prepared.xml,
                 bpm: Double(stage.bpm),
@@ -741,10 +736,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let measureDuration = beatDuration * Double(max(1, stage.beatsPerMeasure))
         guard measureDuration > 0 else { return }
         let rawMeasure = Int(floor(time / measureDuration)) + 1
-        let countInMeasures = EarTrainingChordOsmdMusicXmlNormalizer.scoreCountInMeasures
-        let firstPlayableMeasure = 1 + countInMeasures
-        let adjustedMeasure = max(firstPlayableMeasure, rawMeasure + countInMeasures - 1)
-        let targetMaxMeasure = targets.map(\.measureNumber).max() ?? firstPlayableMeasure
+        let targetMaxMeasure = targets.map(\.measureNumber).max() ?? 1
         /// Web の `tickerMeasureCount`（phrase.loop_duration_sec から算出）と揃える
         let loopMeasureCapFromPhraseDuration: Int
         if phrases.indices.contains(phraseIndex), phrases[phraseIndex].loopDurationSec > 0 {
@@ -756,7 +748,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             loopMeasureCapFromPhraseDuration = stage.loopMeasures
         }
         let maxMeasure = max(loopMeasureCapFromPhraseDuration, stage.loopMeasures, targetMaxMeasure)
-        let nextMeasure = max(firstPlayableMeasure, min(maxMeasure, adjustedMeasure))
+        let nextMeasure = max(1, min(maxMeasure, rawMeasure))
         if nextMeasure != activeMeasureNumber {
             activeMeasureNumber = nextMeasure
         }
