@@ -67,8 +67,14 @@ final class EarTrainingAudio: NSObject {
     private var loadedPhraseURL: URL?
     /// `preparePhraseForImmediatePlayback` 済みの論理 URL。
     private var preparedForImmediatePlaybackURL: URL?
-    /// キャッシュ上のローカルファイル（再生直前に `AVAudioFile` を開く）。
+    /// キャッシュ上のローカルファイル（PCM 事前デコードに失敗した場合の `scheduleFile` フォールバック用）。
     private var preparedLocalFileURL: URL?
+    /// `preparePhraseForImmediatePlayback` で事前デコードしたフレーズ PCM（短いループ前提）。
+    /// 再生直前のディスク読込レイテンシを排除し、`scheduleBuffer(at:)` の予約ホスト時刻取りこぼし（フレーズ遅延スタート）を防ぐ。
+    /// 長尺・デコード失敗時は nil で、`preparedLocalFileURL` からの `scheduleFile` にフォールバックする。
+    private var preparedPhrasePCM: AVAudioPCMBuffer?
+    /// PCM 事前デコードを許容する最大秒数（これを超える長尺は `scheduleFile` フォールバック）。
+    private static let maxPreparedPhrasePcmSeconds: Double = 180
 
     private var playbackToken: Int = 0
     private var isPhraseEngineRunning = false
@@ -215,6 +221,7 @@ final class EarTrainingAudio: NSObject {
         let token = playbackToken
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
+        preparedPhrasePCM = nil
 
         do {
             let local = try await cache.localFileURL(for: url)
@@ -224,9 +231,15 @@ final class EarTrainingAudio: NSObject {
             guard file.length > 0 else { return false }
             guard playbackToken == token else { return false }
 
+            // 短いループ前提で PCM へ全デコードし、再生直前のディスク読込を排除する（await 区間に重い処理を寄せる）。
+            // 長尺・デコード失敗時は nil のままで、再生時に scheduleFile へフォールバックする。
+            let pcm = Self.decodePhraseFileIfReasonable(file: file)
+            guard playbackToken == token else { return false }
+
             loadedPhraseURL = url
             preparedLocalFileURL = local
             preparedForImmediatePlaybackURL = url
+            preparedPhrasePCM = pcm
 
             await MainActor.run {
                 self.ensureGraph(for: file.processingFormat)
@@ -235,6 +248,15 @@ final class EarTrainingAudio: NSObject {
         } catch {
             return false
         }
+    }
+
+    /// フレーズを PCM へ全デコードする。長すぎる（メモリ過大）場合は nil を返し、呼び出し側は `scheduleFile` にフォールバックする。
+    private static func decodePhraseFileIfReasonable(file: AVAudioFile) -> AVAudioPCMBuffer? {
+        let sampleRate = file.processingFormat.sampleRate
+        guard sampleRate > 0 else { return nil }
+        let maxFrames = Int64(sampleRate * maxPreparedPhrasePcmSeconds)
+        guard file.length > 0, file.length <= maxFrames else { return nil }
+        return decodeEntireFile(file: file)
     }
 
     /// `preparePhraseForImmediatePlayback` 済みの同一 URL ならファイル頭からスケジュールして再生する。
@@ -247,10 +269,19 @@ final class EarTrainingAudio: NSObject {
             return false
         }
 
+        let preparedPCM = preparedPhrasePCM
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
+        preparedPhrasePCM = nil
 
         let scheduleToken = playbackToken
+
+        if let preparedPCM {
+            stopPhrasePlaybackOnly()
+            ensureGraph(for: preparedPCM.format)
+            schedulePhraseBuffer(preparedPCM, scheduleToken: scheduleToken, onStarted: onStarted, phraseMuted: phraseMuted)
+            return true
+        }
 
         do {
             let file = try AVAudioFile(forReading: local)
@@ -288,88 +319,110 @@ final class EarTrainingAudio: NSObject {
         let halfBeatSec = 30.0 / Double(safeBpm)
         let inputWindowStartDelaySec = max(0, phraseStartDelaySec - halfBeatSec)
 
-        do {
-            let file = try AVAudioFile(forReading: local)
-            stopPhrasePlaybackOnly()
-            ensureGraph(for: file.processingFormat)
-            startPhraseEngineIfNeeded()
-
-            guard let pcm = clickPCM else { return nil }
-
-            preparedForImmediatePlaybackURL = nil
-            preparedLocalFileURL = nil
-
-            clickPlayer.stop()
-            phrasePlayer.stop()
-
-            clickPlayer.play()
-            phrasePlayer.play()
-
-            let nowHost = mach_absolute_time()
-            let leadHost = AVAudioTime.hostTime(forSeconds: leadInSec)
-            let beatHost = AVAudioTime.hostTime(forSeconds: beatDurationSec)
-
-            var clickIndex: UInt64 = 0
-            while clickIndex < UInt64(safeBeats) {
-                let hostTime = nowHost &+ leadHost &+ beatHost &* clickIndex
-                let when = AVAudioTime(hostTime: hostTime)
-                let clickBuf: AVAudioPCMBuffer = {
-                    if clickIndex == 0, let loud = clickPCMFirstBeat { return loud }
-                    return pcm
-                }()
-                clickPlayer.scheduleBuffer(clickBuf, at: when, options: [], completionHandler: nil)
-                clickIndex &+= 1
-            }
-
-            let phraseHost = nowHost &+ leadHost &+ beatHost &* UInt64(safeBeats)
-            let phraseWhen = AVAudioTime(hostTime: phraseHost)
-            phrasePlaybackAnchorHostTime = phraseHost
-
-            phrasePlayer.scheduleFile(file, at: phraseWhen, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    guard self.playbackToken == scheduleToken else { return }
-                    self.currentTimeSec = 0
-                    self.phrasePlaybackAnchorHostTime = 0
-                    self.stopTimeTicker()
-                    self.phrasePlayer.stop()
-                    self.clickPlayer.stop()
-                    self.onEnded?()
-                }
-            }
-
-            startTimeTickerIfNeeded()
-
-            let inputWindowToken = scheduleToken
-            DispatchQueue.main.asyncAfter(deadline: .now() + inputWindowStartDelaySec) { [weak self] in
-                guard let self else { return }
-                guard self.playbackToken == inputWindowToken else { return }
-                onInputWindowStarted?()
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + phraseStartDelaySec) { [weak self] in
-                guard let self else { return }
-                guard self.playbackToken == scheduleToken else { return }
-                let cb = onPhraseStarted
-                cb?()
-            }
-
-            return EarTrainingScheduledCountInPhrase(
-                leadInSec: leadInSec,
-                beatDurationSec: beatDurationSec,
-                countInBeats: safeBeats,
-                phraseStartDelaySec: phraseStartDelaySec,
-                inputWindowStartDelaySec: inputWindowStartDelaySec
-            )
-        } catch {
+        // フレーズは事前デコード済み PCM を優先。無い場合のみファイルから（フォールバック）。
+        let preparedPCM = preparedPhrasePCM
+        let fallbackFile: AVAudioFile?
+        let phraseFormat: AVAudioFormat
+        if let preparedPCM {
+            fallbackFile = nil
+            phraseFormat = preparedPCM.format
+        } else if let file = try? AVAudioFile(forReading: local) {
+            fallbackFile = file
+            phraseFormat = file.processingFormat
+        } else {
             return nil
         }
+
+        stopPhrasePlaybackOnly()
+        ensureGraph(for: phraseFormat)
+        startPhraseEngineIfNeeded()
+
+        guard let pcm = clickPCM else { return nil }
+
+        preparedForImmediatePlaybackURL = nil
+        preparedLocalFileURL = nil
+        preparedPhrasePCM = nil
+
+        clickPlayer.stop()
+        phrasePlayer.stop()
+
+        // 予約ホスト時刻の取りこぼし（フレーズ遅延スタート＝判定ずれ）を防ぐためプリロールを促す。
+        engine.prepare()
+
+        clickPlayer.play()
+        phrasePlayer.play()
+
+        let nowHost = mach_absolute_time()
+        let leadHost = AVAudioTime.hostTime(forSeconds: leadInSec)
+        let beatHost = AVAudioTime.hostTime(forSeconds: beatDurationSec)
+
+        var clickIndex: UInt64 = 0
+        while clickIndex < UInt64(safeBeats) {
+            let hostTime = nowHost &+ leadHost &+ beatHost &* clickIndex
+            let when = AVAudioTime(hostTime: hostTime)
+            let clickBuf: AVAudioPCMBuffer = {
+                if clickIndex == 0, let loud = clickPCMFirstBeat { return loud }
+                return pcm
+            }()
+            clickPlayer.scheduleBuffer(clickBuf, at: when, options: [], completionHandler: nil)
+            clickIndex &+= 1
+        }
+
+        let phraseHost = nowHost &+ leadHost &+ beatHost &* UInt64(safeBeats)
+        let phraseWhen = AVAudioTime(hostTime: phraseHost)
+        phrasePlaybackAnchorHostTime = phraseHost
+
+        let onPhraseCompleted: AVAudioPlayerNodeCompletionHandler = { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard self.playbackToken == scheduleToken else { return }
+                self.currentTimeSec = 0
+                self.phrasePlaybackAnchorHostTime = 0
+                self.stopTimeTicker()
+                self.phrasePlayer.stop()
+                self.clickPlayer.stop()
+                self.onEnded?()
+            }
+        }
+
+        if let preparedPCM {
+            phrasePlayer.scheduleBuffer(preparedPCM, at: phraseWhen, options: [], completionCallbackType: .dataPlayedBack, completionHandler: onPhraseCompleted)
+        } else if let fallbackFile {
+            phrasePlayer.scheduleFile(fallbackFile, at: phraseWhen, completionCallbackType: .dataPlayedBack, completionHandler: onPhraseCompleted)
+        } else {
+            return nil
+        }
+
+        startTimeTickerIfNeeded()
+
+        let inputWindowToken = scheduleToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + inputWindowStartDelaySec) { [weak self] in
+            guard let self else { return }
+            guard self.playbackToken == inputWindowToken else { return }
+            onInputWindowStarted?()
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + phraseStartDelaySec) { [weak self] in
+            guard let self else { return }
+            guard self.playbackToken == scheduleToken else { return }
+            let cb = onPhraseStarted
+            cb?()
+        }
+
+        return EarTrainingScheduledCountInPhrase(
+            leadInSec: leadInSec,
+            beatDurationSec: beatDurationSec,
+            countInBeats: safeBeats,
+            phraseStartDelaySec: phraseStartDelaySec,
+            inputWindowStartDelaySec: inputWindowStartDelaySec
+        )
     }
 
     /// フレーズ MP3 を頭から再生する（準備に失敗した場合のフォールバック）。
     func playPhrase(url: URL, onStarted: (() -> Void)? = nil) {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
+        preparedPhrasePCM = nil
         playbackToken += 1
         let token = playbackToken
 
@@ -398,6 +451,7 @@ final class EarTrainingAudio: NSObject {
     func stopPhrase() {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
+        preparedPhrasePCM = nil
         playbackToken += 1
         phraseMixer.outputVolume = phraseVolume
         phrasePlayer.stop()
@@ -661,6 +715,51 @@ final class EarTrainingAudio: NSObject {
         }
 
         phrasePlayer.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard self.playbackToken == scheduleToken else { return }
+                self.phraseMixer.outputVolume = self.phraseVolume
+                self.currentTimeSec = 0
+                self.stopTimeTicker()
+                self.phrasePlayer.stop()
+                self.clickPlayer.stop()
+                self.onEnded?()
+            }
+        }
+
+        phrasePlayer.play()
+        startTimeTickerIfNeeded()
+
+        let cb = onStarted
+        if let cb {
+            if Thread.isMainThread {
+                cb()
+            } else {
+                DispatchQueue.main.async(execute: cb)
+            }
+        }
+    }
+
+    /// 事前デコード済み PCM をファイル頭から即再生する（`schedulePhrase` の PCM 版）。
+    private func schedulePhraseBuffer(
+        _ buffer: AVAudioPCMBuffer,
+        scheduleToken: Int,
+        onStarted: (() -> Void)?,
+        phraseMuted: Bool = false
+    ) {
+        startPhraseEngineIfNeeded()
+
+        phrasePlayer.stop()
+        currentTimeSec = 0
+        phrasePlaybackAnchorHostTime = 0
+
+        if phraseMuted {
+            phraseMixer.outputVolume = 0
+        }
+
+        engine.prepare()
+
+        phrasePlayer.scheduleBuffer(buffer, at: nil, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self else { return }
                 guard self.playbackToken == scheduleToken else { return }

@@ -422,7 +422,10 @@ final class SurvivalGameAudio {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
         try? session.setPreferredSampleRate(44_100)
-        try? session.setPreferredIOBufferDuration(0.005)
+        // 5ms の極小 IO バッファはレンダースレッドの締切が厳しく、初回の SF2 ロード/コールドスタートの
+        // CPU スパイクでアンダーラン（「ガガガ」）を起こしやすい（特に iPad / デベロッパービルド）。
+        // 本ゲームは独自タイミングで動作し超低レイテンシは不要なため、余裕のある 20ms へ緩める。
+        try? session.setPreferredIOBufferDuration(0.02)
         try? session.setActive(true, options: [])
     }
 
@@ -598,6 +601,8 @@ final class SurvivalGameAudio {
         guard !isStopping else { return }
         if isEngineStarted && engine.isRunning { return }
         do {
+            // レンダーリソースを事前確保し、コールドスタート初回の取りこぼし（グリッチ）を抑える。
+            engine.prepare()
             try engine.start()
             applyVolumesToNodes()
             isEngineStarted = true
