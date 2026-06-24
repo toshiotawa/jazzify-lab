@@ -388,8 +388,102 @@ export const musicXmlMeasureToOsmdDisplayMeasure = (
   countInMeasures: number = CHORD_OSMD_SCORE_COUNT_IN_MEASURES,
 ): number => Math.max(1, Math.trunc(musicXmlMeasureNumber) - countInMeasures);
 
+const ATTRIBUTE_CHILD_CANONICAL_ORDER = ['divisions', 'key', 'time', 'staves', 'clef'] as const;
+
+const attributesChildKey = (element: Element): string => {
+  const number = element.getAttribute('number')?.trim();
+  return number ? `${element.localName}#${number}` : element.localName;
+};
+
+const canonicalAttributesChildOrder = (localName: string): number => {
+  const idx = ATTRIBUTE_CHILD_CANONICAL_ORDER.indexOf(
+    localName as (typeof ATTRIBUTE_CHILD_CANONICAL_ORDER)[number],
+  );
+  return idx >= 0 ? idx : ATTRIBUTE_CHILD_CANONICAL_ORDER.length + localName.charCodeAt(0);
+};
+
+const collectAttributesChildrenFromMeasure = (
+  measure: Element,
+  collected: Map<string, Element>,
+): void => {
+  const attributes = getDirectChild(measure, 'attributes');
+  if (!attributes) {
+    return;
+  }
+  for (let child = attributes.firstElementChild; child; child = child.nextElementSibling) {
+    collected.set(attributesChildKey(child), child);
+  }
+};
+
+const findNewAttributesElementInsertBefore = (measure: Element): ChildNode | null => {
+  let insertBefore: ChildNode | null = null;
+  for (let child = measure.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.localName === 'print') {
+      insertBefore = child.nextSibling;
+      continue;
+    }
+    break;
+  }
+  return insertBefore;
+};
+
+const insertAttributesChildInCanonicalOrder = (
+  attributes: Element,
+  newChild: Element,
+): void => {
+  const newKey = attributesChildKey(newChild);
+  const newOrder = canonicalAttributesChildOrder(newChild.localName);
+  for (let child = attributes.firstElementChild; child; child = child.nextElementSibling) {
+    const childOrder = canonicalAttributesChildOrder(child.localName);
+    const childKey = attributesChildKey(child);
+    if (childOrder > newOrder || (childOrder === newOrder && childKey > newKey)) {
+      attributes.insertBefore(newChild, child);
+      return;
+    }
+  }
+  attributes.appendChild(newChild);
+};
+
+const mergeCollectedAttributesIntoMeasure = (
+  doc: Document,
+  measure: Element,
+  collected: ReadonlyMap<string, Element>,
+): boolean => {
+  if (collected.size === 0) {
+    return false;
+  }
+
+  let attributes = getDirectChild(measure, 'attributes');
+  let changed = false;
+  if (!attributes) {
+    attributes = doc.createElement('attributes');
+    measure.insertBefore(attributes, findNewAttributesElementInsertBefore(measure));
+    changed = true;
+  }
+
+  const existingKeys = new Set<string>();
+  for (let child = attributes.firstElementChild; child; child = child.nextElementSibling) {
+    existingKeys.add(attributesChildKey(child));
+  }
+
+  for (const [key, source] of collected) {
+    if (existingKeys.has(key)) {
+      continue;
+    }
+    const clone = source.cloneNode(true);
+    if (!isElementNode(clone)) {
+      continue;
+    }
+    insertAttributesChildInCanonicalOrder(attributes, clone);
+    changed = true;
+  }
+
+  return changed;
+};
+
 /**
  * OSMD 楽譜表示用に各 `<part>` 先頭のカウントイン小節を除去する。
+ * 削除小節の `<attributes>`（divisions/key/time/staves/clef 等）は新しい先頭小節へ引き継ぐ。
  * 判定・歌詞収集などゲームロジック用 XML には適用しない。
  */
 export const stripOsmdCountInMeasuresFromMusicXml = (
@@ -410,14 +504,28 @@ export const stripOsmdCountInMeasuresFromMusicXml = (
 
   let changed = false;
   for (const part of Array.from(doc.getElementsByTagName('part'))) {
-    for (let removed = 0; removed < countInMeasures; removed += 1) {
-      const firstMeasure = Array.from(part.children).find(
-        child => child.localName === 'measure',
-      );
-      if (!firstMeasure) {
-        break;
-      }
-      part.removeChild(firstMeasure);
+    const measures = Array.from(part.children).filter(
+      (child): child is Element => isElementNode(child) && child.localName === 'measure',
+    );
+    if (measures.length === 0) {
+      continue;
+    }
+
+    const collected = new Map<string, Element>();
+    const removeCount = Math.min(countInMeasures, measures.length);
+    for (let index = 0; index < removeCount; index += 1) {
+      collectAttributesChildrenFromMeasure(measures[index], collected);
+    }
+
+    for (let index = 0; index < removeCount; index += 1) {
+      part.removeChild(measures[index]);
+      changed = true;
+    }
+
+    const newFirstMeasure = Array.from(part.children).find(
+      (child): child is Element => isElementNode(child) && child.localName === 'measure',
+    );
+    if (newFirstMeasure && mergeCollectedAttributesIntoMeasure(doc, newFirstMeasure, collected)) {
       changed = true;
     }
   }
