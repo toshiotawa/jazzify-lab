@@ -496,15 +496,11 @@ private struct EarTrainingPianoKeyButton: View {
 
     @State private var isPressing: Bool = false
 
-    /// Web `NEXT_TARGET_COLOR`（#f39800 マリーゴールド）と統一。
-    private static let voicingHintPendingColor = Color(red: 243.0 / 255.0, green: 152.0 / 255.0, blue: 0.0)
-    /// Web `CORRECT_NOTATION_COLOR`（#22c55e 緑）と統一。
-    private static let voicingHintCompletedColor = Color(red: 34.0 / 255.0, green: 197.0 / 255.0, blue: 94.0 / 255.0)
-
     var body: some View {
         ZStack(alignment: .bottom) {
             RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                 .fill(fillColor)
+                .overlay(activeKeyOverlay)
                 .overlay(
                     RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                         .stroke(Color.black.opacity(0.85), lineWidth: 1)
@@ -536,10 +532,6 @@ private struct EarTrainingPianoKeyButton: View {
     }
 
     private var fillColor: Color {
-        let held = isPressing || isMidiHeld
-        if held {
-            return isBlack ? PianoKeyboardTheme.blackKeyPressed : PianoKeyboardTheme.whiteKeyPressed
-        }
         if let voicingHintIntensity {
             let alpha: CGFloat
             switch voicingHintIntensity {
@@ -551,15 +543,29 @@ private struct EarTrainingPianoKeyButton: View {
                 alpha = 0.30
             }
             let base = isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey
-            return Color.earTrainingLerp(from: base, toward: Self.voicingHintPendingColor, t: alpha)
+            return Color.earTrainingLerp(from: base, toward: PianoKeyboardTheme.voicingHintPending, t: alpha)
         }
         switch voicingHint {
         case .completed:
-            return Self.voicingHintCompletedColor
+            return PianoKeyboardTheme.voicingHintCompleted
         case .pending:
-            return Self.voicingHintPendingColor
+            return PianoKeyboardTheme.voicingHintPending
         case .none:
             return isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey
+        }
+    }
+
+    @ViewBuilder
+    private var activeKeyOverlay: some View {
+        if isPressing || isMidiHeld {
+            RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                .fill(
+                    PianoKeyboardTheme.activeKey.opacity(
+                        Double(isBlack
+                            ? PianoKeyboardTheme.activeKeyOverlayOpacityBlack
+                            : PianoKeyboardTheme.activeKeyOverlayOpacityWhite)
+                    )
+                )
         }
     }
 }

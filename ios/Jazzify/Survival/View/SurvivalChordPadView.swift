@@ -470,13 +470,6 @@ struct SurvivalChordPadView: View, Equatable {
 }
 
 private struct PianoKeyButton: View {
-    private static let marigold = Color(red: 0.93, green: 0.62, blue: 0.13)
-    /// 象牙白鍵上でも視認できるよう彩度・コントラストをやや上げる（Web `#f39800` ヒント系）。
-    private static let marigoldLight = Color(red: 0.97, green: 0.80, blue: 0.32)
-    private static let marigoldLightPressed = Color(red: 0.94, green: 0.68, blue: 0.18)
-    private static let marigoldDark = Color(red: 0.42, green: 0.26, blue: 0.06)
-    private static let marigoldDarkPressed = Color(red: 0.55, green: 0.35, blue: 0.10)
-
     let label: String
     let isBlack: Bool
     let isHinted: Bool
@@ -493,18 +486,12 @@ private struct PianoKeyButton: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
-                .fill(fillColor)
-                .overlay(
-                    RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
-                        .fill(hintFillOverlayColor.opacity(Double(hintFillOverlayOpacity)))
-                )
+                .fill(isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey)
+                .overlay(hintOverlay)
+                .overlay(activeKeyOverlay)
                 .overlay(
                     RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                         .stroke(Color.black.opacity(0.85), lineWidth: 1)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
-                        .stroke(hintBorderColor, lineWidth: hintBorderWidth)
                 )
             if !label.isEmpty {
                 Text(label)
@@ -532,44 +519,36 @@ private struct PianoKeyButton: View {
         )
     }
 
-    private var hintBorderWidth: CGFloat {
-        ((isHinted && !isHintCompleted) || isHintCompleted) ? 3 : 0
-    }
-
-    private var hintBorderColor: Color {
-        if isHintCompleted { return .green }
-        if isHinted { return Self.marigold.opacity(Double(hintPendingOpacity)) }
-        return .clear
-    }
-
-    private var hintFillOverlayOpacity: CGFloat {
-        (isHinted && !isHintCompleted) ? hintPendingOpacity : 0
-    }
-
-    private var hintFillOverlayColor: Color {
-        guard isHinted, !isHintCompleted else { return .clear }
-        let held = isPressing || isMidiHeld
-        if isBlack {
-            return held ? Self.marigoldDarkPressed : Self.marigoldDark
-        }
-        return held ? Self.marigoldLightPressed : Self.marigoldLight
-    }
-
-    private var fillColor: Color {
-        let held = isPressing || isMidiHeld
-        if isBlack {
-            if isHintCompleted {
-                return held
-                    ? Color(red: 0.15, green: 0.55, blue: 0.25)
-                    : Color(red: 0.10, green: 0.40, blue: 0.18)
-            }
-            return held ? PianoKeyboardTheme.blackKeyPressed : PianoKeyboardTheme.blackKey
-        }
+    @ViewBuilder
+    private var hintOverlay: some View {
         if isHintCompleted {
-            return held
-                ? Color(red: 0.55, green: 0.90, blue: 0.55)
-                : Color(red: 0.78, green: 1.0, blue: 0.78)
+            RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                .fill(
+                    PianoKeyboardTheme.voicingHintCompleted.opacity(
+                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity)
+                    )
+                )
+        } else if isHinted {
+            RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                .fill(
+                    PianoKeyboardTheme.voicingHintPending.opacity(
+                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity * hintPendingOpacity)
+                    )
+                )
         }
-        return held ? PianoKeyboardTheme.whiteKeyPressed : PianoKeyboardTheme.whiteKey
+    }
+
+    @ViewBuilder
+    private var activeKeyOverlay: some View {
+        if isPressing || isMidiHeld {
+            RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                .fill(
+                    PianoKeyboardTheme.activeKey.opacity(
+                        Double(isBlack
+                            ? PianoKeyboardTheme.activeKeyOverlayOpacityBlack
+                            : PianoKeyboardTheme.activeKeyOverlayOpacityWhite)
+                    )
+                )
+        }
     }
 }
