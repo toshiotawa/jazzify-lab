@@ -1,6 +1,7 @@
 /**
  * 両手ヴォイシングコース(上級) — So What / UST 5 音ヴォイシング。
  */
+import { keyFifthsForAdvancedCategory } from '@/utils/twoHandVoicingKeyFifths';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import {
   noteNamesToMidi,
@@ -400,13 +401,36 @@ const lookupVoicing = (
   return voicingEntry;
 };
 
+const resolveAdvancedKeyFifths = (
+  category: AdvancedChordCategory,
+  symbol: string,
+  fallback: number,
+): number => {
+  if (category === 'M7') {
+    return fallback;
+  }
+  return keyFifthsForAdvancedCategory(category, symbol);
+};
+
+const lookupVoicingWithKeyFifths = (
+  table: Record<string, AdvancedVoicingEntry>,
+  symbol: string,
+  category: AdvancedChordCategory,
+): AdvancedVoicingEntry => {
+  const voicingEntry = lookupVoicing(table, symbol);
+  return {
+    ...voicingEntry,
+    keyFifths: resolveAdvancedKeyFifths(category, symbol, voicingEntry.keyFifths),
+  };
+};
+
 export const buildAdvancedQuizItems = (
   progressionSpec: AdvancedProgressionSpec,
   category: AdvancedChordCategory,
 ): QuizItemSpec[] => {
   const table = resolveAdvancedVoicingTable(category);
   return progressionSpec.chordSymbols.map((symbol, orderIndex) => {
-    const voicingEntry = lookupVoicing(table, symbol);
+    const voicingEntry = lookupVoicingWithKeyFifths(table, symbol, category);
     return {
       orderIndex,
       measureNumber: orderIndex + 1,
@@ -425,7 +449,7 @@ export const buildAdvancedVoicingPhrase = (
 ): VoicingPhraseSpec => {
   const table = resolveAdvancedVoicingTable(category);
   const chords: VoicingPhraseChordSpec[] = progressionSpec.chordSymbols.map((symbol, chordIndex) => {
-    const voicingEntry = lookupVoicing(table, symbol);
+    const voicingEntry = lookupVoicingWithKeyFifths(table, symbol, category);
     const startTimeSec = chordIndex * SEC_PER_MEASURE_AT_100;
     const endTimeSec = (chordIndex + 1) * SEC_PER_MEASURE_AT_100;
     return {
@@ -439,7 +463,7 @@ export const buildAdvancedVoicingPhrase = (
     };
   });
 
-  const firstEntry = lookupVoicing(table, progressionSpec.chordSymbols[0]);
+  const firstEntry = lookupVoicingWithKeyFifths(table, progressionSpec.chordSymbols[0], category);
 
   return {
     phraseIndex: 0,
@@ -456,7 +480,7 @@ export const buildAdvancedSurvivalProgression = (
 ): SurvivalProgressionChordJson[] => {
   const table = resolveAdvancedVoicingTable(category);
   return progressionSpec.chordSymbols.map((symbol) => {
-    const voicingEntry = lookupVoicing(table, symbol);
+    const voicingEntry = lookupVoicingWithKeyFifths(table, symbol, category);
     return buildAdvancedSurvivalChordJson(
       voicingEntry.symbol,
       voicingEntry.notes,

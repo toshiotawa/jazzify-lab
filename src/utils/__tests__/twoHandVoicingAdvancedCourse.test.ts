@@ -20,6 +20,48 @@ describe('twoHandVoicingAdvancedCourse', () => {
     expect(entry.symbol).toBe('Cm7');
   });
 
+  it('key_fifths は機能度数で解決される', () => {
+    const m7Lesson = TWO_HAND_VOICING_ADVANCED_LESSONS.find((entry) => entry.lessonKey === 'b1-m7');
+    expect(m7Lesson).toBeDefined();
+    if (!m7Lesson) {
+      return;
+    }
+    const m7Items = buildAdvancedQuizItems(m7Lesson.progressions[0], m7Lesson.category);
+    expect(m7Items[0]?.keyFifths).toBe(-3);
+
+    const altLesson = TWO_HAND_VOICING_ADVANCED_LESSONS.find((entry) => entry.lessonKey === 'b1-7alt');
+    expect(altLesson).toBeDefined();
+    if (!altLesson) {
+      return;
+    }
+    const altItems = buildAdvancedQuizItems(altLesson.progressions[0], altLesson.category);
+    expect(altItems[0]?.keyFifths).toBe(-3);
+
+    const m7b5Lesson = TWO_HAND_VOICING_ADVANCED_EXT_LESSONS.find((entry) => entry.lessonKey === 'b1-m7b5');
+    expect(m7b5Lesson).toBeDefined();
+    if (!m7b5Lesson) {
+      return;
+    }
+    const m7b5Items = buildAdvancedQuizItems(m7b5Lesson.progressions[0], m7b5Lesson.category);
+    expect(m7b5Items[0]?.keyFifths).toBe(1);
+
+    const dom7Lesson = TWO_HAND_VOICING_ADVANCED_EXT_LESSONS.find((entry) => entry.lessonKey === 'b1-7s11');
+    expect(dom7Lesson).toBeDefined();
+    if (!dom7Lesson) {
+      return;
+    }
+    const dom7Items = buildAdvancedQuizItems(dom7Lesson.progressions[0], dom7Lesson.category);
+    expect(dom7Items[0]?.keyFifths).toBe(2);
+
+    const mm7Lesson = TWO_HAND_VOICING_ADVANCED_EXT_LESSONS.find((entry) => entry.lessonKey === 'b1-mm7');
+    expect(mm7Lesson).toBeDefined();
+    if (!mm7Lesson) {
+      return;
+    }
+    const mm7Items = buildAdvancedQuizItems(mm7Lesson.progressions[0], mm7Lesson.category);
+    expect(mm7Items[0]?.keyFifths).toBe(-3);
+  });
+
   it('AbM7 は So What M7 P5 基準ヴォイシングを持つ', () => {
     const entry = SO_WHAT_MAJOR_M7_VOICINGS.AbM7;
     expect(entry.notes).toEqual(['C3', 'F3', 'Bb3', 'Eb4', 'G4']);
