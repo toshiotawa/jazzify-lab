@@ -83,9 +83,12 @@ const appendSurvivalStageSql = (
 ): void => {
   const progressionChords = getIiValtIProgressionChords(progression);
   const stageNumber = resolveBlock3IiValtISurvivalStageNumberForProgression(progression);
-  const displayName = progression.isSummary
+  const displayNameJa = progression.isSummary
     ? `${lesson.titleJa}: まとめ`
     : `${lesson.titleJa}: ${progression.titleJa}`;
+  const displayNameEn = progression.isSummary
+    ? `${lesson.titleEn}: All keys`
+    : `${lesson.titleEn}: ${progression.titleEn}`;
 
   lines.push(
     'INSERT INTO public.survival_stages (',
@@ -96,8 +99,8 @@ const appendSurvivalStageSql = (
     '  lesson_only, production_staff_hint_mode, production_keyboard_hint_mode, grand_staff_mode',
     ') VALUES (',
     `  'lesson', ${stageNumber}, 'progression', 'survival',`,
-    `  ${sqlString(`両手ヴォイシング: ${displayName}`)},`,
-    `  ${sqlString(`Two-hand voicing: ${displayName}`)},`,
+    `  ${sqlString(`両手ヴォイシング: ${displayNameJa}`)},`,
+    `  ${sqlString(`Two-hand voicing: ${displayNameEn}`)},`,
     "  'easy', '', 'II-Valt-I', 'II-Valt-I',",
     '  NULL, NULL, NULL,',
     `  ${sqlString(lesson.survivalBlockKey)}, false, NULL,`,

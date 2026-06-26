@@ -3055,13 +3055,7 @@ struct LessonDetailView: View {
     }
 
     private func localizedLessonSongTitle(_ requirement: LessonSong) -> String? {
-        if locale == .en, let en = requirement.titleEn, !en.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return en
-        }
-        if let title = requirement.title, !title.isEmpty {
-            return title
-        }
-        return nil
+        requirement.localizedTitle(locale)
     }
 
     private func requirementTitle(_ requirement: LessonSong, index: Int) -> String {
@@ -3078,6 +3072,13 @@ struct LessonDetailView: View {
             return "\(index + 1). \(locale == .ja ? "耳コピバトルチュートリアル" : "Ear Training Tutorial")"
         }
         if requirement.isSurvival == true, let stageNumber = requirement.survivalStageNumber {
+            let mapCategory = SurvivalMapCategory.resolveLessonMapCategory(requirement.survivalMapCategory)
+            if let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory) {
+                let stageName = stage.localizedName(locale)
+                if !stageName.isEmpty {
+                    return "\(index + 1). \(stageName)"
+                }
+            }
             return "\(index + 1). \(locale == .ja ? "サバイバル ステージ" : "Survival Stage") \(stageNumber)"
         }
         if requirement.isFantasy, let fantasyStage = requirement.fantasyStage {
@@ -3130,6 +3131,13 @@ struct LessonDetailView: View {
             return songTitle
         }
         if let stageNumber = requirement.survivalStageNumber {
+            let mapCategory = SurvivalMapCategory.resolveLessonMapCategory(requirement.survivalMapCategory)
+            if let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory) {
+                let stageName = stage.localizedName(locale)
+                if !stageName.isEmpty {
+                    return stageName
+                }
+            }
             return String(stageNumber)
         }
         if let fantasyStage = requirement.fantasyStage?.stageNumber {

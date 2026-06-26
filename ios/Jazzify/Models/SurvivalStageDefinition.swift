@@ -428,7 +428,11 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     }
 
     func localizedName(_ locale: AppLocale) -> String {
-        locale == .en ? nameEn : nameJa
+        if locale == .en {
+            let en = nameEn.trimmingCharacters(in: .whitespacesAndNewlines)
+            return en.isEmpty ? "" : en
+        }
+        return nameJa
     }
 
     func localizedChordDisplay(_ locale: AppLocale) -> String {

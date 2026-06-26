@@ -375,11 +375,19 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
-        locale == .en ? (titleEn ?? title) : title
+        if locale == .en {
+            let en = titleEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? "" : en
+        }
+        return title
     }
 
     func localizedDescription(_ locale: AppLocale) -> String? {
-        locale == .en ? (descriptionEn ?? description) : description
+        if locale == .en {
+            let en = descriptionEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? nil : en
+        }
+        return description
     }
 
     /// Web 版 `sortStageRelations` ([src/platform/supabaseEarTraining.ts L35-45]) と同じ並び順に整える。

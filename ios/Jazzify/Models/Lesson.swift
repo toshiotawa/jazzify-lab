@@ -116,6 +116,28 @@ struct Lesson: Codable, Identifiable, Sendable {
     }
 }
 
+private enum LessonLocalization {
+    static let tutorialBlockNameJa = "チュートリアル"
+    static let tutorialBlockNameEn = "Tutorial"
+}
+
+extension Lesson {
+    /// Web `lessonDisplayBlockName` と同様。
+    func localizedBlockName(_ locale: AppLocale) -> String {
+        let blockNumber = blockNumber ?? 1
+        if locale == .en, let en = blockNameEn?.trimmingCharacters(in: .whitespacesAndNewlines), !en.isEmpty {
+            return en
+        }
+        if let name = blockName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            if locale == .en, name == LessonLocalization.tutorialBlockNameJa {
+                return LessonLocalization.tutorialBlockNameEn
+            }
+            return name
+        }
+        return locale == .ja ? "ブロック \(blockNumber)" : "Block \(blockNumber)"
+    }
+}
+
 extension Lesson: Hashable {
     static func == (lhs: Lesson, rhs: Lesson) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -304,11 +326,19 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
-        locale == .en ? (titleEn ?? title) : title
+        if locale == .en {
+            let en = titleEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? "" : en
+        }
+        return title
     }
 
     func localizedDescription(_ locale: AppLocale) -> String? {
-        locale == .en ? (descriptionEn ?? description) : description
+        if locale == .en {
+            let en = descriptionEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? nil : en
+        }
+        return description
     }
 
     func battleClearConditionText(locale: AppLocale) -> String {
@@ -448,4 +478,37 @@ struct LessonRequirementProgressRow: Codable, Identifiable, Sendable {
 struct LessonRequirementDailyProgress: Codable, Sendable {
     let count: Int
     let completed: Bool
+}
+
+extension LessonDetail {
+    /// Web `lessonDisplayBlockName` と同様。
+    func localizedBlockName(_ locale: AppLocale) -> String {
+        let blockNumber = blockNumber ?? 1
+        if locale == .en, let en = blockNameEn?.trimmingCharacters(in: .whitespacesAndNewlines), !en.isEmpty {
+            return en
+        }
+        if let name = blockName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            if locale == .en, name == LessonLocalization.tutorialBlockNameJa {
+                return LessonLocalization.tutorialBlockNameEn
+            }
+            return name
+        }
+        return locale == .ja ? "ブロック \(blockNumber)" : "Block \(blockNumber)"
+    }
+}
+
+extension LessonSong {
+    /// Web `lessonSongDisplayTitle` と同様。英語 UI では title_en のみ（未設定なら nil）。
+    func localizedTitle(_ locale: AppLocale) -> String? {
+        if locale == .en {
+            guard let en = titleEn?.trimmingCharacters(in: .whitespacesAndNewlines), !en.isEmpty else {
+                return nil
+            }
+            return en
+        }
+        guard let ja = title?.trimmingCharacters(in: .whitespacesAndNewlines), !ja.isEmpty else {
+            return nil
+        }
+        return ja
+    }
 }

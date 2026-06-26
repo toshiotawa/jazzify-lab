@@ -22,11 +22,19 @@ struct FantasyStage: Codable, Identifiable, Sendable {
     }
 
     func localizedName(_ locale: AppLocale) -> String {
-        locale == .en ? (nameEn ?? name) : name
+        if locale == .en {
+            let en = nameEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? "" : en
+        }
+        return name
     }
 
     func localizedDescription(_ locale: AppLocale) -> String? {
-        locale == .en ? (descriptionEn ?? description) : description
+        if locale == .en {
+            let en = descriptionEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? nil : en
+        }
+        return description
     }
 
     var rankNumber: Int? {
