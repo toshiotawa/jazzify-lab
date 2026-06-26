@@ -11,6 +11,14 @@ private let kRootBassSoundBankResourceName = "FingerBassYR 20190930"
 private let kSoundBankDefaultProgram: UInt8 = 0
 /// GM 正解ルートの再生オクターブシフト（呼び出し側は C2 起点 MIDI、そのまま C2 で再生）
 private let kRootBassPlaybackOctaveShift = 0
+/// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
+private let kMasterHeadroomGain: Float = 0.7
+/// Apple AUPeakLimiter の AudioUnit パラメータ ID（AudioUnit/AUParameters.h）。
+private enum PeakLimiterParameter {
+    static let attackTime: AudioUnitParameterID = 0
+    static let decayTime: AudioUnitParameterID = 1
+    static let preGain: AudioUnitParameterID = 2
+}
 
 /// サバイバル ゲーム画面専用の軽量オーディオマネージャ。
 /// - AVAudioEngine + AVAudioUnitSampler で SE 用 MIDI ノート再生（内蔵音色）
@@ -53,6 +61,18 @@ final class SurvivalGameAudio {
     /// ピアノ音量を独立制御するためのミキサー (main mixer の手前に挟む)。
     private let pianoMixer = AVAudioMixerNode()
     private let rootBassMixer = AVAudioMixerNode()
+    /// SFX 専用ピークリミッター。AUPeakLimiter のルックアヘッドで数 ms の遅延が生じるため、
+    /// 鍵盤 / 正解ルートは mainMixer へ直結し、タイミング重視の SE のみ通す。
+    private let limiter: AVAudioUnitEffect = {
+        let description = AudioComponentDescription(
+            componentType: kAudioUnitType_Effect,
+            componentSubType: kAudioUnitSubType_PeakLimiter,
+            componentManufacturer: kAudioUnitManufacturer_Apple,
+            componentFlags: 0,
+            componentFlagsMask: 0
+        )
+        return AVAudioUnitEffect(audioComponentDescription: description)
+    }()
     /// 正解ルート用: FingerBass SF2（メイン鍵盤とは別系統）
     private let rootBassSampler = AVAudioUnitSampler()
     private var rootBassGMReady = false
@@ -94,15 +114,18 @@ final class SurvivalGameAudio {
         engine.attach(rootBassSampler)
         engine.attach(keyboardGrandSampler)
         engine.attach(rootBassMixer)
+        engine.attach(limiter)
         engine.connect(sampler, to: sfxMixer, format: nil)
-        engine.connect(sfxMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(sfxMixer, to: limiter, format: nil)
+        engine.connect(limiter, to: engine.mainMixerNode, format: nil)
         engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
-        // 正解ルート音 (シンセ) は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
-        // Web 版 `FantasySoundManager._playRootNote` の master gain (0.3 + effectiveVolume * 0.7)
-        // 相当をここで再現する (`applyVolumesToNodes` で反映)。
+        // 正解ルート音は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
+        // Web 版 `_playRootNote` の master gain (0.3 + effectiveVolume * 0.7) 相当を
+        // `effectiveRootBassVolume` で再現する。鍵盤 / ルートは limiter をバイパスして低遅延。
         engine.connect(rootBassSampler, to: rootBassMixer, format: nil)
         engine.connect(rootBassMixer, to: engine.mainMixerNode, format: nil)
+        configurePeakLimiter(limiter)
         bgmPlayer.actionAtItemEnd = .advance
         registerLifecycleObservers()
     }
@@ -373,7 +396,7 @@ final class SurvivalGameAudio {
         rootBassOneShotGeneration &+= 1
         let generation = rootBassOneShotGeneration
         rootBassSampler.stopNote(n, onChannel: 0)
-        rootBassSampler.startNote(n, withVelocity: 118, onChannel: 0)
+        rootBassSampler.startNote(n, withVelocity: 100, onChannel: 0)
         let stopDelay: TimeInterval = 0.45
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + stopDelay) { [weak self] in
             guard let self,
@@ -421,12 +444,20 @@ final class SurvivalGameAudio {
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-        try? session.setPreferredSampleRate(44_100)
+        // 44.1 kHz 固定は画面録画 (48 kHz) 時のリサンプル負荷でアンダーランを起こしやすい。
+        // ハードウェア優先レート (多くの端末は 48 kHz) に追従させる。
         // 5ms の極小 IO バッファはレンダースレッドの締切が厳しく、初回の SF2 ロード/コールドスタートの
         // CPU スパイクでアンダーラン（「ガガガ」）を起こしやすい（特に iPad / デベロッパービルド）。
         // 本ゲームは独自タイミングで動作し超低レイテンシは不要なため、余裕のある 20ms へ緩める。
         try? session.setPreferredIOBufferDuration(0.02)
         try? session.setActive(true, options: [])
+    }
+
+    private func configurePeakLimiter(_ limiter: AVAudioUnitEffect) {
+        let au = limiter.audioUnit
+        AudioUnitSetParameter(au, PeakLimiterParameter.preGain, kAudioUnitScope_Global, 0, 0, 0)
+        AudioUnitSetParameter(au, PeakLimiterParameter.attackTime, kAudioUnitScope_Global, 0, 0.001, 0)
+        AudioUnitSetParameter(au, PeakLimiterParameter.decayTime, kAudioUnitScope_Global, 0, 0.05, 0)
     }
 
     private func resolvePianoSoundBankURL() -> URL? {
@@ -613,10 +644,10 @@ final class SurvivalGameAudio {
     }
 
     /// BGM / SFX / ピアノ それぞれの出力ボリュームを現在の保存値 & ミュート状態から更新する。
-    /// main mixer は 1.0 固定にし、各入力ミキサーの `outputVolume` で個別制御する。
+    /// mainMixer はヘッドルーム用に下げ、各入力ミキサーの `outputVolume` で個別制御する。
     private func applyVolumesToNodes() {
         bgmPlayer.volume = effectiveBgmVolume()
-        engine.mainMixerNode.outputVolume = 1.0
+        engine.mainMixerNode.outputVolume = kMasterHeadroomGain
         sfxMixer.outputVolume = effectiveSfxVolume()
         pianoMixer.outputVolume = effectivePianoVolume()
         rootBassMixer.outputVolume = effectiveRootBassVolume()
@@ -625,11 +656,12 @@ final class SurvivalGameAudio {
     /// 正解時ルート音の実効音量。
     /// Web 版 `_syncRootBassVolume` と同じ「0.3 〜 1.0 の範囲へ持ち上げる」計算を踏襲し、
     /// iOS では正解ルート音量スライダー (`rootBassVolume`) を effectiveVolume として扱う。
+    /// マスターリミッター導入に合わせ下限を 0.30 に抑え、画面録画時の低音クリップを緩和する。
     /// ミュート時は 0 を返す。
     private func effectiveRootBassVolume() -> Float {
         if isMuted { return 0 }
         let effective = max(rootBassVolume, 0)
-        return 0.42 + min(1.0, effective) * 0.58
+        return 0.30 + min(1.0, effective) * 0.70
     }
 
     private func playBgm() {

@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AudioToolbox
 import Darwin
 import UIKit
 
@@ -40,6 +41,19 @@ final class EarTrainingAudio: NSObject {
     /// SFX 音量スライダーに連動。
     private let fireSePlayer = AVAudioPlayerNode()
     private let fireSeMixer = AVAudioMixerNode()
+    /// フレーズ / ドラム / SE を合算してからリミッターへ送るマスターミキサー。
+    private let masterMixer = AVAudioMixerNode()
+    /// 画面録画時のデジタルクリップ抑止用ピークリミッター（Apple AUPeakLimiter）。
+    private let limiter: AVAudioUnitEffect = {
+        let description = AudioComponentDescription(
+            componentType: kAudioUnitType_Effect,
+            componentSubType: kAudioUnitSubType_PeakLimiter,
+            componentManufacturer: kAudioUnitManufacturer_Apple,
+            componentFlags: 0,
+            componentFlagsMask: 0
+        )
+        return AVAudioUnitEffect(audioComponentDescription: description)
+    }()
 
     private let cache = RemoteAudioFileCache(subdirectory: "EarTrainingPhraseAudio")
     private var timeTicker: DispatchSourceTimer?
@@ -57,6 +71,14 @@ final class EarTrainingAudio: NSObject {
     private static let fireSeThrottleMs: Double = 60
     /// 魔法演出 SE はスライダーに加えて常にこの倍率で減衰させる（UX 要望: スライダー非依存で控えめ）。
     private static let fireSeBaseGain: Float = 0.45
+    /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
+    private static let masterHeadroomGain: Float = 0.7
+    /// Apple AUPeakLimiter の AudioUnit パラメータ ID（AudioUnit/AUParameters.h）。
+    private enum PeakLimiterParameter {
+        static let attackTime: AudioUnitParameterID = 0
+        static let decayTime: AudioUnitParameterID = 1
+        static let preGain: AudioUnitParameterID = 2
+    }
     /// `setVolumes(sfx:)` で更新される SFX 音量（0...1）。
     private var sfxVolume: Float = 1.0
 
@@ -492,13 +514,18 @@ final class EarTrainingAudio: NSObject {
         engine.attach(drumMixer)
         engine.attach(fireSePlayer)
         engine.attach(fireSeMixer)
+        engine.attach(masterMixer)
+        engine.attach(limiter)
         engine.connect(phrasePlayer, to: phraseMixer, format: defaultFormat)
         engine.connect(clickPlayer, to: phraseMixer, format: defaultFormat)
-        engine.connect(phraseMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(phraseMixer, to: masterMixer, format: nil)
         engine.connect(drumPlayer, to: drumMixer, format: defaultFormat)
-        engine.connect(drumMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(drumMixer, to: masterMixer, format: nil)
         engine.connect(fireSePlayer, to: fireSeMixer, format: defaultFormat)
-        engine.connect(fireSeMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(fireSeMixer, to: masterMixer, format: nil)
+        engine.connect(masterMixer, to: limiter, format: nil)
+        engine.connect(limiter, to: engine.mainMixerNode, format: nil)
+        configurePeakLimiter(limiter)
 
         lastPhraseFormat = defaultFormat
         lastDrumFormat = defaultFormat
@@ -507,8 +534,16 @@ final class EarTrainingAudio: NSObject {
         phraseMixer.outputVolume = phraseVolume
         drumMixer.outputVolume = phraseVolume
         fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
+        masterMixer.outputVolume = Self.masterHeadroomGain
 
         isGraphInstalled = true
+    }
+
+    private func configurePeakLimiter(_ limiter: AVAudioUnitEffect) {
+        let au = limiter.audioUnit
+        AudioUnitSetParameter(au, PeakLimiterParameter.preGain, kAudioUnitScope_Global, 0, 0, 0)
+        AudioUnitSetParameter(au, PeakLimiterParameter.attackTime, kAudioUnitScope_Global, 0, 0.001, 0)
+        AudioUnitSetParameter(au, PeakLimiterParameter.decayTime, kAudioUnitScope_Global, 0, 0.05, 0)
     }
 
     private func ensureGraph(for format: AVAudioFormat) {
@@ -650,6 +685,7 @@ final class EarTrainingAudio: NSObject {
             isPhraseEngineRunning = true
             phraseMixer.outputVolume = phraseVolume
             drumMixer.outputVolume = phraseVolume
+            masterMixer.outputVolume = Self.masterHeadroomGain
             engine.mainMixerNode.outputVolume = 1.0
         } catch {
             isPhraseEngineRunning = false
