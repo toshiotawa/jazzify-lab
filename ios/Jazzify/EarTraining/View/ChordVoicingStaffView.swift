@@ -1390,14 +1390,20 @@ struct ChordVoicingStaffGroupsView: View {
             : min(CGFloat(34), max(CGFloat(24), sp * 2.6))
         let reservedLabelTop = labelTopPadding + labelBandCoreHeight
         let labelCenterY = hideChordLabels ? 0 : labelTopPadding + labelBandCoreHeight / 2
-        let labelBottomGap: CGFloat = hideChordLabels
-            ? 0
-            : (compactVerticalLayout ? sp * 0.3 : (compactChordLabelGap ? sp * 0.6 : sp * 0.9))
-        let topLedgerPadding: CGFloat =
-            phraseTightTopLedgerPadding ? sp * 1.6
-                : compactVerticalLayout
-                    ? sp * 4.0
-                    : (compactChordLabelGap ? sp * 1.6 : sp * 3.5)
+        let labelBottomGap: CGFloat = {
+            if hideChordLabels { return 0 }
+            if compactVerticalLayout && compactChordLabelGap {
+                return sp * 1.5
+            }
+            if compactVerticalLayout { return sp * 0.3 }
+            return compactChordLabelGap ? sp * 0.6 : sp * 0.9
+        }()
+        let topLedgerPadding: CGFloat = {
+            if phraseTightTopLedgerPadding { return sp * 1.6 }
+            if compactVerticalLayout && compactChordLabelGap { return sp * 4.5 }
+            if compactVerticalLayout { return sp * 4.0 }
+            return compactChordLabelGap ? sp * 1.6 : sp * 3.5
+        }()
         let bottomLedgerPadding: CGFloat = compactChordLabelGap ? sp * 1.6 : sp * 3.5
         let reservedTop = reservedLabelTop + labelBottomGap + topLedgerPadding
         let availableStaffHeight = max(CGFloat(0), size.height - reservedTop - bottomLedgerPadding)
@@ -1407,9 +1413,13 @@ struct ChordVoicingStaffGroupsView: View {
         )
         let staffGap = staffSpacing * 7
         let groupHeight = activeStaves.count == 1 ? staffSpacing * 4 : staffSpacing * 8 + staffGap
-        let verticalCenterOffset = compactVerticalLayout
-            ? CGFloat(0)
-            : max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
+        let verticalCenterOffset: CGFloat = {
+            if compactVerticalLayout && compactChordLabelGap {
+                return max(CGFloat(0), (availableStaffHeight - groupHeight) * 0.25)
+            }
+            if compactVerticalLayout { return CGFloat(0) }
+            return max(CGFloat(0), (availableStaffHeight - groupHeight) / 2)
+        }()
         let firstTopY = reservedTop + verticalCenterOffset
         return StaffSystemGeometry(
             staffSpacing: staffSpacing,

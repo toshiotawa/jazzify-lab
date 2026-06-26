@@ -2115,22 +2115,17 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                !balloonStaff.voicingNames.isEmpty {
                 SurvivalStageCenterStaffOverlay(
                     payload: balloonStaff,
+                    hudHeight: hudHeight,
                     unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity,
                     hideChordLabel: stage.hideChordNamesInBattle
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.top, hudHeight + 4)
-                .padding(.horizontal, 12)
                 .allowsHitTesting(false)
             } else if vm.uiSnapshot.phase == .playing,
                !vm.isPaused,
                !vm.uiSnapshot.scenario.hideStaff,
                scenarioStaffSnapshot == nil,
                let phraseStaff = vm.phraseStaffSnapshot {
-                SurvivalPhraseStaffOverlay(snapshot: phraseStaff)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.top, hudHeight + 4)
-                    .padding(.horizontal, 12)
+                SurvivalPhraseStaffOverlay(snapshot: phraseStaff, hudHeight: hudHeight)
                     .allowsHitTesting(false)
             } else if vm.uiSnapshot.phase == .playing,
                !vm.isPaused,
@@ -2141,12 +2136,10 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                !staffPayload.voicingNames.isEmpty {
                 SurvivalStageCenterStaffOverlay(
                     payload: staffPayload,
+                    hudHeight: hudHeight,
                     unpressedNoteOpacity: vm.uiSnapshot.unpressedNoteOpacity,
                     hideChordLabel: stage.hideChordNamesInBattle
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.top, hudHeight + 4)
-                .padding(.horizontal, 12)
                 .allowsHitTesting(false)
             }
 
@@ -2567,6 +2560,7 @@ private struct SurvivalStageCenterStaffPayload: Equatable {
 
 private struct SurvivalStageCenterStaffOverlay: View {
     let payload: SurvivalStageCenterStaffPayload
+    let hudHeight: CGFloat
     let unpressedNoteOpacity: CGFloat
     let hideChordLabel: Bool
 
@@ -2575,6 +2569,10 @@ private struct SurvivalStageCenterStaffOverlay: View {
             return true
         }
         return SurvivalStaffOverlayLayout.usesGrandStaff(voicingStavesPerNote: payload.voicingStavesPerNote)
+    }
+
+    private var isGrandStaffLayout: Bool {
+        payload.grandStaffMode || usesGrandStaffLayout
     }
 
     var body: some View {
@@ -2600,11 +2598,13 @@ private struct SurvivalStageCenterStaffOverlay: View {
                 : SurvivalStaffOverlayLayout.centerStaffMaxHeight(isPad: isPad, grandStaff: usesGrandStaffLayout),
             alignment: .top
         )
+        .modifier(SurvivalBattleStaffOverlayPlacement(hudHeight: hudHeight, grandStaff: isGrandStaffLayout))
     }
 }
 
 private struct SurvivalPhraseStaffOverlay: View {
     let snapshot: SurvivalPhraseStaffSnapshot
+    let hudHeight: CGFloat
 
     private var grandStaff: Bool {
         SurvivalStaffOverlayLayout.usesGrandStaff(notes: snapshot.currentChord?.notes)
@@ -2621,6 +2621,7 @@ private struct SurvivalPhraseStaffOverlay: View {
             maxHeight: SurvivalStaffOverlayLayout.centerStaffMaxHeight(isPad: isPad, grandStaff: grandStaff),
             alignment: .top
         )
+        .modifier(SurvivalBattleStaffOverlayPlacement(hudHeight: hudHeight, grandStaff: grandStaff))
     }
 }
 

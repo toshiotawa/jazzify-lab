@@ -2,19 +2,17 @@ import SwiftUI
 
 /// 風船ラッシュ: 五線譜直下に残り時間・残り個数を大きく表示（WEB `BalloonRushStatusOverlay` 準拠）
 enum BalloonRushStatusOverlayLayout {
-    /// iOS `SurvivalStageCenterStaffOverlay.frame(maxHeight:)`
-    static let compactStaffBandHeight: CGFloat = 160
-    static let progressionStaffBandHeight: CGFloat = 220
     static let staffTopPadding: CGFloat = 4
     static let gapBelowStaff: CGFloat = 8
 
     static func staffBandHeight(stageType: SurvivalStageType, staffVisible: Bool) -> CGFloat {
         guard staffVisible else { return 0 }
+        let isPad = SurvivalStaffOverlayLayout.isPad
         switch stageType {
         case .progression:
-            return progressionStaffBandHeight
+            return SurvivalStaffOverlayLayout.scenarioStaffMaxHeight(isPad: isPad, grandStaff: false)
         default:
-            return compactStaffBandHeight
+            return SurvivalStaffOverlayLayout.centerStaffMaxHeight(isPad: isPad, grandStaff: false)
         }
     }
 

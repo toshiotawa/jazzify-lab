@@ -7,9 +7,14 @@ struct SettingsView: View {
     @State private var isDeleting = false
     @State private var deleteError: String?
     @State private var showMIDISettings = false
+    @State private var survivalStaffSliderValue: Double = 0
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private var survivalStaffScale: CGFloat {
+        SurvivalStaffSizePreferences.scale(fromSliderValue: survivalStaffSliderValue, isPad: isPad)
+    }
 
     var body: some View {
         NavigationStack {
@@ -26,6 +31,7 @@ struct SettingsView: View {
                     }
                     accountSection
                     languageSection
+                    survivalStaffSection
                     midiSection
                     subscriptionSection
                     supportSection
@@ -44,6 +50,12 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showMIDISettings) {
                 MIDISettingsView()
+            }
+            .onAppear {
+                survivalStaffSliderValue = SurvivalStaffSizePreferences.sliderValue(
+                    from: SurvivalStaffSizePreferences.loadScale(isPad: isPad),
+                    isPad: isPad
+                )
             }
             .alert(
                 locale == .ja ? "アカウント削除" : "Delete Account",
@@ -121,6 +133,60 @@ struct SettingsView: View {
             .foregroundStyle(.white)
         } header: {
             Text(locale == .ja ? "言語設定" : "Language")
+        }
+        .listRowBackground(Color(hex: "1e293b"))
+    }
+
+    private var survivalStaffSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(locale == .ja ? "楽譜の大きさ" : "Sheet Music Size")
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text("\(SurvivalStaffSizePreferences.displayPercent(from: survivalStaffScale, isPad: isPad))%")
+                        .foregroundStyle(.gray)
+                        .monospacedDigit()
+                }
+
+                Slider(
+                    value: $survivalStaffSliderValue,
+                    in: 0...1,
+                    step: 0.05
+                ) {
+                    Text(locale == .ja ? "楽譜の大きさ" : "Sheet Music Size")
+                } minimumValueLabel: {
+                    Text(isPad ? "100%" : "小")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                } maximumValueLabel: {
+                    Text(isPad ? "大" : "100%")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                .tint(.cyan)
+                .onChange(of: survivalStaffSliderValue) { newValue in
+                    SurvivalStaffSizePreferences.saveScale(
+                        SurvivalStaffSizePreferences.scale(fromSliderValue: newValue, isPad: isPad),
+                        isPad: isPad
+                    )
+                }
+
+                Text(
+                    locale == .ja
+                        ? (isPad
+                            ? "100% が標準サイズです。右へ動かすと大きくなります。"
+                            : "100% が最大サイズです。左へ動かすと小さくなります。")
+                        : (isPad
+                            ? "100% is the default size. Move right to enlarge."
+                            : "100% is the largest size. Move left to shrink.")
+                )
+                .font(.caption)
+                .foregroundStyle(.gray)
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text(locale == .ja ? "サバイバル" : "Survival")
         }
         .listRowBackground(Color(hex: "1e293b"))
     }
