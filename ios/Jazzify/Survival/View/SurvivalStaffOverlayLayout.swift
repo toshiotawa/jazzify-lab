@@ -138,11 +138,13 @@ enum SurvivalStaffOverlayLayout {
     }
 
     static func battleStaffOverlayAlignment(grandStaff: Bool) -> Alignment {
-        grandStaff ? .top : .center
+        _ = grandStaff
+        return .top
     }
 
     static func battleStaffOverlayTopPadding(hudHeight: CGFloat, grandStaff: Bool) -> CGFloat {
-        grandStaff ? hudHeight + 4 : hudHeight
+        _ = grandStaff
+        return hudHeight + 4
     }
 }
 
@@ -165,6 +167,85 @@ struct SurvivalBattleStaffOverlayPlacement: ViewModifier {
                 )
             )
             .padding(.horizontal, 12)
+    }
+}
+
+/// 設定画面・一時停止メニュー共通の楽譜サイズスライダー。
+struct SurvivalStaffSizeSliderControl: View {
+    let locale: AppLocale
+    @Binding var sliderValue: Double
+    var labelColor: Color = .white
+    var hintColor: Color = .gray
+    var accentColor: Color = .cyan
+
+    private var isPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    private var isEnglishCopy: Bool {
+        locale == .en
+    }
+
+    private var currentScale: CGFloat {
+        SurvivalStaffSizePreferences.scale(fromSliderValue: sliderValue, isPad: isPad)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(isEnglishCopy ? "Sheet Music Size" : "楽譜の大きさ")
+                    .foregroundStyle(labelColor)
+                Spacer()
+                Text("\(SurvivalStaffSizePreferences.displayPercent(from: currentScale, isPad: isPad))%")
+                    .foregroundStyle(hintColor)
+                    .monospacedDigit()
+            }
+
+            Slider(
+                value: $sliderValue,
+                in: 0...1,
+                step: 0.05
+            ) {
+                Text(isEnglishCopy ? "Sheet Music Size" : "楽譜の大きさ")
+            } minimumValueLabel: {
+                Text(isPad ? "100%" : (isEnglishCopy ? "Sm" : "小"))
+                    .font(.caption2)
+                    .foregroundStyle(hintColor)
+            } maximumValueLabel: {
+                Text(isPad ? (isEnglishCopy ? "Lg" : "大") : "100%")
+                    .font(.caption2)
+                    .foregroundStyle(hintColor)
+            }
+            .tint(accentColor)
+            .onChange(of: sliderValue) { newValue in
+                SurvivalStaffSizePreferences.saveScale(
+                    SurvivalStaffSizePreferences.scale(fromSliderValue: newValue, isPad: isPad),
+                    isPad: isPad
+                )
+            }
+
+            Text(hintText)
+                .font(.caption)
+                .foregroundStyle(hintColor)
+        }
+    }
+
+    private var hintText: String {
+        if isEnglishCopy {
+            return isPad
+                ? "100% is the default size. Move right to enlarge."
+                : "100% is the largest size. Move left to shrink."
+        }
+        return isPad
+            ? "100% が標準サイズです。右へ動かすと大きくなります。"
+            : "100% が最大サイズです。左へ動かすと小さくなります。"
+    }
+
+    static func loadSliderValue(isPad: Bool) -> Double {
+        SurvivalStaffSizePreferences.sliderValue(
+            from: SurvivalStaffSizePreferences.loadScale(isPad: isPad),
+            isPad: isPad
+        )
     }
 }
 

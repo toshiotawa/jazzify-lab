@@ -147,6 +147,7 @@ struct SurvivalPauseSettingsSheet: View {
     @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
     @State private var rootBassVolume: Float = SurvivalGameAudio.shared.rootBassVolume
     @State private var isMuted: Bool = SurvivalGameAudio.shared.isMuted
+    @State private var survivalStaffSliderValue: Double = 0
     @StateObject private var midiManager = MIDIManager.shared
     @State private var hintDraft: Bool = false
 
@@ -206,6 +207,8 @@ struct SurvivalPauseSettingsSheet: View {
                         .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
 
+                staffSizeSection
+
                 midiSection
 
                 if let stageRunMode, !isDemo {
@@ -246,6 +249,9 @@ struct SurvivalPauseSettingsSheet: View {
         }
         .onAppear {
             midiManager.refreshDevices()
+            survivalStaffSliderValue = SurvivalStaffSizeSliderControl.loadSliderValue(
+                isPad: UIDevice.current.userInterfaceIdiom == .pad
+            )
             if let stageRunMode {
                 hintDraft = stageRunMode.hintMode
             }
@@ -309,6 +315,38 @@ struct SurvivalPauseSettingsSheet: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Staff size
+
+    private var staffSizeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "music.quarternote.3")
+                    .foregroundStyle(.white)
+                Text(locale == .ja ? "楽譜の大きさ" : "Sheet Music Size")
+                    .foregroundStyle(.white)
+                    .font(.subheadline.bold())
+            }
+
+            SurvivalStaffSizeSliderControl(
+                locale: locale,
+                sliderValue: $survivalStaffSliderValue,
+                labelColor: .white,
+                hintColor: .white.opacity(0.65),
+                accentColor: .yellow
+            )
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
     }
 
     // MARK: - MIDI Section

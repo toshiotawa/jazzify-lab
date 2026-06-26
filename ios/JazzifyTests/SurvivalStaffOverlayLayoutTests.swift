@@ -108,8 +108,19 @@ final class SurvivalStaffOverlayLayoutTests: XCTestCase {
     }
 
     func testBattleStaffOverlayAlignment() {
-        XCTAssertEqual(SurvivalStaffOverlayLayout.battleStaffOverlayAlignment(grandStaff: false), .center)
+        XCTAssertEqual(SurvivalStaffOverlayLayout.battleStaffOverlayAlignment(grandStaff: false), .top)
         XCTAssertEqual(SurvivalStaffOverlayLayout.battleStaffOverlayAlignment(grandStaff: true), .top)
+    }
+
+    func testBattleStaffOverlayTopPadding() {
+        XCTAssertEqual(
+            SurvivalStaffOverlayLayout.battleStaffOverlayTopPadding(hudHeight: 72, grandStaff: false),
+            76
+        )
+        XCTAssertEqual(
+            SurvivalStaffOverlayLayout.battleStaffOverlayTopPadding(hudHeight: 72, grandStaff: true),
+            76
+        )
     }
 
     func testCenterStaffMaxWidthUnchanged() {

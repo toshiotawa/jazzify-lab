@@ -11,10 +11,6 @@ struct SettingsView: View {
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
-    private var survivalStaffScale: CGFloat {
-        SurvivalStaffSizePreferences.scale(fromSliderValue: survivalStaffSliderValue, isPad: isPad)
-    }
 
     var body: some View {
         NavigationStack {
@@ -52,9 +48,8 @@ struct SettingsView: View {
                 MIDISettingsView()
             }
             .onAppear {
-                survivalStaffSliderValue = SurvivalStaffSizePreferences.sliderValue(
-                    from: SurvivalStaffSizePreferences.loadScale(isPad: isPad),
-                    isPad: isPad
+                survivalStaffSliderValue = SurvivalStaffSizeSliderControl.loadSliderValue(
+                    isPad: UIDevice.current.userInterfaceIdiom == .pad
                 )
             }
             .alert(
@@ -139,51 +134,10 @@ struct SettingsView: View {
 
     private var survivalStaffSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(locale == .ja ? "楽譜の大きさ" : "Sheet Music Size")
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Text("\(SurvivalStaffSizePreferences.displayPercent(from: survivalStaffScale, isPad: isPad))%")
-                        .foregroundStyle(.gray)
-                        .monospacedDigit()
-                }
-
-                Slider(
-                    value: $survivalStaffSliderValue,
-                    in: 0...1,
-                    step: 0.05
-                ) {
-                    Text(locale == .ja ? "楽譜の大きさ" : "Sheet Music Size")
-                } minimumValueLabel: {
-                    Text(isPad ? "100%" : "小")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                } maximumValueLabel: {
-                    Text(isPad ? "大" : "100%")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                }
-                .tint(.cyan)
-                .onChange(of: survivalStaffSliderValue) { newValue in
-                    SurvivalStaffSizePreferences.saveScale(
-                        SurvivalStaffSizePreferences.scale(fromSliderValue: newValue, isPad: isPad),
-                        isPad: isPad
-                    )
-                }
-
-                Text(
-                    locale == .ja
-                        ? (isPad
-                            ? "100% が標準サイズです。右へ動かすと大きくなります。"
-                            : "100% が最大サイズです。左へ動かすと小さくなります。")
-                        : (isPad
-                            ? "100% is the default size. Move right to enlarge."
-                            : "100% is the largest size. Move left to shrink.")
-                )
-                .font(.caption)
-                .foregroundStyle(.gray)
-            }
+            SurvivalStaffSizeSliderControl(
+                locale: locale,
+                sliderValue: $survivalStaffSliderValue
+            )
             .padding(.vertical, 4)
         } header: {
             Text(locale == .ja ? "サバイバル" : "Survival")
