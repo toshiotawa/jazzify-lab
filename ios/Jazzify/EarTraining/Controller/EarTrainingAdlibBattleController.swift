@@ -346,6 +346,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
 
         gameState = .countIn
         statusText = copy.countIn
+        countInEarlyInputActive = true
         countdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
             guard let url = URL(string: phrase.audioUrl.trimmingCharacters(in: .whitespacesAndNewlines)),
@@ -353,52 +354,23 @@ final class EarTrainingAdlibBattleController: ObservableObject {
                 self.finishGameOver(message: self.copy.audioFailed)
                 return
             }
-            async let drumReady = self.audio.prepareDrumLoop(url: url)
-            async let phraseReady = self.audio.preparePhraseForImmediatePlayback(url: url)
-            _ = await drumReady
-            _ = await phraseReady
+            guard await self.audio.prepareDrumLoop(url: url) else {
+                self.finishGameOver(message: self.copy.audioFailed)
+                return
+            }
             if Task.isCancelled { return }
             guard self.phraseRunId == runId else { return }
-            if let meta = self.audio.schedulePreparedPhraseWithCountIn(
-                url: url,
-                countInBeats: beats,
-                bpm: self.stage.bpm,
-                onInputWindowStarted: { [weak self] in
-                    guard let self, self.phraseRunId == runId, self.gameState == .countIn else { return }
-                    self.countInEarlyInputActive = true
-                },
-                onPhraseStarted: onPhraseBodyStarted
-            ) {
-                await self.runCountInDisplayOnly(scheduleStart: CACurrentMediaTime(), meta: meta)
-            } else {
-                onPhraseBodyStarted()
-            }
-        }
-        publishSnapshot()
-    }
-
-    private func runCountInDisplayOnly(scheduleStart: TimeInterval, meta: EarTrainingScheduledCountInPhrase) async {
-        let beats = meta.countInBeats
-        guard beats > 0 else {
-            countInValue = 0
-            publishSnapshot()
-            return
-        }
-        let beatDurationSec = meta.beatDurationSec
-        let leadInSec = meta.leadInSec
-        countInValue = 0
-        publishSnapshot()
-        for beatIndex in 0..<beats {
-            let targetClick = scheduleStart + leadInSec + Double(beatIndex) * beatDurationSec
-            let sleepSec = targetClick - CACurrentMediaTime()
-            if sleepSec > 0 {
-                try? await Task.sleep(nanoseconds: UInt64(sleepSec * 1_000_000_000))
+            let beatMs = max(1, Int(60_000 / max(1, self.stage.bpm)))
+            for remaining in stride(from: beats, through: 1, by: -1) {
+                if Task.isCancelled { return }
+                self.countInValue = remaining
+                self.publishSnapshot()
+                try? await Task.sleep(nanoseconds: UInt64(beatMs) * 1_000_000)
             }
             if Task.isCancelled { return }
-            countInValue = max(beats - beatIndex, 1)
-            publishSnapshot()
+            self.countInValue = 0
+            onPhraseBodyStarted()
         }
-        countInValue = 0
         publishSnapshot()
     }
 

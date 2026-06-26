@@ -216,6 +216,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
   const tutorialClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countInTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
@@ -289,6 +290,13 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     }
   }, []);
 
+  const clearCountInTimer = useCallback(() => {
+    if (countInTimerRef.current) {
+      clearInterval(countInTimerRef.current);
+      countInTimerRef.current = null;
+    }
+  }, []);
+
   const clearBattleEffectTimers = useCallback(() => {
     if (battleEffectClearTimerRef.current) {
       clearTimeout(battleEffectClearTimerRef.current);
@@ -298,10 +306,11 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
 
   const stopPhraseAudio = useCallback(() => {
     clearChordSyncTimer();
+    clearCountInTimer();
     clearTutorialTimers();
     phrasePlayerRef.current?.stop();
     stopBgmLoop();
-  }, [clearChordSyncTimer, clearTutorialTimers, stopBgmLoop]);
+  }, [clearChordSyncTimer, clearCountInTimer, clearTutorialTimers, stopBgmLoop]);
 
   const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
     setFeedback(value);
@@ -699,6 +708,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     };
 
     const onPhraseBodyStarted = (): void => {
+      clearCountInTimer();
       countInEarlyInputRef.current = false;
       setCountInEarlyInputActive(false);
       setCountInValue(0);
@@ -738,47 +748,28 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     gameStateRef.current = 'countIn';
     setGameState('countIn');
     setStatusText(copy.countIn);
-    setCountInValue(0);
-    void (async () => {
-      const player = ensurePhrasePlayer();
-      let prepared;
-      try {
-        prepared = await player.prepare(firstPhrase.audio_url);
-      } catch {
-        setStatusText(copy.audioFailed);
-        return;
+    countInEarlyInputRef.current = true;
+    setCountInEarlyInputActive(true);
+    let remaining = beats;
+    setCountInValue(remaining);
+    const beatMs = Math.max(1, Math.round(60_000 / stage.bpm));
+    clearCountInTimer();
+    const countInterval = setInterval(() => {
+      remaining -= 1;
+      setCountInValue(remaining);
+      if (remaining <= 0) {
+        clearCountInTimer();
+        onPhraseBodyStarted();
       }
-      player.schedulePreparedPhraseWithCountIn({
-        prepared,
-        countInBeats: beats,
-        bpm: stage.bpm,
-        beatGain: settings.masterVolume * settings.musicVolume,
-        phraseGain: 0,
-        onBeat: remaining => {
-          setCountInValue(remaining);
-        },
-        onInputWindowStart: () => {
-          countInEarlyInputRef.current = true;
-          setCountInEarlyInputActive(true);
-        },
-        onPhraseStarted: () => {
-          if (!tutorial) {
-            startTimeLimit();
-          }
-          onPhraseBodyStarted();
-        },
-        onEnded: () => undefined,
-      });
-    })();
+    }, beatMs);
+    countInTimerRef.current = countInterval;
   }, [
     clearChordSyncTimer,
+    clearCountInTimer,
     clearTimeLimitTimer,
     copy,
-    ensurePhrasePlayer,
     finishGameOver,
     phrases,
-    settings.masterVolume,
-    settings.musicVolume,
     stage.bpm,
     stage.count_in_beats,
     stage.enemy_hp,
@@ -867,6 +858,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     pendingImpactHandlersRef.current.clear();
     clearBattleEffectTimers();
     clearChordSyncTimer();
+    clearCountInTimer();
     clearTimeLimitTimer();
     stopPhraseAudio();
     bgmLoopRef.current?.dispose();
@@ -876,6 +868,7 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
   }, [
     clearBattleEffectTimers,
     clearChordSyncTimer,
+    clearCountInTimer,
     clearTimeLimitTimer,
     stopPhraseAudio,
   ]);
