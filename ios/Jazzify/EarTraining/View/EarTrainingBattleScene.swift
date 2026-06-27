@@ -164,6 +164,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var snapshot: EarTrainingBattleSceneSnapshot?
     private var lastEffectId: Int = -1
     private var activePreciseParryRingCount = 0
+    private static let thinRingStackMax = 3
     private var lastPhraseIntroKey: String?
     private var lastPhraseRunId: Int?
     private var lastBuiltAvatarSignature: String?
@@ -2031,11 +2032,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         run(.wait(forDuration: 0.14)) { [weak self] in
             guard let self else { return }
             self.flashCharacter(.enemy)
-            self.showImpactBurst(
-                at: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY),
-                color: UIColor(red: 0.984, green: 0.576, blue: 0.235, alpha: 1.0),
-                large: false
-            )
             self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
             self.knockEnemyAfterDamage(distance: Self.battleLayoutPt(22), durationMs: 160)
             self.onEffectImpact?(command.id)
@@ -2396,7 +2392,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func showPreciseParryRing(at position: CGPoint) {
-        let stackIndex = activePreciseParryRingCount
+        let stackIndex = min(activePreciseParryRingCount, Self.thinRingStackMax)
         activePreciseParryRingCount += 1
         let ringRadius = Self.battleLayoutPt(28)
         let ring = SKShapeNode(circleOfRadius: ringRadius)
@@ -2477,7 +2473,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         large: Bool,
         lightRadius: CGFloat? = nil,
         lightScaleEnd: CGFloat? = nil,
-        lightDuration: TimeInterval? = nil
+        lightDuration: TimeInterval? = nil,
+        lightSparkCount: Int? = nil
     ) {
         let smallRadius = lightRadius ?? Self.battleLayoutPt(24)
         let smallScaleEnd = lightScaleEnd ?? 1.6
@@ -2496,7 +2493,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             ]),
             SKAction.removeFromParent(),
         ]))
-        let sparkCount = large ? 22 : 9
+        let sparkCount = large ? 22 : (lightSparkCount ?? 9)
         let sparkDuration = large ? 0.68 : (lightDuration.map { min($0 + 0.1, 0.36) } ?? 0.36)
         for index in 0..<sparkCount {
             let angle = (Double.pi * 2 * Double(index)) / Double(sparkCount)

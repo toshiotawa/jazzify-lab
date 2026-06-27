@@ -160,6 +160,7 @@ interface LightImpactBurstOptions {
   size: number;
   scaleEnd: number;
   sparkDuration: number;
+  sparkCount?: number;
 }
 
 const addImpactBurst = (
@@ -175,6 +176,7 @@ const addImpactBurst = (
   const lightSize = lightOptions?.size ?? 48;
   const lightScaleEnd = lightOptions?.scaleEnd ?? 1.6;
   const lightSparkDuration = lightOptions?.sparkDuration ?? 360;
+  const lightSparkCount = lightOptions?.sparkCount ?? 9;
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'burst',
@@ -192,7 +194,7 @@ const addImpactBurst = (
     scaleStart: 1,
     scaleEnd: heavy ? 2.25 : lightScaleEnd,
   });
-  const sparkCount = heavy ? 22 : 9;
+  const sparkCount = heavy ? 22 : lightSparkCount;
   const sparkDistanceX = heavy ? 104 : 44;
   const sparkDistanceY = heavy ? 68 : 30;
   const sparkDuration = heavy ? 680 : lightSparkDuration;
@@ -274,7 +276,22 @@ const addParryGuardEffect = (
   });
 };
 
-const countActiveThinRings = (runtime: EarTrainingBattleDrawRuntime, now: number): number => {
+const THIN_RING_STACK_MAX = 3;
+
+const registerTrackedEffect = (
+  runtime: EarTrainingBattleDrawRuntime,
+  effect: CanvasEffectRuntime,
+): void => {
+  runtime.effects.push(effect);
+  if (effect.commandId >= 0) {
+    runtime.effectByCommandId.set(effect.commandId, effect);
+  }
+};
+
+const syncActiveThinRingCount = (
+  runtime: EarTrainingBattleDrawRuntime,
+  now: number,
+): void => {
   let count = 0;
   for (const effect of runtime.effects) {
     for (const visual of effect.visuals) {
@@ -283,7 +300,7 @@ const countActiveThinRings = (runtime: EarTrainingBattleDrawRuntime, now: number
       }
     }
   }
-  return count;
+  runtime.activeThinRingCount = count;
 };
 
 const addPreciseParryRing = (
@@ -292,7 +309,8 @@ const addPreciseParryRing = (
   y: number,
 ): void => {
   const startedAt = performance.now();
-  const stackIndex = countActiveThinRings(runtime, startedAt);
+  const stackIndex = Math.min(runtime.activeThinRingCount, THIN_RING_STACK_MAX);
+  runtime.activeThinRingCount += 1;
   const scaleStart = 0.45 + stackIndex * 0.12;
   const scaleEnd = 2.3 + stackIndex * 0.16;
   const color = stackIndex > 0 ? 'rgba(251, 146, 60, 1)' : 'rgba(194, 65, 12, 1)';
@@ -329,7 +347,7 @@ const dismissIncomingOsmdHammer = (
   relatedEffectId: number | undefined,
 ): void => {
   if (relatedEffectId === undefined) return;
-  const incoming = runtime.effects.find(effect => effect.commandId === relatedEffectId);
+  const incoming = runtime.effectByCommandId.get(relatedEffectId);
   if (!incoming) return;
   incoming.osmdHammerActive = false;
   const now = performance.now();
@@ -520,7 +538,7 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
     visuals,
     osmdHammerActive: true,
   };
-  runtime.effects.push(effect);
+  registerTrackedEffect(runtime, effect);
   scheduleImpact(command.id, impactMs);
   setTimeout(() => {
     if (!effect.osmdHammerActive) return;
@@ -597,7 +615,6 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
 
   setTimeout(() => {
     flashCharacter(runtime.enemy, 2, 70);
-    addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, '#fb923c', false);
     showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
     scheduleEnemyKnockback(ctx, 22, 160);
     onImpact(command.id);
@@ -854,8 +871,13 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
       (max, visual) => Math.max(max, visual.startedAt + visual.durationMs),
       effect.startedAt,
     );
-    return maxVisualEnd + 200 > now;
+    const keep = maxVisualEnd + 200 > now;
+    if (!keep && effect.commandId >= 0) {
+      runtime.effectByCommandId.delete(effect.commandId);
+    }
+    return keep;
   });
+  syncActiveThinRingCount(runtime, now);
   runtime.floatingTexts = runtime.floatingTexts.filter(t => now - t.startedAt < t.durationMs);
   runtime.damageTexts = runtime.damageTexts.filter(t => now - t.startedAt < t.durationMs);
   if (runtime.screenFlash && now - runtime.screenFlash.startedAt > runtime.screenFlash.durationMs) {

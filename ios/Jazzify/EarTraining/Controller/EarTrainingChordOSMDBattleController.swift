@@ -18,6 +18,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private static let hammerLeadSec: Double = 2.4
     private static let hammerImpactOffsetSec: Double = 0.2
     private static let effectClearPaddingMs: Double = 420
+    /// 正解連打時の statusText 更新間隔（SwiftUI 再描画抑制）
+    private static let statusTextThrottleSec: Double = 0.4
     /// フレーズ終了検知のセーフティパディング。`loop_duration_sec` の直後ではなく、
     /// 最後のノーツの判定窓と被ダメージ用ハンマーが着弾し終わるまで待つ（WEB の `PHRASE_END_PADDING_SEC` 相当）。
     private static let phraseEndPaddingSec: Double = 0.08
@@ -117,6 +119,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var battleEffectClearTasks: [Int: Task<Void, Never>] = [:]
     private var phrasePrepareTask: Task<Void, Never>?
     private var lastRankStorage: EarTrainingRank?
+    private var runtimeCompletedTargetCount: Int = 0
+    private var runtimeFailedTargetCount: Int = 0
+    private var lastStatusUpdateAt: TimeInterval = 0
 
     init(
         stage: EarTrainingStageDetail,
@@ -540,6 +545,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         nextHammerTargetIndex = 0
         completedTargetCount = 0
         failedTargetCount = 0
+        runtimeCompletedTargetCount = 0
+        runtimeFailedTargetCount = 0
         phraseAccuracy = 0
         phraseEnding = false
         enemyAttackGaugePercent = 0
@@ -809,7 +816,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             nextMissTargetIndex += 1
         }
         if changed {
-            updateTargetCounters()
+            updateTargetCounters(publish: false)
             compactActiveTargets(currentTime: time)
         }
     }
@@ -837,9 +844,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
             self?.applyEnemyDamage(damage)
         }
-        triggerFeedback(.correct)
-        statusText = copy.chordCompleted(chordName: chordName)
-        updateTargetCounters()
+        let statusNow = CACurrentMediaTime()
+        if statusNow - lastStatusUpdateAt >= Self.statusTextThrottleSec {
+            lastStatusUpdateAt = statusNow
+            statusText = copy.chordCompleted(chordName: chordName)
+        }
+        updateTargetCounters(publish: false)
         compactActiveTargets(currentTime: audio.currentTimeSec)
     }
 
@@ -848,7 +858,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         guard targets[targetIndex].completed == false, targets[targetIndex].reflected == false else { return }
         if targets[targetIndex].failed == false {
             targets[targetIndex].failed = true
-            updateTargetCounters()
+            updateTargetCounters(publish: false)
         }
         guard practiceMode == false, tutorialNoCombat == false else { return }
         let damage = stage.missDamage
@@ -880,10 +890,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         audio.stopPhrase()
         audio.emitNegativePhraseTimelineBeforeAnchor = false
         failRemainingTargets()
+        updateTargetCounters(publish: true)
         let phraseTotal = max(1, targets.count)
-        let accuracy = Double(completedTargetCount) / Double(phraseTotal)
+        let accuracy = Double(runtimeCompletedTargetCount) / Double(phraseTotal)
         phraseAccuracy = accuracy
-        totalCompletedTargets += completedTargetCount
+        totalCompletedTargets += runtimeCompletedTargetCount
         totalJudgedTargets += phraseTotal
 
         let rank = rank(for: accuracy)
@@ -943,7 +954,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             }
         }
         if changed {
-            updateTargetCounters()
+            updateTargetCounters(publish: true)
         }
     }
 
@@ -965,7 +976,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
-    private func updateTargetCounters() {
+    private func updateTargetCounters(publish: Bool) {
         var completed = 0
         var failed = 0
         for target in targets {
@@ -975,6 +986,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 failed += 1
             }
         }
+        runtimeCompletedTargetCount = completed
+        runtimeFailedTargetCount = failed
+        guard publish else { return }
         completedTargetCount = completed
         failedTargetCount = failed
         phraseAccuracy = targets.isEmpty ? 0 : Double(completed) / Double(targets.count)

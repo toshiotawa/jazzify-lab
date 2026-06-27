@@ -126,7 +126,8 @@ const OSMD_VOICING_HINT_STRONG_SEC = 0.03;
 const OSMD_VOICING_HINT_MEDIUM_SEC = 0.07;
 /** OSMD 正解報酬: |Δ|≤100ms で追加パリィリング */
 const CHORD_OSMD_PRECISE_WINDOW_SEC = 0.1;
-const BATTLE_EFFECT_CLEAR_MS = 900;
+/** 正解連打時の statusText 更新間隔（React 再レンダリング抑制） */
+const STATUS_TEXT_THROTTLE_MS = 400;
 const NO_DAMAGE_CONFIG = {
   perCorrectNote: 0,
   good: 0,
@@ -235,7 +236,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
-  const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
@@ -252,8 +252,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const targetsRef = useRef<ChordOsmdRhythmTarget[]>([]);
   const runtimeByTargetIdRef = useRef<Map<string, RuntimeTargetState>>(new Map());
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
+  const lastStatusUpdateAtRef = useRef(0);
   const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
   const battleEffectIdRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
@@ -313,13 +313,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }, Math.max(0, delayMs));
     timersRef.current.add(timer);
     return timer;
-  }, []);
-
-  const clearBattleEffectTimers = useCallback(() => {
-    if (battleEffectClearTimerRef.current) {
-      clearTimeout(battleEffectClearTimerRef.current);
-      battleEffectClearTimerRef.current = null;
-    }
   }, []);
 
   const publishTargetStates = useCallback(() => {
@@ -470,7 +463,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       precise?: boolean;
     } = {},
   ): number => {
-    clearBattleEffectTimers();
     battleEffectIdRef.current += 1;
     const effectId = battleEffectIdRef.current;
     const command: EarTrainingBattleEffectCommand = {
@@ -483,18 +475,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       travelDurationSec: options.travelDurationSec,
       precise: options.precise,
     };
-    // React 18 の setState バッチで連続エフェクトが落ちないよう、即時に描画側へ渡す。
     phaserGameRef.current?.triggerEffect(command);
-    setBattleEffectCommand(command);
-    const clearDelay = Math.max(
-      BATTLE_EFFECT_CLEAR_MS,
-      Math.round((options.travelDurationSec ?? 0) * 1000) + 120,
-    );
-    battleEffectClearTimerRef.current = setTimeout(() => {
-      setBattleEffectCommand(current => (current?.id === effectId ? null : current));
-    }, clearDelay);
     return effectId;
-  }, [clearBattleEffectTimers]);
+  }, []);
 
   const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
     pendingImpactHandlersRef.current.set(effectId, handler);
@@ -512,7 +495,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const finishStageClear = useCallback(async (rank: EarTrainingRank) => {
     pendingImpactHandlersRef.current.clear();
     clearScheduledTimers();
-    clearBattleEffectTimers();
     gameStateRef.current = 'stageClear';
     stopPhraseAudio();
     tutorialDrumLoopRef.current?.stop();
@@ -531,7 +513,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     await onLessonStageClear(lessonRank);
     setProgressSaved(true);
   }, [
-    clearBattleEffectTimers,
     clearScheduledTimers,
     copy.stageClear,
     lessonContext,
@@ -544,12 +525,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const finishGameOver = useCallback((message: string) => {
     pendingImpactHandlersRef.current.clear();
     clearScheduledTimers();
-    clearBattleEffectTimers();
     gameStateRef.current = 'gameOver';
     stopPhraseAudio();
     setGameState('gameOver');
     setStatusText(message);
-  }, [clearBattleEffectTimers, clearScheduledTimers, stopPhraseAudio]);
+  }, [clearScheduledTimers, stopPhraseAudio]);
 
   const applyEnemyDamage = useCallback((damage: number, rankForClear: EarTrainingRank | null) => {
     if (damage <= 0 || practiceMode) {
@@ -672,8 +652,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     syncPracticeVoicingHints();
     triggerFeedback('miss');
     setStatusText(isEnglishCopy ? 'Miss' : 'ミス');
-    publishTargetStates();
-  }, [isEnglishCopy, publishTargetStates, syncPracticeVoicingHints, triggerFeedback]);
+  }, [isEnglishCopy, syncPracticeVoicingHints, triggerFeedback]);
 
   const handleHammerImpact = useCallback((targetId: string) => {
     const state = runtimeByTargetIdRef.current.get(targetId);
@@ -682,12 +661,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     if (!state.failed) {
       state.failed = true;
-      publishTargetStates();
     }
     if (!tutorialNoCombat) {
       applyPlayerDamage(activeDamageConfig.miss);
     }
-  }, [activeDamageConfig.miss, applyPlayerDamage, publishTargetStates, tutorialNoCombat]);
+  }, [activeDamageConfig.miss, applyPlayerDamage, tutorialNoCombat]);
 
   const finishCurrentPhrase = useCallback((runId: number) => {
     if (
@@ -1227,7 +1205,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     setPlayerHp(stage.player_hp);
     enemyHpRef.current = stage.enemy_hp;
     playerHpRef.current = stage.player_hp;
-    setBattleEffectCommand(null);
     battleEffectIdRef.current = 0;
     startPhrase(0);
   }, [copy.noPhrases, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
@@ -1242,9 +1219,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (state.hammerEffectId !== undefined) {
       pendingImpactHandlersRef.current.delete(state.hammerEffectId);
     }
-    triggerFeedback('correct');
-    setStatusText(copy.chordCompleted(target.label));
-    publishTargetStates();
+    const statusNow = performance.now();
+    if (statusNow - lastStatusUpdateAtRef.current >= STATUS_TEXT_THROTTLE_MS) {
+      lastStatusUpdateAtRef.current = statusNow;
+      setStatusText(copy.chordCompleted(target.label));
+    }
     const damage = activeDamageConfig.perCorrectNote;
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
@@ -1259,11 +1238,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     activeDamageConfig.perCorrectNote,
     applyEnemyDamage,
     copy,
-    publishTargetStates,
     registerBattleEffectImpact,
     syncPracticeVoicingHints,
     triggerBattleEffect,
-    triggerFeedback,
   ]);
 
   const handleNoteInput = useCallback((note: number) => {
@@ -1399,12 +1376,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       selfPacedDrumLoopRef.current = null;
       pendingImpactHandlersRef.current.clear();
       clearScheduledTimers();
-      clearBattleEffectTimers();
       stopPhraseAudio();
       phrasePlayerRef.current?.dispose();
       phrasePlayerRef.current = null;
     };
-  }, [clearBattleEffectTimers, clearScheduledTimers, stopPhraseAudio]);
+  }, [clearScheduledTimers, stopPhraseAudio]);
 
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyBattleKey = buildEarTrainingEnemyBattleSourceKey(stage.id, enemy ?? { id: 'enemy', name: null });
@@ -1577,7 +1553,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         <EarTrainingBattleRenderer
           ref={phaserGameRef}
           snapshot={battleSnapshot}
-          effectCommand={battleEffectCommand}
+          effectCommand={null}
           callbacks={battleCallbacks}
           className="h-full w-full"
           disableCorrectSe

@@ -71,6 +71,67 @@ const RIM_TINT_ENEMY = 'rgb(255, 175, 150)';
 let tintCanvas: HTMLCanvasElement | null = null;
 let tintCtx: CanvasRenderingContext2D | null = null;
 
+interface RimTintCacheEntry {
+  canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
+}
+
+const rimTintCache = new Map<string, RimTintCacheEntry>();
+
+const getRimTintCacheKey = (
+  imageSrc: string,
+  width: number,
+  height: number,
+  tintColor: string,
+): string => `${imageSrc}|${Math.round(width)}|${Math.round(height)}|${tintColor}`;
+
+const getCachedRimTintCanvas = (
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+  tintColor: string,
+): HTMLCanvasElement | null => {
+  if (typeof document === 'undefined') return null;
+  const key = getRimTintCacheKey(img.src, width, height, tintColor);
+  const cached = rimTintCache.get(key);
+  if (cached) {
+    return cached.canvas;
+  }
+  const offCtx = getTintCanvasContext(width, height);
+  if (!offCtx || !tintCanvas) return null;
+  offCtx.drawImage(img, 0, 0, width, height);
+  offCtx.globalCompositeOperation = 'source-atop';
+  offCtx.fillStyle = tintColor;
+  offCtx.fillRect(0, 0, width, height);
+  const cacheCanvas = document.createElement('canvas');
+  cacheCanvas.width = width;
+  cacheCanvas.height = height;
+  const cacheCtx = cacheCanvas.getContext('2d');
+  if (!cacheCtx) return null;
+  cacheCtx.drawImage(tintCanvas, 0, 0, width, height);
+  rimTintCache.set(key, { canvas: cacheCanvas, width, height });
+  return cacheCanvas;
+};
+
+const drawCachedRimTint = (
+  targetCtx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  tintColor: string,
+  tintAlpha: number,
+): void => {
+  const cached = getCachedRimTintCanvas(img, width, height, tintColor);
+  if (!cached) return;
+  targetCtx.save();
+  targetCtx.globalAlpha = tintAlpha;
+  targetCtx.drawImage(cached, x, y, width, height);
+  targetCtx.restore();
+};
+
 const getTintCanvasContext = (width: number, height: number): CanvasRenderingContext2D | null => {
   if (typeof document === 'undefined') return null;
   if (!tintCanvas) {
@@ -359,9 +420,9 @@ const drawCharacter = (
     ctx.globalCompositeOperation = 'lighter';
     if (flip) {
       ctx.scale(-1, 1);
-      drawTintedImageCopy(ctx, img, -rimW / 2, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
+      drawCachedRimTint(ctx, img, -rimW / 2, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
     } else {
-      drawTintedImageCopy(ctx, img, drawX - rimOffsetX, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
+      drawCachedRimTint(ctx, img, drawX - rimOffsetX, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
     }
     ctx.restore();
 
