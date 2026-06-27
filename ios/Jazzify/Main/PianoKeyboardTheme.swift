@@ -9,8 +9,8 @@ enum PianoKeyboardTheme {
     /// Web `noteNameLabel` 相当
     static let noteNameLabel = Color(hex: "6B5F4A")
 
-    /// Web `PIXINotesRenderer.colors.activeKey` — 演奏中ハイライト（Dark Orange）
-    static let activeKey = Color(hex: "FF8C00")
+    /// Web `PIXINotesRenderer.colors.activeKey` — 演奏中ハイライト（入力中・水色）
+    static let activeKey = Color(hex: "38BDF8")
     /// Web `PIXINotesRenderer.colors.voicingHintPending` — 未押下構成音ヒント
     static let voicingHintPending = Color(hex: "F39800")
     /// Web `PIXINotesRenderer.colors.voicingHintCompleted` — 押下済み構成音ヒント

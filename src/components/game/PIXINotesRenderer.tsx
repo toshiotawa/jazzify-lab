@@ -162,7 +162,7 @@ const createDefaultSettings = (): RendererSettings => ({
     missed: '#E53E3E',
     whiteKey: pianoKeyboardTheme.whiteKeyBase,
     blackKey: pianoKeyboardTheme.blackKeyBase,
-    activeKey: '#FF8C00',
+    activeKey: '#38BDF8', // 演奏中（入力中）— 未押下ヒントのオレンジと区別
     guideKey: '#22C55E',
     correctKey: '#EF4444',
     voicingHintPending: '#f39800',
@@ -1399,7 +1399,7 @@ export class PIXINotesRendererInstance {
     this.voicingHintCompletedKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintCompleted, 0.7));
     // 正解済みハイライト（赤色）- ガイドより上に描画
     this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
-    // アクティブハイライト（オレンジ）- 最前面
+    // アクティブハイライト（水色・入力中）- 最前面
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }
