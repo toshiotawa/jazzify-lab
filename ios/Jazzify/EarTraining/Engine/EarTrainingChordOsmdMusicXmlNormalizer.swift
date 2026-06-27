@@ -686,7 +686,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                     let headStopTied = hasTieStop(on: child)
                     var clusterMidis: [Int] = []
                     let clusterDur = duration
-                    if let m0 = midiFromPitchElement(pitch, keyFifths: timing.keyFifths), !headStopTied {
+                    if let m0 = midiFromNoteElement(child, keyFifths: timing.keyFifths), !headStopTied {
                         clusterMidis.append(m0)
                     }
 
@@ -704,7 +704,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         guard directChild(next, localName: "rest") == nil else { break }
                         guard let nextPitch = directChild(next, localName: "pitch") else { break }
                         let chordToneStopTied = hasTieStop(on: next)
-                        if let mm = midiFromPitchElement(nextPitch, keyFifths: timing.keyFifths), !chordToneStopTied {
+                        if let mm = midiFromNoteElement(next, keyFifths: timing.keyFifths), !chordToneStopTied {
                             clusterMidis.append(mm)
                         }
                         ni += 1
@@ -848,7 +848,44 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return 0
     }
 
-    private static func midiFromPitchElement(_ pitch: ChordOsmdXmlElement, keyFifths: Int) -> Int? {
+    private static func accidentalTextToAlter(_ accidentalText: String) -> Int? {
+        switch accidentalText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "natural":
+            return 0
+        case "sharp":
+            return 1
+        case "flat":
+            return -1
+        case "double-sharp":
+            return 2
+        case "flat-flat", "double-flat":
+            return -2
+        default:
+            return nil
+        }
+    }
+
+    private static func resolvePitchAlter(
+        pitch: ChordOsmdXmlElement,
+        note: ChordOsmdXmlElement,
+        step: String,
+        keyFifths: Int
+    ) -> Int {
+        if let alterText = text(in: pitch, localName: "alter"),
+           let parsed = Int(alterText.trimmingCharacters(in: .whitespacesAndNewlines))
+        {
+            return parsed
+        }
+        if let accidentalText = text(in: note, localName: "accidental"),
+           let fromAccidental = accidentalTextToAlter(accidentalText)
+        {
+            return fromAccidental
+        }
+        return keySignatureAlter(step: step, keyFifths: keyFifths)
+    }
+
+    private static func midiFromNoteElement(_ note: ChordOsmdXmlElement, keyFifths: Int) -> Int? {
+        guard let pitch = directChild(note, localName: "pitch") else { return nil }
         guard let stepRaw = text(in: pitch, localName: "step")?.trimmingCharacters(in: .whitespacesAndNewlines),
               stepRaw.count == 1
         else {
@@ -867,15 +904,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             return nil
         }
 
-        let alter: Int
-        if let alterText = text(in: pitch, localName: "alter"),
-           let parsed = Int(alterText.trimmingCharacters(in: .whitespacesAndNewlines))
-        {
-            alter = parsed
-        } else {
-            alter = keySignatureAlter(step: stepUpper, keyFifths: keyFifths)
-        }
-
+        let alter = resolvePitchAlter(pitch: pitch, note: note, step: stepUpper, keyFifths: keyFifths)
         return (octave + 1) * 12 + semitoneBase + alter
     }
 

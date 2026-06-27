@@ -88,6 +88,25 @@ const accidentalXmlValue = (alter: number): string => {
   return 'natural';
 };
 
+/** MusicXML `<accidental>` テキスト（`<pitch><alter>` 欠落時）を半音変位へ。未対応は null。 */
+export const musicXmlAccidentalTextToAlter = (accidentalText: string): number | null => {
+  switch (accidentalText.trim().toLowerCase()) {
+    case 'natural':
+      return 0;
+    case 'sharp':
+      return 1;
+    case 'flat':
+      return -1;
+    case 'double-sharp':
+      return 2;
+    case 'flat-flat':
+    case 'double-flat':
+      return -2;
+    default:
+      return null;
+  }
+};
+
 const clampKeyFifths = (keyFifths: number): number => (
   Math.max(-7, Math.min(7, Math.trunc(keyFifths)))
 );

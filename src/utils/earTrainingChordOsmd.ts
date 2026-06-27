@@ -1,5 +1,9 @@
 import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank, EarTrainingStage } from '@/types';
-import { musicXmlKeySignatureAlter, parseVoicingNoteName } from '@/utils/voicingMusicXml';
+import {
+  musicXmlAccidentalTextToAlter,
+  musicXmlKeySignatureAlter,
+  parseVoicingNoteName,
+} from '@/utils/voicingMusicXml';
 
 /** chord_osmd ステージ／チュートリアル content.stage の既定値（MusicXML 譜面から判定ターゲットを生成） */
 export const EAR_TRAINING_OSMD_SCORE_TARGET_DEFAULTS = {
@@ -467,7 +471,29 @@ const noteHasTieStop = (noteEl: Element): boolean => {
   return false;
 };
 
-const pitchElementToMidi = (pitch: Element, keyFifths: number): number | null => {
+const resolveMusicXmlPitchAlter = (pitch: Element, noteEl: Element, step: string, keyFifths: number): number => {
+  const alterText = getDirectChildText(pitch, 'alter');
+  if (alterText !== null && alterText !== '') {
+    const parsedAlter = Number.parseInt(alterText, 10);
+    if (Number.isFinite(parsedAlter)) {
+      return parsedAlter;
+    }
+  }
+  const accidentalText = getDirectChildText(noteEl, 'accidental');
+  if (accidentalText !== null && accidentalText !== '') {
+    const fromAccidental = musicXmlAccidentalTextToAlter(accidentalText);
+    if (fromAccidental !== null) {
+      return fromAccidental;
+    }
+  }
+  return musicXmlKeySignatureAlter(step, keyFifths);
+};
+
+const noteElementToMidi = (noteEl: Element, keyFifths: number): number | null => {
+  const pitch = getDirectChild(noteEl, 'pitch');
+  if (!pitch) {
+    return null;
+  }
   const stepRaw = getDirectChildText(pitch, 'step');
   const step = stepRaw?.trim();
   if (!step || step.length !== 1) {
@@ -485,13 +511,7 @@ const pitchElementToMidi = (pitch: Element, keyFifths: number): number | null =>
   if (!Number.isFinite(octave)) {
     return null;
   }
-  const alterText = getDirectChildText(pitch, 'alter');
-  let alter = alterText !== null && alterText !== ''
-    ? Number.parseInt(alterText, 10)
-    : Number.NaN;
-  if (!Number.isFinite(alter)) {
-    alter = musicXmlKeySignatureAlter(step, keyFifths);
-  }
+  const alter = resolveMusicXmlPitchAlter(pitch, noteEl, step, keyFifths);
   return (octave + 1) * 12 + semitoneBase + alter;
 };
 
@@ -691,23 +711,21 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
   forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes, timing }) => {
     const clusterMidis: number[] = [];
     const head = clusterNotes[0];
-    const headPitch = head ? getDirectChild(head, 'pitch') : null;
-    if (head && headPitch && !noteHasTieStop(head)) {
-      const midi0 = pitchElementToMidi(headPitch, timing.keyFifths);
+    if (head && getDirectChild(head, 'pitch') && !noteHasTieStop(head)) {
+      const midi0 = noteElementToMidi(head, timing.keyFifths);
       if (midi0 !== null) {
         clusterMidis.push(midi0);
       }
     }
     for (let i = 1; i < clusterNotes.length; i += 1) {
       const next = clusterNotes[i];
-      const nextPitch = getDirectChild(next, 'pitch');
-      if (!nextPitch) {
+      if (!getDirectChild(next, 'pitch')) {
         continue;
       }
       if (noteHasTieStop(next)) {
         continue;
       }
-      const mm = pitchElementToMidi(nextPitch, timing.keyFifths);
+      const mm = noteElementToMidi(next, timing.keyFifths);
       if (mm !== null) {
         clusterMidis.push(mm);
       }

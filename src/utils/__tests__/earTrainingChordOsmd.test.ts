@@ -485,6 +485,61 @@ describe('earTrainingOsmdUsesScoreTargets', () => {
   });
 });
 
+describe('collectChordOsmdMusicXmlAttacks accidentals', () => {
+  const fMajorHeader = `
+    <attributes>
+      <divisions>1</divisions>
+      <key><fifths>-1</fifths></key>
+      <time><beats>4</beats><beat-type>4</beat-type></time>
+    </attributes>`;
+
+  it('`<accidental>natural</accidental>` のみ（`<alter>` なし）を B♮ として解釈する', () => {
+    const xml = `
+      <score-partwise><part><measure number="1">
+        ${fMajorHeader}
+        <note>
+          <pitch><step>B</step><octave>4</octave></pitch>
+          <duration>1</duration>
+          <type>quarter</type>
+          <accidental>natural</accidental>
+        </note>
+      </measure></part></score-partwise>`;
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].midis).toEqual([71]);
+  });
+
+  it('`<accidental>double-sharp</accidental>` のみを解釈する', () => {
+    const xml = `
+      <score-partwise><part><measure number="1">
+        ${fMajorHeader}
+        <note>
+          <pitch><step>F</step><octave>4</octave></pitch>
+          <duration>1</duration>
+          <type>quarter</type>
+          <accidental>double-sharp</accidental>
+        </note>
+      </measure></part></score-partwise>`;
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks[0].midis).toEqual([67]);
+  });
+
+  it('`<accidental>flat-flat</accidental>` のみを解釈する', () => {
+    const xml = `
+      <score-partwise><part><measure number="1">
+        ${fMajorHeader}
+        <note>
+          <pitch><step>B</step><octave>4</octave></pitch>
+          <duration>1</duration>
+          <type>quarter</type>
+          <accidental>flat-flat</accidental>
+        </note>
+      </measure></part></score-partwise>`;
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks[0].midis).toEqual([69]);
+  });
+});
+
 describe('bluesy licks bundled MusicXML', () => {
   const phrase1Path = 'public/sozai/bluesy-licks/bluesy-licks-01-240_loop4_ci.musicxml';
 
@@ -504,6 +559,14 @@ describe('bluesy licks bundled MusicXML', () => {
     const targets = buildChordOsmdRhythmTargets(phrase, 120, 4, attacks, true);
     expect(attacks.length).toBeGreaterThan(0);
     expect(targets.length).toBeGreaterThan(0);
+  });
+
+  it('フレーズ2の B♮（accidental のみ）を 71 として収集する', () => {
+    const phrase2Path = 'public/sozai/bluesy-licks/bluesy-licks-02-160_loop4_ci.musicxml';
+    const raw = readFileSync(phrase2Path, 'utf8');
+    const normalized = normalizeChordOsmdMusicXml(raw);
+    const attacks = collectChordOsmdMusicXmlAttacks(normalized);
+    expect(attacks.some(attack => attack.midis.includes(71))).toBe(true);
   });
 });
 
