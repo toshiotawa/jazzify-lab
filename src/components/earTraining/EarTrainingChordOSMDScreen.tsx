@@ -171,6 +171,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy(audienceContext);
   const copy = useMemo(() => getEarTrainingGameCopy(isEnglishCopy), [isEnglishCopy]);
   const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(isEnglishCopy), [isEnglishCopy]);
+  const measureDurationSec = useMemo(
+    () => (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure),
+    [stage.beats_per_measure, stage.bpm],
+  );
   const phrases = useMemo(
     () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
     [stage.phrases],
@@ -1371,6 +1375,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         musicXmlText={musicXmlText}
         scoreErrorText={scoreErrorText}
         activeMeasureNumber={activeMeasureNumber}
+        measureDurationSec={measureDurationSec}
         scrollActive={scoreScrollActive}
         renderKeyValue={phraseRunId}
         isEnglishCopy={isEnglishCopy}

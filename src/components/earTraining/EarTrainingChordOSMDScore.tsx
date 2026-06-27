@@ -22,6 +22,8 @@ interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
   scoreErrorText: string | null;
   activeMeasureNumber: number;
+  /** 小節内プレイヘッドが左→右へ流れる時間（秒）。BPM × 拍子から算出。 */
+  measureDurationSec: number;
   scrollActive: boolean;
   renderKeyValue: number;
   isEnglishCopy: boolean;
@@ -321,6 +323,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   musicXmlText,
   scoreErrorText,
   activeMeasureNumber,
+  measureDurationSec,
   scrollActive,
   renderKeyValue,
   isEnglishCopy,
@@ -329,6 +332,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreRef = useRef<HTMLDivElement | null>(null);
+  const measureHighlightRef = useRef<HTMLDivElement | null>(null);
+  const measurePlayheadRef = useRef<HTMLDivElement | null>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -480,6 +485,29 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     [activeMeasureNumber, effectiveScale, layout.measureBoundsByNumber, scrollOffsetPx],
   );
 
+  useEffect(() => {
+    const highlight = measureHighlightRef.current;
+    const playhead = measurePlayheadRef.current;
+    if (!highlight || !playhead || !showPlayhead || !measureHighlight.visible) {
+      return;
+    }
+    const highlightWidthPx = measureHighlight.widthPx;
+    const durationMs = Math.max(100, measureDurationSec * 1000);
+    playhead.style.transition = 'none';
+    playhead.style.left = '0px';
+    void playhead.offsetWidth;
+    requestAnimationFrame(() => {
+      playhead.style.transition = `left ${durationMs}ms linear`;
+      playhead.style.left = `${highlightWidthPx}px`;
+    });
+  }, [
+    activeMeasureNumber,
+    measureDurationSec,
+    measureHighlight.visible,
+    measureHighlight.widthPx,
+    showPlayhead,
+  ]);
+
   return (
     <>
       <div
@@ -493,18 +521,25 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       >
         {showPlayhead && measureHighlight.visible && (
           <div
-            className="pointer-events-none absolute bottom-0 top-0 z-[9] bg-red-500/15"
+            ref={measureHighlightRef}
+            className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden bg-red-500/15"
             style={{
               left: `${measureHighlight.leftPx}px`,
               width: `${measureHighlight.widthPx}px`,
             }}
             aria-hidden
-          />
+          >
+            <div
+              ref={measurePlayheadRef}
+              className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-red-500/95"
+              style={{ left: 0 }}
+            />
+          </div>
         )}
         <div
           ref={scoreRef}
           className={cn(
-            'absolute left-0 top-1/2 min-w-full origin-left transition-transform duration-150 ease-out',
+            'absolute left-0 top-1/2 min-w-full origin-left',
             '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
           )}
         />
