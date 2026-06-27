@@ -183,6 +183,11 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     @State private var scrollOffsetX: CGFloat = 0
     @State private var scrollTargetX: CGFloat?
 
+    init(player: Player, scrollAnchorMidi: Int? = nil) {
+        self.player = player
+        self.scrollAnchorMidi = scrollAnchorMidi
+    }
+
     private let keyboardHeight: CGFloat = 76
     private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6
@@ -192,6 +197,10 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
 
     private var chromeHeight: CGFloat {
         keyboardHeight + (Self.fitsFullKeyboard ? 0 : PianoKeyboardScrollGeometry.earTrainingScrollBarHeight)
+    }
+
+    private var effectiveScrollAnchorMidi: Int? {
+        scrollAnchorMidi ?? player.keyboardScrollAnchorMidi
     }
 
     var body: some View {
@@ -293,6 +302,14 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                     keyboardLayout: keyboardLayout
                 )
             }
+            .onChange(of: player.keyboardScrollAnchorMidi) { _ in
+                queueScrollAnchor(
+                    viewportWidth: viewportWidth,
+                    totalWidth: totalWidth,
+                    whiteKeyWidth: whiteKeyWidth,
+                    keyboardLayout: keyboardLayout
+                )
+            }
             .onChange(of: visibleWhiteKeys) { _ in
                 queuePreservedScrollOnZoom(
                     viewportWidth: viewportWidth,
@@ -369,7 +386,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     ) {
         guard !Self.fitsFullKeyboard else { return }
         let targetX: CGFloat
-        if let anchorMidi = scrollAnchorMidi {
+        if let anchorMidi = effectiveScrollAnchorMidi {
             targetX = PianoKeyboardScrollGeometry.trailingScrollOffsetX(
                 anchorWhiteMidi: anchorMidi,
                 whiteKeyWidth: whiteKeyWidth,

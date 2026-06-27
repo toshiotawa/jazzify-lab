@@ -282,8 +282,7 @@ private struct EarTrainingChordOSMDContent: View {
             VStack(spacing: 0) {
                 Spacer()
                 EarTrainingPianoView(
-                    player: controller,
-                    scrollAnchorMidi: controller.keyboardScrollAnchorMidi
+                    player: controller
                 )
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)

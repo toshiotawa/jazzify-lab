@@ -485,7 +485,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             bpm: stage.bpm,
             beatsPerMeasure: stage.beatsPerMeasure,
             attacks: xmlAttacks,
-            fromScore: stage.osmdTargetsFromScore == true
+            fromScore: stage.resolvedOsmdTargetsFromScore
         )
         guard !preparedTargets.isEmpty else {
             finishGameOver(message: isEnglishCopy ? "No chord timings are registered." : "判定用コードタイミングが登録されていません")
@@ -493,7 +493,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
 
         targets = preparedTargets
-        applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromTargets(preparedTargets))
+        applyKeyboardScrollAnchor(maxMidi: Self.resolveKeyboardScrollMaxMidi(attacks: xmlAttacks, targets: preparedTargets))
         resetPhraseRuntimeState()
         let initialMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
 
@@ -667,6 +667,17 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         } else {
             keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
         }
+    }
+
+    /// 鍵盤スクロールは MusicXML 譜面の音域を優先し、パース済みアタックが無いときだけ判定ターゲットへフォールバックする。
+    private static func resolveKeyboardScrollMaxMidi(
+        attacks: [ChordOsmdMusicXmlAttack],
+        targets: [RhythmTarget]
+    ) -> Int? {
+        if let fromAttacks = maxMidiFromAttacks(attacks), !attacks.isEmpty {
+            return fromAttacks
+        }
+        return maxMidiFromTargets(targets)
     }
 
     private static func maxMidiFromAttacks(_ attacks: [ChordOsmdMusicXmlAttack]) -> Int? {

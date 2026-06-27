@@ -137,6 +137,13 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         showKeyboardHintsInBattle == true
     }
 
+    /// Web `earTrainingOsmdUsesScoreTargets` 相当。`chord_osmd` では未指定時 true（明示的 false のみ chords タイミング）。
+    var resolvedOsmdTargetsFromScore: Bool {
+        if osmdTargetsFromScore == true { return true }
+        if resolvedMode == .chordOSMD, osmdTargetsFromScore != false { return true }
+        return false
+    }
+
     func resolvedQuizHideUnpressedNotationInBattle(practiceMode: Bool) -> Bool {
         guard practiceMode != true else { return false }
         return quizShowNotationInBattle == false

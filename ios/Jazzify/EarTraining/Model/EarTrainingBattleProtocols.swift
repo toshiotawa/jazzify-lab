@@ -22,6 +22,8 @@ protocol EarTrainingPianoPlayable: ObservableObject {
     var voicingHintsByMidi: [Int: VoicingHintState] { get }
     /// OSMD バトル専用。距離別ヒントを表示するときだけ非 nil。
     var voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]? { get }
+    /// OSMD バトル専用。MusicXML 由来の鍵盤スクロールアンカー。他モードは nil。
+    var keyboardScrollAnchorMidi: Int? { get }
 
     func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool)
     func handleNoteOff(midi: Int, playAudio: Bool)
@@ -29,6 +31,7 @@ protocol EarTrainingPianoPlayable: ObservableObject {
 
 extension EarTrainingPianoPlayable {
     var voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]? { nil }
+    var keyboardScrollAnchorMidi: Int? { nil }
 }
 
 // MARK: - ロビー / 結果オーバーレイ
