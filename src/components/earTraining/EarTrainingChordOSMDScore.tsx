@@ -8,6 +8,14 @@ import {
   type OsmdMeasureBounds,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
+import {
+  clampEarTrainingOsmdUserZoom,
+  EAR_TRAINING_OSMD_USER_ZOOM_MAX,
+  EAR_TRAINING_OSMD_USER_ZOOM_MIN,
+  EAR_TRAINING_OSMD_USER_ZOOM_STEP,
+  loadEarTrainingOsmdUserZoom,
+  saveEarTrainingOsmdUserZoom,
+} from '@/utils/earTrainingOsmdScorePreferences';
 import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 
 interface EarTrainingChordOSMDScoreProps {
@@ -36,14 +44,6 @@ const EMPTY_LAYOUT: OsmdLayout = {
   measureBoundsByNumber: {},
   scoreWidth: 0,
 };
-
-/** CSS scale に掛けるユーザー調整倍率（OSMD の再 render は避ける）。 */
-const USER_ZOOM_MIN = 0.5;
-const USER_ZOOM_MAX = 2;
-const USER_ZOOM_STEP = 0.1;
-
-const clampUserZoom = (value: number): number =>
-  Math.min(USER_ZOOM_MAX, Math.max(USER_ZOOM_MIN, Math.round(value * 10) / 10));
 
 const getFiniteNumber = (value: unknown): number | null => (
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -334,7 +334,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [cssScale, setCssScale] = useState(1);
-  const [userZoom, setUserZoom] = useState(1.9);
+  const [userZoom, setUserZoom] = useState(loadEarTrainingOsmdUserZoom);
   const [scrollOffsetPx, setScrollOffsetPx] = useState(0);
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
 
@@ -523,14 +523,20 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
           <button
             type="button"
             aria-label={isEnglishCopy ? 'Zoom in' : '拡大'}
-            disabled={userZoom >= USER_ZOOM_MAX}
+            disabled={userZoom >= EAR_TRAINING_OSMD_USER_ZOOM_MAX}
             className={cn(
               'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
               'disabled:cursor-not-allowed disabled:opacity-40',
               'hover:bg-white/20 active:bg-white/25',
             )}
             onClick={() => {
-              setUserZoom(previous => clampUserZoom(previous + USER_ZOOM_STEP));
+              setUserZoom((previous) => {
+                const next = clampEarTrainingOsmdUserZoom(
+                  previous + EAR_TRAINING_OSMD_USER_ZOOM_STEP,
+                );
+                saveEarTrainingOsmdUserZoom(next);
+                return next;
+              });
             }}
           >
             +
@@ -542,14 +548,20 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
           <button
             type="button"
             aria-label={isEnglishCopy ? 'Zoom out' : '縮小'}
-            disabled={userZoom <= USER_ZOOM_MIN}
+            disabled={userZoom <= EAR_TRAINING_OSMD_USER_ZOOM_MIN}
             className={cn(
               'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
               'disabled:cursor-not-allowed disabled:opacity-40',
               'hover:bg-white/20 active:bg-white/25',
             )}
             onClick={() => {
-              setUserZoom(previous => clampUserZoom(previous - USER_ZOOM_STEP));
+              setUserZoom((previous) => {
+                const next = clampEarTrainingOsmdUserZoom(
+                  previous - EAR_TRAINING_OSMD_USER_ZOOM_STEP,
+                );
+                saveEarTrainingOsmdUserZoom(next);
+                return next;
+              });
             }}
           >
             −

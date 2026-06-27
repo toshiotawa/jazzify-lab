@@ -188,7 +188,7 @@ private struct EarTrainingChordOSMDContent: View {
     let fixedLandscapeSize: CGSize?
 
     /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
-    @State private var scoreSizeStep: Int = 1
+    @State private var scoreSizeStep: Int = EarTrainingOsmdScorePreferences.loadScoreSizeStep()
 
     @State private var hudHorizontalPadding: CGFloat = 16
 
@@ -221,6 +221,9 @@ private struct EarTrainingChordOSMDContent: View {
         .ignoresSafeArea()
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
+        }
+        .onChange(of: scoreSizeStep) { _, newValue in
+            EarTrainingOsmdScorePreferences.saveScoreSizeStep(newValue)
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
             EarTrainingSettingsSheet(
@@ -1233,5 +1236,29 @@ private struct EarTrainingChordOSMDSceneContainer<Driver: EarTrainingBattleScene
             scene = nil
             driver = nil
         }
+    }
+}
+
+enum EarTrainingOsmdScorePreferences {
+    private static let scoreSizeStepKey = "earTraining.osmd.scoreSizeStep"
+
+    static let minStep = -2
+    static let maxStep = 2
+    static let defaultStep = 1
+
+    static func clampScoreSizeStep(_ value: Int) -> Int {
+        Swift.min(maxStep, Swift.max(minStep, value))
+    }
+
+    static func loadScoreSizeStep() -> Int {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: scoreSizeStepKey) != nil else {
+            return defaultStep
+        }
+        return clampScoreSizeStep(defaults.integer(forKey: scoreSizeStepKey))
+    }
+
+    static func saveScoreSizeStep(_ value: Int) {
+        UserDefaults.standard.set(clampScoreSizeStep(value), forKey: scoreSizeStepKey)
     }
 }
