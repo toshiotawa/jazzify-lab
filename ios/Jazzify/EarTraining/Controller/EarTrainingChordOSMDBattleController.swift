@@ -1232,18 +1232,29 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     ) -> [(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, midiCounts: [Int: Int])] {
         var measureLabels: [Int: String] = [:]
         var playableMeasures = Set<Int>()
-        for chord in chords where !chord.inputDisabled {
+        var disabledMeasures = Set<Int>()
+        for chord in chords {
             guard let measureNumber = chord.measureNumber else { continue }
             let measure = max(1, measureNumber)
+            if chord.inputDisabled {
+                disabledMeasures.insert(measure)
+                continue
+            }
             playableMeasures.insert(measure)
             if measureLabels[measure] == nil {
                 measureLabels[measure] = chord.chordName
             }
         }
-        guard !playableMeasures.isEmpty, !attacks.isEmpty else { return [] }
+        guard !attacks.isEmpty else { return [] }
+        // chords を持たないフレーズ（MusicXML の音符のみで判定）は全アタックを採用する。
+        let useAllScoreMeasures = playableMeasures.isEmpty && disabledMeasures.isEmpty
 
         let sortedAttacks = attacks
-            .filter { playableMeasures.contains($0.measureNumber) }
+            .filter { attack in
+                if useAllScoreMeasures { return true }
+                if playableMeasures.isEmpty { return false }
+                return playableMeasures.contains(attack.measureNumber)
+            }
             .sorted { lhs, rhs in
                 let lhsTime = chordOsmdAttackTargetTimeSec(
                     measureNumber: lhs.measureNumber,

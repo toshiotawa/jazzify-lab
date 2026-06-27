@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import {
@@ -205,6 +206,32 @@ describe('buildChordOsmdRhythmTargets', () => {
     );
 
     expect(targets).toHaveLength(0);
+  });
+
+  it('fromScore=true で phrase.chords が空のとき MusicXML の全アタックをターゲット化する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    const targets = buildChordOsmdRhythmTargets(
+      {
+        id: 'phrase-score-only',
+        stage_id: 'stage-1',
+        order_index: 0,
+        audio_url: '/phrase.mp3',
+        loop_duration_sec: 8,
+        audio_duration_sec: 8,
+        note_count: 0,
+      },
+      120,
+      4,
+      attacks,
+      true,
+    );
+
+    expect(attacks.length).toBeGreaterThan(0);
+    expect(targets).toHaveLength(attacks.length);
+    expect(targets[0].label).toBe('—');
   });
 
   it('fromScore=false のとき従来どおり phrase.chords の拍1ターゲットのみ', () => {
@@ -453,6 +480,28 @@ describe('earTrainingOsmdUsesScoreTargets', () => {
 
   it('chord_osmd 以外では false 扱い', () => {
     expect(earTrainingOsmdUsesScoreTargets({ mode: 'phrase', osmd_targets_from_score: undefined })).toBe(false);
+  });
+});
+
+describe('bluesy licks bundled MusicXML', () => {
+  const phrase1Path = 'public/sozai/bluesy-licks/bluesy-licks-01-240_loop4_ci.musicxml';
+
+  it('正規化後も OSMD 判定ターゲットが生成される', () => {
+    const raw = readFileSync(phrase1Path, 'utf8');
+    const normalized = normalizeChordOsmdMusicXml(raw);
+    const attacks = collectChordOsmdMusicXmlAttacks(normalized);
+    const phrase: EarTrainingPhrase = {
+      id: 'x',
+      stage_id: 'y',
+      order_index: 0,
+      audio_url: 'u',
+      loop_duration_sec: 66,
+      audio_duration_sec: 66,
+      note_count: 0,
+    };
+    const targets = buildChordOsmdRhythmTargets(phrase, 120, 4, attacks, true);
+    expect(attacks.length).toBeGreaterThan(0);
+    expect(targets.length).toBeGreaterThan(0);
   });
 });
 

@@ -899,6 +899,20 @@ const buildPlayableMeasures = (chords: readonly EarTrainingPhraseChord[]): Set<n
   return measures;
 };
 
+const buildDisabledMeasures = (chords: readonly EarTrainingPhraseChord[]): Set<number> => {
+  const measures = new Set<number>();
+  for (const chord of chords) {
+    if (chord.input_disabled !== true) {
+      continue;
+    }
+    if (typeof chord.measure_number !== 'number' || !Number.isFinite(chord.measure_number)) {
+      continue;
+    }
+    measures.add(Math.max(1, Math.trunc(chord.measure_number)));
+  }
+  return measures;
+};
+
 const attackMidiCounts = (midis: readonly number[]): Map<number, number> => {
   const counts = new Map<number, number>();
   for (const midi of midis) {
@@ -919,13 +933,23 @@ const buildChordOsmdRhythmTargetsFromScore = (
 ): ChordOsmdRhythmTarget[] => {
   const chords = phrase.chords ?? [];
   const playableMeasures = buildPlayableMeasures(chords);
+  const disabledMeasures = buildDisabledMeasures(chords);
   const measureLabels = buildPlayableMeasureLabels(chords);
-  if (playableMeasures.size === 0 || attacks.length === 0) {
+  if (attacks.length === 0) {
     return [];
   }
+  const useAllScoreMeasures = playableMeasures.size === 0 && disabledMeasures.size === 0;
 
   const sortedAttacks = attacks
-    .filter(attack => playableMeasures.has(attack.measureNumber))
+    .filter(attack => {
+      if (useAllScoreMeasures) {
+        return true;
+      }
+      if (playableMeasures.size === 0) {
+        return false;
+      }
+      return playableMeasures.has(attack.measureNumber);
+    })
     .sort((a, b) => {
       const timeA = chordOsmdLyricTargetTimeSec(a.measureNumber, a.beatStartInMeasure, bpm, beatsPerMeasure);
       const timeB = chordOsmdLyricTargetTimeSec(b.measureNumber, b.beatStartInMeasure, bpm, beatsPerMeasure);
