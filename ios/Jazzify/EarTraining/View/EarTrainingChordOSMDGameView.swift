@@ -222,7 +222,7 @@ private struct EarTrainingChordOSMDContent: View {
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
         }
-        .onChange(of: scoreSizeStep) { _, newValue in
+        .onChange(of: scoreSizeStep) { newValue in
             EarTrainingOsmdScorePreferences.saveScoreSizeStep(newValue)
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
@@ -283,7 +283,7 @@ private struct EarTrainingChordOSMDContent: View {
                 Spacer()
                 EarTrainingPianoView(
                     player: controller,
-                    scrollAnchorMidi: EarTrainingKeyboardScroll.scrollAnchorMidi(for: controller.stage)
+                    scrollAnchorMidi: controller.keyboardScrollAnchorMidi
                 )
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)
@@ -532,6 +532,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var lastMeasureNumber: Int?
         private var lastMeasureDurationSec: Double?
         private var pendingOverlayVisible = false
+        private var lastSentOverlayVisible: Bool?
 
         func attach(webView: WKWebView) {
             self.webView = webView
@@ -551,6 +552,8 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         func configurePlayhead(show: Bool) {
             pendingOverlayVisible = show
             guard let webView, htmlReady, !isTornDown else { return }
+            guard lastSentOverlayVisible != show else { return }
+            lastSentOverlayVisible = show
             let visible = show ? "true" : "false"
             webView.evaluateJavaScript(
                 "window.JazzifyOSMD && window.JazzifyOSMD.setScoreOverlayVisible(\(visible));",
@@ -627,6 +630,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
+                lastSentOverlayVisible = pendingOverlayVisible
                 Self.evaluate(script, on: webView, generation: generation, coordinator: self)
                 return
             }

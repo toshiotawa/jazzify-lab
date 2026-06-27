@@ -64,6 +64,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var midiHeldKeys: Set<Int> = []
     /// 設定で有効なとき、判定窓内の未押下構成音（OSMD: 距離で濃さが変わるマリーゴールド）。
     @Published private(set) var voicingHintIntensities: [Int: VoicingHintIntensity] = [:]
+    /// MusicXML / 判定ターゲット由来の鍵盤スクロールアンカー（白鍵 MIDI）。無いときは C4 中央へフォールバック。
+    @Published private(set) var keyboardScrollAnchorMidi: Int?
 
     var scoreScrollActive: Bool {
         scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase)
@@ -95,7 +97,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
-    private static let musicXmlCacheSchemaVersion = 4
+    private static let musicXmlCacheSchemaVersion = 5
 
     private static func musicXmlCacheKey(phraseId: UUID) -> String {
         "\(phraseId.uuidString)|osmdXml|v\(musicXmlCacheSchemaVersion)"
@@ -106,13 +108,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let rhythmXml: String
         let maxStaffLayers: Int
         let lyricEvents: [ChordOsmdLyricEvent]
+        let attacks: [ChordOsmdMusicXmlAttack]
     }
 
     private var musicXMLCache: [String: MusicXmlPrepared] = [:]
-    /// 正規化済み・歌詞付き。`collectChordOsmdMusicXmlAttacks` 用（表示は `musicXMLText` の歌詞除去版）。
+    /// 正規化済み・歌詞付き。表示は `musicXMLText` の歌詞除去版。
     private var rhythmMusicXmlForAttacks: String?
+    private var rhythmAttacks: [ChordOsmdMusicXmlAttack] = []
     private var phraseLyricEvents: [ChordOsmdLyricEvent] = []
     private var nextLyricQuoteIndex: Int = 0
+    private let stageFallbackKeyboardScrollAnchorMidi: Int?
 
     private var countdownTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
@@ -151,6 +156,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             ? "Press START to begin OSMD rhythm battle."
             : "STARTでOSMDリズムバトルを開始します"
         self.practiceMode = initialPracticeMode
+        self.stageFallbackKeyboardScrollAnchorMidi = EarTrainingKeyboardScroll.scrollAnchorMidi(for: stage)
+        self.keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
     }
 
     func applyPracticeModeAndRestart(_ value: Bool) {
@@ -228,6 +235,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         scoreTimelineArmed = false
         activeMeasureNumber = 1
         rhythmMusicXmlForAttacks = nil
+        rhythmAttacks = []
         phraseLyricEvents = []
         nextLyricQuoteIndex = 0
         scene = nil
@@ -470,12 +478,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         await loadMusicXML(for: phrase)
         if Task.isCancelled { return }
 
-        let xmlAttacks: [ChordOsmdMusicXmlAttack]
-        if let xml = rhythmMusicXmlForAttacks {
-            xmlAttacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(xml)
-        } else {
-            xmlAttacks = []
-        }
+        let xmlAttacks = rhythmAttacks
 
         let preparedTargets = Self.makeRhythmTargets(
             phrase: phrase,
@@ -490,6 +493,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
 
         targets = preparedTargets
+        applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromTargets(preparedTargets))
         resetPhraseRuntimeState()
         let initialMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
 
@@ -583,16 +587,20 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             musicXMLText = cached.displayXml
             musicXMLMaxStaffLayers = cached.maxStaffLayers
             rhythmMusicXmlForAttacks = cached.rhythmXml
+            rhythmAttacks = cached.attacks
             phraseLyricEvents = cached.lyricEvents
             scoreErrorText = nil
+            applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromAttacks(cached.attacks))
             return
         }
         guard let rawURL = phrase.musicXmlUrl, let url = URL(string: rawURL) else {
             musicXMLText = nil
             musicXMLMaxStaffLayers = 1
             rhythmMusicXmlForAttacks = nil
+            rhythmAttacks = []
             phraseLyricEvents = []
             scoreErrorText = isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
+            keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
             return
         }
         do {
@@ -603,16 +611,20 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 musicXMLText = nil
                 musicXMLMaxStaffLayers = 1
                 rhythmMusicXmlForAttacks = nil
+                rhythmAttacks = []
                 phraseLyricEvents = []
                 scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+                keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
                 return
             }
             guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 musicXMLText = nil
                 musicXMLMaxStaffLayers = 1
                 rhythmMusicXmlForAttacks = nil
+                rhythmAttacks = []
                 phraseLyricEvents = []
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
+                keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
                 return
             }
             let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
@@ -622,25 +634,63 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 bpm: Double(stage.bpm),
                 beatsPerMeasure: stage.beatsPerMeasure
             )
+            let attacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(prepared.xml)
             let boxed = MusicXmlPrepared(
                 displayXml: displayXml,
                 rhythmXml: prepared.xml,
                 maxStaffLayers: prepared.maxStaffLayers,
-                lyricEvents: lyricEvents
+                lyricEvents: lyricEvents,
+                attacks: attacks
             )
             musicXMLCache[cacheKey] = boxed
             musicXMLText = displayXml
             musicXMLMaxStaffLayers = prepared.maxStaffLayers
             rhythmMusicXmlForAttacks = prepared.xml
+            rhythmAttacks = attacks
             phraseLyricEvents = lyricEvents
             scoreErrorText = nil
+            applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromAttacks(attacks))
         } catch {
             musicXMLText = nil
             musicXMLMaxStaffLayers = 1
             rhythmMusicXmlForAttacks = nil
+            rhythmAttacks = []
             phraseLyricEvents = []
             scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+            keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
         }
+    }
+
+    private func applyKeyboardScrollAnchor(maxMidi: Int?) {
+        if let maxMidi {
+            keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
+        } else {
+            keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
+        }
+    }
+
+    private static func maxMidiFromAttacks(_ attacks: [ChordOsmdMusicXmlAttack]) -> Int? {
+        var maxValue: Int?
+        for attack in attacks {
+            for midi in attack.midis {
+                if maxValue == nil || midi > maxValue! {
+                    maxValue = midi
+                }
+            }
+        }
+        return maxValue
+    }
+
+    private static func maxMidiFromTargets(_ targets: [RhythmTarget]) -> Int? {
+        var maxValue: Int?
+        for target in targets {
+            for midi in target.midiCounts.keys {
+                if maxValue == nil || midi > maxValue! {
+                    maxValue = midi
+                }
+            }
+        }
+        return maxValue
     }
 
     private func handleAudioTimeUpdate(currentTime: Double) {
