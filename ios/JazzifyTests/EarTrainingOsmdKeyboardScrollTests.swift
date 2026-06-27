@@ -1,6 +1,26 @@
 import XCTest
 @testable import Jazzify
 
+/// WEB `CHORD_OSMD_JUDGMENT_*` と iOS `EarTrainingChordOSMDBattleController` の判定窓ロジック（純粋関数テスト用）。
+private enum OsmdJudgmentTiming {
+    static let windowSec = 0.25
+    static let offsetSec = 0.04
+
+    static func judgedCenter(targetTimeSec: Double) -> Double {
+        targetTimeSec + offsetSec
+    }
+
+    static func isWithinWindow(phraseTime: Double, targetTimeSec: Double) -> Bool {
+        let judged = judgedCenter(targetTimeSec: targetTimeSec)
+        let delta = phraseTime - judged
+        return delta >= -windowSec && delta <= windowSec
+    }
+
+    static func shouldPruneActiveTarget(currentTime: Double, targetTimeSec: Double) -> Bool {
+        currentTime > targetTimeSec + offsetSec + windowSec
+    }
+}
+
 final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
     func testResolvedOsmdTargetsFromScoreDefaultsTrueForChordOsmdMode() {
         let stage = makeOsmdStage(osmdTargetsFromScore: nil)
@@ -45,6 +65,25 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
             SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi!),
             81
         )
+    }
+
+    func testJudgmentWindowMatchesWebOffsetAndWidth() {
+        let targetTimeSec = 0.0
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.21, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.22, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.29, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.30, targetTimeSec: targetTimeSec))
+        XCTAssertEqual(OsmdJudgmentTiming.judgedCenter(targetTimeSec: 1.0), 1.04)
+    }
+
+    func testCountInEarlyInputWithinWindowForFirstTarget() {
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.05, targetTimeSec: 0))
+    }
+
+    func testActiveTargetPruneUsesOffsetPlusWindow() {
+        let targetTimeSec = 1.0
+        XCTAssertFalse(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.29, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.30, targetTimeSec: targetTimeSec))
     }
 
     private func makeOsmdStage(

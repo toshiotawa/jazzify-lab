@@ -23,6 +23,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     /// フレーズ終了検知のセーフティパディング。`loop_duration_sec` の直後ではなく、
     /// 最後のノーツの判定窓と被ダメージ用ハンマーが着弾し終わるまで待つ（WEB の `PHRASE_END_PADDING_SEC` 相当）。
     private static let phraseEndPaddingSec: Double = 0.08
+    /// WEB `INPUT_COOLDOWN_MS` 相当（MIDI ノート単位）。
+    private static let inputCooldownMs: Double = 20
 
     private enum Log {
         private static let subsystem = Bundle.main.bundleIdentifier ?? "Jazzify"
@@ -90,6 +92,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var nextActiveTargetIndex: Int = 0
     private var nextMissTargetIndex: Int = 0
     private var nextHammerTargetIndex: Int = 0
+    private var lastInputAtByNote: [Int: Double] = [:]
     private var phraseEnding: Bool = false
     private var progressSaveStarted: Bool = false
     private var totalCompletedTargets: Int = 0
@@ -293,8 +296,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
+        let nowMs = CACurrentMediaTime() * 1000
+        if nowMs - (lastInputAtByNote[midi] ?? 0) < Self.inputCooldownMs { return }
+        lastInputAtByNote[midi] = nowMs
         guard gameState == .playingPhrase || gameState == .countIn else { return }
-        let phraseTime = audio.phraseJudgmentTimelineSecNow()
+        guard let phraseTime = audio.phraseJudgmentTimelineSecNowOrNil() else { return }
         handleAudioTimeUpdate(currentTime: phraseTime)
         compactActiveTargets()
 
@@ -544,6 +550,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
     private func resetPhraseRuntimeState() {
         activeTargetIndices.removeAll(keepingCapacity: true)
+        lastInputAtByNote.removeAll(keepingCapacity: true)
         nextActiveTargetIndex = 0
         nextMissTargetIndex = 0
         nextHammerTargetIndex = 0
@@ -1063,7 +1070,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             if target.completed || target.failed {
                 continue
             }
-            if let currentTime, currentTime > target.targetTimeSec + Self.judgmentWindowSec {
+            if let currentTime, currentTime > target.targetTimeSec + Self.judgmentOffsetSec + Self.judgmentWindowSec {
                 continue
             }
             activeTargetIndices[writeIndex] = index
