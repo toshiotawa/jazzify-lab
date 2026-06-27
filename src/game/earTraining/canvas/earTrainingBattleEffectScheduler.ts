@@ -155,35 +155,47 @@ const schedulePlayerKnockback = (
   }, totalMs);
 };
 
+interface LightImpactBurstOptions {
+  durationMs: number;
+  size: number;
+  scaleEnd: number;
+  sparkDuration: number;
+}
+
 const addImpactBurst = (
   runtime: EarTrainingBattleDrawRuntime,
   x: number,
   y: number,
   color: string,
   heavy: boolean,
+  lightOptions?: LightImpactBurstOptions,
 ): void => {
   const startedAt = performance.now();
+  const lightDurationMs = lightOptions?.durationMs ?? 420;
+  const lightSize = lightOptions?.size ?? 48;
+  const lightScaleEnd = lightOptions?.scaleEnd ?? 1.6;
+  const lightSparkDuration = lightOptions?.sparkDuration ?? 360;
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'burst',
     startedAt,
-    durationMs: heavy ? 740 : 420,
+    durationMs: heavy ? 740 : lightDurationMs,
     fromX: x,
     fromY: y,
     toX: x,
     toY: y,
     color,
-    size: heavy ? 92 : 48,
+    size: heavy ? 92 : lightSize,
     alpha: heavy ? 0.16 : 0.16,
     rotation: 0,
     rotationEnd: 0,
     scaleStart: 1,
-    scaleEnd: heavy ? 2.25 : 1.6,
+    scaleEnd: heavy ? 2.25 : lightScaleEnd,
   });
   const sparkCount = heavy ? 22 : 9;
   const sparkDistanceX = heavy ? 104 : 44;
   const sparkDistanceY = heavy ? 68 : 30;
-  const sparkDuration = heavy ? 680 : 360;
+  const sparkDuration = heavy ? 680 : lightSparkDuration;
   for (let index = 0; index < sparkCount; index += 1) {
     const angle = (Math.PI * 2 * index) / sparkCount;
     addVisual(visuals, {
@@ -223,34 +235,34 @@ const addParryGuardEffect = (
   addVisual(visuals, {
     kind: 'ring',
     startedAt,
-    durationMs: 130,
+    durationMs: 90,
     fromX: x,
     fromY: y,
     toX: x,
     toY: y,
     color: 'rgba(255, 255, 255, 0)',
-    size: 42,
+    size: 30,
     alpha: 0.75,
     rotation: 0,
     rotationEnd: 0,
     scaleStart: 0.45,
-    scaleEnd: 1.35,
+    scaleEnd: 1.15,
   });
   addVisual(visuals, {
     kind: 'ring',
     startedAt: startedAt + PARRY_GUARD_SLOW_RING_DELAY_MS,
-    durationMs: 420,
+    durationMs: 240,
     fromX: x,
     fromY: y,
     toX: x,
     toY: y,
     color: 'rgba(255, 255, 255, 0)',
-    size: 56,
+    size: 38,
     alpha: 0.24,
     rotation: 0,
     rotationEnd: 0,
     scaleStart: 0.7,
-    scaleEnd: 2.6,
+    scaleEnd: 1.75,
   });
   runtime.effects.push({
     commandId: -1,
@@ -282,19 +294,19 @@ const addPreciseParryRing = (
   const startedAt = performance.now();
   const stackIndex = countActiveThinRings(runtime, startedAt);
   const scaleStart = 0.45 + stackIndex * 0.12;
-  const scaleEnd = 3.6 + stackIndex * 0.25;
+  const scaleEnd = 2.3 + stackIndex * 0.16;
   const color = stackIndex > 0 ? 'rgba(251, 146, 60, 1)' : 'rgba(194, 65, 12, 1)';
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'thinRing',
     startedAt,
-    durationMs: 1000,
+    durationMs: 480,
     fromX: x,
     fromY: y,
     toX: x,
     toY: y,
     color,
-    size: 96,
+    size: 68,
     alpha: 1,
     rotation: 0,
     rotationEnd: 0,
@@ -513,7 +525,12 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
   setTimeout(() => {
     if (!effect.osmdHammerActive) return;
     flashCharacter(runtime.player, 2, 70);
-    addImpactBurst(runtime, anchors.player.x, anchors.player.bodyY, '#fb7185', false);
+    addImpactBurst(runtime, anchors.player.x, anchors.player.bodyY, '#fb7185', false, {
+      durationMs: 260,
+      size: 34,
+      scaleEnd: 1.3,
+      sparkDuration: 220,
+    });
     schedulePlayerKnockback(ctx, -28, 180);
     effect.osmdHammerActive = false;
     onDirty();

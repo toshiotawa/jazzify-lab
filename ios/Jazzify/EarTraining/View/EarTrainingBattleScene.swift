@@ -1995,7 +1995,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.osmdHammerNodesByEffectId[command.id] = nil
             hammer.removeFromParent()
             self.flashCharacter(.player)
-            self.showImpactBurst(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0), large: false)
+            self.showImpactBurst(
+                at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY),
+                color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0),
+                large: false,
+                lightRadius: Self.battleLayoutPt(17),
+                lightScaleEnd: 1.3,
+                lightDuration: 0.26
+            )
             self.onEffectImpact?(command.id)
         }
     }
@@ -2043,7 +2050,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             frameDurationMs: Self.skillPlayerPoseFrameMs,
             restoreOnCompletion: false
         )
-        showMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + Self.battleLayoutPt(12)), size: Self.battleLayoutPt(190))
+        showMagicCircle(
+            at: CGPoint(x: anchors.player.x, y: anchors.player.footY + Self.battleLayoutPt(12)),
+            size: Self.battleLayoutPt(140),
+            duration: 0.72,
+            scaleEnd: 1.08
+        )
 
         let meteor = makeEffectSprite(name: "ear-training-effect-meteor", size: Self.battleLayoutPt(210))
         let start = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(148), y: anchors.enemy.headY + Self.battleLayoutPt(230))
@@ -2261,7 +2273,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     // MARK: - Effect helpers
 
-    private func showMagicCircle(at position: CGPoint, size: CGFloat) {
+    private func showMagicCircle(at position: CGPoint, size: CGFloat, duration: TimeInterval = 1.08, scaleEnd: CGFloat = 1.14) {
         let circle = makeEffectSprite(name: "ear-training-effect-magic-circle", size: size)
         circle.position = position
         circle.alpha = Self.awesomeMagicCircleAlpha
@@ -2269,9 +2281,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         effectLayer.addChild(circle)
         circle.run(SKAction.sequence([
             SKAction.group([
-                SKAction.rotate(byAngle: .pi, duration: 1.08),
-                SKAction.scale(to: 1.14, duration: 1.08),
-                SKAction.fadeOut(withDuration: 1.08),
+                SKAction.rotate(byAngle: .pi, duration: duration),
+                SKAction.scale(to: scaleEnd, duration: duration),
+                SKAction.fadeOut(withDuration: duration),
             ]),
             SKAction.removeFromParent(),
         ]))
@@ -2345,7 +2357,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func showParryGuardEffect(at position: CGPoint) {
-        let fastRingRadius = Self.battleLayoutPt(21)
+        let fastRingRadius = Self.battleLayoutPt(15)
         let fastRing = SKShapeNode(circleOfRadius: fastRingRadius)
         fastRing.fillColor = .clear
         fastRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
@@ -2357,13 +2369,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         effectLayer.addChild(fastRing)
         fastRing.run(SKAction.sequence([
             SKAction.group([
-                SKAction.scale(to: 1.35, duration: 0.13),
-                SKAction.fadeOut(withDuration: 0.13),
+                SKAction.scale(to: 1.15, duration: 0.09),
+                SKAction.fadeOut(withDuration: 0.09),
             ]),
             SKAction.removeFromParent(),
         ]))
 
-        let slowRingRadius = Self.battleLayoutPt(28)
+        let slowRingRadius = Self.battleLayoutPt(19)
         let slowRing = SKShapeNode(circleOfRadius: slowRingRadius)
         slowRing.fillColor = .clear
         slowRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
@@ -2376,8 +2388,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         slowRing.run(SKAction.sequence([
             SKAction.wait(forDuration: 0.035),
             SKAction.group([
-                SKAction.scale(to: 2.6, duration: 0.42),
-                SKAction.fadeOut(withDuration: 0.42),
+                SKAction.scale(to: 1.75, duration: 0.24),
+                SKAction.fadeOut(withDuration: 0.24),
             ]),
             SKAction.removeFromParent(),
         ]))
@@ -2386,13 +2398,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func showPreciseParryRing(at position: CGPoint) {
         let stackIndex = activePreciseParryRingCount
         activePreciseParryRingCount += 1
-        let ringRadius = Self.battleLayoutPt(40)
+        let ringRadius = Self.battleLayoutPt(28)
         let ring = SKShapeNode(circleOfRadius: ringRadius)
         ring.fillColor = .clear
         ring.strokeColor = stackIndex > 0
             ? UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1)
             : UIColor(red: 0.761, green: 0.255, blue: 0.047, alpha: 1)
-        ring.lineWidth = Self.battleLayoutPt(6)
+        ring.lineWidth = Self.battleLayoutPt(5)
         ring.position = position
         ring.alpha = 1
         ring.setScale(0.45 + CGFloat(stackIndex) * 0.12)
@@ -2400,10 +2412,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         effectLayer.addChild(ring)
         ring.run(SKAction.sequence([
             SKAction.group([
-                SKAction.scale(to: 3.6 + CGFloat(stackIndex) * 0.25, duration: 1.0),
+                SKAction.scale(to: 2.3 + CGFloat(stackIndex) * 0.16, duration: 0.48),
                 SKAction.sequence([
-                    SKAction.wait(forDuration: 0.75),
-                    SKAction.fadeOut(withDuration: 0.25),
+                    SKAction.wait(forDuration: 0.17),
+                    SKAction.fadeOut(withDuration: 0.31),
                 ]),
             ]),
             SKAction.run { [weak self] in
@@ -2459,8 +2471,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         ]))
     }
 
-    private func showImpactBurst(at position: CGPoint, color: UIColor, large: Bool) {
-        let radius: CGFloat = large ? Self.battleLayoutPt(46) : Self.battleLayoutPt(24)
+    private func showImpactBurst(
+        at position: CGPoint,
+        color: UIColor,
+        large: Bool,
+        lightRadius: CGFloat? = nil,
+        lightScaleEnd: CGFloat? = nil,
+        lightDuration: TimeInterval? = nil
+    ) {
+        let smallRadius = lightRadius ?? Self.battleLayoutPt(24)
+        let smallScaleEnd = lightScaleEnd ?? 1.6
+        let smallDuration = lightDuration ?? 0.42
+        let radius: CGFloat = large ? Self.battleLayoutPt(46) : smallRadius
         let ring = SKShapeNode(circleOfRadius: radius)
         ring.fillColor = color.withAlphaComponent(0.16)
         ring.strokeColor = UIColor.white.withAlphaComponent(large ? 0.9 : 0.72)
@@ -2469,12 +2491,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         effectLayer.addChild(ring)
         ring.run(SKAction.sequence([
             SKAction.group([
-                SKAction.scale(to: large ? 2.25 : 1.6, duration: large ? 0.74 : 0.42),
-                SKAction.fadeOut(withDuration: large ? 0.74 : 0.42),
+                SKAction.scale(to: large ? 2.25 : smallScaleEnd, duration: large ? 0.74 : smallDuration),
+                SKAction.fadeOut(withDuration: large ? 0.74 : smallDuration),
             ]),
             SKAction.removeFromParent(),
         ]))
         let sparkCount = large ? 22 : 9
+        let sparkDuration = large ? 0.68 : (lightDuration.map { min($0 + 0.1, 0.36) } ?? 0.36)
         for index in 0..<sparkCount {
             let angle = (Double.pi * 2 * Double(index)) / Double(sparkCount)
             let spark = SKShapeNode(circleOfRadius: large ? Self.battleLayoutPt(5) : Self.battleLayoutPt(3))
@@ -2487,8 +2510,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             let dy = sin(angle) * (large ? Self.battleLayoutPt(68) : Self.battleLayoutPt(30))
             spark.run(SKAction.sequence([
                 SKAction.group([
-                    SKAction.moveBy(x: CGFloat(dx), y: CGFloat(dy), duration: large ? 0.68 : 0.36),
-                    SKAction.fadeOut(withDuration: large ? 0.68 : 0.36),
+                    SKAction.moveBy(x: CGFloat(dx), y: CGFloat(dy), duration: large ? 0.68 : sparkDuration),
+                    SKAction.fadeOut(withDuration: large ? 0.68 : sparkDuration),
                 ]),
                 SKAction.removeFromParent(),
             ]))
