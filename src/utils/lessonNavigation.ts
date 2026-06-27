@@ -425,6 +425,12 @@ export function sortLessonsByOrder(lessons: Lesson[]): Lesson[] {
   return [...lessons].sort((a, b) => a.order_index - b.order_index);
 }
 
+export function sortLessonSongsByOrderIndex<T extends { order_index?: number }>(
+  lessonSongs: T[],
+): T[] {
+  return [...lessonSongs].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+}
+
 export function isLastLessonInBlock(currentLesson: Lesson, sortedLessons: Lesson[]): boolean {
   const blockNumber = currentLesson.block_number ?? 1;
   const blockLessons = sortedLessons.filter(

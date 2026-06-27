@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import {
+  areAllChordOsmdTargetsCompleted,
   buildChordOsmdRhythmTargets,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
@@ -10,6 +11,7 @@ import {
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
   earTrainingOsmdUsesScoreTargets,
+  findFirstIncompleteChordOsmdTarget,
   normalizeChordOsmdMusicXml,
   resolveEarTrainingOsmdTargetsFromScore,
 } from '@/utils/earTrainingChordOsmd';
@@ -516,5 +518,36 @@ describe('resolveEarTrainingOsmdTargetsFromScore', () => {
 
   it('phrase モードでは undefined を維持', () => {
     expect(resolveEarTrainingOsmdTargetsFromScore({ mode: 'phrase', osmd_targets_from_score: undefined })).toBeUndefined();
+  });
+});
+
+describe('findFirstIncompleteChordOsmdTarget', () => {
+  it('最初の未完成ターゲットを返す', () => {
+    const targets = [
+      { id: 'a', label: 'A', measureNumber: 1, targetTimeSec: 0, midiCounts: [] },
+      { id: 'b', label: 'B', measureNumber: 2, targetTimeSec: 1, midiCounts: [] },
+    ];
+    const incomplete = new Set(['b']);
+    expect(findFirstIncompleteChordOsmdTarget(targets, id => incomplete.has(id))?.id).toBe('b');
+  });
+
+  it('全完了時は null', () => {
+    const targets = [
+      { id: 'a', label: 'A', measureNumber: 1, targetTimeSec: 0, midiCounts: [] },
+    ];
+    expect(findFirstIncompleteChordOsmdTarget(targets, () => false)).toBeNull();
+  });
+});
+
+describe('areAllChordOsmdTargetsCompleted', () => {
+  it('全ターゲット完了時のみ true', () => {
+    const targets = [
+      { id: 'a', label: 'A', measureNumber: 1, targetTimeSec: 0, midiCounts: [] },
+      { id: 'b', label: 'B', measureNumber: 2, targetTimeSec: 1, midiCounts: [] },
+    ];
+    const completed = new Set(['a']);
+    expect(areAllChordOsmdTargetsCompleted(targets, id => completed.has(id))).toBe(false);
+    completed.add('b');
+    expect(areAllChordOsmdTargetsCompleted(targets, id => completed.has(id))).toBe(true);
   });
 });

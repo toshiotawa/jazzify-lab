@@ -2,9 +2,21 @@ import { getSupabaseClient, fetchWithCache, clearCacheByPattern, clearCacheByKey
 import { Course } from '@/types';
 import { resolveCourseAccess, type MembershipRank } from '@/utils/lessonAccess';
 import { shouldIncludeDeveloperLessonCourses } from '@/utils/environment';
+import { sortLessonSongsByOrderIndex } from '@/utils/lessonNavigation';
 
 const coursesDetailCacheKey = (includeHidden: boolean, includeDeveloperCourses: boolean) =>
   `courses-detail-${includeHidden ? 'ih' : 'vis'}-${includeDeveloperCourses ? 'idev' : 'nodev'}`;
+
+const sortNestedLessonSongs = (courses: Course[]): Course[] =>
+  courses.map(course => ({
+    ...course,
+    lessons: course.lessons?.map(lesson => ({
+      ...lesson,
+      lesson_songs: lesson.lesson_songs
+        ? sortLessonSongsByOrderIndex(lesson.lesson_songs)
+        : lesson.lesson_songs,
+    })),
+  }));
 
 const coursesSimpleCacheKey = (includeHidden: boolean, includeDeveloperCourses: boolean) =>
   `courses-simple-${includeHidden ? 'ih' : 'vis'}-${includeDeveloperCourses ? 'idev' : 'nodev'}`;
@@ -82,7 +94,7 @@ export async function fetchCoursesWithDetails({
     // 新しいデータでキャッシュを更新
     clearCacheByKey(cacheKey);
 
-    return data || [];
+    return sortNestedLessonSongs(data || []);
   }
 
   const { data, error } = await fetchWithCache(
@@ -95,7 +107,7 @@ export async function fetchCoursesWithDetails({
     console.error('Error fetching courses with details:', error);
     throw error;
   }
-  return data || [];
+  return sortNestedLessonSongs(data || []);
 }
 
 /**

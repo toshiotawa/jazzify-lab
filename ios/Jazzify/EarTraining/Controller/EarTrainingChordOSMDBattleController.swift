@@ -36,6 +36,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var timeRemaining: Int = 0
     @Published private(set) var countInValue: Int
     @Published private(set) var activeMeasureNumber: Int = 1
+    /// 音源 prepare 成功後にのみ true。譜面スクロール／プレイヘッド表示の開始条件。
+    @Published private(set) var scoreTimelineArmed: Bool = false
     @Published private(set) var musicXMLText: String?
     /// MusicXML 上の段数の目安（`<staves>` と note 直下 `<staff>` の最大）。OSMD 初期 zoom に使用。
     @Published private(set) var musicXMLMaxStaffLayers: Int = 1
@@ -62,7 +64,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var voicingHintIntensities: [Int: VoicingHintIntensity] = [:]
 
     var scoreScrollActive: Bool {
-        gameState == .countIn || gameState == .playingPhrase
+        scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase)
     }
 
     let stage: EarTrainingStageDetail
@@ -218,6 +220,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         midiHeldKeys.removeAll()
         voicingHintIntensities = [:]
         musicXMLText = nil
+        scoreTimelineArmed = false
+        activeMeasureNumber = 1
         rhythmMusicXmlForAttacks = nil
         phraseLyricEvents = []
         nextLyricQuoteIndex = 0
@@ -452,6 +456,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let runId = phraseRunId
         targets = []
         resetPhraseRuntimeState()
+        scoreTimelineArmed = false
         countInValue = 0
         gameState = .countIn
         statusText = copy.countIn
@@ -481,8 +486,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         targets = preparedTargets
         resetPhraseRuntimeState()
-        activeMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
-        publishSnapshot()
+        let initialMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
 
         let prepared = await audio.preparePhraseForImmediatePlayback(url: audioURL)
         if Task.isCancelled { return }
@@ -491,6 +495,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             finishGameOver(message: copy.audioFailed)
             return
         }
+
+        scoreTimelineArmed = true
+        activeMeasureNumber = initialMeasureNumber
+        publishSnapshot()
 
         if tutorialHooks != nil {
             scheduleTutorialOsmdTimedDialogue(loopIndex: tutorialOsmdLoopCount, runId: runId)

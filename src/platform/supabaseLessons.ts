@@ -1,5 +1,6 @@
 import { getSupabaseClient, fetchWithCache } from './supabaseClient';
 import { Lesson, LessonSong, ClearConditions, RepeatTranspositionMode } from '@/types';
+import { sortLessonSongsByOrderIndex } from '@/utils/lessonNavigation';
 
 // レッスンキャッシュキー生成関数
 export const LESSONS_CACHE_KEY = (courseId: string) => `lessons:${courseId}`;
@@ -111,7 +112,11 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
     console.error(`Error fetching lesson ${lessonId}:`, error);
     throw error;
   }
-  return data as Lesson;
+  const lesson = data as Lesson;
+  if (lesson.lesson_songs) {
+    lesson.lesson_songs = sortLessonSongsByOrderIndex(lesson.lesson_songs);
+  }
+  return lesson;
 }
 
 type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_songs' | 'videos' | 'songs'>;

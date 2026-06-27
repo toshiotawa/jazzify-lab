@@ -1114,3 +1114,22 @@ export const getChordOsmdTotalNoteCount = (
 ): number => (
   targets.reduce((sum, target) => sum + getChordOsmdTargetNoteCount(target), 0)
 );
+
+export const findFirstIncompleteChordOsmdTarget = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  isIncomplete: (targetId: string) => boolean,
+): ChordOsmdRhythmTarget | null => {
+  for (const target of targets) {
+    if (isIncomplete(target.id)) {
+      return target;
+    }
+  }
+  return null;
+};
+
+export const areAllChordOsmdTargetsCompleted = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  isCompleted: (targetId: string) => boolean,
+): boolean => (
+  targets.length > 0 && targets.every(target => isCompleted(target.id))
+);

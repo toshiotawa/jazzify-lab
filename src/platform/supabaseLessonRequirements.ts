@@ -141,7 +141,8 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
         production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
       )
     `)
-    .eq('lesson_id', lessonId);
+    .eq('lesson_id', lessonId)
+    .order('order_index', { ascending: true });
 
   if (reqError) throw new Error(`実習課題の取得に失敗しました: ${reqError.message}`);
 

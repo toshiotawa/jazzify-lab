@@ -463,6 +463,8 @@ export interface BuildEarTrainingChordVoicingDraftsOptions {
   phraseMeasures: number;
   bpm: number;
   beatsPerMeasure: number;
+  /** true のとき voicing 音が無い harmony も空 voicing 行として取り込む（休符小節のコード記号） */
+  allowRestOnlyHarmonies?: boolean;
 }
 
 interface MusicXmlVoicingNoteRecord {
@@ -796,7 +798,22 @@ export const buildEarTrainingChordVoicingDraftsFromMusicXml = (
       const endTimeSec = roundToMillis(nextStartBeat * beatDurationSec);
       const voicingGroups = buildVoicingTimingGroupsForHarmonyRange(notes, harmony.startBeat, nextStartBeat);
       if (voicingGroups.length === 0) {
-        throw new Error(`Phrase ${range.orderIndex + 1} の Chord ${index + 1} (${harmony.chordName}) に voicing がありません`);
+        if (!options.allowRestOnlyHarmonies) {
+          throw new Error(`Phrase ${range.orderIndex + 1} の Chord ${index + 1} (${harmony.chordName}) に voicing がありません`);
+        }
+        const measurePosition = resolveMeasurePositionFromBeat(harmony.startBeat, options.beatsPerMeasure);
+        chords.push({
+          order_index: chords.length,
+          chord_name: harmony.chordName,
+          measure_number: measurePosition.measureNumber,
+          beat_offset: measurePosition.beatOffset,
+          duration_beats: roundToMillis(Math.max(0, nextStartBeat - harmony.startBeat)),
+          start_time_sec: roundToMillis(harmony.startBeat * beatDurationSec),
+          end_time_sec: endTimeSec,
+          voicing: [],
+          voicing_staves: [],
+        });
+        return;
       }
       voicingGroups.forEach(group => {
         const measurePosition = resolveMeasurePositionFromBeat(group.startBeat, options.beatsPerMeasure);

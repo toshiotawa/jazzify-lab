@@ -458,6 +458,11 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       return;
     }
     const effectiveScale = cssScale * userZoom;
+    if (!scrollActive) {
+      score.style.transform = `translate3d(0px, -50%, 0) scale(${effectiveScale})`;
+      setScrollOffsetPx(0);
+      return;
+    }
     const { offsetPx } = computeOsmdMeasureJumpScrollOffset({
       activeMeasureNumber,
       measureBoundsByNumber: layout.measureBoundsByNumber,
@@ -469,7 +474,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     });
     score.style.transform = `translate3d(${-offsetPx}px, -50%, 0) scale(${effectiveScale})`;
     setScrollOffsetPx(offsetPx);
-  }, [activeMeasureNumber, cssScale, layout, userZoom]);
+  }, [activeMeasureNumber, cssScale, layout, scrollActive, userZoom]);
 
   const statusText = renderError ?? scoreErrorText;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
@@ -522,7 +527,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
         {showPlayhead && measureHighlight.visible && (
           <div
             ref={measureHighlightRef}
-            className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden bg-red-500/15"
+            className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden"
             style={{
               left: `${measureHighlight.leftPx}px`,
               width: `${measureHighlight.widthPx}px`,

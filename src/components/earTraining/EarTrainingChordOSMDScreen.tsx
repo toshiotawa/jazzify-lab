@@ -53,6 +53,7 @@ import {
 import {
   CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
   EarTrainingChordVoicingDrumLoop,
+  resolveChordVoicingSelfPacedPhraseClockUrl,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
 import {
   computeChordOsmdActiveMeasureNumber,
@@ -62,8 +63,10 @@ import {
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   buildChordOsmdRhythmTargets,
+  areAllChordOsmdTargetsCompleted,
   collectChordOsmdMusicXmlAttacks,
   collectChordOsmdMusicXmlLyrics,
+  findFirstIncompleteChordOsmdTarget,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
   CHORD_OSMD_JUDGMENT_OFFSET_SEC,
@@ -150,6 +153,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const tutorialOsmdLoopRef = useRef(0);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const tutorialDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
+  const selfPacedDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const tutorialOsmdDrumLoopPrepareUrl = useMemo((): string | null => {
     if (!tutorial) {
       return null;
@@ -171,6 +175,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy(audienceContext);
   const copy = useMemo(() => getEarTrainingGameCopy(isEnglishCopy), [isEnglishCopy]);
   const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(isEnglishCopy), [isEnglishCopy]);
+  const osmdSelfPaced = useMemo(
+    () => stage.mode === 'chord_osmd' && Boolean(stage.chord_voicing_self_paced),
+    [stage.chord_voicing_self_paced, stage.mode],
+  );
   const measureDurationSec = useMemo(
     () => (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure),
     [stage.beats_per_measure, stage.bpm],
@@ -200,7 +208,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   );
 
   const [statusText, setStatusText] = useState(
-    isEnglishCopy ? 'Press START to begin OSMD rhythm battle.' : 'STARTでOSMDリズムバトルを開始します',
+    osmdSelfPaced
+      ? (isEnglishCopy ? 'Press START for self-paced practice.' : 'STARTでセルフペース練習を開始します')
+      : (isEnglishCopy ? 'Press START to begin OSMD rhythm battle.' : 'STARTでOSMDリズムバトルを開始します'),
   );
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
 
@@ -212,6 +222,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
+  const [scoreTimelineArmed, setScoreTimelineArmed] = useState(false);
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const [scoreErrorText, setScoreErrorText] = useState<string | null>(null);
   const chordOsmdXmlAttacks = useMemo(
@@ -257,6 +268,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const nextMissTargetIndexRef = useRef(0);
   const nextLyricQuoteIndexRef = useRef(0);
   const finishCurrentPhraseRef = useRef<(runId: number) => void>(() => undefined);
+  const replaySelfPacedPhraseClockRef = useRef<() => void>(() => undefined);
+  const osmdSelfPacedRef = useRef(osmdSelfPaced);
 
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { phraseIndexRef.current = phraseIndex; }, [phraseIndex]);
@@ -264,6 +277,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => { playerHpRef.current = playerHp; }, [playerHp]);
   useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
   useEffect(() => { showKeyboardHintsInBattleRef.current = showKeyboardHintsInBattle; }, [showKeyboardHintsInBattle]);
+  useEffect(() => { osmdSelfPacedRef.current = osmdSelfPaced; }, [osmdSelfPaced]);
 
   useEffect(() => {
     if (!practiceMode && !showKeyboardHintsInBattle) {
@@ -318,7 +332,67 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     setCompletedTargetCount(completed);
   }, []);
 
+  const isTargetIncomplete = useCallback((targetId: string): boolean => {
+    const state = runtimeByTargetIdRef.current.get(targetId);
+    return Boolean(state && !state.completed && !state.failed);
+  }, []);
+
+  const isTargetCompleted = useCallback((targetId: string): boolean => (
+    runtimeByTargetIdRef.current.get(targetId)?.completed === true
+  ), []);
+
+  const ensureSelfPacedDrumLoop = useCallback((): EarTrainingChordVoicingDrumLoop => {
+    if (!selfPacedDrumLoopRef.current) {
+      selfPacedDrumLoopRef.current = new EarTrainingChordVoicingDrumLoop();
+    }
+    return selfPacedDrumLoopRef.current;
+  }, []);
+
+  const stopSelfPacedDrumLoop = useCallback(() => {
+    selfPacedDrumLoopRef.current?.stop();
+  }, []);
+
+  const syncSelfPacedMeasureAndHints = useCallback(() => {
+    const firstTarget = findFirstIncompleteChordOsmdTarget(
+      targetsRef.current,
+      isTargetIncomplete,
+    );
+    const nextMeasure = firstTarget?.measureNumber
+      ?? targetsRef.current[targetsRef.current.length - 1]?.measureNumber
+      ?? 1;
+    setActiveMeasureNumber(current => (current === nextMeasure ? current : nextMeasure));
+
+    if (!showKeyboardHintsInBattleRef.current) {
+      pianoOverlayRef.current?.clearVoicingHints();
+      return;
+    }
+    if (!firstTarget) {
+      pianoOverlayRef.current?.clearVoicingHints();
+      return;
+    }
+    const state = runtimeByTargetIdRef.current.get(firstTarget.id);
+    if (!state) {
+      pianoOverlayRef.current?.clearVoicingHints();
+      return;
+    }
+    const hintMidis: number[] = [];
+    state.remainingCounts.forEach((count, midi) => {
+      if (count > 0) {
+        hintMidis.push(midi);
+      }
+    });
+    if (hintMidis.length === 0) {
+      pianoOverlayRef.current?.clearVoicingHints();
+      return;
+    }
+    pianoOverlayRef.current?.setVoicingHintsByIntensity(hintMidis, [], [], []);
+  }, [isTargetIncomplete]);
+
   const syncPracticeVoicingHints = useCallback(() => {
+    if (osmdSelfPacedRef.current) {
+      syncSelfPacedMeasureAndHints();
+      return;
+    }
     if (!practiceModeRef.current && !showKeyboardHintsInBattleRef.current) {
       pianoOverlayRef.current?.clearVoicingHints();
       return;
@@ -372,11 +446,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       pianoOverlayRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, []);
     }
-  }, []);
+  }, [syncSelfPacedMeasureAndHints]);
 
   const stopPhraseAudio = useCallback(() => {
     phrasePlayerRef.current?.stop();
-  }, []);
+    stopSelfPacedDrumLoop();
+    tutorialDrumLoopRef.current?.stop();
+  }, [stopSelfPacedDrumLoop]);
 
   const triggerFeedback = useCallback((value: 'correct' | 'miss' | 'clear') => {
     setFeedback(value);
@@ -807,6 +883,16 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
 
+    if (osmdSelfPacedRef.current) {
+      if (state === 'playingPhrase') {
+        syncSelfPacedMeasureAndHints();
+        if (areAllChordOsmdTargetsCompleted(targetsRef.current, isTargetCompleted)) {
+          finishCurrentPhraseRef.current(phraseRunIdRef.current);
+        }
+      }
+      return;
+    }
+
     const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec();
     if (phraseTimeSec == null || !Number.isFinite(phraseTimeSec)) {
       return;
@@ -829,7 +915,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [
     applyMusicXmlLyricQuotes,
     failExpiredTargets,
+    isTargetCompleted,
     syncPracticeVoicingHints,
+    syncSelfPacedMeasureAndHints,
     throwDueHammers,
     updateActiveMeasureForPhraseTime,
   ]);
@@ -854,6 +942,40 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     };
   }, [gameState, handlePhraseTimelineTick]);
 
+  const replaySelfPacedPhraseClock = useCallback(() => {
+    if (!osmdSelfPacedRef.current || gameStateRef.current !== 'playingPhrase') {
+      return;
+    }
+    const phrase = phrases[phraseIndexRef.current];
+    if (!phrase) {
+      return;
+    }
+    const phraseClockUrl = resolveChordVoicingSelfPacedPhraseClockUrl(phrase.audio_url);
+    const player = ensurePhrasePlayer();
+    void (async () => {
+      try {
+        const prepared = await player.prepare(toCdnProxyUrl(phraseClockUrl));
+        player.playPrepared({
+          prepared,
+          phraseGain: 0,
+          onPhraseStarted: () => {
+            ensureSelfPacedDrumLoop().start();
+            syncSelfPacedMeasureAndHints();
+          },
+          onEnded: () => {
+            replaySelfPacedPhraseClockRef.current();
+          },
+        });
+      } catch {
+        setStatusText(copy.audioFailed);
+      }
+    })();
+  }, [copy.audioFailed, ensurePhrasePlayer, ensureSelfPacedDrumLoop, phrases, syncSelfPacedMeasureAndHints]);
+
+  useEffect(() => {
+    replaySelfPacedPhraseClockRef.current = replaySelfPacedPhraseClock;
+  }, [replaySelfPacedPhraseClock]);
+
   const startPhrase = useCallback((nextPhraseIndex: number) => {
     const phrase = phrases[nextPhraseIndex];
     if (!phrase) {
@@ -872,11 +994,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     setPhraseRunId(runId);
     setPhraseIntroSeq(current => current + 1);
     setLastRank(null);
-    setStatusText(copy.countIn);
-    gameStateRef.current = 'countIn';
-    setGameState('countIn');
+    if (osmdSelfPaced) {
+      setStatusText(copy.phraseLabel(nextPhraseIndex + 1));
+      gameStateRef.current = 'idle';
+      setGameState('idle');
+    } else {
+      setStatusText(copy.countIn);
+      gameStateRef.current = 'countIn';
+      setGameState('countIn');
+    }
 
     resetPhraseRuntime([]);
+    setScoreTimelineArmed(false);
 
     const beats = Math.max(0, Math.min(32, stage.count_in_beats));
     const player = ensurePhrasePlayer();
@@ -902,7 +1031,52 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
 
       resetPhraseRuntime(phraseTargets);
-      setActiveMeasureNumber(Math.max(1, phraseTargets[0]?.measureNumber ?? 1));
+      const initialMeasureNumber = Math.max(1, phraseTargets[0]?.measureNumber ?? 1);
+
+      if (osmdSelfPacedRef.current) {
+        const phraseClockUrl = resolveChordVoicingSelfPacedPhraseClockUrl(phrase.audio_url);
+        let preparedSelfPaced;
+        try {
+          preparedSelfPaced = await player.prepare(toCdnProxyUrl(phraseClockUrl));
+        } catch {
+          if (phraseRunIdRef.current === runId) {
+            setStatusText(copy.audioFailed);
+          }
+          return;
+        }
+        if (phraseRunIdRef.current !== runId) {
+          return;
+        }
+        const phraseCtx = player.getAudioContext();
+        if (phraseCtx) {
+          try {
+            const drum = ensureSelfPacedDrumLoop();
+            await drum.prepare(CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL, phraseCtx);
+            drum.setVolume(settings.musicVolume * settings.masterVolume);
+          } catch {
+            // ドラム取得失敗時はフレーズ時計のみ
+          }
+        }
+        setScoreTimelineArmed(true);
+        setActiveMeasureNumber(initialMeasureNumber);
+        player.playPrepared({
+          prepared: preparedSelfPaced,
+          phraseGain: 0,
+          onPhraseStarted: () => {
+            if (phraseRunIdRef.current !== runId) {
+              return;
+            }
+            gameStateRef.current = 'playingPhrase';
+            setGameState('playingPhrase');
+            ensureSelfPacedDrumLoop().start();
+            syncSelfPacedMeasureAndHints();
+          },
+          onEnded: () => {
+            replaySelfPacedPhraseClockRef.current();
+          },
+        });
+        return;
+      }
 
       let prepared;
       try {
@@ -916,6 +1090,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (phraseRunIdRef.current !== runId) {
         return;
       }
+
+      setScoreTimelineArmed(true);
+      setActiveMeasureNumber(initialMeasureNumber);
 
       const loopDurationSec = Number(phrase.loop_duration_sec);
       const measureDurationSec = (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure);
@@ -1000,10 +1177,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     clearScheduledTimers,
     copy,
     ensurePhrasePlayer,
+    ensureSelfPacedDrumLoop,
     finishCurrentPhrase,
     finishGameOver,
     isEnglishCopy,
     loadMusicXml,
+    osmdSelfPaced,
     phrases,
     resetPhraseRuntime,
     settings.masterVolume,
@@ -1013,6 +1192,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     stage.count_in_beats,
     stage.loop_measures,
     stopPhraseAudio,
+    syncSelfPacedMeasureAndHints,
     tutorial,
     tutorialOsmdDrumLoopPrepareUrl,
   ]);
@@ -1098,6 +1278,36 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
 
+    if (osmdSelfPacedRef.current) {
+      if (gameStateRef.current !== 'playingPhrase') {
+        return;
+      }
+      const firstTarget = findFirstIncompleteChordOsmdTarget(
+        targetsRef.current,
+        isTargetIncomplete,
+      );
+      if (!firstTarget) {
+        return;
+      }
+      const state = runtimeByTargetIdRef.current.get(firstTarget.id);
+      if (!state || state.completed || state.failed) {
+        return;
+      }
+      const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
+      if (!nextRemaining) {
+        return;
+      }
+      state.remainingCounts = nextRemaining;
+      syncSelfPacedMeasureAndHints();
+      if (chordOsmdTargetIsComplete(nextRemaining)) {
+        completeTarget(firstTarget, state, 0);
+        if (areAllChordOsmdTargetsCompleted(targetsRef.current, isTargetCompleted)) {
+          finishCurrentPhraseRef.current(phraseRunIdRef.current);
+        }
+      }
+      return;
+    }
+
     const phraseT = phrasePlayerRef.current?.getPhraseTimelineSec();
     if (phraseT == null || !Number.isFinite(phraseT)) {
       return;
@@ -1125,7 +1335,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
       return;
     }
-  }, [completeTarget, syncPracticeVoicingHints]);
+  }, [completeTarget, isTargetCompleted, isTargetIncomplete, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
@@ -1185,6 +1395,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => {
     return () => {
       tutorialDrumLoopRef.current?.stop();
+      selfPacedDrumLoopRef.current?.dispose();
+      selfPacedDrumLoopRef.current = null;
       pendingImpactHandlersRef.current.clear();
       clearScheduledTimers();
       clearBattleEffectTimers();
@@ -1331,7 +1543,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     [onPracticeModeRestartFromSettings, practiceMode],
   );
 
-  const scoreScrollActive = gameState === 'countIn' || gameState === 'playingPhrase';
+  const scoreScrollActive = scoreTimelineArmed
+    && (gameState === 'countIn' || gameState === 'playingPhrase');
 
   const battleCallbacks = useMemo(() => ({
     onStart: startBattle,

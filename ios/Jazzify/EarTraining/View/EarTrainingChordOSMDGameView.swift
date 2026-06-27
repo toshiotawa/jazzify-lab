@@ -721,7 +721,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           bottom: 0;
           left: 0;
           width: 0;
-          background: rgba(239, 68, 68, 0.15);
+          background: transparent;
           pointer-events: none;
           z-index: 9;
           display: none;
@@ -1174,6 +1174,13 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function setScoreOverlayVisible(show) {
             overlayVisible = !!show;
+            if (!overlayVisible) {
+              currentScrollOffset = 0;
+              score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+            } else {
+              currentScrollOffset = computeScrollOffset(activeMeasureNumber);
+              score.style.transform = 'translate3d(' + (-currentScrollOffset) + 'px, -50%, 0) scale(' + cssScale + ')';
+            }
             updateMeasureHighlight();
           }
 
@@ -1184,6 +1191,12 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function setActiveMeasure(measureNumber) {
             activeMeasureNumber = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            if (!overlayVisible) {
+              currentScrollOffset = 0;
+              score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              updateMeasureHighlight();
+              return;
+            }
             currentScrollOffset = computeScrollOffset(activeMeasureNumber);
             score.style.transform = 'translate3d(' + (-currentScrollOffset) + 'px, -50%, 0) scale(' + cssScale + ')';
             updateMeasureHighlight();
