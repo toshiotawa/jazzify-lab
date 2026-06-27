@@ -545,13 +545,20 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             pendingMusicXMLText = nil
             pendingRenderKey = nil
             pendingMeasureNumber = nil
+            lastSentOverlayVisible = nil
             webView?.stopLoading()
             webView = nil
         }
 
         func configurePlayhead(show: Bool) {
             pendingOverlayVisible = show
+            sendOverlayVisibleIfNeeded()
+        }
+
+        /// 可視状態が変わったときだけ JS へ反映。非同期 render 完了後は `resyncOverlayAfterRender` から再適用する。
+        private func sendOverlayVisibleIfNeeded() {
             guard let webView, htmlReady, !isTornDown else { return }
+            let show = pendingOverlayVisible
             guard lastSentOverlayVisible != show else { return }
             lastSentOverlayVisible = show
             let visible = show ? "true" : "false"
@@ -559,6 +566,13 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 "window.JazzifyOSMD && window.JazzifyOSMD.setScoreOverlayVisible(\(visible));",
                 completionHandler: nil
             )
+        }
+
+        /// renderMusicXML の .then 後、開始時にキャプチャした overlay ではなく現在の pending を反映する。
+        private func resyncOverlayAfterRender(webView: WKWebView) {
+            guard !isTornDown, htmlReady else { return }
+            lastSentOverlayVisible = nil
+            sendOverlayVisibleIfNeeded()
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -622,16 +636,20 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let literal = Self.javaScriptStringLiteral(xml)
                 let z = Self.javascriptNumber(nextZoom)
                 let durationLiteral = Self.javascriptNumber(nextMeasureDurationSec)
-                let overlayVisible = pendingOverlayVisible ? "true" : "false"
                 let script = """
                 window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
                   window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));
-                  window.JazzifyOSMD.setScoreOverlayVisible(\(overlayVisible));
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
                 });
                 """
-                lastSentOverlayVisible = pendingOverlayVisible
-                Self.evaluate(script, on: webView, generation: generation, coordinator: self)
+                Self.evaluate(
+                    script,
+                    on: webView,
+                    generation: generation,
+                    coordinator: self
+                ) { coordinator in
+                    coordinator.resyncOverlayAfterRender(webView: webView)
+                }
                 return
             }
             var scripts: [String] = []
@@ -658,13 +676,18 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             _ script: String,
             on webView: WKWebView,
             generation: Int,
-            coordinator: Coordinator
+            coordinator: Coordinator,
+            onSuccess: ((Coordinator) -> Void)? = nil
         ) {
             guard !coordinator.isTornDown, coordinator.renderGeneration == generation else { return }
             webView.evaluateJavaScript(script) { _, error in
-                guard let error else { return }
+                if let error {
+                    guard !coordinator.isTornDown, coordinator.renderGeneration == generation else { return }
+                    Log.osmd.error("evaluateJavaScript failed: \(String(describing: error), privacy: .public)")
+                    return
+                }
                 guard !coordinator.isTornDown, coordinator.renderGeneration == generation else { return }
-                Log.osmd.error("evaluateJavaScript failed: \(String(describing: error), privacy: .public)")
+                onSuccess?(coordinator)
             }
         }
 
