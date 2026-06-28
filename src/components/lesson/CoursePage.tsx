@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
@@ -21,6 +22,8 @@ import LessonJourneyMap from './journey/LessonJourneyMap';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 
 const CoursePage: React.FC = () => {
+  const { courseId: routeCourseId } = useParams<{ courseId?: string }>();
+  const [searchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [focusLessonId, setFocusLessonId] = useState<string | null>(null);
@@ -42,6 +45,12 @@ const CoursePage: React.FC = () => {
 
   useEffect(() => {
     const checkHash = () => {
+      if (routeCourseId) {
+        setOpen(true);
+        setCourseId(routeCourseId);
+        setFocusLessonId(searchParams.get('focus'));
+        return;
+      }
       const hash = window.location.hash;
       const base = hash.split('?')[0];
       if (base === '#course') {
@@ -57,7 +66,7 @@ const CoursePage: React.FC = () => {
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
+  }, [routeCourseId, searchParams]);
 
   useEffect(() => {
     if (!open || !courseId || !profile) return;

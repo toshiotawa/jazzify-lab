@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, handleApiError } from '@/stores/toastStore';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { navigateToDashboardPath } from '@/utils/appNavigation';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 
@@ -48,7 +49,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   // ログイン画面にいるときは、既にログイン済みならダッシュボードへ即リダイレクト
   useEffect(() => {
     if (mode === 'login' && user) {
-      navigate('/main#dashboard', { replace: true });
+      navigate(navigateToDashboardPath(), { replace: true });
     }
   }, [mode, user, navigate]);
 
@@ -70,7 +71,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
         await signInWithPassword(email.toLowerCase().trim(), password);
         const currentParams = new URLSearchParams(location.search);
         const redirect = currentParams.get('redirect') || '';
-        navigate(redirect || '/main#dashboard', { replace: true });
+        navigate(redirect || navigateToDashboardPath(), { replace: true });
       } catch (err) {
         toast.error(handleApiError(err, isEnglishCopy ? 'Login' : 'ログイン'));
       }
@@ -118,7 +119,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
           <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white">
             <div className="text-center">
               <h1 className="text-2xl mb-4">{isEnglishCopy ? 'You are already signed in' : '既にログインしています'}</h1>
-              <a href="/main#dashboard" className="btn btn-primary">{isEnglishCopy ? 'Go to dashboard' : 'ダッシュボードへ'}</a>
+              <a href={navigateToDashboardPath()} className="btn btn-primary">{isEnglishCopy ? 'Go to dashboard' : 'ダッシュボードへ'}</a>
             </div>
           </div>
         );

@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { navigateToDashboardPath } from '@/utils/appNavigation';
 
 const VerifyOtpPage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const VerifyOtpPage: React.FC = () => {
 
     try {
       await verifyOtp(email, otpCode);
-      navigate(redirect || '/main#dashboard', { replace: true });
+      navigate(redirect || navigateToDashboardPath(), { replace: true });
     } catch {
       toast.error(en ? 'OTP verification failed. Please check your code.' : 'OTP検証に失敗しました。コードを確認してください。');
     }

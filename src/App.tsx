@@ -3,7 +3,16 @@ import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
-import LandingPage from '@/components/LandingPage';
+import {
+  buildAppUrl,
+  isAppPath,
+  isLandingPath,
+  normalizePathname,
+  shouldRedirectLegacyAppHash,
+} from '@/utils/appPaths';
+import { navigateToDashboardPath } from '@/utils/appNavigation';
+
+const LandingPage = React.lazy(() => import('@/components/LandingPage'));
 const ProtectedAppRoute = React.lazy(() => import('@/routes/ProtectedAppRoute'));
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const VerifyOtpPage = React.lazy(() => import('@/components/auth/VerifyOtpPage'));
@@ -39,20 +48,40 @@ const AuthLoadingFallback: React.FC = () => (
   </div>
 );
 
+const PageFallback: React.FC = () => (
+  <div className="w-full min-h-screen flex items-center justify-center text-white">
+    Loading...
+  </div>
+);
+
+/** `/` 上のレガシーアプリ hash（`#lesson-detail` 等）を `/main` へ逃がす */
+const LandingRoute: React.FC = () => {
+  const location = useLocation();
+  if (shouldRedirectLegacyAppHash(location.pathname, location.hash)) {
+    return (
+      <Navigate
+        to={buildAppUrl(location.hash, location.search)}
+        replace
+      />
+    );
+  }
+  return (
+    <Suspense fallback={<PageFallback />}>
+      <LandingPage />
+    </Suspense>
+  );
+};
+
 const App: React.FC = () => {
   const location = useLocation();
   const [authReady, setAuthReady] = useState(false);
   const authBootstrapStartedRef = useRef(false);
-  const rawPathname = location.pathname;
-  const pathname = rawPathname.length > 1 && rawPathname.endsWith('/')
-    ? rawPathname.slice(0, -1)
-    : rawPathname;
+  const pathname = normalizePathname(location.pathname);
   const shouldBootstrapAuth = useMemo(
     () => !PUBLIC_INFO_PATHS.has(pathname),
     [pathname],
   );
-  const shouldLoadFontAwesome = pathname !== '/';
-  const shouldLoadGameFonts = pathname !== '/';
+  const shouldLoadAppAssets = isAppPath(pathname);
 
   useEffect(() => {
     if (!shouldBootstrapAuth || authReady || authBootstrapStartedRef.current) {
@@ -70,7 +99,7 @@ const App: React.FC = () => {
         await Promise.race([
           useAuthStore.getState().init(),
           new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error('Auth init timeout')), 5000)
+            setTimeout(() => reject(new Error('Auth init timeout')), 5000),
           ),
         ]);
       } catch (e) {
@@ -84,44 +113,44 @@ const App: React.FC = () => {
   }, [authReady, shouldBootstrapAuth]);
 
   useEffect(() => {
-    if (pathname === '/') {
+    if (isLandingPath(pathname)) {
       return;
     }
     void import('@/app-extra.css');
   }, [pathname]);
 
-  if (rawPathname.length > 1 && rawPathname.endsWith('/')) {
-    return <Navigate to={rawPathname.slice(0, -1) + location.search + location.hash} replace />;
+  if (location.pathname.length > 1 && location.pathname.endsWith('/')) {
+    return (
+      <Navigate
+        to={normalizePathname(location.pathname) + location.search + location.hash}
+        replace
+      />
+    );
   }
+
+  const protectedElement = authReady ? (
+    <ProtectedAppRoute />
+  ) : (
+    <AuthLoadingFallback />
+  );
 
   return (
     <>
-      {(shouldLoadFontAwesome || shouldLoadGameFonts) && (
+      {shouldLoadAppAssets && (
         <Helmet>
-          {shouldLoadFontAwesome && (
-            <link
-              rel="stylesheet"
-              href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-            />
-          )}
-          {shouldLoadGameFonts && (
-            <link
-              rel="stylesheet"
-              href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap"
-            />
-          )}
+          <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+          />
+          <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap"
+          />
         </Helmet>
       )}
-      <Suspense
-        fallback={
-          <div className="w-full h-screen flex items-center justify-center text-white">
-            Loading...
-          </div>
-        }
-      >
+      <Suspense fallback={<PageFallback />}>
         <Routes>
-          {/* ========== 公開ルート — 認証完了を待たず即座に表示 ========== */}
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<LandingRoute />} />
           <Route path="/help/ios-midi" element={<HelpIosMidi />} />
           <Route path="/help/midi-keyboard-choice" element={<HelpMidiKeyboardChoice />} />
           <Route path="/contact" element={<ContactPage />} />
@@ -135,17 +164,11 @@ const App: React.FC = () => {
           <Route path="/login" element={<AuthLanding mode="login" />} />
           <Route path="/signup" element={<AuthLanding mode="signup" />} />
           <Route path="/login/verify-otp" element={<VerifyOtpPage />} />
-
-          {/* ========== 保護ルート — 認証完了後にのみ表示 ========== */}
+          <Route path="/main" element={protectedElement} />
+          <Route path="/main/*" element={protectedElement} />
           <Route
-            path="/*"
-            element={
-              authReady ? (
-                <ProtectedAppRoute />
-              ) : (
-                <AuthLoadingFallback />
-              )
-            }
+            path="*"
+            element={<Navigate to={navigateToDashboardPath()} replace />}
           />
         </Routes>
       </Suspense>

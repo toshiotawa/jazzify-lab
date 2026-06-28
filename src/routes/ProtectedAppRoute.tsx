@@ -1,10 +1,12 @@
 import React from 'react';
 import AuthGate from '@/components/auth/AuthGate';
-import LegacyApp from '@/LegacyApp';
+import { isIOSWebView } from '@/utils/iosbridge';
+import AppShell from '@/routes/AppShell';
+import IosWebViewShell from '@/routes/IosWebViewShell';
 
 const ProtectedAppRoute: React.FC = () => (
   <AuthGate>
-    <LegacyApp />
+    {isIOSWebView() ? <IosWebViewShell /> : <AppShell />}
   </AuthGate>
 );
 

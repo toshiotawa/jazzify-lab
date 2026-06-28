@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { fetchLessonByIdForDetail, fetchLessonsByCourse, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
@@ -31,7 +32,7 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { grantAndToastUserBadges } from '@/utils/badgeToasts';
-import { CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow } from '@/types';
+import { CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow, type EarTrainingMode } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import {
@@ -85,6 +86,7 @@ import {
  * Hash: #lesson-detail?id=LESSON_ID で表示
  */
 const LessonDetailPage: React.FC = () => {
+  const { lessonId: routeLessonId } = useParams<{ lessonId?: string }>();
   const [open, setOpen] = useState(false);
   const [lessonId, setLessonId] = useState<string | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -163,6 +165,12 @@ const LessonDetailPage: React.FC = () => {
 
   useEffect(() => {
     const checkHash = () => {
+      if (routeLessonId) {
+        setLessonId(routeLessonId);
+        setOpen(true);
+        setIsNavigating(false);
+        return;
+      }
       const hash = window.location.hash;
       if (hash.startsWith('#lesson-detail')) {
         const urlParams = new URLSearchParams(hash.split('?')[1] || '');
@@ -179,7 +187,7 @@ const LessonDetailPage: React.FC = () => {
 
     checkHash();
     window.addEventListener('hashchange', checkHash);
-    
+
     // クリーンアップ関数
     return () => {
       window.removeEventListener('hashchange', checkHash);
@@ -188,7 +196,7 @@ const LessonDetailPage: React.FC = () => {
         cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
       }
     };
-  }, [lessonId, lesson?.course_id]);
+  }, [lessonId, lesson?.course_id, routeLessonId]);
 
   const loadLessonData = useCallback(async (targetLessonId: string) => {
     const loadGen = ++lessonLoadGenerationRef.current;
@@ -249,32 +257,6 @@ const LessonDetailPage: React.FC = () => {
           is_clear_required: ls.is_clear_required,
         } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
-        void import('@/utils/prefetchEarTrainingScreenChunks').then(({ prefetchEarTrainingResourcesForLesson }) => {
-          if (isStale()) {
-            return;
-          }
-          prefetchEarTrainingResourcesForLesson(
-            (lessonData.lesson_songs ?? [])
-              .filter(ls => ls.is_ear_training && !ls.is_ear_training_tutorial)
-              .map(ls => ({
-                lessonSongId: ls.id,
-                stageId: ls.ear_training_stage?.id ?? ls.ear_training_stage_id,
-                mode: ls.ear_training_stage?.mode,
-              })),
-            { progress: requirementsProgress },
-          );
-        }).catch(() => undefined);
-        const needsSurvivalCatalog = lessonData.lesson_songs.some(
-          (ls) => ls.is_survival && !ls.is_survival_tutorial && !lessonSongHasInlineComposite(ls.survival_composite_config),
-        );
-        if (needsSurvivalCatalog) {
-          try {
-            const { fetchAllStages } = await import('@/components/survival/SurvivalStageDefinitions');
-            await fetchAllStages();
-          } catch {
-            /* stage labels fall back to "not configured" */
-          }
-        }
       }
       
       setRequirementsProgress(requirementsProgress);
@@ -380,6 +362,40 @@ const LessonDetailPage: React.FC = () => {
       void loadLessonData(lessonId);
     }
   }, [open, lessonId, loadLessonData]);
+
+  const prefetchPracticeResources = useCallback((req: LessonRequirement) => {
+    const extended = req as LessonRequirement & {
+      is_ear_training?: boolean;
+      is_ear_training_tutorial?: boolean;
+      is_survival?: boolean;
+      is_survival_tutorial?: boolean;
+      ear_training_stage?: { id?: string; mode?: EarTrainingMode };
+      ear_training_stage_id?: string;
+      lesson_song_id?: string;
+      survival_composite_config?: Parameters<typeof lessonSongHasInlineComposite>[0];
+    };
+    if (extended.is_ear_training && !extended.is_ear_training_tutorial) {
+      void import('@/utils/prefetchEarTrainingScreenChunks').then(({ prefetchEarTrainingResourcesForLesson }) => {
+        prefetchEarTrainingResourcesForLesson(
+          [{
+            lessonSongId: extended.lesson_song_id ?? '',
+            stageId: extended.ear_training_stage?.id ?? extended.ear_training_stage_id,
+            mode: extended.ear_training_stage?.mode,
+          }],
+          { progress: requirementsProgress },
+        );
+      }).catch(() => undefined);
+    }
+    if (
+      extended.is_survival
+      && !extended.is_survival_tutorial
+      && !lessonSongHasInlineComposite(extended.survival_composite_config)
+    ) {
+      void import('@/components/survival/SurvivalStageDefinitions').then(({ fetchAllStages }) => {
+        void fetchAllStages();
+      }).catch(() => undefined);
+    }
+  }, [requirementsProgress]);
 
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
   const [questCompletionModalKind, setQuestCompletionModalKind] = useState<QuestCompletionModalKind>('none');
@@ -1094,6 +1110,7 @@ const LessonDetailPage: React.FC = () => {
                             void import('@/utils/MidiController').then(({ markAudioUserInteraction }) => {
                               markAudioUserInteraction();
                             }).catch(() => undefined);
+                            prefetchPracticeResources(req);
                             if (isSurvivalTutorial) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);

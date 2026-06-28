@@ -17,14 +17,11 @@ const showDebugInfo = (message: string, _isError = false) => {
   console.log(`🎵 [${timestamp}] ${message}`);
 };
 
-const isLandingPath = (): boolean => {
-  const path = window.location.pathname;
-  return path === '/' || path === '';
-};
+import { isLandingPath } from '@/utils/appPaths';
 
 // ローディング画面を非表示にする
 const hideLoading = () => {
-  if (isLandingPath()) return;
+  if (isLandingPath(window.location.pathname)) return;
   const el = document.getElementById('loading');
   if (!el) return;
   el.style.opacity = '0';

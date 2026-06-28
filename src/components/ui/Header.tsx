@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { dashboardPath } from '@/utils/appNavigation';
 import { FaBars, FaTimes } from 'react-icons/fa';
 
 const Header: React.FC = () => {
@@ -42,10 +43,10 @@ const Header: React.FC = () => {
           )}
         {user && (
           <>
-              <button className="btn btn-sm btn-primary text-sm px-3 py-1.5" onClick={()=>{location.href='/main#dashboard'}}>
+              <button className="btn btn-sm btn-primary text-sm px-3 py-1.5" onClick={()=>{location.href=dashboardPath()}}>
                 {isEnglishCopy ? 'Dashboard' : 'ダッシュボード'}
             </button>
-            <button className="btn btn-sm text-sm px-3 py-1.5" onClick={()=>{location.hash='#account'}}>
+            <button className="btn btn-sm text-sm px-3 py-1.5" onClick={()=>{location.href='/main/account'}}>
                 {isEnglishCopy ? 'Account' : 'アカウント'}
             </button>
             
@@ -80,13 +81,13 @@ const Header: React.FC = () => {
               <>
                   <button 
                     className="btn btn-sm btn-primary w-full text-left text-base" 
-                    onClick={()=>{location.href='/main#dashboard'; setMenuOpen(false);}}
+                    onClick={()=>{location.href=dashboardPath(); setMenuOpen(false);}}
                   >
                     {isEnglishCopy ? 'Dashboard' : 'ダッシュボード'}
                   </button>
                   <button 
                     className="btn btn-sm w-full text-left text-base" 
-                    onClick={()=>{location.hash='#account'; setMenuOpen(false);}}
+                    onClick={()=>{location.href='/main/account'; setMenuOpen(false);}}
                   >
                     {isEnglishCopy ? 'Account' : 'アカウント'}
                   </button>

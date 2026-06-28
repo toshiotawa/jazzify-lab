@@ -96,6 +96,7 @@
   <link rel="preload" as="image" href="/newLP/hero-poster-640.webp" type="image/webp" media="(max-width: 767px)" fetchpriority="high">
   <link rel="preload" as="image" href="/newLP/hero-poster.webp" type="image/webp" media="(min-width: 768px)" fetchpriority="high">
   <script>
+    /* LP フォント preload: pathname が `/` のときのみ（appPaths.isLandingPath と同期） */
     (function () {
       var path = location.pathname;
       if (path === '/' || path === '') {
