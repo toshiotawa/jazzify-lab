@@ -22,6 +22,28 @@ const EAR_TRAINING_STAGE_BOOTSTRAP_SELECT = `
   chord_quiz_items:ear_training_chord_quiz_items (*)
 `;
 
+/** chord_osmd 向けの軽量フレーズ取得 */
+const EAR_TRAINING_PHRASE_OSMD_SELECT = `
+  id,
+  order_index,
+  audio_url,
+  music_xml_url,
+  loop_duration_sec,
+  stage_id
+`;
+
+const resolvePhraseSelectForMode = (
+  mode: EarTrainingStage['mode'] | undefined,
+): string | null => {
+  if (mode === 'chord_quiz') {
+    return null;
+  }
+  if (mode === 'chord_osmd') {
+    return EAR_TRAINING_PHRASE_OSMD_SELECT;
+  }
+  return EAR_TRAINING_PHRASE_RELATIONS_SELECT;
+};
+
 /** フレーズ単位のネスト取得 */
 const EAR_TRAINING_PHRASE_RELATIONS_SELECT = `
   *,
@@ -138,10 +160,15 @@ const invalidateEarTrainingCache = (): void => {
 
 const fetchEarTrainingStagePhraseRelations = async (
   stageId: string,
+  mode?: EarTrainingStage['mode'],
 ): Promise<EarTrainingStage['phrases']> => {
+  const select = resolvePhraseSelectForMode(mode);
+  if (!select) {
+    return [];
+  }
   const { data, error } = await getSupabaseClient()
     .from('ear_training_phrases')
-    .select(EAR_TRAINING_PHRASE_RELATIONS_SELECT)
+    .select(select)
     .eq('stage_id', stageId)
     .order('order_index', { ascending: true });
 
@@ -149,7 +176,7 @@ const fetchEarTrainingStagePhraseRelations = async (
     throw error;
   }
 
-  return (data ?? []) as EarTrainingStage['phrases'];
+  return (data ?? []) as unknown as EarTrainingStage['phrases'];
 };
 
 const attachPhraseRelations = (
@@ -232,21 +259,18 @@ export const fetchEarTrainingStageById = async (
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => {
-      const [stageResult, phrases] = await Promise.all([
-        supabase
-          .from('ear_training_stages')
-          .select(EAR_TRAINING_STAGE_BOOTSTRAP_SELECT)
-          .eq('id', stageId)
-          .single(),
-        fetchEarTrainingStagePhraseRelations(stageId),
-      ]);
+      const stageResult = await supabase
+        .from('ear_training_stages')
+        .select(EAR_TRAINING_STAGE_BOOTSTRAP_SELECT)
+        .eq('id', stageId)
+        .single();
 
-      if (stageResult.error) {
+      if (stageResult.error || !stageResult.data) {
         return stageResult;
       }
-      if (!stageResult.data) {
-        return stageResult;
-      }
+
+      const stageMode = (stageResult.data as EarTrainingStage).mode;
+      const phrases = await fetchEarTrainingStagePhraseRelations(stageId, stageMode);
 
       return {
         ...stageResult,

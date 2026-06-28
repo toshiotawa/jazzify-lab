@@ -56,6 +56,7 @@ export default defineConfig(({ mode }) => {
             manualChunks: {
               'react-vendor': ['react', 'react-dom'],
               'audio': ['tone'],
+              'soundfont': ['soundfont-player'],
               'icons': ['react-icons'],
               'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
               'supabase': ['@supabase/supabase-js'],

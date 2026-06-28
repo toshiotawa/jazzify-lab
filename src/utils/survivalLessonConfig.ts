@@ -5,6 +5,11 @@ import { Note } from 'tonal';
 import type { SurvivalBossType, StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
 import { STAGE_TIME_LIMIT_SECONDS } from '@/components/survival/SurvivalStageDefinitions';
 import {
+  buildLessonCompositeStageDefinition,
+  lessonSongHasInlineComposite,
+} from '@/utils/survivalLessonDisplay';
+export { buildLessonCompositeStageDefinition, lessonSongHasInlineComposite };
+import {
   resolveBlockBossMaxHp,
   resolveBlockKillQuota,
   resolveBlockPlayerMaxHp,
@@ -132,32 +137,6 @@ export const buildSurvivalPhrasesFromLessonCompositeConfig = (
   return phrases;
 };
 
-export const buildLessonCompositeStageDefinition = (
-  title: string,
-  titleEn: string,
-  config: SurvivalLessonCompositeConfig,
-): StageDefinition => ({
-  stageNumber: 0,
-  name: title,
-  nameEn: titleEn,
-  difficulty: 'easy',
-  stageType: 'progression',
-  playMode: 'survival',
-  chordSuffix: '',
-  chordDisplayName: 'Composite',
-  chordDisplayNameEn: 'Composite',
-  rootPattern: null,
-  rootPatternName: '',
-  rootPatternNameEn: '',
-  allowedChords: [],
-  blockKey: 'lesson_composite',
-  mapCategory: 'phrases',
-  lessonOnly: true,
-  compositePhraseBossType: normalizeBossType(config.bossType),
-  compositePhraseKeyFifths: config.keyFifths ?? 0,
-  grandStaffMode: false,
-});
-
 export const resolveCompositeDamageOverrides = (
   raw: SurvivalLessonCompositeDamageOverrides | undefined,
 ): ResolvedSurvivalLessonCompositeDamage => ({
@@ -206,7 +185,3 @@ export const applyPlayerStatMultiplier = (
     cAtk: Math.max(1, Math.round(stats.cAtk * multiplier)),
   };
 };
-
-export const lessonSongHasInlineComposite = (
-  compositeConfig: SurvivalLessonCompositeConfig | null | undefined,
-): boolean => Boolean(compositeConfig?.phrases?.length && compositeConfig.phrases.length >= 2);

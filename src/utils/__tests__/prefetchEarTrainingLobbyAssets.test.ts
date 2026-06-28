@@ -6,21 +6,27 @@ import {
   prefetchEarTrainingPhraseAudio,
   storeEarTrainingMusicXml,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
+import { clearAudioFetchCacheForTests } from '@/utils/audioFetchCache';
 
-vi.mock('@/utils/fetchFullAudioBuffer', () => ({
-  fetchFullAudioBuffer: vi.fn(),
-}));
+vi.mock('@/utils/audioFetchCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/audioFetchCache')>();
+  return {
+    ...actual,
+    fetchCachedFullAudioBuffer: vi.fn(),
+  };
+});
 
 vi.mock('@/utils/earTrainingChordOsmd', () => ({
   normalizeChordOsmdMusicXml: vi.fn((text: string) => text.trim()),
 }));
 
-const { fetchFullAudioBuffer } = await import('@/utils/fetchFullAudioBuffer');
-const mockedFetchAudio = vi.mocked(fetchFullAudioBuffer);
+const { fetchCachedFullAudioBuffer } = await import('@/utils/audioFetchCache');
+const mockedFetchAudio = vi.mocked(fetchCachedFullAudioBuffer);
 
 describe('prefetchEarTrainingLobbyAssets', () => {
   beforeEach(() => {
     clearEarTrainingLobbyAssetCacheForTests();
+    clearAudioFetchCacheForTests();
     mockedFetchAudio.mockReset();
     mockedFetchAudio.mockResolvedValue(new ArrayBuffer(8));
     vi.stubGlobal('fetch', vi.fn());

@@ -119,6 +119,52 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
   return lesson;
 }
 
+const LESSON_DETAIL_SELECT = `
+  *,
+  lesson_songs (
+    *,
+    songs (id, title, artist),
+    fantasy_stage:fantasy_stages (
+      id,
+      description,
+      description_en
+    ),
+    balloon_rush_stage:balloon_rush_stages (
+      id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
+      production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
+    ),
+    ear_training_stage:ear_training_stages (
+      id,
+      mode,
+      quiz_duration_seconds,
+      quiz_required_correct_count,
+      title,
+      title_en
+    )
+  )
+`;
+
+/**
+ * レッスン詳細 UI 向けの軽量取得（ear_training の phrases / quiz items 等は含めない）。
+ */
+export async function fetchLessonByIdForDetail(lessonId: string): Promise<Lesson> {
+  const { data, error } = await getSupabaseClient()
+    .from('lessons')
+    .select(LESSON_DETAIL_SELECT)
+    .eq('id', lessonId)
+    .single();
+
+  if (error) {
+    console.error(`Error fetching lesson detail ${lessonId}:`, error);
+    throw error;
+  }
+  const lesson = data as Lesson;
+  if (lesson.lesson_songs) {
+    lesson.lesson_songs = sortLessonSongsByOrderIndex(lesson.lesson_songs);
+  }
+  return lesson;
+}
+
 type LessonData = Omit<Lesson, 'id' | 'created_at' | 'updated_at' | 'lesson_songs' | 'videos' | 'songs'>;
 
 /**

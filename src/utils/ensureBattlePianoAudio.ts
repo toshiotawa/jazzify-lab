@@ -30,11 +30,11 @@ export const ensureBattlePianoAudio = async (
     return;
   }
 
-  await Promise.all([
-    initializeAudioSystem().then(() => {
-      updateGlobalVolume(midiVol);
-    }),
-    FantasySoundManager.init(seVol, rootVol, true),
-  ]);
-  void FantasySoundManager.waitForGMReady().catch(() => undefined);
+  await initializeAudioSystem().then(() => {
+    updateGlobalVolume(midiVol);
+  }).catch(() => undefined);
+
+  void FantasySoundManager.init(seVol, rootVol, true)
+    .then(() => FantasySoundManager.waitForGMReady())
+    .catch(() => undefined);
 };

@@ -3,7 +3,7 @@
  * カウントインクリックと同一 AudioContext タイムラインでフレーズ頭を予約する（iOS の schedulePreparedPhraseWithCountIn に相当）。
  */
 
-import { fetchFullAudioBuffer } from '@/utils/fetchFullAudioBuffer';
+import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 
 const clampCountInBeats = (beats: number): number => Math.max(0, Math.min(32, Math.trunc(beats)));
 
@@ -143,7 +143,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
     let promise = this.decodeByUrl.get(COUNT_IN_CLICK_URL);
     if (!promise) {
       promise = (async () => {
-        const arrayBuffer = await fetchFullAudioBuffer(COUNT_IN_CLICK_URL);
+        const arrayBuffer = await fetchCachedFullAudioBuffer(COUNT_IN_CLICK_URL);
         return await ctx.decodeAudioData(arrayBuffer.slice(0));
       })();
       this.decodeByUrl.set(COUNT_IN_CLICK_URL, promise);
@@ -158,7 +158,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
     let promise = this.decodeByUrl.get(url);
     if (!promise) {
       promise = (async () => {
-        const arrayBuffer = await fetchFullAudioBuffer(url);
+        const arrayBuffer = await fetchCachedFullAudioBuffer(url);
         return await ctx.decodeAudioData(arrayBuffer.slice(0));
       })();
       this.decodeByUrl.set(url, promise);

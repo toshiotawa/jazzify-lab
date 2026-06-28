@@ -89,15 +89,18 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Zen Kaku Gothic New',
+  				'system-ui',
+  				'-apple-system',
+  				'Segoe UI',
   				'Apple Color Emoji',
   				'Segoe UI Emoji',
   				'Noto Color Emoji',
   				'sans-serif'
   			],
   			accent: [
-  				'Space Grotesk',
-  				'Zen Kaku Gothic New',
+  				'system-ui',
+  				'-apple-system',
+  				'Segoe UI',
   				'sans-serif'
   			],
   			mono: [

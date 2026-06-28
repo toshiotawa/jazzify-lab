@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchLessonById, fetchLessonsByCourse, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonByIdForDetail, fetchLessonsByCourse, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
-import { prefetchEarTrainingResourcesForLesson } from '@/utils/prefetchEarTrainingScreenChunks';
 import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { awardPlayerXp } from '@/platform/supabasePlayerXp';
 import { 
-  fetchDetailedRequirementsProgress, 
   checkAllRequirementsCompleted,
+  fetchLessonRequirementsProgress,
   LessonRequirementProgress,
   fetchAggregatedRequirementsProgress
 } from '@/platform/supabaseLessonRequirements';
@@ -25,7 +24,6 @@ import {
 import {
   buildBalloonRushLessonRequirementDisplay,
   buildEarTrainingLessonRequirementDisplay,
-  buildSurvivalLessonRequirementDisplay,
 } from '@/utils/lessonRequirementDisplay';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
@@ -60,12 +58,11 @@ import {
     FaExternalLinkAlt,
     FaHome,
 } from 'react-icons/fa';
-import { useGameActions } from '@/stores/helpers';
-import { 
-  getLessonNavigationInfo, 
-  getNavigationErrorMessage, 
-  getLessonBlockInfo, 
-  validateNavigation, 
+import {
+  getLessonNavigationInfo,
+  getNavigationErrorMessage,
+  getLessonBlockInfo,
+  validateNavigation,
   cleanupLessonNavigationCache,
   clearNavigationCacheForCourse,
   getQuestCompletionModalKind,
@@ -73,26 +70,15 @@ import {
   type LessonNavigationInfo,
   type QuestCompletionModalKind,
 } from '@/utils/lessonNavigation';
-import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
 import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteModal';
 import { shouldShowQuestReadyToCompletePrompt } from '@/utils/lessonRequirementProgress';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
-import { markAudioUserInteraction } from '@/utils/MidiController';
+import { SurvivalRequirementDetailLines } from '@/components/lesson/SurvivalRequirementDetailLines';
 import {
-  fetchAllStages,
-  getStageByNumber,
-  resolveLessonSurvivalMapCategory,
-  formatSurvivalEncounterLabel,
-  STAGE_KILL_QUOTA,
-  STAGE_TIME_LIMIT_SECONDS,
-  survivalStageUsesCompositePhrasePattern,
-} from '@/components/survival/SurvivalStageDefinitions';
-import {
-  buildLessonCompositeStageDefinition,
   lessonSongHasInlineComposite,
-} from '@/utils/survivalLessonConfig';
-import { getStageKillQuotaForStage } from '@/components/survival/survivalFirstBlockStage';
+  resolveLessonSurvivalMapCategory,
+} from '@/utils/survivalLessonDisplay';
 
 /**
  * レッスン詳細画面
@@ -174,7 +160,6 @@ const LessonDetailPage: React.FC = () => {
 
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
-  const gameActions = useGameActions();
 
   useEffect(() => {
     const checkHash = () => {
@@ -214,10 +199,11 @@ const LessonDetailPage: React.FC = () => {
 
     try {
       // レッスン情報、動画、進捗を並行取得
-      const [lessonData, videosData, progressData, attachmentsData] = await Promise.all([
-        fetchLessonById(targetLessonId),
+      const [lessonData, videosData, requirementsProgress, allCompleted, attachmentsData] = await Promise.all([
+        fetchLessonByIdForDetail(targetLessonId),
         fetchLessonVideos(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy }),
-        fetchDetailedRequirementsProgress(targetLessonId),
+        fetchLessonRequirementsProgress(targetLessonId),
+        checkAllRequirementsCompleted(targetLessonId),
         fetchLessonAttachments(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy })
       ]);
 
@@ -263,19 +249,27 @@ const LessonDetailPage: React.FC = () => {
           is_clear_required: ls.is_clear_required,
         } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
-        prefetchEarTrainingResourcesForLesson(
-          lessonData.lesson_songs
-            .filter(ls => ls.is_ear_training && !ls.is_ear_training_tutorial)
-            .map(ls => ({
-              stageId: ls.ear_training_stage?.id ?? ls.ear_training_stage_id,
-              mode: ls.ear_training_stage?.mode,
-            })),
-        );
+        void import('@/utils/prefetchEarTrainingScreenChunks').then(({ prefetchEarTrainingResourcesForLesson }) => {
+          if (isStale()) {
+            return;
+          }
+          prefetchEarTrainingResourcesForLesson(
+            (lessonData.lesson_songs ?? [])
+              .filter(ls => ls.is_ear_training && !ls.is_ear_training_tutorial)
+              .map(ls => ({
+                lessonSongId: ls.id,
+                stageId: ls.ear_training_stage?.id ?? ls.ear_training_stage_id,
+                mode: ls.ear_training_stage?.mode,
+              })),
+            { progress: requirementsProgress },
+          );
+        }).catch(() => undefined);
         const needsSurvivalCatalog = lessonData.lesson_songs.some(
           (ls) => ls.is_survival && !ls.is_survival_tutorial && !lessonSongHasInlineComposite(ls.survival_composite_config),
         );
         if (needsSurvivalCatalog) {
           try {
+            const { fetchAllStages } = await import('@/components/survival/SurvivalStageDefinitions');
             await fetchAllStages();
           } catch {
             /* stage labels fall back to "not configured" */
@@ -283,8 +277,8 @@ const LessonDetailPage: React.FC = () => {
         }
       }
       
-      setRequirementsProgress(progressData.progress);
-      setAllRequirementsCompleted(progressData.allCompleted);
+      setRequirementsProgress(requirementsProgress);
+      setAllRequirementsCompleted(allCompleted);
       
       // レッスンの完了状態を取得
       if (lessonData?.course_id) {
@@ -413,9 +407,11 @@ const LessonDetailPage: React.FC = () => {
     if (!showReadyToCompletePrompt) {
       return;
     }
-    void FantasySoundManager.init(FantasySoundManager.getVolume()).catch(() => {
-      /* 先行ロード失敗は非致命 */
-    });
+    void import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
+      void FantasySoundManager.init(FantasySoundManager.getVolume()).catch(() => {
+        /* 先行ロード失敗は非致命 */
+      });
+    }).catch(() => undefined);
   }, [showReadyToCompletePrompt]);
 
   const completionState = resolveLessonCompletionState({
@@ -436,6 +432,10 @@ const LessonDetailPage: React.FC = () => {
     }
 
     // ユーザー操作コンテキスト内で音声を解放・再生（詳細ページ単体では SE 未 init のことがある）
+    const [{ FantasySoundManager }, { markAudioUserInteraction }] = await Promise.all([
+      import('@/utils/FantasySoundManager'),
+      import('@/utils/MidiController'),
+    ]);
     markAudioUserInteraction();
     
     setCompleting(true);
@@ -546,8 +546,9 @@ const LessonDetailPage: React.FC = () => {
 
 
   const handleClose = () => {
-    // レッスンコンテキストをクリア
-    gameActions.clearLessonContext();
+    void import('@/stores/gameStore').then(({ useGameStore }) => {
+      useGameStore.getState().clearLessonContext();
+    }).catch(() => undefined);
     window.location.hash = '#lessons';
   };
 
@@ -846,56 +847,17 @@ const LessonDetailPage: React.FC = () => {
                         )}
 
                         {/* サバイバルステージ情報 */}
-                        {isSurvival && !isSurvivalTutorial && (() => {
-                          const mapCat = resolveLessonSurvivalMapCategory(
-                            req.survival_map_category ?? undefined,
-                          );
-                          const stageDef = lessonSongHasInlineComposite(req.survival_composite_config)
-                            && req.survival_composite_config
-                            ? buildLessonCompositeStageDefinition(
-                              req.title ?? '複合フレーズ課題',
-                              req.title_en ?? 'Composite phrase lesson',
-                              req.survival_composite_config,
-                            )
-                            : (req.survival_stage_number
-                              ? getStageByNumber(req.survival_stage_number, mapCat)
-                              : null);
-                          const isBossEncounter = stageDef
-                            ? (survivalStageUsesCompositePhrasePattern(stageDef)
-                              || stageDef.blockKey === 'lesson_composite'
-                              || formatSurvivalEncounterLabel(stageDef, isEnglishCopy) === (isEnglishCopy ? 'Boss' : 'ボス'))
-                            : false;
-                          const timeLimitSec = req.survival_lesson_overrides?.timeLimitSec ?? STAGE_TIME_LIMIT_SECONDS;
-                          const killQuota = req.survival_lesson_overrides?.killQuota
-                            ?? (stageDef ? getStageKillQuotaForStage(stageDef) : STAGE_KILL_QUOTA);
-                          return (
-                            <div className="mb-3 text-sm">
-                              {stageDef ? (
-                                (() => {
-                                  const survivalLines = buildSurvivalLessonRequirementDisplay(
-                                    stageDef,
-                                    isBossEncounter,
-                                    timeLimitSec,
-                                    killQuota,
-                                    isEnglishCopy,
-                                  );
-                                  return (
-                                    <>
-                                      <div className="text-gray-400 text-xs mt-1">{survivalLines.modeEncounterLine}</div>
-                                      <div className="text-gray-400 text-xs mt-1">{survivalLines.clearLine}</div>
-                                    </>
-                                  );
-                                })()
-                              ) : (
-                                <div className="text-gray-500 text-xs mt-1">
-                                  {isEnglishCopy
-                                    ? 'Stage not configured (check map/stage number or composite config).'
-                                    : 'ステージ未設定（マップと番号、または複合フレーズ設定を確認してください）'}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        {isSurvival && !isSurvivalTutorial && (
+                          <SurvivalRequirementDetailLines
+                            survivalMapCategory={req.survival_map_category}
+                            survivalCompositeConfig={req.survival_composite_config}
+                            survivalStageNumber={req.survival_stage_number}
+                            survivalLessonOverrides={req.survival_lesson_overrides}
+                            title={req.title}
+                            titleEn={req.title_en}
+                            isEnglishCopy={isEnglishCopy}
+                          />
+                        )}
 
                         {/* ファンタジーステージ情報 */}
                         {isFantasy && !isSurvival && req.fantasy_stage && (() => {
@@ -1129,7 +1091,9 @@ const LessonDetailPage: React.FC = () => {
                                 return;
                               }
                             }
-                            markAudioUserInteraction();
+                            void import('@/utils/MidiController').then(({ markAudioUserInteraction }) => {
+                              markAudioUserInteraction();
+                            }).catch(() => undefined);
                             if (isSurvivalTutorial) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);

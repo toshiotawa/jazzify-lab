@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
-import { fetchCoursesWithDetails, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
+import { fetchCoursesForLessonList, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
 import { fetchUserLessonProgressAll, LessonProgressBasic } from '@/platform/supabaseLessonProgress';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
@@ -243,7 +243,7 @@ const LessonPage: React.FC = () => {
       try {
         const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
         const [coursesData, completedCourses, progressRows] = await Promise.all([
-          fetchCoursesWithDetails({ includeDeveloperCourses: includeDevCourses }),
+          fetchCoursesForLessonList({ includeDeveloperCourses: includeDevCourses }),
           fetchUserCompletedCourses(profile.id, { includeDeveloperCourses: includeDevCourses }),
           fetchUserLessonProgressAll(),
         ]);
@@ -266,7 +266,7 @@ const LessonPage: React.FC = () => {
         setMainQuestCourse(mainCourse);
         setCompletedCourseIds(completedCourses);
 
-        // fetchCoursesWithDetails のネスト取得済み lessons をそのまま使う
+        // fetchCoursesForLessonList の lessons をそのまま使う
         // （本ページで必要なのはスカラー列のみ。並びは buildMainQuestSummary 側でソート）
         const lessonsMap: Record<string, Lesson[]> = {};
         coursesToLoad.forEach(course => {

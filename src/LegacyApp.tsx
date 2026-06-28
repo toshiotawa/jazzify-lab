@@ -12,6 +12,22 @@ import { isIOSWebView, getIOSMode, getIOSParam } from '@/utils/iosbridge';
 import { runWhenIdle, runWhenIdleDelayed } from '@/utils/idlePrefetch';
 import MidiWarningModal from '@/components/ui/MidiWarningModal';
 
+const GAME_FOCUS_IDLE_PREFETCH_SKIP = new Set([
+  '#lesson-detail',
+  '#ear-training-lesson',
+  '#ear-training-tutorial-lesson',
+  '#survival-lesson',
+  '#survival-tutorial-lesson',
+  '#balloon-rush-lesson',
+  '#fantasy',
+  '#survival',
+  '#play-lesson',
+  '#play-mission',
+]);
+
+const shouldSkipBulkIdlePrefetch = (baseHash: string): boolean =>
+  GAME_FOCUS_IDLE_PREFETCH_SKIP.has(baseHash);
+
 const LazyDashboard = React.lazy(() => import('@/components/dashboard/Dashboard'));
 
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
@@ -180,14 +196,20 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isInitialized || !user || isIOSWebView()) return;
     const baseHash = hash.split('?')[0];
-    const isEarTrainingRoute = baseHash === '#ear-training-lesson'
+    const skipBulkWarmup = shouldSkipBulkIdlePrefetch(baseHash);
+    const isEarTrainingBattleRoute = baseHash === '#ear-training-lesson'
       || baseHash === '#ear-training-tutorial-lesson';
-    const cancels = [
-      runWhenIdle('chunk:ear-training-main', () => {
-        void import('@/components/earTraining/EarTrainingMain').catch(() => {});
-      }),
-    ];
-    if (!isEarTrainingRoute) {
+    const cancels: Array<() => void> = [];
+
+    if (!skipBulkWarmup && !isEarTrainingBattleRoute) {
+      cancels.push(
+        runWhenIdle('chunk:ear-training-main', () => {
+          void import('@/components/earTraining/EarTrainingMain').catch(() => {});
+        }),
+      );
+    }
+
+    if (!skipBulkWarmup) {
       cancels.push(
         runWhenIdleDelayed('chunk:lesson-page', () => {
           void import('@/components/lesson/LessonPage').catch(() => {});
@@ -212,17 +234,17 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isInitialized || !user || !profile || isIOSWebView()) return;
     const baseHash = hash.split('?')[0];
-    if (baseHash === '#ear-training-lesson' || baseHash === '#ear-training-tutorial-lesson') {
+    if (shouldSkipBulkIdlePrefetch(baseHash)) {
       return undefined;
     }
     const cancel = runWhenIdleDelayed('warm:courses-details', () => {
       void (async () => {
-        const [{ fetchCoursesWithDetails }, { shouldIncludeDeveloperLessonCoursesForUser }] =
+        const [{ fetchCoursesForLessonList }, { shouldIncludeDeveloperLessonCoursesForUser }] =
           await Promise.all([
             import('@/platform/supabaseCourses'),
             import('@/utils/environment'),
           ]);
-        await fetchCoursesWithDetails({
+        await fetchCoursesForLessonList({
           includeDeveloperCourses: shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin),
         });
       })().catch(() => {});

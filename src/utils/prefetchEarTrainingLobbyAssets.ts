@@ -1,6 +1,6 @@
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import { normalizeChordOsmdMusicXml } from '@/utils/earTrainingChordOsmd';
-import { fetchFullAudioBuffer } from '@/utils/fetchFullAudioBuffer';
+import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 import type { EarTrainingStage } from '@/types';
 
 const warmedAudioUrls = new Set<string>();
@@ -34,7 +34,7 @@ export const prefetchEarTrainingPhraseAudio = (rawUrl: string): void => {
   if (warmedAudioUrls.has(proxyUrl) || audioInFlight.has(proxyUrl)) {
     return;
   }
-  const promise = fetchFullAudioBuffer(proxyUrl)
+  const promise = fetchCachedFullAudioBuffer(proxyUrl)
     .then((buffer) => {
       warmedAudioUrls.add(proxyUrl);
       return buffer;

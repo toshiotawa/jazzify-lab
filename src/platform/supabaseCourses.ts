@@ -23,7 +23,7 @@ const coursesSimpleCacheKey = (includeHidden: boolean, includeDeveloperCourses: 
 
 /** コース一覧取得系の fetchWithCache キーをまとめて無効化（管理操作後など） */
 export function clearCoursesListQueryCaches(): void {
-  clearCacheByPattern(/^courses-(detail|simple)-/);
+  clearCacheByPattern(/^courses-(detail|simple|list)-/);
 }
 
 export type FetchCoursesOptions = {
@@ -108,6 +108,78 @@ export async function fetchCoursesWithDetails({
     throw error;
   }
   return sortNestedLessonSongs(data || []);
+}
+
+const coursesListCacheKey = (includeHidden: boolean, includeDeveloperCourses: boolean) =>
+  `courses-list-${includeHidden ? 'ih' : 'vis'}-${includeDeveloperCourses ? 'idev' : 'nodev'}`;
+
+/**
+ * レッスン一覧 UI 向けの軽量コース取得（lesson_songs ネストなし）。
+ */
+export async function fetchCoursesForLessonList({
+  includeHidden = false,
+  includeDeveloperCourses: includeDeveloperCoursesOption,
+  forceRefresh = false,
+}: FetchCoursesOptions = {}): Promise<Course[]> {
+  const includeDeveloperCourses =
+    includeDeveloperCoursesOption ?? shouldIncludeDeveloperLessonCourses();
+  const cacheKey = coursesListCacheKey(includeHidden, includeDeveloperCourses);
+
+  const buildQuery = () => {
+    let q = getSupabaseClient()
+      .from('courses')
+      .select(`
+        id,
+        title,
+        title_en,
+        slug,
+        order_index,
+        is_visible,
+        is_developer_only,
+        premium_only,
+        difficulty_tier,
+        created_at,
+        updated_at,
+        lessons (
+          id,
+          title,
+          title_en,
+          order_index,
+          block_number,
+          course_id
+        )
+      `)
+      .order('order_index', { ascending: true });
+    if (!includeHidden) {
+      q = q.eq('is_visible', true);
+    }
+    if (!includeDeveloperCourses) {
+      q = q.eq('is_developer_only', false);
+    }
+    return q;
+  };
+
+  if (forceRefresh) {
+    const { data, error } = await buildQuery();
+    if (error) {
+      console.error('Error fetching courses for lesson list:', error);
+      throw error;
+    }
+    clearCacheByKey(cacheKey);
+    return (data ?? []) as unknown as Course[];
+  }
+
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await buildQuery(),
+    60 * 60 * 1000,
+  );
+
+  if (error) {
+    console.error('Error fetching courses for lesson list:', error);
+    throw error;
+  }
+  return (data ?? []) as unknown as Course[];
 }
 
 /**
@@ -233,43 +305,67 @@ export async function fetchUserCompletedCourses(
   const includeDeveloperCourses =
     options.includeDeveloperCourses ?? shouldIncludeDeveloperLessonCourses();
   try {
-    // 全コースとユーザーのレッスン進捗を取得
-    const [coursesData, progressData] = await Promise.all([
-      fetchCoursesWithDetails({
-        includeHidden: true,
-        includeDeveloperCourses,
-      }),
+    let lessonsQuery = getSupabaseClient()
+      .from('lessons')
+      .select('id, course_id');
+
+    if (!includeDeveloperCourses) {
+      const { data: courseRows, error: courseError } = await getSupabaseClient()
+        .from('courses')
+        .select('id')
+        .eq('is_developer_only', false);
+      if (courseError) {
+        console.error('Error fetching courses for completion check:', courseError);
+        return [];
+      }
+      const allowedCourseIds = (courseRows ?? []).map((row) => row.id);
+      if (allowedCourseIds.length === 0) {
+        return [];
+      }
+      lessonsQuery = lessonsQuery.in('course_id', allowedCourseIds);
+    }
+
+    const [lessonsResult, progressData] = await Promise.all([
+      lessonsQuery,
       getSupabaseClient()
         .from('user_lesson_progress')
         .select('course_id, lesson_id, completed')
         .eq('user_id', userId)
-        .eq('completed', true)
+        .eq('completed', true),
     ]);
 
+    if (lessonsResult.error) {
+      console.error('Error fetching lessons for completion check:', lessonsResult.error);
+      return [];
+    }
     if (progressData.error) {
       console.error('Error fetching user lesson progress:', progressData.error);
       return [];
     }
 
-    const completedLessons = progressData.data || [];
+    const lessonsByCourse = new Map<string, string[]>();
+    for (const lesson of lessonsResult.data ?? []) {
+      const courseLessons = lessonsByCourse.get(lesson.course_id) ?? [];
+      courseLessons.push(lesson.id);
+      lessonsByCourse.set(lesson.course_id, courseLessons);
+    }
+
+    const completedLessons = progressData.data ?? [];
     const completedCourseIds: string[] = [];
 
-    // 各コースについて、すべてのレッスンが完了しているかチェック
-    for (const course of coursesData) {
-      if (!course.lessons || course.lessons.length === 0) continue;
+    for (const [courseId, courseLessonIds] of lessonsByCourse.entries()) {
+      if (courseLessonIds.length === 0) continue;
 
-      const courseLessonIds = course.lessons.map(lesson => lesson.id);
       const completedLessonIds = completedLessons
-        .filter(progress => progress.course_id === course.id)
-        .map(progress => progress.lesson_id);
+        .filter((progress) => progress.course_id === courseId)
+        .map((progress) => progress.lesson_id);
 
-      // コース内のすべてのレッスンが完了している場合
-      const allLessonsCompleted = courseLessonIds.every(lessonId => 
-        completedLessonIds.includes(lessonId)
+      const allLessonsCompleted = courseLessonIds.every((lessonId) =>
+        completedLessonIds.includes(lessonId),
       );
 
-      if (allLessonsCompleted && courseLessonIds.length > 0) {
-        completedCourseIds.push(course.id);
+      if (allLessonsCompleted) {
+        completedCourseIds.push(courseId);
       }
     }
 

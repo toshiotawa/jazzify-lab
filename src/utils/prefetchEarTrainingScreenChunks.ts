@@ -1,6 +1,17 @@
 import type { EarTrainingStage } from '@/types';
+import type { LessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { preloadEarTrainingStageDetails } from '@/platform/earTrainingStageDetailCache';
 import { runWhenIdle } from '@/utils/idlePrefetch';
+
+export interface EarTrainingPrefetchEntry {
+  readonly lessonSongId?: string | null;
+  readonly stageId: string | null | undefined;
+  readonly mode?: EarTrainingStage['mode'] | null;
+}
+
+export interface EarTrainingPrefetchOptions {
+  readonly progress?: readonly LessonRequirementProgress[];
+}
 
 const prefetchEarTrainingScreenChunk = (mode: EarTrainingStage['mode'] | undefined): void => {
   switch (mode) {
@@ -37,16 +48,38 @@ const prefetchEarTrainingScreenChunk = (mode: EarTrainingStage['mode'] | undefin
   }
 };
 
+export const pickEarTrainingPrefetchEntries = (
+  entries: readonly EarTrainingPrefetchEntry[],
+  progress: readonly LessonRequirementProgress[] = [],
+): EarTrainingPrefetchEntry[] => {
+  if (entries.length === 0) {
+    return [];
+  }
+
+  for (const entry of entries) {
+    const lessonSongId = entry.lessonSongId?.trim() ?? '';
+    if (lessonSongId.length === 0) {
+      continue;
+    }
+    const row = progress.find((item) => item.lesson_song_id === lessonSongId);
+    if (row?.is_completed) {
+      continue;
+    }
+    return [entry];
+  }
+
+  return [entries[0]];
+};
+
 export const prefetchEarTrainingResourcesForLesson = (
-  entries: ReadonlyArray<{
-    stageId: string | null | undefined;
-    mode?: EarTrainingStage['mode'] | null;
-  }>,
+  entries: readonly EarTrainingPrefetchEntry[],
+  options: EarTrainingPrefetchOptions = {},
 ): void => {
+  const selectedEntries = pickEarTrainingPrefetchEntries(entries, options.progress ?? []);
   const stageIds: string[] = [];
   const modes = new Set<EarTrainingStage['mode']>();
 
-  entries.forEach((entry) => {
+  selectedEntries.forEach((entry) => {
     const stageId = entry.stageId?.trim() ?? '';
     if (stageId.length > 0) {
       stageIds.push(stageId);
@@ -62,7 +95,7 @@ export const prefetchEarTrainingResourcesForLesson = (
     prefetchEarTrainingScreenChunk(mode);
   });
 
-  if (entries.length > 0) {
+  if (selectedEntries.length > 0) {
     runWhenIdle('chunk:ear-training-piano-pixi', () => {
       void import('@/components/game/PIXINotesRenderer').catch(() => undefined);
     });

@@ -95,20 +95,31 @@
   <!-- LCP image preload -->
   <link rel="preload" as="image" href="/newLP/hero-poster-640.webp" type="image/webp" media="(max-width: 767px)" fetchpriority="high">
   <link rel="preload" as="image" href="/newLP/hero-poster.webp" type="image/webp" media="(min-width: 768px)" fetchpriority="high">
-  <link rel="preload" href="/fonts/lp/space-grotesk-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/lp/space-grotesk-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/lp/zen-kaku-gothic-new-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/lp/zen-kaku-gothic-new-japanese-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/lp/zen-kaku-gothic-new-japanese-700-normal.woff2" as="font" type="font/woff2" crossorigin>
-
-  <!-- Self-hosted fonts (Zen Kaku + Space Grotesk) -->
-  <link rel="stylesheet" href="/fonts/lp/zen-kaku-font-faces.css">
-  
   <script>
     (function () {
       var path = location.pathname;
       if (path === '/' || path === '') {
         document.documentElement.classList.add('lp-first-paint');
+        var lpFonts = [
+          '/fonts/lp/space-grotesk-latin-600-normal.woff2',
+          '/fonts/lp/space-grotesk-latin-700-normal.woff2',
+          '/fonts/lp/zen-kaku-gothic-new-latin-400-normal.woff2',
+          '/fonts/lp/zen-kaku-gothic-new-japanese-400-normal.woff2',
+          '/fonts/lp/zen-kaku-gothic-new-japanese-700-normal.woff2'
+        ];
+        lpFonts.forEach(function (href) {
+          var preload = document.createElement('link');
+          preload.rel = 'preload';
+          preload.href = href;
+          preload.as = 'font';
+          preload.type = 'font/woff2';
+          preload.crossOrigin = 'anonymous';
+          document.head.appendChild(preload);
+        });
+        var stylesheet = document.createElement('link');
+        stylesheet.rel = 'stylesheet';
+        stylesheet.href = '/fonts/lp/zen-kaku-font-faces.css';
+        document.head.appendChild(stylesheet);
       }
     })();
   </script>
@@ -125,7 +136,7 @@
   <style>
     body {
       margin: 0;
-      font-family: 'Zen Kaku Gothic New', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+      font-family: system-ui, -apple-system, 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
       background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
       color: white;
       overflow: hidden;

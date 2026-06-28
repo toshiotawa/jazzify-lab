@@ -4,6 +4,10 @@ import {
   EarTrainingChordVoicingPhrasePlayer,
 } from '@/utils/earTrainingChordVoicingPhrasePlayer';
 
+vi.mock('@/utils/audioFetchCache', () => ({
+  fetchCachedFullAudioBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+}));
+
 const phraseStarts: number[] = [];
 let decodeCallCount = 0;
 
