@@ -42,3 +42,31 @@ export const runWhenIdle = (key: string, task: () => void): CancelIdleTask => {
     }
   };
 };
+
+/**
+ * 指定ミリ秒待ってから idle 時に一度だけタスクを実行する。
+ */
+export const runWhenIdleDelayed = (
+  key: string,
+  task: () => void,
+  delayMs: number,
+): CancelIdleTask => {
+  if (executedKeys.has(key)) {
+    return noopCancel;
+  }
+
+  let cancelled = false;
+  let idleCancel: CancelIdleTask = noopCancel;
+  const timeoutId = setTimeout(() => {
+    if (cancelled) {
+      return;
+    }
+    idleCancel = runWhenIdle(key, task);
+  }, Math.max(0, delayMs));
+
+  return (): void => {
+    cancelled = true;
+    clearTimeout(timeoutId);
+    idleCancel();
+  };
+};

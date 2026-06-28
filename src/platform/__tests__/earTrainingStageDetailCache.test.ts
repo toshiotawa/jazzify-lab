@@ -11,12 +11,19 @@ vi.mock('@/platform/supabaseEarTraining', () => ({
   fetchEarTrainingStageById: vi.fn(),
 }));
 
+vi.mock('@/utils/prefetchEarTrainingLobbyAssets', () => ({
+  prefetchEarTrainingLobbyAssetsFromStage: vi.fn(),
+}));
+
 const mockedFetch = vi.mocked(fetchEarTrainingStageById);
+const { prefetchEarTrainingLobbyAssetsFromStage } = await import('@/utils/prefetchEarTrainingLobbyAssets');
+const mockedPrefetchAssets = vi.mocked(prefetchEarTrainingLobbyAssetsFromStage);
 
 describe('earTrainingStageDetailCache', () => {
   beforeEach(() => {
     clearEarTrainingStageDetailCache();
     mockedFetch.mockReset();
+    mockedPrefetchAssets.mockReset();
   });
 
   it('preloads stage details in background', async () => {
@@ -39,5 +46,20 @@ describe('earTrainingStageDetailCache', () => {
     await Promise.resolve();
 
     expect(mockedFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('prefetches lobby assets after stage detail resolves', async () => {
+    const stage = {
+      id: 'stage-c',
+      mode: 'chord_osmd',
+      phrases: [{ audio_url: 'https://example.com/a.mp3', music_xml_url: 'https://example.com/a.xml' }],
+    } as EarTrainingStage;
+    mockedFetch.mockResolvedValue(stage);
+
+    preloadEarTrainingStageDetails(['stage-c']);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockedPrefetchAssets).toHaveBeenCalledWith(stage);
   });
 });

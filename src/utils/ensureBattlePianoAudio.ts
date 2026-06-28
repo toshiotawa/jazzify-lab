@@ -36,5 +36,5 @@ export const ensureBattlePianoAudio = async (
     }),
     FantasySoundManager.init(seVol, rootVol, true),
   ]);
-  await FantasySoundManager.waitForGMReady().catch(() => undefined);
+  void FantasySoundManager.waitForGMReady().catch(() => undefined);
 };

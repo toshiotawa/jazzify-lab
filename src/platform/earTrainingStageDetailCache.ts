@@ -2,6 +2,7 @@ import {
   fetchEarTrainingStageById,
 } from '@/platform/supabaseEarTraining';
 import type { EarTrainingStage } from '@/types';
+import { prefetchEarTrainingLobbyAssetsFromStage } from '@/utils/prefetchEarTrainingLobbyAssets';
 
 const cachedDetails = new Map<string, EarTrainingStage>();
 const inFlightTasks = new Map<string, Promise<EarTrainingStage>>();
@@ -14,6 +15,7 @@ const resolveTask = async (
     const detail = await task;
     cachedDetails.set(stageId, detail);
     inFlightTasks.delete(stageId);
+    prefetchEarTrainingLobbyAssetsFromStage(detail);
     return detail;
   } catch (error) {
     inFlightTasks.delete(stageId);

@@ -28,8 +28,12 @@ import {
   stopNote,
   updateGlobalVolume,
 } from '@/utils/MidiController';
-import { runWhenIdle } from '@/utils/idlePrefetch';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
+import {
+  getCachedEarTrainingMusicXml,
+  prefetchEarTrainingMusicXml,
+  storeEarTrainingMusicXml,
+} from '@/utils/prefetchEarTrainingLobbyAssets';
 import {
   getCompletionDamage,
   getNextPhraseIndex,
@@ -136,8 +140,6 @@ const NO_DAMAGE_CONFIG = {
   miss: 0,
   fail: 0,
 };
-
-const musicXmlCache = new Map<string, string>();
 
 const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   stage,
@@ -314,12 +316,22 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return undefined;
     }
     const proxyUrl = toCdnProxyUrl(audioUrl);
-    const cancel = runWhenIdle(`ear-training:osmd-phrase-audio:${proxyUrl}`, () => {
-      const player = ensurePhrasePlayer();
-      void player.prepare(proxyUrl).catch(() => undefined);
-    });
-    return cancel;
+    const player = ensurePhrasePlayer();
+    void player.prepare(proxyUrl).catch(() => undefined);
+    return undefined;
   }, [ensurePhrasePlayer, gameState, phrases]);
+
+  useEffect(() => {
+    if (gameState !== 'idle') {
+      return undefined;
+    }
+    const musicXmlUrl = phrases[0]?.music_xml_url?.trim();
+    if (!musicXmlUrl) {
+      return undefined;
+    }
+    prefetchEarTrainingMusicXml(musicXmlUrl);
+    return undefined;
+  }, [gameState, phrases]);
 
   const clearScheduledTimers = useCallback(() => {
     timersRef.current.forEach(timer => clearTimeout(timer));
@@ -590,7 +602,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       setScoreErrorText(isEnglishCopy ? 'MusicXML is not registered.' : 'MusicXMLが登録されていません');
       return null;
     }
-    const cached = musicXmlCache.get(rawUrl);
+    const cached = getCachedEarTrainingMusicXml(rawUrl);
     if (cached) {
       setMusicXmlText(cached);
       setScoreErrorText(null);
@@ -611,7 +623,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         return null;
       }
       const normalizedText = normalizeChordOsmdMusicXml(text);
-      musicXmlCache.set(rawUrl, normalizedText);
+      storeEarTrainingMusicXml(rawUrl, normalizedText);
       setMusicXmlText(normalizedText);
       setScoreErrorText(null);
       return normalizedText;

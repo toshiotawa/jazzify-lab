@@ -9,7 +9,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { isIOSWebView, getIOSMode, getIOSParam } from '@/utils/iosbridge';
-import { runWhenIdle } from '@/utils/idlePrefetch';
+import { runWhenIdle, runWhenIdleDelayed } from '@/utils/idlePrefetch';
 import MidiWarningModal from '@/components/ui/MidiWarningModal';
 
 const LazyDashboard = React.lazy(() => import('@/components/dashboard/Dashboard'));
@@ -189,18 +189,18 @@ const App: React.FC = () => {
     ];
     if (!isEarTrainingRoute) {
       cancels.push(
-        runWhenIdle('chunk:lesson-page', () => {
+        runWhenIdleDelayed('chunk:lesson-page', () => {
           void import('@/components/lesson/LessonPage').catch(() => {});
-        }),
-        runWhenIdle('chunk:survival-main', () => {
+        }, 5000),
+        runWhenIdleDelayed('chunk:survival-main', () => {
           void import('@/components/survival/SurvivalMain').catch(() => {});
-        }),
+        }, 20000),
       );
       if (isPremiumMember) {
         cancels.push(
-          runWhenIdle('chunk:fantasy-main', () => {
+          runWhenIdleDelayed('chunk:fantasy-main', () => {
             void import('@/components/fantasy/FantasyMain').catch(() => {});
-          }),
+          }, 25000),
         );
       }
     }
@@ -215,7 +215,7 @@ const App: React.FC = () => {
     if (baseHash === '#ear-training-lesson' || baseHash === '#ear-training-tutorial-lesson') {
       return undefined;
     }
-    const cancel = runWhenIdle('warm:courses-details', () => {
+    const cancel = runWhenIdleDelayed('warm:courses-details', () => {
       void (async () => {
         const [{ fetchCoursesWithDetails }, { shouldIncludeDeveloperLessonCoursesForUser }] =
           await Promise.all([
@@ -226,7 +226,7 @@ const App: React.FC = () => {
           includeDeveloperCourses: shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin),
         });
       })().catch(() => {});
-    });
+    }, 30000);
     return cancel;
   }, [hash, isInitialized, profile, user]);
 

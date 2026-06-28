@@ -61,4 +61,10 @@ export const prefetchEarTrainingResourcesForLesson = (
   modes.forEach((mode) => {
     prefetchEarTrainingScreenChunk(mode);
   });
+
+  if (entries.length > 0) {
+    runWhenIdle('chunk:ear-training-piano-pixi', () => {
+      void import('@/components/game/PIXINotesRenderer').catch(() => undefined);
+    });
+  }
 };
