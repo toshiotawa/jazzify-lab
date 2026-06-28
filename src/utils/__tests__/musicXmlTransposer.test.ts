@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Note } from 'tonal';
 import { describe, expect, it } from 'vitest';
+import { collectChordOsmdMusicXmlAttacks } from '@/utils/earTrainingChordOsmd';
 import { transposeMusicXml } from '@/utils/musicXmlTransposer';
 
 const parseXml = (xml: string): Document => {
@@ -182,5 +183,30 @@ describe('transposeMusicXml', () => {
     const doc = parseXml(transposed);
     expect(doc.querySelector('root root-step')?.textContent).toBe('C');
     expect(doc.querySelector('bass bass-step')?.textContent).toBe('E');
+  });
+
+  it('移調後、ターゲット調号で flat/sharp になる step が natural のとき alter=0 と accidental natural を付ける', () => {
+    const base = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure>
+      <attributes><key><fifths>0</fifths></key></attributes>
+      <note>
+        <pitch><step>B</step><alter>-1</alter><octave>4</octave></pitch>
+        <duration>1</duration>
+      </note>
+    </measure>
+  </part>
+</score-partwise>`;
+    const transposed = transposeMusicXml(base, 2);
+    const doc = parseXml(transposed);
+    expect(doc.querySelector('key fifths')?.textContent).toBe('2');
+    expect(doc.querySelector('note pitch step')?.textContent).toBe('C');
+    expect(doc.querySelector('note pitch alter')?.textContent).toBe('0');
+    expect(doc.querySelector('note pitch octave')?.textContent).toBe('5');
+    expect(doc.querySelector('note accidental')?.textContent).toBe('natural');
+
+    const attacks = collectChordOsmdMusicXmlAttacks(transposed);
+    expect(attacks[0]?.midis).toEqual([72]);
   });
 });

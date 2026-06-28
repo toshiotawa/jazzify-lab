@@ -2,7 +2,6 @@ import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank, EarTra
 import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
 import {
   musicXmlAccidentalTextToAlter,
-  musicXmlKeySignatureAlter,
   parseVoicingNoteName,
 } from '@/utils/voicingMusicXml';
 
@@ -474,7 +473,7 @@ const noteHasTieStop = (noteEl: Element): boolean => {
   return false;
 };
 
-const resolveMusicXmlPitchAlter = (pitch: Element, noteEl: Element, step: string, keyFifths: number): number => {
+const resolveMusicXmlPitchAlter = (pitch: Element, noteEl: Element): number => {
   const alterText = getDirectChildText(pitch, 'alter');
   if (alterText !== null && alterText !== '') {
     const parsedAlter = Number.parseInt(alterText, 10);
@@ -489,7 +488,7 @@ const resolveMusicXmlPitchAlter = (pitch: Element, noteEl: Element, step: string
       return fromAccidental;
     }
   }
-  return musicXmlKeySignatureAlter(step, keyFifths);
+  return 0;
 };
 
 const noteElementToMidi = (noteEl: Element, keyFifths: number): number | null => {
@@ -514,7 +513,7 @@ const noteElementToMidi = (noteEl: Element, keyFifths: number): number | null =>
   if (!Number.isFinite(octave)) {
     return null;
   }
-  const alter = resolveMusicXmlPitchAlter(pitch, noteEl, step, keyFifths);
+  const alter = resolveMusicXmlPitchAlter(pitch, noteEl);
   return (octave + 1) * 12 + semitoneBase + alter;
 };
 

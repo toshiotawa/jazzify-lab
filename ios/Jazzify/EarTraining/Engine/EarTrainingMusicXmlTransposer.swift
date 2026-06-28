@@ -407,14 +407,21 @@ enum EarTrainingMusicXmlTransposer {
         let adjusted = adjustNoteToKeyScale(noteWithoutOct, targetKey: targetKey)
         guard let adjustedParsed = EarTrainingMusicXmlPitchMath.parseNote(adjusted, requireOctave: false) else { return }
 
+        let targetFifths = keyNameToFifths[normalizeToPreferredKey(targetKey)] ?? keyNameToFifths[targetKey] ?? 0
+        let stepLetter = EarTrainingMusicXmlPitchMath.letterNames[adjustedParsed.step]
+        let keyAlterForStep = keySignatureAlter(step: stepLetter, keyFifths: targetFifths)
+        let needsExplicitNatural = adjustedParsed.alt == 0 && keyAlterForStep != 0
+
         pitchEl.children.removeAll()
         appendElement(
             named: "step",
-            text: EarTrainingMusicXmlPitchMath.letterNames[adjustedParsed.step],
+            text: stepLetter,
             to: pitchEl
         )
         if adjustedParsed.alt != 0 {
             appendElement(named: "alter", text: String(adjustedParsed.alt), to: pitchEl)
+        } else if needsExplicitNatural {
+            appendElement(named: "alter", text: "0", to: pitchEl)
         }
         appendElement(named: "octave", text: String(octave), to: pitchEl)
 
@@ -424,6 +431,33 @@ enum EarTrainingMusicXmlTransposer {
             }
             return false
         }
+        if needsExplicitNatural {
+            appendElement(named: "accidental", text: "natural", to: noteEl)
+        }
+    }
+
+    private static func keySignatureAlter(step: String, keyFifths: Int) -> Int {
+        let fifths = max(-7, min(7, keyFifths))
+        let sharpSteps = ["F", "C", "G", "D", "A", "E", "B"]
+        let flatSteps = ["B", "E", "A", "D", "G", "C", "F"]
+        if fifths > 0 {
+            for index in 0..<fifths where index < sharpSteps.count {
+                if sharpSteps[index] == step {
+                    return 1
+                }
+            }
+            return 0
+        }
+        if fifths < 0 {
+            let flatCount = abs(fifths)
+            for index in 0..<flatCount where index < flatSteps.count {
+                if flatSteps[index] == step {
+                    return -1
+                }
+            }
+            return 0
+        }
+        return 0
     }
 }
 

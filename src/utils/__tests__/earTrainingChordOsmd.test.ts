@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { Note } from 'tonal';
 import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import {
@@ -553,6 +554,73 @@ describe('collectChordOsmdMusicXmlAttacks accidentals', () => {
       </measure></part></score-partwise>`;
     const attacks = collectChordOsmdMusicXmlAttacks(xml);
     expect(attacks[0].midis).toEqual([69]);
+  });
+
+  it('F major: `<step>B</step>` のみ（alter/accidental なし）は B♮ = MIDI 71', () => {
+    const xml = `
+      <score-partwise><part><measure number="1">
+        ${fMajorHeader}
+        <note>
+          <pitch><step>B</step><octave>4</octave></pitch>
+          <duration>1</duration>
+          <type>quarter</type>
+        </note>
+      </measure></part></score-partwise>`;
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks[0].midis).toEqual([71]);
+  });
+
+  it('Eb major: `<step>A</step>` のみ（alter/accidental なし）は A♮ = MIDI 69', () => {
+    const ebMajorHeader = `
+    <attributes>
+      <divisions>1</divisions>
+      <key><fifths>-3</fifths></key>
+      <time><beats>4</beats><beat-type>4</beat-type></time>
+    </attributes>`;
+    const xml = `
+      <score-partwise><part><measure number="1">
+        ${ebMajorHeader}
+        <note>
+          <pitch><step>A</step><octave>4</octave></pitch>
+          <duration>1</duration>
+          <type>quarter</type>
+        </note>
+      </measure></part></score-partwise>`;
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks[0].midis).toEqual([69]);
+  });
+
+  it('fifths -7..7 の全キーで、調号対象 step を natural として置いたとき自然音 MIDI になる', () => {
+    const sharpSteps = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+    const flatSteps = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+
+    for (let fifths = -7; fifths <= 7; fifths += 1) {
+      const stepsToTest = fifths > 0
+        ? sharpSteps.slice(0, fifths)
+        : fifths < 0
+          ? flatSteps.slice(0, Math.abs(fifths))
+          : [];
+
+      for (const step of stepsToTest) {
+        const header = `
+    <attributes>
+      <divisions>1</divisions>
+      <key><fifths>${fifths}</fifths></key>
+    </attributes>`;
+        const xml = `
+      <score-partwise><part><measure number="1">
+        ${header}
+        <note>
+          <pitch><step>${step}</step><octave>4</octave></pitch>
+          <duration>1</duration>
+        </note>
+      </measure></part></score-partwise>`;
+        const attacks = collectChordOsmdMusicXmlAttacks(xml);
+        const expectedMidi = Note.midi(`${step}4`);
+        expect(expectedMidi, `fifths=${fifths} step=${step}`).not.toBeNull();
+        expect(attacks[0]?.midis, `fifths=${fifths} step=${step}`).toEqual([expectedMidi]);
+      }
+    }
   });
 });
 

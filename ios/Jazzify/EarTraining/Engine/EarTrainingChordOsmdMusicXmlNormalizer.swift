@@ -417,9 +417,6 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
 
     private static let xmlAttackBeatMatchEpsilon = 0.01
 
-    private static let sharpKeySignatureSteps = ["F", "C", "G", "D", "A", "E", "B"]
-    private static let flatKeySignatureSteps = ["B", "E", "A", "D", "G", "C", "F"]
-
     /// `<tie type="stop"/>` または `<notations>` 直下の `<tied type="stop"/>`（別ツール出力）。
     /// 同じクラスタの別構成音に誤検出しないよう、`note` の直接子のみを見る。
     private static func hasTieStop(on noteElement: ChordOsmdXmlElement) -> Bool {
@@ -822,32 +819,6 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return t
     }
 
-    private static func clampKeyFifths(_ value: Int) -> Int {
-        min(7, max(-7, value))
-    }
-
-    private static func keySignatureAlter(step: String, keyFifths: Int) -> Int {
-        let fifths = clampKeyFifths(keyFifths)
-        if fifths > 0 {
-            for index in 0..<fifths where index < sharpKeySignatureSteps.count {
-                if sharpKeySignatureSteps[index] == step {
-                    return 1
-                }
-            }
-            return 0
-        }
-        if fifths < 0 {
-            let flatCount = abs(fifths)
-            for index in 0..<flatCount where index < flatKeySignatureSteps.count {
-                if flatKeySignatureSteps[index] == step {
-                    return -1
-                }
-            }
-            return 0
-        }
-        return 0
-    }
-
     private static func accidentalTextToAlter(_ accidentalText: String) -> Int? {
         switch accidentalText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "natural":
@@ -867,9 +838,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
 
     private static func resolvePitchAlter(
         pitch: ChordOsmdXmlElement,
-        note: ChordOsmdXmlElement,
-        step: String,
-        keyFifths: Int
+        note: ChordOsmdXmlElement
     ) -> Int {
         if let alterText = text(in: pitch, localName: "alter"),
            let parsed = Int(alterText.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -881,7 +850,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         {
             return fromAccidental
         }
-        return keySignatureAlter(step: step, keyFifths: keyFifths)
+        return 0
     }
 
     private static func midiFromNoteElement(_ note: ChordOsmdXmlElement, keyFifths: Int) -> Int? {
@@ -904,7 +873,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             return nil
         }
 
-        let alter = resolvePitchAlter(pitch: pitch, note: note, step: stepUpper, keyFifths: keyFifths)
+        let alter = resolvePitchAlter(pitch: pitch, note: note)
         return (octave + 1) * 12 + semitoneBase + alter
     }
 

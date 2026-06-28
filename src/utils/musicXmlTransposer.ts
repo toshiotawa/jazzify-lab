@@ -1,5 +1,6 @@
 import { Note, Interval, Key } from 'tonal';
 import type { TransposingInstrument } from '@/types';
+import { musicXmlKeySignatureAlter } from '@/utils/voicingMusicXml';
 
 /**
  * 読みやすい12種類のメジャーキー
@@ -384,6 +385,8 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
     return `${step.toUpperCase()}${accidental}${octave}`;
   };
 
+  const targetFifths = getKeyFifths(targetKeyName);
+
   // Helper to write back tonal note with support for double accidentals
   // 表示用accidental要素はOSMDに自動計算させ、pitch(step/alter/octave)のみ更新する
   const applyNoteToPitch = (noteStr: string, pitchEl: Element, noteEl: Element) => {
@@ -408,6 +411,9 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
           finalOctave = (oct) + Math.round((originalMidi - adjustedMidi) / 12);
         }
       }
+
+      const keyAlterForStep = musicXmlKeySignatureAlter(finalLetter, targetFifths);
+      const needsExplicitNatural = !finalAcc && keyAlterForStep !== 0;
       
       Array.from(pitchEl.children).forEach((c) => c.remove());
       const stepEl = doc.createElement('step');
@@ -423,6 +429,10 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
         else if (finalAcc === 'bb') alterValue = '-2';
         alterEl.textContent = alterValue;
         pitchEl.appendChild(alterEl);
+      } else if (needsExplicitNatural) {
+        const alterEl = doc.createElement('alter');
+        alterEl.textContent = '0';
+        pitchEl.appendChild(alterEl);
       }
       const octaveEl = doc.createElement('octave');
       octaveEl.textContent = String(finalOctave);
@@ -431,6 +441,19 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
       const existingAccidental = noteEl.querySelector('accidental');
       if (existingAccidental) {
         existingAccidental.remove();
+      }
+      if (needsExplicitNatural) {
+        const accidentalEl = doc.createElement('accidental');
+        accidentalEl.textContent = 'natural';
+        const children = Array.from(noteEl.children);
+        const durationIndex = children.findIndex((child) => child.tagName === 'duration');
+        const typeIndex = children.findIndex((child) => child.tagName === 'type');
+        const anchorIndex = durationIndex >= 0 ? durationIndex : typeIndex;
+        if (anchorIndex >= 0 && anchorIndex < children.length - 1) {
+          noteEl.insertBefore(accidentalEl, children[anchorIndex + 1] ?? null);
+        } else {
+          noteEl.appendChild(accidentalEl);
+        }
       }
     }
   };
@@ -533,7 +556,6 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
   });
 
   // transpose key signature <key><fifths> - ターゲットキーのfifths値を使用
-  const targetFifths = getKeyFifths(targetKeyName);
   doc.querySelectorAll('key').forEach((keyEl) => {
     const fifthsEl = keyEl.querySelector('fifths');
     if (!fifthsEl) return;
