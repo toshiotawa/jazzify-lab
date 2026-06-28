@@ -1,3 +1,5 @@
+import { fetchFullAudioBuffer } from '@/utils/fetchFullAudioBuffer';
+
 /** コードヴォイシング self-paced（無音フレーズ）用の共通ドラムループ BGM URL */
 export const CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL =
   'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3';
@@ -40,13 +42,8 @@ export class EarTrainingChordVoicingDrumLoop {
 
     this.ctx = audioContext;
     this.url = url;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch drum loop: ${response.status}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const copy = arrayBuffer.slice(0);
-    this.buffer = await audioContext.decodeAudioData(copy);
+    const arrayBuffer = await fetchFullAudioBuffer(url);
+    this.buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
   }
 
   /** 現在のバッファでループ再生を開始。既に鳴っている場合は一旦止めて張り替える。 */

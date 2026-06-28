@@ -3,6 +3,8 @@
  * カウントインクリックと同一 AudioContext タイムラインでフレーズ頭を予約する（iOS の schedulePreparedPhraseWithCountIn に相当）。
  */
 
+import { fetchFullAudioBuffer } from '@/utils/fetchFullAudioBuffer';
+
 const clampCountInBeats = (beats: number): number => Math.max(0, Math.min(32, Math.trunc(beats)));
 
 const halfBeatSecForBpm = (bpm: number): number => {
@@ -141,13 +143,8 @@ export class EarTrainingChordVoicingPhrasePlayer {
     let promise = this.decodeByUrl.get(COUNT_IN_CLICK_URL);
     if (!promise) {
       promise = (async () => {
-        const response = await fetch(COUNT_IN_CLICK_URL);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch count-in click: ${response.status}`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        const copy = arrayBuffer.slice(0);
-        return await ctx.decodeAudioData(copy);
+        const arrayBuffer = await fetchFullAudioBuffer(COUNT_IN_CLICK_URL);
+        return await ctx.decodeAudioData(arrayBuffer.slice(0));
       })();
       this.decodeByUrl.set(COUNT_IN_CLICK_URL, promise);
     }
@@ -161,13 +158,8 @@ export class EarTrainingChordVoicingPhrasePlayer {
     let promise = this.decodeByUrl.get(url);
     if (!promise) {
       promise = (async () => {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch phrase audio: ${response.status}`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        const copy = arrayBuffer.slice(0);
-        return await ctx.decodeAudioData(copy);
+        const arrayBuffer = await fetchFullAudioBuffer(url);
+        return await ctx.decodeAudioData(arrayBuffer.slice(0));
       })();
       this.decodeByUrl.set(url, promise);
     }

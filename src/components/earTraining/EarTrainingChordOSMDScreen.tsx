@@ -28,7 +28,8 @@ import {
   stopNote,
   updateGlobalVolume,
 } from '@/utils/MidiController';
-import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
+import { runWhenIdle } from '@/utils/idlePrefetch';
+import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   getCompletionDamage,
   getNextPhraseIndex,
@@ -60,7 +61,6 @@ import {
   computeChordOsmdPhraseLoopEndSec,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
-import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   buildChordOsmdRhythmTargets,
   areAllChordOsmdTargetsCompleted,
@@ -304,6 +304,22 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => {
     phrasePlayerRef.current?.setVolume(settings.musicVolume * settings.masterVolume);
   }, [settings.masterVolume, settings.musicVolume]);
+
+  useEffect(() => {
+    if (gameState !== 'idle') {
+      return undefined;
+    }
+    const audioUrl = phrases[0]?.audio_url?.trim();
+    if (!audioUrl) {
+      return undefined;
+    }
+    const proxyUrl = toCdnProxyUrl(audioUrl);
+    const cancel = runWhenIdle(`ear-training:osmd-phrase-audio:${proxyUrl}`, () => {
+      const player = ensurePhrasePlayer();
+      void player.prepare(proxyUrl).catch(() => undefined);
+    });
+    return cancel;
+  }, [ensurePhrasePlayer, gameState, phrases]);
 
   const clearScheduledTimers = useCallback(() => {
     timersRef.current.forEach(timer => clearTimeout(timer));
@@ -1200,11 +1216,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     controller.setKeyHighlightCallback((note, active) => {
       pianoOverlayRef.current?.highlightKey(note, active);
     });
-    await ensureBattlePianoAudio({
-      midiVolume: settings.midiVolume,
-      soundEffectVolume: settings.soundEffectVolume,
-      rootSoundVolume: settings.rootSoundVolume,
-    });
+    await import('@/utils/ensureBattlePianoAudio').then(({ ensureBattlePianoAudio }) =>
+      ensureBattlePianoAudio({
+        midiVolume: settings.midiVolume,
+        soundEffectVolume: settings.soundEffectVolume,
+        rootSoundVolume: settings.rootSoundVolume,
+      }),
+    );
     await controller.initialize();
     if (settings.selectedMidiDevice) {
       const connected = await controller.connectDevice(settings.selectedMidiDevice);

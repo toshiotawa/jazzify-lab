@@ -179,31 +179,42 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isInitialized || !user || isIOSWebView()) return;
+    const baseHash = hash.split('?')[0];
+    const isEarTrainingRoute = baseHash === '#ear-training-lesson'
+      || baseHash === '#ear-training-tutorial-lesson';
     const cancels = [
-      runWhenIdle('chunk:lesson-page', () => {
-        void import('@/components/lesson/LessonPage').catch(() => {});
-      }),
-      runWhenIdle('chunk:survival-main', () => {
-        void import('@/components/survival/SurvivalMain').catch(() => {});
-      }),
       runWhenIdle('chunk:ear-training-main', () => {
         void import('@/components/earTraining/EarTrainingMain').catch(() => {});
       }),
     ];
-    if (isPremiumMember) {
+    if (!isEarTrainingRoute) {
       cancels.push(
-        runWhenIdle('chunk:fantasy-main', () => {
-          void import('@/components/fantasy/FantasyMain').catch(() => {});
+        runWhenIdle('chunk:lesson-page', () => {
+          void import('@/components/lesson/LessonPage').catch(() => {});
+        }),
+        runWhenIdle('chunk:survival-main', () => {
+          void import('@/components/survival/SurvivalMain').catch(() => {});
         }),
       );
+      if (isPremiumMember) {
+        cancels.push(
+          runWhenIdle('chunk:fantasy-main', () => {
+            void import('@/components/fantasy/FantasyMain').catch(() => {});
+          }),
+        );
+      }
     }
     return () => {
       cancels.forEach(cancel => cancel());
     };
-  }, [isInitialized, user, isPremiumMember]);
+  }, [hash, isInitialized, isPremiumMember, user]);
 
   useEffect(() => {
     if (!isInitialized || !user || !profile || isIOSWebView()) return;
+    const baseHash = hash.split('?')[0];
+    if (baseHash === '#ear-training-lesson' || baseHash === '#ear-training-tutorial-lesson') {
+      return undefined;
+    }
     const cancel = runWhenIdle('warm:courses-details', () => {
       void (async () => {
         const [{ fetchCoursesWithDetails }, { shouldIncludeDeveloperLessonCoursesForUser }] =
@@ -217,7 +228,7 @@ const App: React.FC = () => {
       })().catch(() => {});
     });
     return cancel;
-  }, [isInitialized, user, profile]);
+  }, [hash, isInitialized, profile, user]);
 
   // 初期化中の表示
   if (!isInitialized) {
