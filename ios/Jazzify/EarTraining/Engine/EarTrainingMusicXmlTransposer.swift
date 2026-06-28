@@ -42,8 +42,26 @@ enum EarTrainingMusicXmlTransposer {
         "Cb": ["Cb", "Db", "Eb", "Fb", "Gb", "Ab", "Bb"],
     ]
 
+    /// 練習移調オフセットを ±6 の符号付き最短経路へ揃える（例: +10 → -2）。
+    static func normalizeSignedSemitoneOffset(_ semitones: Int) -> Int {
+        if semitones >= practiceTransposeMin && semitones <= practiceTransposeMax {
+            return semitones
+        }
+        if semitones < practiceTransposeMin {
+            return practiceTransposeMin
+        }
+        var wrapped = semitones % 12
+        if wrapped < 0 {
+            wrapped += 12
+        }
+        if wrapped > 6 {
+            wrapped -= 12
+        }
+        return max(practiceTransposeMin, min(practiceTransposeMax, wrapped))
+    }
+
     static func clampPracticeTransposeOffset(_ offset: Int) -> Int {
-        max(practiceTransposeMin, min(practiceTransposeMax, offset))
+        normalizeSignedSemitoneOffset(offset)
     }
 
     static func readKeyFifths(fromMusicXml xml: String) -> Int {
@@ -106,7 +124,7 @@ enum EarTrainingMusicXmlTransposer {
         let originalKeyName = fifthsToKeyName[originalFifths] ?? "C"
         let targetKey = targetKeyFromTransposition(originalKeyName: originalKeyName, semitones: semitones)
         let targetFifths = keyNameToFifths[normalizeToPreferredKey(targetKey)] ?? keyNameToFifths[targetKey] ?? 0
-        let intervalName = intervalBetweenKeys(from: originalKeyName, to: targetKey)
+        let intervalName = signedIntervalName(fromSemitones: semitones)
 
         for noteEl in allElements(named: "note", in: root) {
             if directChild(noteEl, localName: "rest") != nil { continue }
@@ -255,13 +273,14 @@ enum EarTrainingMusicXmlTransposer {
         return fifthsToKeyName[targetFifths] ?? "C"
     }
 
-    private static func intervalBetweenKeys(from: String, to: String) -> String {
-        guard let fromChroma = chromaForKey(normalizeToPreferredKey(from)),
-              let toChroma = chromaForKey(normalizeToPreferredKey(to)) else {
+    private static func signedIntervalName(fromSemitones semitones: Int) -> String {
+        let normalized = normalizeSignedSemitoneOffset(semitones)
+        if normalized == 0 { return "1P" }
+        let absOffset = abs(normalized)
+        guard let base = EarTrainingMusicXmlPitchMath.intervalName(fromSemitoneOffset: absOffset) else {
             return "1P"
         }
-        let semitones = ((toChroma - fromChroma) % 12 + 12) % 12
-        return EarTrainingMusicXmlPitchMath.intervalName(fromSemitoneOffset: semitones) ?? "1P"
+        return normalized < 0 ? "-\(base)" : base
     }
 
     private static func pitchToNote(step: String, alter: Int, octave: Int) -> String {

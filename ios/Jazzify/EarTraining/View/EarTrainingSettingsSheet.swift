@@ -308,7 +308,9 @@ struct EarTrainingSettingsSheet: View {
 
     private func practicePlaybackSection(_ speedConfig: EarTrainingPracticeSpeedConfig) -> some View {
         let controlsActive = speedConfig.practiceMode
-        let draftInt = Int(transposeDraft.rounded())
+        let draftInt = EarTrainingMusicXmlTransposer.normalizeSignedSemitoneOffset(
+            Int(transposeDraft.rounded())
+        )
         let transposeConfig = practiceTranspose
         let sectionTitle: String = {
             if transposeConfig?.enabled == true {

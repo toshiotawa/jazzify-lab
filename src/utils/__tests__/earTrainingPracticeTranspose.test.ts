@@ -4,6 +4,7 @@ import {
   clampPracticeTransposeOffset,
   fifthsToPreferredKeyName,
   getPracticeTransposeTargetKeyName,
+  normalizeSignedSemitoneOffset,
   PRACTICE_TRANSPOSE_MAX,
   PRACTICE_TRANSPOSE_MIN,
   readKeyFifthsFromMusicXml,
@@ -28,8 +29,14 @@ describe('earTrainingPracticeTranspose', () => {
 
   it('clamps offset to ±6', () => {
     expect(clampPracticeTransposeOffset(-10)).toBe(PRACTICE_TRANSPOSE_MIN);
-    expect(clampPracticeTransposeOffset(10)).toBe(PRACTICE_TRANSPOSE_MAX);
+    expect(clampPracticeTransposeOffset(10)).toBe(-2);
     expect(clampPracticeTransposeOffset(3.7)).toBe(3);
+  });
+
+  it('maps unsigned mod-12 offsets to signed shortest path', () => {
+    expect(normalizeSignedSemitoneOffset(10)).toBe(-2);
+    expect(normalizeSignedSemitoneOffset(-2)).toBe(-2);
+    expect(normalizeSignedSemitoneOffset(-10)).toBe(PRACTICE_TRANSPOSE_MIN);
   });
 
   it('maps fifths to preferred key names', () => {

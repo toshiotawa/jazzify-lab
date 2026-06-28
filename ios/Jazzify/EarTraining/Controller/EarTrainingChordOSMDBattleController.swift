@@ -167,7 +167,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     func applyPracticeModeAndRestart(_ value: Bool) {
-        guard canChangePracticeMode else { return }
         practiceMode = value
         if !value {
             voicingHintIntensities = [:]

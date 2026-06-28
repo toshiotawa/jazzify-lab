@@ -34,7 +34,15 @@ final class EarTrainingMusicXmlTransposerTests: XCTestCase {
 
     func testClampPracticeTransposeOffset() {
         XCTAssertEqual(EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(-10), -6)
-        XCTAssertEqual(EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(10), 6)
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(10), -2)
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(6), 6)
+    }
+
+    func testTransposeMusicXmlDownTwoSemitonesFromF() {
+        let transposed = EarTrainingMusicXmlTransposer.transposeMusicXml(sampleMusicXml, semitones: -2)
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.readKeyFifths(fromMusicXml: transposed), -3)
+        XCTAssertTrue(transposed.contains("<step>E</step>") || transposed.contains("<step>D</step>"))
+        XCTAssertFalse(transposed.contains("<step>F</step><octave>4</octave>"))
     }
 
     func testTransposeMusicXmlUpdatesFifths() {

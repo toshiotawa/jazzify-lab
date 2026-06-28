@@ -26,8 +26,30 @@ const FIFTHS_TO_KEY_NAME: Record<number, string> = {
 
 const clampKeyFifths = (fifths: number): number => Math.max(-7, Math.min(7, fifths));
 
+/**
+ * 練習移調オフセットを ±6 の符号付き最短経路へ揃える。
+ * 例: +10 → -2（F→Eb）。-10 など下限外は -6 へクランプ。
+ */
+export const normalizeSignedSemitoneOffset = (offset: number): number => {
+  const truncated = Math.trunc(offset);
+  if (truncated >= PRACTICE_TRANSPOSE_MIN && truncated <= PRACTICE_TRANSPOSE_MAX) {
+    return truncated;
+  }
+  if (truncated < PRACTICE_TRANSPOSE_MIN) {
+    return PRACTICE_TRANSPOSE_MIN;
+  }
+  let wrapped = truncated % 12;
+  if (wrapped < 0) {
+    wrapped += 12;
+  }
+  if (wrapped > 6) {
+    wrapped -= 12;
+  }
+  return Math.max(PRACTICE_TRANSPOSE_MIN, Math.min(PRACTICE_TRANSPOSE_MAX, wrapped));
+};
+
 export const clampPracticeTransposeOffset = (offset: number): number =>
-  Math.max(PRACTICE_TRANSPOSE_MIN, Math.min(PRACTICE_TRANSPOSE_MAX, Math.trunc(offset)));
+  normalizeSignedSemitoneOffset(offset);
 
 /**
  * MusicXML 先頭の `<key><fifths>` を読む（`musicXmlTransposer` と同等）。

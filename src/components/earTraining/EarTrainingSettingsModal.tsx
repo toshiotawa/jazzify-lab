@@ -6,6 +6,7 @@ import {
   clampPracticeTransposeOffset,
   formatPracticeTransposeOffsetLabel,
   getPracticeTransposeTargetKeyName,
+  normalizeSignedSemitoneOffset,
   PRACTICE_TRANSPOSE_MAX,
   PRACTICE_TRANSPOSE_MIN,
 } from '@/utils/earTrainingPracticeTranspose';
@@ -120,8 +121,9 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   }, [isOpen, osmdTimingAdjustment?.appliedOffsetMs]);
 
   const playbackControlsActive = Boolean(practiceSpeed?.practiceMode);
+  const normalizedTransposeDraft = normalizeSignedSemitoneOffset(transposeDraft);
   const transposeTargetKeyName = practiceTranspose
-    ? getPracticeTransposeTargetKeyName(practiceTranspose.originalKeyFifths, transposeDraft)
+    ? getPracticeTransposeTargetKeyName(practiceTranspose.originalKeyFifths, normalizedTransposeDraft)
     : '—';
   const playbackSectionTitle = practiceTranspose?.enabled
     ? (isEnglishCopy ? 'Transpose & Speed' : '移調 & 速度変更')
@@ -320,9 +322,9 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
                     <div className="mb-1 flex items-center justify-between text-sm text-slate-200">
                       <span>{isEnglishCopy ? 'Semitones' : '半音'}</span>
                       <span>
-                        {transposeDraft === 0
+                        {normalizedTransposeDraft === 0
                           ? practiceTranspose.originalKeyName
-                          : `${transposeTargetKeyName} (${formatPracticeTransposeOffsetLabel(transposeDraft)})`}
+                          : `${transposeTargetKeyName} (${formatPracticeTransposeOffsetLabel(normalizedTransposeDraft)})`}
                       </span>
                     </div>
                     <input

@@ -124,8 +124,13 @@ export function getCorrectInterval(fromKey: string, toKey: string): string {
   
   const fromChroma = fromNote.chroma ?? 0;
   const toChroma = toNote.chroma ?? 0;
-  const semitones = ((toChroma - fromChroma) % 12 + 12) % 12;
-  
+  let semitones = toChroma - fromChroma;
+  if (semitones > 6) {
+    semitones -= 12;
+  } else if (semitones < -6) {
+    semitones += 12;
+  }
+
   return Interval.fromSemitones(semitones) ?? '1P';
 }
 
