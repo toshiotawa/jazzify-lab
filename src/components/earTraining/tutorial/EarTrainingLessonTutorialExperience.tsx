@@ -121,8 +121,8 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   useEffect(() => {
     if (gate !== 'ready' || !script?.scenes.length) return;
     if (script.scenes[0]?.type !== 'dialogue_only') return;
-    void preloadEarTrainingTutorialBattleChunks();
-  }, [gate, script]);
+    void preloadEarTrainingTutorialBattleChunks({ script, isEnglishCopy });
+  }, [gate, isEnglishCopy, script]);
 
   const finalizeLesson = useCallback(
     async (kind: 'completed' | 'aborted') => {

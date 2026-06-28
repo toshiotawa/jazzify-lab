@@ -48,4 +48,21 @@ describe('idlePrefetch', () => {
 
     expect(task).toHaveBeenCalledTimes(1);
   });
+
+  it('skips a second task registered with the same key', () => {
+    const prefetchTask = vi.fn();
+    const overlayTask = vi.fn();
+    const idleCallback = vi.fn((callback: IdleRequestCallback) => {
+      callback({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline);
+      return 1;
+    });
+    vi.stubGlobal('requestIdleCallback', idleCallback);
+    const key = `idle-test-collision-${Date.now()}`;
+
+    runWhenIdle(key, prefetchTask);
+    runWhenIdle(key, overlayTask);
+
+    expect(prefetchTask).toHaveBeenCalledTimes(1);
+    expect(overlayTask).not.toHaveBeenCalled();
+  });
 });

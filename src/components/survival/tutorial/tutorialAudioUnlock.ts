@@ -1,6 +1,6 @@
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { preloadFireMagicSe, unlockFireMagicSe } from '@/utils/earTrainingFireMagicSe';
-import { initializeAudioSystem, playNote, stopNote } from '@/utils/MidiController';
+import { playNote, stopNote } from '@/utils/MidiController';
 
 const TUTORIAL_PREVIEW_NOTE_MS = 420;
 
@@ -51,19 +51,24 @@ function playTutorialPreviewNote(midi: number, mode: TutorialPreviewAudioMode): 
   );
 }
 
-/** ユーザー操作直後に呼び、チュートリアル用 GM ピアノを解放する */
+/** ユーザー操作直後に呼び、チュートリアル用オーディオコンテキストを解放する（軽量） */
 export async function unlockTutorialAudio(): Promise<void> {
   try {
     preloadFireMagicSe();
     unlockFireMagicSe();
-    await Promise.all([
-      initializeAudioSystem(),
-      FantasySoundManager.init(0.8, 0.7, true),
-    ]);
-    FantasySoundManager.ensureContextsRunning();
     await FantasySoundManager.unlock();
-    await FantasySoundManager.waitForGMReady();
+    FantasySoundManager.ensureContextsRunning();
     unlockFireMagicSe();
+  } catch {
+    /* noop */
+  }
+}
+
+/** dialogue 中にバトル用 GM ピアノを先読みする */
+export async function preloadTutorialBattleAudio(): Promise<void> {
+  try {
+    await FantasySoundManager.preloadGM();
+    await FantasySoundManager.waitForGMReady();
   } catch {
     /* noop */
   }

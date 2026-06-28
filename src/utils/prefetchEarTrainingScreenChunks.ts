@@ -96,7 +96,7 @@ export const prefetchEarTrainingResourcesForLesson = (
   });
 
   if (selectedEntries.length > 0) {
-    runWhenIdle('chunk:ear-training-piano-pixi', () => {
+    runWhenIdle('chunk:ear-training-piano-pixi-prefetch', () => {
       void import('@/components/game/PIXINotesRenderer').catch(() => undefined);
     });
   }

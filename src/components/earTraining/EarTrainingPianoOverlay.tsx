@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import type { PIXINotesRendererInstance } from '@/components/game/PIXINotesRenderer';
 import { getWindow } from '@/platform';
-import { runWhenIdle } from '@/utils/idlePrefetch';
 
 type PixiNotesRendererComponent = React.ComponentType<{
   width: number;
@@ -57,14 +56,17 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
   const [PixiNotesRenderer, setPixiNotesRenderer] = useState<PixiNotesRendererComponent | null>(null);
 
   useEffect(() => {
-    const cancel = runWhenIdle('chunk:ear-training-piano-pixi', () => {
-      void import('@/components/game/PIXINotesRenderer')
-        .then((mod) => {
+    let cancelled = false;
+    void import('@/components/game/PIXINotesRenderer')
+      .then((mod) => {
+        if (!cancelled) {
           setPixiNotesRenderer(() => mod.PIXINotesRenderer);
-        })
-        .catch(() => undefined);
-    });
-    return cancel;
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
