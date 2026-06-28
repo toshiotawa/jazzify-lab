@@ -31,9 +31,14 @@ import {
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   getCachedEarTrainingMusicXml,
+  prefetchEarTrainingLobbyAssetsFromStage,
   prefetchEarTrainingMusicXml,
   storeEarTrainingMusicXml,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
+import {
+  preloadBattleCountInClick,
+  preloadBattleGmPiano,
+} from '@/utils/ensureBattlePianoAudio';
 import {
   getCompletionDamage,
   getNextPhraseIndex,
@@ -285,6 +290,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
   useEffect(() => { showKeyboardHintsInBattleRef.current = showKeyboardHintsInBattle; }, [showKeyboardHintsInBattle]);
   useEffect(() => { osmdSelfPacedRef.current = osmdSelfPaced; }, [osmdSelfPaced]);
+
+  useEffect(() => {
+    preloadBattleGmPiano();
+    preloadBattleCountInClick();
+    prefetchEarTrainingLobbyAssetsFromStage(stage);
+  }, [stage]);
 
   useEffect(() => {
     if (!practiceMode && !showKeyboardHintsInBattle) {

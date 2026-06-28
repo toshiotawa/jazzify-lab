@@ -74,4 +74,20 @@ describe('prefetchEarTrainingLobbyAssets', () => {
 
     expect(mockedFetchAudio).toHaveBeenCalledTimes(1);
   });
+
+  it('prefetches all phrase audio urls from stage', async () => {
+    const { prefetchEarTrainingLobbyAssetsFromStage } = await import('@/utils/prefetchEarTrainingLobbyAssets');
+
+    prefetchEarTrainingLobbyAssetsFromStage({
+      id: 'stage-osmd',
+      mode: 'chord_osmd',
+      phrases: [
+        { id: 'p1', audio_url: 'https://example.com/a.mp3', music_xml_url: 'https://example.com/a.xml' },
+        { id: 'p2', audio_url: 'https://example.com/b.mp3', music_xml_url: 'https://example.com/b.xml' },
+      ],
+    } as import('@/types').EarTrainingStage);
+
+    expect(mockedFetchAudio).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
 });

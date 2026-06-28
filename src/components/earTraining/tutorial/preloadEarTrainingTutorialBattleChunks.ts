@@ -1,6 +1,6 @@
 import { EFFECT_IMAGE_URLS, preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import { prefetchEarTrainingLobbyAssetsFromStage } from '@/utils/prefetchEarTrainingLobbyAssets';
-import { preloadTutorialBattleAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
+import { preloadBattleCountInClick, preloadBattleGmPiano } from '@/utils/ensureBattlePianoAudio';
 
 import { resolveTutorialContentStage } from './buildTutorialStageFromContent';
 import type {
@@ -52,7 +52,8 @@ export const preloadEarTrainingTutorialBattleChunks = async (
 
   void preloadEarTrainingBattleImages(Object.values(EFFECT_IMAGE_URLS));
 
-  void preloadTutorialBattleAudio();
+  preloadBattleGmPiano();
+  preloadBattleCountInClick();
 
   const script = options.script;
   if (!script) {

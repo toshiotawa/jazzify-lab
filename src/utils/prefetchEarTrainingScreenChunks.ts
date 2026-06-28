@@ -1,6 +1,7 @@
 import type { EarTrainingStage } from '@/types';
 import type { LessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { preloadEarTrainingStageDetails } from '@/platform/earTrainingStageDetailCache';
+import { preloadBattleGmPiano, preloadBattleCountInClick } from '@/utils/ensureBattlePianoAudio';
 import { runWhenIdle } from '@/utils/idlePrefetch';
 
 export interface EarTrainingPrefetchEntry {
@@ -96,6 +97,8 @@ export const prefetchEarTrainingResourcesForLesson = (
   });
 
   if (selectedEntries.length > 0) {
+    preloadBattleGmPiano();
+    preloadBattleCountInClick();
     runWhenIdle('chunk:ear-training-piano-pixi-prefetch', () => {
       void import('@/components/game/PIXINotesRenderer').catch(() => undefined);
     });

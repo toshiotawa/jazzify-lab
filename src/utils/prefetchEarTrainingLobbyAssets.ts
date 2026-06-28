@@ -75,13 +75,21 @@ export const prefetchEarTrainingMusicXml = (rawUrl: string): void => {
 };
 
 export const prefetchEarTrainingLobbyAssetsFromStage = (stage: EarTrainingStage): void => {
-  const firstPhrase = stage.phrases?.[0];
-  if (!firstPhrase) {
+  const phrases = stage.phrases ?? [];
+  if (phrases.length === 0) {
     return;
   }
-  prefetchEarTrainingPhraseAudio(firstPhrase.audio_url);
-  if (stage.mode === 'chord_osmd' && firstPhrase.music_xml_url) {
-    prefetchEarTrainingMusicXml(firstPhrase.music_xml_url);
+
+  phrases.forEach((phrase) => {
+    prefetchEarTrainingPhraseAudio(phrase.audio_url);
+  });
+
+  if (stage.mode === 'chord_osmd') {
+    phrases.forEach((phrase) => {
+      if (phrase.music_xml_url) {
+        prefetchEarTrainingMusicXml(phrase.music_xml_url);
+      }
+    });
   }
 };
 
