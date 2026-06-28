@@ -285,7 +285,7 @@ const EarTrainingStageManager: React.FC = () => {
   const loadStages = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchEarTrainingStages({ includeInactive: true, includeDemo: true, forceRefresh: true });
+      const data = await fetchEarTrainingStages({ includeInactive: true, includeDemo: true, forceRefresh: true, includePhraseDetails: true });
       setStages(data);
       if (!selectedStageId && data.length > 0) {
         setSelectedStageId(data[0].id);

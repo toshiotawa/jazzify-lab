@@ -2,6 +2,7 @@ import { resolveEarTrainingOsmdTargetsFromScore } from '@/utils/earTrainingChord
 import { EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA } from '@/utils/earTrainingUiCopy';
 import { enrichEarTrainingStageWithComposite } from '@/platform/enrichEarTrainingCompositePhrase';
 import { enrichEarTrainingStageWithPhrasePairAdlib } from '@/platform/enrichEarTrainingPhrasePairAdlib';
+import { clearEarTrainingStageDetailCache } from '@/platform/earTrainingStageDetailCache';
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
 import type {
   EarTrainingChordQuizItem,
@@ -15,7 +16,24 @@ import type {
 
 const EAR_TRAINING_CACHE_PREFIX = 'ear_training';
 
-/** ステージ取得のネスト。`quote` は `ear_training_phrase_chord_quotes` 0..1。 */
+/** ステージ一覧・メタ取得（フレーズ詳細なし） */
+const EAR_TRAINING_STAGE_BOOTSTRAP_SELECT = `
+  *,
+  chord_quiz_items:ear_training_chord_quiz_items (*)
+`;
+
+/** フレーズ単位のネスト取得 */
+const EAR_TRAINING_PHRASE_RELATIONS_SELECT = `
+  *,
+  notes:ear_training_phrase_notes (*),
+  chords:ear_training_phrase_chords (
+    *,
+    quote:ear_training_phrase_chord_quotes (*)
+  ),
+  demo_loops:ear_training_phrase_demo_loops (*)
+`;
+
+/** 管理画面などフレーズ込み一括取得用 */
 const EAR_TRAINING_STAGE_RELATIONS_SELECT = `
   *,
   phrases:ear_training_phrases (
@@ -115,29 +133,65 @@ const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => {
 
 const invalidateEarTrainingCache = (): void => {
   clearCacheByPattern(EAR_TRAINING_CACHE_PREFIX);
+  clearEarTrainingStageDetailCache();
 };
+
+const fetchEarTrainingStagePhraseRelations = async (
+  stageId: string,
+): Promise<EarTrainingStage['phrases']> => {
+  const { data, error } = await getSupabaseClient()
+    .from('ear_training_phrases')
+    .select(EAR_TRAINING_PHRASE_RELATIONS_SELECT)
+    .eq('stage_id', stageId)
+    .order('order_index', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as EarTrainingStage['phrases'];
+};
+
+const attachPhraseRelations = (
+  stage: EarTrainingStage,
+  phrases: EarTrainingStage['phrases'],
+): EarTrainingStage => sortStageRelations({
+  ...stage,
+  phrases: phrases ?? [],
+});
 
 export const fetchEarTrainingStages = async (
   {
     includeInactive = false,
     includeDemo = false,
     forceRefresh = false,
-  }: { includeInactive?: boolean; includeDemo?: boolean; forceRefresh?: boolean } = {},
+    includePhraseDetails = false,
+  }: {
+    includeInactive?: boolean;
+    includeDemo?: boolean;
+    forceRefresh?: boolean;
+    includePhraseDetails?: boolean;
+  } = {},
 ): Promise<EarTrainingStage[]> => {
   const supabase = getSupabaseClient();
   const activeKey = includeInactive ? 'all' : 'active';
   const demoKey = includeDemo ? 'with-demo' : 'no-demo';
-  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stages:${activeKey}:${demoKey}`;
+  const detailKey = includePhraseDetails ? 'full' : 'bootstrap';
+  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stages:${activeKey}:${demoKey}:${detailKey}`;
   if (forceRefresh) {
     clearCacheByPattern(cacheKey);
   }
+
+  const stageSelect = includePhraseDetails
+    ? EAR_TRAINING_STAGE_RELATIONS_SELECT
+    : EAR_TRAINING_STAGE_BOOTSTRAP_SELECT;
 
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => {
       let query = supabase
         .from('ear_training_stages')
-        .select(EAR_TRAINING_STAGE_SELECT)
+        .select(stageSelect)
         .order('slug', { ascending: true });
 
       if (!includeInactive) {
@@ -157,7 +211,9 @@ export const fetchEarTrainingStages = async (
     throw error;
   }
 
-  const sorted = ((data ?? []) as EarTrainingStage[]).map(sortStageRelations);
+  const sorted = ((data ?? []) as unknown as EarTrainingStage[]).map((stage) => (
+    includePhraseDetails ? sortStageRelations(stage) : attachPhraseRelations(stage, [])
+  ));
   return Promise.all(sorted.map(async (s) => enrichEarTrainingStageWithPhrasePairAdlib(
     await enrichEarTrainingStageWithComposite(s),
   )));
@@ -175,11 +231,28 @@ export const fetchEarTrainingStageById = async (
 
   const { data, error } = await fetchWithCache(
     cacheKey,
-    async () => await supabase
-      .from('ear_training_stages')
-      .select(EAR_TRAINING_STAGE_SELECT)
-      .eq('id', stageId)
-      .single(),
+    async () => {
+      const [stageResult, phrases] = await Promise.all([
+        supabase
+          .from('ear_training_stages')
+          .select(EAR_TRAINING_STAGE_BOOTSTRAP_SELECT)
+          .eq('id', stageId)
+          .single(),
+        fetchEarTrainingStagePhraseRelations(stageId),
+      ]);
+
+      if (stageResult.error) {
+        return stageResult;
+      }
+      if (!stageResult.data) {
+        return stageResult;
+      }
+
+      return {
+        ...stageResult,
+        data: attachPhraseRelations(stageResult.data as EarTrainingStage, phrases),
+      };
+    },
     1000 * 60 * 5,
   );
 

@@ -268,6 +268,8 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     },
   }), [applySnapshotToRuntime, markDirty, scheduleImpact]);
 
+  const effectsLoadedRef = useRef(false);
+
   useEffect(() => {
     if (disableCorrectSe) return;
     preloadFireMagicSe();
@@ -282,20 +284,8 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       snapshotRef.current.playerAvatarUrl,
       snapshotRef.current.enemyAvatarUrl,
     ];
-    void preloadEarTrainingBattleImages([
-      ...avatarUrls,
-      ...Object.values(EFFECT_IMAGE_URLS),
-      ...Object.values(BACKGROUND_IMAGE_URLS),
-    ]).then((map) => {
+    void preloadEarTrainingBattleImages(avatarUrls).then((map) => {
       if (cancelled || !runtimeRef.current) return;
-      Object.entries(EFFECT_IMAGE_URLS).forEach(([key, url]) => {
-        const img = map.get(url);
-        if (img) runtimeRef.current?.loadedImages.set(key, img);
-      });
-      Object.entries(BACKGROUND_IMAGE_URLS).forEach(([key, url]) => {
-        const img = map.get(url);
-        if (img) runtimeRef.current?.loadedImages.set(key, img);
-      });
       avatarUrls.forEach(url => {
         const img = map.get(url);
         if (img) runtimeRef.current?.loadedImages.set(url, img);
@@ -326,6 +316,35 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       ro.disconnect();
     };
   }, [ensureRuntime, markDirty]);
+
+  useEffect(() => {
+    if (snapshot.gameState === 'idle' && snapshot.showLobbyControls) {
+      return;
+    }
+    if (effectsLoadedRef.current) {
+      return;
+    }
+    effectsLoadedRef.current = true;
+    let cancelled = false;
+    void preloadEarTrainingBattleImages([
+      ...Object.values(EFFECT_IMAGE_URLS),
+      ...Object.values(BACKGROUND_IMAGE_URLS),
+    ]).then((map) => {
+      if (cancelled || !runtimeRef.current) return;
+      Object.entries(EFFECT_IMAGE_URLS).forEach(([key, url]) => {
+        const img = map.get(url);
+        if (img) runtimeRef.current?.loadedImages.set(key, img);
+      });
+      Object.entries(BACKGROUND_IMAGE_URLS).forEach(([key, url]) => {
+        const img = map.get(url);
+        if (img) runtimeRef.current?.loadedImages.set(key, img);
+      });
+      markDirty();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [markDirty, snapshot.gameState, snapshot.showLobbyControls]);
 
   useEffect(() => {
     applySnapshotToRuntime(snapshot);

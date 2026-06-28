@@ -3,10 +3,9 @@ import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import type { ClearConditions, EarTrainingStage } from '@/types';
 import {
-  fetchEarTrainingStageById,
   fetchEarTrainingStages,
 } from '@/platform/supabaseEarTraining';
-import { fetchSurvivalCharacters, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import { fetchEarTrainingStageDetailCached } from '@/platform/earTrainingStageDetailCache';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWindow } from '@/platform';
 import { useAuthStore } from '@/stores/authStore';
@@ -16,6 +15,10 @@ import {
   getEarTrainingMainCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import {
+  resolveEarTrainingBattleEnemy,
+  type EarTrainingBattleEnemy,
+} from '@/utils/earTrainingBattleAvatar';
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -71,7 +74,6 @@ const EarTrainingMain: React.FC = () => {
 
   const [stage, setStage] = useState<EarTrainingStage | null>(null);
   const [stages, setStages] = useState<EarTrainingStage[]>([]);
-  const [enemy, setEnemy] = useState<SurvivalCharacterRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stagePicked, setStagePicked] = useState(false);
@@ -121,10 +123,9 @@ const EarTrainingMain: React.FC = () => {
       const copy = getEarTrainingMainCopy(isEnglishCopy);
       try {
         const stageId = params.get('stageId');
-        const [stageData, stageList, characters] = await Promise.all([
-          stageId ? fetchEarTrainingStageById(stageId) : Promise.resolve(null),
+        const [stageData, stageList] = await Promise.all([
+          stageId ? fetchEarTrainingStageDetailCached(stageId) : Promise.resolve(null),
           stageId ? Promise.resolve<EarTrainingStage[]>([]) : fetchEarTrainingStages(),
-          fetchSurvivalCharacters(),
         ]);
 
         if (cancelled) {
@@ -134,10 +135,6 @@ const EarTrainingMain: React.FC = () => {
         const selectedStage = stageData ?? stageList[0] ?? null;
         setStage(selectedStage);
         setStages(stageList);
-        if (characters.length > 0) {
-          const randomIndex = Math.floor(Math.random() * characters.length);
-          setEnemy(characters[randomIndex] ?? null);
-        }
 
         if (!selectedStage) {
           setError(copy.noStagesRegistered);
@@ -152,6 +149,9 @@ const EarTrainingMain: React.FC = () => {
         }
       } finally {
         if (!cancelled) {
+          if (typeof performance !== 'undefined' && performance.mark) {
+            performance.mark('ear-training:main-loaded');
+          }
           setLoading(false);
         }
       }
@@ -162,6 +162,11 @@ const EarTrainingMain: React.FC = () => {
       cancelled = true;
     };
   }, [isEnglishCopy, params]);
+
+  const enemy = useMemo<EarTrainingBattleEnemy | null>(
+    () => (stage ? resolveEarTrainingBattleEnemy(stage, isEnglishCopy) : null),
+    [stage, isEnglishCopy],
+  );
 
   const handleBack = useCallback(() => {
     if (lessonContext) {

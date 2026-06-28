@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { fetchLessonById, fetchLessonsByCourse, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
+import { prefetchEarTrainingResourcesForLesson } from '@/utils/prefetchEarTrainingScreenChunks';
 import { updateLessonProgress, fetchUserLessonProgress, LessonProgress, LESSON_PROGRESS_CACHE_KEY } from '@/platform/supabaseLessonProgress';
 import { awardPlayerXp } from '@/platform/supabasePlayerXp';
 import { 
@@ -262,6 +263,14 @@ const LessonDetailPage: React.FC = () => {
           is_clear_required: ls.is_clear_required,
         } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
+        prefetchEarTrainingResourcesForLesson(
+          lessonData.lesson_songs
+            .filter(ls => ls.is_ear_training && !ls.is_ear_training_tutorial)
+            .map(ls => ({
+              stageId: ls.ear_training_stage?.id ?? ls.ear_training_stage_id,
+              mode: ls.ear_training_stage?.mode,
+            })),
+        );
         const needsSurvivalCatalog = lessonData.lesson_songs.some(
           (ls) => ls.is_survival && !ls.is_survival_tutorial && !lessonSongHasInlineComposite(ls.survival_composite_config),
         );

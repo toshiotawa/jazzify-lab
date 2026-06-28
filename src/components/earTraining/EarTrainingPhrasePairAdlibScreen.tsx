@@ -12,7 +12,7 @@ import type {
   EarTrainingGameState,
   EarTrainingStage,
 } from '@/types';
-import type { SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import type { EarTrainingBattleEnemy } from '@/utils/earTrainingBattleAvatar';
 import type {
   EarTrainingBattleEffectCommand,
   EarTrainingBattleEffectKind,
@@ -90,7 +90,7 @@ interface EarTrainingLessonContext {
 
 interface EarTrainingPhrasePairAdlibScreenProps {
   stage: EarTrainingStage;
-  enemy: SurvivalCharacterRow | null;
+  enemy: EarTrainingBattleEnemy | null;
   lessonContext: EarTrainingLessonContext | null;
   initialPracticeMode: boolean;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useGameStore } from '@/stores/gameStore';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { cn } from '@/utils/cn';
@@ -9,10 +8,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
-import Dashboard from '@/components/dashboard/Dashboard';
 import { isIOSWebView, getIOSMode, getIOSParam } from '@/utils/iosbridge';
 import { runWhenIdle } from '@/utils/idlePrefetch';
 import MidiWarningModal from '@/components/ui/MidiWarningModal';
+
+const LazyDashboard = React.lazy(() => import('@/components/dashboard/Dashboard'));
 
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard'));
@@ -37,6 +37,12 @@ const LazyEarTrainingTutorialMain = React.lazy(
   () => import('@/components/earTraining/tutorial/EarTrainingTutorialMain'),
 );
 const LazyBalloonRushMain = React.lazy(() => import('@/components/balloonRush/BalloonRushMain'));
+
+const renderDashboard = (): React.ReactNode => (
+  <React.Suspense fallback={<LoadingScreen />}>
+    <LazyDashboard />
+  </React.Suspense>
+);
 
 /**
  * メインアプリケーションコンポーネント
@@ -75,9 +81,25 @@ const App: React.FC = () => {
     }
   }, []);
   
-  // ゲーム設定書き換え用アクション
-  const updateGameSettings = useGameStore((state) => state.updateSettings);
-  
+  // ゲーム設定書き換え用（gameStore は遅延 import）
+  useEffect(() => {
+    const ensureHeaderVisible = () => {
+      if (typeof window === 'undefined') return;
+      const gameHashes = ['#songs', '#practice', '#performance'];
+      const currentHash = window.location.hash.split('?')[0];
+      if (gameHashes.includes(currentHash)) {
+        return;
+      }
+      void import('@/stores/gameStore').then(({ useGameStore }) => {
+        useGameStore.getState().updateSettings({ showHeader: true });
+      });
+    };
+
+    ensureHeaderVisible();
+    window.addEventListener('hashchange', ensureHeaderVisible);
+    return () => window.removeEventListener('hashchange', ensureHeaderVisible);
+  }, []);
+
   useEffect(() => {
     const initializeApp = async () => {
       try {
@@ -87,7 +109,7 @@ const App: React.FC = () => {
         setInitProgress(0.5);
         // 必須チェックのみ同期的に実行、ブラウザ機能チェックはバックグラウンド
         setTimeout(() => {
-          if (typeof AudioContext === 'undefined' && typeof (window as any).webkitAudioContext === 'undefined') {
+          if (typeof AudioContext === 'undefined' && typeof (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext === 'undefined') {
             console.warn('⚠️ Web Audio API not supported');
           }
           if (typeof navigator !== 'undefined' && navigator.requestMIDIAccess === undefined) {
@@ -145,23 +167,15 @@ const App: React.FC = () => {
       }
     }
   }, [isPremiumMember, isAdmin]);
-  
-  // 他画面遷移時にヘッダー非表示状態を自動解除
+
   useEffect(() => {
-    const ensureHeaderVisible = () => {
-      const gameHashes = ['#songs', '#practice', '#performance'];
-      const currentHash = window.location.hash;
-      if (!gameHashes.includes(currentHash)) {
-        updateGameSettings({ showHeader: true });
+    if (!isIOSWebView()) return;
+    void import('@/stores/gameStore').then(({ useGameStore }) => {
+      if (useGameStore.getState().settings.showHeader) {
+        useGameStore.getState().updateSettings({ showHeader: false });
       }
-    };
-
-    // 初期チェック
-    ensureHeaderVisible();
-
-    window.addEventListener('hashchange', ensureHeaderVisible);
-    return () => window.removeEventListener('hashchange', ensureHeaderVisible);
-  }, [updateGameSettings]);
+    });
+  }, []);
 
   useEffect(() => {
     if (!isInitialized || !user || isIOSWebView()) return;
@@ -232,9 +246,6 @@ const App: React.FC = () => {
 
   const iosMode = getIOSMode();
   if (isIOSWebView()) {
-    if (useGameStore.getState().settings.showHeader) {
-      updateGameSettings({ showHeader: false });
-    }
     const resolveHashRoute = (): React.ReactNode => {
       const hashBase = window.location.hash.split('?')[0].replace('#', '');
       switch (hashBase) {
@@ -378,7 +389,7 @@ const App: React.FC = () => {
   
   switch (baseHash) {
     case '#dashboard':
-      MainContent = <Dashboard />;
+      MainContent = renderDashboard();
       break;
     case '#lessons':
       MainContent = <LessonPage />;
@@ -414,7 +425,7 @@ const App: React.FC = () => {
     case '#admin-announcements':
     case '#admin-courses':
     case '#admin-dayly-fantasy':
-      MainContent = isAdmin ? <AdminDashboard /> : <Dashboard />;
+      MainContent = isAdmin ? <AdminDashboard /> : renderDashboard();
       break;
     case '#ear-training-lesson':
       MainContent = (
@@ -431,14 +442,14 @@ const App: React.FC = () => {
       );
       break;
     case '#fantasy':
-      MainContent = !isPremiumMember ? <Dashboard /> : (
+      MainContent = !isPremiumMember ? renderDashboard() : (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyFantasyMain />
         </React.Suspense>
       );
       break;
     case '#Story':
-      MainContent = !isPremiumMember ? <Dashboard /> : (
+      MainContent = !isPremiumMember ? renderDashboard() : (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyStoryPage />
         </React.Suspense>
@@ -482,10 +493,10 @@ const App: React.FC = () => {
       );
       break;
     case '#songs':
-      MainContent = <Dashboard />;
+      MainContent = renderDashboard();
       break;
     default:
-      MainContent = <Dashboard />;
+      MainContent = renderDashboard();
       break;
   }
 

@@ -59,7 +59,6 @@ export default defineConfig(({ mode }) => {
               'icons': ['react-icons'],
               'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
               'supabase': ['@supabase/supabase-js'],
-              'stripe': ['@stripe/stripe-js'],
               'tonal': ['tonal'],
               'osmd': ['opensheetmusicdisplay'],
             },

@@ -11,7 +11,7 @@ import type {
   EarTrainingRank,
   EarTrainingStage,
 } from '@/types';
-import type { SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import type { EarTrainingBattleEnemy } from '@/utils/earTrainingBattleAvatar';
 import type {
   EarTrainingBattleEffectCommand,
   EarTrainingBattleEffectKind,
@@ -101,7 +101,7 @@ interface EarTrainingLessonContext {
 
 interface EarTrainingChordOSMDScreenProps {
   stage: EarTrainingStage;
-  enemy: SurvivalCharacterRow | null;
+  enemy: EarTrainingBattleEnemy | null;
   lessonContext: EarTrainingLessonContext | null;
   initialPracticeMode: boolean;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
@@ -214,6 +214,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       : (isEnglishCopy ? 'Press START to begin OSMD rhythm battle.' : 'STARTでOSMDリズムバトルを開始します'),
   );
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
+  useEffect(() => {
+    if (typeof performance !== 'undefined' && performance.mark) {
+      performance.mark('ear-training:osmd-screen-mounted');
+    }
+  }, []);
 
   useQuestCompleteJingleOnStageClear(gameState);
   useGameOverJingleOnGameOver(gameState);
@@ -606,7 +611,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => {
     const firstPhrase = phrases[0];
     if (gameState === 'idle' && firstPhrase) {
-      void loadMusicXml(firstPhrase, phraseRunIdRef.current);
       const initialTargets = buildChordOsmdRhythmTargets(
         firstPhrase,
         stage.bpm,
@@ -618,7 +622,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       setTargets(initialTargets);
       setCompletedTargetCount(0);
     }
-  }, [chordOsmdXmlAttacks, gameState, loadMusicXml, phrases, stage, stage.bpm, stage.beats_per_measure]);
+  }, [chordOsmdXmlAttacks, gameState, phrases, stage, stage.bpm, stage.beats_per_measure]);
 
   const resetPhraseTimelineIndices = useCallback(() => {
     nextHammerTargetIndexRef.current = 0;
@@ -1183,6 +1187,36 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     startPhraseRef.current = startPhrase;
   }, [startPhrase]);
 
+  const ensureBattleAudioReady = useCallback(async (): Promise<void> => {
+    if (!midiControllerRef.current) {
+      midiControllerRef.current = new MIDIController({
+        onNoteOn: note => handleNoteInputRef.current(note),
+        onNoteOff: () => undefined,
+        onConnectionChange: connected => setIsMidiConnected(connected),
+        playMidiSound: true,
+      });
+    }
+    const controller = midiControllerRef.current;
+    controller.setKeyHighlightCallback((note, active) => {
+      pianoOverlayRef.current?.highlightKey(note, active);
+    });
+    await ensureBattlePianoAudio({
+      midiVolume: settings.midiVolume,
+      soundEffectVolume: settings.soundEffectVolume,
+      rootSoundVolume: settings.rootSoundVolume,
+    });
+    await controller.initialize();
+    if (settings.selectedMidiDevice) {
+      const connected = await controller.connectDevice(settings.selectedMidiDevice);
+      setIsMidiConnected(Boolean(connected));
+    }
+  }, [
+    settings.midiVolume,
+    settings.rootSoundVolume,
+    settings.selectedMidiDevice,
+    settings.soundEffectVolume,
+  ]);
+
   const startBattle = useCallback(() => {
     if (phrases.length === 0) {
       finishGameOver(copy.noPhrases);
@@ -1190,11 +1224,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     pendingImpactHandlersRef.current.clear();
     markAudioUserInteraction();
-    void ensureBattlePianoAudio({
-      midiVolume: settings.midiVolume,
-      soundEffectVolume: settings.soundEffectVolume,
-      rootSoundVolume: settings.rootSoundVolume,
-    }).catch(() => undefined);
+    void ensureBattleAudioReady()
+      .then(() => {
+        if (typeof performance !== 'undefined' && performance.mark) {
+          performance.mark('ear-training:start-ready');
+        }
+      })
+      .catch(() => setIsMidiConnected(false));
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     lastInputAtByNoteRef.current.clear();
@@ -1207,7 +1243,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     playerHpRef.current = stage.player_hp;
     battleEffectIdRef.current = 0;
     startPhrase(0);
-  }, [copy.noPhrases, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
+  }, [copy.noPhrases, ensureBattleAudioReady, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
 
   const completeTarget = useCallback((
     target: ChordOsmdRhythmTarget,
@@ -1331,21 +1367,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     controller.setKeyHighlightCallback((note, active) => {
       pianoOverlayRef.current?.highlightKey(note, active);
     });
-    void ensureBattlePianoAudio({
-      midiVolume: settings.midiVolume,
-      soundEffectVolume: settings.soundEffectVolume,
-      rootSoundVolume: settings.rootSoundVolume,
-    }).then(() => controller.initialize()).then(async () => {
-      if (settings.selectedMidiDevice) {
-        const connected = await controller.connectDevice(settings.selectedMidiDevice);
-        setIsMidiConnected(connected);
-      }
-    }).catch(() => setIsMidiConnected(false));
     return () => {
       void controller.destroy();
       midiControllerRef.current = null;
     };
-  }, [settings.selectedMidiDevice]);
+  }, []);
 
   const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
     updateSettings({ selectedMidiDevice: deviceId });
@@ -1354,10 +1380,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       setIsMidiConnected(false);
       return;
     }
-    void midiControllerRef.current?.connectDevice(deviceId).then(connected => {
-      setIsMidiConnected(Boolean(connected));
-    });
-  }, [updateSettings]);
+    void ensureBattleAudioReady()
+      .then(() => midiControllerRef.current?.connectDevice(deviceId))
+      .then(connected => {
+        setIsMidiConnected(Boolean(connected));
+      })
+      .catch(() => setIsMidiConnected(false));
+  }, [ensureBattleAudioReady, updateSettings]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -1560,17 +1589,19 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         />
       </div>
 
-      <EarTrainingChordOSMDScore
-        musicXmlText={musicXmlText}
-        scoreErrorText={scoreErrorText}
-        activeMeasureNumber={activeMeasureNumber}
-        measureDurationSec={measureDurationSec}
-        scrollActive={scoreScrollActive}
-        renderKeyValue={phraseRunId}
-        isEnglishCopy={isEnglishCopy}
-        hidden={showLobbyControls}
-        scoreZClassName={showLobbyControls ? 'z-0' : 'z-10'}
-      />
+      {musicXmlText ? (
+        <EarTrainingChordOSMDScore
+          musicXmlText={musicXmlText}
+          scoreErrorText={scoreErrorText}
+          activeMeasureNumber={activeMeasureNumber}
+          measureDurationSec={measureDurationSec}
+          scrollActive={scoreScrollActive}
+          renderKeyValue={phraseRunId}
+          isEnglishCopy={isEnglishCopy}
+          hidden={showLobbyControls}
+          scoreZClassName={showLobbyControls ? 'z-0' : 'z-10'}
+        />
+      ) : null}
 
       <EarTrainingPianoOverlay
         ref={pianoOverlayRef}

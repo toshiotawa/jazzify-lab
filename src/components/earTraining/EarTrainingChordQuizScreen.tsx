@@ -16,7 +16,7 @@ import type {
   EarTrainingPhraseChord,
   EarTrainingStage,
 } from '@/types';
-import type { SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import type { EarTrainingBattleEnemy } from '@/utils/earTrainingBattleAvatar';
 import type {
   EarTrainingBattleEffectKind,
   EarTrainingBattleEffectOriginPoint,
@@ -99,7 +99,7 @@ const resolveQuizLoopDurationSec = (lessonContext: EarTrainingLessonContext | nu
 
 interface EarTrainingChordQuizScreenProps {
   stage: EarTrainingStage;
-  enemy: SurvivalCharacterRow | null;
+  enemy: EarTrainingBattleEnemy | null;
   lessonContext: EarTrainingLessonContext | null;
   initialPracticeMode: boolean;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;

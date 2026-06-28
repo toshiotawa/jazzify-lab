@@ -1,9 +1,33 @@
+import type { EarTrainingStage } from '@/types';
 import {
   DEFAULT_AVATAR_URL,
   EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
   EAR_TRAINING_ENEMY_AVATAR_URLS,
   EAR_TRAINING_PLAYER_AVATAR_URL,
 } from '@/utils/constants';
+
+/** 耳コピバトル敵表示（iOS と同様 stage 由来。survival_characters は使わない） */
+export interface EarTrainingBattleEnemy {
+  id: string;
+  name: string;
+}
+
+export const resolveEarTrainingBattleEnemy = (
+  stage: EarTrainingStage,
+  isEnglishCopy: boolean,
+): EarTrainingBattleEnemy => {
+  if (isEnglishCopy) {
+    const titleEn = stage.title_en?.trim() ?? '';
+    return {
+      id: stage.id,
+      name: titleEn.length > 0 ? titleEn : stage.title,
+    };
+  }
+  return {
+    id: stage.id,
+    name: stage.title,
+  };
+};
 
 /** dialogue_only での敵アバター用ステージ UUID（iOS `EarTrainingTutorialDialogueBattleDriver` と同値文字列が理想） */
 export const EAR_TRAINING_TUTORIAL_DIALOGUE_STAGE_ID_FOR_AVATAR =
