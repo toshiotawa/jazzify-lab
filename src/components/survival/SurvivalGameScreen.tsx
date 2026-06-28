@@ -204,6 +204,11 @@ import {
   resolveBalloonRushStaffBandHeightPx,
 } from '@/utils/balloonRushSurvivalBridge';
 import {
+  resolveBalloonRushDedicatedStaffVisible,
+  shouldBuildSurvivalPunchStaffSnapshot,
+  shouldRenderSurvivalPunchStaffOverlay,
+} from '@/utils/balloonRushStaffVisibility';
+import {
   resolveBlockBossMaxHp,
   resolveBlockPlayerMaxHp,
 } from '@/utils/survivalBlockBalance';
@@ -5852,7 +5857,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     void scenarioUiTick;
     if (!isBalloonRushMode || isProgressionStage) return null;
     const sc = scenarioOverridesRef.current;
-    if (!scenarioMode || !sc.isActive || sc.hideStaff) return null;
+    if (!scenarioMode || !sc.isActive || sc.hideStaff || sc.staffMode !== 'random-staff') return null;
 
     const slot = gameState.codeSlots.current[1];
     const ch = slot.chord;
@@ -6066,7 +6071,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   const progressionStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
     void scenarioUiTick;
-    if (isPhraseMode) return null;
+    if (isBalloonRushMode || isPhraseMode) return null;
     const sc = scenarioOverridesRef.current;
     if (
       scenarioMode
@@ -6122,21 +6127,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.chord?.progressionStaffVoicingStaves,
     scenarioUiTick,
     scenarioMode,
+    isBalloonRushMode,
   ]);
 
   const randomPunchStaffSnapshot = useMemo((): SurvivalProgressionStaffSnapshot | null => {
     void scenarioUiTick;
-    if (isPhraseMode) return null;
+    if (isBalloonRushMode || isPhraseMode) return null;
     if (isProgressionStage) return null;
     const scRand = scenarioOverridesRef.current;
     if (
-      scenarioMode
-      && scRand.isActive
-      && (scRand.hideStaff
-        || scRand.staffMode === 'phrase'
-        || scRand.staffMode === 'progression'
-        || scRand.staffMode === 'demo-timeline'
-        || scRand.staffMode === 'hidden')
+      !shouldBuildSurvivalPunchStaffSnapshot({
+        isBalloonRushMode,
+        isPhraseMode,
+        scenarioMode,
+        scenarioActive: scRand.isActive,
+        hideStaff: scRand.hideStaff,
+        staffMode: scRand.staffMode,
+      })
     ) {
       return null;
     }
@@ -6178,6 +6185,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     progressionPunchSlot.chord?.progressionStaffVoicingStaves,
     scenarioUiTick,
     scenarioMode,
+    isBalloonRushMode,
   ]);
 
   const punchStaffSnapshot = progressionStaffSnapshot ?? randomPunchStaffSnapshot;
@@ -6198,8 +6206,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     ? 'pt-[calc(max(4px,env(safe-area-inset-top))+80px)]'
     : 'pt-[calc(max(4px,env(safe-area-inset-top))+52px)]';
 
+  const balloonRushStaffVisible = resolveBalloonRushDedicatedStaffVisible({
+    hideStaff: scenarioUi.hideStaff,
+    staffMode: scenarioUi.staffMode,
+    hasProgressionStaff: scenarioProgressionStaff !== null,
+    hasRandomStaff: scenarioRandomStaff !== null,
+  });
+
   const balloonRushStaffBandHeightPx = resolveBalloonRushStaffBandHeightPx(
-    !scenarioUi.hideStaff && Boolean(scenarioRandomStaff ?? scenarioProgressionStaff),
+    balloonRushStaffVisible,
     isProgressionStage,
   );
   
@@ -6786,16 +6801,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 />
               </div>
             )}
-          {!isPhraseMode &&
+          {shouldRenderSurvivalPunchStaffOverlay({
+            isBalloonRushMode,
+            isPhraseMode,
+            voicingNameCount: punchStaffSnapshot?.voicingNames.length ?? 0,
+            scenarioMode,
+            scenarioActive: scenarioUi.isActive,
+            hideStaff: scenarioUi.hideStaff,
+            staffMode: scenarioUi.staffMode,
+          }) &&
             punchStaffSnapshot &&
-            punchStaffSnapshot.voicingNames.length > 0 &&
-            !(scenarioMode &&
-              scenarioUi.isActive &&
-              (scenarioUi.hideStaff ||
-                scenarioUi.staffMode === 'phrase' ||
-                scenarioUi.staffMode === 'progression' ||
-                scenarioUi.staffMode === 'demo-timeline' ||
-                scenarioUi.staffMode === 'hidden')) &&
             gameState.isPlaying &&
             !gameState.isGameOver && (
               <div
