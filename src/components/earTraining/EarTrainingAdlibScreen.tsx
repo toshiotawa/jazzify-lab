@@ -1154,17 +1154,22 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
       <EarTrainingSettingsModal
         isOpen={isSettingsOpen}
         isEnglishCopy={isEnglishCopy}
+        scope={tutorial ? 'tutorial' : 'battle'}
         onClose={() => setIsSettingsOpen(false)}
+        onRestartFromBeginning={tutorial ? () => {
+          setIsSettingsOpen(false);
+          startCountIn();
+        } : undefined}
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
         practiceRunMode={
-          onPracticeModeRestartFromSettings
-            ? {
+          tutorial || !onPracticeModeRestartFromSettings
+            ? undefined
+            : {
                 practiceMode,
                 onApplyPracticeModeAndRestart: onPracticeModeRestartFromSettings,
               }
-            : undefined
         }
       />
     </div>

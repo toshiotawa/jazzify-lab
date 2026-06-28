@@ -24,10 +24,14 @@ import {
   OSMD_TIMING_ADJUSTMENT_MS_STEP,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
 
+export type EarTrainingSettingsScope = 'battle' | 'tutorial';
+
 interface EarTrainingSettingsModalProps {
   isOpen: boolean;
   isEnglishCopy: boolean;
+  scope?: EarTrainingSettingsScope;
   onClose: () => void;
+  onRestartFromBeginning?: () => void;
   midiDeviceId: string | null;
   onMidiDeviceChange: (deviceId: string | null) => void;
   isMidiConnected: boolean;
@@ -78,7 +82,9 @@ const SliderRow: React.FC<{
 const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   isOpen,
   isEnglishCopy,
+  scope = 'battle',
   onClose,
+  onRestartFromBeginning,
   midiDeviceId,
   onMidiDeviceChange,
   isMidiConnected,
@@ -87,6 +93,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   practiceSpeed,
   osmdTimingAdjustment,
 }) => {
+  const isTutorialScope = scope === 'tutorial';
   const { settings, updateSettings } = useGameStore();
   const ui = useMemo(() => getEarTrainingSettingsModalCopy(isEnglishCopy), [isEnglishCopy]);
   const [practiceDraft, setPracticeDraft] = useState(practiceRunMode?.practiceMode ?? false);
@@ -159,7 +166,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
         </div>
 
         <div className="max-h-[calc(100dvh-8rem)] space-y-5 overflow-y-auto pr-1">
-          {practiceRunMode ? (
+          {!isTutorialScope && practiceRunMode ? (
             <section className="rounded-xl border border-cyan-600/40 bg-cyan-950/30 p-4">
               <h3 className="mb-2 text-sm font-semibold text-cyan-100">
                 {isEnglishCopy ? 'Practice / Performance' : '練習 / 本番'}
@@ -288,7 +295,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
             </section>
           ) : null}
 
-          {practiceSpeed ? (
+          {!isTutorialScope && practiceSpeed ? (
             <section className="rounded-xl border border-violet-600/40 bg-violet-950/30 p-4">
               <h3 className="mb-2 text-sm font-semibold text-violet-100">
                 {playbackSectionTitle}
@@ -369,7 +376,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
                   : 'フレーズ音源と楽譜（移調時）に反映し、最初から再読み込みします。'}
               </p>
             </section>
-          ) : practiceTranspose?.enabled ? (
+          ) : !isTutorialScope && practiceTranspose?.enabled ? (
             <section className="rounded-xl border border-violet-600/40 bg-violet-950/30 p-4">
               <p className="text-xs text-cyan-200/80">
                 {isEnglishCopy
@@ -377,6 +384,19 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
                   : '練習モードでは、移調を有効にした課題でキーを変更できます（本番では利用できません）。'}
               </p>
             </section>
+          ) : null}
+
+          {isTutorialScope && onRestartFromBeginning ? (
+            <button
+              type="button"
+              className="btn btn-outline btn-sm w-full font-sans"
+              onClick={() => {
+                onRestartFromBeginning();
+                onClose();
+              }}
+            >
+              {isEnglishCopy ? 'Restart from beginning' : '最初からやり直す'}
+            </button>
           ) : null}
         </div>
       </div>

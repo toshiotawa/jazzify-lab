@@ -2,7 +2,7 @@ import type { EarTrainingTutorialUiOverrides } from './earTrainingTutorialScript
 
 export const DEFAULT_EAR_TRAINING_TUTORIAL_UI: EarTrainingTutorialUiOverrides = {
   hidePlayerHpBar: true,
-  hideSettingsButton: true,
+  hideSettingsButton: false,
   hideBackButton: true,
   hideLobby: true,
   hideMidiToggle: true,

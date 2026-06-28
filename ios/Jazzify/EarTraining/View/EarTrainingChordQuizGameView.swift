@@ -221,10 +221,12 @@ private struct EarTrainingChordQuizContent: View {
             gaugeTicker.stop()
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
+            let isTutorialSettings = controller.tutorialHooks != nil
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 audio: audio,
-                stageRunMode: controller.lessonContext.map { _ in
+                scope: isTutorialSettings ? .tutorial : .battle,
+                stageRunMode: isTutorialSettings ? nil : controller.lessonContext.map { _ in
                     EarTrainingStageRunModeConfig(
                         practiceMode: controller.practiceMode,
                         onApplyPracticeModeAndRestart: { mode in
@@ -233,6 +235,10 @@ private struct EarTrainingChordQuizContent: View {
                         }
                     )
                 },
+                onRestartFromBeginning: isTutorialSettings ? {
+                    controller.handleCloseSettings()
+                    controller.startBattle()
+                } : nil,
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )

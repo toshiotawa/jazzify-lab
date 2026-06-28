@@ -140,7 +140,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
     () => ({
       ui: script?.ui ?? {
         hidePlayerHpBar: true,
-        hideSettingsButton: true,
+        hideSettingsButton: false,
         hideBackButton: true,
         hideLobby: true,
         hideMidiToggle: true,

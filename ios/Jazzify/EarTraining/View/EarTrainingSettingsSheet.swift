@@ -28,6 +28,12 @@ struct EarTrainingOsmdTimingAdjustmentConfig {
     let onChange: (_ offsetMs: Int) -> Void
 }
 
+/// Web `EarTrainingSettingsScope` 相当。
+enum EarTrainingSettingsScope {
+    case battle
+    case tutorial
+}
+
 /// 耳コピバトル ゲーム画面の設定モーダル。Web `EarTrainingSettingsModal.tsx` と項目を一致させる:
 /// - （任意）練習 / 本番 + 最初から挑戦
 /// - MIDI デバイス選択
@@ -35,12 +41,16 @@ struct EarTrainingOsmdTimingAdjustmentConfig {
 struct EarTrainingSettingsSheet: View {
     let isEnglishCopy: Bool
     let audio: EarTrainingAudio
+    var scope: EarTrainingSettingsScope = .battle
     var stageRunMode: EarTrainingStageRunModeConfig?
     var practiceTranspose: EarTrainingPracticeTransposeConfig?
     var practiceSpeed: EarTrainingPracticeSpeedConfig?
     var osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig?
+    var onRestartFromBeginning: (() -> Void)?
     let onDismiss: () -> Void
     let onExit: () -> Void
+
+    private var isTutorialScope: Bool { scope == .tutorial }
 
     @State private var practiceDraft: Bool = false
     @State private var transposeDraft: Double = 0
@@ -62,13 +72,15 @@ struct EarTrainingSettingsSheet: View {
                     .font(.title3.bold())
                     .foregroundStyle(.white)
 
-                if let stageRunMode {
-                    stageRunModeSection(
-                        stageRunMode,
-                        showPlaybackHint: practiceSpeed != nil || practiceTranspose?.enabled == true
-                    )
-                } else if practiceSpeed != nil || practiceTranspose?.enabled == true {
-                    playbackHintOnlySection
+                if !isTutorialScope {
+                    if let stageRunMode {
+                        stageRunModeSection(
+                            stageRunMode,
+                            showPlaybackHint: practiceSpeed != nil || practiceTranspose?.enabled == true
+                        )
+                    } else if practiceSpeed != nil || practiceTranspose?.enabled == true {
+                        playbackHintOnlySection
+                    }
                 }
 
                 volumeBlock
@@ -78,10 +90,12 @@ struct EarTrainingSettingsSheet: View {
                     osmdTimingAdjustmentSection(osmdTimingAdjustment)
                 }
 
-                if let practiceSpeed {
-                    practicePlaybackSection(practiceSpeed)
-                } else if let practiceTranspose, practiceTranspose.enabled {
-                    practiceTransposeLegacyHintSection
+                if !isTutorialScope {
+                    if let practiceSpeed {
+                        practicePlaybackSection(practiceSpeed)
+                    } else if let practiceTranspose, practiceTranspose.enabled {
+                        practiceTransposeLegacyHintSection
+                    }
                 }
 
                 VStack(spacing: 10) {
@@ -94,10 +108,23 @@ struct EarTrainingSettingsSheet: View {
                             .background(Color.yellow)
                             .cornerRadius(10)
                     }
-                    Button(action: onExit) {
-                        Text(isEnglishCopy ? "Quit battle" : "バトルを終了")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.85))
+                    if isTutorialScope, let onRestartFromBeginning {
+                        Button(action: {
+                            applyAll()
+                            persistAll()
+                            onRestartFromBeginning()
+                            onDismiss()
+                        }) {
+                            Text(isEnglishCopy ? "Restart from beginning" : "最初からやり直す")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                    } else if !isTutorialScope {
+                        Button(action: onExit) {
+                            Text(isEnglishCopy ? "Quit battle" : "バトルを終了")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
                     }
                 }
             }

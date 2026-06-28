@@ -226,10 +226,12 @@ private struct EarTrainingChordOSMDContent: View {
             EarTrainingOsmdScorePreferences.saveScoreSizeStep(newValue)
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
+            let isTutorialSettings = controller.tutorialHooks != nil
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 audio: audio,
-                stageRunMode: controller.lessonContext.map { _ in
+                scope: isTutorialSettings ? .tutorial : .battle,
+                stageRunMode: isTutorialSettings ? nil : controller.lessonContext.map { _ in
                     EarTrainingStageRunModeConfig(
                         practiceMode: controller.practiceMode,
                         onApplyPracticeModeAndRestart: { mode in
@@ -238,16 +240,18 @@ private struct EarTrainingChordOSMDContent: View {
                         }
                     )
                 },
-                practiceTranspose: controller.stage.resolvedPracticeTranspose
-                    ? EarTrainingPracticeTransposeConfig(
-                        enabled: true,
-                        practiceMode: controller.practiceMode,
-                        originalKeyFifths: controller.practiceOriginalKeyFifths,
-                        originalKeyName: controller.practiceOriginalKeyName,
-                        appliedOffset: controller.practiceTransposeOffset
-                    )
-                    : nil,
-                practiceSpeed: EarTrainingPracticeSpeedConfig(
+                practiceTranspose: isTutorialSettings ? nil : (
+                    controller.stage.resolvedPracticeTranspose
+                        ? EarTrainingPracticeTransposeConfig(
+                            enabled: true,
+                            practiceMode: controller.practiceMode,
+                            originalKeyFifths: controller.practiceOriginalKeyFifths,
+                            originalKeyName: controller.practiceOriginalKeyName,
+                            appliedOffset: controller.practiceTransposeOffset
+                        )
+                        : nil
+                ),
+                practiceSpeed: isTutorialSettings ? nil : EarTrainingPracticeSpeedConfig(
                     practiceMode: controller.practiceMode,
                     appliedSpeedPercent: controller.practiceSpeedPercent,
                     onApplyAndRestart: { offset, speedPercent in
@@ -258,6 +262,10 @@ private struct EarTrainingChordOSMDContent: View {
                     appliedOffsetMs: controller.timingAdjustmentMs,
                     onChange: { controller.applyTimingAdjustmentMs($0) }
                 ),
+                onRestartFromBeginning: isTutorialSettings ? {
+                    controller.handleCloseSettings()
+                    controller.startBattle()
+                } : nil,
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )

@@ -198,10 +198,16 @@ private struct EarTrainingPhrasePairAdlibContent: View {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
+            let isTutorialSettings = controller.tutorialHooks != nil
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 audio: audio,
-                stageRunMode: stageRunModeConfig,
+                scope: isTutorialSettings ? .tutorial : .battle,
+                stageRunMode: isTutorialSettings ? nil : stageRunModeConfig,
+                onRestartFromBeginning: isTutorialSettings ? {
+                    controller.handleCloseSettings()
+                    controller.startBattle()
+                } : nil,
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )

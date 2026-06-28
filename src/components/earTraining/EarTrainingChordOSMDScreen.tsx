@@ -1855,13 +1855,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       <EarTrainingSettingsModal
         isOpen={isSettingsOpen}
         isEnglishCopy={isEnglishCopy}
+        scope={tutorial ? 'tutorial' : 'battle'}
         onClose={() => setIsSettingsOpen(false)}
+        onRestartFromBeginning={tutorial ? () => {
+          setIsSettingsOpen(false);
+          startBattle();
+        } : undefined}
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
-        practiceRunMode={practiceRunModeConfig}
-        practiceTranspose={practiceTransposeConfig}
-        practiceSpeed={practiceSpeedConfig}
+        practiceRunMode={tutorial ? undefined : practiceRunModeConfig}
+        practiceTranspose={tutorial ? undefined : practiceTransposeConfig}
+        practiceSpeed={tutorial ? undefined : practiceSpeedConfig}
         osmdTimingAdjustment={osmdTimingAdjustmentConfig}
       />
     </div>
