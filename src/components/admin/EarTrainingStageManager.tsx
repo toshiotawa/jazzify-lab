@@ -70,6 +70,7 @@ const defaultStageForm: StageForm = {
   mode: 'phrase',
   chord_voicing_self_paced: false,
   show_keyboard_hints_in_battle: false,
+  practice_transpose: false,
 };
 
 const defaultPhraseForm: PhraseForm = {
@@ -170,6 +171,7 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
     mode: stage.mode ?? 'phrase',
     osmd_targets_from_score: stage.osmd_targets_from_score,
   }),
+  practice_transpose: stage.practice_transpose ?? false,
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -723,6 +725,20 @@ const EarTrainingStageManager: React.FC = () => {
                     }))}
                   />
                   MusicXML 譜面から判定ターゲットを生成（既定ON・OFFで chords タイミングに戻す）
+                </label>
+              )}
+              {stageForm.mode === 'chord_osmd' && (
+                <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm"
+                    checked={Boolean(stageForm.practice_transpose)}
+                    onChange={event => setStageForm(prev => ({
+                      ...prev,
+                      practice_transpose: event.target.checked,
+                    }))}
+                  />
+                  練習モードで移調 UI を有効化（±6半音）
                 </label>
               )}
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />

@@ -6,6 +6,16 @@ struct EarTrainingStageRunModeConfig {
     let onApplyPracticeModeAndRestart: (Bool) -> Void
 }
 
+/// OSMD 練習移調（Web `practiceTranspose` prop 相当）。
+struct EarTrainingPracticeTransposeConfig {
+    let enabled: Bool
+    let practiceMode: Bool
+    let originalKeyFifths: Int
+    let originalKeyName: String
+    let appliedOffset: Int
+    let onApplyTransposeAndRestart: (Int) -> Void
+}
+
 /// 耳コピバトル ゲーム画面の設定モーダル。Web `EarTrainingSettingsModal.tsx` と項目を一致させる:
 /// - （任意）練習 / 本番 + 最初から挑戦
 /// - MIDI デバイス選択
@@ -14,10 +24,12 @@ struct EarTrainingSettingsSheet: View {
     let isEnglishCopy: Bool
     let audio: EarTrainingAudio
     var stageRunMode: EarTrainingStageRunModeConfig?
+    var practiceTranspose: EarTrainingPracticeTransposeConfig?
     let onDismiss: () -> Void
     let onExit: () -> Void
 
     @State private var practiceDraft: Bool = false
+    @State private var transposeDraft: Double = 0
     @State private var masterVolume: Double = Self.loadDouble(key: Self.masterKey, fallback: 1.0)
     @State private var musicVolume: Double = Self.loadDouble(key: Self.musicKey, fallback: 0.7)
     @State private var pianoVolume: Double = Double(SurvivalGameAudio.shared.pianoVolume)
@@ -35,11 +47,17 @@ struct EarTrainingSettingsSheet: View {
                     .foregroundStyle(.white)
 
                 if let stageRunMode {
-                    stageRunModeSection(stageRunMode)
+                    stageRunModeSection(stageRunMode, showTransposeHint: practiceTranspose?.enabled == true)
+                } else if practiceTranspose?.enabled == true {
+                    transposeHintOnlySection
                 }
 
                 volumeBlock
                 midiSection
+
+                if let practiceTranspose, practiceTranspose.enabled {
+                    practiceTransposeSection(practiceTranspose)
+                }
 
                 VStack(spacing: 10) {
                     Button(action: { applyAll(); onDismiss() }) {
@@ -77,10 +95,18 @@ struct EarTrainingSettingsSheet: View {
             if let stageRunMode {
                 practiceDraft = stageRunMode.practiceMode
             }
+            if let practiceTranspose {
+                transposeDraft = Double(practiceTranspose.appliedOffset)
+            }
         }
         .onChange(of: stageRunMode?.practiceMode) { newValue in
             if let newValue {
                 practiceDraft = newValue
+            }
+        }
+        .onChange(of: practiceTranspose?.appliedOffset) { newValue in
+            if let newValue {
+                transposeDraft = Double(newValue)
             }
         }
         .onDisappear {
@@ -89,7 +115,27 @@ struct EarTrainingSettingsSheet: View {
         }
     }
 
-    private func stageRunModeSection(_ config: EarTrainingStageRunModeConfig) -> some View {
+    private var transposeHintOnlySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(isEnglishCopy
+                 ? "In practice mode, you can transpose this stage when transposition is enabled for the task (not available in performance mode)."
+                 : "練習モードでは、移調を有効にした課題でキーを変更できます（本番では利用できません）。")
+                .font(.caption)
+                .foregroundStyle(Color(hex: "67e8f9").opacity(0.85))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.cyan.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.cyan.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private func stageRunModeSection(_ config: EarTrainingStageRunModeConfig, showTransposeHint: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(isEnglishCopy ? "Practice / Performance" : "練習 / 本番")
                 .font(.subheadline.bold())
@@ -120,6 +166,14 @@ struct EarTrainingSettingsSheet: View {
                  : "練習モードではレッスン進捗は保存されません。")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.55))
+
+            if showTransposeHint {
+                Text(isEnglishCopy
+                     ? "In practice mode, you can transpose this stage when transposition is enabled for the task (not available in performance mode)."
+                     : "練習モードでは、移調を有効にした課題でキーを変更できます（本番では利用できません）。")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: "67e8f9").opacity(0.85))
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
@@ -145,6 +199,87 @@ struct EarTrainingSettingsSheet: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private func practiceTransposeSection(_ config: EarTrainingPracticeTransposeConfig) -> some View {
+        let controlsActive = config.enabled && config.practiceMode
+        let draftInt = Int(transposeDraft.rounded())
+        let targetKey = EarTrainingMusicXmlTransposer.targetKeyName(
+            originalFifths: config.originalKeyFifths,
+            semitoneOffset: draftInt
+        )
+        let offsetLabel = draftInt > 0 ? "+\(draftInt)" : "\(draftInt)"
+        let keyLabel = draftInt == 0 ? config.originalKeyName : "\(targetKey) (\(offsetLabel))"
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(isEnglishCopy ? "Transpose" : "移調")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color(hex: "c4b5fd"))
+
+            Text(isEnglishCopy
+                 ? "Original key: \(config.originalKeyName) (0)"
+                 : "原調: \(config.originalKeyName) (0)")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.75))
+
+            HStack {
+                Text(isEnglishCopy ? "Semitones" : "半音")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(keyLabel)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+
+            Slider(
+                value: $transposeDraft,
+                in: Double(EarTrainingMusicXmlTransposer.practiceTransposeMin)...Double(EarTrainingMusicXmlTransposer.practiceTransposeMax),
+                step: 1
+            )
+            .tint(Color(hex: "a78bfa"))
+            .disabled(!controlsActive)
+
+            if !controlsActive {
+                Text(isEnglishCopy
+                     ? "Switch to practice mode to change the key."
+                     : "キーを変更するには練習モードに切り替えてください。")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+
+            Button {
+                let offset = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(draftInt)
+                config.onApplyTransposeAndRestart(offset)
+            } label: {
+                Text(isEnglishCopy ? "Transpose and restart" : "移調")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color(hex: "a78bfa"))
+                    .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+            .disabled(!controlsActive)
+            .opacity(controlsActive ? 1 : 0.45)
+
+            Text(isEnglishCopy
+                 ? "Applies to sheet music and phrase audio, then restarts from the beginning."
+                 : "楽譜とフレーズ音源の両方に反映し、最初から再読み込みします。")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.55))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.purple.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+        )
     }
 
     private var volumeBlock: some View {

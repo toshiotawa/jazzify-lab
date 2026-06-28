@@ -54,6 +54,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var feedback: EarTrainingBattleController.Feedback?
     @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
     @Published var practiceMode: Bool
+    @Published var practiceTransposeOffset: Int = 0
+    @Published private(set) var practiceOriginalKeyFifths: Int = 0
+    @Published private(set) var practiceOriginalKeyName: String = "—"
     /// チュートリアル時は敵攻撃・ミス/Fail ダメージを無効化する。
     var tutorialNoCombat: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
@@ -100,18 +103,17 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
-    private static let musicXmlCacheSchemaVersion = 5
+    private static let musicXmlCacheSchemaVersion = 6
 
     private static func musicXmlCacheKey(phraseId: UUID) -> String {
         "\(phraseId.uuidString)|osmdXml|v\(musicXmlCacheSchemaVersion)"
     }
 
     private struct MusicXmlPrepared {
-        let displayXml: String
-        let rhythmXml: String
+        let baseRhythmXml: String
+        let baseDisplayXml: String
         let maxStaffLayers: Int
         let lyricEvents: [ChordOsmdLyricEvent]
-        let attacks: [ChordOsmdMusicXmlAttack]
     }
 
     private var musicXMLCache: [String: MusicXmlPrepared] = [:]
@@ -168,8 +170,23 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         practiceMode = value
         if !value {
             voicingHintIntensities = [:]
+            practiceTransposeOffset = 0
+            audio.phrasePitchSemitones = 0
         }
         startBattle()
+    }
+
+    func applyPracticeTransposeAndRestart(_ offset: Int) {
+        guard stage.resolvedPracticeTranspose, practiceMode else { return }
+        practiceTransposeOffset = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(offset)
+        audio.phrasePitchSemitones = Float(practiceTransposeOffset)
+        isSettingsOpen = false
+        startBattle()
+    }
+
+    private func effectivePracticeTransposeOffset() -> Int {
+        guard stage.resolvedPracticeTranspose, practiceMode else { return 0 }
+        return practiceTransposeOffset
     }
 
     func attachScene(_ scene: EarTrainingBattleSceneHandle) {
@@ -288,6 +305,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         practiceMode = value
         if !value {
             voicingHintIntensities = [:]
+            practiceTransposeOffset = 0
+            audio.phrasePitchSemitones = 0
         }
         publishSnapshot()
     }
@@ -510,6 +529,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             finishGameOver(message: copy.audioFailed)
             return
         }
+        audio.phrasePitchSemitones = Float(effectivePracticeTransposeOffset())
 
         scoreTimelineArmed = true
         activeMeasureNumber = initialMeasureNumber
@@ -591,13 +611,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func loadMusicXML(for phrase: EarTrainingPhraseDetail) async {
         let cacheKey = Self.musicXmlCacheKey(phraseId: phrase.id)
         if let cached = musicXMLCache[cacheKey] {
-            musicXMLText = cached.displayXml
-            musicXMLMaxStaffLayers = cached.maxStaffLayers
-            rhythmMusicXmlForAttacks = cached.rhythmXml
-            rhythmAttacks = cached.attacks
-            phraseLyricEvents = cached.lyricEvents
-            scoreErrorText = nil
-            applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromAttacks(cached.attacks))
+            applyMusicXmlPrepared(cached)
             return
         }
         guard let rawURL = phrase.musicXmlUrl, let url = URL(string: rawURL) else {
@@ -606,6 +620,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             rhythmMusicXmlForAttacks = nil
             rhythmAttacks = []
             phraseLyricEvents = []
+            practiceOriginalKeyFifths = 0
+            practiceOriginalKeyName = "—"
             scoreErrorText = isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
             keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
             return
@@ -620,6 +636,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 rhythmMusicXmlForAttacks = nil
                 rhythmAttacks = []
                 phraseLyricEvents = []
+                practiceOriginalKeyFifths = 0
+                practiceOriginalKeyName = "—"
                 scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
                 keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
                 return
@@ -630,42 +648,64 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 rhythmMusicXmlForAttacks = nil
                 rhythmAttacks = []
                 phraseLyricEvents = []
+                practiceOriginalKeyFifths = 0
+                practiceOriginalKeyName = "—"
                 scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
                 keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
                 return
             }
             let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
-            let displayXml = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(prepared.xml)
+            let baseDisplayXml = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(prepared.xml)
             let lyricEvents = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
                 prepared.xml,
                 bpm: Double(stage.bpm),
                 beatsPerMeasure: stage.beatsPerMeasure
             )
-            let attacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(prepared.xml)
             let boxed = MusicXmlPrepared(
-                displayXml: displayXml,
-                rhythmXml: prepared.xml,
+                baseRhythmXml: prepared.xml,
+                baseDisplayXml: baseDisplayXml,
                 maxStaffLayers: prepared.maxStaffLayers,
-                lyricEvents: lyricEvents,
-                attacks: attacks
+                lyricEvents: lyricEvents
             )
             musicXMLCache[cacheKey] = boxed
-            musicXMLText = displayXml
-            musicXMLMaxStaffLayers = prepared.maxStaffLayers
-            rhythmMusicXmlForAttacks = prepared.xml
-            rhythmAttacks = attacks
-            phraseLyricEvents = lyricEvents
-            scoreErrorText = nil
-            applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromAttacks(attacks))
+            applyMusicXmlPrepared(boxed)
         } catch {
             musicXMLText = nil
             musicXMLMaxStaffLayers = 1
             rhythmMusicXmlForAttacks = nil
             rhythmAttacks = []
             phraseLyricEvents = []
+            practiceOriginalKeyFifths = 0
+            practiceOriginalKeyName = "—"
             scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
             keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
         }
+    }
+
+    private func applyMusicXmlPrepared(_ cached: MusicXmlPrepared) {
+        let offset = effectivePracticeTransposeOffset()
+        let rhythmXml = EarTrainingMusicXmlTransposer.applyPracticeTransposeToMusicXml(cached.baseRhythmXml, offset: offset)
+        let displayXml = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(offset) == 0
+            ? cached.baseDisplayXml
+            : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(rhythmXml)
+        let attacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(rhythmXml)
+        let lyricEvents = offset == 0
+            ? cached.lyricEvents
+            : EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
+                rhythmXml,
+                bpm: Double(stage.bpm),
+                beatsPerMeasure: stage.beatsPerMeasure
+            )
+        let originalFifths = EarTrainingMusicXmlTransposer.readKeyFifths(fromMusicXml: cached.baseRhythmXml)
+        practiceOriginalKeyFifths = originalFifths
+        practiceOriginalKeyName = EarTrainingMusicXmlTransposer.preferredKeyName(fifths: originalFifths)
+        musicXMLText = displayXml
+        musicXMLMaxStaffLayers = cached.maxStaffLayers
+        rhythmMusicXmlForAttacks = rhythmXml
+        rhythmAttacks = attacks
+        phraseLyricEvents = lyricEvents
+        scoreErrorText = nil
+        applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromAttacks(attacks))
     }
 
     private func applyKeyboardScrollAnchor(maxMidi: Int?) {

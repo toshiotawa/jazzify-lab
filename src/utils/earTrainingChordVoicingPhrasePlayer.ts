@@ -65,6 +65,10 @@ interface PlayPreparedChordVoicingPhraseParams {
 export const CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC = 0.28;
 const COUNT_IN_CLICK_GAIN = 0.82;
 const COUNT_IN_FIRST_CLICK_GAIN = 1;
+/** Tone.PitchShift の処理遅延（GameEngine / BGMManager と同程度） */
+const PITCH_SHIFT_WINDOW_SEC = 0.1;
+const PITCH_SHIFT_DELAY_SEC = 0.05;
+const PITCH_SHIFT_LATENCY_SEC = PITCH_SHIFT_DELAY_SEC + PITCH_SHIFT_WINDOW_SEC * 0.5;
 
 type EarTrainingChordVoicingPhrasePlayerOptions = {
   createAudioContext?: () => AudioContext;
@@ -94,6 +98,14 @@ export class EarTrainingChordVoicingPhrasePlayer {
   private phraseBufferDurationSec = 0;
   private phraseEnded = false;
   private activePhraseSource: AudioBufferSourceNode | null = null;
+  private pitchShiftSemitones = 0;
+  private tonePitchShiftRef: unknown = null;
+  private pitchShiftNode: {
+    pitch: number;
+    connect: (destination: AudioNode) => void;
+    disconnect: () => void;
+    dispose: () => void;
+  } | null = null;
   private pendingTimeouts: number[] = [];
 
   constructor(options: EarTrainingChordVoicingPhrasePlayerOptions = {}) {
@@ -124,6 +136,108 @@ export class EarTrainingChordVoicingPhrasePlayer {
     if (this.masterGain) {
       this.masterGain.gain.value = safe;
     }
+  }
+
+  setPitchShiftSemitones(semitones: number): void {
+    this.pitchShiftSemitones = Math.max(-12, Math.min(12, Math.trunc(semitones)));
+    if (Math.abs(this.pitchShiftSemitones) < 0.001) {
+      this.disposePitchShiftNode();
+    }
+  }
+
+  /** 移調再生前に PitchShift ノードを用意する（非移調時は no-op）。 */
+  async ensurePitchShiftReady(): Promise<void> {
+    const pitchAmount = this.pitchShiftSemitones;
+    if (Math.abs(pitchAmount) < 0.001) {
+      this.disposePitchShiftNode();
+      return;
+    }
+    const ctx = this.createCtx();
+    const phraseOut = this.phraseGain;
+    if (!phraseOut) {
+      return;
+    }
+    await this.ensurePitchShiftNode(ctx, phraseOut, pitchAmount);
+  }
+
+  getPitchShiftLatencySec(): number {
+    return Math.abs(this.pitchShiftSemitones) > 0 ? PITCH_SHIFT_LATENCY_SEC : 0;
+  }
+
+  private disposePitchShiftNode(): void {
+    if (!this.pitchShiftNode) {
+      return;
+    }
+    try {
+      this.pitchShiftNode.disconnect();
+    } catch {
+      // ignore
+    }
+    try {
+      this.pitchShiftNode.dispose();
+    } catch {
+      // ignore
+    }
+    this.pitchShiftNode = null;
+    this.tonePitchShiftRef = null;
+  }
+
+  private connectPhraseSource(
+    source: AudioBufferSourceNode,
+    phraseOutput: GainNode,
+  ): void {
+    const pitchAmount = this.pitchShiftSemitones;
+    const node = this.pitchShiftNode;
+    const toneNode = this.tonePitchShiftRef;
+    if (Math.abs(pitchAmount) < 0.001 || !node || !toneNode) {
+      source.connect(phraseOutput);
+      return;
+    }
+    node.pitch = pitchAmount;
+    void import('tone').then(ToneModule => {
+      try {
+        node.disconnect();
+      } catch {
+        // ignore
+      }
+      node.connect(phraseOutput);
+      ToneModule.connect(source, toneNode as import('tone').ToneAudioNode);
+    }).catch(() => {
+      source.connect(phraseOutput);
+    });
+  }
+
+  private async ensurePitchShiftNode(
+    ctx: AudioContext,
+    phraseOutput: GainNode,
+    pitchAmount: number,
+  ): Promise<void> {
+    if (this.pitchShiftNode) {
+      this.pitchShiftNode.pitch = pitchAmount;
+      return;
+    }
+    const Tone = await import('tone');
+    await Tone.start();
+    try {
+      if ((Tone as unknown as { setContext?: (context: AudioContext) => void }).setContext) {
+        (Tone as unknown as { setContext: (context: AudioContext) => void }).setContext(ctx);
+      }
+    } catch {
+      // ignore
+    }
+    const pitchShift = new Tone.PitchShift({
+      pitch: pitchAmount,
+      windowSize: PITCH_SHIFT_WINDOW_SEC,
+      delayTime: PITCH_SHIFT_DELAY_SEC,
+    });
+    pitchShift.connect(phraseOutput);
+    this.tonePitchShiftRef = pitchShift;
+    this.pitchShiftNode = {
+      pitch: pitchShift.pitch,
+      connect: destination => { pitchShift.connect(destination); },
+      disconnect: () => { pitchShift.disconnect(); },
+      dispose: () => { pitchShift.dispose(); },
+    };
   }
 
   /** `prepare`/`playPrepared` が内部で用意したコンテキスト。ドラムループ等と共有する。 */
@@ -199,6 +313,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
   dispose(): void {
     this.stop();
+    this.disposePitchShiftNode();
     if (this.ctx) {
       void this.ctx.close();
     }
@@ -254,12 +369,13 @@ export class EarTrainingChordVoicingPhrasePlayer {
     this.stop();
     const gen = this.generation;
     const phraseGainLinear = Math.max(0, Math.min(1, params.phraseGain ?? 1));
-    void ctx.resume().then(() => {
+    void ctx.resume().then(async () => {
       if (gen !== this.generation) {
         return;
       }
       phraseOut.gain.value = phraseGainLinear;
-      const when = ctx.currentTime + CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
+      await this.ensurePitchShiftReady();
+      const when = ctx.currentTime + CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC + this.getPitchShiftLatencySec();
       this.startPhraseBufferAt(
         ctx,
         phraseOut,
@@ -303,6 +419,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
         return;
       }
       phraseOut.gain.value = phraseGainLinear;
+      await this.ensurePitchShiftReady();
 
       let clickBuffer: AudioBuffer;
       try {
@@ -317,8 +434,9 @@ export class EarTrainingChordVoicingPhrasePlayer {
       const bpm = Math.max(20, Math.min(400, params.bpm));
       const safeGain = Math.max(0, Math.min(1, params.beatGain));
       const spb = 60 / bpm;
+      const pitchLatency = this.getPitchShiftLatencySec();
       const firstClick = ctx.currentTime + CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
-      const phraseStart = firstClick + beats * spb;
+      const phraseStart = firstClick + beats * spb + pitchLatency;
 
       for (let i = 0; i < beats; i += 1) {
         const clickGain = i === 0 ? COUNT_IN_FIRST_CLICK_GAIN : COUNT_IN_CLICK_GAIN;
@@ -391,7 +509,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(phraseOutput);
+    this.connectPhraseSource(source, phraseOutput);
 
     this.phraseStartCtxTime = when;
     this.phraseBufferDurationSec = buffer.duration;

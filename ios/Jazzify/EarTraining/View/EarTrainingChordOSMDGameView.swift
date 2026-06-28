@@ -238,6 +238,18 @@ private struct EarTrainingChordOSMDContent: View {
                         }
                     )
                 },
+                practiceTranspose: controller.stage.resolvedPracticeTranspose
+                    ? EarTrainingPracticeTransposeConfig(
+                        enabled: true,
+                        practiceMode: controller.practiceMode,
+                        originalKeyFifths: controller.practiceOriginalKeyFifths,
+                        originalKeyName: controller.practiceOriginalKeyName,
+                        appliedOffset: controller.practiceTransposeOffset,
+                        onApplyTransposeAndRestart: { offset in
+                            controller.applyPracticeTransposeAndRestart(offset)
+                        }
+                    )
+                    : nil,
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )

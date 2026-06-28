@@ -1,0 +1,54 @@
+import {
+  applyPracticeTransposeToMusicXml,
+  clampPracticeTransposeOffset,
+  fifthsToPreferredKeyName,
+  getPracticeTransposeTargetKeyName,
+  PRACTICE_TRANSPOSE_MAX,
+  PRACTICE_TRANSPOSE_MIN,
+  readKeyFifthsFromMusicXml,
+} from '@/utils/earTrainingPracticeTranspose';
+
+const sampleMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure>
+      <attributes>
+        <key><fifths>-1</fifths></key>
+      </attributes>
+      <note><pitch><step>F</step><octave>4</octave></pitch></note>
+    </measure>
+  </part>
+</score-partwise>`;
+
+describe('earTrainingPracticeTranspose', () => {
+  it('reads key fifths from MusicXML', () => {
+    expect(readKeyFifthsFromMusicXml(sampleMusicXml)).toBe(-1);
+  });
+
+  it('clamps offset to ±6', () => {
+    expect(clampPracticeTransposeOffset(-10)).toBe(PRACTICE_TRANSPOSE_MIN);
+    expect(clampPracticeTransposeOffset(10)).toBe(PRACTICE_TRANSPOSE_MAX);
+    expect(clampPracticeTransposeOffset(3.7)).toBe(3);
+  });
+
+  it('maps fifths to preferred key names', () => {
+    expect(fifthsToPreferredKeyName(-1)).toBe('F');
+    expect(fifthsToPreferredKeyName(0)).toBe('C');
+    expect(fifthsToPreferredKeyName(6)).toBe('Gb');
+  });
+
+  it('computes target key name from original fifths and offset', () => {
+    expect(getPracticeTransposeTargetKeyName(-1, 2)).toBe('G');
+    expect(getPracticeTransposeTargetKeyName(-1, 0)).toBe('F');
+  });
+
+  it('applies transpose to MusicXML when offset is non-zero', () => {
+    const transposed = applyPracticeTransposeToMusicXml(sampleMusicXml, 2);
+    expect(transposed).not.toBe(sampleMusicXml);
+    expect(readKeyFifthsFromMusicXml(transposed)).toBe(1);
+  });
+
+  it('returns base XML unchanged when offset is zero', () => {
+    expect(applyPracticeTransposeToMusicXml(sampleMusicXml, 0)).toBe(sampleMusicXml);
+  });
+});

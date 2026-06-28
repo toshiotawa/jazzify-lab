@@ -834,6 +834,8 @@ export interface EarTrainingStage {
   show_keyboard_hints_in_battle?: boolean;
   /** chord_osmd: MusicXML の音符アタックから判定ターゲットを生成する（省略時は chord_osmd で true） */
   osmd_targets_from_score?: boolean;
+  /** chord_osmd: 練習モードで±6半音移調 UI を有効化 */
+  practice_transpose?: boolean;
   created_at?: string;
   updated_at?: string;
   phrases?: EarTrainingPhrase[];

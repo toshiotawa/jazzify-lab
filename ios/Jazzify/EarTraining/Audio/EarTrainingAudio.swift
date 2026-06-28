@@ -33,6 +33,7 @@ final class EarTrainingAudio: NSObject {
 
     private let engine = AVAudioEngine()
     private let phrasePlayer = AVAudioPlayerNode()
+    private let phraseTimePitch = AVAudioUnitTimePitch()
     private let clickPlayer = AVAudioPlayerNode()
     private let phraseMixer = AVAudioMixerNode()
     private let drumPlayer = AVAudioPlayerNode()
@@ -54,6 +55,11 @@ final class EarTrainingAudio: NSObject {
         )
         return AVAudioUnitEffect(audioComponentDescription: description)
     }()
+
+    /// フレーズ MP3 のピッチシフト（半音）。`AVAudioUnitTimePitch` に反映する。
+    var phrasePitchSemitones: Float = 0 {
+        didSet { applyPhrasePitchSemitones() }
+    }
 
     private let cache = RemoteAudioFileCache(subdirectory: "EarTrainingPhraseAudio")
     private var timeTicker: DispatchSourceTimer?
@@ -516,6 +522,7 @@ final class EarTrainingAudio: NSObject {
 
         let defaultFormat = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
         engine.attach(phrasePlayer)
+        engine.attach(phraseTimePitch)
         engine.attach(clickPlayer)
         engine.attach(phraseMixer)
         engine.attach(drumPlayer)
@@ -524,7 +531,8 @@ final class EarTrainingAudio: NSObject {
         engine.attach(fireSeMixer)
         engine.attach(masterMixer)
         engine.attach(limiter)
-        engine.connect(phrasePlayer, to: phraseMixer, format: defaultFormat)
+        engine.connect(phrasePlayer, to: phraseTimePitch, format: defaultFormat)
+        engine.connect(phraseTimePitch, to: phraseMixer, format: nil)
         engine.connect(clickPlayer, to: phraseMixer, format: defaultFormat)
         engine.connect(phraseMixer, to: masterMixer, format: nil)
         engine.connect(drumPlayer, to: drumMixer, format: defaultFormat)
@@ -545,6 +553,12 @@ final class EarTrainingAudio: NSObject {
         masterMixer.outputVolume = Self.masterHeadroomGain
 
         isGraphInstalled = true
+        applyPhrasePitchSemitones()
+    }
+
+    private func applyPhrasePitchSemitones() {
+        phraseTimePitch.pitch = phrasePitchSemitones * 100
+        phraseTimePitch.rate = 1.0
     }
 
     private func configurePeakLimiter(_ limiter: AVAudioUnitEffect) {
@@ -568,7 +582,9 @@ final class EarTrainingAudio: NSObject {
         }
 
         engine.disconnectNodeInput(phraseMixer)
-        engine.connect(phrasePlayer, to: phraseMixer, format: format)
+        engine.disconnectNodeInput(phraseTimePitch)
+        engine.connect(phrasePlayer, to: phraseTimePitch, format: format)
+        engine.connect(phraseTimePitch, to: phraseMixer, format: nil)
         engine.connect(clickPlayer, to: phraseMixer, format: format)
 
         lastPhraseFormat = format
