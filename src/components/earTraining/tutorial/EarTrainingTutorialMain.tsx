@@ -4,16 +4,17 @@ import { useAuthStore } from '@/stores/authStore';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import type { ClearConditions } from '@/types';
 
+import { getAppRouteSearchParams } from '@/utils/appPaths';
+
 import { EarTrainingLessonTutorialExperience } from './EarTrainingLessonTutorialExperience';
 
-function parseHashParams(): Record<string, string> {
-  const raw = window.location.hash.split('?')[1] ?? '';
-  return Object.fromEntries(new URLSearchParams(raw));
+function parseRouteParams(): Record<string, string> {
+  return Object.fromEntries(getAppRouteSearchParams(window.location));
 }
 
 const EarTrainingTutorialMain: React.FC = () => {
   const profile = useAuthStore((s) => s.profile);
-  const params = useMemo(() => parseHashParams(), []);
+  const params = useMemo(() => parseRouteParams(), []);
 
   const lessonId = params.lessonId ?? '';
   const lessonSongId = params.lessonSongId ?? '';

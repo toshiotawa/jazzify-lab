@@ -14,6 +14,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import type { ClearConditions, LessonContext, ProductionHintMode } from '@/types';
 import { fetchLessonSongById } from '@/platform/supabaseLessons';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { getAppRouteSearchParams } from '@/utils/appPaths';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
 import { resolveBalloonRushAllowedChordIds } from '@/utils/balloonRushStageDefinitions';
 import {
@@ -54,11 +55,7 @@ const parseClearConditions = (raw: string | null): ClearConditions => {
 
 type Screen = 'prep' | 'game';
 
-const readHashParams = (): URLSearchParams => {
-  const hash = getWindow().location.hash;
-  const qIndex = hash.indexOf('?');
-  return new URLSearchParams(qIndex >= 0 ? hash.slice(qIndex + 1) : '');
-};
+const readRouteParams = (): URLSearchParams => getAppRouteSearchParams(getWindow().location);
 
 const BalloonRushMain: React.FC = () => {
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
@@ -78,7 +75,7 @@ const BalloonRushMain: React.FC = () => {
     return () => getWindow().removeEventListener('hashchange', onHash);
   }, []);
 
-  const params = useMemo(() => readHashParams(), [hashNonce]);
+  const params = useMemo(() => readRouteParams(), [hashNonce]);
 
   const lessonContext = useMemo<LessonContext | null>(() => {
     const lessonId = params.get('lessonId');

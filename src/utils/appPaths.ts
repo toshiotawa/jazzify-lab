@@ -77,3 +77,28 @@ export const buildAppUrl = (hash: string, search = ''): string => {
   const normalizedHash = hash.startsWith('#') ? hash : `#${hash}`;
   return `${APP_BASE_PATH}${search}${normalizedHash}`;
 };
+
+type RouteParamLocation = Pick<Location, 'search' | 'hash'>;
+
+/** WEB path route の search を優先し、legacy hash query にフォールバック */
+export const getAppRouteSearchParams = (
+  location: RouteParamLocation = typeof window !== 'undefined'
+    ? window.location
+    : { search: '', hash: '' },
+): URLSearchParams => {
+  const searchRaw = location.search.startsWith('?')
+    ? location.search.slice(1)
+    : location.search;
+  const fromSearch = new URLSearchParams(searchRaw);
+  if ([...fromSearch.keys()].length > 0) {
+    return fromSearch;
+  }
+
+  const hash = location.hash;
+  const qIndex = hash.indexOf('?');
+  if (qIndex >= 0) {
+    return new URLSearchParams(hash.slice(qIndex + 1));
+  }
+
+  return fromSearch;
+};

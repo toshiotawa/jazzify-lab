@@ -1,6 +1,7 @@
 import {
   APP_BASE_PATH,
   buildAppUrl,
+  getAppRouteSearchParams,
   getHashBase,
   isAppPath,
   isLandingPath,
@@ -68,6 +69,26 @@ describe('appPaths', () => {
   describe('getHashBase', () => {
     it('extracts hash base without query', () => {
       expect(getHashBase('#lesson-detail?id=1')).toBe('#lesson-detail');
+    });
+  });
+
+  describe('getAppRouteSearchParams', () => {
+    it('prefers pathname search over legacy hash query', () => {
+      const params = getAppRouteSearchParams({
+        search: '?lessonId=a&stageId=b',
+        hash: '#ear-training-lesson?lessonId=legacy',
+      });
+      expect(params.get('lessonId')).toBe('a');
+      expect(params.get('stageId')).toBe('b');
+    });
+
+    it('falls back to hash query when search is empty', () => {
+      const params = getAppRouteSearchParams({
+        search: '',
+        hash: '#survival-lesson?lessonId=x&lessonSongId=y',
+      });
+      expect(params.get('lessonId')).toBe('x');
+      expect(params.get('lessonSongId')).toBe('y');
     });
   });
 });

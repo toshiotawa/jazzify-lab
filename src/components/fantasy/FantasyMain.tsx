@@ -26,6 +26,7 @@ import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChall
 import { getWindow } from '@/platform';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 import { markAudioUserInteraction } from '@/utils/MidiController';
+import { getAppRouteSearchParams } from '@/utils/appPaths';
 import { 
   calculateFantasyRank, 
   getRankClearCredit, 
@@ -61,8 +62,8 @@ async function resolveMusicXml(stage: FantasyStage): Promise<FantasyStage> {
 }
 
 /** レッスン/ミッションからの直リンク（ステージ選択を挟まない）か */
-function isEmbeddedFantasyUrlHash(hash: string): boolean {
-  const params = new URLSearchParams(hash.split('?')[1] || '');
+function isEmbeddedFantasyRoute(location: Pick<Location, 'search' | 'hash'>): boolean {
+  const params = getAppRouteSearchParams(location);
   const stageId = params.get('stageId');
   if (!stageId) return false;
   const hasLesson = !!(params.get('lessonId') && params.get('lessonSongId'));
@@ -238,7 +239,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   } | null>(null);
   const embeddedFantasyUrlOnMount = useMemo(() => {
     try {
-      return isEmbeddedFantasyUrlHash(getWindow().location.hash);
+      return isEmbeddedFantasyRoute(getWindow().location);
     } catch {
       return false;
     }
@@ -403,7 +404,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
 
   // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const params = getAppRouteSearchParams(window.location);
     const lessonId = params.get('lessonId');
     const lessonSongId = params.get('lessonSongId');
     const stageId = params.get('stageId');

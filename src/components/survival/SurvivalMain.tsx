@@ -62,6 +62,7 @@ import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem, markAudioUserInteraction } from '@/utils/MidiController';
 import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { getAppRouteSearchParams } from '@/utils/appPaths';
 import GameHeader from '@/components/ui/GameHeader';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
@@ -316,10 +317,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
   const lessonParams = useMemo(() => {
     if (!lessonMode) return null;
-    const hash = window.location.hash;
-    const qIndex = hash.indexOf('?');
-    if (qIndex < 0) return null;
-    return new URLSearchParams(hash.slice(qIndex + 1));
+    const params = getAppRouteSearchParams(window.location);
+    if ([...params.keys()].length === 0) return null;
+    return params;
   }, [lessonMode]);
 
 

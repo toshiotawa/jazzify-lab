@@ -119,8 +119,11 @@ const AppShell: React.FC = () => {
         '/main/information',
         '/main/achievements',
         '/main/play/survival',
+        '/main/play/survival-lesson',
+        '/main/play/survival-tutorial',
         '/main/play/balloon-rush',
         '/main/play/ear-training',
+        '/main/play/ear-training-tutorial',
         '/main/play/lesson',
       ];
       const pathAllowed = allowedPathPrefixes.some((prefix) =>

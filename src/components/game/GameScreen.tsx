@@ -17,6 +17,22 @@ import GameHeader from '@/components/ui/GameHeader';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import { APP_BASE_PATH, getAppRouteSearchParams, normalizePathname } from '@/utils/appPaths';
+
+const isPlayLessonPathRoute = (): boolean =>
+  normalizePathname(window.location.pathname) === `${APP_BASE_PATH}/play/lesson`;
+
+const isActivePlayLessonRoute = (): boolean => {
+  const hash = window.location.hash;
+  if (hash.startsWith('#play-lesson') || hash.startsWith('#play-mission')) {
+    return true;
+  }
+  if (!isPlayLessonPathRoute()) {
+    return false;
+  }
+  const params = getAppRouteSearchParams(window.location);
+  return params.has('id') || params.has('mission');
+};
 
 /**
  * メインゲーム画面コンポーネント
@@ -47,10 +63,9 @@ const GameScreen: React.FC = () => {
 
   // レッスン曲とミッション曲の自動読み込み処理を追加
   useEffect(() => {
-      const handleLessonPlay = async (hash: string) => {
+      const handleLessonPlay = async (params: URLSearchParams) => {
       setIsLoadingLessonSong(true);
       
-      const params = new URLSearchParams(hash.split('?')[1] || '');
       const songId = params.get('id');
       const lessonId = params.get('lessonId');
       const key = parseInt(params.get('key') || '0');
@@ -343,7 +358,7 @@ const GameScreen: React.FC = () => {
       }
     };
 
-      const handleMissionPlay = async (hash: string) => {
+      const handleMissionPlay = async (params: URLSearchParams) => {
       setIsLoadingLessonSong(true);
       
       // 権限制御: Standard(Global)はミッションプレイ不可
@@ -354,9 +369,6 @@ const GameScreen: React.FC = () => {
         return;
       }
       
-      // '#play-mission?...' から '?' 以降をパース
-      const [, query] = hash.split('?');
-      const params = new URLSearchParams(query);
       const songId = params.get('song');
       const missionId = params.get('mission');
       
@@ -586,14 +598,15 @@ const GameScreen: React.FC = () => {
 
     const checkLessonPlay = async () => {
       const hash = window.location.hash;
+      const params = getAppRouteSearchParams(window.location);
       
-      if (hash.startsWith('#play-lesson')) {
-        await handleLessonPlay(hash);
+      if (hash.startsWith('#play-lesson') || (isPlayLessonPathRoute() && params.has('id'))) {
+        await handleLessonPlay(params);
         return;
       }
       
-      if (hash.startsWith('#play-mission')) {
-        await handleMissionPlay(hash);
+      if (hash.startsWith('#play-mission') || (isPlayLessonPathRoute() && params.has('mission'))) {
+        await handleMissionPlay(params);
         return;
       }
       
@@ -614,7 +627,7 @@ const GameScreen: React.FC = () => {
   // 🔧 自動リダイレクト: 曲が未選択で、今タブが songs 以外なら自動で songs タブへ
   // ただし、レッスン曲読み込み中（#play-lesson）またはミッション曲読み込み中（#play-mission）は除外
   useEffect(() => {
-    const isPlayLessonHash = window.location.hash.startsWith('#play-lesson') || window.location.hash.startsWith('#play-mission');
+    const isPlayLessonHash = isActivePlayLessonRoute();
     
     // レッスン曲・ミッション曲読み込み中は曲選択画面へのリダイレクトをスキップ
     const isStandardGlobal = useAuthStore.getState().profile?.rank === 'standard_global';

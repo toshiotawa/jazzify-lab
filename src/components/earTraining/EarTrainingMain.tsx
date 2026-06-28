@@ -19,6 +19,7 @@ import {
   resolveEarTrainingBattleEnemy,
   type EarTrainingBattleEnemy,
 } from '@/utils/earTrainingBattleAvatar';
+import { getAppRouteSearchParams } from '@/utils/appPaths';
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -53,11 +54,6 @@ const parseClearConditions = (raw: string | null): ClearConditions => {
   }
 };
 
-const getParamsFromHash = (): URLSearchParams => {
-  const hash = getWindow().location.hash;
-  return new URLSearchParams(hash.split('?')[1] ?? '');
-};
-
 const EarTrainingMain: React.FC = () => {
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
@@ -78,7 +74,7 @@ const EarTrainingMain: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [stagePicked, setStagePicked] = useState(false);
 
-  const params = useMemo(() => getParamsFromHash(), []);
+  const params = useMemo(() => getAppRouteSearchParams(getWindow().location), []);
   const lessonContext = useMemo<EarTrainingLessonContext | null>(() => {
     const lessonId = params.get('lessonId');
     const lessonSongId = params.get('lessonSongId');
