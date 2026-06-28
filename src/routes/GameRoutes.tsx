@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { dashboardPath } from '@/utils/appNavigation';
@@ -24,7 +24,7 @@ interface GameRoutesProps {
 const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboard }) => (
   <Routes>
     <Route
-      path="/main/play/fantasy"
+      path="fantasy"
       element={
         !isPremiumMember ? (
           <Navigate to={dashboardPath()} replace />
@@ -36,7 +36,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/story"
+      path="story"
       element={
         !isPremiumMember ? (
           <Navigate to={dashboardPath()} replace />
@@ -48,7 +48,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/survival"
+      path="survival"
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazySurvivalMain />
@@ -56,7 +56,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/survival-lesson"
+      path="survival-lesson"
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazySurvivalMain lessonMode />
@@ -64,7 +64,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/survival-tutorial"
+      path="survival-tutorial"
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazySurvivalTutorialMain />
@@ -72,7 +72,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/balloon-rush"
+      path="balloon-rush"
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyBalloonRushMain />
@@ -80,7 +80,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/ear-training"
+      path="ear-training"
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyEarTrainingMain />
@@ -88,7 +88,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/ear-training-tutorial"
+      path="ear-training-tutorial"
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyEarTrainingTutorialMain />
@@ -96,14 +96,14 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
-      path="/main/play/lesson"
+      path="lesson"
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyGameScreen />
         </React.Suspense>
       }
     />
-    <Route path="/main/play/*" element={renderDashboard()} />
+    <Route path="*" element={renderDashboard()} />
   </Routes>
 );
 

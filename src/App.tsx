@@ -37,6 +37,9 @@ const PUBLIC_INFO_PATHS = new Set([
   '/legal/tokushoho',
   '/legal/tokushoho/ios',
   '/withdrawal-complete',
+  '/login',
+  '/signup',
+  '/login/verify-otp',
 ]);
 
 const AuthLoadingFallback: React.FC = () => (

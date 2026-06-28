@@ -198,10 +198,10 @@ const AppShell: React.FC = () => {
           {user && <ProfileWizard />}
           <MidiWarningModal />
           <Routes>
-            <Route path="/main" element={<Navigate to="/main/dashboard" replace />} />
-            <Route path="/main/dashboard" element={renderDashboard()} />
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={renderDashboard()} />
             <Route
-              path="/main/lessons"
+              path="lessons"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <LessonPage />
@@ -209,7 +209,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/lessons/:lessonId"
+              path="lessons/:lessonId"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <LessonDetailPage />
@@ -217,7 +217,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/courses/:courseId"
+              path="courses/:courseId"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <CoursePage />
@@ -225,7 +225,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/information"
+              path="information"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <InformationPage />
@@ -233,7 +233,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/achievements"
+              path="achievements"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <AchievementsPage />
@@ -241,7 +241,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/pricing"
+              path="pricing"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <PricingTable />
@@ -249,7 +249,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/plan-comparison"
+              path="plan-comparison"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <PricingTable mode="view" />
@@ -257,7 +257,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/account"
+              path="account"
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <AccountPage />
@@ -265,7 +265,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/mypage"
+              path="mypage"
               element={
                 isFreeRank ? (
                   <Navigate to="/main/dashboard" replace />
@@ -277,7 +277,7 @@ const AppShell: React.FC = () => {
               }
             />
             <Route
-              path="/main/play/*"
+              path="play/*"
               element={
                 <GameRoutes
                   isPremiumMember={isPremiumMember}
@@ -285,7 +285,7 @@ const AppShell: React.FC = () => {
                 />
               }
             />
-            <Route path="/main/*" element={<Navigate to="/main/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/main/dashboard" replace />} />
           </Routes>
           <ToastContainer />
         </div>
