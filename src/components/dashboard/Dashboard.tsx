@@ -19,13 +19,14 @@ import MainQuestProgressSection from '@/components/dashboard/MainQuestProgressSe
 import PlayerLevelSection from '@/components/dashboard/PlayerLevelSection';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import AchievementSummarySection from '@/components/achievements/AchievementSummarySection';
+import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 
 /**
  * ダッシュボード画面
- * Hash: #dashboard で表示
+ * Path: /main/dashboard または Hash: #dashboard
  */
 const Dashboard: React.FC = () => {
-  const [open, setOpen] = useState(false);
+  const open = useAppRouteOpen({ hash: '#dashboard', path: '/main/dashboard' });
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const { profile, optimisticAvatarUrl } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -41,17 +42,6 @@ const Dashboard: React.FC = () => {
   const statsLoadingText = isEnglishCopy ? 'Loading stats...' : '統計を読み込み中...';
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
-
-  useEffect(() => {
-    const checkHash = () => {
-      const hash = window.location.hash;
-      setOpen(hash === '#dashboard');
-    };
-
-    checkHash();
-    window.addEventListener('hashchange', checkHash);
-    return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
 
   useEffect(() => {
     if (open) {

@@ -8,6 +8,7 @@ import {
   shouldRedirectLegacyAppHash,
 } from '@/utils/appPaths';
 import { hashToAppPath } from '@/utils/appNavigation';
+import { computeAppRouteOpenForTest } from '@/hooks/useAppRouteOpen';
 
 describe('appPaths', () => {
   describe('isLandingPath', () => {
@@ -85,6 +86,26 @@ describe('hashToAppPath', () => {
   it('returns null for unknown hashes', () => {
     expect(hashToAppPath('#features')).toBeNull();
     expect(hashToAppPath('#admin-songs')).toBeNull();
+  });
+});
+
+describe('useAppRouteOpen path compatibility', () => {
+  it('opens dashboard on /main/dashboard without hash', () => {
+    expect(
+      computeAppRouteOpenForTest('/main/dashboard', '', {
+        hash: '#dashboard',
+        path: '/main/dashboard',
+      }),
+    ).toBe(true);
+  });
+
+  it('opens dashboard on legacy hash', () => {
+    expect(
+      computeAppRouteOpenForTest('/main', '#dashboard', {
+        hash: '#dashboard',
+        path: '/main/dashboard',
+      }),
+    ).toBe(true);
   });
 });
 

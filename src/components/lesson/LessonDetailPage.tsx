@@ -83,12 +83,13 @@ import {
 
 /**
  * レッスン詳細画面
- * Hash: #lesson-detail?id=LESSON_ID で表示
+ * Path: /main/lessons/:lessonId または Hash: #lesson-detail?id=...
  */
 const LessonDetailPage: React.FC = () => {
   const { lessonId: routeLessonId } = useParams<{ lessonId?: string }>();
-  const [open, setOpen] = useState(false);
-  const [lessonId, setLessonId] = useState<string | null>(null);
+  const [hashLessonId, setHashLessonId] = useState<string | null>(null);
+  const lessonId = routeLessonId ?? hashLessonId;
+  const open = Boolean(lessonId);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [lessonProgress, setLessonProgress] = useState<LessonProgress | null>(null);
   const [videos, setVideos] = useState<LessonVideo[]>([]);
@@ -164,39 +165,29 @@ const LessonDetailPage: React.FC = () => {
   const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
-    const checkHash = () => {
-      if (routeLessonId) {
-        setLessonId(routeLessonId);
-        setOpen(true);
-        setIsNavigating(false);
-        return;
-      }
+    if (routeLessonId) {
+      setIsNavigating(false);
+      return undefined;
+    }
+    const syncFromHash = (): void => {
       const hash = window.location.hash;
       if (hash.startsWith('#lesson-detail')) {
-        const urlParams = new URLSearchParams(hash.split('?')[1] || '');
-        const id = urlParams.get('id');
-        setLessonId(id);
-        setOpen(!!id);
-        setIsNavigating(false); // ナビゲーション状態をリセット
+        const id = new URLSearchParams(hash.split('?')[1] || '').get('id');
+        setHashLessonId(id);
       } else {
-        setOpen(false);
-        setLessonId(null);
-        setIsNavigating(false);
+        setHashLessonId(null);
       }
+      setIsNavigating(false);
     };
-
-    checkHash();
-    window.addEventListener('hashchange', checkHash);
-
-    // クリーンアップ関数
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
     return () => {
-      window.removeEventListener('hashchange', checkHash);
-      // コンポーネント破棄時にナビゲーションキャッシュをクリア
-      if (lesson?.course_id) {
-        cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
+      window.removeEventListener('hashchange', syncFromHash);
+      if (lesson?.course_id && lessonId) {
+        cleanupLessonNavigationCache(lessonId, lesson.course_id);
       }
     };
-  }, [lessonId, lesson?.course_id, routeLessonId]);
+  }, [lesson?.course_id, lessonId, routeLessonId]);
 
   const loadLessonData = useCallback(async (targetLessonId: string) => {
     const loadGen = ++lessonLoadGenerationRef.current;

@@ -7,13 +7,14 @@ import { mdToHtml } from '@/utils/markdown';
 import { FaBell, FaExternalLinkAlt, FaChevronDown } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 
 /**
  * お知らせページ
- * Hash: #information で表示
+ * Path: /main/information または Hash: #information
  */
 const InformationPage: React.FC = () => {
-  const [open, setOpen] = useState(false);
+  const open = useAppRouteOpen({ hash: '#information', path: '/main/information' });
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -26,16 +27,6 @@ const InformationPage: React.FC = () => {
   });
   const locale = isEnglishCopy ? 'en' : 'ja';
   const toast = useToast();
-
-  useEffect(() => {
-    const checkHash = () => {
-      setOpen(window.location.hash === '#information');
-    };
-
-    checkHash();
-    window.addEventListener('hashchange', checkHash);
-    return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
 
   useEffect(() => {
     if (open && user) {

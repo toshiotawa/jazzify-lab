@@ -40,6 +40,8 @@ import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import { cn } from '@/utils/cn';
 import { useTapCancelOnDrag } from '@/hooks/useTapCancelOnDrag';
+import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
+import { useSearchParams } from 'react-router-dom';
 
 interface MainQuestBlock {
   blockNumber: number;
@@ -190,7 +192,11 @@ const nextLessonForContinue = (summary: MainQuestSummary): Lesson | null => {
 };
 
 const LessonPage: React.FC = () => {
-  const [open, setOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  const open = useAppRouteOpen({
+    hash: '#lessons',
+    path: (pathname) => pathname === '/main/lessons',
+  });
   const [showAllCourses, setShowAllCourses] = useState(false);
   const [specificCourses, setSpecificCourses] = useState<Course[]>([]);
   const [mainQuestCourse, setMainQuestCourse] = useState<Course | null>(null);
@@ -212,19 +218,16 @@ const LessonPage: React.FC = () => {
   const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
-    const checkHash = () => {
-      const hash = window.location.hash;
-      const base = hash.split('?')[0];
-      setOpen(base === '#lessons');
-      if (base === '#lessons') {
-        const params = new URLSearchParams(hash.split('?')[1] || '');
-        setShowAllCourses(params.get('view') === 'courses');
-      }
-    };
-    checkHash();
-    window.addEventListener('hashchange', checkHash);
-    return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
+    if (!open) return;
+    const hash = window.location.hash;
+    const base = hash.split('?')[0];
+    if (base === '#lessons') {
+      const params = new URLSearchParams(hash.split('?')[1] || '');
+      setShowAllCourses(params.get('view') === 'courses');
+      return;
+    }
+    setShowAllCourses(searchParams.get('view') === 'courses');
+  }, [open, searchParams]);
 
   useEffect(() => {
     if (!open || !profile) return;

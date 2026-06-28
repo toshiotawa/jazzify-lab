@@ -1,23 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 
 /**
- * マイページページ (モーダル→ページ化)
- * Hash `#mypage` で表示。
+ * マイページページ
+ * Path: /main/mypage または Hash: #mypage
  */
 const MypagePage: React.FC = () => {
   const { profile } = useAuthStore();
-  const [open, setOpen] = useState<boolean>(false);
+  const open = useAppRouteOpen({ hash: '#mypage', path: '/main/mypage' });
   const { planLabel } = useBillingAwareMembership('ja');
-
-  useEffect(() => {
-    const check = () => setOpen(window.location.hash === '#mypage');
-    check();
-    window.addEventListener('hashchange', check);
-    return () => window.removeEventListener('hashchange', check);
-  }, []);
 
   if (!open) return null;
 

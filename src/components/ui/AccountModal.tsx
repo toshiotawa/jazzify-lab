@@ -23,8 +23,9 @@ import CancelSubscriptionConfirmModal from '@/components/ui/CancelSubscriptionCo
 import { getPlanIntervalLabel } from '@/utils/membershipDisplay';
 import { formatBillingAmountLabel } from '@/utils/premiumPricing';
 import { applyOptimisticBillingAfterResume } from '@/utils/billingStatusClient';
+import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 /**
- * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
+ * #account ハッシュまたは /main/account で表示されるアカウントページ
  */
 const AccountPage: React.FC = () => {
   const {
@@ -38,7 +39,10 @@ const AccountPage: React.FC = () => {
     session,
   } = useAuthStore();
   const pushToast = useToastStore(state => state.push);
-  const [open, setOpen] = useState(() => window.location.hash.startsWith('#account'));
+  const open = useAppRouteOpen({
+    hash: (_base, rawHash) => rawHash.startsWith('#account'),
+    path: '/main/account',
+  });
   const [newEmail, setNewEmail] = useState('');
   const [emailUpdating, setEmailUpdating] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
@@ -267,15 +271,6 @@ const AccountPage: React.FC = () => {
   const showBillingSchedule = isPremiumMember && !pendingPlanCode && !isCancelScheduled && !isCancelledGrace;
   /** deleteAccount と同様: profiles.rank が free かつ課金上もフリー相当のときのみ退会可 */
   const canWithdrawAccount = (profile?.rank ?? 'free') === 'free' && !isPremiumMember;
-
-  useEffect(() => {
-    const syncFromHash = () => {
-      setOpen(window.location.hash.startsWith('#account'));
-    };
-    syncFromHash();
-    window.addEventListener('hashchange', syncFromHash);
-    return () => window.removeEventListener('hashchange', syncFromHash);
-  }, []);
 
   // アカウント画面を開いたとき・Checkout 戻り時に最新状態を取得（即時反映）
   useEffect(() => {

@@ -20,12 +20,18 @@ import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 import LessonJourneyMap from './journey/LessonJourneyMap';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
+import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 
 const CoursePage: React.FC = () => {
   const { courseId: routeCourseId } = useParams<{ courseId?: string }>();
   const [searchParams] = useSearchParams();
-  const [open, setOpen] = useState(false);
-  const [courseId, setCourseId] = useState<string | null>(null);
+  const openFromRoute = useAppRouteOpen({
+    hash: '#course',
+    path: (pathname) => pathname.startsWith('/main/courses/'),
+  });
+  const [hashCourseId, setHashCourseId] = useState<string | null>(null);
+  const courseId = routeCourseId ?? hashCourseId;
+  const open = openFromRoute && Boolean(courseId);
   const [focusLessonId, setFocusLessonId] = useState<string | null>(null);
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -44,22 +50,19 @@ const CoursePage: React.FC = () => {
   const { effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   useEffect(() => {
-    const checkHash = () => {
-      if (routeCourseId) {
-        setOpen(true);
-        setCourseId(routeCourseId);
-        setFocusLessonId(searchParams.get('focus'));
-        return;
-      }
+    if (routeCourseId) {
+      setFocusLessonId(searchParams.get('focus'));
+      return undefined;
+    }
+    const checkHash = (): void => {
       const hash = window.location.hash;
       const base = hash.split('?')[0];
       if (base === '#course') {
-        setOpen(true);
         const params = new URLSearchParams(hash.split('?')[1] || '');
-        setCourseId(params.get('id'));
+        setHashCourseId(params.get('id'));
         setFocusLessonId(params.get('focus'));
       } else {
-        setOpen(false);
+        setHashCourseId(null);
         setFocusLessonId(null);
       }
     };
