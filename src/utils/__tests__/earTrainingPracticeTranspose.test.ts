@@ -8,6 +8,7 @@ import {
   PRACTICE_TRANSPOSE_MAX,
   PRACTICE_TRANSPOSE_MIN,
   readKeyFifthsFromMusicXml,
+  transposeChordLabel,
 } from '@/utils/earTrainingPracticeTranspose';
 
 const sampleMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -74,5 +75,40 @@ describe('earTrainingPracticeTranspose', () => {
 
   it('returns base XML unchanged when offset is zero', () => {
     expect(applyPracticeTransposeToMusicXml(sampleMusicXml, 0)).toBe(sampleMusicXml);
+  });
+});
+
+describe('transposeChordLabel', () => {
+  it('C7 → D7', () => {
+    expect(transposeChordLabel('C7', 2)).toBe('D7');
+  });
+
+  it('Cm7 → Dm7', () => {
+    expect(transposeChordLabel('Cm7', 2)).toBe('Dm7');
+  });
+
+  it('Bb7 → C7', () => {
+    expect(transposeChordLabel('Bb7', 2)).toBe('C7');
+  });
+
+  it('F#dim7 → G#dim7', () => {
+    expect(transposeChordLabel('F#dim7', 2)).toBe('G#dim7');
+  });
+
+  it('C/E → D/F#', () => {
+    expect(transposeChordLabel('C/E', 2)).toBe('D/F#');
+  });
+
+  it('Bb/D → C/E', () => {
+    expect(transposeChordLabel('Bb/D', 2)).toBe('C/E');
+  });
+
+  it('複数ラベルをそれぞれ移調する', () => {
+    expect(transposeChordLabel('C7 / Dm7', 2)).toBe('D7 / Em7');
+  });
+
+  it('offset=0 または特殊ラベルはそのまま', () => {
+    expect(transposeChordLabel('C7', 0)).toBe('C7');
+    expect(transposeChordLabel('—', 2)).toBe('—');
   });
 });

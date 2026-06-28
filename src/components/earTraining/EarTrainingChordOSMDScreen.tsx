@@ -757,18 +757,32 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => {
     const firstPhrase = phrases[0];
     if (gameState === 'idle' && firstPhrase) {
+      const transposeOffset = practiceMode && practiceTransposeEnabled
+        ? practiceTransposeOffset
+        : 0;
       const initialTargets = buildChordOsmdRhythmTargets(
         firstPhrase,
         stage.bpm,
         stage.beats_per_measure,
         chordOsmdXmlAttacks,
         earTrainingOsmdUsesScoreTargets(stage),
+        transposeOffset,
       );
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
       setCompletedTargetCount(0);
     }
-  }, [chordOsmdXmlAttacks, gameState, phrases, stage, stage.bpm, stage.beats_per_measure]);
+  }, [
+    chordOsmdXmlAttacks,
+    gameState,
+    phrases,
+    practiceMode,
+    practiceTransposeEnabled,
+    practiceTransposeOffset,
+    stage,
+    stage.bpm,
+    stage.beats_per_measure,
+  ]);
 
   const resetPhraseTimelineIndices = useCallback(() => {
     nextHammerTargetIndexRef.current = 0;
@@ -1154,12 +1168,16 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
 
       const attacks = xmlText ? collectChordOsmdMusicXmlAttacks(xmlText) : null;
+      const transposeOffset = practiceTransposeEnabled && practiceModeRef.current
+        ? practiceTransposeOffsetRef.current
+        : 0;
       const phraseTargets = buildChordOsmdRhythmTargets(
         phrase,
         stage.bpm,
         stage.beats_per_measure,
         attacks,
         earTrainingOsmdUsesScoreTargets(stage),
+        transposeOffset,
       );
       if (phraseTargets.length === 0) {
         finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');

@@ -57,4 +57,36 @@ final class EarTrainingMusicXmlTransposerTests: XCTestCase {
             sampleMusicXml
         )
     }
+
+    func testTransposeChordLabel() {
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("C7", semitones: 2), "D7")
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("Cm7", semitones: 2), "Dm7")
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("Bb7", semitones: 2), "C7")
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("F#dim7", semitones: 2), "G#dim7")
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("C/E", semitones: 2), "D/F#")
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("Bb/D", semitones: 2), "C/E")
+    }
+
+    func testTransposeMusicXmlTransposesHarmonyBass() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise>
+          <part>
+            <measure>
+              <attributes><key><fifths>0</fifths></key></attributes>
+              <harmony>
+                <root><root-step>C</root-step></root>
+                <kind>major</kind>
+                <bass><bass-step>E</bass-step></bass>
+              </harmony>
+              <note><pitch><step>C</step><octave>4</octave></pitch></note>
+            </measure>
+          </part>
+        </score-partwise>
+        """
+        let transposed = EarTrainingMusicXmlTransposer.transposeMusicXml(xml, semitones: 2)
+        XCTAssertTrue(transposed.contains("<root-step>D</root-step>"))
+        XCTAssertTrue(transposed.contains("<bass-step>F</bass-step>"))
+        XCTAssertTrue(transposed.contains("<bass-alter>1</bass-alter>"))
+    }
 }

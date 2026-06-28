@@ -143,4 +143,44 @@ describe('transposeMusicXml', () => {
     },
     60_000
   );
+
+  const slashHarmonyXml = (rootStep: string, rootAlter: number | null, bassStep: string, bassAlter: number | null): string => {
+    const rootAlterXml = rootAlter === null || rootAlter === 0
+      ? ''
+      : `<root-alter>${rootAlter}</root-alter>`;
+    const bassAlterXml = bassAlter === null || bassAlter === 0
+      ? ''
+      : `<bass-alter>${bassAlter}</bass-alter>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure>
+      <attributes><key><fifths>0</fifths></key></attributes>
+      <harmony>
+        <root><root-step>${rootStep}</root-step>${rootAlterXml}</root>
+        <kind>major</kind>
+        <bass><bass-step>${bassStep}</bass-step>${bassAlterXml}</bass>
+      </harmony>
+      <note><pitch><step>C</step><octave>4</octave></pitch></note>
+    </measure>
+  </part>
+</score-partwise>`;
+  };
+
+  it('harmony の bass も移調する', () => {
+    const base = slashHarmonyXml('C', null, 'E', null);
+    const transposed = transposeMusicXml(base, 2);
+    const doc = parseXml(transposed);
+    expect(doc.querySelector('root root-step')?.textContent).toBe('D');
+    expect(doc.querySelector('bass bass-step')?.textContent).toBe('F');
+    expect(doc.querySelector('bass bass-alter')?.textContent).toBe('1');
+  });
+
+  it('Bb/D の harmony bass も +2 で C/E 相当になる', () => {
+    const base = slashHarmonyXml('B', -1, 'D', null);
+    const transposed = transposeMusicXml(base, 2);
+    const doc = parseXml(transposed);
+    expect(doc.querySelector('root root-step')?.textContent).toBe('C');
+    expect(doc.querySelector('bass bass-step')?.textContent).toBe('E');
+  });
 });

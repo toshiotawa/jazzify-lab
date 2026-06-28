@@ -1,4 +1,9 @@
+import { Interval, Note } from 'tonal';
 import { getPreferredTargetKey, transposeMusicXml } from '@/utils/musicXmlTransposer';
+
+const CHORD_ROOT_PATTERN = /^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/;
+const NOTE_ONLY_PATTERN = /^[A-G](?:#{1,2}|b{1,2}|x)?$/;
+const MULTI_CHORD_LABEL_SEPARATOR = ' / ';
 
 /** 練習移調の半音オフセット下限 */
 export const PRACTICE_TRANSPOSE_MIN = -6;
@@ -98,6 +103,65 @@ export const formatPracticeTransposeOffsetLabel = (offset: number): string => {
     return `+${offset}`;
   }
   return String(offset);
+};
+
+const transposeRootNoteName = (root: string, semitones: number): string => {
+  if (semitones === 0 || !root) {
+    return root;
+  }
+  const interval = Interval.fromSemitones(semitones);
+  if (!interval) {
+    return root;
+  }
+  const transposed = Note.transpose(root, interval);
+  if (!transposed) {
+    return root;
+  }
+  const parsed = Note.get(transposed);
+  if (parsed.empty) {
+    return root;
+  }
+  return `${parsed.letter ?? root[0]}${parsed.acc ?? ''}`;
+};
+
+const transposeSingleChordLabel = (label: string, semitones: number): string => {
+  const trimmed = label.trim();
+  if (!trimmed || trimmed === '—') {
+    return trimmed;
+  }
+
+  if (trimmed.includes('/') && !trimmed.includes(MULTI_CHORD_LABEL_SEPARATOR)) {
+    const slashIndex = trimmed.indexOf('/');
+    const numerator = trimmed.slice(0, slashIndex).trim();
+    const bass = trimmed.slice(slashIndex + 1).trim();
+    if (NOTE_ONLY_PATTERN.test(bass)) {
+      const transposedNumerator = transposeSingleChordLabel(numerator, semitones);
+      const transposedBass = transposeRootNoteName(bass, semitones);
+      return `${transposedNumerator}/${transposedBass}`;
+    }
+  }
+
+  const match = trimmed.match(CHORD_ROOT_PATTERN);
+  if (!match) {
+    return trimmed;
+  }
+  const [, root, suffix] = match;
+  return `${transposeRootNoteName(root, semitones)}${suffix}`;
+};
+
+/** DB 由来のコードネーム表示ラベルを練習移調する（スラッシュ・複数ラベル対応）。 */
+export const transposeChordLabel = (label: string, semitones: number): string => {
+  const clamped = clampPracticeTransposeOffset(semitones);
+  if (clamped === 0) {
+    return label;
+  }
+  if (label.includes(MULTI_CHORD_LABEL_SEPARATOR)) {
+    return label
+      .split(MULTI_CHORD_LABEL_SEPARATOR)
+      .map(part => transposeSingleChordLabel(part, clamped))
+      .join(MULTI_CHORD_LABEL_SEPARATOR);
+  }
+  return transposeSingleChordLabel(label, clamped);
 };
 
 /** 正規化済み MusicXML に練習移調を適用する。offset=0 は入力をそのまま返す。 */

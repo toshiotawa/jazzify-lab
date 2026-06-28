@@ -114,6 +114,19 @@ enum EarTrainingMusicXmlTransposer {
         return transposeMusicXml(baseXml, semitones: clamped)
     }
 
+    /// DB 由来のコードネーム表示ラベルを練習移調する（スラッシュ・複数ラベル対応）。
+    static func transposeChordLabel(_ label: String, semitones: Int) -> String {
+        let clamped = clampPracticeTransposeOffset(semitones)
+        if clamped == 0 { return label }
+        if label.contains(" / ") {
+            return label
+                .components(separatedBy: " / ")
+                .map { transposeSingleChordLabel($0, semitones: clamped) }
+                .joined(separator: " / ")
+        }
+        return transposeSingleChordLabel(label, semitones: clamped)
+    }
+
     static func transposeMusicXml(_ xmlString: String, semitones: Int) -> String {
         if semitones == 0 { return xmlString }
         guard let root = ChordOsmdXmlParser.parse(xmlString) else {
@@ -160,33 +173,20 @@ enum EarTrainingMusicXmlTransposer {
         }
 
         for harmonyEl in allElements(named: "harmony", in: root) {
-            guard let rootEl = directChild(harmonyEl, localName: "root"),
-                  let rootStepEl = directChild(rootEl, localName: "root-step"),
-                  let rootStep = text(in: rootEl, localName: "root-step") else { continue }
-            let rootAlter = Int(text(in: rootEl, localName: "root-alter") ?? "0") ?? 0
-            var rootNote = rootStep
-            if rootAlter > 0 {
-                rootNote += String(repeating: "#", count: rootAlter)
-            } else if rootAlter < 0 {
-                rootNote += String(repeating: "b", count: -rootAlter)
-            }
-            guard let transposedRoot = EarTrainingMusicXmlPitchMath.transpose(
-                noteName: rootNote,
+            transposeHarmonyPitch(
+                in: harmonyEl,
+                parentLocalName: "root",
+                stepLocalName: "root-step",
+                alterLocalName: "root-alter",
                 intervalName: intervalName
-            ),
-                  let parsed = EarTrainingMusicXmlPitchMath.parseNote(transposedRoot, requireOctave: false) else {
-                continue
-            }
-            setText(in: rootStepEl, text: EarTrainingMusicXmlPitchMath.letterNames[parsed.step])
-            rootEl.children.removeAll { child in
-                if case let .element(el) = child, el.name == "root-alter" {
-                    return true
-                }
-                return false
-            }
-            if parsed.alt != 0 {
-                appendElement(named: "root-alter", text: String(parsed.alt), to: rootEl)
-            }
+            )
+            transposeHarmonyPitch(
+                in: harmonyEl,
+                parentLocalName: "bass",
+                stepLocalName: "bass-step",
+                alterLocalName: "bass-alter",
+                intervalName: intervalName
+            )
         }
 
         for keyEl in allElements(named: "key", in: root) {
@@ -196,6 +196,90 @@ enum EarTrainingMusicXmlTransposer {
         }
 
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+    }
+
+    private static func transposeHarmonyPitch(
+        in harmonyEl: ChordOsmdXmlElement,
+        parentLocalName: String,
+        stepLocalName: String,
+        alterLocalName: String,
+        intervalName: String,
+    ) {
+        guard let parentEl = directChild(harmonyEl, localName: parentLocalName),
+              let stepEl = directChild(parentEl, localName: stepLocalName),
+              let step = text(in: parentEl, localName: stepLocalName) else { return }
+        let alter = Int(text(in: parentEl, localName: alterLocalName) ?? "0") ?? 0
+        var note = step
+        if alter > 0 {
+            note += String(repeating: "#", count: alter)
+        } else if alter < 0 {
+            note += String(repeating: "b", count: -alter)
+        }
+        guard let transposed = EarTrainingMusicXmlPitchMath.transpose(
+            noteName: note,
+            intervalName: intervalName
+        ),
+              let parsed = EarTrainingMusicXmlPitchMath.parseNote(transposed, requireOctave: false) else {
+            return
+        }
+        setText(in: stepEl, text: EarTrainingMusicXmlPitchMath.letterNames[parsed.step])
+        parentEl.children.removeAll { child in
+            if case let .element(el) = child, el.name == alterLocalName {
+                return true
+            }
+            return false
+        }
+        if parsed.alt != 0 {
+            appendElement(named: alterLocalName, text: String(parsed.alt), to: parentEl)
+        }
+    }
+
+    private static func transposeSingleChordLabel(_ label: String, semitones: Int) -> String {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "—" { return trimmed }
+
+        if trimmed.contains("/"), !trimmed.contains(" / ") {
+            let parts = trimmed.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+                .map(String.init)
+            if parts.count == 2 {
+                let bass = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                if isNoteOnlyLabel(bass) {
+                    let numerator = transposeSingleChordLabel(
+                        parts[0].trimmingCharacters(in: .whitespacesAndNewlines),
+                        semitones: semitones
+                    )
+                    let transposedBass = transposeRootNoteName(bass, semitones: semitones)
+                    return "\(numerator)/\(transposedBass)"
+                }
+            }
+        }
+
+        guard let re = try? NSRegularExpression(pattern: #"^([A-Ga-g](?:#{1,2}|b{1,2}|x)?)(.*)$"#),
+              let match = re.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+              match.numberOfRanges >= 3,
+              let rootRange = Range(match.range(at: 1), in: trimmed),
+              let suffixRange = Range(match.range(at: 2), in: trimmed) else {
+            return trimmed
+        }
+        let root = String(trimmed[rootRange])
+        let suffix = String(trimmed[suffixRange])
+        return "\(transposeRootNoteName(root, semitones: semitones))\(suffix)"
+    }
+
+    private static func isNoteOnlyLabel(_ text: String) -> Bool {
+        text.range(of: #"^[A-Ga-g](?:#{1,2}|b{1,2}|x)?$"#, options: .regularExpression) != nil
+    }
+
+    private static func transposeRootNoteName(_ root: String, semitones: Int) -> String {
+        let intervalName = signedIntervalName(fromSemitones: semitones)
+        guard let transposed = EarTrainingMusicXmlPitchMath.transpose(
+            noteName: root,
+            intervalName: intervalName
+        ),
+              let parsed = EarTrainingMusicXmlPitchMath.parseNote(transposed, requireOctave: false) else {
+            return root
+        }
+        return EarTrainingMusicXmlPitchMath.spellNote(step: parsed.step, alt: parsed.alt, oct: nil)
     }
 
     private static func allElements(named target: String, in root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {

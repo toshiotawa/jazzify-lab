@@ -1,4 +1,5 @@
 import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank, EarTrainingStage } from '@/types';
+import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
 import {
   musicXmlAccidentalTextToAlter,
   musicXmlKeySignatureAlter,
@@ -888,6 +889,7 @@ const midiCountArray = (counts: ReadonlyMap<number, number>): ChordOsmdMidiCount
 
 const buildPlayableMeasureLabels = (
   chords: readonly EarTrainingPhraseChord[],
+  transposeOffset = 0,
 ): Map<number, string> => {
   const labels = new Map<number, string>();
   for (const chord of chords) {
@@ -899,7 +901,7 @@ const buildPlayableMeasureLabels = (
     }
     const measureNumber = Math.max(1, Math.trunc(chord.measure_number));
     if (!labels.has(measureNumber)) {
-      labels.set(measureNumber, chord.chord_name);
+      labels.set(measureNumber, transposeChordLabel(chord.chord_name, transposeOffset));
     }
   }
   return labels;
@@ -950,11 +952,12 @@ const buildChordOsmdRhythmTargetsFromScore = (
   bpm: number,
   beatsPerMeasure: number,
   attacks: readonly ChordOsmdMusicXmlAttack[],
+  transposeOffset = 0,
 ): ChordOsmdRhythmTarget[] => {
   const chords = phrase.chords ?? [];
   const playableMeasures = buildPlayableMeasures(chords);
   const disabledMeasures = buildDisabledMeasures(chords);
-  const measureLabels = buildPlayableMeasureLabels(chords);
+  const measureLabels = buildPlayableMeasureLabels(chords, transposeOffset);
   if (attacks.length === 0) {
     return [];
   }
@@ -1006,13 +1009,20 @@ export const buildChordOsmdRhythmTargets = (
   beatsPerMeasure: number,
   attacks?: readonly ChordOsmdMusicXmlAttack[] | null,
   fromScore = false,
+  transposeOffset = 0,
 ): ChordOsmdRhythmTarget[] => {
   if (!phrase) {
     return [];
   }
 
   if (fromScore && attacks && attacks.length > 0) {
-    return buildChordOsmdRhythmTargetsFromScore(phrase, bpm, beatsPerMeasure, attacks);
+    return buildChordOsmdRhythmTargetsFromScore(
+      phrase,
+      bpm,
+      beatsPerMeasure,
+      attacks,
+      transposeOffset,
+    );
   }
 
   const chords = phrase.chords ?? [];
@@ -1053,12 +1063,13 @@ export const buildChordOsmdRhythmTargets = (
     }
 
     const last = targets[targets.length - 1];
+    const transposedChordName = transposeChordLabel(item.chord.chord_name, transposeOffset);
     if (
       last
       && chordItemsAreSameTiming(last, item)
     ) {
-      if (!last.label.split(' / ').includes(item.chord.chord_name)) {
-        last.label = `${last.label} / ${item.chord.chord_name}`;
+      if (!last.label.split(' / ').includes(transposedChordName)) {
+        last.label = `${last.label} / ${transposedChordName}`;
       }
       counts.forEach((count, midi) => {
         last.mutableCounts.set(midi, (last.mutableCounts.get(midi) ?? 0) + count);
@@ -1069,7 +1080,7 @@ export const buildChordOsmdRhythmTargets = (
 
     targets.push({
       id: item.chord.id,
-      label: item.chord.chord_name,
+      label: transposedChordName,
       orderIndex: item.chord.order_index,
       targetTimeSec: item.targetTimeSec,
       measureNumber: item.measureNumber,

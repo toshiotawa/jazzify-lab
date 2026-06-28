@@ -570,7 +570,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             bpm: stage.bpm,
             beatsPerMeasure: stage.beatsPerMeasure,
             attacks: xmlAttacks,
-            fromScore: stage.resolvedOsmdTargetsFromScore
+            fromScore: stage.resolvedOsmdTargetsFromScore,
+            transposeOffset: effectivePracticeTransposeOffset()
         )
         guard !preparedTargets.isEmpty else {
             finishGameOver(message: isEnglishCopy ? "No chord timings are registered." : "判定用コードタイミングが登録されていません")
@@ -1427,7 +1428,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         chords: [EarTrainingPhraseChordDetail],
         bpm: Int,
         beatsPerMeasure: Int,
-        attacks: [ChordOsmdMusicXmlAttack]
+        attacks: [ChordOsmdMusicXmlAttack],
+        transposeOffset: Int = 0
     ) -> [(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, midiCounts: [Int: Int])] {
         var measureLabels: [Int: String] = [:]
         var playableMeasures = Set<Int>()
@@ -1441,7 +1443,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             }
             playableMeasures.insert(measure)
             if measureLabels[measure] == nil {
-                measureLabels[measure] = chord.chordName
+                measureLabels[measure] = EarTrainingMusicXmlTransposer.transposeChordLabel(
+                    chord.chordName,
+                    semitones: transposeOffset
+                )
             }
         }
         guard !attacks.isEmpty else { return [] }
@@ -1502,14 +1507,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         bpm: Int,
         beatsPerMeasure: Int,
         attacks: [ChordOsmdMusicXmlAttack],
-        fromScore: Bool = false
+        fromScore: Bool = false,
+        transposeOffset: Int = 0
     ) -> [RhythmTarget] {
         if fromScore, !attacks.isEmpty {
             let drafts = Self.buildRhythmTargetsFromScore(
                 chords: phrase.chords ?? [],
                 bpm: bpm,
                 beatsPerMeasure: beatsPerMeasure,
-                attacks: attacks
+                attacks: attacks,
+                transposeOffset: transposeOffset
             )
             return drafts.map {
                 RhythmTarget(
@@ -1556,12 +1563,19 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             if let lastIndex = result.indices.last,
                abs(result[lastIndex].targetTimeSec - time) <= 0.0005,
                result[lastIndex].measureNumber == measure {
-                result[lastIndex].merge(label: chord.chordName, midiCounts: midiCounts)
+                let transposedName = EarTrainingMusicXmlTransposer.transposeChordLabel(
+                    chord.chordName,
+                    semitones: transposeOffset
+                )
+                result[lastIndex].merge(label: transposedName, midiCounts: midiCounts)
             } else {
                 result.append(
                     RhythmTarget(
                         id: chord.id,
-                        label: chord.chordName,
+                        label: EarTrainingMusicXmlTransposer.transposeChordLabel(
+                            chord.chordName,
+                            semitones: transposeOffset
+                        ),
                         targetTimeSec: time,
                         measureNumber: measure,
                         midiCounts: midiCounts

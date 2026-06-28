@@ -472,53 +472,63 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
 
   // transpose harmony elements (chord symbols)
   doc.querySelectorAll('harmony').forEach((harmonyEl) => {
-    const rootStepEl = harmonyEl.querySelector('root root-step');
-    const rootAlterEl = harmonyEl.querySelector('root root-alter');
-    
-    if (!rootStepEl?.textContent) return;
-    
-    const rootStep = rootStepEl.textContent;
-    const rootAlter = rootAlterEl ? parseInt(rootAlterEl.textContent || '0', 10) : 0;
-    
-    // Build root note string (C, C#, Bb, etc.)
-    let rootNote = rootStep;
-    if (rootAlter > 0) {
-      rootNote += '#'.repeat(rootAlter);
-    } else if (rootAlter < 0) {
-      rootNote += 'b'.repeat(-rootAlter);
-    }
-    
-    // Transpose the root note using the correct interval
-    const transposedRootNote = Note.transpose(rootNote, transposeInterval);
-    if (!transposedRootNote) return;
-    
-    const parsed = Note.get(transposedRootNote);
-    
-    if (!parsed.empty) {
-      const { letter, acc } = parsed;
-      
-      // Update root-step
-      rootStepEl.textContent = letter;
-      
-      // Update root-alter
-      if (rootAlterEl) {
-        rootAlterEl.remove();
+    const transposeHarmonyPitch = (
+      stepEl: Element,
+      alterEl: Element | null,
+    ): void => {
+      const step = stepEl.textContent ?? 'C';
+      const alter = alterEl ? parseInt(alterEl.textContent || '0', 10) : 0;
+
+      let note = step;
+      if (alter > 0) {
+        note += '#'.repeat(alter);
+      } else if (alter < 0) {
+        note += 'b'.repeat(-alter);
       }
-      
+
+      const transposedNote = Note.transpose(note, transposeInterval);
+      if (!transposedNote) {
+        return;
+      }
+
+      const parsed = Note.get(transposedNote);
+      if (parsed.empty) {
+        return;
+      }
+
+      const { letter, acc } = parsed;
+      stepEl.textContent = letter;
+
+      if (alterEl) {
+        alterEl.remove();
+      }
+
       if (acc) {
-        const newRootAlterEl = doc.createElement('root-alter');
+        const parentEl = stepEl.parentElement;
+        if (!parentEl) {
+          return;
+        }
+        const newAlterEl = doc.createElement(stepEl.tagName === 'root-step' ? 'root-alter' : 'bass-alter');
         let alterValue = '0';
         if (acc === '#') alterValue = '1';
         else if (acc === '##' || acc === 'x') alterValue = '2';
         else if (acc === 'b') alterValue = '-1';
         else if (acc === 'bb') alterValue = '-2';
-        newRootAlterEl.textContent = alterValue;
-        
-        const rootEl = harmonyEl.querySelector('root');
-        if (rootEl) {
-          rootEl.appendChild(newRootAlterEl);
-        }
+        newAlterEl.textContent = alterValue;
+        parentEl.appendChild(newAlterEl);
       }
+    };
+
+    const rootStepEl = harmonyEl.querySelector('root root-step');
+    const rootAlterEl = harmonyEl.querySelector('root root-alter');
+    if (rootStepEl?.textContent) {
+      transposeHarmonyPitch(rootStepEl, rootAlterEl);
+    }
+
+    const bassStepEl = harmonyEl.querySelector('bass bass-step');
+    const bassAlterEl = harmonyEl.querySelector('bass bass-alter');
+    if (bassStepEl?.textContent) {
+      transposeHarmonyPitch(bassStepEl, bassAlterEl);
     }
   });
 

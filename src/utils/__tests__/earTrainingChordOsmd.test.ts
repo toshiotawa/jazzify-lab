@@ -263,6 +263,22 @@ describe('buildChordOsmdRhythmTargets', () => {
     expect(targets[0].targetTimeSec).toBe(0);
     expect(targets[0].midiCounts).toEqual([{ midi: 60, count: 1 }]);
   });
+
+  it('transposeOffset を渡すと DB 由来ラベルを移調する', () => {
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([
+        chord({ id: 'a', order_index: 0, chord_name: 'C7', start_time_sec: 0, voicing: ['C4', 'E4', 'G4'] }),
+        chord({ id: 'b', order_index: 1, chord_name: 'C/E', measure_number: 2, beat_offset: 1, voicing: ['E3', 'G3'] }),
+      ]),
+      120,
+      4,
+      null,
+      false,
+      2,
+    );
+    expect(targets[0]?.label).toBe('D7');
+    expect(targets[1]?.label).toBe('D/F#');
+  });
 });
 
 describe('Chord OSMD target consumption', () => {
