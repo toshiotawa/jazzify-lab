@@ -27,8 +27,14 @@ targets:
       Release: Secrets.xcconfig
     sources:
       - path: Jazzify
+        excludes:
+          # Tutorial/ に同一ファイルがあり bundle 複製で build が失敗するため
+          - EarTraining/Tutorial/ear-training-developer-full-v1.script.json
     resources:
       - path: Jazzify/Assets.xcassets
+      # QuestStageCards は ~120MB のため Asset Catalog ではなく Web と共有の PNG を bundle 直置き
+      - path: ../public/stage_cards_collection
+        type: folder
       - path: Jazzify/Resources/piano
         type: folder
       - path: Jazzify/Resources/UprightPianoKW-small-bright-20190703.sf2

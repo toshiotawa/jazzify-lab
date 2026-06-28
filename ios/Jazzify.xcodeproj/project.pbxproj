@@ -82,6 +82,8 @@
 		DD03BB02CC03DD04EE05BB02 /* SurvivalSessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD03BB02CC03DD04EE05BB01 /* SurvivalSessionState.swift */; };
 		AA01BB02CC03DD04EE05FF0A /* SurvivalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01BB02CC03DD04EE05FF09 /* SurvivalViewModel.swift */; };
 		16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F831419566658890CA84E9E6 /* LessonListView.swift */; };
+		QSCSTGASSTBF010001 /* QuestStageCardAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = QSCSTGASSTFR010001 /* QuestStageCardAssets.swift */; };
+		QSCSTGCARDSBF010001 /* stage_cards_collection in Resources */ = {isa = PBXBuildFile; fileRef = QSCSTGCARDSFR010001 /* stage_cards_collection */; };
 		1A3685F8B461FBABFE4C6D1E /* SurvivalDemoStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48D6B8D97E8A70D77DF8DDE /* SurvivalDemoStage.swift */; };
 		24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12AAB7776B432313249D043C /* FantasyStage.swift */; };
 		284CFF5C6B5540D6CFF63CA3 /* LessonJourneyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */; };
@@ -463,6 +465,8 @@
 		F2219FFC2796FA204F7E68DC /* C6.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C6.mp3; sourceTree = "<group>"; };
 		F5FB42EB0BEA73D79132F739 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		F831419566658890CA84E9E6 /* LessonListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonListView.swift; sourceTree = "<group>"; };
+		QSCSTGASSTFR010001 /* QuestStageCardAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestStageCardAssets.swift; sourceTree = "<group>"; };
+		QSCSTGCARDSFR010001 /* stage_cards_collection */ = {isa = PBXFileReference; lastKnownFileType = folder; name = stage_cards_collection; path = ../public/stage_cards_collection; sourceTree = "<group>"; };
 		F9FCAFC5B4E5655340C7965F /* JazzifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JazzifyApp.swift; sourceTree = "<group>"; };
 		FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordVoicingStaffView.swift; sourceTree = "<group>"; };
 		BR01MODELSTAGEFRCC03DD04EE05BR01 /* BalloonRushStageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushStageDefinition.swift; sourceTree = "<group>"; };
@@ -520,6 +524,7 @@
 			isa = PBXGroup;
 			children = (
 				8497DA09733314AB9BE43767 /* Secrets.xcconfig */,
+				QSCSTGCARDSFR010001 /* stage_cards_collection */,
 			);
 			name = ios;
 			path = .;
@@ -1061,6 +1066,7 @@
 				9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */,
 				16568C6DC2CE0A0353458F62 /* LessonJourneyViewComponents.swift */,
 				F831419566658890CA84E9E6 /* LessonListView.swift */,
+				QSCSTGASSTFR010001 /* QuestStageCardAssets.swift */,
 				QJ02FR01C3D4E5F61718293A02 /* LessonNavigationHelpers.swift */,
 				E199AA0100000202 /* MainQuestFreeTier.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
@@ -1196,6 +1202,7 @@
 				QJ04BF01C3D4E5F61718293A04 /* Gameover.mp3 in Resources */,
 				QJ05BF01C3D4E5F61718293A05 /* クエスト完了.mp3 in Resources */,
 				QJ06BF01C3D4E5F61718293A06 /* 課題完了前 クリアモーダル.mp3 in Resources */,
+				QSCSTGCARDSBF010001 /* stage_cards_collection in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1269,6 +1276,7 @@
 				7CFB37256570B028A4C1E5EA /* LessonJourneyView.swift in Sources */,
 				D2083E728F663A949957D7DE /* LessonJourneyViewComponents.swift in Sources */,
 				16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */,
+				QSCSTGASSTBF010001 /* QuestStageCardAssets.swift in Sources */,
 				E199AA0100000201 /* MainQuestFreeTier.swift in Sources */,
 				CCB6491A5865F030BB55F323 /* LessonMapAudio.swift in Sources */,
 				DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */,
