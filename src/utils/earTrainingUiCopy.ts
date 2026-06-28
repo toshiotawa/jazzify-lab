@@ -51,6 +51,10 @@ export interface EarTrainingSettingsModalCopy {
   phraseAudio: string;
   inputPiano: string;
   soundEffects: string;
+  osmdTimingAdjustmentHeading: string;
+  osmdTimingAdjustmentDescription: string;
+  osmdTimingAdjustmentEarlier: string;
+  osmdTimingAdjustmentLater: string;
 }
 
 export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTrainingSettingsModalCopy => (
@@ -68,6 +72,11 @@ export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTraining
         phraseAudio: 'Phrase audio',
         inputPiano: 'Input piano',
         soundEffects: 'Sound effects',
+        osmdTimingAdjustmentHeading: 'Timing adjustment (judgment & effects)',
+        osmdTimingAdjustmentDescription:
+          'Shift judgment, hammers, and hints relative to phrase audio (earlier: −, later: +).',
+        osmdTimingAdjustmentEarlier: '(earlier)',
+        osmdTimingAdjustmentLater: '(later)',
       }
     : {
         dialogAriaLabel: 'バトルモード設定',
@@ -82,6 +91,11 @@ export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTraining
         phraseAudio: 'フレーズ音源',
         inputPiano: '入力ピアノ',
         soundEffects: '効果音',
+        osmdTimingAdjustmentHeading: 'タイミング調整（判定・演出同期）',
+        osmdTimingAdjustmentDescription:
+          '音源に対して判定・ハンマー・ヒントを早く/遅く調整します（早く: −, 遅く: +）。',
+        osmdTimingAdjustmentEarlier: '(早く)',
+        osmdTimingAdjustmentLater: '(遅く)',
       }
 );
 

@@ -78,7 +78,6 @@ import {
   findFirstIncompleteChordOsmdTarget,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
-  CHORD_OSMD_JUDGMENT_OFFSET_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_SEC,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
@@ -103,6 +102,12 @@ import {
   scalePracticeTargetTimeSec,
   scalePracticeTimingWindowSec,
 } from '@/utils/earTrainingPracticeSpeed';
+import {
+  clampEarTrainingOsmdTimingAdjustmentMs,
+  loadEarTrainingOsmdTimingAdjustmentMs,
+  resolveOsmdCalibratedTargetTimeSec,
+  saveEarTrainingOsmdTimingAdjustmentMs,
+} from '@/utils/earTrainingOsmdTimingAdjustment';
 import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
 import {
   clampTutorialPlayerHp,
@@ -249,6 +254,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [baseMusicXmlText, setBaseMusicXmlText] = useState<string | null>(null);
   const [practiceTransposeOffset, setPracticeTransposeOffset] = useState(0);
   const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(100);
+  const [timingAdjustmentMs, setTimingAdjustmentMs] = useState(
+    () => loadEarTrainingOsmdTimingAdjustmentMs(),
+  );
   const measureDurationSec = useMemo(
     () => (60 / Math.max(1, effectivePracticeBpm(stage.bpm, practiceMode ? practiceSpeedPercent : 100)))
       * Math.max(1, stage.beats_per_measure),
@@ -301,6 +309,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const osmdSelfPacedRef = useRef(osmdSelfPaced);
   const practiceTransposeOffsetRef = useRef(0);
   const practiceSpeedPercentRef = useRef(100);
+  const timingAdjustmentMsRef = useRef(loadEarTrainingOsmdTimingAdjustmentMs());
   const practiceTransposeEnabled = stage.practice_transpose === true;
 
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
@@ -311,6 +320,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => { showKeyboardHintsInBattleRef.current = showKeyboardHintsInBattle; }, [showKeyboardHintsInBattle]);
   useEffect(() => { practiceTransposeOffsetRef.current = practiceTransposeOffset; }, [practiceTransposeOffset]);
   useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
+  useEffect(() => { timingAdjustmentMsRef.current = timingAdjustmentMs; }, [timingAdjustmentMs]);
 
   const resolveEffectiveTargetTimeSec = useCallback((targetTimeSec: number): number => {
     if (!practiceModeRef.current) {
@@ -318,6 +328,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     return scalePracticeTargetTimeSec(targetTimeSec, practiceSpeedPercentRef.current);
   }, []);
+
+  const resolveCalibratedTargetTimeSec = useCallback((targetTimeSec: number): number => (
+    resolveOsmdCalibratedTargetTimeSec(
+      resolveEffectiveTargetTimeSec(targetTimeSec),
+      timingAdjustmentMsRef.current,
+    )
+  ), [resolveEffectiveTargetTimeSec]);
 
   const resolveEffectiveTimingWindowSec = useCallback((baseSec: number): number => {
     if (!practiceModeRef.current) {
@@ -516,7 +533,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         continue;
       }
-      const dt = Math.abs(phraseT - resolveEffectiveTargetTimeSec(target.targetTimeSec));
+      const dt = Math.abs(phraseT - resolveCalibratedTargetTimeSec(target.targetTimeSec));
       if (dt > w) {
         continue;
       }
@@ -552,7 +569,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       pianoOverlayRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, []);
     }
-  }, [syncSelfPacedMeasureAndHints, resolveEffectiveTargetTimeSec, resolveEffectiveTimingWindowSec]);
+  }, [syncSelfPacedMeasureAndHints, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
 
   const stopPhraseAudio = useCallback(() => {
     phrasePlayerRef.current?.stop();
@@ -926,7 +943,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const phraseTargets = targetsRef.current;
     while (nextHammerTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextHammerTargetIndexRef.current];
-      const throwTime = resolveEffectiveTargetTimeSec(target.targetTimeSec) - CHORD_OSMD_HAMMER_LEAD_SEC;
+      const throwTime = resolveCalibratedTargetTimeSec(target.targetTimeSec) - CHORD_OSMD_HAMMER_LEAD_SEC;
       if (phraseTimeSec + 1e-9 < throwTime) {
         break;
       }
@@ -935,7 +952,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nextHammerTargetIndexRef.current += 1;
         continue;
       }
-      const impactTimeSec = resolveEffectiveTargetTimeSec(target.targetTimeSec) + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
+      const impactTimeSec = resolveCalibratedTargetTimeSec(target.targetTimeSec) + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
       const travelDurationSec = Math.max(0.12, impactTimeSec - phraseTimeSec);
       const effectId = triggerBattleEffect('osmdHammer', { travelDurationSec });
       state.hammerEffectId = effectId;
@@ -945,30 +962,30 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       nextHammerTargetIndexRef.current += 1;
     }
-  }, [handleHammerImpact, registerBattleEffectImpact, resolveEffectiveTargetTimeSec, triggerBattleEffect]);
+  }, [handleHammerImpact, registerBattleEffectImpact, resolveCalibratedTargetTimeSec, triggerBattleEffect]);
 
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;
     while (nextMissTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextMissTargetIndexRef.current];
-      if (phraseTimeSec <= resolveEffectiveTargetTimeSec(target.targetTimeSec) + CHORD_OSMD_JUDGMENT_OFFSET_SEC + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_SEC)) {
+      if (phraseTimeSec <= resolveCalibratedTargetTimeSec(target.targetTimeSec) + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_SEC)) {
         break;
       }
       failTargetIfNeeded(target.id);
       nextMissTargetIndexRef.current += 1;
     }
-  }, [failTargetIfNeeded, resolveEffectiveTargetTimeSec, resolveEffectiveTimingWindowSec]);
+  }, [failTargetIfNeeded, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
 
   const applyMusicXmlLyricQuotes = useCallback((phraseTimeSec: number) => {
     const lyrics = phraseLyricsRef.current;
     while (
       nextLyricQuoteIndexRef.current < lyrics.length
-      && phraseTimeSec + 1e-9 >= resolveEffectiveTargetTimeSec(lyrics[nextLyricQuoteIndexRef.current].targetTimeSec)
+      && phraseTimeSec + 1e-9 >= resolveCalibratedTargetTimeSec(lyrics[nextLyricQuoteIndexRef.current].targetTimeSec)
     ) {
       phaserGameRef.current?.setPlayerQuote(lyrics[nextLyricQuoteIndexRef.current].text);
       nextLyricQuoteIndexRef.current += 1;
     }
-  }, [resolveEffectiveTargetTimeSec]);
+  }, [resolveCalibratedTargetTimeSec]);
 
   const updateActiveMeasureForPhraseTime = useCallback((phraseTimeSec: number) => {
     if (phraseTimeSec < 0) {
@@ -1222,7 +1239,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         ? scalePracticePhraseLoopEndSec(safeLoopDurationSec, practiceSpeedPercentRef.current)
         : safeLoopDurationSec;
       phraseLoopEndSecRef.current = scalePracticePhraseLoopEndSec(
-        computeChordOsmdPhraseLoopEndSec(safeLoopDurationSec, phraseTargets),
+        computeChordOsmdPhraseLoopEndSec(safeLoopDurationSec, phraseTargets)
+          + timingAdjustmentMsRef.current / 1000,
         practiceModeRef.current ? practiceSpeedPercentRef.current : 100,
       );
       const phraseLyrics = xmlText
@@ -1454,6 +1472,21 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     [applyPracticePlaybackAndRestart, practiceMode, practiceSpeedPercent],
   );
 
+  const handleTimingAdjustmentChange = useCallback((nextMs: number) => {
+    const clamped = clampEarTrainingOsmdTimingAdjustmentMs(nextMs);
+    timingAdjustmentMsRef.current = clamped;
+    setTimingAdjustmentMs(clamped);
+    saveEarTrainingOsmdTimingAdjustmentMs(clamped);
+  }, []);
+
+  const osmdTimingAdjustmentConfig = useMemo(
+    () => ({
+      appliedOffsetMs: timingAdjustmentMs,
+      onChange: handleTimingAdjustmentChange,
+    }),
+    [handleTimingAdjustmentChange, timingAdjustmentMs],
+  );
+
   const completeTarget = useCallback((
     target: ChordOsmdRhythmTarget,
     state: RuntimeTargetState,
@@ -1541,7 +1574,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         continue;
       }
-      const judged = resolveEffectiveTargetTimeSec(target.targetTimeSec) + CHORD_OSMD_JUDGMENT_OFFSET_SEC;
+      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
       if (Math.abs(phraseT - judged) > w) {
         continue;
       }
@@ -1558,7 +1591,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
       return;
     }
-  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveEffectiveTargetTimeSec, resolveEffectiveTimingWindowSec, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
+  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
@@ -1829,6 +1862,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         practiceRunMode={practiceRunModeConfig}
         practiceTranspose={practiceTransposeConfig}
         practiceSpeed={practiceSpeedConfig}
+        osmdTimingAdjustment={osmdTimingAdjustmentConfig}
       />
     </div>
   );

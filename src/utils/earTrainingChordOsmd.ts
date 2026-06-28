@@ -36,8 +36,10 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
 
 /** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 250ms） */
 export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.25;
-/** OSMD リズム判定の中心を後ろへずらす補正（出力レイテンシ吸収。+で late 側を許容） */
-export const CHORD_OSMD_JUDGMENT_OFFSET_SEC = 0.04;
+import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTimingAdjustment';
+
+/** @deprecated ユーザー timingAdjustment のデフォルト (+40ms) と同等。新規コードは timingAdjustment を使用 */
+export const CHORD_OSMD_JUDGMENT_OFFSET_SEC = OSMD_TIMING_ADJUSTMENT_MS_DEFAULT / 1000;
 /** カウントイン中に最初のターゲットのハンマーも投げきれるよう、リードを短めにする */
 export const CHORD_OSMD_HAMMER_LEAD_SEC = 2.4;
 export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.2;

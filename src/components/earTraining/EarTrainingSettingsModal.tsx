@@ -15,6 +15,13 @@ import {
   PRACTICE_SPEED_MAX_PERCENT,
   PRACTICE_SPEED_MIN_PERCENT,
 } from '@/utils/earTrainingPracticeSpeed';
+import {
+  clampEarTrainingOsmdTimingAdjustmentMs,
+  formatEarTrainingOsmdTimingAdjustmentLabel,
+  OSMD_TIMING_ADJUSTMENT_MS_MAX,
+  OSMD_TIMING_ADJUSTMENT_MS_MIN,
+  OSMD_TIMING_ADJUSTMENT_MS_STEP,
+} from '@/utils/earTrainingOsmdTimingAdjustment';
 
 interface EarTrainingSettingsModalProps {
   isOpen: boolean;
@@ -38,6 +45,10 @@ interface EarTrainingSettingsModalProps {
     practiceMode: boolean;
     appliedSpeedPercent: number;
     onApplyAndRestart: (params: { speedPercent: number; transposeOffset: number }) => void;
+  };
+  osmdTimingAdjustment?: {
+    appliedOffsetMs: number;
+    onChange: (offsetMs: number) => void;
   };
 }
 
@@ -73,12 +84,16 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   practiceRunMode,
   practiceTranspose,
   practiceSpeed,
+  osmdTimingAdjustment,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const ui = useMemo(() => getEarTrainingSettingsModalCopy(isEnglishCopy), [isEnglishCopy]);
   const [practiceDraft, setPracticeDraft] = useState(practiceRunMode?.practiceMode ?? false);
   const [transposeDraft, setTransposeDraft] = useState(practiceTranspose?.appliedOffset ?? 0);
   const [speedDraft, setSpeedDraft] = useState(practiceSpeed?.appliedSpeedPercent ?? 100);
+  const [timingAdjustmentDraft, setTimingAdjustmentDraft] = useState(
+    osmdTimingAdjustment?.appliedOffsetMs ?? 0,
+  );
 
   useEffect(() => {
     if (isOpen && practiceRunMode) {
@@ -97,6 +112,12 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
       setSpeedDraft(practiceSpeed.appliedSpeedPercent);
     }
   }, [isOpen, practiceSpeed?.appliedSpeedPercent]);
+
+  useEffect(() => {
+    if (isOpen && osmdTimingAdjustment) {
+      setTimingAdjustmentDraft(osmdTimingAdjustment.appliedOffsetMs);
+    }
+  }, [isOpen, osmdTimingAdjustment?.appliedOffsetMs]);
 
   const playbackControlsActive = Boolean(practiceSpeed?.practiceMode);
   const transposeTargetKeyName = practiceTranspose
@@ -229,6 +250,41 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
               onChange={value => updateSettings({ soundEffectVolume: value })}
             />
           </section>
+
+          {osmdTimingAdjustment ? (
+            <section className="rounded-xl border border-amber-600/40 bg-amber-950/30 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-amber-100">
+                {ui.osmdTimingAdjustmentHeading}
+              </h3>
+              <p className="mb-3 text-xs text-slate-300">
+                {ui.osmdTimingAdjustmentDescription}
+              </p>
+              <label className="block">
+                <div className="mb-1 flex items-center justify-between text-sm text-slate-200">
+                  <span>{isEnglishCopy ? 'Offset' : '補正量'}</span>
+                  <span>{formatEarTrainingOsmdTimingAdjustmentLabel(timingAdjustmentDraft)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={OSMD_TIMING_ADJUSTMENT_MS_MIN}
+                  max={OSMD_TIMING_ADJUSTMENT_MS_MAX}
+                  step={OSMD_TIMING_ADJUSTMENT_MS_STEP}
+                  value={timingAdjustmentDraft}
+                  onChange={event => {
+                    const next = clampEarTrainingOsmdTimingAdjustmentMs(Number(event.target.value));
+                    setTimingAdjustmentDraft(next);
+                    osmdTimingAdjustment.onChange(next);
+                  }}
+                  className="range range-warning range-sm"
+                />
+              </label>
+              <div className="mt-1 flex justify-between text-xs text-slate-500">
+                <span>{OSMD_TIMING_ADJUSTMENT_MS_MIN}ms {ui.osmdTimingAdjustmentEarlier}</span>
+                <span>0ms</span>
+                <span>{OSMD_TIMING_ADJUSTMENT_MS_MAX}ms {ui.osmdTimingAdjustmentLater}</span>
+              </div>
+            </section>
+          ) : null}
 
           {practiceSpeed ? (
             <section className="rounded-xl border border-violet-600/40 bg-violet-950/30 p-4">

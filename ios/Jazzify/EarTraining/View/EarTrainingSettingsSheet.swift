@@ -22,6 +22,12 @@ struct EarTrainingPracticeSpeedConfig {
     let onApplyAndRestart: (_ offset: Int, _ speedPercent: Int) -> Void
 }
 
+/// OSMD タイミング調整（Web `osmdTimingAdjustment` prop 相当）。
+struct EarTrainingOsmdTimingAdjustmentConfig {
+    let appliedOffsetMs: Int
+    let onChange: (_ offsetMs: Int) -> Void
+}
+
 /// 耳コピバトル ゲーム画面の設定モーダル。Web `EarTrainingSettingsModal.tsx` と項目を一致させる:
 /// - （任意）練習 / 本番 + 最初から挑戦
 /// - MIDI デバイス選択
@@ -32,12 +38,14 @@ struct EarTrainingSettingsSheet: View {
     var stageRunMode: EarTrainingStageRunModeConfig?
     var practiceTranspose: EarTrainingPracticeTransposeConfig?
     var practiceSpeed: EarTrainingPracticeSpeedConfig?
+    var osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig?
     let onDismiss: () -> Void
     let onExit: () -> Void
 
     @State private var practiceDraft: Bool = false
     @State private var transposeDraft: Double = 0
     @State private var speedDraft: Double = 100
+    @State private var timingAdjustmentDraft: Double = Double(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsDefault)
     @State private var masterVolume: Double = Self.loadDouble(key: Self.masterKey, fallback: 1.0)
     @State private var musicVolume: Double = Self.loadDouble(key: Self.musicKey, fallback: 0.7)
     @State private var pianoVolume: Double = Double(SurvivalGameAudio.shared.pianoVolume)
@@ -65,6 +73,10 @@ struct EarTrainingSettingsSheet: View {
 
                 volumeBlock
                 midiSection
+
+                if let osmdTimingAdjustment {
+                    osmdTimingAdjustmentSection(osmdTimingAdjustment)
+                }
 
                 if let practiceSpeed {
                     practicePlaybackSection(practiceSpeed)
@@ -114,6 +126,9 @@ struct EarTrainingSettingsSheet: View {
             if let practiceSpeed {
                 speedDraft = Double(practiceSpeed.appliedSpeedPercent)
             }
+            if let osmdTimingAdjustment {
+                timingAdjustmentDraft = Double(osmdTimingAdjustment.appliedOffsetMs)
+            }
         }
         .onChange(of: stageRunMode?.practiceMode) { newValue in
             if let newValue {
@@ -128,6 +143,11 @@ struct EarTrainingSettingsSheet: View {
         .onChange(of: practiceSpeed?.appliedSpeedPercent) { newValue in
             if let newValue {
                 speedDraft = Double(newValue)
+            }
+        }
+        .onChange(of: osmdTimingAdjustment?.appliedOffsetMs) { newValue in
+            if let newValue {
+                timingAdjustmentDraft = Double(newValue)
             }
         }
         .onDisappear {
@@ -220,6 +240,70 @@ struct EarTrainingSettingsSheet: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private func osmdTimingAdjustmentSection(_ config: EarTrainingOsmdTimingAdjustmentConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(isEnglishCopy
+                 ? "Timing adjustment (judgment & effects)"
+                 : "タイミング調整（判定・演出同期）")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color(hex: "fcd34d"))
+
+            Text(isEnglishCopy
+                 ? "Shift judgment, hammers, and hints relative to phrase audio (earlier: −, later: +)."
+                 : "音源に対して判定・ハンマー・ヒントを早く/遅く調整します（早く: −, 遅く: +）。")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.75))
+
+            HStack {
+                Text(isEnglishCopy ? "Offset" : "補正量")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(EarTrainingOsmdTimingAdjustment.formatTimingAdjustmentLabel(Int(timingAdjustmentDraft.rounded())))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+
+            Slider(
+                value: $timingAdjustmentDraft,
+                in: Double(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsMin)...Double(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsMax),
+                step: Double(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsStep)
+            )
+            .tint(Color(hex: "fbbf24"))
+            .onChange(of: timingAdjustmentDraft) { newValue in
+                let clamped = EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(Int(newValue.rounded()))
+                if clamped != Int(newValue.rounded()) {
+                    timingAdjustmentDraft = Double(clamped)
+                }
+                config.onChange(clamped)
+            }
+
+            HStack {
+                Text("\(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsMin)ms")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.55))
+                Spacer()
+                Text("0ms")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.55))
+                Spacer()
+                Text("\(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsMax)ms")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.orange.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+        )
     }
 
     private func practicePlaybackSection(_ speedConfig: EarTrainingPracticeSpeedConfig) -> some View {

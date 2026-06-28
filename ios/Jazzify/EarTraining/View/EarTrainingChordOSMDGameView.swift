@@ -254,6 +254,10 @@ private struct EarTrainingChordOSMDContent: View {
                         controller.applyPracticePlaybackAndRestart(offset: offset, speedPercent: speedPercent)
                     }
                 ),
+                osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig(
+                    appliedOffsetMs: controller.timingAdjustmentMs,
+                    onChange: { controller.applyTimingAdjustmentMs($0) }
+                ),
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )
