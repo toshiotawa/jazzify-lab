@@ -175,6 +175,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             audio.phrasePitchSemitones = 0
             audio.phrasePlaybackSpeedPercent = 100
         }
+        reapplyCachedMusicXmlForCurrentPhraseIfNeeded()
         startBattle()
     }
 
@@ -186,8 +187,18 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
         audio.phrasePitchSemitones = Float(effectivePracticeTransposeOffset())
         audio.phrasePlaybackSpeedPercent = Float(practiceSpeedPercent)
+        reapplyCachedMusicXmlForCurrentPhraseIfNeeded()
         isSettingsOpen = false
         startBattle()
+    }
+
+    /// Web `applyPracticePlaybackAndRestart` が `setMusicXmlText(applyPracticeTransposeToMusicXml(...))` するのと同等。
+    private func reapplyCachedMusicXmlForCurrentPhraseIfNeeded() {
+        let phrase = phrases.indices.contains(phraseIndex) ? phrases[phraseIndex] : phrases.first
+        guard let phrase else { return }
+        let cacheKey = Self.musicXmlCacheKey(phraseId: phrase.id)
+        guard let cached = musicXMLCache[cacheKey] else { return }
+        applyMusicXmlPrepared(cached)
     }
 
     func applyTimingAdjustmentMs(_ ms: Int) {
