@@ -98,8 +98,7 @@ enum EarTrainingMusicXmlTransposer {
 
     static func transposeMusicXml(_ xmlString: String, semitones: Int) -> String {
         if semitones == 0 { return xmlString }
-        guard let data = xmlString.data(using: .utf8),
-              let doc = try? XMLDocument(data: data, options: [.nodePreserveAll]) else {
+        guard let root = ChordOsmdXmlParser.parse(xmlString) else {
             return xmlString
         }
 
@@ -109,65 +108,122 @@ enum EarTrainingMusicXmlTransposer {
         let targetFifths = keyNameToFifths[normalizeToPreferredKey(targetKey)] ?? keyNameToFifths[targetKey] ?? 0
         let intervalName = intervalBetweenKeys(from: originalKeyName, to: targetKey)
 
-        for noteEl in doc.elements(forName: "note") {
-            if noteEl.elements(forName: "rest").isEmpty == false { continue }
-            guard let pitchEl = noteEl.elements(forName: "pitch").first,
-                  let stepEl = pitchEl.elements(forName: "step").first,
-                  let octaveEl = pitchEl.elements(forName: "octave").first,
-                  let stepText = stepEl.stringValue,
-                  let octaveText = octaveEl.stringValue,
+        for noteEl in allElements(named: "note", in: root) {
+            if directChild(noteEl, localName: "rest") != nil { continue }
+            guard let pitchEl = directChild(noteEl, localName: "pitch"),
+                  let stepText = text(in: pitchEl, localName: "step"),
+                  let octaveText = text(in: pitchEl, localName: "octave"),
                   let octave = Int(octaveText) else { continue }
 
-            let alter = Int(pitchEl.elements(forName: "alter").first?.stringValue ?? "0") ?? 0
+            let alter = Int(text(in: pitchEl, localName: "alter") ?? "0") ?? 0
             let noteStr = pitchToNote(step: stepText, alter: alter, octave: octave)
-            guard var transposed = EarTrainingMusicXmlPitchMath.transpose(noteStr, intervalName: intervalName) else {
+            guard var transposed = EarTrainingMusicXmlPitchMath.transpose(
+                noteName: noteStr,
+                intervalName: intervalName
+            ) else {
                 continue
             }
             let octaveShift = semitones / 12
             if octaveShift != 0 {
                 let octInterval = "\(abs(octaveShift) * 8)P"
                 if octaveShift > 0 {
-                    transposed = EarTrainingMusicXmlPitchMath.transpose(transposed, intervalName: octInterval) ?? transposed
+                    transposed = EarTrainingMusicXmlPitchMath.transpose(
+                        noteName: transposed,
+                        intervalName: octInterval
+                    ) ?? transposed
                 } else {
-                    transposed = EarTrainingMusicXmlPitchMath.transpose(transposed, intervalName: "-\(octInterval)") ?? transposed
+                    transposed = EarTrainingMusicXmlPitchMath.transpose(
+                        noteName: transposed,
+                        intervalName: "-\(octInterval)"
+                    ) ?? transposed
                 }
             }
             applyNoteToPitch(transposed, pitchEl: pitchEl, noteEl: noteEl, targetKey: targetKey)
         }
 
-        for harmonyEl in doc.elements(forName: "harmony") {
-            guard let rootEl = harmonyEl.elements(forName: "root").first,
-                  let rootStepEl = rootEl.elements(forName: "root-step").first,
-                  let rootStep = rootStepEl.stringValue else { continue }
-            let rootAlter = Int(rootEl.elements(forName: "root-alter").first?.stringValue ?? "0") ?? 0
+        for harmonyEl in allElements(named: "harmony", in: root) {
+            guard let rootEl = directChild(harmonyEl, localName: "root"),
+                  let rootStepEl = directChild(rootEl, localName: "root-step"),
+                  let rootStep = text(in: rootEl, localName: "root-step") else { continue }
+            let rootAlter = Int(text(in: rootEl, localName: "root-alter") ?? "0") ?? 0
             var rootNote = rootStep
             if rootAlter > 0 {
                 rootNote += String(repeating: "#", count: rootAlter)
             } else if rootAlter < 0 {
                 rootNote += String(repeating: "b", count: -rootAlter)
             }
-            guard let transposedRoot = EarTrainingMusicXmlPitchMath.transpose(rootNote, intervalName: intervalName),
+            guard let transposedRoot = EarTrainingMusicXmlPitchMath.transpose(
+                noteName: rootNote,
+                intervalName: intervalName
+            ),
                   let parsed = EarTrainingMusicXmlPitchMath.parseNote(transposedRoot, requireOctave: false) else {
                 continue
             }
-            rootStepEl.stringValue = EarTrainingMusicXmlPitchMath.letterNames[parsed.step]
-            for child in rootEl.elements(forName: "root-alter") {
-                rootEl.removeChild(child)
+            setText(in: rootStepEl, text: EarTrainingMusicXmlPitchMath.letterNames[parsed.step])
+            rootEl.children.removeAll { child in
+                if case let .element(el) = child, el.name == "root-alter" {
+                    return true
+                }
+                return false
             }
             if parsed.alt != 0 {
-                let alterEl = XMLElement(name: "root-alter")
-                alterEl.stringValue = String(parsed.alt)
-                rootEl.addChild(alterEl)
+                appendElement(named: "root-alter", text: String(parsed.alt), to: rootEl)
             }
         }
 
-        for keyEl in doc.elements(forName: "key") {
-            if let fifthsEl = keyEl.elements(forName: "fifths").first {
-                fifthsEl.stringValue = String(targetFifths)
+        for keyEl in allElements(named: "key", in: root) {
+            if let fifthsEl = directChild(keyEl, localName: "fifths") {
+                setText(in: fifthsEl, text: String(targetFifths))
             }
         }
 
-        return doc.xmlString(options: [.nodeCompactEmptyElement])
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+    }
+
+    private static func allElements(named target: String, in root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {
+        var out: [ChordOsmdXmlElement] = []
+        func visit(_ el: ChordOsmdXmlElement) {
+            if el.name == target {
+                out.append(el)
+            }
+            for ch in el.children {
+                if case let .element(child) = ch {
+                    visit(child)
+                }
+            }
+        }
+        visit(root)
+        return out
+    }
+
+    private static func directChild(_ parent: ChordOsmdXmlElement, localName: String) -> ChordOsmdXmlElement? {
+        for ch in parent.children {
+            if case let .element(el) = ch, el.name == localName {
+                return el
+            }
+        }
+        return nil
+    }
+
+    private static func text(in parent: ChordOsmdXmlElement, localName: String) -> String? {
+        guard let el = directChild(parent, localName: localName) else { return nil }
+        for ch in el.children {
+            if case let .text(t) = ch {
+                let trimmed = t.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+        }
+        return nil
+    }
+
+    private static func setText(in element: ChordOsmdXmlElement, text: String) {
+        element.children = [.text(text)]
+    }
+
+    private static func appendElement(named name: String, text: String, to parent: ChordOsmdXmlElement) {
+        let child = ChordOsmdXmlElement(name: name)
+        child.children.append(.text(text))
+        parent.children.append(.element(child))
     }
 
     private static func normalizeToPreferredKey(_ key: String) -> String {
@@ -237,8 +293,8 @@ enum EarTrainingMusicXmlTransposer {
 
     private static func applyNoteToPitch(
         _ noteStr: String,
-        pitchEl: XMLElement,
-        noteEl: XMLElement,
+        pitchEl: ChordOsmdXmlElement,
+        noteEl: ChordOsmdXmlElement,
         targetKey: String,
     ) {
         guard let parsed = EarTrainingMusicXmlPitchMath.parseNote(noteStr, requireOctave: true),
@@ -248,23 +304,22 @@ enum EarTrainingMusicXmlTransposer {
         let adjusted = adjustNoteToKeyScale(noteWithoutOct, targetKey: targetKey)
         guard let adjustedParsed = EarTrainingMusicXmlPitchMath.parseNote(adjusted, requireOctave: false) else { return }
 
-        for child in pitchEl.children ?? [] {
-            pitchEl.removeChild(child)
-        }
-        let stepEl = XMLElement(name: "step")
-        stepEl.stringValue = EarTrainingMusicXmlPitchMath.letterNames[adjustedParsed.step]
-        pitchEl.addChild(stepEl)
+        pitchEl.children.removeAll()
+        appendElement(
+            named: "step",
+            text: EarTrainingMusicXmlPitchMath.letterNames[adjustedParsed.step],
+            to: pitchEl
+        )
         if adjustedParsed.alt != 0 {
-            let alterEl = XMLElement(name: "alter")
-            alterEl.stringValue = String(adjustedParsed.alt)
-            pitchEl.addChild(alterEl)
+            appendElement(named: "alter", text: String(adjustedParsed.alt), to: pitchEl)
         }
-        let octaveEl = XMLElement(name: "octave")
-        octaveEl.stringValue = String(octave)
-        pitchEl.addChild(octaveEl)
+        appendElement(named: "octave", text: String(octave), to: pitchEl)
 
-        for child in noteEl.elements(forName: "accidental") {
-            noteEl.removeChild(child)
+        noteEl.children.removeAll { child in
+            if case let .element(el) = child, el.name == "accidental" {
+                return true
+            }
+            return false
         }
     }
 }
@@ -398,39 +453,5 @@ private enum EarTrainingMusicXmlPitchMath {
         var i = (f + 1) % 7
         if i < 0 { i += 7 }
         return i
-    }
-}
-
-private extension XMLDocument {
-    func elements(forName localName: String) -> [XMLElement] {
-        var results: [XMLElement] = []
-        collectElements(localName: localName, in: rootElement(), into: &results)
-        return results
-    }
-
-    private func collectElements(localName: String, in node: XMLElement?, into results: inout [XMLElement]) {
-        guard let node else { return }
-        if node.name == localName || node.localName == localName {
-            results.append(node)
-        }
-        for child in node.children ?? [] {
-            if let el = child as? XMLElement {
-                collectElements(localName: localName, in: el, into: &results)
-            }
-        }
-    }
-}
-
-private extension XMLElement {
-    func elements(forName localName: String) -> [XMLElement] {
-        var results: [XMLElement] = []
-        for child in children ?? [] {
-            guard let el = child as? XMLElement else { continue }
-            if el.name == localName || el.localName == localName {
-                results.append(el)
-            }
-            results.append(contentsOf: el.elements(forName: localName))
-        }
-        return results
     }
 }

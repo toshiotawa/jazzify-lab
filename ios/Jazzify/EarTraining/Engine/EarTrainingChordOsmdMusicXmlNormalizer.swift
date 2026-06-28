@@ -17,7 +17,7 @@ struct ChordOsmdLyricEvent: Equatable, Sendable {
 
 /* Non-nested DOM: XMLParser 用。`XMLDocument` 系は iOS Swift から参照できないため。 */
 
-private final class ChordOsmdXmlElement {
+final class ChordOsmdXmlElement {
     let name: String
     var attributes: [(name: String, value: String)] = []
     var children: [ChordOsmdXmlChild] = []
@@ -27,7 +27,7 @@ private final class ChordOsmdXmlElement {
     }
 }
 
-private enum ChordOsmdXmlChild {
+enum ChordOsmdXmlChild {
     case text(String)
     case element(ChordOsmdXmlElement)
 
@@ -921,7 +921,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
 
 // MARK: - XMLParser
 
-private enum ChordOsmdXmlParser {
+enum ChordOsmdXmlParser {
     static func parse(_ xml: String) -> ChordOsmdXmlElement? {
         guard let data = xml.data(using: .utf8) else { return nil }
         let delegate = Delegate()
@@ -975,7 +975,7 @@ private enum ChordOsmdXmlParser {
 
 // MARK: - Serialize
 
-private enum ChordOsmdXmlSerializer {
+enum ChordOsmdXmlSerializer {
     static func stringify(_ root: ChordOsmdXmlElement) -> String {
         var out = ""
         serialize(root, into: &out)
