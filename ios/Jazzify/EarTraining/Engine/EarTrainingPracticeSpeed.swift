@@ -33,10 +33,4 @@ enum EarTrainingPracticeSpeed {
         guard ratio < 1 else { return loopEndSec }
         return loopEndSec / ratio
     }
-
-    /// `AVAudioUnitTimePitch.rate` 変更によるピッチ変化を相殺する cent 値。
-    static func ratePitchCompensationCents(forRate rate: Float) -> Float {
-        guard rate > 0 else { return 0 }
-        return Float(-1200.0 * log2(Double(rate)))
-    }
 }

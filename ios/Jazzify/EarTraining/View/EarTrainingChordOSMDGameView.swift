@@ -510,9 +510,7 @@ private struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.configurePlayhead(show: controller.scoreScrollActive)
-        let bpm = max(1, controller.stage.bpm)
-        let beatsPerMeasure = max(1, controller.stage.beatsPerMeasure)
-        let measureDurationSec = 60.0 / Double(bpm) * Double(beatsPerMeasure)
+        let measureDurationSec = controller.effectiveMeasureDurationSec
         context.coordinator.update(
             webView: webView,
             musicXMLText: musicXMLText,

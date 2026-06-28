@@ -580,9 +580,9 @@ final class EarTrainingAudio: NSObject {
     private func applyPhraseTimeStretch() {
         let rate = phrasePlaybackSpeedPercent / 100.0
         phraseTimePitch.rate = rate
-        let transposeCents = phrasePitchSemitones * 100
-        let compensation = EarTrainingPracticeSpeed.ratePitchCompensationCents(forRate: rate)
-        phraseTimePitch.pitch = transposeCents + compensation
+        // AVAudioUnitTimePitch は rate でテンポ変更してもピッチを独立扱いできるため、
+        // 速度補正用の cents は足さない（Varispeed 系の補正を入れると逆に音程がずれる）。
+        phraseTimePitch.pitch = phrasePitchSemitones * 100
     }
 
     private func configurePeakLimiter(_ limiter: AVAudioUnitEffect) {

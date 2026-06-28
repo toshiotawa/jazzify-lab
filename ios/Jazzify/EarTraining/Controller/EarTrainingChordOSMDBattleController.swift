@@ -238,6 +238,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         )
     }
 
+    /// OSMD プレイヘッドの 1 小節あたり秒数（練習速度を反映）。
+    var effectiveMeasureDurationSec: Double {
+        let bpm = resolveEffectivePracticeBpm()
+        return 60.0 / Double(max(1, bpm)) * Double(max(1, stage.beatsPerMeasure))
+    }
+
     func attachScene(_ scene: EarTrainingBattleSceneHandle) {
         self.scene = scene
         publishSnapshot()

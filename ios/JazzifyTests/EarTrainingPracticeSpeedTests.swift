@@ -25,9 +25,4 @@ final class EarTrainingPracticeSpeedTests: XCTestCase {
         XCTAssertEqual(EarTrainingPracticeSpeed.effectivePracticeBpm(120, speedPercent: 100), 120)
         XCTAssertEqual(EarTrainingPracticeSpeed.effectivePracticeBpm(120, speedPercent: 50), 60)
     }
-
-    func testRatePitchCompensationCents() {
-        XCTAssertEqual(EarTrainingPracticeSpeed.ratePitchCompensationCents(forRate: 1), 0, accuracy: 0.01)
-        XCTAssertEqual(EarTrainingPracticeSpeed.ratePitchCompensationCents(forRate: 0.5), 1200, accuracy: 0.01)
-    }
 }
