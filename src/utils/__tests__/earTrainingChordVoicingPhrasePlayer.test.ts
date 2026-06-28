@@ -8,6 +8,17 @@ vi.mock('@/utils/audioFetchCache', () => ({
   fetchCachedFullAudioBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
 }));
 
+const shiftPhraseBufferPitchMock = vi.fn(async (buffer: AudioBuffer) => buffer);
+
+vi.mock('@/utils/earTrainingPhrasePitchShift', async importOriginal => {
+  const original = await importOriginal<typeof import('@/utils/earTrainingPhrasePitchShift')>();
+  return {
+    ...original,
+    shiftPhraseBufferPitch: (...args: Parameters<typeof original.shiftPhraseBufferPitch>) =>
+      shiftPhraseBufferPitchMock(...args),
+  };
+});
+
 const phraseStarts: number[] = [];
 let decodeCallCount = 0;
 
@@ -92,6 +103,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
   beforeEach(() => {
     phraseStarts.length = 0;
     decodeCallCount = 0;
+    shiftPhraseBufferPitchMock.mockClear();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
@@ -170,6 +182,43 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     await player.prepare(url);
     await player.prepare(url);
     expect(decodeCallCount).toBe(1);
+    player.dispose();
+  });
+
+  it('setPitchShiftSemitones 後の prepare は shiftPhraseBufferPitch を呼ぶ', async () => {
+    const { player } = makePlayer();
+    player.setPitchShiftSemitones(2);
+    await player.prepare('https://example.com/shift.mp3');
+    expect(shiftPhraseBufferPitchMock).toHaveBeenCalledTimes(1);
+    player.dispose();
+  });
+
+  it('getPitchShiftLatencySec は常に 0', () => {
+    const { player } = makePlayer();
+    player.setPitchShiftSemitones(3);
+    expect(player.getPitchShiftLatencySec()).toBe(0);
+    player.dispose();
+  });
+
+  it('schedulePreparedPhraseWithCountIn: source は phraseGain に同期 connect される', async () => {
+    vi.useFakeTimers();
+    const { player, mockCtx } = makePlayer();
+    const createdSources: MockBufferSourceNode[] = [];
+    mockCtx.createBufferSource = vi.fn((): MockBufferSourceNode => {
+      const source = new MockBufferSourceNode();
+      createdSources.push(source);
+      return source;
+    });
+    mockCtx.currentTime = 0;
+    player.schedulePreparedPhraseWithCountIn({
+      prepared: { url: 'https://example.com/connect.mp3', buffer: fakePhraseBuffer },
+      countInBeats: 1,
+      bpm: 60,
+      beatGain: 1,
+    });
+    await flushPromises();
+    const phraseSource = createdSources.find(source => source.buffer === fakePhraseBuffer);
+    expect(phraseSource?.connect).toHaveBeenCalledTimes(1);
     player.dispose();
   });
 

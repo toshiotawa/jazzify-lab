@@ -358,11 +358,12 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
   // 2. 五度圏に基づいて正しいターゲットキーを計算
   const targetKeyName = getTargetKeyFromTranspositionForXml(originalKeyName, semitones);
   
-  // 3. 正しい音程を計算
-  const transposeInterval = getCorrectInterval(originalKeyName, targetKeyName);
+  // 3. 符号付き半音で移調（キー根音間 interval は負方向でオクターブがずれる）
+  const signedInterval = Interval.fromSemitones(semitones);
+  const transposeInterval = signedInterval ?? '1P';
   
-  // オクターブの調整が必要な場合を考慮（+12, +24, -12などの場合）
-  const octaveShift = Math.floor(semitones / 12);
+  // オクターブの調整が必要な場合を考慮（±12 半音単位。floor だと -1..-11 で誤って -1 オクターブになる）
+  const octaveShift = Math.trunc(semitones / 12);
   const octaveInterval = octaveShift !== 0 ? `${Math.abs(octaveShift) * 8}P` : null;
 
   // Helper to convert step/alter/octave to tonal note string, e.g. C#4, Eb4

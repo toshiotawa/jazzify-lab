@@ -1,3 +1,4 @@
+import { Note } from 'tonal';
 import {
   applyPracticeTransposeToMusicXml,
   clampPracticeTransposeOffset,
@@ -46,6 +47,22 @@ describe('earTrainingPracticeTranspose', () => {
     const transposed = applyPracticeTransposeToMusicXml(sampleMusicXml, 2);
     expect(transposed).not.toBe(sampleMusicXml);
     expect(readKeyFifthsFromMusicXml(transposed)).toBe(1);
+  });
+
+  it('負の半音移調でもピッチクラスが下方向になる', () => {
+    const transposed = applyPracticeTransposeToMusicXml(sampleMusicXml, -2);
+    const step = transposed.match(/<step>([^<]+)<\/step>/)?.[1] ?? '';
+    const alterText = transposed.match(/<alter>(-?\d+)<\/alter>/)?.[1];
+    const alter = alterText ? Number.parseInt(alterText, 10) : 0;
+    const octave = Number.parseInt(transposed.match(/<octave>(\d+)<\/octave>/)?.[1] ?? '4', 10);
+    let accidental = '';
+    if (alter > 0) {
+      accidental = '#'.repeat(alter);
+    } else if (alter < 0) {
+      accidental = 'b'.repeat(-alter);
+    }
+    const midi = Note.midi(`${step}${accidental}${octave}`);
+    expect(midi).toBe(Note.midi('D#4'));
   });
 
   it('returns base XML unchanged when offset is zero', () => {

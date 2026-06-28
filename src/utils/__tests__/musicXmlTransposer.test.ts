@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { Note } from 'tonal';
 import { describe, expect, it } from 'vitest';
 import { transposeMusicXml } from '@/utils/musicXmlTransposer';
 
@@ -55,7 +56,51 @@ const TIE_SAMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
+const SINGLE_NOTE_XML = (step: string, alter: number | null, octave: number): string => {
+  const alterXml = alter === null || alter === 0
+    ? ''
+    : `<alter>${alter}</alter>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure>
+      <attributes><key><fifths>0</fifths></key></attributes>
+      <note><pitch><step>${step}</step>${alterXml}<octave>${octave}</octave></pitch></note>
+    </measure>
+  </part>
+</score-partwise>`;
+};
+
+const readNoteMidi = (xml: string): number | null => {
+  const doc = parseXml(xml);
+  const step = doc.querySelector('note pitch step')?.textContent ?? 'C';
+  const alterText = doc.querySelector('note pitch alter')?.textContent;
+  const alter = alterText ? Number.parseInt(alterText, 10) : 0;
+  const octave = Number.parseInt(doc.querySelector('note pitch octave')?.textContent ?? '4', 10);
+  let accidental = '';
+  if (alter > 0) {
+    accidental = '#'.repeat(alter);
+  } else if (alter < 0) {
+    accidental = 'b'.repeat(-alter);
+  }
+  return Note.midi(`${step}${accidental}${octave}`);
+};
+
 describe('transposeMusicXml', () => {
+  it('C4 を符号付き半音で正しく移調する', () => {
+    const base = SINGLE_NOTE_XML('C', null, 4);
+    const baseMidi = Note.midi('C4');
+    expect(baseMidi).not.toBeNull();
+
+    const downOne = transposeMusicXml(base, -1);
+    const downTwo = transposeMusicXml(base, -2);
+    const upThree = transposeMusicXml(base, 3);
+
+    expect(readNoteMidi(downOne)).toBe(Note.midi('B3'));
+    expect(readNoteMidi(downTwo)).toBe(Note.midi('A#3'));
+    expect(readNoteMidi(upThree)).toBe(Note.midi('D#4'));
+  });
+
   it('tieの後ろ側ノートも移調される', () => {
     const transposed = transposeMusicXml(TIE_SAMPLE_XML, 1);
     const doc = parseXml(transposed);

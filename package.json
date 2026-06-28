@@ -36,6 +36,7 @@
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",
+    "@soundtouchjs/core": "^2.0.4",
     "@stripe/stripe-js": "^2.4.0",
     "@supabase/supabase-js": "^2.39.5",
     "@tonejs/piano": "^0.2.1",
@@ -59,7 +60,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "tonal": "^6.4.2",
-    "tone": "^14.7.77",
+    "tone": "^14.9.17",
     "zustand": "^4.4.7"
   },
   "devDependencies": {

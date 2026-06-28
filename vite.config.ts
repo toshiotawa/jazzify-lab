@@ -109,7 +109,8 @@ export default defineConfig(({ mode }) => {
         'opensheetmusicdisplay',
         'tonal',
         'tone',
-        '@breezystack/lamejs'
+        '@breezystack/lamejs',
+        '@soundtouchjs/core'
       ],
       exclude: ['@/wasm'],
       esbuildOptions: {
