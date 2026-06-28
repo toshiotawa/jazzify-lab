@@ -8,16 +8,15 @@ vi.mock('@/utils/audioFetchCache', () => ({
   fetchCachedFullAudioBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
 }));
 
-const shiftPhraseBufferPitchMock = vi.fn(async (buffer: AudioBuffer) => buffer);
+const processOfflinePhraseBufferMock = vi.hoisted(() =>
+  vi.fn(async (buffer: AudioBuffer) => buffer),
+);
 
-vi.mock('@/utils/earTrainingPhrasePitchShift', async importOriginal => {
-  const original = await importOriginal<typeof import('@/utils/earTrainingPhrasePitchShift')>();
-  return {
-    ...original,
-    shiftPhraseBufferPitch: (...args: Parameters<typeof original.shiftPhraseBufferPitch>) =>
-      shiftPhraseBufferPitchMock(...args),
-  };
-});
+vi.mock('@/utils/earTrainingPhrasePitchShift', () => ({
+  buildPhrasePrepareCacheKey: (url: string, semitones: number, speedPercent = 100) =>
+    `${url}\0${semitones}\0${speedPercent}`,
+  processOfflinePhraseBuffer: processOfflinePhraseBufferMock,
+}));
 
 const phraseStarts: number[] = [];
 let decodeCallCount = 0;
@@ -103,7 +102,7 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
   beforeEach(() => {
     phraseStarts.length = 0;
     decodeCallCount = 0;
-    shiftPhraseBufferPitchMock.mockClear();
+    processOfflinePhraseBufferMock.mockClear();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
@@ -185,11 +184,11 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     player.dispose();
   });
 
-  it('setPitchShiftSemitones 後の prepare は shiftPhraseBufferPitch を呼ぶ', async () => {
+  it('setPitchShiftSemitones 後の prepare は processOfflinePhraseBuffer を呼ぶ', async () => {
     const { player } = makePlayer();
     player.setPitchShiftSemitones(2);
     await player.prepare('https://example.com/shift.mp3');
-    expect(shiftPhraseBufferPitchMock).toHaveBeenCalledTimes(1);
+    expect(processOfflinePhraseBufferMock).toHaveBeenCalledTimes(1);
     player.dispose();
   });
 

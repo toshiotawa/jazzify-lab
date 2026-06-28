@@ -96,6 +96,12 @@ import {
   fifthsToPreferredKeyName,
   readKeyFifthsFromMusicXml,
 } from '@/utils/earTrainingPracticeTranspose';
+import {
+  clampPracticeSpeedPercent,
+  effectivePracticeBpm,
+  scalePracticePhraseLoopEndSec,
+  scalePracticeTargetTimeSec,
+} from '@/utils/earTrainingPracticeSpeed';
 import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
 import {
   clampTutorialPlayerHp,
@@ -193,10 +199,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     () => stage.mode === 'chord_osmd' && Boolean(stage.chord_voicing_self_paced),
     [stage.chord_voicing_self_paced, stage.mode],
   );
-  const measureDurationSec = useMemo(
-    () => (60 / Math.max(1, stage.bpm)) * Math.max(1, stage.beats_per_measure),
-    [stage.beats_per_measure, stage.bpm],
-  );
   const phrases = useMemo(
     () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
     [stage.phrases],
@@ -245,6 +247,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const [baseMusicXmlText, setBaseMusicXmlText] = useState<string | null>(null);
   const [practiceTransposeOffset, setPracticeTransposeOffset] = useState(0);
+  const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(100);
+  const measureDurationSec = useMemo(
+    () => (60 / Math.max(1, effectivePracticeBpm(stage.bpm, practiceMode ? practiceSpeedPercent : 100)))
+      * Math.max(1, stage.beats_per_measure),
+    [practiceMode, practiceSpeedPercent, stage.beats_per_measure, stage.bpm],
+  );
   const [scoreErrorText, setScoreErrorText] = useState<string | null>(null);
   const chordOsmdXmlAttacks = useMemo(
     () => (musicXmlText ? collectChordOsmdMusicXmlAttacks(musicXmlText) : null),
@@ -291,6 +299,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const replaySelfPacedPhraseClockRef = useRef<() => void>(() => undefined);
   const osmdSelfPacedRef = useRef(osmdSelfPaced);
   const practiceTransposeOffsetRef = useRef(0);
+  const practiceSpeedPercentRef = useRef(100);
   const practiceTransposeEnabled = stage.practice_transpose === true;
 
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
@@ -300,9 +309,24 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
   useEffect(() => { showKeyboardHintsInBattleRef.current = showKeyboardHintsInBattle; }, [showKeyboardHintsInBattle]);
   useEffect(() => { practiceTransposeOffsetRef.current = practiceTransposeOffset; }, [practiceTransposeOffset]);
+  useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
+
+  const resolveEffectiveTargetTimeSec = useCallback((targetTimeSec: number): number => {
+    if (!practiceModeRef.current) {
+      return targetTimeSec;
+    }
+    return scalePracticeTargetTimeSec(targetTimeSec, practiceSpeedPercentRef.current);
+  }, []);
+
+  const resolveEffectivePracticeBpm = useCallback((): number => {
+    if (!practiceModeRef.current) {
+      return stage.bpm;
+    }
+    return effectivePracticeBpm(stage.bpm, practiceSpeedPercentRef.current);
+  }, [stage.bpm]);
 
   useEffect(() => {
-    if (!practiceTransposeEnabled || !practiceMode) {
+    if (!practiceMode) {
       if (practiceTransposeOffsetRef.current !== 0) {
         practiceTransposeOffsetRef.current = 0;
         setPracticeTransposeOffset(0);
@@ -310,6 +334,20 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         if (baseMusicXmlText) {
           setMusicXmlText(baseMusicXmlText);
         }
+      }
+      if (practiceSpeedPercentRef.current !== 100) {
+        practiceSpeedPercentRef.current = 100;
+        setPracticeSpeedPercent(100);
+        phrasePlayerRef.current?.setPlaybackSpeedPercent(100);
+      }
+      return;
+    }
+    if (!practiceTransposeEnabled && practiceTransposeOffsetRef.current !== 0) {
+      practiceTransposeOffsetRef.current = 0;
+      setPracticeTransposeOffset(0);
+      phrasePlayerRef.current?.setPitchShiftSemitones(0);
+      if (baseMusicXmlText) {
+        setMusicXmlText(baseMusicXmlText);
       }
     }
   }, [baseMusicXmlText, practiceMode, practiceTransposeEnabled]);
@@ -470,7 +508,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         continue;
       }
-      const dt = Math.abs(phraseT - target.targetTimeSec);
+      const dt = Math.abs(phraseT - resolveEffectiveTargetTimeSec(target.targetTimeSec));
       if (dt > w) {
         continue;
       }
@@ -506,7 +544,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       pianoOverlayRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, []);
     }
-  }, [syncSelfPacedMeasureAndHints]);
+  }, [syncSelfPacedMeasureAndHints, resolveEffectiveTargetTimeSec]);
 
   const stopPhraseAudio = useCallback(() => {
     phrasePlayerRef.current?.stop();
@@ -880,7 +918,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const phraseTargets = targetsRef.current;
     while (nextHammerTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextHammerTargetIndexRef.current];
-      const throwTime = target.targetTimeSec - CHORD_OSMD_HAMMER_LEAD_SEC;
+      const throwTime = resolveEffectiveTargetTimeSec(target.targetTimeSec) - CHORD_OSMD_HAMMER_LEAD_SEC;
       if (phraseTimeSec + 1e-9 < throwTime) {
         break;
       }
@@ -889,7 +927,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nextHammerTargetIndexRef.current += 1;
         continue;
       }
-      const impactTimeSec = target.targetTimeSec + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
+      const impactTimeSec = resolveEffectiveTargetTimeSec(target.targetTimeSec) + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
       const travelDurationSec = Math.max(0.12, impactTimeSec - phraseTimeSec);
       const effectId = triggerBattleEffect('osmdHammer', { travelDurationSec });
       state.hammerEffectId = effectId;
@@ -899,30 +937,30 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       nextHammerTargetIndexRef.current += 1;
     }
-  }, [handleHammerImpact, registerBattleEffectImpact, triggerBattleEffect]);
+  }, [handleHammerImpact, registerBattleEffectImpact, resolveEffectiveTargetTimeSec, triggerBattleEffect]);
 
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;
     while (nextMissTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextMissTargetIndexRef.current];
-      if (phraseTimeSec <= target.targetTimeSec + CHORD_OSMD_JUDGMENT_OFFSET_SEC + CHORD_OSMD_JUDGMENT_WINDOW_SEC) {
+      if (phraseTimeSec <= resolveEffectiveTargetTimeSec(target.targetTimeSec) + CHORD_OSMD_JUDGMENT_OFFSET_SEC + CHORD_OSMD_JUDGMENT_WINDOW_SEC) {
         break;
       }
       failTargetIfNeeded(target.id);
       nextMissTargetIndexRef.current += 1;
     }
-  }, [failTargetIfNeeded]);
+  }, [failTargetIfNeeded, resolveEffectiveTargetTimeSec]);
 
   const applyMusicXmlLyricQuotes = useCallback((phraseTimeSec: number) => {
     const lyrics = phraseLyricsRef.current;
     while (
       nextLyricQuoteIndexRef.current < lyrics.length
-      && phraseTimeSec + 1e-9 >= lyrics[nextLyricQuoteIndexRef.current].targetTimeSec
+      && phraseTimeSec + 1e-9 >= resolveEffectiveTargetTimeSec(lyrics[nextLyricQuoteIndexRef.current].targetTimeSec)
     ) {
       phaserGameRef.current?.setPlayerQuote(lyrics[nextLyricQuoteIndexRef.current].text);
       nextLyricQuoteIndexRef.current += 1;
     }
-  }, []);
+  }, [resolveEffectiveTargetTimeSec]);
 
   const updateActiveMeasureForPhraseTime = useCallback((phraseTimeSec: number) => {
     if (phraseTimeSec < 0) {
@@ -930,14 +968,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     const nextMeasure = computeChordOsmdActiveMeasureNumber(
       phraseTimeSec,
-      stage.bpm,
+      resolveEffectivePracticeBpm(),
       stage.beats_per_measure,
       phraseLoopDurationSecRef.current,
       stage.loop_measures,
       targetsRef.current,
     );
     setActiveMeasureNumber(current => (current === nextMeasure ? current : nextMeasure));
-  }, [stage.beats_per_measure, stage.bpm, stage.loop_measures]);
+  }, [resolveEffectivePracticeBpm, stage.beats_per_measure, stage.loop_measures]);
 
   const handlePhraseTimelineTick = useCallback(() => {
     if (phraseEndingRef.current) {
@@ -1080,6 +1118,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         ? practiceTransposeOffsetRef.current
         : 0,
     );
+    player.setPlaybackSpeedPercent(
+      practiceModeRef.current ? practiceSpeedPercentRef.current : 100,
+    );
 
     void (async () => {
       const xmlText = await loadMusicXml(phrase, runId);
@@ -1169,8 +1210,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       const safeLoopDurationSec = Number.isFinite(loopDurationSec) && loopDurationSec > 0
         ? loopDurationSec
         : measureDurationSec * Math.max(1, stage.loop_measures);
-      phraseLoopDurationSecRef.current = safeLoopDurationSec;
-      phraseLoopEndSecRef.current = computeChordOsmdPhraseLoopEndSec(safeLoopDurationSec, phraseTargets);
+      phraseLoopDurationSecRef.current = practiceModeRef.current
+        ? scalePracticePhraseLoopEndSec(safeLoopDurationSec, practiceSpeedPercentRef.current)
+        : safeLoopDurationSec;
+      phraseLoopEndSecRef.current = scalePracticePhraseLoopEndSec(
+        computeChordOsmdPhraseLoopEndSec(safeLoopDurationSec, phraseTargets),
+        practiceModeRef.current ? practiceSpeedPercentRef.current : 100,
+      );
       const phraseLyrics = xmlText
         ? collectChordOsmdMusicXmlLyrics(xmlText, stage.bpm, stage.beats_per_measure)
         : [];
@@ -1178,7 +1224,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (tutorial) {
         tutorialDialogueHandleRef.current?.cancel();
         tutorialDialogueHandleRef.current = scheduleOsmdTimedLinesForLoop({
-          bpm: stage.bpm,
+          bpm: resolveEffectivePracticeBpm(),
           beatsPerMeasure: stage.beats_per_measure,
           countInBeats: stage.count_in_beats,
           loopMeasures: stage.loop_measures,
@@ -1236,7 +1282,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       player.schedulePreparedPhraseWithCountIn({
         prepared,
         countInBeats: beats,
-        bpm: stage.bpm,
+        bpm: resolveEffectivePracticeBpm(),
         beatGain: settings.masterVolume * settings.musicVolume,
         inputWindowLeadSec: CHORD_OSMD_JUDGMENT_WINDOW_SEC,
         onPhraseStarted,
@@ -1257,10 +1303,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     resetPhraseRuntime,
     settings.masterVolume,
     settings.musicVolume,
+    resolveEffectivePracticeBpm,
     stage.beats_per_measure,
-    stage.bpm,
     stage.count_in_beats,
     stage.loop_measures,
+    practiceSpeedPercent,
     stopPhraseAudio,
     syncSelfPacedMeasureAndHints,
     tutorial,
@@ -1335,20 +1382,29 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     startPhrase(0);
   }, [copy.noPhrases, ensureBattleAudioReady, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
 
-  const applyPracticeTransposeAndRestart = useCallback((offset: number) => {
-    const clamped = clampPracticeTransposeOffset(offset);
-    practiceTransposeOffsetRef.current = clamped;
-    setPracticeTransposeOffset(clamped);
+  const applyPracticePlaybackAndRestart = useCallback((params: {
+    speedPercent: number;
+    transposeOffset: number;
+  }) => {
+    const clampedSpeed = clampPracticeSpeedPercent(params.speedPercent);
+    practiceSpeedPercentRef.current = clampedSpeed;
+    setPracticeSpeedPercent(clampedSpeed);
+    const clampedOffset = practiceTransposeEnabled
+      ? clampPracticeTransposeOffset(params.transposeOffset)
+      : 0;
+    practiceTransposeOffsetRef.current = clampedOffset;
+    setPracticeTransposeOffset(clampedOffset);
     const player = ensurePhrasePlayer();
-    player.setPitchShiftSemitones(clamped);
+    player.setPitchShiftSemitones(clampedOffset);
+    player.setPlaybackSpeedPercent(clampedSpeed);
     stopPhraseAudio();
     clearScheduledTimers();
     if (baseMusicXmlText) {
-      setMusicXmlText(applyPracticeTransposeToMusicXml(baseMusicXmlText, clamped));
+      setMusicXmlText(applyPracticeTransposeToMusicXml(baseMusicXmlText, clampedOffset));
     }
     setIsSettingsOpen(false);
     startBattle();
-  }, [baseMusicXmlText, clearScheduledTimers, ensurePhrasePlayer, startBattle, stopPhraseAudio]);
+  }, [baseMusicXmlText, clearScheduledTimers, ensurePhrasePlayer, practiceTransposeEnabled, startBattle, stopPhraseAudio]);
 
   const originalKeyFifths = useMemo(
     () => (baseMusicXmlText ? readKeyFifthsFromMusicXml(baseMusicXmlText) : 0),
@@ -1368,18 +1424,25 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
             originalKeyFifths,
             originalKeyName,
             appliedOffset: practiceTransposeOffset,
-            onApplyTransposeAndRestart: applyPracticeTransposeAndRestart,
           }
         : undefined
     ),
     [
-      applyPracticeTransposeAndRestart,
       originalKeyFifths,
       originalKeyName,
       practiceMode,
       practiceTransposeEnabled,
       practiceTransposeOffset,
     ],
+  );
+
+  const practiceSpeedConfig = useMemo(
+    () => ({
+      practiceMode,
+      appliedSpeedPercent: practiceSpeedPercent,
+      onApplyAndRestart: applyPracticePlaybackAndRestart,
+    }),
+    [applyPracticePlaybackAndRestart, practiceMode, practiceSpeedPercent],
   );
 
   const completeTarget = useCallback((
@@ -1468,7 +1531,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         continue;
       }
-      const judged = target.targetTimeSec + CHORD_OSMD_JUDGMENT_OFFSET_SEC;
+      const judged = resolveEffectiveTargetTimeSec(target.targetTimeSec) + CHORD_OSMD_JUDGMENT_OFFSET_SEC;
       if (Math.abs(phraseT - judged) > w) {
         continue;
       }
@@ -1485,7 +1548,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
       return;
     }
-  }, [completeTarget, isTargetCompleted, isTargetIncomplete, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
+  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveEffectiveTargetTimeSec, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
@@ -1755,6 +1818,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         isMidiConnected={isMidiConnected}
         practiceRunMode={practiceRunModeConfig}
         practiceTranspose={practiceTransposeConfig}
+        practiceSpeed={practiceSpeedConfig}
       />
     </div>
   );

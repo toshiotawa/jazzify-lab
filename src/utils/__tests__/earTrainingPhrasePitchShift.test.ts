@@ -27,8 +27,19 @@ vi.mock('@soundtouchjs/core', () => ({
   SoundTouch: SoundTouchMock,
 }));
 
+const processOfflineMock = vi.fn(async ({ input }: { input: AudioBuffer }) => input);
+
+vi.mock('@soundtouchjs/audio-worklet', () => ({
+  processOffline: (...args: unknown[]) => processOfflineMock(...args),
+}));
+
+vi.mock('@soundtouchjs/audio-worklet/processor?url', () => ({
+  default: '/mock-soundtouch-processor.js',
+}));
+
 import {
   buildPhrasePrepareCacheKey,
+  processOfflinePhraseBuffer,
   shiftPhraseBufferPitch,
 } from '@/utils/earTrainingPhrasePitchShift';
 
@@ -64,16 +75,30 @@ const createMockAudioContext = (sampleRate: number): BaseAudioContext => ({
 } as unknown as BaseAudioContext);
 
 describe('earTrainingPhrasePitchShift', () => {
-  it('buildPhrasePrepareCacheKey は url と semitones を結合する', () => {
+  it('buildPhrasePrepareCacheKey は url・semitones・speedPercent を結合する', () => {
     expect(buildPhrasePrepareCacheKey('https://example.com/a.mp3', 2)).toBe(
-      `https://example.com/a.mp3${'\0'}2`,
+      `https://example.com/a.mp3${'\0'}2${'\0'}100`,
     );
-    expect(buildPhrasePrepareCacheKey('https://example.com/a.mp3', 12)).toBe(
-      `https://example.com/a.mp3${'\0'}12`,
+    expect(buildPhrasePrepareCacheKey('https://example.com/a.mp3', 12, 50)).toBe(
+      `https://example.com/a.mp3${'\0'}12${'\0'}50`,
     );
   });
 
-  it('semitones=0 のとき入力バッファをそのまま返す', async () => {
+  it('processOfflinePhraseBuffer: 100%・0半音なら入力をそのまま返す', async () => {
+    const source = createMonoBuffer([0, 0.5, -0.5, 0.25]);
+    const result = await processOfflinePhraseBuffer(source, { semitones: 0, speedPercent: 100 });
+    expect(result).toBe(source);
+    expect(processOfflineMock).not.toHaveBeenCalled();
+  });
+
+  it('processOfflinePhraseBuffer: 速度変更時 processOffline を呼ぶ', async () => {
+    processOfflineMock.mockClear();
+    const source = createMonoBuffer([0, 0.25, 0.5]);
+    await processOfflinePhraseBuffer(source, { speedPercent: 50 });
+    expect(processOfflineMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('semitones=0 のとき shiftPhraseBufferPitch は入力バッファをそのまま返す', async () => {
     const source = createMonoBuffer([0, 0.5, -0.5, 0.25]);
     const result = await shiftPhraseBufferPitch(source, 0);
     expect(result).toBe(source);

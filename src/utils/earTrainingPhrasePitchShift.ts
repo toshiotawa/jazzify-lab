@@ -1,4 +1,10 @@
+import { processOffline } from '@soundtouchjs/audio-worklet';
+import soundtouchProcessorUrl from '@soundtouchjs/audio-worklet/processor?url';
 import { SoundTouch } from '@soundtouchjs/core';
+import {
+  clampPracticeSpeedPercent,
+  practiceSpeedRatio,
+} from '@/utils/earTrainingPracticeSpeed';
 
 const clampSemitones = (semitones: number): number =>
   Math.max(-12, Math.min(12, Math.trunc(semitones)));
@@ -134,5 +140,35 @@ export const shiftPhraseBufferPitch = async (
   return writeInterleavedToAudioBuffer(ctx, source, processed);
 };
 
-export const buildPhrasePrepareCacheKey = (url: string, semitones: number): string =>
-  `${url}\0${clampSemitones(semitones)}`;
+export interface ProcessOfflinePhraseBufferOptions {
+  semitones?: number;
+  speedPercent?: number;
+}
+
+/** 練習移調・速度変更用。SoundTouch オフラインでピッチ保持のまま処理した AudioBuffer を返す。 */
+export const processOfflinePhraseBuffer = async (
+  source: AudioBuffer,
+  options: ProcessOfflinePhraseBufferOptions = {},
+): Promise<AudioBuffer> => {
+  const semitones = clampSemitones(options.semitones ?? 0);
+  const speedPercent = clampPracticeSpeedPercent(options.speedPercent ?? 100);
+  const playbackRate = practiceSpeedRatio(speedPercent);
+
+  if (semitones === 0 && speedPercent === 100) {
+    return source;
+  }
+
+  return processOffline({
+    input: source,
+    processorUrl: soundtouchProcessorUrl,
+    pitchSemitones: semitones,
+    playbackRate,
+  });
+};
+
+export const buildPhrasePrepareCacheKey = (
+  url: string,
+  semitones: number,
+  speedPercent = 100,
+): string =>
+  `${url}\0${clampSemitones(semitones)}\0${clampPracticeSpeedPercent(speedPercent)}`;

@@ -55,6 +55,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
     @Published var practiceMode: Bool
     @Published var practiceTransposeOffset: Int = 0
+    @Published var practiceSpeedPercent: Int = 100
     @Published private(set) var practiceOriginalKeyFifths: Int = 0
     @Published private(set) var practiceOriginalKeyName: String = "—"
     /// チュートリアル時は敵攻撃・ミス/Fail ダメージを無効化する。
@@ -171,15 +172,21 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if !value {
             voicingHintIntensities = [:]
             practiceTransposeOffset = 0
+            practiceSpeedPercent = 100
             audio.phrasePitchSemitones = 0
+            audio.phrasePlaybackSpeedPercent = 100
         }
         startBattle()
     }
 
-    func applyPracticeTransposeAndRestart(_ offset: Int) {
-        guard stage.resolvedPracticeTranspose, practiceMode else { return }
-        practiceTransposeOffset = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(offset)
-        audio.phrasePitchSemitones = Float(practiceTransposeOffset)
+    func applyPracticePlaybackAndRestart(offset: Int, speedPercent: Int) {
+        guard practiceMode else { return }
+        practiceSpeedPercent = EarTrainingPracticeSpeed.clampPracticeSpeedPercent(speedPercent)
+        if stage.resolvedPracticeTranspose {
+            practiceTransposeOffset = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(offset)
+        }
+        audio.phrasePitchSemitones = Float(effectivePracticeTransposeOffset())
+        audio.phrasePlaybackSpeedPercent = Float(practiceSpeedPercent)
         isSettingsOpen = false
         startBattle()
     }
@@ -187,6 +194,24 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func effectivePracticeTransposeOffset() -> Int {
         guard stage.resolvedPracticeTranspose, practiceMode else { return 0 }
         return practiceTransposeOffset
+    }
+
+    private func effectivePracticeSpeedPercent() -> Int {
+        practiceMode ? practiceSpeedPercent : EarTrainingPracticeSpeed.practiceSpeedMaxPercent
+    }
+
+    private func resolveEffectiveTargetTimeSec(_ targetTimeSec: Double) -> Double {
+        EarTrainingPracticeSpeed.scalePracticeTargetTimeSec(
+            targetTimeSec,
+            speedPercent: effectivePracticeSpeedPercent()
+        )
+    }
+
+    private func resolveEffectivePracticeBpm() -> Int {
+        EarTrainingPracticeSpeed.effectivePracticeBpm(
+            stage.bpm,
+            speedPercent: effectivePracticeSpeedPercent()
+        )
     }
 
     func attachScene(_ scene: EarTrainingBattleSceneHandle) {
@@ -306,7 +331,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if !value {
             voicingHintIntensities = [:]
             practiceTransposeOffset = 0
+            practiceSpeedPercent = 100
             audio.phrasePitchSemitones = 0
+            audio.phrasePlaybackSpeedPercent = 100
         }
         publishSnapshot()
     }
@@ -326,7 +353,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var matchedIndex: Int?
         for index in targets.indices {
             guard targets[index].completed == false, targets[index].failed == false else { continue }
-            let judged = targets[index].targetTimeSec + Self.judgmentOffsetSec
+            let judged = resolveEffectiveTargetTimeSec(targets[index].targetTimeSec) + Self.judgmentOffsetSec
             let delta = phraseTime - judged
             guard delta >= -Self.judgmentWindowSec, delta <= Self.judgmentWindowSec else { continue }
             if targets[index].consume(midi: midi) {
@@ -339,7 +366,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         if targets[matchedIndex].isComplete {
-            let timingOffsetSec = abs(phraseTime - (targets[matchedIndex].targetTimeSec + Self.judgmentOffsetSec))
+            let timingOffsetSec = abs(phraseTime - (resolveEffectiveTargetTimeSec(targets[matchedIndex].targetTimeSec) + Self.judgmentOffsetSec))
             completeTarget(at: matchedIndex, timingOffsetSec: timingOffsetSec)
         }
         refreshPracticeVoicingHints()
@@ -358,9 +385,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func phraseTutorialLoopDurationSec(_ phrase: EarTrainingPhraseDetail) -> Double {
         let dur = phrase.loopDurationSec
         if dur.isFinite && dur > 0 {
-            return dur
+            return EarTrainingPracticeSpeed.scalePracticePhraseLoopEndSec(
+                dur,
+                speedPercent: effectivePracticeSpeedPercent()
+            )
         }
-        let beatDuration = 60.0 / Double(max(1, stage.bpm))
+        let beatDuration = 60.0 / Double(max(1, resolveEffectivePracticeBpm()))
         return beatDuration * Double(max(1, stage.loopMeasures))
     }
 
@@ -376,7 +406,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func computeOsmdTimedLineDelayMs(loopIndex: Int, line: EarTrainingTutorialOsmdTimedLine) -> Double? {
-        let bpm = max(1, stage.bpm)
+        let bpm = max(1, practiceMode ? resolveEffectivePracticeBpm() : stage.bpm)
         let beatDurationSec = 60.0 / Double(bpm)
         let measureDurationSec = beatDurationSec * Double(max(1, stage.beatsPerMeasure))
         let countInBeats = sanitizedCountInBeats
@@ -530,6 +560,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         audio.phrasePitchSemitones = Float(effectivePracticeTransposeOffset())
+        audio.phrasePlaybackSpeedPercent = Float(effectivePracticeSpeedPercent())
 
         scoreTimelineArmed = true
         activeMeasureNumber = initialMeasureNumber
@@ -556,7 +587,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if let meta = audio.schedulePreparedPhraseWithCountIn(
             url: audioURL,
             countInBeats: sanitizedCountInBeats,
-            bpm: stage.bpm,
+            bpm: resolveEffectivePracticeBpm(),
             onPhraseStarted: onStarted
         ) {
             countdownTask = Task { @MainActor [weak self] in
@@ -773,8 +804,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         guard gameState == .playingPhrase else { return }
         let phrase = phrases[phraseIndex]
-        let lastTargetEnd = (targets.last?.targetTimeSec ?? 0) + Self.judgmentWindowSec + Self.hammerImpactOffsetSec
-        let safeLoopEnd = max(phrase.loopDurationSec, lastTargetEnd) + Self.phraseEndPaddingSec
+        let lastTargetEnd = resolveEffectiveTargetTimeSec(targets.last?.targetTimeSec ?? 0)
+            + Self.judgmentWindowSec + Self.hammerImpactOffsetSec
+        let scaledLoopDuration = EarTrainingPracticeSpeed.scalePracticePhraseLoopEndSec(
+            phrase.loopDurationSec,
+            speedPercent: effectivePracticeSpeedPercent()
+        )
+        let safeLoopEnd = max(scaledLoopDuration, lastTargetEnd) + Self.phraseEndPaddingSec
         if phraseTime >= safeLoopEnd {
             finishCurrentPhraseIfNeeded()
         }
@@ -783,7 +819,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func applyMusicXmlLyricQuotesIfNeeded(phraseTime: Double) {
         guard !phraseLyricEvents.isEmpty else { return }
         while nextLyricQuoteIndex < phraseLyricEvents.count,
-              phraseTime + 1e-9 >= phraseLyricEvents[nextLyricQuoteIndex].targetTimeSec
+              phraseTime + 1e-9 >= resolveEffectiveTargetTimeSec(phraseLyricEvents[nextLyricQuoteIndex].targetTimeSec)
         {
             scene?.setPlayerQuote(phraseLyricEvents[nextLyricQuoteIndex].text)
             nextLyricQuoteIndex += 1
@@ -815,7 +851,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             if target.completed || target.failed {
                 continue
             }
-            let dt = abs(phraseTime - target.targetTimeSec)
+            let dt = abs(phraseTime - resolveEffectiveTargetTimeSec(target.targetTimeSec))
             if dt > w {
                 continue
             }
@@ -855,7 +891,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func updateActiveMeasure(for time: Double) {
-        let beatDuration = 60.0 / Double(max(1, stage.bpm))
+        let beatDuration = 60.0 / Double(max(1, resolveEffectivePracticeBpm()))
         let measureDuration = beatDuration * Double(max(1, stage.beatsPerMeasure))
         guard measureDuration > 0 else { return }
         let rawMeasure = Int(floor(time / measureDuration)) + 1
@@ -880,7 +916,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func openJudgmentWindows(at time: Double) {
         while nextActiveTargetIndex < targets.count {
             let target = targets[nextActiveTargetIndex]
-            guard time >= target.targetTimeSec + Self.judgmentOffsetSec - Self.judgmentWindowSec else { break }
+            guard time >= resolveEffectiveTargetTimeSec(target.targetTimeSec) + Self.judgmentOffsetSec - Self.judgmentWindowSec else { break }
             activeTargetIndices.append(nextActiveTargetIndex)
             nextActiveTargetIndex += 1
         }
@@ -890,9 +926,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func throwDueHammers(at time: Double) {
         while nextHammerTargetIndex < targets.count {
             let target = targets[nextHammerTargetIndex]
-            let throwTime = target.targetTimeSec - Self.hammerLeadSec
+            let throwTime = resolveEffectiveTargetTimeSec(target.targetTimeSec) - Self.hammerLeadSec
             guard time >= throwTime else { break }
-            let impactTime = target.targetTimeSec + Self.hammerImpactOffsetSec
+            let impactTime = resolveEffectiveTargetTimeSec(target.targetTimeSec) + Self.hammerImpactOffsetSec
             let travel = max(0.12, impactTime - time)
             let effectId = triggerBattleEffect(
                 kind: .osmdHammer,
@@ -914,7 +950,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var changed = false
         while nextMissTargetIndex < targets.count {
             let target = targets[nextMissTargetIndex]
-            guard time > target.targetTimeSec + Self.judgmentOffsetSec + Self.judgmentWindowSec else { break }
+            guard time > resolveEffectiveTargetTimeSec(target.targetTimeSec) + Self.judgmentOffsetSec + Self.judgmentWindowSec else { break }
             if targets[nextMissTargetIndex].completed == false, targets[nextMissTargetIndex].failed == false {
                 targets[nextMissTargetIndex].failed = true
                 changed = true
@@ -1110,7 +1146,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             if target.completed || target.failed {
                 continue
             }
-            if let currentTime, currentTime > target.targetTimeSec + Self.judgmentOffsetSec + Self.judgmentWindowSec {
+            if let currentTime, currentTime > resolveEffectiveTargetTimeSec(target.targetTimeSec) + Self.judgmentOffsetSec + Self.judgmentWindowSec {
                 continue
             }
             activeTargetIndices[writeIndex] = index

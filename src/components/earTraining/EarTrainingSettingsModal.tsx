@@ -9,6 +9,12 @@ import {
   PRACTICE_TRANSPOSE_MAX,
   PRACTICE_TRANSPOSE_MIN,
 } from '@/utils/earTrainingPracticeTranspose';
+import {
+  clampPracticeSpeedPercent,
+  formatPracticeSpeedPercentLabel,
+  PRACTICE_SPEED_MAX_PERCENT,
+  PRACTICE_SPEED_MIN_PERCENT,
+} from '@/utils/earTrainingPracticeSpeed';
 
 interface EarTrainingSettingsModalProps {
   isOpen: boolean;
@@ -27,7 +33,11 @@ interface EarTrainingSettingsModalProps {
     originalKeyFifths: number;
     originalKeyName: string;
     appliedOffset: number;
-    onApplyTransposeAndRestart: (offset: number) => void;
+  };
+  practiceSpeed?: {
+    practiceMode: boolean;
+    appliedSpeedPercent: number;
+    onApplyAndRestart: (params: { speedPercent: number; transposeOffset: number }) => void;
   };
 }
 
@@ -62,11 +72,13 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   isMidiConnected,
   practiceRunMode,
   practiceTranspose,
+  practiceSpeed,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const ui = useMemo(() => getEarTrainingSettingsModalCopy(isEnglishCopy), [isEnglishCopy]);
   const [practiceDraft, setPracticeDraft] = useState(practiceRunMode?.practiceMode ?? false);
   const [transposeDraft, setTransposeDraft] = useState(practiceTranspose?.appliedOffset ?? 0);
+  const [speedDraft, setSpeedDraft] = useState(practiceSpeed?.appliedSpeedPercent ?? 100);
 
   useEffect(() => {
     if (isOpen && practiceRunMode) {
@@ -80,12 +92,19 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
     }
   }, [isOpen, practiceTranspose?.appliedOffset]);
 
-  const transposeControlsActive = Boolean(
-    practiceTranspose?.enabled && practiceTranspose.practiceMode,
-  );
+  useEffect(() => {
+    if (isOpen && practiceSpeed) {
+      setSpeedDraft(practiceSpeed.appliedSpeedPercent);
+    }
+  }, [isOpen, practiceSpeed?.appliedSpeedPercent]);
+
+  const playbackControlsActive = Boolean(practiceSpeed?.practiceMode);
   const transposeTargetKeyName = practiceTranspose
     ? getPracticeTransposeTargetKeyName(practiceTranspose.originalKeyFifths, transposeDraft)
     : '—';
+  const playbackSectionTitle = practiceTranspose?.enabled
+    ? (isEnglishCopy ? 'Transpose & Speed' : '移調 & 速度変更')
+    : (isEnglishCopy ? 'Speed' : '速度変更');
 
   if (!isOpen) {
     return null;
@@ -159,22 +178,19 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
                   ? 'Practice mode does not save lesson progress.'
                   : '練習モードではレッスン進捗は保存されません。'}
               </p>
-              {practiceTranspose?.enabled ? (
+              {practiceSpeed ? (
+                <p className="mt-2 text-xs text-cyan-200/80">
+                  {isEnglishCopy
+                    ? 'In practice mode, you can change playback speed (and transpose when enabled for the task). Not available in performance mode.'
+                    : '練習モードでは再生速度を変更できます（移調を有効にした課題ではキーも変更可能。本番では利用できません）。'}
+                </p>
+              ) : practiceTranspose?.enabled ? (
                 <p className="mt-2 text-xs text-cyan-200/80">
                   {isEnglishCopy
                     ? 'In practice mode, you can transpose this stage when transposition is enabled for the task (not available in performance mode).'
                     : '練習モードでは、移調を有効にした課題でキーを変更できます（本番では利用できません）。'}
                 </p>
               ) : null}
-            </section>
-          ) : null}
-          {!practiceRunMode && practiceTranspose?.enabled ? (
-            <section className="rounded-xl border border-cyan-600/40 bg-cyan-950/30 p-4">
-              <p className="text-xs text-cyan-200/80">
-                {isEnglishCopy
-                  ? 'In practice mode, you can transpose this stage when transposition is enabled for the task (not available in performance mode).'
-                  : '練習モードでは、移調を有効にした課題でキーを変更できます（本番では利用できません）。'}
-              </p>
             </section>
           ) : null}
 
@@ -214,61 +230,93 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
             />
           </section>
 
-          {practiceTranspose?.enabled ? (
+          {practiceSpeed ? (
             <section className="rounded-xl border border-violet-600/40 bg-violet-950/30 p-4">
               <h3 className="mb-2 text-sm font-semibold text-violet-100">
-                {isEnglishCopy ? 'Transpose' : '移調'}
+                {playbackSectionTitle}
               </h3>
-              <p className="mb-3 text-xs text-slate-300">
-                {isEnglishCopy
-                  ? `Original key: ${practiceTranspose.originalKeyName} (0)`
-                  : `原調: ${practiceTranspose.originalKeyName} (0)`}
-              </p>
               <label className="block">
                 <div className="mb-1 flex items-center justify-between text-sm text-slate-200">
-                  <span>{isEnglishCopy ? 'Semitones' : '半音'}</span>
-                  <span>
-                    {transposeDraft === 0
-                      ? practiceTranspose.originalKeyName
-                      : `${transposeTargetKeyName} (${formatPracticeTransposeOffsetLabel(transposeDraft)})`}
-                  </span>
+                  <span>{isEnglishCopy ? 'Speed' : '速度'}</span>
+                  <span>{formatPracticeSpeedPercentLabel(speedDraft)}</span>
                 </div>
                 <input
                   type="range"
-                  min={PRACTICE_TRANSPOSE_MIN}
-                  max={PRACTICE_TRANSPOSE_MAX}
+                  min={PRACTICE_SPEED_MIN_PERCENT}
+                  max={PRACTICE_SPEED_MAX_PERCENT}
                   step={1}
-                  value={transposeDraft}
-                  disabled={!transposeControlsActive}
-                  onChange={event => setTransposeDraft(
-                    clampPracticeTransposeOffset(Number(event.target.value)),
+                  value={speedDraft}
+                  disabled={!playbackControlsActive}
+                  onChange={event => setSpeedDraft(
+                    clampPracticeSpeedPercent(Number(event.target.value)),
                   )}
                   className="range range-secondary range-sm disabled:opacity-40"
                 />
               </label>
-              {!transposeControlsActive ? (
+              {practiceTranspose?.enabled ? (
+                <>
+                  <p className="mb-3 mt-3 text-xs text-slate-300">
+                    {isEnglishCopy
+                      ? `Original key: ${practiceTranspose.originalKeyName} (0)`
+                      : `原調: ${practiceTranspose.originalKeyName} (0)`}
+                  </p>
+                  <label className="block">
+                    <div className="mb-1 flex items-center justify-between text-sm text-slate-200">
+                      <span>{isEnglishCopy ? 'Semitones' : '半音'}</span>
+                      <span>
+                        {transposeDraft === 0
+                          ? practiceTranspose.originalKeyName
+                          : `${transposeTargetKeyName} (${formatPracticeTransposeOffsetLabel(transposeDraft)})`}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={PRACTICE_TRANSPOSE_MIN}
+                      max={PRACTICE_TRANSPOSE_MAX}
+                      step={1}
+                      value={transposeDraft}
+                      disabled={!playbackControlsActive}
+                      onChange={event => setTransposeDraft(
+                        clampPracticeTransposeOffset(Number(event.target.value)),
+                      )}
+                      className="range range-secondary range-sm disabled:opacity-40"
+                    />
+                  </label>
+                </>
+              ) : null}
+              {!playbackControlsActive ? (
                 <p className="mt-2 text-xs text-slate-400">
                   {isEnglishCopy
-                    ? 'Switch to practice mode to change the key.'
-                    : 'キーを変更するには練習モードに切り替えてください。'}
+                    ? 'Switch to practice mode to change playback settings.'
+                    : '再生設定を変更するには練習モードに切り替えてください。'}
                 </p>
               ) : null}
               <button
                 type="button"
                 className="btn btn-secondary btn-sm mt-3 w-full font-sans disabled:opacity-40"
-                disabled={!transposeControlsActive}
+                disabled={!playbackControlsActive}
                 onClick={() => {
-                  const nextOffset = clampPracticeTransposeOffset(transposeDraft);
-                  practiceTranspose.onApplyTransposeAndRestart(nextOffset);
+                  practiceSpeed.onApplyAndRestart({
+                    speedPercent: clampPracticeSpeedPercent(speedDraft),
+                    transposeOffset: clampPracticeTransposeOffset(transposeDraft),
+                  });
                   onClose();
                 }}
               >
-                {isEnglishCopy ? 'Transpose and restart' : '移調'}
+                {isEnglishCopy ? 'Apply and restart' : '適用して最初から'}
               </button>
               <p className="mt-2 text-xs text-slate-400">
                 {isEnglishCopy
-                  ? 'Applies to sheet music and phrase audio, then restarts from the beginning.'
-                  : '楽譜とフレーズ音源の両方に反映し、最初から再読み込みします。'}
+                  ? 'Applies to phrase audio and sheet music (when transposed), then restarts from the beginning.'
+                  : 'フレーズ音源と楽譜（移調時）に反映し、最初から再読み込みします。'}
+              </p>
+            </section>
+          ) : practiceTranspose?.enabled ? (
+            <section className="rounded-xl border border-violet-600/40 bg-violet-950/30 p-4">
+              <p className="text-xs text-cyan-200/80">
+                {isEnglishCopy
+                  ? 'In practice mode, you can transpose this stage when transposition is enabled for the task (not available in performance mode).'
+                  : '練習モードでは、移調を有効にした課題でキーを変更できます（本番では利用できません）。'}
               </p>
             </section>
           ) : null}

@@ -58,7 +58,19 @@ final class EarTrainingAudio: NSObject {
 
     /// フレーズ MP3 のピッチシフト（半音）。`AVAudioUnitTimePitch` に反映する。
     var phrasePitchSemitones: Float = 0 {
-        didSet { applyPhrasePitchSemitones() }
+        didSet { applyPhraseTimeStretch() }
+    }
+
+    /// 練習モードの再生速度（40...100%）。`AVAudioUnitTimePitch.rate` に反映する。
+    var phrasePlaybackSpeedPercent: Float = 100 {
+        didSet {
+            let clamped = Float(EarTrainingPracticeSpeed.clampPracticeSpeedPercent(Int(phrasePlaybackSpeedPercent)))
+            if clamped != phrasePlaybackSpeedPercent {
+                phrasePlaybackSpeedPercent = clamped
+                return
+            }
+            applyPhraseTimeStretch()
+        }
     }
 
     private let cache = RemoteAudioFileCache(subdirectory: "EarTrainingPhraseAudio")
@@ -553,12 +565,24 @@ final class EarTrainingAudio: NSObject {
         masterMixer.outputVolume = Self.masterHeadroomGain
 
         isGraphInstalled = true
-        applyPhrasePitchSemitones()
+        applyPhraseTimeStretch()
     }
 
-    private func applyPhrasePitchSemitones() {
-        phraseTimePitch.pitch = phrasePitchSemitones * 100
-        phraseTimePitch.rate = 1.0
+    private var phrasePlaybackSpeedRatio: Float {
+        Float(EarTrainingPracticeSpeed.practiceSpeedRatio(Int(phrasePlaybackSpeedPercent)))
+    }
+
+    /// OSMD アンカー wall-clock 秒を、速度変更後のフレーズ軸秒へ変換する。
+    private func adjustWallClockPhraseTimelineSec(_ wallSec: Double) -> Double {
+        max(0, wallSec * Double(phrasePlaybackSpeedRatio))
+    }
+
+    private func applyPhraseTimeStretch() {
+        let rate = phrasePlaybackSpeedPercent / 100.0
+        phraseTimePitch.rate = rate
+        let transposeCents = phrasePitchSemitones * 100
+        let compensation = EarTrainingPracticeSpeed.ratePitchCompensationCents(forRate: rate)
+        phraseTimePitch.pitch = transposeCents + compensation
     }
 
     private func configurePeakLimiter(_ limiter: AVAudioUnitEffect) {
@@ -919,7 +943,7 @@ final class EarTrainingAudio: NSObject {
             }
             let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
             guard sec.isFinite else { return }
-            currentTimeSec = max(0, sec)
+            currentTimeSec = adjustWallClockPhraseTimelineSec(sec)
             onTimeUpdate?(currentTimeSec)
             return
         }
@@ -955,7 +979,7 @@ final class EarTrainingAudio: NSObject {
             }
             let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
             guard sec.isFinite else { return currentTimeSec }
-            return max(0, sec)
+            return adjustWallClockPhraseTimelineSec(sec)
         }
         guard let nodeTime = phrasePlayer.lastRenderTime,
               let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)
@@ -988,7 +1012,7 @@ final class EarTrainingAudio: NSObject {
             }
             let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
             guard sec.isFinite else { return nil }
-            return max(0, sec)
+            return adjustWallClockPhraseTimelineSec(sec)
         }
         guard let nodeTime = phrasePlayer.lastRenderTime,
               let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)

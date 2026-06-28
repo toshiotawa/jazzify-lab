@@ -244,12 +244,16 @@ private struct EarTrainingChordOSMDContent: View {
                         practiceMode: controller.practiceMode,
                         originalKeyFifths: controller.practiceOriginalKeyFifths,
                         originalKeyName: controller.practiceOriginalKeyName,
-                        appliedOffset: controller.practiceTransposeOffset,
-                        onApplyTransposeAndRestart: { offset in
-                            controller.applyPracticeTransposeAndRestart(offset)
-                        }
+                        appliedOffset: controller.practiceTransposeOffset
                     )
                     : nil,
+                practiceSpeed: EarTrainingPracticeSpeedConfig(
+                    practiceMode: controller.practiceMode,
+                    appliedSpeedPercent: controller.practiceSpeedPercent,
+                    onApplyAndRestart: { offset, speedPercent in
+                        controller.applyPracticePlaybackAndRestart(offset: offset, speedPercent: speedPercent)
+                    }
+                ),
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
             )

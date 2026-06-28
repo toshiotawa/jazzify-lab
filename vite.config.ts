@@ -110,7 +110,8 @@ export default defineConfig(({ mode }) => {
         'tonal',
         'tone',
         '@breezystack/lamejs',
-        '@soundtouchjs/core'
+        '@soundtouchjs/core',
+        '@soundtouchjs/audio-worklet'
       ],
       exclude: ['@/wasm'],
       esbuildOptions: {

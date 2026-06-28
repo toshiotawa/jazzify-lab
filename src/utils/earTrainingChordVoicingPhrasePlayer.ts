@@ -6,8 +6,9 @@
 import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 import {
   buildPhrasePrepareCacheKey,
-  shiftPhraseBufferPitch,
+  processOfflinePhraseBuffer,
 } from '@/utils/earTrainingPhrasePitchShift';
+import { clampPracticeSpeedPercent } from '@/utils/earTrainingPracticeSpeed';
 
 const clampCountInBeats = (beats: number): number => Math.max(0, Math.min(32, Math.trunc(beats)));
 
@@ -100,6 +101,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
   private phraseEnded = false;
   private activePhraseSource: AudioBufferSourceNode | null = null;
   private pitchShiftSemitones = 0;
+  private playbackSpeedPercent = 100;
   private pendingTimeouts: number[] = [];
 
   constructor(options: EarTrainingChordVoicingPhrasePlayerOptions = {}) {
@@ -134,6 +136,10 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
   setPitchShiftSemitones(semitones: number): void {
     this.pitchShiftSemitones = Math.max(-12, Math.min(12, Math.trunc(semitones)));
+  }
+
+  setPlaybackSpeedPercent(percent: number): void {
+    this.playbackSpeedPercent = clampPracticeSpeedPercent(percent);
   }
 
   /** @deprecated オフライン移調のため no-op。API 互換のため残す。 */
@@ -180,16 +186,14 @@ export class EarTrainingChordVoicingPhrasePlayer {
   async prepare(url: string): Promise<PreparedChordVoicingPhrase> {
     const ctx = this.createCtx();
     const semitones = this.pitchShiftSemitones;
-    const cacheKey = buildPhrasePrepareCacheKey(url, semitones);
+    const speedPercent = this.playbackSpeedPercent;
+    const cacheKey = buildPhrasePrepareCacheKey(url, semitones, speedPercent);
 
     let promise = this.preparedByCacheKey.get(cacheKey);
     if (!promise) {
       promise = (async () => {
         const raw = await this.decodeRawBuffer(ctx, url);
-        if (semitones === 0) {
-          return raw;
-        }
-        return shiftPhraseBufferPitch(raw, semitones, ctx);
+        return processOfflinePhraseBuffer(raw, { semitones, speedPercent });
       })();
       this.preparedByCacheKey.set(cacheKey, promise);
     }
