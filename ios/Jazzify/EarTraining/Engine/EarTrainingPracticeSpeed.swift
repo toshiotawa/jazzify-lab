@@ -18,6 +18,12 @@ enum EarTrainingPracticeSpeed {
         return targetTimeSec / ratio
     }
 
+    static func scalePracticeTimingWindowSec(_ windowSec: Double, speedPercent: Int) -> Double {
+        let ratio = practiceSpeedRatio(speedPercent)
+        guard ratio < 1 else { return windowSec }
+        return windowSec / ratio
+    }
+
     static func effectivePracticeBpm(_ bpm: Int, speedPercent: Int) -> Int {
         max(1, Int((Double(bpm) * practiceSpeedRatio(speedPercent)).rounded()))
     }

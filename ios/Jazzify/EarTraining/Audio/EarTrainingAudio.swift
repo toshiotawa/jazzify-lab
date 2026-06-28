@@ -1024,6 +1024,39 @@ final class EarTrainingAudio: NSObject {
         return max(0, sec)
     }
 
+    /// OSMD バトル用。WEB `getPhraseTimelineSec()` と同じ wall-clock 秒（スケール済みターゲット時刻と整合）。
+    func phraseWallClockTimelineSecNowOrNil() -> Double? {
+        if isDrumLoopActive, drumLoopAnchorHostTime != 0, !phrasePlayer.isPlaying {
+            let sec = Self.secondsFromMachHostDifference(from: drumLoopAnchorHostTime, to: mach_absolute_time())
+            return sec.isFinite ? max(0, sec) : nil
+        }
+        guard phrasePlayer.isPlaying else {
+            return nil
+        }
+        let anchor = phrasePlaybackAnchorHostTime
+        if anchor != 0 {
+            let now = mach_absolute_time()
+            if now < anchor {
+                if emitNegativePhraseTimelineBeforeAnchor {
+                    let sec = -Self.secondsFromMachHostDifference(from: now, to: anchor)
+                    return sec.isFinite ? sec : nil
+                }
+                return 0
+            }
+            let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
+            guard sec.isFinite else { return nil }
+            return sec
+        }
+        guard let nodeTime = phrasePlayer.lastRenderTime,
+              let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)
+        else {
+            return nil
+        }
+        let sec = Double(playerTime.sampleTime) / playerTime.sampleRate
+        guard sec.isFinite else { return nil }
+        return max(0, sec)
+    }
+
     private static func secondsFromMachHostDifference(from start: UInt64, to end: UInt64) -> Double {
         let delta = end &- start
         let info = machTimebaseInfo

@@ -8,6 +8,7 @@ import {
   PRACTICE_SPEED_MIN_PERCENT,
   scalePracticePhraseLoopEndSec,
   scalePracticeTargetTimeSec,
+  scalePracticeTimingWindowSec,
 } from '@/utils/earTrainingPracticeSpeed';
 
 describe('earTrainingPracticeSpeed', () => {
@@ -41,6 +42,19 @@ describe('earTrainingPracticeSpeed', () => {
   it('scalePracticePhraseLoopEndSec: 50% なら 2 倍', () => {
     expect(scalePracticePhraseLoopEndSec(60, 50)).toBe(120);
     expect(scalePracticePhraseLoopEndSec(60, 100)).toBe(60);
+  });
+
+  it('scalePracticeTimingWindowSec: 100% ならそのまま', () => {
+    expect(scalePracticeTimingWindowSec(0.25, 100)).toBe(0.25);
+  });
+
+  it('scalePracticeTimingWindowSec: 50% なら 2 倍', () => {
+    expect(scalePracticeTimingWindowSec(0.25, 50)).toBe(0.5);
+    expect(scalePracticeTimingWindowSec(0.1, 50)).toBe(0.2);
+  });
+
+  it('scalePracticeTimingWindowSec: 40% なら 2.5 倍', () => {
+    expect(scalePracticeTimingWindowSec(0.25, 40)).toBe(0.625);
   });
 
   it('formatPracticeSpeedPercentLabel', () => {

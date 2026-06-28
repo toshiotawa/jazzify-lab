@@ -29,6 +29,18 @@ export const scalePracticeTargetTimeSec = (
 export const effectivePracticeBpm = (bpm: number, speedPercent: number): number =>
   bpm * practiceSpeedRatio(speedPercent);
 
+/** 練習速度を反映した判定窓・ヒント段階などのタイミング幅（秒） */
+export const scalePracticeTimingWindowSec = (
+  windowSec: number,
+  speedPercent: number,
+): number => {
+  const ratio = practiceSpeedRatio(speedPercent);
+  if (ratio >= 1) {
+    return windowSec;
+  }
+  return windowSec / ratio;
+};
+
 /** フレーズループ終了秒を練習速度に合わせてスケール */
 export const scalePracticePhraseLoopEndSec = (
   loopEndSec: number,
