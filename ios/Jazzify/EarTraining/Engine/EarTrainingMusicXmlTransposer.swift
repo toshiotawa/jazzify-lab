@@ -570,7 +570,8 @@ private enum EarTrainingMusicXmlPitchMath {
     }
 
     private static func noteNameToCoord(_ name: String) -> [Int]? {
-        guard let p = parseNote(name, requireOctave: true), let oct = p.oct else { return nil }
+        guard let p = parseNote(name, requireOctave: false) else { return nil }
+        let oct = p.oct ?? 4
         let f = fifthsSteps[p.step] + 7 * p.alt
         let o = oct - stepsToOctOffset[p.step] - 4 * p.alt
         return [f, o]
