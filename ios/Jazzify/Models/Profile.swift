@@ -10,12 +10,14 @@ struct Profile: Codable, Identifiable, Sendable {
     var level: Int
     var preferredLocale: String?
     var country: String?
+    var signupPlatform: String?
     var isAdmin: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, email, nickname, rank, xp, level, country
         case avatarUrl = "avatar_url"
         case preferredLocale = "preferred_locale"
+        case signupPlatform = "signup_platform"
         case isAdmin = "is_admin"
     }
 }

@@ -59,6 +59,7 @@
 		0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18861FA349C6ECEAA2F6CC96 /* WebViewCoordinator.swift */; };
 		03724194B6C8D5BB89CC901D /* PaymentIssueBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */; };
 		07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */; };
+		A1B2C3D4E5F60718293A6002 /* SignupMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A6001 /* SignupMetadata.swift */; };
 		0C4A607FEC5B7FD7C041477F /* ProfileSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2BD5DA49B637FB8C0E889B /* ProfileSetupView.swift */; };
 		0FD918D7197C061E71DA139C /* SurvivalChordPadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */; };
 		113523707C66472EDCE989B7 /* SurvivalStatusEffectEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */; };
@@ -351,6 +352,7 @@
 		3F6053A6DDDCFD5A65983AEC /* Announcement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcement.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* AppReleaseVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReleaseVersion.swift; sourceTree = "<group>"; };
 		400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A6001 /* SignupMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupMetadata.swift; sourceTree = "<group>"; };
 		44BB606E44E08242A371BE80 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		4D635FD067D6C35FA30F9F12 /* SurvivalDescentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentView.swift; sourceTree = "<group>"; };
 		4DEC6DAE57E109225B5AAE3A /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -549,6 +551,7 @@
 				A55BA536236528C407A8F828 /* Resources */,
 				8A317B48CABC4F2191C2CE0E /* Fonts */,
 				6BD54480895BB04D2CB3EDFF /* Services */,
+				A1B2C3D4E5F60718293A6000 /* Utils */,
 				52F3EEB711395BE727225146 /* Survival */,
 				BR00GROUPBALLOONRUSH01 /* BalloonRush */,
 				B4665837C213B33E7EA39A7E /* Assets.xcassets */,
@@ -779,6 +782,14 @@
 				360D198BE9A0BD17E0F535A3 /* SurvivalMapAudio.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60718293A6000 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F60718293A6001 /* SignupMetadata.swift */,
+			);
+			path = Utils;
 			sourceTree = "<group>";
 		};
 		6F6BEDF557724C85BE5C4F61 /* Game */ = {
@@ -1337,6 +1348,7 @@
 				A8EEA36FE49B8BB6C7C499C2 /* Subscription.swift in Sources */,
 				6BFFD02966CF6D54DC197D87 /* SubscriptionView.swift in Sources */,
 				07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */,
+				A1B2C3D4E5F60718293A6002 /* SignupMetadata.swift in Sources */,
 				CB19406828C418DB3A880E17 /* SurvivalBossEffectRenderer.swift in Sources */,
 				AC36839E2864B4BA360B7197 /* SurvivalBossEngine.swift in Sources */,
 				C3A8FBFDAC1257EAC9983BFB /* SurvivalCharacterProfile.swift in Sources */,
@@ -1492,7 +1504,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.3.8;
+				MARKETING_VERSION = 1.3.9;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1575,7 +1587,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.3.8;
+				MARKETING_VERSION = 1.3.9;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

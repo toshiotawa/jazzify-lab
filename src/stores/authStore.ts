@@ -6,6 +6,8 @@ import { useUserStatsStore } from './userStatsStore';
 import { persistPreferredLocale, resolveAudienceLocale, detectBrowserLocale, getStoredPreferredLocale } from '@/utils/globalAudience';
 import { normalizeMembershipTier } from '@/utils/membership';
 import { isIOSWebView, getNativeAuthToken, getNativeRefreshToken } from '@/utils/iosbridge';
+import { useGeoStore } from './geoStore';
+import { resolveWebSignupCountry, resolveWebSignupPlatform } from '@/utils/signupMetadata';
 
 interface AuthState {
   user: User | null;
@@ -35,6 +37,7 @@ interface AuthState {
     selected_title?: string | null;
     next_season_xp_multiplier?: number;
     country?: string | null;
+    signup_platform?: 'web' | 'ios' | null;
     preferred_locale?: 'ja' | 'en' | null;
     // Stripe subscription fields
     stripe_customer_id?: string;
@@ -59,7 +62,7 @@ interface AuthActions {
   signInWithPassword: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
-  createProfile: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
+  createProfile: (nickname: string, agreed: boolean) => Promise<void>;
   updateEmail: (newEmail: string, isEnglishCopy?: boolean) => Promise<{ success: boolean; message: string }>;
   /** メール変更用 OTP（ダッシュボードの Change email テンプレートに {{ .Token }} が必要） */
   verifyEmailChangeOtp: (
@@ -580,7 +583,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           cacheKey,
           async () => await supabase
             .from('profiles')
-            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, preferred_locale, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used')
             .eq('id', user.id)
             .maybeSingle(),
           1000 * 60 * 5
@@ -602,6 +605,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               id: user.id,
               email: data.email || user.email,
               country: data.country || null,
+              signup_platform: data.signup_platform === 'ios' ? 'ios' : data.signup_platform === 'web' ? 'web' : null,
               preferred_locale: data.preferred_locale === 'en' ? 'en' : data.preferred_locale === 'ja' ? 'ja' : null,
               avatar_url: data.avatar_url,
               bio: data.bio,
@@ -664,7 +668,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
     },
 
-         createProfile: async (nickname, agreed, _country) => {
+         createProfile: async (nickname, agreed) => {
       if (!agreed) {
         set(state => {
           state.error = '利用規約に同意してください';
@@ -705,6 +709,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           return;
         }
 
+        await useGeoStore.getState().ensureCountry();
+        const signupCountry = resolveWebSignupCountry(useGeoStore.getState().country);
+
         // 新規プロフィール作成（localStorage > ブラウザ言語 > 検出チェーン の順で初期言語を決定）
         const initialLocale = getStoredPreferredLocale() ?? detectBrowserLocale() ?? resolveAudienceLocale();
                  const { error } = await supabase.from('profiles').insert({
@@ -716,6 +723,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
            level: 1,
            is_admin: false,
            preferred_locale: initialLocale,
+           signup_platform: resolveWebSignupPlatform(),
+           country: signupCountry,
          });
         persistPreferredLocale(initialLocale);
         

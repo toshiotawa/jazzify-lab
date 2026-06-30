@@ -91,6 +91,8 @@ final class SupabaseService: Sendable {
             let level: Int = 1
             let preferred_locale: String
             let is_admin: Bool = false
+            let signup_platform: String = "ios"
+            let country: String?
         }
 
         try await client
@@ -99,7 +101,8 @@ final class SupabaseService: Sendable {
                 id: userId,
                 email: email,
                 nickname: nickname,
-                preferred_locale: locale.rawValue
+                preferred_locale: locale.rawValue,
+                country: SignupMetadata.resolveSignupCountry()
             ))
             .execute()
     }
