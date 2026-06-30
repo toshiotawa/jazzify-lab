@@ -31,6 +31,34 @@ final class PrecisionNotesCanvasUIView: UIView {
         didSet { recalculateLayout() }
     }
 
+    private enum PrecisionNoteColors {
+        static let pendingWhiteFill = UIColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255, alpha: 1)
+        static let pendingWhiteBorder = UIColor(red: 2 / 255, green: 132 / 255, blue: 199 / 255, alpha: 1)
+        static let pendingBlackFill = UIColor(red: 168 / 255, green: 85 / 255, blue: 247 / 255, alpha: 1)
+        static let pendingBlackBorder = UIColor(red: 126 / 255, green: 34 / 255, blue: 206 / 255, alpha: 1)
+        static let goodFill = UIColor(red: 34 / 255, green: 197 / 255, blue: 94 / 255, alpha: 1)
+        static let goodBorder = UIColor(red: 21 / 255, green: 128 / 255, blue: 61 / 255, alpha: 1)
+        static let missFill = UIColor(red: 148 / 255, green: 163 / 255, blue: 184 / 255, alpha: 0.45)
+        static let missBorder = UIColor(red: 71 / 255, green: 85 / 255, blue: 105 / 255, alpha: 0.85)
+        static let hitGlow = UIColor(red: 134 / 255, green: 239 / 255, blue: 172 / 255, alpha: 1)
+        static let hitGlowStroke = UIColor(red: 187 / 255, green: 247 / 255, blue: 208 / 255, alpha: 1)
+        static let guideHighlight = UIColor(red: 251 / 255, green: 191 / 255, blue: 36 / 255, alpha: 0.45)
+        static let activeKeyHighlight = UIColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255, alpha: 0.55)
+        static let hitLine = UIColor(red: 250 / 255, green: 204 / 255, blue: 21 / 255, alpha: 1)
+        static let background = UIColor(red: 0.02, green: 0.05, blue: 0.09, alpha: 1)
+        static let guideLaneEven = UIColor(red: 30 / 255, green: 41 / 255, blue: 59 / 255, alpha: 0.35)
+        static let guideLaneOdd = UIColor(red: 15 / 255, green: 23 / 255, blue: 42 / 255, alpha: 0.25)
+        static let octaveMarker = UIColor(red: 148 / 255, green: 163 / 255, blue: 184 / 255, alpha: 0.18)
+        static let whiteKeyFill = UIColor(red: 217 / 255, green: 206 / 255, blue: 176 / 255, alpha: 1)
+        static let blackKeyFill = UIColor(red: 18 / 255, green: 16 / 255, blue: 16 / 255, alpha: 1)
+        static let keySeparatorStroke = UIColor(red: 50 / 255, green: 42 / 255, blue: 30 / 255, alpha: 0.45)
+    }
+
+    private static let noteVanishEffectDurationMs: Double = 180
+    private static let noteVanishParticleCount = 6
+    private static let noteHitEffectDurationMs: Double = 100
+    private static let noteHitGlowExpandPx: CGFloat = 3
+
     private var displayLink: CADisplayLink?
     private var keyGeometries: [KeyGeometry] = []
     private var whiteKeyWidth: CGFloat = 1
@@ -42,16 +70,55 @@ final class PrecisionNotesCanvasUIView: UIView {
     private var activeTouchMidi: Int?
     private var guideMidis: Set<Int> = []
 
+    private var staticLayerImage: UIImage?
+    private var staticLayerSignature: StaticLayerSignature?
+
+    private var previousJudgments: [String: EarTrainingPrecisionJudge.NoteJudgment] = [:]
+    private var previousHiddenFromLane: [String: Bool] = [:]
+    private var vanishedIds: Set<String> = []
+    private var hitEffects: [HitEffect] = []
+    private var vanishEffects: [VanishEffect] = []
+    private var lastTrackedPhraseRunId = -1
+    private var lastPrecisionNoteCount = 0
+
     private struct KeyGeometry {
         let midi: Int
         let isBlack: Bool
         let rect: CGRect
     }
 
+    private struct StaticLayerSignature: Equatable {
+        let width: CGFloat
+        let height: CGFloat
+        let minMidi: Int
+        let maxMidi: Int
+        let pianoHeight: CGFloat
+        let hitLineY: CGFloat
+    }
+
+    private struct HitEffect {
+        let rect: CGRect
+        let startedAtMs: Double
+    }
+
+    private struct VanishParticle {
+        let x: CGFloat
+        let y: CGFloat
+        let vx: CGFloat
+        let vy: CGFloat
+        let size: CGFloat
+    }
+
+    private struct VanishEffect {
+        let particles: [VanishParticle]
+        let color: UIColor
+        let startedAtMs: Double
+    }
+
     init(pianoHeight: CGFloat) {
         self.pianoHeight = pianoHeight
         super.init(frame: .zero)
-        backgroundColor = UIColor(red: 0.02, green: 0.05, blue: 0.09, alpha: 1)
+        backgroundColor = PrecisionNoteColors.background
         isMultipleTouchEnabled = false
         displayLink = CADisplayLink(target: self, selector: #selector(tick))
         displayLink?.add(to: .main, forMode: .common)
@@ -79,10 +146,30 @@ final class PrecisionNotesCanvasUIView: UIView {
 
     private func syncFromController() {
         guard let controller else { return }
+        let rangeChanged = minMidi != controller.keyboardRange.minMidi
+            || maxMidi != controller.keyboardRange.maxMidi
         minMidi = controller.keyboardRange.minMidi
         maxMidi = controller.keyboardRange.maxMidi
         recalculateLayout()
+        if rangeChanged || controller.phraseRunId != lastTrackedPhraseRunId {
+            lastTrackedPhraseRunId = controller.phraseRunId
+            resetEffectTracking()
+        }
         setNeedsDisplay()
+    }
+
+    private func resetEffectTracking() {
+        previousJudgments.removeAll(keepingCapacity: true)
+        previousHiddenFromLane.removeAll(keepingCapacity: true)
+        vanishedIds.removeAll(keepingCapacity: true)
+        hitEffects.removeAll(keepingCapacity: true)
+        vanishEffects.removeAll(keepingCapacity: true)
+        guard let controller else { return }
+        for note in controller.precisionNotes {
+            let judgment = controller.runtimeStates[note.id]?.judgment ?? .pending
+            previousJudgments[note.id] = judgment
+            previousHiddenFromLane[note.id] = controller.runtimeStates[note.id]?.hiddenFromLane ?? false
+        }
     }
 
     private func recalculateLayout() {
@@ -90,10 +177,36 @@ final class PrecisionNotesCanvasUIView: UIView {
         noteLaneHeight = max(0, hitLineY)
         noteSpeedPxPerSec = noteLaneHeight / CGFloat(EarTrainingPrecisionNotes.fallLeadSec)
         keyGeometries = buildKeyGeometries()
+        invalidateStaticLayerIfNeeded()
+    }
+
+    private func invalidateStaticLayerIfNeeded() {
+        let signature = StaticLayerSignature(
+            width: bounds.width,
+            height: bounds.height,
+            minMidi: minMidi,
+            maxMidi: maxMidi,
+            pianoHeight: pianoHeight,
+            hitLineY: hitLineY
+        )
+        guard signature != staticLayerSignature, bounds.width > 0, bounds.height > 0 else { return }
+        staticLayerSignature = signature
+        staticLayerImage = renderStaticLayer()
     }
 
     @objc private func tick() {
+        if let controller, controller.phraseRunId != lastTrackedPhraseRunId {
+            lastTrackedPhraseRunId = controller.phraseRunId
+            resetEffectTracking()
+        }
+        if let controller, controller.precisionNotes.count != lastPrecisionNoteCount {
+            lastPrecisionNoteCount = controller.precisionNotes.count
+            resetEffectTracking()
+        }
         updateGuideKeys()
+        trackJudgmentTransitions()
+        trackNoteVanish()
+        pruneExpiredEffects()
         setNeedsDisplay()
     }
 
@@ -101,16 +214,90 @@ final class PrecisionNotesCanvasUIView: UIView {
         guideMidis.removeAll(keepingCapacity: true)
         guard let controller, controller.practiceMode else { return }
         guard let phraseTime = controller.currentPhraseTimelineSec() else { return }
-        let windowSec = controller.currentEffectiveJudgmentWindowSec()
         for note in controller.precisionNotes {
             guard controller.runtimeStates[note.id]?.judgment == .pending else { continue }
-            if EarTrainingPrecisionNotes.isNoteInGuideWindow(
-                note: note,
-                phraseTimeSec: phraseTime,
-                windowSec: windowSec
-            ) || EarTrainingPrecisionNotes.isNoteInPerformanceWindow(note: note, phraseTimeSec: phraseTime) {
+            if EarTrainingPrecisionNotes.isNoteInPerformanceWindow(note: note, phraseTimeSec: phraseTime) {
                 guideMidis.insert(note.midi)
             }
+        }
+    }
+
+    private func trackJudgmentTransitions() {
+        guard let controller else { return }
+        let nowMs = CFAbsoluteTimeGetCurrent() * 1000
+        for note in controller.precisionNotes {
+            let state = controller.runtimeStates[note.id]
+            let prev = previousJudgments[note.id] ?? .pending
+            let next = state?.judgment ?? .pending
+            if prev != next {
+                previousJudgments[note.id] = next
+                if next == .good, let rect = noteRect(for: note, controller: controller) {
+                    addHitEffect(rect: rect, startedAtMs: nowMs)
+                }
+            }
+        }
+    }
+
+    private func trackNoteVanish() {
+        guard let controller else { return }
+        let nowMs = CFAbsoluteTimeGetCurrent() * 1000
+        let phraseTime = controller.currentPhraseTimelineSec() ?? 0
+        for note in controller.precisionNotes {
+            guard let state = controller.runtimeStates[note.id] else { continue }
+            let wasHidden = previousHiddenFromLane[note.id] ?? false
+            let isHidden = state.hiddenFromLane ?? false
+            if !wasHidden, isHidden, state.judgment == .good, let rect = noteRect(for: note, controller: controller) {
+                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs, color: PrecisionNoteColors.goodFill)
+            }
+            previousHiddenFromLane[note.id] = isHidden
+
+            if state.judgment == .good,
+               !isHidden,
+               !vanishedIds.contains(note.id),
+               phraseTime >= note.startSec + note.durationSec - 0.001,
+               let rect = noteRect(for: note, controller: controller) {
+                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs, color: PrecisionNoteColors.goodFill)
+            }
+        }
+    }
+
+    private func pruneExpiredEffects() {
+        let nowMs = CFAbsoluteTimeGetCurrent() * 1000
+        hitEffects.removeAll { nowMs - $0.startedAtMs >= Self.noteHitEffectDurationMs }
+        vanishEffects.removeAll { nowMs - $0.startedAtMs >= Self.noteVanishEffectDurationMs }
+    }
+
+    private func addHitEffect(rect: CGRect, startedAtMs: Double) {
+        hitEffects.append(HitEffect(rect: rect, startedAtMs: startedAtMs))
+        if hitEffects.count > 24 {
+            hitEffects.removeFirst(hitEffects.count - 24)
+        }
+    }
+
+    private func addVanishEffect(noteId: String, rect: CGRect, startedAtMs: Double, color: UIColor) {
+        if vanishedIds.contains(noteId) {
+            return
+        }
+        vanishedIds.insert(noteId)
+        let cx = rect.midX
+        let cy = rect.midY
+        var particles: [VanishParticle] = []
+        particles.reserveCapacity(Self.noteVanishParticleCount)
+        for index in 0..<Self.noteVanishParticleCount {
+            let angle = (Double(index) / Double(Self.noteVanishParticleCount)) * Double.pi * 2
+            particles.append(
+                VanishParticle(
+                    x: cx,
+                    y: cy,
+                    vx: CGFloat(cos(angle) * 0.04),
+                    vy: CGFloat(sin(angle) * 0.04),
+                    size: index.isMultiple(of: 2) ? 2 : 3
+                )
+            )
+        }
+        vanishEffects.append(VanishEffect(particles: particles, color: color, startedAtMs: startedAtMs))
+        if vanishEffects.count > 24 {
+            vanishEffects.removeFirst(vanishEffects.count - 24)
         }
     }
 
@@ -169,24 +356,111 @@ final class PrecisionNotesCanvasUIView: UIView {
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext(), let controller else { return }
 
-        context.setFillColor(UIColor(red: 0.02, green: 0.05, blue: 0.09, alpha: 1).cgColor)
+        invalidateStaticLayerIfNeeded()
+
+        context.setFillColor(PrecisionNoteColors.background.cgColor)
         context.fill(bounds)
 
-        drawGuideLane(context: context)
-        context.setStrokeColor(UIColor.red.withAlphaComponent(0.9).cgColor)
+        if let staticLayerImage {
+            staticLayerImage.draw(in: bounds)
+        } else {
+            drawGuideLanes(context: context)
+            drawKeyboardBase(context: context)
+        }
+
+        let phraseTime = controller.currentPhraseTimelineSec() ?? 0
+        drawNotes(context: context, controller: controller, phraseTime: phraseTime)
+        drawHitEffects(context: context)
+        drawVanishEffects(context: context)
+        drawHitLine(context: context)
+        drawKeyHighlights(context: context, controller: controller)
+    }
+
+    private func renderStaticLayer() -> UIImage? {
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+        let renderer = UIGraphicsImageRenderer(size: bounds.size)
+        return renderer.image { context in
+            let cgContext = context.cgContext
+            cgContext.setFillColor(PrecisionNoteColors.background.cgColor)
+            cgContext.fill(bounds)
+            drawGuideLanes(context: cgContext)
+            drawKeyboardBase(context: cgContext)
+        }
+    }
+
+    private func drawGuideLanes(context: CGContext) {
+        var whiteIndex = 0
+        for midi in minMidi...maxMidi {
+            guard !EarTrainingPrecisionNotes.isBlackKeyMidi(midi) else { continue }
+            let x = CGFloat(whiteIndex) * whiteKeyWidth
+            let pitchClass = ((midi % 12) + 12) % 12
+            let fillColor = whiteIndex.isMultiple(of: 2)
+                ? PrecisionNoteColors.guideLaneEven
+                : PrecisionNoteColors.guideLaneOdd
+            context.setFillColor(fillColor.cgColor)
+            context.fill(CGRect(x: x, y: 0, width: whiteKeyWidth, height: noteLaneHeight))
+            if pitchClass == 11 || pitchClass == 4 {
+                context.setFillColor(PrecisionNoteColors.octaveMarker.cgColor)
+                context.fill(CGRect(x: x + whiteKeyWidth - 1, y: 0, width: 2, height: noteLaneHeight))
+            }
+            whiteIndex += 1
+        }
+    }
+
+    private func drawKeyboardBase(context: CGContext) {
+        for key in keyGeometries where !key.isBlack {
+            context.setFillColor(PrecisionNoteColors.whiteKeyFill.cgColor)
+            context.fill(key.rect)
+            context.setStrokeColor(PrecisionNoteColors.keySeparatorStroke.cgColor)
+            context.setLineWidth(1)
+            context.stroke(
+                CGRect(
+                    x: key.rect.minX + 0.5,
+                    y: key.rect.minY + 0.5,
+                    width: key.rect.width - 1,
+                    height: key.rect.height - 1
+                )
+            )
+        }
+        for key in keyGeometries where key.isBlack {
+            context.setFillColor(PrecisionNoteColors.blackKeyFill.cgColor)
+            context.fill(key.rect)
+        }
+    }
+
+    private func drawHitLine(context: CGContext) {
+        context.setStrokeColor(PrecisionNoteColors.hitLine.cgColor)
         context.setLineWidth(2)
         context.move(to: CGPoint(x: 0, y: hitLineY))
         context.addLine(to: CGPoint(x: bounds.width, y: hitLineY))
         context.strokePath()
-
-        let phraseTime = controller.currentPhraseTimelineSec() ?? 0
-        drawNotes(context: context, controller: controller, phraseTime: phraseTime)
-        drawKeyboard(context: context, controller: controller)
     }
 
-    private func drawGuideLane(context: CGContext) {
-        context.setFillColor(UIColor.white.withAlphaComponent(0.04).cgColor)
-        context.fill(CGRect(x: 0, y: 0, width: bounds.width, height: noteLaneHeight))
+    private func drawKeyHighlights(context: CGContext, controller: EarTrainingPrecisionBattleController) {
+        for key in keyGeometries {
+            guard guideMidis.contains(key.midi), !controller.midiHeldKeys.contains(key.midi) else { continue }
+            fillKeyHighlight(context: context, key: key, color: PrecisionNoteColors.guideHighlight)
+        }
+        for key in keyGeometries where controller.midiHeldKeys.contains(key.midi) {
+            fillKeyHighlight(context: context, key: key, color: PrecisionNoteColors.activeKeyHighlight)
+        }
+    }
+
+    private func fillKeyHighlight(context: CGContext, key: KeyGeometry, color: UIColor) {
+        context.setFillColor(color.cgColor)
+        if key.isBlack {
+            context.fill(key.rect)
+        } else {
+            let inset = key.rect.width * 0.08
+            context.fill(
+                CGRect(
+                    x: key.rect.minX + inset,
+                    y: key.rect.minY,
+                    width: key.rect.width - inset * 2,
+                    height: key.rect.height
+                )
+            )
+        }
     }
 
     private func drawNotes(
@@ -196,68 +470,145 @@ final class PrecisionNotesCanvasUIView: UIView {
     ) {
         for note in controller.precisionNotes {
             guard let state = controller.runtimeStates[note.id] else { continue }
-            if state.hiddenFromLane == true { continue }
-            let bottom = hitLineY - CGFloat(note.startSec - phraseTime) * noteSpeedPxPerSec
-            let height = note.isShortNote
-                ? EarTrainingPrecisionNotes.shortNoteHeightPx
-                : max(6, CGFloat(note.durationSec) * noteSpeedPxPerSec)
-            let top = bottom - height
-            if EarTrainingPrecisionJudge.shouldCullNoteFromLane(
-                judgment: state.judgment,
-                bottom: bottom,
-                top: top,
-                noteLaneHeight: noteLaneHeight,
-                canvasHeight: bounds.height
-            ) {
-                continue
-            }
-            let lane = laneRect(forMidi: note.midi)
-            let noteRect = CGRect(
-                x: lane.minX + lane.width * (note.isBlackKey ? 0.08 : 0.1),
-                y: top,
-                width: lane.width * (note.isBlackKey ? 0.84 : 0.8),
-                height: height
-            )
-            let color: UIColor
+            if state.hiddenFromLane == true || vanishedIds.contains(note.id) { continue }
+            guard let noteRect = noteRect(for: note, controller: controller, phraseTime: phraseTime) else { continue }
+
+            let fillColor: UIColor
+            let borderColor: UIColor
             switch state.judgment {
             case .good:
-                color = UIColor.systemGreen
+                fillColor = PrecisionNoteColors.goodFill
+                borderColor = PrecisionNoteColors.goodBorder
             case .miss:
-                color = UIColor.systemGray
+                fillColor = PrecisionNoteColors.missFill
+                borderColor = PrecisionNoteColors.missBorder
             case .pending:
-                color = note.isBlackKey ? UIColor(white: 0.15, alpha: 0.95) : UIColor(white: 0.92, alpha: 0.95)
+                if note.isBlackKey {
+                    fillColor = PrecisionNoteColors.pendingBlackFill
+                    borderColor = PrecisionNoteColors.pendingBlackBorder
+                } else {
+                    fillColor = PrecisionNoteColors.pendingWhiteFill
+                    borderColor = PrecisionNoteColors.pendingWhiteBorder
+                }
             }
-            context.setFillColor(color.cgColor)
-            let path = UIBezierPath(roundedRect: noteRect, cornerRadius: note.isBlackKey ? 3 : 5)
-            context.addPath(path.cgPath)
-            context.fillPath()
+
+            context.setFillColor(fillColor.cgColor)
+            context.setStrokeColor(borderColor.cgColor)
+            context.setLineWidth(1.5)
+            if note.isBlackKey {
+                let path = UIBezierPath(roundedRect: noteRect, cornerRadius: 4)
+                context.addPath(path.cgPath)
+                context.fillPath()
+                context.addPath(path.cgPath)
+                context.strokePath()
+            } else {
+                context.fill(noteRect)
+                context.stroke(
+                    CGRect(
+                        x: noteRect.minX + 0.75,
+                        y: noteRect.minY + 0.75,
+                        width: noteRect.width - 1.5,
+                        height: noteRect.height - 1.5
+                    )
+                )
+            }
+
+            if state.judgment == .good, !note.isShortNote {
+                context.setFillColor(UIColor(white: 1, alpha: 0.35).cgColor)
+                context.fill(CGRect(x: noteRect.minX, y: noteRect.minY, width: noteRect.width, height: 1))
+            }
         }
     }
 
-    private func drawKeyboard(context: CGContext, controller: EarTrainingPrecisionBattleController) {
-        for key in keyGeometries where !key.isBlack {
-            context.setFillColor(UIColor(white: 0.93, alpha: 1).cgColor)
-            context.fill(key.rect)
-            if guideMidis.contains(key.midi) {
-                context.setFillColor(UIColor.systemOrange.withAlphaComponent(0.35).cgColor)
-                context.fill(key.rect)
-            }
-            if controller.midiHeldKeys.contains(key.midi) {
-                context.setFillColor(UIColor.systemCyan.withAlphaComponent(0.35).cgColor)
-                context.fill(key.rect)
-            }
+    private func noteRect(
+        for note: EarTrainingPrecisionNote,
+        controller: EarTrainingPrecisionBattleController,
+        phraseTime: Double? = nil
+    ) -> CGRect? {
+        let time = phraseTime ?? controller.currentPhraseTimelineSec() ?? 0
+        guard let state = controller.runtimeStates[note.id] else { return nil }
+        if state.hiddenFromLane == true { return nil }
+
+        let bottom = hitLineY - CGFloat(note.startSec - time) * noteSpeedPxPerSec
+        let height = note.isShortNote
+            ? EarTrainingPrecisionNotes.shortNoteHeightPx
+            : max(6, CGFloat(note.durationSec) * noteSpeedPxPerSec)
+        let top = bottom - height
+        if EarTrainingPrecisionJudge.shouldCullNoteFromLane(
+            judgment: state.judgment,
+            bottom: bottom,
+            top: top,
+            noteLaneHeight: noteLaneHeight,
+            canvasHeight: bounds.height
+        ) {
+            return nil
         }
-        for key in keyGeometries where key.isBlack {
-            context.setFillColor(UIColor(white: 0.12, alpha: 1).cgColor)
-            context.fill(key.rect)
-            if guideMidis.contains(key.midi) {
-                context.setFillColor(UIColor.systemOrange.withAlphaComponent(0.45).cgColor)
-                context.fill(key.rect)
+        let lane = laneRect(forMidi: note.midi)
+        return CGRect(
+            x: lane.minX + lane.width * (note.isBlackKey ? 0.08 : 0.1),
+            y: top,
+            width: lane.width * (note.isBlackKey ? 0.84 : 0.8),
+            height: height
+        )
+    }
+
+    private func drawHitEffects(context: CGContext) {
+        let nowMs = CFAbsoluteTimeGetCurrent() * 1000
+        for effect in hitEffects {
+            let t = (nowMs - effect.startedAtMs) / Self.noteHitEffectDurationMs
+            guard t < 1 else { continue }
+            let alpha = 1 - t
+            let glowExpand = Self.noteHitGlowExpandPx * (1 - CGFloat(t) * 0.5)
+            context.setAlpha(alpha * 0.35)
+            context.setFillColor(PrecisionNoteColors.hitGlow.cgColor)
+            context.fill(
+                CGRect(
+                    x: effect.rect.minX - glowExpand,
+                    y: effect.rect.minY - glowExpand,
+                    width: effect.rect.width + glowExpand * 2,
+                    height: effect.rect.height + glowExpand * 2
+                )
+            )
+            context.setAlpha(alpha * 0.9)
+            context.setFillColor(PrecisionNoteColors.goodFill.cgColor)
+            context.fill(effect.rect)
+            context.setAlpha(alpha * 0.7)
+            context.setStrokeColor(PrecisionNoteColors.hitGlowStroke.cgColor)
+            context.setLineWidth(1)
+            context.stroke(
+                CGRect(
+                    x: effect.rect.minX + 0.5,
+                    y: effect.rect.minY + 0.5,
+                    width: effect.rect.width - 1,
+                    height: effect.rect.height - 1
+                )
+            )
+            context.setAlpha(1)
+        }
+    }
+
+    private func drawVanishEffects(context: CGContext) {
+        let nowMs = CFAbsoluteTimeGetCurrent() * 1000
+        for effect in vanishEffects {
+            let elapsed = nowMs - effect.startedAtMs
+            let t = elapsed / Self.noteVanishEffectDurationMs
+            guard t < 1 else { continue }
+            let alpha = 1 - t
+            context.setFillColor(effect.color.cgColor)
+            for particle in effect.particles {
+                context.setAlpha(alpha * 0.9)
+                let px = particle.x + particle.vx * CGFloat(elapsed)
+                let py = particle.y + particle.vy * CGFloat(elapsed)
+                context.fill(
+                    CGRect(
+                        x: px - particle.size * 0.5,
+                        y: py - particle.size * 0.5,
+                        width: particle.size,
+                        height: particle.size
+                    )
+                )
             }
-            if controller.midiHeldKeys.contains(key.midi) {
-                context.setFillColor(UIColor.systemCyan.withAlphaComponent(0.45).cgColor)
-                context.fill(key.rect)
-            }
+            context.setAlpha(1)
         }
     }
 

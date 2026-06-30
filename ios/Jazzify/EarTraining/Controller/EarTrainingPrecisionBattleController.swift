@@ -66,6 +66,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private var preparedPhraseURL: URL?
     private var lastSeekSliderUiUpdate: TimeInterval = 0
     private var musicXmlCache: [String: String] = [:]
+    private var midiCache: [String: Data] = [:]
+    private var lobbyPreloadTask: Task<Void, Never>?
 
     init(
         stage: EarTrainingStageDetail,
@@ -105,12 +107,32 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
                 self?.finishPhraseIfNeeded()
             }
         }
+        scheduleLobbyAssetPreload()
     }
 
     func tearDown() {
+        lobbyPreloadTask?.cancel()
+        lobbyPreloadTask = nil
         audio.stopPhrase()
         audio.onTimeUpdate = nil
         audio.onEnded = nil
+    }
+
+    /// ロビー idle 中に第1フレーズの譜面・MIDI・落下ノーツを先読みする（Web / chordOSMD と同様）。
+    private func scheduleLobbyAssetPreload() {
+        guard gameState == .idle, let phrase = phrases.first else { return }
+        lobbyPreloadTask?.cancel()
+        lobbyPreloadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.loadLobbyPhraseAssets(phrase: phrase)
+        }
+    }
+
+    private func loadLobbyPhraseAssets(phrase: EarTrainingPhraseDetail) async {
+        await loadMusicXml(for: phrase, runId: nil)
+        await loadMidi(for: phrase, runId: nil)
+        applyDisplayMusicXml()
+        rebuildPrecisionNotes()
     }
 
     func startBattle() {
@@ -146,38 +168,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         activeMeasureNumber = 1
         scoreErrorText = nil
 
-        if let xmlUrl = phrase.musicXmlUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !xmlUrl.isEmpty {
-            if let cached = musicXmlCache[xmlUrl] {
-                baseMusicXmlText = cached
-            } else if let url = URL(string: xmlUrl) {
-                do {
-                    let (data, _) = try await URLSession.shared.data(from: url)
-                    guard phraseRunId == runId else { return }
-                    let text = String(data: data, encoding: .utf8) ?? ""
-                    let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
-                    musicXmlCache[xmlUrl] = normalized
-                    baseMusicXmlText = normalized
-                } catch {
-                    scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
-                }
-            }
-        }
-
+        await loadMusicXml(for: phrase, runId: runId)
         applyDisplayMusicXml()
-
-        if let midiUrl = phrase.midiUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !midiUrl.isEmpty,
-           let url = URL(string: midiUrl) {
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                guard phraseRunId == runId else { return }
-                baseMidiData = data
-            } catch {
-                baseMidiData = nil
-            }
-        } else {
-            baseMidiData = nil
-        }
+        await loadMidi(for: phrase, runId: runId)
 
         phraseLyricEvents = baseMusicXmlText.map {
             EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
@@ -192,6 +185,51 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         if let audioUrl = URL(string: phrase.audioUrl) {
             preparedPhraseURL = audioUrl
             _ = await audio.preparePhraseForImmediatePlayback(url: audioUrl)
+        }
+    }
+
+    private func loadMusicXml(for phrase: EarTrainingPhraseDetail, runId: Int?) async {
+        guard let xmlUrl = phrase.musicXmlUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !xmlUrl.isEmpty else {
+            return
+        }
+        if let cached = musicXmlCache[xmlUrl] {
+            baseMusicXmlText = cached
+            return
+        }
+        guard let url = URL(string: xmlUrl) else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let runId, phraseRunId != runId { return }
+            let text = String(data: data, encoding: .utf8) ?? ""
+            let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
+            musicXmlCache[xmlUrl] = normalized
+            baseMusicXmlText = normalized
+        } catch {
+            scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+        }
+    }
+
+    private func loadMidi(for phrase: EarTrainingPhraseDetail, runId: Int?) async {
+        guard let midiUrl = phrase.midiUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !midiUrl.isEmpty else {
+            baseMidiData = nil
+            return
+        }
+        if let cached = midiCache[midiUrl] {
+            baseMidiData = cached
+            return
+        }
+        guard let url = URL(string: midiUrl) else {
+            baseMidiData = nil
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let runId, phraseRunId != runId { return }
+            midiCache[midiUrl] = data
+            baseMidiData = data
+        } catch {
+            baseMidiData = nil
         }
     }
 
@@ -608,7 +646,19 @@ extension EarTrainingPrecisionBattleController: EarTrainingLobbyPresentable {
     func handleBack() { onExitCallback() }
 
     func setPracticeMode(_ value: Bool) {
-        applyPracticeModeAndRestart(value)
+        setPracticeModeFromLobby(value)
+    }
+
+    func setPracticeModeFromLobby(_ value: Bool) {
+        practiceMode = value
+        if !value {
+            practiceTransposeOffset = 0
+            practiceSpeedPercent = 100
+            audio.phrasePitchSemitones = 0
+            audio.phrasePlaybackSpeedPercent = 100
+        }
+        applyDisplayMusicXml()
+        rebuildPrecisionNotes()
     }
 }
 

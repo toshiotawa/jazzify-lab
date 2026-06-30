@@ -44,9 +44,10 @@ struct EarTrainingPrecisionGameView: View {
         VStack(spacing: 0) {
             header(controller: controller)
             scoreBand(controller: controller)
-            PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
-                .overlay(alignment: .bottom) {
-                    if !controller.activeLyricText.isEmpty {
+            ZStack {
+                PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
+                    .overlay(alignment: .bottom) {
+                        if !controller.activeLyricText.isEmpty {
                             Text(controller.activeLyricText)
                                 .font(.system(size: 16))
                                 .foregroundStyle(.white)
@@ -57,14 +58,14 @@ struct EarTrainingPrecisionGameView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 .padding(.bottom, precisionPianoHeight + 24)
                                 .padding(.horizontal, 16)
+                        }
                     }
-                }
+                EarTrainingResultView(host: controller)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             if controller.practiceMode {
                 transportBar(controller: controller)
             }
-        }
-        .overlay {
-            EarTrainingResultView(host: controller)
         }
         .sheet(isPresented: Binding(
             get: { controller.isSettingsOpen },
