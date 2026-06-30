@@ -7,7 +7,6 @@ struct SettingsView: View {
     @State private var isDeleting = false
     @State private var deleteError: String?
     @State private var showMIDISettings = false
-    @State private var survivalStaffSliderValue: Double = 0
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -27,7 +26,6 @@ struct SettingsView: View {
                     }
                     accountSection
                     languageSection
-                    survivalStaffSection
                     midiSection
                     subscriptionSection
                     supportSection
@@ -46,11 +44,6 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showMIDISettings) {
                 MIDISettingsView()
-            }
-            .onAppear {
-                survivalStaffSliderValue = SurvivalStaffSizeSliderControl.loadSliderValue(
-                    isPad: UIDevice.current.userInterfaceIdiom == .pad
-                )
             }
             .alert(
                 locale == .ja ? "アカウント削除" : "Delete Account",
@@ -128,19 +121,6 @@ struct SettingsView: View {
             .foregroundStyle(.white)
         } header: {
             Text(locale == .ja ? "言語設定" : "Language")
-        }
-        .listRowBackground(Color(hex: "1e293b"))
-    }
-
-    private var survivalStaffSection: some View {
-        Section {
-            SurvivalStaffSizeSliderControl(
-                locale: locale,
-                sliderValue: $survivalStaffSliderValue
-            )
-            .padding(.vertical, 4)
-        } header: {
-            Text(locale == .ja ? "サバイバル" : "Survival")
         }
         .listRowBackground(Color(hex: "1e293b"))
     }
