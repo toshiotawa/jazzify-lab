@@ -4,6 +4,7 @@ import {
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
 import {
+  shouldCullPrecisionNoteFromLane,
   type PrecisionNoteJudgment,
   type PrecisionNoteRuntimeState,
 } from '@/utils/earTrainingPrecisionJudge';
@@ -612,7 +613,13 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       const bottom = this.noteBottomY(note);
       const rawHeight = Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
       const top = bottom - rawHeight;
-      if (bottom < -20 || top > this.noteLaneHeight + 20) {
+      if (shouldCullPrecisionNoteFromLane(
+        judgment,
+        bottom,
+        top,
+        this.noteLaneHeight,
+        this.height,
+      )) {
         continue;
       }
       const lane = this.laneXForMidi(note.midi);
@@ -702,6 +709,8 @@ export const PrecisionNotesRenderer: React.FC<PrecisionNotesRendererProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<PrecisionNotesRendererInstance | null>(null);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -712,13 +721,13 @@ export const PrecisionNotesRenderer: React.FC<PrecisionNotesRendererProps> = ({
     engine.resize(width, height, pianoHeight);
     engine.setKeyboardRange(minMidi, maxMidi);
     engineRef.current = engine;
-    onReady?.(engine);
+    onReadyRef.current?.(engine);
     return () => {
       engine.destroy();
       engineRef.current = null;
-      onReady?.(null);
+      onReadyRef.current?.(null);
     };
-  }, [onReady]);
+  }, []);
 
   useEffect(() => {
     engineRef.current?.resize(width, height, pianoHeight);

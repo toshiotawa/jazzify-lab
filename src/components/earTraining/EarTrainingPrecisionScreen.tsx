@@ -110,6 +110,7 @@ const INPUT_COOLDOWN_MS = 20;
 const SCORE_BAND_HEIGHT = 128;
 const PIANO_HEIGHT = 96;
 const TRANSPORT_HEIGHT = 72;
+const SEEK_SLIDER_UI_UPDATE_INTERVAL_MS = 200;
 
 const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   stage,
@@ -188,6 +189,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
   const handleNoteReleaseRef = useRef<(note: number) => void>(() => undefined);
   const finishPhraseRef = useRef<() => void>(() => undefined);
+  const phraseTimeSecRef = useRef(0);
+  const seekSliderSecRef = useRef(0);
+  const lastSeekSliderUiUpdateMsRef = useRef(0);
   const practiceTransposeEnabled = stage.practice_transpose === true;
 
   useQuestCompleteJingleOnStageClear(
@@ -204,6 +208,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
   useEffect(() => { timingAdjustmentMsRef.current = timingAdjustmentMs; }, [timingAdjustmentMs]);
   useEffect(() => { notesRef.current = precisionNotes; }, [precisionNotes]);
+
+  useEffect(() => {
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
+  }, [settings.midiVolume]);
+
+  useEffect(() => {
+    phrasePlayerRef.current?.setVolume(settings.musicVolume * settings.masterVolume);
+  }, [settings.masterVolume, settings.musicVolume]);
 
   const measureDurationSec = useMemo(
     () => (60 / Math.max(1, effectivePracticeBpm(stage.bpm, practiceMode ? practiceSpeedPercent : 100)))
@@ -279,8 +291,19 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, []);
 
   const syncRenderer = useCallback((phraseTimeSec: number): void => {
+    phraseTimeSecRef.current = phraseTimeSec;
     notesRendererRef.current?.setPhraseTimeSec(phraseTimeSec);
     notesRendererRef.current?.setRuntimeStates(runtimeStatesRef.current);
+  }, []);
+
+  const updateSeekSliderUi = useCallback((phraseTimeSec: number, force = false): void => {
+    seekSliderSecRef.current = phraseTimeSec;
+    const now = performance.now();
+    if (!force && now - lastSeekSliderUiUpdateMsRef.current < SEEK_SLIDER_UI_UPDATE_INTERVAL_MS) {
+      return;
+    }
+    lastSeekSliderUiUpdateMsRef.current = now;
+    setSeekSliderSec(phraseTimeSec);
   }, []);
 
   const rebuildNotesFromXml = useCallback((xmlText: string): void => {
@@ -396,7 +419,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     const player = phrasePlayerRef.current;
     const prepared = preparedRef.current;
     if (!player || !prepared) {
-      setSeekSliderSec(clamped);
+      phraseTimeSecRef.current = clamped;
+      updateSeekSliderUi(clamped, true);
       return;
     }
     resetPrecisionRuntimeStatesFromTime(
@@ -424,7 +448,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       },
       onEnded: () => finishPhraseRef.current(),
     });
-    setSeekSliderSec(clamped);
+    updateSeekSliderUi(clamped, true);
     syncRenderer(clamped);
   }, [
     resolveCalibratedTargetTimeSec,
@@ -432,6 +456,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     settings.masterVolume,
     settings.musicVolume,
     syncRenderer,
+    updateSeekSliderUi,
   ]);
 
   const handlePhraseTimelineTick = useCallback(() => {
@@ -479,7 +504,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       }
       nextLyricIndexRef.current += 1;
     }
-    setSeekSliderSec(phraseTimeSec);
+    updateSeekSliderUi(phraseTimeSec);
     syncRenderer(phraseTimeSec);
     if (state === 'playingPhrase' && phraseTimeSec >= phraseLoopEndSecRef.current) {
       finishPhraseRef.current();
@@ -491,6 +516,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     stage.beats_per_measure,
     stage.loop_measures,
     syncRenderer,
+    updateSeekSliderUi,
   ]);
 
   useEffect(() => {
@@ -516,7 +542,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       soundEffectVolume: settings.soundEffectVolume,
       rootSoundVolume: settings.rootSoundVolume,
     });
-    updateGlobalVolume(settings.masterVolume);
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
 
     const runId = phraseRunIdRef.current + 1;
     phraseRunIdRef.current = runId;
@@ -597,7 +623,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
       setScoreTimelineArmed(true);
       setActiveMeasureNumber(Math.max(1, notesRef.current[0]?.measureNumber ?? 1));
-      setSeekSliderSec(0);
+      phraseTimeSecRef.current = 0;
+      updateSeekSliderUi(0, true);
 
       player.schedulePreparedPhraseWithCountIn({
         prepared,
@@ -719,12 +746,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       controller.destroy();
       midiControllerRef.current = null;
     };
-  }, [
-    settings.midiVolume,
-    settings.rootSoundVolume,
-    settings.selectedMidiDevice,
-    settings.soundEffectVolume,
-  ]);
+  }, [settings.selectedMidiDevice]);
 
   const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
     updateSettings({ selectedMidiDevice: deviceId });
@@ -834,7 +856,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       const pausedAt = player.pause();
       gameStateRef.current = 'paused';
       setGameState('paused');
-      setSeekSliderSec(pausedAt);
+      updateSeekSliderUi(pausedAt, true);
       syncRenderer(pausedAt);
       return;
     }
@@ -850,7 +872,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         onEnded: () => finishPhraseRef.current(),
       });
     }
-  }, [settings.masterVolume, settings.musicVolume, syncRenderer]);
+  }, [settings.masterVolume, settings.musicVolume, syncRenderer, updateSeekSliderUi]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -862,6 +884,24 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     void stopNote(midiNote);
     handleNoteReleaseRef.current(midiNote);
   }, []);
+
+  const handleRendererReady = useCallback((renderer: PrecisionNotesRendererInstance | null) => {
+    notesRendererRef.current = renderer;
+    if (!renderer) {
+      return;
+    }
+    renderer.setPracticeKeyboardHighlight(practiceModeRef.current);
+    renderer.setKeyCallbacks(handlePianoKeyDown, handlePianoKeyUp);
+    if (notesRef.current.length > 0) {
+      renderer.setNotes(notesRef.current);
+      renderer.setRuntimeStates(runtimeStatesRef.current);
+    }
+    syncRenderer(phraseTimeSecRef.current);
+  }, [handlePianoKeyDown, handlePianoKeyUp, syncRenderer]);
+
+  useEffect(() => {
+    notesRendererRef.current?.setKeyCallbacks(handlePianoKeyDown, handlePianoKeyUp);
+  }, [handlePianoKeyDown, handlePianoKeyUp]);
 
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear';
   const showLobby = canChangePracticeMode;
@@ -920,15 +960,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           maxMidi={keyboardRange.maxMidi}
           pianoHeight={PIANO_HEIGHT}
           className="absolute inset-0 h-full w-full"
-          onReady={(renderer) => {
-            notesRendererRef.current = renderer;
-            renderer?.setPracticeKeyboardHighlight(practiceMode);
-            renderer?.setKeyCallbacks(handlePianoKeyDown, handlePianoKeyUp);
-            if (precisionNotes.length > 0) {
-              renderer?.setNotes(precisionNotes);
-              renderer?.setRuntimeStates(runtimeStatesRef.current);
-            }
-          }}
+          onReady={handleRendererReady}
         />
 
         {activeLyricText ? (

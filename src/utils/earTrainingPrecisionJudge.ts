@@ -75,6 +75,26 @@ export const findPrecisionNoteForInput = (
   return null;
 };
 
+export const PRECISION_NOTE_CULL_MARGIN_PX = 20;
+
+/** レーン描画から除外するか（pending / miss / good でカリング境界が異なる） */
+export const shouldCullPrecisionNoteFromLane = (
+  judgment: PrecisionNoteJudgment,
+  bottom: number,
+  top: number,
+  noteLaneHeight: number,
+  canvasHeight: number,
+  margin = PRECISION_NOTE_CULL_MARGIN_PX,
+): boolean => {
+  if (bottom < -margin) {
+    return true;
+  }
+  if (judgment === 'pending') {
+    return top > noteLaneHeight + margin;
+  }
+  return top > canvasHeight + margin;
+};
+
 export const markExpiredPrecisionNotesAsMiss = (
   notes: readonly PrecisionNote[],
   states: Map<string, PrecisionNoteRuntimeState>,

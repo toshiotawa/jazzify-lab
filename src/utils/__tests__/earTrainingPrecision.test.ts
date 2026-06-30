@@ -13,6 +13,7 @@ import {
   markExpiredPrecisionNotesAsMiss,
   isPrecisionClearRank,
   PRECISION_JUDGMENT_WINDOW_SEC,
+  shouldCullPrecisionNoteFromLane,
 } from '@/utils/earTrainingPrecisionJudge';
 import { applyPracticeTransposeToMusicXml } from '@/utils/earTrainingPracticeTranspose';
 
@@ -107,5 +108,44 @@ describe('earTrainingPrecisionJudge', () => {
     expect(isPrecisionNoteInPerformanceWindow(note, 2.5)).toBe(true);
     expect(isPrecisionNoteInPerformanceWindow(note, 1.9)).toBe(false);
     expect(isPrecisionNoteInPerformanceWindow(note, 2.51)).toBe(false);
+  });
+
+  it('miss ノーツは画面下端を出るまでカリングしない', () => {
+    const laneHeight = 300;
+    const canvasHeight = 396;
+    const inPianoZoneTop = laneHeight + 50;
+    expect(shouldCullPrecisionNoteFromLane(
+      'miss',
+      350,
+      inPianoZoneTop,
+      laneHeight,
+      canvasHeight,
+    )).toBe(false);
+    expect(shouldCullPrecisionNoteFromLane(
+      'miss',
+      450,
+      canvasHeight + 30,
+      laneHeight,
+      canvasHeight,
+    )).toBe(true);
+  });
+
+  it('pending ノーツはレーン下端を超えたらカリングする', () => {
+    const laneHeight = 300;
+    const canvasHeight = 396;
+    expect(shouldCullPrecisionNoteFromLane(
+      'pending',
+      250,
+      laneHeight + 30,
+      laneHeight,
+      canvasHeight,
+    )).toBe(true);
+    expect(shouldCullPrecisionNoteFromLane(
+      'good',
+      350,
+      laneHeight + 30,
+      laneHeight,
+      canvasHeight,
+    )).toBe(false);
   });
 });
