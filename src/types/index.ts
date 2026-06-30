@@ -776,6 +776,7 @@ export interface EarTrainingPhrase {
   title?: string | null;
   title_en?: string | null;
   music_xml_url?: string | null;
+  midi_url?: string | null;
   audio_url: string;
   loop_duration_sec: number;
   audio_duration_sec: number;

@@ -2,6 +2,7 @@ import {
   buildPrecisionNotesFromMusicXml,
   isPrecisionNoteInGuideWindow,
   isPrecisionNoteInPerformanceWindow,
+  isPrecisionShortNoteDuration,
   PRECISION_FULL_KEYBOARD_RANGE,
   resolvePrecisionDisplayKeyboardRange,
   resolvePrecisionKeyboardRange,
@@ -61,13 +62,19 @@ describe('earTrainingPrecisionNotes', () => {
     expect(fromTransposed[0]?.midi).toBe(62);
     expect(fromTransposed.map(note => note.midi)).toEqual(withOffset.map(note => note.midi));
   });
+
+  it('四分ノーツは isShortNote=false', () => {
+    const { notes } = buildPrecisionNotesFromMusicXml(MINIMAL_XML, 120, 4);
+    expect(notes.every(note => note.isShortNote === false)).toBe(true);
+    expect(isPrecisionShortNoteDuration(notes[0]?.durationSec ?? 0, 120)).toBe(false);
+  });
 });
 
 describe('earTrainingPrecisionJudge', () => {
   it('±250ms 内の最早ノーツを good にする', () => {
     const notes = [
-      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1 },
-      { id: 'b', midi: 60, startSec: 1.2, durationSec: 0.5, isBlackKey: false, measureNumber: 1 },
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+      { id: 'b', midi: 60, startSec: 1.2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
     ];
     const states = createPrecisionRuntimeStates(notes);
     const matched = findPrecisionNoteForInput(notes, states, 60, 1.05, 0.25);
@@ -76,7 +83,7 @@ describe('earTrainingPrecisionJudge', () => {
 
   it('窓超過で miss を付与する', () => {
     const notes = [
-      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1 },
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
     ];
     const states = createPrecisionRuntimeStates(notes);
     const missed = markExpiredPrecisionNotesAsMiss(notes, states, 1.3, 0.25);
@@ -95,7 +102,9 @@ describe('earTrainingPrecisionJudge', () => {
   });
 
   it('練習ガイド窓内のpendingノーツを判定する', () => {
-    const note = { startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, id: 'a', midi: 60 };
+    const note = {
+      startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, id: 'a', midi: 60, isShortNote: false,
+    };
     expect(isPrecisionNoteInGuideWindow(note, 1.6, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(true);
     expect(isPrecisionNoteInGuideWindow(note, 2.1, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(true);
     expect(isPrecisionNoteInGuideWindow(note, 1.0, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(false);
@@ -103,7 +112,9 @@ describe('earTrainingPrecisionJudge', () => {
   });
 
   it('演奏区間内の pending ノーツを練習ハイライト対象とする', () => {
-    const note = { startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, id: 'a', midi: 60 };
+    const note = {
+      startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, id: 'a', midi: 60, isShortNote: false,
+    };
     expect(isPrecisionNoteInPerformanceWindow(note, 2)).toBe(true);
     expect(isPrecisionNoteInPerformanceWindow(note, 2.5)).toBe(true);
     expect(isPrecisionNoteInPerformanceWindow(note, 1.9)).toBe(false);

@@ -78,6 +78,7 @@ const defaultPhraseForm: PhraseForm = {
   title: '',
   title_en: '',
   music_xml_url: '',
+  midi_url: '',
   audio_url: '',
   loop_duration_sec: 4,
   audio_duration_sec: 24,
@@ -126,6 +127,7 @@ const phraseToForm = (phrase: EarTrainingPhrase): PhraseForm => ({
   title: phrase.title ?? '',
   title_en: phrase.title_en ?? '',
   music_xml_url: phrase.music_xml_url ?? '',
+  midi_url: phrase.midi_url ?? '',
   audio_url: phrase.audio_url,
   loop_duration_sec: phrase.loop_duration_sec,
   audio_duration_sec: phrase.audio_duration_sec,
@@ -438,6 +440,7 @@ const EarTrainingStageManager: React.FC = () => {
         title: phraseForm.title || null,
         title_en: phraseForm.title_en || null,
         music_xml_url: phraseForm.music_xml_url || null,
+        midi_url: phraseForm.midi_url || null,
         audio_url: phraseForm.audio_url,
         loop_duration_sec: phraseForm.loop_duration_sec,
         audio_duration_sec: phraseForm.audio_duration_sec,
@@ -939,6 +942,7 @@ const EarTrainingStageManager: React.FC = () => {
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <Input label="mp3 URL" value={phraseForm.audio_url} onChange={value => setPhraseForm(prev => ({ ...prev, audio_url: value }))} />
                 <Input label="MusicXML URL" value={phraseForm.music_xml_url ?? ''} onChange={value => setPhraseForm(prev => ({ ...prev, music_xml_url: value }))} />
+                <Input label="MIDI URL（任意・精密モード落下ノーツ）" value={phraseForm.midi_url ?? ''} onChange={value => setPhraseForm(prev => ({ ...prev, midi_url: value }))} />
               </div>
               <div className="mt-3 grid gap-3 lg:grid-cols-3">
                 <TextArea

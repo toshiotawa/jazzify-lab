@@ -4,6 +4,7 @@ import {
   musicXmlNoteHasTieStop,
   parseMusicXmlNoteElementToMidi,
 } from '@/utils/earTrainingChordOsmd';
+import { scalePracticeTargetTimeSec } from '@/utils/earTrainingPracticeSpeed';
 
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
 const DEFAULT_KEYBOARD_SPAN_SEMITONES = 24;
@@ -18,6 +19,9 @@ export const PRECISION_FULL_KEYBOARD_RANGE: PrecisionKeyboardRange = {
 /** 練習ガイド表示: 判定窓の先読み秒 */
 export const PRECISION_GUIDE_LEAD_SEC = 0.5;
 
+/** 8分音符以下の固定描画高さ（px） */
+export const PRECISION_SHORT_NOTE_HEIGHT_PX = 8;
+
 export interface PrecisionNote {
   id: string;
   midi: number;
@@ -25,6 +29,8 @@ export interface PrecisionNote {
   durationSec: number;
   isBlackKey: boolean;
   measureNumber: number;
+  /** 2/3拍以下（スイング長8分含む）: 固定低高さ・ヒット即消滅 */
+  isShortNote: boolean;
 }
 
 export interface PrecisionKeyboardRange {
@@ -58,6 +64,66 @@ const durationSecFromDivisions = (
   const beatDurationSec = 60 / Math.max(1, bpm);
   const quarters = durationDivisions / Math.max(1, divisions);
   return Math.max(0.05, quarters * beatDurationSec);
+};
+
+/**
+ * ショートノーツ上限音価（四分音符比）。
+ * 2/3拍（スイング長8分 = 3連符2分子）以下をショート。
+ * 比較は分数の交叉乗算のみ（2/3 の浮動小数を閾値に使わない）。
+ */
+export const PRECISION_SHORT_NOTE_MAX_QUARTER_NUM = 2;
+export const PRECISION_SHORT_NOTE_MAX_QUARTER_DEN = 3;
+
+/** 四分音符長（quarterLength = durationSec * bpm / 60）がショート上限以下か */
+export const isPrecisionShortNoteQuarterLength = (quarterLength: number): boolean => (
+  quarterLength * PRECISION_SHORT_NOTE_MAX_QUARTER_DEN
+  <= PRECISION_SHORT_NOTE_MAX_QUARTER_NUM + 1e-9
+);
+
+/** 4/4 前提: stage.bpm は四分音符 BPM */
+export const precisionShortNoteMaxDurationSec = (bpm: number): number => (
+  (60 / Math.max(1, bpm)) * (
+    PRECISION_SHORT_NOTE_MAX_QUARTER_NUM / PRECISION_SHORT_NOTE_MAX_QUARTER_DEN
+  )
+);
+
+/** @deprecated precisionShortNoteMaxDurationSec を使用 */
+export const precisionEighthNoteDurationSec = precisionShortNoteMaxDurationSec;
+
+export const isPrecisionShortNoteDuration = (
+  durationSec: number,
+  bpm: number,
+): boolean => {
+  const safeBpm = Math.max(1, bpm);
+  const quarterLength = durationSec * safeBpm / 60;
+  return isPrecisionShortNoteQuarterLength(quarterLength);
+};
+
+export const withPrecisionShortNoteFlags = (
+  notes: readonly PrecisionNote[],
+  classificationBpm: number,
+): PrecisionNote[] => notes.map(note => ({
+  ...note,
+  isShortNote: isPrecisionShortNoteDuration(note.durationSec, classificationBpm),
+}));
+
+export const calibratePrecisionNotes = (
+  notes: readonly PrecisionNote[],
+  params: {
+    resolveCalibratedStartSec: (startSec: number) => number;
+    practiceMode: boolean;
+    practiceSpeedPercent: number;
+    classificationBpm: number;
+  },
+): PrecisionNote[] => {
+  const scaled = notes.map(note => ({
+    ...note,
+    startSec: params.resolveCalibratedStartSec(note.startSec),
+    durationSec: params.practiceMode
+      ? scalePracticeTargetTimeSec(note.durationSec, params.practiceSpeedPercent)
+      : note.durationSec,
+  }));
+  return withPrecisionShortNoteFlags(scaled, params.classificationBpm);
 };
 
 export const resolvePrecisionKeyboardRange = (
@@ -169,6 +235,7 @@ export const buildPrecisionNotesFromMusicXml = (
         durationSec,
         isBlackKey: isBlackKeyMidi(midi),
         measureNumber,
+        isShortNote: isPrecisionShortNoteDuration(durationSec, bpm),
       });
       indexInCluster += 1;
     }

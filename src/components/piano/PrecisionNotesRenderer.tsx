@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   isPrecisionNoteInPerformanceWindow,
+  PRECISION_SHORT_NOTE_HEIGHT_PX,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
 import {
@@ -14,8 +15,9 @@ import { cn } from '@/utils/cn';
 export const PRECISION_NOTE_FALL_LEAD_SEC = 3;
 
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
-const NOTE_VANISH_EFFECT_DURATION_MS = 180;
-const NOTE_HIT_EFFECT_DURATION_MS = 120;
+const NOTE_VANISH_EFFECT_DURATION_MS = 150;
+const NOTE_HIT_EFFECT_DURATION_MS = 100;
+const NOTE_HIT_GLOW_EXPAND_PX = 3;
 const NOTE_EDGE_GAP_PX = 2;
 
 interface KeyGeometry {
@@ -37,6 +39,7 @@ interface NoteRenderSnapshot {
   radius: number;
   isBlack: boolean;
   judgment: PrecisionNoteJudgment | 'hit';
+  showSustainHighlight: boolean;
 }
 
 interface VanishEffect {
@@ -337,14 +340,22 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     return { x: 0, width: this.whiteKeyWidth };
   }
 
+  private noteRenderHeight(note: PrecisionNote): number {
+    if (note.isShortNote) {
+      return PRECISION_SHORT_NOTE_HEIGHT_PX;
+    }
+    return Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
+  }
+
   private noteRect(note: PrecisionNote): { x: number; y: number; width: number; height: number } {
     const lane = this.laneXForMidi(note.midi);
-    const height = Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
+    const height = this.noteRenderHeight(note);
     const bottom = this.noteBottomY(note);
+    const isBlack = note.isBlackKey;
     return {
-      x: lane.x,
+      x: lane.x + (isBlack ? lane.width * 0.08 : lane.width * 0.1),
       y: bottom - height,
-      width: lane.width,
+      width: lane.width * (isBlack ? 0.84 : 0.8),
       height,
     };
   }
@@ -480,7 +491,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         continue;
       }
       const bottom = this.noteBottomY(note);
-      const top = bottom - note.durationSec * this.noteSpeedPxPerSec;
+      const top = bottom - this.noteRenderHeight(note);
       if (top < this.noteLaneHeight + 40 && bottom > -40) {
         return true;
       }
@@ -611,7 +622,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         continue;
       }
       const bottom = this.noteBottomY(note);
-      const rawHeight = Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
+      const rawHeight = this.noteRenderHeight(note);
       const top = bottom - rawHeight;
       if (shouldCullPrecisionNoteFromLane(
         judgment,
@@ -633,8 +644,11 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         color = 'rgba(148,163,184,0.45)';
         borderColor = 'rgba(71,85,105,0.85)';
       }
-      const edgeGap = rawHeight > NOTE_EDGE_GAP_PX * 2 + 4 ? NOTE_EDGE_GAP_PX : 0;
+      const edgeGap = !note.isShortNote && rawHeight > NOTE_EDGE_GAP_PX * 2 + 4
+        ? NOTE_EDGE_GAP_PX
+        : 0;
       const height = Math.max(4, rawHeight - edgeGap * 2);
+      const showSustainHighlight = judgment === 'good' && !note.isShortNote;
       snapshots.push({
         x: lane.x + (isBlack ? lane.width * 0.08 : lane.width * 0.1),
         y: top + edgeGap,
@@ -645,6 +659,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         radius: isBlack ? 4 : 6,
         isBlack,
         judgment: judgment === 'good' ? 'hit' : judgment,
+        showSustainHighlight,
       });
     }
     return snapshots;
@@ -664,6 +679,10 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         ctx.fillRect(snap.x, snap.y, snap.width, snap.height);
         ctx.strokeRect(snap.x + 0.75, snap.y + 0.75, snap.width - 1.5, snap.height - 1.5);
       }
+      if (snap.showSustainHighlight) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(snap.x, snap.y, snap.width, 1);
+      }
     }
   }
 
@@ -674,9 +693,22 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         return false;
       }
       const alpha = 1 - t;
-      ctx.globalAlpha = alpha * 0.85;
+      const glowExpand = NOTE_HIT_GLOW_EXPAND_PX * (1 - t * 0.5);
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.fillStyle = '#86efac';
+      ctx.fillRect(
+        effect.x - glowExpand,
+        effect.y - glowExpand,
+        effect.width + glowExpand * 2,
+        effect.height + glowExpand * 2,
+      );
+      ctx.globalAlpha = alpha * 0.9;
       ctx.fillStyle = '#22c55e';
       ctx.fillRect(effect.x, effect.y, effect.width, effect.height);
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.strokeStyle = '#bbf7d0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(effect.x + 0.5, effect.y + 0.5, effect.width - 1, effect.height - 1);
       ctx.globalAlpha = 1;
       return true;
     });
@@ -691,7 +723,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       const alpha = 1 - t;
       ctx.globalAlpha = alpha;
       ctx.fillStyle = effect.color;
-      ctx.fillRect(effect.x, effect.y - t * 12, effect.width, effect.height);
+      ctx.fillRect(effect.x, effect.y, effect.width, effect.height);
       ctx.globalAlpha = 1;
       return true;
     });

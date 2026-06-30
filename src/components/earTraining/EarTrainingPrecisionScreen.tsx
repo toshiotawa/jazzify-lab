@@ -31,9 +31,12 @@ import {
 } from '@/utils/MidiController';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
+  fetchEarTrainingMidi,
   getCachedEarTrainingMusicXml,
+  getCachedEarTrainingMidi,
   prefetchEarTrainingLobbyAssetsFromStage,
   storeEarTrainingMusicXml,
+  storeEarTrainingMidi,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
 import {
   preloadBattleCountInClick,
@@ -74,10 +77,12 @@ import {
 import { isIOSWebView } from '@/utils/iosbridge';
 import {
   buildPrecisionNotesFromMusicXml,
+  calibratePrecisionNotes,
   resolvePrecisionDisplayKeyboardRange,
   type PrecisionKeyboardRange,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
+import { buildPrecisionNotesFromMidi } from '@/utils/earTrainingPrecisionMidi';
 import {
   createPrecisionRuntimeStates,
   findPrecisionNoteForInput,
@@ -190,6 +195,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const handleNoteReleaseRef = useRef<(note: number) => void>(() => undefined);
   const finishPhraseRef = useRef<() => void>(() => undefined);
   const phraseTimeSecRef = useRef(0);
+  const baseMidiDataRef = useRef<Uint8Array | null>(null);
   const seekSliderSecRef = useRef(0);
   const lastSeekSliderUiUpdateMsRef = useRef(0);
   const practiceTransposeEnabled = stage.practice_transpose === true;
@@ -306,19 +312,32 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     setSeekSliderSec(phraseTimeSec);
   }, []);
 
-  const rebuildNotesFromXml = useCallback((xmlText: string): void => {
-    const built = buildPrecisionNotesFromMusicXml(
-      xmlText,
-      stage.bpm,
-      stage.beats_per_measure,
-    );
-    const calibratedNotes = built.notes.map(note => ({
-      ...note,
-      startSec: resolveCalibratedTargetTimeSec(note.startSec),
-      durationSec: practiceModeRef.current
-        ? scalePracticeTargetTimeSec(note.durationSec, practiceSpeedPercentRef.current)
-        : note.durationSec,
-    }));
+  const rebuildPrecisionNotes = useCallback((xmlText: string | null): void => {
+    const classificationBpm = resolveEffectivePracticeBpm();
+    const transposeOffset = practiceTransposeEnabled && practiceModeRef.current
+      ? practiceTransposeOffsetRef.current
+      : 0;
+    const midiUrl = phrase?.midi_url?.trim() ?? '';
+    let builtNotes: PrecisionNote[] = [];
+    if (midiUrl.length > 0 && baseMidiDataRef.current) {
+      builtNotes = buildPrecisionNotesFromMidi(
+        baseMidiDataRef.current,
+        stage.bpm,
+        transposeOffset,
+      ).notes;
+    } else if (xmlText) {
+      builtNotes = buildPrecisionNotesFromMusicXml(
+        xmlText,
+        stage.bpm,
+        stage.beats_per_measure,
+      ).notes;
+    }
+    const calibratedNotes = calibratePrecisionNotes(builtNotes, {
+      resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
+      practiceMode: practiceModeRef.current,
+      practiceSpeedPercent: practiceSpeedPercentRef.current,
+      classificationBpm,
+    });
     const displayRange = resolvePrecisionDisplayKeyboardRange(
       calibratedNotes.map(note => note.midi),
       !isIOSWebView(),
@@ -330,11 +349,46 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     notesRendererRef.current?.setKeyboardRange(displayRange.minMidi, displayRange.maxMidi);
     syncRenderer(phrasePlayerRef.current?.getPhraseTimelineSec() ?? 0);
   }, [
+    phrase?.midi_url,
     resolveCalibratedTargetTimeSec,
+    resolveEffectivePracticeBpm,
     stage.beats_per_measure,
     stage.bpm,
     syncRenderer,
+    practiceTransposeEnabled,
   ]);
+
+  const loadPrecisionMidi = useCallback(async (
+    targetPhrase: EarTrainingPhrase,
+    runId: number,
+  ): Promise<Uint8Array | null> => {
+    const rawUrl = targetPhrase.midi_url?.trim();
+    if (!rawUrl) {
+      baseMidiDataRef.current = null;
+      return null;
+    }
+    const cached = getCachedEarTrainingMidi(rawUrl);
+    if (cached) {
+      baseMidiDataRef.current = cached;
+      return cached;
+    }
+    try {
+      const data = await fetchEarTrainingMidi(rawUrl);
+      if (phraseRunIdRef.current !== runId) {
+        return null;
+      }
+      if (!data) {
+        baseMidiDataRef.current = null;
+        return null;
+      }
+      storeEarTrainingMidi(rawUrl, data);
+      baseMidiDataRef.current = data;
+      return data;
+    } catch {
+      baseMidiDataRef.current = null;
+      return null;
+    }
+  }, []);
 
   const loadMusicXml = useCallback(async (targetPhrase: EarTrainingPhrase, runId: number): Promise<string | null> => {
     const rawUrl = targetPhrase.music_xml_url?.trim();
@@ -573,11 +627,17 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       if (phraseRunIdRef.current !== runId) {
         return;
       }
+      if (phrase.midi_url?.trim()) {
+        await loadPrecisionMidi(phrase, runId);
+      }
+      if (phraseRunIdRef.current !== runId) {
+        return;
+      }
       if (!xmlText) {
         setGameState('idle');
         return;
       }
-      rebuildNotesFromXml(xmlText);
+      rebuildPrecisionNotes(xmlText);
       if (notesRef.current.length === 0) {
         setGameState('idle');
         return;
@@ -644,8 +704,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, [
     ensurePhrasePlayer,
     loadMusicXml,
+    loadPrecisionMidi,
     phrase,
-    rebuildNotesFromXml,
+    rebuildPrecisionNotes,
     resolveCalibratedTargetTimeSec,
     resolveEffectivePracticeBpm,
     settings.masterVolume,
@@ -689,6 +750,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
     state.judgment = 'good';
     state.hitAtSec = phraseTime;
+    if (matched.isShortNote) {
+      state.hiddenFromLane = true;
+    }
     activeGoodNotesByMidiRef.current.set(midiNote, matched.id);
     notesRendererRef.current?.highlightKey(midiNote, true);
     syncRenderer(phraseTime);
@@ -764,13 +828,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (gameState !== 'idle' || !phrase) {
       return undefined;
     }
-    void loadMusicXml(phrase, phraseRunIdRef.current).then(xml => {
+    void loadMusicXml(phrase, phraseRunIdRef.current).then(async xml => {
+      if (phrase.midi_url?.trim()) {
+        await loadPrecisionMidi(phrase, phraseRunIdRef.current);
+      }
       if (xml) {
-        rebuildNotesFromXml(xml);
+        rebuildPrecisionNotes(xml);
       }
     });
     return undefined;
-  }, [gameState, loadMusicXml, phrase, rebuildNotesFromXml]);
+  }, [gameState, loadMusicXml, loadPrecisionMidi, phrase, rebuildPrecisionNotes]);
 
   useEffect(() => () => {
     stopPhraseAudio();
