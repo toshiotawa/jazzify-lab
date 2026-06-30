@@ -75,4 +75,16 @@ describe('computeChordOsmdActiveMeasureNumber', () => {
     expect(computeChordOsmdActiveMeasureNumber(2.41, 100, 4, 60, 24, targets)).toBe(2);
     expect(computeChordOsmdActiveMeasureNumber(4.81, 100, 4, 60, 24, targets)).toBe(3);
   });
+
+  it('loop_measures=8 でも phrase 長が32小節分なら9小節目を返す', () => {
+    const measureDur = 2.4;
+    const phraseLoop = 32 * measureDur;
+    const targets = [{ measureNumber: 32 }];
+    expect(
+      computeChordOsmdActiveMeasureNumber(9 * measureDur - 0.1, 100, 4, phraseLoop, 8, targets),
+    ).toBe(9);
+    expect(
+      computeChordOsmdActiveMeasureNumber(20 * measureDur, 100, 4, phraseLoop, 8, targets),
+    ).toBe(21);
+  });
 });

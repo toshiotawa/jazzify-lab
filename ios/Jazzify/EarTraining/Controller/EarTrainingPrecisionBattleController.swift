@@ -38,7 +38,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     let copy: EarTrainingGameCopy
 
     var scoreScrollActive: Bool {
-        scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase)
+        scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase || gameState == .paused)
     }
 
     var effectiveMeasureDurationSec: Double {
@@ -65,6 +65,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private var pausedTimelineSec: Double?
     private var preparedPhraseURL: URL?
     private var lastSeekSliderUiUpdate: TimeInterval = 0
+    private var wasPlayingBeforeSeekInteraction = false
+    private var seekInteractionActive = false
     private var musicXmlCache: [String: String] = [:]
     private var midiCache: [String: Data] = [:]
     private var lobbyPreloadTask: Task<Void, Never>?
@@ -362,7 +364,17 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         let measureDuration = effectiveMeasureDurationSec
         guard measureDuration > 0 else { return }
         let raw = Int(floor(time / measureDuration)) + 1
-        let maxMeasure = max(stage.loopMeasures, precisionNotes.map(\.measureNumber).max() ?? 1)
+        let targetMaxMeasure = precisionNotes.map(\.measureNumber).max() ?? 1
+        let loopMeasureCapFromPhraseDuration: Int
+        if let phrase = currentPhrase, phrase.loopDurationSec > 0 {
+            loopMeasureCapFromPhraseDuration = min(
+                512,
+                max(1, Int(ceil(phrase.loopDurationSec / measureDuration)))
+            )
+        } else {
+            loopMeasureCapFromPhraseDuration = stage.loopMeasures
+        }
+        let maxMeasure = max(loopMeasureCapFromPhraseDuration, stage.loopMeasures, targetMaxMeasure)
         let next = max(1, min(maxMeasure, raw))
         if next != activeMeasureNumber {
             activeMeasureNumber = next
@@ -462,9 +474,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         }
     }
 
-    func applySeek(_ targetSec: Double) {
-        guard practiceMode, let url = preparedPhraseURL else { return }
-        let clamped = max(0, min(phraseDurationSec, targetSec))
+    private func resetRuntimeStatesForSeekTime(_ clamped: Double) {
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
         EarTrainingPrecisionJudge.resetRuntimeStatesFromTime(
             notes: precisionNotes,
@@ -480,16 +490,57 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
                 activeLyricText = lyric.text
             }
         }
-        audio.stopPhrase()
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
-            self.gameState = .playingPhrase
-            _ = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: clamped) { [weak self] in
-                self?.gameState = .playingPhrase
-            }
-            self.updateSeekSliderUi(phraseTimeSec: clamped, force: true)
+    }
+
+    func beginSeekInteraction() {
+        guard practiceMode, !seekInteractionActive else { return }
+        seekInteractionActive = true
+        wasPlayingBeforeSeekInteraction = gameState == .playingPhrase || gameState == .countIn
+        if wasPlayingBeforeSeekInteraction {
+            pausedTimelineSec = audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec
+            audio.pausePhrasePlayback()
+            gameState = .paused
         }
+    }
+
+    func updateSeekPreview(_ targetSec: Double) {
+        guard practiceMode, seekInteractionActive else { return }
+        let clamped = max(0, min(phraseDurationSec, targetSec))
+        seekSliderSec = clamped
+    }
+
+    func commitSeekPosition(_ targetSec: Double, resumePlayback: Bool) {
+        guard practiceMode, let url = preparedPhraseURL else {
+            seekInteractionActive = false
+            return
+        }
+        let clamped = max(0, min(phraseDurationSec, targetSec))
+        seekInteractionActive = false
+        resetRuntimeStatesForSeekTime(clamped)
+        pausedTimelineSec = clamped
+        updateSeekSliderUi(phraseTimeSec: clamped, force: true)
+
+        if resumePlayback {
+            audio.stopPhrase()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+                self.gameState = .playingPhrase
+                self.scoreTimelineArmed = true
+                _ = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: clamped) { [weak self] in
+                    self?.gameState = .playingPhrase
+                }
+                self.updateActiveMeasure(for: clamped)
+            }
+        } else {
+            audio.stopPhrase()
+            gameState = .paused
+        }
+    }
+
+    func applySeek(_ targetSec: Double) {
+        let resume = gameState == .playingPhrase || gameState == .countIn
+        commitSeekPosition(targetSec, resumePlayback: resume)
     }
 
     func togglePause() {
@@ -497,15 +548,35 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         if gameState == .playingPhrase || gameState == .countIn {
             pausedTimelineSec = audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec
             audio.pausePhrasePlayback()
-            gameState = .idle
-        } else if gameState == .idle, pausedTimelineSec != nil {
-            startBattle()
+            gameState = .paused
+            updateSeekSliderUi(phraseTimeSec: pausedTimelineSec ?? seekSliderSec, force: true)
+        } else if gameState == .paused {
+            guard let url = preparedPhraseURL else { return }
+            let offset = pausedTimelineSec ?? seekSliderSec
+            audio.stopPhrase()
+            gameState = .playingPhrase
+            scoreTimelineArmed = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+                _ = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: offset) { [weak self] in
+                    self?.gameState = .playingPhrase
+                }
+                self.updateSeekSliderUi(phraseTimeSec: offset, force: true)
+            }
         }
     }
 
-    func seekBy(deltaSec: Double) {
-        let base = audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec
-        applySeek(base + deltaSec)
+    func endSeekInteraction(at targetSec: Double) {
+        commitSeekPosition(targetSec, resumePlayback: wasPlayingBeforeSeekInteraction)
+    }
+
+    func seekByMeasure(delta: Int) {
+        let base = gameState == .playingPhrase || gameState == .countIn
+            ? (audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec)
+            : (pausedTimelineSec ?? seekSliderSec)
+        let resume = gameState == .playingPhrase || gameState == .countIn
+        commitSeekPosition(base + Double(delta) * effectiveMeasureDurationSec, resumePlayback: resume)
     }
 
     private func updateSeekSliderUi(phraseTimeSec: Double, force: Bool = false) {
@@ -582,7 +653,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     }
 
     func currentPhraseTimelineSec() -> Double? {
-        audio.phraseWallClockTimelineSecNowOrNil()
+        if gameState == .paused {
+            return pausedTimelineSec ?? seekSliderSec
+        }
+        return audio.phraseWallClockTimelineSecNowOrNil()
     }
 
     func currentEffectiveJudgmentWindowSec() -> Double {

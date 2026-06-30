@@ -168,6 +168,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
   const [activeLyricText, setActiveLyricText] = useState('');
   const [seekSliderSec, setSeekSliderSec] = useState(0);
+  const [seekPreviewSec, setSeekPreviewSec] = useState(0);
+  const [isSeekDragging, setIsSeekDragging] = useState(false);
   const [phraseDurationSec, setPhraseDurationSec] = useState(1);
   const notesViewportRef = useRef<HTMLDivElement | null>(null);
   const [notesViewportSize, setNotesViewportSize] = useState({ width: 390, height: 400 });
@@ -198,6 +200,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const baseMidiDataRef = useRef<Uint8Array | null>(null);
   const seekSliderSecRef = useRef(0);
   const lastSeekSliderUiUpdateMsRef = useRef(0);
+  const isSeekDraggingRef = useRef(false);
+  const wasPlayingBeforeSeekRef = useRef(false);
   const practiceTransposeEnabled = stage.practice_transpose === true;
 
   useQuestCompleteJingleOnStageClear(
@@ -468,15 +472,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     finishPhraseRef.current = finishPhrase;
   }, [finishPhrase]);
 
-  const applySeek = useCallback((targetSec: number): void => {
-    const clamped = Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec));
-    const player = phrasePlayerRef.current;
-    const prepared = preparedRef.current;
-    if (!player || !prepared) {
-      phraseTimeSecRef.current = clamped;
-      updateSeekSliderUi(clamped, true);
-      return;
-    }
+  const resetRuntimeStatesForSeekTime = useCallback((clamped: number): void => {
     resetPrecisionRuntimeStatesFromTime(
       notesRef.current,
       runtimeStatesRef.current,
@@ -491,27 +487,108 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         setActiveLyricText(lyric.text);
       }
     }
+  }, [resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
+
+  const beginSeekInteraction = useCallback((): void => {
+    if (isSeekDraggingRef.current) {
+      return;
+    }
+    isSeekDraggingRef.current = true;
+    setIsSeekDragging(true);
+    wasPlayingBeforeSeekRef.current = gameStateRef.current === 'playingPhrase'
+      || gameStateRef.current === 'countIn';
+    if (wasPlayingBeforeSeekRef.current) {
+      const player = phrasePlayerRef.current;
+      if (player && preparedRef.current) {
+        const pausedAt = player.pause();
+        gameStateRef.current = 'paused';
+        setGameState('paused');
+        updateSeekSliderUi(pausedAt, true);
+        setSeekPreviewSec(pausedAt);
+      }
+    } else {
+      setSeekPreviewSec(seekSliderSecRef.current);
+    }
+  }, [updateSeekSliderUi]);
+
+  const updateSeekPreview = useCallback((targetSec: number): void => {
+    if (!isSeekDraggingRef.current) {
+      return;
+    }
+    const clamped = Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec));
+    seekSliderSecRef.current = clamped;
+    setSeekPreviewSec(clamped);
+  }, []);
+
+  const commitSeekPosition = useCallback((targetSec: number, resumePlayback: boolean): void => {
+    isSeekDraggingRef.current = false;
+    setIsSeekDragging(false);
+    const clamped = Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec));
+    const player = phrasePlayerRef.current;
+    const prepared = preparedRef.current;
+    if (!player || !prepared) {
+      phraseTimeSecRef.current = clamped;
+      updateSeekSliderUi(clamped, true);
+      return;
+    }
+    resetRuntimeStatesForSeekTime(clamped);
     player.stop();
-    player.playPrepared({
-      prepared,
-      phraseGain: settings.musicVolume * settings.masterVolume,
-      startOffsetSec: clamped,
-      onPhraseStarted: () => {
-        gameStateRef.current = 'playingPhrase';
-        setGameState('playingPhrase');
-      },
-      onEnded: () => finishPhraseRef.current(),
-    });
     updateSeekSliderUi(clamped, true);
     syncRenderer(clamped);
+
+    if (resumePlayback) {
+      player.playPrepared({
+        prepared,
+        phraseGain: settings.musicVolume * settings.masterVolume,
+        startOffsetSec: clamped,
+        onPhraseStarted: () => {
+          gameStateRef.current = 'playingPhrase';
+          setGameState('playingPhrase');
+        },
+        onEnded: () => finishPhraseRef.current(),
+      });
+      const nextMeasure = computeChordOsmdActiveMeasureNumber(
+        clamped,
+        resolveEffectivePracticeBpm(),
+        stage.beats_per_measure,
+        phraseLoopDurationSecRef.current,
+        stage.loop_measures,
+        notesRef.current.map((note, orderIndex) => ({
+          id: note.id,
+          label: '',
+          orderIndex,
+          targetTimeSec: note.startSec,
+          measureNumber: note.measureNumber,
+          midiCounts: [{ midi: note.midi, count: 1 }],
+        })),
+      );
+      setActiveMeasureNumber(nextMeasure);
+    } else {
+      gameStateRef.current = 'paused';
+      setGameState('paused');
+    }
   }, [
-    resolveCalibratedTargetTimeSec,
-    resolveEffectiveTimingWindowSec,
+    resetRuntimeStatesForSeekTime,
+    resolveEffectivePracticeBpm,
     settings.masterVolume,
     settings.musicVolume,
+    stage.beats_per_measure,
+    stage.loop_measures,
     syncRenderer,
     updateSeekSliderUi,
   ]);
+
+  const endSeekInteraction = useCallback((targetSec: number): void => {
+    commitSeekPosition(targetSec, wasPlayingBeforeSeekRef.current);
+  }, [commitSeekPosition]);
+
+  const seekByMeasure = useCallback((delta: number): void => {
+    const base = gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn'
+      ? (phrasePlayerRef.current?.getPhraseTimelineSec() ?? seekSliderSecRef.current)
+      : (phrasePlayerRef.current?.getPausedTimelineSec() ?? seekSliderSecRef.current);
+    const resume = gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn';
+    commitSeekPosition(base + delta * measureDurationSec, resume);
+  }, [commitSeekPosition, measureDurationSec]);
 
   const handlePhraseTimelineTick = useCallback(() => {
     const state = gameStateRef.current;
@@ -919,7 +996,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (!player || !preparedRef.current) {
       return;
     }
-    if (gameStateRef.current === 'playingPhrase') {
+    if (gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn') {
       const pausedAt = player.pause();
       gameStateRef.current = 'paused';
       setGameState('paused');
@@ -1122,38 +1199,66 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded bg-slate-800 px-2 py-1 text-xs"
-              onClick={() => applySeek(Math.max(0, seekSliderSec - 1))}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"
+              onClick={() => seekByMeasure(-1)}
               disabled={!preparedRef.current}
+              aria-label={isEnglishCopy ? 'Previous measure' : '1小節戻る'}
             >
-              -1s
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+                <path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z" />
+              </svg>
             </button>
             <button
               type="button"
-              className="rounded bg-slate-800 px-2 py-1 text-xs"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"
               onClick={togglePause}
-              disabled={gameState !== 'playingPhrase' && gameState !== 'paused'}
+              disabled={gameState !== 'playingPhrase' && gameState !== 'countIn' && gameState !== 'paused'}
+              aria-label={
+                gameState === 'paused'
+                  ? (isEnglishCopy ? 'Play' : '再生')
+                  : (isEnglishCopy ? 'Pause' : '一時停止')
+              }
             >
-              {gameState === 'paused'
-                ? (isEnglishCopy ? 'Play' : '再生')
-                : (isEnglishCopy ? 'Pause' : '一時停止')}
+              {gameState === 'paused' ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+                  <path d="M8 5v14l11-7L8 5z" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+                  <path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z" />
+                </svg>
+              )}
             </button>
             <button
               type="button"
-              className="rounded bg-slate-800 px-2 py-1 text-xs"
-              onClick={() => applySeek(seekSliderSec + 1)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"
+              onClick={() => seekByMeasure(1)}
               disabled={!preparedRef.current}
+              aria-label={isEnglishCopy ? 'Next measure' : '1小節進む'}
             >
-              +1s
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+                <path d="M16 6h2v12h-2V6zM6 18l8.5-6L6 6v12z" />
+              </svg>
             </button>
             <input
               type="range"
               min={0}
               max={Math.max(1, phraseDurationSec)}
               step={0.05}
-              value={Math.min(seekSliderSec, phraseDurationSec)}
+              value={Math.min(isSeekDragging ? seekPreviewSec : seekSliderSec, phraseDurationSec)}
               className="min-w-0 flex-1"
-              onChange={(event) => applySeek(Number(event.target.value))}
+              onPointerDown={() => {
+                beginSeekInteraction();
+              }}
+              onChange={(event) => {
+                updateSeekPreview(Number(event.target.value));
+              }}
+              onPointerUp={(event) => {
+                endSeekInteraction(Number(event.currentTarget.value));
+              }}
+              onPointerCancel={(event) => {
+                endSeekInteraction(Number(event.currentTarget.value));
+              }}
               disabled={!preparedRef.current}
             />
           </div>

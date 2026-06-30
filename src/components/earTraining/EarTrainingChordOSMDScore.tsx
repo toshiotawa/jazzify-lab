@@ -115,6 +115,7 @@ const collectMeasureCenters = (
   let maxX = 0;
 
   const measureList = readMeasureList(osmd);
+  let measureOrdinal = 0;
   for (let measureIndex = 0; measureIndex < measureList.length; measureIndex += 1) {
     const row = measureList[measureIndex] ?? [];
     const measures = row.filter(Boolean) as OsmdGraphicMeasureLike[];
@@ -123,14 +124,15 @@ const collectMeasureCenters = (
       continue;
     }
 
-    const measureNumber = measureIndex + 1;
-
-    let noteMinX = Number.POSITIVE_INFINITY;
-    let noteMaxX = Number.NEGATIVE_INFINITY;
-    let measureMinX = Number.POSITIVE_INFINITY;
-    let measureMaxX = Number.NEGATIVE_INFINITY;
-
     for (const measure of measures) {
+      measureOrdinal += 1;
+      const measureNumber = measureOrdinal;
+
+      let noteMinX = Number.POSITIVE_INFINITY;
+      let noteMaxX = Number.NEGATIVE_INFINITY;
+      let measureMinX = Number.POSITIVE_INFINITY;
+      let measureMaxX = Number.NEGATIVE_INFINITY;
+
       const measureX = getFiniteNumber(measure.PositionAndShape?.AbsolutePosition?.x);
       const measureWidth = getFiniteNumber(measure.PositionAndShape?.BorderRight) ?? 0;
 
@@ -156,17 +158,17 @@ const collectMeasureCenters = (
           }
         }
       }
-    }
 
-    assignMeasureLayout(
-      measureNumber,
-      noteMinX,
-      noteMaxX,
-      measureMinX,
-      measureMaxX,
-      measureCentersByNumber,
-      measureBoundsByNumber,
-    );
+      assignMeasureLayout(
+        measureNumber,
+        noteMinX,
+        noteMaxX,
+        measureMinX,
+        measureMaxX,
+        measureCentersByNumber,
+        measureBoundsByNumber,
+      );
+    }
   }
 
   const scoreWidth = Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2);

@@ -137,6 +137,9 @@ private struct EarTrainingPrecisionGameContent: View {
     let audio: EarTrainingAudio
     let locale: AppLocale
 
+    @State private var seekPreviewSec: Double = 0
+    @State private var isSeekDragging = false
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -266,21 +269,59 @@ private struct EarTrainingPrecisionGameContent: View {
 
     private var transportBar: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Button("-1s") { controller.seekBy(deltaSec: -1) }
-                Button(controller.gameState == .idle ? (locale == .ja ? "再生" : "Play") : (locale == .ja ? "一時停止" : "Pause")) {
+            HStack(spacing: 12) {
+                transportIconButton(
+                    systemName: "backward.end.fill",
+                    accessibilityLabel: locale == .ja ? "1小節戻る" : "Previous measure"
+                ) {
+                    controller.seekByMeasure(delta: -1)
+                }
+                transportIconButton(
+                    systemName: controller.gameState == .paused ? "play.fill" : "pause.fill",
+                    accessibilityLabel: controller.gameState == .paused
+                        ? (locale == .ja ? "再生" : "Play")
+                        : (locale == .ja ? "一時停止" : "Pause")
+                ) {
                     controller.togglePause()
                 }
-                Button("+1s") { controller.seekBy(deltaSec: 1) }
+                .disabled(controller.gameState != .playingPhrase
+                    && controller.gameState != .countIn
+                    && controller.gameState != .paused)
+                transportIconButton(
+                    systemName: "forward.end.fill",
+                    accessibilityLabel: locale == .ja ? "1小節進む" : "Next measure"
+                ) {
+                    controller.seekByMeasure(delta: 1)
+                }
             }
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.white)
             Slider(
                 value: Binding(
-                    get: { controller.seekSliderSec },
-                    set: { controller.applySeek($0) }
+                    get: {
+                        isSeekDragging ? seekPreviewSec : controller.seekSliderSec
+                    },
+                    set: { newValue in
+                        if !isSeekDragging {
+                            isSeekDragging = true
+                            seekPreviewSec = controller.seekSliderSec
+                            controller.beginSeekInteraction()
+                        }
+                        seekPreviewSec = newValue
+                        controller.updateSeekPreview(newValue)
+                    }
                 ),
-                in: 0...max(1, controller.phraseDurationSec)
+                in: 0...max(1, controller.phraseDurationSec),
+                onEditingChanged: { editing in
+                    if editing {
+                        if !isSeekDragging {
+                            isSeekDragging = true
+                            seekPreviewSec = controller.seekSliderSec
+                            controller.beginSeekInteraction()
+                        }
+                    } else {
+                        isSeekDragging = false
+                        controller.endSeekInteraction(at: seekPreviewSec)
+                    }
+                }
             )
             .tint(.yellow)
         }
@@ -288,5 +329,21 @@ private struct EarTrainingPrecisionGameContent: View {
         .padding(.vertical, 10)
         .frame(height: precisionTransportHeight)
         .background(Color(hex: "020617").opacity(0.95))
+    }
+
+    private func transportIconButton(
+        systemName: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 18))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(Color.white.opacity(0.12))
+                .clipShape(Circle())
+        }
+        .accessibilityLabel(accessibilityLabel)
     }
 }

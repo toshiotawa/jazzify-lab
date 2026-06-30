@@ -1,11 +1,12 @@
 import Foundation
 import CoreGraphics
 
-/// Web 版 `EarTrainingGameState` ([src/types/index.ts L663-671]) と一致。
+/// Web 版 `EarTrainingGameState` + 練習 transport 用 `paused`（Web は `'paused'` 拡張）。
 enum EarTrainingGameState: String, Sendable {
     case idle
     case countIn
     case playingPhrase
+    case paused
     case phraseComplete
     case phraseFail
     case transitionToNextPhrase

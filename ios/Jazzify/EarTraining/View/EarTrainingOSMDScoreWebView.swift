@@ -389,22 +389,22 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             let maxX = 0;
 
             const list = readMeasureList({ GraphicSheet: gs });
+            let measureOrdinal = 0;
             for (let measureIndex = 0; measureIndex < list.length; measureIndex += 1) {
               const row = list[measureIndex] || [];
               const measures = row.filter(Boolean);
               if (measures.length === 0) continue;
 
-              // OSMD の MeasureNumber プロパティが MusicXML の `<measure number=>` と一致しないケースがあるため、
-              // 表示用のキーは MusicXML の出現順 (1-indexed) を強制する。`activeMeasureNumber` も 1-indexed のため整合する。
-              const measureNumber = measureIndex + 1;
-
-              let noteMinX = Number.POSITIVE_INFINITY;
-              let noteMaxX = Number.NEGATIVE_INFINITY;
-              let measureMinX = Number.POSITIVE_INFINITY;
-              let measureMaxX = Number.NEGATIVE_INFINITY;
-
               for (let mi = 0; mi < measures.length; mi += 1) {
+                measureOrdinal += 1;
+                const measureNumber = measureOrdinal;
                 const measure = measures[mi];
+
+                let noteMinX = Number.POSITIVE_INFINITY;
+                let noteMaxX = Number.NEGATIVE_INFINITY;
+                let measureMinX = Number.POSITIVE_INFINITY;
+                let measureMaxX = Number.NEGATIVE_INFINITY;
+
                 const measureX = finiteNum(measure.PositionAndShape && measure.PositionAndShape.AbsolutePosition && measure.PositionAndShape.AbsolutePosition.x);
                 const measureWidth = finiteNum(measure.PositionAndShape && measure.PositionAndShape.BorderRight) || 0;
                 if (measureX !== null) {
@@ -435,12 +435,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                     }
                   }
                 }
-              }
 
-              if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
-                assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
-              } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
-                assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+                if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
+                  assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+                } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
+                  assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+                }
               }
             }
 
