@@ -1,5 +1,8 @@
 import {
   buildPrecisionNotesFromMusicXml,
+  isPrecisionNoteInGuideWindow,
+  PRECISION_FULL_KEYBOARD_RANGE,
+  resolvePrecisionDisplayKeyboardRange,
   resolvePrecisionKeyboardRange,
 } from '@/utils/earTrainingPrecisionNotes';
 import {
@@ -8,7 +11,9 @@ import {
   createPrecisionRuntimeStates,
   markExpiredPrecisionNotesAsMiss,
   isPrecisionClearRank,
+  PRECISION_JUDGMENT_WINDOW_SEC,
 } from '@/utils/earTrainingPrecisionJudge';
+import { applyPracticeTransposeToMusicXml } from '@/utils/earTrainingPracticeTranspose';
 
 const MINIMAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise>
@@ -41,6 +46,19 @@ describe('earTrainingPrecisionNotes', () => {
     expect(range.minMidi).toBeLessThanOrEqual(60);
     expect(range.maxMidi).toBeGreaterThanOrEqual(67);
   });
+
+  it('Web版は88鍵フルレンジを返す', () => {
+    const range = resolvePrecisionDisplayKeyboardRange([60, 67], true);
+    expect(range).toEqual(PRECISION_FULL_KEYBOARD_RANGE);
+  });
+
+  it('移調済みMusicXMLからoffset無しで正しいmidiを生成する', () => {
+    const transposed = applyPracticeTransposeToMusicXml(MINIMAL_XML, 2);
+    const { notes: withOffset } = buildPrecisionNotesFromMusicXml(MINIMAL_XML, 120, 4, 2);
+    const { notes: fromTransposed } = buildPrecisionNotesFromMusicXml(transposed, 120, 4);
+    expect(fromTransposed[0]?.midi).toBe(62);
+    expect(fromTransposed.map(note => note.midi)).toEqual(withOffset.map(note => note.midi));
+  });
 });
 
 describe('earTrainingPrecisionJudge', () => {
@@ -72,5 +90,13 @@ describe('earTrainingPrecisionJudge', () => {
     expect(precisionRankForGoodRate(0.69)).toBe('D');
     expect(isPrecisionClearRank('C')).toBe(true);
     expect(isPrecisionClearRank('D')).toBe(false);
+  });
+
+  it('練習ガイド窓内のpendingノーツを判定する', () => {
+    const note = { startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, id: 'a', midi: 60 };
+    expect(isPrecisionNoteInGuideWindow(note, 1.6, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(true);
+    expect(isPrecisionNoteInGuideWindow(note, 2.1, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(true);
+    expect(isPrecisionNoteInGuideWindow(note, 1.0, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(false);
+    expect(isPrecisionNoteInGuideWindow(note, 2.5, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(false);
   });
 });

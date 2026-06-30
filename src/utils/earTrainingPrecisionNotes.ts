@@ -9,6 +9,15 @@ const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
 const DEFAULT_KEYBOARD_SPAN_SEMITONES = 24;
 const KEYBOARD_PADDING_SEMITONES = 2;
 
+/** 88鍵フルレンジ（A0〜C8） */
+export const PRECISION_FULL_KEYBOARD_RANGE: PrecisionKeyboardRange = {
+  minMidi: 21,
+  maxMidi: 108,
+};
+
+/** 練習ガイド表示: 判定窓の先読み秒 */
+export const PRECISION_GUIDE_LEAD_SEC = 0.5;
+
 export interface PrecisionNote {
   id: string;
   midi: number;
@@ -82,6 +91,29 @@ export const resolvePrecisionKeyboardRange = (
     minMidi: Math.max(21, minMidi),
     maxMidi: Math.min(108, maxMidi),
   };
+};
+
+/** Web 版などフル鍵盤表示時は 88 鍵、それ以外はノーツ音域から算出 */
+export const resolvePrecisionDisplayKeyboardRange = (
+  noteMidis: readonly number[],
+  useFullKeyboard: boolean,
+): PrecisionKeyboardRange => {
+  if (useFullKeyboard) {
+    return PRECISION_FULL_KEYBOARD_RANGE;
+  }
+  return resolvePrecisionKeyboardRange(noteMidis);
+};
+
+/** 練習モード: 判定ライン付近に来た pending ノーツの鍵盤ガイド対象か */
+export const isPrecisionNoteInGuideWindow = (
+  note: Pick<PrecisionNote, 'startSec'>,
+  phraseTimeSec: number,
+  windowSec: number,
+  leadSec = PRECISION_GUIDE_LEAD_SEC,
+): boolean => {
+  const earliest = note.startSec - leadSec;
+  const latest = note.startSec + windowSec;
+  return phraseTimeSec >= earliest && phraseTimeSec <= latest;
 };
 
 export const buildPrecisionNotesFromMusicXml = (

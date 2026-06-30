@@ -1,6 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import type { PrecisionNote } from '@/utils/earTrainingPrecisionNotes';
-import type { PrecisionNoteJudgment, PrecisionNoteRuntimeState } from '@/utils/earTrainingPrecisionJudge';
+import {
+  isPrecisionNoteInGuideWindow,
+  type PrecisionNote,
+} from '@/utils/earTrainingPrecisionNotes';
+import {
+  PRECISION_JUDGMENT_WINDOW_SEC,
+  type PrecisionNoteJudgment,
+  type PrecisionNoteRuntimeState,
+} from '@/utils/earTrainingPrecisionJudge';
 import { pianoKeyboardTheme } from '@/theme/pianoKeyboardTheme';
 import { cn } from '@/utils/cn';
 
@@ -9,7 +16,6 @@ export const PRECISION_NOTE_FALL_LEAD_SEC = 3;
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
 const NOTE_VANISH_EFFECT_DURATION_MS = 180;
 const NOTE_HIT_EFFECT_DURATION_MS = 120;
-const LANE_FLASH_DURATION_MS = 160;
 
 interface KeyGeometry {
   midi: number;
@@ -37,6 +43,14 @@ interface VanishEffect {
   width: number;
   height: number;
   color: string;
+  startedAtMs: number;
+}
+
+interface HitEffect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
   startedAtMs: number;
 }
 
@@ -89,6 +103,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   private runtimeStates = new Map<string, PrecisionNoteRuntimeState>();
   private practiceHighlight = false;
   private activeKeys = new Set<number>();
+  private guideKeys = new Set<number>();
   private keyGeometries: KeyGeometry[] = [];
   private whiteKeyWidth = 1;
   private hitLineY = 0;
@@ -99,10 +114,14 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   private rafId: number | null = null;
   private lastFrameMs = 0;
   private vanishEffects: VanishEffect[] = [];
+  private hitEffects: HitEffect[] = [];
   private previousJudgments = new Map<string, PrecisionNoteJudgment>();
+  private previousHiddenFromLane = new Map<string, boolean>();
+  private vanishedIds = new Set<string>();
   private onKeyPress: ((midi: number) => void) | null = null;
   private onKeyRelease: ((midi: number) => void) | null = null;
   private pointerMidi: number | null = null;
+  private capturedPointerId: number | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -128,14 +147,20 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   setPhraseTimeSec(timeSec: number): void {
     this.phraseTimeSec = timeSec;
     this.trackJudgmentTransitions();
+    this.trackNoteVanish();
     this.requestRender();
   }
 
   setNotes(notes: readonly PrecisionNote[]): void {
     this.notes = notes;
     this.previousJudgments.clear();
+    this.previousHiddenFromLane.clear();
+    this.vanishedIds.clear();
+    this.hitEffects = [];
+    this.vanishEffects = [];
     for (const note of notes) {
       this.previousJudgments.set(note.id, 'pending');
+      this.previousHiddenFromLane.set(note.id, false);
     }
     this.requestRender();
   }
@@ -143,6 +168,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   setRuntimeStates(states: ReadonlyMap<string, PrecisionNoteRuntimeState>): void {
     this.runtimeStates = new Map(states);
     this.trackJudgmentTransitions();
+    this.trackNoteVanish();
     this.requestRender();
   }
 
@@ -199,18 +225,32 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     if (midi === null) {
       return;
     }
+    try {
+      this.canvas.setPointerCapture(event.pointerId);
+      this.capturedPointerId = event.pointerId;
+    } catch {
+      // pointer capture unsupported
+    }
     this.pointerMidi = midi;
     this.activeKeys.add(midi);
     this.onKeyPress?.(midi);
     this.requestRender();
   };
 
-  private handlePointerUp = (): void => {
+  private handlePointerUp = (_event: PointerEvent): void => {
     if (this.pointerMidi !== null) {
       this.onKeyRelease?.(this.pointerMidi);
       this.activeKeys.delete(this.pointerMidi);
       this.pointerMidi = null;
       this.requestRender();
+    }
+    if (this.capturedPointerId !== null) {
+      try {
+        this.canvas.releasePointerCapture(this.capturedPointerId);
+      } catch {
+        // ignore
+      }
+      this.capturedPointerId = null;
     }
   };
 
@@ -282,6 +322,51 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     return { x: 0, width: this.whiteKeyWidth };
   }
 
+  private noteRect(note: PrecisionNote): { x: number; y: number; width: number; height: number } {
+    const lane = this.laneXForMidi(note.midi);
+    const height = Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
+    const bottom = this.noteBottomY(note);
+    return {
+      x: lane.x,
+      y: bottom - height,
+      width: lane.width,
+      height,
+    };
+  }
+
+  private addHitEffect(note: PrecisionNote, nowMs: number): void {
+    const rect = this.noteRect(note);
+    this.hitEffects.push({
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      startedAtMs: nowMs,
+    });
+    if (this.hitEffects.length > 24) {
+      this.hitEffects.shift();
+    }
+  }
+
+  private addVanishEffect(note: PrecisionNote, nowMs: number, color: string): void {
+    if (this.vanishedIds.has(note.id)) {
+      return;
+    }
+    const rect = this.noteRect(note);
+    this.vanishEffects.push({
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      color,
+      startedAtMs: nowMs,
+    });
+    this.vanishedIds.add(note.id);
+    if (this.vanishEffects.length > 24) {
+      this.vanishEffects.shift();
+    }
+  }
+
   private trackJudgmentTransitions(): void {
     const now = performance.now();
     for (const note of this.notes) {
@@ -292,21 +377,35 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         continue;
       }
       this.previousJudgments.set(note.id, next);
-      if (next === 'good' || next === 'miss') {
-        const lane = this.laneXForMidi(note.midi);
-        const bottom = this.noteBottomY(note);
-        const height = note.durationSec * this.noteSpeedPxPerSec;
-        this.vanishEffects.push({
-          x: lane.x,
-          y: bottom - height,
-          width: lane.width,
-          height,
-          color: next === 'good' ? '#22c55e' : '#ef4444',
-          startedAtMs: now,
-        });
-        if (this.vanishEffects.length > 24) {
-          this.vanishEffects.shift();
-        }
+      if (next === 'good') {
+        this.addHitEffect(note, now);
+      } else if (next === 'miss') {
+        this.addVanishEffect(note, now, '#ef4444');
+      }
+    }
+  }
+
+  private trackNoteVanish(): void {
+    const now = performance.now();
+    for (const note of this.notes) {
+      const state = this.runtimeStates.get(note.id);
+      if (!state) {
+        continue;
+      }
+      const wasHidden = this.previousHiddenFromLane.get(note.id) ?? false;
+      const isHidden = state.hiddenFromLane ?? false;
+      if (!wasHidden && isHidden && state.judgment === 'good') {
+        this.addVanishEffect(note, now, '#22c55e');
+      }
+      this.previousHiddenFromLane.set(note.id, isHidden);
+
+      if (
+        state.judgment === 'good'
+        && !isHidden
+        && !this.vanishedIds.has(note.id)
+        && this.phraseTimeSec >= note.startSec + note.durationSec - 0.001
+      ) {
+        this.addVanishEffect(note, now, '#22c55e');
       }
     }
   }
@@ -314,6 +413,22 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   private noteBottomY(note: PrecisionNote): number {
     const delta = note.startSec - this.phraseTimeSec;
     return this.hitLineY - delta * this.noteSpeedPxPerSec;
+  }
+
+  private collectGuideKeys(): void {
+    this.guideKeys.clear();
+    if (!this.practiceHighlight) {
+      return;
+    }
+    for (const note of this.notes) {
+      const state = this.runtimeStates.get(note.id);
+      if (!state || state.judgment !== 'pending') {
+        continue;
+      }
+      if (isPrecisionNoteInGuideWindow(note, this.phraseTimeSec, PRECISION_JUDGMENT_WINDOW_SEC)) {
+        this.guideKeys.add(note.midi);
+      }
+    }
   }
 
   private requestRender(): void {
@@ -337,12 +452,18 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   };
 
   private hasAnimatedContent(): boolean {
-    if (this.vanishEffects.length > 0) {
+    if (this.vanishEffects.length > 0 || this.hitEffects.length > 0) {
+      return true;
+    }
+    if (this.practiceHighlight && this.guideKeys.size > 0) {
       return true;
     }
     for (const note of this.notes) {
+      if (this.vanishedIds.has(note.id)) {
+        continue;
+      }
       const state = this.runtimeStates.get(note.id);
-      if (!state) {
+      if (!state || state.hiddenFromLane) {
         continue;
       }
       const bottom = this.noteBottomY(note);
@@ -361,7 +482,9 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     if (this.staticLayer) {
       ctx.drawImage(this.staticLayer, 0, 0);
     }
+    this.collectGuideKeys();
     this.drawNotes(ctx);
+    this.drawHitEffects(ctx, nowMs);
     this.drawVanishEffects(ctx, nowMs);
     this.drawHitLine(ctx);
     this.drawKeyHighlights(ctx);
@@ -438,6 +561,18 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       return;
     }
     for (const key of this.keyGeometries) {
+      if (!this.guideKeys.has(key.midi) || this.activeKeys.has(key.midi)) {
+        continue;
+      }
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.45)';
+      if (key.isBlack) {
+        ctx.fillRect(key.x, key.y, key.width, key.height);
+      } else {
+        const inset = key.width * 0.08;
+        ctx.fillRect(key.x + inset, key.y, key.width - inset * 2, key.height);
+      }
+    }
+    for (const key of this.keyGeometries) {
       if (!this.activeKeys.has(key.midi)) {
         continue;
       }
@@ -454,6 +589,9 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   private buildNoteSnapshots(): NoteRenderSnapshot[] {
     const snapshots: NoteRenderSnapshot[] = [];
     for (const note of this.notes) {
+      if (this.vanishedIds.has(note.id)) {
+        continue;
+      }
       const state = this.runtimeStates.get(note.id);
       const judgment = state?.judgment ?? 'pending';
       if (state?.hiddenFromLane) {
@@ -500,6 +638,24 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     }
   }
 
+  private drawHitEffects(ctx: CanvasRenderingContext2D, nowMs: number): void {
+    this.hitEffects = this.hitEffects.filter(effect => {
+      const t = (nowMs - effect.startedAtMs) / NOTE_HIT_EFFECT_DURATION_MS;
+      if (t >= 1) {
+        return false;
+      }
+      const alpha = 1 - t;
+      ctx.globalAlpha = alpha * 0.85;
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(effect.x, effect.y, effect.width, effect.height);
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(effect.x, this.hitLineY - 3, effect.width, 6);
+      ctx.globalAlpha = 1;
+      return true;
+    });
+  }
+
   private drawVanishEffects(ctx: CanvasRenderingContext2D, nowMs: number): void {
     this.vanishEffects = this.vanishEffects.filter(effect => {
       const t = (nowMs - effect.startedAtMs) / NOTE_VANISH_EFFECT_DURATION_MS;
@@ -507,11 +663,8 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         return false;
       }
       const alpha = 1 - t;
-      ctx.fillStyle = effect.color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
-      if (effect.color.startsWith('#')) {
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = effect.color;
-      }
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = effect.color;
       ctx.fillRect(effect.x, effect.y - t * 12, effect.width, effect.height);
       ctx.globalAlpha = 1;
       return true;

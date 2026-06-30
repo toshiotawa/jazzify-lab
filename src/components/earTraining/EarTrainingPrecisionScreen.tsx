@@ -46,7 +46,6 @@ import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLesso
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
 import {
   computeChordOsmdActiveMeasureNumber,
-  computeChordOsmdPhraseLoopEndSec,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   collectChordOsmdMusicXmlLyrics,
@@ -72,8 +71,10 @@ import {
   resolveOsmdCalibratedTargetTimeSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
+import { isIOSWebView } from '@/utils/iosbridge';
 import {
   buildPrecisionNotesFromMusicXml,
+  resolvePrecisionDisplayKeyboardRange,
   type PrecisionKeyboardRange,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
@@ -158,6 +159,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [progressSaved, setProgressSaved] = useState(false);
   const [lastRank, setLastRank] = useState<PrecisionLessonRank | null>(null);
+  const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
   const [activeLyricText, setActiveLyricText] = useState('');
   const [seekSliderSec, setSeekSliderSec] = useState(0);
   const [phraseDurationSec, setPhraseDurationSec] = useState(1);
@@ -212,8 +214,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
   const notesAreaHeight = useMemo(() => {
     const total = typeof window !== 'undefined' ? window.innerHeight : 800;
-    return Math.max(180, total - SCORE_BAND_HEIGHT - PIANO_HEIGHT - TRANSPORT_HEIGHT - 56);
-  }, []);
+    const transportHeight = practiceMode ? TRANSPORT_HEIGHT : 0;
+    return Math.max(180, total - SCORE_BAND_HEIGHT - PIANO_HEIGHT - transportHeight - 56);
+  }, [practiceMode]);
 
   useEffect(() => {
     const onResize = (): void => setViewportWidth(window.innerWidth);
@@ -269,14 +272,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, []);
 
   const rebuildNotesFromXml = useCallback((xmlText: string): void => {
-    const transposeOffset = practiceTransposeEnabled && practiceModeRef.current
-      ? practiceTransposeOffsetRef.current
-      : 0;
     const built = buildPrecisionNotesFromMusicXml(
       xmlText,
       stage.bpm,
       stage.beats_per_measure,
-      transposeOffset,
     );
     const calibratedNotes = built.notes.map(note => ({
       ...note,
@@ -285,14 +284,17 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         ? scalePracticeTargetTimeSec(note.durationSec, practiceSpeedPercentRef.current)
         : note.durationSec,
     }));
+    const displayRange = resolvePrecisionDisplayKeyboardRange(
+      calibratedNotes.map(note => note.midi),
+      !isIOSWebView(),
+    );
     setPrecisionNotes(calibratedNotes);
-    setKeyboardRange(built.keyboardRange);
+    setKeyboardRange(displayRange);
     runtimeStatesRef.current = createPrecisionRuntimeStates(calibratedNotes);
     notesRendererRef.current?.setNotes(calibratedNotes);
-    notesRendererRef.current?.setKeyboardRange(built.keyboardRange.minMidi, built.keyboardRange.maxMidi);
+    notesRendererRef.current?.setKeyboardRange(displayRange.minMidi, displayRange.maxMidi);
     syncRenderer(phrasePlayerRef.current?.getPhraseTimelineSec() ?? 0);
   }, [
-    practiceTransposeEnabled,
     resolveCalibratedTargetTimeSec,
     stage.beats_per_measure,
     stage.bpm,
@@ -345,8 +347,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
   }, [isEnglishCopy, practiceTransposeEnabled]);
 
-  const finishStageClear = useCallback(async (rank: PrecisionLessonRank) => {
+  const finishStageClear = useCallback(async (rank: PrecisionLessonRank, goodRate: number) => {
     setLastRank(rank);
+    setLastGoodRate(goodRate);
     setGameState('stageClear');
     if (practiceMode || !lessonContext || progressSaveStartedRef.current || !isPrecisionClearRank(rank)) {
       return;
@@ -369,7 +372,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       phraseEndingRef.current = false;
       return;
     }
-    void finishStageClear(rank);
+    void finishStageClear(rank, rate);
   }, [finishStageClear, stopPhraseAudio]);
 
   useEffect(() => {
@@ -510,6 +513,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     setLastRank(null);
+    setLastGoodRate(null);
     setActiveLyricText('');
     nextLyricIndexRef.current = 0;
     activeGoodNotesByMidiRef.current.clear();
@@ -693,12 +697,34 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       midiVolume: settings.midiVolume,
       soundEffectVolume: settings.soundEffectVolume,
       rootSoundVolume: settings.rootSoundVolume,
-    }).then(() => controller.initialize());
+    }).then(() => controller.initialize()).then(async () => {
+      if (settings.selectedMidiDevice) {
+        const connected = await controller.connectDevice(settings.selectedMidiDevice);
+        setIsMidiConnected(connected);
+      }
+    }).catch(() => setIsMidiConnected(false));
     return () => {
       controller.destroy();
       midiControllerRef.current = null;
     };
-  }, [settings.masterVolume, settings.musicVolume]);
+  }, [
+    settings.midiVolume,
+    settings.rootSoundVolume,
+    settings.selectedMidiDevice,
+    settings.soundEffectVolume,
+  ]);
+
+  const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
+    updateSettings({ selectedMidiDevice: deviceId });
+    if (!deviceId) {
+      midiControllerRef.current?.disconnect();
+      setIsMidiConnected(false);
+      return;
+    }
+    void midiControllerRef.current?.connectDevice(deviceId).then(connected => {
+      setIsMidiConnected(Boolean(connected));
+    });
+  }, [updateSettings]);
 
   useEffect(() => {
     if (gameState !== 'idle' || !phrase) {
@@ -912,6 +938,20 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
                 : (isEnglishCopy ? 'Performance: 70%+ GOOD to clear.' : '本番モード: GOOD率70%以上でクリア。')}
             </div>
             <div className="text-xs text-slate-400">{originalKeyName}</div>
+            <div className="flex items-center gap-2 text-xs">
+              <span
+                className={cn(
+                  'inline-block h-2 w-2 rounded-full',
+                  isMidiConnected ? 'bg-emerald-400' : 'bg-slate-500',
+                )}
+                aria-hidden
+              />
+              <span className="text-slate-400">
+                {isMidiConnected
+                  ? (isEnglishCopy ? 'MIDI connected' : 'MIDI接続済み')
+                  : (isEnglishCopy ? 'MIDI not connected' : 'MIDI未接続')}
+              </span>
+            </div>
             <button
               type="button"
               className="rounded-xl bg-emerald-500 px-8 py-3 text-lg font-bold text-slate-950"
@@ -940,6 +980,11 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         {gameState === 'stageClear' && lastRank ? (
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-white/95 text-slate-950">
             <div className="text-6xl font-black">{lastRank}</div>
+            {lastGoodRate != null ? (
+              <div className="text-2xl font-semibold">
+                {Math.round(lastGoodRate * 100)}%
+              </div>
+            ) : null}
             <div className="text-sm">
               {lessonContext
                 ? (progressSaved
@@ -958,49 +1003,51 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         ) : null}
       </div>
 
-      <div
-        className="relative z-40 shrink-0 border-t border-slate-800 bg-slate-950/95 px-3 py-2"
-        style={{ height: TRANSPORT_HEIGHT }}
-      >
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded bg-slate-800 px-2 py-1 text-xs"
-            onClick={() => applySeek(Math.max(0, seekSliderSec - 1))}
-            disabled={!preparedRef.current}
-          >
-            -1s
-          </button>
-          <button
-            type="button"
-            className="rounded bg-slate-800 px-2 py-1 text-xs"
-            onClick={togglePause}
-            disabled={gameState !== 'playingPhrase' && gameState !== 'paused'}
-          >
-            {gameState === 'paused'
-              ? (isEnglishCopy ? 'Play' : '再生')
-              : (isEnglishCopy ? 'Pause' : '一時停止')}
-          </button>
-          <button
-            type="button"
-            className="rounded bg-slate-800 px-2 py-1 text-xs"
-            onClick={() => applySeek(seekSliderSec + 1)}
-            disabled={!preparedRef.current}
-          >
-            +1s
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={Math.max(1, phraseDurationSec)}
-            step={0.05}
-            value={Math.min(seekSliderSec, phraseDurationSec)}
-            className="min-w-0 flex-1"
-            onChange={(event) => applySeek(Number(event.target.value))}
-            disabled={!preparedRef.current}
-          />
+      {practiceMode ? (
+        <div
+          className="relative z-40 shrink-0 border-t border-slate-800 bg-slate-950/95 px-3 py-2"
+          style={{ height: TRANSPORT_HEIGHT }}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded bg-slate-800 px-2 py-1 text-xs"
+              onClick={() => applySeek(Math.max(0, seekSliderSec - 1))}
+              disabled={!preparedRef.current}
+            >
+              -1s
+            </button>
+            <button
+              type="button"
+              className="rounded bg-slate-800 px-2 py-1 text-xs"
+              onClick={togglePause}
+              disabled={gameState !== 'playingPhrase' && gameState !== 'paused'}
+            >
+              {gameState === 'paused'
+                ? (isEnglishCopy ? 'Play' : '再生')
+                : (isEnglishCopy ? 'Pause' : '一時停止')}
+            </button>
+            <button
+              type="button"
+              className="rounded bg-slate-800 px-2 py-1 text-xs"
+              onClick={() => applySeek(seekSliderSec + 1)}
+              disabled={!preparedRef.current}
+            >
+              +1s
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(1, phraseDurationSec)}
+              step={0.05}
+              value={Math.min(seekSliderSec, phraseDurationSec)}
+              className="min-w-0 flex-1"
+              onChange={(event) => applySeek(Number(event.target.value))}
+              disabled={!preparedRef.current}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <EarTrainingSettingsModal
         isOpen={isSettingsOpen}
@@ -1012,7 +1059,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           startBattle();
         }}
         midiDeviceId={settings.selectedMidiDevice}
-        onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
+        onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
         practiceRunMode={
           onPracticeModeRestartFromSettings
