@@ -291,7 +291,6 @@ final class SupabaseService: Sendable {
             *,
             lesson_songs (
                 *,
-                songs (id, title, artist),
                 fantasyStage:fantasy_stages (
                     id,
                     stage_number,

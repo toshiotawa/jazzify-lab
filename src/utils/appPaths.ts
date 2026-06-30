@@ -29,7 +29,6 @@ export const APP_HASH_BASES = new Set([
   '#account',
   '#mypage',
   '#login',
-  '#admin-songs',
   '#admin-fantasy-bgm',
   '#admin-fantasy-stages',
   '#admin-survival',
@@ -42,6 +41,7 @@ export const APP_HASH_BASES = new Set([
   '#admin-announcements',
   '#admin-courses',
   '#admin-dayly-fantasy',
+  '#admin-courses',
   '#ear-training-lesson',
   '#ear-training-tutorial-lesson',
   '#fantasy',
@@ -50,11 +50,6 @@ export const APP_HASH_BASES = new Set([
   '#survival-lesson',
   '#survival-tutorial-lesson',
   '#balloon-rush-lesson',
-  '#practice',
-  '#performance',
-  '#play-lesson',
-  '#play-mission',
-  '#songs',
 ]);
 
 /** hash からベース部分（クエリ除く）を取得 */

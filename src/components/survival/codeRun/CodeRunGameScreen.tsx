@@ -16,7 +16,7 @@ import {
 import { applySurvivalVoicingHintsWithOpacity, computeKeyboardHintOpacity } from '@/utils/survivalStaffHintOpacity';
 import type { ProductionHintMode } from '@/types';
 import { fetchSurvivalRunMap } from '@/platform/supabaseSurvival';
-import { PIXINotesRenderer, type PIXINotesRendererInstance } from '../../game/PIXINotesRenderer';
+import { PIXINotesRenderer, type PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import type { DifficultyConfig, PlayerStats, SpecialSkills, AcquiredMagics, SurvivalCharacter, SurvivalDifficulty, SurvivalGameResult } from '../SurvivalTypes';
 import type { StageDefinition } from '../SurvivalStageDefinitions';
 import SurvivalGameOver from '../SurvivalGameOver';

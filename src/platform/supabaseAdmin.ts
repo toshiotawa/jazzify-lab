@@ -1,5 +1,5 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
-import { MembershipRank } from '@/platform/supabaseSongs';
+import type { MembershipRank } from '@/utils/lessonAccess';
 
 export interface UserProfile {
   id: string;

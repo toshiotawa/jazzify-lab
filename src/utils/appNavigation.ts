@@ -102,11 +102,6 @@ export const hashToAppPath = (hash: string): string | null => {
       return `${APP_BASE_PATH}/play/ear-training${search}`;
     case '#ear-training-tutorial-lesson':
       return `${APP_BASE_PATH}/play/ear-training-tutorial${search}`;
-    case '#practice':
-    case '#performance':
-    case '#play-lesson':
-    case '#play-mission':
-      return `${APP_BASE_PATH}/play/lesson${search}`;
     default:
       return null;
   }

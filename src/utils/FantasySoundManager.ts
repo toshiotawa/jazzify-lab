@@ -189,8 +189,8 @@ export class FantasySoundManager {
   /**
    * @param volume01 レジェンド設定の BGM 音量（0〜1）。`settings.bgmVolume` を渡す。
    */
-  public static playLegendBgmDemoNote(midiNote: number, durationSec: number, volume01 = 0.7): void {
-    this.instance._playLegendBgmDemoNote(midiNote, durationSec, volume01);
+  public static playTutorialBgmDemoNote(midiNote: number, durationSec: number, volume01 = 0.7): void {
+    this.instance._playTutorialBgmDemoNote(midiNote, durationSec, volume01);
   }
   
   // GM音源が利用可能かどうか
@@ -1124,7 +1124,7 @@ export class FantasySoundManager {
   /**
    * レジェンド音源なしガイド: GM electric_piano_1 を優先。未ロード時は従来の混合GM → FM。
    */
-  private _playLegendBgmDemoNote(midiNote: number, durationSec: number, volume01: number): void {
+  private _playTutorialBgmDemoNote(midiNote: number, durationSec: number, volume01: number): void {
     const bgm = Math.max(0, Math.min(1, volume01));
     const midi = Math.max(0.001, Math.min(1, this.gmPianoVolume));
     const vBlend = Math.sqrt(bgm * midi);

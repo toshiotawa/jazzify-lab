@@ -65,9 +65,6 @@ const AppShell: React.FC = () => {
   useEffect(() => {
     const ensureHeaderVisible = (): void => {
       if (typeof window === 'undefined') return;
-      const gameHashes = ['#songs', '#practice', '#performance'];
-      const currentHash = window.location.hash.split('?')[0];
-      if (gameHashes.includes(currentHash)) return;
       if (location.pathname.startsWith('/main/play/')) return;
       void import('@/stores/gameStore').then(({ useGameStore }) => {
         useGameStore.getState().updateSettings({ showHeader: true });
@@ -81,7 +78,10 @@ const AppShell: React.FC = () => {
 
   useEffect(() => {
     const baseHash = getHashBase(hash);
-    if (baseHash !== '#songs') return;
+    if (baseHash !== '#songs' && baseHash !== '#play-lesson' && baseHash !== '#play-mission'
+      && baseHash !== '#practice' && baseHash !== '#performance') {
+      return;
+    }
     window.location.replace(dashboardPath());
   }, [hash]);
 
@@ -105,9 +105,6 @@ const AppShell: React.FC = () => {
         '#balloon-rush-lesson',
         '#ear-training-lesson',
         '#ear-training-tutorial-lesson',
-        '#play-lesson',
-        '#practice',
-        '#performance',
       ]);
       const allowedPathPrefixes = [
         '/main/dashboard',

@@ -258,13 +258,12 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let orderIndex: Int?
     let title: String?
     let titleEn: String?
-    let songs: LessonSongReferenceSong?
     let fantasyStage: FantasyStage?
     let earTrainingStage: EarTrainingStage?
     let balloonRushStage: BalloonRushStageSummary?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, songs
+        case id, title
         case titleEn = "title_en"
         case lessonId = "lesson_id"
         case songId = "song_id"
@@ -293,12 +292,6 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case fantasyStage
         case earTrainingStage
     }
-}
-
-struct LessonSongReferenceSong: Codable, Sendable {
-    let id: UUID
-    let title: String
-    let artist: String?
 }
 
 struct EarTrainingStage: Codable, Identifiable, Sendable {

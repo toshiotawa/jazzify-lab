@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/stores/authStore';
-import SongManager from './SongManager';
 import { CourseManager } from './CourseManager';
 import { LessonManager } from './LessonManager';
 import MissionManager from './MissionManager';
@@ -62,7 +61,6 @@ const AdminDashboard: React.FC = () => {
       <aside className="hidden md:flex w-60 bg-slate-800 border-r border-slate-700 p-4 space-y-4 flex-col">
         <h2 className="text-lg font-bold">Admin</h2>
                  <nav className="space-y-2 flex-1">
-           <SidebarLink hash="#admin-songs" label="曲管理" />
            <SidebarLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <SidebarLink hash="#admin-fantasy-stages" label="ファンタジーステージ" />
            <SidebarLink hash="#admin-survival" label="サバイバル設定" />
@@ -90,7 +88,6 @@ const AdminDashboard: React.FC = () => {
           </button>
         </div>
                  <nav className="flex space-x-2 overflow-x-auto">
-           <MobileTabLink hash="#admin-songs" label="曲管理" />
            <MobileTabLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <MobileTabLink hash="#admin-fantasy-stages" label="ステージ" />
            <MobileTabLink hash="#admin-survival" label="サバイバル" />
@@ -151,7 +148,6 @@ const DashboardContent: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-   if (currentHash.startsWith('#admin-songs')) return <SongManager />;
    if (currentHash.startsWith('#admin-fantasy-bgm')) return <FantasyBgmManager />;
    if (currentHash.startsWith('#admin-fantasy-stages')) return <FantasyStageManager />;
    if (currentHash.startsWith('#admin-survival')) return <SurvivalStageManager />;

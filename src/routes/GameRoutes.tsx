@@ -9,7 +9,6 @@ const LazySurvivalMain = React.lazy(() => import('@/components/survival/Survival
 const LazySurvivalTutorialMain = React.lazy(
   () => import('@/components/survival/tutorial/SurvivalTutorialMain'),
 );
-const LazyGameScreen = React.lazy(() => import('@/components/game/GameScreen'));
 const LazyEarTrainingMain = React.lazy(() => import('@/components/earTraining/EarTrainingMain'));
 const LazyEarTrainingTutorialMain = React.lazy(
   () => import('@/components/earTraining/tutorial/EarTrainingTutorialMain'),
@@ -92,14 +91,6 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       element={
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyEarTrainingTutorialMain />
-        </React.Suspense>
-      }
-    />
-    <Route
-      path="lesson"
-      element={
-        <React.Suspense fallback={<LoadingScreen />}>
-          <LazyGameScreen />
         </React.Suspense>
       }
     />

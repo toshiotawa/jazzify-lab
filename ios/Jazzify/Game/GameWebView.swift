@@ -7,9 +7,6 @@ enum GameMode {
     case fantasy(stageNumber: String)
     case survival(difficulty: String, characterId: String)
     case survivalStage(stageNumber: Int, characterId: String, hintMode: Bool = false)
-    case lesson(lessonId: UUID)
-    case song(songId: String)
-    case practice(songId: String)
     case webPage(hash: String)
     case dailyChallenge(difficulty: String)
 
@@ -36,15 +33,6 @@ enum GameMode {
             if hintMode {
                 items.append(URLQueryItem(name: "hintMode", value: "true"))
             }
-        case .lesson(let lessonId):
-            items.append(URLQueryItem(name: "mode", value: "play-lesson"))
-            items.append(URLQueryItem(name: "lessonId", value: lessonId.uuidString))
-        case .song(let songId):
-            items.append(URLQueryItem(name: "mode", value: "songs"))
-            items.append(URLQueryItem(name: "songId", value: songId))
-        case .practice(let songId):
-            items.append(URLQueryItem(name: "mode", value: "practice"))
-            items.append(URLQueryItem(name: "songId", value: songId))
         case .webPage:
             items.append(URLQueryItem(name: "mode", value: "web-page"))
         case .dailyChallenge(let difficulty):
@@ -65,12 +53,6 @@ enum GameMode {
         case .survivalStage(let stageNumber, let characterId, let hintMode):
             let base = "ios?platform=ios&mode=survival&stageNumber=\(stageNumber)&characterId=\(characterId)"
             return hintMode ? "\(base)&hintMode=true" : base
-        case .lesson(let lessonId):
-            return "ios?platform=ios&mode=play-lesson&lessonId=\(lessonId.uuidString)"
-        case .song(let songId):
-            return "ios?platform=ios&mode=songs&songId=\(songId)"
-        case .practice(let songId):
-            return "ios?platform=ios&mode=practice&songId=\(songId)"
         case .webPage(let hash):
             return hash
         case .dailyChallenge(let difficulty):

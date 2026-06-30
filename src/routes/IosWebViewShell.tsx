@@ -8,7 +8,6 @@ const LazySurvivalMain = React.lazy(() => import('@/components/survival/Survival
 const LazySurvivalTutorialMain = React.lazy(
   () => import('@/components/survival/tutorial/SurvivalTutorialMain'),
 );
-const LazyGameScreen = React.lazy(() => import('@/components/game/GameScreen'));
 const LazyEarTrainingMain = React.lazy(() => import('@/components/earTraining/EarTrainingMain'));
 const LazyEarTrainingTutorialMain = React.lazy(
   () => import('@/components/earTraining/tutorial/EarTrainingTutorialMain'),
@@ -40,13 +39,10 @@ const IosWebViewShell: React.FC = () => {
         return <LazyEarTrainingTutorialMain />;
       case 'fantasy':
         return <LazyFantasyMain />;
-      case 'play-lesson':
-      case 'play-mission':
-        return <LazyGameScreen />;
       case 'survival':
         return <LazySurvivalMain />;
       default:
-        return <LazyGameScreen />;
+        return <LoadingScreen />;
     }
   };
 
@@ -78,11 +74,10 @@ const IosWebViewShell: React.FC = () => {
         </React.Suspense>
       );
       break;
-    case 'play-lesson':
     case 'ear-training-lesson':
       iosContent = (
         <React.Suspense fallback={<LoadingScreen />}>
-          {effectiveMode === 'ear-training-lesson' ? <LazyEarTrainingMain /> : <LazyGameScreen />}
+          <LazyEarTrainingMain />
         </React.Suspense>
       );
       break;
@@ -100,20 +95,8 @@ const IosWebViewShell: React.FC = () => {
         </React.Suspense>
       );
       break;
-    case 'songs':
-    case 'practice':
-      iosContent = (
-        <React.Suspense fallback={<LoadingScreen />}>
-          <LazyGameScreen />
-        </React.Suspense>
-      );
-      break;
     default:
-      iosContent = (
-        <React.Suspense fallback={<LoadingScreen />}>
-          <LazyGameScreen />
-        </React.Suspense>
-      );
+      iosContent = <LoadingScreen />;
       break;
   }
 

@@ -45,7 +45,7 @@ function playTutorialPreviewNote(midi: number, mode: TutorialPreviewAudioMode): 
     FantasySoundManager.playFMNote(midi, 0.85);
     return;
   }
-  FantasySoundManager.playLegendBgmDemoNote(
+  FantasySoundManager.playTutorialBgmDemoNote(
     midi,
     TUTORIAL_PREVIEW_NOTE_MS / 1000,
     0.75,
@@ -106,7 +106,7 @@ function playDemoSustainNote(midi: number, mode: TutorialPreviewAudioMode): void
     FantasySoundManager.playFMNote(midi, 0.85);
     return;
   }
-  FantasySoundManager.playLegendBgmDemoNote(midi, 8, 0.75);
+  FantasySoundManager.playTutorialBgmDemoNote(midi, 8, 0.75);
 }
 
 function stopDemoSustainNote(midi: number, mode: TutorialPreviewAudioMode): void {

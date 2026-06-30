@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { PIXINotesRendererInstance } from '@/components/game/PIXINotesRenderer';
+import type { PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import { getWindow } from '@/platform';
 
 type PixiNotesRendererComponent = React.ComponentType<{
@@ -57,7 +57,7 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
 
   useEffect(() => {
     let cancelled = false;
-    void import('@/components/game/PIXINotesRenderer')
+    void import('@/components/piano/PIXINotesRenderer')
       .then((mod) => {
         if (!cancelled) {
           setPixiNotesRenderer(() => mod.PIXINotesRenderer);

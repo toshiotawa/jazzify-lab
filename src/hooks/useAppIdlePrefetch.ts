@@ -12,8 +12,6 @@ const GAME_FOCUS_IDLE_PREFETCH_SKIP = new Set([
   '#balloon-rush-lesson',
   '#fantasy',
   '#survival',
-  '#play-lesson',
-  '#play-mission',
 ]);
 
 const PLAY_PATH_PREFIXES = [

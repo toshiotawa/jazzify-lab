@@ -1605,7 +1605,9 @@ struct LessonDetailView: View {
     }
 
     private var sortedRequirements: [LessonSong] {
-        (detail?.lessonSongs ?? []).sorted { lhs, rhs in
+        (detail?.lessonSongs ?? [])
+            .filter { !isLegendOnlyLessonRequirement($0) }
+            .sorted { lhs, rhs in
             let leftOrder = lhs.orderIndex ?? .max
             let rightOrder = rhs.orderIndex ?? .max
             if leftOrder != rightOrder {
@@ -1613,6 +1615,17 @@ struct LessonDetailView: View {
             }
             return requirementSortKey(lhs) < requirementSortKey(rhs)
         }
+    }
+
+    /// Web `isLegendOnlyLessonRequirement` と同等 — レジェンド（曲）課題は非表示。
+    private func isLegendOnlyLessonRequirement(_ requirement: LessonSong) -> Bool {
+        guard requirement.songId != nil else { return false }
+        return requirement.isFantasy == false
+            && requirement.isSurvival != true
+            && requirement.isSurvivalTutorial != true
+            && requirement.isEarTraining != true
+            && requirement.isEarTrainingTutorial != true
+            && requirement.isBalloonRush != true
     }
 
     private var currentVideo: LessonVideoResource? {
@@ -2018,8 +2031,8 @@ struct LessonDetailView: View {
             }
 
             HStack(spacing: 8) {
-                let total = detail.lessonSongs.count
-                let done = detail.lessonSongs.filter { progress(for: $0)?.isCompleted == true }.count
+                let total = sortedRequirements.count
+                let done = sortedRequirements.filter { progress(for: $0)?.isCompleted == true }.count
                 Label("\(done)/\(total)", systemImage: "checkmark.circle")
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -3005,10 +3018,7 @@ struct LessonDetailView: View {
 
     private func progress(for requirement: LessonSong) -> LessonRequirementProgressRow? {
         requirementProgress.first { progress in
-            if requirement.isFantasy || requirement.isSurvival == true || requirement.isSurvivalTutorial == true || requirement.isBalloonRush == true || requirement.isEarTraining == true || requirement.isEarTrainingTutorial == true {
-                return progress.lessonSongId == requirement.id
-            }
-            return progress.songId == requirement.songId
+            progress.lessonSongId == requirement.id
         }
     }
 
@@ -3019,9 +3029,6 @@ struct LessonDetailView: View {
     private func requirementTitle(_ requirement: LessonSong, index: Int) -> String {
         if let t = localizedLessonSongTitle(requirement) {
             return "\(index + 1). \(t)"
-        }
-        if let songTitle = requirement.songs?.title {
-            return "\(index + 1). \(songTitle)"
         }
         if requirement.isSurvivalTutorial == true {
             return "\(index + 1). \(locale == .ja ? "サバイバルチュートリアル" : "Survival Tutorial")"
@@ -3084,9 +3091,6 @@ struct LessonDetailView: View {
     private func requirementSortKey(_ requirement: LessonSong) -> String {
         if let t = localizedLessonSongTitle(requirement) {
             return t
-        }
-        if let songTitle = requirement.songs?.title {
-            return songTitle
         }
         if let stageNumber = requirement.survivalStageNumber {
             let mapCategory = SurvivalMapCategory.resolveLessonMapCategory(requirement.survivalMapCategory)
@@ -3396,27 +3400,7 @@ struct LessonDetailView: View {
             return
         }
 
-        guard let songId = requirement.songId else {
-            alertMessage = locale == .ja ? "通常課題の曲設定がありません。" : "Missing song setting for this task."
-            return
-        }
-
-        launchDestination = LessonLaunchDestination(
-            hash: buildHash(
-                base: "play-lesson",
-                params: [
-                    "id": songId.uuidString,
-                    "lessonId": activeLesson.id.uuidString,
-                    "key": String(requirement.clearConditions?.key ?? 0),
-                    "speed": String(requirement.clearConditions?.speed ?? 1.0),
-                    "rank": requirement.clearConditions?.rank ?? "B",
-                    "count": String(requirement.clearConditions?.count ?? 1),
-                    "notation": requirement.clearConditions?.notationSetting ?? "both",
-                    "requiresDays": String(requirement.clearConditions?.requiresDays ?? false),
-                    "dailyCount": String(requirement.clearConditions?.dailyCount ?? 1)
-                ]
-            )
-        )
+        alertMessage = locale == .ja ? "この課題は現在プレイできません。" : "This task is not available to play."
     }
 
     /// 指定ステージがカタログに無いとき Supabase から再構築する（`SurvivalView.loadProgress` と同様）。

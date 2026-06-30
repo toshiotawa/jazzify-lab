@@ -228,7 +228,7 @@ import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume, warmupIOSBattleSoundFonts } from '@/utils/MidiController';
 import { VoiceInputController } from '@/utils/VoiceInputController';
-import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
+import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { playTutorialChordPreview } from '@/components/survival/tutorial/tutorialAudioUnlock';

@@ -96,7 +96,6 @@ final class LessonLocalizationTests: XCTestCase {
             orderIndex: 0,
             title: title,
             titleEn: titleEn,
-            songs: nil,
             fantasyStage: nil,
             earTrainingStage: nil,
             balloonRushStage: nil

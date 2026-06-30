@@ -19,7 +19,6 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
         *,
         lesson_songs (
           *,
-          songs (id, title, artist),
           fantasy_stage:fantasy_stages (*),
           balloon_rush_stage:balloon_rush_stages (
             id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
@@ -91,10 +90,9 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
     .from('lessons')
     .select(`
       *,
-      lesson_songs (
-        *,
-        songs (id, title, artist),
-        fantasy_stage:fantasy_stages (*),
+        lesson_songs (
+          *,
+          fantasy_stage:fantasy_stages (*),
         balloon_rush_stage:balloon_rush_stages (
           id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
           production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
@@ -123,7 +121,6 @@ const LESSON_DETAIL_SELECT = `
   *,
   lesson_songs (
     *,
-    songs (id, title, artist),
     fantasy_stage:fantasy_stages (
       id,
       description,
@@ -236,13 +233,6 @@ export async function deleteLesson(id: string): Promise<void> {
 
 // --- Lesson Songs ---
 
-type LessonSongData = {
-  lesson_id: string;
-  song_id: string;
-  clear_conditions?: ClearConditions;
-  is_clear_required?: boolean;
-};
-
 type FantasyLessonSongData = {
   lesson_id: string;
   fantasy_stage_id: string;
@@ -251,46 +241,6 @@ type FantasyLessonSongData = {
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
 };
-
-/**
- * レッスンに曲を追加します。
- * @param {LessonSongData} lessonSongData
- * @returns {Promise<LessonSong>}
- */
-export async function addSongToLesson(lessonSongData: LessonSongData): Promise<LessonSong> {
-  const { data, error } = await getSupabaseClient()
-    .from('lesson_songs')
-    .insert({
-      ...lessonSongData,
-      is_clear_required: lessonSongData.is_clear_required ?? true,
-    })
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error adding song to lesson:', error);
-    throw error;
-  }
-  return data as LessonSong;
-}
-
-/**
- * レッスンから曲を削除します。
- * @param {string} lessonId
- * @param {string} songId
- */
-export async function removeSongFromLesson(lessonId: string, songId: string): Promise<void> {
-  const { error } = await getSupabaseClient()
-    .from('lesson_songs')
-    .delete()
-    .eq('lesson_id', lessonId)
-    .eq('song_id', songId);
-
-  if (error) {
-    console.error(`Error removing song ${songId} from lesson ${lessonId}:`, error);
-    throw error;
-  }
-}
 
 /**
  * レッスン曲のクリア条件を更新します。

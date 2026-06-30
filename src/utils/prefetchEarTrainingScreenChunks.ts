@@ -100,7 +100,7 @@ export const prefetchEarTrainingResourcesForLesson = (
     preloadBattleGmPiano();
     preloadBattleCountInClick();
     runWhenIdle('chunk:ear-training-piano-pixi-prefetch', () => {
-      void import('@/components/game/PIXINotesRenderer').catch(() => undefined);
+      void import('@/components/piano/PIXINotesRenderer').catch(() => undefined);
     });
   }
 };

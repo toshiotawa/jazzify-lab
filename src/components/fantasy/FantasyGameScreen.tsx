@@ -19,7 +19,7 @@ import {
 } from './TaikoNoteSystem';
 const LazyFantasySheetMusicDisplay = React.lazy(() => import('./FantasySheetMusicDisplay'));
 import { countMusicXmlStaves } from '@/utils/musicXmlMapper';
-import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
+import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';

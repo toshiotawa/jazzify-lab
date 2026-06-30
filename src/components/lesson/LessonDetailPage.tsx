@@ -26,6 +26,7 @@ import {
   buildBalloonRushLessonRequirementDisplay,
   buildEarTrainingLessonRequirementDisplay,
 } from '@/utils/lessonRequirementDisplay';
+import { isLegendOnlyLessonRequirement } from '@/utils/lessonRequirementFilters';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -219,7 +220,9 @@ const LessonDetailPage: React.FC = () => {
       
       // lesson_songsをrequirementsとして設定（後方互換性のため）
       if (lessonData?.lesson_songs) {
-        const requirementsFromLessonSongs = lessonData.lesson_songs.map(ls => ({
+        const requirementsFromLessonSongs = lessonData.lesson_songs
+          .filter((ls) => !isLegendOnlyLessonRequirement(ls))
+          .map(ls => ({
           lesson_id: ls.lesson_id,
           song_id: ls.song_id,
           lesson_song_id: ls.id,
@@ -553,9 +556,6 @@ const LessonDetailPage: React.FC = () => {
 
 
   const handleClose = () => {
-    void import('@/stores/gameStore').then(({ useGameStore }) => {
-      useGameStore.getState().clearLessonContext();
-    }).catch(() => undefined);
     window.location.hash = '#lessons';
   };
 
@@ -794,12 +794,12 @@ const LessonDetailPage: React.FC = () => {
               {requirements.length > 0 ? (
                 <div className="space-y-4">
                   {requirements.map((req: any, index) => {
-                    const progress = requirementsProgress.find(p => {
-                      if (req.is_fantasy || req.is_survival || req.is_survival_tutorial || req.is_balloon_rush === true || req.is_ear_training || req.is_ear_training_tutorial) {
-                        return p.lesson_song_id === req.lesson_song_id;
-                      }
-                      return p.song_id === req.song_id;
-                    });
+                    if (isLegendOnlyLessonRequirement(req)) {
+                      return null;
+                    }
+                    const progress = requirementsProgress.find(p =>
+                      p.lesson_song_id === req.lesson_song_id,
+                    );
                     const taskTitle = lessonSongDisplayTitle(
                       { title: req.title ?? null, title_en: req.title_en ?? null },
                       isEnglishCopy,
@@ -1087,17 +1087,6 @@ const LessonDetailPage: React.FC = () => {
                               );
                               return;
                             }
-                            if (!isFantasy && !isSurvival && !isEarTraining && !isBalloonRush && !isPremiumMember) {
-                              const tier = courseDifficultyTier ? normalizeCourseDifficultyTier(courseDifficultyTier) : null;
-                              if (tier !== 'tutorial') {
-                                toast.warning(
-                                  isEnglishCopy
-                                    ? 'Free members can play tutorial lessons only.'
-                                    : 'フリー会員はチュートリアルコースのみプレイできます。',
-                                );
-                                return;
-                              }
-                            }
                             void import('@/utils/MidiController').then(({ markAudioUserInteraction }) => {
                               markAudioUserInteraction();
                             }).catch(() => undefined);
@@ -1163,25 +1152,6 @@ const LessonDetailPage: React.FC = () => {
                                 params.set('bgmUrl', lessonBgmUrl);
                               }
                               window.location.hash = `#ear-training-lesson?${params.toString()}`;
-                            } else {
-                              // 通常の楽曲の場合
-                              const params = new URLSearchParams();
-                              params.set('id', req.song_id);
-                              params.set('lessonId', req.lesson_id);
-                              if (req.title) {
-                                params.set('lsTitle', req.title);
-                              }
-                              if (req.title_en) {
-                                params.set('lsTitleEn', req.title_en);
-                              }
-                              params.set('key', String(req.clear_conditions?.key || 0));
-                              params.set('speed', String(req.clear_conditions?.speed || 1.0));
-                              params.set('rank', req.clear_conditions?.rank || 'B');
-                              params.set('count', String(req.clear_conditions?.count || 1));
-                              params.set('notation', req.clear_conditions?.notation_setting || 'both');
-                              params.set('requiresDays', String(req.clear_conditions?.requires_days || false));
-                              params.set('dailyCount', String(req.clear_conditions?.daily_count || 1));
-                              window.location.hash = `#play-lesson?${params.toString()}`;
                             }
                           }}
                         >

@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey, EarTrainingStage, type LessonMediaLocaleScope, type LessonSong } from '@/types';
-import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
-import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, addBalloonRushStageToLesson, removeBalloonRushStageFromLesson, updateLessonSongClearRequired, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, addBalloonRushStageToLesson, removeBalloonRushStageFromLesson, updateLessonSongClearRequired, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
 import { fetchEarTrainingStages } from '@/platform/supabaseEarTraining';
 import { fetchBalloonRushStagesForLessonAdmin } from '@/platform/supabaseBalloonRush';
@@ -60,20 +58,14 @@ import type {
   SurvivalLessonRandomChordEntry,
 } from '@/types';
 import type { BalloonRushStageType } from '@/utils/balloonRushStageDefinitions';
+import { isLegendOnlyLessonRequirement } from '@/utils/lessonRequirementFilters';
 
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number' | 'block_name'>;
 
-type SongFormData = {
-  song_id: string;
-  clear_conditions: ClearConditions;
-  is_clear_required: boolean;
-};
-
 type ContentFormData = {
-  content_type: 'song' | 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training' | 'ear_training_tutorial' | 'balloon_rush';
+  content_type: 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training' | 'ear_training_tutorial' | 'balloon_rush';
   survival_tutorial_script_id?: string;
   ear_training_tutorial_script_id?: string;
-  song_id?: string;
   fantasy_stage_id?: string;
   ear_training_stage_id?: string;
   balloon_rush_stage_id?: string;
@@ -95,7 +87,6 @@ export const LessonManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [availableSongs, setAvailableSongs] = useState<SongData[]>([]);
   const [availableFantasyStages, setAvailableFantasyStages] = useState<FantasyStage[]>([]);
   const [availableEarTrainingStages, setAvailableEarTrainingStages] = useState<EarTrainingStage[]>([]);
   const [availableBalloonRushStages, setAvailableBalloonRushStages] = useState<
@@ -202,25 +193,21 @@ export const LessonManager: React.FC = () => {
     });
   };
   const { register, handleSubmit, reset, setValue } = useForm<LessonFormData>();
-  const { register: registerSong, handleSubmit: handleSubmitSong, reset: resetSong, setValue: setValueSong, watch: watchSong } = useForm<SongFormData>();
   const { register: registerContent, handleSubmit: handleSubmitContent, reset: resetContent, setValue: setValueContent, watch: watchContent } = useForm<ContentFormData>();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const songDialogRef = useRef<HTMLDialogElement>(null);
   const contentDialogRef = useRef<HTMLDialogElement>(null);
 
   const loadInitialData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [coursesData, songsData, fantasyStagesData, earTrainingStagesData, balloonRushRows] = await Promise.all([
+      const [coursesData, fantasyStagesData, earTrainingStagesData, balloonRushRows] = await Promise.all([
         fetchCoursesSimple({ includeHidden: true, includeDeveloperCourses: true }),
-        fetchSongs('lesson'),
         fetchFantasyStages(),
         fetchEarTrainingStages({ includeInactive: true, includeDemo: true, includePhraseDetails: true }),
         fetchBalloonRushStagesForLessonAdmin(),
       ]);
       setCourses(coursesData);
-      setAvailableSongs(songsData);
       setAvailableFantasyStages(fantasyStagesData);
       setAvailableEarTrainingStages(earTrainingStagesData);
       setAvailableBalloonRushStages(
@@ -469,30 +456,10 @@ export const LessonManager: React.FC = () => {
     dialogRef.current?.close();
   }
 
-  const openSongDialog = (lesson: Lesson) => {
-    setSelectedLesson(lesson);
-    resetSong({
-      song_id: '',
-      clear_conditions: {
-        key: 0,
-        speed: 1.0,
-        rank: 'B',
-        count: 1,
-        notation_setting: 'both'
-      },
-      is_clear_required: true,
-    });
-    songDialogRef.current?.showModal();
-  };
-
-  const closeSongDialog = () => {
-    songDialogRef.current?.close();
-  };
-  
   const openContentDialog = (lesson: Lesson) => {
     setSelectedLesson(lesson);
     resetContent({
-      content_type: 'song',
+      content_type: 'fantasy',
       clear_conditions: {
         key: 0,
         speed: 1.0,
@@ -564,40 +531,6 @@ export const LessonManager: React.FC = () => {
     }
   };
 
-  const onSubmitSong = async (formData: SongFormData) => {
-    if (!selectedLesson || !selectedCourseId) return;
-    
-    setIsSubmitting(true);
-    try {
-      const newLessonSong = await addSongToLesson({
-        lesson_id: selectedLesson.id,
-        song_id: formData.song_id,
-        clear_conditions: formData.clear_conditions,
-        is_clear_required: formData.is_clear_required,
-      });
-      
-      setCurrentLessons(prev =>
-        prev.map(lesson => 
-          lesson.id === selectedLesson.id 
-            ? { ...lesson, lesson_songs: [...(lesson.lesson_songs || []), newLessonSong] }
-            : lesson
-        )
-      );
-      
-      toast.success('曲を追加しました。');
-      
-      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-      setTimeout(() => loadLessons(true), 500);
-      
-      closeSongDialog();
-    } catch (error) {
-      toast.error('曲の追加に失敗しました。');
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
   const onSubmitContent = async (formData: ContentFormData) => {
     if (!selectedLesson || !selectedCourseId) return;
     
@@ -605,14 +538,7 @@ export const LessonManager: React.FC = () => {
     try {
       let newLessonSong;
       
-      if (formData.content_type === 'song' && formData.song_id) {
-        newLessonSong = await addSongToLesson({
-          lesson_id: selectedLesson.id,
-          song_id: formData.song_id,
-          clear_conditions: formData.clear_conditions,
-          is_clear_required: formData.is_clear_required,
-        });
-      } else if (formData.content_type === 'fantasy' && formData.fantasy_stage_id) {
+      if (formData.content_type === 'fantasy' && formData.fantasy_stage_id) {
         newLessonSong = await addFantasyStageToLesson({
           lesson_id: selectedLesson.id,
           fantasy_stage_id: formData.fantasy_stage_id,
@@ -711,7 +637,6 @@ export const LessonManager: React.FC = () => {
       );
       
       const contentTypeMessages = {
-        song: '楽曲を追加しました。',
         fantasy: 'ファンタジーステージを追加しました。',
         survival: 'サバイバルステージを追加しました。',
         survival_tutorial: 'サバイバルチュートリアルを追加しました。',
@@ -753,37 +678,6 @@ export const LessonManager: React.FC = () => {
     }
   };
 
-  const handleRemoveSong = async (lessonId: string, songId: string) => {
-    if (!selectedCourseId) return;
-    
-    console.log('削除しようとしている曲:', { lessonId, songId });
-    
-    if (window.confirm('この曲をレッスンから削除しますか？')) {
-      try {
-        const lesson = currentLessons.find(l => l.id === lessonId);
-        console.log('削除前の曲リスト:', lesson?.lesson_songs);
-        
-        await removeSongFromLesson(lessonId, songId);
-        
-        setCurrentLessons(prev =>
-          prev.map(lesson => 
-            lesson.id === lessonId 
-              ? { ...lesson, lesson_songs: lesson.lesson_songs?.filter(ls => ls.song_id !== songId) || [] }
-              : lesson
-          )
-        );
-        
-        toast.success('曲を削除しました。');
-        
-        invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-        setTimeout(() => loadLessons(true), 500);
-      } catch (error) {
-        toast.error('曲の削除に失敗しました。');
-        console.error('削除エラーの詳細:', error);
-      }
-    }
-  };
-  
   const handleRemoveContent = async (
     lessonId: string,
     lessonSongId: string,
@@ -800,7 +694,7 @@ export const LessonManager: React.FC = () => {
       : isEarTraining ? 'このバトルモードステージをレッスンから削除しますか？'
         : isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
         : isFantasy ? 'このファンタジーステージをレッスンから削除しますか？'
-        : 'この曲をレッスンから削除しますか？';
+        : 'この課題をレッスンから削除しますか？';
     
     if (window.confirm(confirmMessage)) {
       try {
@@ -813,7 +707,7 @@ export const LessonManager: React.FC = () => {
         } else if (isFantasy) {
           await removeFantasyStageFromLesson(lessonId, contentId);
         } else {
-          await removeSongFromLesson(lessonId, contentId);
+          return;
         }
         
         setCurrentLessons(prev =>
@@ -829,7 +723,7 @@ export const LessonManager: React.FC = () => {
           : isEarTraining ? 'バトルモードステージを削除しました。'
             : isSurvival ? 'サバイバルステージを削除しました。'
             : isFantasy ? 'ファンタジーステージを削除しました。'
-            : '曲を削除しました。',
+            : '課題を削除しました。',
         );
         
         invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
@@ -1340,6 +1234,9 @@ export const LessonManager: React.FC = () => {
                         {lesson.lesson_songs && lesson.lesson_songs.length > 0 ? (
                           <div className="space-y-2">
                             {lesson.lesson_songs.map(ls => {
+                              if (isLegendOnlyLessonRequirement(ls)) {
+                                return null;
+                              }
                               if (ls.is_ear_training_tutorial) {
                                 return (
                                   <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
@@ -1502,34 +1399,8 @@ export const LessonManager: React.FC = () => {
                                     </button>
                                   </div>
                                 );
-                              } else {
-                                const song = availableSongs.find(s => s.id === ls.song_id);
-                                return (
-                                  <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
-                                    <div>
-                                      <FaMusic className="inline-block mr-2 text-blue-400" />
-                                      <span className="font-medium">{song?.title || '不明な曲'}</span>
-                                      <span className="text-xs text-gray-400 ml-2">
-                                        (キー: {ls.clear_conditions?.key || 0}, 
-                                        速度: {ls.clear_conditions?.speed || 1.0}x, 
-                                        ランク: {ls.clear_conditions?.rank || 'B'},
-                                        {ls.clear_conditions?.requires_days 
-                                          ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
-                                          : `${ls.clear_conditions?.count || 1}回`},
-                                        楽譜: {ls.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
-                                               ls.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'})
-                                      </span>
-                                      {renderClearRequiredToggle(lesson.id, ls)}
-                                    </div>
-                                    <button 
-                                      className="btn btn-ghost btn-xs text-red-500"
-                                      onClick={() => handleRemoveContent(lesson.id, ls.id, false, ls.song_id!)}
-                                    >
-                                      <FaTrash />
-                                    </button>
-                                  </div>
-                                );
                               }
+                              return null;
                             })}
                           </div>
                         ) : (
@@ -1629,128 +1500,6 @@ export const LessonManager: React.FC = () => {
           <button>close</button>
         </form>
       </dialog>
-
-      <dialog ref={songDialogRef} className="modal">
-        <div className="modal-box">
-          <h3 className="font-bold text-lg">レッスンに曲を追加</h3>
-          <form onSubmit={handleSubmitSong(onSubmitSong)} className="space-y-4 mt-4">
-            <div>
-              <label className="label"><span className="label-text">曲を選択 *</span></label>
-              <select {...registerSong('song_id', { required: true })} className="select select-bordered w-full">
-                <option value="">-- 曲を選択してください --</option>
-                {availableSongs.map(song => (
-                  <option key={song.id} value={song.id}>
-                    {song.title} {song.artist && `- ${song.artist}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label"><span className="label-text">クリア必須</span></label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  {...registerSong('is_clear_required')}
-                  className="checkbox checkbox-sm"
-                />
-                <span className="text-sm">True: クリア必須 / False: 任意課題として注意書きを表示</span>
-              </label>
-              <p className="mt-1 text-xs text-gray-400">この設定はクエスト完了ボタンの可否には影響しません。</p>
-            </div>
-            <div>
-              <label className="label"><span className="label-text">キー調整</span></label>
-              <input 
-                type="number" 
-                {...registerSong('clear_conditions.key')} 
-                className="input input-bordered w-full" 
-                min="-12" 
-                max="12"
-                defaultValue={0}
-              />
-            </div>
-            <div>
-              <label className="label"><span className="label-text">最低速度</span></label>
-              <input 
-                type="number" 
-                {...registerSong('clear_conditions.speed')} 
-                className="input input-bordered w-full" 
-                min="0.5" 
-                max="2.0" 
-                step="0.1"
-                defaultValue={1.0}
-              />
-            </div>
-            <div>
-              <label className="label"><span className="label-text">最低ランク</span></label>
-              <select {...registerSong('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
-                <option value="S">S</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">
-                <span className="label-text">達成条件</span>
-              </label>
-              <label className="flex items-center space-x-2 mb-2">
-                <input 
-                  type="checkbox" 
-                  {...registerSong('clear_conditions.requires_days')} 
-                  className="checkbox checkbox-sm" 
-                />
-                <span className="text-sm">日数でカウント（チェックなし: 回数でカウント）</span>
-              </label>
-            </div>
-            {watchSong && watchSong('clear_conditions.requires_days') && (
-              <div>
-                <label className="label"><span className="label-text">1日あたりの必要クリア回数</span></label>
-                <input 
-                  type="number" 
-                  {...registerSong('clear_conditions.daily_count')} 
-                  className="input input-bordered w-full" 
-                  min="1" 
-                  max="20"
-                  defaultValue={1}
-                />
-              </div>
-            )}
-            <div>
-              <label className="label">
-                <span className="label-text">
-                  {watchSong && watchSong('clear_conditions.requires_days') ? '必要日数' : '最低クリア回数'}
-                </span>
-              </label>
-              <input 
-                type="number" 
-                {...registerSong('clear_conditions.count')} 
-                className="input input-bordered w-full" 
-                min="1" 
-                max="10"
-                defaultValue={1}
-              />
-            </div>
-            <div>
-              <label className="label"><span className="label-text">楽譜表示設定</span></label>
-              <select {...registerSong('clear_conditions.notation_setting')} className="select select-bordered w-full" defaultValue="both">
-                <option value="notes_chords">ノート＆コード</option>
-                <option value="chords_only">コードのみ</option>
-                <option value="both">両方</option>
-              </select>
-            </div>
-            <div className="modal-action">
-              <button type="button" className="btn btn-ghost" onClick={closeSongDialog}>キャンセル</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                {isSubmitting ? '追加中...' : '追加'}
-              </button>
-            </div>
-          </form>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
       
       <dialog ref={contentDialogRef} className="modal">
         <div className="modal-box max-w-4xl max-h-[90vh]">
@@ -1763,18 +1512,9 @@ export const LessonManager: React.FC = () => {
                   <input 
                     type="radio" 
                     {...registerContent('content_type')} 
-                    value="song" 
-                    className="radio radio-primary" 
-                    defaultChecked
-                  />
-                  <span className="ml-2">楽曲</span>
-                </label>
-                <label className="flex items-center">
-                  <input 
-                    type="radio" 
-                    {...registerContent('content_type')} 
                     value="fantasy" 
                     className="radio radio-primary" 
+                    defaultChecked
                   />
                   <span className="ml-2">ファンタジーステージ</span>
                 </label>
@@ -1838,19 +1578,7 @@ export const LessonManager: React.FC = () => {
               <p className="mt-1 text-xs text-gray-400">この設定はクエスト完了ボタンの可否には影響しません。</p>
             </div>
             
-            {watchContent && watchContent('content_type') === 'song' ? (
-              <div>
-                <label className="label"><span className="label-text">曲を選択 *</span></label>
-                <select {...registerContent('song_id', { required: true })} className="select select-bordered w-full">
-                  <option value="">-- 曲を選択してください --</option>
-                  {availableSongs.map(song => (
-                    <option key={song.id} value={song.id}>
-                      {song.title} {song.artist && `- ${song.artist}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : watchContent && watchContent('content_type') === 'ear_training' ? (
+            {watchContent && watchContent('content_type') === 'ear_training' ? (
               <div className="space-y-3">
                 <label className="label"><span className="label-text">バトルモードステージを選択 *</span></label>
                 <select {...registerContent('ear_training_stage_id', { required: true })} className="select select-bordered w-full">
@@ -2105,42 +1833,6 @@ export const LessonManager: React.FC = () => {
                   }
                   return null;
                 })()}
-              </>
-            )}
-            
-            {watchContent && watchContent('content_type') === 'song' && (
-              <>
-                <div>
-                  <label className="label"><span className="label-text">キー調整</span></label>
-                  <input 
-                    type="number" 
-                    {...registerContent('clear_conditions.key')} 
-                    className="input input-bordered w-full" 
-                    min="-12" 
-                    max="12"
-                    defaultValue={0}
-                  />
-                </div>
-                <div>
-                  <label className="label"><span className="label-text">最低速度</span></label>
-                  <input 
-                    type="number" 
-                    {...registerContent('clear_conditions.speed')} 
-                    className="input input-bordered w-full" 
-                    min="0.5" 
-                    max="2.0" 
-                    step="0.1"
-                    defaultValue={1.0}
-                  />
-                </div>
-                <div>
-                  <label className="label"><span className="label-text">楽譜表示設定</span></label>
-                  <select {...registerContent('clear_conditions.notation_setting')} className="select select-bordered w-full" defaultValue="both">
-                    <option value="notes_chords">ノート＆コード</option>
-                    <option value="chords_only">コードのみ</option>
-                    <option value="both">両方</option>
-                  </select>
-                </div>
               </>
             )}
             

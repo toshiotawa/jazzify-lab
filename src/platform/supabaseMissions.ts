@@ -2,22 +2,12 @@ import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platfor
 import { clearUserStatsCache } from './supabaseUserStats';
 import { requireUserId } from '@/platform/authHelpers';
 
-export interface MissionSong {
-  song_id: string;
-  key_offset: number;
-  min_speed: number;
-  min_rank: string;
-  clears_required: number;
-  notation_setting: string;
-  songs?: { id: string; title: string; artist?: string };
-}
-
 export type MissionAudienceType = 'domestic' | 'global' | 'both';
 
 export interface Mission {
   id: string;
   type: 'weekly' | 'monthly';
-  category: 'diary' | 'song_clear' | 'fantasy_clear' | 'survival_clear';
+  category: 'diary' | 'fantasy_clear' | 'survival_clear';
   diary_count?: number | null;
   title: string;
   title_en?: string | null;
@@ -28,7 +18,6 @@ export interface Mission {
   end_date: string;
   clears_required?: number | null;
   reward_multiplier: number;
-  songs?: MissionSong[];
 }
 
 export interface UserMissionProgress {
@@ -38,21 +27,6 @@ export interface UserMissionProgress {
   reward_claimed: boolean;
 }
 
-export interface MissionSongProgress {
-  challenge_id: string;
-  song_id: string;
-  clear_count: number;
-  required_count: number;
-  is_completed: boolean;
-  song?: { id: string; title: string; artist?: string };
-  // クリア条件
-  min_rank?: string;
-  min_speed?: number;
-  key_offset?: number;
-  notation_setting?: string;
-}
-
-// JSTで今日の日付(yyyy-mm-dd)を取得
 function getTodayJSTString(): string {
   const now = new Date();
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -65,30 +39,19 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const { data, error } = await fetchWithCache(key, async () => {
     const result = await getSupabaseClient()
       .from('challenges')
-      .select('id,type,category,diary_count,title,title_en,description,description_en,audience_type,start_date,end_date,reward_multiplier,challenge_tracks(song_id,key_offset,min_speed,min_rank,clears_required,notation_setting,songs(id,title,artist))')
-      .eq('type','monthly')
+      .select('id,type,category,diary_count,title,title_en,description,description_en,audience_type,start_date,end_date,reward_multiplier')
+      .eq('type', 'monthly')
       .lte('start_date', today)
-      .gte('end_date', today);
+      .gte('end_date', today)
+      .neq('category', 'song_clear');
     return result;
   }, 1000 * 60 * 3);
   if (error) throw error;
-  
-  const missions = data.map((mission: any) => ({
+
+  return (data ?? []).map((mission: Mission) => ({
     ...mission,
-    category: mission.category || 'song_clear',
     audience_type: mission.audience_type || 'domestic',
-    songs: mission.challenge_tracks?.map((track: any) => ({
-      song_id: track.song_id,
-      key_offset: track.key_offset || 0,
-      min_speed: track.min_speed || 1.0,
-      min_rank: track.min_rank || 'B',
-      clears_required: track.clears_required || 1,
-      notation_setting: track.notation_setting || 'both',
-      songs: track.songs
-    })) || []
   }));
-  
-  return missions as Mission[];
 }
 
 /**
@@ -102,15 +65,6 @@ export function filterMissionsByPlan(missions: Mission[], rank: string | null | 
     if (isGlobal) return m.audience_type === 'global';
     return m.audience_type === 'domestic';
   });
-}
-
-export async function fetchMissionSongs(missionId: string): Promise<MissionSong[]> {
-  const { data, error } = await getSupabaseClient()
-    .from('challenge_tracks')
-    .select('*, songs(id,title,artist)')
-    .eq('challenge_id', missionId);
-  if (error) throw error;
-  return data as MissionSong[];
 }
 
 export async function incrementDiaryProgress(missionId: string) {
@@ -136,300 +90,6 @@ export async function fetchUserMissionProgress(): Promise<UserMissionProgress[]>
   return data as UserMissionProgress[];
 }
 
-/**
- * ミッションの曲進捗を取得
- */
-export async function fetchMissionSongProgress(missionId: string): Promise<MissionSongProgress[]> {
-  const supabase = getSupabaseClient();
-  const userId = await requireUserId();
-  
-  // ミッションの曲一覧を取得
-  const { data: songsData, error: songsError } = await supabase
-    .from('challenge_tracks')
-    .select('*, songs(id,title,artist)')
-    .eq('challenge_id', missionId);
-  
-  if (songsError) throw songsError;
-  // 空のINクエリ防止
-  if (!songsData || songsData.length === 0) {
-    return [];
-  }
-  
-  // 曲IDのリストを作成
-  const songIds = songsData.map(song => song.song_id);
-  if (songIds.length === 0) {
-    return [];
-  }
-  
-  // 一括で進捗を取得
-  const { data: progressData } = await supabase
-    .from('user_song_progress')
-    .select('song_id, clear_count')
-    .eq('user_id', userId)
-    .in('song_id', songIds);
-  
-  // 進捗データをマップ化
-  const progressMap = new Map();
-  if (progressData) {
-    progressData.forEach((item: any) => {
-      progressMap.set(item.song_id, item.clear_count);
-    });
-  }
-  
-  const songProgress = songsData.map((song) => {
-    const clearCount = progressMap.get(song.song_id) || 0;
-    const requiredCount = song.clears_required || 1;
-    
-    return {
-      challenge_id: missionId,
-      song_id: song.song_id,
-      clear_count: clearCount,
-      required_count: requiredCount,
-      is_completed: clearCount >= requiredCount,
-      song: song.songs,
-      // クリア条件を追加
-      min_rank: song.min_rank,
-      min_speed: song.min_speed,
-      key_offset: song.key_offset,
-      notation_setting: song.notation_setting
-    };
-  });
-  
-  return songProgress;
-}
-
-/**
- * 複数のミッションの曲進捗を一括取得
- */
-export async function fetchMissionSongProgressAll(missionIds: string[]): Promise<Record<string, MissionSongProgress[]>> {
-  const supabase = getSupabaseClient();
-  const userId = await requireUserId();
-  if (missionIds.length === 0) return {};
-  
-  try {
-    // 全てのミッションの曲一覧を一括取得
-    const { data: songsData, error: songsError } = await supabase
-      .from('challenge_tracks')
-      .select('challenge_id, song_id, min_rank, min_speed, key_offset, notation_setting, clears_required, songs(id,title,artist)')
-      .in('challenge_id', missionIds);
-    
-    if (songsError) throw songsError;
-    // 空のINクエリ防止
-    if (!songsData || songsData.length === 0) {
-      return {};
-    }
-    
-    // 曲IDのリストを作成
-    const songIds = songsData.map((song: any) => song.song_id);
-    // songIdsが空なら進捗クエリはスキップ
-    let progressData: any[] | null = [];
-    if (songIds.length > 0) {
-      const cacheKey = `user_song_progress:${userId}:${[...songIds].sort().join(',')}`;
-      const { data: pd } = await fetchWithCache(cacheKey, async () => {
-        const res = await supabase
-          .from('user_song_progress')
-          .select('song_id, clear_count')
-          .eq('user_id', userId)
-          .in('song_id', songIds);
-        return res;
-      }, 1000 * 60);
-      progressData = pd || [];
-    }
-    
-    // 進捗データをマップ化
-    const progressMap = new Map();
-    if (progressData && progressData.length > 0) {
-      (progressData as any[]).forEach((item: any) => {
-        progressMap.set(item.song_id, item.clear_count);
-      });
-    }
-    
-    // ミッションIDごとにグループ化
-    const result: Record<string, MissionSongProgress[]> = {};
-    
-    songsData.forEach((song: any) => {
-      const clearCount = progressMap.get(song.song_id) || 0;
-      const requiredCount = song.clears_required || 1;
-      
-      const songProgress: MissionSongProgress = {
-        challenge_id: song.challenge_id,
-        song_id: song.song_id,
-        clear_count: clearCount,
-        required_count: requiredCount,
-        is_completed: clearCount >= requiredCount,
-        song: song.songs,
-        min_rank: song.min_rank,
-        min_speed: song.min_speed,
-        key_offset: song.key_offset,
-        notation_setting: song.notation_setting
-      };
-      
-      if (!result[song.challenge_id]) {
-        result[song.challenge_id] = [];
-      }
-      result[song.challenge_id].push(songProgress);
-    });
-    
-    return result;
-  } catch (error) {
-    console.error('一括ミッション進捗取得エラー:', error);
-    return {};
-  }
-}
-
-/**
- * ミッション配列に含まれるtracksを再利用して、challenge_tracksの再フェッチを避けつつ進捗を構築
- */
-export async function computeMissionSongProgressAllFromMissions(missions: Mission[]): Promise<Record<string, MissionSongProgress[]>> {
-  const supabase = getSupabaseClient();
-  const userId = await requireUserId();
-  if (!missions || missions.length === 0) return {};
-
-  const tracks = missions.flatMap(m => (m.songs || []).map(t => ({
-    challenge_id: m.id,
-    ...t,
-  })));
-  const songIds = Array.from(new Set(tracks.map(t => t.song_id)));
-
-  let progressData: Array<{ song_id: string; clear_count: number }> = [];
-  if (songIds.length > 0) {
-    const cacheKey = `user_song_progress:${userId}:${[...songIds].sort().join(',')}`;
-    const { data } = await fetchWithCache(cacheKey, async () => {
-      return await supabase
-        .from('user_song_progress')
-        .select('song_id, clear_count')
-        .eq('user_id', userId)
-        .in('song_id', songIds);
-    }, 1000 * 60);
-    progressData = (data as any) || [];
-  }
-
-  const progressMap = new Map<string, number>();
-  progressData.forEach(p => progressMap.set(p.song_id, p.clear_count));
-
-  const result: Record<string, MissionSongProgress[]> = {};
-  for (const tr of tracks) {
-    const clearCount = progressMap.get(tr.song_id) || 0;
-    const requiredCount = tr.clears_required || 1;
-    const item: MissionSongProgress = {
-      challenge_id: tr.challenge_id,
-      song_id: tr.song_id,
-      clear_count: clearCount,
-      required_count: requiredCount,
-      is_completed: clearCount >= requiredCount,
-      song: tr.songs,
-      min_rank: tr.min_rank,
-      min_speed: tr.min_speed,
-      key_offset: tr.key_offset,
-      notation_setting: tr.notation_setting,
-    };
-    if (!result[tr.challenge_id]) result[tr.challenge_id] = [];
-    result[tr.challenge_id].push(item);
-  }
-  return result;
-}
-
-/**
- * ミッションの曲をプレイする
- */
-export async function playMissionSong(missionId: string, songId: string) {
-  const supabase = getSupabaseClient();
-  await requireUserId();
-  
-  // ミッションの曲情報を取得
-  const { data: songData, error: songError } = await supabase
-    .from('challenge_tracks')
-    .select('*, songs(*)')
-    .eq('challenge_id', missionId)
-    .eq('song_id', songId)
-    .single();
-  
-  if (songError) throw new Error('曲情報の取得に失敗しました');
-  
-  return {
-    song: songData.songs,
-    conditions: {
-      key_offset: songData.key_offset,
-      min_speed: songData.min_speed,
-      min_rank: songData.min_rank,
-      clears_required: songData.clears_required,
-      notation_setting: songData.notation_setting
-    }
-  };
-}
-
-/**
- * ミッションの曲クリア進捗を更新
- */
-export async function updateMissionSongProgress(
-  missionId: string, 
-  songId: string, 
-  rank: string,
-  conditions: {
-    min_rank: string;
-    min_speed: number;
-  }
-): Promise<boolean> {
-  const supabase = getSupabaseClient();
-  const userId = await requireUserId();
-  
-  // ランク条件をチェック
-  const rankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
-  const currentRankOrder = rankOrder[rank as keyof typeof rankOrder];
-  const requiredRankOrder = rankOrder[conditions.min_rank as keyof typeof rankOrder];
-  
-  if (currentRankOrder < requiredRankOrder) {
-    return false; // ランク条件を満たしていない
-  }
-  
-  // 曲の進捗を更新
-  const { data: existingProgress } = await supabase
-    .from('user_song_progress')
-    .select('clear_count')
-    .eq('user_id', userId)
-    .eq('song_id', songId)
-    .single();
-  
-  const currentCount = existingProgress?.clear_count || 0;
-  const newCount = currentCount + 1;
-  
-  // 進捗を更新または挿入
-  const { error: updateError } = await supabase
-    .from('user_song_progress')
-    .upsert({
-      user_id: userId,
-      song_id: songId,
-      clear_count: newCount,
-      best_rank: rank,
-      last_cleared_at: new Date().toISOString()
-    });
-  
-  if (updateError) throw new Error('進捗の更新に失敗しました');
-  
-  // ミッション全体の進捗をチェック
-  const songProgress = await fetchMissionSongProgress(missionId);
-  const allCompleted = songProgress.every(song => song.is_completed);
-  
-  if (allCompleted) {
-    // ミッション完了としてマーク（報酬はまだ未受取）
-    const { error: missionError } = await supabase
-      .from('user_challenge_progress')
-      .upsert({
-        user_id: userId,
-        challenge_id: missionId,
-        clear_count: songProgress.length,
-        completed: true,
-        reward_claimed: false  // 報酬は未受取のままにする
-      });
-    
-    if (missionError) throw new Error('ミッション完了の更新に失敗しました');
-  }
-  
-  clearSupabaseCache();
-  // 統計キャッシュをクリア
-  clearUserStatsCache();
-  return true;
-}
 
 export async function claimReward(missionId: string) {
   const supabase = getSupabaseClient();
@@ -504,24 +164,7 @@ export async function claimReward(missionId: string) {
         if (actual >= required) totalCompleted++;
       }
     } else {
-      // 曲クリア・ミッション（既存）
-      const { data: missionSongs, error: songsError } = await supabase
-        .from('challenge_tracks')
-        .select('song_id, clears_required')
-        .eq('challenge_id', missionId);
-      if (songsError) throw songsError;
-      totalRequired = (missionSongs || []).length;
-      for (const song of (missionSongs || [])) {
-        const { data: songProgress } = await supabase
-          .from('user_song_progress')
-          .select('clear_count')
-          .eq('user_id', userId)
-          .eq('song_id', song.song_id)
-          .maybeSingle();
-        const requiredCount = song.clears_required || 1;
-        const actualCount = songProgress?.clear_count || 0;
-        if (actualCount >= requiredCount) totalCompleted++;
-      }
+      throw new Error('サポートされていないミッションカテゴリです');
     }
     
     // ミッションが完了しているかチェック
