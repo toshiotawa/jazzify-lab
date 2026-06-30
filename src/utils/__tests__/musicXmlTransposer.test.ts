@@ -185,6 +185,28 @@ describe('transposeMusicXml', () => {
     expect(doc.querySelector('bass bass-step')?.textContent).toBe('E');
   });
 
+  it('F から +6 で B メジャー綴りになる（三全音は増4度）', () => {
+    const base = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure>
+      <attributes><key><fifths>-1</fifths></key></attributes>
+      <note><pitch><step>F</step><octave>4</octave></pitch></note>
+      <harmony>
+        <root><root-step>F</root-step></root>
+        <kind>major</kind>
+      </harmony>
+    </measure>
+  </part>
+</score-partwise>`;
+    const transposed = transposeMusicXml(base, 6);
+    const doc = parseXml(transposed);
+    expect(doc.querySelector('key fifths')?.textContent).toBe('5');
+    expect(doc.querySelector('note pitch step')?.textContent).toBe('B');
+    expect(doc.querySelector('root root-step')?.textContent).toBe('B');
+    expect(transposed.includes('Cb')).toBe(false);
+  });
+
   it('移調後、ターゲット調号で flat/sharp になる step が natural のとき alter=0 と accidental natural を付ける', () => {
     const base = `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise>

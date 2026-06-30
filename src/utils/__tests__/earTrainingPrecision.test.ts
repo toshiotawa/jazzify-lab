@@ -1,6 +1,7 @@
 import {
   buildPrecisionNotesFromMusicXml,
   isPrecisionNoteInGuideWindow,
+  isPrecisionNoteInPerformanceWindow,
   PRECISION_FULL_KEYBOARD_RANGE,
   resolvePrecisionDisplayKeyboardRange,
   resolvePrecisionKeyboardRange,
@@ -98,5 +99,13 @@ describe('earTrainingPrecisionJudge', () => {
     expect(isPrecisionNoteInGuideWindow(note, 2.1, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(true);
     expect(isPrecisionNoteInGuideWindow(note, 1.0, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(false);
     expect(isPrecisionNoteInGuideWindow(note, 2.5, PRECISION_JUDGMENT_WINDOW_SEC)).toBe(false);
+  });
+
+  it('演奏区間内の pending ノーツを練習ハイライト対象とする', () => {
+    const note = { startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, id: 'a', midi: 60 };
+    expect(isPrecisionNoteInPerformanceWindow(note, 2)).toBe(true);
+    expect(isPrecisionNoteInPerformanceWindow(note, 2.5)).toBe(true);
+    expect(isPrecisionNoteInPerformanceWindow(note, 1.9)).toBe(false);
+    expect(isPrecisionNoteInPerformanceWindow(note, 2.51)).toBe(false);
   });
 });

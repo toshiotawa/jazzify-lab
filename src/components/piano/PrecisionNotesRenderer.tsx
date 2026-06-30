@@ -1,10 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  isPrecisionNoteInGuideWindow,
+  isPrecisionNoteInPerformanceWindow,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
 import {
-  PRECISION_JUDGMENT_WINDOW_SEC,
   type PrecisionNoteJudgment,
   type PrecisionNoteRuntimeState,
 } from '@/utils/earTrainingPrecisionJudge';
@@ -16,6 +15,7 @@ export const PRECISION_NOTE_FALL_LEAD_SEC = 3;
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
 const NOTE_VANISH_EFFECT_DURATION_MS = 180;
 const NOTE_HIT_EFFECT_DURATION_MS = 120;
+const NOTE_EDGE_GAP_PX = 2;
 
 interface KeyGeometry {
   midi: number;
@@ -32,6 +32,7 @@ interface NoteRenderSnapshot {
   width: number;
   height: number;
   color: string;
+  borderColor: string;
   radius: number;
   isBlack: boolean;
   judgment: PrecisionNoteJudgment | 'hit';
@@ -134,6 +135,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     canvas.addEventListener('pointerup', this.handlePointerUp);
     canvas.addEventListener('pointercancel', this.handlePointerUp);
     canvas.addEventListener('pointerleave', this.handlePointerUp);
+    window.addEventListener('blur', this.handleWindowBlur);
   }
 
   setKeyboardRange(minMidi: number, maxMidi: number): void {
@@ -204,6 +206,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   }
 
   destroy(): void {
+    this.releaseHeldPointerKey();
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -212,6 +215,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     this.canvas.removeEventListener('pointerup', this.handlePointerUp);
     this.canvas.removeEventListener('pointercancel', this.handlePointerUp);
     this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
+    window.removeEventListener('blur', this.handleWindowBlur);
   }
 
   private handlePointerDown = (event: PointerEvent): void => {
@@ -238,12 +242,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   };
 
   private handlePointerUp = (_event: PointerEvent): void => {
-    if (this.pointerMidi !== null) {
-      this.onKeyRelease?.(this.pointerMidi);
-      this.activeKeys.delete(this.pointerMidi);
-      this.pointerMidi = null;
-      this.requestRender();
-    }
+    this.releaseHeldPointerKey();
     if (this.capturedPointerId !== null) {
       try {
         this.canvas.releasePointerCapture(this.capturedPointerId);
@@ -253,6 +252,21 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       this.capturedPointerId = null;
     }
   };
+
+  private handleWindowBlur = (): void => {
+    this.releaseHeldPointerKey();
+  };
+
+  private releaseHeldPointerKey(): void {
+    if (this.pointerMidi === null) {
+      return;
+    }
+    const midi = this.pointerMidi;
+    this.pointerMidi = null;
+    this.onKeyRelease?.(midi);
+    this.activeKeys.delete(midi);
+    this.requestRender();
+  }
 
   private findKeyAt(x: number, y: number): number | null {
     for (let i = this.keyGeometries.length - 1; i >= 0; i -= 1) {
@@ -379,8 +393,6 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       this.previousJudgments.set(note.id, next);
       if (next === 'good') {
         this.addHitEffect(note, now);
-      } else if (next === 'miss') {
-        this.addVanishEffect(note, now, '#ef4444');
       }
     }
   }
@@ -425,7 +437,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       if (!state || state.judgment !== 'pending') {
         continue;
       }
-      if (isPrecisionNoteInGuideWindow(note, this.phraseTimeSec, PRECISION_JUDGMENT_WINDOW_SEC)) {
+      if (isPrecisionNoteInPerformanceWindow(note, this.phraseTimeSec)) {
         this.guideKeys.add(note.midi);
       }
     }
@@ -598,25 +610,31 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         continue;
       }
       const bottom = this.noteBottomY(note);
-      const height = Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
-      const top = bottom - height;
+      const rawHeight = Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
+      const top = bottom - rawHeight;
       if (bottom < -20 || top > this.noteLaneHeight + 20) {
         continue;
       }
       const lane = this.laneXForMidi(note.midi);
       const isBlack = note.isBlackKey;
       let color = isBlack ? '#a855f7' : '#38bdf8';
+      let borderColor = isBlack ? '#7e22ce' : '#0284c7';
       if (judgment === 'good') {
         color = '#22c55e';
+        borderColor = '#15803d';
       } else if (judgment === 'miss') {
         color = 'rgba(148,163,184,0.45)';
+        borderColor = 'rgba(71,85,105,0.85)';
       }
+      const edgeGap = rawHeight > NOTE_EDGE_GAP_PX * 2 + 4 ? NOTE_EDGE_GAP_PX : 0;
+      const height = Math.max(4, rawHeight - edgeGap * 2);
       snapshots.push({
         x: lane.x + (isBlack ? lane.width * 0.08 : lane.width * 0.1),
-        y: top,
+        y: top + edgeGap,
         width: lane.width * (isBlack ? 0.84 : 0.8),
         height,
         color,
+        borderColor,
         radius: isBlack ? 4 : 6,
         isBlack,
         judgment: judgment === 'good' ? 'hit' : judgment,
@@ -628,12 +646,16 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   private drawNotes(ctx: CanvasRenderingContext2D): void {
     for (const snap of this.buildNoteSnapshots()) {
       ctx.fillStyle = snap.color;
+      ctx.strokeStyle = snap.borderColor;
+      ctx.lineWidth = 1.5;
       if (snap.isBlack) {
         ctx.beginPath();
         ctx.roundRect(snap.x, snap.y, snap.width, snap.height, snap.radius);
         ctx.fill();
+        ctx.stroke();
       } else {
         ctx.fillRect(snap.x, snap.y, snap.width, snap.height);
+        ctx.strokeRect(snap.x + 0.75, snap.y + 0.75, snap.width - 1.5, snap.height - 1.5);
       }
     }
   }
@@ -648,9 +670,6 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       ctx.globalAlpha = alpha * 0.85;
       ctx.fillStyle = '#22c55e';
       ctx.fillRect(effect.x, effect.y, effect.width, effect.height);
-      ctx.globalAlpha = alpha * 0.7;
-      ctx.fillStyle = '#facc15';
-      ctx.fillRect(effect.x, this.hitLineY - 3, effect.width, 6);
       ctx.globalAlpha = 1;
       return true;
     });

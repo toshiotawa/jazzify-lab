@@ -67,6 +67,13 @@ final class EarTrainingMusicXmlTransposerTests: XCTestCase {
         XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("Bb/D", semitones: 2), "C/E")
     }
 
+    func testTransposeMusicXmlFPlusSixUsesBMajorSpelling() {
+        let transposed = EarTrainingMusicXmlTransposer.transposeMusicXml(sampleMusicXml, semitones: 6)
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.readKeyFifths(fromMusicXml: transposed), 5)
+        XCTAssertTrue(transposed.contains("<step>B</step>"))
+        XCTAssertFalse(transposed.contains("Cb"))
+    }
+
     func testTransposeMusicXmlTransposesHarmonyBass() {
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>

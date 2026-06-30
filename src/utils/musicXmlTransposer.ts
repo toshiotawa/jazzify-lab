@@ -69,14 +69,11 @@ const DOUBLE_ACCIDENTAL_MAP: Record<string, string> = {
  * @returns 正規化されたキー名
  */
 function normalizeToPreferredKey(key: string): string {
-  // すでに読みやすいキーならそのまま返す
-  if (PREFERRED_KEYS.includes(key)) {
+  const noteInfo = Note.get(key);
+  if (noteInfo.empty || noteInfo.chroma === undefined) {
     return key;
   }
-  
-  // 五度圏で正しいキーを選択
-  const fifths = keyNameToFifthsInternal(key);
-  return fifthsToKeyNameInternal(fifths);
+  return PREFERRED_KEYS[noteInfo.chroma];
 }
 
 /**
@@ -359,18 +356,18 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
   // 1. 元のキーを取得（最初の<key><fifths>から）
   const firstKeyEl = doc.querySelector('key fifths');
   const originalFifths = firstKeyEl ? parseInt(firstKeyEl.textContent || '0', 10) : 0;
-  const originalKeyName = fifthsToKeyName(originalFifths);
+  const originalKeyName = normalizeToPreferredKey(fifthsToKeyName(originalFifths));
   
   // 2. 五度圏に基づいて正しいターゲットキーを計算
-  const targetKeyName = getTargetKeyFromTranspositionForXml(originalKeyName, semitones);
+  const targetKeyName = normalizeToPreferredKey(
+    getTargetKeyFromTranspositionForXml(originalKeyName, semitones),
+  );
   
-  // 3. 符号付き半音で移調（キー根音間 interval は負方向でオクターブがずれる）
-  const signedInterval = Interval.fromSemitones(semitones);
-  const transposeInterval = signedInterval ?? '1P';
-  
-  // オクターブの調整が必要な場合を考慮（±12 半音単位。floor だと -1..-11 で誤って -1 オクターブになる）
-  const octaveShift = Math.trunc(semitones / 12);
-  const octaveInterval = octaveShift !== 0 ? `${Math.abs(octaveShift) * 8}P` : null;
+  // 3. 元キー→移調先キーの音楽理論的に正しい音程（例: F→B = 増4度）
+  const transposeInterval = getCorrectInterval(originalKeyName, targetKeyName);
+  const intervalSemitones = Interval.semitones(transposeInterval) ?? 0;
+  const octaveAdjust = Math.round((semitones - intervalSemitones) / 12);
+  const octaveInterval = octaveAdjust !== 0 ? `${Math.abs(octaveAdjust) * 8}P` : null;
 
   // Helper to convert step/alter/octave to tonal note string, e.g. C#4, Eb4
   const pitchToNote = (step: string, alter: number | null, octave: number): string => {
@@ -478,12 +475,11 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
     // 正しい音程で移調
     let transposedNote = Note.transpose(noteStr, transposeInterval);
     
-    // オクターブシフトがある場合は追加で適用
+    // 要求半音と音程半音の差をオクターブ補正
     if (octaveInterval && transposedNote) {
-      if (octaveShift > 0) {
+      if (octaveAdjust > 0) {
         transposedNote = Note.transpose(transposedNote, octaveInterval);
-      } else if (octaveShift < 0) {
-        // 負のオクターブシフト
+      } else if (octaveAdjust < 0) {
         transposedNote = Note.transpose(transposedNote, `-${octaveInterval}`);
       }
     }
@@ -509,7 +505,14 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
         note += 'b'.repeat(-alter);
       }
 
-      const transposedNote = Note.transpose(note, transposeInterval);
+      let transposedNote = Note.transpose(note, transposeInterval);
+      if (octaveInterval && transposedNote) {
+        if (octaveAdjust > 0) {
+          transposedNote = Note.transpose(transposedNote, octaveInterval);
+        } else if (octaveAdjust < 0) {
+          transposedNote = Note.transpose(transposedNote, `-${octaveInterval}`);
+        }
+      }
       if (!transposedNote) {
         return;
       }
@@ -520,23 +523,28 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
       }
 
       const { letter, acc } = parsed;
-      stepEl.textContent = letter;
+      const noteNameWithoutOctave = `${letter}${acc ?? ''}`;
+      const adjustedNote = adjustNoteToKeyScale(noteNameWithoutOctave, targetKeyName, simpleMode);
+      const adjustedParsed = Note.get(adjustedNote);
+      const finalLetter = adjustedParsed?.letter ?? letter;
+      const finalAcc = adjustedParsed?.acc ?? acc;
+      stepEl.textContent = finalLetter;
 
       if (alterEl) {
         alterEl.remove();
       }
 
-      if (acc) {
+      if (finalAcc) {
         const parentEl = stepEl.parentElement;
         if (!parentEl) {
           return;
         }
         const newAlterEl = doc.createElement(stepEl.tagName === 'root-step' ? 'root-alter' : 'bass-alter');
         let alterValue = '0';
-        if (acc === '#') alterValue = '1';
-        else if (acc === '##' || acc === 'x') alterValue = '2';
-        else if (acc === 'b') alterValue = '-1';
-        else if (acc === 'bb') alterValue = '-2';
+        if (finalAcc === '#') alterValue = '1';
+        else if (finalAcc === '##' || finalAcc === 'x') alterValue = '2';
+        else if (finalAcc === 'b') alterValue = '-1';
+        else if (finalAcc === 'bb') alterValue = '-2';
         newAlterEl.textContent = alterValue;
         parentEl.appendChild(newAlterEl);
       }

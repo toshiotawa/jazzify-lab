@@ -116,6 +116,15 @@ export const isPrecisionNoteInGuideWindow = (
   return phraseTimeSec >= earliest && phraseTimeSec <= latest;
 };
 
+/** 練習モード: 実際の演奏区間内か（鍵盤ハイライト用） */
+export const isPrecisionNoteInPerformanceWindow = (
+  note: Pick<PrecisionNote, 'startSec' | 'durationSec'>,
+  phraseTimeSec: number,
+): boolean => (
+  phraseTimeSec >= note.startSec
+  && phraseTimeSec <= note.startSec + note.durationSec
+);
+
 export const buildPrecisionNotesFromMusicXml = (
   musicXmlText: string,
   bpm: number,

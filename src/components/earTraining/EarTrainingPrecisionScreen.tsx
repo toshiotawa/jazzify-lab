@@ -163,9 +163,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [activeLyricText, setActiveLyricText] = useState('');
   const [seekSliderSec, setSeekSliderSec] = useState(0);
   const [phraseDurationSec, setPhraseDurationSec] = useState(1);
-  const [viewportWidth, setViewportWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 390,
-  );
+  const notesViewportRef = useRef<HTMLDivElement | null>(null);
+  const [notesViewportSize, setNotesViewportSize] = useState({ width: 390, height: 400 });
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const preparedRef = useRef<Awaited<ReturnType<EarTrainingChordVoicingPhrasePlayer['prepare']>> | null>(null);
@@ -212,16 +211,29 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     [practiceMode, practiceSpeedPercent, stage.beats_per_measure, stage.bpm],
   );
 
-  const notesAreaHeight = useMemo(() => {
-    const total = typeof window !== 'undefined' ? window.innerHeight : 800;
-    const transportHeight = practiceMode ? TRANSPORT_HEIGHT : 0;
-    return Math.max(180, total - SCORE_BAND_HEIGHT - PIANO_HEIGHT - transportHeight - 56);
-  }, [practiceMode]);
 
   useEffect(() => {
-    const onResize = (): void => setViewportWidth(window.innerWidth);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const element = notesViewportRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      const { width, height } = entry.contentRect;
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+      setNotesViewportSize(current => (
+        current.width === width && current.height === height
+          ? current
+          : { width, height }
+      ));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -900,10 +912,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         )}
       </div>
 
-      <div className="relative min-h-0 flex-1">
+      <div ref={notesViewportRef} className="relative min-h-0 flex-1">
         <PrecisionNotesRenderer
-          width={viewportWidth}
-          height={notesAreaHeight + PIANO_HEIGHT}
+          width={notesViewportSize.width}
+          height={notesViewportSize.height}
           minMidi={keyboardRange.minMidi}
           maxMidi={keyboardRange.maxMidi}
           pianoHeight={PIANO_HEIGHT}

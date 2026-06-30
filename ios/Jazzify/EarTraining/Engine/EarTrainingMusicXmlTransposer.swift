@@ -135,9 +135,21 @@ enum EarTrainingMusicXmlTransposer {
 
         let originalFifths = readKeyFifths(fromMusicXml: xmlString)
         let originalKeyName = fifthsToKeyName[originalFifths] ?? "C"
-        let targetKey = targetKeyFromTransposition(originalKeyName: originalKeyName, semitones: semitones)
+        let normalizedOriginal = normalizeToPreferredKey(originalKeyName)
+        let rawTarget = targetKeyFromTransposition(originalKeyName: normalizedOriginal, semitones: semitones)
+        let targetKey = normalizeToPreferredKey(rawTarget)
         let targetFifths = keyNameToFifths[normalizeToPreferredKey(targetKey)] ?? keyNameToFifths[targetKey] ?? 0
-        let intervalName = signedIntervalName(fromSemitones: semitones)
+        guard let intervalCoord = EarTrainingMusicXmlPitchMath.intervalCoord(
+            fromKey: normalizedOriginal,
+            toKey: targetKey,
+        ) else {
+            return xmlString
+        }
+        let intervalSemitones = EarTrainingMusicXmlPitchMath.semitoneDistance(
+            fromKey: normalizedOriginal,
+            toKey: targetKey,
+        )
+        let octaveAdjust = Int((Double(semitones - intervalSemitones) / 12.0).rounded())
 
         for noteEl in allElements(named: "note", in: root) {
             if directChild(noteEl, localName: "rest") != nil { continue }
@@ -148,24 +160,23 @@ enum EarTrainingMusicXmlTransposer {
 
             let alter = Int(text(in: pitchEl, localName: "alter") ?? "0") ?? 0
             let noteStr = pitchToNote(step: stepText, alter: alter, octave: octave)
-            guard var transposed = EarTrainingMusicXmlPitchMath.transpose(
+            guard var transposed = EarTrainingMusicXmlPitchMath.transposeByCoord(
                 noteName: noteStr,
-                intervalName: intervalName
+                intervalCoord: intervalCoord,
             ) else {
                 continue
             }
-            let octaveShift = semitones / 12
-            if octaveShift != 0 {
-                let octInterval = "\(abs(octaveShift) * 8)P"
-                if octaveShift > 0 {
+            if octaveAdjust != 0 {
+                let octInterval = "\(abs(octaveAdjust) * 8)P"
+                if octaveAdjust > 0 {
                     transposed = EarTrainingMusicXmlPitchMath.transpose(
                         noteName: transposed,
-                        intervalName: octInterval
+                        intervalName: octInterval,
                     ) ?? transposed
                 } else {
                     transposed = EarTrainingMusicXmlPitchMath.transpose(
                         noteName: transposed,
-                        intervalName: "-\(octInterval)"
+                        intervalName: "-\(octInterval)",
                     ) ?? transposed
                 }
             }
@@ -178,14 +189,18 @@ enum EarTrainingMusicXmlTransposer {
                 parentLocalName: "root",
                 stepLocalName: "root-step",
                 alterLocalName: "root-alter",
-                intervalName: intervalName
+                intervalCoord: intervalCoord,
+                octaveAdjust: octaveAdjust,
+                targetKey: targetKey,
             )
             transposeHarmonyPitch(
                 in: harmonyEl,
                 parentLocalName: "bass",
                 stepLocalName: "bass-step",
                 alterLocalName: "bass-alter",
-                intervalName: intervalName
+                intervalCoord: intervalCoord,
+                octaveAdjust: octaveAdjust,
+                targetKey: targetKey,
             )
         }
 
@@ -203,7 +218,9 @@ enum EarTrainingMusicXmlTransposer {
         parentLocalName: String,
         stepLocalName: String,
         alterLocalName: String,
-        intervalName: String,
+        intervalCoord: [Int],
+        octaveAdjust: Int,
+        targetKey: String,
     ) {
         guard let parentEl = directChild(harmonyEl, localName: parentLocalName),
               let stepEl = directChild(parentEl, localName: stepLocalName),
@@ -215,22 +232,47 @@ enum EarTrainingMusicXmlTransposer {
         } else if alter < 0 {
             note += String(repeating: "b", count: -alter)
         }
-        guard let transposed = EarTrainingMusicXmlPitchMath.transpose(
+        guard var transposed = EarTrainingMusicXmlPitchMath.transposeByCoord(
             noteName: note,
-            intervalName: intervalName
-        ),
-              let parsed = EarTrainingMusicXmlPitchMath.parseNote(transposed, requireOctave: false) else {
+            intervalCoord: intervalCoord,
+        ) else {
             return
         }
-        setText(in: stepEl, text: EarTrainingMusicXmlPitchMath.letterNames[parsed.step])
+        if octaveAdjust != 0 {
+            let octInterval = "\(abs(octaveAdjust) * 8)P"
+            if octaveAdjust > 0 {
+                transposed = EarTrainingMusicXmlPitchMath.transpose(
+                    noteName: transposed,
+                    intervalName: octInterval,
+                ) ?? transposed
+            } else {
+                transposed = EarTrainingMusicXmlPitchMath.transpose(
+                    noteName: transposed,
+                    intervalName: "-\(octInterval)",
+                ) ?? transposed
+            }
+        }
+        guard let parsed = EarTrainingMusicXmlPitchMath.parseNote(transposed, requireOctave: false) else {
+            return
+        }
+        let noteWithoutOct = EarTrainingMusicXmlPitchMath.spellNote(
+            step: parsed.step,
+            alt: parsed.alt,
+            oct: nil,
+        )
+        let adjusted = adjustNoteToKeyScale(noteWithoutOct, targetKey: targetKey)
+        guard let adjustedParsed = EarTrainingMusicXmlPitchMath.parseNote(adjusted, requireOctave: false) else {
+            return
+        }
+        setText(in: stepEl, text: EarTrainingMusicXmlPitchMath.letterNames[adjustedParsed.step])
         parentEl.children.removeAll { child in
             if case let .element(el) = child, el.name == alterLocalName {
                 return true
             }
             return false
         }
-        if parsed.alt != 0 {
-            appendElement(named: alterLocalName, text: String(parsed.alt), to: parentEl)
+        if adjustedParsed.alt != 0 {
+            appendElement(named: alterLocalName, text: String(adjustedParsed.alt), to: parentEl)
         }
     }
 
@@ -330,10 +372,8 @@ enum EarTrainingMusicXmlTransposer {
 
     private static func normalizeToPreferredKey(_ key: String) -> String {
         if preferredKeysByChroma.contains(key) { return key }
-        if let fifths = keyNameToFifths[key] {
-            return preferredKeyName(fifths: fifths)
-        }
-        return key
+        guard let chroma = chromaForKey(key) else { return key }
+        return preferredKeysByChroma[chroma]
     }
 
     private static func chromaForKey(_ key: String) -> Int? {
@@ -485,6 +525,34 @@ private enum EarTrainingMusicXmlPitchMath {
         let step: Int
         let alt: Int
         let oct: Int?
+    }
+
+    static func intervalCoord(fromKey: String, toKey: String) -> [Int]? {
+        guard let from = noteNameToCoord(fromKey + "4"),
+              let to = noteNameToCoord(toKey + "4") else { return nil }
+        return [to[0] - from[0], to[1] - from[1]]
+    }
+
+    static func transposeByCoord(noteName: String, intervalCoord: [Int]) -> String? {
+        guard let nc = noteNameToCoord(noteName), intervalCoord.count == 2 else { return nil }
+        return coordToNoteName([nc[0] + intervalCoord[0], nc[1] + intervalCoord[1]])
+    }
+
+    static func semitoneDistance(fromKey: String, toKey: String) -> Int {
+        guard let intervalCoord = intervalCoord(fromKey: fromKey, toKey: toKey),
+              let transposedRoot = transposeByCoord(noteName: fromKey + "4", intervalCoord: intervalCoord),
+              let fromMidi = midiNumber(noteName: fromKey + "4"),
+              let toMidi = midiNumber(noteName: transposedRoot) else {
+            return 0
+        }
+        return toMidi - fromMidi
+    }
+
+    static func midiNumber(noteName: String) -> Int? {
+        guard let parsed = parseNote(noteName, requireOctave: true), let oct = parsed.oct else { return nil }
+        let natural = [0, 2, 4, 5, 7, 9, 11][parsed.step % 7]
+        let chroma = ((natural + parsed.alt) % 12 + 12) % 12
+        return (oct + 1) * 12 + chroma
     }
 
     static func intervalName(fromSemitoneOffset offset: Int) -> String? {
