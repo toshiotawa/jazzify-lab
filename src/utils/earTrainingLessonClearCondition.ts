@@ -20,6 +20,13 @@ export const getEarTrainingLessonClearConditionText = (
     return `${required}問以上正解`;
   }
 
+  if (mode === 'chord_precision') {
+    if (isEnglishCopy) {
+      return 'Achieve 70% or more GOOD notes.';
+    }
+    return 'GOOD率70%以上でクリア';
+  }
+
   if (isEnglishCopy) {
     if (mode === 'chord_osmd') {
       return 'Reduce the enemy HP to 0.';

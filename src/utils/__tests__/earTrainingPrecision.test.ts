@@ -1,0 +1,76 @@
+import {
+  buildPrecisionNotesFromMusicXml,
+  resolvePrecisionKeyboardRange,
+} from '@/utils/earTrainingPrecisionNotes';
+import {
+  findPrecisionNoteForInput,
+  precisionRankForGoodRate,
+  createPrecisionRuntimeStates,
+  markExpiredPrecisionNotesAsMiss,
+  isPrecisionClearRank,
+} from '@/utils/earTrainingPrecisionJudge';
+
+const MINIMAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <key><fifths>0</fifths></key>
+      </attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+      <note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+    </measure>
+  </part>
+</score-partwise>`;
+
+describe('earTrainingPrecisionNotes', () => {
+  it('1音1ノーツを生成する', () => {
+    const { notes } = buildPrecisionNotesFromMusicXml(MINIMAL_XML, 120, 4);
+    expect(notes).toHaveLength(3);
+    expect(notes[0]?.midi).toBe(60);
+    expect(notes[1]?.midi).toBe(64);
+    expect(notes[2]?.midi).toBe(67);
+  });
+
+  it('2オクターブ以内なら24半音幅に拡張する', () => {
+    const range = resolvePrecisionKeyboardRange([60, 67]);
+    expect(range.maxMidi - range.minMidi + 1).toBeGreaterThanOrEqual(24);
+    expect(range.minMidi).toBeLessThanOrEqual(60);
+    expect(range.maxMidi).toBeGreaterThanOrEqual(67);
+  });
+});
+
+describe('earTrainingPrecisionJudge', () => {
+  it('±250ms 内の最早ノーツを good にする', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1 },
+      { id: 'b', midi: 60, startSec: 1.2, durationSec: 0.5, isBlackKey: false, measureNumber: 1 },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const matched = findPrecisionNoteForInput(notes, states, 60, 1.05, 0.25);
+    expect(matched?.id).toBe('a');
+  });
+
+  it('窓超過で miss を付与する', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1 },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const missed = markExpiredPrecisionNotesAsMiss(notes, states, 1.3, 0.25);
+    expect(missed).toBe(1);
+    expect(states.get('a')?.judgment).toBe('miss');
+  });
+
+  it('good率から D/C/B/A/S ランクを決める', () => {
+    expect(precisionRankForGoodRate(0.96)).toBe('S');
+    expect(precisionRankForGoodRate(0.91)).toBe('A');
+    expect(precisionRankForGoodRate(0.81)).toBe('B');
+    expect(precisionRankForGoodRate(0.71)).toBe('C');
+    expect(precisionRankForGoodRate(0.69)).toBe('D');
+    expect(isPrecisionClearRank('C')).toBe(true);
+    expect(isPrecisionClearRank('D')).toBe(false);
+  });
+});

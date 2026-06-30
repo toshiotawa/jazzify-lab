@@ -7,6 +7,7 @@ enum EarTrainingMode: String, Codable, Sendable {
     case chordVoicing = "chord_voicing"
     case chordQuiz = "chord_quiz"
     case chordOSMD = "chord_osmd"
+    case chordPrecision = "chord_precision"
     case adlib
     case phrasePairAdlib = "phrase_pair_adlib"
 
@@ -22,6 +23,8 @@ enum EarTrainingMode: String, Codable, Sendable {
             return ja ? "コードクイズ" : "Chord quiz"
         case .chordOSMD:
             return ja ? "楽譜バトル" : "Sheet music battle"
+        case .chordPrecision:
+            return ja ? "精密モード" : "Precision mode"
         case .adlib:
             return ja ? "アドリブ" : "Ad lib"
         case .phrasePairAdlib:

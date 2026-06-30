@@ -38,7 +38,7 @@ const resolvePhraseSelectForMode = (
   if (mode === 'chord_quiz') {
     return null;
   }
-  if (mode === 'chord_osmd') {
+  if (mode === 'chord_osmd' || mode === 'chord_precision') {
     return EAR_TRAINING_PHRASE_OSMD_SELECT;
   }
   return EAR_TRAINING_PHRASE_RELATIONS_SELECT;
@@ -111,6 +111,9 @@ const normalizeEarTrainingMode = (raw: unknown): EarTrainingStage['mode'] => {
   }
   if (raw === 'chord_osmd') {
     return 'chord_osmd';
+  }
+  if (raw === 'chord_precision') {
+    return 'chord_precision';
   }
   if (raw === 'adlib') {
     return 'adlib';

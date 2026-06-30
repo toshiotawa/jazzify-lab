@@ -63,6 +63,8 @@ interface PlayPreparedChordVoicingPhraseParams {
   prepared: PreparedChordVoicingPhrase;
   /** フレーズ MP3 のゲイン係数（0..1、既定 1） */
   phraseGain?: number;
+  /** バッファ内の再生開始位置（秒） */
+  startOffsetSec?: number;
   onPhraseStarted?: () => void;
   onEnded?: () => void;
 }
@@ -103,6 +105,8 @@ export class EarTrainingChordVoicingPhrasePlayer {
   private pitchShiftSemitones = 0;
   private playbackSpeedPercent = 100;
   private pendingTimeouts: number[] = [];
+  private pausedTimelineSec = 0;
+  private isPaused = false;
 
   constructor(options: EarTrainingChordVoicingPhrasePlayerOptions = {}) {
     this.options = options;
@@ -230,6 +234,30 @@ export class EarTrainingChordVoicingPhrasePlayer {
     this.phraseStartCtxTime = null;
     this.phraseBufferDurationSec = 0;
     this.phraseEnded = false;
+    this.isPaused = false;
+    this.pausedTimelineSec = 0;
+  }
+
+  /** 再生位置を保持したまま一時停止する。戻り値は phrase タイムライン秒。 */
+  pause(): number {
+    const timeline = this.getPhraseTimelineSec();
+    const sec = timeline != null && Number.isFinite(timeline)
+      ? Math.max(0, timeline)
+      : this.getCurrentTime();
+    this.pausedTimelineSec = sec;
+    this.isPaused = true;
+    this.generation += 1;
+    this.clearPendingTimeouts();
+    this.stopPhraseSourceOnly();
+    return this.pausedTimelineSec;
+  }
+
+  isPausedPlayback(): boolean {
+    return this.isPaused;
+  }
+
+  getPausedTimelineSec(): number {
+    return this.pausedTimelineSec;
   }
 
   dispose(): void {
@@ -304,6 +332,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
         gen,
         params.onPhraseStarted,
         params.onEnded,
+        Math.max(0, params.startOffsetSec ?? 0),
       );
     }).catch(() => undefined);
   }
@@ -408,6 +437,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
         gen,
         undefined,
         params.onEnded,
+        0,
       );
     }).catch(() => undefined);
   }
@@ -420,18 +450,22 @@ export class EarTrainingChordVoicingPhrasePlayer {
     scheduleGen: number,
     onPhraseStarted: (() => void) | undefined,
     onEnded: (() => void) | undefined,
+    bufferOffsetSec = 0,
   ): void {
     if (scheduleGen !== this.generation) {
       return;
     }
 
+    const safeOffset = Math.max(0, Math.min(buffer.duration, bufferOffsetSec));
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(phraseOutput);
 
-    this.phraseStartCtxTime = when;
+    this.phraseStartCtxTime = when - safeOffset;
     this.phraseBufferDurationSec = buffer.duration;
     this.phraseEnded = false;
+    this.isPaused = false;
+    this.pausedTimelineSec = safeOffset;
     this.activePhraseSource = source;
 
     source.onended = () => {
@@ -444,7 +478,8 @@ export class EarTrainingChordVoicingPhrasePlayer {
     };
 
     if (onPhraseStarted) {
-      const delayMs = Math.max(0, Math.ceil((when - ctx.currentTime) * 1000));
+      const fireAt = safeOffset <= 0 ? when : when;
+      const delayMs = Math.max(0, Math.ceil((fireAt - ctx.currentTime) * 1000));
       const timer = window.setTimeout(() => {
         if (scheduleGen !== this.generation) {
           return;
@@ -455,7 +490,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
     }
 
     try {
-      source.start(when);
+      source.start(when, safeOffset);
     } catch {
       this.phraseEnded = true;
       this.activePhraseSource = null;

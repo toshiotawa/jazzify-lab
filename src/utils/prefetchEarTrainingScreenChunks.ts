@@ -31,6 +31,11 @@ const prefetchEarTrainingScreenChunk = (mode: EarTrainingStage['mode'] | undefin
         void import('@/components/earTraining/EarTrainingChordOSMDScreen').catch(() => undefined);
       });
       return;
+    case 'chord_precision':
+      runWhenIdle('chunk:ear-training-chord-precision', () => {
+        void import('@/components/earTraining/EarTrainingPrecisionScreen').catch(() => undefined);
+      });
+      return;
     case 'adlib':
       runWhenIdle('chunk:ear-training-adlib', () => {
         void import('@/components/earTraining/EarTrainingAdlibScreen').catch(() => undefined);

@@ -24,6 +24,8 @@ function formatEarTrainingModeLabel(
         return 'Chord quiz';
       case 'chord_osmd':
         return 'Sheet music battle';
+      case 'chord_precision':
+        return 'Precision mode';
       case 'adlib':
         return 'Ad lib';
       case 'phrase_pair_adlib':
@@ -41,6 +43,8 @@ function formatEarTrainingModeLabel(
       return 'コードクイズ';
     case 'chord_osmd':
       return '楽譜バトル';
+    case 'chord_precision':
+      return '精密モード';
     case 'adlib':
       return 'アドリブ';
     case 'phrase_pair_adlib':

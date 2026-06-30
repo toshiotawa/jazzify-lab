@@ -3388,6 +3388,20 @@ struct LessonDetailView: View {
                 alertMessage = locale == .ja ? "バトルモードステージ設定がありません。" : "Missing battle mode stage setting."
                 return
             }
+            if requirement.earTrainingStage?.mode == .chordPrecision {
+                var params: [String: String] = [
+                    "stageId": stageId.uuidString,
+                    "lessonId": activeLesson.id.uuidString,
+                    "lessonSongId": requirement.id.uuidString,
+                ]
+                if let cc = encodeClearConditions(requirement.clearConditions) {
+                    params["clearConditions"] = cc
+                }
+                launchDestination = LessonLaunchDestination(
+                    hash: buildHash(base: "ear-training-lesson", params: params)
+                )
+                return
+            }
             let overrideBgm = requirement.survivalLessonOverrides?.bgmUrl?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             earTrainingLaunch = EarTrainingLaunch(

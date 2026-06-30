@@ -74,11 +74,13 @@ export interface ChordOsmdLyricEvent {
   text: string;
 }
 
-interface ChordOsmdNoteClusterContext {
+export interface ChordOsmdNoteClusterContext {
   measureNumber: number;
   beatStartInMeasure: number;
   clusterNotes: readonly Element[];
   timing: MusicXmlScoreTimingState;
+  /** クラスタ先頭音符の `<duration>`（divisions 単位） */
+  durationDivisions: number;
 }
 
 interface MusicXmlScoreTimingState {
@@ -574,10 +576,18 @@ const chordOsmdLyricTargetTimeSec = (
   return (measureIndex * bpmSafe + beatIndex) * beatDurationSec;
 };
 
+/** MusicXML 音符要素 → MIDI（タイ stop 判定は呼び出し側で行う） */
+export const parseMusicXmlNoteElementToMidi = noteElementToMidi;
+
+/** `<tie type="stop"/>` / `<tied type="stop"/>` */
+export const musicXmlNoteHasTieStop = noteHasTieStop;
+
+export const chordOsmdBeatToTargetTimeSec = chordOsmdLyricTargetTimeSec;
+
 /**
  * ピッチを持つ音符クラスタ（先頭＋`<chord/>`）ごとにコールバック。`collectChordOsmdMusicXmlAttacks` と同一走査。
  */
-const forEachChordOsmdNoteCluster = (
+export const forEachChordOsmdNoteCluster = (
   musicXmlText: string,
   onCluster: (ctx: ChordOsmdNoteClusterContext) => void,
 ): void => {
@@ -699,6 +709,7 @@ const forEachChordOsmdNoteCluster = (
         beatStartInMeasure,
         clusterNotes,
         timing,
+        durationDivisions: clusterDur,
       });
 
       currentTime += clusterDur;

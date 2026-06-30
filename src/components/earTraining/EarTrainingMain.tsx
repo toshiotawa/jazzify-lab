@@ -31,6 +31,7 @@ const EarTrainingGameScreen = React.lazy(() => import('./EarTrainingGameScreen')
 const EarTrainingChordVoicingScreen = React.lazy(() => import('./EarTrainingChordVoicingScreen'));
 const EarTrainingChordQuizScreen = React.lazy(() => import('./EarTrainingChordQuizScreen'));
 const EarTrainingChordOSMDScreen = React.lazy(() => import('./EarTrainingChordOSMDScreen'));
+const EarTrainingPrecisionScreen = React.lazy(() => import('./EarTrainingPrecisionScreen'));
 const EarTrainingAdlibScreen = React.lazy(() => import('./EarTrainingAdlibScreen'));
 const EarTrainingPhrasePairAdlibScreen = React.lazy(() => import('./EarTrainingPhrasePairAdlibScreen'));
 
@@ -276,6 +277,21 @@ const EarTrainingMain: React.FC = () => {
         <EarTrainingChordOSMDScreen
           stage={stage}
           enemy={enemy}
+          lessonContext={lessonContext}
+          initialPracticeMode={effectivePracticeMode}
+          onLessonStageClear={handleLessonStageClear}
+          onBack={handleBack}
+          {...lessonRestartProps}
+        />
+      </React.Suspense>
+    );
+  }
+
+  if (stage.mode === 'chord_precision') {
+    return (
+      <React.Suspense key={`${stage.id}-${earSessionNonce}`} fallback={<LoadingScreen message={mainCopy.preparing} />}>
+        <EarTrainingPrecisionScreen
+          stage={stage}
           lessonContext={lessonContext}
           initialPracticeMode={effectivePracticeMode}
           onLessonStageClear={handleLessonStageClear}

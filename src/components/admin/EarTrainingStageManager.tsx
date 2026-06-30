@@ -663,6 +663,7 @@ const EarTrainingStageManager: React.FC = () => {
                       || nextMode === 'chord_voicing'
                       || nextMode === 'chord_quiz'
                       || nextMode === 'chord_osmd'
+                      || nextMode === 'chord_precision'
                       || nextMode === 'adlib'
                     ) {
                       setStageForm(prev => ({
@@ -674,6 +675,9 @@ const EarTrainingStageManager: React.FC = () => {
                         osmd_targets_from_score: nextMode === 'chord_osmd'
                           ? true
                           : prev.osmd_targets_from_score,
+                        practice_transpose: nextMode === 'chord_precision'
+                          ? true
+                          : prev.practice_transpose,
                       }));
                     }
                   }}
@@ -682,6 +686,7 @@ const EarTrainingStageManager: React.FC = () => {
                   <option value="chord_voicing">バトルモード (chord_voicing)</option>
                   <option value="chord_quiz">バトルモード (chord_quiz)</option>
                   <option value="chord_osmd">バトルモード (chord_osmd)</option>
+                  <option value="chord_precision">クエスト精密モード (chord_precision)</option>
                   <option value="adlib">バトルモード (adlib)</option>
                 </select>
               </label>
@@ -699,7 +704,7 @@ const EarTrainingStageManager: React.FC = () => {
                   セルフペース進行（時間で進めず正解で次へ・無音・カウントインなし）
                 </label>
               )}
-              {(stageForm.mode === 'chord_voicing' || stageForm.mode === 'chord_quiz' || stageForm.mode === 'chord_osmd' || stageForm.mode === 'adlib') && (
+              {(stageForm.mode === 'chord_voicing' || stageForm.mode === 'chord_quiz' || stageForm.mode === 'chord_osmd' || stageForm.mode === 'chord_precision' || stageForm.mode === 'adlib') && (
                 <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
                   <input
                     type="checkbox"
@@ -727,7 +732,7 @@ const EarTrainingStageManager: React.FC = () => {
                   MusicXML 譜面から判定ターゲットを生成（既定ON・OFFで chords タイミングに戻す）
                 </label>
               )}
-              {stageForm.mode === 'chord_osmd' && (
+              {(stageForm.mode === 'chord_osmd' || stageForm.mode === 'chord_precision') && (
                 <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
                   <input
                     type="checkbox"

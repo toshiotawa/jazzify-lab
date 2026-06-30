@@ -722,8 +722,12 @@ export type EarTrainingMode =
   | 'chord_voicing'
   | 'chord_quiz'
   | 'chord_osmd'
+  | 'chord_precision'
   | 'adlib'
   | 'phrase_pair_adlib';
+
+/** 精密モード(chord_precision)の5段階ランク */
+export type PrecisionLessonRank = 'D' | 'C' | 'B' | 'A' | 'S';
 
 /** chord_quiz モードの出題行（ステージ直下） */
 export interface EarTrainingChordQuizItem {
