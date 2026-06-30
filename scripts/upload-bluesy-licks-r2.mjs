@@ -60,6 +60,9 @@ function contentType(name) {
   if (name.endsWith('.musicxml')) {
     return 'application/vnd.recordare.musicxml+xml';
   }
+  if (name.endsWith('.mid')) {
+    return 'audio/midi';
+  }
   return 'application/octet-stream';
 }
 
@@ -68,7 +71,11 @@ function listUploadFiles() {
     return [];
   }
   return readdirSync(OUT_DIR).filter(
-    (name) => name.startsWith('bluesy-licks-') && (name.endsWith('.mp3') || name.endsWith('.musicxml')),
+    (name) => name.startsWith('bluesy-licks-') && (
+      name.endsWith('.mp3')
+      || name.endsWith('.musicxml')
+      || name.endsWith('.mid')
+    ),
   );
 }
 
