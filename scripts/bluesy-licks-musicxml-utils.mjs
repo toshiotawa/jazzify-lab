@@ -80,7 +80,9 @@ export function extractPhraseBodyXml(xml, from, to, padToBodyMeasures) {
 
 /** @param {string} body */
 function stripMeasurePrint(body) {
-  return body.replace(/<print[\s\S]*?<\/print>\s*/g, '');
+  return body
+    .replace(/<print[^>]*\/>/g, '')
+    .replace(/<print[\s\S]*?<\/print>\s*/g, '');
 }
 
 /** @param {string} body */
@@ -196,14 +198,24 @@ function extractBlock(xml, tagName) {
   if (start === -1) {
     return { block: null, remainder: xml };
   }
-  const end = xml.indexOf(close, start);
-  if (end === -1) {
+  const selfClose = xml.indexOf('/>', start);
+  const closeStart = xml.indexOf(close, start);
+  if (selfClose !== -1 && (closeStart === -1 || selfClose < closeStart)) {
+    const end = selfClose + 2;
+    const block = xml.slice(start, end);
+    return {
+      block,
+      remainder: xml.slice(0, start) + xml.slice(end),
+    };
+  }
+  if (closeStart === -1) {
     throw new Error(`Unclosed <${tagName}>`);
   }
-  const block = xml.slice(start, end + close.length);
+  const end = closeStart + close.length;
+  const block = xml.slice(start, end);
   return {
     block,
-    remainder: xml.slice(0, start) + xml.slice(end + close.length),
+    remainder: xml.slice(0, start) + xml.slice(end),
   };
 }
 

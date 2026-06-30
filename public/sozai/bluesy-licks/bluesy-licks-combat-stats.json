@@ -1,46 +1,156 @@
 {
   "1": {
     "targetCount": 41,
-    "bodyMeasures": 8
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 76,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "2": {
     "targetCount": 68,
-    "bodyMeasures": 8
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 103,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "3": {
-    "targetCount": 51,
-    "bodyMeasures": 8
+    "targetCount": 53,
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 88,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "4": {
-    "targetCount": 42,
-    "bodyMeasures": 8
+    "targetCount": 51,
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 86,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "5": {
-    "targetCount": 47,
-    "bodyMeasures": 8
+    "targetCount": 42,
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 77,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "6": {
-    "targetCount": 56,
-    "bodyMeasures": 8
+    "targetCount": 47,
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 82,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "7": {
-    "targetCount": 49,
-    "bodyMeasures": 8
+    "targetCount": 53,
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 88,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "8": {
     "targetCount": 74,
-    "bodyMeasures": 12
+    "bodyMeasures": 12,
+    "player_hp": 100,
+    "enemy_hp": 109,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "9": {
     "targetCount": 50,
-    "bodyMeasures": 8
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 85,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "10": {
     "targetCount": 80,
-    "bodyMeasures": 8
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 115,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   },
   "11": {
     "targetCount": 57,
-    "bodyMeasures": 8
+    "bodyMeasures": 8,
+    "player_hp": 100,
+    "enemy_hp": 92,
+    "per_correct_note_damage": 1,
+    "good_completion_damage": 12,
+    "great_completion_damage": 21,
+    "perfect_completion_damage": 35,
+    "miss_damage": 3,
+    "fail_damage": 10,
+    "perfect_max_misses": 0,
+    "great_max_misses": 2
   }
 }

@@ -5,7 +5,7 @@
     <rights>©</rights>
     <encoding>
       <software>Finale v26.3 for Windows</software>
-      <encoding-date>2026-06-27</encoding-date>
+      <encoding-date>2026-06-30</encoding-date>
       <supports attribute="new-system" element="print" type="yes" value="yes"/>
       <supports attribute="new-page" element="print" type="yes" value="yes"/>
       <supports element="accidental" type="yes"/>
@@ -345,7 +345,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -496,7 +496,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">
@@ -659,7 +659,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -810,7 +810,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">
@@ -1116,7 +1116,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -1267,7 +1267,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">
@@ -1430,7 +1430,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -1581,7 +1581,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">
@@ -1887,7 +1887,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -2038,7 +2038,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">
@@ -2201,7 +2201,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -2352,7 +2352,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">
@@ -2658,7 +2658,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -2809,7 +2809,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">
@@ -2972,7 +2972,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="54">
@@ -3123,7 +3123,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-46.5">down</stem>
+        <stem default-y="-47">down</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="118">

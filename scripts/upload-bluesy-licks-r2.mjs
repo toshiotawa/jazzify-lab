@@ -1,14 +1,16 @@
 /**
  * Bluesy Licks 資産を R2 の `sozai/bluesy-licks/` にアップロード。
+ * .musicxml をアップロードした場合、Supabase 用 cache-bust マイグレーションも自動生成する。
  *
  * Usage:
  *   node scripts/upload-bluesy-licks-r2.mjs
  *   node scripts/upload-bluesy-licks-r2.mjs --dry-run
  *   node scripts/upload-bluesy-licks-r2.mjs --s3
+ *   node scripts/upload-bluesy-licks-r2.mjs --skip-cache-bust-migration
  */
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { loadEnvR2Map } from './load-env-r2.mjs';
@@ -21,6 +23,7 @@ const envR2 = loadEnvR2Map(ROOT);
 const args = process.argv.slice(2);
 const useS3 = args.includes('--s3');
 const dryRun = args.includes('--dry-run');
+const skipCacheBustMigration = args.includes('--skip-cache-bust-migration');
 const noRetry = args.includes('--no-retry');
 const phraseOnly = args.includes('--phrase') ? Number.parseInt(args[args.indexOf('--phrase') + 1], 10) : null;
 const wranglerRetries = noRetry
@@ -119,7 +122,7 @@ async function uploadOne(name) {
   const ct = contentType(name);
   if (dryRun) {
     console.log(`[dry-run] ${localPath} -> ${objectPath}`);
-    return;
+    return name.endsWith('.musicxml');
   }
   if (useS3 && s3) {
     const body = readFileSync(localPath);
@@ -134,6 +137,37 @@ async function uploadOne(name) {
     await putWithWranglerRetry(localPath, objectPath, ct);
   }
   console.log(`uploaded ${name}`);
+  return name.endsWith('.musicxml');
+}
+
+/** @returns {string} e.g. 202606301930 */
+function cacheBustVersionTag() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
+}
+
+/** @param {string} version */
+function writeMusicXmlCacheBustMigration(version) {
+  const migrationStamp = `${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}`;
+  const migrationPath = join(ROOT, 'supabase', 'migrations', `${migrationStamp}_bluesy_licks_musicxml_url_cache_bust.sql`);
+  const sql = `-- Bluesy Licks: MusicXML 差し替え後のブラウザキャッシュ回避（upload-bluesy-licks-r2.mjs 自動生成）
+BEGIN;
+
+UPDATE public.ear_training_phrases
+SET
+  music_xml_url = regexp_replace(
+    music_xml_url,
+    '\\?v=[^&]+$',
+    ''
+  ) || '?v=${version}',
+  updated_at = now()
+WHERE music_xml_url LIKE 'https://jazzify-cdn.com/sozai/bluesy-licks/bluesy-licks-%_loop4_ci.musicxml%';
+
+COMMIT;
+`;
+  writeFileSync(migrationPath, sql, 'utf8');
+  console.log(`Wrote ${migrationPath} (?v=${version})`);
 }
 
 async function main() {
@@ -153,11 +187,17 @@ async function main() {
       console.warn(`Missing expected asset: ${name}`);
     }
   }
+  let uploadedAnyMusicXml = false;
   for (const name of files.sort()) {
     if (phraseOnly !== null && !name.includes(`-${String(phraseOnly).padStart(2, '0')}-`)) {
       continue;
     }
-    await uploadOne(name);
+    if (await uploadOne(name)) {
+      uploadedAnyMusicXml = true;
+    }
+  }
+  if (uploadedAnyMusicXml && !dryRun && !skipCacheBustMigration) {
+    writeMusicXmlCacheBustMigration(cacheBustVersionTag());
   }
   console.log('Done upload-bluesy-licks-r2');
 }

@@ -2,6 +2,11 @@
 /**
  * Bluesy Licks 資産を一括生成（MusicXML + MP3 normal/slow）。
  *
+ * MusicXML を差し替えたあとは:
+ *   node scripts/upload-bluesy-licks-r2.mjs
+ *   node scripts/purge-bluesy-licks-cdn-cache.mjs
+ * upload が cache-bust 用 SQL を自動生成するので、それを Supabase に適用する。
+ *
  * Usage:
  *   node scripts/prepare-bluesy-licks-assets.mjs
  *   node scripts/prepare-bluesy-licks-assets.mjs --dry-run

@@ -5,7 +5,7 @@
     <rights>©</rights>
     <encoding>
       <software>Finale v26.3 for Windows</software>
-      <encoding-date>2026-06-27</encoding-date>
+      <encoding-date>2026-06-30</encoding-date>
       <supports attribute="new-system" element="print" type="yes" value="yes"/>
       <supports attribute="new-page" element="print" type="yes" value="yes"/>
       <supports element="accidental" type="yes"/>
@@ -138,7 +138,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -198,7 +198,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -229,7 +229,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="15">
@@ -289,7 +289,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="94">
@@ -517,7 +517,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -577,7 +577,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -609,7 +609,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="16">
@@ -669,7 +669,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="102">
@@ -924,7 +924,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -984,7 +984,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -1015,7 +1015,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="15">
@@ -1075,7 +1075,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="94">
@@ -1303,7 +1303,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -1363,7 +1363,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -1395,7 +1395,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="16">
@@ -1455,7 +1455,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="102">
@@ -1710,7 +1710,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -1770,7 +1770,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -1801,7 +1801,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="15">
@@ -1861,7 +1861,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="94">
@@ -2089,7 +2089,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -2149,7 +2149,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -2181,7 +2181,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="16">
@@ -2241,7 +2241,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="102">
@@ -2496,7 +2496,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -2556,7 +2556,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -2587,7 +2587,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="15">
@@ -2647,7 +2647,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="94">
@@ -2875,7 +2875,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="31">
@@ -2935,7 +2935,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="112">
@@ -2967,7 +2967,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">begin</beam>
       </note>
       <note default-x="16">
@@ -3027,7 +3027,7 @@
         <duration>6</duration>
         <voice>1</voice>
         <type>eighth</type>
-        <stem default-y="-10">up</stem>
+        <stem default-y="-9.5">up</stem>
         <beam number="1">end</beam>
       </note>
       <note default-x="102">

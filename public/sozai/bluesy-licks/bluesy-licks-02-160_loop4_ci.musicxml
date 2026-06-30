@@ -5,7 +5,7 @@
     <rights>©</rights>
     <encoding>
       <software>Finale v26.3 for Windows</software>
-      <encoding-date>2026-06-27</encoding-date>
+      <encoding-date>2026-06-30</encoding-date>
       <supports attribute="new-system" element="print" type="yes" value="yes"/>
       <supports attribute="new-page" element="print" type="yes" value="yes"/>
       <supports element="accidental" type="yes"/>
@@ -170,7 +170,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">
@@ -984,7 +984,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">
@@ -1798,7 +1798,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">
@@ -2612,7 +2612,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">
@@ -3426,7 +3426,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">
@@ -4240,7 +4240,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">
@@ -5054,7 +5054,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">
@@ -5868,7 +5868,7 @@
           <actual-notes>3</actual-notes>
           <normal-notes>2</normal-notes>
         </time-modification>
-        <stem default-y="10">up</stem>
+        <stem default-y="10.5">up</stem>
         <beam number="1">continue</beam>
       </note>
       <note default-x="58">

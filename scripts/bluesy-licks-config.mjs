@@ -12,7 +12,7 @@ export const COURSE_KEY = 'course-bluesy-licks';
 export const CDN_BASE = 'https://jazzify-cdn.com/sozai/bluesy-licks';
 
 export const SOURCE_DIR = join(ROOT, 'public', 'sozai', 'new', 'Bluesy Licks');
-export const COMBINED_MUSICXML = join(SOURCE_DIR, 'Bluesy Licks.musicxml');
+export const COMBINED_MUSICXML = join(ROOT, 'public', 'sozai', 'bluesy-licks', 'Bluesy Licks new.musicxml');
 export const OUT_DIR = join(ROOT, 'public', 'sozai', 'bluesy-licks');
 
 export const BEATS_PER_MEASURE = 4;
@@ -23,6 +23,7 @@ export const LOOP_COUNT = 4;
 
 /** @type {readonly BluesyLicksPhraseSpec[]} */
 export const PHRASE_SPECS = [
+  // Bluesy Licks new.musicxml: 各リック 8 小節（休符小節はフレーズ内に含む）。フレーズ8のみ 12 小節。
   { phraseIndex: 1, bpm: 240, bodyMeasures: 8, sourceFrom: 2, sourceTo: 9 },
   { phraseIndex: 2, bpm: 160, bodyMeasures: 8, sourceFrom: 11, sourceTo: 18 },
   { phraseIndex: 3, bpm: 160, bodyMeasures: 8, sourceFrom: 20, sourceTo: 27 },
@@ -30,10 +31,10 @@ export const PHRASE_SPECS = [
   { phraseIndex: 5, bpm: 240, bodyMeasures: 8, sourceFrom: 38, sourceTo: 45 },
   { phraseIndex: 6, bpm: 160, bodyMeasures: 8, sourceFrom: 47, sourceTo: 54 },
   { phraseIndex: 7, bpm: 240, bodyMeasures: 8, sourceFrom: 56, sourceTo: 63 },
-  { phraseIndex: 8, bpm: 300, bodyMeasures: 12, sourceFrom: 2, sourceTo: 13, standaloneMusicXml: '8.musicxml' },
-  { phraseIndex: 9, bpm: 240, bodyMeasures: 8, sourceFrom: 68, sourceTo: 75 },
-  { phraseIndex: 10, bpm: 160, bodyMeasures: 8, sourceFrom: 77, sourceTo: 84 },
-  { phraseIndex: 11, bpm: 300, bodyMeasures: 8, sourceFrom: 86, sourceTo: 93 },
+  { phraseIndex: 8, bpm: 300, bodyMeasures: 12, sourceFrom: 66, sourceTo: 77 },
+  { phraseIndex: 9, bpm: 240, bodyMeasures: 8, sourceFrom: 78, sourceTo: 85 },
+  { phraseIndex: 10, bpm: 160, bodyMeasures: 8, sourceFrom: 87, sourceTo: 94 },
+  { phraseIndex: 11, bpm: 300, bodyMeasures: 8, sourceFrom: 96, sourceTo: 103 },
 ];
 
 /** @param {number} phraseIndex @param {boolean} slow */
