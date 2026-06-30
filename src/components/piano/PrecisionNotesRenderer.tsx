@@ -15,7 +15,8 @@ import { cn } from '@/utils/cn';
 export const PRECISION_NOTE_FALL_LEAD_SEC = 3;
 
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
-const NOTE_VANISH_EFFECT_DURATION_MS = 150;
+const NOTE_VANISH_EFFECT_DURATION_MS = 180;
+const NOTE_VANISH_PARTICLE_COUNT = 6;
 const NOTE_HIT_EFFECT_DURATION_MS = 100;
 const NOTE_HIT_GLOW_EXPAND_PX = 3;
 const NOTE_EDGE_GAP_PX = 2;
@@ -42,11 +43,16 @@ interface NoteRenderSnapshot {
   showSustainHighlight: boolean;
 }
 
-interface VanishEffect {
+interface VanishParticle {
   x: number;
   y: number;
-  width: number;
-  height: number;
+  vx: number;
+  vy: number;
+  size: number;
+}
+
+interface VanishEffect {
+  particles: VanishParticle[];
   color: string;
   startedAtMs: number;
 }
@@ -347,16 +353,34 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     return Math.max(6, note.durationSec * this.noteSpeedPxPerSec);
   }
 
-  private noteRect(note: PrecisionNote): { x: number; y: number; width: number; height: number } {
-    const lane = this.laneXForMidi(note.midi);
-    const height = this.noteRenderHeight(note);
+  private noteDisplayGeometry(
+    note: PrecisionNote,
+  ): { x: number; y: number; width: number; height: number; isBlack: boolean } {
     const bottom = this.noteBottomY(note);
+    const rawHeight = this.noteRenderHeight(note);
+    const top = bottom - rawHeight;
+    const lane = this.laneXForMidi(note.midi);
     const isBlack = note.isBlackKey;
+    const edgeGap = !note.isShortNote && rawHeight > NOTE_EDGE_GAP_PX * 2 + 4
+      ? NOTE_EDGE_GAP_PX
+      : 0;
+    const height = Math.max(4, rawHeight - edgeGap * 2);
     return {
       x: lane.x + (isBlack ? lane.width * 0.08 : lane.width * 0.1),
-      y: bottom - height,
+      y: top + edgeGap,
       width: lane.width * (isBlack ? 0.84 : 0.8),
       height,
+      isBlack,
+    };
+  }
+
+  private noteRect(note: PrecisionNote): { x: number; y: number; width: number; height: number } {
+    const geom = this.noteDisplayGeometry(note);
+    return {
+      x: geom.x,
+      y: geom.y,
+      width: geom.width,
+      height: geom.height,
     };
   }
 
@@ -379,11 +403,21 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       return;
     }
     const rect = this.noteRect(note);
+    const cx = rect.x + rect.width * 0.5;
+    const cy = rect.y + rect.height * 0.5;
+    const particles: VanishParticle[] = [];
+    for (let i = 0; i < NOTE_VANISH_PARTICLE_COUNT; i += 1) {
+      const angle = (i / NOTE_VANISH_PARTICLE_COUNT) * Math.PI * 2;
+      particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * 0.04,
+        vy: Math.sin(angle) * 0.04,
+        size: i % 2 === 0 ? 2 : 3,
+      });
+    }
     this.vanishEffects.push({
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
+      particles,
       color,
       startedAtMs: nowMs,
     });
@@ -633,10 +667,9 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       )) {
         continue;
       }
-      const lane = this.laneXForMidi(note.midi);
-      const isBlack = note.isBlackKey;
-      let color = isBlack ? '#a855f7' : '#38bdf8';
-      let borderColor = isBlack ? '#7e22ce' : '#0284c7';
+      const geom = this.noteDisplayGeometry(note);
+      let color = geom.isBlack ? '#a855f7' : '#38bdf8';
+      let borderColor = geom.isBlack ? '#7e22ce' : '#0284c7';
       if (judgment === 'good') {
         color = '#22c55e';
         borderColor = '#15803d';
@@ -644,20 +677,16 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         color = 'rgba(148,163,184,0.45)';
         borderColor = 'rgba(71,85,105,0.85)';
       }
-      const edgeGap = !note.isShortNote && rawHeight > NOTE_EDGE_GAP_PX * 2 + 4
-        ? NOTE_EDGE_GAP_PX
-        : 0;
-      const height = Math.max(4, rawHeight - edgeGap * 2);
       const showSustainHighlight = judgment === 'good' && !note.isShortNote;
       snapshots.push({
-        x: lane.x + (isBlack ? lane.width * 0.08 : lane.width * 0.1),
-        y: top + edgeGap,
-        width: lane.width * (isBlack ? 0.84 : 0.8),
-        height,
+        x: geom.x,
+        y: geom.y,
+        width: geom.width,
+        height: geom.height,
         color,
         borderColor,
-        radius: isBlack ? 4 : 6,
-        isBlack,
+        radius: geom.isBlack ? 4 : 6,
+        isBlack: geom.isBlack,
         judgment: judgment === 'good' ? 'hit' : judgment,
         showSustainHighlight,
       });
@@ -716,14 +745,24 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
 
   private drawVanishEffects(ctx: CanvasRenderingContext2D, nowMs: number): void {
     this.vanishEffects = this.vanishEffects.filter(effect => {
-      const t = (nowMs - effect.startedAtMs) / NOTE_VANISH_EFFECT_DURATION_MS;
+      const elapsed = nowMs - effect.startedAtMs;
+      const t = elapsed / NOTE_VANISH_EFFECT_DURATION_MS;
       if (t >= 1) {
         return false;
       }
       const alpha = 1 - t;
-      ctx.globalAlpha = alpha;
       ctx.fillStyle = effect.color;
-      ctx.fillRect(effect.x, effect.y, effect.width, effect.height);
+      for (const particle of effect.particles) {
+        const px = particle.x + particle.vx * elapsed;
+        const py = particle.y + particle.vy * elapsed;
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.fillRect(
+          px - particle.size * 0.5,
+          py - particle.size * 0.5,
+          particle.size,
+          particle.size,
+        );
+      }
       ctx.globalAlpha = 1;
       return true;
     });
