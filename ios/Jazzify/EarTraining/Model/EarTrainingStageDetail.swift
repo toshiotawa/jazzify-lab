@@ -174,6 +174,10 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
             return isEnglish
                 ? "Reduce the enemy HP to 0."
                 : "敵HPを0にする。"
+        case .chordPrecision:
+            return isEnglish
+                ? "Achieve 70% or more GOOD notes."
+                : "GOOD率70%以上でクリア"
         case .chordVoicing, .phrase, .adlib, .phrasePairAdlib:
             return isEnglish
                 ? "Reduce the enemy HP to 0 within the time limit."
@@ -424,6 +428,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
                 title: phrase.title,
                 titleEn: phrase.titleEn,
                 musicXmlUrl: phrase.musicXmlUrl,
+                midiUrl: phrase.midiUrl,
                 audioUrl: phrase.audioUrl,
                 loopDurationSec: phrase.loopDurationSec,
                 audioDurationSec: phrase.audioDurationSec,
@@ -492,6 +497,7 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
     let title: String?
     let titleEn: String?
     let musicXmlUrl: String?
+    let midiUrl: String?
     let audioUrl: String
     let loopDurationSec: Double
     let audioDurationSec: Double
@@ -507,6 +513,7 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
         case orderIndex = "order_index"
         case titleEn = "title_en"
         case musicXmlUrl = "music_xml_url"
+        case midiUrl = "midi_url"
         case audioUrl = "audio_url"
         case loopDurationSec = "loop_duration_sec"
         case audioDurationSec = "audio_duration_sec"

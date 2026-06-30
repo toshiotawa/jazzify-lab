@@ -43,6 +43,7 @@ final class EarTrainingKeyboardScrollTests: XCTestCase {
                     title: nil,
                     titleEn: nil,
                     musicXmlUrl: nil,
+                    midiUrl: nil,
                     audioUrl: "https://example.com/a.mp3",
                     loopDurationSec: 4,
                     audioDurationSec: 4,

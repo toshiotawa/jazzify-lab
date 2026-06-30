@@ -203,6 +203,14 @@
 		F2EE770002DD11EE0000DD02 /* EarTrainingMusicXmlTransposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE770002DD11EE0000DD01 /* EarTrainingMusicXmlTransposer.swift */; };
 		F2EE770003EE11EE0000EE02 /* EarTrainingPracticeSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE770003EE11EE0000EE01 /* EarTrainingPracticeSpeed.swift */; };
 		F2EE770004FF11EE0000FF02 /* EarTrainingOsmdTimingAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE770004FF11EE0000FF01 /* EarTrainingOsmdTimingAdjustment.swift */; };
+		F2PRECC001ENG0102 /* EarTrainingSmfBinary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */; };
+		F2PRECC001ENG0202 /* EarTrainingPrecisionNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */; };
+		F2PRECC001ENG0302 /* EarTrainingPrecisionJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */; };
+		F2PRECC001ENG0402 /* EarTrainingPrecisionMidi.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0401 /* EarTrainingPrecisionMidi.swift */; };
+		F2PRECC001CON0502 /* EarTrainingPrecisionBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001CON0501 /* EarTrainingPrecisionBattleController.swift */; };
+		F2PRECC001VIE0602 /* EarTrainingPrecisionGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001VIE0601 /* EarTrainingPrecisionGameView.swift */; };
+		F2PRECC001VIE0702 /* PrecisionNotesCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001VIE0701 /* PrecisionNotesCanvasView.swift */; };
+		F2PRECC001VIE0802 /* EarTrainingOSMDScoreWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001VIE0801 /* EarTrainingOSMDScoreWebView.swift */; };
 		DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B7FB73F72A914199E51C1D /* LessonProgress.swift */; };
 		E09259FB92854762EA40D533 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546BECBA781840253623CBDC /* StoreManager.swift */; };
 		E3610256F40C29FB7E2F7D20 /* FantasyStageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA9A84AB9F7B849C9301F99 /* FantasyStageView.swift */; };
@@ -420,6 +428,14 @@
 		F2EE770002DD11EE0000DD01 /* EarTrainingMusicXmlTransposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingMusicXmlTransposer.swift; sourceTree = "<group>"; };
 		F2EE770003EE11EE0000EE01 /* EarTrainingPracticeSpeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPracticeSpeed.swift; sourceTree = "<group>"; };
 		F2EE770004FF11EE0000FF01 /* EarTrainingOsmdTimingAdjustment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdTimingAdjustment.swift; sourceTree = "<group>"; };
+		F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSmfBinary.swift; sourceTree = "<group>"; };
+		F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionNotes.swift; sourceTree = "<group>"; };
+		F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionJudge.swift; sourceTree = "<group>"; };
+		F2PRECC001ENG0401 /* EarTrainingPrecisionMidi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionMidi.swift; sourceTree = "<group>"; };
+		F2PRECC001CON0501 /* EarTrainingPrecisionBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionBattleController.swift; sourceTree = "<group>"; };
+		F2PRECC001VIE0601 /* EarTrainingPrecisionGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionGameView.swift; sourceTree = "<group>"; };
+		F2PRECC001VIE0701 /* PrecisionNotesCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrecisionNotesCanvasView.swift; sourceTree = "<group>"; };
+		F2PRECC001VIE0801 /* EarTrainingOSMDScoreWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOSMDScoreWebView.swift; sourceTree = "<group>"; };
 		A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSettingsSheet.swift; sourceTree = "<group>"; };
 		AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingGameView.swift; sourceTree = "<group>"; };
 		AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
@@ -631,6 +647,10 @@
 				C2E30419294A3B0591792536 /* EarTrainingCompositePhraseAdapter.swift */,
 				F1EE770000CC11EE0000CCC1 /* EarTrainingChordVoicingStaffLayout.swift */,
 				F3EE880001EE11EE0000EE01 /* EarTrainingOsmdScoreScroll.swift */,
+				F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */,
+				F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */,
+				F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */,
+				F2PRECC001ENG0401 /* EarTrainingPrecisionMidi.swift */,
 				3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */,
 				KBDSC001E2606031400000001 /* EarTrainingKeyboardScroll.swift */,
 			);
@@ -863,6 +883,7 @@
 				9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */,
 				ADLIB002E2411EE00000002 /* EarTrainingAdlibBattleController.swift */,
 				PPAD006E2606021400000006 /* EarTrainingPhrasePairAdlibBattleController.swift */,
+				F2PRECC001CON0501 /* EarTrainingPrecisionBattleController.swift */,
 			);
 			path = Controller;
 			sourceTree = "<group>";
@@ -1107,6 +1128,9 @@
 				B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */,
 				F3EE880001CC11EE0000CC01 /* EarTrainingBattleStaffBandLayout.swift */,
 				F2EE770002BB11EE0000BB01 /* EarTrainingChordOSMDGameView.swift */,
+				F2PRECC001VIE0801 /* EarTrainingOSMDScoreWebView.swift */,
+				F2PRECC001VIE0701 /* PrecisionNotesCanvasView.swift */,
+				F2PRECC001VIE0601 /* EarTrainingPrecisionGameView.swift */,
 				F2EE770001FF11EE0000FF01 /* EarTrainingChordQuizGameView.swift */,
 				86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */,
 				ADLIB003E2411EE00000003 /* EarTrainingAdlibGameView.swift */,
@@ -1248,6 +1272,14 @@
 				F2EE770003EE11EE0000EE02 /* EarTrainingPracticeSpeed.swift in Sources */,
 				F2EE770004FF11EE0000FF02 /* EarTrainingOsmdTimingAdjustment.swift in Sources */,
 				F2EE770002BB11EE0000BB02 /* EarTrainingChordOSMDGameView.swift in Sources */,
+				F2PRECC001VIE0802 /* EarTrainingOSMDScoreWebView.swift in Sources */,
+				F2PRECC001VIE0702 /* PrecisionNotesCanvasView.swift in Sources */,
+				F2PRECC001VIE0602 /* EarTrainingPrecisionGameView.swift in Sources */,
+				F2PRECC001CON0502 /* EarTrainingPrecisionBattleController.swift in Sources */,
+				F2PRECC001ENG0402 /* EarTrainingPrecisionMidi.swift in Sources */,
+				F2PRECC001ENG0302 /* EarTrainingPrecisionJudge.swift in Sources */,
+				F2PRECC001ENG0202 /* EarTrainingPrecisionNotes.swift in Sources */,
+				F2PRECC001ENG0102 /* EarTrainingSmfBinary.swift in Sources */,
 				DD6CB384F0986D73E24D0390 /* EarTrainingChordVoicingBattleController.swift in Sources */,
 				F2EE770001DD11EE0000DD02 /* EarTrainingChordQuiz.swift in Sources */,
 				F2EE770001EE11EE0000EE02 /* EarTrainingChordQuizBattleController.swift in Sources */,

@@ -491,6 +491,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             title: nil,
             titleEn: nil,
             musicXmlUrl: nil,
+            midiUrl: nil,
             audioUrl: quizDrumLoopURL.absoluteString,
             loopDurationSec: Double(quizDrumLoopDurationSec),
             audioDurationSec: Double(quizDrumLoopDurationSec),

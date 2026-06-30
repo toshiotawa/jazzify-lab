@@ -91,6 +91,7 @@ enum EarTrainingTutorialStageBuilder {
                 title: phrase.title,
                 titleEn: phrase.title_en,
                 musicXmlUrl: phrase.music_xml_url,
+                midiUrl: nil,
                 audioUrl: phrase.audio_url ?? "",
                 loopDurationSec: phrase.loop_duration_sec ?? 8,
                 audioDurationSec: phrase.audio_duration_sec ?? 8,

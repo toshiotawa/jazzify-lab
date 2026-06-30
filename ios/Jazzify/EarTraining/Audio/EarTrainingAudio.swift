@@ -28,6 +28,8 @@ final class EarTrainingAudio: NSObject {
     var onEnded: (() -> Void)?
     /// 周期 (≒30Hz) で呼ばれる進捗コールバック。引数は秒。
     var onTimeUpdate: ((Double) -> Void)?
+    /// 精密モード練習シーク: タイムライン上の開始秒（`phraseWallClockTimelineSecNowOrNil` に加算）。
+    var phraseTimelinePlaybackOffsetSec: Double = 0
     /// true のとき、フレーズアンカーより前に `onTimeUpdate` へ負のフレーズ秒を送る（OSMD カウントイン中の先行判定用）。
     var emitNegativePhraseTimelineBeforeAnchor: Bool = false
 
@@ -501,6 +503,7 @@ final class EarTrainingAudio: NSObject {
         preparedLocalFileURL = nil
         preparedPhrasePCM = nil
         playbackToken += 1
+        phraseTimelinePlaybackOffsetSec = 0
         phraseMixer.outputVolume = phraseVolume
         phrasePlayer.stop()
         clickPlayer.stop()
@@ -1028,10 +1031,10 @@ final class EarTrainingAudio: NSObject {
     func phraseWallClockTimelineSecNowOrNil() -> Double? {
         if isDrumLoopActive, drumLoopAnchorHostTime != 0, !phrasePlayer.isPlaying {
             let sec = Self.secondsFromMachHostDifference(from: drumLoopAnchorHostTime, to: mach_absolute_time())
-            return sec.isFinite ? max(0, sec) : nil
+            return sec.isFinite ? max(0, sec) + phraseTimelinePlaybackOffsetSec : nil
         }
         guard phrasePlayer.isPlaying else {
-            return nil
+            return phraseTimelinePlaybackOffsetSec > 0 ? phraseTimelinePlaybackOffsetSec : nil
         }
         let anchor = phrasePlaybackAnchorHostTime
         if anchor != 0 {
@@ -1039,13 +1042,13 @@ final class EarTrainingAudio: NSObject {
             if now < anchor {
                 if emitNegativePhraseTimelineBeforeAnchor {
                     let sec = -Self.secondsFromMachHostDifference(from: now, to: anchor)
-                    return sec.isFinite ? sec : nil
+                    return sec.isFinite ? sec + phraseTimelinePlaybackOffsetSec : nil
                 }
-                return 0
+                return phraseTimelinePlaybackOffsetSec
             }
             let sec = Self.secondsFromMachHostDifference(from: anchor, to: now)
             guard sec.isFinite else { return nil }
-            return sec
+            return sec + phraseTimelinePlaybackOffsetSec
         }
         guard let nodeTime = phrasePlayer.lastRenderTime,
               let playerTime = phrasePlayer.playerTime(forNodeTime: nodeTime)
@@ -1054,7 +1057,134 @@ final class EarTrainingAudio: NSObject {
         }
         let sec = Double(playerTime.sampleTime) / playerTime.sampleRate
         guard sec.isFinite else { return nil }
-        return max(0, sec)
+        return max(0, sec) + phraseTimelinePlaybackOffsetSec
+    }
+
+    /// 精密モード練習用: カウントインなしで任意位置から再生。`preparePhraseForImmediatePlayback` 済みであること。
+    func playPreparedPhraseFromTimelineOffset(
+        url: URL,
+        timelineOffsetSec: Double,
+        onPhraseStarted: (() -> Void)? = nil
+    ) -> Bool {
+        guard preparedForImmediatePlaybackURL == url,
+              loadedPhraseURL == url
+        else {
+            return false
+        }
+
+        let safeOffset = max(0, timelineOffsetSec)
+        let scheduleToken = playbackToken
+        stopPhrasePlaybackOnly()
+
+        phraseTimelinePlaybackOffsetSec = safeOffset
+        phrasePlaybackAnchorHostTime = mach_absolute_time()
+
+        if let preparedPCM = preparedPhrasePCM {
+            ensureGraph(for: preparedPCM.format)
+            startPhraseEngineIfNeeded()
+            engine.prepare()
+
+            let sampleRate = preparedPCM.format.sampleRate
+            guard sampleRate > 0 else { return false }
+            let startFrame = AVAudioFramePosition(safeOffset * sampleRate)
+            let totalFrames = AVAudioFramePosition(preparedPCM.frameLength)
+            let clampedStart = min(max(0, startFrame), max(0, totalFrames - 1))
+            let remainingFrames = totalFrames - clampedStart
+            guard remainingFrames > 0,
+                  let slice = Self.slicePCMBuffer(
+                    preparedPCM,
+                    startingFrame: clampedStart,
+                    frameCount: AVAudioFrameCount(remainingFrames)
+                  )
+            else {
+                return false
+            }
+
+            phrasePlayer.play()
+            phrasePlayer.scheduleBuffer(slice, at: nil, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard self.playbackToken == scheduleToken else { return }
+                    self.phraseTimelinePlaybackOffsetSec = 0
+                    self.phrasePlaybackAnchorHostTime = 0
+                    self.stopTimeTicker()
+                    self.phrasePlayer.stop()
+                    self.onEnded?()
+                }
+            }
+        } else if let local = preparedLocalFileURL, let file = try? AVAudioFile(forReading: local) {
+            ensureGraph(for: file.processingFormat)
+            startPhraseEngineIfNeeded()
+            engine.prepare()
+
+            let sampleRate = file.processingFormat.sampleRate
+            guard sampleRate > 0 else { return false }
+            let startFrame = AVAudioFramePosition(safeOffset * sampleRate)
+            let totalFrames = file.length
+            let clampedStart = min(max(0, startFrame), max(0, totalFrames - 1))
+            let remainingFrames = totalFrames - clampedStart
+            guard remainingFrames > 0 else { return false }
+
+            phrasePlayer.play()
+            phrasePlayer.scheduleSegment(
+                file,
+                startingFrame: clampedStart,
+                frameCount: AVAudioFrameCount(remainingFrames),
+                at: nil,
+                completionCallbackType: .dataPlayedBack
+            ) { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard self.playbackToken == scheduleToken else { return }
+                    self.phraseTimelinePlaybackOffsetSec = 0
+                    self.phrasePlaybackAnchorHostTime = 0
+                    self.stopTimeTicker()
+                    self.phrasePlayer.stop()
+                    self.onEnded?()
+                }
+            }
+        } else {
+            return false
+        }
+
+        startTimeTickerIfNeeded()
+        onPhraseStarted?()
+        return true
+    }
+
+    private static func slicePCMBuffer(
+        _ buffer: AVAudioPCMBuffer,
+        startingFrame: AVAudioFramePosition,
+        frameCount: AVAudioFrameCount
+    ) -> AVAudioPCMBuffer? {
+        guard frameCount > 0 else { return nil }
+        let format = buffer.format
+        guard let slice = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return nil }
+        slice.frameLength = frameCount
+
+        let channelCount = Int(format.channelCount)
+        let start = Int(startingFrame)
+        let count = Int(frameCount)
+        guard start >= 0, start + count <= Int(buffer.frameLength) else { return nil }
+
+        for channel in 0..<channelCount {
+            guard let source = buffer.floatChannelData?[channel],
+                  let destination = slice.floatChannelData?[channel]
+            else {
+                return nil
+            }
+            destination.update(from: source.advanced(by: start), count: count)
+        }
+        return slice
+    }
+
+    /// 一時停止（呼び出し側がタイムライン秒を保存すること）。
+    func pausePhrasePlayback() {
+        playbackToken += 1
+        phrasePlayer.stop()
+        clickPlayer.stop()
+        stopTimeTicker()
+        phrasePlaybackAnchorHostTime = 0
     }
 
     private static func secondsFromMachHostDifference(from start: UInt64, to end: UInt64) -> Double {

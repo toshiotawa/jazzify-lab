@@ -46,6 +46,14 @@ struct EarTrainingGameView: View {
                     initialPracticeMode: initialPracticeMode,
                     onClose: onClose
                 )
+            } else if resolvedMode == .chordPrecision {
+                EarTrainingPrecisionGameView(
+                    source: .id(stageId),
+                    lessonContext: lessonContext,
+                    locale: locale,
+                    initialPracticeMode: initialPracticeMode,
+                    onClose: onClose
+                )
             } else if resolvedMode == .adlib {
                 EarTrainingAdlibGameView(
                     source: .id(stageId),
@@ -138,6 +146,11 @@ struct EarTrainingGameView: View {
             }
             if stageDetail.resolvedMode == .chordOSMD {
                 self.resolvedMode = .chordOSMD
+                self.isLoading = false
+                return
+            }
+            if stageDetail.resolvedMode == .chordPrecision {
+                self.resolvedMode = .chordPrecision
                 self.isLoading = false
                 return
             }

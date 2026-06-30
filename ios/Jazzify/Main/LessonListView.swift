@@ -3383,36 +3383,22 @@ struct LessonDetailView: View {
             return
         }
 
-        if requirement.isEarTraining == true {
-            guard let stageId = requirement.earTrainingStage?.id ?? requirement.earTrainingStageId else {
-                alertMessage = locale == .ja ? "バトルモードステージ設定がありません。" : "Missing battle mode stage setting."
-                return
-            }
-            if requirement.earTrainingStage?.mode == .chordPrecision {
-                var params: [String: String] = [
-                    "stageId": stageId.uuidString,
-                    "lessonId": activeLesson.id.uuidString,
-                    "lessonSongId": requirement.id.uuidString,
-                ]
-                if let cc = encodeClearConditions(requirement.clearConditions) {
-                    params["clearConditions"] = cc
+            if requirement.isEarTraining == true {
+                guard let stageId = requirement.earTrainingStage?.id ?? requirement.earTrainingStageId else {
+                    alertMessage = locale == .ja ? "バトルモードステージ設定がありません。" : "Missing battle mode stage setting."
+                    return
                 }
-                launchDestination = LessonLaunchDestination(
-                    hash: buildHash(base: "ear-training-lesson", params: params)
+                let overrideBgm = requirement.survivalLessonOverrides?.bgmUrl?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                earTrainingLaunch = EarTrainingLaunch(
+                    stageId: stageId,
+                    lessonId: activeLesson.id,
+                    lessonSongId: requirement.id,
+                    clearConditions: requirement.clearConditions,
+                    bgmUrl: (overrideBgm?.isEmpty == false) ? overrideBgm : nil
                 )
                 return
             }
-            let overrideBgm = requirement.survivalLessonOverrides?.bgmUrl?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            earTrainingLaunch = EarTrainingLaunch(
-                stageId: stageId,
-                lessonId: activeLesson.id,
-                lessonSongId: requirement.id,
-                clearConditions: requirement.clearConditions,
-                bgmUrl: (overrideBgm?.isEmpty == false) ? overrideBgm : nil
-            )
-            return
-        }
 
         alertMessage = locale == .ja ? "この課題は現在プレイできません。" : "This task is not available to play."
     }

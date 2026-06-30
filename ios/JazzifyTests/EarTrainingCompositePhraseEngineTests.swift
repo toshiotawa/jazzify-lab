@@ -132,6 +132,7 @@ final class EarTrainingCompositePhraseEngineTests: XCTestCase {
             title: "Phrase A",
             titleEn: nil,
             musicXmlUrl: nil,
+            midiUrl: nil,
             audioUrl: "",
             loopDurationSec: 4,
             audioDurationSec: 4,

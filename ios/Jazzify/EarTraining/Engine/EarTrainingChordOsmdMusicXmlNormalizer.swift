@@ -419,6 +419,14 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
 
     /// `<tie type="stop"/>` または `<notations>` 直下の `<tied type="stop"/>`（別ツール出力）。
     /// 同じクラスタの別構成音に誤検出しないよう、`note` の直接子のみを見る。
+    static func noteHasTieStop(on noteElement: ChordOsmdXmlElement) -> Bool {
+        hasTieStop(on: noteElement)
+    }
+
+    static func parseNoteElementToMidi(_ note: ChordOsmdXmlElement, keyFifths: Int) -> Int? {
+        midiFromNoteElement(note, keyFifths: keyFifths)
+    }
+
     private static func hasTieStop(on noteElement: ChordOsmdXmlElement) -> Bool {
         for ch in noteElement.children {
             guard case let .element(el) = ch else { continue }
