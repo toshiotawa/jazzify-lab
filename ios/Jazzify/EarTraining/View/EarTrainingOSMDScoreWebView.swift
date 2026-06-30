@@ -11,6 +11,10 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     let measureDurationSec: Double
     let musicXMLText: String
     let renderKey: Int
+    /// 省略時は小節頭からの従来アニメーション。
+    var phraseTimelineSec: Double? = nil
+    /// 省略時は overlay 表示状態に追随。
+    var playheadAnimating: Bool? = nil
     /// OSMD の描画倍率。コンテナ高さを変えずに譜面を縮小する（主に iPhone）。
     let zoom: Double
 
@@ -50,6 +54,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             renderKey: renderKey,
             activeMeasureNumber: activeMeasureNumber,
             measureDurationSec: measureDurationSec,
+            phraseTimelineSec: phraseTimelineSec,
+            playheadAnimating: playheadAnimating,
             zoom: zoom
         )
     }
@@ -75,12 +81,16 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var pendingRenderKey: Int?
         private var pendingMeasureNumber: Int?
         private var pendingMeasureDurationSec: Double = 2
+        private var pendingPhraseTimelineSec: Double?
+        private var pendingPlayheadAnimating: Bool?
         private var pendingZoom: Double = 1.0
         private var lastRenderedMusicXMLText: String?
         private var lastRenderedKey: Int?
         private var lastRenderedZoom: Double?
         private var lastMeasureNumber: Int?
         private var lastMeasureDurationSec: Double?
+        private var lastPhraseTimelineSec: Double?
+        private var lastPlayheadAnimating: Bool?
         private var pendingOverlayVisible = false
         private var lastSentOverlayVisible: Bool?
 
@@ -153,6 +163,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             renderKey: Int,
             activeMeasureNumber: Int,
             measureDurationSec: Double,
+            phraseTimelineSec: Double?,
+            playheadAnimating: Bool?,
             zoom: Double
         ) {
             guard !isTornDown else { return }
@@ -160,6 +172,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             pendingRenderKey = renderKey
             pendingMeasureNumber = activeMeasureNumber
             pendingMeasureDurationSec = measureDurationSec
+            pendingPhraseTimelineSec = phraseTimelineSec
+            pendingPlayheadAnimating = playheadAnimating
             pendingZoom = zoom
             guard htmlReady else { return }
             flushPending(webView: webView)
@@ -211,6 +225,20 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             if lastMeasureNumber != measure {
                 lastMeasureNumber = measure
                 scripts.append("window.JazzifyOSMD.setActiveMeasure(\(measure));")
+            }
+            if let timelineSec = pendingPhraseTimelineSec,
+               let animating = pendingPlayheadAnimating {
+                let timelineChanged = lastPhraseTimelineSec.map { abs($0 - timelineSec) > 0.000_1 } ?? true
+                let animatingChanged = lastPlayheadAnimating.map { $0 != animating } ?? true
+                if timelineChanged || animatingChanged {
+                    lastPhraseTimelineSec = timelineSec
+                    lastPlayheadAnimating = animating
+                    let timelineLiteral = Self.javascriptNumber(timelineSec)
+                    let animatingLiteral = animating ? "true" : "false"
+                    scripts.append(
+                        "window.JazzifyOSMD.setPlayheadTimeline(\(timelineLiteral), \(animatingLiteral));"
+                    )
+                }
             }
             guard !scripts.isEmpty else { return }
             let generation = renderGeneration
@@ -730,10 +758,50 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             highlight.style.left = (bounds.left * cssScale - currentScrollOffset) + 'px';
             highlight.style.width = highlightWidthPx + 'px';
             highlight.style.display = 'block';
-            restartPlayheadAnimation(highlightWidthPx);
+            updatePlayheadPosition(highlightWidthPx);
           }
 
-          function restartPlayheadAnimation(highlightWidthPx) {
+          let phraseTimelineSec = 0;
+          let playheadAnimating = false;
+          let playheadTimelineConfigured = false;
+
+          function computeProgressInMeasure() {
+            const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
+            const safeDur = Math.max(1e-6, measureDurationSec);
+            const timeInMeasure = phraseTimelineSec - (mn - 1) * safeDur;
+            return Math.max(0, Math.min(1, timeInMeasure / safeDur));
+          }
+
+          function updatePlayheadPosition(highlightWidthPx) {
+            const playhead = document.getElementById('measure-playhead');
+            if (!playhead || !overlayVisible) {
+              return;
+            }
+            const widthPx = Number.isFinite(highlightWidthPx) ? highlightWidthPx : 0;
+            if (!playheadTimelineConfigured) {
+              restartPlayheadAnimationLegacy(widthPx);
+              return;
+            }
+            const progress = computeProgressInMeasure();
+            const leftPx = progress * widthPx;
+            const animating = playheadAnimating && overlayVisible;
+            if (!animating) {
+              playhead.style.transition = 'none';
+              playhead.style.left = leftPx + 'px';
+              return;
+            }
+            const safeDur = Math.max(1e-6, measureDurationSec);
+            const remainingMs = Math.max(100, (1 - progress) * safeDur * 1000);
+            playhead.style.transition = 'none';
+            playhead.style.left = leftPx + 'px';
+            void playhead.offsetWidth;
+            requestAnimationFrame(function () {
+              playhead.style.transition = 'left ' + remainingMs + 'ms linear';
+              playhead.style.left = widthPx + 'px';
+            });
+          }
+
+          function restartPlayheadAnimationLegacy(highlightWidthPx) {
             const playhead = document.getElementById('measure-playhead');
             if (!playhead || !overlayVisible) {
               return;
@@ -747,6 +815,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               playhead.style.transition = 'left ' + durationMs + 'ms linear';
               playhead.style.left = widthPx + 'px';
             });
+          }
+
+          function setPlayheadTimeline(sec, animating) {
+            playheadTimelineConfigured = true;
+            phraseTimelineSec = Math.max(0, Number(sec) || 0);
+            playheadAnimating = !!animating;
+            updateMeasureHighlight();
           }
 
           function setScoreOverlayVisible(show) {
@@ -783,7 +858,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             renderMusicXML,
             setActiveMeasure,
             setMeasureDurationSec,
-            setScoreOverlayVisible
+            setScoreOverlayVisible,
+            setPlayheadTimeline
           };
         })();
       </script>

@@ -256,6 +256,8 @@ private struct EarTrainingPrecisionGameContent: View {
                     measureDurationSec: controller.effectiveMeasureDurationSec,
                     musicXMLText: musicXMLText,
                     renderKey: controller.phraseRunId,
+                    phraseTimelineSec: controller.phraseTimelineSecForPlayhead,
+                    playheadAnimating: controller.playheadAnimating,
                     zoom: 0.55
                 )
             } else {
@@ -271,10 +273,10 @@ private struct EarTrainingPrecisionGameContent: View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
                 transportIconButton(
-                    systemName: "backward.end.fill",
-                    accessibilityLabel: locale == .ja ? "1小節戻る" : "Previous measure"
+                    systemName: "gobackward",
+                    accessibilityLabel: locale == .ja ? "1秒戻る" : "Back 1 second"
                 ) {
-                    controller.seekByMeasure(delta: -1)
+                    controller.seekBySeconds(delta: -1)
                 }
                 transportIconButton(
                     systemName: controller.gameState == .paused ? "play.fill" : "pause.fill",
@@ -288,10 +290,10 @@ private struct EarTrainingPrecisionGameContent: View {
                     && controller.gameState != .countIn
                     && controller.gameState != .paused)
                 transportIconButton(
-                    systemName: "forward.end.fill",
-                    accessibilityLabel: locale == .ja ? "1小節進む" : "Next measure"
+                    systemName: "goforward",
+                    accessibilityLabel: locale == .ja ? "1秒進む" : "Forward 1 second"
                 ) {
-                    controller.seekByMeasure(delta: 1)
+                    controller.seekBySeconds(delta: 1)
                 }
             }
             Slider(

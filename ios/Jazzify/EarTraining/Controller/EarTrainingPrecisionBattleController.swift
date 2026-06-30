@@ -11,6 +11,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published private(set) var musicXMLText: String?
     @Published private(set) var scoreErrorText: String?
     @Published private(set) var activeMeasureNumber: Int = 1
+    @Published private(set) var phraseTimelineSecForPlayhead: Double = 0
     @Published private(set) var scoreTimelineArmed: Bool = false
     @Published private(set) var precisionNotes: [EarTrainingPrecisionNote] = []
     @Published private(set) var keyboardRange = EarTrainingPrecisionKeyboardRange(minMidi: 60, maxMidi: 83)
@@ -39,6 +40,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 
     var scoreScrollActive: Bool {
         scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase || gameState == .paused)
+    }
+
+    var playheadAnimating: Bool {
+        gameState == .countIn || gameState == .playingPhrase
     }
 
     var effectiveMeasureDurationSec: Double {
@@ -168,6 +173,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private func preparePhraseAssets(phrase: EarTrainingPhraseDetail, runId: Int) async {
         scoreTimelineArmed = false
         activeMeasureNumber = 1
+        phraseTimelineSecForPlayhead = 0
         scoreErrorText = nil
 
         await loadMusicXml(for: phrase, runId: runId)
@@ -302,10 +308,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             _ = audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: paused) { [weak self] in
                 self?.gameState = .playingPhrase
             }
+            syncPlayheadForTimeline(paused)
             pausedTimelineSec = nil
             updateSeekSliderUi(phraseTimeSec: paused, force: true)
             return
         }
+
+        phraseTimelineSecForPlayhead = 0
 
         _ = audio.schedulePreparedPhraseWithCountIn(
             url: url,
@@ -321,7 +330,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         guard gameState == .countIn || gameState == .playingPhrase else { return }
         guard let phraseTime = audio.phraseWallClockTimelineSecNowOrNil() else { return }
 
+        let previousMeasure = activeMeasureNumber
         updateActiveMeasure(for: max(0, phraseTime))
+        if activeMeasureNumber != previousMeasure {
+            phraseTimelineSecForPlayhead = phraseTime
+        }
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
         _ = EarTrainingPrecisionJudge.markExpiredNotesAsMiss(
             notes: precisionNotes,
@@ -358,6 +371,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             activeLyricText = lyric.text
             nextLyricIndex += 1
         }
+    }
+
+    private func syncPlayheadForTimeline(_ phraseTimeSec: Double) {
+        updateActiveMeasure(for: phraseTimeSec)
+        phraseTimelineSecForPlayhead = phraseTimeSec
     }
 
     private func updateActiveMeasure(for time: Double) {
@@ -441,7 +459,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         let rate = EarTrainingPrecisionJudge.goodRate(notes: precisionNotes, states: runtimeStates)
         let rank = EarTrainingPrecisionJudge.rankForGoodRate(rate)
         if practiceMode {
-            gameState = .idle
+            let endSec = phraseDurationSec
+            pausedTimelineSec = endSec
+            updateSeekSliderUi(phraseTimeSec: endSec, force: true)
+            syncPlayheadForTimeline(endSec)
+            gameState = .paused
             phraseEnding = false
             return
         }
@@ -500,6 +522,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             pausedTimelineSec = audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec
             audio.pausePhrasePlayback()
             gameState = .paused
+            if let paused = pausedTimelineSec {
+                syncPlayheadForTimeline(paused)
+            }
         }
     }
 
@@ -519,6 +544,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         resetRuntimeStatesForSeekTime(clamped)
         pausedTimelineSec = clamped
         updateSeekSliderUi(phraseTimeSec: clamped, force: true)
+        syncPlayheadForTimeline(clamped)
 
         if resumePlayback {
             audio.stopPhrase()
@@ -530,7 +556,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
                 _ = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: clamped) { [weak self] in
                     self?.gameState = .playingPhrase
                 }
-                self.updateActiveMeasure(for: clamped)
             }
         } else {
             audio.stopPhrase()
@@ -549,10 +574,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             pausedTimelineSec = audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec
             audio.pausePhrasePlayback()
             gameState = .paused
-            updateSeekSliderUi(phraseTimeSec: pausedTimelineSec ?? seekSliderSec, force: true)
+            let paused = pausedTimelineSec ?? seekSliderSec
+            updateSeekSliderUi(phraseTimeSec: paused, force: true)
+            syncPlayheadForTimeline(paused)
         } else if gameState == .paused {
             guard let url = preparedPhraseURL else { return }
             let offset = pausedTimelineSec ?? seekSliderSec
+            syncPlayheadForTimeline(offset)
             audio.stopPhrase()
             gameState = .playingPhrase
             scoreTimelineArmed = true
@@ -571,12 +599,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         commitSeekPosition(targetSec, resumePlayback: wasPlayingBeforeSeekInteraction)
     }
 
-    func seekByMeasure(delta: Int) {
+    func seekBySeconds(delta: Double) {
         let base = gameState == .playingPhrase || gameState == .countIn
             ? (audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec)
             : (pausedTimelineSec ?? seekSliderSec)
         let resume = gameState == .playingPhrase || gameState == .countIn
-        commitSeekPosition(base + Double(delta) * effectiveMeasureDurationSec, resumePlayback: resume)
+        commitSeekPosition(base + delta, resumePlayback: resume)
     }
 
     private func updateSeekSliderUi(phraseTimeSec: Double, force: Bool = false) {

@@ -97,3 +97,35 @@ export const computeChordOsmdActiveMeasureNumber = (
   );
   return Math.max(1, Math.min(maxMeasure, rawMeasure));
 };
+
+export interface OsmdMeasurePlayheadState {
+  measureNumber: number;
+  progressInMeasure: number;
+}
+
+/** フレーズ時刻から OSMD 小節番号と小節内進捗（0..1）を算出する。 */
+export const computeOsmdMeasurePlayheadState = (
+  phraseTimeSec: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  phraseLoopDurationSec: number,
+  loopMeasures: number,
+  targets: readonly Pick<ChordOsmdRhythmTarget, 'measureNumber'>[],
+): OsmdMeasurePlayheadState => {
+  const beatDurationSec = 60 / Math.max(1, bpm);
+  const measureDurationSec = beatDurationSec * Math.max(1, beatsPerMeasure);
+  if (measureDurationSec <= 0) {
+    return { measureNumber: 1, progressInMeasure: 0 };
+  }
+  const measureNumber = computeChordOsmdActiveMeasureNumber(
+    phraseTimeSec,
+    bpm,
+    beatsPerMeasure,
+    phraseLoopDurationSec,
+    loopMeasures,
+    targets,
+  );
+  const timeInMeasure = phraseTimeSec - (measureNumber - 1) * measureDurationSec;
+  const progressInMeasure = Math.max(0, Math.min(1, timeInMeasure / measureDurationSec));
+  return { measureNumber, progressInMeasure };
+};

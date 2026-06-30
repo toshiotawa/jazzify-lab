@@ -49,6 +49,7 @@ import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLesso
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
 import {
   computeChordOsmdActiveMeasureNumber,
+  computeOsmdMeasurePlayheadState,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   collectChordOsmdMusicXmlLyrics,
@@ -159,6 +160,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [precisionNotes, setPrecisionNotes] = useState<PrecisionNote[]>([]);
   const [keyboardRange, setKeyboardRange] = useState<PrecisionKeyboardRange>({ minMidi: 60, maxMidi: 83 });
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
+  const [phraseTimelineSecForPlayhead, setPhraseTimelineSecForPlayhead] = useState(0);
   const [scoreTimelineArmed, setScoreTimelineArmed] = useState(false);
   const [phraseRunId, setPhraseRunId] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -202,6 +204,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const lastSeekSliderUiUpdateMsRef = useRef(0);
   const isSeekDraggingRef = useRef(false);
   const wasPlayingBeforeSeekRef = useRef(false);
+  const activeMeasureNumberRef = useRef(1);
   const practiceTransposeEnabled = stage.practice_transpose === true;
 
   useQuestCompleteJingleOnStageClear(
@@ -288,6 +291,31 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const resolveEffectivePracticeBpm = useCallback((): number => (
     effectivePracticeBpm(stage.bpm, practiceModeRef.current ? practiceSpeedPercentRef.current : 100)
   ), [stage.bpm]);
+
+  const buildOsmdRhythmTargets = useCallback(() => (
+    notesRef.current.map((note, orderIndex) => ({
+      id: note.id,
+      label: '',
+      orderIndex,
+      targetTimeSec: note.startSec,
+      measureNumber: note.measureNumber,
+      midiCounts: [{ midi: note.midi, count: 1 as const }],
+    }))
+  ), []);
+
+  const syncPlayheadForTimeline = useCallback((phraseTimeSec: number): void => {
+    const playheadState = computeOsmdMeasurePlayheadState(
+      phraseTimeSec,
+      resolveEffectivePracticeBpm(),
+      stage.beats_per_measure,
+      phraseLoopDurationSecRef.current,
+      stage.loop_measures,
+      buildOsmdRhythmTargets(),
+    );
+    activeMeasureNumberRef.current = playheadState.measureNumber;
+    setActiveMeasureNumber(playheadState.measureNumber);
+    setPhraseTimelineSecForPlayhead(phraseTimeSec);
+  }, [buildOsmdRhythmTargets, resolveEffectivePracticeBpm, stage.beats_per_measure, stage.loop_measures]);
 
   const ensurePhrasePlayer = useCallback((): EarTrainingChordVoicingPhrasePlayer => {
     if (!phrasePlayerRef.current) {
@@ -461,12 +489,17 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     const rate = precisionGoodRate(notesRef.current, runtimeStatesRef.current);
     const rank = precisionRankForGoodRate(rate);
     if (practiceModeRef.current) {
-      setGameState('idle');
+      const endSec = phraseLoopEndSecRef.current;
+      updateSeekSliderUi(endSec, true);
+      syncRenderer(endSec);
+      syncPlayheadForTimeline(endSec);
+      gameStateRef.current = 'paused';
+      setGameState('paused');
       phraseEndingRef.current = false;
       return;
     }
     void finishStageClear(rank, rate);
-  }, [finishStageClear, stopPhraseAudio]);
+  }, [finishStageClear, stopPhraseAudio, syncPlayheadForTimeline, syncRenderer, updateSeekSliderUi]);
 
   useEffect(() => {
     finishPhraseRef.current = finishPhrase;
@@ -504,12 +537,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         gameStateRef.current = 'paused';
         setGameState('paused');
         updateSeekSliderUi(pausedAt, true);
+        syncRenderer(pausedAt);
+        syncPlayheadForTimeline(pausedAt);
         setSeekPreviewSec(pausedAt);
       }
     } else {
       setSeekPreviewSec(seekSliderSecRef.current);
     }
-  }, [updateSeekSliderUi]);
+  }, [syncPlayheadForTimeline, syncRenderer, updateSeekSliderUi]);
 
   const updateSeekPreview = useCallback((targetSec: number): void => {
     if (!isSeekDraggingRef.current) {
@@ -535,6 +570,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     player.stop();
     updateSeekSliderUi(clamped, true);
     syncRenderer(clamped);
+    syncPlayheadForTimeline(clamped);
 
     if (resumePlayback) {
       player.playPrepared({
@@ -547,33 +583,15 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         },
         onEnded: () => finishPhraseRef.current(),
       });
-      const nextMeasure = computeChordOsmdActiveMeasureNumber(
-        clamped,
-        resolveEffectivePracticeBpm(),
-        stage.beats_per_measure,
-        phraseLoopDurationSecRef.current,
-        stage.loop_measures,
-        notesRef.current.map((note, orderIndex) => ({
-          id: note.id,
-          label: '',
-          orderIndex,
-          targetTimeSec: note.startSec,
-          measureNumber: note.measureNumber,
-          midiCounts: [{ midi: note.midi, count: 1 }],
-        })),
-      );
-      setActiveMeasureNumber(nextMeasure);
     } else {
       gameStateRef.current = 'paused';
       setGameState('paused');
     }
   }, [
     resetRuntimeStatesForSeekTime,
-    resolveEffectivePracticeBpm,
     settings.masterVolume,
     settings.musicVolume,
-    stage.beats_per_measure,
-    stage.loop_measures,
+    syncPlayheadForTimeline,
     syncRenderer,
     updateSeekSliderUi,
   ]);
@@ -582,13 +600,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     commitSeekPosition(targetSec, wasPlayingBeforeSeekRef.current);
   }, [commitSeekPosition]);
 
-  const seekByMeasure = useCallback((delta: number): void => {
+  const seekBySeconds = useCallback((deltaSec: number): void => {
     const base = gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn'
       ? (phrasePlayerRef.current?.getPhraseTimelineSec() ?? seekSliderSecRef.current)
-      : (phrasePlayerRef.current?.getPausedTimelineSec() ?? seekSliderSecRef.current);
+      : seekSliderSecRef.current;
     const resume = gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn';
-    commitSeekPosition(base + delta * measureDurationSec, resume);
-  }, [commitSeekPosition, measureDurationSec]);
+    commitSeekPosition(base + deltaSec, resume);
+  }, [commitSeekPosition]);
 
   const handlePhraseTimelineTick = useCallback(() => {
     const state = gameStateRef.current;
@@ -606,16 +624,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         stage.beats_per_measure,
         phraseLoopDurationSecRef.current,
         stage.loop_measures,
-        notesRef.current.map((note, orderIndex) => ({
-          id: note.id,
-          label: '',
-          orderIndex,
-          targetTimeSec: note.startSec,
-          measureNumber: note.measureNumber,
-          midiCounts: [{ midi: note.midi, count: 1 }],
-        })),
+        buildOsmdRhythmTargets(),
       );
-      setActiveMeasureNumber(current => (current === nextMeasure ? current : nextMeasure));
+      if (nextMeasure !== activeMeasureNumberRef.current) {
+        activeMeasureNumberRef.current = nextMeasure;
+        setActiveMeasureNumber(nextMeasure);
+        setPhraseTimelineSecForPlayhead(phraseTimeSec);
+      }
     }
     markExpiredPrecisionNotesAsMiss(
       notesRef.current,
@@ -641,6 +656,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       finishPhraseRef.current();
     }
   }, [
+    buildOsmdRhythmTargets,
     resolveCalibratedTargetTimeSec,
     resolveEffectivePracticeBpm,
     resolveEffectiveTimingWindowSec,
@@ -759,7 +775,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       setPhraseDurationSec(phraseLoopEndSecRef.current);
 
       setScoreTimelineArmed(true);
-      setActiveMeasureNumber(Math.max(1, notesRef.current[0]?.measureNumber ?? 1));
+      const initialMeasure = Math.max(1, notesRef.current[0]?.measureNumber ?? 1);
+      activeMeasureNumberRef.current = initialMeasure;
+      setActiveMeasureNumber(initialMeasure);
+      setPhraseTimelineSecForPlayhead(0);
       phraseTimeSecRef.current = 0;
       updateSeekSliderUi(0, true);
 
@@ -1002,13 +1021,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       setGameState('paused');
       updateSeekSliderUi(pausedAt, true);
       syncRenderer(pausedAt);
+      syncPlayheadForTimeline(pausedAt);
       return;
     }
     if (gameStateRef.current === 'paused') {
+      const offset = seekSliderSecRef.current;
+      syncPlayheadForTimeline(offset);
       player.playPrepared({
         prepared: preparedRef.current,
         phraseGain: settings.musicVolume * settings.masterVolume,
-        startOffsetSec: player.getPausedTimelineSec(),
+        startOffsetSec: offset,
         onPhraseStarted: () => {
           gameStateRef.current = 'playingPhrase';
           setGameState('playingPhrase');
@@ -1016,7 +1038,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         onEnded: () => finishPhraseRef.current(),
       });
     }
-  }, [settings.masterVolume, settings.musicVolume, syncRenderer, updateSeekSliderUi]);
+  }, [settings.masterVolume, settings.musicVolume, syncPlayheadForTimeline, syncRenderer, updateSeekSliderUi]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -1051,6 +1073,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const showLobby = canChangePracticeMode;
   const scoreScrollActive = scoreTimelineArmed
     && (gameState === 'countIn' || gameState === 'playingPhrase' || gameState === 'paused');
+  const playheadAnimating = gameState === 'countIn' || gameState === 'playingPhrase';
   const clearConditionLine = getEarTrainingLessonClearConditionText(stage, isEnglishCopy);
 
   return (
@@ -1083,6 +1106,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             scoreErrorText={scoreErrorText}
             activeMeasureNumber={activeMeasureNumber}
             measureDurationSec={measureDurationSec}
+            phraseTimelineSec={phraseTimelineSecForPlayhead}
+            playheadAnimating={playheadAnimating}
             scrollActive={scoreScrollActive}
             renderKeyValue={phraseRunId}
             isEnglishCopy={isEnglishCopy}
@@ -1200,9 +1225,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             <button
               type="button"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"
-              onClick={() => seekByMeasure(-1)}
+              onClick={() => seekBySeconds(-1)}
               disabled={!preparedRef.current}
-              aria-label={isEnglishCopy ? 'Previous measure' : '1小節戻る'}
+              aria-label={isEnglishCopy ? 'Back 1 second' : '1秒戻る'}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
                 <path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z" />
@@ -1232,9 +1257,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             <button
               type="button"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"
-              onClick={() => seekByMeasure(1)}
+              onClick={() => seekBySeconds(1)}
               disabled={!preparedRef.current}
-              aria-label={isEnglishCopy ? 'Next measure' : '1小節進む'}
+              aria-label={isEnglishCopy ? 'Forward 1 second' : '1秒進む'}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
                 <path d="M16 6h2v12h-2V6zM6 18l8.5-6L6 6v12z" />

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeChordOsmdActiveMeasureNumber,
   computeChordOsmdPhraseLoopEndSec,
+  computeOsmdMeasurePlayheadState,
   countChordOsmdHammersDueFromIndex,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
@@ -86,5 +87,32 @@ describe('computeChordOsmdActiveMeasureNumber', () => {
     expect(
       computeChordOsmdActiveMeasureNumber(20 * measureDur, 100, 4, phraseLoop, 8, targets),
     ).toBe(21);
+  });
+});
+
+describe('computeOsmdMeasurePlayheadState', () => {
+  const targets = [{ measureNumber: 24 }];
+
+  it('小節頭では progressInMeasure が 0', () => {
+    expect(computeOsmdMeasurePlayheadState(0, 100, 4, 60, 24, targets)).toEqual({
+      measureNumber: 1,
+      progressInMeasure: 0,
+    });
+    expect(computeOsmdMeasurePlayheadState(2.4, 100, 4, 60, 24, targets)).toEqual({
+      measureNumber: 2,
+      progressInMeasure: 0,
+    });
+  });
+
+  it('小節内の中間位置で progressInMeasure が 0..1 になる', () => {
+    const state = computeOsmdMeasurePlayheadState(1.2, 100, 4, 60, 24, targets);
+    expect(state.measureNumber).toBe(1);
+    expect(state.progressInMeasure).toBeCloseTo(0.5, 5);
+  });
+
+  it('小節末付近では progressInMeasure が 1 に近い', () => {
+    const state = computeOsmdMeasurePlayheadState(2.39, 100, 4, 60, 24, targets);
+    expect(state.measureNumber).toBe(1);
+    expect(state.progressInMeasure).toBeCloseTo(0.995833, 4);
   });
 });

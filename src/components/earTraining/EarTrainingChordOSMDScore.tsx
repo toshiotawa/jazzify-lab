@@ -24,6 +24,10 @@ interface EarTrainingChordOSMDScoreProps {
   activeMeasureNumber: number;
   /** 小節内プレイヘッドが左→右へ流れる時間（秒）。BPM × 拍子から算出。 */
   measureDurationSec: number;
+  /** イベント駆動の phrase タイムライン秒。未指定時は小節頭（progress 0）からアニメ。 */
+  phraseTimelineSec?: number;
+  /** countIn / playingPhrase 中のみ true。未指定時は scrollActive に追随。 */
+  playheadAnimating?: boolean;
   scrollActive: boolean;
   renderKeyValue: number;
   isEnglishCopy: boolean;
@@ -326,6 +330,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   scoreErrorText,
   activeMeasureNumber,
   measureDurationSec,
+  phraseTimelineSec,
+  playheadAnimating,
   scrollActive,
   renderKeyValue,
   isEnglishCopy,
@@ -499,12 +505,25 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       return;
     }
     const highlightWidthPx = measureHighlight.widthPx;
-    const durationMs = Math.max(100, measureDurationSec * 1000);
+    const safeMeasureDurationSec = Math.max(1e-6, measureDurationSec);
+    const timelineSec = phraseTimelineSec ?? (activeMeasureNumber - 1) * safeMeasureDurationSec;
+    const animating = playheadAnimating ?? scrollActive;
+    const timeInMeasure = timelineSec - (activeMeasureNumber - 1) * safeMeasureDurationSec;
+    const progress = Math.max(0, Math.min(1, timeInMeasure / safeMeasureDurationSec));
+    const leftPx = progress * highlightWidthPx;
+
+    if (!animating) {
+      playhead.style.transition = 'none';
+      playhead.style.left = `${leftPx}px`;
+      return;
+    }
+
+    const remainingMs = Math.max(100, (1 - progress) * safeMeasureDurationSec * 1000);
     playhead.style.transition = 'none';
-    playhead.style.left = '0px';
+    playhead.style.left = `${leftPx}px`;
     void playhead.offsetWidth;
     requestAnimationFrame(() => {
-      playhead.style.transition = `left ${durationMs}ms linear`;
+      playhead.style.transition = `left ${remainingMs}ms linear`;
       playhead.style.left = `${highlightWidthPx}px`;
     });
   }, [
@@ -512,6 +531,9 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     measureDurationSec,
     measureHighlight.visible,
     measureHighlight.widthPx,
+    phraseTimelineSec,
+    playheadAnimating,
+    scrollActive,
     showPlayhead,
   ]);
 
