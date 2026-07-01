@@ -708,6 +708,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 }
 
 extension EarTrainingPrecisionBattleController: EarTrainingLobbyPresentable {
+    var lobbyNonPracticeModeLabel: String {
+        isEnglishCopy ? "Performance" : "本番"
+    }
+
+    var lobbyPracticeModeLabel: String {
+        isEnglishCopy ? "Practice" : "練習"
+    }
+
     var showLobbyControls: Bool {
         gameState == .idle || gameState == .stageClear || gameState == .gameOver
     }

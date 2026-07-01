@@ -100,8 +100,8 @@ struct EarTrainingResultView<Host: EarTrainingLobbyPresentable>: View {
 
     private var practiceToggle: some View {
         Picker(host.isEnglishCopy ? "Mode" : "モード", selection: practiceBinding) {
-            Text(host.hudLabels.battleMode).tag(false)
-            Text(host.hudLabels.practiceMode).tag(true)
+            Text(host.lobbyNonPracticeModeLabel).tag(false)
+            Text(host.lobbyPracticeModeLabel).tag(true)
         }
         .pickerStyle(.segmented)
         .frame(maxWidth: 220)

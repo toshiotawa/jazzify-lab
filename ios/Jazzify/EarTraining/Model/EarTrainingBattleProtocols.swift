@@ -60,3 +60,11 @@ protocol EarTrainingLobbyPresentable: ObservableObject {
     func handleBack()
     func setPracticeMode(_ value: Bool)
 }
+
+extension EarTrainingLobbyPresentable {
+    /// ロビーのモード切替（左）。バトル系は `battleMode`、精密モードは `本番` / Performance。
+    var lobbyNonPracticeModeLabel: String { hudLabels.battleMode }
+
+    /// ロビーのモード切替（右）。通常は `練習` / Practice。
+    var lobbyPracticeModeLabel: String { hudLabels.practiceMode }
+}
