@@ -50,7 +50,7 @@ struct EarTrainingChordOSMDGameView: View {
     private var loadingView: some View {
         VStack(spacing: 12) {
             ProgressView().tint(.yellow)
-            Text(locale == .ja ? "OSMDバトルを準備中…" : "Preparing OSMD battle…")
+            Text(locale == .ja ? "バトルを準備中…" : "Preparing battle…")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
         }

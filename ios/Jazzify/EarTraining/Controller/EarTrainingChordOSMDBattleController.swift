@@ -158,8 +158,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         self.playerHp = stage.playerHp
         self.countInValue = max(0, min(32, stage.countInBeats))
         self.statusText = isEnglishCopy
-            ? "Press START to begin OSMD rhythm battle."
-            : "STARTでOSMDリズムバトルを開始します"
+            ? "Press START to begin rhythm battle."
+            : "STARTでリズムバトルを開始します"
         self.practiceMode = initialPracticeMode
         self.timingAdjustmentMs = EarTrainingOsmdTimingAdjustment.loadTimingAdjustmentMs()
         self.stageFallbackKeyboardScrollAnchorMidi = EarTrainingKeyboardScroll.scrollAnchorMidi(for: stage)

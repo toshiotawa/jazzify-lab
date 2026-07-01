@@ -212,3 +212,23 @@ export const formatEarTrainingChordQuizIntroLine = (
 export const formatEarTrainingCountInDisplay = (isEnglish: boolean, countValue: number): string => (
   isEnglish ? `Count ${countValue}` : `カウント ${countValue}`
 );
+
+/** chord_osmd ロビー開始案内（OSMD 等の内部用語は出さない） */
+export const getEarTrainingRhythmBattleStartCopy = (
+  isEnglish: boolean,
+  selfPaced: boolean,
+): string => {
+  if (selfPaced) {
+    return isEnglish
+      ? 'Press START for self-paced practice.'
+      : 'STARTでセルフペース練習を開始します';
+  }
+  return isEnglish
+    ? 'Press START to begin rhythm battle.'
+    : 'STARTでリズムバトルを開始します';
+};
+
+/** chord_osmd 画面の読み込み中表示 */
+export const getEarTrainingRhythmBattleLoadingCopy = (isEnglish: boolean): string => (
+  isEnglish ? 'Preparing battle…' : 'バトルを準備中…'
+);

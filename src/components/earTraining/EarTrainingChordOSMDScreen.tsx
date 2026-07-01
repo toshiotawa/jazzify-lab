@@ -47,6 +47,7 @@ import {
 import {
   getEarTrainingBattleHudLabels,
   getEarTrainingGameCopy,
+  getEarTrainingRhythmBattleStartCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import {
@@ -230,9 +231,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   );
 
   const [statusText, setStatusText] = useState(
-    osmdSelfPaced
-      ? (isEnglishCopy ? 'Press START for self-paced practice.' : 'STARTでセルフペース練習を開始します')
-      : (isEnglishCopy ? 'Press START to begin OSMD rhythm battle.' : 'STARTでOSMDリズムバトルを開始します'),
+    () => getEarTrainingRhythmBattleStartCopy(isEnglishCopy, osmdSelfPaced),
   );
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
   useEffect(() => {
