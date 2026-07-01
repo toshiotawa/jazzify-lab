@@ -256,8 +256,7 @@ private struct EarTrainingPrecisionGameContent: View {
                     measureDurationSec: controller.effectiveMeasureDurationSec,
                     musicXMLText: musicXMLText,
                     renderKey: controller.phraseRunId,
-                    phraseTimelineSec: controller.phraseTimelineSecForPlayhead,
-                    playheadAnimating: controller.playheadAnimating,
+                    playheadController: controller,
                     zoom: 0.55
                 )
             } else {

@@ -11,11 +11,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published private(set) var musicXMLText: String?
     @Published private(set) var scoreErrorText: String?
     @Published private(set) var activeMeasureNumber: Int = 1
-    @Published private(set) var phraseTimelineSecForPlayhead: Double = 0
     @Published private(set) var scoreTimelineArmed: Bool = false
     @Published private(set) var precisionNotes: [EarTrainingPrecisionNote] = []
     @Published private(set) var keyboardRange = EarTrainingPrecisionKeyboardRange(minMidi: 60, maxMidi: 83)
-    @Published private(set) var runtimeStates: [String: EarTrainingPrecisionJudge.NoteRuntimeState] = [:]
+    private(set) var runtimeStates: [String: EarTrainingPrecisionJudge.NoteRuntimeState] = [:]
     @Published private(set) var activeLyricText: String = ""
     @Published private(set) var seekSliderSec: Double = 0
     @Published private(set) var phraseDurationSec: Double = 1
@@ -75,6 +74,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private var musicXmlCache: [String: String] = [:]
     private var midiCache: [String: Data] = [:]
     private var lobbyPreloadTask: Task<Void, Never>?
+    private weak var osmdCoordinator: EarTrainingOSMDScoreWebView.Coordinator?
+    private var maxOsmdMeasure: Int = 1
 
     init(
         stage: EarTrainingStageDetail,
@@ -98,6 +99,25 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         self.statusText = isEnglishCopy
             ? "Press START to begin precision mode."
             : "STARTで精密モードを開始します"
+    }
+
+    func bindOsmdCoordinator(_ coordinator: EarTrainingOSMDScoreWebView.Coordinator?) {
+        osmdCoordinator = coordinator
+    }
+
+    private func refreshMaxOsmdMeasure() {
+        let measureDuration = effectiveMeasureDurationSec
+        let targetMaxMeasure = precisionNotes.map(\.measureNumber).max() ?? 1
+        let loopMeasureCapFromPhraseDuration: Int
+        if let phrase = currentPhrase, phrase.loopDurationSec > 0, measureDuration > 0 {
+            loopMeasureCapFromPhraseDuration = min(
+                512,
+                max(1, Int(ceil(phrase.loopDurationSec / measureDuration)))
+            )
+        } else {
+            loopMeasureCapFromPhraseDuration = stage.loopMeasures
+        }
+        maxOsmdMeasure = max(loopMeasureCapFromPhraseDuration, stage.loopMeasures, targetMaxMeasure)
     }
 
     func start() {
@@ -173,7 +193,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private func preparePhraseAssets(phrase: EarTrainingPhraseDetail, runId: Int) async {
         scoreTimelineArmed = false
         activeMeasureNumber = 1
-        phraseTimelineSecForPlayhead = 0
         scoreErrorText = nil
 
         await loadMusicXml(for: phrase, runId: runId)
@@ -294,6 +313,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         phraseDurationSec = max(1, practiceMode
             ? EarTrainingPracticeSpeed.scalePracticePhraseLoopEndSec(phraseLoopEndSec, speedPercent: practiceSpeedPercent)
             : phraseLoopEndSec)
+        refreshMaxOsmdMeasure()
     }
 
     private func beginPhrasePlayback(phrase: EarTrainingPhraseDetail) {
@@ -308,13 +328,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             _ = audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: paused) { [weak self] in
                 self?.gameState = .playingPhrase
             }
-            syncPlayheadForTimeline(paused)
+            syncPlayheadForTimeline(paused, animating: true)
             pausedTimelineSec = nil
             updateSeekSliderUi(phraseTimeSec: paused, force: true)
             return
         }
 
-        phraseTimelineSecForPlayhead = 0
+        syncPlayheadForTimeline(0, animating: true)
 
         _ = audio.schedulePreparedPhraseWithCountIn(
             url: url,
@@ -333,7 +353,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         let previousMeasure = activeMeasureNumber
         updateActiveMeasure(for: max(0, phraseTime))
         if activeMeasureNumber != previousMeasure {
-            phraseTimelineSecForPlayhead = phraseTime
+            syncPlayheadForTimeline(phraseTime, animating: true)
         }
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
         _ = EarTrainingPrecisionJudge.markExpiredNotesAsMiss(
@@ -373,27 +393,22 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         }
     }
 
-    private func syncPlayheadForTimeline(_ phraseTimeSec: Double) {
+    private func syncPlayheadForTimeline(_ phraseTimeSec: Double, animating: Bool? = nil) {
         updateActiveMeasure(for: phraseTimeSec)
-        phraseTimelineSecForPlayhead = phraseTimeSec
+        let isAnimating = animating ?? playheadAnimating
+        osmdCoordinator?.syncPlayhead(
+            phraseTimelineSec: phraseTimeSec,
+            activeMeasureNumber: activeMeasureNumber,
+            measureDurationSec: effectiveMeasureDurationSec,
+            animating: isAnimating
+        )
     }
 
     private func updateActiveMeasure(for time: Double) {
         let measureDuration = effectiveMeasureDurationSec
         guard measureDuration > 0 else { return }
         let raw = Int(floor(time / measureDuration)) + 1
-        let targetMaxMeasure = precisionNotes.map(\.measureNumber).max() ?? 1
-        let loopMeasureCapFromPhraseDuration: Int
-        if let phrase = currentPhrase, phrase.loopDurationSec > 0 {
-            loopMeasureCapFromPhraseDuration = min(
-                512,
-                max(1, Int(ceil(phrase.loopDurationSec / measureDuration)))
-            )
-        } else {
-            loopMeasureCapFromPhraseDuration = stage.loopMeasures
-        }
-        let maxMeasure = max(loopMeasureCapFromPhraseDuration, stage.loopMeasures, targetMaxMeasure)
-        let next = max(1, min(maxMeasure, raw))
+        let next = max(1, min(maxOsmdMeasure, raw))
         if next != activeMeasureNumber {
             activeMeasureNumber = next
         }
@@ -462,7 +477,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             let endSec = phraseDurationSec
             pausedTimelineSec = endSec
             updateSeekSliderUi(phraseTimeSec: endSec, force: true)
-            syncPlayheadForTimeline(endSec)
+            syncPlayheadForTimeline(endSec, animating: false)
             gameState = .paused
             phraseEnding = false
             return
@@ -523,7 +538,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             audio.pausePhrasePlayback()
             gameState = .paused
             if let paused = pausedTimelineSec {
-                syncPlayheadForTimeline(paused)
+                syncPlayheadForTimeline(paused, animating: false)
             }
         }
     }
@@ -544,7 +559,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         resetRuntimeStatesForSeekTime(clamped)
         pausedTimelineSec = clamped
         updateSeekSliderUi(phraseTimeSec: clamped, force: true)
-        syncPlayheadForTimeline(clamped)
+        syncPlayheadForTimeline(clamped, animating: resumePlayback)
 
         if resumePlayback {
             audio.stopPhrase()
@@ -576,11 +591,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             gameState = .paused
             let paused = pausedTimelineSec ?? seekSliderSec
             updateSeekSliderUi(phraseTimeSec: paused, force: true)
-            syncPlayheadForTimeline(paused)
+            syncPlayheadForTimeline(paused, animating: false)
         } else if gameState == .paused {
             guard let url = preparedPhraseURL else { return }
             let offset = pausedTimelineSec ?? seekSliderSec
-            syncPlayheadForTimeline(offset)
+            syncPlayheadForTimeline(offset, animating: true)
             audio.stopPhrase()
             gameState = .playingPhrase
             scoreTimelineArmed = true

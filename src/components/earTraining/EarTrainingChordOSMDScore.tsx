@@ -1,4 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import {
@@ -35,7 +44,57 @@ interface EarTrainingChordOSMDScoreProps {
   hidden?: boolean;
   /** ロビー時は Phaser より下（`z-0`）、プレイ中は `z-10` など。 */
   scoreZClassName?: string;
+  /** true のときプレイヘッドは ref.syncPlayhead のみで更新（React props/effect 不使用）。 */
+  useImperativePlayhead?: boolean;
 }
+
+export interface OsmdPlayheadSyncParams {
+  phraseTimelineSec: number;
+  activeMeasureNumber: number;
+  animating: boolean;
+}
+
+export interface EarTrainingChordOSMDScoreHandle {
+  syncPlayhead: (params: OsmdPlayheadSyncParams) => void;
+}
+
+interface ApplyPlayheadDomParams {
+  playhead: HTMLDivElement;
+  highlightWidthPx: number;
+  measureDurationSec: number;
+  phraseTimelineSec: number;
+  activeMeasureNumber: number;
+  animating: boolean;
+}
+
+const applyPlayheadDom = ({
+  playhead,
+  highlightWidthPx,
+  measureDurationSec,
+  phraseTimelineSec,
+  activeMeasureNumber,
+  animating,
+}: ApplyPlayheadDomParams): void => {
+  const safeMeasureDurationSec = Math.max(1e-6, measureDurationSec);
+  const timeInMeasure = phraseTimelineSec - (activeMeasureNumber - 1) * safeMeasureDurationSec;
+  const progress = Math.max(0, Math.min(1, timeInMeasure / safeMeasureDurationSec));
+  const leftPx = progress * highlightWidthPx;
+
+  if (!animating) {
+    playhead.style.transition = 'none';
+    playhead.style.left = `${leftPx}px`;
+    return;
+  }
+
+  const remainingMs = Math.max(100, (1 - progress) * safeMeasureDurationSec * 1000);
+  playhead.style.transition = 'none';
+  playhead.style.left = `${leftPx}px`;
+  void playhead.offsetWidth;
+  requestAnimationFrame(() => {
+    playhead.style.transition = `left ${remainingMs}ms linear`;
+    playhead.style.left = `${highlightWidthPx}px`;
+  });
+};
 
 interface OsmdLayout {
   /** MusicXML の小節番号 → 画面上の近似中心（px、フォールバック用） */
@@ -325,7 +384,8 @@ const measureLayoutFromOsmd = (
   return collectMeasureCentersFromStaffLines(osmd, surface, viewportWidth);
 };
 
-const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
+const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandle, EarTrainingChordOSMDScoreProps>(
+  function EarTrainingChordOSMDScore({
   musicXmlText,
   scoreErrorText,
   activeMeasureNumber,
@@ -337,7 +397,8 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   isEnglishCopy,
   hidden = false,
   scoreZClassName = 'z-10',
-}) => {
+  useImperativePlayhead = false,
+}, ref) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreRef = useRef<HTMLDivElement | null>(null);
   const measureHighlightRef = useRef<HTMLDivElement | null>(null);
@@ -349,7 +410,45 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   const [cssScale, setCssScale] = useState(1);
   const [userZoom, setUserZoom] = useState(loadEarTrainingOsmdUserZoom);
   const [scrollOffsetPx, setScrollOffsetPx] = useState(0);
+  const scrollOffsetPxRef = useRef(0);
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
+  const pendingPlayheadSyncRef = useRef<OsmdPlayheadSyncParams | null>(null);
+
+  const applyPlayheadFromParams = useCallback((params: OsmdPlayheadSyncParams): void => {
+    const highlight = measureHighlightRef.current;
+    const playhead = measurePlayheadRef.current;
+    if (!highlight || !playhead || !scrollActive || hidden || !musicXmlText) {
+      return;
+    }
+    const effectiveScale = cssScale * userZoom;
+    const measureHighlightNow = computeOsmdActiveMeasureHighlight({
+      activeMeasureNumber: params.activeMeasureNumber,
+      measureBoundsByNumber: layout.measureBoundsByNumber,
+      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      effectiveScale,
+      scrollOffsetPx: scrollOffsetPxRef.current,
+    });
+    if (!measureHighlightNow.visible) {
+      return;
+    }
+    highlight.style.left = `${measureHighlightNow.leftPx}px`;
+    highlight.style.width = `${measureHighlightNow.widthPx}px`;
+    applyPlayheadDom({
+      playhead,
+      highlightWidthPx: measureHighlightNow.widthPx,
+      measureDurationSec,
+      phraseTimelineSec: params.phraseTimelineSec,
+      activeMeasureNumber: params.activeMeasureNumber,
+      animating: params.animating,
+    });
+  }, [cssScale, hidden, layout.measureBoundsByNumber, measureDurationSec, musicXmlText, scrollActive, userZoom]);
+
+  useImperativeHandle(ref, () => ({
+    syncPlayhead: (params: OsmdPlayheadSyncParams): void => {
+      pendingPlayheadSyncRef.current = params;
+      applyPlayheadFromParams(params);
+    },
+  }), [applyPlayheadFromParams]);
 
   const osmdDisplayMusicXml = useMemo(
     () => (musicXmlText ? stripLyricsFromMusicXml(musicXmlText) : null),
@@ -481,8 +580,13 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       viewportWidth: viewport.clientWidth,
     });
     score.style.transform = `translate3d(${-offsetPx}px, -50%, 0) scale(${effectiveScale})`;
+    scrollOffsetPxRef.current = offsetPx;
     setScrollOffsetPx(offsetPx);
-  }, [activeMeasureNumber, cssScale, layout, scrollActive, userZoom]);
+    const pending = pendingPlayheadSyncRef.current;
+    if (pending && useImperativePlayhead) {
+      applyPlayheadFromParams(pending);
+    }
+  }, [activeMeasureNumber, applyPlayheadFromParams, cssScale, layout, scrollActive, useImperativePlayhead, userZoom]);
 
   const statusText = renderError ?? scoreErrorText;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
@@ -499,32 +603,21 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
   );
 
   useEffect(() => {
+    if (useImperativePlayhead) {
+      return;
+    }
     const highlight = measureHighlightRef.current;
     const playhead = measurePlayheadRef.current;
     if (!highlight || !playhead || !showPlayhead || !measureHighlight.visible) {
       return;
     }
-    const highlightWidthPx = measureHighlight.widthPx;
-    const safeMeasureDurationSec = Math.max(1e-6, measureDurationSec);
-    const timelineSec = phraseTimelineSec ?? (activeMeasureNumber - 1) * safeMeasureDurationSec;
-    const animating = playheadAnimating ?? scrollActive;
-    const timeInMeasure = timelineSec - (activeMeasureNumber - 1) * safeMeasureDurationSec;
-    const progress = Math.max(0, Math.min(1, timeInMeasure / safeMeasureDurationSec));
-    const leftPx = progress * highlightWidthPx;
-
-    if (!animating) {
-      playhead.style.transition = 'none';
-      playhead.style.left = `${leftPx}px`;
-      return;
-    }
-
-    const remainingMs = Math.max(100, (1 - progress) * safeMeasureDurationSec * 1000);
-    playhead.style.transition = 'none';
-    playhead.style.left = `${leftPx}px`;
-    void playhead.offsetWidth;
-    requestAnimationFrame(() => {
-      playhead.style.transition = `left ${remainingMs}ms linear`;
-      playhead.style.left = `${highlightWidthPx}px`;
+    applyPlayheadDom({
+      playhead,
+      highlightWidthPx: measureHighlight.widthPx,
+      measureDurationSec,
+      phraseTimelineSec: phraseTimelineSec ?? (activeMeasureNumber - 1) * Math.max(1e-6, measureDurationSec),
+      activeMeasureNumber,
+      animating: playheadAnimating ?? scrollActive,
     });
   }, [
     activeMeasureNumber,
@@ -535,6 +628,7 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
     playheadAnimating,
     scrollActive,
     showPlayhead,
+    useImperativePlayhead,
   ]);
 
   return (
@@ -634,6 +728,6 @@ const EarTrainingChordOSMDScore: React.FC<EarTrainingChordOSMDScoreProps> = ({
       )}
     </>
   );
-};
+}));
 
 export default EarTrainingChordOSMDScore;

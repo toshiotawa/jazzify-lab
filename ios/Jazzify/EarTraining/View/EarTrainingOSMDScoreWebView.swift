@@ -11,10 +11,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     let measureDurationSec: Double
     let musicXMLText: String
     let renderKey: Int
-    /// 省略時は小節頭からの従来アニメーション。
+    /// 省略時は小節頭からの従来アニメーション（prop 駆動プレイヘッド）。
     var phraseTimelineSec: Double? = nil
     /// 省略時は overlay 表示状態に追随。
     var playheadAnimating: Bool? = nil
+    /// 指定時はプレイヘッドを imperative API で更新し、上記 timeline props は無視する。
+    var playheadController: EarTrainingPrecisionBattleController? = nil
     /// OSMD の描画倍率。コンテナ高さを変えずに譜面を縮小する（主に iPhone）。
     let zoom: Double
 
@@ -47,6 +49,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        playheadController?.bindOsmdCoordinator(context.coordinator)
         context.coordinator.configurePlayhead(show: scoreScrollActive)
         context.coordinator.update(
             webView: webView,
@@ -54,8 +57,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             renderKey: renderKey,
             activeMeasureNumber: activeMeasureNumber,
             measureDurationSec: measureDurationSec,
-            phraseTimelineSec: phraseTimelineSec,
-            playheadAnimating: playheadAnimating,
+            phraseTimelineSec: playheadController == nil ? phraseTimelineSec : nil,
+            playheadAnimating: playheadController == nil ? playheadAnimating : nil,
             zoom: zoom
         )
     }
@@ -113,6 +116,51 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         func configurePlayhead(show: Bool) {
             pendingOverlayVisible = show
             sendOverlayVisibleIfNeeded()
+        }
+
+        func syncPlayhead(
+            phraseTimelineSec: Double,
+            activeMeasureNumber: Int,
+            measureDurationSec: Double,
+            animating: Bool
+        ) {
+            guard !isTornDown else { return }
+            pendingMeasureNumber = activeMeasureNumber
+            pendingMeasureDurationSec = measureDurationSec
+            guard let webView, htmlReady else {
+                pendingPhraseTimelineSec = phraseTimelineSec
+                pendingPlayheadAnimating = animating
+                return
+            }
+            var scripts: [String] = []
+            if lastMeasureDurationSec.map({ abs($0 - measureDurationSec) > 0.000_1 }) ?? true {
+                lastMeasureDurationSec = measureDurationSec
+                let durationLiteral = Self.javascriptNumber(measureDurationSec)
+                scripts.append("window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));")
+            }
+            if lastMeasureNumber != activeMeasureNumber {
+                lastMeasureNumber = activeMeasureNumber
+                scripts.append("window.JazzifyOSMD.setActiveMeasure(\(activeMeasureNumber));")
+            }
+            let timelineChanged = lastPhraseTimelineSec.map { abs($0 - phraseTimelineSec) > 0.000_1 } ?? true
+            let animatingChanged = lastPlayheadAnimating.map { $0 != animating } ?? true
+            if timelineChanged || animatingChanged {
+                lastPhraseTimelineSec = phraseTimelineSec
+                lastPlayheadAnimating = animating
+                let timelineLiteral = Self.javascriptNumber(phraseTimelineSec)
+                let animatingLiteral = animating ? "true" : "false"
+                scripts.append(
+                    "window.JazzifyOSMD.setPlayheadTimeline(\(timelineLiteral), \(animatingLiteral));"
+                )
+            }
+            guard !scripts.isEmpty else { return }
+            let generation = renderGeneration
+            Self.evaluate(
+                scripts.joined(separator: "\n"),
+                on: webView,
+                generation: generation,
+                coordinator: self
+            )
         }
 
         /// 可視状態が変わったときだけ JS へ反映。非同期 render 完了後は `resyncOverlayAfterRender` から再適用する。

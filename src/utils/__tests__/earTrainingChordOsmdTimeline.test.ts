@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   computeChordOsmdActiveMeasureNumber,
   computeChordOsmdPhraseLoopEndSec,
+  computeChordOsmdScoreMaxMeasure,
+  computeOsmdActiveMeasureFromTimeline,
   computeOsmdMeasurePlayheadState,
   countChordOsmdHammersDueFromIndex,
   shouldStartTutorialOsmdDrumLoop,
@@ -87,6 +89,19 @@ describe('computeChordOsmdActiveMeasureNumber', () => {
     expect(
       computeChordOsmdActiveMeasureNumber(20 * measureDur, 100, 4, phraseLoop, 8, targets),
     ).toBe(21);
+  });
+});
+
+describe('computeOsmdActiveMeasureFromTimeline', () => {
+  it('computeChordOsmdActiveMeasureNumber と同じ maxMeasure なら一致する', () => {
+    const targets = [{ measureNumber: 3 }, { measureNumber: 24 }];
+    const maxMeasure = computeChordOsmdScoreMaxMeasure(60, 100, 4, 24, targets);
+    const measureDur = 2.4;
+    expect(computeOsmdActiveMeasureFromTimeline(4.8, measureDur, maxMeasure)).toBe(3);
+    expect(computeOsmdActiveMeasureFromTimeline(0, measureDur, maxMeasure)).toBe(1);
+    expect(
+      computeChordOsmdActiveMeasureNumber(4.8, 100, 4, 60, 24, targets),
+    ).toBe(computeOsmdActiveMeasureFromTimeline(4.8, measureDur, maxMeasure));
   });
 });
 

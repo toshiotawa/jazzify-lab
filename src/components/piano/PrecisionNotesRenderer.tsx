@@ -178,6 +178,23 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
   }
 
   setRuntimeStates(states: ReadonlyMap<string, PrecisionNoteRuntimeState>): void {
+    if (this.runtimeStates.size === states.size) {
+      let unchanged = true;
+      for (const [id, nextState] of states) {
+        const prevState = this.runtimeStates.get(id);
+        if (!prevState
+          || prevState.judgment !== nextState.judgment
+          || prevState.hiddenFromLane !== nextState.hiddenFromLane
+          || prevState.releasedEarly !== nextState.releasedEarly
+          || prevState.hitAtSec !== nextState.hitAtSec) {
+          unchanged = false;
+          break;
+        }
+      }
+      if (unchanged) {
+        return;
+      }
+    }
     this.runtimeStates = new Map(states);
     this.trackJudgmentTransitions();
     this.trackNoteVanish();

@@ -129,3 +129,16 @@ export const computeOsmdMeasurePlayheadState = (
   const progressInMeasure = Math.max(0, Math.min(1, timeInMeasure / measureDurationSec));
   return { measureNumber, progressInMeasure };
 };
+
+/** キャッシュ済み maxMeasure 向けの軽量小節番号算出（毎フレーム map 生成なし）。 */
+export const computeOsmdActiveMeasureFromTimeline = (
+  phraseTimeSec: number,
+  measureDurationSec: number,
+  maxMeasure: number,
+): number => {
+  if (measureDurationSec <= 0) {
+    return 1;
+  }
+  const rawMeasure = Math.floor(phraseTimeSec / measureDurationSec) + 1;
+  return Math.max(1, Math.min(maxMeasure, rawMeasure));
+};
