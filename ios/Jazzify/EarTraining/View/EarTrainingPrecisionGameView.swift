@@ -272,27 +272,35 @@ private struct EarTrainingPrecisionGameContent: View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
                 transportIconButton(
-                    systemName: "gobackward",
                     accessibilityLabel: locale == .ja ? "1秒戻る" : "Back 1 second"
                 ) {
                     controller.seekBySeconds(delta: -1)
+                } icon: {
+                    EarTrainingPrecisionSeekBackwardIcon()
+                        .fill(.white)
+                        .frame(width: 20, height: 20)
                 }
                 transportIconButton(
-                    systemName: controller.gameState == .paused ? "play.fill" : "pause.fill",
                     accessibilityLabel: controller.gameState == .paused
                         ? (locale == .ja ? "再生" : "Play")
                         : (locale == .ja ? "一時停止" : "Pause")
                 ) {
                     controller.togglePause()
+                } icon: {
+                    Image(systemName: controller.gameState == .paused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 18))
                 }
                 .disabled(controller.gameState != .playingPhrase
                     && controller.gameState != .countIn
                     && controller.gameState != .paused)
                 transportIconButton(
-                    systemName: "goforward",
                     accessibilityLabel: locale == .ja ? "1秒進む" : "Forward 1 second"
                 ) {
                     controller.seekBySeconds(delta: 1)
+                } icon: {
+                    EarTrainingPrecisionSeekForwardIcon()
+                        .fill(.white)
+                        .frame(width: 20, height: 20)
                 }
             }
             Slider(
@@ -332,19 +340,47 @@ private struct EarTrainingPrecisionGameContent: View {
         .background(Color(hex: "020617").opacity(0.95))
     }
 
-    private func transportIconButton(
-        systemName: String,
+    private func transportIconButton<Icon: View>(
         accessibilityLabel: String,
-        action: @escaping () -> Void
+        action: @escaping () -> Void,
+        @ViewBuilder icon: () -> Icon
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 18))
+            icon()
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
                 .background(Color.white.opacity(0.12))
                 .clipShape(Circle())
         }
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+// Web EarTrainingPrecisionScreen transport icons (viewBox 0 0 24 24).
+private struct EarTrainingPrecisionSeekBackwardIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let sx = rect.width / 24
+        let sy = rect.height / 24
+        var path = Path()
+        path.addRect(CGRect(x: 6 * sx, y: 6 * sy, width: 2 * sx, height: 12 * sy))
+        path.move(to: CGPoint(x: 9.5 * sx, y: 12 * sy))
+        path.addLine(to: CGPoint(x: 18 * sx, y: 18 * sy))
+        path.addLine(to: CGPoint(x: 18 * sx, y: 6 * sy))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct EarTrainingPrecisionSeekForwardIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let sx = rect.width / 24
+        let sy = rect.height / 24
+        var path = Path()
+        path.addRect(CGRect(x: 16 * sx, y: 6 * sy, width: 2 * sx, height: 12 * sy))
+        path.move(to: CGPoint(x: 6 * sx, y: 18 * sy))
+        path.addLine(to: CGPoint(x: 14.5 * sx, y: 12 * sy))
+        path.addLine(to: CGPoint(x: 6 * sx, y: 6 * sy))
+        path.closeSubpath()
+        return path
     }
 }
