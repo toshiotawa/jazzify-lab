@@ -171,7 +171,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             lastSentOverlayVisible = show
             let visible = show ? "true" : "false"
             webView.evaluateJavaScript(
-                "window.JazzifyOSMD && window.JazzifyOSMD.setScoreOverlayVisible(\(visible));",
+                "void (window.JazzifyOSMD && window.JazzifyOSMD.setScoreOverlayVisible(\(visible)));",
                 completionHandler: nil
             )
         }
@@ -192,6 +192,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             switch type {
             case "ready":
                 Log.osmd.debug("OSMD score render ready: \(detail, privacy: .public)")
+            case "setupComplete":
+                guard let webView else { return }
+                resyncOverlayAfterRender(webView: webView)
             case "error":
                 Log.osmd.error("OSMD score render error: \(detail, privacy: .public)")
             default:
@@ -249,9 +252,20 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let z = Self.javascriptNumber(nextZoom)
                 let durationLiteral = Self.javascriptNumber(nextMeasureDurationSec)
                 let script = """
-                window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
+                void window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
                   window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
+                  try {
+                    var handler =
+                      window.webkit &&
+                      window.webkit.messageHandlers &&
+                      window.webkit.messageHandlers.osmdRender;
+                    if (handler) {
+                      handler.postMessage({ type: 'setupComplete', detail: '' });
+                    }
+                  } catch (_e) {
+                    /* no-op */
+                  }
                 });
                 """
                 Self.evaluate(
@@ -259,9 +273,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                     on: webView,
                     generation: generation,
                     coordinator: self
-                ) { coordinator in
-                    coordinator.resyncOverlayAfterRender(webView: webView)
-                }
+                )
                 return
             }
             var scripts: [String] = []
@@ -298,6 +310,15 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             )
         }
 
+        /// WKWebView は Promise 等を Swift に返せず Code=5 になるため、式の評価結果を void に潰す。
+        private static func voidWrappedJavaScript(_ script: String) -> String {
+            """
+            (function() {
+            \(script)
+            })();
+            """
+        }
+
         private static func evaluate(
             _ script: String,
             on webView: WKWebView,
@@ -306,7 +327,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             onSuccess: ((Coordinator) -> Void)? = nil
         ) {
             guard !coordinator.isTornDown, coordinator.renderGeneration == generation else { return }
-            webView.evaluateJavaScript(script) { _, error in
+            webView.evaluateJavaScript(voidWrappedJavaScript(script)) { _, error in
                 if let error {
                     guard !coordinator.isTornDown, coordinator.renderGeneration == generation else { return }
                     Log.osmd.error("evaluateJavaScript failed: \(String(describing: error), privacy: .public)")
