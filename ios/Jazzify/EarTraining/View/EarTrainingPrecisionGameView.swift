@@ -1,6 +1,5 @@
 import SwiftUI
 
-private let precisionScoreBandHeight: CGFloat = 128
 private let precisionPianoHeight: CGFloat = 96
 private let precisionTransportHeight: CGFloat = 72
 
@@ -139,33 +138,60 @@ private struct EarTrainingPrecisionGameContent: View {
 
     @State private var seekPreviewSec: Double = 0
     @State private var isSeekDragging = false
+    @State private var scoreBandHeightStep: Int = EarTrainingPrecisionScorePreferences.initialHeightStep()
+    @State private var scoreSizeStep: Int = EarTrainingOsmdScorePreferences.loadScoreSizeStep()
+    @State private var dragHeightPreview: CGFloat?
+    @State private var dragStartBandHeight: CGFloat = 0
+    @State private var hudHorizontalPadding: CGFloat = 16
+
+    /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
+    private static let containerScaleTable: [Double] = [0.80, 0.90, 1.00, 1.15, 1.30]
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            scoreBand
-            ZStack {
-                PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
-                    .overlay(alignment: .bottom) {
-                        if !controller.activeLyricText.isEmpty {
-                            Text(controller.activeLyricText)
-                                .font(.system(size: 16))
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color(hex: "0f172a").opacity(0.45))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .padding(.bottom, precisionPianoHeight + 24)
-                                .padding(.horizontal, 16)
+        GeometryReader { proxy in
+            let screenHeight = proxy.size.height
+            VStack(spacing: 0) {
+                header
+                scoreBand(screenHeight: screenHeight)
+                ZStack {
+                    PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
+                        .overlay(alignment: .bottom) {
+                            if !controller.activeLyricText.isEmpty {
+                                Text(controller.activeLyricText)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(.white)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color(hex: "0f172a").opacity(0.45))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .padding(.bottom, precisionPianoHeight + 24)
+                                    .padding(.horizontal, 16)
+                            }
                         }
-                    }
-                EarTrainingResultView(host: controller)
+                    EarTrainingResultView(host: controller)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if controller.practiceMode {
+                    transportBar
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if controller.practiceMode {
-                transportBar
-            }
+        }
+        .onAppear {
+            hudHorizontalPadding = Self.resolveHudHorizontalPadding()
+        }
+        .onChange(of: controller.musicXMLText) { xml in
+            guard let xml else { return }
+            guard !EarTrainingPrecisionScorePreferences.hasSavedHeightStep else { return }
+            let multiStaff = EarTrainingChordOsmdMusicXmlNormalizer
+                .detectMaxStaffLayersFromMusicXmlString(xml) >= 2
+            scoreBandHeightStep = EarTrainingPrecisionScorePreferences.preferredHeightStep(multiStaff: multiStaff)
+        }
+        .onChange(of: scoreSizeStep) { newValue in
+            EarTrainingOsmdScorePreferences.saveScoreSizeStep(newValue)
+        }
+        .onChange(of: scoreBandHeightStep) { newValue in
+            EarTrainingPrecisionScorePreferences.saveScoreBandHeightStep(newValue)
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
             EarTrainingSettingsSheet(
@@ -247,7 +273,18 @@ private struct EarTrainingPrecisionGameContent: View {
     }
 
     @ViewBuilder
-    private var scoreBand: some View {
+    private func scoreBand(screenHeight: CGFloat) -> some View {
+        let effectiveHeight = currentBandHeight(screenHeight: screenHeight)
+        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
+        let maxStaffFromXml = controller.musicXMLText.map {
+            EarTrainingChordOsmdMusicXmlNormalizer.detectMaxStaffLayersFromMusicXmlString($0)
+        } ?? 1
+        let multiStaff = maxStaffFromXml >= 2
+        let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
+        let tableIndex = min(max(scoreSizeStep + 2, 0), Self.containerScaleTable.count - 1)
+        let containerScale = Self.containerScaleTable[tableIndex]
+        let scoreLoaded = controller.musicXMLText != nil
+
         ZStack {
             if let musicXMLText = controller.musicXMLText {
                 EarTrainingOSMDScoreWebView(
@@ -257,15 +294,144 @@ private struct EarTrainingPrecisionGameContent: View {
                     musicXMLText: musicXMLText,
                     renderKey: controller.phraseRunId,
                     playheadController: controller,
-                    zoom: 0.55
+                    zoom: osmdZoom
                 )
+                .scaleEffect(containerScale, anchor: .center)
             } else {
                 Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.6))
             }
         }
-        .frame(height: precisionScoreBandHeight)
+        .frame(height: effectiveHeight)
+        .clipped()
+        .overlay(alignment: .trailing) {
+            scoreZoomControls(scoreLoaded: scoreLoaded)
+                .padding(.trailing, max(8, hudHorizontalPadding * 0.5))
+        }
+        .overlay(alignment: .bottom) {
+            scoreBandHeightDragHandle(
+                effectiveHeight: effectiveHeight,
+                screenHeight: screenHeight
+            )
+        }
+    }
+
+    private func currentBandHeight(screenHeight: CGFloat) -> CGFloat {
+        if let preview = dragHeightPreview {
+            return preview
+        }
+        return EarTrainingPrecisionScorePreferences.heightForStep(
+            scoreBandHeightStep,
+            screenHeight: screenHeight
+        )
+    }
+
+    @ViewBuilder
+    private func scoreZoomControls(scoreLoaded: Bool) -> some View {
+        let shrinkDisabled = scoreSizeStep <= EarTrainingOsmdScorePreferences.minStep
+        let enlargeDisabled = scoreSizeStep >= EarTrainingOsmdScorePreferences.maxStep
+
+        VStack(spacing: 6) {
+            scoreZoomChipButton(
+                systemName: "plus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
+                disabled: enlargeDisabled,
+                action: {
+                    guard scoreSizeStep < EarTrainingOsmdScorePreferences.maxStep else { return }
+                    scoreSizeStep += 1
+                }
+            )
+            scoreZoomChipButton(
+                systemName: "minus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
+                disabled: shrinkDisabled,
+                action: {
+                    guard scoreSizeStep > EarTrainingOsmdScorePreferences.minStep else { return }
+                    scoreSizeStep -= 1
+                }
+            )
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .background(Color.black.opacity(0.45))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .allowsHitTesting(scoreLoaded)
+        .opacity(scoreLoaded ? 1 : 0)
+    }
+
+    @ViewBuilder
+    private func scoreBandHeightDragHandle(
+        effectiveHeight: CGFloat,
+        screenHeight: CGFloat
+    ) -> some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { _ in
+                Capsule()
+                    .fill(Color.white.opacity(0.45))
+                    .frame(width: 18, height: 3)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 20)
+        .background(Color.white.opacity(0.06))
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 2)
+                .onChanged { value in
+                    if dragHeightPreview == nil {
+                        dragStartBandHeight = EarTrainingPrecisionScorePreferences.heightForStep(
+                            scoreBandHeightStep,
+                            screenHeight: screenHeight
+                        )
+                    }
+                    let proposed = dragStartBandHeight + value.translation.height
+                    dragHeightPreview = EarTrainingPrecisionScorePreferences.clampHeight(
+                        proposed,
+                        screenHeight: screenHeight
+                    )
+                }
+                .onEnded { value in
+                    let proposed = dragStartBandHeight + value.translation.height
+                    let clamped = EarTrainingPrecisionScorePreferences.clampHeight(
+                        proposed,
+                        screenHeight: screenHeight
+                    )
+                    scoreBandHeightStep = EarTrainingPrecisionScorePreferences.nearestStep(
+                        forHeight: clamped,
+                        screenHeight: screenHeight
+                    )
+                    dragHeightPreview = nil
+                }
+        )
+        .accessibilityLabel(locale == .ja ? "譜面領域の高さを変更" : "Adjust score area height")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private func scoreZoomChipButton(
+        systemName: String,
+        accessibilityLabel label: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(Color.white.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .opacity(disabled ? 0.28 : 1)
+        .disabled(disabled)
+        .accessibilityLabel(label)
     }
 
     private var transportBar: some View {
@@ -353,6 +519,91 @@ private struct EarTrainingPrecisionGameContent: View {
                 .clipShape(Circle())
         }
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    private static func resolveHudHorizontalPadding() -> CGFloat {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first(where: { $0.isKeyWindow }) else {
+            return 16
+        }
+        let s = window.safeAreaInsets
+        return max(16, s.left, s.right, s.top)
+    }
+}
+
+// MARK: - Precision score preferences
+
+enum EarTrainingPrecisionScorePreferences {
+    private static let scoreBandHeightStepKey = "earTraining.precision.scoreBandHeightStep"
+
+    static let minHeightStep = -2
+    static let maxHeightStep = 2
+    static let scoreBandHeightTable: [CGFloat] = [96, 112, 128, 160, 192]
+    static let singleStaffDefaultHeightStep = 0
+    static let multiStaffDefaultHeightStep = 2
+
+    static var hasSavedHeightStep: Bool {
+        UserDefaults.standard.object(forKey: scoreBandHeightStepKey) != nil
+    }
+
+    static func initialHeightStep() -> Int {
+        if hasSavedHeightStep {
+            return loadSavedHeightStep()
+        }
+        return preferredHeightStep(multiStaff: false)
+    }
+
+    static func preferredHeightStep(multiStaff: Bool) -> Int {
+        multiStaff ? multiStaffDefaultHeightStep : singleStaffDefaultHeightStep
+    }
+
+    static func clampHeightStep(_ value: Int) -> Int {
+        Swift.min(maxHeightStep, Swift.max(minHeightStep, value))
+    }
+
+    static func loadSavedHeightStep() -> Int {
+        clampHeightStep(UserDefaults.standard.integer(forKey: scoreBandHeightStepKey))
+    }
+
+    static func loadScoreBandHeightStep(multiStaff: Bool) -> Int {
+        if hasSavedHeightStep {
+            return loadSavedHeightStep()
+        }
+        return preferredHeightStep(multiStaff: multiStaff)
+    }
+
+    static func saveScoreBandHeightStep(_ value: Int) {
+        UserDefaults.standard.set(clampHeightStep(value), forKey: scoreBandHeightStepKey)
+    }
+
+    static func maxBandHeight(screenHeight: CGFloat) -> CGFloat {
+        Swift.min(scoreBandHeightTable[scoreBandHeightTable.count - 1], screenHeight * 0.38)
+    }
+
+    static func heightForStep(_ step: Int, screenHeight: CGFloat) -> CGFloat {
+        let index = min(max(step + 2, 0), scoreBandHeightTable.count - 1)
+        return Swift.min(scoreBandHeightTable[index], maxBandHeight(screenHeight: screenHeight))
+    }
+
+    static func clampHeight(_ height: CGFloat, screenHeight: CGFloat) -> CGFloat {
+        let minHeight = scoreBandHeightTable[0]
+        let maxHeight = maxBandHeight(screenHeight: screenHeight)
+        return Swift.min(maxHeight, Swift.max(minHeight, height))
+    }
+
+    static func nearestStep(forHeight height: CGFloat, screenHeight: CGFloat) -> Int {
+        let clamped = clampHeight(height, screenHeight: screenHeight)
+        var bestStep = singleStaffDefaultHeightStep
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+        for step in minHeightStep...maxHeightStep {
+            let candidate = heightForStep(step, screenHeight: screenHeight)
+            let distance = abs(candidate - clamped)
+            if distance < bestDistance {
+                bestDistance = distance
+                bestStep = step
+            }
+        }
+        return bestStep
     }
 }
 
