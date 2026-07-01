@@ -169,6 +169,10 @@ private struct EarTrainingPrecisionGameContent: View {
                                     .padding(.horizontal, 16)
                             }
                         }
+                    scoreZoomControls(scoreLoaded: controller.musicXMLText != nil)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(.top, 8)
+                        .padding(.trailing, max(8, hudHorizontalPadding * 0.5))
                     EarTrainingResultView(host: controller)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -283,7 +287,6 @@ private struct EarTrainingPrecisionGameContent: View {
         let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
         let tableIndex = min(max(scoreSizeStep + 2, 0), Self.containerScaleTable.count - 1)
         let containerScale = Self.containerScaleTable[tableIndex]
-        let scoreLoaded = controller.musicXMLText != nil
 
         ZStack {
             if let musicXMLText = controller.musicXMLText {
@@ -305,15 +308,8 @@ private struct EarTrainingPrecisionGameContent: View {
         }
         .frame(height: effectiveHeight)
         .clipped()
-        .overlay(alignment: .trailing) {
-            scoreZoomControls(scoreLoaded: scoreLoaded)
-                .padding(.trailing, max(8, hudHorizontalPadding * 0.5))
-        }
         .overlay(alignment: .bottom) {
-            scoreBandHeightDragHandle(
-                effectiveHeight: effectiveHeight,
-                screenHeight: screenHeight
-            )
+            scoreBandHeightControl(screenHeight: screenHeight)
         }
     }
 
@@ -365,23 +361,51 @@ private struct EarTrainingPrecisionGameContent: View {
     }
 
     @ViewBuilder
-    private func scoreBandHeightDragHandle(
-        effectiveHeight: CGFloat,
-        screenHeight: CGFloat
-    ) -> some View {
-        HStack(spacing: 5) {
-            ForEach(0..<3, id: \.self) { _ in
-                Capsule()
-                    .fill(Color.white.opacity(0.45))
-                    .frame(width: 18, height: 3)
+    private func scoreBandHeightControl(screenHeight: CGFloat) -> some View {
+        let shrinkDisabled = scoreBandHeightStep <= EarTrainingPrecisionScorePreferences.minHeightStep
+        let enlargeDisabled = scoreBandHeightStep >= EarTrainingPrecisionScorePreferences.maxHeightStep
+
+        HStack(spacing: 10) {
+            scoreBandHeightStepButton(
+                systemName: "chevron.down",
+                accessibilityLabel: locale == .ja ? "譜面エリアを縮小" : "Shrink score area",
+                disabled: shrinkDisabled
+            ) {
+                guard scoreBandHeightStep > EarTrainingPrecisionScorePreferences.minHeightStep else { return }
+                scoreBandHeightStep -= 1
+            }
+
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.up.and.down")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(locale == .ja ? "譜面エリア" : "Score area")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(.white.opacity(0.85))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(locale == .ja ? "譜面領域の高さ" : "Score area height")
+
+            scoreBandHeightStepButton(
+                systemName: "chevron.up",
+                accessibilityLabel: locale == .ja ? "譜面エリアを拡大" : "Enlarge score area",
+                disabled: enlargeDisabled
+            ) {
+                guard scoreBandHeightStep < EarTrainingPrecisionScorePreferences.maxHeightStep else { return }
+                scoreBandHeightStep += 1
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 20)
-        .background(Color.white.opacity(0.06))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.black.opacity(0.55))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+        )
+        .padding(.bottom, 6)
         .contentShape(Rectangle())
         .gesture(
-            DragGesture(minimumDistance: 2)
+            DragGesture(minimumDistance: 8)
                 .onChanged { value in
                     if dragHeightPreview == nil {
                         dragStartBandHeight = EarTrainingPrecisionScorePreferences.heightForStep(
@@ -408,8 +432,27 @@ private struct EarTrainingPrecisionGameContent: View {
                     dragHeightPreview = nil
                 }
         )
-        .accessibilityLabel(locale == .ja ? "譜面領域の高さを変更" : "Adjust score area height")
-        .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private func scoreBandHeightStepButton(
+        systemName: String,
+        accessibilityLabel label: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(Color.white.opacity(0.16))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(disabled ? 0.28 : 1)
+        .disabled(disabled)
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import {
   isPrecisionNoteInPerformanceWindow,
   PRECISION_SHORT_NOTE_HEIGHT_PX,
+  precisionVanishEffectCenter,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
 import {
@@ -461,8 +462,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       return;
     }
     const rect = this.noteRect(note);
-    const cx = rect.x + rect.width * 0.5;
-    const cy = rect.y + rect.height * 0.5;
+    const { cx, cy } = precisionVanishEffectCenter(note.isShortNote, rect);
     this.vanishEffects.push({
       particles: this.spawnVanishParticles(cx, cy),
       centerX: cx,

@@ -261,7 +261,7 @@ final class PrecisionNotesCanvasUIView: UIView {
             let isHidden = state.hiddenFromLane ?? false
             if !wasHidden, isHidden, state.judgment == .good,
                let rect = noteRectForEffect(for: note, controller: controller, phraseTime: phraseTime) {
-                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs)
+                addVanishEffect(noteId: note.id, rect: rect, isShortNote: note.isShortNote, startedAtMs: nowMs)
             }
             previousHiddenFromLane[note.id] = isHidden
 
@@ -270,7 +270,7 @@ final class PrecisionNotesCanvasUIView: UIView {
                !vanishedIds.contains(note.id),
                phraseTime >= note.startSec + note.durationSec - 0.001,
                let rect = noteRectForEffect(for: note, controller: controller, phraseTime: phraseTime) {
-                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs)
+                addVanishEffect(noteId: note.id, rect: rect, isShortNote: note.isShortNote, startedAtMs: nowMs)
             }
         }
     }
@@ -326,13 +326,20 @@ final class PrecisionNotesCanvasUIView: UIView {
         return particles
     }
 
-    private func addVanishEffect(noteId: String, rect: CGRect, startedAtMs: Double) {
+    private func addVanishEffect(
+        noteId: String,
+        rect: CGRect,
+        isShortNote: Bool,
+        startedAtMs: Double
+    ) {
         if vanishedIds.contains(noteId) {
             return
         }
         vanishedIds.insert(noteId)
         let cx = rect.midX
-        let cy = rect.midY
+        let cy = isShortNote
+            ? rect.midY
+            : rect.minY + min(6, rect.height * 0.12)
         vanishEffects.append(
             VanishEffect(
                 particles: spawnVanishParticles(cx: cx, cy: cy),
