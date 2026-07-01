@@ -144,4 +144,73 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         XCTAssertEqual(highlight.leftPx, 15)
         XCTAssertEqual(highlight.widthPx, 120)
     }
+
+    func testPrecisionMeasureJumpScrollOffset_alignsMeasureLeftToContainerEdge() {
+        let scroll = EarTrainingOsmdScoreScroll.precisionMeasureJumpScrollOffset(
+            activeMeasureNumber: 1,
+            measureBoundsByNumber: bounds,
+            measureCentersByNumber: centers,
+            cssScale: 1,
+            scoreWidth: 500,
+            viewportWidth: 400
+        )
+        XCTAssertEqual(scroll.xPos, 10)
+        XCTAssertEqual(scroll.offsetPx, 10)
+
+        let highlight = EarTrainingOsmdScoreScroll.activeMeasureHighlight(
+            EarTrainingOsmdScoreScroll.ActiveMeasureHighlightInput(
+                activeMeasureNumber: 1,
+                measureBoundsByNumber: bounds,
+                playheadPx: EarTrainingOsmdScrollLayout.precision.playheadPx,
+                effectiveScale: 1,
+                scrollOffsetPx: scroll.offsetPx
+            )
+        )
+        XCTAssertEqual(highlight.leftPx, 0)
+    }
+
+    func testPrecisionMeasureJumpScrollOffset_fitsWideMeasureIntoViewport() {
+        let wideBounds: [Int: EarTrainingOsmdScoreScroll.MeasureBounds] = [
+            1: .init(left: 0, right: 500),
+        ]
+        let scroll = EarTrainingOsmdScoreScroll.precisionMeasureJumpScrollOffset(
+            activeMeasureNumber: 1,
+            measureBoundsByNumber: wideBounds,
+            measureCentersByNumber: [1: 250],
+            cssScale: 1,
+            scoreWidth: 800,
+            viewportWidth: 400
+        )
+        let expectedScale = EarTrainingOsmdScoreScroll.effectiveScaleForMeasure(
+            cssScale: 1,
+            bounds: wideBounds[1],
+            viewportWidth: 400,
+            fitActiveMeasureWidth: true
+        )
+        XCTAssertEqual(expectedScale, 0.8)
+        XCTAssertEqual(scroll.offsetPx, 0)
+
+        let highlight = EarTrainingOsmdScoreScroll.activeMeasureHighlight(
+            EarTrainingOsmdScoreScroll.ActiveMeasureHighlightInput(
+                activeMeasureNumber: 1,
+                measureBoundsByNumber: wideBounds,
+                playheadPx: 0,
+                effectiveScale: expectedScale,
+                scrollOffsetPx: scroll.offsetPx
+            )
+        )
+        XCTAssertEqual(highlight.leftPx, 0, accuracy: 0.001)
+        XCTAssertEqual(highlight.widthPx, 400, accuracy: 0.001)
+    }
+
+    func testEffectiveScaleForMeasure_respectsMinFitScale() {
+        let veryWideBounds = EarTrainingOsmdScoreScroll.MeasureBounds(left: 0, right: 2000)
+        let scale = EarTrainingOsmdScoreScroll.effectiveScaleForMeasure(
+            cssScale: 1,
+            bounds: veryWideBounds,
+            viewportWidth: 400,
+            fitActiveMeasureWidth: true
+        )
+        XCTAssertEqual(scale, EarTrainingOsmdScoreScroll.precisionMinFitScale)
+    }
 }

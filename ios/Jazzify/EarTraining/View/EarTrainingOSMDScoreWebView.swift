@@ -19,9 +19,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     var playheadController: EarTrainingPrecisionBattleController? = nil
     /// OSMD の描画倍率。コンテナ高さを変えずに譜面を縮小する（主に iPhone）。
     let zoom: Double
+    /// 小節スクロールのアンカーと 1 小節フィット（精密モード向け）。省略時はリズムバトル既定。
+    var scrollLayout: EarTrainingOsmdScrollLayout = .battleDefault
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(scrollLayout: scrollLayout)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -44,7 +46,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         webView.scrollView.bounces = false
         webView.scrollView.contentInset = .zero
         context.coordinator.attach(webView: webView)
-        webView.loadHTMLString(Self.html, baseURL: Bundle.main.bundleURL)
+        webView.loadHTMLString(Self.html(for: scrollLayout), baseURL: Bundle.main.bundleURL)
         return webView
     }
 
@@ -76,6 +78,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        private let scrollLayout: EarTrainingOsmdScrollLayout
+
+        init(scrollLayout: EarTrainingOsmdScrollLayout) {
+            self.scrollLayout = scrollLayout
+        }
+
         private weak var webView: WKWebView?
         private var htmlReady = false
         private var isTornDown = false
@@ -359,7 +367,18 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
     }
 
-    private static let html = """
+    private static func html(for layout: EarTrainingOsmdScrollLayout) -> String {
+        htmlTemplate
+            .replacingOccurrences(of: "__PLAYHEAD_PX__", with: String(format: "%.10g", Double(layout.playheadPx)))
+            .replacingOccurrences(of: "__ANCHOR_TO_MEASURE_LEFT__", with: layout.anchorToMeasureLeft ? "true" : "false")
+            .replacingOccurrences(of: "__FIT_ACTIVE_MEASURE_WIDTH__", with: layout.fitActiveMeasureWidth ? "true" : "false")
+            .replacingOccurrences(
+                of: "__MIN_FIT_SCALE__",
+                with: String(format: "%.10g", Double(EarTrainingOsmdScoreScroll.precisionMinFitScale))
+            )
+    }
+
+    private static let htmlTemplate = """
     <!doctype html>
     <html>
     <head>
@@ -437,12 +456,16 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           const viewport = document.getElementById('viewport');
           const score = document.getElementById('score');
           const status = document.getElementById('status');
-          const PLAYHEAD_PX = 120;
+          const PLAYHEAD_PX = __PLAYHEAD_PX__;
+          const ANCHOR_TO_MEASURE_LEFT = __ANCHOR_TO_MEASURE_LEFT__;
+          const FIT_ACTIVE_MEASURE_WIDTH = __FIT_ACTIVE_MEASURE_WIDTH__;
+          const MIN_FIT_SCALE = __MIN_FIT_SCALE__;
           let osmd = null;
           let measureCentersByNumber = {};
           let measureBoundsByNumber = {};
           let scoreWidth = 0;
           let cssScale = 1;
+          let effectiveScale = 1;
           let overlayVisible = false;
           let activeMeasureNumber = 1;
           let currentScrollOffset = 0;
@@ -661,16 +684,57 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             scoreWidth = fallback.scoreWidth;
           }
 
+          function resolveScrollAnchorX(bounds, measureNumber) {
+            if (bounds) {
+              if (ANCHOR_TO_MEASURE_LEFT) {
+                return bounds.left;
+              }
+              if (Number.isFinite(bounds.noteLeft)) {
+                return bounds.noteLeft;
+              }
+              return bounds.left;
+            }
+            return measureCentersByNumber[measureNumber]
+              || measureCentersByNumber[1]
+              || viewport.clientWidth / 2;
+          }
+
+          function computeEffectiveScale(measureNumber) {
+            if (!FIT_ACTIVE_MEASURE_WIDTH) {
+              return cssScale;
+            }
+            const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
+            if (!bounds) {
+              return cssScale;
+            }
+            const measureWidth = bounds.right - bounds.left;
+            if (!Number.isFinite(measureWidth) || measureWidth <= 0 || cssScale <= 0) {
+              return cssScale;
+            }
+            const viewportWidth = viewport.clientWidth || 0;
+            if (viewportWidth <= 0) {
+              return cssScale;
+            }
+            const fitScale = viewportWidth / (measureWidth * cssScale);
+            const clampedFit = Math.min(1, Math.max(MIN_FIT_SCALE, fitScale));
+            return cssScale * clampedFit;
+          }
+
+          function refreshEffectiveScale(measureNumber) {
+            effectiveScale = computeEffectiveScale(measureNumber);
+          }
+
+          function applyScoreTransform(scrollOffset) {
+            score.style.transform = 'translate3d(' + (-scrollOffset) + 'px, -50%, 0) scale(' + effectiveScale + ')';
+          }
+
           function computeScrollOffset(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
             const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
-            const xPos = bounds
-              ? (Number.isFinite(bounds.noteLeft) ? bounds.noteLeft : bounds.left)
-              : (measureCentersByNumber[mn]
-                || measureCentersByNumber[1]
-                || viewport.clientWidth / 2);
+            const xPos = resolveScrollAnchorX(bounds, mn);
             const viewportWidth = viewport.clientWidth || 0;
-            const effectiveScale = cssScale;
+            refreshEffectiveScale(mn);
             const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
             return Math.max(0, Math.min(maxOffset, xPos * effectiveScale - PLAYHEAD_PX));
           }
@@ -790,6 +854,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
               measureLayoutFromOsmd();
               score.style.width = scoreWidth + 'px';
+              refreshEffectiveScale(activeMeasureNumber);
               renderSucceeded = true;
               postOsmdMessage('ready', '');
             } catch (err) {
@@ -823,8 +888,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               highlight.style.display = 'none';
               return;
             }
-            const highlightWidthPx = measureWidth * cssScale;
-            highlight.style.left = (bounds.left * cssScale - currentScrollOffset) + 'px';
+            const highlightWidthPx = measureWidth * effectiveScale;
+            highlight.style.left = (bounds.left * effectiveScale - currentScrollOffset) + 'px';
             highlight.style.width = highlightWidthPx + 'px';
             highlight.style.display = 'block';
             updatePlayheadPosition(highlightWidthPx);
@@ -897,10 +962,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             overlayVisible = !!show;
             if (!overlayVisible) {
               currentScrollOffset = 0;
-              score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              refreshEffectiveScale(activeMeasureNumber);
+              applyScoreTransform(0);
             } else {
               currentScrollOffset = computeScrollOffset(activeMeasureNumber);
-              score.style.transform = 'translate3d(' + (-currentScrollOffset) + 'px, -50%, 0) scale(' + cssScale + ')';
+              applyScoreTransform(currentScrollOffset);
             }
             updateMeasureHighlight();
           }
@@ -914,12 +980,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             activeMeasureNumber = Math.max(1, Math.floor(Number(measureNumber || 1)));
             if (!overlayVisible) {
               currentScrollOffset = 0;
-              score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              refreshEffectiveScale(activeMeasureNumber);
+              applyScoreTransform(0);
               updateMeasureHighlight();
               return;
             }
             currentScrollOffset = computeScrollOffset(activeMeasureNumber);
-            score.style.transform = 'translate3d(' + (-currentScrollOffset) + 'px, -50%, 0) scale(' + cssScale + ')';
+            applyScoreTransform(currentScrollOffset);
             updateMeasureHighlight();
           }
 

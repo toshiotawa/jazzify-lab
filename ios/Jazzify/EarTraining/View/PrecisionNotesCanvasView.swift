@@ -326,12 +326,7 @@ final class PrecisionNotesCanvasUIView: UIView {
         return particles
     }
 
-    private func addVanishEffect(
-        noteId: String,
-        rect: CGRect,
-        isShortNote: Bool,
-        startedAtMs: Double
-    ) {
+    private func addVanishEffect(noteId: String, rect: CGRect, isShortNote: Bool, startedAtMs: Double) {
         if vanishedIds.contains(noteId) {
             return
         }
@@ -339,7 +334,7 @@ final class PrecisionNotesCanvasUIView: UIView {
         let cx = rect.midX
         let cy = isShortNote
             ? rect.midY
-            : rect.minY + min(6, rect.height * 0.12)
+            : rect.minY + min(8, rect.height * 0.12)
         vanishEffects.append(
             VanishEffect(
                 particles: spawnVanishParticles(cx: cx, cy: cy),

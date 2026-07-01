@@ -3,7 +3,6 @@ import {
   isPrecisionNoteInGuideWindow,
   isPrecisionNoteInPerformanceWindow,
   isPrecisionShortNoteDuration,
-  precisionVanishEffectCenter,
   PRECISION_FULL_KEYBOARD_RANGE,
   resolvePrecisionDisplayKeyboardRange,
   resolvePrecisionKeyboardRange,
@@ -68,14 +67,6 @@ describe('earTrainingPrecisionNotes', () => {
     const { notes } = buildPrecisionNotesFromMusicXml(MINIMAL_XML, 120, 4);
     expect(notes.every(note => note.isShortNote === false)).toBe(true);
     expect(isPrecisionShortNoteDuration(notes[0]?.durationSec ?? 0, 120)).toBe(false);
-  });
-
-  it('precisionVanishEffectCenter はロングノーツで上端付近を返す', () => {
-    const long = precisionVanishEffectCenter(false, { x: 10, y: 20, width: 30, height: 100 });
-    expect(long.cx).toBe(25);
-    expect(long.cy).toBeCloseTo(26);
-    const short = precisionVanishEffectCenter(true, { x: 10, y: 20, width: 30, height: 8 });
-    expect(short.cy).toBe(24);
   });
 });
 

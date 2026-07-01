@@ -254,22 +254,3 @@ export const buildPrecisionNotesFromMusicXml = (
   const keyboardRange = resolvePrecisionKeyboardRange(notes.map(note => note.midi));
   return { notes, keyboardRange };
 };
-
-export interface PrecisionNoteRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/** ロングノーツ消去時は先端（上端）付近、ショートノーツは中心。 */
-export const precisionVanishEffectCenter = (
-  isShortNote: boolean,
-  rect: PrecisionNoteRect,
-): { cx: number; cy: number } => {
-  const cx = rect.x + rect.width * 0.5;
-  if (isShortNote) {
-    return { cx, cy: rect.y + rect.height * 0.5 };
-  }
-  return { cx, cy: rect.y + Math.min(6, rect.height * 0.12) };
-};
