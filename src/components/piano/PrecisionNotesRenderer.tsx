@@ -15,8 +15,16 @@ import { cn } from '@/utils/cn';
 export const PRECISION_NOTE_FALL_LEAD_SEC = 3;
 
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
-const NOTE_VANISH_EFFECT_DURATION_MS = 180;
-const NOTE_VANISH_PARTICLE_COUNT = 6;
+const NOTE_VANISH_EFFECT_DURATION_MS = 400;
+const NOTE_VANISH_BURST_COUNT = 10;
+const NOTE_VANISH_SPARK_COUNT = 4;
+const NOTE_VANISH_FLASH_DURATION_MS = 120;
+const NOTE_VANISH_FLASH_MAX_RADIUS_PX = 18;
+const NOTE_VANISH_GRAVITY = 0.00025;
+const NOTE_VANISH_BURST_SPEED_MIN = 0.10;
+const NOTE_VANISH_BURST_SPEED_MAX = 0.16;
+const NOTE_VANISH_SPARK_SPEED_MIN = 0.14;
+const NOTE_VANISH_SPARK_SPEED_MAX = 0.20;
 const NOTE_HIT_EFFECT_DURATION_MS = 100;
 const NOTE_HIT_GLOW_EXPAND_PX = 3;
 const NOTE_EDGE_GAP_PX = 2;
@@ -49,11 +57,13 @@ interface VanishParticle {
   vx: number;
   vy: number;
   size: number;
+  color: string;
 }
 
 interface VanishEffect {
   particles: VanishParticle[];
-  color: string;
+  centerX: number;
+  centerY: number;
   startedAtMs: number;
 }
 
@@ -415,27 +425,48 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     }
   }
 
-  private addVanishEffect(note: PrecisionNote, nowMs: number, color: string): void {
+  private spawnVanishParticles(cx: number, cy: number): VanishParticle[] {
+    const particles: VanishParticle[] = [];
+    const burstSpeedSpan = NOTE_VANISH_BURST_SPEED_MAX - NOTE_VANISH_BURST_SPEED_MIN;
+    for (let i = 0; i < NOTE_VANISH_BURST_COUNT; i += 1) {
+      const angle = (i / NOTE_VANISH_BURST_COUNT) * Math.PI * 2 + i * 0.37;
+      const speed = NOTE_VANISH_BURST_SPEED_MIN + (i % 5) * (burstSpeedSpan / 4);
+      particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 3 + (i % 3),
+        color: i % 2 === 0 ? '#86efac' : '#22c55e',
+      });
+    }
+    const sparkSpeedSpan = NOTE_VANISH_SPARK_SPEED_MAX - NOTE_VANISH_SPARK_SPEED_MIN;
+    for (let i = 0; i < NOTE_VANISH_SPARK_COUNT; i += 1) {
+      const angle = (i / NOTE_VANISH_SPARK_COUNT) * Math.PI * 2 + 0.5 + i * 0.61;
+      const speed = NOTE_VANISH_SPARK_SPEED_MIN + (i % 3) * (sparkSpeedSpan / 2);
+      particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 1.5 + (i % 2) * 0.5,
+        color: '#fbbf24',
+      });
+    }
+    return particles;
+  }
+
+  private addVanishEffect(note: PrecisionNote, nowMs: number): void {
     if (this.vanishedIds.has(note.id)) {
       return;
     }
     const rect = this.noteRect(note);
     const cx = rect.x + rect.width * 0.5;
     const cy = rect.y + rect.height * 0.5;
-    const particles: VanishParticle[] = [];
-    for (let i = 0; i < NOTE_VANISH_PARTICLE_COUNT; i += 1) {
-      const angle = (i / NOTE_VANISH_PARTICLE_COUNT) * Math.PI * 2;
-      particles.push({
-        x: cx,
-        y: cy,
-        vx: Math.cos(angle) * 0.04,
-        vy: Math.sin(angle) * 0.04,
-        size: i % 2 === 0 ? 2 : 3,
-      });
-    }
     this.vanishEffects.push({
-      particles,
-      color,
+      particles: this.spawnVanishParticles(cx, cy),
+      centerX: cx,
+      centerY: cy,
       startedAtMs: nowMs,
     });
     this.vanishedIds.add(note.id);
@@ -470,7 +501,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       const wasHidden = this.previousHiddenFromLane.get(note.id) ?? false;
       const isHidden = state.hiddenFromLane ?? false;
       if (!wasHidden && isHidden && state.judgment === 'good') {
-        this.addVanishEffect(note, now, '#22c55e');
+        this.addVanishEffect(note, now);
       }
       this.previousHiddenFromLane.set(note.id, isHidden);
 
@@ -480,7 +511,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         && !this.vanishedIds.has(note.id)
         && this.phraseTimeSec >= note.startSec + note.durationSec - 0.001
       ) {
-        this.addVanishEffect(note, now, '#22c55e');
+        this.addVanishEffect(note, now);
       }
     }
   }
@@ -768,18 +799,29 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
         return false;
       }
       const alpha = 1 - t;
-      ctx.fillStyle = effect.color;
-      for (const particle of effect.particles) {
-        const px = particle.x + particle.vx * elapsed;
-        const py = particle.y + particle.vy * elapsed;
-        ctx.globalAlpha = alpha * 0.9;
-        ctx.fillRect(
-          px - particle.size * 0.5,
-          py - particle.size * 0.5,
-          particle.size,
-          particle.size,
-        );
+      const flashT = elapsed / NOTE_VANISH_FLASH_DURATION_MS;
+      if (flashT < 1) {
+        const flashAlpha = (1 - flashT) * 0.85;
+        const radius = NOTE_VANISH_FLASH_MAX_RADIUS_PX * flashT;
+        ctx.globalAlpha = flashAlpha;
+        ctx.strokeStyle = flashT < 0.5 ? '#ffffff' : '#86efac';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(effect.centerX, effect.centerY, radius, 0, Math.PI * 2);
+        ctx.stroke();
       }
+      ctx.globalCompositeOperation = 'lighter';
+      for (const particle of effect.particles) {
+        const gravityOffset = NOTE_VANISH_GRAVITY * elapsed * elapsed;
+        const px = particle.x + particle.vx * elapsed;
+        const py = particle.y + particle.vy * elapsed + gravityOffset;
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.fillStyle = particle.color;
+        ctx.beginPath();
+        ctx.arc(px, py, particle.size * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
       return true;
     });

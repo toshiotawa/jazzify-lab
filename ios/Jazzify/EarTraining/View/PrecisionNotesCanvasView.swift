@@ -52,10 +52,21 @@ final class PrecisionNotesCanvasUIView: UIView {
         static let whiteKeyFill = UIColor(red: 217 / 255, green: 206 / 255, blue: 176 / 255, alpha: 1)
         static let blackKeyFill = UIColor(red: 18 / 255, green: 16 / 255, blue: 16 / 255, alpha: 1)
         static let keySeparatorStroke = UIColor(red: 50 / 255, green: 42 / 255, blue: 30 / 255, alpha: 0.45)
+        static let vanishBurstLight = UIColor(red: 134 / 255, green: 239 / 255, blue: 172 / 255, alpha: 1)
+        static let vanishSpark = UIColor(red: 251 / 255, green: 191 / 255, blue: 36 / 255, alpha: 1)
+        static let vanishFlashWhite = UIColor(white: 1, alpha: 1)
     }
 
-    private static let noteVanishEffectDurationMs: Double = 180
-    private static let noteVanishParticleCount = 6
+    private static let noteVanishEffectDurationMs: Double = 400
+    private static let noteVanishBurstCount = 10
+    private static let noteVanishSparkCount = 4
+    private static let noteVanishFlashDurationMs: Double = 120
+    private static let noteVanishFlashMaxRadiusPx: CGFloat = 18
+    private static let noteVanishGravity: CGFloat = 0.00025
+    private static let noteVanishBurstSpeedMin: CGFloat = 0.10
+    private static let noteVanishBurstSpeedMax: CGFloat = 0.16
+    private static let noteVanishSparkSpeedMin: CGFloat = 0.14
+    private static let noteVanishSparkSpeedMax: CGFloat = 0.20
     private static let noteHitEffectDurationMs: Double = 100
     private static let noteHitGlowExpandPx: CGFloat = 3
 
@@ -107,11 +118,13 @@ final class PrecisionNotesCanvasUIView: UIView {
         let vx: CGFloat
         let vy: CGFloat
         let size: CGFloat
+        let color: UIColor
     }
 
     private struct VanishEffect {
         let particles: [VanishParticle]
-        let color: UIColor
+        let centerX: CGFloat
+        let centerY: CGFloat
         let startedAtMs: Double
     }
 
@@ -246,8 +259,9 @@ final class PrecisionNotesCanvasUIView: UIView {
             guard let state = controller.runtimeStates[note.id] else { continue }
             let wasHidden = previousHiddenFromLane[note.id] ?? false
             let isHidden = state.hiddenFromLane ?? false
-            if !wasHidden, isHidden, state.judgment == .good, let rect = noteRect(for: note, controller: controller) {
-                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs, color: PrecisionNoteColors.goodFill)
+            if !wasHidden, isHidden, state.judgment == .good,
+               let rect = noteRectForEffect(for: note, controller: controller, phraseTime: phraseTime) {
+                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs)
             }
             previousHiddenFromLane[note.id] = isHidden
 
@@ -255,8 +269,8 @@ final class PrecisionNotesCanvasUIView: UIView {
                !isHidden,
                !vanishedIds.contains(note.id),
                phraseTime >= note.startSec + note.durationSec - 0.001,
-               let rect = noteRect(for: note, controller: controller) {
-                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs, color: PrecisionNoteColors.goodFill)
+               let rect = noteRectForEffect(for: note, controller: controller, phraseTime: phraseTime) {
+                addVanishEffect(noteId: note.id, rect: rect, startedAtMs: nowMs)
             }
         }
     }
@@ -274,28 +288,59 @@ final class PrecisionNotesCanvasUIView: UIView {
         }
     }
 
-    private func addVanishEffect(noteId: String, rect: CGRect, startedAtMs: Double, color: UIColor) {
+    private func spawnVanishParticles(cx: CGFloat, cy: CGFloat) -> [VanishParticle] {
+        var particles: [VanishParticle] = []
+        particles.reserveCapacity(Self.noteVanishBurstCount + Self.noteVanishSparkCount)
+        let burstSpeedSpan = Self.noteVanishBurstSpeedMax - Self.noteVanishBurstSpeedMin
+        for index in 0..<Self.noteVanishBurstCount {
+            let angle = (Double(index) / Double(Self.noteVanishBurstCount)) * Double.pi * 2 + Double(index) * 0.37
+            let speed = Self.noteVanishBurstSpeedMin + CGFloat(index % 5) * (burstSpeedSpan / 4)
+            particles.append(
+                VanishParticle(
+                    x: cx,
+                    y: cy,
+                    vx: CGFloat(cos(angle)) * speed,
+                    vy: CGFloat(sin(angle)) * speed,
+                    size: CGFloat(3 + index % 3),
+                    color: index.isMultiple(of: 2)
+                        ? PrecisionNoteColors.vanishBurstLight
+                        : PrecisionNoteColors.goodFill
+                )
+            )
+        }
+        let sparkSpeedSpan = Self.noteVanishSparkSpeedMax - Self.noteVanishSparkSpeedMin
+        for index in 0..<Self.noteVanishSparkCount {
+            let angle = (Double(index) / Double(Self.noteVanishSparkCount)) * Double.pi * 2 + 0.5 + Double(index) * 0.61
+            let speed = Self.noteVanishSparkSpeedMin + CGFloat(index % 3) * (sparkSpeedSpan / 2)
+            particles.append(
+                VanishParticle(
+                    x: cx,
+                    y: cy,
+                    vx: CGFloat(cos(angle)) * speed,
+                    vy: CGFloat(sin(angle)) * speed,
+                    size: 1.5 + CGFloat(index % 2) * 0.5,
+                    color: PrecisionNoteColors.vanishSpark
+                )
+            )
+        }
+        return particles
+    }
+
+    private func addVanishEffect(noteId: String, rect: CGRect, startedAtMs: Double) {
         if vanishedIds.contains(noteId) {
             return
         }
         vanishedIds.insert(noteId)
         let cx = rect.midX
         let cy = rect.midY
-        var particles: [VanishParticle] = []
-        particles.reserveCapacity(Self.noteVanishParticleCount)
-        for index in 0..<Self.noteVanishParticleCount {
-            let angle = (Double(index) / Double(Self.noteVanishParticleCount)) * Double.pi * 2
-            particles.append(
-                VanishParticle(
-                    x: cx,
-                    y: cy,
-                    vx: CGFloat(cos(angle) * 0.04),
-                    vy: CGFloat(sin(angle) * 0.04),
-                    size: index.isMultiple(of: 2) ? 2 : 3
-                )
+        vanishEffects.append(
+            VanishEffect(
+                particles: spawnVanishParticles(cx: cx, cy: cy),
+                centerX: cx,
+                centerY: cy,
+                startedAtMs: startedAtMs
             )
-        }
-        vanishEffects.append(VanishEffect(particles: particles, color: color, startedAtMs: startedAtMs))
+        )
         if vanishEffects.count > 24 {
             vanishEffects.removeFirst(vanishEffects.count - 24)
         }
@@ -520,6 +565,28 @@ final class PrecisionNotesCanvasUIView: UIView {
         }
     }
 
+    private func noteRectForEffect(
+        for note: EarTrainingPrecisionNote,
+        controller: EarTrainingPrecisionBattleController,
+        phraseTime: Double? = nil
+    ) -> CGRect? {
+        let time = phraseTime ?? controller.currentPhraseTimelineSec() ?? 0
+        guard controller.runtimeStates[note.id] != nil else { return nil }
+
+        let bottom = hitLineY - CGFloat(note.startSec - time) * noteSpeedPxPerSec
+        let height = note.isShortNote
+            ? EarTrainingPrecisionNotes.shortNoteHeightPx
+            : max(6, CGFloat(note.durationSec) * noteSpeedPxPerSec)
+        let top = bottom - height
+        let lane = laneRect(forMidi: note.midi)
+        return CGRect(
+            x: lane.minX + lane.width * (note.isBlackKey ? 0.08 : 0.1),
+            y: top,
+            width: lane.width * (note.isBlackKey ? 0.84 : 0.8),
+            height: height
+        )
+    }
+
     private func noteRect(
         for note: EarTrainingPrecisionNote,
         controller: EarTrainingPrecisionBattleController,
@@ -594,20 +661,47 @@ final class PrecisionNotesCanvasUIView: UIView {
             let t = elapsed / Self.noteVanishEffectDurationMs
             guard t < 1 else { continue }
             let alpha = 1 - t
-            context.setFillColor(effect.color.cgColor)
+
+            let flashT = elapsed / Self.noteVanishFlashDurationMs
+            if flashT < 1 {
+                let flashAlpha = (1 - flashT) * 0.85
+                let radius = Self.noteVanishFlashMaxRadiusPx * CGFloat(flashT)
+                context.setAlpha(flashAlpha)
+                context.setStrokeColor(
+                    (flashT < 0.5
+                        ? PrecisionNoteColors.vanishFlashWhite
+                        : PrecisionNoteColors.vanishBurstLight
+                    ).cgColor
+                )
+                context.setLineWidth(2)
+                context.strokeEllipse(
+                    in: CGRect(
+                        x: effect.centerX - radius,
+                        y: effect.centerY - radius,
+                        width: radius * 2,
+                        height: radius * 2
+                    )
+                )
+            }
+
+            context.setBlendMode(.screen)
             for particle in effect.particles {
-                context.setAlpha(alpha * 0.9)
+                let gravityOffset = Self.noteVanishGravity * CGFloat(elapsed * elapsed)
                 let px = particle.x + particle.vx * CGFloat(elapsed)
-                let py = particle.y + particle.vy * CGFloat(elapsed)
-                context.fill(
-                    CGRect(
-                        x: px - particle.size * 0.5,
-                        y: py - particle.size * 0.5,
+                let py = particle.y + particle.vy * CGFloat(elapsed) + gravityOffset
+                let radius = particle.size * 0.5
+                context.setAlpha(alpha * 0.9)
+                context.setFillColor(particle.color.cgColor)
+                context.fillEllipse(
+                    in: CGRect(
+                        x: px - radius,
+                        y: py - radius,
                         width: particle.size,
                         height: particle.size
                     )
                 )
             }
+            context.setBlendMode(.normal)
             context.setAlpha(1)
         }
     }
