@@ -34,15 +34,58 @@ final class SurvivalChordResolverTests: XCTestCase {
         XCTAssertEqual(cNote?.rootPitchClass, 0)
     }
 
-    func testRootPitchClassIgnoresSlashBass() {
+    func testRootPitchClassUsesSlashBassForOnChord() {
         let slash = SurvivalResolvedChord.fromProgressionEntry(
+            SurvivalChordProgressionEntry(
+                name: "C / F",
+                voicing: [53, 57, 60, 64]
+            ),
+            index: 0
+        )
+        XCTAssertEqual(slash.root, "C")
+        XCTAssertEqual(slash.rootPitchClass, 5)
+
+        let compact = SurvivalResolvedChord.fromProgressionEntry(
             SurvivalChordProgressionEntry(
                 name: "C/E",
                 voicing: [52, 60, 64, 67]
             ),
+            index: 1
+        )
+        XCTAssertEqual(compact.root, "C")
+        XCTAssertEqual(compact.rootPitchClass, 4)
+    }
+
+    func testRootPitchClassForSavoyProgressionSuffixes() {
+        let ab713 = SurvivalResolvedChord.fromProgressionEntry(
+            SurvivalChordProgressionEntry(
+                name: "Ab7(9.13)",
+                voicing: [54, 58, 60, 65]
+            ),
             index: 0
         )
-        XCTAssertEqual(slash.rootPitchClass, 0)
+        XCTAssertEqual(ab713.root, "Ab")
+        XCTAssertEqual(ab713.rootPitchClass, 8)
+
+        let bb7b9 = SurvivalResolvedChord.fromProgressionEntry(
+            SurvivalChordProgressionEntry(
+                name: "Bb7(b9)",
+                voicing: [56, 59, 62, 65]
+            ),
+            index: 1
+        )
+        XCTAssertEqual(bb7b9.root, "Bb")
+        XCTAssertEqual(bb7b9.rootPitchClass, 10)
+
+        let ab79 = SurvivalResolvedChord.fromProgressionEntry(
+            SurvivalChordProgressionEntry(
+                name: "Ab7(9)",
+                voicing: [54, 58, 60, 65]
+            ),
+            index: 2
+        )
+        XCTAssertEqual(ab79.root, "Ab")
+        XCTAssertEqual(ab79.rootPitchClass, 8)
     }
 
     func testGrandStaffModeUsesMidiStaffFallbackWhenVoicingStavesMissing() {

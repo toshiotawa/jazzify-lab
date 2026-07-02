@@ -70,12 +70,12 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         self.progressionStaffKeyFifths = progressionStaffKeyFifths
     }
 
-    /// 正解時ルート音用。コード記号（`displayName` / `root`）からルートのピッチクラスを返す。
+    /// 正解時ルート音用。スラッシュコードは分母ルート、それ以外はコード記号ルート。
     public var rootPitchClass: Int {
-        if let pc = SurvivalChordResolver.progressionSymbolRootPitchClass(chordSymbol: displayName) {
+        if let pc = SurvivalChordResolver.progressionBassRootPitchClass(chordSymbol: displayName) {
             return pc
         }
-        if let pc = SurvivalChordResolver.progressionSymbolRootPitchClass(chordSymbol: root) {
+        if let pc = SurvivalChordResolver.progressionBassRootPitchClass(chordSymbol: root) {
             return pc
         }
         return 0
@@ -101,7 +101,7 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         }
         return SurvivalResolvedChord(
             id: id,
-            root: name,
+            root: SurvivalChordResolver.progressionSymbolRootName(chordSymbol: name) ?? name,
             quality: .progression,
             midiNotes: voicing,
             pitchClasses: pitchClasses,
@@ -134,9 +134,12 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         let storedKey = entry.keyFifths.map { min(5, max(-6, $0)) }
         let keyForStaff: Int? = storedKey ?? (staffNames != nil ? 0 : nil)
         let id = "prog:\(index):\(entry.name):\(sortedMidi.map(String.init).joined(separator: ","))"
+        let symbolRoot = Self.progressionSymbolRootName(chordSymbol: entry.name)
+            ?? sortedMidi.first.map { letterPitchName(midi: $0) }
+            ?? "C"
         return SurvivalResolvedChord(
             id: id,
-            root: entry.name,
+            root: symbolRoot,
             quality: .progression,
             midiNotes: sortedMidi,
             pitchClasses: pcs,
@@ -345,19 +348,68 @@ enum SurvivalChordResolver {
                                             "Cb", "E#", "Fb", "B#",
                                             "C", "D", "E", "F", "G", "A", "B"]
 
+    /// `C / F` のようにスラッシュ前後の空白も許容して分子・分母に分割する。
+    static func splitProgressionSlashChordParts(chordSymbol: String) -> (numerator: String, denominator: String?) {
+        let trimmed = chordSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let slash = trimmed.firstIndex(of: "/") else {
+            return (trimmed, nil)
+        }
+        let numerator = String(trimmed[..<slash]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let denominator = String(trimmed[trimmed.index(after: slash)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return (numerator, denominator.isEmpty ? nil : denominator)
+    }
+
+    private static func matchProgressionRootPrefix(_ token: String) -> String? {
+        let s = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        for prefix in validRootPrefixes where s.hasPrefix(prefix) {
+            return prefix
+        }
+        return nil
+    }
+
+    /// Progression エントリの `name`（例: `Dm7(9)`、`C/E`）からコード記号ルートの綴りを返す。
+    /// スラッシュコードは分子のみ。品質が未対応でもルートは返す。
+    static func progressionSymbolRootName(chordSymbol: String) -> String? {
+        let parts = splitProgressionSlashChordParts(chordSymbol: chordSymbol)
+        return matchProgressionRootPrefix(parts.numerator)
+    }
+
+    /// スラッシュコード分母（例: `C / F` → `F`）。分母はルート綴りのみ有効。
+    static func progressionSlashBassRootName(chordSymbol: String) -> String? {
+        let parts = splitProgressionSlashChordParts(chordSymbol: chordSymbol)
+        guard let denominator = parts.denominator else { return nil }
+        for prefix in validRootPrefixes where denominator == prefix {
+            return prefix
+        }
+        return nil
+    }
+
+    /// 正解時ベース用ルート綴り。スラッシュコードなら分母、それ以外は分子ルート。
+    static func progressionBassRootName(chordSymbol: String) -> String? {
+        if let slashBass = progressionSlashBassRootName(chordSymbol: chordSymbol) {
+            return slashBass
+        }
+        return progressionSymbolRootName(chordSymbol: chordSymbol)
+    }
+
     /// Progression エントリの `name`（例: `Dm7(9)`、`C/E`）からコード記号ルートのピッチクラス (0 = C)。
     /// - スラッシュコードは分子のみを見る。パース不能時は nil。
     static func progressionSymbolRootPitchClass(chordSymbol: String) -> Int? {
-        var s = chordSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let slash = s.firstIndex(of: "/") {
-            s = String(s[..<slash]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let name = progressionSymbolRootName(chordSymbol: chordSymbol),
+              let semi = rootSemitones[name] else {
+            return nil
         }
-        for prefix in validRootPrefixes where s.hasPrefix(prefix) {
-            if let semi = rootSemitones[prefix] {
-                return ((semi % 12) + 12) % 12
-            }
+        return ((semi % 12) + 12) % 12
+    }
+
+    /// 正解時ベース用ピッチクラス (0 = C)。スラッシュコードは分母。
+    static func progressionBassRootPitchClass(chordSymbol: String) -> Int? {
+        guard let name = progressionBassRootName(chordSymbol: chordSymbol),
+              let semi = rootSemitones[name] else {
+            return nil
         }
-        return nil
+        return ((semi % 12) + 12) % 12
     }
 
     /// コード ID (例: "CM7", "Db7(b9.b6th)") をルートとサフィックスに分割

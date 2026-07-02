@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { buildProgressionChordDefinition, resolveProgressionStaffVoicingStaves } from '@/utils/survivalProgressionChords';
 import {
+  parseProgressionSlashBassRoot,
+  progressionBassRootName,
+} from '@/utils/chord-utils';
+import {
   analyzeSurvivalChordProgression,
   SURVIVAL_PROGRESSION_VOICING_MAP,
 } from '@/utils/survivalProgressionVoicings';
@@ -24,12 +28,51 @@ describe('survivalProgressionChords', () => {
     expect(def2.root).toBe('D');
   });
 
+  it('スラッシュコードの正解ベースは分母ルート（空白付き `C / F` も可）', () => {
+    expect(progressionBassRootName('C / F')).toBe('F');
+    expect(progressionBassRootName('C/E')).toBe('E');
+    expect(progressionBassRootName('Dm7(9) / G')).toBe('G');
+    expect(progressionBassRootName('Ab7(9)')).toBe('Ab');
+    expect(parseProgressionSlashBassRoot('C / F7')).toBeNull();
+  });
+
   it('G7(9.13) / BbM7(9) / F#m7(9) の progression 名からルートを取る', () => {
     expect(buildProgressionChordDefinition({ name: 'G7(9.13)', voicing: [53] }, 0, 0).root).toBe('G');
     expect(buildProgressionChordDefinition({ name: 'BbM7(9)', voicing: [62] }, 0, 0).root).toBe('Bb');
     expect(buildProgressionChordDefinition({ name: 'F#m7(9)', voicing: [52] }, 0, 0).root).toBe(
       'F#',
     );
+  });
+
+  it('未対応サフィックスでもコード記号ルートを使う（Savoy 進行）', () => {
+    expect(
+      buildProgressionChordDefinition(
+        { name: 'Ab7(9.13)', voicing: [54, 58, 60, 65], voicingNames: ['Gb3', 'Bb3', 'C4', 'F4'] },
+        0,
+        -4,
+      ).root,
+    ).toBe('Ab');
+    expect(
+      buildProgressionChordDefinition(
+        { name: 'Bb7(b9)', voicing: [56, 59, 62, 65], voicingNames: ['Ab3', 'B3', 'D4', 'F4'] },
+        0,
+        -4,
+      ).root,
+    ).toBe('Bb');
+    expect(
+      buildProgressionChordDefinition(
+        { name: 'Ab7(9)', voicing: [54, 58, 60, 65], voicingNames: ['Gb3', 'Bb3', 'C4', 'F4'] },
+        0,
+        -4,
+      ).root,
+    ).toBe('Ab');
+    expect(
+      buildProgressionChordDefinition(
+        { name: 'Db6(9)', voicing: [53, 56, 60, 63], voicingNames: ['F3', 'Ab3', 'C4', 'Eb4'] },
+        0,
+        -5,
+      ).root,
+    ).toBe('Db');
   });
 
   it('全黒鍵のシャープ/フラット表記と白鍵の異名同音も root として保持する', () => {

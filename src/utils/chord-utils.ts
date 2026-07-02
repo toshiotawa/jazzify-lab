@@ -118,6 +118,98 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
   return buildChordMidiNotes(mapping.root, mapping.quality, octave);
 }
 
+/** Progression / ヴォイシング fallback 用: コード記号のルート綴り（品質パース不要） */
+const PROGRESSION_SYMBOL_ROOT_PREFIXES = [
+  'C#', 'Db', 'D#', 'Eb', 'F#', 'Gb', 'G#', 'Ab', 'A#', 'Bb',
+  'Cb', 'E#', 'Fb', 'B#',
+  'C', 'D', 'E', 'F', 'G', 'A', 'B',
+] as const;
+
+export interface ProgressionSlashChordParts {
+  readonly numerator: string;
+  readonly denominator: string | null;
+}
+
+/** `C / F` のようにスラッシュ前後の空白も許容して分子・分母に分割する */
+export const splitProgressionSlashChordParts = (
+  chordSymbol: string,
+): ProgressionSlashChordParts => {
+  const slashIdx = chordSymbol.indexOf('/');
+  if (slashIdx < 0) {
+    return { numerator: chordSymbol.trim(), denominator: null };
+  }
+  return {
+    numerator: chordSymbol.slice(0, slashIdx).trim(),
+    denominator: chordSymbol.slice(slashIdx + 1).trim(),
+  };
+};
+
+const matchProgressionRootPrefix = (token: string): string | null => {
+  const s = token.trim();
+  if (!s) return null;
+  for (const prefix of PROGRESSION_SYMBOL_ROOT_PREFIXES) {
+    if (s.startsWith(prefix)) {
+      return prefix;
+    }
+  }
+  return null;
+};
+
+/**
+ * コード記号（例: `Bb7(b9)`, `Ab7(9)`, `C/E`）から分子ルート音名だけを取り出す。
+ * サフィックスが未対応でもルートは返す（iOS `progressionSymbolRootName` と同趣旨）。
+ */
+export function parseProgressionChordSymbolRoot(chordSymbol: string): string | null {
+  const { numerator } = splitProgressionSlashChordParts(chordSymbol);
+  return matchProgressionRootPrefix(numerator);
+}
+
+/**
+ * スラッシュコード分母（例: `C / F` → `F`）。分母はルート綴りのみ有効。
+ * スラッシュが無い、または分母がルートのみでない場合は null。
+ */
+export function parseProgressionSlashBassRoot(chordSymbol: string): string | null {
+  const { denominator } = splitProgressionSlashChordParts(chordSymbol);
+  if (!denominator) return null;
+  for (const prefix of PROGRESSION_SYMBOL_ROOT_PREFIXES) {
+    if (denominator === prefix) {
+      return prefix;
+    }
+  }
+  return null;
+}
+
+/**
+ * 正解時ベース用ルート。スラッシュコードなら分母、それ以外は分子ルート。
+ */
+export function progressionBassRootName(chordSymbol: string): string | null {
+  const slashBass = parseProgressionSlashBassRoot(chordSymbol);
+  if (slashBass) return slashBass;
+  return parseProgressionChordSymbolRoot(chordSymbol);
+}
+
+/** コード記号ルートのピッチクラス (0 = C)。パース不能時は null。 */
+export function progressionChordSymbolRootPitchClass(chordSymbol: string): number | null {
+  const root = parseProgressionChordSymbolRoot(chordSymbol);
+  if (!root) return null;
+  const parsed = parseNote(`${root}4`);
+  if (parsed && typeof parsed.chroma === 'number') {
+    return parsed.chroma;
+  }
+  return null;
+}
+
+/** 正解時ベース用ピッチクラス (0 = C)。スラッシュコードは分母。 */
+export function progressionBassRootPitchClass(chordSymbol: string): number | null {
+  const root = progressionBassRootName(chordSymbol);
+  if (!root) return null;
+  const parsed = parseNote(`${root}4`);
+  if (parsed && typeof parsed.chroma === 'number') {
+    return parsed.chroma;
+  }
+  return null;
+}
+
 /**
  * コード名のパース（ルートとクオリティに分割）
  * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7', 'C_note'）

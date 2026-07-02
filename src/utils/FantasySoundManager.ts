@@ -39,6 +39,7 @@ import {
 import { getWindow } from '@/platform';
 import { requestWebPlaybackAudioSession } from '@/utils/iosbridge';
 import { Sf2RootNotePlayer } from '@/utils/sf2RootNotePlayer';
+import { progressionBassRootName } from '@/utils/chord-utils';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
 import * as Tone from 'tone';
@@ -548,11 +549,27 @@ export class FantasySoundManager {
     }
   }
 
+  /** コード記号または単音名からベース用ルート綴りを解決する */
+  private _resolveBassRootName(rootName: string): string | null {
+    const trimmed = rootName.trim();
+    if (!trimmed) return null;
+    const fromSymbol = progressionBassRootName(trimmed);
+    if (fromSymbol) return fromSymbol;
+    const probe = tonalNote(`${trimmed.replace(/\d+$/, '')}2`);
+    if (probe.midi != null) {
+      return trimmed.replace(/\d+$/, '') || trimmed;
+    }
+    return null;
+  }
+
   // 🎸 ルート音再生: GM アコースティック + エレピのワンショット（メイン演奏の activeGMNotes とは別経路）。未準備時は三角波。
   private _playRootNote(rootName: string) {
     if (!this.isInited || !this.bassEnabled) return;
 
-    const n = tonalNote(rootName + '2');
+    const resolvedRoot = this._resolveBassRootName(rootName);
+    if (!resolvedRoot) return;
+
+    const n = tonalNote(resolvedRoot + '2');
     if (n.midi == null) return;
 
     this._ensureContextsRunning();
@@ -715,7 +732,10 @@ export class FantasySoundManager {
   private _playCodeRunRootNote(rootName: string): void {
     if (!this.bassEnabled) return;
 
-    const n = tonalNote(rootName + '2');
+    const resolvedRoot = this._resolveBassRootName(rootName);
+    if (!resolvedRoot) return;
+
+    const n = tonalNote(resolvedRoot + '2');
     if (n.midi == null) return;
 
     this._ensureContextsRunning();

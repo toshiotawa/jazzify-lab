@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { cn } from '@/utils/cn';
+import { progressionBassRootName } from '@/utils/chord-utils';
 import {
   SurvivalGameState,
   SurvivalDifficulty,
@@ -2870,7 +2871,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 正解時にルート音を鳴らす（ファンタジーモードと同様）
         if (completedChord) {
-          const rootNote = completedChord.root || completedChord.noteNames?.[0];
+          const rootNote =
+            (typeof completedChord.displayName === 'string'
+              && progressionBassRootName(completedChord.displayName))
+            || progressionBassRootName(completedChord.root)
+            || completedChord.root
+            || completedChord.noteNames?.[0];
           if (rootNote) {
             FantasySoundManager.playCorrectRootBassNote(rootNote).catch(() => {});
           }

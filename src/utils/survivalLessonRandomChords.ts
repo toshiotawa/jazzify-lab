@@ -3,7 +3,7 @@
  */
 import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import type { SurvivalChordProgressionEntry } from '@/components/survival/SurvivalStageDefinitions';
-import { parseChordName } from '@/utils/chord-utils';
+import { parseChordName, parseProgressionChordSymbolRoot } from '@/utils/chord-utils';
 import { buildProgressionChordDefinition } from '@/utils/survivalProgressionChords';
 import type { SurvivalLessonRandomChordEntry } from '@/types';
 
@@ -110,7 +110,7 @@ export const buildLessonRandomChordDefinition = (
     notes: [...built.notes],
     noteNames: [...built.noteNames],
     quality: parsed?.quality ?? 'major',
-    root: parsed?.root ?? built.root,
+    root: parseProgressionChordSymbolRoot(name) ?? parsed?.root ?? built.root,
     ...(built.progressionStaffVoicingNames
       ? { progressionStaffVoicingNames: built.progressionStaffVoicingNames }
       : {}),

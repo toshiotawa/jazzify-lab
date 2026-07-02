@@ -6,6 +6,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { MIDIController, initializeAudioSystem, playNote, stopNote, updateGlobalVolume, warmupIOSBattleSoundFonts } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
+import { progressionBassRootName } from '@/utils/chord-utils';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
 import type { CodeRunActiveChord } from './codeRunRandomChords';
@@ -386,7 +387,9 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     setCompletedPitchClasses(new Set(nextCompleted));
     if (nextCompleted.size < targetPitchClasses.size) return;
 
-    FantasySoundManager.playCorrectRootBassNote(chord.root).catch(() => undefined);
+    const bassRoot =
+      progressionBassRootName(chord.displayName) ?? progressionBassRootName(chord.root) ?? chord.root;
+    FantasySoundManager.playCorrectRootBassNote(bassRoot).catch(() => undefined);
     const jumped = triggerCodeRunJump(stateRef.current);
     stateRef.current = jumped;
     setRunState(jumped);

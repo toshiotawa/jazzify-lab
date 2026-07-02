@@ -355,7 +355,10 @@ final class SurvivalGameAudio {
         let clamped = max(0, min(127, shifted))
         prepareRootBassGMBankIfNeeded()
 
-        _ = playRootBassOneShot(midi: clamped)
+        if !playRootBassOneShot(midi: clamped) {
+            // SF2 未ロード時もコード記号ルートを短く鳴らす（無音よりマシ）
+            pianoOneShot(midi: clamped, duration: 0.42, velocity: 88)
+        }
 
         // 三角波フォールバックは使わない。
         // SF2 が鳴らないなら、安っぽいサイン波を鳴らすより無音の方がマシ。

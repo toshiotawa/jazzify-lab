@@ -19,7 +19,7 @@ export interface SurvivalProgressionBuiltChord {
   progressionStaffVoicingStaves?: readonly (1 | 2)[];
   progressionStaffKeyFifths?: number;
 }
-import { parseChordName } from '@/utils/chord-utils';
+import { parseProgressionChordSymbolRoot } from '@/utils/chord-utils';
 import { buildProgressionChordKeyFifths } from '@/utils/survivalProgressionKeyInference';
 import {
   buildStaffVoicingNamesForProgressionChord,
@@ -33,15 +33,8 @@ const midiToPitchClassLetter = (midi: number): string => {
   return NOTE_NAMES[pitchClass];
 };
 
-const progressionChordSymbolRoot = (chordSymbol: string): string | null => {
-  let numerator = chordSymbol.trim();
-  if (numerator.includes('/')) {
-    const parts = numerator.split('/');
-    if (parts[0]) numerator = parts[0].trim();
-  }
-  const parsed = parseChordName(numerator);
-  return parsed?.root ?? null;
-};
+const progressionChordSymbolRoot = (chordSymbol: string): string | null =>
+  parseProgressionChordSymbolRoot(chordSymbol);
 
 /** 採用範囲は -6..+5（F# キーは Gb で表現する方針） */
 const clampKeyFifths = (value: number): number => Math.max(-6, Math.min(5, Math.trunc(value)));
