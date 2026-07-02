@@ -24,6 +24,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published var practiceTransposeOffset: Int = 0
     @Published var practiceSpeedPercent: Int = 100
     @Published var timingAdjustmentMs: Int = EarTrainingOsmdTimingAdjustment.timingAdjustmentMsDefault
+    @Published var osmdScrollMode: EarTrainingOsmdScrollMode = EarTrainingPrecisionScrollPreferences.loadScrollMode()
     @Published private(set) var practiceOriginalKeyFifths: Int = 0
     @Published private(set) var practiceOriginalKeyName: String = "—"
     @Published var isSettingsOpen: Bool = false
@@ -48,6 +49,16 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     var effectiveMeasureDurationSec: Double {
         let bpm = resolveEffectivePracticeBpm()
         return 60.0 / Double(max(1, bpm)) * Double(max(1, stage.beatsPerMeasure))
+    }
+
+    var countInDurationSec: Double {
+        let bpm = resolveEffectivePracticeBpm()
+        let beatDuration = 60.0 / Double(max(1, bpm))
+        return Double(max(0, stage.countInBeats)) * beatDuration
+    }
+
+    var maxOsmdMeasureForScroll: Int {
+        maxOsmdMeasure
     }
 
     private let onExitCallback: () -> Void
@@ -125,9 +136,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         audio.start()
         audio.emitNegativePhraseTimelineBeforeAnchor = true
         audio.onTimeUpdate = { [weak self] _ in
-            Task { @MainActor in
-                self?.handleAudioTimeUpdate()
-            }
+            self?.handleAudioTimeUpdate()
         }
         audio.onEnded = { [weak self] in
             Task { @MainActor in
@@ -352,7 +361,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 
         let previousMeasure = activeMeasureNumber
         updateActiveMeasure(for: max(0, phraseTime))
-        if activeMeasureNumber != previousMeasure {
+        if osmdScrollMode == .continuousFollow {
+            syncPlayheadForTimeline(phraseTime, animating: true)
+        } else if activeMeasureNumber != previousMeasure {
             syncPlayheadForTimeline(phraseTime, animating: true)
         }
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
@@ -394,7 +405,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     }
 
     private func syncPlayheadForTimeline(_ phraseTimeSec: Double, animating: Bool? = nil) {
-        updateActiveMeasure(for: phraseTimeSec)
+        updateActiveMeasure(for: max(0, phraseTimeSec))
         let isAnimating = animating ?? playheadAnimating
         osmdCoordinator?.syncPlayhead(
             phraseTimelineSec: phraseTimeSec,
@@ -662,6 +673,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         timingAdjustmentMs = EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(value)
         EarTrainingOsmdTimingAdjustment.saveTimingAdjustmentMs(timingAdjustmentMs)
         rebuildPrecisionNotes()
+    }
+
+    func applyOsmdScrollMode(_ mode: EarTrainingOsmdScrollMode) {
+        osmdScrollMode = mode
+        EarTrainingPrecisionScrollPreferences.saveScrollMode(mode)
     }
 
     func handleOpenSettings() { isSettingsOpen = true }

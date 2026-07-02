@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import QuartzCore
 import os.log
 
 struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
@@ -21,9 +22,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     let zoom: Double
     /// 小節スクロールのアンカーと 1 小節フィット（精密モード向け）。省略時はリズムバトル既定。
     var scrollLayout: EarTrainingOsmdScrollLayout = .battleDefault
+    var scrollMode: EarTrainingOsmdScrollMode = .measureJump
+    var countInDurationSec: Double = 0
+    var maxOsmdMeasure: Int = 1
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(scrollLayout: scrollLayout)
+        Coordinator(scrollLayout: scrollLayout, scrollMode: scrollMode)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -53,6 +57,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         playheadController?.bindOsmdCoordinator(context.coordinator)
         context.coordinator.configurePlayhead(show: scoreScrollActive)
+        context.coordinator.updateScrollConfig(
+            scrollMode: scrollMode,
+            scrollLayout: scrollLayout,
+            countInDurationSec: countInDurationSec,
+            maxOsmdMeasure: maxOsmdMeasure
+        )
         context.coordinator.update(
             webView: webView,
             musicXMLText: musicXMLText,
@@ -79,9 +89,16 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private let scrollLayout: EarTrainingOsmdScrollLayout
+        private var scrollMode: EarTrainingOsmdScrollMode
+        private var countInDurationSec: Double = 0
+        private var maxOsmdMeasure: Int = 1
+        private var lastScrollMode: EarTrainingOsmdScrollMode?
+        private var lastCountInDurationSec: Double?
+        private var lastMaxOsmdMeasure: Int?
 
-        init(scrollLayout: EarTrainingOsmdScrollLayout) {
+        init(scrollLayout: EarTrainingOsmdScrollLayout, scrollMode: EarTrainingOsmdScrollMode) {
             self.scrollLayout = scrollLayout
+            self.scrollMode = scrollMode
         }
 
         private weak var webView: WKWebView?
@@ -104,6 +121,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var lastPlayheadAnimating: Bool?
         private var pendingOverlayVisible = false
         private var lastSentOverlayVisible: Bool?
+        private var followDisplayLink: CADisplayLink?
+        private var pendingFollowTimelineSec: Double?
+        private var pendingFollowPlaybackActive = false
+        private var pendingFollowQueuedAtMediaTime: CFTimeInterval?
+        private var hasPendingFollowAnchor = false
 
         func attach(webView: WKWebView) {
             self.webView = webView
@@ -111,6 +133,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
         func tearDown() {
             isTornDown = true
+            stopFollowDisplayLink()
             renderGeneration += 1
             htmlReady = false
             pendingMusicXMLText = nil
@@ -124,6 +147,55 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         func configurePlayhead(show: Bool) {
             pendingOverlayVisible = show
             sendOverlayVisibleIfNeeded()
+        }
+
+        func updateScrollConfig(
+            scrollMode: EarTrainingOsmdScrollMode,
+            scrollLayout: EarTrainingOsmdScrollLayout,
+            countInDurationSec: Double,
+            maxOsmdMeasure: Int
+        ) {
+            self.scrollMode = scrollMode
+            self.countInDurationSec = countInDurationSec
+            self.maxOsmdMeasure = max(1, maxOsmdMeasure)
+            pendingScrollLayout = scrollLayout
+            sendScrollConfigIfNeeded()
+        }
+
+        private var pendingScrollLayout: EarTrainingOsmdScrollLayout?
+
+        private func sendScrollConfigIfNeeded() {
+            guard let webView, htmlReady, !isTornDown else { return }
+            var scripts: [String] = []
+            if lastScrollMode != scrollMode {
+                if scrollMode != .continuousFollow {
+                    stopFollowDisplayLink()
+                }
+                lastScrollMode = scrollMode
+                let modeLiteral = scrollMode == .continuousFollow ? "continuousFollow" : "measureJump"
+                let layout = pendingScrollLayout ?? scrollLayout
+                let playheadLiteral = String(format: "%.10g", Double(layout.playheadPx))
+                let anchorLiteral = layout.anchorToMeasureLeft ? "true" : "false"
+                let fitLiteral = layout.fitActiveMeasureWidth ? "true" : "false"
+                scripts.append(
+                    "window.JazzifyOSMD.setScrollMode('\(modeLiteral)', \(playheadLiteral), \(anchorLiteral), \(fitLiteral));"
+                )
+            }
+            if lastCountInDurationSec.map({ abs($0 - countInDurationSec) > 0.000_1 }) ?? true {
+                lastCountInDurationSec = countInDurationSec
+                scripts.append(
+                    "window.JazzifyOSMD.setCountInDurationSec(\(Self.javascriptNumber(countInDurationSec)));"
+                )
+            }
+            if lastMaxOsmdMeasure != maxOsmdMeasure {
+                lastMaxOsmdMeasure = maxOsmdMeasure
+                scripts.append("window.JazzifyOSMD.setMaxMeasureNumber(\(maxOsmdMeasure));")
+            }
+            guard !scripts.isEmpty else { return }
+            webView.evaluateJavaScript(
+                Self.voidWrappedJavaScript(scripts.joined(separator: "\n")),
+                completionHandler: nil
+            )
         }
 
         func syncPlayhead(
@@ -146,6 +218,26 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let durationLiteral = Self.javascriptNumber(measureDurationSec)
                 scripts.append("window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));")
             }
+            let followMode = scrollMode == .continuousFollow
+            if followMode {
+                if lastMeasureNumber != activeMeasureNumber {
+                    lastMeasureNumber = activeMeasureNumber
+                }
+                lastPhraseTimelineSec = phraseTimelineSec
+                lastPlayheadAnimating = animating
+                queueFollowTimelineAnchor(phraseTimelineSec, playbackActive: animating)
+                if !scripts.isEmpty {
+                    let generation = renderGeneration
+                    Self.evaluate(
+                        scripts.joined(separator: "\n"),
+                        on: webView,
+                        generation: generation,
+                        coordinator: self
+                    )
+                }
+                return
+            }
+            stopFollowDisplayLink()
             if lastMeasureNumber != activeMeasureNumber {
                 lastMeasureNumber = activeMeasureNumber
                 scripts.append("window.JazzifyOSMD.setActiveMeasure(\(activeMeasureNumber));")
@@ -168,6 +260,58 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 on: webView,
                 generation: generation,
                 coordinator: self
+            )
+        }
+
+        private func queueFollowTimelineAnchor(_ timelineSec: Double, playbackActive: Bool) {
+            pendingFollowTimelineSec = timelineSec
+            pendingFollowPlaybackActive = playbackActive
+            pendingFollowQueuedAtMediaTime = CACurrentMediaTime()
+            hasPendingFollowAnchor = true
+            ensureFollowDisplayLink()
+        }
+
+        private func ensureFollowDisplayLink() {
+            guard !isTornDown, followDisplayLink == nil else { return }
+            let link = CADisplayLink(target: self, selector: #selector(flushFollowTimelineAnchor))
+            link.add(to: .main, forMode: .common)
+            followDisplayLink = link
+        }
+
+        private func stopFollowDisplayLink() {
+            followDisplayLink?.invalidate()
+            followDisplayLink = nil
+            hasPendingFollowAnchor = false
+            pendingFollowTimelineSec = nil
+            pendingFollowQueuedAtMediaTime = nil
+        }
+
+        @objc private func flushFollowTimelineAnchor() {
+            guard !isTornDown, let webView, htmlReady else {
+                stopFollowDisplayLink()
+                return
+            }
+            guard hasPendingFollowAnchor, let baseTimelineSec = pendingFollowTimelineSec else {
+                stopFollowDisplayLink()
+                return
+            }
+            hasPendingFollowAnchor = false
+            let playbackActive = pendingFollowPlaybackActive
+            var timelineSec = baseTimelineSec
+            if playbackActive, let queuedAt = pendingFollowQueuedAtMediaTime {
+                let elapsed = CACurrentMediaTime() - queuedAt
+                if elapsed.isFinite, elapsed > 0 {
+                    timelineSec += elapsed
+                }
+            }
+            pendingFollowQueuedAtMediaTime = nil
+            let timelineLiteral = Self.javascriptNumber(timelineSec)
+            let activeLiteral = playbackActive ? "true" : "false"
+            webView.evaluateJavaScript(
+                Self.voidWrappedJavaScript(
+                    "window.JazzifyOSMD.setFollowTimelineAnchor(\(timelineLiteral), \(activeLiteral));"
+                ),
+                completionHandler: nil
             )
         }
 
@@ -213,6 +357,10 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
             guard !isTornDown else { return }
             htmlReady = true
+            lastScrollMode = nil
+            lastCountInDurationSec = nil
+            lastMaxOsmdMeasure = nil
+            sendScrollConfigIfNeeded()
             flushPending(webView: webView)
         }
 
@@ -368,10 +516,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     }
 
     private static func html(for layout: EarTrainingOsmdScrollLayout) -> String {
-        htmlTemplate
+        let scrollModeLiteral = layout.scrollMode == .continuousFollow ? "continuousFollow" : "measureJump"
+        return htmlTemplate
             .replacingOccurrences(of: "__PLAYHEAD_PX__", with: String(format: "%.10g", Double(layout.playheadPx)))
             .replacingOccurrences(of: "__ANCHOR_TO_MEASURE_LEFT__", with: layout.anchorToMeasureLeft ? "true" : "false")
             .replacingOccurrences(of: "__FIT_ACTIVE_MEASURE_WIDTH__", with: layout.fitActiveMeasureWidth ? "true" : "false")
+            .replacingOccurrences(of: "__SCROLL_MODE__", with: scrollModeLiteral)
             .replacingOccurrences(
                 of: "__MIN_FIT_SCALE__",
                 with: String(format: "%.10g", Double(EarTrainingOsmdScoreScroll.precisionMinFitScale))
@@ -428,6 +578,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           width: 2px;
           background: rgba(255, 0, 0, 0.95);
           pointer-events: none;
+          z-index: 10;
         }
         #score canvas, #score svg {
           display: block;
@@ -447,7 +598,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     </head>
     <body>
       <div id="viewport">
-        <div id="measure-highlight"><div id="measure-playhead"></div></div>
+        <div id="measure-highlight"></div>
+        <div id="measure-playhead"></div>
         <div id="score"></div>
         <div id="status">Loading OSMD...</div>
       </div>
@@ -456,10 +608,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           const viewport = document.getElementById('viewport');
           const score = document.getElementById('score');
           const status = document.getElementById('status');
-          const PLAYHEAD_PX = __PLAYHEAD_PX__;
-          const ANCHOR_TO_MEASURE_LEFT = __ANCHOR_TO_MEASURE_LEFT__;
-          const FIT_ACTIVE_MEASURE_WIDTH = __FIT_ACTIVE_MEASURE_WIDTH__;
+          let PLAYHEAD_PX = __PLAYHEAD_PX__;
+          let ANCHOR_TO_MEASURE_LEFT = __ANCHOR_TO_MEASURE_LEFT__;
+          let FIT_ACTIVE_MEASURE_WIDTH = __FIT_ACTIVE_MEASURE_WIDTH__;
           const MIN_FIT_SCALE = __MIN_FIT_SCALE__;
+          let scrollMode = '__SCROLL_MODE__';
           let osmd = null;
           let measureCentersByNumber = {};
           let measureBoundsByNumber = {};
@@ -470,6 +623,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let activeMeasureNumber = 1;
           let currentScrollOffset = 0;
           let measureDurationSec = 2;
+          let countInDurationSec = 0;
+          let maxMeasureNumber = 1;
+
+          function isFollowMode() {
+            return scrollMode === 'continuousFollow';
+          }
 
           function finiteNum(value) {
             return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -725,8 +884,14 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             effectiveScale = computeEffectiveScale(measureNumber);
           }
 
+          function snapLayoutPx(value) {
+            const dpr = window.devicePixelRatio || 1;
+            return Math.round(value * dpr) / dpr;
+          }
+
           function applyScoreTransform(scrollOffset) {
-            score.style.transform = 'translate3d(' + (-scrollOffset) + 'px, -50%, 0) scale(' + effectiveScale + ')';
+            const snapped = snapLayoutPx(scrollOffset);
+            score.style.transform = 'translate3d(' + (-snapped) + 'px, -50%, 0) scale(' + effectiveScale + ')';
           }
 
           function computeScrollOffset(measureNumber) {
@@ -804,6 +969,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           async function renderMusicXML(xmlText, zoomValue) {
+            cancelFollowRaf();
             score.replaceChildren();
             measureCentersByNumber = {};
             measureBoundsByNumber = {};
@@ -868,6 +1034,130 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
           }
 
+          function countInPlayheadProgress(timelineSec) {
+            if (timelineSec >= 0 || countInDurationSec <= 0) {
+              return 0;
+            }
+            return Math.max(0, Math.min(1, (timelineSec + countInDurationSec) / countInDurationSec));
+          }
+
+          function measureNumberAndProgress(timelineSec) {
+            const safeDur = Math.max(1e-6, measureDurationSec);
+            const clampedTime = Math.max(0, timelineSec);
+            const rawMeasure = Math.floor(clampedTime / safeDur) + 1;
+            const measureNumber = Math.max(1, Math.min(maxMeasureNumber, rawMeasure));
+            const timeInMeasure = clampedTime - (measureNumber - 1) * safeDur;
+            const progress = Math.max(0, Math.min(1, timeInMeasure / safeDur));
+            return { measureNumber: measureNumber, progress: progress };
+          }
+
+          function continuousScoreX(measureNumber, progress) {
+            const bounds = measureBoundsByNumber[measureNumber] || measureBoundsByNumber[1];
+            if (!bounds) {
+              return 0;
+            }
+            const measureWidth = bounds.right - bounds.left;
+            if (!Number.isFinite(measureWidth) || measureWidth <= 0) {
+              return bounds.left;
+            }
+            return bounds.left + Math.max(0, Math.min(1, progress)) * measureWidth;
+          }
+
+          function computeContinuousFollowState(timelineSec) {
+            const viewportWidth = viewport.clientWidth || 0;
+            refreshEffectiveScale(1);
+            const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
+
+            if (timelineSec < 0 && countInDurationSec > 0) {
+              return {
+                phase: 'countIn',
+                scrollOffset: 0,
+                measureNumber: 1,
+                progress: countInPlayheadProgress(timelineSec),
+                playheadScreenX: null
+              };
+            }
+
+            const mp = measureNumberAndProgress(timelineSec);
+            const xPos = continuousScoreX(mp.measureNumber, mp.progress);
+            const rawOffset = xPos * effectiveScale - PLAYHEAD_PX;
+            const clampedOffset = Math.max(0, Math.min(maxOffset, rawOffset));
+
+            if (clampedOffset < maxOffset - 0.001) {
+              return {
+                phase: 'scrolling',
+                scrollOffset: clampedOffset,
+                measureNumber: mp.measureNumber,
+                progress: mp.progress,
+                xPos: xPos,
+                playheadScreenX: PLAYHEAD_PX
+              };
+            }
+
+            return {
+              phase: 'tail',
+              scrollOffset: maxOffset,
+              measureNumber: mp.measureNumber,
+              progress: mp.progress,
+              xPos: xPos,
+              playheadScreenX: xPos * effectiveScale - maxOffset
+            };
+          }
+
+          function measureHighlightGeometry(measureNumber) {
+            const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
+            if (!bounds || !Number.isFinite(bounds.left) || !Number.isFinite(bounds.right)) {
+              return null;
+            }
+            const measureWidth = bounds.right - bounds.left;
+            if (!Number.isFinite(measureWidth) || measureWidth <= 0) {
+              return null;
+            }
+            const highlightWidthPx = measureWidth * effectiveScale;
+            const highlightLeftPx = bounds.left * effectiveScale - currentScrollOffset;
+            return {
+              leftPx: highlightLeftPx,
+              widthPx: highlightWidthPx
+            };
+          }
+
+          function applyContinuousFollow(timelineSec) {
+            const state = computeContinuousFollowState(timelineSec);
+            activeMeasureNumber = state.measureNumber;
+            currentScrollOffset = state.scrollOffset;
+            applyScoreTransform(currentScrollOffset);
+            updateMeasureHighlightForFollow(state);
+          }
+
+          function updateMeasureHighlightForFollow(state) {
+            const highlight = document.getElementById('measure-highlight');
+            const playhead = document.getElementById('measure-playhead');
+            if (!highlight || !playhead || !overlayVisible) {
+              if (highlight) {
+                highlight.style.display = 'none';
+              }
+              return;
+            }
+            const geometry = measureHighlightGeometry(state.measureNumber);
+            if (!geometry) {
+              highlight.style.display = 'none';
+              return;
+            }
+            highlight.style.left = snapLayoutPx(geometry.leftPx) + 'px';
+            highlight.style.width = snapLayoutPx(geometry.widthPx) + 'px';
+            highlight.style.display = 'block';
+
+            playhead.style.transition = 'none';
+            let playheadX = PLAYHEAD_PX;
+            if (state.phase === 'countIn') {
+              playheadX = geometry.leftPx + state.progress * geometry.widthPx;
+            } else if (state.phase === 'tail') {
+              playheadX = state.playheadScreenX;
+            }
+            playhead.style.left = snapLayoutPx(playheadX) + 'px';
+          }
+
           function updateMeasureHighlight() {
             const highlight = document.getElementById('measure-highlight');
             if (!highlight) {
@@ -877,27 +1167,103 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               highlight.style.display = 'none';
               return;
             }
-            const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
-            const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
-            if (!bounds || !Number.isFinite(bounds.left) || !Number.isFinite(bounds.right)) {
+            if (isFollowMode() && playheadTimelineConfigured) {
+              ensureFollowRaf();
+              return;
+            }
+            const geometry = measureHighlightGeometry(activeMeasureNumber);
+            if (!geometry) {
               highlight.style.display = 'none';
               return;
             }
-            const measureWidth = bounds.right - bounds.left;
-            if (!Number.isFinite(measureWidth) || measureWidth <= 0) {
-              highlight.style.display = 'none';
-              return;
-            }
-            const highlightWidthPx = measureWidth * effectiveScale;
-            highlight.style.left = (bounds.left * effectiveScale - currentScrollOffset) + 'px';
-            highlight.style.width = highlightWidthPx + 'px';
+            highlight.style.left = geometry.leftPx + 'px';
+            highlight.style.width = geometry.widthPx + 'px';
             highlight.style.display = 'block';
-            updatePlayheadPosition(highlightWidthPx);
+            updatePlayheadPosition(geometry.leftPx, geometry.widthPx);
           }
 
           let phraseTimelineSec = 0;
           let playheadAnimating = false;
           let playheadTimelineConfigured = false;
+          let followTimelineAnchorSec = 0;
+          let followTimelineAnchorPerfMs = 0;
+          let followRafId = 0;
+          let followPlaybackActive = false;
+
+          function resolveFollowTimelineSec() {
+            if (!followPlaybackActive) {
+              return followTimelineAnchorSec;
+            }
+            return followTimelineAnchorSec + (performance.now() - followTimelineAnchorPerfMs) / 1000;
+          }
+
+          function cancelFollowRaf() {
+            if (followRafId) {
+              cancelAnimationFrame(followRafId);
+              followRafId = 0;
+            }
+          }
+
+          function followRafTick() {
+            followRafId = 0;
+            if (!isFollowMode() || !overlayVisible || !playheadTimelineConfigured) {
+              return;
+            }
+            applyContinuousFollow(resolveFollowTimelineSec());
+            followRafId = requestAnimationFrame(followRafTick);
+          }
+
+          function ensureFollowRaf() {
+            if (!isFollowMode() || !overlayVisible || !playheadTimelineConfigured) {
+              cancelFollowRaf();
+              return;
+            }
+            if (followRafId) {
+              return;
+            }
+            followRafId = requestAnimationFrame(followRafTick);
+          }
+
+          function setFollowTimelineAnchor(sec, playbackActive) {
+            const parsed = Number.isFinite(Number(sec)) ? Number(sec) : 0;
+            const nextPlaybackActive = !!playbackActive;
+            const wasPlaybackActive = followPlaybackActive;
+            const driftThresholdSec = 0.25;
+            const driftBlend = 0.2;
+
+            if (
+              nextPlaybackActive &&
+              wasPlaybackActive &&
+              followTimelineAnchorPerfMs > 0 &&
+              playheadTimelineConfigured
+            ) {
+              const extrapolatedSec = resolveFollowTimelineSec();
+              const drift = parsed - extrapolatedSec;
+              if (Math.abs(drift) < driftThresholdSec) {
+                followTimelineAnchorSec += drift * driftBlend;
+              } else {
+                followTimelineAnchorSec = parsed;
+                followTimelineAnchorPerfMs = performance.now();
+              }
+            } else {
+              followTimelineAnchorSec = parsed;
+              followTimelineAnchorPerfMs = performance.now();
+            }
+
+            followPlaybackActive = nextPlaybackActive;
+            phraseTimelineSec = followTimelineAnchorSec;
+            playheadTimelineConfigured = true;
+            playheadAnimating = false;
+            if (!overlayVisible || !isFollowMode()) {
+              return;
+            }
+            if (!followPlaybackActive) {
+              cancelFollowRaf();
+              applyContinuousFollow(followTimelineAnchorSec);
+              return;
+            }
+            ensureFollowRaf();
+          }
 
           function computeProgressInMeasure() {
             const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
@@ -906,53 +1272,59 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Math.max(0, Math.min(1, timeInMeasure / safeDur));
           }
 
-          function updatePlayheadPosition(highlightWidthPx) {
+          function updatePlayheadPosition(highlightLeftPx, highlightWidthPx) {
             const playhead = document.getElementById('measure-playhead');
             if (!playhead || !overlayVisible) {
               return;
             }
             const widthPx = Number.isFinite(highlightWidthPx) ? highlightWidthPx : 0;
+            const baseLeftPx = Number.isFinite(highlightLeftPx) ? highlightLeftPx : 0;
             if (!playheadTimelineConfigured) {
-              restartPlayheadAnimationLegacy(widthPx);
+              restartPlayheadAnimationLegacy(baseLeftPx, widthPx);
               return;
             }
             const progress = computeProgressInMeasure();
-            const leftPx = progress * widthPx;
+            const innerLeftPx = progress * widthPx;
             const animating = playheadAnimating && overlayVisible;
             if (!animating) {
               playhead.style.transition = 'none';
-              playhead.style.left = leftPx + 'px';
+              playhead.style.left = (baseLeftPx + innerLeftPx) + 'px';
               return;
             }
             const safeDur = Math.max(1e-6, measureDurationSec);
             const remainingMs = Math.max(100, (1 - progress) * safeDur * 1000);
             playhead.style.transition = 'none';
-            playhead.style.left = leftPx + 'px';
+            playhead.style.left = (baseLeftPx + innerLeftPx) + 'px';
             void playhead.offsetWidth;
             requestAnimationFrame(function () {
               playhead.style.transition = 'left ' + remainingMs + 'ms linear';
-              playhead.style.left = widthPx + 'px';
+              playhead.style.left = (baseLeftPx + widthPx) + 'px';
             });
           }
 
-          function restartPlayheadAnimationLegacy(highlightWidthPx) {
+          function restartPlayheadAnimationLegacy(highlightLeftPx, highlightWidthPx) {
             const playhead = document.getElementById('measure-playhead');
             if (!playhead || !overlayVisible) {
               return;
             }
             const widthPx = Number.isFinite(highlightWidthPx) ? highlightWidthPx : 0;
+            const baseLeftPx = Number.isFinite(highlightLeftPx) ? highlightLeftPx : 0;
             const durationMs = Math.max(100, measureDurationSec * 1000);
             playhead.style.transition = 'none';
-            playhead.style.left = '0px';
+            playhead.style.left = baseLeftPx + 'px';
             void playhead.offsetWidth;
             requestAnimationFrame(function () {
               playhead.style.transition = 'left ' + durationMs + 'ms linear';
-              playhead.style.left = widthPx + 'px';
+              playhead.style.left = (baseLeftPx + widthPx) + 'px';
             });
           }
 
           function setPlayheadTimeline(sec, animating) {
             playheadTimelineConfigured = true;
+            if (isFollowMode()) {
+              setFollowTimelineAnchor(sec, animating);
+              return;
+            }
             phraseTimelineSec = Math.max(0, Number(sec) || 0);
             playheadAnimating = !!animating;
             updateMeasureHighlight();
@@ -961,9 +1333,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           function setScoreOverlayVisible(show) {
             overlayVisible = !!show;
             if (!overlayVisible) {
+              cancelFollowRaf();
               currentScrollOffset = 0;
               refreshEffectiveScale(activeMeasureNumber);
               applyScoreTransform(0);
+            } else if (isFollowMode() && playheadTimelineConfigured) {
+              ensureFollowRaf();
             } else {
               currentScrollOffset = computeScrollOffset(activeMeasureNumber);
               applyScoreTransform(currentScrollOffset);
@@ -976,7 +1351,44 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             measureDurationSec = Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
           }
 
+          function setCountInDurationSec(sec) {
+            const parsed = Number(sec);
+            countInDurationSec = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+          }
+
+          function setMaxMeasureNumber(value) {
+            const parsed = Math.floor(Number(value || 1));
+            maxMeasureNumber = Math.max(1, parsed);
+          }
+
+          function setScrollMode(mode, playheadPxValue, anchorToMeasureLeft, fitActiveMeasureWidth) {
+            const nextMode = mode === 'continuousFollow' ? 'continuousFollow' : 'measureJump';
+            if (nextMode !== 'continuousFollow') {
+              cancelFollowRaf();
+            }
+            scrollMode = nextMode;
+            if (typeof playheadPxValue === 'number' && Number.isFinite(playheadPxValue)) {
+              PLAYHEAD_PX = playheadPxValue;
+            }
+            if (typeof anchorToMeasureLeft === 'boolean') {
+              ANCHOR_TO_MEASURE_LEFT = anchorToMeasureLeft;
+            }
+            if (typeof fitActiveMeasureWidth === 'boolean') {
+              FIT_ACTIVE_MEASURE_WIDTH = fitActiveMeasureWidth;
+            }
+            if (overlayVisible && playheadTimelineConfigured && isFollowMode()) {
+              ensureFollowRaf();
+            } else if (overlayVisible) {
+              currentScrollOffset = computeScrollOffset(activeMeasureNumber);
+              applyScoreTransform(currentScrollOffset);
+              updateMeasureHighlight();
+            }
+          }
+
           function setActiveMeasure(measureNumber) {
+            if (isFollowMode()) {
+              return;
+            }
             activeMeasureNumber = Math.max(1, Math.floor(Number(measureNumber || 1)));
             if (!overlayVisible) {
               currentScrollOffset = 0;
@@ -995,7 +1407,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             setActiveMeasure,
             setMeasureDurationSec,
             setScoreOverlayVisible,
-            setPlayheadTimeline
+            setPlayheadTimeline,
+            setFollowTimelineAnchor,
+            setScrollMode,
+            setCountInDurationSec,
+            setMaxMeasureNumber
           };
         })();
       </script>
