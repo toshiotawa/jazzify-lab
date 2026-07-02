@@ -137,9 +137,6 @@ export const applyDamage = (state: CodeRunState, srcCenterX: number): CodeRunSta
 
 const canExecuteBufferedJump = (player: CodeRunPlayer): boolean => {
   if (player.chordLockedUntilLanding || player.jumpCount >= 2) return false;
-  if (player.jumpCount === 0) {
-    return player.onGround || player.coyoteFrames > 0;
-  }
   return true;
 };
 
@@ -321,7 +318,13 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
       if (next.player.vy > 0 && playerBottomBefore <= enemy.y + 12) {
         next = {
           ...next,
-          player: { ...next.player, vy: STOMP_BOUNCE, onGround: false },
+          player: {
+            ...next.player,
+            vy: STOMP_BOUNCE,
+            onGround: false,
+            jumpCount: 0,
+            chordLockedUntilLanding: false,
+          },
         };
         enemies.push({ ...enemy, alive: false });
         continue;

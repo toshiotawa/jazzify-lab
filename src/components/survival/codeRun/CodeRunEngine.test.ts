@@ -72,24 +72,26 @@ describe('CodeRunEngine jump helpers', () => {
     expect(height).toBeLessThan(CODE_RUN_TILE * 3.5);
   });
 
-  it('processJumpBuffer は着地前入力を保持し、接地で消費する', () => {
+  it('processJumpBuffer は段差落下で即消費し、地上では着地前入力を保持する', () => {
     const map = createDefaultCodeRunMap();
     let state = createInitialCodeRunState(map);
     state = triggerCodeRunJump({
       ...state,
-      player: { ...state.player, ...basePlayer(), onGround: false, coyoteFrames: 0 },
+      player: { ...state.player, ...basePlayer(), onGround: false, coyoteFrames: 0, vy: 2 },
     });
     expect(state.player.jumpBufferFrames).toBe(ENGINE_JUMP_BUFFER_FRAMES);
-    const waiting = tickCodeRun(state, idleInput, 1 / 60);
-    expect(waiting.player.vy).toBe(0);
-    expect(waiting.player.jumpBufferFrames).toBeLessThan(ENGINE_JUMP_BUFFER_FRAMES);
+    const airborneJump = tickCodeRun(state, idleInput, 1 / 60);
+    expect(airborneJump.player.vy).toBe(ENGINE_JUMP_VEL);
+    expect(airborneJump.player.jumpCount).toBe(1);
+    expect(airborneJump.player.jumpBufferFrames).toBe(0);
 
     const landed = tickCodeRun({
-      ...waiting,
+      ...airborneJump,
       player: {
-        ...waiting.player,
+        ...airborneJump.player,
         onGround: true,
         coyoteFrames: ENGINE_COYOTE_FRAMES,
+        jumpCount: 0,
         jumpBufferFrames: ENGINE_JUMP_BUFFER_FRAMES,
       },
     }, idleInput, 1 / 60);
@@ -159,6 +161,116 @@ describe('CodeRunEngine integration', () => {
         ...basePlayer(),
         onGround: false,
         coyoteFrames: 3,
+        jumpBufferFrames: ENGINE_JUMP_BUFFER_FRAMES,
+      },
+    };
+    const jumped = tickCodeRun(state, idleInput, 1 / 60);
+    expect(jumped.player.vy).toBe(ENGINE_JUMP_VEL);
+    expect(jumped.player.jumpCount).toBe(1);
+  });
+
+  it('段差から落下中（コヨーテ終了後）でも1段目ジャンプが実行される', () => {
+    const map = createDefaultCodeRunMap();
+    const state = {
+      ...createInitialCodeRunState(map),
+      player: {
+        ...basePlayer(),
+        onGround: false,
+        coyoteFrames: 0,
+        vy: 4,
+        jumpBufferFrames: ENGINE_JUMP_BUFFER_FRAMES,
+      },
+    };
+    const jumped = tickCodeRun(state, idleInput, 1 / 60);
+    expect(jumped.player.vy).toBe(ENGINE_JUMP_VEL);
+    expect(jumped.player.jumpCount).toBe(1);
+  });
+
+  it('2段ジャンプ使い切り後はジャンプバッファが消費されない', () => {
+    const map = createCodeRunMapFromDb('double_jump_locked_test', {
+      name: 'Double Jump Locked Test',
+      tileSize: CODE_RUN_TILE,
+      worldTilesWide: 12,
+      groundRow: 9,
+      spawn: { c: 1, r: 9 },
+      goal: { c: 10, r: 9 },
+      pits: [],
+      solids: [],
+      spikes: [],
+      enemies: [],
+    });
+    const state = {
+      ...createInitialCodeRunState(map),
+      player: {
+        ...basePlayer(),
+        y: 200,
+        onGround: false,
+        jumpCount: 2,
+        chordLockedUntilLanding: true,
+        vy: 3,
+        jumpBufferFrames: ENGINE_JUMP_BUFFER_FRAMES,
+      },
+    };
+    const next = tickCodeRun(state, idleInput, 1 / 60);
+    expect(next.player.vy).not.toBe(ENGINE_JUMP_VEL);
+    expect(next.player.jumpCount).toBe(2);
+    expect(next.player.chordLockedUntilLanding).toBe(true);
+    expect(next.player.jumpBufferFrames).toBeLessThan(ENGINE_JUMP_BUFFER_FRAMES);
+  });
+
+  it('敵踏みつけで jumpCount と chordLockedUntilLanding がリセットされる', () => {
+    const map = createCodeRunMapFromDb('stomp_refresh_test', {
+      name: 'Stomp Refresh Test',
+      tileSize: CODE_RUN_TILE,
+      worldTilesWide: 12,
+      groundRow: 9,
+      spawn: { c: 1, r: 9 },
+      goal: { c: 10, r: 9 },
+      pits: [],
+      solids: [],
+      spikes: [],
+      enemies: [],
+    });
+    const enemy = {
+      id: 'slime-0',
+      x: 96,
+      y: 350,
+      width: 34,
+      height: 34,
+      vx: -1.25,
+      alive: true,
+      anim: 0,
+      minX: 0,
+      maxX: 200,
+    };
+    let state = {
+      ...createInitialCodeRunState(map),
+      player: {
+        ...basePlayer(),
+        x: 96,
+        y: 310,
+        onGround: false,
+        jumpCount: 2,
+        chordLockedUntilLanding: true,
+        vy: 4,
+        invulFrames: 0,
+      },
+      enemies: [enemy],
+    };
+    state = tickCodeRun(state, idleInput, 1 / 60);
+    expect(state.player.jumpCount).toBe(0);
+    expect(state.player.chordLockedUntilLanding).toBe(false);
+    expect(state.player.vy).toBe(-11.5);
+    expect(state.enemies[0]?.alive).toBe(false);
+
+    state = triggerCodeRunJump({
+      ...state,
+      player: { ...state.player, jumpBufferFrames: 0 },
+    });
+    state = {
+      ...state,
+      player: {
+        ...state.player,
         jumpBufferFrames: ENGINE_JUMP_BUFFER_FRAMES,
       },
     };

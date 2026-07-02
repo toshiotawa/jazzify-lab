@@ -1598,9 +1598,6 @@ private struct SurvivalCodeRunGameContent: View {
 
     private func canExecuteBufferedJump(player: SurvivalCodeRunNativePlayer) -> Bool {
         if player.chordLockedUntilLanding || player.jumpCount >= 2 { return false }
-        if player.jumpCount == 0 {
-            return player.onGround || player.coyoteFrames > 0
-        }
         return true
     }
 
@@ -1688,6 +1685,8 @@ private struct SurvivalCodeRunGameContent: View {
             var nextPlayer = player
             nextPlayer.vy = SurvivalCodeRunNativeRules.stompBounce
             nextPlayer.onGround = false
+            nextPlayer.jumpCount = 0
+            nextPlayer.chordLockedUntilLanding = false
             player = nextPlayer
         case .damaged(let sourceCenterX):
             applyDamage(sourceCenterX: sourceCenterX)
