@@ -138,7 +138,7 @@ private struct EarTrainingPrecisionGameContent: View {
 
     @State private var seekPreviewSec: Double = 0
     @State private var isSeekDragging = false
-    @State private var scoreBandHeightStep: Int = EarTrainingPrecisionScorePreferences.initialHeightStep()
+    @State private var scoreBandHeightPx: CGFloat = EarTrainingPrecisionScorePreferences.initialHeight()
     @State private var dragHeightPreview: CGFloat?
     @State private var dragStartBandHeight: CGFloat = 0
 
@@ -185,13 +185,13 @@ private struct EarTrainingPrecisionGameContent: View {
         }
         .onChange(of: controller.musicXMLText) { xml in
             guard let xml else { return }
-            guard !EarTrainingPrecisionScorePreferences.hasSavedHeightStep else { return }
+            guard !EarTrainingPrecisionScorePreferences.hasSavedHeight else { return }
             let multiStaff = EarTrainingChordOsmdMusicXmlNormalizer
                 .detectMaxStaffLayersFromMusicXmlString(xml) >= 2
-            scoreBandHeightStep = EarTrainingPrecisionScorePreferences.preferredHeightStep(multiStaff: multiStaff)
+            scoreBandHeightPx = EarTrainingPrecisionScorePreferences.preferredHeight(multiStaff: multiStaff)
         }
-        .onChange(of: scoreBandHeightStep) { newValue in
-            EarTrainingPrecisionScorePreferences.saveScoreBandHeightStep(newValue)
+        .onChange(of: scoreBandHeightPx) { newValue in
+            EarTrainingPrecisionScorePreferences.saveHeight(newValue)
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
             EarTrainingSettingsSheet(
@@ -299,7 +299,8 @@ private struct EarTrainingPrecisionGameContent: View {
                     scrollLayout: precisionScrollLayout,
                     scrollMode: controller.osmdScrollMode,
                     countInDurationSec: controller.countInDurationSec,
-                    maxOsmdMeasure: controller.maxOsmdMeasureForScroll
+                    maxOsmdMeasure: controller.maxOsmdMeasureForScroll,
+                    manualScrollEnabled: controller.practiceMode && controller.gameState == .paused
                 )
             } else {
                 Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))
@@ -315,8 +316,8 @@ private struct EarTrainingPrecisionGameContent: View {
         if let preview = dragHeightPreview {
             return preview
         }
-        return EarTrainingPrecisionScorePreferences.heightForStep(
-            scoreBandHeightStep,
+        return EarTrainingPrecisionScorePreferences.clampHeight(
+            scoreBandHeightPx,
             screenHeight: screenHeight
         )
     }
@@ -339,8 +340,8 @@ private struct EarTrainingPrecisionGameContent: View {
             DragGesture(minimumDistance: 2)
                 .onChanged { value in
                     if dragHeightPreview == nil {
-                        dragStartBandHeight = EarTrainingPrecisionScorePreferences.heightForStep(
-                            scoreBandHeightStep,
+                        dragStartBandHeight = EarTrainingPrecisionScorePreferences.clampHeight(
+                            scoreBandHeightPx,
                             screenHeight: screenHeight
                         )
                     }
@@ -352,12 +353,8 @@ private struct EarTrainingPrecisionGameContent: View {
                 }
                 .onEnded { value in
                     let proposed = dragStartBandHeight + value.translation.height
-                    let clamped = EarTrainingPrecisionScorePreferences.clampHeight(
+                    scoreBandHeightPx = EarTrainingPrecisionScorePreferences.clampHeight(
                         proposed,
-                        screenHeight: screenHeight
-                    )
-                    scoreBandHeightStep = EarTrainingPrecisionScorePreferences.nearestStep(
-                        forHeight: clamped,
                         screenHeight: screenHeight
                     )
                     dragHeightPreview = nil
@@ -474,76 +471,43 @@ enum EarTrainingPrecisionScrollPreferences {
 }
 
 enum EarTrainingPrecisionScorePreferences {
+    private static let scoreBandHeightKey = "earTraining.precision.scoreBandHeightPx"
     private static let scoreBandHeightStepKey = "earTraining.precision.scoreBandHeightStep"
+    private static let scoreBandHeightTable: [CGFloat] = [96, 112, 128, 160, 192]
 
-    static let minHeightStep = -2
-    static let maxHeightStep = 2
-    static let scoreBandHeightTable: [CGFloat] = [96, 112, 128, 160, 192]
-    static let singleStaffDefaultHeightStep = 0
-    static let multiStaffDefaultHeightStep = 2
-
-    static var hasSavedHeightStep: Bool {
-        UserDefaults.standard.object(forKey: scoreBandHeightStepKey) != nil
-    }
-
-    static func initialHeightStep() -> Int {
-        if hasSavedHeightStep {
-            return loadSavedHeightStep()
-        }
-        return preferredHeightStep(multiStaff: false)
-    }
-
-    static func preferredHeightStep(multiStaff: Bool) -> Int {
-        multiStaff ? multiStaffDefaultHeightStep : singleStaffDefaultHeightStep
-    }
-
-    static func clampHeightStep(_ value: Int) -> Int {
-        Swift.min(maxHeightStep, Swift.max(minHeightStep, value))
-    }
-
-    static func loadSavedHeightStep() -> Int {
-        clampHeightStep(UserDefaults.standard.integer(forKey: scoreBandHeightStepKey))
-    }
-
-    static func loadScoreBandHeightStep(multiStaff: Bool) -> Int {
-        if hasSavedHeightStep {
-            return loadSavedHeightStep()
-        }
-        return preferredHeightStep(multiStaff: multiStaff)
-    }
-
-    static func saveScoreBandHeightStep(_ value: Int) {
-        UserDefaults.standard.set(clampHeightStep(value), forKey: scoreBandHeightStepKey)
-    }
-
-    static func maxBandHeight(screenHeight: CGFloat) -> CGFloat {
-        Swift.min(scoreBandHeightTable[scoreBandHeightTable.count - 1], screenHeight * 0.38)
-    }
-
-    static func heightForStep(_ step: Int, screenHeight: CGFloat) -> CGFloat {
-        let index = min(max(step + 2, 0), scoreBandHeightTable.count - 1)
-        return Swift.min(scoreBandHeightTable[index], maxBandHeight(screenHeight: screenHeight))
-    }
+    static let minBandHeight: CGFloat = 96
 
     static func clampHeight(_ height: CGFloat, screenHeight: CGFloat) -> CGFloat {
-        let minHeight = scoreBandHeightTable[0]
-        let maxHeight = maxBandHeight(screenHeight: screenHeight)
-        return Swift.min(maxHeight, Swift.max(minHeight, height))
+        min(max(height, minBandHeight), max(minBandHeight, screenHeight - 60))
     }
 
-    static func nearestStep(forHeight height: CGFloat, screenHeight: CGFloat) -> Int {
-        let clamped = clampHeight(height, screenHeight: screenHeight)
-        var bestStep = singleStaffDefaultHeightStep
-        var bestDistance = CGFloat.greatestFiniteMagnitude
-        for step in minHeightStep...maxHeightStep {
-            let candidate = heightForStep(step, screenHeight: screenHeight)
-            let distance = abs(candidate - clamped)
-            if distance < bestDistance {
-                bestDistance = distance
-                bestStep = step
-            }
+    static var hasSavedHeight: Bool {
+        UserDefaults.standard.object(forKey: scoreBandHeightKey) != nil
+            || UserDefaults.standard.object(forKey: scoreBandHeightStepKey) != nil
+    }
+
+    static func loadSavedHeight() -> CGFloat {
+        if let saved = UserDefaults.standard.object(forKey: scoreBandHeightKey) as? Double {
+            return CGFloat(saved)
         }
-        return bestStep
+        if UserDefaults.standard.object(forKey: scoreBandHeightStepKey) != nil {
+            let step = UserDefaults.standard.integer(forKey: scoreBandHeightStepKey)
+            let index = min(max(step + 2, 0), scoreBandHeightTable.count - 1)
+            return scoreBandHeightTable[index]
+        }
+        return preferredHeight(multiStaff: false)
+    }
+
+    static func preferredHeight(multiStaff: Bool) -> CGFloat {
+        multiStaff ? 192 : 128
+    }
+
+    static func initialHeight() -> CGFloat {
+        hasSavedHeight ? loadSavedHeight() : preferredHeight(multiStaff: false)
+    }
+
+    static func saveHeight(_ height: CGFloat) {
+        UserDefaults.standard.set(Double(height), forKey: scoreBandHeightKey)
     }
 }
 

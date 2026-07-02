@@ -1,5 +1,6 @@
 import {
   OSMD_BATTLE_PLAYHEAD_PX,
+  clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
   computeOsmdMeasureJumpScrollOffset,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
@@ -17,6 +18,55 @@ const centers = {
   3: 280,
   4: 460,
 };
+
+describe('clampOsmdManualScrollOffset', () => {
+  it('範囲内では manual オフセットをそのまま返す', () => {
+    expect(clampOsmdManualScrollOffset({
+      baseOffsetPx: 50,
+      manualOffsetPx: 20,
+      scoreWidth: 500,
+      effectiveScale: 1,
+      viewportWidth: 400,
+    })).toBe(20);
+  });
+
+  it('先頭で base+manual が 0 未満にならないようクランプする', () => {
+    expect(clampOsmdManualScrollOffset({
+      baseOffsetPx: 50,
+      manualOffsetPx: -100,
+      scoreWidth: 500,
+      effectiveScale: 1,
+      viewportWidth: 400,
+    })).toBe(-50);
+  });
+
+  it('末尾で base+manual が maxOffset を超えないようクランプする', () => {
+    expect(clampOsmdManualScrollOffset({
+      baseOffsetPx: 80,
+      manualOffsetPx: 200,
+      scoreWidth: 500,
+      effectiveScale: 1,
+      viewportWidth: 400,
+    })).toBe(20);
+  });
+
+  it('譜面幅がビューポートより狭い場合は合成オフセット 0 に収める', () => {
+    expect(clampOsmdManualScrollOffset({
+      baseOffsetPx: 0,
+      manualOffsetPx: 40,
+      scoreWidth: 300,
+      effectiveScale: 1,
+      viewportWidth: 400,
+    })).toBe(0);
+    expect(clampOsmdManualScrollOffset({
+      baseOffsetPx: 10,
+      manualOffsetPx: -30,
+      scoreWidth: 300,
+      effectiveScale: 1,
+      viewportWidth: 400,
+    })).toBe(-10);
+  });
+});
 
 describe('computeOsmdMeasureJumpScrollOffset', () => {
   it('現在小節の左端（小節線）をプレイヘッド位置へ合わせる', () => {

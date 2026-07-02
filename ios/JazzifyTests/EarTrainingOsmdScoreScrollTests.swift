@@ -313,4 +313,50 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         )
         XCTAssertEqual(EarTrainingOsmdScrollLayout.precisionFollow.scrollMode, .continuousFollow)
     }
+
+    func testClampedManualScrollOffset_returnsUnchangedWhenWithinRange() {
+        let result = EarTrainingOsmdScoreScroll.clampedManualScrollOffset(
+            baseOffsetPx: 50,
+            manualOffsetPx: 30,
+            scoreWidth: 500,
+            effectiveScale: 1,
+            viewportWidth: 400
+        )
+        XCTAssertEqual(result, 30)
+    }
+
+    func testClampedManualScrollOffset_clampsLeftPastStart() {
+        let result = EarTrainingOsmdScoreScroll.clampedManualScrollOffset(
+            baseOffsetPx: 50,
+            manualOffsetPx: -80,
+            scoreWidth: 500,
+            effectiveScale: 1,
+            viewportWidth: 400
+        )
+        XCTAssertEqual(result, -50)
+        XCTAssertEqual(50 + result, 0)
+    }
+
+    func testClampedManualScrollOffset_clampsRightPastEnd() {
+        let result = EarTrainingOsmdScoreScroll.clampedManualScrollOffset(
+            baseOffsetPx: 80,
+            manualOffsetPx: 50,
+            scoreWidth: 500,
+            effectiveScale: 1,
+            viewportWidth: 400
+        )
+        XCTAssertEqual(result, 20)
+        XCTAssertEqual(80 + result, 100)
+    }
+
+    func testClampedManualScrollOffset_clampsToZeroWhenScoreFitsViewport() {
+        let result = EarTrainingOsmdScoreScroll.clampedManualScrollOffset(
+            baseOffsetPx: 0,
+            manualOffsetPx: 40,
+            scoreWidth: 300,
+            effectiveScale: 1,
+            viewportWidth: 400
+        )
+        XCTAssertEqual(result, 0)
+    }
 }

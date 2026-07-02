@@ -81,6 +81,18 @@ export const computeOsmdMeasureJumpScrollOffset = (
   return { offsetPx, xPos };
 };
 
+/** 手動スクロールの相対オフセットを、合成後オフセットが [0, maxOffset] に収まるようクランプする。 */
+export const clampOsmdManualScrollOffset = (input: {
+  baseOffsetPx: number;
+  manualOffsetPx: number;
+  scoreWidth: number;
+  effectiveScale: number;
+  viewportWidth: number;
+}): number => {
+  const maxOffset = Math.max(0, input.scoreWidth * input.effectiveScale - input.viewportWidth);
+  return Math.min(Math.max(input.manualOffsetPx, -input.baseOffsetPx), maxOffset - input.baseOffsetPx);
+};
+
 /** スクロールオフセットを反映した画面上の小節ハイライト矩形（小節更新時のみ再計算）。 */
 export const computeOsmdActiveMeasureHighlight = (
   input: OsmdActiveMeasureHighlightInput,

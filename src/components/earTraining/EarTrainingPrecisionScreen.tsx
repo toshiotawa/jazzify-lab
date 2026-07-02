@@ -71,6 +71,14 @@ import {
   scalePracticeTargetTimeSec,
   scalePracticeTimingWindowSec,
 } from '@/utils/earTrainingPracticeSpeed';
+import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
+import {
+  clampPrecisionScoreBandHeightPx,
+  loadPrecisionScoreBandHeightPx,
+  PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX,
+  PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX,
+  savePrecisionScoreBandHeightPx,
+} from '@/utils/earTrainingPrecisionScorePreferences';
 import {
   clampEarTrainingOsmdTimingAdjustmentMs,
   loadEarTrainingOsmdTimingAdjustmentMs,
@@ -115,7 +123,6 @@ interface EarTrainingPrecisionScreenProps {
 }
 
 const INPUT_COOLDOWN_MS = 20;
-const SCORE_BAND_HEIGHT = 128;
 const PIANO_HEIGHT = 96;
 const TRANSPORT_HEIGHT = 72;
 const SEEK_SLIDER_UI_UPDATE_INTERVAL_MS = 200;
@@ -178,6 +185,15 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
   const maxOsmdMeasureRef = useRef(1);
   const [notesViewportSize, setNotesViewportSize] = useState({ width: 390, height: 400 });
+  const [scoreBandHeightPx, setScoreBandHeightPx] = useState(() => {
+    const saved = loadPrecisionScoreBandHeightPx();
+    if (saved !== null && typeof window !== 'undefined') {
+      return clampPrecisionScoreBandHeightPx(saved, window.innerHeight);
+    }
+    return PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX;
+  });
+  const scoreBandResizeRafRef = useRef<number | null>(null);
+  const scoreBandResizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const preparedRef = useRef<Awaited<ReturnType<EarTrainingChordVoicingPhrasePlayer['prepare']>> | null>(null);
@@ -1092,6 +1108,78 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     notesRendererRef.current?.setKeyCallbacks(handlePianoKeyDown, handlePianoKeyUp);
   }, [handlePianoKeyDown, handlePianoKeyUp]);
 
+  useEffect(() => {
+    if (loadPrecisionScoreBandHeightPx() !== null || !musicXmlText) {
+      return;
+    }
+    const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
+    if (maxStaff < 2) {
+      return;
+    }
+    setScoreBandHeightPx((current) => {
+      if (current !== PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX) {
+        return current;
+      }
+      return clampPrecisionScoreBandHeightPx(
+        PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX,
+        window.innerHeight,
+      );
+    });
+  }, [musicXmlText]);
+
+  useEffect(() => () => {
+    if (scoreBandResizeRafRef.current !== null) {
+      cancelAnimationFrame(scoreBandResizeRafRef.current);
+    }
+  }, []);
+
+  const handleScoreBandResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
+    scoreBandResizeDragRef.current = {
+      startY: event.clientY,
+      startHeight: scoreBandHeightPx,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [scoreBandHeightPx]);
+
+  const handleScoreBandResizePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
+    const drag = scoreBandResizeDragRef.current;
+    if (!drag) {
+      return;
+    }
+    const nextHeight = clampPrecisionScoreBandHeightPx(
+      drag.startHeight + (event.clientY - drag.startY),
+      window.innerHeight,
+    );
+    if (scoreBandResizeRafRef.current !== null) {
+      cancelAnimationFrame(scoreBandResizeRafRef.current);
+    }
+    scoreBandResizeRafRef.current = requestAnimationFrame(() => {
+      scoreBandResizeRafRef.current = null;
+      setScoreBandHeightPx(nextHeight);
+    });
+  }, []);
+
+  const handleScoreBandResizePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
+    const drag = scoreBandResizeDragRef.current;
+    if (!drag) {
+      return;
+    }
+    scoreBandResizeDragRef.current = null;
+    if (scoreBandResizeRafRef.current !== null) {
+      cancelAnimationFrame(scoreBandResizeRafRef.current);
+      scoreBandResizeRafRef.current = null;
+    }
+    const finalHeight = clampPrecisionScoreBandHeightPx(
+      drag.startHeight + (event.clientY - drag.startY),
+      window.innerHeight,
+    );
+    setScoreBandHeightPx(finalHeight);
+    savePrecisionScoreBandHeightPx(finalHeight);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear';
   const showLobby = canChangePracticeMode;
   const scoreScrollActive = scoreTimelineArmed
@@ -1121,7 +1209,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         </button>
       </header>
 
-      <div className="relative shrink-0" style={{ height: SCORE_BAND_HEIGHT }}>
+      <div className="relative shrink-0 overflow-hidden" style={{ height: scoreBandHeightPx }}>
         {musicXmlText ? (
           <EarTrainingChordOSMDScore
             ref={osmdScoreRef}
@@ -1135,12 +1223,27 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             hidden={false}
             scoreZClassName="z-10"
             useImperativePlayhead
+            fillParent
+            manualScrollEnabled={practiceMode && gameState === 'paused'}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
             {scoreErrorText ?? (isEnglishCopy ? 'Loading score…' : '譜面を読み込み中…')}
           </div>
         )}
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={isEnglishCopy ? 'Resize score area height' : '譜面領域の高さを変更'}
+          className="absolute bottom-0 left-1/2 z-30 flex h-3 w-12 -translate-x-1/2 translate-y-1/2 cursor-row-resize items-center justify-center rounded-full border border-white/20 bg-slate-800/90 text-[10px] leading-none text-white/70"
+          style={{ touchAction: 'none' }}
+          onPointerDown={handleScoreBandResizePointerDown}
+          onPointerMove={handleScoreBandResizePointerMove}
+          onPointerUp={handleScoreBandResizePointerUp}
+          onPointerCancel={handleScoreBandResizePointerUp}
+        >
+          ≡
+        </div>
       </div>
 
       <div ref={notesViewportRef} className="relative min-h-0 flex-1">

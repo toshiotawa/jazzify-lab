@@ -12,6 +12,7 @@ import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay'
 import { cn } from '@/utils/cn';
 import {
   OSMD_BATTLE_PLAYHEAD_PX,
+  clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
   computeOsmdMeasureJumpScrollOffset,
   type OsmdMeasureBounds,
@@ -46,6 +47,10 @@ interface EarTrainingChordOSMDScoreProps {
   scoreZClassName?: string;
   /** true のときプレイヘッドは ref.syncPlayhead のみで更新（React props/effect 不使用）。 */
   useImperativePlayhead?: boolean;
+  /** 親コンテナ（譜面バンド等）いっぱいに描画する。 */
+  fillParent?: boolean;
+  /** 一時停止中の手動水平スクロール（判定・プレイヘッド位置には影響しない）。 */
+  manualScrollEnabled?: boolean;
 }
 
 export interface OsmdPlayheadSyncParams {
@@ -398,6 +403,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   hidden = false,
   scoreZClassName = 'z-10',
   useImperativePlayhead = false,
+  fillParent = false,
+  manualScrollEnabled = false,
 }, ref) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreRef = useRef<HTMLDivElement | null>(null);
@@ -411,8 +418,46 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const [userZoom, setUserZoom] = useState(loadEarTrainingOsmdUserZoom);
   const [scrollOffsetPx, setScrollOffsetPx] = useState(0);
   const scrollOffsetPxRef = useRef(0);
+  const manualScrollOffsetPxRef = useRef(0);
+  const measureHighlightBaseLeftPxRef = useRef(0);
+  const isManualDraggingRef = useRef(false);
+  const manualDragStartClientXRef = useRef(0);
+  const manualDragStartOffsetPxRef = useRef(0);
+  const cssScaleRef = useRef(1);
+  const userZoomRef = useRef(loadEarTrainingOsmdUserZoom());
+  const layoutRef = useRef<OsmdLayout>(EMPTY_LAYOUT);
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
   const pendingPlayheadSyncRef = useRef<OsmdPlayheadSyncParams | null>(null);
+
+  cssScaleRef.current = cssScale;
+  userZoomRef.current = userZoom;
+  layoutRef.current = layout;
+
+  const applyScoreTransform = useCallback((baseOffsetPx: number, manualOffsetPx: number): void => {
+    const score = scoreRef.current;
+    if (!score) {
+      return;
+    }
+    const effectiveScale = cssScaleRef.current * userZoomRef.current;
+    const totalOffsetPx = baseOffsetPx + manualOffsetPx;
+    score.style.transform = `translate3d(${-totalOffsetPx}px, -50%, 0) scale(${effectiveScale})`;
+  }, []);
+
+  const applyHighlightLeftWithManual = useCallback((baseLeftPx: number, manualOffsetPx: number): void => {
+    const highlight = measureHighlightRef.current;
+    if (!highlight) {
+      return;
+    }
+    measureHighlightBaseLeftPxRef.current = baseLeftPx;
+    highlight.style.left = `${baseLeftPx - manualOffsetPx}px`;
+  }, []);
+
+  const resetManualScroll = useCallback((): void => {
+    manualScrollOffsetPxRef.current = 0;
+    isManualDraggingRef.current = false;
+    applyScoreTransform(scrollOffsetPxRef.current, 0);
+    applyHighlightLeftWithManual(measureHighlightBaseLeftPxRef.current, 0);
+  }, [applyHighlightLeftWithManual, applyScoreTransform]);
 
   const applyPlayheadFromParams = useCallback((params: OsmdPlayheadSyncParams): void => {
     const highlight = measureHighlightRef.current;
@@ -431,7 +476,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     if (!measureHighlightNow.visible) {
       return;
     }
-    highlight.style.left = `${measureHighlightNow.leftPx}px`;
+    highlight.style.left = `${measureHighlightNow.leftPx - manualScrollOffsetPxRef.current}px`;
+    measureHighlightBaseLeftPxRef.current = measureHighlightNow.leftPx;
     highlight.style.width = `${measureHighlightNow.widthPx}px`;
     applyPlayheadDom({
       playhead,
@@ -445,10 +491,17 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
 
   useImperativeHandle(ref, () => ({
     syncPlayhead: (params: OsmdPlayheadSyncParams): void => {
+      resetManualScroll();
       pendingPlayheadSyncRef.current = params;
       applyPlayheadFromParams(params);
     },
-  }), [applyPlayheadFromParams]);
+  }), [applyPlayheadFromParams, resetManualScroll]);
+
+  useEffect(() => {
+    if (!manualScrollEnabled) {
+      resetManualScroll();
+    }
+  }, [manualScrollEnabled, resetManualScroll]);
 
   const osmdDisplayMusicXml = useMemo(
     () => (musicXmlText ? stripLyricsFromMusicXml(musicXmlText) : null),
@@ -470,6 +523,44 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     };
   }, []);
 
+  const refitScoreScale = useCallback(async (): Promise<void> => {
+    const score = scoreRef.current;
+    const viewportEl = viewportRef.current;
+    const osmd = osmdRef.current;
+    if (!score || !viewportEl || !osmd || !musicXmlText) {
+      return;
+    }
+
+    const readSurface = (): { el: HTMLElement | null; height: number } => {
+      const el = score.querySelector('svg, canvas');
+      if (!el) {
+        return { el: null, height: 0 };
+      }
+      const rect = el.getBoundingClientRect();
+      const height = rect.height || (el instanceof HTMLCanvasElement ? el.height : 0);
+      return { el: el as HTMLElement, height };
+    };
+
+    score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+    await waitNextPaint();
+
+    const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
+    const viewportHeight = viewportEl.clientHeight;
+    const aggressiveShrink = maxStaff >= 2;
+    const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.72 : 0.94));
+    const { el: surfaceEl, height: measuredBeforeScale } = readSurface();
+    const nextCssScale =
+      measuredBeforeScale > targetHeight && measuredBeforeScale > 0
+        ? Math.max(0.28, targetHeight / measuredBeforeScale)
+        : 1;
+    setCssScale(nextCssScale);
+    applyScoreTransform(scrollOffsetPxRef.current, manualScrollOffsetPxRef.current);
+    await waitNextPaint();
+
+    const viewportWidth = viewportEl.clientWidth;
+    setLayout(measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth));
+  }, [applyScoreTransform, musicXmlText]);
+
   const renderScore = useCallback(async () => {
     const score = scoreRef.current;
     if (!score || !musicXmlText || !osmdDisplayMusicXml) {
@@ -480,6 +571,9 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     setIsRendering(true);
     setRenderError(null);
     setScrollOffsetPx(0);
+    scrollOffsetPxRef.current = 0;
+    manualScrollOffsetPxRef.current = 0;
+    measureHighlightBaseLeftPxRef.current = 0;
     score.replaceChildren();
     osmdRef.current?.clear();
     osmdRef.current = null;
@@ -551,6 +645,77 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   }, [isEnglishCopy, musicXmlText, mobileLandscapeOsmdShrink, osmdDisplayMusicXml]);
 
   useEffect(() => {
+    if (!fillParent) {
+      return;
+    }
+    const viewportEl = viewportRef.current;
+    if (!viewportEl || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    let pending = false;
+    const observer = new ResizeObserver(() => {
+      if (pending) {
+        return;
+      }
+      pending = true;
+      void refitScoreScale().finally(() => {
+        pending = false;
+      });
+    });
+    observer.observe(viewportEl);
+    return () => {
+      observer.disconnect();
+    };
+  }, [fillParent, refitScoreScale]);
+
+  const handleManualScrollPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
+    if (!manualScrollEnabled || event.button !== 0) {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest('button')) {
+      return;
+    }
+    isManualDraggingRef.current = true;
+    manualDragStartClientXRef.current = event.clientX;
+    manualDragStartOffsetPxRef.current = manualScrollOffsetPxRef.current;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.style.cursor = 'grabbing';
+  }, [manualScrollEnabled]);
+
+  const handleManualScrollPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
+    if (!isManualDraggingRef.current || !manualScrollEnabled) {
+      return;
+    }
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const deltaPx = manualDragStartClientXRef.current - event.clientX;
+    const effectiveScale = cssScaleRef.current * userZoomRef.current;
+    const manualOffsetPx = clampOsmdManualScrollOffset({
+      baseOffsetPx: scrollOffsetPxRef.current,
+      manualOffsetPx: manualDragStartOffsetPxRef.current + deltaPx,
+      scoreWidth: layoutRef.current.scoreWidth,
+      effectiveScale,
+      viewportWidth: viewport.clientWidth,
+    });
+    manualScrollOffsetPxRef.current = manualOffsetPx;
+    applyScoreTransform(scrollOffsetPxRef.current, manualOffsetPx);
+    applyHighlightLeftWithManual(measureHighlightBaseLeftPxRef.current, manualOffsetPx);
+  }, [applyHighlightLeftWithManual, applyScoreTransform, manualScrollEnabled]);
+
+  const handleManualScrollPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
+    if (!isManualDraggingRef.current) {
+      return;
+    }
+    isManualDraggingRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    event.currentTarget.style.cursor = 'grab';
+  }, []);
+
+  useEffect(() => {
     void renderScore();
     return () => {
       osmdRef.current?.clear();
@@ -565,8 +730,10 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       return;
     }
     const effectiveScale = cssScale * userZoom;
+    resetManualScroll();
     if (!scrollActive) {
-      score.style.transform = `translate3d(0px, -50%, 0) scale(${effectiveScale})`;
+      scrollOffsetPxRef.current = 0;
+      applyScoreTransform(0, 0);
       setScrollOffsetPx(0);
       return;
     }
@@ -579,14 +746,35 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       scoreWidth: layout.scoreWidth,
       viewportWidth: viewport.clientWidth,
     });
-    score.style.transform = `translate3d(${-offsetPx}px, -50%, 0) scale(${effectiveScale})`;
     scrollOffsetPxRef.current = offsetPx;
+    applyScoreTransform(offsetPx, 0);
     setScrollOffsetPx(offsetPx);
+    const measureHighlightNow = computeOsmdActiveMeasureHighlight({
+      activeMeasureNumber,
+      measureBoundsByNumber: layout.measureBoundsByNumber,
+      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      effectiveScale,
+      scrollOffsetPx: offsetPx,
+    });
+    if (measureHighlightNow.visible) {
+      applyHighlightLeftWithManual(measureHighlightNow.leftPx, 0);
+    }
     const pending = pendingPlayheadSyncRef.current;
     if (pending && useImperativePlayhead) {
       applyPlayheadFromParams(pending);
     }
-  }, [activeMeasureNumber, applyPlayheadFromParams, cssScale, layout, scrollActive, useImperativePlayhead, userZoom]);
+  }, [
+    activeMeasureNumber,
+    applyHighlightLeftWithManual,
+    applyPlayheadFromParams,
+    applyScoreTransform,
+    cssScale,
+    layout,
+    resetManualScroll,
+    scrollActive,
+    useImperativePlayhead,
+    userZoom,
+  ]);
 
   const statusText = renderError ?? scoreErrorText;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
@@ -631,101 +819,128 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     useImperativePlayhead,
   ]);
 
-  return (
-    <>
-      <div
-        ref={viewportRef}
-        aria-hidden={hidden}
+  const zoomControls = !hidden && musicXmlText ? (
+    <div
+      className={cn(
+        'pointer-events-auto flex flex-col items-center gap-1 rounded-md border border-white/15 bg-slate-900/70 py-1 px-1 text-xs font-semibold text-white shadow-sm',
+        fillParent
+          ? 'absolute right-2 top-2 z-20'
+          : 'fixed right-[max(12px,env(safe-area-inset-right))] top-[42%] z-20 -translate-y-1/2',
+      )}
+    >
+      <button
+        type="button"
+        aria-label={isEnglishCopy ? 'Zoom in' : '拡大'}
+        disabled={userZoom >= EAR_TRAINING_OSMD_USER_ZOOM_MAX}
         className={cn(
-          'ear-training-osmd-score pointer-events-none absolute left-1/2 top-[42%] h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden',
-          scoreZClassName,
-          hidden && 'invisible',
+          'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
+          'disabled:cursor-not-allowed disabled:opacity-40',
+          'hover:bg-white/20 active:bg-white/25',
         )}
+        onClick={() => {
+          setUserZoom((previous) => {
+            const next = clampEarTrainingOsmdUserZoom(
+              previous + EAR_TRAINING_OSMD_USER_ZOOM_STEP,
+            );
+            saveEarTrainingOsmdUserZoom(next);
+            return next;
+          });
+        }}
       >
-        {showPlayhead && measureHighlight.visible && (
-          <div
-            ref={measureHighlightRef}
-            className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden"
-            style={{
-              left: `${measureHighlight.leftPx}px`,
-              width: `${measureHighlight.widthPx}px`,
-            }}
-            aria-hidden
-          >
-            <div
-              ref={measurePlayheadRef}
-              className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-red-500/95"
-              style={{ left: 0 }}
-            />
-          </div>
+        +
+      </button>
+      <span className="min-w-[2.75rem] select-none text-center tabular-nums text-[11px] text-white/90">
+        {Math.round(userZoom * 100)}
+        %
+      </span>
+      <button
+        type="button"
+        aria-label={isEnglishCopy ? 'Zoom out' : '縮小'}
+        disabled={userZoom <= EAR_TRAINING_OSMD_USER_ZOOM_MIN}
+        className={cn(
+          'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
+          'disabled:cursor-not-allowed disabled:opacity-40',
+          'hover:bg-white/20 active:bg-white/25',
         )}
+        onClick={() => {
+          setUserZoom((previous) => {
+            const next = clampEarTrainingOsmdUserZoom(
+              previous - EAR_TRAINING_OSMD_USER_ZOOM_STEP,
+            );
+            saveEarTrainingOsmdUserZoom(next);
+            return next;
+          });
+        }}
+      >
+        −
+      </button>
+    </div>
+  ) : null;
+
+  const scoreViewport = (
+    <div
+      ref={viewportRef}
+      aria-hidden={hidden}
+      className={cn(
+        'ear-training-osmd-score overflow-hidden',
+        fillParent
+          ? 'absolute inset-0 h-full w-full'
+          : 'pointer-events-none absolute left-1/2 top-[42%] h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2',
+        !fillParent && scoreZClassName,
+        fillParent && 'z-0 bg-transparent',
+        hidden && 'invisible',
+      )}
+      style={manualScrollEnabled ? { touchAction: 'none', cursor: 'grab' } : undefined}
+      onPointerDown={manualScrollEnabled ? handleManualScrollPointerDown : undefined}
+      onPointerMove={manualScrollEnabled ? handleManualScrollPointerMove : undefined}
+      onPointerUp={manualScrollEnabled ? handleManualScrollPointerUp : undefined}
+      onPointerCancel={manualScrollEnabled ? handleManualScrollPointerUp : undefined}
+    >
+      {showPlayhead && measureHighlight.visible && (
         <div
-          ref={scoreRef}
-          className={cn(
-            'absolute left-0 top-1/2 min-w-full origin-left',
-            '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
-          )}
-        />
-        {(isRendering || statusText) && (
-          <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
-            {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
-          </div>
-        )}
-      </div>
-      {!hidden && musicXmlText && (
-        <div
-          className={cn(
-            'pointer-events-auto fixed right-[max(12px,env(safe-area-inset-right))] top-[42%] z-20 flex -translate-y-1/2 flex-col items-center gap-1 rounded-md border border-white/15 bg-slate-900/70 py-1 px-1 text-xs font-semibold text-white shadow-sm',
-          )}
+          ref={measureHighlightRef}
+          className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden"
+          style={{
+            left: `${measureHighlight.leftPx}px`,
+            width: `${measureHighlight.widthPx}px`,
+          }}
+          aria-hidden
         >
-          <button
-            type="button"
-            aria-label={isEnglishCopy ? 'Zoom in' : '拡大'}
-            disabled={userZoom >= EAR_TRAINING_OSMD_USER_ZOOM_MAX}
-            className={cn(
-              'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
-              'disabled:cursor-not-allowed disabled:opacity-40',
-              'hover:bg-white/20 active:bg-white/25',
-            )}
-            onClick={() => {
-              setUserZoom((previous) => {
-                const next = clampEarTrainingOsmdUserZoom(
-                  previous + EAR_TRAINING_OSMD_USER_ZOOM_STEP,
-                );
-                saveEarTrainingOsmdUserZoom(next);
-                return next;
-              });
-            }}
-          >
-            +
-          </button>
-          <span className="min-w-[2.75rem] select-none text-center tabular-nums text-[11px] text-white/90">
-            {Math.round(userZoom * 100)}
-            %
-          </span>
-          <button
-            type="button"
-            aria-label={isEnglishCopy ? 'Zoom out' : '縮小'}
-            disabled={userZoom <= EAR_TRAINING_OSMD_USER_ZOOM_MIN}
-            className={cn(
-              'flex h-7 min-w-[1.75rem] items-center justify-center rounded border border-white/20 bg-white/10',
-              'disabled:cursor-not-allowed disabled:opacity-40',
-              'hover:bg-white/20 active:bg-white/25',
-            )}
-            onClick={() => {
-              setUserZoom((previous) => {
-                const next = clampEarTrainingOsmdUserZoom(
-                  previous - EAR_TRAINING_OSMD_USER_ZOOM_STEP,
-                );
-                saveEarTrainingOsmdUserZoom(next);
-                return next;
-              });
-            }}
-          >
-            −
-          </button>
+          <div
+            ref={measurePlayheadRef}
+            className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-red-500/95"
+            style={{ left: 0 }}
+          />
         </div>
       )}
+      <div
+        ref={scoreRef}
+        className={cn(
+          'absolute left-0 top-1/2 min-w-full origin-left',
+          '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
+        )}
+      />
+      {(isRendering || statusText) && (
+        <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
+          {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
+        </div>
+      )}
+      {fillParent ? zoomControls : null}
+    </div>
+  );
+
+  if (fillParent) {
+    return (
+      <div className={cn('relative h-full w-full', scoreZClassName)}>
+        {scoreViewport}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {scoreViewport}
+      {zoomControls}
     </>
   );
 }));

@@ -25,6 +25,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     var scrollMode: EarTrainingOsmdScrollMode = .measureJump
     var countInDurationSec: Double = 0
     var maxOsmdMeasure: Int = 1
+    var manualScrollEnabled: Bool = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(scrollLayout: scrollLayout, scrollMode: scrollMode)
@@ -63,6 +64,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             countInDurationSec: countInDurationSec,
             maxOsmdMeasure: maxOsmdMeasure
         )
+        context.coordinator.updateManualScroll(enabled: manualScrollEnabled)
         context.coordinator.update(
             webView: webView,
             musicXMLText: musicXMLText,
@@ -126,6 +128,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var pendingFollowPlaybackActive = false
         private var pendingFollowQueuedAtMediaTime: CFTimeInterval?
         private var hasPendingFollowAnchor = false
+        private var pendingManualScrollEnabled = false
+        private var lastSentManualScrollEnabled: Bool?
 
         func attach(webView: WKWebView) {
             self.webView = webView
@@ -147,6 +151,25 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         func configurePlayhead(show: Bool) {
             pendingOverlayVisible = show
             sendOverlayVisibleIfNeeded()
+        }
+
+        func updateManualScroll(enabled: Bool) {
+            pendingManualScrollEnabled = enabled
+            sendManualScrollEnabledIfNeeded()
+        }
+
+        private func sendManualScrollEnabledIfNeeded() {
+            guard let webView, htmlReady, !isTornDown else { return }
+            let enabled = pendingManualScrollEnabled
+            guard lastSentManualScrollEnabled != enabled else { return }
+            lastSentManualScrollEnabled = enabled
+            let literal = enabled ? "true" : "false"
+            webView.evaluateJavaScript(
+                Self.voidWrappedJavaScript(
+                    "window.JazzifyOSMD.setManualScrollEnabled(\(literal));"
+                ),
+                completionHandler: nil
+            )
         }
 
         func updateScrollConfig(
@@ -361,6 +384,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             lastCountInDurationSec = nil
             lastMaxOsmdMeasure = nil
             sendScrollConfigIfNeeded()
+            lastSentManualScrollEnabled = nil
+            sendManualScrollEnabledIfNeeded()
             flushPending(webView: webView)
         }
 
@@ -625,6 +650,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let measureDurationSec = 2;
           let countInDurationSec = 0;
           let maxMeasureNumber = 1;
+          let manualScrollEnabled = false;
+          let manualScrollOffsetPx = 0;
+          let manualDragActive = false;
+          let manualDragStartClientX = 0;
+          let manualDragStartOffsetPx = 0;
 
           function isFollowMode() {
             return scrollMode === 'continuousFollow';
@@ -889,8 +919,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Math.round(value * dpr) / dpr;
           }
 
+          function maxScrollOffsetPx() {
+            return Math.max(0, scoreWidth * effectiveScale - (viewport.clientWidth || 0));
+          }
+
           function applyScoreTransform(scrollOffset) {
-            const snapped = snapLayoutPx(scrollOffset);
+            const totalOffset = scrollOffset + manualScrollOffsetPx;
+            const snapped = snapLayoutPx(totalOffset);
             score.style.transform = 'translate3d(' + (-snapped) + 'px, -50%, 0) scale(' + effectiveScale + ')';
           }
 
@@ -969,6 +1004,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           async function renderMusicXML(xmlText, zoomValue) {
+            resetManualScroll();
             cancelFollowRaf();
             score.replaceChildren();
             measureCentersByNumber = {};
@@ -1115,7 +1151,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               return null;
             }
             const highlightWidthPx = measureWidth * effectiveScale;
-            const highlightLeftPx = bounds.left * effectiveScale - currentScrollOffset;
+            const highlightLeftPx = bounds.left * effectiveScale - currentScrollOffset - manualScrollOffsetPx;
             return {
               leftPx: highlightLeftPx,
               widthPx: highlightWidthPx
@@ -1154,6 +1190,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               playheadX = geometry.leftPx + state.progress * geometry.widthPx;
             } else if (state.phase === 'tail') {
               playheadX = state.playheadScreenX;
+            }
+            if (state.phase === 'scrolling' || state.phase === 'tail') {
+              playheadX -= manualScrollOffsetPx;
             }
             playhead.style.left = snapLayoutPx(playheadX) + 'px';
           }
@@ -1225,6 +1264,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function setFollowTimelineAnchor(sec, playbackActive) {
+            resetManualScroll();
             const parsed = Number.isFinite(Number(sec)) ? Number(sec) : 0;
             const nextPlaybackActive = !!playbackActive;
             const wasPlaybackActive = followPlaybackActive;
@@ -1320,6 +1360,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function setPlayheadTimeline(sec, animating) {
+            resetManualScroll();
             playheadTimelineConfigured = true;
             if (isFollowMode()) {
               setFollowTimelineAnchor(sec, animating);
@@ -1331,6 +1372,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function setScoreOverlayVisible(show) {
+            resetManualScroll();
             overlayVisible = !!show;
             if (!overlayVisible) {
               cancelFollowRaf();
@@ -1362,6 +1404,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function setScrollMode(mode, playheadPxValue, anchorToMeasureLeft, fitActiveMeasureWidth) {
+            resetManualScroll();
             const nextMode = mode === 'continuousFollow' ? 'continuousFollow' : 'measureJump';
             if (nextMode !== 'continuousFollow') {
               cancelFollowRaf();
@@ -1386,6 +1429,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function setActiveMeasure(measureNumber) {
+            resetManualScroll();
             if (isFollowMode()) {
               return;
             }
@@ -1402,6 +1446,56 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             updateMeasureHighlight();
           }
 
+          function resetManualScroll() {
+            manualDragActive = false;
+            if (manualScrollOffsetPx === 0) return;
+            manualScrollOffsetPx = 0;
+            applyScoreTransform(currentScrollOffset);
+          }
+
+          function setManualScrollEnabled(enabled) {
+            manualScrollEnabled = !!enabled;
+            if (!manualScrollEnabled) {
+              resetManualScroll();
+              if (isFollowMode() && playheadTimelineConfigured && overlayVisible) {
+                applyContinuousFollow(resolveFollowTimelineSec());
+              } else {
+                updateMeasureHighlight();
+              }
+            }
+          }
+
+          viewport.addEventListener('touchstart', function(event) {
+            if (!manualScrollEnabled || event.touches.length !== 1) return;
+            manualDragActive = true;
+            manualDragStartClientX = event.touches[0].clientX;
+            manualDragStartOffsetPx = manualScrollOffsetPx;
+          }, { passive: true });
+
+          viewport.addEventListener('touchmove', function(event) {
+            if (!manualScrollEnabled || !manualDragActive || event.touches.length !== 1) return;
+            event.preventDefault();
+            const delta = manualDragStartClientX - event.touches[0].clientX;
+            manualScrollOffsetPx = Math.max(
+              -currentScrollOffset,
+              Math.min(maxScrollOffsetPx() - currentScrollOffset, manualDragStartOffsetPx + delta)
+            );
+            applyScoreTransform(currentScrollOffset);
+            if (isFollowMode() && playheadTimelineConfigured) {
+              applyContinuousFollow(resolveFollowTimelineSec());
+            } else {
+              updateMeasureHighlight();
+            }
+          }, { passive: false });
+
+          viewport.addEventListener('touchend', function() {
+            manualDragActive = false;
+          }, { passive: true });
+
+          viewport.addEventListener('touchcancel', function() {
+            manualDragActive = false;
+          }, { passive: true });
+
           window.JazzifyOSMD = {
             renderMusicXML,
             setActiveMeasure,
@@ -1411,7 +1505,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             setFollowTimelineAnchor,
             setScrollMode,
             setCountInDurationSec,
-            setMaxMeasureNumber
+            setMaxMeasureNumber,
+            setManualScrollEnabled
           };
         })();
       </script>

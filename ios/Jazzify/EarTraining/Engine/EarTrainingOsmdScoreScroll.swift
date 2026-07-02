@@ -311,4 +311,16 @@ enum EarTrainingOsmdScoreScroll {
             visible: true
         )
     }
+
+    /// 手動スクロールの相対オフセットを、合成後オフセットが [0, maxOffset] に収まるようクランプする（JS 側と同一式）。
+    static func clampedManualScrollOffset(
+        baseOffsetPx: CGFloat,
+        manualOffsetPx: CGFloat,
+        scoreWidth: CGFloat,
+        effectiveScale: CGFloat,
+        viewportWidth: CGFloat
+    ) -> CGFloat {
+        let maxOffset = max(0, scoreWidth * effectiveScale - viewportWidth)
+        return min(max(manualOffsetPx, -baseOffsetPx), maxOffset - baseOffsetPx)
+    }
 }
