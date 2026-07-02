@@ -33,4 +33,9 @@ enum EarTrainingPracticeSpeed {
         guard ratio < 1 else { return loopEndSec }
         return loopEndSec / ratio
     }
+
+    /// 練習タイムライン秒を、未ストレッチ PCM / ファイル上の秒へ変換する（`AVAudioUnitTimePitch` 再生用）。
+    static func practiceBufferOffsetSec(timelineOffsetSec: Double, speedPercent: Int) -> Double {
+        max(0, timelineOffsetSec) * practiceSpeedRatio(speedPercent)
+    }
 }

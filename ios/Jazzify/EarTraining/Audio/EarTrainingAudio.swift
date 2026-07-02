@@ -119,6 +119,8 @@ final class EarTrainingAudio: NSObject {
     private var preparedPhrasePCM: AVAudioPCMBuffer?
     /// PCM 事前デコードを許容する最大秒数（これを超える長尺は `scheduleFile` フォールバック）。
     private static let maxPreparedPhrasePcmSeconds: Double = 180
+    /// 練習シーク再開時の予約リードイン（アンカーと実発音のずれを抑える）。
+    private static let practiceSeekLeadInSec: Double = 0.08
 
     private var playbackToken: Int = 0
     private var isPhraseEngineRunning = false
@@ -1073,11 +1075,20 @@ final class EarTrainingAudio: NSObject {
         }
 
         let safeOffset = max(0, timelineOffsetSec)
+        let bufferOffsetSec = EarTrainingPracticeSpeed.practiceBufferOffsetSec(
+            timelineOffsetSec: safeOffset,
+            speedPercent: Int(phrasePlaybackSpeedPercent)
+        )
         let scheduleToken = playbackToken
         stopPhrasePlaybackOnly()
 
         phraseTimelinePlaybackOffsetSec = safeOffset
-        phrasePlaybackAnchorHostTime = mach_absolute_time()
+
+        let nowHost = mach_absolute_time()
+        let leadHost = AVAudioTime.hostTime(forSeconds: Self.practiceSeekLeadInSec)
+        let phraseHost = nowHost &+ leadHost
+        let phraseWhen = AVAudioTime(hostTime: phraseHost)
+        phrasePlaybackAnchorHostTime = phraseHost
 
         if let preparedPCM = preparedPhrasePCM {
             ensureGraph(for: preparedPCM.format)
@@ -1086,7 +1097,7 @@ final class EarTrainingAudio: NSObject {
 
             let sampleRate = preparedPCM.format.sampleRate
             guard sampleRate > 0 else { return false }
-            let startFrame = AVAudioFramePosition(safeOffset * sampleRate)
+            let startFrame = AVAudioFramePosition(bufferOffsetSec * sampleRate)
             let totalFrames = AVAudioFramePosition(preparedPCM.frameLength)
             let clampedStart = min(max(0, startFrame), max(0, totalFrames - 1))
             let remainingFrames = totalFrames - clampedStart
@@ -1101,7 +1112,7 @@ final class EarTrainingAudio: NSObject {
             }
 
             phrasePlayer.play()
-            phrasePlayer.scheduleBuffer(slice, at: nil, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            phrasePlayer.scheduleBuffer(slice, at: phraseWhen, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     guard self.playbackToken == scheduleToken else { return }
@@ -1119,7 +1130,7 @@ final class EarTrainingAudio: NSObject {
 
             let sampleRate = file.processingFormat.sampleRate
             guard sampleRate > 0 else { return false }
-            let startFrame = AVAudioFramePosition(safeOffset * sampleRate)
+            let startFrame = AVAudioFramePosition(bufferOffsetSec * sampleRate)
             let totalFrames = file.length
             let clampedStart = min(max(0, startFrame), max(0, totalFrames - 1))
             let remainingFrames = totalFrames - clampedStart
@@ -1130,7 +1141,7 @@ final class EarTrainingAudio: NSObject {
                 file,
                 startingFrame: clampedStart,
                 frameCount: AVAudioFrameCount(remainingFrames),
-                at: nil,
+                at: phraseWhen,
                 completionCallbackType: .dataPlayedBack
             ) { [weak self] _ in
                 DispatchQueue.main.async {

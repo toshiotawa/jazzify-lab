@@ -579,8 +579,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
                 _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
                 self.gameState = .playingPhrase
                 self.scoreTimelineArmed = true
-                _ = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: clamped) { [weak self] in
+                let started = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: clamped) { [weak self] in
                     self?.gameState = .playingPhrase
+                }
+                if started, let timeline = self.audio.phraseWallClockTimelineSecNowOrNil() {
+                    self.syncPlayheadForTimeline(timeline, animating: true)
                 }
             }
         } else {
@@ -613,8 +616,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
-                _ = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: offset) { [weak self] in
+                let started = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: offset) { [weak self] in
                     self?.gameState = .playingPhrase
+                }
+                if started, let timeline = self.audio.phraseWallClockTimelineSecNowOrNil() {
+                    self.syncPlayheadForTimeline(timeline, animating: true)
                 }
                 self.updateSeekSliderUi(phraseTimeSec: offset, force: true)
             }

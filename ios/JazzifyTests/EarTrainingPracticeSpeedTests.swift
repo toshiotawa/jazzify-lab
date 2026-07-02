@@ -25,4 +25,11 @@ final class EarTrainingPracticeSpeedTests: XCTestCase {
         XCTAssertEqual(EarTrainingPracticeSpeed.effectivePracticeBpm(120, speedPercent: 100), 120)
         XCTAssertEqual(EarTrainingPracticeSpeed.effectivePracticeBpm(120, speedPercent: 50), 60)
     }
+
+    func testPracticeBufferOffsetSec() {
+        XCTAssertEqual(EarTrainingPracticeSpeed.practiceBufferOffsetSec(timelineOffsetSec: 4, speedPercent: 100), 4)
+        XCTAssertEqual(EarTrainingPracticeSpeed.practiceBufferOffsetSec(timelineOffsetSec: 4, speedPercent: 50), 2)
+        XCTAssertEqual(EarTrainingPracticeSpeed.practiceBufferOffsetSec(timelineOffsetSec: 2.5, speedPercent: 40), 1)
+        XCTAssertEqual(EarTrainingPracticeSpeed.practiceBufferOffsetSec(timelineOffsetSec: -1, speedPercent: 50), 0)
+    }
 }
