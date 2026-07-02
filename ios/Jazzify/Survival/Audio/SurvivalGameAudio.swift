@@ -351,7 +351,7 @@ final class SurvivalGameAudio {
         startEngineIfNeeded()
         guard isEngineStarted, engine.isRunning else { return }
 
-        let shifted = midi + kRootBassPlaybackOctaveShift
+        let shifted = SurvivalFingerBassRootMidi.fromOctave2StyleMidi(midi) + kRootBassPlaybackOctaveShift
         let clamped = max(0, min(127, shifted))
         prepareRootBassGMBankIfNeeded()
 

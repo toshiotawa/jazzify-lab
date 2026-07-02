@@ -1,4 +1,4 @@
-import { pickSf2ZoneForMidi, resolveSf2PlaybackRate } from './sf2RootNotePlayer';
+import { pickSf2ZoneForMidi, resolveSf2PlaybackRate, resolveSurvivalCodeRunRootMidi, resolveSurvivalCodeRunRootMidiFromPitchClass } from './sf2RootNotePlayer';
 
 describe('sf2RootNotePlayer', () => {
   it('resolveSf2PlaybackRate は半音上を 12平均律の比率にする', () => {
@@ -17,5 +17,17 @@ describe('sf2RootNotePlayer', () => {
 
   it('pickSf2ZoneForMidi はレンジ外なら null を返す', () => {
     expect(pickSf2ZoneForMidi([{ keyRange: [48, 60] as const, rootMidi: 48 }], 36)).toBeNull();
+  });
+
+  it('resolveSurvivalCodeRunRootMidiFromPitchClass は Bb/B を 1 オクターブ下げる', () => {
+    expect(resolveSurvivalCodeRunRootMidiFromPitchClass(9)).toBe(45);
+    expect(resolveSurvivalCodeRunRootMidiFromPitchClass(10)).toBe(34);
+    expect(resolveSurvivalCodeRunRootMidiFromPitchClass(11)).toBe(35);
+  });
+
+  it('resolveSurvivalCodeRunRootMidi は任意 MIDI の PC から SF2 向けルートを返す', () => {
+    expect(resolveSurvivalCodeRunRootMidi(47)).toBe(35);
+    expect(resolveSurvivalCodeRunRootMidi(46)).toBe(34);
+    expect(resolveSurvivalCodeRunRootMidi(45)).toBe(45);
   });
 });

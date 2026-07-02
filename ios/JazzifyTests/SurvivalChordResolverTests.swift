@@ -88,6 +88,14 @@ final class SurvivalChordResolverTests: XCTestCase {
         XCTAssertEqual(ab79.rootPitchClass, 8)
     }
 
+    func testFingerBassRootMidiLowersBbAndBOneOctave() {
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromPitchClass(9), 45)
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromPitchClass(10), 34)
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromPitchClass(11), 35)
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromOctave2StyleMidi(47), 35)
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromOctave2StyleMidi(46), 34)
+    }
+
     func testGrandStaffModeUsesMidiStaffFallbackWhenVoicingStavesMissing() {
         let entry = SurvivalChordProgressionEntry(
             name: "Cmaj7",

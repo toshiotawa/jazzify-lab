@@ -499,3 +499,23 @@ enum SurvivalChordResolver {
         return result
     }
 }
+
+/// FingerBass SF2 のルート音 MIDI 補正（Bb2/B2=46–47 は未収録のため 1 オクターブ下げる）。
+enum SurvivalFingerBassRootMidi {
+    static let sf2MaxRootMidi = 45
+    private static let baseMidi = 36
+
+    static func fromPitchClass(_ pitchClass: Int) -> Int {
+        let pc = ((pitchClass % 12) + 12) % 12
+        let atOctave2 = baseMidi + pc
+        if atOctave2 > sf2MaxRootMidi {
+            return atOctave2 - 12
+        }
+        return atOctave2
+    }
+
+    /// 呼び出し側の C2 起点 MIDI (36 + pitchClass) を SF2 向けに補正する。
+    static func fromOctave2StyleMidi(_ midi: Int) -> Int {
+        fromPitchClass(midi - baseMidi)
+    }
+}

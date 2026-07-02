@@ -38,7 +38,7 @@ import {
 } from '@/utils/questJingleAssets';
 import { getWindow } from '@/platform';
 import { requestWebPlaybackAudioSession } from '@/utils/iosbridge';
-import { Sf2RootNotePlayer } from '@/utils/sf2RootNotePlayer';
+import { Sf2RootNotePlayer, resolveSurvivalCodeRunRootMidi } from '@/utils/sf2RootNotePlayer';
 import { progressionBassRootName } from '@/utils/chord-utils';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
@@ -738,8 +738,9 @@ export class FantasySoundManager {
     const n = tonalNote(resolvedRoot + '2');
     if (n.midi == null) return;
 
+    const bassMidi = resolveSurvivalCodeRunRootMidi(n.midi);
     this._ensureContextsRunning();
-    if (this.codeRunRootPlayer?.play(n.midi, this.bassVolume)) {
+    if (this.codeRunRootPlayer?.play(bassMidi, this.bassVolume)) {
       return;
     }
 
@@ -750,8 +751,9 @@ export class FantasySoundManager {
   /** staff3 ベースを実音高(MIDI)で再生。codeRunRoot(SF2) 優先、未ロード時は GM ルート/三角波。 */
   private _playBassMidiNote(midiNote: number): void {
     if (!this.bassEnabled) return;
+    const bassMidi = resolveSurvivalCodeRunRootMidi(midiNote);
     this._ensureContextsRunning();
-    if (this.codeRunRootPlayer?.play(midiNote, this.bassVolume)) {
+    if (this.codeRunRootPlayer?.play(bassMidi, this.bassVolume)) {
       return;
     }
     this._preloadCodeRunRootSoundFont().catch(() => {});

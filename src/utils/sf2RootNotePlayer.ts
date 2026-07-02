@@ -420,11 +420,30 @@ const midiNotesFromPitchClasses = (baseOctaveMidi: number): readonly number[] =>
   Array.from({ length: 12 }, (_, index) => baseOctaveMidi + index)
 );
 
-/** サバイバル codeRunRootPlayer.load() のデフォルト（C2〜B2） */
+/** サバイバル codeRunRootPlayer.load() のデフォルト（C2 起点） */
 export const SURVIVAL_CODE_RUN_ROOT_BASE_MIDI = 36;
 
+/** FingerBass SF2 のルート音ゾーン上限（A2）。Bb2/B2(46–47) は未収録。 */
+export const FINGER_BASS_SF2_MAX_ROOT_MIDI = 45;
+
+/** C2 起点のピッチクラス (0=C) を FingerBass SF2 で鳴らせる MIDI に変換する。 */
+export const resolveSurvivalCodeRunRootMidiFromPitchClass = (pitchClass: number): number => {
+  const pc = ((pitchClass % 12) + 12) % 12;
+  const atOctave2 = SURVIVAL_CODE_RUN_ROOT_BASE_MIDI + pc;
+  if (atOctave2 > FINGER_BASS_SF2_MAX_ROOT_MIDI) {
+    return atOctave2 - 12;
+  }
+  return atOctave2;
+};
+
+/** 任意 MIDI のピッチクラスを FingerBass SF2 向けルート MIDI に変換する（Bb/B は 1 オクターブ下）。 */
+export const resolveSurvivalCodeRunRootMidi = (midiNote: number): number => {
+  const pc = ((midiNote % 12) + 12) % 12;
+  return resolveSurvivalCodeRunRootMidiFromPitchClass(pc);
+};
+
 export const survivalCodeRunRootMidiNotes = (): readonly number[] => (
-  midiNotesFromPitchClasses(SURVIVAL_CODE_RUN_ROOT_BASE_MIDI)
+  Array.from({ length: 12 }, (_, index) => resolveSurvivalCodeRunRootMidiFromPitchClass(index))
 );
 
 const makeAudioBuffer = (
