@@ -7,8 +7,8 @@ import os.log
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
 final class EarTrainingChordOSMDBattleController: ObservableObject {
-    /// ターゲット時刻を中心に前後これだけ秒（±300ms）。超過でミス確定。
-    private static let judgmentWindowSec: Double = 0.3
+    /// ターゲット時刻を中心に前後これだけ秒（±250ms）。超過でミス確定。
+    private static let judgmentWindowSec: Double = 0.25
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
     private static let osmdVoicingHintStrongSec: Double = 0.03

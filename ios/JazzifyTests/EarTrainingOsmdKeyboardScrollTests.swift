@@ -3,7 +3,7 @@ import XCTest
 
 /// WEB `CHORD_OSMD_JUDGMENT_*` と iOS `EarTrainingChordOSMDBattleController` の判定窓ロジック（純粋関数テスト用）。
 private enum OsmdJudgmentTiming {
-    static let windowSec = 0.3
+    static let windowSec = 0.25
     static let offsetSec = 0.04
 
     static func judgedCenter(targetTimeSec: Double) -> Double {
@@ -71,8 +71,8 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
         let targetTimeSec = 0.0
         XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.21, targetTimeSec: targetTimeSec))
         XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.22, targetTimeSec: targetTimeSec))
-        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.34, targetTimeSec: targetTimeSec))
-        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.35, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.29, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.30, targetTimeSec: targetTimeSec))
         XCTAssertEqual(OsmdJudgmentTiming.judgedCenter(targetTimeSec: 1.0), 1.04)
     }
 
@@ -82,8 +82,8 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
 
     func testActiveTargetPruneUsesOffsetPlusWindow() {
         let targetTimeSec = 1.0
-        XCTAssertFalse(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.34, targetTimeSec: targetTimeSec))
-        XCTAssertTrue(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.35, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.29, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.30, targetTimeSec: targetTimeSec))
     }
 
     private func makeOsmdStage(

@@ -34,8 +34,8 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
   return true;
 };
 
-/** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 300ms）。超過でミス確定。 */
-export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.3;
+/** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 250ms）。超過でミス確定。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.25;
 import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTimingAdjustment';
 
 /** @deprecated ユーザー timingAdjustment のデフォルト (+40ms) と同等。新規コードは timingAdjustment を使用 */
