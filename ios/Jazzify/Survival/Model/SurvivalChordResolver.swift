@@ -134,7 +134,7 @@ public struct SurvivalResolvedChord: Hashable, Sendable {
         let storedKey = entry.keyFifths.map { min(5, max(-6, $0)) }
         let keyForStaff: Int? = storedKey ?? (staffNames != nil ? 0 : nil)
         let id = "prog:\(index):\(entry.name):\(sortedMidi.map(String.init).joined(separator: ","))"
-        let symbolRoot = Self.progressionSymbolRootName(chordSymbol: entry.name)
+        let symbolRoot = SurvivalChordResolver.progressionSymbolRootName(chordSymbol: entry.name)
             ?? sortedMidi.first.map { letterPitchName(midi: $0) }
             ?? "C"
         return SurvivalResolvedChord(

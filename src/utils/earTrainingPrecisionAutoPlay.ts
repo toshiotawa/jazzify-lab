@@ -93,8 +93,10 @@ export class PrecisionAutoPlayScheduler {
         continue;
       }
       const state = states.get(active.noteId);
-      if (state && state.judgment === 'good' && !(state.hiddenFromLane ?? false)) {
-        state.hiddenFromLane = true;
+      if (state && state.judgment === 'good') {
+        if (!(state.hiddenFromLane ?? false)) {
+          state.hiddenFromLane = true;
+        }
         callbacks.onNoteOff(active.midi, active.noteId);
         changed = true;
       }
@@ -102,6 +104,14 @@ export class PrecisionAutoPlayScheduler {
     }
 
     return changed;
+  }
+
+  /** Auto Play OFF 時など: sustain 中のノーツへ note off を送る */
+  releaseAllActive(callbacks: PrecisionAutoPlayCallbacks): void {
+    for (const active of this.activeNotes) {
+      callbacks.onNoteOff(active.midi, active.noteId);
+    }
+    this.activeNotes = [];
   }
 }
 

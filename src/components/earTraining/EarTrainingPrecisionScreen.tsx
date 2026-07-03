@@ -241,6 +241,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     onNoteOn: () => undefined,
     onNoteOff: () => undefined,
   });
+  const autoPlayHoldCountRef = useRef<Map<number, number>>(new Map());
 
   useQuestCompleteJingleOnStageClear(
     gameState === 'paused' ? 'playingPhrase' : gameState as EarTrainingGameState,
@@ -570,6 +571,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     );
     autoPlaySchedulerRef.current.syncAfterSeek(clamped, runtimeStatesRef.current);
     activeGoodNotesByMidiRef.current.clear();
+    autoPlayHoldCountRef.current.clear();
     nextLyricIndexRef.current = 0;
     for (let i = 0; i < phraseLyricsRef.current.length; i += 1) {
       const lyric = phraseLyricsRef.current[i];
@@ -772,6 +774,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     setActiveLyricText('');
     nextLyricIndexRef.current = 0;
     activeGoodNotesByMidiRef.current.clear();
+    autoPlayHoldCountRef.current.clear();
     autoPlaySchedulerRef.current.reset();
     setGameState('countIn');
 
@@ -1085,21 +1088,43 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, []);
 
   const handlePrecisionAutoPlayChange = useCallback((enabled: boolean) => {
+    if (!enabled) {
+      autoPlaySchedulerRef.current.releaseAllActive(autoPlayCallbacksRef.current);
+      autoPlaySchedulerRef.current.reset();
+      for (const midi of autoPlayHoldCountRef.current.keys()) {
+        notesRendererRef.current?.highlightKey(midi, false);
+        void stopNote(midi);
+      }
+      autoPlayHoldCountRef.current.clear();
+    }
     setPrecisionAutoPlayEnabled(enabled);
     precisionAutoPlayEnabledRef.current = enabled;
     saveEarTrainingPrecisionAutoPlayEnabled(enabled);
   }, []);
 
   const handleAutoPlayNoteOn = useCallback((midi: number, noteId: string) => {
+    const holdCount = autoPlayHoldCountRef.current.get(midi) ?? 0;
+    autoPlayHoldCountRef.current.set(midi, holdCount + 1);
     activeGoodNotesByMidiRef.current.set(midi, noteId);
-    notesRendererRef.current?.highlightKey(midi, true);
-    void playNote(midi, 100);
+    if (holdCount === 0) {
+      notesRendererRef.current?.highlightKey(midi, true);
+      void playNote(midi, 100);
+    }
   }, []);
 
-  const handleAutoPlayNoteOff = useCallback((midi: number, _noteId: string) => {
-    activeGoodNotesByMidiRef.current.delete(midi);
-    notesRendererRef.current?.highlightKey(midi, false);
-    void stopNote(midi);
+  const handleAutoPlayNoteOff = useCallback((midi: number, noteId: string) => {
+    const holdCount = autoPlayHoldCountRef.current.get(midi) ?? 0;
+    if (holdCount <= 1) {
+      autoPlayHoldCountRef.current.delete(midi);
+      activeGoodNotesByMidiRef.current.delete(midi);
+      notesRendererRef.current?.highlightKey(midi, false);
+      void stopNote(midi);
+    } else {
+      autoPlayHoldCountRef.current.set(midi, holdCount - 1);
+      if (activeGoodNotesByMidiRef.current.get(midi) === noteId) {
+        activeGoodNotesByMidiRef.current.delete(midi);
+      }
+    }
   }, []);
 
   useEffect(() => {

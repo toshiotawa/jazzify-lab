@@ -66,4 +66,25 @@ final class EarTrainingPrecisionAutoPlayTests: XCTestCase {
         XCTAssertFalse(scheduler.tick(phraseTimeSec: 2, states: &states, callbacks: callbacks))
         XCTAssertTrue(events.isEmpty)
     }
+
+    func testSchedulerSendsNoteOffEvenWhenAlreadyHidden() {
+        let notes = [makeNote(id: "a", midi: 60, startSec: 1, durationSec: 0.5, isShortNote: false)]
+        var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        let scheduler = EarTrainingPrecisionAutoPlayScheduler()
+        scheduler.setNotes(notes)
+        scheduler.reset()
+
+        _ = scheduler.tick(phraseTimeSec: 1, states: &states, callbacks: EarTrainingPrecisionAutoPlayCallbacks(
+            onNoteOn: { _, _ in },
+            onNoteOff: { _, _ in }
+        ))
+        states["a"]?.hiddenFromLane = true
+
+        var events: [String] = []
+        _ = scheduler.tick(phraseTimeSec: 1.5, states: &states, callbacks: EarTrainingPrecisionAutoPlayCallbacks(
+            onNoteOn: { _, _ in },
+            onNoteOff: { midi, noteId in events.append("off:\(noteId):\(midi)") }
+        ))
+        XCTAssertEqual(events, ["off:a:60"])
+    }
 }

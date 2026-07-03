@@ -96,4 +96,51 @@ describe('PrecisionAutoPlayScheduler', () => {
     })).toBe(true);
     expect(resetStates.get('a')?.judgment).toBe('good');
   });
+
+  it('hiddenFromLane 済みでも note off を送る', () => {
+    const notes = [makeNote('a', 60, 1, 0.5, false)];
+    const states = createPrecisionRuntimeStates(notes);
+    const scheduler = new PrecisionAutoPlayScheduler();
+    scheduler.setNotes(notes);
+    scheduler.reset();
+
+    scheduler.tick(1, states, {
+      onNoteOn: () => undefined,
+      onNoteOff: () => undefined,
+    });
+    const state = states.get('a');
+    if (state) {
+      state.hiddenFromLane = true;
+    }
+
+    const events: string[] = [];
+    scheduler.tick(1.5, states, {
+      onNoteOn: () => undefined,
+      onNoteOff: (midi, noteId) => {
+        events.push(`off:${noteId}:${midi}`);
+      },
+    });
+    expect(events).toEqual(['off:a:60']);
+  });
+
+  it('releaseAllActive で sustain 中の note off を送る', () => {
+    const notes = [makeNote('a', 60, 1, 0.5, false)];
+    const states = createPrecisionRuntimeStates(notes);
+    const scheduler = new PrecisionAutoPlayScheduler();
+    scheduler.setNotes(notes);
+    scheduler.reset();
+    scheduler.tick(1, states, {
+      onNoteOn: () => undefined,
+      onNoteOff: () => undefined,
+    });
+
+    const events: string[] = [];
+    scheduler.releaseAllActive({
+      onNoteOn: () => undefined,
+      onNoteOff: (midi, noteId) => {
+        events.push(`off:${noteId}:${midi}`);
+      },
+    });
+    expect(events).toEqual(['off:a:60']);
+  });
 });

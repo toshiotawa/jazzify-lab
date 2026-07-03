@@ -71,6 +71,7 @@ struct EarTrainingSettingsSheet: View {
     @State private var speedDraft: Double = 100
     @State private var timingAdjustmentDraft: Double = Double(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsDefault)
     @State private var scrollModeDraft: EarTrainingOsmdScrollMode = .measureJump
+    @State private var autoPlayDraft = false
     @State private var masterVolume: Double = Self.loadDouble(key: Self.masterKey, fallback: 1.0)
     @State private var musicVolume: Double = Self.loadDouble(key: Self.musicKey, fallback: 0.7)
     @State private var pianoVolume: Double = Double(SurvivalGameAudio.shared.pianoVolume)
@@ -182,6 +183,9 @@ struct EarTrainingSettingsSheet: View {
             if let osmdScrollMode {
                 scrollModeDraft = osmdScrollMode.appliedMode
             }
+            if let precisionAutoPlay {
+                autoPlayDraft = precisionAutoPlay.enabled
+            }
         }
         .onChange(of: stageRunMode?.practiceMode) { newValue in
             if let newValue {
@@ -206,6 +210,11 @@ struct EarTrainingSettingsSheet: View {
         .onChange(of: osmdScrollMode?.appliedMode) { newValue in
             if let newValue {
                 scrollModeDraft = newValue
+            }
+        }
+        .onChange(of: precisionAutoPlay?.enabled) { newValue in
+            if let newValue {
+                autoPlayDraft = newValue
             }
         }
         .onDisappear {
@@ -418,8 +427,11 @@ struct EarTrainingSettingsSheet: View {
                 .foregroundStyle(.white.opacity(0.75))
 
             Toggle(isOn: Binding(
-                get: { config.enabled },
-                set: { config.onChange($0) }
+                get: { autoPlayDraft },
+                set: { newValue in
+                    autoPlayDraft = newValue
+                    config.onChange(newValue)
+                }
             )) {
                 Text("Auto Play")
                     .font(.subheadline)

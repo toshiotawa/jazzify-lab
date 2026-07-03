@@ -97,10 +97,10 @@ final class EarTrainingPrecisionAutoPlayScheduler {
         var removeIndices: [Int] = []
         for (index, active) in activeNotes.enumerated() {
             guard phraseTimeSec >= active.endSec - 0.001 else { continue }
-            if var state = states[active.noteId],
-               state.judgment == .good,
-               state.hiddenFromLane != true {
-                state.hiddenFromLane = true
+            if var state = states[active.noteId], state.judgment == .good {
+                if state.hiddenFromLane != true {
+                    state.hiddenFromLane = true
+                }
                 states[active.noteId] = state
                 callbacks.onNoteOff(active.midi, active.noteId)
                 changed = true
@@ -112,5 +112,12 @@ final class EarTrainingPrecisionAutoPlayScheduler {
         }
 
         return changed
+    }
+
+    func releaseAllActive(callbacks: EarTrainingPrecisionAutoPlayCallbacks) {
+        for active in activeNotes {
+            callbacks.onNoteOff(active.midi, active.noteId)
+        }
+        activeNotes.removeAll(keepingCapacity: true)
     }
 }

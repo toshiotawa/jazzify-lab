@@ -90,6 +90,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private weak var osmdCoordinator: EarTrainingOSMDScoreWebView.Coordinator?
     private var maxOsmdMeasure: Int = 1
     private let autoPlayScheduler = EarTrainingPrecisionAutoPlayScheduler()
+    private var autoPlayHoldCount: [Int: Int] = [:]
 
     init(
         stage: EarTrainingStageDetail,
@@ -187,6 +188,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         lastGoodRatePercent = nil
         pausedTimelineSec = nil
         activeGoodNotesByMidi.removeAll()
+        autoPlayHoldCount.removeAll()
         autoPlayScheduler.reset()
         phraseRunId += 1
         let runId = phraseRunId
@@ -493,8 +495,23 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 
     func applyPrecisionAutoPlayEnabled(_ enabled: Bool) {
         guard isAdmin else { return }
+        if !enabled {
+            releaseAllAutoPlayHeldNotes()
+            autoPlayScheduler.reset()
+        }
         precisionAutoPlayEnabled = enabled
         EarTrainingPrecisionAutoPlayPreferences.saveEnabled(enabled)
+    }
+
+    private func releaseAllAutoPlayHeldNotes() {
+        let callbacks = EarTrainingPrecisionAutoPlayCallbacks(
+            onNoteOn: { _, _ in },
+            onNoteOff: { [weak self] midi, noteId in
+                self?.applyAutoPlayNoteOff(midi: midi, noteId: noteId)
+            }
+        )
+        autoPlayScheduler.releaseAllActive(callbacks: callbacks)
+        autoPlayHoldCount.removeAll()
     }
 
     private func processAutoPlayIfNeeded(phraseTimeSec: Double) {
@@ -516,17 +533,27 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     }
 
     private func applyAutoPlayNoteOn(midi: Int, noteId: String) {
-        midiHeldKeys.insert(midi)
+        let holdCount = autoPlayHoldCount[midi] ?? 0
+        autoPlayHoldCount[midi] = holdCount + 1
         activeGoodNotesByMidi[midi] = noteId
-        SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 80)
+        if holdCount == 0 {
+            midiHeldKeys.insert(midi)
+            SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 80)
+        }
     }
 
     private func applyAutoPlayNoteOff(midi: Int, noteId: String) {
-        midiHeldKeys.remove(midi)
+        let holdCount = autoPlayHoldCount[midi] ?? 0
+        if holdCount <= 1 {
+            autoPlayHoldCount.removeValue(forKey: midi)
+            midiHeldKeys.remove(midi)
+            SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: midi)
+        } else {
+            autoPlayHoldCount[midi] = holdCount - 1
+        }
         if activeGoodNotesByMidi[midi] == noteId {
             activeGoodNotesByMidi.removeValue(forKey: midi)
         }
-        SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: midi)
     }
 
     private func finishPhraseIfNeeded() {
@@ -583,6 +610,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         )
         autoPlayScheduler.syncAfterSeek(phraseTimeSec: clamped, states: runtimeStates)
         activeGoodNotesByMidi.removeAll()
+        autoPlayHoldCount.removeAll()
         midiHeldKeys.removeAll()
         nextLyricIndex = 0
         activeLyricText = ""
