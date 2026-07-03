@@ -479,16 +479,24 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return raw.isEmpty || raw == "1"
     }
 
+    private static func mergeVerseOneLyricText(from lyric: ChordOsmdXmlElement) -> String {
+        var buffer = ""
+        for lch in lyric.children {
+            if case let .element(te) = lch, te.name == "text", let t = textContent(of: te) {
+                buffer += t
+            } else if case let .element(el) = lch, el.name == "el" {
+                buffer += "\n"
+            }
+        }
+        return buffer
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func verseOneLyricText(from note: ChordOsmdXmlElement) -> String? {
         for ch in note.children {
             guard case let .element(el) = ch, el.name == "lyric", lyricElementIsVerseOne(el) else { continue }
-            var buffer = ""
-            for lch in el.children {
-                if case let .element(te) = lch, te.name == "text", let t = textContent(of: te) {
-                    buffer += t
-                }
-            }
-            let merged = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+            let merged = mergeVerseOneLyricText(from: el)
             if !merged.isEmpty {
                 return merged
             }

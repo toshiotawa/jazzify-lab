@@ -533,19 +533,26 @@ const lyricElementIsVerseOne = (lyricEl: Element): boolean => {
   return raw === undefined || raw === '' || raw === '1';
 };
 
+/** lyric 直接子の `<text>` / `<el/>` から表示用歌詞文字列を組み立てる（改行を保持）。 */
+const mergeVerseOneLyricTextFromLyricElement = (lyricEl: Element): string => {
+  let buffer = '';
+  for (let lc = lyricEl.firstElementChild; lc; lc = lc.nextElementSibling) {
+    if (lc.localName === 'text') {
+      buffer += lc.textContent ?? '';
+    } else if (lc.localName === 'el') {
+      buffer += '\n';
+    }
+  }
+  return buffer.replace(/\r\n/g, '\n').trim();
+};
+
 /** ノート直下の `<lyric>` のうち 1 番のみ。`<text>` は lyric の直接子のみ連結（ネスト誤検出を避ける）。 */
 const verseOneLyricTextFromNote = (noteEl: Element): string | null => {
   for (let child = noteEl.firstElementChild; child; child = child.nextElementSibling) {
     if (child.localName !== 'lyric' || !lyricElementIsVerseOne(child)) {
       continue;
     }
-    let buffer = '';
-    for (let lc = child.firstElementChild; lc; lc = lc.nextElementSibling) {
-      if (lc.localName === 'text') {
-        buffer += (lc.textContent ?? '').trim();
-      }
-    }
-    const merged = buffer.trim();
+    const merged = mergeVerseOneLyricTextFromLyricElement(child);
     if (merged.length > 0) {
       return merged;
     }

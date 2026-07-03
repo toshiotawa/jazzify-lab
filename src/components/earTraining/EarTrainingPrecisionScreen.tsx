@@ -822,10 +822,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         xmlText,
         resolveEffectivePracticeBpm(),
         stage.beats_per_measure,
-      ).map(event => ({
-        ...event,
-        targetTimeSec: resolveCalibratedTargetTimeSec(event.targetTimeSec),
-      }));
+      );
 
       let prepared;
       try {
@@ -1094,7 +1091,32 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     timingAdjustmentMsRef.current = clamped;
     setTimingAdjustmentMs(clamped);
     saveEarTrainingOsmdTimingAdjustmentMs(clamped);
-  }, []);
+    if (precisionAutoPlayEnabledRef.current) {
+      autoPlaySchedulerRef.current.releaseAllActive(autoPlayCallbacksRef.current);
+      for (const midi of autoPlayHoldCountRef.current.keys()) {
+        notesRendererRef.current?.highlightKey(midi, false);
+        void stopNote(midi);
+      }
+      autoPlayHoldCountRef.current.clear();
+    }
+    rebuildPrecisionNotes(musicXmlText);
+    const phraseTimeSec = phraseTimeSecRef.current;
+    if (
+      gameStateRef.current === 'playingPhrase'
+      || gameStateRef.current === 'countIn'
+      || gameStateRef.current === 'paused'
+    ) {
+      resetRuntimeStatesForSeekTime(
+        Math.max(0, Math.min(phraseLoopEndSecRef.current, phraseTimeSec)),
+      );
+      syncRenderer(phraseTimeSec);
+    }
+  }, [
+    musicXmlText,
+    rebuildPrecisionNotes,
+    resetRuntimeStatesForSeekTime,
+    syncRenderer,
+  ]);
 
   const handlePrecisionAutoPlayChange = useCallback((enabled: boolean) => {
     if (!enabled) {
@@ -1353,7 +1375,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
         {activeLyricText ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+18%)] z-20 flex justify-center px-4">
-            <div className="max-w-[92%] rounded-xl bg-slate-900/45 px-4 py-2 text-center text-base leading-relaxed text-white backdrop-blur-[2px]">
+            <div className="max-w-[92%] whitespace-pre-line rounded-xl bg-slate-900/45 px-4 py-2 text-center text-base leading-relaxed text-white backdrop-blur-[2px]">
               {activeLyricText}
             </div>
           </div>

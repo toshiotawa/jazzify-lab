@@ -435,6 +435,17 @@ describe('collectChordOsmdMusicXmlLyrics', () => {
       { targetTimeSec: 0, measureNumber: 1, text: 'CE' },
     ]);
   });
+
+  it('`<text>` 内改行と `<el/>` を歌詞改行として保持する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><lyric number="1"><text xml:space="preserve">Line1
+Line2</text></lyric></note>
+<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><lyric><text>Top</text><el/><text>Bottom</text></lyric></note>`);
+    expect(collectChordOsmdMusicXmlLyrics(xml, 120, 4)).toEqual([
+      { targetTimeSec: 0, measureNumber: 1, text: 'Line1\nLine2' },
+      { targetTimeSec: 0.5, measureNumber: 1, text: 'Top\nBottom' },
+    ]);
+  });
 });
 
 describe('collectChordOsmdMusicXmlAttacks — tie handling', () => {
