@@ -63,6 +63,12 @@ declare module 'opensheetmusicdisplay' {
 
   export interface GraphicalStaffLine {
     Measures: GraphicalMeasure[];
+    PositionAndShape?: {
+      AbsolutePosition?: { x?: number; y?: number };
+      Size?: { width?: number; height?: number };
+      BorderMarginTop?: number;
+      BorderMarginBottom?: number;
+    };
   }
 
   export interface MusicSystem {

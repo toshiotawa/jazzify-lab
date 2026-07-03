@@ -74,6 +74,15 @@ export interface ChordOsmdLyricEvent {
   text: string;
 }
 
+/** 精密モード譜面歌詞レイヤー用：全 verse + 拍位置付き lyric イベント。 */
+export interface ChordOsmdScoreLyricEvent {
+  targetTimeSec: number;
+  measureNumber: number;
+  beatStartInMeasure: number;
+  verseNumber: number;
+  text: string;
+}
+
 export interface ChordOsmdNoteClusterContext {
   measureNumber: number;
   beatStartInMeasure: number;
@@ -561,8 +570,18 @@ const lyricElementIsVerseOne = (lyricEl: Element): boolean => {
   return raw === undefined || raw === '' || raw === '1';
 };
 
+/** lyric の `number` 属性を verse 番号に（未指定・空は 1）。 */
+const parseVerseNumberFromLyricElement = (lyricEl: Element): number => {
+  const raw = lyricEl.getAttribute('number')?.trim();
+  if (raw === undefined || raw === '') {
+    return 1;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+};
+
 /** lyric 直接子の `<text>` / `<el/>` から表示用歌詞文字列を組み立てる（改行を保持）。 */
-const mergeVerseOneLyricTextFromLyricElement = (lyricEl: Element): string => {
+const mergeLyricTextFromLyricElement = (lyricEl: Element): string => {
   let buffer = '';
   for (let lc = lyricEl.firstElementChild; lc; lc = lc.nextElementSibling) {
     if (lc.localName === 'text') {
@@ -574,29 +593,59 @@ const mergeVerseOneLyricTextFromLyricElement = (lyricEl: Element): string => {
   return buffer.replace(/\r\n/g, '\n').trim();
 };
 
-/** ノート直下の `<lyric>` のうち 1 番のみ。`<text>` は lyric の直接子のみ連結（ネスト誤検出を避ける）。 */
-const verseOneLyricTextFromNote = (noteEl: Element): string | null => {
+/** 後方互換エイリアス */
+const mergeVerseOneLyricTextFromLyricElement = mergeLyricTextFromLyricElement;
+
+/** ノート直下の全 `<lyric>` を verse 番号付きで収集。 */
+const allVersesLyricTextsFromNote = (
+  noteEl: Element,
+): Array<{ verseNumber: number; text: string }> => {
+  const results: Array<{ verseNumber: number; text: string }> = [];
   for (let child = noteEl.firstElementChild; child; child = child.nextElementSibling) {
-    if (child.localName !== 'lyric' || !lyricElementIsVerseOne(child)) {
+    if (child.localName !== 'lyric') {
       continue;
     }
-    const merged = mergeVerseOneLyricTextFromLyricElement(child);
+    const merged = mergeLyricTextFromLyricElement(child);
     if (merged.length > 0) {
-      return merged;
+      results.push({
+        verseNumber: parseVerseNumberFromLyricElement(child),
+        text: merged,
+      });
     }
   }
-  return null;
+  return results;
 };
 
-const verseOneLyricTextFromCluster = (clusterNotes: readonly Element[]): string | null => {
+const allVersesLyricTextsFromCluster = (
+  clusterNotes: readonly Element[],
+): Array<{ verseNumber: number; text: string }> => {
+  const byVerse = new Map<number, string>();
   for (const noteEl of clusterNotes) {
-    const t = verseOneLyricTextFromNote(noteEl);
-    if (t !== null) {
-      return t;
+    for (const entry of allVersesLyricTextsFromNote(noteEl)) {
+      if (!byVerse.has(entry.verseNumber)) {
+        byVerse.set(entry.verseNumber, entry.text);
+      }
     }
   }
-  return null;
+  return Array.from(byVerse.entries()).map(([verseNumber, text]) => ({ verseNumber, text }));
 };
+
+/**
+ * MusicXML の 1 番歌詞のみ、音符クラスタ先頭から次の変化まで同じ文面としてイベント化。
+ */
+export const collectChordOsmdMusicXmlLyrics = (
+  musicXmlText: string,
+  bpm: number,
+  beatsPerMeasure: number,
+): ChordOsmdLyricEvent[] => (
+  collectChordOsmdScoreLyricEvents(musicXmlText, bpm, beatsPerMeasure)
+    .filter((event) => event.verseNumber === 1)
+    .map(({ targetTimeSec, measureNumber, text }) => ({
+      targetTimeSec,
+      measureNumber,
+      text,
+    }))
+);
 
 const chordOsmdLyricTargetTimeSec = (
   measureNumber: number,
@@ -789,32 +838,94 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
   return attacks;
 };
 
+const verseOneLyricTextFromNote = (noteEl: Element): string | null => {
+  for (let child = noteEl.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.localName !== 'lyric' || !lyricElementIsVerseOne(child)) {
+      continue;
+    }
+    const merged = mergeVerseOneLyricTextFromLyricElement(child);
+    if (merged.length > 0) {
+      return merged;
+    }
+  }
+  return null;
+};
+
+const verseOneLyricTextFromCluster = (clusterNotes: readonly Element[]): string | null => {
+  for (const noteEl of clusterNotes) {
+    const t = verseOneLyricTextFromNote(noteEl);
+    if (t !== null) {
+      return t;
+    }
+  }
+  return null;
+};
+
 /**
- * MusicXML の 1 番歌詞のみ、音符クラスタ先頭から次の変化まで同じ文面としてイベント化。
+ * MusicXML の全 verse 歌詞を音符クラスタ単位でイベント化（精密モード譜面レイヤー用）。
  */
-export const collectChordOsmdMusicXmlLyrics = (
+export const collectChordOsmdScoreLyricEvents = (
   musicXmlText: string,
   bpm: number,
   beatsPerMeasure: number,
-): ChordOsmdLyricEvent[] => {
-  const events: ChordOsmdLyricEvent[] = [];
-  let lastText: string | null = null;
+): ChordOsmdScoreLyricEvent[] => {
+  const events: ChordOsmdScoreLyricEvent[] = [];
+  const lastTextByVerse = new Map<number, string | null>();
   forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes }) => {
-    const text = verseOneLyricTextFromCluster(clusterNotes);
-    if (text === null) {
-      return;
+    const verseTexts = allVersesLyricTextsFromCluster(clusterNotes);
+    for (const { verseNumber, text } of verseTexts) {
+      const lastText = lastTextByVerse.get(verseNumber) ?? null;
+      if (text === lastText) {
+        continue;
+      }
+      lastTextByVerse.set(verseNumber, text);
+      events.push({
+        targetTimeSec: chordOsmdLyricTargetTimeSec(measureNumber, beatStartInMeasure, bpm, beatsPerMeasure),
+        measureNumber,
+        beatStartInMeasure,
+        verseNumber,
+        text,
+      });
     }
-    if (text === lastText) {
-      return;
+  });
+  events.sort((a, b) => {
+    if (a.targetTimeSec !== b.targetTimeSec) {
+      return a.targetTimeSec - b.targetTimeSec;
     }
-    lastText = text;
-    events.push({
-      targetTimeSec: chordOsmdLyricTargetTimeSec(measureNumber, beatStartInMeasure, bpm, beatsPerMeasure),
-      measureNumber,
-      text,
-    });
+    if (a.measureNumber !== b.measureNumber) {
+      return a.measureNumber - b.measureNumber;
+    }
+    if (a.beatStartInMeasure !== b.beatStartInMeasure) {
+      return a.beatStartInMeasure - b.beatStartInMeasure;
+    }
+    return a.verseNumber - b.verseNumber;
   });
   return events;
+};
+export const resolveActiveScoreLyricTextAtTime = (
+  events: readonly ChordOsmdScoreLyricEvent[],
+  phraseTimeSec: number,
+  calibrateTargetTimeSec: (targetTimeSec: number) => number,
+): string => {
+  let best: ChordOsmdScoreLyricEvent | null = null;
+  let bestTime = Number.NEGATIVE_INFINITY;
+  for (const lyric of events) {
+    const time = calibrateTargetTimeSec(lyric.targetTimeSec);
+    if (time > phraseTimeSec + 1e-9) {
+      break;
+    }
+    if (
+      time > bestTime + 1e-9
+      || (
+        Math.abs(time - bestTime) <= 1e-9
+        && (best === null || lyric.verseNumber < best.verseNumber)
+      )
+    ) {
+      best = lyric;
+      bestTime = time;
+    }
+  }
+  return best?.text ?? '';
 };
 
 const mergeMidisFromXmlAttacks = (

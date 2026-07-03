@@ -54,10 +54,11 @@ import {
   computeOsmdActiveMeasureFromTimeline,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
-  collectChordOsmdMusicXmlLyrics,
+  collectChordOsmdScoreLyricEvents,
   normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
-  type ChordOsmdLyricEvent,
+  resolveActiveScoreLyricTextAtTime,
+  type ChordOsmdScoreLyricEvent,
 } from '@/utils/earTrainingChordOsmd';
 import { ensureMusicXmlDeclaration } from '@/utils/musicXmlMapper';
 import {
@@ -189,6 +190,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [lastRank, setLastRank] = useState<PrecisionLessonRank | null>(null);
   const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
   const [activeLyricText, setActiveLyricText] = useState('');
+  const [phraseScoreLyrics, setPhraseScoreLyrics] = useState<readonly ChordOsmdScoreLyricEvent[]>([]);
   const [seekSliderSec, setSeekSliderSec] = useState(0);
   const [seekPreviewSec, setSeekPreviewSec] = useState(0);
   const [isSeekDragging, setIsSeekDragging] = useState(false);
@@ -215,7 +217,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const phraseRunIdRef = useRef(0);
   const notesRef = useRef<PrecisionNote[]>([]);
   const runtimeStatesRef = useRef<Map<string, PrecisionNoteRuntimeState>>(new Map());
-  const phraseLyricsRef = useRef<readonly ChordOsmdLyricEvent[]>([]);
+  const phraseScoreLyricsRef = useRef<readonly ChordOsmdScoreLyricEvent[]>([]);
   const nextLyricIndexRef = useRef(0);
   const phraseLoopDurationSecRef = useRef(0);
   const phraseLoopEndSecRef = useRef(0);
@@ -236,6 +238,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const isSeekDraggingRef = useRef(false);
   const wasPlayingBeforeSeekRef = useRef(false);
   const activeMeasureNumberRef = useRef(1);
+  const hasSyncedPhraseStartPlayheadRef = useRef(false);
   const practiceTransposeEnabled = stage.practice_transpose === true;
   const precisionAutoPlayEnabledRef = useRef(precisionAutoPlayEnabled);
   const autoPlaySchedulerRef = useRef(new PrecisionAutoPlayScheduler());
@@ -590,11 +593,15 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     activeGoodNotesByMidiRef.current.clear();
     autoPlayHoldCountRef.current.clear();
     nextLyricIndexRef.current = 0;
-    for (let i = 0; i < phraseLyricsRef.current.length; i += 1) {
-      const lyric = phraseLyricsRef.current[i];
+    setActiveLyricText(resolveActiveScoreLyricTextAtTime(
+      phraseScoreLyricsRef.current,
+      clamped,
+      resolveCalibratedTargetTimeSec,
+    ));
+    for (let i = 0; i < phraseScoreLyricsRef.current.length; i += 1) {
+      const lyric = phraseScoreLyricsRef.current[i];
       if (lyric && resolveCalibratedTargetTimeSec(lyric.targetTimeSec) <= clamped) {
         nextLyricIndexRef.current = i + 1;
-        setActiveLyricText(lyric.text);
       }
     }
   }, [resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
@@ -647,6 +654,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     player.stop();
     updateSeekSliderUi(clamped, true);
     syncRenderer(clamped);
+    hasSyncedPhraseStartPlayheadRef.current = clamped >= 0;
     syncPlayheadForTimeline(clamped, resumePlayback);
 
     if (resumePlayback) {
@@ -695,6 +703,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return;
     }
     if (phraseTimeSec < 0) {
+      hasSyncedPhraseStartPlayheadRef.current = false;
+      syncPlayheadForTimeline(phraseTimeSec, true);
+    } else if (!hasSyncedPhraseStartPlayheadRef.current) {
+      hasSyncedPhraseStartPlayheadRef.current = true;
       syncPlayheadForTimeline(phraseTimeSec, true);
     } else {
       const nextMeasure = computeOsmdActiveMeasureFromTimeline(
@@ -732,16 +744,35 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       }
     }
     while (
-      nextLyricIndexRef.current < phraseLyricsRef.current.length
+      nextLyricIndexRef.current < phraseScoreLyricsRef.current.length
       && phraseTimeSec + 1e-9 >= resolveCalibratedTargetTimeSec(
-        phraseLyricsRef.current[nextLyricIndexRef.current]?.targetTimeSec ?? 0,
+        phraseScoreLyricsRef.current[nextLyricIndexRef.current]?.targetTimeSec ?? 0,
       )
     ) {
-      const lyric = phraseLyricsRef.current[nextLyricIndexRef.current];
-      if (lyric) {
-        setActiveLyricText(lyric.text);
+      const batchStartIndex = nextLyricIndexRef.current;
+      const batchTime = resolveCalibratedTargetTimeSec(
+        phraseScoreLyricsRef.current[batchStartIndex]?.targetTimeSec ?? 0,
+      );
+      let pickedText = '';
+      let pickedVerse = Number.POSITIVE_INFINITY;
+      while (
+        nextLyricIndexRef.current < phraseScoreLyricsRef.current.length
+        && Math.abs(
+          resolveCalibratedTargetTimeSec(
+            phraseScoreLyricsRef.current[nextLyricIndexRef.current]?.targetTimeSec ?? 0,
+          ) - batchTime,
+        ) < 1e-9
+      ) {
+        const lyric = phraseScoreLyricsRef.current[nextLyricIndexRef.current];
+        if (lyric && lyric.verseNumber < pickedVerse) {
+          pickedVerse = lyric.verseNumber;
+          pickedText = lyric.text;
+        }
+        nextLyricIndexRef.current += 1;
       }
-      nextLyricIndexRef.current += 1;
+      if (pickedText.length > 0) {
+        setActiveLyricText(pickedText);
+      }
     }
     updateSeekSliderUi(phraseTimeSec);
     syncRendererTime(phraseTimeSec);
@@ -786,12 +817,15 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     const runId = phraseRunIdRef.current + 1;
     phraseRunIdRef.current = runId;
     setPhraseRunId(runId);
+    hasSyncedPhraseStartPlayheadRef.current = false;
     phraseEndingRef.current = false;
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     setLastRank(null);
     setLastGoodRate(null);
     setActiveLyricText('');
+    setPhraseScoreLyrics([]);
+    phraseScoreLyricsRef.current = [];
     nextLyricIndexRef.current = 0;
     activeGoodNotesByMidiRef.current.clear();
     autoPlayHoldCountRef.current.clear();
@@ -829,11 +863,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         setGameState('idle');
         return;
       }
-      phraseLyricsRef.current = collectChordOsmdMusicXmlLyrics(
+      const scoreLyrics = collectChordOsmdScoreLyricEvents(
         xmlText,
         resolveEffectivePracticeBpm(),
         stage.beats_per_measure,
       );
+      phraseScoreLyricsRef.current = scoreLyrics;
+      setPhraseScoreLyrics(scoreLyrics);
 
       let prepared;
       try {
@@ -1192,6 +1228,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
     if (gameStateRef.current === 'paused') {
       const offset = seekSliderSecRef.current;
+      hasSyncedPhraseStartPlayheadRef.current = offset >= 0;
       syncPlayheadForTimeline(offset, true);
       player.playPrepared({
         prepared: preparedRef.current,
@@ -1353,6 +1390,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             useImperativePlayhead
             fillParent
             manualScrollEnabled={practiceMode && gameState === 'paused'}
+            enableScoreLyricLayer
+            scoreLyricEvents={phraseScoreLyrics}
+            beatsPerMeasure={stage.beats_per_measure}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">

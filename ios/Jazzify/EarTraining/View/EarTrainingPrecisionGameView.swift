@@ -308,7 +308,9 @@ private struct EarTrainingPrecisionGameContent: View {
                     scrollMode: controller.osmdScrollMode,
                     countInDurationSec: controller.countInDurationSec,
                     maxOsmdMeasure: controller.maxOsmdMeasureForScroll,
-                    manualScrollEnabled: controller.practiceMode && controller.gameState == .paused
+                    manualScrollEnabled: controller.practiceMode && controller.gameState == .paused,
+                    scoreLyricEvents: controller.phraseScoreLyricsForOsmd,
+                    lyricsBeatsPerMeasure: controller.stage.beatsPerMeasure
                 )
             } else {
                 Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))

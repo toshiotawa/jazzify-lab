@@ -15,6 +15,15 @@ struct ChordOsmdLyricEvent: Equatable, Sendable {
     let text: String
 }
 
+/// 精密モード譜面歌詞レイヤー用（Web `ChordOsmdScoreLyricEvent` と同等）。
+struct ChordOsmdScoreLyricEvent: Equatable, Sendable, Codable {
+    let targetTimeSec: Double
+    let measureNumber: Int
+    let beatStartInMeasure: Double
+    let verseNumber: Int
+    let text: String
+}
+
 /* Non-nested DOM: XMLParser 用。`XMLDocument` 系は iOS Swift から参照できないため。 */
 
 final class ChordOsmdXmlElement {
@@ -479,7 +488,18 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return raw.isEmpty || raw == "1"
     }
 
-    private static func mergeVerseOneLyricText(from lyric: ChordOsmdXmlElement) -> String {
+    private static func parseVerseNumber(from lyric: ChordOsmdXmlElement) -> Int {
+        let raw = attribute(named: "number", on: lyric)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if raw.isEmpty {
+            return 1
+        }
+        guard let parsed = Int(raw), parsed > 0 else {
+            return 1
+        }
+        return parsed
+    }
+
+    private static func mergeLyricText(from lyric: ChordOsmdXmlElement) -> String {
         var buffer = ""
         for lch in lyric.children {
             if case let .element(te) = lch, te.name == "text", let t = textContent(of: te) {
@@ -491,6 +511,38 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return buffer
             .replacingOccurrences(of: "\r\n", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 後方互換エイリアス
+    private static func mergeVerseOneLyricText(from lyric: ChordOsmdXmlElement) -> String {
+        mergeLyricText(from: lyric)
+    }
+
+    private static func allVersesLyricTexts(from note: ChordOsmdXmlElement) -> [(verseNumber: Int, text: String)] {
+        var results: [(verseNumber: Int, text: String)] = []
+        for ch in note.children {
+            guard case let .element(el) = ch, el.name == "lyric" else { continue }
+            let merged = mergeLyricText(from: el)
+            if !merged.isEmpty {
+                results.append((parseVerseNumber(from: el), merged))
+            }
+        }
+        return results
+    }
+
+    private static func allVersesLyricTextsFromCluster(notes: [ChordOsmdXmlElement]) -> [(verseNumber: Int, text: String)] {
+        var byVerse: [Int: String] = [:]
+        for note in notes {
+            for entry in allVersesLyricTexts(from: note) {
+                if byVerse[entry.verseNumber] == nil {
+                    byVerse[entry.verseNumber] = entry.text
+                }
+            }
+        }
+        return byVerse.keys.sorted().compactMap { verse in
+            guard let text = byVerse[verse] else { return nil }
+            return (verse, text)
+        }
     }
 
     private static func verseOneLyricText(from note: ChordOsmdXmlElement) -> String? {
@@ -526,16 +578,16 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
     }
 
-    /// Web `collectChordOsmdMusicXmlLyrics` と同等。
-    static func collectChordOsmdMusicXmlLyrics(
+    /// Web `collectChordOsmdScoreLyricEvents` と同等。
+    static func collectChordOsmdScoreLyricEvents(
         _ xmlText: String,
         bpm: Double,
         beatsPerMeasure: Int
-    ) -> [ChordOsmdLyricEvent] {
+    ) -> [ChordOsmdScoreLyricEvent] {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
         let measures = measuresInPartsFirst(from: root)
-        var events: [ChordOsmdLyricEvent] = []
-        var lastText: String?
+        var events: [ChordOsmdScoreLyricEvent] = []
+        var lastTextByVerse: [Int: String] = [:]
         var timing = ScoreTimingStateForAttacks(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
 
         for (idx, measure) in measures.enumerated() {
@@ -611,10 +663,13 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                     let quartersFromMeasureStart = currentTime / Double(divisions)
                     let beatStartInMeasure = quartersFromMeasureStart + 1
 
-                    if let text = verseOneLyricFromCluster(notes: clusterNotes), text != lastText {
-                        lastText = text
+                    for entry in allVersesLyricTextsFromCluster(notes: clusterNotes) {
+                        if lastTextByVerse[entry.verseNumber] == entry.text {
+                            continue
+                        }
+                        lastTextByVerse[entry.verseNumber] = entry.text
                         events.append(
-                            ChordOsmdLyricEvent(
+                            ChordOsmdScoreLyricEvent(
                                 targetTimeSec: chordOsmdLyricTargetTimeSec(
                                     measureNumber: measureNumber,
                                     beatStartInMeasure: beatStartInMeasure,
@@ -622,7 +677,9 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                                     beatsPerMeasure: beatsPerMeasure
                                 ),
                                 measureNumber: measureNumber,
-                                text: text
+                                beatStartInMeasure: beatStartInMeasure,
+                                verseNumber: entry.verseNumber,
+                                text: entry.text
                             )
                         )
                     }
@@ -635,7 +692,54 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             }
         }
 
+        events.sort {
+            if $0.targetTimeSec != $1.targetTimeSec { return $0.targetTimeSec < $1.targetTimeSec }
+            if $0.measureNumber != $1.measureNumber { return $0.measureNumber < $1.measureNumber }
+            if $0.beatStartInMeasure != $1.beatStartInMeasure {
+                return $0.beatStartInMeasure < $1.beatStartInMeasure
+            }
+            return $0.verseNumber < $1.verseNumber
+        }
         return events
+    }
+
+    /// Web `resolveActiveScoreLyricTextAtTime` と同等。
+    static func resolveActiveScoreLyricTextAtTime(
+        events: [ChordOsmdScoreLyricEvent],
+        phraseTimeSec: Double,
+        calibrateTargetTimeSec: (Double) -> Double
+    ) -> String {
+        var best: ChordOsmdScoreLyricEvent?
+        var bestTime = -Double.infinity
+        for lyric in events {
+            let time = calibrateTargetTimeSec(lyric.targetTimeSec)
+            if time > phraseTimeSec + 1e-9 {
+                break
+            }
+            if time > bestTime + 1e-9
+                || (abs(time - bestTime) <= 1e-9 && (best == nil || lyric.verseNumber < best!.verseNumber)) {
+                best = lyric
+                bestTime = time
+            }
+        }
+        return best?.text ?? ""
+    }
+
+    /// Web `collectChordOsmdMusicXmlLyrics` と同等。
+    static func collectChordOsmdMusicXmlLyrics(
+        _ xmlText: String,
+        bpm: Double,
+        beatsPerMeasure: Int
+    ) -> [ChordOsmdLyricEvent] {
+        collectChordOsmdScoreLyricEvents(xmlText, bpm: bpm, beatsPerMeasure: beatsPerMeasure)
+            .filter { $0.verseNumber == 1 }
+            .map {
+                ChordOsmdLyricEvent(
+                    targetTimeSec: $0.targetTimeSec,
+                    measureNumber: $0.measureNumber,
+                    text: $0.text
+                )
+            }
     }
 
     /// Web `collectChordOsmdMusicXmlAttacks` と同等（`<chord/>`・`<backup>` を考慮）。

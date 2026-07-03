@@ -10,6 +10,7 @@ import {
   chordOsmdTargetIsComplete,
   collectChordOsmdMusicXmlAttacks,
   collectChordOsmdMusicXmlLyrics,
+  collectChordOsmdScoreLyricEvents,
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
   earTrainingOsmdUsesScoreTargets,
@@ -446,6 +447,38 @@ Line2</text></lyric></note>
     expect(collectChordOsmdMusicXmlLyrics(xml, 120, 4)).toEqual([
       { targetTimeSec: 0, measureNumber: 1, text: 'Line1\nLine2' },
       { targetTimeSec: 0.5, measureNumber: 1, text: 'Top\nBottom' },
+    ]);
+  });
+});
+
+describe('collectChordOsmdScoreLyricEvents', () => {
+  it('全 verse を beatStartInMeasure 付きで収集する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><lyric><text>v1</text></lyric></note>
+<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><lyric number="2"><text>v2</text></lyric></note>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><lyric number="5"><text>overlay</text></lyric></note>`);
+    expect(collectChordOsmdScoreLyricEvents(xml, 120, 4)).toEqual([
+      {
+        targetTimeSec: 0,
+        measureNumber: 1,
+        beatStartInMeasure: 1,
+        verseNumber: 1,
+        text: 'v1',
+      },
+      {
+        targetTimeSec: 0.5,
+        measureNumber: 1,
+        beatStartInMeasure: 2,
+        verseNumber: 2,
+        text: 'v2',
+      },
+      {
+        targetTimeSec: 1,
+        measureNumber: 1,
+        beatStartInMeasure: 3,
+        verseNumber: 5,
+        text: 'overlay',
+      },
     ]);
   });
 });

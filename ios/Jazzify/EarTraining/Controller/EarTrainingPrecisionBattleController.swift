@@ -15,6 +15,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published private(set) var precisionNotes: [EarTrainingPrecisionNote] = []
     @Published private(set) var keyboardRange = EarTrainingPrecisionKeyboardRange(minMidi: 60, maxMidi: 83)
     private(set) var runtimeStates: [String: EarTrainingPrecisionJudge.NoteRuntimeState] = [:]
+    @Published private(set) var phraseScoreLyricsForOsmd: [ChordOsmdScoreLyricEvent] = []
     @Published private(set) var activeLyricText: String = ""
     @Published private(set) var seekSliderSec: Double = 0
     @Published private(set) var phraseDurationSec: Double = 1
@@ -68,7 +69,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private let supabase = SupabaseService.shared
 
     private var phraseIndex = 0
-    private var phraseLyricEvents: [ChordOsmdLyricEvent] = []
+    private var phraseScoreLyricEvents: [ChordOsmdScoreLyricEvent] = []
     private var nextLyricIndex = 0
     private var baseMusicXmlText: String?
     private var baseMidiData: Data?
@@ -91,6 +92,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private var maxOsmdMeasure: Int = 1
     private let autoPlayScheduler = EarTrainingPrecisionAutoPlayScheduler()
     private var autoPlayHoldCount: [Int: Int] = [:]
+    private var hasSyncedPhraseStartPlayhead = false
 
     init(
         stage: EarTrainingStageDetail,
@@ -190,6 +192,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         activeGoodNotesByMidi.removeAll()
         autoPlayHoldCount.removeAll()
         autoPlayScheduler.reset()
+        hasSyncedPhraseStartPlayhead = false
         phraseRunId += 1
         let runId = phraseRunId
 
@@ -220,13 +223,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         applyDisplayMusicXml()
         await loadMidi(for: phrase, runId: runId)
 
-        phraseLyricEvents = baseMusicXmlText.map {
-            EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
+        phraseScoreLyricEvents = baseMusicXmlText.map {
+            EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdScoreLyricEvents(
                 $0,
                 bpm: Double(stage.bpm),
                 beatsPerMeasure: stage.beatsPerMeasure
             )
         } ?? []
+        phraseScoreLyricsForOsmd = phraseScoreLyricEvents
         nextLyricIndex = 0
         activeLyricText = ""
 
@@ -351,6 +355,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             _ = audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: paused) { [weak self] in
                 self?.gameState = .playingPhrase
             }
+            hasSyncedPhraseStartPlayhead = true
             syncPlayheadForTimeline(paused, animating: true)
             pausedTimelineSec = nil
             updateSeekSliderUi(phraseTimeSec: paused, force: true)
@@ -375,7 +380,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 
         let previousMeasure = activeMeasureNumber
         updateActiveMeasure(for: max(0, phraseTime))
-        if osmdScrollMode == .continuousFollow || gameState == .countIn {
+        if phraseTime < 0 {
+            hasSyncedPhraseStartPlayhead = false
+            syncPlayheadForTimeline(phraseTime, animating: true)
+        } else if osmdScrollMode == .continuousFollow {
+            syncPlayheadForTimeline(phraseTime, animating: true)
+        } else if !hasSyncedPhraseStartPlayhead {
+            hasSyncedPhraseStartPlayhead = true
             syncPlayheadForTimeline(phraseTime, animating: true)
         } else if activeMeasureNumber != previousMeasure {
             syncPlayheadForTimeline(phraseTime, animating: true)
@@ -409,13 +420,30 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     }
 
     private func applyLyricsIfNeeded(phraseTimeSec: Double) {
-        while nextLyricIndex < phraseLyricEvents.count {
-            let lyric = phraseLyricEvents[nextLyricIndex]
-            if resolveCalibratedTargetTimeSec(lyric.targetTimeSec) > phraseTimeSec {
+        while nextLyricIndex < phraseScoreLyricEvents.count {
+            let batchTime = resolveCalibratedTargetTimeSec(
+                phraseScoreLyricEvents[nextLyricIndex].targetTimeSec
+            )
+            if batchTime > phraseTimeSec {
                 break
             }
-            activeLyricText = lyric.text
-            nextLyricIndex += 1
+            var pickedText = ""
+            var pickedVerse = Int.max
+            while nextLyricIndex < phraseScoreLyricEvents.count {
+                let lyric = phraseScoreLyricEvents[nextLyricIndex]
+                let time = resolveCalibratedTargetTimeSec(lyric.targetTimeSec)
+                if abs(time - batchTime) > 1e-9 {
+                    break
+                }
+                if lyric.verseNumber < pickedVerse {
+                    pickedVerse = lyric.verseNumber
+                    pickedText = lyric.text
+                }
+                nextLyricIndex += 1
+            }
+            if !pickedText.isEmpty {
+                activeLyricText = pickedText
+            }
         }
     }
 
@@ -617,11 +645,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         autoPlayHoldCount.removeAll()
         midiHeldKeys.removeAll()
         nextLyricIndex = 0
-        activeLyricText = ""
-        for (index, lyric) in phraseLyricEvents.enumerated() {
+        activeLyricText = EarTrainingChordOsmdMusicXmlNormalizer.resolveActiveScoreLyricTextAtTime(
+            events: phraseScoreLyricEvents,
+            phraseTimeSec: clamped,
+            calibrateTargetTimeSec: resolveCalibratedTargetTimeSec
+        )
+        for (index, lyric) in phraseScoreLyricEvents.enumerated() {
             if resolveCalibratedTargetTimeSec(lyric.targetTimeSec) <= clamped {
                 nextLyricIndex = index + 1
-                activeLyricText = lyric.text
             }
         }
     }
@@ -656,6 +687,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         resetRuntimeStatesForSeekTime(clamped)
         pausedTimelineSec = clamped
         updateSeekSliderUi(phraseTimeSec: clamped, force: true)
+        hasSyncedPhraseStartPlayhead = clamped >= 0
         syncPlayheadForTimeline(clamped, animating: resumePlayback)
 
         if resumePlayback {
@@ -695,6 +727,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         } else if gameState == .paused {
             guard let url = preparedPhraseURL else { return }
             let offset = pausedTimelineSec ?? seekSliderSec
+            hasSyncedPhraseStartPlayhead = offset >= 0
             syncPlayheadForTimeline(offset, animating: true)
             audio.stopPhrase()
             gameState = .playingPhrase
