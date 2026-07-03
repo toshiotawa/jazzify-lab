@@ -2,7 +2,9 @@ import {
   OSMD_BATTLE_PLAYHEAD_PX,
   clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
+  computeOsmdCountInPlayheadProgress,
   computeOsmdMeasureJumpScrollOffset,
+  computeOsmdMeasurePlayheadProgress,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 
 const bounds = {
@@ -245,5 +247,37 @@ describe('computeOsmdActiveMeasureHighlight', () => {
       scrollOffsetPx: 0,
     });
     expect(result.visible).toBe(false);
+  });
+});
+
+describe('computeOsmdCountInPlayheadProgress', () => {
+  it('負タイムラインを 0..1 にマップする', () => {
+    expect(computeOsmdCountInPlayheadProgress(-4, 4)).toBe(0);
+    expect(computeOsmdCountInPlayheadProgress(-2, 4)).toBe(0.5);
+    expect(computeOsmdCountInPlayheadProgress(0, 4)).toBe(0);
+  });
+
+  it('countInDurationSec が 0 のとき常に 0', () => {
+    expect(computeOsmdCountInPlayheadProgress(-1, 0)).toBe(0);
+  });
+});
+
+describe('computeOsmdMeasurePlayheadProgress', () => {
+  it('カウントイン中は countIn 進捗を返す', () => {
+    expect(computeOsmdMeasurePlayheadProgress({
+      phraseTimelineSec: -2,
+      activeMeasureNumber: 1,
+      measureDurationSec: 2,
+      countInDurationSec: 4,
+    })).toBe(0.5);
+  });
+
+  it('本編は小節内進捗を返す', () => {
+    expect(computeOsmdMeasurePlayheadProgress({
+      phraseTimelineSec: 3,
+      activeMeasureNumber: 2,
+      measureDurationSec: 2,
+      countInDurationSec: 0,
+    })).toBe(0.5);
   });
 });

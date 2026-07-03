@@ -357,7 +357,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             return
         }
 
-        syncPlayheadForTimeline(0, animating: true)
+        syncPlayheadForTimeline(0, animating: false)
 
         _ = audio.schedulePreparedPhraseWithCountIn(
             url: url,
@@ -375,7 +375,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 
         let previousMeasure = activeMeasureNumber
         updateActiveMeasure(for: max(0, phraseTime))
-        if osmdScrollMode == .continuousFollow {
+        if osmdScrollMode == .continuousFollow || gameState == .countIn {
             syncPlayheadForTimeline(phraseTime, animating: true)
         } else if activeMeasureNumber != previousMeasure {
             syncPlayheadForTimeline(phraseTime, animating: true)

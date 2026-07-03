@@ -278,6 +278,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     [practiceMode, practiceSpeedPercent, stage.beats_per_measure, stage.bpm],
   );
 
+  const countInDurationSec = useMemo(
+    () => (60 / Math.max(1, effectivePracticeBpm(stage.bpm, practiceMode ? practiceSpeedPercent : 100)))
+      * Math.max(0, stage.count_in_beats),
+    [practiceMode, practiceSpeedPercent, stage.bpm, stage.count_in_beats],
+  );
+
 
   useEffect(() => {
     const element = notesViewportRef.current;
@@ -688,7 +694,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (phraseTimeSec == null || !Number.isFinite(phraseTimeSec)) {
       return;
     }
-    if (phraseTimeSec >= 0) {
+    if (phraseTimeSec < 0) {
+      syncPlayheadForTimeline(phraseTimeSec, true);
+    } else {
       const nextMeasure = computeOsmdActiveMeasureFromTimeline(
         phraseTimeSec,
         measureDurationSec,
@@ -742,6 +750,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
   }, [
     measureDurationSec,
+    syncPlayheadForTimeline,
     resolveCalibratedTargetTimeSec,
     resolveEffectiveTimingWindowSec,
     syncRendererStates,
@@ -863,7 +872,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       setActiveMeasureNumber(initialMeasure);
       phraseTimeSecRef.current = 0;
       updateSeekSliderUi(0, true);
-      syncPlayheadForTimeline(0, true);
+      syncPlayheadForTimeline(0, false);
 
       player.schedulePreparedPhraseWithCountIn({
         prepared,
@@ -1335,6 +1344,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             scoreErrorText={scoreErrorText}
             activeMeasureNumber={activeMeasureNumber}
             measureDurationSec={measureDurationSec}
+            countInDurationSec={countInDurationSec}
             scrollActive={scoreScrollActive}
             renderKeyValue={phraseRunId}
             isEnglishCopy={isEnglishCopy}

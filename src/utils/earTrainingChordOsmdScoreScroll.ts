@@ -93,6 +93,40 @@ export const clampOsmdManualScrollOffset = (input: {
   return Math.min(Math.max(input.manualOffsetPx, -input.baseOffsetPx), maxOffset - input.baseOffsetPx);
 };
 
+/** カウントイン中（phraseTimelineSec < 0）の小節 1 内プレイヘッド進捗 0..1。 */
+export const computeOsmdCountInPlayheadProgress = (
+  phraseTimelineSec: number,
+  countInDurationSec: number,
+): number => {
+  if (phraseTimelineSec >= 0 || countInDurationSec <= 0) {
+    return 0;
+  }
+  const progress = (phraseTimelineSec + countInDurationSec) / countInDurationSec;
+  return Math.max(0, Math.min(1, progress));
+};
+
+/** 小節内プレイヘッド進捗 0..1（カウントイン／本編共通）。 */
+export const computeOsmdMeasurePlayheadProgress = (input: {
+  phraseTimelineSec: number;
+  activeMeasureNumber: number;
+  measureDurationSec: number;
+  countInDurationSec: number;
+}): number => {
+  const {
+    phraseTimelineSec,
+    activeMeasureNumber,
+    measureDurationSec,
+    countInDurationSec,
+  } = input;
+  if (phraseTimelineSec < 0) {
+    return computeOsmdCountInPlayheadProgress(phraseTimelineSec, countInDurationSec);
+  }
+  const safeMeasureDurationSec = Math.max(1e-6, measureDurationSec);
+  const measureNumber = Math.max(1, Math.floor(activeMeasureNumber));
+  const timeInMeasure = phraseTimelineSec - (measureNumber - 1) * safeMeasureDurationSec;
+  return Math.max(0, Math.min(1, timeInMeasure / safeMeasureDurationSec));
+};
+
 /** スクロールオフセットを反映した画面上の小節ハイライト矩形（小節更新時のみ再計算）。 */
 export const computeOsmdActiveMeasureHighlight = (
   input: OsmdActiveMeasureHighlightInput,

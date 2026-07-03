@@ -688,6 +688,38 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             bounds[measureNumber] = entry;
           }
 
+          function resolveGraphicMeasureNumber(measure, fallbackOrdinal) {
+            const direct = finiteNum(measure.MeasureNumber);
+            if (direct !== null && direct > 0) {
+              return Math.floor(direct);
+            }
+            const src =
+              measure.parentSourceMeasure &&
+              finiteNum(measure.parentSourceMeasure.MeasureNumber);
+            if (src !== null && src > 0) {
+              return Math.floor(src);
+            }
+            return fallbackOrdinal;
+          }
+
+          function mergeMeasureBoundsEntry(entry, noteMinX, noteMaxX, measureMinX, measureMaxX) {
+            const left = Number.isFinite(measureMinX) ? measureMinX : noteMinX;
+            const right = Number.isFinite(measureMaxX) ? measureMaxX : noteMaxX;
+            if (!Number.isFinite(left) || !Number.isFinite(right)) {
+              return;
+            }
+            entry.left = Math.min(entry.left, left);
+            entry.right = Math.max(entry.right, right);
+            if (Number.isFinite(noteMinX)) {
+              entry.noteLeft =
+                entry.noteLeft === undefined ? noteMinX : Math.min(entry.noteLeft, noteMinX);
+            }
+            if (Number.isFinite(noteMaxX)) {
+              entry.noteRight =
+                entry.noteRight === undefined ? noteMaxX : Math.max(entry.noteRight, noteMaxX);
+            }
+          }
+
           function collectMeasureCentersFromMeasureList(gs, surface, viewportWidth) {
             const boundingWidth = finiteNum(gs && gs.BoundingBox && gs.BoundingBox.width) || 0;
             const renderedWidth =
@@ -705,7 +737,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               if (measures.length === 0) continue;
 
               measureOrdinal += 1;
-              const measureNumber = measureOrdinal;
+              const measureNumber = resolveGraphicMeasureNumber(measures[0], measureOrdinal);
 
               let noteMinX = Number.POSITIVE_INFINITY;
               let noteMaxX = Number.NEGATIVE_INFINITY;
@@ -748,9 +780,21 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               }
 
               if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
-                assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+                const existing = bounds[measureNumber];
+                if (existing) {
+                  mergeMeasureBoundsEntry(existing, noteMinX, noteMaxX, measureMinX, measureMaxX);
+                  centers[measureNumber] = (existing.left + existing.right) / 2;
+                } else {
+                  assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+                }
               } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
-                assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+                const existing = bounds[measureNumber];
+                if (existing) {
+                  mergeMeasureBoundsEntry(existing, noteMinX, noteMaxX, measureMinX, measureMaxX);
+                  centers[measureNumber] = (existing.left + existing.right) / 2;
+                } else {
+                  assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+                }
               }
             }
 
@@ -1327,6 +1371,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function computeProgressInMeasure() {
+            if (phraseTimelineSec < 0) {
+              return countInPlayheadProgress(phraseTimelineSec);
+            }
             const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
             const safeDur = Math.max(1e-6, measureDurationSec);
             const timeInMeasure = phraseTimelineSec - (mn - 1) * safeDur;
@@ -1346,7 +1393,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
             const progress = computeProgressInMeasure();
             const innerLeftPx = progress * widthPx;
-            const animating = playheadAnimating && overlayVisible;
+            const inCountInPhase = phraseTimelineSec < 0;
+            const animating = playheadAnimating && overlayVisible && !inCountInPhase;
             if (!animating) {
               playhead.style.transition = 'none';
               playhead.style.left = (baseLeftPx + innerLeftPx) + 'px';
@@ -1387,7 +1435,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               setFollowTimelineAnchor(sec, animating);
               return;
             }
-            phraseTimelineSec = Math.max(0, Number(sec) || 0);
+            phraseTimelineSec = Number.isFinite(Number(sec)) ? Number(sec) : 0;
             playheadAnimating = !!animating;
             updateMeasureHighlight();
           }
