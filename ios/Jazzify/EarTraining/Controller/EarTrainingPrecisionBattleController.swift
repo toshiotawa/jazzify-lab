@@ -474,12 +474,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         lastInputAtByNote[midi] = now
         midiHeldKeys.insert(midi)
 
-        guard gameState == .countIn || gameState == .playingPhrase else { return }
-        guard let phraseTime = audio.phraseWallClockTimelineSecNowOrNil() else { return }
-
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
+
+        guard gameState == .countIn || gameState == .playingPhrase else { return }
+        guard let phraseTime = audio.phraseWallClockTimelineSecNowOrNil() else { return }
 
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
         guard let matched = EarTrainingPrecisionJudge.findNoteForInput(
