@@ -56,8 +56,10 @@ import {
 import {
   collectChordOsmdMusicXmlLyrics,
   normalizeChordOsmdMusicXml,
+  readBetweenStaffDistanceStaffHeightsFromMusicXml,
   type ChordOsmdLyricEvent,
 } from '@/utils/earTrainingChordOsmd';
+import { ensureMusicXmlDeclaration } from '@/utils/musicXmlMapper';
 import {
   applyPracticeTransposeToMusicXml,
   clampPracticeTransposeOffset,
@@ -510,7 +512,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       if (phraseRunIdRef.current !== runId) {
         return null;
       }
-      const normalizedText = normalizeChordOsmdMusicXml(text);
+      const normalizedText = ensureMusicXmlDeclaration(normalizeChordOsmdMusicXml(text));
       storeEarTrainingMusicXml(rawUrl, normalizedText);
       setBaseMusicXmlText(normalizedText);
       const displayXml = resolveDisplayXml(normalizedText);

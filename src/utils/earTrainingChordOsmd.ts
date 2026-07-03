@@ -387,6 +387,31 @@ const normalizeMeasureToExplicitTwoStaffVoices = (
   return true;
 };
 
+const MUSIC_XML_TENTHS_PER_STAFF_LINE = 40;
+
+/**
+ * `<staff-layout><staff-distance>`（段間）を OSMD `BetweenStaffDistance`（staff 高さ単位）へ換算。
+ * 2 段目 layout（number="2"）を優先し、無ければ最初の staff-distance を使う。
+ */
+export const readBetweenStaffDistanceStaffHeightsFromMusicXml = (
+  musicXmlText: string,
+): number | null => {
+  const twoStaffMatch = musicXmlText.match(
+    /<staff-layout\b[^>]*\bnumber="2"[^>]*>[\s\S]*?<staff-distance>(\d+(?:\.\d+)?)<\/staff-distance>/,
+  );
+  const fallbackMatch = twoStaffMatch ?? musicXmlText.match(
+    /<staff-layout>[\s\S]*?<staff-distance>(\d+(?:\.\d+)?)<\/staff-distance>/,
+  );
+  if (!fallbackMatch) {
+    return null;
+  }
+  const tenths = Number.parseFloat(fallbackMatch[1]);
+  if (!Number.isFinite(tenths) || tenths <= 0) {
+    return null;
+  }
+  return tenths / MUSIC_XML_TENTHS_PER_STAFF_LINE;
+};
+
 /** `<harmony>` の並べ替えは MusicXML の時間位置を壊すため行わない。交互 staff の単一 voice のみ正規化する。 */
 export const normalizeChordOsmdMusicXml = (xmlText: string): string => {
   if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
@@ -405,7 +430,10 @@ export const normalizeChordOsmdMusicXml = (xmlText: string): string => {
     changed = normalizeMeasureToExplicitTwoStaffVoices(doc, measure, timing) || changed;
   }
 
-  return changed ? new XMLSerializer().serializeToString(doc) : xmlText;
+  if (!changed) {
+    return xmlText;
+  }
+  return new XMLSerializer().serializeToString(doc);
 };
 
 const parseMusicXmlMeasureNumber = (measure: Element, ordinalOneBased: number): number => {

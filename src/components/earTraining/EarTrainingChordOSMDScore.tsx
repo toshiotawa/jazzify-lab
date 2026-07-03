@@ -18,6 +18,7 @@ import {
   type OsmdMeasureBounds,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
+import { readBetweenStaffDistanceStaffHeightsFromMusicXml } from '@/utils/earTrainingChordOsmd';
 import {
   clampEarTrainingOsmdUserZoom,
   EAR_TRAINING_OSMD_USER_ZOOM_MAX,
@@ -346,7 +347,10 @@ const waitNextPaint = (): Promise<void> =>
   });
 
 /** compacttight の水平圧縮を緩め、1小節目の記号後に音符が押し出されにくくする。 */
-const relaxOsmdCompactTightSpacingForBattle = (osmd: OpenSheetMusicDisplay): void => {
+const relaxOsmdCompactTightSpacingForBattle = (
+  osmd: OpenSheetMusicDisplay,
+  musicXmlText?: string | null,
+): void => {
   const zoomable = osmd as OpenSheetMusicDisplay & {
     EngravingRules?: {
       ClefRightMargin?: number;
@@ -354,6 +358,7 @@ const relaxOsmdCompactTightSpacingForBattle = (osmd: OpenSheetMusicDisplay): voi
       VoiceSpacingMultiplierVexflow?: number;
       VoiceSpacingAddendVexflow?: number;
       SoftmaxFactorVexFlow?: number;
+      BetweenStaffDistance?: number;
     };
     rules?: {
       ClefRightMargin?: number;
@@ -361,6 +366,7 @@ const relaxOsmdCompactTightSpacingForBattle = (osmd: OpenSheetMusicDisplay): voi
       VoiceSpacingMultiplierVexflow?: number;
       VoiceSpacingAddendVexflow?: number;
       SoftmaxFactorVexFlow?: number;
+      BetweenStaffDistance?: number;
     };
   };
   const rules = zoomable.EngravingRules ?? zoomable.rules;
@@ -373,6 +379,12 @@ const relaxOsmdCompactTightSpacingForBattle = (osmd: OpenSheetMusicDisplay): voi
   rules.VoiceSpacingAddendVexflow = 5;
   if (typeof rules.SoftmaxFactorVexFlow === 'number' && rules.SoftmaxFactorVexFlow < 10) {
     rules.SoftmaxFactorVexFlow = 10;
+  }
+  if (musicXmlText) {
+    const betweenStaff = readBetweenStaffDistanceStaffHeightsFromMusicXml(musicXmlText);
+    if (betweenStaff !== null && typeof rules.BetweenStaffDistance === 'number') {
+      rules.BetweenStaffDistance = betweenStaff;
+    }
   }
 };
 
@@ -601,7 +613,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       const osmd = new OpenSheetMusicDisplay(score, options);
       osmdRef.current = osmd;
       await osmd.load(osmdDisplayMusicXml);
-      relaxOsmdCompactTightSpacingForBattle(osmd);
+      relaxOsmdCompactTightSpacingForBattle(osmd, osmdDisplayMusicXml);
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
       const viewportEl = viewportRef.current;
       const viewportHeight = viewportEl?.clientHeight ?? 0;

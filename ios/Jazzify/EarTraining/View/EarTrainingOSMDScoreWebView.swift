@@ -957,7 +957,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
           }
 
-          function relaxOsmdCompactTightSpacingForBattle(osmdInst) {
+          function relaxOsmdCompactTightSpacingForBattle(osmdInst, xmlText) {
             const rules = osmdInst && (osmdInst.EngravingRules || osmdInst.rules);
             if (!rules) {
               return;
@@ -968,6 +968,20 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             rules.VoiceSpacingAddendVexflow = 5;
             if (typeof rules.SoftmaxFactorVexFlow === 'number' && rules.SoftmaxFactorVexFlow < 10) {
               rules.SoftmaxFactorVexFlow = 10;
+            }
+            if (typeof xmlText === 'string' && xmlText.length > 0) {
+              const twoStaff = xmlText.match(
+                /<staff-layout\\b[^>]*\\bnumber="2"[^>]*>[\\s\\S]*?<staff-distance>(\\d+(?:\\.\\d+)?)<\\/staff-distance>/
+              );
+              const fallback = twoStaff || xmlText.match(
+                /<staff-layout>[\\s\\S]*?<staff-distance>(\\d+(?:\\.\\d+)?)<\\/staff-distance>/
+              );
+              if (fallback && typeof rules.BetweenStaffDistance === 'number') {
+                const tenths = Number.parseFloat(fallback[1]);
+                if (Number.isFinite(tenths) && tenths > 0) {
+                  rules.BetweenStaffDistance = tenths / 40;
+                }
+              }
             }
           }
 
@@ -1031,7 +1045,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               osmd = buildOsmd();
               osmd.zoom = z;
               await osmd.load(displayXml);
-              relaxOsmdCompactTightSpacingForBattle(osmd);
+              relaxOsmdCompactTightSpacingForBattle(osmd, displayXml);
               osmd.render();
               await new Promise(function (resolve) {
                 requestAnimationFrame(function () {

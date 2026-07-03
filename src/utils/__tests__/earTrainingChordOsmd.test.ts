@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { Note } from 'tonal';
 import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
+import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import {
   areAllChordOsmdTargetsCompleted,
   buildChordOsmdRhythmTargets,
@@ -14,6 +15,7 @@ import {
   earTrainingOsmdUsesScoreTargets,
   findFirstIncompleteChordOsmdTarget,
   normalizeChordOsmdMusicXml,
+  readBetweenStaffDistanceStaffHeightsFromMusicXml,
   resolveEarTrainingOsmdTargetsFromScore,
 } from '@/utils/earTrainingChordOsmd';
 
@@ -445,6 +447,28 @@ Line2</text></lyric></note>
       { targetTimeSec: 0, measureNumber: 1, text: 'Line1\nLine2' },
       { targetTimeSec: 0.5, measureNumber: 1, text: 'Top\nBottom' },
     ]);
+  });
+});
+
+describe('readBetweenStaffDistanceStaffHeightsFromMusicXml', () => {
+  it('2 段目 staff-layout の staff-distance を staff 高さ単位に換算する', () => {
+    const xml = `<?xml version="1.0"?><score-partwise><part><measure>
+      <print><staff-layout number="2"><staff-distance>98</staff-distance></staff-layout></print>
+    </measure></part></score-partwise>`;
+    expect(readBetweenStaffDistanceStaffHeightsFromMusicXml(xml)).toBeCloseTo(2.45, 5);
+  });
+});
+
+describe('stripLyricsFromMusicXml', () => {
+  it('歌詞と direction words を除去する', () => {
+    const xml = `<?xml version="1.0"?><score-partwise><part><measure>
+      <direction placement="below"><direction-type><words>Ab6</words></direction-type></direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><lyric number="1"><text>Ab6</text></lyric></note>
+    </measure></part></score-partwise>`;
+    const stripped = stripLyricsFromMusicXml(xml);
+    expect(stripped).not.toContain('<lyric');
+    expect(stripped).not.toContain('<words');
+    expect(stripped).toContain('<pitch>');
   });
 });
 

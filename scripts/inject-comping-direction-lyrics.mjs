@@ -1,13 +1,12 @@
 /**
  * Comping MusicXML: `<direction><words>` 表現テキストを 1 番歌詞として複製する。
- * 精密モードの歌詞オーバーレイ用。楽譜表示では stripLyrics により歌詞は非表示のまま。
+ * 元 XML の宣言・DOCTYPE・レイアウトを保持する（DOM serialize は使わない）。
  *
  * Usage:
  *   node scripts/inject-comping-direction-lyrics.mjs [source.musicxml] [target.musicxml]
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { JSDOM } from 'jsdom';
 
 const SOURCE = resolve(
   process.cwd(),
@@ -28,87 +27,80 @@ const escapeXmlText = (text) => (
 );
 
 /** @param {string} text */
-const normalizeLyricText = (text) => text.replace(/\r\n/g, '\n').trim();
-
-/** @param {Element} directionEl */
-const wordsTextFromDirection = (directionEl) => {
-  const wordsEls = directionEl.querySelectorAll('direction-type words');
-  const parts = [];
-  for (const wordsEl of wordsEls) {
-    const raw = wordsEl.textContent ?? '';
-    const normalized = normalizeLyricText(raw);
-    if (normalized.length > 0) {
-      parts.push(normalized);
-    }
-  }
-  if (parts.length === 0) {
-    return null;
-  }
-  return parts.join('\n');
-};
-
-/** @param {Element} noteEl */
-const noteIsInjectTarget = (noteEl) => (
-  noteEl.localName === 'note'
-  && !noteEl.querySelector('grace')
-  && !noteEl.querySelector('rest')
-  && noteEl.querySelector('pitch')
-  && !noteEl.querySelector('chord')
+const decodeXmlText = (text) => (
+  text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
 );
 
-/** @param {Element} noteEl @param {string} text */
-const injectLyricOnNote = (noteEl, text) => {
-  if (noteEl.querySelector('lyric')) {
-    return;
+/** @param {string} text */
+const normalizeLyricText = (text) => text.replace(/\r\n/g, '\n').trim();
+
+/** @param {string} directionBlock */
+const wordsTextFromDirection = (directionBlock) => {
+  const match = directionBlock.match(/<words\b[^>]*>([\s\S]*?)<\/words>/);
+  if (!match) {
+    return null;
   }
-  const lyricEl = noteEl.ownerDocument.createElement('lyric');
-  lyricEl.setAttribute('number', '1');
-  const syllabicEl = noteEl.ownerDocument.createElement('syllabic');
-  syllabicEl.textContent = 'single';
-  lyricEl.appendChild(syllabicEl);
-  const textEl = noteEl.ownerDocument.createElement('text');
-  if (text.includes('\n')) {
-    textEl.setAttribute('xml:space', 'preserve');
-  }
-  textEl.textContent = text;
-  lyricEl.appendChild(textEl);
-  const pitch = noteEl.querySelector('pitch');
-  if (pitch?.nextSibling) {
-    noteEl.insertBefore(lyricEl, pitch.nextSibling);
-  } else {
-    noteEl.appendChild(lyricEl);
-  }
+  const normalized = normalizeLyricText(decodeXmlText(match[1]));
+  return normalized.length > 0 ? normalized : null;
 };
 
-/** @param {Element} measureEl */
-const injectLyricsFromDirectionsInMeasure = (measureEl) => {
-  const children = Array.from(measureEl.children);
-  for (let i = 0; i < children.length; i += 1) {
-    const child = children[i];
-    if (child.localName !== 'direction') {
-      continue;
-    }
-    const lyricText = wordsTextFromDirection(child);
+/** @param {string} noteXml @param {string} text */
+const injectLyricIntoNote = (noteXml, text) => {
+  if (noteXml.includes('<lyric')) {
+    return noteXml;
+  }
+  const escaped = escapeXmlText(text);
+  const spaceAttr = text.includes('\n') ? ' xml:space="preserve"' : '';
+  const block = `<lyric number="1"><syllabic>single</syllabic><text${spaceAttr}>${escaped}</text></lyric>`;
+  if (/<\/staff>/.test(noteXml)) {
+    return noteXml.replace(/(\s*<\/staff>)/, `$1${block}`);
+  }
+  return noteXml.replace(/(\s*)<\/note>/, `${block}$1</note>`);
+};
+
+/** @param {string} measureBody */
+const injectLyricsFromDirectionsInMeasure = (measureBody) => {
+  let updated = measureBody;
+  const directionRegex = /<direction[\s\S]*?<\/direction>/g;
+  for (const dirMatch of measureBody.matchAll(directionRegex)) {
+    const dirBlock = dirMatch[0];
+    const lyricText = wordsTextFromDirection(dirBlock);
     if (!lyricText) {
       continue;
     }
-    for (let j = i + 1; j < children.length; j += 1) {
-      const next = children[j];
-      if (noteIsInjectTarget(next)) {
-        injectLyricOnNote(next, lyricText);
-        break;
-      }
+    const afterDir = measureBody.slice(dirMatch.index + dirBlock.length);
+    const noteMatch = afterDir.match(
+      /<note(?=[^>]*>[\s\S]*?<pitch>)(?![^>]*\bchord\b)[^>]*>[\s\S]*?<\/note>/,
+    );
+    if (!noteMatch) {
+      continue;
+    }
+    const noteXml = noteMatch[0];
+    const injected = injectLyricIntoNote(noteXml, lyricText);
+    if (injected !== noteXml) {
+      updated = updated.replace(noteXml, injected);
     }
   }
+  return updated;
 };
 
-const dom = new JSDOM(readFileSync(SOURCE, 'utf8'), { contentType: 'application/xml' });
-const doc = dom.window.document;
-const measures = doc.querySelectorAll('part > measure');
-for (const measure of measures) {
-  injectLyricsFromDirectionsInMeasure(measure);
-}
+const xml = readFileSync(SOURCE, 'utf8');
+const updated = xml.replace(
+  /<measure number="(\d+)"[^>]*>([\s\S]*?)<\/measure>/g,
+  (full, _numStr, body) => {
+    const newBody = injectLyricsFromDirectionsInMeasure(body);
+    if (newBody === body) {
+      return full;
+    }
+    return full.replace(body, newBody);
+  },
+);
 
-const serialized = dom.serialize();
-writeFileSync(TARGET, serialized, 'utf8');
-process.stdout.write(`Wrote ${TARGET} (${measures.length} measures)\n`);
+writeFileSync(TARGET, updated, 'utf8');
+const measureCount = (updated.match(/<measure number="/g) ?? []).length;
+process.stdout.write(`Wrote ${TARGET} (${measureCount} measures)\n`);

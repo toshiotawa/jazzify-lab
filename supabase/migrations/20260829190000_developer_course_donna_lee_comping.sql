@@ -109,7 +109,7 @@ INSERT INTO public.ear_training_phrases (
   0,
   'Donna Lee コンピング（カウントあり）',
   'Donna Lee Comping (with count-in)',
-  'https://jazzify-cdn.com/sozai/Comping/Donna%20Lee%20Comping%20precision_lyrics.musicxml',
+  'https://jazzify-cdn.com/sozai/Comping/Donna%20Lee%20Comping%20precision_lyrics.musicxml?v=202607031650',
   'https://jazzify-cdn.com/sozai/Comping/Donna%20Lee_Comping.mp3',
   'https://jazzify-cdn.com/sozai/Comping/Donna_Lee_Comping.mid',
   33,

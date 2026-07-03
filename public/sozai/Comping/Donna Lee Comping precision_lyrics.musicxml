@@ -1,4 +1,6 @@
-<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd"><score-partwise version="3.1">
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
   <identification>
     <rights>©</rights>
     <encoding>
@@ -172,14 +174,14 @@ Voicing</words>
         <pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">Ab6
-Ab Major Pentatonic
-Voicing</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-65">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">Ab6
+Ab Major Pentatonic
+Voicing</text></lyric>
       </note>
       <note default-x="16">
         <chord/>
@@ -298,13 +300,13 @@ Voicing</text></lyric>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Alt 4th</text></lyric>
+        </pitch>
         <duration>12</duration>
         <voice>1</voice>
         <type>quarter</type>
         <dot/>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Alt 4th</text></lyric>
       </note>
       <note default-x="340">
         <chord/>
@@ -345,13 +347,13 @@ Voicing</text></lyric>
         <pitch>
           <step>G</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Mixo 4th</text></lyric>
+        </pitch>
         <duration>4</duration>
         <tie type="start"/>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="-65">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Mixo 4th</text></lyric>
         <notations>
           <tied type="start"/>
         </notations>
@@ -595,12 +597,12 @@ Voicing</text></lyric>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>So What</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>So What</text></lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -646,14 +648,14 @@ Adim Bbm7</words>
           <step>G</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">Drop 2 &amp; 3
-Adim Bbm7</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
         <stem default-y="-70">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">Drop 2 &amp; 3
+Adim Bbm7</text></lyric>
         <beam number="1">begin</beam>
       </note>
       <note default-x="273">
@@ -713,13 +715,13 @@ Adim Bbm7</text></lyric>
           <step>F</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Drop 2</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
         <stem default-y="-70">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Drop 2</text></lyric>
         <beam number="1">end</beam>
       </note>
       <note default-x="509">
@@ -910,13 +912,13 @@ Adim Bbm7</text></lyric>
           <step>G</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Alt 4th</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <accidental>flat</accidental>
         <stem default-y="-60">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Alt 4th</text></lyric>
       </note>
       <note default-x="436">
         <chord/>
@@ -1035,12 +1037,12 @@ Adim Bbm7</text></lyric>
           <step>A</step>
           <alter>-1</alter>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Ab6</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <stem default-y="-35">down</stem>
-        <staff>2</staff>
+        <staff>2</staff><lyric number="1"><syllabic>single</syllabic><text>Ab6</text></lyric>
       </note>
       <note default-x="583">
         <chord/>
@@ -1166,13 +1168,13 @@ Adim Bbm7</text></lyric>
           <step>F</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>ALT UST bVI(E△)</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <accidental>flat</accidental>
         <stem default-y="15">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>ALT UST bVI(E△)</text></lyric>
       </note>
       <note default-x="384">
         <chord/>
@@ -1219,13 +1221,13 @@ Adim Bbm7</text></lyric>
           <step>E</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>So What(Fm7)</text></lyric>
+        </pitch>
         <duration>4</duration>
         <tie type="start"/>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="20">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>So What(Fm7)</text></lyric>
         <notations>
           <tied type="start"/>
         </notations>
@@ -1285,12 +1287,12 @@ Adim Bbm7</text></lyric>
           <step>E</step>
           <alter>-1</alter>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>3rd interval build</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <stem default-y="-50">down</stem>
-        <staff>2</staff>
+        <staff>2</staff><lyric number="1"><syllabic>single</syllabic><text>3rd interval build</text></lyric>
       </note>
       <note default-x="179">
         <chord/>
@@ -1517,13 +1519,13 @@ Adim Bbm7</text></lyric>
           <step>B</step>
           <alter>-1</alter>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Drop 2</text></lyric>
+        </pitch>
         <duration>12</duration>
         <voice>1</voice>
         <type>quarter</type>
         <dot/>
         <stem default-y="10">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Drop 2</text></lyric>
       </note>
       <note default-x="319">
         <chord/>
@@ -1625,14 +1627,14 @@ Adim Bbm7</text></lyric>
         <pitch>
           <step>F</step>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">So What Cm7
-(but 4 Voices)</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <accidental>natural</accidental>
         <stem default-y="-45">down</stem>
-        <staff>2</staff>
+        <staff>2</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">So What Cm7
+(but 4 Voices)</text></lyric>
       </note>
     </measure>
     <!--=======================================================-->
@@ -1677,15 +1679,15 @@ UST VIm(Mixo)(Em)</words>
         <pitch>
           <step>B</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">G7(9.13)
-Reharmonized
-UST VIm(Mixo)(Em)</text></lyric>
+        </pitch>
         <duration>16</duration>
         <voice>1</voice>
         <type>half</type>
         <accidental>natural</accidental>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">G7(9.13)
+Reharmonized
+UST VIm(Mixo)(Em)</text></lyric>
       </note>
       <note default-x="232">
         <chord/>
@@ -1776,12 +1778,12 @@ UST VIm(Mixo)(Em)</text></lyric>
           <step>B</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Gb7(9.13)</text></lyric>
+        </pitch>
         <duration>16</duration>
         <voice>1</voice>
         <type>half</type>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Gb7(9.13)</text></lyric>
       </note>
       <note default-x="104">
         <chord/>
@@ -1822,13 +1824,13 @@ UST VIm(Mixo)(Em)</text></lyric>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">F7
-(ALT UST bVI)(Db△)</text></lyric>
+        </pitch>
         <duration>16</duration>
         <voice>1</voice>
         <type>half</type>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">F7
+(ALT UST bVI)(Db△)</text></lyric>
       </note>
       <note default-x="296">
         <chord/>
@@ -1930,12 +1932,12 @@ UST VIm(Mixo)(Em)</text></lyric>
         <pitch>
           <step>G</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Lyd 7th UST II△(C△)</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-60">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Lyd 7th UST II△(C△)</text></lyric>
       </note>
       <note default-x="16">
         <chord/>
@@ -2256,12 +2258,12 @@ UST VIm(Mixo)(Em)</text></lyric>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Db△</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="-60">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Db△</text></lyric>
         <beam number="1">begin</beam>
       </note>
       <note default-x="116">
@@ -2441,13 +2443,13 @@ UST VIm(Mixo)(Em)</text></lyric>
         <pitch>
           <step>B</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>ALT UST bVI(B△)</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <accidental>natural</accidental>
         <stem default-y="-60">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>ALT UST bVI(B△)</text></lyric>
         <beam number="1">begin</beam>
       </note>
       <note default-x="115">
@@ -2524,13 +2526,13 @@ UST VIm(Mixo)(Em)</text></lyric>
           <step>B</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>So What Cm7</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>So What Cm7</text></lyric>
       </note>
       <note default-x="508">
         <chord/>
@@ -2658,12 +2660,12 @@ UST VIm(Mixo)(Em)</text></lyric>
           <step>B</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Gb7(9.13)</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Gb7(9.13)</text></lyric>
       </note>
       <note default-x="171">
         <chord/>
@@ -2875,14 +2877,14 @@ UST VIm(Mixo)(Em)</text></lyric>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">F7
-(ALT UST bVI)(Db△)</text></lyric>
+        </pitch>
         <duration>16</duration>
         <tie type="stop"/>
         <voice>1</voice>
         <type>half</type>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">F7
+(ALT UST bVI)(Db△)</text></lyric>
         <notations>
           <tied type="stop"/>
         </notations>
@@ -3066,12 +3068,12 @@ UST VIm(Mixo)(Em)</text></lyric>
         <pitch>
           <step>G</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Lyd 7th UST II△(C△)</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-60">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Lyd 7th UST II△(C△)</text></lyric>
       </note>
       <note default-x="18">
         <chord/>
@@ -3266,12 +3268,12 @@ UST VIm(Mixo)(Em)</text></lyric>
         <pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>UST bVII(F)</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="15.5">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>UST bVII(F)</text></lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -3316,13 +3318,13 @@ UST A on Bb</words>
         <pitch>
           <step>A</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">C7 H/W
-UST A on Bb</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="20.5">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">C7 H/W
+UST A on Bb</text></lyric>
         <beam number="1">begin</beam>
       </note>
       <note default-x="270">
@@ -3370,14 +3372,14 @@ UST C on Db</words>
         <pitch>
           <step>C</step>
           <octave>5</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">H/W
-UST C on Db</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <accidental>natural</accidental>
         <stem default-y="30">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">H/W
+UST C on Db</text></lyric>
         <beam number="1">end</beam>
       </note>
       <note default-x="503">
@@ -3502,13 +3504,13 @@ UST Eb on E</words>
           <step>E</step>
           <alter>-1</alter>
           <octave>5</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">H/W
-UST Eb on E</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="-58">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">H/W
+UST Eb on E</text></lyric>
         <beam number="1">continue</beam>
       </note>
       <note default-x="231">
@@ -3555,14 +3557,14 @@ UST Gb on G</words>
           <step>G</step>
           <alter>-1</alter>
           <octave>5</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">H/W
-UST Gb on G</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <accidental>flat</accidental>
         <stem default-y="-35">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">H/W
+UST Gb on G</text></lyric>
         <beam number="1">begin</beam>
       </note>
       <note default-x="425">
@@ -3678,12 +3680,12 @@ UST Gb on G</text></lyric>
         <pitch>
           <step>C</step>
           <octave>5</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Fm6 UST V(C△)</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-50">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Fm6 UST V(C△)</text></lyric>
       </note>
       <note default-x="16">
         <chord/>
@@ -3800,14 +3802,14 @@ ALT UST bVI(C△)</words>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">C7
-ALT UST bVI(C△)</text></lyric>
+        </pitch>
         <duration>24</duration>
         <voice>1</voice>
         <type>half</type>
         <dot/>
         <stem default-y="-55">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">C7
+ALT UST bVI(C△)</text></lyric>
       </note>
       <note default-x="256">
         <chord/>
@@ -3893,11 +3895,11 @@ ALT UST bVI(C△)</text></lyric>
         <pitch>
           <step>G</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Fm6 UST V(C△)</text></lyric>
+        </pitch>
         <duration>32</duration>
         <voice>1</voice>
         <type>whole</type>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Fm6 UST V(C△)</text></lyric>
       </note>
       <note default-x="16">
         <chord/>
@@ -3990,13 +3992,13 @@ ALT UST bVI(C△)</words>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">C7
-ALT UST bVI(C△)</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="-60">down</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">C7
+ALT UST bVI(C△)</text></lyric>
       </note>
       <note default-x="168">
         <chord/>
@@ -4092,13 +4094,13 @@ ALT UST bVI(C△)</text></lyric>
         <pitch>
           <step>G</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Drop 2</text></lyric>
+        </pitch>
         <duration>4</duration>
         <tie type="start"/>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="20">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Drop 2</text></lyric>
         <notations>
           <tied type="start"/>
         </notations>
@@ -4280,12 +4282,12 @@ ALT UST bVI(C△)</text></lyric>
           <step>D</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Edim Fm</text></lyric>
+        </pitch>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="15">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Edim Fm</text></lyric>
         <beam number="1">begin</beam>
       </note>
       <note default-x="193">
@@ -4436,13 +4438,13 @@ UST Bb on B
         <pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">B W/H Diminished
-UST Bb on B</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="20.5">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">B W/H Diminished
+UST Bb on B</text></lyric>
       </note>
       <note default-x="219">
         <chord/>
@@ -4480,13 +4482,13 @@ UST Bb on B</text></lyric>
         <pitch>
           <step>D</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>G on Ab</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <accidental>natural</accidental>
         <stem default-y="15.5">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>G on Ab</text></lyric>
       </note>
       <note default-x="337">
         <chord/>
@@ -4523,13 +4525,13 @@ UST Bb on B</text></lyric>
         <pitch>
           <step>B</step>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>E on F</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <accidental>natural</accidental>
         <stem default-y="5">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>E on F</text></lyric>
       </note>
       <note default-x="455">
         <chord/>
@@ -4625,13 +4627,13 @@ UST Bb on B</text></lyric>
           <step>B</step>
           <alter>-1</alter>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">So What Cm7
-(but 4 Voices)</text></lyric>
+        </pitch>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="5">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">So What Cm7
+(but 4 Voices)</text></lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -4683,14 +4685,14 @@ UST VI(D△)</words>
         <pitch>
           <step>A</step>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">F7 (b9.13) 
-UST VI(D△)</text></lyric>
+        </pitch>
         <duration>16</duration>
         <voice>1</voice>
         <type>half</type>
         <accidental>natural</accidental>
         <stem default-y="0">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">F7 (b9.13) 
+UST VI(D△)</text></lyric>
       </note>
       <note default-x="255">
         <chord/>
@@ -4782,12 +4784,12 @@ UST VI(D△)</text></lyric>
           <step>A</step>
           <alter>-1</alter>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Closed</text></lyric>
+        </pitch>
         <duration>16</duration>
         <voice>1</voice>
         <type>half</type>
         <stem default-y="0">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Closed</text></lyric>
       </note>
       <note default-x="106">
         <chord/>
@@ -4902,14 +4904,14 @@ UST VI(D△)</text></lyric>
           <step>B</step>
           <alter>-1</alter>
           <octave>3</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">So What Cm7
-(but 4 Voices)</text></lyric>
+        </pitch>
         <duration>4</duration>
         <tie type="start"/>
         <voice>1</voice>
         <type>eighth</type>
         <stem default-y="5">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text xml:space="preserve">So What Cm7
+(but 4 Voices)</text></lyric>
         <notations>
           <tied type="start"/>
         </notations>
@@ -5105,13 +5107,13 @@ UST VI(D△)</text></lyric>
         <pitch>
           <step>E</step>
           <octave>4</octave>
-        </pitch><lyric number="1"><syllabic>single</syllabic><text>Eb7(b9 #11 13)</text></lyric>
+        </pitch>
         <duration>16</duration>
         <voice>1</voice>
         <type>half</type>
         <accidental>natural</accidental>
         <stem default-y="15">up</stem>
-        <staff>1</staff>
+        <staff>1</staff><lyric number="1"><syllabic>single</syllabic><text>Eb7(b9 #11 13)</text></lyric>
       </note>
       <note default-x="355">
         <chord/>

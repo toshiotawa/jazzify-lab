@@ -808,21 +808,33 @@ export function calculatePlayheadPosition(doc: Document, jsonNotes: NoteData[], 
   return null;
 }
 
+/** OSMD は先頭の `<?xml ...?>` を要求する。DOM serialize 後や JSDOM 出力で欠落した場合に付与する。 */
+export function ensureMusicXmlDeclaration(musicXmlText: string): string {
+  if (musicXmlText.trimStart().startsWith('<?xml')) {
+    return musicXmlText;
+  }
+  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n${musicXmlText}`;
+}
+
 /**
- * 楽譜表示用にMusicXMLの歌詞要素を除去
+ * 楽譜表示用に MusicXML の歌詞と、オーバーレイ表示する表現記号（direction words）を除去。
  */
 export function stripLyricsFromMusicXml(musicXmlText: string): string {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(musicXmlText, 'text/xml');
-    const lyricElements = doc.querySelectorAll('lyric');
-    lyricElements.forEach((lyric) => {
+    doc.querySelectorAll('lyric').forEach((lyric) => {
       lyric.remove();
     });
+    doc.querySelectorAll('direction').forEach((direction) => {
+      if (direction.querySelector('direction-type words')) {
+        direction.remove();
+      }
+    });
     const serializer = new XMLSerializer();
-    return serializer.serializeToString(doc);
+    return ensureMusicXmlDeclaration(serializer.serializeToString(doc));
   } catch {
-    return musicXmlText;
+    return ensureMusicXmlDeclaration(musicXmlText);
   }
 }
 
