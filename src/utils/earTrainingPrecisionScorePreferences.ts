@@ -1,5 +1,3 @@
-import type { EarTrainingOsmdScrollMode } from '@/utils/earTrainingChordOsmdScoreScroll';
-
 export const PRECISION_SCORE_BAND_HEIGHT_STORAGE_KEY = 'earTraining.precision.scoreBandHeightPx';
 
 export const PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX = 128;
@@ -42,38 +40,6 @@ export const savePrecisionScoreBandHeightPx = (heightPx: number): void => {
       PRECISION_SCORE_BAND_HEIGHT_STORAGE_KEY,
       String(Math.round(heightPx)),
     );
-  } catch {
-    // ignore quota / private mode
-  }
-};
-
-export const PRECISION_SCROLL_MODE_STORAGE_KEY = 'earTraining.precision.osmdScrollMode';
-
-const isScrollMode = (value: string): value is EarTrainingOsmdScrollMode => (
-  value === 'measureJump' || value === 'continuousFollow'
-);
-
-export const loadPrecisionScrollMode = (): EarTrainingOsmdScrollMode => {
-  if (typeof window === 'undefined') {
-    return 'measureJump';
-  }
-  try {
-    const raw = window.localStorage.getItem(PRECISION_SCROLL_MODE_STORAGE_KEY);
-    if (raw !== null && isScrollMode(raw)) {
-      return raw;
-    }
-  } catch {
-    // ignore access errors
-  }
-  return 'measureJump';
-};
-
-export const savePrecisionScrollMode = (mode: EarTrainingOsmdScrollMode): void => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    window.localStorage.setItem(PRECISION_SCROLL_MODE_STORAGE_KEY, mode);
   } catch {
     // ignore quota / private mode
   }

@@ -24,7 +24,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published var practiceTransposeOffset: Int = 0
     @Published var practiceSpeedPercent: Int = 100
     @Published var timingAdjustmentMs: Int = EarTrainingOsmdTimingAdjustment.timingAdjustmentMsDefault
-    @Published var osmdScrollMode: EarTrainingOsmdScrollMode = EarTrainingPrecisionScrollPreferences.loadScrollMode()
     @Published private(set) var practiceOriginalKeyFifths: Int = 0
     @Published private(set) var practiceOriginalKeyName: String = "—"
     @Published var isSettingsOpen: Bool = false
@@ -383,8 +382,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         updateActiveMeasure(for: max(0, phraseTime))
         if phraseTime < 0 {
             hasSyncedPhraseStartPlayhead = false
-            syncPlayheadForTimeline(phraseTime, animating: true)
-        } else if osmdScrollMode == .continuousFollow {
             syncPlayheadForTimeline(phraseTime, animating: true)
         } else if !hasSyncedPhraseStartPlayhead {
             hasSyncedPhraseStartPlayhead = true
@@ -796,11 +793,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         timingAdjustmentMs = EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(value)
         EarTrainingOsmdTimingAdjustment.saveTimingAdjustmentMs(timingAdjustmentMs)
         rebuildPrecisionNotes()
-    }
-
-    func applyOsmdScrollMode(_ mode: EarTrainingOsmdScrollMode) {
-        osmdScrollMode = mode
-        EarTrainingPrecisionScrollPreferences.saveScrollMode(mode)
     }
 
     func handleOpenSettings() { isSettingsOpen = true }

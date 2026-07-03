@@ -23,7 +23,6 @@ import {
   OSMD_TIMING_ADJUSTMENT_MS_MIN,
   OSMD_TIMING_ADJUSTMENT_MS_STEP,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
-import type { EarTrainingOsmdScrollMode } from '@/utils/earTrainingChordOsmdScoreScroll';
 
 export type EarTrainingSettingsScope = 'battle' | 'tutorial';
 
@@ -55,10 +54,6 @@ interface EarTrainingSettingsModalProps {
   osmdTimingAdjustment?: {
     appliedOffsetMs: number;
     onChange: (offsetMs: number) => void;
-  };
-  precisionScrollMode?: {
-    mode: EarTrainingOsmdScrollMode;
-    onChange: (mode: EarTrainingOsmdScrollMode) => void;
   };
   precisionAutoPlay?: {
     enabled: boolean;
@@ -101,7 +96,6 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   practiceTranspose,
   practiceSpeed,
   osmdTimingAdjustment,
-  precisionScrollMode,
   precisionAutoPlay,
 }) => {
   const isTutorialScope = scope === 'tutorial';
@@ -302,41 +296,6 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
                 <span>{OSMD_TIMING_ADJUSTMENT_MS_MIN}ms {ui.osmdTimingAdjustmentEarlier}</span>
                 <span>0ms</span>
                 <span>{OSMD_TIMING_ADJUSTMENT_MS_MAX}ms {ui.osmdTimingAdjustmentLater}</span>
-              </div>
-            </section>
-          ) : null}
-
-          {precisionScrollMode ? (
-            <section className="rounded-xl border border-sky-600/40 bg-sky-950/30 p-4">
-              <h3 className="mb-2 text-sm font-semibold text-sky-100">
-                {isEnglishCopy ? 'Score scrolling' : '譜面スクロール'}
-              </h3>
-              <p className="mb-3 text-xs text-slate-300">
-                {isEnglishCopy
-                  ? 'Jump per measure, or continuously follow the playhead.'
-                  : '小節ごとにジャンプするか、プレイヘッドに合わせて追従します。'}
-              </p>
-              <div className="flex flex-col gap-2">
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-slate-200">
-                  <input
-                    type="radio"
-                    name="precision-scroll-mode"
-                    className="radio radio-info radio-sm"
-                    checked={precisionScrollMode.mode === 'measureJump'}
-                    onChange={() => precisionScrollMode.onChange('measureJump')}
-                  />
-                  {isEnglishCopy ? 'Measure jump' : '小節ジャンプ'}
-                </label>
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-slate-200">
-                  <input
-                    type="radio"
-                    name="precision-scroll-mode"
-                    className="radio radio-info radio-sm"
-                    checked={precisionScrollMode.mode === 'continuousFollow'}
-                    onChange={() => precisionScrollMode.onChange('continuousFollow')}
-                  />
-                  {isEnglishCopy ? 'Continuous follow' : '追従スクロール'}
-                </label>
               </div>
             </section>
           ) : null}

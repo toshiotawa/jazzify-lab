@@ -22,13 +22,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     let zoom: Double
     /// 小節スクロールのアンカーと 1 小節フィット（精密モード向け）。省略時はリズムバトル既定。
     var scrollLayout: EarTrainingOsmdScrollLayout = .battleDefault
-    var scrollMode: EarTrainingOsmdScrollMode = .measureJump
     var countInDurationSec: Double = 0
     var maxOsmdMeasure: Int = 1
     var manualScrollEnabled: Bool = false
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(scrollLayout: scrollLayout, scrollMode: scrollMode)
+        Coordinator(scrollLayout: scrollLayout)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -59,7 +58,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         playheadController?.bindOsmdCoordinator(context.coordinator)
         context.coordinator.configurePlayhead(show: scoreScrollActive)
         context.coordinator.updateScrollConfig(
-            scrollMode: scrollMode,
             scrollLayout: scrollLayout,
             countInDurationSec: countInDurationSec,
             maxOsmdMeasure: maxOsmdMeasure
@@ -91,16 +89,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private let scrollLayout: EarTrainingOsmdScrollLayout
-        private var scrollMode: EarTrainingOsmdScrollMode
         private var countInDurationSec: Double = 0
         private var maxOsmdMeasure: Int = 1
-        private var lastScrollMode: EarTrainingOsmdScrollMode?
         private var lastCountInDurationSec: Double?
         private var lastMaxOsmdMeasure: Int?
 
-        init(scrollLayout: EarTrainingOsmdScrollLayout, scrollMode: EarTrainingOsmdScrollMode) {
+        init(scrollLayout: EarTrainingOsmdScrollLayout) {
             self.scrollLayout = scrollLayout
-            self.scrollMode = scrollMode
         }
 
         private weak var webView: WKWebView?
@@ -123,11 +118,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var lastPlayheadAnimating: Bool?
         private var pendingOverlayVisible = false
         private var lastSentOverlayVisible: Bool?
-        private var followDisplayLink: CADisplayLink?
-        private var pendingFollowTimelineSec: Double?
-        private var pendingFollowPlaybackActive = false
-        private var pendingFollowQueuedAtMediaTime: CFTimeInterval?
-        private var hasPendingFollowAnchor = false
         private var pendingManualScrollEnabled = false
         private var lastSentManualScrollEnabled: Bool?
 
@@ -137,7 +127,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
         func tearDown() {
             isTornDown = true
-            stopFollowDisplayLink()
             renderGeneration += 1
             htmlReady = false
             pendingMusicXMLText = nil
@@ -173,12 +162,10 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
 
         func updateScrollConfig(
-            scrollMode: EarTrainingOsmdScrollMode,
             scrollLayout: EarTrainingOsmdScrollLayout,
             countInDurationSec: Double,
             maxOsmdMeasure: Int
         ) {
-            self.scrollMode = scrollMode
             self.countInDurationSec = countInDurationSec
             self.maxOsmdMeasure = max(1, maxOsmdMeasure)
             pendingScrollLayout = scrollLayout
@@ -190,18 +177,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private func sendScrollConfigIfNeeded() {
             guard let webView, htmlReady, !isTornDown else { return }
             var scripts: [String] = []
-            if lastScrollMode != scrollMode {
-                if scrollMode != .continuousFollow {
-                    stopFollowDisplayLink()
-                }
-                lastScrollMode = scrollMode
-                let modeLiteral = scrollMode == .continuousFollow ? "continuousFollow" : "measureJump"
-                let layout = pendingScrollLayout ?? scrollLayout
+            if let layout = pendingScrollLayout {
+                pendingScrollLayout = nil
                 let playheadLiteral = String(format: "%.10g", Double(layout.playheadPx))
                 let anchorLiteral = layout.anchorToMeasureLeft ? "true" : "false"
                 let fitLiteral = layout.fitActiveMeasureWidth ? "true" : "false"
                 scripts.append(
-                    "window.JazzifyOSMD.setScrollMode('\(modeLiteral)', \(playheadLiteral), \(anchorLiteral), \(fitLiteral));"
+                    "window.JazzifyOSMD.setScrollLayout(\(playheadLiteral), \(anchorLiteral), \(fitLiteral));"
                 )
             }
             if lastCountInDurationSec.map({ abs($0 - countInDurationSec) > 0.000_1 }) ?? true {
@@ -241,26 +223,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let durationLiteral = Self.javascriptNumber(measureDurationSec)
                 scripts.append("window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));")
             }
-            let followMode = scrollMode == .continuousFollow
-            if followMode {
-                if lastMeasureNumber != activeMeasureNumber {
-                    lastMeasureNumber = activeMeasureNumber
-                }
-                lastPhraseTimelineSec = phraseTimelineSec
-                lastPlayheadAnimating = animating
-                queueFollowTimelineAnchor(phraseTimelineSec, playbackActive: animating)
-                if !scripts.isEmpty {
-                    let generation = renderGeneration
-                    Self.evaluate(
-                        scripts.joined(separator: "\n"),
-                        on: webView,
-                        generation: generation,
-                        coordinator: self
-                    )
-                }
-                return
-            }
-            stopFollowDisplayLink()
             if lastMeasureNumber != activeMeasureNumber {
                 lastMeasureNumber = activeMeasureNumber
                 scripts.append("window.JazzifyOSMD.setActiveMeasure(\(activeMeasureNumber));")
@@ -283,58 +245,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 on: webView,
                 generation: generation,
                 coordinator: self
-            )
-        }
-
-        private func queueFollowTimelineAnchor(_ timelineSec: Double, playbackActive: Bool) {
-            pendingFollowTimelineSec = timelineSec
-            pendingFollowPlaybackActive = playbackActive
-            pendingFollowQueuedAtMediaTime = CACurrentMediaTime()
-            hasPendingFollowAnchor = true
-            ensureFollowDisplayLink()
-        }
-
-        private func ensureFollowDisplayLink() {
-            guard !isTornDown, followDisplayLink == nil else { return }
-            let link = CADisplayLink(target: self, selector: #selector(flushFollowTimelineAnchor))
-            link.add(to: .main, forMode: .common)
-            followDisplayLink = link
-        }
-
-        private func stopFollowDisplayLink() {
-            followDisplayLink?.invalidate()
-            followDisplayLink = nil
-            hasPendingFollowAnchor = false
-            pendingFollowTimelineSec = nil
-            pendingFollowQueuedAtMediaTime = nil
-        }
-
-        @objc private func flushFollowTimelineAnchor() {
-            guard !isTornDown, let webView, htmlReady else {
-                stopFollowDisplayLink()
-                return
-            }
-            guard hasPendingFollowAnchor, let baseTimelineSec = pendingFollowTimelineSec else {
-                stopFollowDisplayLink()
-                return
-            }
-            hasPendingFollowAnchor = false
-            let playbackActive = pendingFollowPlaybackActive
-            var timelineSec = baseTimelineSec
-            if playbackActive, let queuedAt = pendingFollowQueuedAtMediaTime {
-                let elapsed = CACurrentMediaTime() - queuedAt
-                if elapsed.isFinite, elapsed > 0 {
-                    timelineSec += elapsed
-                }
-            }
-            pendingFollowQueuedAtMediaTime = nil
-            let timelineLiteral = Self.javascriptNumber(timelineSec)
-            let activeLiteral = playbackActive ? "true" : "false"
-            webView.evaluateJavaScript(
-                Self.voidWrappedJavaScript(
-                    "window.JazzifyOSMD.setFollowTimelineAnchor(\(timelineLiteral), \(activeLiteral));"
-                ),
-                completionHandler: nil
             )
         }
 
@@ -541,7 +451,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     }
 
     private static func html(for layout: EarTrainingOsmdScrollLayout) -> String {
-        let scrollModeLiteral = layout.scrollMode == .continuousFollow ? "continuousFollow" : "measureJump"
         let fitWindowEnabled = layout.fitWindow != nil
         let fitWindowMinVisible = layout.fitWindow?.minVisibleMeasures
             ?? EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS
@@ -551,7 +460,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             .replacingOccurrences(of: "__PLAYHEAD_PX__", with: String(format: "%.10g", Double(layout.playheadPx)))
             .replacingOccurrences(of: "__ANCHOR_TO_MEASURE_LEFT__", with: layout.anchorToMeasureLeft ? "true" : "false")
             .replacingOccurrences(of: "__FIT_ACTIVE_MEASURE_WIDTH__", with: layout.fitActiveMeasureWidth ? "true" : "false")
-            .replacingOccurrences(of: "__SCROLL_MODE__", with: scrollModeLiteral)
             .replacingOccurrences(
                 of: "__MIN_FIT_SCALE__",
                 with: String(format: "%.10g", Double(EarTrainingOsmdScoreScroll.precisionMinFitScale))
@@ -664,7 +572,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           const FIT_WINDOW_STEP = __FIT_WINDOW_STEP__;
           const WINDOW_DENSE_FALLBACK_SCALE = __WINDOW_DENSE_FALLBACK_SCALE__;
           const WINDOW_DENSE_FALLBACK_MEASURES = __WINDOW_DENSE_FALLBACK_MEASURES__;
-          let scrollMode = '__SCROLL_MODE__';
           let osmd = null;
           let measureCentersByNumber = {};
           let measureBoundsByNumber = {};
@@ -682,10 +589,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let manualDragActive = false;
           let manualDragStartClientX = 0;
           let manualDragStartOffsetPx = 0;
-
-          function isFollowMode() {
-            return scrollMode === 'continuousFollow';
-          }
 
           function finiteNum(value) {
             return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -1387,7 +1290,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           async function renderMusicXML(xmlText, zoomValue) {
             resetManualScroll();
-            cancelFollowRaf();
             score.replaceChildren();
             measureCentersByNumber = {};
             measureBoundsByNumber = {};
@@ -1473,69 +1375,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Math.max(0, Math.min(1, (timelineSec + countInDurationSec) / countInDurationSec));
           }
 
-          function measureNumberAndProgress(timelineSec) {
-            const safeDur = Math.max(1e-6, measureDurationSec);
-            const clampedTime = Math.max(0, timelineSec);
-            const rawMeasure = Math.floor(clampedTime / safeDur) + 1;
-            const measureNumber = Math.max(1, Math.min(maxMeasureNumber, rawMeasure));
-            const timeInMeasure = clampedTime - (measureNumber - 1) * safeDur;
-            const progress = Math.max(0, Math.min(1, timeInMeasure / safeDur));
-            return { measureNumber: measureNumber, progress: progress };
-          }
-
-          function continuousScoreX(measureNumber, progress) {
-            const bounds = measureBoundsByNumber[measureNumber] || measureBoundsByNumber[1];
-            if (!bounds) {
-              return 0;
-            }
-            const measureWidth = bounds.right - bounds.left;
-            if (!Number.isFinite(measureWidth) || measureWidth <= 0) {
-              return bounds.left;
-            }
-            return bounds.left + Math.max(0, Math.min(1, progress)) * measureWidth;
-          }
-
-          function computeContinuousFollowState(timelineSec) {
-            const viewportWidth = viewport.clientWidth || 0;
-            refreshEffectiveScale(1);
-            const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
-
-            if (timelineSec < 0 && countInDurationSec > 0) {
-              return {
-                phase: 'countIn',
-                scrollOffset: 0,
-                measureNumber: 1,
-                progress: countInPlayheadProgress(timelineSec),
-                playheadScreenX: null
-              };
-            }
-
-            const mp = measureNumberAndProgress(timelineSec);
-            const xPos = continuousScoreX(mp.measureNumber, mp.progress);
-            const rawOffset = xPos * effectiveScale - PLAYHEAD_PX;
-            const clampedOffset = Math.max(0, Math.min(maxOffset, rawOffset));
-
-            if (clampedOffset < maxOffset - 0.001) {
-              return {
-                phase: 'scrolling',
-                scrollOffset: clampedOffset,
-                measureNumber: mp.measureNumber,
-                progress: mp.progress,
-                xPos: xPos,
-                playheadScreenX: PLAYHEAD_PX
-              };
-            }
-
-            return {
-              phase: 'tail',
-              scrollOffset: maxOffset,
-              measureNumber: mp.measureNumber,
-              progress: mp.progress,
-              xPos: xPos,
-              playheadScreenX: xPos * effectiveScale - maxOffset
-            };
-          }
-
           function measureHighlightGeometry(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
             const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
@@ -1554,45 +1393,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             };
           }
 
-          function applyContinuousFollow(timelineSec) {
-            const state = computeContinuousFollowState(timelineSec);
-            activeMeasureNumber = state.measureNumber;
-            currentScrollOffset = state.scrollOffset;
-            applyScoreTransform(currentScrollOffset);
-            updateMeasureHighlightForFollow(state);
-          }
-
-          function updateMeasureHighlightForFollow(state) {
-            const highlight = document.getElementById('measure-highlight');
-            const playhead = document.getElementById('measure-playhead');
-            if (!highlight || !playhead || !overlayVisible) {
-              if (highlight) {
-                highlight.style.display = 'none';
-              }
-              return;
-            }
-            const geometry = measureHighlightGeometry(state.measureNumber);
-            if (!geometry) {
-              highlight.style.display = 'none';
-              return;
-            }
-            highlight.style.left = snapLayoutPx(geometry.leftPx) + 'px';
-            highlight.style.width = snapLayoutPx(geometry.widthPx) + 'px';
-            highlight.style.display = 'block';
-
-            playhead.style.transition = 'none';
-            let playheadX = PLAYHEAD_PX;
-            if (state.phase === 'countIn') {
-              playheadX = geometry.leftPx + state.progress * geometry.widthPx;
-            } else if (state.phase === 'tail') {
-              playheadX = state.playheadScreenX;
-            }
-            if (state.phase === 'scrolling' || state.phase === 'tail') {
-              playheadX -= manualScrollOffsetPx;
-            }
-            playhead.style.left = snapLayoutPx(playheadX) + 'px';
-          }
-
           function updateMeasureHighlight() {
             const highlight = document.getElementById('measure-highlight');
             if (!highlight) {
@@ -1600,10 +1400,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
             if (!overlayVisible) {
               highlight.style.display = 'none';
-              return;
-            }
-            if (isFollowMode() && playheadTimelineConfigured) {
-              ensureFollowRaf();
               return;
             }
             const geometry = measureHighlightGeometry(activeMeasureNumber);
@@ -1620,86 +1416,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let phraseTimelineSec = 0;
           let playheadAnimating = false;
           let playheadTimelineConfigured = false;
-          let followTimelineAnchorSec = 0;
-          let followTimelineAnchorPerfMs = 0;
-          let followRafId = 0;
-          let followPlaybackActive = false;
-
-          function resolveFollowTimelineSec() {
-            if (!followPlaybackActive) {
-              return followTimelineAnchorSec;
-            }
-            return followTimelineAnchorSec + (performance.now() - followTimelineAnchorPerfMs) / 1000;
-          }
-
-          function cancelFollowRaf() {
-            if (followRafId) {
-              cancelAnimationFrame(followRafId);
-              followRafId = 0;
-            }
-          }
-
-          function followRafTick() {
-            followRafId = 0;
-            if (!isFollowMode() || !overlayVisible || !playheadTimelineConfigured) {
-              return;
-            }
-            applyContinuousFollow(resolveFollowTimelineSec());
-            followRafId = requestAnimationFrame(followRafTick);
-          }
-
-          function ensureFollowRaf() {
-            if (!isFollowMode() || !overlayVisible || !playheadTimelineConfigured) {
-              cancelFollowRaf();
-              return;
-            }
-            if (followRafId) {
-              return;
-            }
-            followRafId = requestAnimationFrame(followRafTick);
-          }
-
-          function setFollowTimelineAnchor(sec, playbackActive) {
-            resetManualScroll();
-            const parsed = Number.isFinite(Number(sec)) ? Number(sec) : 0;
-            const nextPlaybackActive = !!playbackActive;
-            const wasPlaybackActive = followPlaybackActive;
-            const driftThresholdSec = 0.25;
-            const driftBlend = 0.2;
-
-            if (
-              nextPlaybackActive &&
-              wasPlaybackActive &&
-              followTimelineAnchorPerfMs > 0 &&
-              playheadTimelineConfigured
-            ) {
-              const extrapolatedSec = resolveFollowTimelineSec();
-              const drift = parsed - extrapolatedSec;
-              if (Math.abs(drift) < driftThresholdSec) {
-                followTimelineAnchorSec += drift * driftBlend;
-              } else {
-                followTimelineAnchorSec = parsed;
-                followTimelineAnchorPerfMs = performance.now();
-              }
-            } else {
-              followTimelineAnchorSec = parsed;
-              followTimelineAnchorPerfMs = performance.now();
-            }
-
-            followPlaybackActive = nextPlaybackActive;
-            phraseTimelineSec = followTimelineAnchorSec;
-            playheadTimelineConfigured = true;
-            playheadAnimating = false;
-            if (!overlayVisible || !isFollowMode()) {
-              return;
-            }
-            if (!followPlaybackActive) {
-              cancelFollowRaf();
-              applyContinuousFollow(followTimelineAnchorSec);
-              return;
-            }
-            ensureFollowRaf();
-          }
 
           function computeProgressInMeasure() {
             if (phraseTimelineSec < 0) {
@@ -1762,10 +1478,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           function setPlayheadTimeline(sec, animating) {
             resetManualScroll();
             playheadTimelineConfigured = true;
-            if (isFollowMode()) {
-              setFollowTimelineAnchor(sec, animating);
-              return;
-            }
             phraseTimelineSec = Number.isFinite(Number(sec)) ? Number(sec) : 0;
             playheadAnimating = !!animating;
             updateMeasureHighlight();
@@ -1779,11 +1491,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           function setScoreOverlayVisible(show) {
             resetManualScroll();
             overlayVisible = !!show;
-            if (!overlayVisible) {
-              cancelFollowRaf();
-            } else if (isFollowMode() && playheadTimelineConfigured) {
-              ensureFollowRaf();
-            }
             applyIdleScoreLayout();
             updateMeasureHighlight();
           }
@@ -1803,13 +1510,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             maxMeasureNumber = Math.max(1, parsed);
           }
 
-          function setScrollMode(mode, playheadPxValue, anchorToMeasureLeft, fitActiveMeasureWidth) {
+          function setScrollLayout(playheadPxValue, anchorToMeasureLeft, fitActiveMeasureWidth) {
             resetManualScroll();
-            const nextMode = mode === 'continuousFollow' ? 'continuousFollow' : 'measureJump';
-            if (nextMode !== 'continuousFollow') {
-              cancelFollowRaf();
-            }
-            scrollMode = nextMode;
             if (typeof playheadPxValue === 'number' && Number.isFinite(playheadPxValue)) {
               PLAYHEAD_PX = playheadPxValue;
             }
@@ -1819,9 +1521,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             if (typeof fitActiveMeasureWidth === 'boolean') {
               FIT_ACTIVE_MEASURE_WIDTH = fitActiveMeasureWidth;
             }
-            if (overlayVisible && playheadTimelineConfigured && isFollowMode()) {
-              ensureFollowRaf();
-            } else if (overlayVisible) {
+            if (overlayVisible) {
               currentScrollOffset = computeScrollOffset(activeMeasureNumber);
               applyScoreTransform(currentScrollOffset);
               updateMeasureHighlight();
@@ -1830,9 +1530,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function setActiveMeasure(measureNumber) {
             resetManualScroll();
-            if (isFollowMode()) {
-              return;
-            }
             activeMeasureNumber = Math.max(1, Math.floor(Number(measureNumber || 1)));
             if (!overlayVisible) {
               currentScrollOffset = 0;
@@ -1857,11 +1554,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             manualScrollEnabled = !!enabled;
             if (!manualScrollEnabled) {
               resetManualScroll();
-              if (isFollowMode() && playheadTimelineConfigured && overlayVisible) {
-                applyContinuousFollow(resolveFollowTimelineSec());
-              } else {
-                updateMeasureHighlight();
-              }
+              updateMeasureHighlight();
             }
           }
 
@@ -1881,11 +1574,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               Math.min(maxScrollOffsetPx() - currentScrollOffset, manualDragStartOffsetPx + delta)
             );
             applyScoreTransform(currentScrollOffset);
-            if (isFollowMode() && playheadTimelineConfigured) {
-              applyContinuousFollow(resolveFollowTimelineSec());
-            } else {
-              updateMeasureHighlight();
-            }
+            updateMeasureHighlight();
           }, { passive: false });
 
           viewport.addEventListener('touchend', function() {
@@ -1902,8 +1591,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             setMeasureDurationSec,
             setScoreOverlayVisible,
             setPlayheadTimeline,
-            setFollowTimelineAnchor,
-            setScrollMode,
+            setScrollLayout,
             setCountInDurationSec,
             setMaxMeasureNumber,
             setManualScrollEnabled

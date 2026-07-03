@@ -1,21 +1,17 @@
 import {
   OSMD_BATTLE_PLAYHEAD_PX,
-  OSMD_PRECISION_FOLLOW_PLAYHEAD_PX,
+  OSMD_SCROLL_LAYOUT_PRECISION,
   OSMD_WINDOW_MIN_VISIBLE_MEASURES_WEB,
   OSMD_WINDOW_STEP_MEASURES,
   clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
-  computeOsmdContinuousFollowScroll,
-  computeOsmdContinuousScoreX,
   computeOsmdCountInPlayheadProgress,
   computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
-  computeOsmdMeasureNumberAndProgress,
   computeOsmdMeasurePlayheadProgress,
   computeOsmdWindowFitScale,
   computeOsmdWindowJumpScrollOffset,
   computeOsmdWindowStartMeasureNumber,
-  resolveOsmdScrollLayout,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 
 const bounds = {
@@ -446,111 +442,11 @@ describe('computeOsmdEffectiveScaleForMeasure', () => {
   });
 });
 
-describe('computeOsmdMeasureNumberAndProgress', () => {
-  it('タイムラインから小節番号と進捗を返す', () => {
-    expect(computeOsmdMeasureNumberAndProgress({
-      phraseTimelineSec: 3,
-      measureDurationSec: 2,
-      maxMeasureNumber: 8,
-    })).toEqual({ measureNumber: 2, progress: 0.5 });
-  });
-
-  it('maxMeasureNumber を超えない', () => {
-    expect(computeOsmdMeasureNumberAndProgress({
-      phraseTimelineSec: 100,
-      measureDurationSec: 2,
-      maxMeasureNumber: 4,
-    }).measureNumber).toBe(4);
-  });
-});
-
-describe('computeOsmdContinuousScoreX', () => {
-  it('小節左端＋進捗×幅の座標を返す', () => {
-    expect(computeOsmdContinuousScoreX({
-      measureNumber: 2,
-      progress: 0.5,
-      measureBoundsByNumber: bounds,
-    })).toBe(160);
-  });
-});
-
-describe('computeOsmdContinuousFollowScroll', () => {
-  const followBounds = {
-    1: { left: 0, right: 100 },
-    2: { left: 100, right: 200 },
-    3: { left: 200, right: 300 },
-    4: { left: 300, right: 400 },
-  };
-
-  it('カウントイン中はオフセット 0・プレイヘッド非固定', () => {
-    const result = computeOsmdContinuousFollowScroll({
-      phraseTimelineSec: -2,
-      measureDurationSec: 2,
-      countInDurationSec: 4,
-      maxMeasureNumber: 4,
-      measureBoundsByNumber: followBounds,
-      playheadPx: OSMD_PRECISION_FOLLOW_PLAYHEAD_PX,
-      effectiveScale: 1,
-      scoreWidth: 400,
-      viewportWidth: 200,
-    });
-    expect(result.phase).toBe('countIn');
-    expect(result.scrollOffsetPx).toBe(0);
-    expect(result.playheadFixed).toBe(false);
-  });
-
-  it('中間はプレイヘッドを固定して追従スクロールする', () => {
-    const result = computeOsmdContinuousFollowScroll({
-      phraseTimelineSec: 4,
-      measureDurationSec: 2,
-      countInDurationSec: 4,
-      maxMeasureNumber: 4,
-      measureBoundsByNumber: followBounds,
-      playheadPx: 36,
-      effectiveScale: 1,
-      scoreWidth: 400,
-      viewportWidth: 200,
-    });
-    // measure3 left=200 → rawOffset=200-36=164, maxOffset=200 → scrolling
-    expect(result.phase).toBe('scrolling');
-    expect(result.scrollOffsetPx).toBe(164);
-    expect(result.playheadFixed).toBe(true);
-  });
-
-  it('末尾は maxOffset に張り付きプレイヘッドが進む', () => {
-    const result = computeOsmdContinuousFollowScroll({
-      phraseTimelineSec: 7.9,
-      measureDurationSec: 2,
-      countInDurationSec: 4,
-      maxMeasureNumber: 4,
-      measureBoundsByNumber: followBounds,
-      playheadPx: 36,
-      effectiveScale: 1,
-      scoreWidth: 400,
-      viewportWidth: 200,
-    });
-    expect(result.phase).toBe('tail');
-    expect(result.scrollOffsetPx).toBe(200);
-    expect(result.playheadFixed).toBe(false);
-  });
-});
-
-describe('resolveOsmdScrollLayout', () => {
-  it('measureJump は左端アンカー・fit 有効', () => {
-    const layout = resolveOsmdScrollLayout('measureJump');
-    expect(layout.scrollMode).toBe('measureJump');
-    expect(layout.anchorToMeasureLeft).toBe(true);
-    expect(layout.fitActiveMeasureWidth).toBe(true);
-    expect(layout.playheadPx).toBe(0);
-    expect(layout.fitWindow).toBeUndefined();
-  });
-
-  it('continuousFollow はプレイヘッド固定・fit 無効', () => {
-    const layout = resolveOsmdScrollLayout('continuousFollow');
-    expect(layout.scrollMode).toBe('continuousFollow');
-    expect(layout.anchorToMeasureLeft).toBe(false);
-    expect(layout.fitActiveMeasureWidth).toBe(false);
-    expect(layout.playheadPx).toBe(OSMD_PRECISION_FOLLOW_PLAYHEAD_PX);
-    expect(layout.fitWindow).toBeUndefined();
+describe('OSMD_SCROLL_LAYOUT_PRECISION', () => {
+  it('左端アンカー・fit 有効', () => {
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.anchorToMeasureLeft).toBe(true);
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.fitActiveMeasureWidth).toBe(true);
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.playheadPx).toBe(0);
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.fitWindow).toBeUndefined();
   });
 });

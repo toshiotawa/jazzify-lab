@@ -28,12 +28,6 @@ struct EarTrainingOsmdTimingAdjustmentConfig {
     let onChange: (_ offsetMs: Int) -> Void
 }
 
-/// 精密モード譜面スクロール方式。
-struct EarTrainingOsmdScrollModeConfig {
-    let appliedMode: EarTrainingOsmdScrollMode
-    let onChange: (_ mode: EarTrainingOsmdScrollMode) -> Void
-}
-
 /// 精密モード Auto Play（管理者向け、Web `precisionAutoPlay` prop 相当）。
 struct EarTrainingPrecisionAutoPlayConfig {
     let enabled: Bool
@@ -58,7 +52,6 @@ struct EarTrainingSettingsSheet: View {
     var practiceTranspose: EarTrainingPracticeTransposeConfig?
     var practiceSpeed: EarTrainingPracticeSpeedConfig?
     var osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig?
-    var osmdScrollMode: EarTrainingOsmdScrollModeConfig?
     var precisionAutoPlay: EarTrainingPrecisionAutoPlayConfig?
     var onRestartFromBeginning: (() -> Void)?
     let onDismiss: () -> Void
@@ -70,7 +63,6 @@ struct EarTrainingSettingsSheet: View {
     @State private var transposeDraft: Double = 0
     @State private var speedDraft: Double = 100
     @State private var timingAdjustmentDraft: Double = Double(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsDefault)
-    @State private var scrollModeDraft: EarTrainingOsmdScrollMode = .measureJump
     @State private var autoPlayDraft = false
     @State private var masterVolume: Double = Self.loadDouble(key: Self.masterKey, fallback: 1.0)
     @State private var musicVolume: Double = Self.loadDouble(key: Self.musicKey, fallback: 0.7)
@@ -104,10 +96,6 @@ struct EarTrainingSettingsSheet: View {
 
                 if let osmdTimingAdjustment {
                     osmdTimingAdjustmentSection(osmdTimingAdjustment)
-                }
-
-                if let osmdScrollMode {
-                    osmdScrollModeSection(osmdScrollMode)
                 }
 
                 if let precisionAutoPlay {
@@ -180,9 +168,6 @@ struct EarTrainingSettingsSheet: View {
             if let osmdTimingAdjustment {
                 timingAdjustmentDraft = Double(osmdTimingAdjustment.appliedOffsetMs)
             }
-            if let osmdScrollMode {
-                scrollModeDraft = osmdScrollMode.appliedMode
-            }
             if let precisionAutoPlay {
                 autoPlayDraft = precisionAutoPlay.enabled
             }
@@ -205,11 +190,6 @@ struct EarTrainingSettingsSheet: View {
         .onChange(of: osmdTimingAdjustment?.appliedOffsetMs) { newValue in
             if let newValue {
                 timingAdjustmentDraft = Double(newValue)
-            }
-        }
-        .onChange(of: osmdScrollMode?.appliedMode) { newValue in
-            if let newValue {
-                scrollModeDraft = newValue
             }
         }
         .onChange(of: precisionAutoPlay?.enabled) { newValue in
@@ -370,47 +350,6 @@ struct EarTrainingSettingsSheet: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.orange.opacity(0.35), lineWidth: 1)
-        )
-    }
-
-    private func osmdScrollModeSection(_ config: EarTrainingOsmdScrollModeConfig) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(isEnglishCopy ? "Score scroll" : "譜面スクロール")
-                .font(.subheadline.bold())
-                .foregroundStyle(Color(hex: "a78bfa"))
-
-            Text(isEnglishCopy
-                 ? "Choose how the score moves during precision mode playback."
-                 : "精密モード再生中の譜面の動き方を選びます。")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.75))
-
-            runModeRadio(
-                title: isEnglishCopy ? "Measure jump" : "小節ジャンプ",
-                selected: scrollModeDraft == .measureJump
-            ) {
-                scrollModeDraft = .measureJump
-                config.onChange(.measureJump)
-                EarTrainingPrecisionScrollPreferences.saveScrollMode(.measureJump)
-            }
-            runModeRadio(
-                title: isEnglishCopy ? "Follow scroll" : "追従スクロール",
-                selected: scrollModeDraft == .continuousFollow
-            ) {
-                scrollModeDraft = .continuousFollow
-                config.onChange(.continuousFollow)
-                EarTrainingPrecisionScrollPreferences.saveScrollMode(.continuousFollow)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.purple.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.purple.opacity(0.35), lineWidth: 1)
         )
     }
 

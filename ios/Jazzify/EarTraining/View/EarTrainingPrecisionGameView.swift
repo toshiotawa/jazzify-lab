@@ -147,10 +147,6 @@ private struct EarTrainingPrecisionGameContent: View {
     private static let scoreBandGripWidth: CGFloat = 44
     private static let scoreBandGripHeight: CGFloat = 28
 
-    private var precisionScrollLayout: EarTrainingOsmdScrollLayout {
-        controller.osmdScrollMode == .continuousFollow ? .precisionFollow : .precision
-    }
-
     var body: some View {
         GeometryReader { proxy in
             let screenHeight = proxy.size.height
@@ -234,10 +230,6 @@ private struct EarTrainingPrecisionGameContent: View {
                     appliedOffsetMs: controller.timingAdjustmentMs,
                     onChange: { controller.applyTimingAdjustmentMs($0) }
                 ),
-                osmdScrollMode: EarTrainingOsmdScrollModeConfig(
-                    appliedMode: controller.osmdScrollMode,
-                    onChange: { controller.applyOsmdScrollMode($0) }
-                ),
                 precisionAutoPlay: controller.isAdmin
                     ? EarTrainingPrecisionAutoPlayConfig(
                         enabled: controller.precisionAutoPlayEnabled,
@@ -309,8 +301,7 @@ private struct EarTrainingPrecisionGameContent: View {
                     renderKey: controller.phraseRunId,
                     playheadController: controller,
                     zoom: osmdZoom,
-                    scrollLayout: precisionScrollLayout,
-                    scrollMode: controller.osmdScrollMode,
+                    scrollLayout: .precision,
                     countInDurationSec: controller.countInDurationSec,
                     maxOsmdMeasure: controller.maxOsmdMeasureForScroll,
                     manualScrollEnabled: controller.practiceMode && controller.gameState == .paused
@@ -466,22 +457,6 @@ private struct EarTrainingPrecisionGameContent: View {
 }
 
 // MARK: - Precision score preferences
-
-enum EarTrainingPrecisionScrollPreferences {
-    private static let scrollModeKey = "earTraining.precision.osmdScrollMode"
-
-    static func loadScrollMode() -> EarTrainingOsmdScrollMode {
-        guard let raw = UserDefaults.standard.string(forKey: scrollModeKey),
-              let mode = EarTrainingOsmdScrollMode(rawValue: raw) else {
-            return .measureJump
-        }
-        return mode
-    }
-
-    static func saveScrollMode(_ mode: EarTrainingOsmdScrollMode) {
-        UserDefaults.standard.set(mode.rawValue, forKey: scrollModeKey)
-    }
-}
 
 enum EarTrainingPrecisionScorePreferences {
     private static let scoreBandHeightKey = "earTraining.precision.scoreBandHeightPx"

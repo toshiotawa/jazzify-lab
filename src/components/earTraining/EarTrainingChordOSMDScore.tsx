@@ -14,7 +14,6 @@ import {
   OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT,
   clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
-  computeOsmdContinuousFollowScroll,
   computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
@@ -67,7 +66,7 @@ interface EarTrainingChordOSMDScoreProps {
   manualScrollEnabled?: boolean;
   /** true のとき OSMD 標準の歌詞を譜面に描画する（false=歌詞を除去してノーツ部テキストのみ）。 */
   showScoreLyrics?: boolean;
-  /** スクロールのアンカー・1小節フィット・追従モード設定。省略時はリズムバトル既定。 */
+  /** スクロールのアンカー・1小節フィット設定。省略時はリズムバトル既定。 */
   scrollLayout?: OsmdScrollLayout;
 }
 
@@ -333,32 +332,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     const highlight = measureHighlightRef.current;
     const playhead = measurePlayheadRef.current;
     if (!highlight || !playhead || !scrollActive || hidden || !musicXmlText) {
-      return;
-    }
-
-    if (scrollLayout.scrollMode === 'continuousFollow') {
-      const viewport = viewportRef.current;
-      if (!viewport) {
-        return;
-      }
-      const follow = computeOsmdContinuousFollowScroll({
-        phraseTimelineSec: params.phraseTimelineSec,
-        measureDurationSec,
-        countInDurationSec,
-        maxMeasureNumber: maxMeasureNumberRef.current,
-        measureBoundsByNumber: layoutRef.current.measureBoundsByNumber,
-        playheadPx: scrollLayout.playheadPx,
-        effectiveScale: effectiveScaleRef.current,
-        scoreWidth: layoutRef.current.scoreWidth,
-        viewportWidth: viewport.clientWidth,
-      });
-      scrollOffsetPxRef.current = follow.scrollOffsetPx;
-      applyScoreTransform(follow.scrollOffsetPx, 0);
-      const lineX = follow.playheadFixed
-        ? scrollLayout.playheadPx
-        : follow.xPos * effectiveScaleRef.current - follow.scrollOffsetPx;
-      playhead.style.transition = 'none';
-      playhead.style.left = `${lineX}px`;
       return;
     }
 
@@ -696,14 +669,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       return;
     }
     resetManualScroll();
-    // 追従スクロールはフレーム毎に syncPlayhead が transform を駆動するため、小節ジャンプは行わない。
-    if (scrollLayout.scrollMode === 'continuousFollow') {
-      const pending = pendingPlayheadSyncRef.current;
-      if (pending && useImperativePlayhead) {
-        applyPlayheadFromParams(pending);
-      }
-      return;
-    }
     const { offsetPx } = scrollLayout.fitWindow
       ? computeOsmdWindowJumpScrollOffset({
         activeMeasureNumber,
@@ -759,7 +724,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
 
   const statusText = renderError ?? scoreErrorText;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
-  const isFollowMode = scrollLayout.scrollMode === 'continuousFollow';
   const measureHighlight = useMemo(
     () => computeOsmdActiveMeasureHighlight({
       activeMeasureNumber,
@@ -883,18 +847,16 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         <div
           ref={measureHighlightRef}
           className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden"
-          style={isFollowMode
-            ? { left: 0, width: '100%' }
-            : {
-              left: `${measureHighlight.leftPx}px`,
-              width: `${measureHighlight.widthPx}px`,
-            }}
+          style={{
+            left: `${measureHighlight.leftPx}px`,
+            width: `${measureHighlight.widthPx}px`,
+          }}
           aria-hidden
         >
           <div
             ref={measurePlayheadRef}
             className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-red-500/95"
-            style={{ left: isFollowMode ? `${scrollLayout.playheadPx}px` : 0 }}
+            style={{ left: 0 }}
           />
         </div>
       )}

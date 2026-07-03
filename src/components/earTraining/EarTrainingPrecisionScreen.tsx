@@ -79,16 +79,11 @@ import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXm
 import {
   clampPrecisionScoreBandHeightPx,
   loadPrecisionScoreBandHeightPx,
-  loadPrecisionScrollMode,
   PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX,
   PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX,
   savePrecisionScoreBandHeightPx,
-  savePrecisionScrollMode,
 } from '@/utils/earTrainingPrecisionScorePreferences';
-import {
-  resolveOsmdScrollLayout,
-  type EarTrainingOsmdScrollMode,
-} from '@/utils/earTrainingChordOsmdScoreScroll';
+import { OSMD_SCROLL_LAYOUT_PRECISION } from '@/utils/earTrainingChordOsmdScoreScroll';
 import {
   clampEarTrainingOsmdTimingAdjustmentMs,
   loadEarTrainingOsmdTimingAdjustmentMs,
@@ -198,7 +193,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [lastRank, setLastRank] = useState<PrecisionLessonRank | null>(null);
   const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
   const [activeLyricText, setActiveLyricText] = useState('');
-  const [scrollMode, setScrollMode] = useState<EarTrainingOsmdScrollMode>(loadPrecisionScrollMode);
   const [seekSliderSec, setSeekSliderSec] = useState(0);
   const [seekPreviewSec, setSeekPreviewSec] = useState(0);
   const [isSeekDragging, setIsSeekDragging] = useState(false);
@@ -206,13 +200,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const notesViewportRef = useRef<HTMLDivElement | null>(null);
   const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
   const maxOsmdMeasureRef = useRef(1);
-  const scrollModeRef = useRef<EarTrainingOsmdScrollMode>(scrollMode);
-  scrollModeRef.current = scrollMode;
-  const scrollLayout = useMemo(() => resolveOsmdScrollLayout(scrollMode), [scrollMode]);
-  const handleScrollModeChange = useCallback((mode: EarTrainingOsmdScrollMode): void => {
-    setScrollMode(mode);
-    savePrecisionScrollMode(mode);
-  }, []);
   const [notesViewportSize, setNotesViewportSize] = useState({ width: 390, height: 400 });
   const [scoreBandHeightPx, setScoreBandHeightPx] = useState(() => {
     const saved = loadPrecisionScoreBandHeightPx();
@@ -733,8 +720,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         activeMeasureNumberRef.current = nextMeasure;
         setActiveMeasureNumber(nextMeasure);
       }
-      // 追従スクロールは毎フレーム、小節ジャンプは小節が変わったときだけ同期する。
-      if (measureChanged || scrollModeRef.current === 'continuousFollow') {
+      if (measureChanged) {
         osmdScoreRef.current?.syncPlayhead({
           phraseTimelineSec: phraseTimeSec,
           activeMeasureNumber: nextMeasure,
@@ -1387,7 +1373,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             fillParent
             manualScrollEnabled={practiceMode && gameState === 'paused'}
             showScoreLyrics={stage.show_score_lyrics_in_battle === true}
-            scrollLayout={scrollLayout}
+            scrollLayout={OSMD_SCROLL_LAYOUT_PRECISION}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
@@ -1608,10 +1594,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         osmdTimingAdjustment={{
           appliedOffsetMs: timingAdjustmentMs,
           onChange: handleTimingAdjustmentChange,
-        }}
-        precisionScrollMode={{
-          mode: scrollMode,
-          onChange: handleScrollModeChange,
         }}
         precisionAutoPlay={
           isAdmin

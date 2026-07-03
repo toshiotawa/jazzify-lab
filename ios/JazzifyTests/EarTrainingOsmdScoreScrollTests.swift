@@ -214,28 +214,6 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         XCTAssertEqual(scale, EarTrainingOsmdScoreScroll.precisionMinFitScale)
     }
 
-    private func followInput(
-        timeline: Double,
-        measureDuration: Double = 2,
-        countInDuration: Double = 4,
-        maxMeasure: Int = 4,
-        scoreWidth: CGFloat = 500,
-        viewportWidth: CGFloat = 400,
-        scale: CGFloat = 1
-    ) -> EarTrainingOsmdScoreScroll.ContinuousFollowScrollInput {
-        EarTrainingOsmdScoreScroll.ContinuousFollowScrollInput(
-            phraseTimelineSec: timeline,
-            measureDurationSec: measureDuration,
-            countInDurationSec: countInDuration,
-            maxMeasureNumber: maxMeasure,
-            measureBoundsByNumber: bounds,
-            playheadPx: EarTrainingOsmdScoreScroll.precisionFollowPlayheadPx,
-            effectiveScale: scale,
-            scoreWidth: scoreWidth,
-            viewportWidth: viewportWidth
-        )
-    }
-
     func testCountInPlayheadProgress_mapsNegativeTimelineToZeroOne() {
         XCTAssertEqual(
             EarTrainingOsmdScoreScroll.countInPlayheadProgress(phraseTimelineSec: -4, countInDurationSec: 4),
@@ -254,64 +232,10 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         )
     }
 
-    func testContinuousFollowScrollState_countInKeepsScrollAtZero() {
-        let state = EarTrainingOsmdScoreScroll.continuousFollowScrollState(
-            followInput(timeline: -2, countInDuration: 4)
-        )
-        XCTAssertEqual(state.phase, .countIn)
-        XCTAssertEqual(state.scrollOffsetPx, 0)
-        XCTAssertEqual(state.activeMeasureNumber, 1)
-        XCTAssertEqual(state.measureProgress, 0.5, accuracy: 0.001)
-        XCTAssertFalse(state.playheadFixed)
-    }
-
-    func testContinuousFollowScrollState_scrollingPhaseFixesPlayhead() {
-        let state = EarTrainingOsmdScoreScroll.continuousFollowScrollState(
-            followInput(timeline: 3, measureDuration: 2)
-        )
-        XCTAssertEqual(state.phase, .scrolling)
-        XCTAssertTrue(state.playheadFixed)
-        XCTAssertEqual(state.activeMeasureNumber, 2)
-        XCTAssertEqual(state.measureProgress, 0.5, accuracy: 0.001)
-        XCTAssertGreaterThan(state.scrollOffsetPx, 0)
-    }
-
-    func testContinuousFollowScrollState_isContinuousAcrossMeasureBoundary() {
-        let endMeasure1 = EarTrainingOsmdScoreScroll.continuousFollowScrollState(
-            followInput(timeline: 1.99, measureDuration: 2)
-        )
-        let startMeasure2 = EarTrainingOsmdScoreScroll.continuousFollowScrollState(
-            followInput(timeline: 2.01, measureDuration: 2)
-        )
-        XCTAssertEqual(endMeasure1.phase, .scrolling)
-        XCTAssertEqual(startMeasure2.phase, .scrolling)
-        XCTAssertLessThan(endMeasure1.scrollOffsetPx, startMeasure2.scrollOffsetPx)
-    }
-
-    func testContinuousFollowScrollState_tailPhaseWhenScrollClamped() {
-        let state = EarTrainingOsmdScoreScroll.continuousFollowScrollState(
-            followInput(
-                timeline: 7.5,
-                measureDuration: 2,
-                maxMeasure: 4,
-                scoreWidth: 300,
-                viewportWidth: 400
-            )
-        )
-        XCTAssertEqual(state.phase, .tail)
-        XCTAssertFalse(state.playheadFixed)
-        XCTAssertEqual(state.scrollOffsetPx, 0)
-        XCTAssertEqual(state.activeMeasureNumber, 4)
-        XCTAssertEqual(state.measureProgress, 0.75, accuracy: 0.001)
-    }
-
-    func testPrecisionFollowLayout_doesNotFitMeasureWidth() {
-        XCTAssertFalse(EarTrainingOsmdScrollLayout.precisionFollow.fitActiveMeasureWidth)
-        XCTAssertEqual(
-            EarTrainingOsmdScrollLayout.precisionFollow.playheadPx,
-            EarTrainingOsmdScoreScroll.precisionFollowPlayheadPx
-        )
-        XCTAssertEqual(EarTrainingOsmdScrollLayout.precisionFollow.scrollMode, .continuousFollow)
+    func testPrecisionLayout_fitsActiveMeasureWidth() {
+        XCTAssertTrue(EarTrainingOsmdScrollLayout.precision.fitActiveMeasureWidth)
+        XCTAssertTrue(EarTrainingOsmdScrollLayout.precision.anchorToMeasureLeft)
+        XCTAssertEqual(EarTrainingOsmdScrollLayout.precision.playheadPx, 0)
     }
 
     func testClampedManualScrollOffset_returnsUnchangedWhenWithinRange() {
