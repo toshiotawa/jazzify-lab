@@ -12,6 +12,7 @@ import {
   precisionRankForGoodRate,
   createPrecisionRuntimeStates,
   markExpiredPrecisionNotesAsMiss,
+  resetPrecisionRuntimeStatesFromTime,
   isPrecisionClearRank,
   PRECISION_JUDGMENT_WINDOW_SEC,
   shouldCullPrecisionNoteFromLane,
@@ -99,6 +100,38 @@ describe('earTrainingPrecisionJudge', () => {
     expect(precisionRankForGoodRate(0.69)).toBe('D');
     expect(isPrecisionClearRank('C')).toBe(true);
     expect(isPrecisionClearRank('D')).toBe(false);
+  });
+
+  it('シークでシーク位置以降の good ノーツを pending に戻す', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 5, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const state = states.get('a');
+    if (!state) {
+      throw new Error('missing state');
+    }
+    state.judgment = 'good';
+    state.hiddenFromLane = true;
+    resetPrecisionRuntimeStatesFromTime(notes, states, 3, 0.25);
+    expect(states.get('a')?.judgment).toBe('pending');
+    expect(states.get('a')?.hiddenFromLane).toBeUndefined();
+  });
+
+  it('シークでシーク位置より前の good ノーツは維持する', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const state = states.get('a');
+    if (!state) {
+      throw new Error('missing state');
+    }
+    state.judgment = 'good';
+    state.hiddenFromLane = true;
+    resetPrecisionRuntimeStatesFromTime(notes, states, 5, 0.25);
+    expect(states.get('a')?.judgment).toBe('good');
+    expect(states.get('a')?.hiddenFromLane).toBe(true);
   });
 
   it('練習ガイド窓内のpendingノーツを判定する', () => {

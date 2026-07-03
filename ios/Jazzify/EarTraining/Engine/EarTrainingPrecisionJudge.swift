@@ -57,6 +57,15 @@ enum EarTrainingPrecisionJudge {
                 states[note.id] = state
                 continue
             }
+            // 練習モードのシーク: シーク位置以降（判定窓内）の good ノーツを pending に戻して復活させる
+            if note.startSec >= phraseTimeSec - windowSec {
+                state.judgment = .pending
+                state.hitAtSec = nil
+                state.releasedEarly = nil
+                state.hiddenFromLane = nil
+                states[note.id] = state
+                continue
+            }
             if state.judgment == .good {
                 continue
             }

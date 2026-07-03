@@ -505,6 +505,10 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       }
       this.previousHiddenFromLane.set(note.id, isHidden);
 
+      if (state.judgment === 'pending' && !isHidden) {
+        this.vanishedIds.delete(note.id);
+      }
+
       if (
         state.judgment === 'good'
         && !isHidden

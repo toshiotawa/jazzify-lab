@@ -120,4 +120,34 @@ final class EarTrainingPrecisionJudgeTests: XCTestCase {
         )
         XCTAssertEqual(states["a"]?.judgment, .pending)
     }
+
+    func testResetRuntimeStatesFromTimeRevivesGoodNoteAfterSeekBack() {
+        let notes = [sampleNote(id: "a", midi: 60, startSec: 5)]
+        var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        states["a"]?.judgment = .good
+        states["a"]?.hiddenFromLane = true
+        EarTrainingPrecisionJudge.resetRuntimeStatesFromTime(
+            notes: notes,
+            states: &states,
+            phraseTimeSec: 3,
+            windowSec: 0.25
+        )
+        XCTAssertEqual(states["a"]?.judgment, .pending)
+        XCTAssertNil(states["a"]?.hiddenFromLane)
+    }
+
+    func testResetRuntimeStatesFromTimeKeepsGoodNoteBeforeSeekPoint() {
+        let notes = [sampleNote(id: "a", midi: 60, startSec: 2)]
+        var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        states["a"]?.judgment = .good
+        states["a"]?.hiddenFromLane = true
+        EarTrainingPrecisionJudge.resetRuntimeStatesFromTime(
+            notes: notes,
+            states: &states,
+            phraseTimeSec: 5,
+            windowSec: 0.25
+        )
+        XCTAssertEqual(states["a"]?.judgment, .good)
+        XCTAssertEqual(states["a"]?.hiddenFromLane, true)
+    }
 }

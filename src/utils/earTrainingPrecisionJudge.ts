@@ -41,6 +41,15 @@ export const resetPrecisionRuntimeStatesFromTime = (
       state.judgment = 'pending';
       state.hitAtSec = undefined;
       state.releasedEarly = undefined;
+      state.hiddenFromLane = undefined;
+      continue;
+    }
+    // 練習モードのシーク: シーク位置以降（判定窓内）の good ノーツを pending に戻して復活させる
+    if (note.startSec >= phraseTimeSec - windowSec) {
+      state.judgment = 'pending';
+      state.hitAtSec = undefined;
+      state.releasedEarly = undefined;
+      state.hiddenFromLane = undefined;
       continue;
     }
     if (state.judgment === 'good') {
@@ -49,6 +58,7 @@ export const resetPrecisionRuntimeStatesFromTime = (
     state.judgment = 'miss';
     state.hitAtSec = undefined;
     state.releasedEarly = undefined;
+    state.hiddenFromLane = undefined;
   }
 };
 

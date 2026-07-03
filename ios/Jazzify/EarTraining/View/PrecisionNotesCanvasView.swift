@@ -265,6 +265,10 @@ final class PrecisionNotesCanvasUIView: UIView {
             }
             previousHiddenFromLane[note.id] = isHidden
 
+            if state.judgment == .pending, !isHidden {
+                vanishedIds.remove(note.id)
+            }
+
             if state.judgment == .good,
                !isHidden,
                !vanishedIds.contains(note.id),
