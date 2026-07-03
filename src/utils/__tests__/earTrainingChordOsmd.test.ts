@@ -548,6 +548,36 @@ describe('collectChordOsmdScoreLyricEvents', () => {
     expect(bb7Batch.find((event) => event.verseNumber === 2)?.text).toBe('4th Voicing');
     expect(resolveActiveScoreLyricTextAtTime(events, bb7Time, (t) => t)).toBe('Bb7(mixo)\n4th Voicing');
   });
+
+  it('3 行目 verse が無い新イベントでは上の行だけ残す（Donna Lee Ab6→F7）', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1">
+<measure number="1">
+<attributes><divisions>2</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+<note><pitch><step>G</step><alter>-1</alter><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>quarter</type>
+<lyric number="1"><text>Ab6</text></lyric><lyric number="2"><text>Ab Pentatonic</text></lyric><lyric number="3"><text>Voicing</text></lyric></note>
+</measure>
+<measure number="2">
+<note><pitch><step>F</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>quarter</type>
+<lyric number="1"><text>F7(alt)</text></lyric><lyric number="2"><text>4th Voicing</text></lyric></note>
+</measure>
+</part></score-partwise>`;
+    const events = collectChordOsmdScoreLyricEvents(xml, 120, 4);
+    const f7Time = 2;
+    const f7Batch = events.filter((event) => Math.abs(event.targetTimeSec - f7Time) < 1e-9);
+    expect(f7Batch.map((event) => event.verseNumber).sort((a, b) => a - b)).toEqual([1, 2]);
+    expect(resolveActiveScoreLyricTextAtTime(events, f7Time, (t) => t)).toBe('F7(alt)\n4th Voicing');
+  });
+
+  it('空白 lyric でその verse を消す', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration>
+<lyric number="1"><text>Top</text></lyric><lyric number="2"><text>Bottom</text></lyric><lyric number="3"><text>Extra</text></lyric></note>
+<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration>
+<lyric number="1"><text>Next</text></lyric><lyric number="3"><text></text></lyric></note>`);
+    const events = collectChordOsmdScoreLyricEvents(xml, 120, 4);
+    expect(resolveActiveScoreLyricTextAtTime(events, 0.5, (t) => t)).toBe('Next\nBottom');
+  });
 });
 
 describe('readBetweenStaffDistanceStaffHeightsFromMusicXml', () => {

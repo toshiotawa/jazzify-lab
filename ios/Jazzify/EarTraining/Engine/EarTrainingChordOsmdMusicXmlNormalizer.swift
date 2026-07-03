@@ -530,10 +530,35 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return results
     }
 
+    /// 空の `<lyric/>`（extend stop 等）も含めて verse を列挙。
+    private static func allLyricVerses(from note: ChordOsmdXmlElement) -> [(verseNumber: Int, text: String)] {
+        var results: [(verseNumber: Int, text: String)] = []
+        for ch in note.children {
+            guard case let .element(el) = ch, el.name == "lyric" else { continue }
+            results.append((parseVerseNumber(from: el), mergeLyricText(from: el)))
+        }
+        return results
+    }
+
     private static func allVersesLyricTextsFromCluster(notes: [ChordOsmdXmlElement]) -> [(verseNumber: Int, text: String)] {
         var byVerse: [Int: String] = [:]
         for note in notes {
             for entry in allVersesLyricTexts(from: note) {
+                if byVerse[entry.verseNumber] == nil {
+                    byVerse[entry.verseNumber] = entry.text
+                }
+            }
+        }
+        return byVerse.keys.sorted().compactMap { verse in
+            guard let text = byVerse[verse] else { return nil }
+            return (verse, text)
+        }
+    }
+
+    private static func allLyricVersesFromCluster(notes: [ChordOsmdXmlElement]) -> [(verseNumber: Int, text: String)] {
+        var byVerse: [Int: String] = [:]
+        for note in notes {
+            for entry in allLyricVerses(from: note) {
                 if byVerse[entry.verseNumber] == nil {
                     byVerse[entry.verseNumber] = entry.text
                 }
@@ -663,25 +688,62 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                     let quartersFromMeasureStart = currentTime / Double(divisions)
                     let beatStartInMeasure = quartersFromMeasureStart + 1
 
-                    for entry in allVersesLyricTextsFromCluster(notes: clusterNotes) {
-                        if lastTextByVerse[entry.verseNumber] == entry.text {
-                            continue
+                    let allVersesInCluster = allLyricVersesFromCluster(notes: clusterNotes)
+                    if !allVersesInCluster.isEmpty {
+                        let versesPresent = Set(allVersesInCluster.map(\.verseNumber))
+                        let maxPresentVerse = allVersesInCluster.reduce(into: 0) { maxVerse, entry in
+                            maxVerse = Swift.max(maxVerse, entry.verseNumber)
                         }
-                        lastTextByVerse[entry.verseNumber] = entry.text
-                        events.append(
-                            ChordOsmdScoreLyricEvent(
-                                targetTimeSec: chordOsmdLyricTargetTimeSec(
-                                    measureNumber: measureNumber,
-                                    beatStartInMeasure: beatStartInMeasure,
-                                    bpm: bpm,
-                                    beatsPerMeasure: beatsPerMeasure
-                                ),
+                        var hasChange = false
+                        for entry in allVersesInCluster {
+                            let lastText = lastTextByVerse[entry.verseNumber]
+                            if !entry.text.isEmpty {
+                                if entry.text != lastText {
+                                    hasChange = true
+                                }
+                            } else if lastText != nil {
+                                hasChange = true
+                            }
+                        }
+                        if !hasChange {
+                            for (verseNumber, text) in lastTextByVerse where !text.isEmpty {
+                                if verseNumber > maxPresentVerse && !versesPresent.contains(verseNumber) {
+                                    hasChange = true
+                                    break
+                                }
+                            }
+                        }
+                        if hasChange {
+                            var nextState = lastTextByVerse
+                            for entry in allVersesInCluster {
+                                if !entry.text.isEmpty {
+                                    nextState[entry.verseNumber] = entry.text
+                                } else {
+                                    nextState.removeValue(forKey: entry.verseNumber)
+                                }
+                            }
+                            for verseNumber in nextState.keys where verseNumber > maxPresentVerse && !versesPresent.contains(verseNumber) {
+                                nextState.removeValue(forKey: verseNumber)
+                            }
+                            let targetTimeSec = chordOsmdLyricTargetTimeSec(
                                 measureNumber: measureNumber,
                                 beatStartInMeasure: beatStartInMeasure,
-                                verseNumber: entry.verseNumber,
-                                text: entry.text
+                                bpm: bpm,
+                                beatsPerMeasure: beatsPerMeasure
                             )
-                        )
+                            for (verseNumber, text) in nextState where !text.isEmpty {
+                                events.append(
+                                    ChordOsmdScoreLyricEvent(
+                                        targetTimeSec: targetTimeSec,
+                                        measureNumber: measureNumber,
+                                        beatStartInMeasure: beatStartInMeasure,
+                                        verseNumber: verseNumber,
+                                        text: text
+                                    )
+                                )
+                            }
+                            lastTextByVerse = nextState
+                        }
                     }
 
                     currentTime += clusterDur
@@ -741,15 +803,22 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         bpm: Double,
         beatsPerMeasure: Int
     ) -> [ChordOsmdLyricEvent] {
-        collectChordOsmdScoreLyricEvents(xmlText, bpm: bpm, beatsPerMeasure: beatsPerMeasure)
-            .filter { $0.verseNumber == 1 }
-            .map {
-                ChordOsmdLyricEvent(
-                    targetTimeSec: $0.targetTimeSec,
-                    measureNumber: $0.measureNumber,
-                    text: $0.text
-                )
+        var lyrics: [ChordOsmdLyricEvent] = []
+        var lastText: String?
+        for event in collectChordOsmdScoreLyricEvents(xmlText, bpm: bpm, beatsPerMeasure: beatsPerMeasure) {
+            if event.verseNumber != 1 || event.text == lastText {
+                continue
             }
+            lastText = event.text
+            lyrics.append(
+                ChordOsmdLyricEvent(
+                    targetTimeSec: event.targetTimeSec,
+                    measureNumber: event.measureNumber,
+                    text: event.text
+                )
+            )
+        }
+        return lyrics
     }
 
     /// Web `collectChordOsmdMusicXmlAttacks` と同等（`<chord/>`・`<backup>` を考慮）。

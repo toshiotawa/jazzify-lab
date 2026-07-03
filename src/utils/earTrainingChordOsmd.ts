@@ -616,12 +616,43 @@ const allVersesLyricTextsFromNote = (
   return results;
 };
 
+/** 空の `<lyric/>`（extend stop 等）も含めてクラスタ内の全 verse を列挙。 */
+const allLyricVersesFromNote = (
+  noteEl: Element,
+): Array<{ verseNumber: number; text: string }> => {
+  const results: Array<{ verseNumber: number; text: string }> = [];
+  for (let child = noteEl.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.localName !== 'lyric') {
+      continue;
+    }
+    results.push({
+      verseNumber: parseVerseNumberFromLyricElement(child),
+      text: mergeLyricTextFromLyricElement(child),
+    });
+  }
+  return results;
+};
+
 const allVersesLyricTextsFromCluster = (
   clusterNotes: readonly Element[],
 ): Array<{ verseNumber: number; text: string }> => {
   const byVerse = new Map<number, string>();
   for (const noteEl of clusterNotes) {
     for (const entry of allVersesLyricTextsFromNote(noteEl)) {
+      if (!byVerse.has(entry.verseNumber)) {
+        byVerse.set(entry.verseNumber, entry.text);
+      }
+    }
+  }
+  return Array.from(byVerse.entries()).map(([verseNumber, text]) => ({ verseNumber, text }));
+};
+
+const allLyricVersesFromCluster = (
+  clusterNotes: readonly Element[],
+): Array<{ verseNumber: number; text: string }> => {
+  const byVerse = new Map<number, string>();
+  for (const noteEl of clusterNotes) {
+    for (const entry of allLyricVersesFromNote(noteEl)) {
       if (!byVerse.has(entry.verseNumber)) {
         byVerse.set(entry.verseNumber, entry.text);
       }
@@ -879,23 +910,46 @@ export const collectChordOsmdScoreLyricEvents = (
   const events: ChordOsmdScoreLyricEvent[] = [];
   const lastTextByVerse = new Map<number, string>();
   forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes }) => {
-    const verseTexts = allVersesLyricTextsFromCluster(clusterNotes);
-    if (verseTexts.length === 0) {
+    const allVersesInCluster = allLyricVersesFromCluster(clusterNotes);
+    if (allVersesInCluster.length === 0) {
       return;
     }
+    const versesPresent = new Set(allVersesInCluster.map((entry) => entry.verseNumber));
+    const maxPresentVerse = allVersesInCluster.reduce(
+      (max, entry) => Math.max(max, entry.verseNumber),
+      0,
+    );
     let hasChange = false;
-    for (const { verseNumber, text } of verseTexts) {
-      if (text !== (lastTextByVerse.get(verseNumber) ?? null)) {
+    for (const { verseNumber, text } of allVersesInCluster) {
+      const lastText = lastTextByVerse.get(verseNumber) ?? null;
+      if (text.length > 0) {
+        if (text !== lastText) {
+          hasChange = true;
+        }
+      } else if (lastText !== null) {
         hasChange = true;
-        break;
+      }
+    }
+    for (const [verseNumber, text] of lastTextByVerse) {
+      if (text.length > 0 && verseNumber > maxPresentVerse && !versesPresent.has(verseNumber)) {
+        hasChange = true;
       }
     }
     if (!hasChange) {
       return;
     }
     const nextState = new Map(lastTextByVerse);
-    for (const { verseNumber, text } of verseTexts) {
-      nextState.set(verseNumber, text);
+    for (const { verseNumber, text } of allVersesInCluster) {
+      if (text.length > 0) {
+        nextState.set(verseNumber, text);
+      } else {
+        nextState.delete(verseNumber);
+      }
+    }
+    for (const verseNumber of nextState.keys()) {
+      if (verseNumber > maxPresentVerse && !versesPresent.has(verseNumber)) {
+        nextState.delete(verseNumber);
+      }
     }
     const targetTimeSec = chordOsmdLyricTargetTimeSec(
       measureNumber,
