@@ -475,7 +475,7 @@ describe('resolveActiveScoreLyricTextAtTime', () => {
 });
 
 describe('collectChordOsmdScoreLyricEvents', () => {
-  it('全 verse を beatStartInMeasure 付きで収集する', () => {
+  it('全 verse を beatStartInMeasure 付きで収集する（変更時は全 verse スナップショット）', () => {
     const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
 <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><lyric><text>v1</text></lyric></note>
 <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><lyric number="2"><text>v2</text></lyric></note>
@@ -492,6 +492,27 @@ describe('collectChordOsmdScoreLyricEvents', () => {
         targetTimeSec: 0.5,
         measureNumber: 1,
         beatStartInMeasure: 2,
+        verseNumber: 1,
+        text: 'v1',
+      },
+      {
+        targetTimeSec: 0.5,
+        measureNumber: 1,
+        beatStartInMeasure: 2,
+        verseNumber: 2,
+        text: 'v2',
+      },
+      {
+        targetTimeSec: 1,
+        measureNumber: 1,
+        beatStartInMeasure: 3,
+        verseNumber: 1,
+        text: 'v1',
+      },
+      {
+        targetTimeSec: 1,
+        measureNumber: 1,
+        beatStartInMeasure: 3,
         verseNumber: 2,
         text: 'v2',
       },
@@ -503,6 +524,29 @@ describe('collectChordOsmdScoreLyricEvents', () => {
         text: 'overlay',
       },
     ]);
+  });
+
+  it('1 行目だけ変わり 2 行目が同じテキストでもスナップショットに含める（Donna Lee Bb7 回帰）', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1">
+<measure number="1">
+<attributes><divisions>2</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+<note><rest/><duration>4</duration><voice>1</voice><type>half</type></note>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type>
+<lyric number="1"><text>F7(alt)</text></lyric><lyric number="2"><text>4th Voicing</text></lyric></note>
+</measure>
+<measure number="2">
+<note><pitch><step>D</step><octave>4</octave></pitch><duration>8</duration><voice>1</voice><type>whole</type>
+<lyric number="1"><text>Bb7(mixo)</text></lyric><lyric number="2"><text>4th Voicing</text></lyric></note>
+</measure>
+</part></score-partwise>`;
+    const events = collectChordOsmdScoreLyricEvents(xml, 120, 4);
+    const bb7Time = 2;
+    const bb7Batch = events.filter((event) => Math.abs(event.targetTimeSec - bb7Time) < 1e-9);
+    expect(bb7Batch.map((event) => event.verseNumber).sort((a, b) => a - b)).toEqual([1, 2]);
+    expect(bb7Batch.find((event) => event.verseNumber === 1)?.text).toBe('Bb7(mixo)');
+    expect(bb7Batch.find((event) => event.verseNumber === 2)?.text).toBe('4th Voicing');
+    expect(resolveActiveScoreLyricTextAtTime(events, bb7Time, (t) => t)).toBe('Bb7(mixo)\n4th Voicing');
   });
 });
 

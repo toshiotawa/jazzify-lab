@@ -44,6 +44,18 @@ const decodeXmlText = (text) => (
 /** @param {string} text */
 const normalizeLyricText = (text) => text.replace(/\r\n/g, '\n').trim();
 
+/** Finale 歌詞のスペース代替「.」を半角スペースへ（拡張 `(9.13)` 等の digit.digit は維持）。 */
+/** @param {string} text */
+const replaceFinaleLyricDots = (text) => text.replace(/(?<!\d)\.(?!\d)/g, ' ');
+
+/** @param {string} xml */
+const replaceLyricDotsInXml = (xml) => (
+  xml.replace(
+    /(<lyric\b[^>]*>[\s\S]*?<text\b[^>]*>)([\s\S]*?)(<\/text>)/g,
+    (_full, open, textContent, close) => `${open}${replaceFinaleLyricDots(textContent)}${close}`,
+  )
+);
+
 /** @param {string} directionBlock */
 const wordsTextFromDirection = (directionBlock) => {
   const match = directionBlock.match(/<words\b[^>]*>([\s\S]*?)<\/words>/);
@@ -68,7 +80,7 @@ const injectLyricIntoNote = (noteXml, text) => {
   if (noteXml.includes('<lyric')) {
     return noteXml;
   }
-  const lines = lyricLinesFromText(text);
+  const lines = lyricLinesFromText(replaceFinaleLyricDots(text));
   if (lines.length === 0) {
     return noteXml;
   }
@@ -97,15 +109,14 @@ const injectLyricsFromDirectionsInMeasure = (measureBody) => {
     const noteMatch = afterDir.match(
       /<note(?=[^>]*>[\s\S]*?<pitch>)(?![^>]*\bchord\b)[^>]*>[\s\S]*?<\/note>/,
     );
-    if (!noteMatch) {
-      continue;
+    if (noteMatch) {
+      const noteXml = noteMatch[0];
+      const injected = injectLyricIntoNote(noteXml, lyricText);
+      if (injected !== noteXml) {
+        updated = updated.replace(noteXml, injected);
+      }
     }
-    const noteXml = noteMatch[0];
-    const injected = injectLyricIntoNote(noteXml, lyricText);
-    if (injected !== noteXml) {
-      updated = updated.replace(noteXml, injected);
-      updated = updated.replace(dirBlock, '');
-    }
+    updated = updated.replace(dirBlock, '');
   }
   return updated;
 };
@@ -118,7 +129,11 @@ const widenInterStaffDistance = (xml) => (
   )
 );
 
-let xml = readFileSync(SOURCE, 'utf8');
+let sourceXml = readFileSync(SOURCE, 'utf8');
+sourceXml = replaceLyricDotsInXml(sourceXml);
+writeFileSync(SOURCE, sourceXml, 'utf8');
+
+let xml = sourceXml;
 xml = widenInterStaffDistance(xml);
 const updated = xml.replace(
   /<measure number="(\d+)"[^>]*>([\s\S]*?)<\/measure>/g,

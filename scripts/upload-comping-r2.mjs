@@ -4,7 +4,8 @@
  * Usage:
  *   node scripts/upload-comping-r2.mjs
  *   node scripts/upload-comping-r2.mjs --dry-run
- *   node scripts/upload-comping-r2.mjs --s3
+ *   node scripts/upload-comping-r2.mjs --purge-cdn
+ *   node scripts/upload-comping-r2.mjs --purge-only
  */
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
@@ -22,6 +23,9 @@ const args = process.argv.slice(2);
 const useS3 = args.includes('--s3');
 const dryRun = args.includes('--dry-run');
 const noRetry = args.includes('--no-retry');
+const purgeCdn = args.includes('--purge-cdn');
+const purgeOnly = args.includes('--purge-only');
+const runPurge = purgeCdn || purgeOnly;
 const wranglerRetries = noRetry
   ? 1
   : Math.max(1, Number.parseInt(process.env.SOZAI_UPLOAD_RETRIES || '4', 10) || 4);
@@ -142,10 +146,63 @@ async function uploadOne(name) {
   console.log(`uploaded ${name}`);
 }
 
-async function main() {
-  for (const name of FILES) {
-    await uploadOne(name);
+function cdnFileUrls() {
+  const raw =
+    process.env.VITE_R2_PUBLIC_URL ||
+    envR2.VITE_R2_PUBLIC_URL ||
+    process.env.R2_PUBLIC_URL ||
+    envR2.R2_PUBLIC_URL ||
+    'https://jazzify-cdn.com';
+  const base = raw.replace(/\/$/, '');
+  return FILES.map((name) => `${base}/sozai/Comping/${name.replace(/ /g, '%20')}`);
+}
+
+async function purgeCdnCacheIfRequested() {
+  if (!runPurge) return;
+
+  const zoneId =
+    process.env.CLOUDFLARE_ZONE_ID || process.env.CF_ZONE_ID || envR2.CF_ZONE_ID || envR2.CLOUDFLARE_ZONE_ID || '';
+  const token =
+    process.env.CLOUDFLARE_API_TOKEN || process.env.CF_API_TOKEN || envR2.CF_API_TOKEN || envR2.CLOUDFLARE_API_TOKEN || '';
+
+  const urls = cdnFileUrls();
+  if (dryRun) {
+    console.log(`[dry-run] CDN パージ: ${urls.length} URLs（例: ${urls[0]}）`);
+    return;
   }
+
+  if (!zoneId || !token) {
+    console.error(
+      'CDN パージ: CF_ZONE_ID（または CLOUDFLARE_ZONE_ID）と CF_API_TOKEN（または CLOUDFLARE_API_TOKEN）が必要です。',
+    );
+    process.exit(1);
+  }
+
+  const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ files: urls }),
+  });
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.success === false) {
+    console.error('CDN パージ失敗:', res.status, JSON.stringify(body, null, 2));
+    process.exit(1);
+  }
+
+  console.log(`CDN: ${urls.length} ファイルのキャッシュをパージしました。`);
+}
+
+async function main() {
+  if (!purgeOnly) {
+    for (const name of FILES) {
+      await uploadOne(name);
+    }
+  }
+  await purgeCdnCacheIfRequested();
   console.log('Done upload-comping-r2');
 }
 

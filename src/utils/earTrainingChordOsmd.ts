@@ -637,15 +637,22 @@ export const collectChordOsmdMusicXmlLyrics = (
   musicXmlText: string,
   bpm: number,
   beatsPerMeasure: number,
-): ChordOsmdLyricEvent[] => (
-  collectChordOsmdScoreLyricEvents(musicXmlText, bpm, beatsPerMeasure)
-    .filter((event) => event.verseNumber === 1)
-    .map(({ targetTimeSec, measureNumber, text }) => ({
-      targetTimeSec,
-      measureNumber,
-      text,
-    }))
-);
+): ChordOsmdLyricEvent[] => {
+  const lyrics: ChordOsmdLyricEvent[] = [];
+  let lastText: string | null = null;
+  for (const event of collectChordOsmdScoreLyricEvents(musicXmlText, bpm, beatsPerMeasure)) {
+    if (event.verseNumber !== 1 || event.text === lastText) {
+      continue;
+    }
+    lastText = event.text;
+    lyrics.push({
+      targetTimeSec: event.targetTimeSec,
+      measureNumber: event.measureNumber,
+      text: event.text,
+    });
+  }
+  return lyrics;
+};
 
 const chordOsmdLyricTargetTimeSec = (
   measureNumber: number,
@@ -870,22 +877,46 @@ export const collectChordOsmdScoreLyricEvents = (
   beatsPerMeasure: number,
 ): ChordOsmdScoreLyricEvent[] => {
   const events: ChordOsmdScoreLyricEvent[] = [];
-  const lastTextByVerse = new Map<number, string | null>();
+  const lastTextByVerse = new Map<number, string>();
   forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes }) => {
     const verseTexts = allVersesLyricTextsFromCluster(clusterNotes);
+    if (verseTexts.length === 0) {
+      return;
+    }
+    let hasChange = false;
     for (const { verseNumber, text } of verseTexts) {
-      const lastText = lastTextByVerse.get(verseNumber) ?? null;
-      if (text === lastText) {
-        continue;
+      if (text !== (lastTextByVerse.get(verseNumber) ?? null)) {
+        hasChange = true;
+        break;
       }
+    }
+    if (!hasChange) {
+      return;
+    }
+    const nextState = new Map(lastTextByVerse);
+    for (const { verseNumber, text } of verseTexts) {
+      nextState.set(verseNumber, text);
+    }
+    const targetTimeSec = chordOsmdLyricTargetTimeSec(
+      measureNumber,
+      beatStartInMeasure,
+      bpm,
+      beatsPerMeasure,
+    );
+    for (const [verseNumber, text] of nextState) {
+      if (text.length > 0) {
+        events.push({
+          targetTimeSec,
+          measureNumber,
+          beatStartInMeasure,
+          verseNumber,
+          text,
+        });
+      }
+    }
+    lastTextByVerse.clear();
+    for (const [verseNumber, text] of nextState) {
       lastTextByVerse.set(verseNumber, text);
-      events.push({
-        targetTimeSec: chordOsmdLyricTargetTimeSec(measureNumber, beatStartInMeasure, bpm, beatsPerMeasure),
-        measureNumber,
-        beatStartInMeasure,
-        verseNumber,
-        text,
-      });
     }
   });
   events.sort((a, b) => {

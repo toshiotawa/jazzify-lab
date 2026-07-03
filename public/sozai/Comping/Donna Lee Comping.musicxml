@@ -59,10 +59,6 @@
     <word-font font-family="ＭＳ 明朝" font-size="9.9"/>
     <lyric-font font-family="ＭＳ 明朝" font-size="9.9"/>
   </defaults>
-  <credit page="1">
-    <credit-type>part name</credit-type>
-    <credit-words default-x="86" default-y="1614" font-family="Times New Roman" font-size="12" valign="top">Score</credit-words>
-  </credit>
   <credit page="2">
     <credit-type>page number</credit-type>
     <credit-words default-x="603" default-y="68" font-size="12" halign="center" valign="bottom">- 2 -</credit-words>
@@ -98,7 +94,7 @@
   </part-list>
   <!--=========================================================-->
   <part id="P1">
-    <measure number="1" width="485">
+    <measure number="1" width="466">
       <print page-number="1">
         <system-layout>
           <system-margins>
@@ -153,7 +149,7 @@
       </barline>
     </measure>
     <!--=======================================================-->
-    <measure number="2" width="492">
+    <measure number="2" width="510">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>A</root-step>
@@ -162,15 +158,7 @@
         <kind halign="center" text="M7">major-seventh</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-68" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="18" xml:space="preserve">Ab6
-Ab Major Pentatonic
-Voicing</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="16">
+      <note default-x="15">
         <pitch>
           <step>F</step>
           <octave>4</octave>
@@ -180,8 +168,24 @@ Voicing</words>
         <type>quarter</type>
         <stem default-y="-65">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ab6</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="45">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ab Pentatonic</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-121" number="3" relative-x="15">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Voicing</text>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
-      <note default-x="16">
+      <note default-x="15">
         <chord/>
         <pitch>
           <step>B</step>
@@ -194,7 +198,7 @@ Voicing</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="16">
+      <note default-x="15">
         <chord/>
         <pitch>
           <step>E</step>
@@ -207,14 +211,14 @@ Voicing</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="145">
+      <note default-x="150">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <note default-x="270">
+      <note default-x="280">
         <rest/>
         <duration>16</duration>
         <voice>1</voice>
@@ -224,7 +228,7 @@ Voicing</words>
       <backup>
         <duration>32</duration>
       </backup>
-      <note default-x="16">
+      <note default-x="15">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -236,7 +240,7 @@ Voicing</words>
         <stem default-y="-35">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="16">
+      <note default-x="15">
         <chord/>
         <pitch>
           <step>C</step>
@@ -248,14 +252,14 @@ Voicing</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="145">
+      <note default-x="150">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="270">
+      <note default-x="280">
         <rest/>
         <duration>16</duration>
         <voice>2</voice>
@@ -287,12 +291,6 @@ Voicing</words>
         <type>half</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-94" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-17">Alt 4th</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="340">
         <pitch>
           <step>A</step>
@@ -305,6 +303,16 @@ Voicing</words>
         <dot/>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">F7(alt)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">4th Voicing</text>
+          <extend type="start"/>
+        </lyric>
       </note>
       <note default-x="340">
         <chord/>
@@ -335,12 +343,6 @@ Voicing</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-92" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="5">Mixo 4th</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="531">
         <pitch>
           <step>G</step>
@@ -355,6 +357,12 @@ Voicing</words>
         <notations>
           <tied type="start"/>
         </notations>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="531">
         <chord/>
@@ -483,6 +491,14 @@ Voicing</words>
         <notations>
           <tied type="stop"/>
         </notations>
+        <lyric default-y="-80" number="1" relative-x="20">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bb7(mixo)</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="35">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">4th Voicing</text>
+        </lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -549,7 +565,7 @@ Voicing</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="5" width="438">
+    <measure number="5" width="414">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -575,7 +591,7 @@ Voicing</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="6" width="595">
+    <measure number="6" width="619">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>B</root-step>
@@ -584,12 +600,6 @@ Voicing</words>
         <kind halign="center" text="m7">minor-seventh</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-87" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-16">So What</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="17">
         <pitch>
           <step>A</step>
@@ -601,6 +611,14 @@ Voicing</words>
         <type>quarter</type>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bbm7</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="15">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">So What</text>
+        </lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -627,21 +645,14 @@ Voicing</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="145">
+      <note default-x="150">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-86" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-4" xml:space="preserve">Drop 2 &amp; 3
-Adim Bbm7</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="273">
+      <note default-x="283">
         <pitch>
           <step>G</step>
           <alter>-1</alter>
@@ -654,8 +665,16 @@ Adim Bbm7</words>
         <stem default-y="-70">down</stem>
         <staff>1</staff>
         <beam number="1">begin</beam>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Adim7</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Drop2＆3</text>
+        </lyric>
       </note>
-      <note default-x="273">
+      <note default-x="283">
         <chord/>
         <pitch>
           <step>E</step>
@@ -668,7 +687,7 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="352">
+      <note default-x="366">
         <pitch>
           <step>F</step>
           <octave>4</octave>
@@ -679,8 +698,16 @@ Adim Bbm7</words>
         <stem default-y="-70">down</stem>
         <staff>1</staff>
         <beam number="1">continue</beam>
+        <lyric default-y="-80" number="1" relative-x="14">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bbm7</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="34">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Drop2＆3</text>
+        </lyric>
       </note>
-      <note default-x="352">
+      <note default-x="366">
         <chord/>
         <pitch>
           <step>D</step>
@@ -693,21 +720,14 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="431">
+      <note default-x="448">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-86" font-family="Times New Roman" font-size="10.8" font-style="italic" xml:space="preserve">Drop 2
-</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="509">
+      <note default-x="530">
         <pitch>
           <step>F</step>
           <alter>-1</alter>
@@ -720,8 +740,16 @@ Adim Bbm7</words>
         <stem default-y="-70">down</stem>
         <staff>1</staff>
         <beam number="1">end</beam>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Eb7(b9)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Drop2</text>
+        </lyric>
       </note>
-      <note default-x="509">
+      <note default-x="530">
         <chord/>
         <pitch>
           <step>C</step>
@@ -761,14 +789,14 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="145">
+      <note default-x="150">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="273">
+      <note default-x="283">
         <pitch>
           <step>A</step>
           <octave>3</octave>
@@ -781,7 +809,7 @@ Adim Bbm7</words>
         <staff>2</staff>
         <beam number="1">begin</beam>
       </note>
-      <note default-x="273">
+      <note default-x="283">
         <chord/>
         <pitch>
           <step>C</step>
@@ -793,7 +821,7 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="340">
+      <note default-x="354">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -807,7 +835,7 @@ Adim Bbm7</words>
         <staff>2</staff>
         <beam number="1">continue</beam>
       </note>
-      <note default-x="352">
+      <note default-x="366">
         <chord/>
         <pitch>
           <step>B</step>
@@ -820,14 +848,14 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="431">
+      <note default-x="448">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="509">
+      <note default-x="530">
         <pitch>
           <step>G</step>
           <octave>3</octave>
@@ -839,7 +867,7 @@ Adim Bbm7</words>
         <staff>2</staff>
         <beam number="1">end</beam>
       </note>
-      <note default-x="509">
+      <note default-x="530">
         <chord/>
         <pitch>
           <step>D</step>
@@ -854,7 +882,7 @@ Adim Bbm7</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="7" width="681">
+    <measure number="7" width="691">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -878,14 +906,14 @@ Adim Bbm7</words>
         <type>half</type>
         <staff>1</staff>
       </note>
-      <note default-x="345">
+      <note default-x="349">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <note default-x="388">
+      <note default-x="394">
         <grace slash="yes"/>
         <pitch>
           <step>A</step>
@@ -898,13 +926,7 @@ Adim Bbm7</words>
         <stem default-y="1">up</stem>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-100" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-15">Alt 4th</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="436">
+      <note default-x="442">
         <pitch>
           <step>G</step>
           <alter>-1</alter>
@@ -916,8 +938,17 @@ Adim Bbm7</words>
         <accidental>flat</accidental>
         <stem default-y="-60">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Eb7(alt)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">4th Voicing</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="436">
+      <note default-x="442">
         <chord/>
         <pitch>
           <step>C</step>
@@ -931,7 +962,7 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="436">
+      <note default-x="442">
         <chord/>
         <pitch>
           <step>F</step>
@@ -945,7 +976,7 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="583">
+      <note default-x="592">
         <pitch>
           <step>F</step>
           <octave>4</octave>
@@ -955,8 +986,15 @@ Adim Bbm7</words>
         <type>eighth</type>
         <stem default-y="-70">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ab6</text>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
-      <note default-x="583">
+      <note default-x="592">
         <chord/>
         <pitch>
           <step>B</step>
@@ -969,7 +1007,7 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="583">
+      <note default-x="592">
         <chord/>
         <pitch>
           <step>E</step>
@@ -992,14 +1030,14 @@ Adim Bbm7</words>
         <type>half</type>
         <staff>2</staff>
       </note>
-      <note default-x="345">
+      <note default-x="349">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="435">
+      <note default-x="442">
         <pitch>
           <step>G</step>
           <octave>3</octave>
@@ -1010,7 +1048,7 @@ Adim Bbm7</words>
         <stem default-y="-40">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="435">
+      <note default-x="442">
         <chord/>
         <pitch>
           <step>D</step>
@@ -1023,13 +1061,7 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <direction placement="above">
-        <direction-type>
-          <words default-y="41" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-7">Ab6</words>
-        </direction-type>
-        <staff>2</staff>
-      </direction>
-      <note default-x="583">
+      <note default-x="592">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -1041,7 +1073,7 @@ Adim Bbm7</words>
         <stem default-y="-35">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="583">
+      <note default-x="592">
         <chord/>
         <pitch>
           <step>C</step>
@@ -1055,7 +1087,7 @@ Adim Bbm7</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="8" width="353">
+    <measure number="8" width="343">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>A</root-step>
@@ -1081,7 +1113,7 @@ Adim Bbm7</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="9" width="674">
+    <measure number="9" width="698">
       <print new-page="yes" page-number="2">
         <staff-layout number="2">
           <staff-distance>98</staff-distance>
@@ -1102,7 +1134,7 @@ Adim Bbm7</words>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <note default-x="179">
+      <note default-x="183">
         <pitch>
           <step>D</step>
           <alter>-1</alter>
@@ -1113,8 +1145,24 @@ Adim Bbm7</words>
         <type>eighth</type>
         <stem default-y="10">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ebm11</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">3rd</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">intervals</text>
+        </lyric>
+        <lyric default-y="-141" number="4">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Build</text>
+        </lyric>
       </note>
-      <note default-x="179">
+      <note default-x="183">
         <chord/>
         <pitch>
           <step>F</step>
@@ -1126,7 +1174,7 @@ Adim Bbm7</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="179">
+      <note default-x="183">
         <chord/>
         <pitch>
           <step>A</step>
@@ -1139,7 +1187,7 @@ Adim Bbm7</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="258">
+      <note default-x="264">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
@@ -1154,13 +1202,7 @@ Adim Bbm7</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-97" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-43">ALT UST bVI(E△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="384">
+      <note default-x="396">
         <pitch>
           <step>F</step>
           <alter>-1</alter>
@@ -1172,8 +1214,20 @@ Adim Bbm7</words>
         <accidental>flat</accidental>
         <stem default-y="15">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ab7(alt)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST bVI</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">E△</text>
+        </lyric>
       </note>
-      <note default-x="384">
+      <note default-x="396">
         <chord/>
         <pitch>
           <step>A</step>
@@ -1186,7 +1240,7 @@ Adim Bbm7</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="384">
+      <note default-x="396">
         <chord/>
         <pitch>
           <step>C</step>
@@ -1200,20 +1254,14 @@ Adim Bbm7</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="511">
+      <note default-x="528">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-95" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="3">So What(Fm7)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="589">
+      <note default-x="610">
         <pitch>
           <step>E</step>
           <alter>-1</alter>
@@ -1228,8 +1276,23 @@ Adim Bbm7</words>
         <notations>
           <tied type="start"/>
         </notations>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">DbM7</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">So What</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Fm7</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="589">
+      <note default-x="610">
         <chord/>
         <pitch>
           <step>A</step>
@@ -1246,7 +1309,7 @@ Adim Bbm7</words>
           <tied type="start"/>
         </notations>
       </note>
-      <note default-x="589">
+      <note default-x="610">
         <chord/>
         <pitch>
           <step>C</step>
@@ -1273,13 +1336,7 @@ Adim Bbm7</words>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <direction placement="above">
-        <direction-type>
-          <words default-y="49" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-33">3rd interval build</words>
-        </direction-type>
-        <staff>2</staff>
-      </direction>
-      <note default-x="179">
+      <note default-x="183">
         <pitch>
           <step>E</step>
           <alter>-1</alter>
@@ -1291,7 +1348,7 @@ Adim Bbm7</words>
         <stem default-y="-50">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="179">
+      <note default-x="183">
         <chord/>
         <pitch>
           <step>G</step>
@@ -1305,7 +1362,7 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="179">
+      <note default-x="183">
         <chord/>
         <pitch>
           <step>B</step>
@@ -1318,14 +1375,14 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="258">
+      <note default-x="264">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="384">
+      <note default-x="396">
         <pitch>
           <step>G</step>
           <alter>-1</alter>
@@ -1337,7 +1394,7 @@ Adim Bbm7</words>
         <stem default-y="-40">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="384">
+      <note default-x="396">
         <chord/>
         <pitch>
           <step>C</step>
@@ -1349,14 +1406,14 @@ Adim Bbm7</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="511">
+      <note default-x="528">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="589">
+      <note default-x="610">
         <pitch>
           <step>F</step>
           <octave>3</octave>
@@ -1371,7 +1428,7 @@ Adim Bbm7</words>
           <tied type="start"/>
         </notations>
       </note>
-      <note default-x="589">
+      <note default-x="610">
         <chord/>
         <pitch>
           <step>B</step>
@@ -1390,7 +1447,7 @@ Adim Bbm7</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="10" width="359">
+    <measure number="10" width="336">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>D</root-step>
@@ -1413,6 +1470,15 @@ Adim Bbm7</words>
         <notations>
           <tied type="stop"/>
         </notations>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="3">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="14">
         <chord/>
@@ -1480,7 +1546,7 @@ Adim Bbm7</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="11" width="581">
+    <measure number="11" width="612">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -1504,14 +1570,7 @@ Adim Bbm7</words>
         <type>half</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-102" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-5" xml:space="preserve">Drop 2
-</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="319">
+      <note default-x="333">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -1523,8 +1582,16 @@ Adim Bbm7</words>
         <dot/>
         <stem default-y="10">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Gb7(9.13)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Drop2</text>
+        </lyric>
       </note>
-      <note default-x="319">
+      <note default-x="333">
         <chord/>
         <pitch>
           <step>E</step>
@@ -1538,7 +1605,7 @@ Adim Bbm7</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="319">
+      <note default-x="333">
         <chord/>
         <pitch>
           <step>A</step>
@@ -1552,7 +1619,7 @@ Adim Bbm7</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="493">
+      <note default-x="518">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -1563,8 +1630,20 @@ Adim Bbm7</words>
         <type>eighth</type>
         <stem default-y="5">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">AbM7</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">So What</text>
+        </lyric>
+        <lyric default-y="-121" number="3" relative-x="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Cm7</text>
+        </lyric>
       </note>
-      <note default-x="493">
+      <note default-x="518">
         <chord/>
         <pitch>
           <step>E</step>
@@ -1577,7 +1656,7 @@ Adim Bbm7</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="493">
+      <note default-x="518">
         <chord/>
         <pitch>
           <step>G</step>
@@ -1599,7 +1678,7 @@ Adim Bbm7</words>
         <type>half</type>
         <staff>2</staff>
       </note>
-      <note default-x="319">
+      <note default-x="333">
         <pitch>
           <step>F</step>
           <alter>-1</alter>
@@ -1613,14 +1692,7 @@ Adim Bbm7</words>
         <stem default-y="-45">down</stem>
         <staff>2</staff>
       </note>
-      <direction placement="above">
-        <direction-type>
-          <words default-y="49" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-26" xml:space="preserve">So What Cm7
-(but 4 Voices)</words>
-        </direction-type>
-        <staff>2</staff>
-      </direction>
-      <note default-x="493">
+      <note default-x="518">
         <pitch>
           <step>F</step>
           <octave>3</octave>
@@ -1634,7 +1706,7 @@ Adim Bbm7</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="12" width="452">
+    <measure number="12" width="422">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>A</root-step>
@@ -1643,14 +1715,14 @@ Adim Bbm7</words>
         <kind halign="center" text="M7">major-seventh</kind>
         <staff>1</staff>
       </harmony>
-      <note default-x="13">
+      <note default-x="14">
         <rest/>
         <duration>16</duration>
         <voice>1</voice>
         <type>half</type>
         <staff>1</staff>
       </note>
-      <note default-x="188">
+      <note default-x="172">
         <grace slash="yes"/>
         <pitch>
           <step>D</step>
@@ -1663,15 +1735,7 @@ Adim Bbm7</words>
         <stem default-y="16">up</stem>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-62" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="8" xml:space="preserve">G7(9.13)
-Reharmonized
-UST VIm(Mixo)(Em)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="232">
+      <note default-x="217">
         <pitch>
           <step>B</step>
           <octave>4</octave>
@@ -1682,8 +1746,24 @@ UST VIm(Mixo)(Em)</words>
         <accidental>natural</accidental>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">G7(9.13)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">VIm</text>
+        </lyric>
+        <lyric default-y="-141" number="4">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Em</text>
+        </lyric>
       </note>
-      <note default-x="232">
+      <note default-x="217">
         <chord/>
         <pitch>
           <step>E</step>
@@ -1696,7 +1776,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="232">
+      <note default-x="217">
         <chord/>
         <pitch>
           <step>G</step>
@@ -1711,14 +1791,14 @@ UST VIm(Mixo)(Em)</words>
       <backup>
         <duration>32</duration>
       </backup>
-      <note default-x="13">
+      <note default-x="14">
         <rest/>
         <duration>16</duration>
         <voice>2</voice>
         <type>half</type>
         <staff>2</staff>
       </note>
-      <note default-x="232">
+      <note default-x="217">
         <pitch>
           <step>F</step>
           <octave>3</octave>
@@ -1729,7 +1809,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-45">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="232">
+      <note default-x="217">
         <chord/>
         <pitch>
           <step>B</step>
@@ -1744,7 +1824,7 @@ UST VIm(Mixo)(Em)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="13" width="493">
+    <measure number="13" width="528">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -1760,13 +1840,6 @@ UST VIm(Mixo)(Em)</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-64" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="14" xml:space="preserve">Gb7(9.13)
-</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="104">
         <pitch>
           <step>B</step>
@@ -1778,6 +1851,22 @@ UST VIm(Mixo)(Em)</words>
         <type>half</type>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1" relative-x="17">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Gb7(9.13)</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="17">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST</text>
+        </lyric>
+        <lyric default-y="-121" number="3" relative-x="17">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">VIm</text>
+        </lyric>
+        <lyric default-y="-141" number="4" relative-x="17">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ebm</text>
+        </lyric>
       </note>
       <note default-x="104">
         <chord/>
@@ -1806,49 +1895,125 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-76" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-16" xml:space="preserve">F7
-(ALT UST bVI)(Db△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="296">
+      <note default-x="294">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
         </pitch>
-        <duration>16</duration>
+        <duration>12</duration>
         <voice>1</voice>
-        <type>half</type>
+        <type>quarter</type>
+        <dot/>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">F7(alt)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="9">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-121" number="3" relative-x="4">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">VI</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-141" number="4" relative-x="12">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Db△</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="296">
+      <note default-x="294">
         <chord/>
         <pitch>
           <step>D</step>
           <alter>-1</alter>
           <octave>5</octave>
         </pitch>
-        <duration>16</duration>
+        <duration>12</duration>
         <voice>1</voice>
-        <type>half</type>
+        <type>quarter</type>
+        <dot/>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="296">
+      <note default-x="294">
         <chord/>
         <pitch>
           <step>F</step>
           <octave>5</octave>
         </pitch>
-        <duration>16</duration>
+        <duration>12</duration>
         <voice>1</voice>
-        <type>half</type>
+        <type>quarter</type>
+        <dot/>
         <stem>down</stem>
         <staff>1</staff>
+      </note>
+      <note default-x="449">
+        <pitch>
+          <step>G</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>4</duration>
+        <tie type="start"/>
+        <voice>1</voice>
+        <type>eighth</type>
+        <stem default-y="-65">down</stem>
+        <staff>1</staff>
+        <notations>
+          <tied type="start"/>
+        </notations>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="3">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="4">
+          <extend type="stop"/>
+        </lyric>
+      </note>
+      <note default-x="449">
+        <chord/>
+        <pitch>
+          <step>C</step>
+          <octave>5</octave>
+        </pitch>
+        <duration>4</duration>
+        <tie type="start"/>
+        <voice>1</voice>
+        <type>eighth</type>
+        <stem>down</stem>
+        <staff>1</staff>
+        <notations>
+          <tied type="start"/>
+        </notations>
+      </note>
+      <note default-x="449">
+        <chord/>
+        <pitch>
+          <step>E</step>
+          <alter>-1</alter>
+          <octave>5</octave>
+        </pitch>
+        <duration>4</duration>
+        <tie type="start"/>
+        <voice>1</voice>
+        <type>eighth</type>
+        <stem>down</stem>
+        <staff>1</staff>
+        <notations>
+          <tied type="start"/>
+        </notations>
       </note>
       <backup>
         <duration>32</duration>
@@ -1879,34 +2044,68 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="296">
+      <note default-x="294">
         <pitch>
           <step>E</step>
           <alter>-1</alter>
           <octave>3</octave>
         </pitch>
-        <duration>16</duration>
+        <duration>12</duration>
         <voice>2</voice>
-        <type>half</type>
+        <type>quarter</type>
+        <dot/>
         <stem default-y="-50">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="296">
+      <note default-x="294">
         <chord/>
         <pitch>
           <step>A</step>
           <octave>3</octave>
         </pitch>
-        <duration>16</duration>
+        <duration>12</duration>
         <voice>2</voice>
-        <type>half</type>
+        <type>quarter</type>
+        <dot/>
         <accidental>natural</accidental>
         <stem>down</stem>
         <staff>2</staff>
       </note>
+      <note default-x="449">
+        <pitch>
+          <step>A</step>
+          <octave>3</octave>
+        </pitch>
+        <duration>4</duration>
+        <tie type="start"/>
+        <voice>2</voice>
+        <type>eighth</type>
+        <stem default-y="-35">down</stem>
+        <staff>2</staff>
+        <notations>
+          <tied type="start"/>
+        </notations>
+      </note>
+      <note default-x="449">
+        <chord/>
+        <pitch>
+          <step>D</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>4</duration>
+        <tie type="start"/>
+        <voice>2</voice>
+        <type>eighth</type>
+        <accidental>natural</accidental>
+        <stem>down</stem>
+        <staff>2</staff>
+        <notations>
+          <tied type="start"/>
+        </notations>
+      </note>
     </measure>
     <!--=======================================================-->
-    <measure number="14" width="540">
+    <measure number="14" width="506">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>B</root-step>
@@ -1915,36 +2114,54 @@ UST VIm(Mixo)(Em)</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-92" font-family="Times New Roman" font-size="10.8" font-style="italic">Lyd 7th UST II△(C△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="16">
+      <note default-x="17">
         <pitch>
           <step>G</step>
           <octave>4</octave>
         </pitch>
         <duration>8</duration>
+        <tie type="stop"/>
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-60">down</stem>
         <staff>1</staff>
+        <notations>
+          <tied type="stop"/>
+        </notations>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bb7</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="13">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Lyd.7th</text>
+        </lyric>
+        <lyric default-y="-121" number="3" relative-x="8">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST II</text>
+        </lyric>
+        <lyric default-y="-141" number="4">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">△</text>
+        </lyric>
       </note>
-      <note default-x="16">
+      <note default-x="17">
         <chord/>
         <pitch>
           <step>C</step>
           <octave>5</octave>
         </pitch>
         <duration>8</duration>
+        <tie type="stop"/>
         <voice>1</voice>
         <type>quarter</type>
         <stem>down</stem>
         <staff>1</staff>
+        <notations>
+          <tied type="stop"/>
+        </notations>
       </note>
-      <note default-x="16">
+      <note default-x="17">
         <chord/>
         <pitch>
           <step>E</step>
@@ -1957,14 +2174,14 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="132">
+      <note default-x="125">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <note default-x="247">
+      <note default-x="233">
         <pitch>
           <step>C</step>
           <octave>5</octave>
@@ -1976,7 +2193,7 @@ UST VIm(Mixo)(Em)</words>
         <staff>1</staff>
         <beam number="1">begin</beam>
       </note>
-      <note default-x="247">
+      <note default-x="233">
         <chord/>
         <pitch>
           <step>G</step>
@@ -1988,7 +2205,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="319">
+      <note default-x="299">
         <pitch>
           <step>G</step>
           <octave>4</octave>
@@ -2000,7 +2217,7 @@ UST VIm(Mixo)(Em)</words>
         <staff>1</staff>
         <beam number="1">end</beam>
       </note>
-      <note default-x="319">
+      <note default-x="299">
         <chord/>
         <pitch>
           <step>E</step>
@@ -2012,7 +2229,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="390">
+      <note default-x="366">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
@@ -2022,7 +2239,7 @@ UST VIm(Mixo)(Em)</words>
       <backup>
         <duration>32</duration>
       </backup>
-      <note default-x="16">
+      <note default-x="17">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -2034,41 +2251,44 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-35">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="16">
+      <note default-x="17">
         <chord/>
         <pitch>
           <step>D</step>
           <octave>4</octave>
         </pitch>
         <duration>8</duration>
+        <tie type="stop"/>
         <voice>2</voice>
         <type>quarter</type>
-        <accidental>natural</accidental>
         <stem>down</stem>
         <staff>2</staff>
+        <notations>
+          <tied type="stop"/>
+        </notations>
       </note>
-      <note default-x="132">
+      <note default-x="125">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="247">
+      <note default-x="233">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="390">
+      <note default-x="366">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="462">
+      <note default-x="432">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -2080,7 +2300,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-35">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="462">
+      <note default-x="432">
         <chord/>
         <pitch>
           <step>D</step>
@@ -2089,6 +2309,7 @@ UST VIm(Mixo)(Em)</words>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
+        <accidental>natural</accidental>
         <stem>down</stem>
         <staff>2</staff>
       </note>
@@ -2239,13 +2460,17 @@ UST VIm(Mixo)(Em)</words>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bbm7</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="40">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Broken Chord</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-97" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-3">Db△</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="116">
         <pitch>
           <step>A</step>
@@ -2282,6 +2507,12 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-70">down</stem>
         <staff>1</staff>
         <beam number="1">end</beam>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="176">
         <chord/>
@@ -2309,6 +2540,11 @@ UST VIm(Mixo)(Em)</words>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
+        <lyric default-y="-141" number="4">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">△</text>
+          <extend type="start"/>
+        </lyric>
       </note>
       <backup>
         <duration>32</duration>
@@ -2412,7 +2648,7 @@ UST VIm(Mixo)(Em)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="17" width="578">
+    <measure number="17" width="561">
       <print new-page="yes" page-number="3">
         <staff-layout number="2">
           <staff-distance>98</staff-distance>
@@ -2426,12 +2662,6 @@ UST VIm(Mixo)(Em)</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-101" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-5">ALT UST bVI(B△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="115">
         <pitch>
           <step>B</step>
@@ -2444,6 +2674,21 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-60">down</stem>
         <staff>1</staff>
         <beam number="1">begin</beam>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Eb7(alt)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">USTb VI</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">B△</text>
+          <extend type="start"/>
+        </lyric>
       </note>
       <note default-x="115">
         <chord/>
@@ -2459,7 +2704,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="178">
+      <note default-x="176">
         <pitch>
           <step>F</step>
           <alter>1</alter>
@@ -2472,8 +2717,20 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-70.5">down</stem>
         <staff>1</staff>
         <beam number="1">end</beam>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="3">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="4">
+          <extend type="stop"/>
+        </lyric>
       </note>
-      <note default-x="178">
+      <note default-x="176">
         <chord/>
         <pitch>
           <step>D</step>
@@ -2487,34 +2744,28 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="241">
+      <note default-x="236">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <note default-x="343">
+      <note default-x="335">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <note default-x="446">
+      <note default-x="433">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-87" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-3">So What Cm7</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="508">
+      <note default-x="494">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -2526,8 +2777,20 @@ UST VIm(Mixo)(Em)</words>
         <accidental>flat</accidental>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">AbM7</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">So What</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Cm7</text>
+        </lyric>
       </note>
-      <note default-x="508">
+      <note default-x="494">
         <chord/>
         <pitch>
           <step>E</step>
@@ -2540,7 +2803,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="508">
+      <note default-x="494">
         <chord/>
         <pitch>
           <step>G</step>
@@ -2562,7 +2825,7 @@ UST VIm(Mixo)(Em)</words>
         <type>half</type>
         <staff>2</staff>
       </note>
-      <note default-x="343">
+      <note default-x="335">
         <pitch>
           <step>G</step>
           <octave>3</octave>
@@ -2573,7 +2836,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-40">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="343">
+      <note default-x="335">
         <chord/>
         <pitch>
           <step>D</step>
@@ -2586,14 +2849,14 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="446">
+      <note default-x="433">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="508">
+      <note default-x="494">
         <pitch>
           <step>C</step>
           <octave>4</octave>
@@ -2604,7 +2867,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-25">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="508">
+      <note default-x="494">
         <chord/>
         <pitch>
           <step>F</step>
@@ -2618,7 +2881,7 @@ UST VIm(Mixo)(Em)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="18" width="455">
+    <measure number="18" width="472">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>A</root-step>
@@ -2634,21 +2897,14 @@ UST VIm(Mixo)(Em)</words>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <note default-x="111">
+      <note default-x="115">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-85" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-5" xml:space="preserve">Gb7(9.13)
-</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="171">
+      <note default-x="177">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -2659,8 +2915,20 @@ UST VIm(Mixo)(Em)</words>
         <type>eighth</type>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Gb7(9.13)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST VIm</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ebm</text>
+        </lyric>
       </note>
-      <note default-x="171">
+      <note default-x="177">
         <chord/>
         <pitch>
           <step>E</step>
@@ -2673,7 +2941,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="171">
+      <note default-x="177">
         <chord/>
         <pitch>
           <step>G</step>
@@ -2687,21 +2955,21 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="232">
+      <note default-x="240">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <note default-x="328">
+      <note default-x="340">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <note default-x="389">
+      <note default-x="403">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -2716,8 +2984,23 @@ UST VIm(Mixo)(Em)</words>
         <notations>
           <tied type="start"/>
         </notations>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">F7(alt)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST bVI△</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">D△</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="389">
+      <note default-x="403">
         <chord/>
         <pitch>
           <step>D</step>
@@ -2734,7 +3017,7 @@ UST VIm(Mixo)(Em)</words>
           <tied type="start"/>
         </notations>
       </note>
-      <note default-x="389">
+      <note default-x="403">
         <chord/>
         <pitch>
           <step>F</step>
@@ -2760,14 +3043,14 @@ UST VIm(Mixo)(Em)</words>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="111">
+      <note default-x="115">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="171">
+      <note default-x="177">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -2779,7 +3062,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-30">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="171">
+      <note default-x="177">
         <chord/>
         <pitch>
           <step>F</step>
@@ -2793,21 +3076,21 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="232">
+      <note default-x="240">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="328">
+      <note default-x="340">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="389">
+      <note default-x="403">
         <pitch>
           <step>A</step>
           <octave>3</octave>
@@ -2823,7 +3106,7 @@ UST VIm(Mixo)(Em)</words>
           <tied type="start"/>
         </notations>
       </note>
-      <note default-x="389">
+      <note default-x="403">
         <chord/>
         <pitch>
           <step>E</step>
@@ -2842,7 +3125,7 @@ UST VIm(Mixo)(Em)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="19" width="605">
+    <measure number="19" width="565">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -2858,13 +3141,6 @@ UST VIm(Mixo)(Em)</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-70" font-family="Times New Roman" font-size="10.8" font-style="italic" xml:space="preserve">F7
-(ALT UST bVI)(Db△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="104">
         <pitch>
           <step>A</step>
@@ -2880,6 +3156,15 @@ UST VIm(Mixo)(Em)</words>
         <notations>
           <tied type="stop"/>
         </notations>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="3">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="104">
         <chord/>
@@ -2914,14 +3199,14 @@ UST VIm(Mixo)(Em)</words>
           <tied type="stop"/>
         </notations>
       </note>
-      <note default-x="312">
+      <note default-x="295">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <note default-x="391">
+      <note default-x="368">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -2933,7 +3218,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-60">down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="391">
+      <note default-x="368">
         <chord/>
         <pitch>
           <step>D</step>
@@ -2946,7 +3231,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="391">
+      <note default-x="368">
         <chord/>
         <pitch>
           <step>F</step>
@@ -2958,7 +3243,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="470">
+      <note default-x="441">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
@@ -3000,14 +3285,14 @@ UST VIm(Mixo)(Em)</words>
           <tied type="stop"/>
         </notations>
       </note>
-      <note default-x="312">
+      <note default-x="295">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="391">
+      <note default-x="368">
         <pitch>
           <step>A</step>
           <octave>3</octave>
@@ -3019,7 +3304,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-35">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="391">
+      <note default-x="368">
         <chord/>
         <pitch>
           <step>E</step>
@@ -3032,7 +3317,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="470">
+      <note default-x="441">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
@@ -3041,7 +3326,7 @@ UST VIm(Mixo)(Em)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="20" width="428">
+    <measure number="20" width="469">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>B</root-step>
@@ -3050,12 +3335,6 @@ UST VIm(Mixo)(Em)</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-75" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="6">Lyd 7th UST II△(C△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="18">
         <pitch>
           <step>G</step>
@@ -3066,6 +3345,16 @@ UST VIm(Mixo)(Em)</words>
         <type>quarter</type>
         <stem default-y="-60">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1" relative-x="38">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bb7(9.#11.13)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C△</text>
+          <extend type="start"/>
+        </lyric>
       </note>
       <note default-x="18">
         <chord/>
@@ -3104,7 +3393,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="145">
+      <note default-x="158">
         <pitch>
           <step>G</step>
           <octave>4</octave>
@@ -3115,8 +3404,14 @@ UST VIm(Mixo)(Em)</words>
         <dot/>
         <stem default-y="-60">down</stem>
         <staff>1</staff>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="3">
+          <extend type="stop"/>
+        </lyric>
       </note>
-      <note default-x="145">
+      <note default-x="158">
         <chord/>
         <pitch>
           <step>C</step>
@@ -3129,7 +3424,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="145">
+      <note default-x="158">
         <chord/>
         <pitch>
           <step>E</step>
@@ -3142,7 +3437,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="145">
+      <note default-x="158">
         <chord/>
         <pitch>
           <step>G</step>
@@ -3183,7 +3478,7 @@ UST VIm(Mixo)(Em)</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="145">
+      <note default-x="158">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -3196,7 +3491,7 @@ UST VIm(Mixo)(Em)</words>
         <stem default-y="-35">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="145">
+      <note default-x="158">
         <chord/>
         <pitch>
           <step>D</step>
@@ -3211,7 +3506,7 @@ UST VIm(Mixo)(Em)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="21" width="445">
+    <measure number="21" width="428">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -3237,7 +3532,7 @@ UST VIm(Mixo)(Em)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="22" width="588">
+    <measure number="22" width="606">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>G</root-step>
@@ -3250,12 +3545,6 @@ UST VIm(Mixo)(Em)</words>
         </degree>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-92" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-11">UST bVII(F)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="17">
         <pitch>
           <step>F</step>
@@ -3266,6 +3555,18 @@ UST VIm(Mixo)(Em)</words>
         <type>quarter</type>
         <stem default-y="15.5">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1" relative-x="8">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Gm7(b5)</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="18">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST bVII</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">F△</text>
+        </lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -3292,21 +3593,14 @@ UST VIm(Mixo)(Em)</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="143">
+      <note default-x="147">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-86" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-13" xml:space="preserve">C7 H/W
-UST A on Bb</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="270">
+      <note default-x="278">
         <pitch>
           <step>A</step>
           <octave>4</octave>
@@ -3317,8 +3611,18 @@ UST A on Bb</words>
         <stem default-y="20.5">up</stem>
         <staff>1</staff>
         <beam number="1">begin</beam>
+        <lyric default-y="-80" number="1" relative-x="11">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C7(H/W)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">A/Bb</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="270">
+      <note default-x="278">
         <chord/>
         <pitch>
           <step>C</step>
@@ -3332,7 +3636,7 @@ UST A on Bb</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="348">
+      <note default-x="358">
         <pitch>
           <step>E</step>
           <octave>4</octave>
@@ -3344,22 +3648,21 @@ UST A on Bb</words>
         <stem default-y="23.5">up</stem>
         <staff>1</staff>
         <beam number="1">continue</beam>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
-      <note default-x="426">
+      <note default-x="438">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-90" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-5" xml:space="preserve">H/W
-UST C on Db</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="503">
+      <note default-x="519">
         <pitch>
           <step>C</step>
           <octave>5</octave>
@@ -3371,8 +3674,18 @@ UST C on Db</words>
         <stem default-y="30">up</stem>
         <staff>1</staff>
         <beam number="1">end</beam>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C7(H/W)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C/Db</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="503">
+      <note default-x="519">
         <chord/>
         <pitch>
           <step>E</step>
@@ -3412,21 +3725,21 @@ UST C on Db</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="143">
+      <note default-x="147">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="270">
+      <note default-x="278">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="426">
+      <note default-x="438">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -3438,7 +3751,7 @@ UST C on Db</words>
         <stem default-y="-30">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="503">
+      <note default-x="519">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
@@ -3474,6 +3787,12 @@ UST C on Db</words>
         <stem default-y="-65.5">down</stem>
         <staff>1</staff>
         <beam number="1">begin</beam>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="166">
         <rest/>
@@ -3482,13 +3801,6 @@ UST C on Db</words>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-97" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-8" xml:space="preserve">H/W
-UST Eb on E</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="231">
         <pitch>
           <step>E</step>
@@ -3501,6 +3813,16 @@ UST Eb on E</words>
         <stem default-y="-58">down</stem>
         <staff>1</staff>
         <beam number="1">continue</beam>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C7(H/W)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Eb/E</text>
+          <extend type="start"/>
+        </lyric>
       </note>
       <note default-x="231">
         <chord/>
@@ -3526,6 +3848,12 @@ UST Eb on E</words>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
         <beam number="1">end</beam>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="361">
         <rest/>
@@ -3534,13 +3862,6 @@ UST Eb on E</words>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-96" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-6" xml:space="preserve">H/W
-UST Gb on G</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="425">
         <pitch>
           <step>G</step>
@@ -3554,6 +3875,16 @@ UST Gb on G</words>
         <stem default-y="-35">down</stem>
         <staff>1</staff>
         <beam number="1">begin</beam>
+        <lyric default-y="-80" number="1" relative-x="9">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C7(H/W)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Gb/G</text>
+          <extend type="start"/>
+        </lyric>
       </note>
       <note default-x="425">
         <chord/>
@@ -3580,6 +3911,12 @@ UST Gb on G</words>
         <stem default-y="-45">down</stem>
         <staff>1</staff>
         <beam number="1">end</beam>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="555">
         <rest/>
@@ -3658,12 +3995,6 @@ UST Gb on G</words>
         <kind halign="center" text="m">minor</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-92" font-family="Times New Roman" font-size="10.8" font-style="italic">Fm6 UST V(C△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="16">
         <pitch>
           <step>C</step>
@@ -3674,6 +4005,18 @@ UST Gb on G</words>
         <type>quarter</type>
         <stem default-y="-50">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Fm6</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="13">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST V△</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C△</text>
+        </lyric>
       </note>
       <note default-x="16">
         <chord/>
@@ -3778,13 +4121,6 @@ UST Gb on G</words>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-76" font-family="Times New Roman" font-size="10.8" font-style="italic" xml:space="preserve">C7
-ALT UST bVI(C△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="256">
         <pitch>
           <step>A</step>
@@ -3797,6 +4133,18 @@ ALT UST bVI(C△)</words>
         <dot/>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C7(Alt)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST bVI△</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ab△</text>
+        </lyric>
       </note>
       <note default-x="256">
         <chord/>
@@ -3872,12 +4220,6 @@ ALT UST bVI(C△)</words>
         <kind halign="center" text="m">minor</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-70" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="5">Fm6 UST V(C△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="16">
         <pitch>
           <step>G</step>
@@ -3887,6 +4229,18 @@ ALT UST bVI(C△)</words>
         <voice>1</voice>
         <type>whole</type>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Fm6</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="13">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST V△</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C△</text>
+        </lyric>
       </note>
       <note default-x="16">
         <chord/>
@@ -3939,7 +4293,7 @@ ALT UST bVI(C△)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="27" width="590">
+    <measure number="27" width="595">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -3967,14 +4321,7 @@ ALT UST bVI(C△)</words>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-72" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="15" xml:space="preserve">C7
-ALT UST bVI(C△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="168">
+      <note default-x="169">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -3985,8 +4332,20 @@ ALT UST bVI(C△)</words>
         <type>eighth</type>
         <stem default-y="-60">down</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">C7(alt)</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="6">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST bVI△</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Ab△</text>
+        </lyric>
       </note>
-      <note default-x="168">
+      <note default-x="169">
         <chord/>
         <pitch>
           <step>C</step>
@@ -3998,7 +4357,7 @@ ALT UST bVI(C△)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="168">
+      <note default-x="169">
         <chord/>
         <pitch>
           <step>E</step>
@@ -4011,7 +4370,7 @@ ALT UST bVI(C△)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="234">
+      <note default-x="236">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
@@ -4025,7 +4384,7 @@ ALT UST bVI(C△)</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <note default-x="343">
+      <note default-x="345">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -4037,7 +4396,7 @@ ALT UST bVI(C△)</words>
         <stem default-y="-55">down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="343">
+      <note default-x="345">
         <chord/>
         <pitch>
           <step>C</step>
@@ -4049,7 +4408,7 @@ ALT UST bVI(C△)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="343">
+      <note default-x="345">
         <chord/>
         <pitch>
           <step>E</step>
@@ -4062,21 +4421,14 @@ ALT UST bVI(C△)</words>
         <stem>down</stem>
         <staff>1</staff>
       </note>
-      <note default-x="450">
+      <note default-x="454">
         <rest/>
         <duration>4</duration>
         <voice>1</voice>
         <type>eighth</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-70" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="5" xml:space="preserve">Drop 2
-</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="517">
+      <note default-x="522">
         <pitch>
           <step>G</step>
           <octave>4</octave>
@@ -4090,8 +4442,18 @@ ALT UST bVI(C△)</words>
         <notations>
           <tied type="start"/>
         </notations>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Fm6(9)</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Drop2</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="517">
+      <note default-x="522">
         <chord/>
         <pitch>
           <step>C</step>
@@ -4120,7 +4482,7 @@ ALT UST bVI(C△)</words>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="168">
+      <note default-x="169">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -4132,7 +4494,7 @@ ALT UST bVI(C△)</words>
         <stem default-y="-30">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="168">
+      <note default-x="169">
         <chord/>
         <pitch>
           <step>E</step>
@@ -4145,14 +4507,14 @@ ALT UST bVI(C△)</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="234">
+      <note default-x="236">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
         <type>quarter</type>
         <staff>2</staff>
       </note>
-      <note default-x="343">
+      <note default-x="345">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -4164,7 +4526,7 @@ ALT UST bVI(C△)</words>
         <stem default-y="-30">down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="343">
+      <note default-x="345">
         <chord/>
         <pitch>
           <step>E</step>
@@ -4176,14 +4538,14 @@ ALT UST bVI(C△)</words>
         <stem>down</stem>
         <staff>2</staff>
       </note>
-      <note default-x="450">
+      <note default-x="454">
         <rest/>
         <duration>4</duration>
         <voice>2</voice>
         <type>eighth</type>
         <staff>2</staff>
       </note>
-      <note default-x="517">
+      <note default-x="522">
         <pitch>
           <step>A</step>
           <alter>-1</alter>
@@ -4199,7 +4561,7 @@ ALT UST bVI(C△)</words>
           <tied type="start"/>
         </notations>
       </note>
-      <note default-x="517">
+      <note default-x="522">
         <chord/>
         <pitch>
           <step>D</step>
@@ -4218,7 +4580,7 @@ ALT UST bVI(C△)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="28" width="443">
+    <measure number="28" width="438">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>F</root-step>
@@ -4240,6 +4602,9 @@ ALT UST bVI(C△)</words>
         <notations>
           <tied type="stop"/>
         </notations>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -4257,13 +4622,7 @@ ALT UST bVI(C△)</words>
           <tied type="stop"/>
         </notations>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-95" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="6">Edim Fm</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="193">
+      <note default-x="191">
         <pitch>
           <step>D</step>
           <alter>-1</alter>
@@ -4275,8 +4634,12 @@ ALT UST bVI(C△)</words>
         <stem default-y="15">up</stem>
         <staff>1</staff>
         <beam number="1">begin</beam>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Edim</text>
+        </lyric>
       </note>
-      <note default-x="193">
+      <note default-x="191">
         <chord/>
         <pitch>
           <step>B</step>
@@ -4289,7 +4652,7 @@ ALT UST bVI(C△)</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="260">
+      <note default-x="257">
         <pitch>
           <step>C</step>
           <octave>4</octave>
@@ -4300,8 +4663,15 @@ ALT UST bVI(C△)</words>
         <stem default-y="10">up</stem>
         <staff>1</staff>
         <beam number="1">end</beam>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Fm</text>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
       </note>
-      <note default-x="260">
+      <note default-x="257">
         <chord/>
         <pitch>
           <step>A</step>
@@ -4314,7 +4684,7 @@ ALT UST bVI(C△)</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="328">
+      <note default-x="324">
         <rest/>
         <duration>8</duration>
         <voice>1</voice>
@@ -4356,7 +4726,7 @@ ALT UST bVI(C△)</words>
           <tied type="stop"/>
         </notations>
       </note>
-      <note default-x="193">
+      <note default-x="191">
         <pitch>
           <step>G</step>
           <octave>3</octave>
@@ -4368,7 +4738,7 @@ ALT UST bVI(C△)</words>
         <staff>2</staff>
         <beam number="1">begin</beam>
       </note>
-      <note default-x="260">
+      <note default-x="257">
         <pitch>
           <step>F</step>
           <octave>3</octave>
@@ -4380,7 +4750,7 @@ ALT UST bVI(C△)</words>
         <staff>2</staff>
         <beam number="1">end</beam>
       </note>
-      <note default-x="328">
+      <note default-x="324">
         <rest/>
         <duration>8</duration>
         <voice>2</voice>
@@ -4412,14 +4782,6 @@ ALT UST bVI(C△)</words>
         <type>quarter</type>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-82" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-51" xml:space="preserve">B W/H Diminished
-UST Bb on B
-</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="219">
         <pitch>
           <step>F</step>
@@ -4430,6 +4792,10 @@ UST Bb on B
         <type>quarter</type>
         <stem default-y="20.5">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bb/B</text>
+        </lyric>
       </note>
       <note default-x="219">
         <chord/>
@@ -4457,12 +4823,6 @@ UST Bb on B
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-86" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-5">G on Ab</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="337">
         <pitch>
           <step>D</step>
@@ -4474,6 +4834,10 @@ UST Bb on B
         <accidental>natural</accidental>
         <stem default-y="15.5">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">G/Ab</text>
+        </lyric>
       </note>
       <note default-x="337">
         <chord/>
@@ -4500,12 +4864,6 @@ UST Bb on B
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-90" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-7">E on F</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="455">
         <pitch>
           <step>B</step>
@@ -4517,6 +4875,10 @@ UST Bb on B
         <accidental>natural</accidental>
         <stem default-y="5">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">E/F</text>
+        </lyric>
       </note>
       <note default-x="455">
         <chord/>
@@ -4600,13 +4962,6 @@ UST Bb on B
         <kind halign="center" text="m7">minor-seventh</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-88" font-family="Times New Roman" font-size="10.8" font-style="italic" xml:space="preserve">So What Cm7
-(but 4 Voices)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="17">
         <pitch>
           <step>B</step>
@@ -4618,6 +4973,14 @@ UST Bb on B
         <type>quarter</type>
         <stem default-y="5">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Cm7</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="12">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">So What</text>
+        </lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -4658,13 +5021,6 @@ UST Bb on B
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-93" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="-5" xml:space="preserve">F7 (b9.13) 
-UST VI(D△)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="255">
         <pitch>
           <step>A</step>
@@ -4676,6 +5032,19 @@ UST VI(D△)</words>
         <accidental>natural</accidental>
         <stem default-y="0">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">F7(b9.13)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">UST VI△</text>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">D△</text>
+          <extend type="start"/>
+        </lyric>
       </note>
       <note default-x="255">
         <chord/>
@@ -4739,7 +5108,7 @@ UST VI(D△)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="31" width="627">
+    <measure number="31" width="652">
       <print new-system="yes">
         <system-layout>
           <system-distance>137</system-distance>
@@ -4756,12 +5125,6 @@ UST VI(D△)</words>
         <kind halign="center" text="m7">minor-seventh</kind>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-81" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="8">Closed </words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="106">
         <pitch>
           <step>A</step>
@@ -4773,6 +5136,14 @@ UST VI(D△)</words>
         <type>half</type>
         <stem default-y="0">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1" relative-x="7">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Bbm7(9)</text>
+        </lyric>
+        <lyric default-y="-104" number="2" relative-x="7">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Closed</text>
+        </lyric>
       </note>
       <note default-x="106">
         <chord/>
@@ -4819,7 +5190,7 @@ UST VI(D△)</words>
         <kind halign="center" text="7">dominant</kind>
         <staff>1</staff>
       </harmony>
-      <note default-x="340">
+      <note default-x="351">
         <pitch>
           <step>G</step>
           <octave>3</octave>
@@ -4830,8 +5201,19 @@ UST VI(D△)</words>
         <dot/>
         <stem default-y="5">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Eb7(alt)</text>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Closed</text>
+        </lyric>
+        <lyric number="3">
+          <extend type="stop"/>
+        </lyric>
       </note>
-      <note default-x="340">
+      <note default-x="351">
         <chord/>
         <pitch>
           <step>C</step>
@@ -4846,7 +5228,7 @@ UST VI(D△)</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="351">
+      <note default-x="363">
         <chord/>
         <pitch>
           <step>D</step>
@@ -4860,7 +5242,7 @@ UST VI(D△)</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <note default-x="340">
+      <note default-x="351">
         <chord/>
         <pitch>
           <step>G</step>
@@ -4875,14 +5257,7 @@ UST VI(D△)</words>
         <stem>up</stem>
         <staff>1</staff>
       </note>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-97" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="3" xml:space="preserve">So What Cm7
-(but 4 Voices)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
-      <note default-x="531">
+      <note default-x="552">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -4897,8 +5272,23 @@ UST VI(D△)</words>
         <notations>
           <tied type="start"/>
         </notations>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">AbM7</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-104" number="2">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">So What</text>
+          <extend type="start"/>
+        </lyric>
+        <lyric default-y="-121" number="3">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Cm7</text>
+          <extend type="start"/>
+        </lyric>
       </note>
-      <note default-x="531">
+      <note default-x="552">
         <chord/>
         <pitch>
           <step>E</step>
@@ -4915,7 +5305,7 @@ UST VI(D△)</words>
           <tied type="start"/>
         </notations>
       </note>
-      <note default-x="531">
+      <note default-x="552">
         <chord/>
         <pitch>
           <step>G</step>
@@ -4942,7 +5332,7 @@ UST VI(D△)</words>
         <type>half</type>
         <staff>2</staff>
       </note>
-      <note default-x="340">
+      <note default-x="351">
         <rest/>
         <duration>12</duration>
         <voice>2</voice>
@@ -4950,7 +5340,7 @@ UST VI(D△)</words>
         <dot/>
         <staff>2</staff>
       </note>
-      <note default-x="531">
+      <note default-x="552">
         <pitch>
           <step>F</step>
           <octave>3</octave>
@@ -4967,7 +5357,7 @@ UST VI(D△)</words>
       </note>
     </measure>
     <!--=======================================================-->
-    <measure number="32" width="407">
+    <measure number="32" width="381">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
         <root>
           <root-step>A</root-step>
@@ -4990,6 +5380,15 @@ UST VI(D△)</words>
         <notations>
           <tied type="stop"/>
         </notations>
+        <lyric number="1">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="2">
+          <extend type="stop"/>
+        </lyric>
+        <lyric number="3">
+          <extend type="stop"/>
+        </lyric>
       </note>
       <note default-x="17">
         <chord/>
@@ -5079,12 +5478,6 @@ UST VI(D△)</words>
         <offset>8</offset>
         <staff>1</staff>
       </harmony>
-      <direction placement="below">
-        <direction-type>
-          <words default-y="-94" font-family="Times New Roman" font-size="10.8" font-style="italic" relative-x="5">Eb7(b9 #11 13)</words>
-        </direction-type>
-        <staff>1</staff>
-      </direction>
       <note default-x="355">
         <pitch>
           <step>E</step>
@@ -5096,6 +5489,10 @@ UST VI(D△)</words>
         <accidental>natural</accidental>
         <stem default-y="15">up</stem>
         <staff>1</staff>
+        <lyric default-y="-80" number="1">
+          <syllabic>single</syllabic>
+          <text font-size="9.9">Eb7(b9,#11,13)</text>
+        </lyric>
       </note>
       <note default-x="355">
         <chord/>
