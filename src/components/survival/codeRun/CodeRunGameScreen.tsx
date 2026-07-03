@@ -4,8 +4,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { MIDIController, initializeAudioSystem, playNote, stopNote, updateGlobalVolume, warmupIOSBattleSoundFonts } from '@/utils/MidiController';
-import { isIOSWebView } from '@/utils/iosbridge';
+import { playNote, stopNote } from '@/utils/MidiController';
+import type { SurvivalMidiBindings } from '@/hooks/useSurvivalMidiSession';
 import { progressionBassRootName } from '@/utils/chord-utils';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
@@ -52,6 +52,7 @@ interface CodeRunGameScreenProps {
     readonly staff?: ProductionHintMode | null;
     readonly keyboard?: ProductionHintMode | null;
   };
+  survivalMidi: SurvivalMidiBindings;
 }
 
 const EMPTY_STATS: PlayerStats = {
@@ -165,6 +166,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   onNextStage,
   onSurvivalRunModeRestart,
   lessonProductionHintOverrides,
+  survivalMidi,
 }) => {
   const settings = useGameStore(state => state.settings);
   const { profile } = useAuthStore();
@@ -180,15 +182,11 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isMidiConnected, setIsMidiConnected] = useState(false);
-  const [isMidiInitialized, setIsMidiInitialized] = useState(false);
-  const initPromiseRef = useRef<Promise<void> | null>(null);
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(() => loadSurvivalDisplaySettings());
   const [bgmVolume, setBgmVolume] = useState(0.3);
   const bgmVolumeRef = useRef(0.3);
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentBgmUrlRef = useRef<string | null>(null);
-  const midiControllerRef = useRef<MIDIController | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const pianoHostRef = useRef<HTMLDivElement | null>(null);
   const [pianoSize, setPianoSize] = useState({ width: typeof window === 'undefined' ? 960 : window.innerWidth, height: 150 });
@@ -424,99 +422,14 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   }, [handleNoteInput]);
 
   useEffect(() => {
-    if (!midiControllerRef.current) {
-      const controller = new MIDIController({
-        onNoteOn: (note: number) => handleNoteInputRef.current(note),
-        onNoteOff: () => undefined,
-        playMidiSound: true,
-      });
-      controller.setConnectionChangeCallback((connected) => setIsMidiConnected(connected));
-      midiControllerRef.current = controller;
-
-      const initPromise = (async () => {
-        try {
-          const seVol = settings.soundEffectVolume ?? 0.8;
-          const rootVol = settings.rootSoundVolume ?? 0.7;
-          FantasySoundManager.setRootVolume(rootVol);
-          FantasySoundManager.enableRootSound(true);
-          warmupIOSBattleSoundFonts();
-          FantasySoundManager.preloadCorrectRootBassSoundFont().catch(() => {});
-          if (isIOSWebView()) {
-            FantasySoundManager.init(seVol, rootVol, true).catch(() => {});
-            controller.setKeyHighlightCallback((note, active) => {
-              pixiRendererRef.current?.highlightKey(note, active);
-            });
-            setIsMidiInitialized(true);
-            return;
-          }
-          await Promise.all([
-            initializeAudioSystem().then(() => {
-              updateGlobalVolume(settings.midiVolume ?? 0.8);
-            }),
-            FantasySoundManager.init(seVol, rootVol, true).then(() => {
-              FantasySoundManager.enableRootSound(true);
-            }),
-          ]);
-          await controller.initialize();
-          controller.setKeyHighlightCallback((note, active) => {
-            pixiRendererRef.current?.highlightKey(note, active);
-          });
-          setIsMidiInitialized(true);
-        } catch {
-          setIsMidiInitialized(true);
-        }
-      })();
-      initPromiseRef.current = initPromise;
-    }
-
-    return () => {
-      if (midiControllerRef.current) {
-        midiControllerRef.current.destroy();
-        midiControllerRef.current = null;
-      }
-      initPromiseRef.current = null;
-      setIsMidiInitialized(false);
-    };
-  }, []);
+    return survivalMidi.registerNoteHandler((note) => {
+      handleNoteInputRef.current(note);
+    });
+  }, [survivalMidi]);
 
   useEffect(() => {
-    const connect = async () => {
-      if (initPromiseRef.current) {
-        await initPromiseRef.current;
-      }
-      const deviceId = settings.selectedMidiDevice;
-      if (midiControllerRef.current && deviceId) {
-        await midiControllerRef.current.connectDevice(deviceId);
-      } else if (midiControllerRef.current && !deviceId) {
-        midiControllerRef.current.disconnect();
-      }
-    };
-    void connect();
-  }, [settings.selectedMidiDevice, isMidiInitialized]);
-
-  useEffect(() => {
-    const restoreMidiConnection = async () => {
-      if (initPromiseRef.current) {
-        await initPromiseRef.current;
-      }
-      if (midiControllerRef.current) {
-        if (midiControllerRef.current.getCurrentDeviceId()) {
-          await midiControllerRef.current.checkAndRestoreConnection();
-        } else if (settings.selectedMidiDevice) {
-          await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-        }
-      }
-    };
-    const timer = setTimeout(() => {
-      void restoreMidiConnection();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [stageDefinition.runMapId, isMidiInitialized, settings.selectedMidiDevice]);
-
-  useEffect(() => {
-    updateGlobalVolume(settings.midiVolume ?? 0.8);
-    midiControllerRef.current?.updateVolume(settings.midiVolume ?? 0.8);
-  }, [settings.midiVolume]);
+    return survivalMidi.registerKeyHighlightTarget(() => pixiRendererRef.current);
+  }, [survivalMidi]);
 
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     pixiRendererRef.current = renderer;
@@ -535,7 +448,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       (note: number) => stopNote(note),
     );
     renderer.setTouchActionMode('pan-x');
-    midiControllerRef.current?.setKeyHighlightCallback((note, active) => renderer.highlightKey(note, active));
   }, [pianoSize.height, settings.noteNameStyle, settings.simpleDisplayMode]);
 
   useEffect(() => {
@@ -747,7 +659,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       <SurvivalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        isMidiConnected={isMidiConnected}
+        isMidiConnected={survivalMidi.isMidiConnected}
         displaySettings={displaySettings}
         onDisplaySettingsChange={setDisplaySettings}
         bgmVolume={bgmVolume}

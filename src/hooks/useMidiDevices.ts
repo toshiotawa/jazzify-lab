@@ -1,20 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { MidiDevice } from '@/types';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { getSharedMidiAccess } from '@/utils/MidiController';
 import { isIOSWebView, requestNativeMIDIDevices, selectNativeMIDIDevice } from '@/utils/iosbridge';
-
-let cachedMidiAccess: MIDIAccess | null = null;
-let midiAccessPromise: Promise<MIDIAccess> | null = null;
-
-const getMidiAccess = (): Promise<MIDIAccess> => {
-  if (cachedMidiAccess) return Promise.resolve(cachedMidiAccess);
-  if (midiAccessPromise) return midiAccessPromise;
-  midiAccessPromise = navigator.requestMIDIAccess({ sysex: false }).then((access) => {
-    cachedMidiAccess = access;
-    return access;
-  });
-  return midiAccessPromise;
-};
 
 const isVirtualNetworkDevice = (name: string): boolean =>
   /\bSession \d+$/i.test(name);
@@ -65,7 +53,7 @@ export const useMidiDevices = () => {
         throw new Error(message);
       }
 
-      const midiAccess = await getMidiAccess();
+      const midiAccess = await getSharedMidiAccess();
       const deviceList = enumerateMidiDevices(midiAccess);
       setDevices(deviceList);
     } catch (err) {
@@ -115,7 +103,7 @@ export const useMidiDevices = () => {
 
     const init = async () => {
       try {
-        const midiAccess = await getMidiAccess();
+        const midiAccess = await getSharedMidiAccess();
         if (cancelled) return;
 
         midiAccess.onstatechange = () => {

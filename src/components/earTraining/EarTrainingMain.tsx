@@ -20,6 +20,8 @@ import {
   type EarTrainingBattleEnemy,
 } from '@/utils/earTrainingBattleAvatar';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
+import { useGameMidiSession } from '@/hooks/useGameMidiSession';
+import { markAudioUserInteraction } from '@/utils/MidiController';
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -106,6 +108,7 @@ const EarTrainingMain: React.FC = () => {
   }, [lessonContext?.lessonId, lessonContext?.lessonSongId, initialPracticeMode, lessonContext]);
 
   const effectivePracticeMode = lessonContext ? confirmedPracticeMode : initialPracticeMode;
+  const earMidi = useGameMidiSession('battle');
 
   const handlePracticeModeRestartFromSettings = useCallback((nextPracticeMode: boolean) => {
     setConfirmedPracticeMode(nextPracticeMode);
@@ -224,6 +227,7 @@ const EarTrainingMain: React.FC = () => {
                 key={item.id}
                 type="button"
                 onClick={() => {
+                  markAudioUserInteraction();
                   setStage(item);
                   setStagePicked(true);
                 }}
@@ -296,6 +300,7 @@ const EarTrainingMain: React.FC = () => {
           initialPracticeMode={effectivePracticeMode}
           onLessonStageClear={handleLessonStageClear}
           onBack={handleBack}
+          earMidi={earMidi}
           {...lessonRestartProps}
         />
       </React.Suspense>
@@ -343,6 +348,7 @@ const EarTrainingMain: React.FC = () => {
         initialPracticeMode={effectivePracticeMode}
         onLessonStageClear={handleLessonStageClear}
         onBack={handleBack}
+        earMidi={earMidi}
         {...lessonRestartProps}
       />
     </React.Suspense>

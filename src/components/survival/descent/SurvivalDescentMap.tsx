@@ -44,7 +44,7 @@ import {
 } from '../SurvivalTypes';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { initializeAudioSystem } from '@/utils/MidiController';
+import { initializeAudioSystem, markAudioUserInteraction } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
 import { SurvivalMapAudio, SURVIVAL_MAP_BGM_URL } from '@/utils/SurvivalMapAudio';
 import { useGameStore } from '@/stores/gameStore';
@@ -753,6 +753,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const runConfirmedStageStart = useCallback(
     async (startHintMode: boolean) => {
       if (!selectedStage) return;
+      markAudioUserInteraction();
       SurvivalMapAudio.stopBgmImmediately();
       stopPhrasePreview({ restoreMapBgm: false });
       if (!isIOSWebView()) {

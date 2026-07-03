@@ -384,6 +384,27 @@ export const stopNote = (note: number): void => {
 /**
  * 共通音声システムの音量更新
  */
+let cachedSharedMidiAccess: MIDIAccess | null = null;
+let sharedMidiAccessPromise: Promise<MIDIAccess> | null = null;
+
+/** Web MIDI API の共有インスタンス（MIDIController / useMidiDevices で共用） */
+export const getSharedMidiAccess = (): Promise<MIDIAccess> => {
+  if (cachedSharedMidiAccess) {
+    return Promise.resolve(cachedSharedMidiAccess);
+  }
+  if (sharedMidiAccessPromise) {
+    return sharedMidiAccessPromise;
+  }
+  if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
+    return Promise.reject(new Error('Web MIDI API is not supported'));
+  }
+  sharedMidiAccessPromise = navigator.requestMIDIAccess({ sysex: false }).then((access) => {
+    cachedSharedMidiAccess = access;
+    return access;
+  });
+  return sharedMidiAccessPromise;
+};
+
 export const updateGlobalVolume = (volume: number): void => {
   try {
     globalMidiVolume = volume;
@@ -480,10 +501,10 @@ export class MIDIController {
         return;
       }
 
-      this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+      this.midiAccess = await getSharedMidiAccess();
       this.midiSupported = true;
 
-      this.midiAccess!.onstatechange = (event): void => {
+      this.midiAccess.onstatechange = (event): void => {
         if (event.port) {
           const port: any = event.port;
           if (port.type === 'input' && this.currentDeviceId) {
@@ -770,6 +791,10 @@ export class MIDIController {
 
   public async destroy(): Promise<void> {
     this.disconnect();
+    if (this.midiAccess) {
+      this.midiAccess.onstatechange = null;
+      this.midiAccess = null;
+    }
     this.nativeMIDICleanup?.();
     this.nativeMIDICleanup = null;
     this.isInitialized = false;

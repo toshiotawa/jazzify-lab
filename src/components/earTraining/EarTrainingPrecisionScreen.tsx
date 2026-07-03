@@ -25,12 +25,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { cn } from '@/utils/cn';
 import {
-  MIDIController,
   markAudioUserInteraction,
   playNote,
   stopNote,
   updateGlobalVolume,
 } from '@/utils/MidiController';
+import type { GameMidiBindings } from '@/hooks/useGameMidiSession';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   fetchEarTrainingMidi,
@@ -136,6 +136,7 @@ interface EarTrainingPrecisionScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  earMidi: GameMidiBindings;
 }
 
 const INPUT_COOLDOWN_MS = 20;
@@ -150,6 +151,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  earMidi,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
@@ -192,7 +194,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [scoreTimelineArmed, setScoreTimelineArmed] = useState(false);
   const [phraseRunId, setPhraseRunId] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [progressSaved, setProgressSaved] = useState(false);
   const [lastRank, setLastRank] = useState<PrecisionLessonRank | null>(null);
   const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
@@ -226,7 +227,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const preparedRef = useRef<Awaited<ReturnType<EarTrainingChordVoicingPhrasePlayer['prepare']>> | null>(null);
   const notesRendererRef = useRef<PrecisionNotesRendererInstance | null>(null);
-  const midiControllerRef = useRef<MIDIController | null>(null);
   const gameStateRef = useRef<EarTrainingGameState | 'paused'>('idle');
   const phraseRunIdRef = useRef(0);
   const notesRef = useRef<PrecisionNote[]>([]);
@@ -1025,44 +1025,25 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, [handleNoteInput, handleNoteRelease]);
 
   useEffect(() => {
-    if (!midiControllerRef.current) {
-      midiControllerRef.current = new MIDIController({
-        onNoteOn: note => handleNoteInputRef.current(note),
-        onNoteOff: note => handleNoteReleaseRef.current(note),
-        onConnectionChange: connected => setIsMidiConnected(connected),
-        playMidiSound: true,
-      });
-    }
-    const controller = midiControllerRef.current;
-    controller.setKeyHighlightCallback((note, active) => {
+    return earMidi.registerNoteHandler((note) => {
+      handleNoteInputRef.current(note);
+    });
+  }, [earMidi]);
+
+  useEffect(() => {
+    return earMidi.registerNoteOffHandler((note) => {
+      handleNoteReleaseRef.current(note);
+    });
+  }, [earMidi]);
+
+  useEffect(() => {
+    return earMidi.registerKeyHighlightHandler((note, active) => {
       notesRendererRef.current?.highlightKey(note, active);
     });
-    void ensureBattlePianoAudio({
-      midiVolume: settings.midiVolume,
-      soundEffectVolume: settings.soundEffectVolume,
-      rootSoundVolume: settings.rootSoundVolume,
-    }).then(() => controller.initialize()).then(async () => {
-      if (settings.selectedMidiDevice) {
-        const connected = await controller.connectDevice(settings.selectedMidiDevice);
-        setIsMidiConnected(connected);
-      }
-    }).catch(() => setIsMidiConnected(false));
-    return () => {
-      controller.destroy();
-      midiControllerRef.current = null;
-    };
-  }, [settings.selectedMidiDevice]);
+  }, [earMidi]);
 
   const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
     updateSettings({ selectedMidiDevice: deviceId });
-    if (!deviceId) {
-      midiControllerRef.current?.disconnect();
-      setIsMidiConnected(false);
-      return;
-    }
-    void midiControllerRef.current?.connectDevice(deviceId).then(connected => {
-      setIsMidiConnected(Boolean(connected));
-    });
   }, [updateSettings]);
 
   useEffect(() => {
@@ -1467,12 +1448,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
               <span
                 className={cn(
                   'inline-block h-2 w-2 rounded-full',
-                  isMidiConnected ? 'bg-emerald-400' : 'bg-slate-500',
+                  earMidi.isMidiConnected ? 'bg-emerald-400' : 'bg-slate-500',
                 )}
                 aria-hidden
               />
               <span className="text-slate-400">
-                {isMidiConnected
+                {earMidi.isMidiConnected
                   ? (isEnglishCopy ? 'MIDI connected' : 'MIDI接続済み')
                   : (isEnglishCopy ? 'MIDI not connected' : 'MIDI未接続')}
               </span>
@@ -1613,7 +1594,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         }}
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
-        isMidiConnected={isMidiConnected}
+        isMidiConnected={earMidi.isMidiConnected}
         practiceRunMode={
           onPracticeModeRestartFromSettings
             ? {

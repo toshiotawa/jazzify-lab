@@ -60,6 +60,7 @@ import {
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem, markAudioUserInteraction } from '@/utils/MidiController';
+import { useSurvivalMidiSession } from '@/hooks/useSurvivalMidiSession';
 import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
@@ -184,6 +185,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [demoInitialized, setDemoInitialized] = useState(false);
 
   const survivalFreeTierOnly = !isPremiumMember && !lessonMode && !demoMode && !isIOSSurvival;
+  const survivalMidi = useSurvivalMidiSession();
 
   useEffect(() => {
     let cancelled = false;
@@ -494,6 +496,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     character?: SurvivalCharacter,
     hintMode?: boolean,
   ) => {
+    markAudioUserInteraction();
     setSelectedDifficulty(difficulty);
     setSelectedConfig(config);
     if (config.bgmUrl) {
@@ -713,6 +716,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
           onRetryWithoutHint={handleRetryWithoutHint}
           onNextStage={survivalOnNextStage}
           onSurvivalRunModeRestart={handleSurvivalRunModeRestart}
+          survivalMidi={survivalMidi}
         />
       );
     }
@@ -739,6 +743,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         onSurvivalRunModeRestart={
           activeStageDefinition ? handleSurvivalRunModeRestart : undefined
         }
+        survivalMidi={survivalMidi}
       />
     );
   }

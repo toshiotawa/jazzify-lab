@@ -228,6 +228,7 @@ import { resolveProductionHintModes } from '@/utils/resolveProductionHintModes';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume, warmupIOSBattleSoundFonts } from '@/utils/MidiController';
+import type { SurvivalMidiBindings } from '@/hooks/useSurvivalMidiSession';
 import { VoiceInputController } from '@/utils/VoiceInputController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
@@ -444,6 +445,8 @@ interface SurvivalGameScreenProps {
     readonly staff?: import('@/types').ProductionHintMode | null;
     readonly keyboard?: import('@/types').ProductionHintMode | null;
   };
+  /** SurvivalMain が提供する共有 MIDI セッション（マップ復帰後も接続維持） */
+  survivalMidi?: SurvivalMidiBindings;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -483,6 +486,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   balloonRushStage,
   lessonRandomChordOverrides,
   lessonProductionHintOverrides,
+  survivalMidi,
 }) => {
   const profile = useAuthStore(state => state.profile);
   const geoCountry = useGeoStore(state => state.country);
@@ -1432,6 +1436,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
   useEffect(() => {
+    if (survivalMidi) {
+      return;
+    }
     // MIDIControllerのインスタンスを作成（一度だけ）
     // ファンタジーモードと同様に、先にインスタンスを作成してから非同期初期化
     if (!midiControllerRef.current) {
@@ -1515,11 +1522,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         midiControllerRef.current = null;
       }
     };
-  }, []); // 空の依存配列で一度だけ実行
+  }, [survivalMidi]); // survivalMidi 未指定時のみローカル MIDI を生成
   
-  // gameStoreのデバイスIDを監視して接続/切断（ファンタジーモードと同様）
-  // 初期化完了を待ってから接続を試みる
   useEffect(() => {
+    if (survivalMidi) {
+      return;
+    }
     const connect = async () => {
       // 初期化完了を待つ
       if (initPromiseRef.current) {
@@ -1534,10 +1542,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     };
     connect();
-  }, [settings.selectedMidiDevice, isMidiInitialized]);
+  }, [settings.selectedMidiDevice, isMidiInitialized, survivalMidi]);
   
   // 難易度変更時（ゲーム開始時）にMIDI接続を復元（ファンタジーモードのstage依存と同様）
   useEffect(() => {
+    if (survivalMidi) {
+      return;
+    }
     const restoreMidiConnection = async () => {
       // 初期化完了を待つ
       if (initPromiseRef.current) {
@@ -1558,7 +1569,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     // コンポーネントが表示されたときに接続復元を試みる
     const timer = setTimeout(restoreMidiConnection, 100);
     return () => clearTimeout(timer);
-  }, [config.difficulty, isMidiInitialized, settings.selectedMidiDevice]); // 難易度が変更されたときに実行（ステージ開始時）
+  }, [config.difficulty, isMidiInitialized, settings.selectedMidiDevice, survivalMidi]);
+
+  useEffect(() => {
+    if (!survivalMidi) {
+      return;
+    }
+    return survivalMidi.registerNoteHandler((note) => {
+      if (handleNoteInputRef.current) {
+        handleNoteInputRef.current(note);
+      }
+    });
+  }, [survivalMidi]);
+
+  useEffect(() => {
+    if (!survivalMidi) {
+      return;
+    }
+    return survivalMidi.registerKeyHighlightTarget(() => pixiRendererRef.current);
+  }, [survivalMidi]);
 
   // 音声入力初期化（レジェンドモードと同様）
   useEffect(() => {
@@ -1630,16 +1659,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   // 入力方式切り替え時のMIDI/Voice切り替え処理
   useEffect(() => {
+    const midiController = survivalMidi?.getMidiController() ?? midiControllerRef.current;
     if (settings.inputMethod === 'midi') {
       if (voiceControllerRef.current) {
         void voiceControllerRef.current.disconnect();
       }
-      if (midiControllerRef.current && settings.selectedMidiDevice) {
-        void midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+      if (midiController && settings.selectedMidiDevice) {
+        void midiController.connectDevice(settings.selectedMidiDevice);
       }
     } else if (settings.inputMethod === 'voice') {
-      if (midiControllerRef.current) {
-        midiControllerRef.current.disconnect();
+      if (midiController) {
+        midiController.disconnect();
       }
     }
     // iOS: 入力方式切り替え後にBGM音量が低下する問題への対策
@@ -1649,7 +1679,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }, 100);
     return () => clearTimeout(timer);
-  }, [settings.inputMethod, settings.selectedMidiDevice]);
+  }, [settings.inputMethod, settings.selectedMidiDevice, survivalMidi]);
 
   // PIXIレンダラーの準備（ファンタジーモードと同様の挙動）
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -1681,8 +1711,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
       );
       
-      // MIDIControllerにキーハイライト機能を設定（ファンタジーモードと同様）
-      if (midiControllerRef.current) {
+      // MIDIControllerにキーハイライト機能を設定（共有セッション未使用時のみ）
+      if (!survivalMidi && midiControllerRef.current) {
         midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
           renderer.highlightKey(note, active);
         });
@@ -1695,7 +1725,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         });
       });
     }
-  }, [settings.noteNameStyle, settings.simpleDisplayMode]);
+  }, [settings.noteNameStyle, settings.simpleDisplayMode, survivalMidi]);
 
   // キーボード入力
   useEffect(() => {
@@ -7089,7 +7119,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       <SurvivalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        isMidiConnected={isMidiConnected}
+        isMidiConnected={survivalMidi?.isMidiConnected ?? isMidiConnected}
         displaySettings={displaySettings}
         onDisplaySettingsChange={setDisplaySettings}
         bgmVolume={bgmVolume}
