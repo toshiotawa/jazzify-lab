@@ -43,8 +43,6 @@ export class PrecisionAutoPlayScheduler {
       const state = states.get(note.id);
       if (
         state?.judgment === 'good'
-        && !note.isShortNote
-        && !(state.hiddenFromLane ?? false)
         && phraseTimeSec < note.startSec + note.durationSec - 0.001
       ) {
         this.activeNotes.push({
@@ -74,13 +72,12 @@ export class PrecisionAutoPlayScheduler {
         state.hitAtSec = note.startSec;
         if (note.isShortNote) {
           state.hiddenFromLane = true;
-        } else {
-          this.activeNotes.push({
-            noteId: note.id,
-            midi: note.midi,
-            endSec: note.startSec + note.durationSec,
-          });
         }
+        this.activeNotes.push({
+          noteId: note.id,
+          midi: note.midi,
+          endSec: note.startSec + note.durationSec,
+        });
         callbacks.onNoteOn(note.midi, note.id);
         changed = true;
       }

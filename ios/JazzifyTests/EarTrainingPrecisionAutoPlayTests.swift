@@ -46,6 +46,28 @@ final class EarTrainingPrecisionAutoPlayTests: XCTestCase {
         XCTAssertEqual(states["b"]?.hiddenFromLane, true)
         XCTAssertEqual(states["a"]?.hiddenFromLane, true)
         XCTAssertEqual(events, ["on:a:60", "on:b:64", "off:a:60"])
+
+        XCTAssertTrue(scheduler.tick(phraseTimeSec: 1.75, states: &states, callbacks: callbacks))
+        XCTAssertEqual(events, ["on:a:60", "on:b:64", "off:a:60", "off:b:64"])
+    }
+
+    func testSchedulerSendsNoteOffForShortNotes() {
+        let notes = [makeNote(id: "a", midi: 60, startSec: 1, durationSec: 0.2, isShortNote: true)]
+        var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        let scheduler = EarTrainingPrecisionAutoPlayScheduler()
+        scheduler.setNotes(notes)
+        scheduler.reset()
+
+        var events: [String] = []
+        let callbacks = EarTrainingPrecisionAutoPlayCallbacks(
+            onNoteOn: { midi, noteId in events.append("on:\(noteId):\(midi)") },
+            onNoteOff: { midi, noteId in events.append("off:\(noteId):\(midi)") }
+        )
+
+        XCTAssertTrue(scheduler.tick(phraseTimeSec: 1, states: &states, callbacks: callbacks))
+        XCTAssertEqual(events, ["on:a:60"])
+        XCTAssertTrue(scheduler.tick(phraseTimeSec: 1.2, states: &states, callbacks: callbacks))
+        XCTAssertEqual(events, ["on:a:60", "off:a:60"])
     }
 
     func testSchedulerSkipsAlreadyGoodNotes() {

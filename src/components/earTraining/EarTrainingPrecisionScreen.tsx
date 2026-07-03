@@ -542,6 +542,15 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return;
     }
     phraseEndingRef.current = true;
+    if (precisionAutoPlayEnabledRef.current) {
+      autoPlaySchedulerRef.current.releaseAllActive(autoPlayCallbacksRef.current);
+      autoPlaySchedulerRef.current.reset();
+      for (const midi of autoPlayHoldCountRef.current.keys()) {
+        notesRendererRef.current?.highlightKey(midi, false);
+        void stopNote(midi);
+      }
+      autoPlayHoldCountRef.current.clear();
+    }
     stopPhraseAudio();
     const rate = precisionGoodRate(notesRef.current, runtimeStatesRef.current);
     const rank = precisionRankForGoodRate(rate);

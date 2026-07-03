@@ -48,7 +48,6 @@ final class EarTrainingPrecisionAutoPlayScheduler {
                 break
             }
             guard let state = states[note.id], state.judgment == .good else { continue }
-            guard !note.isShortNote, state.hiddenFromLane != true else { continue }
             guard phraseTimeSec < note.startSec + note.durationSec - 0.001 else { continue }
             activeNotes.append(
                 ActiveNote(
@@ -78,15 +77,14 @@ final class EarTrainingPrecisionAutoPlayScheduler {
                 state.hitAtSec = note.startSec
                 if note.isShortNote {
                     state.hiddenFromLane = true
-                } else {
-                    activeNotes.append(
-                        ActiveNote(
-                            noteId: note.id,
-                            midi: note.midi,
-                            endSec: note.startSec + note.durationSec
-                        )
-                    )
                 }
+                activeNotes.append(
+                    ActiveNote(
+                        noteId: note.id,
+                        midi: note.midi,
+                        endSec: note.startSec + note.durationSec
+                    )
+                )
                 states[note.id] = state
                 callbacks.onNoteOn(note.midi, note.id)
                 changed = true

@@ -559,6 +559,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private func finishPhraseIfNeeded() {
         guard !phraseEnding else { return }
         phraseEnding = true
+        if precisionAutoPlayEnabled {
+            releaseAllAutoPlayHeldNotes()
+            autoPlayScheduler.reset()
+        }
         audio.stopPhrase()
         let rate = EarTrainingPrecisionJudge.goodRate(notes: precisionNotes, states: runtimeStates)
         let rank = EarTrainingPrecisionJudge.rankForGoodRate(rate)

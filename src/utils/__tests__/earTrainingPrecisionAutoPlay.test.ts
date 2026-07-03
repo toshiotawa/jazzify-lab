@@ -53,6 +53,9 @@ describe('PrecisionAutoPlayScheduler', () => {
     expect(states.get('a')?.hiddenFromLane).toBe(true);
     expect(events).toEqual(['on:a:60', 'on:b:64', 'off:a:60']);
 
+    expect(scheduler.tick(1.75, states, callbacks)).toBe(true);
+    expect(events).toEqual(['on:a:60', 'on:b:64', 'off:a:60', 'off:b:64']);
+
     expect(scheduler.tick(2, states, callbacks)).toBe(false);
   });
 
@@ -121,6 +124,29 @@ describe('PrecisionAutoPlayScheduler', () => {
       },
     });
     expect(events).toEqual(['off:a:60']);
+  });
+
+  it('ショートノーツも duration 終了で note off を送る', () => {
+    const notes = [makeNote('a', 60, 1, 0.2, true)];
+    const states = createPrecisionRuntimeStates(notes);
+    const scheduler = new PrecisionAutoPlayScheduler();
+    scheduler.setNotes(notes);
+    scheduler.reset();
+
+    const events: string[] = [];
+    const callbacks = {
+      onNoteOn: (midi: number, noteId: string) => {
+        events.push(`on:${noteId}:${midi}`);
+      },
+      onNoteOff: (midi: number, noteId: string) => {
+        events.push(`off:${noteId}:${midi}`);
+      },
+    };
+
+    expect(scheduler.tick(1, states, callbacks)).toBe(true);
+    expect(events).toEqual(['on:a:60']);
+    expect(scheduler.tick(1.2, states, callbacks)).toBe(true);
+    expect(events).toEqual(['on:a:60', 'off:a:60']);
   });
 
   it('releaseAllActive で sustain 中の note off を送る', () => {
