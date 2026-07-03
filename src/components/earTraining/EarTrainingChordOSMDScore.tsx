@@ -225,8 +225,11 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const manualScrollOffsetPxRef = useRef(0);
   const measureHighlightBaseLeftPxRef = useRef(0);
   const isManualDraggingRef = useRef(false);
+  const isTwoFingerTouchRef = useRef(false);
   const manualDragStartClientXRef = useRef(0);
   const manualDragStartOffsetPxRef = useRef(0);
+  const twoFingerTouchStartCenterXRef = useRef(0);
+  const twoFingerTouchStartOffsetPxRef = useRef(0);
   const cssScaleRef = useRef(1);
   const userZoomRef = useRef(loadEarTrainingOsmdUserZoom());
   const layoutRef = useRef<OsmdLayout>(EMPTY_LAYOUT);
@@ -259,8 +262,27 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const resetManualScroll = useCallback((): void => {
     manualScrollOffsetPxRef.current = 0;
     isManualDraggingRef.current = false;
+    isTwoFingerTouchRef.current = false;
     applyScoreTransform(scrollOffsetPxRef.current, 0);
     applyHighlightLeftWithManual(measureHighlightBaseLeftPxRef.current, 0);
+  }, [applyHighlightLeftWithManual, applyScoreTransform]);
+
+  const applyManualScrollOffset = useCallback((manualOffsetPx: number): void => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const effectiveScale = cssScaleRef.current * userZoomRef.current;
+    const clampedOffsetPx = clampOsmdManualScrollOffset({
+      baseOffsetPx: scrollOffsetPxRef.current,
+      manualOffsetPx,
+      scoreWidth: layoutRef.current.scoreWidth,
+      effectiveScale,
+      viewportWidth: viewport.clientWidth,
+    });
+    manualScrollOffsetPxRef.current = clampedOffsetPx;
+    applyScoreTransform(scrollOffsetPxRef.current, clampedOffsetPx);
+    applyHighlightLeftWithManual(measureHighlightBaseLeftPxRef.current, clampedOffsetPx);
   }, [applyHighlightLeftWithManual, applyScoreTransform]);
 
   const applyPlayheadFromParams = useCallback((params: OsmdPlayheadSyncParams): void => {
@@ -307,6 +329,73 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       resetManualScroll();
     }
   }, [manualScrollEnabled, resetManualScroll]);
+
+  useEffect(() => {
+    if (!manualScrollEnabled) {
+      return;
+    }
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const onWheel = (event: WheelEvent): void => {
+      const deltaX = event.deltaX !== 0 ? event.deltaX : (event.shiftKey ? event.deltaY : 0);
+      if (deltaX === 0) {
+        return;
+      }
+      event.preventDefault();
+      applyManualScrollOffset(manualScrollOffsetPxRef.current + deltaX);
+    };
+    viewport.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      viewport.removeEventListener('wheel', onWheel);
+    };
+  }, [applyManualScrollOffset, manualScrollEnabled]);
+
+  useEffect(() => {
+    if (!manualScrollEnabled) {
+      return;
+    }
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const touchCenterX = (touches: TouchList): number => (
+      (touches[0].clientX + touches[1].clientX) / 2
+    );
+    const onTouchStart = (event: TouchEvent): void => {
+      if (event.touches.length !== 2) {
+        return;
+      }
+      isTwoFingerTouchRef.current = true;
+      isManualDraggingRef.current = false;
+      twoFingerTouchStartCenterXRef.current = touchCenterX(event.touches);
+      twoFingerTouchStartOffsetPxRef.current = manualScrollOffsetPxRef.current;
+    };
+    const onTouchMove = (event: TouchEvent): void => {
+      if (!isTwoFingerTouchRef.current || event.touches.length !== 2) {
+        return;
+      }
+      event.preventDefault();
+      const deltaPx = twoFingerTouchStartCenterXRef.current - touchCenterX(event.touches);
+      applyManualScrollOffset(twoFingerTouchStartOffsetPxRef.current + deltaPx);
+    };
+    const onTouchEnd = (event: TouchEvent): void => {
+      if (event.touches.length < 2) {
+        isTwoFingerTouchRef.current = false;
+      }
+    };
+    viewport.addEventListener('touchstart', onTouchStart, { passive: true });
+    viewport.addEventListener('touchmove', onTouchMove, { passive: false });
+    viewport.addEventListener('touchend', onTouchEnd, { passive: true });
+    viewport.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      viewport.removeEventListener('touchstart', onTouchStart);
+      viewport.removeEventListener('touchmove', onTouchMove);
+      viewport.removeEventListener('touchend', onTouchEnd);
+      viewport.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [applyManualScrollOffset, manualScrollEnabled]);
 
   const osmdDisplayMusicXml = useMemo(
     () => (musicXmlText ? stripLyricsFromMusicXml(musicXmlText) : null),
@@ -476,7 +565,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   }, [fillParent, refitScoreScale]);
 
   const handleManualScrollPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
-    if (!manualScrollEnabled || event.button !== 0) {
+    if (!manualScrollEnabled || event.button !== 0 || isTwoFingerTouchRef.current) {
       return;
     }
     if (event.target instanceof Element && event.target.closest('button')) {
@@ -490,26 +579,12 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   }, [manualScrollEnabled]);
 
   const handleManualScrollPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
-    if (!isManualDraggingRef.current || !manualScrollEnabled) {
-      return;
-    }
-    const viewport = viewportRef.current;
-    if (!viewport) {
+    if (!isManualDraggingRef.current || !manualScrollEnabled || isTwoFingerTouchRef.current) {
       return;
     }
     const deltaPx = manualDragStartClientXRef.current - event.clientX;
-    const effectiveScale = cssScaleRef.current * userZoomRef.current;
-    const manualOffsetPx = clampOsmdManualScrollOffset({
-      baseOffsetPx: scrollOffsetPxRef.current,
-      manualOffsetPx: manualDragStartOffsetPxRef.current + deltaPx,
-      scoreWidth: layoutRef.current.scoreWidth,
-      effectiveScale,
-      viewportWidth: viewport.clientWidth,
-    });
-    manualScrollOffsetPxRef.current = manualOffsetPx;
-    applyScoreTransform(scrollOffsetPxRef.current, manualOffsetPx);
-    applyHighlightLeftWithManual(measureHighlightBaseLeftPxRef.current, manualOffsetPx);
-  }, [applyHighlightLeftWithManual, applyScoreTransform, manualScrollEnabled]);
+    applyManualScrollOffset(manualDragStartOffsetPxRef.current + deltaPx);
+  }, [applyManualScrollOffset, manualScrollEnabled]);
 
   const handleManualScrollPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
     if (!isManualDraggingRef.current) {

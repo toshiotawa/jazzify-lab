@@ -1359,11 +1359,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             {scoreErrorText ?? (isEnglishCopy ? 'Loading score…' : '譜面を読み込み中…')}
           </div>
         )}
+      </div>
+
+      <div ref={notesViewportRef} className="relative min-h-0 flex-1">
         <div
           role="separator"
           aria-orientation="horizontal"
           aria-label={isEnglishCopy ? 'Resize score area height' : '譜面領域の高さを変更'}
-          className="absolute bottom-0 left-1/2 z-30 flex h-3 w-12 -translate-x-1/2 translate-y-1/2 cursor-row-resize items-center justify-center rounded-full border border-white/20 bg-slate-800/90 text-[10px] leading-none text-white/70"
+          className="absolute left-1/2 top-0 z-30 flex h-7 w-11 -translate-x-1/2 -translate-y-1/2 cursor-row-resize items-center justify-center rounded-full border border-white/22 bg-white/18 text-xs font-semibold leading-none text-white/85"
           style={{ touchAction: 'none' }}
           onPointerDown={handleScoreBandResizePointerDown}
           onPointerMove={handleScoreBandResizePointerMove}
@@ -1372,9 +1375,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         >
           ≡
         </div>
-      </div>
-
-      <div ref={notesViewportRef} className="relative min-h-0 flex-1">
         <PrecisionNotesRenderer
           width={notesViewportSize.width}
           height={notesViewportSize.height}
