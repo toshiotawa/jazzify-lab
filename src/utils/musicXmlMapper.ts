@@ -817,7 +817,7 @@ export function ensureMusicXmlDeclaration(musicXmlText: string): string {
 }
 
 /**
- * 楽譜表示用に MusicXML の歌詞と、オーバーレイ表示する表現記号（direction words）を除去。
+ * 楽譜表示用に MusicXML の歌詞を除去（`<direction><words>` 表現記号は譜面上に残す）。
  */
 export function stripLyricsFromMusicXml(musicXmlText: string): string {
   try {
@@ -825,11 +825,6 @@ export function stripLyricsFromMusicXml(musicXmlText: string): string {
     const doc = parser.parseFromString(musicXmlText, 'text/xml');
     doc.querySelectorAll('lyric').forEach((lyric) => {
       lyric.remove();
-    });
-    doc.querySelectorAll('direction').forEach((direction) => {
-      if (direction.querySelector('direction-type words')) {
-        direction.remove();
-      }
     });
     const serializer = new XMLSerializer();
     return ensureMusicXmlDeclaration(serializer.serializeToString(doc));

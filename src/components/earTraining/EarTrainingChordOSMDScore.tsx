@@ -193,15 +193,15 @@ const collectMeasureCenters = (
       continue;
     }
 
+    measureOrdinal += 1;
+    const measureNumber = measureOrdinal;
+
+    let noteMinX = Number.POSITIVE_INFINITY;
+    let noteMaxX = Number.NEGATIVE_INFINITY;
+    let measureMinX = Number.POSITIVE_INFINITY;
+    let measureMaxX = Number.NEGATIVE_INFINITY;
+
     for (const measure of measures) {
-      measureOrdinal += 1;
-      const measureNumber = measureOrdinal;
-
-      let noteMinX = Number.POSITIVE_INFINITY;
-      let noteMaxX = Number.NEGATIVE_INFINITY;
-      let measureMinX = Number.POSITIVE_INFINITY;
-      let measureMaxX = Number.NEGATIVE_INFINITY;
-
       const measureX = getFiniteNumber(measure.PositionAndShape?.AbsolutePosition?.x);
       const measureWidth = getFiniteNumber(measure.PositionAndShape?.BorderRight) ?? 0;
 
@@ -227,17 +227,17 @@ const collectMeasureCenters = (
           }
         }
       }
-
-      assignMeasureLayout(
-        measureNumber,
-        noteMinX,
-        noteMaxX,
-        measureMinX,
-        measureMaxX,
-        measureCentersByNumber,
-        measureBoundsByNumber,
-      );
     }
+
+    assignMeasureLayout(
+      measureNumber,
+      noteMinX,
+      noteMaxX,
+      measureMinX,
+      measureMaxX,
+      measureCentersByNumber,
+      measureBoundsByNumber,
+    );
   }
 
   const scoreWidth = Math.max(viewportWidth, renderedWidth, maxX + viewportWidth / 2);
@@ -262,23 +262,34 @@ const collectMeasureCentersFromStaffLines = (
   let maxX = 0;
 
   const pages = osmd.GraphicSheet?.MusicPages ?? [];
-  let measureOrdinal = 0;
   for (const page of pages) {
     for (const system of page.MusicSystems ?? []) {
-      for (const staffLine of system.StaffLines ?? []) {
-        for (const measure of staffLine.Measures ?? []) {
-          measureOrdinal += 1;
-          const mn = measureOrdinal;
+      const staffLines = system.StaffLines ?? [];
+      if (staffLines.length === 0) {
+        continue;
+      }
+      const measureCount = staffLines.reduce(
+        (max, staffLine) => Math.max(max, staffLine.Measures?.length ?? 0),
+        0,
+      );
+      for (let measureIndex = 0; measureIndex < measureCount; measureIndex += 1) {
+        const mn = measureIndex + 1;
 
-          let b = byNumberBounds[mn];
-          if (!b) {
-            b = {
-              nMin: Number.POSITIVE_INFINITY,
-              nMax: Number.NEGATIVE_INFINITY,
-              mMin: Number.POSITIVE_INFINITY,
-              mMax: Number.NEGATIVE_INFINITY,
-            };
-            byNumberBounds[mn] = b;
+        let b = byNumberBounds[mn];
+        if (!b) {
+          b = {
+            nMin: Number.POSITIVE_INFINITY,
+            nMax: Number.NEGATIVE_INFINITY,
+            mMin: Number.POSITIVE_INFINITY,
+            mMax: Number.NEGATIVE_INFINITY,
+          };
+          byNumberBounds[mn] = b;
+        }
+
+        for (const staffLine of staffLines) {
+          const measure = staffLine.Measures?.[measureIndex];
+          if (!measure) {
+            continue;
           }
 
           const measureLike = measure as OsmdGraphicMeasureLike;
@@ -359,6 +370,7 @@ const relaxOsmdCompactTightSpacingForBattle = (
       VoiceSpacingAddendVexflow?: number;
       SoftmaxFactorVexFlow?: number;
       BetweenStaffDistance?: number;
+      MinSkyBottomDistBetweenStaves?: number;
     };
     rules?: {
       ClefRightMargin?: number;
@@ -367,6 +379,7 @@ const relaxOsmdCompactTightSpacingForBattle = (
       VoiceSpacingAddendVexflow?: number;
       SoftmaxFactorVexFlow?: number;
       BetweenStaffDistance?: number;
+      MinSkyBottomDistBetweenStaves?: number;
     };
   };
   const rules = zoomable.EngravingRules ?? zoomable.rules;
@@ -384,6 +397,9 @@ const relaxOsmdCompactTightSpacingForBattle = (
     const betweenStaff = readBetweenStaffDistanceStaffHeightsFromMusicXml(musicXmlText);
     if (betweenStaff !== null && typeof rules.BetweenStaffDistance === 'number') {
       rules.BetweenStaffDistance = betweenStaff;
+      if (typeof rules.MinSkyBottomDistBetweenStaves === 'number') {
+        rules.MinSkyBottomDistBetweenStaves = Math.min(rules.MinSkyBottomDistBetweenStaves, betweenStaff);
+      }
     }
   }
 };

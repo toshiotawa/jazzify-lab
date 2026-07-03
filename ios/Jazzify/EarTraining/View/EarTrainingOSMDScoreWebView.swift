@@ -704,15 +704,16 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               const measures = row.filter(Boolean);
               if (measures.length === 0) continue;
 
-              for (let mi = 0; mi < measures.length; mi += 1) {
-                measureOrdinal += 1;
-                const measureNumber = measureOrdinal;
-                const measure = measures[mi];
+              measureOrdinal += 1;
+              const measureNumber = measureOrdinal;
 
-                let noteMinX = Number.POSITIVE_INFINITY;
-                let noteMaxX = Number.NEGATIVE_INFINITY;
-                let measureMinX = Number.POSITIVE_INFINITY;
-                let measureMaxX = Number.NEGATIVE_INFINITY;
+              let noteMinX = Number.POSITIVE_INFINITY;
+              let noteMaxX = Number.NEGATIVE_INFINITY;
+              let measureMinX = Number.POSITIVE_INFINITY;
+              let measureMaxX = Number.NEGATIVE_INFINITY;
+
+              for (let mi = 0; mi < measures.length; mi += 1) {
+                const measure = measures[mi];
 
                 const measureX = finiteNum(measure.PositionAndShape && measure.PositionAndShape.AbsolutePosition && measure.PositionAndShape.AbsolutePosition.x);
                 const measureWidth = finiteNum(measure.PositionAndShape && measure.PositionAndShape.BorderRight) || 0;
@@ -744,12 +745,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                     }
                   }
                 }
+              }
 
-                if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
-                  assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
-                } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
-                  assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
-                }
+              if (Number.isFinite(noteMinX) && Number.isFinite(noteMaxX)) {
+                assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
+              } else if (Number.isFinite(measureMinX) && Number.isFinite(measureMaxX)) {
+                assignMeasureLayout(measureNumber, noteMinX, noteMaxX, measureMinX, measureMaxX, centers, bounds);
               }
             }
 
@@ -769,7 +770,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             let maxX = 0;
 
             const pages = (gs && gs.MusicPages) || [];
-            let measureOrdinal = 0;
 
             function ensureBounds(num) {
               if (!byNumberBounds[num]) {
@@ -787,15 +787,18 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               const systems = pages[pi].MusicSystems || [];
               for (let syi = 0; syi < systems.length; syi += 1) {
                 const staffLines = systems[syi].StaffLines || [];
+                if (staffLines.length === 0) continue;
+                let measureCount = 0;
                 for (let li = 0; li < staffLines.length; li += 1) {
-                  const staffLine = staffLines[li];
-                  const measures = staffLine.Measures || [];
-                  for (let mi = 0; mi < measures.length; mi += 1) {
-                    measureOrdinal += 1;
-                    const measure = measures[mi];
-                    // MeasureNumber プロパティは信用せず、StaffLines を横断した出現順 (1-indexed) を採用する。
-                    const mn = measureOrdinal;
-                    const b = ensureBounds(mn);
+                  const len = (staffLines[li].Measures || []).length;
+                  if (len > measureCount) measureCount = len;
+                }
+                for (let mi = 0; mi < measureCount; mi += 1) {
+                  const mn = mi + 1;
+                  const b = ensureBounds(mn);
+                  for (let li = 0; li < staffLines.length; li += 1) {
+                    const measure = (staffLines[li].Measures || [])[mi];
+                    if (!measure) continue;
 
                     const measureX = finiteNum(measure.PositionAndShape && measure.PositionAndShape.AbsolutePosition && measure.PositionAndShape.AbsolutePosition.x);
                     const measureWidth = finiteNum(measure.PositionAndShape && measure.PositionAndShape.BorderRight) || 0;
@@ -979,7 +982,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               if (fallback && typeof rules.BetweenStaffDistance === 'number') {
                 const tenths = Number.parseFloat(fallback[1]);
                 if (Number.isFinite(tenths) && tenths > 0) {
-                  rules.BetweenStaffDistance = tenths / 40;
+                  const betweenStaff = tenths / 40;
+                  rules.BetweenStaffDistance = betweenStaff;
+                  if (typeof rules.MinSkyBottomDistBetweenStaves === 'number') {
+                    rules.MinSkyBottomDistBetweenStaves = Math.min(rules.MinSkyBottomDistBetweenStaves, betweenStaff);
+                  }
                 }
               }
             }

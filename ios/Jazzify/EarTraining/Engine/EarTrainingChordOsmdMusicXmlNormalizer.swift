@@ -465,39 +465,12 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         }
     }
 
-    private static func directionContainsWords(_ direction: ChordOsmdXmlElement) -> Bool {
-        for ch in direction.children {
-            guard case let .element(typeEl) = ch, typeEl.name == "direction-type" else { continue }
-            for typeChild in typeEl.children {
-                if case let .element(wordsEl) = typeChild, wordsEl.name == "words" {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    private static func stripExpressionWordDirections(from element: ChordOsmdXmlElement) {
-        for ch in element.children {
-            if case let .element(el) = ch {
-                stripExpressionWordDirections(from: el)
-            }
-        }
-        element.children.removeAll { ch in
-            if case let .element(el) = ch, el.name == "direction", directionContainsWords(el) {
-                return true
-            }
-            return false
-        }
-    }
-
-    /// 楽譜表示用に `<lyric>` と表現記号 `<direction><words>` を除去（Web `stripLyricsFromMusicXml` と同等）。
+    /// 楽譜表示用に `<lyric>` を除去（`<direction><words>` 表現記号は譜面上に残す）。
     static func stripLyricsFromMusicXml(_ xmlText: String) -> String {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else {
             return xmlText
         }
         stripLyrics(from: root)
-        stripExpressionWordDirections(from: root)
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
     }
 

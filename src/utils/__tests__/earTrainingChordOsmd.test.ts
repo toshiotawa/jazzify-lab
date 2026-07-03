@@ -460,14 +460,14 @@ describe('readBetweenStaffDistanceStaffHeightsFromMusicXml', () => {
 });
 
 describe('stripLyricsFromMusicXml', () => {
-  it('歌詞と direction words を除去する', () => {
+  it('歌詞のみ除去し direction words は譜面表示用に残す', () => {
     const xml = `<?xml version="1.0"?><score-partwise><part><measure>
       <direction placement="below"><direction-type><words>Ab6</words></direction-type></direction>
       <note><pitch><step>C</step><octave>4</octave></pitch><lyric number="1"><text>Ab6</text></lyric></note>
     </measure></part></score-partwise>`;
     const stripped = stripLyricsFromMusicXml(xml);
     expect(stripped).not.toContain('<lyric');
-    expect(stripped).not.toContain('<words');
+    expect(stripped).toContain('<words>Ab6</words>');
     expect(stripped).toContain('<pitch>');
   });
 });

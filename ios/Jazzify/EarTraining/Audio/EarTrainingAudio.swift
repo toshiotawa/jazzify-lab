@@ -549,7 +549,7 @@ final class EarTrainingAudio: NSObject {
         engine.attach(masterMixer)
         engine.attach(limiter)
         engine.connect(phrasePlayer, to: phraseTimePitch, format: defaultFormat)
-        engine.connect(phraseTimePitch, to: phraseMixer, format: nil)
+        engine.connect(phraseTimePitch, to: phraseMixer, format: defaultFormat)
         engine.connect(clickPlayer, to: phraseMixer, format: defaultFormat)
         engine.connect(phraseMixer, to: masterMixer, format: nil)
         engine.connect(drumPlayer, to: drumMixer, format: defaultFormat)
@@ -613,7 +613,7 @@ final class EarTrainingAudio: NSObject {
         engine.disconnectNodeInput(phraseMixer)
         engine.disconnectNodeInput(phraseTimePitch)
         engine.connect(phrasePlayer, to: phraseTimePitch, format: format)
-        engine.connect(phraseTimePitch, to: phraseMixer, format: nil)
+        engine.connect(phraseTimePitch, to: phraseMixer, format: format)
         engine.connect(clickPlayer, to: phraseMixer, format: format)
 
         lastPhraseFormat = format
