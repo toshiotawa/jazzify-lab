@@ -26,6 +26,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     var countInDurationSec: Double = 0
     var maxOsmdMeasure: Int = 1
     var manualScrollEnabled: Bool = false
+    var scoreLyricEvents: [ChordOsmdScoreLyricEvent] = []
+    var lyricsBeatsPerMeasure: Int = 4
 
     func makeCoordinator() -> Coordinator {
         Coordinator(scrollLayout: scrollLayout, scrollMode: scrollMode)
@@ -73,7 +75,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             measureDurationSec: measureDurationSec,
             phraseTimelineSec: playheadController == nil ? phraseTimelineSec : nil,
             playheadAnimating: playheadController == nil ? playheadAnimating : nil,
-            zoom: zoom
+            zoom: zoom,
+            scoreLyricEvents: scoreLyricEvents,
+            lyricsBeatsPerMeasure: lyricsBeatsPerMeasure
         )
     }
 
@@ -130,6 +134,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var hasPendingFollowAnchor = false
         private var pendingManualScrollEnabled = false
         private var lastSentManualScrollEnabled: Bool?
+        private var pendingScoreLyricEvents: [ChordOsmdScoreLyricEvent] = []
+        private var pendingLyricsBeatsPerMeasure: Int = 4
+        private var lastSentScoreLyricEventsSignature: String?
 
         func attach(webView: WKWebView) {
             self.webView = webView
@@ -356,6 +363,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             guard !isTornDown, htmlReady else { return }
             lastSentOverlayVisible = nil
             sendOverlayVisibleIfNeeded()
+            lastSentScoreLyricEventsSignature = nil
+            sendScoreLyricEventsIfNeeded(webView: webView)
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -397,7 +406,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             measureDurationSec: Double,
             phraseTimelineSec: Double?,
             playheadAnimating: Bool?,
-            zoom: Double
+            zoom: Double,
+            scoreLyricEvents: [ChordOsmdScoreLyricEvent],
+            lyricsBeatsPerMeasure: Int
         ) {
             guard !isTornDown else { return }
             pendingMusicXMLText = musicXMLText
@@ -407,8 +418,38 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             pendingPhraseTimelineSec = phraseTimelineSec
             pendingPlayheadAnimating = playheadAnimating
             pendingZoom = zoom
+            pendingScoreLyricEvents = scoreLyricEvents
+            pendingLyricsBeatsPerMeasure = max(1, lyricsBeatsPerMeasure)
+            sendScoreLyricEventsIfNeeded(webView: webView)
             guard htmlReady else { return }
             flushPending(webView: webView)
+        }
+
+        private func scoreLyricEventsSignature(_ events: [ChordOsmdScoreLyricEvent], beats: Int) -> String {
+            let encoder = JSONEncoder()
+            guard let data = try? encoder.encode(events) else { return "" }
+            return String(data: data, encoding: .utf8) ?? "" + ":\(beats)"
+        }
+
+        private func sendScoreLyricEventsIfNeeded(webView: WKWebView? = nil) {
+            let targetWebView = webView ?? self.webView
+            guard let targetWebView, htmlReady, !isTornDown else { return }
+            let signature = scoreLyricEventsSignature(
+                pendingScoreLyricEvents,
+                beats: pendingLyricsBeatsPerMeasure
+            )
+            guard lastSentScoreLyricEventsSignature != signature else { return }
+            lastSentScoreLyricEventsSignature = signature
+            guard let jsonData = try? JSONEncoder().encode(pendingScoreLyricEvents) else {
+                return
+            }
+            let jsonLiteral = Self.javaScriptStringLiteral(String(data: jsonData, encoding: .utf8) ?? "[]")
+            targetWebView.evaluateJavaScript(
+                Self.voidWrappedJavaScript(
+                    "window.JazzifyOSMD.setScoreLyricEvents(\(jsonLiteral), \(pendingLyricsBeatsPerMeasure));"
+                ),
+                completionHandler: nil
+            )
         }
 
         private func flushPending(webView: WKWebView) {
@@ -574,14 +615,38 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           overflow: hidden;
           background: transparent;
         }
-        #score {
+        #score-content {
           position: absolute;
-          top: 50%;
           left: 0;
+          top: 50%;
           min-width: 100%;
-          transform: translate3d(0, -50%, 0);
           transform-origin: left center;
           will-change: transform;
+        }
+        #score {
+          position: relative;
+          min-width: 100%;
+        }
+        #score canvas, #score svg {
+          display: block;
+          background: transparent !important;
+        }
+        #score-lyric-layer {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 5;
+        }
+        #score-lyric-layer .score-lyric-box {
+          position: absolute;
+          max-width: 180px;
+          overflow: hidden;
+          border-radius: 4px;
+          padding: 2px 6px;
+          background: rgba(15, 23, 42, 0.55);
+          color: rgba(255, 255, 255, 0.95);
+          font-size: 10px;
+          line-height: 1.2;
         }
         #measure-highlight {
           position: absolute;
@@ -605,10 +670,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           pointer-events: none;
           z-index: 10;
         }
-        #score canvas, #score svg {
-          display: block;
-          background: transparent !important;
-        }
         #status {
           position: fixed;
           inset: 0;
@@ -625,13 +686,18 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
       <div id="viewport">
         <div id="measure-highlight"></div>
         <div id="measure-playhead"></div>
-        <div id="score"></div>
+        <div id="score-content">
+          <div id="score"></div>
+          <div id="score-lyric-layer"></div>
+        </div>
         <div id="status">Loading OSMD...</div>
       </div>
       <script>
         (function() {
           const viewport = document.getElementById('viewport');
+          const scoreContent = document.getElementById('score-content');
           const score = document.getElementById('score');
+          const scoreLyricLayer = document.getElementById('score-lyric-layer');
           const status = document.getElementById('status');
           let PLAYHEAD_PX = __PLAYHEAD_PX__;
           let ANCHOR_TO_MEASURE_LEFT = __ANCHOR_TO_MEASURE_LEFT__;
@@ -655,6 +721,183 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let manualDragActive = false;
           let manualDragStartClientX = 0;
           let manualDragStartOffsetPx = 0;
+          let scoreLyricEvents = [];
+          let lyricsBeatsPerMeasure = 4;
+          let sourceMusicXmlText = '';
+
+          const LYRIC_LANE_HEIGHT = 18;
+          const LYRIC_LANE_GAP = 2;
+          const LYRIC_LANE_COUNT = 4;
+          const REQUIRED_LYRIC_GAP = LYRIC_LANE_HEIGHT * LYRIC_LANE_COUNT + LYRIC_LANE_GAP * (LYRIC_LANE_COUNT - 1);
+          const LYRIC_MIN_GAP_X = 12;
+          const LYRIC_MIN_BOX_WIDTH = 48;
+          const LYRIC_MAX_BOX_WIDTH = 180;
+          const LYRIC_BOX_PADDING_X = 6;
+          const LYRIC_SAFE_PADDING_Y = 4;
+          const MAX_VERSE_ON_SCORE = 4;
+
+          function estimateLyricTextWidthPx(text) {
+            let width = 0;
+            for (const ch of String(text || '').replace(/\\n/g, '')) {
+              width += ch.charCodeAt(0) > 0xff ? 12 : 7;
+            }
+            return width;
+          }
+
+          function resolveMinBetweenStaffDistanceForLyricLanes(zoomValue) {
+            const safeZoom = finiteNum(zoomValue) && zoomValue > 0 ? zoomValue : 1;
+            return REQUIRED_LYRIC_GAP / (10 * safeZoom) + 0.5;
+          }
+
+          function collectStaffVerticalBounds() {
+            if (!osmd || !osmd.GraphicSheet) return [];
+            const scaleFactor = resolveOsmdLayoutScaleFactor();
+            const pages = osmd.GraphicSheet.MusicPages || [];
+            for (let pi = 0; pi < pages.length; pi += 1) {
+              const systems = pages[pi].MusicSystems || [];
+              for (let si = 0; si < systems.length; si += 1) {
+                const staffLines = systems[si].StaffLines || [];
+                const bounds = [];
+                for (let i = 0; i < staffLines.length; i += 1) {
+                  const pos = staffLines[i].PositionAndShape;
+                  const y = finiteNum(pos && pos.AbsolutePosition && pos.AbsolutePosition.y);
+                  if (y === null) continue;
+                  const height = finiteNum(pos && pos.Size && pos.Size.height) || 0;
+                  const marginTop = finiteNum(pos && pos.BorderMarginTop) || 0;
+                  const marginBottom = finiteNum(pos && pos.BorderMarginBottom) || 0;
+                  bounds.push({
+                    staffIndex: i,
+                    topPx: (y - marginTop) * scaleFactor,
+                    bottomPx: (y + height + marginBottom) * scaleFactor
+                  });
+                }
+                if (bounds.length > 0) {
+                  bounds.sort(function(a, b) { return a.topPx - b.topPx; });
+                  return bounds;
+                }
+              }
+            }
+            return [];
+          }
+
+          function resolveInterStaffLyricArea(staffBounds) {
+            if (!staffBounds || staffBounds.length === 0) return null;
+            function laneCountForGap(gapHeight) {
+              for (let count = LYRIC_LANE_COUNT; count >= 1; count -= 1) {
+                const required = count * LYRIC_LANE_HEIGHT + Math.max(0, count - 1) * LYRIC_LANE_GAP;
+                if (gapHeight >= required) return count;
+              }
+              return 1;
+            }
+            if (staffBounds.length >= 2) {
+              const gapTopPx = staffBounds[0].bottomPx + LYRIC_SAFE_PADDING_Y;
+              const gapBottomPx = staffBounds[1].topPx - LYRIC_SAFE_PADDING_Y;
+              const gapHeightPx = gapBottomPx - gapTopPx;
+              const laneCount = gapHeightPx > 0 ? laneCountForGap(gapHeightPx) : 1;
+              const lyricAreaHeight = laneCount * LYRIC_LANE_HEIGHT + Math.max(0, laneCount - 1) * LYRIC_LANE_GAP;
+              return {
+                laneBasePx: gapTopPx + Math.max(0, (gapHeightPx - lyricAreaHeight) / 2),
+                laneHeightPx: LYRIC_LANE_HEIGHT,
+                laneGapPx: LYRIC_LANE_GAP,
+                laneCount: laneCount
+              };
+            }
+            const gapTopPx = staffBounds[0].bottomPx + LYRIC_SAFE_PADDING_Y;
+            const laneCount = laneCountForGap(REQUIRED_LYRIC_GAP);
+            const lyricAreaHeight = laneCount * LYRIC_LANE_HEIGHT + Math.max(0, laneCount - 1) * LYRIC_LANE_GAP;
+            return {
+              laneBasePx: gapTopPx + Math.max(0, (REQUIRED_LYRIC_GAP - lyricAreaHeight) / 2),
+              laneHeightPx: LYRIC_LANE_HEIGHT,
+              laneGapPx: LYRIC_LANE_GAP,
+              laneCount: laneCount
+            };
+          }
+
+          function resolveLyricEventX(event) {
+            const bounds = measureBoundsByNumber[event.measureNumber];
+            if (!bounds) return null;
+            const ratio = (event.beatStartInMeasure - 1) / Math.max(1, lyricsBeatsPerMeasure);
+            return bounds.left + (bounds.right - bounds.left) * ratio;
+          }
+
+          function rangesOverlap(candidate, range, minGap) {
+            return candidate.left < range.right + minGap && candidate.right > range.left - minGap;
+          }
+
+          function truncateLyricText(text, maxChars) {
+            const singleLine = String(text || '').replace(/\\n/g, ' ').trim();
+            if (singleLine.length <= maxChars) return singleLine;
+            if (maxChars <= 1) return '…';
+            return singleLine.slice(0, maxChars - 1) + '…';
+          }
+
+          function tryPlaceLyricBox(fullText, leftPx, occupied) {
+            const singleLine = String(fullText || '').replace(/\\n/g, ' ').trim();
+            if (!singleLine) return { visibleOnScore: false, displayText: '', widthPx: 0 };
+            const fullWidth = Math.min(
+              LYRIC_MAX_BOX_WIDTH,
+              Math.max(LYRIC_MIN_BOX_WIDTH, estimateLyricTextWidthPx(singleLine) + LYRIC_BOX_PADDING_X * 2)
+            );
+            function fits(displayText, widthPx) {
+              const candidate = { left: leftPx, right: leftPx + widthPx };
+              for (let i = 0; i < occupied.length; i += 1) {
+                if (rangesOverlap(candidate, occupied[i], LYRIC_MIN_GAP_X)) return false;
+              }
+              return true;
+            }
+            if (fits(singleLine, fullWidth)) {
+              return { visibleOnScore: true, displayText: singleLine, widthPx: fullWidth };
+            }
+            for (let chars = singleLine.length - 1; chars >= 3; chars -= 1) {
+              const shortened = truncateLyricText(singleLine, chars);
+              const widthPx = Math.min(
+                LYRIC_MAX_BOX_WIDTH,
+                Math.max(LYRIC_MIN_BOX_WIDTH, estimateLyricTextWidthPx(shortened) + LYRIC_BOX_PADDING_X * 2)
+              );
+              if (fits(shortened, widthPx)) {
+                return { visibleOnScore: true, displayText: shortened, widthPx: widthPx };
+              }
+            }
+            return { visibleOnScore: false, displayText: singleLine, widthPx: fullWidth };
+          }
+
+          function refreshScoreLyricLayout() {
+            if (!scoreLyricLayer) return;
+            scoreLyricLayer.replaceChildren();
+            if (!osmd || !scoreLyricEvents.length) return;
+            const lyricArea = resolveInterStaffLyricArea(collectStaffVerticalBounds());
+            if (!lyricArea) return;
+            const occupiedByLane = Array.from({ length: lyricArea.laneCount }, function() { return []; });
+            const events = scoreLyricEvents.slice().filter(function(event) {
+              return event.verseNumber >= 1 && event.verseNumber <= MAX_VERSE_ON_SCORE && String(event.text || '').trim();
+            });
+            for (let ei = 0; ei < events.length; ei += 1) {
+              const event = events[ei];
+              if (event.verseNumber > lyricArea.laneCount) continue;
+              const laneIndex = event.verseNumber - 1;
+              const topPx = lyricArea.laneBasePx + laneIndex * (lyricArea.laneHeightPx + lyricArea.laneGapPx);
+              const rawX = resolveLyricEventX(event);
+              if (rawX === null) continue;
+              const leftPx = rawX - LYRIC_BOX_PADDING_X;
+              const attempt = tryPlaceLyricBox(event.text, leftPx, occupiedByLane[laneIndex]);
+              if (!attempt.visibleOnScore) continue;
+              occupiedByLane[laneIndex].push({ left: leftPx, right: leftPx + attempt.widthPx });
+              const box = document.createElement('div');
+              box.className = 'score-lyric-box';
+              box.textContent = attempt.displayText;
+              box.style.left = leftPx + 'px';
+              box.style.top = topPx + 'px';
+              box.style.width = attempt.widthPx + 'px';
+              box.style.height = lyricArea.laneHeightPx + 'px';
+              scoreLyricLayer.appendChild(box);
+            }
+          }
+
+          function setScoreLyricEvents(jsonEvents, beatsPerMeasure) {
+            scoreLyricEvents = Array.isArray(jsonEvents) ? jsonEvents : [];
+            lyricsBeatsPerMeasure = Math.max(1, beatsPerMeasure || 4);
+            refreshScoreLyricLayout();
+          }
 
           function isFollowMode() {
             return scrollMode === 'continuousFollow';
@@ -1185,7 +1428,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           function applyScoreTransform(scrollOffset) {
             const totalOffset = scrollOffset + manualScrollOffsetPx;
             const snapped = snapLayoutPx(totalOffset);
-            score.style.transform = 'translate3d(' + (-snapped) + 'px, -50%, 0) scale(' + effectiveScale + ')';
+            const transform = 'translate3d(' + (-snapped) + 'px, -50%, 0) scale(' + effectiveScale + ')';
+            if (scoreContent) {
+              scoreContent.style.transform = transform;
+            } else {
+              score.style.transform = transform;
+            }
           }
 
           function computeScrollOffset(measureNumber) {
@@ -1228,6 +1476,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             if (typeof rules.SoftmaxFactorVexFlow === 'number' && rules.SoftmaxFactorVexFlow < 10) {
               rules.SoftmaxFactorVexFlow = 10;
             }
+            let xmlBetweenStaff = null;
             if (typeof xmlText === 'string' && xmlText.length > 0) {
               const twoStaff = xmlText.match(
                 /<staff-layout\\b[^>]*\\bnumber="2"[^>]*>[\\s\\S]*?<staff-distance>(\\d+(?:\\.\\d+)?)<\\/staff-distance>/
@@ -1238,12 +1487,26 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               if (fallback && typeof rules.BetweenStaffDistance === 'number') {
                 const tenths = Number.parseFloat(fallback[1]);
                 if (Number.isFinite(tenths) && tenths > 0) {
-                  const betweenStaff = tenths / 40;
-                  rules.BetweenStaffDistance = betweenStaff;
-                  if (typeof rules.MinSkyBottomDistBetweenStaves === 'number') {
-                    rules.MinSkyBottomDistBetweenStaves = Math.min(rules.MinSkyBottomDistBetweenStaves, betweenStaff);
-                  }
+                  xmlBetweenStaff = tenths / 40;
                 }
+              }
+            }
+            if (typeof rules.BetweenStaffDistance === 'number') {
+              const zoomValue = osmdInst && (osmdInst.Zoom !== undefined ? osmdInst.Zoom : osmdInst.zoom);
+              const minForLyrics = resolveMinBetweenStaffDistanceForLyricLanes(
+                finiteNum(zoomValue) || 1
+              );
+              const nextBetweenStaff = Math.max(
+                rules.BetweenStaffDistance,
+                xmlBetweenStaff || 0,
+                minForLyrics
+              );
+              rules.BetweenStaffDistance = nextBetweenStaff;
+              if (typeof rules.MinSkyBottomDistBetweenStaves === 'number') {
+                rules.MinSkyBottomDistBetweenStaves = Math.min(
+                  rules.MinSkyBottomDistBetweenStaves,
+                  nextBetweenStaff
+                );
               }
             }
           }
@@ -1284,11 +1547,18 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             resetManualScroll();
             cancelFollowRaf();
             score.replaceChildren();
+            if (scoreLyricLayer) {
+              scoreLyricLayer.replaceChildren();
+            }
             measureCentersByNumber = {};
             measureBoundsByNumber = {};
             cssScale = 1;
             currentScrollOffset = 0;
-            score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+            if (scoreContent) {
+              scoreContent.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+            } else {
+              score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+            }
             status.textContent = 'Rendering...';
             status.style.display = 'grid';
 
@@ -1303,6 +1573,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               }
 
               const displayXml = xmlText;
+              sourceMusicXmlText = xmlText;
               const z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
 
               osmd = buildOsmd();
@@ -1328,13 +1599,22 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               } else {
                 cssScale = 1;
               }
-              score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              if (scoreContent) {
+                scoreContent.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              } else {
+                score.style.transform = 'translate3d(0, -50%, 0) scale(' + cssScale + ')';
+              }
               await new Promise(function (resolve) {
                 requestAnimationFrame(resolve);
               });
 
               measureLayoutFromOsmd();
-              score.style.width = scoreWidth + 'px';
+              refreshScoreLyricLayout();
+              if (scoreContent) {
+                scoreContent.style.width = scoreWidth + 'px';
+              } else {
+                score.style.width = scoreWidth + 'px';
+              }
               refreshEffectiveScale(activeMeasureNumber);
               renderSucceeded = true;
               postOsmdMessage('ready', '');
@@ -1789,7 +2069,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             setScrollMode,
             setCountInDurationSec,
             setMaxMeasureNumber,
-            setManualScrollEnabled
+            setManualScrollEnabled,
+            setScoreLyricEvents
           };
         })();
       </script>
