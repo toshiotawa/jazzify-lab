@@ -55,6 +55,10 @@ interface EarTrainingSettingsModalProps {
     appliedOffsetMs: number;
     onChange: (offsetMs: number) => void;
   };
+  precisionAutoPlay?: {
+    enabled: boolean;
+    onChange: (enabled: boolean) => void;
+  };
 }
 
 const SliderRow: React.FC<{
@@ -92,6 +96,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   practiceTranspose,
   practiceSpeed,
   osmdTimingAdjustment,
+  precisionAutoPlay,
 }) => {
   const isTutorialScope = scope === 'tutorial';
   const { settings, updateSettings } = useGameStore();
@@ -292,6 +297,26 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
                 <span>0ms</span>
                 <span>{OSMD_TIMING_ADJUSTMENT_MS_MAX}ms {ui.osmdTimingAdjustmentLater}</span>
               </div>
+            </section>
+          ) : null}
+
+          {precisionAutoPlay ? (
+            <section className="rounded-xl border border-emerald-600/40 bg-emerald-950/30 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-emerald-100">
+                {ui.precisionAutoPlayHeading}
+              </h3>
+              <p className="mb-3 text-xs text-slate-300">
+                {ui.precisionAutoPlayDescription}
+              </p>
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <span className="text-sm text-slate-200">{ui.precisionAutoPlayLabel}</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-success toggle-sm"
+                  checked={precisionAutoPlay.enabled}
+                  onChange={event => precisionAutoPlay.onChange(event.target.checked)}
+                />
+              </label>
             </section>
           ) : null}
 

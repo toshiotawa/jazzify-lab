@@ -30,11 +30,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published var isSettingsOpen: Bool = false
     @Published var isMidiConnected: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
+    @Published var precisionAutoPlayEnabled: Bool = false
 
     let stage: EarTrainingStageDetail
     let phrases: [EarTrainingPhraseDetail]
     let lessonContext: EarTrainingLessonContext?
     let isEnglishCopy: Bool
+    let isAdmin: Bool
     let hudLabels: EarTrainingBattleHudLabels
     let copy: EarTrainingGameCopy
 
@@ -87,12 +89,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private var lobbyPreloadTask: Task<Void, Never>?
     private weak var osmdCoordinator: EarTrainingOSMDScoreWebView.Coordinator?
     private var maxOsmdMeasure: Int = 1
+    private let autoPlayScheduler = EarTrainingPrecisionAutoPlayScheduler()
 
     init(
         stage: EarTrainingStageDetail,
         phrases: [EarTrainingPhraseDetail],
         lessonContext: EarTrainingLessonContext?,
         isEnglishCopy: Bool,
+        isAdmin: Bool = false,
         audio: EarTrainingAudio,
         initialPracticeMode: Bool = false,
         onExit: @escaping () -> Void
@@ -101,12 +105,16 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         self.phrases = phrases
         self.lessonContext = lessonContext
         self.isEnglishCopy = isEnglishCopy
+        self.isAdmin = isAdmin
         self.audio = audio
         self.onExitCallback = onExit
         self.hudLabels = EarTrainingBattleHudLabels.make(isEnglish: isEnglishCopy)
         self.copy = EarTrainingGameCopy.make(isEnglish: isEnglishCopy)
         self.practiceMode = initialPracticeMode
         self.timingAdjustmentMs = EarTrainingOsmdTimingAdjustment.loadTimingAdjustmentMs()
+        if isAdmin {
+            self.precisionAutoPlayEnabled = EarTrainingPrecisionAutoPlayPreferences.loadEnabled()
+        }
         self.statusText = isEnglishCopy
             ? "Press START to begin precision mode."
             : "STARTで精密モードを開始します"
@@ -178,6 +186,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         lastPrecisionRank = nil
         lastGoodRatePercent = nil
         pausedTimelineSec = nil
+        activeGoodNotesByMidi.removeAll()
+        autoPlayScheduler.reset()
         phraseRunId += 1
         let runId = phraseRunId
 
@@ -314,6 +324,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         keyboardRange = EarTrainingPrecisionNotes.resolveKeyboardRange(noteMidis: calibrated.map(\.midi))
         precisionNotes = calibrated
         runtimeStates = EarTrainingPrecisionJudge.createRuntimeStates(notes: calibrated)
+        autoPlayScheduler.setNotes(calibrated)
+        autoPlayScheduler.reset()
 
         let lastStart = calibrated.map(\.startSec).max() ?? 0
         let lastDur = calibrated.last?.durationSec ?? 0
@@ -373,6 +385,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             phraseTimeSec: phraseTime,
             windowSec: windowSec
         )
+        processAutoPlayIfNeeded(phraseTimeSec: phraseTime)
         applyLyricsIfNeeded(phraseTimeSec: phraseTime)
         updateHiddenNotesAtEnd(phraseTimeSec: phraseTime)
         updateSeekSliderUi(phraseTimeSec: max(0, phraseTime))
@@ -478,6 +491,44 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         runtimeStates[noteId] = state
     }
 
+    func applyPrecisionAutoPlayEnabled(_ enabled: Bool) {
+        guard isAdmin else { return }
+        precisionAutoPlayEnabled = enabled
+        EarTrainingPrecisionAutoPlayPreferences.saveEnabled(enabled)
+    }
+
+    private func processAutoPlayIfNeeded(phraseTimeSec: Double) {
+        guard precisionAutoPlayEnabled else { return }
+        guard gameState == .countIn || gameState == .playingPhrase else { return }
+        let callbacks = EarTrainingPrecisionAutoPlayCallbacks(
+            onNoteOn: { [weak self] midi, noteId in
+                self?.applyAutoPlayNoteOn(midi: midi, noteId: noteId)
+            },
+            onNoteOff: { [weak self] midi, noteId in
+                self?.applyAutoPlayNoteOff(midi: midi, noteId: noteId)
+            }
+        )
+        _ = autoPlayScheduler.tick(
+            phraseTimeSec: phraseTimeSec,
+            states: &runtimeStates,
+            callbacks: callbacks
+        )
+    }
+
+    private func applyAutoPlayNoteOn(midi: Int, noteId: String) {
+        midiHeldKeys.insert(midi)
+        activeGoodNotesByMidi[midi] = noteId
+        SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 80)
+    }
+
+    private func applyAutoPlayNoteOff(midi: Int, noteId: String) {
+        midiHeldKeys.remove(midi)
+        if activeGoodNotesByMidi[midi] == noteId {
+            activeGoodNotesByMidi.removeValue(forKey: midi)
+        }
+        SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: midi)
+    }
+
     private func finishPhraseIfNeeded() {
         guard !phraseEnding else { return }
         phraseEnding = true
@@ -530,6 +581,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             phraseTimeSec: clamped,
             windowSec: windowSec
         )
+        autoPlayScheduler.syncAfterSeek(phraseTimeSec: clamped, states: runtimeStates)
+        activeGoodNotesByMidi.removeAll()
+        midiHeldKeys.removeAll()
         nextLyricIndex = 0
         activeLyricText = ""
         for (index, lyric) in phraseLyricEvents.enumerated() {

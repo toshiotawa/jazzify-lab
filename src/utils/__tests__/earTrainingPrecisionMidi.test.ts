@@ -142,6 +142,35 @@ describe('buildPrecisionNotesFromMidi', () => {
     expect(notes[0]?.midi).toBe(62);
   });
 
+  it('同一音高で note off が次 note on に跨る場合、手前ノートを短縮する', () => {
+    const nextOnTick = 480;
+    const lateOffTick = 500;
+    const data = buildMinimalSmf([
+      { tick: 0, kind: 'on', midi: 60 },
+      { tick: nextOnTick, kind: 'on', midi: 60 },
+      { tick: lateOffTick, kind: 'off', midi: 60 },
+      { tick: lateOffTick, kind: 'off', midi: 60 },
+    ]);
+    const { notes } = buildPrecisionNotesFromMidi(data, 120);
+    expect(notes).toHaveLength(2);
+    expect(notes[0]?.startSec).toBeCloseTo(0, 3);
+    expect(notes[0]?.durationSec).toBeCloseTo(0.499, 3);
+    expect(notes[1]?.startSec).toBeCloseTo(0.5, 3);
+  });
+
+  it('跨ぎが無い同一音高連続ノーツは duration を変えない', () => {
+    const data = buildMinimalSmf([
+      { tick: 0, kind: 'on', midi: 60 },
+      { tick: 480, kind: 'off', midi: 60 },
+      { tick: 960, kind: 'on', midi: 60 },
+      { tick: 1440, kind: 'off', midi: 60 },
+    ]);
+    const { notes } = buildPrecisionNotesFromMidi(data, 120);
+    expect(notes).toHaveLength(2);
+    expect(notes[0]?.durationSec).toBeCloseTo(0.5, 3);
+    expect(notes[1]?.durationSec).toBeCloseTo(0.5, 3);
+  });
+
   it('Bluesy precision MIDI は MusicXML と同数のノーツを持つ', () => {
     const xmlPath = resolve(
       process.cwd(),

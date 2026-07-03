@@ -8,6 +8,7 @@ struct EarTrainingPrecisionGameView: View {
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
     var initialPracticeMode: Bool = false
+    var isAdmin: Bool = false
     let onClose: () -> Void
 
     @State private var controller: EarTrainingPrecisionBattleController?
@@ -82,6 +83,7 @@ struct EarTrainingPrecisionGameView: View {
                 phrases: phrases,
                 lessonContext: lessonContext,
                 isEnglishCopy: locale == .en,
+                isAdmin: isAdmin,
                 audio: audioInstance,
                 initialPracticeMode: initialPracticeMode,
                 onExit: onClose
@@ -231,6 +233,12 @@ private struct EarTrainingPrecisionGameContent: View {
                     appliedMode: controller.osmdScrollMode,
                     onChange: { controller.applyOsmdScrollMode($0) }
                 ),
+                precisionAutoPlay: controller.isAdmin
+                    ? EarTrainingPrecisionAutoPlayConfig(
+                        enabled: controller.precisionAutoPlayEnabled,
+                        onChange: { controller.applyPrecisionAutoPlayEnabled($0) }
+                    )
+                    : nil,
                 onRestartFromBeginning: {
                     controller.handleCloseSettings()
                     controller.startBattle()

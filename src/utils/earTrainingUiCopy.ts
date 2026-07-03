@@ -55,6 +55,9 @@ export interface EarTrainingSettingsModalCopy {
   osmdTimingAdjustmentDescription: string;
   osmdTimingAdjustmentEarlier: string;
   osmdTimingAdjustmentLater: string;
+  precisionAutoPlayHeading: string;
+  precisionAutoPlayDescription: string;
+  precisionAutoPlayLabel: string;
 }
 
 export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTrainingSettingsModalCopy => (
@@ -77,6 +80,10 @@ export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTraining
           'Shift judgment, hammers, and hints relative to phrase audio (earlier: −, later: +).',
         osmdTimingAdjustmentEarlier: '(earlier)',
         osmdTimingAdjustmentLater: '(later)',
+        precisionAutoPlayHeading: 'Auto Play (admin)',
+        precisionAutoPlayDescription:
+          'Automatically plays notes at chart timing: keyboard highlight, vanish effects, and piano sound.',
+        precisionAutoPlayLabel: 'Auto Play',
       }
     : {
         dialogAriaLabel: 'バトルモード設定',
@@ -96,6 +103,10 @@ export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTraining
           '音源に対して判定・ハンマー・ヒントを早く/遅く調整します（早く: −, 遅く: +）。',
         osmdTimingAdjustmentEarlier: '(早く)',
         osmdTimingAdjustmentLater: '(遅く)',
+        precisionAutoPlayHeading: 'Auto Play（管理者）',
+        precisionAutoPlayDescription:
+          '譜面タイミングでノーツを自動演奏します（鍵盤ハイライト・消去エフェクト・ピアノ音）。',
+        precisionAutoPlayLabel: 'Auto Play',
       }
 );
 

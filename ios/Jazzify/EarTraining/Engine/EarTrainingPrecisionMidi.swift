@@ -58,8 +58,13 @@ enum EarTrainingPrecisionMidi {
             return lhs.id < rhs.id
         }
 
-        let keyboardRange = EarTrainingPrecisionNotes.resolveKeyboardRange(noteMidis: notes.map(\.midi))
-        return EarTrainingPrecisionNoteBuildResult(notes: notes, keyboardRange: keyboardRange)
+        let trimmedNotes = EarTrainingPrecisionNotes.trimOverlappingSamePitchNotes(
+            notes: notes,
+            classificationBpm: bpm
+        )
+
+        let keyboardRange = EarTrainingPrecisionNotes.resolveKeyboardRange(noteMidis: trimmedNotes.map(\.midi))
+        return EarTrainingPrecisionNoteBuildResult(notes: trimmedNotes, keyboardRange: keyboardRange)
     }
 
     private static func parseTrackNoteEvents(

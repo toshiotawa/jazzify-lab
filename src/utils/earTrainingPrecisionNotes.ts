@@ -22,6 +22,11 @@ export const PRECISION_GUIDE_LEAD_SEC = 0.5;
 /** 8分音符以下の固定描画高さ（px） */
 export const PRECISION_SHORT_NOTE_HEIGHT_PX = 8;
 
+/** MIDI 同一音高で note off が次 note on に跨る場合、手前ノート終了を切り詰める余白（秒） */
+export const PRECISION_MIDI_SAME_PITCH_OVERLAP_TRIM_EPSILON_SEC = 0.001;
+
+const PRECISION_NOTE_MIN_DURATION_SEC = 0.05;
+
 export interface PrecisionNote {
   id: string;
   midi: number;
@@ -106,6 +111,51 @@ export const withPrecisionShortNoteFlags = (
   ...note,
   isShortNote: isPrecisionShortNoteDuration(note.durationSec, classificationBpm),
 }));
+
+/**
+ * 同一 midi の連続ノーツで、手前ノートの note off が次ノートの note on を跨ぐ場合、
+ * 手前ノートの duration を次 on の直前（EPSILON 手前）まで短縮する。
+ * 入力は startSec 昇順ソート済みを想定。
+ */
+export const trimOverlappingSamePitchNotes = (
+  notes: readonly PrecisionNote[],
+  classificationBpm: number,
+  epsilonSec = PRECISION_MIDI_SAME_PITCH_OVERLAP_TRIM_EPSILON_SEC,
+): PrecisionNote[] => {
+  if (notes.length <= 1) {
+    return [...notes];
+  }
+  const result = notes.map(note => ({ ...note }));
+  const lastIndexByMidi = new Map<number, number>();
+
+  for (let i = 0; i < result.length; i += 1) {
+    const note = result[i];
+    if (!note) {
+      continue;
+    }
+    const prevIndex = lastIndexByMidi.get(note.midi);
+    if (prevIndex !== undefined) {
+      const prev = result[prevIndex];
+      if (prev) {
+        const prevEnd = prev.startSec + prev.durationSec;
+        if (prevEnd > note.startSec - epsilonSec) {
+          const newDuration = Math.max(
+            PRECISION_NOTE_MIN_DURATION_SEC,
+            note.startSec - epsilonSec - prev.startSec,
+          );
+          result[prevIndex] = {
+            ...prev,
+            durationSec: newDuration,
+            isShortNote: isPrecisionShortNoteDuration(newDuration, classificationBpm),
+          };
+        }
+      }
+    }
+    lastIndexByMidi.set(note.midi, i);
+  }
+
+  return result;
+};
 
 export const calibratePrecisionNotes = (
   notes: readonly PrecisionNote[],

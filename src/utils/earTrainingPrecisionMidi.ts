@@ -1,6 +1,7 @@
 import {
   isPrecisionShortNoteDuration,
   resolvePrecisionKeyboardRange,
+  trimOverlappingSamePitchNotes,
   type PrecisionNote,
   type PrecisionNoteBuildResult,
 } from '@/utils/earTrainingPrecisionNotes';
@@ -171,6 +172,8 @@ export const buildPrecisionNotesFromMidi = (
     return a.id.localeCompare(b.id);
   });
 
-  const keyboardRange = resolvePrecisionKeyboardRange(notes.map(note => note.midi));
-  return { notes, keyboardRange };
+  const trimmedNotes = trimOverlappingSamePitchNotes(notes, bpm);
+
+  const keyboardRange = resolvePrecisionKeyboardRange(trimmedNotes.map(note => note.midi));
+  return { notes: trimmedNotes, keyboardRange };
 };

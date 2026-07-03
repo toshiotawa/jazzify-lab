@@ -34,6 +34,12 @@ struct EarTrainingOsmdScrollModeConfig {
     let onChange: (_ mode: EarTrainingOsmdScrollMode) -> Void
 }
 
+/// 精密モード Auto Play（管理者向け、Web `precisionAutoPlay` prop 相当）。
+struct EarTrainingPrecisionAutoPlayConfig {
+    let enabled: Bool
+    let onChange: (_ enabled: Bool) -> Void
+}
+
 /// Web `EarTrainingSettingsScope` 相当。
 enum EarTrainingSettingsScope {
     case battle
@@ -53,6 +59,7 @@ struct EarTrainingSettingsSheet: View {
     var practiceSpeed: EarTrainingPracticeSpeedConfig?
     var osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig?
     var osmdScrollMode: EarTrainingOsmdScrollModeConfig?
+    var precisionAutoPlay: EarTrainingPrecisionAutoPlayConfig?
     var onRestartFromBeginning: (() -> Void)?
     let onDismiss: () -> Void
     let onExit: () -> Void
@@ -100,6 +107,10 @@ struct EarTrainingSettingsSheet: View {
 
                 if let osmdScrollMode {
                     osmdScrollModeSection(osmdScrollMode)
+                }
+
+                if let precisionAutoPlay {
+                    precisionAutoPlaySection(precisionAutoPlay)
                 }
 
                 if !isTutorialScope {
@@ -391,6 +402,40 @@ struct EarTrainingSettingsSheet: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private func precisionAutoPlaySection(_ config: EarTrainingPrecisionAutoPlayConfig) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(isEnglishCopy ? "Auto Play (admin)" : "Auto Play（管理者）")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color(hex: "6ee7b7"))
+
+            Text(isEnglishCopy
+                 ? "Automatically plays notes at chart timing: keyboard highlight, vanish effects, and piano sound."
+                 : "譜面タイミングでノーツを自動演奏します（鍵盤ハイライト・消去エフェクト・ピアノ音）。")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.75))
+
+            Toggle(isOn: Binding(
+                get: { config.enabled },
+                set: { config.onChange($0) }
+            )) {
+                Text("Auto Play")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+            }
+            .tint(Color(hex: "10b981"))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.green.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.green.opacity(0.35), lineWidth: 1)
         )
     }
 

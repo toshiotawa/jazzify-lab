@@ -13,6 +13,8 @@ struct EarTrainingGameView: View {
     var initialPracticeMode: Bool = false
     let onClose: () -> Void
 
+    @EnvironmentObject private var appState: AppState
+
     @State private var controller: EarTrainingBattleController?
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
@@ -52,6 +54,7 @@ struct EarTrainingGameView: View {
                     lessonContext: lessonContext,
                     locale: locale,
                     initialPracticeMode: initialPracticeMode,
+                    isAdmin: appState.profile?.isAdmin == true,
                     onClose: onClose
                 )
             } else if resolvedMode == .adlib {

@@ -106,6 +106,12 @@ import {
   resetPrecisionRuntimeStatesFromTime,
   type PrecisionNoteRuntimeState,
 } from '@/utils/earTrainingPrecisionJudge';
+import {
+  loadEarTrainingPrecisionAutoPlayEnabled,
+  PrecisionAutoPlayScheduler,
+  saveEarTrainingPrecisionAutoPlayEnabled,
+  type PrecisionAutoPlayCallbacks,
+} from '@/utils/earTrainingPrecisionAutoPlay';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -137,6 +143,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 }) => {
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
+  const isAdmin = profile?.isAdmin === true;
   const geoCountry = useGeoStore(state => state.country);
   const audienceContext = useMemo(
     () => ({
@@ -165,6 +172,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(100);
   const [timingAdjustmentMs, setTimingAdjustmentMs] = useState(
     () => loadEarTrainingOsmdTimingAdjustmentMs(),
+  );
+  const [precisionAutoPlayEnabled, setPrecisionAutoPlayEnabled] = useState(
+    () => isAdmin && loadEarTrainingPrecisionAutoPlayEnabled(),
   );
   const [precisionNotes, setPrecisionNotes] = useState<PrecisionNote[]>([]);
   const [keyboardRange, setKeyboardRange] = useState<PrecisionKeyboardRange>({ minMidi: 60, maxMidi: 83 });
@@ -225,6 +235,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const wasPlayingBeforeSeekRef = useRef(false);
   const activeMeasureNumberRef = useRef(1);
   const practiceTransposeEnabled = stage.practice_transpose === true;
+  const precisionAutoPlayEnabledRef = useRef(precisionAutoPlayEnabled);
+  const autoPlaySchedulerRef = useRef(new PrecisionAutoPlayScheduler());
+  const autoPlayCallbacksRef = useRef<PrecisionAutoPlayCallbacks>({
+    onNoteOn: () => undefined,
+    onNoteOff: () => undefined,
+  });
 
   useQuestCompleteJingleOnStageClear(
     gameState === 'paused' ? 'playingPhrase' : gameState as EarTrainingGameState,
@@ -239,7 +255,11 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   useEffect(() => { practiceTransposeOffsetRef.current = practiceTransposeOffset; }, [practiceTransposeOffset]);
   useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
   useEffect(() => { timingAdjustmentMsRef.current = timingAdjustmentMs; }, [timingAdjustmentMs]);
+  useEffect(() => { precisionAutoPlayEnabledRef.current = precisionAutoPlayEnabled; }, [precisionAutoPlayEnabled]);
   useEffect(() => { notesRef.current = precisionNotes; }, [precisionNotes]);
+  useEffect(() => {
+    autoPlaySchedulerRef.current.setNotes(precisionNotes);
+  }, [precisionNotes]);
 
   useEffect(() => {
     updateGlobalVolume(settings.midiVolume ?? 0.8);
@@ -413,6 +433,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     notesRendererRef.current?.setNotes(calibratedNotes);
     notesRendererRef.current?.setKeyboardRange(displayRange.minMidi, displayRange.maxMidi);
     syncRenderer(phrasePlayerRef.current?.getPhraseTimelineSec() ?? 0);
+    autoPlaySchedulerRef.current.setNotes(calibratedNotes);
+    autoPlaySchedulerRef.current.reset();
   }, [
     phrase?.midi_url,
     resolveCalibratedTargetTimeSec,
@@ -546,6 +568,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       clamped,
       resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC),
     );
+    autoPlaySchedulerRef.current.syncAfterSeek(clamped, runtimeStatesRef.current);
+    activeGoodNotesByMidiRef.current.clear();
     nextLyricIndexRef.current = 0;
     for (let i = 0; i < phraseLyricsRef.current.length; i += 1) {
       const lyric = phraseLyricsRef.current[i];
@@ -676,6 +700,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (newlyMissed > 0) {
       syncRendererStates();
     }
+    if (precisionAutoPlayEnabledRef.current) {
+      const autoPlayChanged = autoPlaySchedulerRef.current.tick(
+        phraseTimeSec,
+        runtimeStatesRef.current,
+        autoPlayCallbacksRef.current,
+      );
+      if (autoPlayChanged) {
+        syncRendererStates();
+      }
+    }
     while (
       nextLyricIndexRef.current < phraseLyricsRef.current.length
       && phraseTimeSec + 1e-9 >= resolveCalibratedTargetTimeSec(
@@ -738,6 +772,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     setActiveLyricText('');
     nextLyricIndexRef.current = 0;
     activeGoodNotesByMidiRef.current.clear();
+    autoPlaySchedulerRef.current.reset();
     setGameState('countIn');
 
     const player = ensurePhrasePlayer();
@@ -1048,6 +1083,31 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     setTimingAdjustmentMs(clamped);
     saveEarTrainingOsmdTimingAdjustmentMs(clamped);
   }, []);
+
+  const handlePrecisionAutoPlayChange = useCallback((enabled: boolean) => {
+    setPrecisionAutoPlayEnabled(enabled);
+    precisionAutoPlayEnabledRef.current = enabled;
+    saveEarTrainingPrecisionAutoPlayEnabled(enabled);
+  }, []);
+
+  const handleAutoPlayNoteOn = useCallback((midi: number, noteId: string) => {
+    activeGoodNotesByMidiRef.current.set(midi, noteId);
+    notesRendererRef.current?.highlightKey(midi, true);
+    void playNote(midi, 100);
+  }, []);
+
+  const handleAutoPlayNoteOff = useCallback((midi: number, _noteId: string) => {
+    activeGoodNotesByMidiRef.current.delete(midi);
+    notesRendererRef.current?.highlightKey(midi, false);
+    void stopNote(midi);
+  }, []);
+
+  useEffect(() => {
+    autoPlayCallbacksRef.current = {
+      onNoteOn: handleAutoPlayNoteOn,
+      onNoteOff: handleAutoPlayNoteOff,
+    };
+  }, [handleAutoPlayNoteOff, handleAutoPlayNoteOn]);
 
   const togglePause = useCallback(() => {
     const player = phrasePlayerRef.current;
@@ -1441,6 +1501,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           appliedOffsetMs: timingAdjustmentMs,
           onChange: handleTimingAdjustmentChange,
         }}
+        precisionAutoPlay={
+          isAdmin
+            ? {
+                enabled: precisionAutoPlayEnabled,
+                onChange: handlePrecisionAutoPlayChange,
+              }
+            : undefined
+        }
       />
     </div>
   );

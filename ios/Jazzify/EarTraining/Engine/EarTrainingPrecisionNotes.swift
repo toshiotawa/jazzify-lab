@@ -32,6 +32,8 @@ enum EarTrainingPrecisionNotes {
 
     static let shortNoteMaxQuarterNum = 2
     static let shortNoteMaxQuarterDen = 3
+    static let midiSamePitchOverlapTrimEpsilonSec: Double = 0.001
+    private static let noteMinDurationSec: Double = 0.05
 
     static func isBlackKeyMidi(_ midi: Int) -> Bool {
         let mod = ((midi % 12) + 12) % 12
@@ -67,6 +69,43 @@ enum EarTrainingPrecisionNotes {
                 isShortNote: isShortNoteDuration(durationSec: note.durationSec, bpm: classificationBpm)
             )
         }
+    }
+
+    /// 同一 midi の連続ノーツで note off が次 note on を跨ぐ場合、手前 duration を短縮する。
+    static func trimOverlappingSamePitchNotes(
+        notes: [EarTrainingPrecisionNote],
+        classificationBpm: Int,
+        epsilonSec: Double = midiSamePitchOverlapTrimEpsilonSec
+    ) -> [EarTrainingPrecisionNote] {
+        guard notes.count > 1 else { return notes }
+        var result = notes
+        var lastIndexByMidi: [Int: Int] = [:]
+
+        for i in 0..<result.count {
+            let note = result[i]
+            if let prevIndex = lastIndexByMidi[note.midi] {
+                let prev = result[prevIndex]
+                let prevEnd = prev.startSec + prev.durationSec
+                if prevEnd > note.startSec - epsilonSec {
+                    let newDuration = max(
+                        noteMinDurationSec,
+                        note.startSec - epsilonSec - prev.startSec
+                    )
+                    result[prevIndex] = EarTrainingPrecisionNote(
+                        id: prev.id,
+                        midi: prev.midi,
+                        startSec: prev.startSec,
+                        durationSec: newDuration,
+                        isBlackKey: prev.isBlackKey,
+                        measureNumber: prev.measureNumber,
+                        isShortNote: isShortNoteDuration(durationSec: newDuration, bpm: classificationBpm)
+                    )
+                }
+            }
+            lastIndexByMidi[note.midi] = i
+        }
+
+        return result
     }
 
     static func calibrateNotes(

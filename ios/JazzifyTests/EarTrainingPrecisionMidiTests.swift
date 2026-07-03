@@ -90,4 +90,21 @@ final class EarTrainingPrecisionMidiTests: XCTestCase {
         let result = try EarTrainingPrecisionMidi.buildFromMidi(data: data, bpm: 120, transposeOffset: 2)
         XCTAssertEqual(result.notes[0].midi, 62)
     }
+
+    func testBuildFromMidiTrimsOverlappingSamePitchNotes() throws {
+        let nextOnTick = 480
+        let lateOffTick = 500
+        let data = buildMinimalSmf(events: [
+            (tick: 0, kind: "on", midi: 60),
+            (tick: nextOnTick, kind: "on", midi: 60),
+            (tick: lateOffTick, kind: "off", midi: 60),
+            (tick: lateOffTick, kind: "off", midi: 60),
+        ])
+
+        let result = try EarTrainingPrecisionMidi.buildFromMidi(data: data, bpm: 120)
+        XCTAssertEqual(result.notes.count, 2)
+        XCTAssertEqual(result.notes[0].startSec, 0, accuracy: 0.01)
+        XCTAssertEqual(result.notes[0].durationSec, 0.499, accuracy: 0.01)
+        XCTAssertEqual(result.notes[1].startSec, 0.5, accuracy: 0.01)
+    }
 }
