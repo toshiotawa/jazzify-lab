@@ -664,6 +664,220 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return typeof value === 'number' && Number.isFinite(value) ? value : null;
           }
 
+          function resolveOsmdLayoutScaleFactor() {
+            const zoomRaw = osmd && (osmd.Zoom !== undefined ? osmd.Zoom : osmd.zoom);
+            const zoom = finiteNum(zoomRaw);
+            const safeZoom = zoom !== null && zoom > 0 ? zoom : 1;
+            return 10 * safeZoom;
+          }
+
+          const OSMD_PLACEMENT_BELOW = 1;
+          const PENDING_DEFAULT_Y_KEY = '__earTrainingPendingDefaultYXml';
+
+          function resolveDefaultYLaneY(defaultYXml, yOffset) {
+            return -defaultYXml / 10 + (yOffset || 0);
+          }
+
+          function staffLineHasMultiExpression(staffLine, multiExpression) {
+            const exprs = staffLine && staffLine.AbstractExpressions;
+            if (!Array.isArray(exprs)) {
+              return false;
+            }
+            for (let i = 0; i < exprs.length; i += 1) {
+              if (exprs[i] && exprs[i].sourceMultiExpression === multiExpression) {
+                return true;
+              }
+            }
+            return false;
+          }
+
+          function enableEarTrainingOsmdWordsLayoutRules(osmdInst) {
+            const rules = osmdInst && (osmdInst.EngravingRules || osmdInst.rules);
+            if (!rules) {
+              return;
+            }
+            rules.PlaceWordsInsideStafflineFromXml = true;
+          }
+
+          function createFixedDefaultYLabel(
+            calculator,
+            osmdLib,
+            staffLine,
+            relativePosition,
+            text,
+            fontStyle,
+            placement,
+            fontHeight,
+            textAlignment,
+            spacing
+          ) {
+            const rules = calculator.rules;
+            const LabelCtor = osmdLib.Label;
+            const GraphicalLabelCtor = osmdLib.GraphicalLabel;
+            const PointF2DCtor = osmdLib.PointF2D;
+            const TextAlignmentEnum = osmdLib.TextAlignmentEnum;
+            const label = new LabelCtor(text, textAlignment);
+            label.fontStyle = fontStyle;
+            label.fontHeight = fontHeight;
+            const graphicalLabel = new GraphicalLabelCtor(
+              label,
+              fontHeight,
+              label.textAlignment,
+              rules,
+              staffLine.PositionAndShape
+            );
+            const marginScale = 1.1;
+            if (placement === OSMD_PLACEMENT_BELOW) {
+              graphicalLabel.Label.textAlignment = TextAlignmentEnum.LeftTop;
+            }
+            graphicalLabel.setLabelPositionAndShapeBorders();
+            graphicalLabel.PositionAndShape.BorderMarginBottom *= marginScale;
+            graphicalLabel.PositionAndShape.BorderMarginTop *= marginScale;
+            graphicalLabel.PositionAndShape.BorderMarginLeft *= marginScale;
+            graphicalLabel.PositionAndShape.BorderMarginRight *= marginScale;
+
+            let xPos = relativePosition.x;
+            let left = xPos + graphicalLabel.PositionAndShape.BorderMarginLeft;
+            let right = xPos + graphicalLabel.PositionAndShape.BorderMarginRight;
+            const staffWidth =
+              staffLine.PositionAndShape && staffLine.PositionAndShape.Size
+                ? staffLine.PositionAndShape.Size.width
+                : 0;
+            const measureRightMargin = rules.MeasureRightMargin || 0;
+            if (right > staffWidth && staffWidth > 0) {
+              right = staffWidth - measureRightMargin;
+              const marginWidth = graphicalLabel.PositionAndShape.MarginSize
+                ? graphicalLabel.PositionAndShape.MarginSize.width
+                : 0;
+              xPos =
+                right -
+                marginWidth -
+                graphicalLabel.PositionAndShape.BorderMarginLeft;
+              left = xPos + graphicalLabel.PositionAndShape.BorderMarginLeft;
+              right = xPos + graphicalLabel.PositionAndShape.BorderMarginRight;
+            }
+
+            const pendingDefaultY = calculator[PENDING_DEFAULT_Y_KEY];
+            const defaultYXml = finiteNum(pendingDefaultY) || 0;
+            const yOffset = rules.PlaceWordsInsideStafflineYOffset || 0;
+            const y = resolveDefaultYLaneY(defaultYXml, yOffset);
+            graphicalLabel.PositionAndShape.RelativePosition = new PointF2DCtor(xPos, y);
+
+            const skyCalc = staffLine.SkyBottomLineCalculator;
+            if (skyCalc) {
+              const bottom =
+                graphicalLabel.PositionAndShape.BorderMarginBottom + y + spacing;
+              if (placement === OSMD_PLACEMENT_BELOW) {
+                skyCalc.updateBottomLineInRange(left, right, bottom);
+              } else {
+                const top =
+                  graphicalLabel.PositionAndShape.BorderMarginTop + y - spacing;
+                skyCalc.updateSkyLineInRange(left, right, top);
+              }
+            }
+            return graphicalLabel;
+          }
+
+          function installEarTrainingOsmdWordsLayout(osmdInst) {
+            const osmdLib = window.opensheetmusicdisplay;
+            const graphicSheet = osmdInst && osmdInst.GraphicSheet;
+            const calculator =
+              graphicSheet &&
+              (graphicSheet.calculator || graphicSheet.GetCalculator);
+            if (!calculator || !osmdLib) {
+              return;
+            }
+            if (calculator[PENDING_DEFAULT_Y_KEY] === undefined) {
+              calculator[PENDING_DEFAULT_Y_KEY] = null;
+            }
+
+            const originalMoodAndUnknown =
+              calculator.calculateMoodAndUnknownExpression.bind(calculator);
+            const originalCalculateLabel = calculator.calculateLabel.bind(calculator);
+            const TextAlignmentEnum = osmdLib.TextAlignmentEnum;
+
+            calculator.calculateLabel = function (
+              staffLine,
+              relativePosition,
+              text,
+              fontStyle,
+              placement,
+              fontHeight,
+              textAlignment,
+              spacing
+            ) {
+              const pendingDefaultY = calculator[PENDING_DEFAULT_Y_KEY];
+              if (pendingDefaultY === null || pendingDefaultY === undefined) {
+                return originalCalculateLabel(
+                  staffLine,
+                  relativePosition,
+                  text,
+                  fontStyle,
+                  placement,
+                  fontHeight,
+                  textAlignment,
+                  spacing
+                );
+              }
+              return createFixedDefaultYLabel(
+                calculator,
+                osmdLib,
+                staffLine,
+                relativePosition,
+                text,
+                fontStyle,
+                placement,
+                fontHeight,
+                textAlignment || TextAlignmentEnum.CenterBottom,
+                spacing || 0
+              );
+            };
+
+            calculator.calculateMoodAndUnknownExpression = function (
+              multiExpression,
+              measureIndex,
+              staffIndex
+            ) {
+              const measureRow = calculator.graphicalMusicSheet.MeasureList[measureIndex];
+              const graphicMeasure = measureRow && measureRow[staffIndex];
+              const staffLine = graphicMeasure && graphicMeasure.ParentStaffLine;
+              if (!staffLine) {
+                return;
+              }
+              const moodCount =
+                multiExpression.MoodList && multiExpression.MoodList.length
+                  ? multiExpression.MoodList.length
+                  : 0;
+              const unknownCount =
+                multiExpression.UnknownList && multiExpression.UnknownList.length
+                  ? multiExpression.UnknownList.length
+                  : 0;
+              if (moodCount === 0 && unknownCount === 0) {
+                return;
+              }
+              if (staffLineHasMultiExpression(staffLine, multiExpression)) {
+                return;
+              }
+              const unknownList = multiExpression.UnknownList || [];
+              const defaultYXml =
+                unknownList[0] && unknownList[0].defaultYXml !== undefined
+                  ? unknownList[0].defaultYXml
+                  : null;
+              const useFixedDefaultY =
+                typeof defaultYXml === 'number' &&
+                Number.isFinite(defaultYXml) &&
+                defaultYXml < 0;
+              if (useFixedDefaultY) {
+                calculator[PENDING_DEFAULT_Y_KEY] = defaultYXml;
+              }
+              try {
+                originalMoodAndUnknown(multiExpression, measureIndex, staffIndex);
+              } finally {
+                calculator[PENDING_DEFAULT_Y_KEY] = null;
+              }
+            };
+          }
+
           function readMeasureList(osmdInst) {
             const gs = osmdInst && osmdInst.GraphicSheet;
             if (!gs) return [];
@@ -721,10 +935,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function collectMeasureCentersFromMeasureList(gs, surface, viewportWidth) {
-            const boundingWidth = finiteNum(gs && gs.BoundingBox && gs.BoundingBox.width) || 0;
             const renderedWidth =
               surface && surface.getBoundingClientRect ? surface.getBoundingClientRect().width || 0 : 0;
-            const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
+            const scaleFactor = resolveOsmdLayoutScaleFactor();
             const centers = {};
             const bounds = {};
             let maxX = 0;
@@ -806,10 +1019,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function collectMeasureCentersFromStaffLines(gs, surface, viewportWidth) {
-            const boundingWidth = finiteNum(gs && gs.BoundingBox && gs.BoundingBox.width) || 0;
             const renderedWidth =
               surface && surface.getBoundingClientRect ? surface.getBoundingClientRect().width || 0 : 0;
-            const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
+            const scaleFactor = resolveOsmdLayoutScaleFactor();
             const byNumberBounds = {};
             let maxX = 0;
 
@@ -1094,9 +1306,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               const z = typeof zoomValue === 'number' && Number.isFinite(zoomValue) ? zoomValue : 1;
 
               osmd = buildOsmd();
+              enableEarTrainingOsmdWordsLayoutRules(osmd);
               osmd.zoom = z;
               await osmd.load(displayXml);
               relaxOsmdCompactTightSpacingForBattle(osmd, displayXml);
+              installEarTrainingOsmdWordsLayout(osmd);
               osmd.render();
               await new Promise(function (resolve) {
                 requestAnimationFrame(function () {

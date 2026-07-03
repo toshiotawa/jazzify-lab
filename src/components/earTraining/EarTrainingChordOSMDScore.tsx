@@ -19,6 +19,10 @@ import {
   type OsmdMeasureBounds,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 import { measureLayoutFromOsmd } from '@/utils/earTrainingOsmdMeasureLayout';
+import {
+  enableEarTrainingOsmdWordsLayoutRules,
+  installEarTrainingOsmdWordsLayout,
+} from '@/utils/earTrainingOsmdWordsLayout';
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
 import { readBetweenStaffDistanceStaffHeightsFromMusicXml } from '@/utils/earTrainingChordOsmd';
 import {
@@ -401,6 +405,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     try {
       const osmd = new OpenSheetMusicDisplay(score, options);
       osmdRef.current = osmd;
+      enableEarTrainingOsmdWordsLayoutRules(osmd);
       await osmd.load(osmdDisplayMusicXml);
       relaxOsmdCompactTightSpacingForBattle(osmd, osmdDisplayMusicXml);
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
@@ -410,6 +415,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       const osmdZoom =
         maxStaff >= 2 && (mobileLandscapeOsmdShrink || shortScoreViewport) ? 2 / 3 : 1;
       (osmd as OpenSheetMusicDisplayZoomable).zoom = osmdZoom;
+      installEarTrainingOsmdWordsLayout(osmd);
       score.style.transform = 'translate3d(0, -50%, 0) scale(1)';
       osmd.render();
       await waitNextPaint();

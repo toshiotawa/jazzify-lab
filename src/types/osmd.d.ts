@@ -89,14 +89,67 @@ declare module 'opensheetmusicdisplay' {
     constructor();
   }
 
+  export enum TextAlignmentEnum {
+    LeftTop = 0,
+    LeftCenter = 1,
+    LeftBottom = 2,
+    CenterTop = 3,
+    CenterCenter = 4,
+    CenterBottom = 5,
+    RightTop = 6,
+    RightCenter = 7,
+    RightBottom = 8,
+  }
+
+  export class Label {
+    constructor(text: string, alignment?: TextAlignmentEnum);
+    text: string;
+    fontStyle?: unknown;
+    fontHeight?: number;
+    textAlignment: TextAlignmentEnum;
+  }
+
+  export class PointF2D {
+    constructor(x: number, y: number);
+    x: number;
+    y: number;
+  }
+
+  export class GraphicalLabel {
+    constructor(
+      label: Label,
+      fontHeight: number,
+      textAlignment: TextAlignmentEnum,
+      rules: unknown,
+      boundingBoxParent: unknown,
+    );
+    Label: Label;
+    PositionAndShape: {
+      RelativePosition: PointF2D;
+      BorderMarginLeft: number;
+      BorderMarginRight: number;
+      BorderMarginTop: number;
+      BorderMarginBottom: number;
+      MarginSize: { width: number };
+    };
+    setLabelPositionAndShapeBorders: () => void;
+  }
+
   export class OpenSheetMusicDisplay {
     constructor(container: HTMLElement, options?: IOSMDOptions);
     load(url: string): Promise<void>;
     render(): void;
     updateGraphic(): void;
     clear(): void;
-    GraphicSheet: GraphicSheet;
+    GraphicSheet: GraphicSheet & {
+      calculator?: unknown;
+      GetCalculator?: unknown;
+    };
     Sheet: MusicSheet;
     TransposeCalculator?: TransposeCalculator;
+    EngravingRules?: Record<string, unknown>;
+    rules?: Record<string, unknown>;
+    Zoom?: number;
+    zoom?: number;
   }
 }

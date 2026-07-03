@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import type { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import {
   collectOsmdMeasureLayoutFromMeasureList,
+  computeOsmdLayoutScaleFactor,
   resolveOsmdGraphicMeasureNumber,
+  resolveOsmdLayoutScaleFactorFromZoom,
   type OsmdGraphicMeasureLike,
 } from '@/utils/earTrainingOsmdMeasureLayout';
 
@@ -68,6 +71,29 @@ describe('resolveOsmdGraphicMeasureNumber', () => {
 
   it('番号が無いとき ordinal を使う', () => {
     expect(resolveOsmdGraphicMeasureNumber({}, 5)).toBe(5);
+  });
+});
+
+describe('resolveOsmdLayoutScaleFactorFromZoom', () => {
+  it('zoom=1 のとき scaleFactor=10', () => {
+    expect(resolveOsmdLayoutScaleFactorFromZoom(1)).toBe(10);
+  });
+
+  it('zoom=2/3 のとき scaleFactor=20/3', () => {
+    expect(resolveOsmdLayoutScaleFactorFromZoom(2 / 3)).toBeCloseTo(20 / 3, 5);
+  });
+
+  it('無効な zoom は 1 として扱う', () => {
+    expect(resolveOsmdLayoutScaleFactorFromZoom(0)).toBe(10);
+    expect(resolveOsmdLayoutScaleFactorFromZoom(Number.NaN)).toBe(10);
+  });
+});
+
+describe('computeOsmdLayoutScaleFactor', () => {
+  it('osmd.Zoom を scaleFactor に反映する', () => {
+    const osmd = { Zoom: 2 / 3 } as OpenSheetMusicDisplay;
+    const { scaleFactor } = computeOsmdLayoutScaleFactor(osmd, null);
+    expect(scaleFactor).toBeCloseTo(20 / 3, 5);
   });
 });
 

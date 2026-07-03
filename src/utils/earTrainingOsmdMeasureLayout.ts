@@ -184,13 +184,27 @@ export const readOsmdMeasureList = (
   return raw as readonly (readonly OsmdGraphicMeasureLike[])[];
 };
 
+const readOsmdZoom = (osmd: OpenSheetMusicDisplay): number => {
+  const zoomable = osmd as OpenSheetMusicDisplay & { Zoom?: number; zoom?: number };
+  const zoom = getFiniteNumber(zoomable.Zoom) ?? getFiniteNumber(zoomable.zoom);
+  if (zoom !== null && zoom > 0) {
+    return zoom;
+  }
+  return 1;
+};
+
+/** OSMD 1.9: GraphicSheet.BoundingBox は未設定のため 10 × zoom を使う。 */
+export const resolveOsmdLayoutScaleFactorFromZoom = (zoom: number): number => {
+  const safeZoom = typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  return 10 * safeZoom;
+};
+
 export const computeOsmdLayoutScaleFactor = (
   osmd: OpenSheetMusicDisplay,
   surface: Element | null,
 ): { scaleFactor: number; renderedWidth: number } => {
-  const boundingWidth = getFiniteNumber(osmd.GraphicSheet?.BoundingBox?.width) ?? 0;
   const renderedWidth = surface?.getBoundingClientRect().width ?? 0;
-  const scaleFactor = boundingWidth > 0 && renderedWidth > 0 ? renderedWidth / boundingWidth : 10;
+  const scaleFactor = resolveOsmdLayoutScaleFactorFromZoom(readOsmdZoom(osmd));
   return { scaleFactor, renderedWidth };
 };
 
