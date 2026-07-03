@@ -101,6 +101,8 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     let osmdTargetsFromScore: Bool?
     /// Web `practice_transpose` — 練習モードで ±6 半音移調 UI を有効化。
     let practiceTranspose: Bool?
+    /// Web `show_score_lyrics_in_battle` — 譜面上に OSMD 標準歌詞を描画する（false=ノーツ部テキストのみ）。既定 false。
+    let showScoreLyricsInBattle: Bool?
     let chordQuizItems: [EarTrainingChordQuizItem]?
     /// Web `ear_training_stages.chord_voicing_composite_phrase`
     let chordVoicingCompositePhrase: Bool?
@@ -151,6 +153,10 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
 
     var resolvedPracticeTranspose: Bool {
         practiceTranspose == true
+    }
+
+    var resolvedShowScoreLyricsInBattle: Bool {
+        showScoreLyricsInBattle == true
     }
 
     func resolvedQuizHideUnpressedNotationInBattle(practiceMode: Bool) -> Bool {
@@ -221,6 +227,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         case showKeyboardHintsInBattle = "show_keyboard_hints_in_battle"
         case osmdTargetsFromScore = "osmd_targets_from_score"
         case practiceTranspose = "practice_transpose"
+        case showScoreLyricsInBattle = "show_score_lyrics_in_battle"
         case chordQuizItems = "chord_quiz_items"
         case chordVoicingCompositePhrase = "chord_voicing_composite_phrase"
     }
@@ -264,6 +271,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         showKeyboardHintsInBattle = try container.decodeIfPresent(Bool.self, forKey: .showKeyboardHintsInBattle)
         osmdTargetsFromScore = try container.decodeIfPresent(Bool.self, forKey: .osmdTargetsFromScore)
         practiceTranspose = try container.decodeIfPresent(Bool.self, forKey: .practiceTranspose)
+        showScoreLyricsInBattle = try container.decodeIfPresent(Bool.self, forKey: .showScoreLyricsInBattle)
         chordQuizItems = try container.decodeIfPresent([EarTrainingChordQuizItem].self, forKey: .chordQuizItems)
         chordVoicingCompositePhrase = try container.decodeIfPresent(Bool.self, forKey: .chordVoicingCompositePhrase)
         compositePhraseBootstrap = nil
@@ -309,6 +317,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         try container.encodeIfPresent(showKeyboardHintsInBattle, forKey: .showKeyboardHintsInBattle)
         try container.encodeIfPresent(osmdTargetsFromScore, forKey: .osmdTargetsFromScore)
         try container.encodeIfPresent(practiceTranspose, forKey: .practiceTranspose)
+        try container.encodeIfPresent(showScoreLyricsInBattle, forKey: .showScoreLyricsInBattle)
         try container.encodeIfPresent(chordQuizItems, forKey: .chordQuizItems)
         try container.encodeIfPresent(chordVoicingCompositePhrase, forKey: .chordVoicingCompositePhrase)
     }
@@ -351,6 +360,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         showKeyboardHintsInBattle: Bool?,
         osmdTargetsFromScore: Bool? = nil,
         practiceTranspose: Bool? = nil,
+        showScoreLyricsInBattle: Bool? = nil,
         chordQuizItems: [EarTrainingChordQuizItem]?,
         chordVoicingCompositePhrase: Bool?,
         compositePhraseBootstrap: EarTrainingCompositePhraseBootstrap?,
@@ -393,6 +403,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
         self.showKeyboardHintsInBattle = showKeyboardHintsInBattle
         self.osmdTargetsFromScore = osmdTargetsFromScore
         self.practiceTranspose = practiceTranspose
+        self.showScoreLyricsInBattle = showScoreLyricsInBattle
         self.chordQuizItems = chordQuizItems
         self.chordVoicingCompositePhrase = chordVoicingCompositePhrase
         self.compositePhraseBootstrap = compositePhraseBootstrap

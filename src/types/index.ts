@@ -841,6 +841,8 @@ export interface EarTrainingStage {
   osmd_targets_from_score?: boolean;
   /** chord_osmd: 練習モードで±6半音移調 UI を有効化 */
   practice_transpose?: boolean;
+  /** chord_precision/chord_osmd: 譜面上に OSMD 標準歌詞を描画する（false=ノーツ部テキストのみ）。既定 false */
+  show_score_lyrics_in_battle?: boolean;
   created_at?: string;
   updated_at?: string;
   phrases?: EarTrainingPhrase[];

@@ -159,21 +159,26 @@ private struct EarTrainingPrecisionGameContent: View {
                 scoreBand(screenHeight: screenHeight)
                 ZStack {
                     PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
-                        .overlay(alignment: .bottom) {
-                            if !controller.activeLyricText.isEmpty {
-                                Text(controller.activeLyricText)
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(.white)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color(hex: "0f172a").opacity(0.45))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    .padding(.bottom, precisionPianoHeight + 24)
-                                    .padding(.horizontal, 16)
-                            }
+
+                    if !controller.showLobbyControls && !controller.activeLyricText.isEmpty {
+                        VStack {
+                            Spacer()
+                            Text(controller.activeLyricText)
+                                .font(.system(size: 16))
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(hex: "0f172a").opacity(0.45))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .padding(.bottom, precisionPianoHeight + 24)
+                                .padding(.horizontal, 16)
                         }
+                        .allowsHitTesting(false)
+                    }
+
                     EarTrainingResultView(host: controller)
+                        .zIndex(10)
                 }
                 .overlay(alignment: .top) {
                     scoreBandHeightDragHandle(screenHeight: screenHeight)
@@ -308,9 +313,7 @@ private struct EarTrainingPrecisionGameContent: View {
                     scrollMode: controller.osmdScrollMode,
                     countInDurationSec: controller.countInDurationSec,
                     maxOsmdMeasure: controller.maxOsmdMeasureForScroll,
-                    manualScrollEnabled: controller.practiceMode && controller.gameState == .paused,
-                    scoreLyricEvents: controller.phraseScoreLyricsForOsmd,
-                    lyricsBeatsPerMeasure: controller.stage.beatsPerMeasure
+                    manualScrollEnabled: controller.practiceMode && controller.gameState == .paused
                 )
             } else {
                 Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))

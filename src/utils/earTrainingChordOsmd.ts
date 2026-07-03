@@ -902,30 +902,39 @@ export const collectChordOsmdScoreLyricEvents = (
   });
   return events;
 };
+export const joinScoreLyricVerseTexts = (
+  events: readonly Pick<ChordOsmdScoreLyricEvent, 'verseNumber' | 'text'>[],
+): string => (
+  events
+    .slice()
+    .sort((a, b) => a.verseNumber - b.verseNumber)
+    .map((event) => event.text.trim())
+    .filter((text) => text.length > 0)
+    .join('\n')
+);
+
 export const resolveActiveScoreLyricTextAtTime = (
   events: readonly ChordOsmdScoreLyricEvent[],
   phraseTimeSec: number,
   calibrateTargetTimeSec: (targetTimeSec: number) => number,
 ): string => {
-  let best: ChordOsmdScoreLyricEvent | null = null;
   let bestTime = Number.NEGATIVE_INFINITY;
   for (const lyric of events) {
     const time = calibrateTargetTimeSec(lyric.targetTimeSec);
     if (time > phraseTimeSec + 1e-9) {
       break;
     }
-    if (
-      time > bestTime + 1e-9
-      || (
-        Math.abs(time - bestTime) <= 1e-9
-        && (best === null || lyric.verseNumber < best.verseNumber)
-      )
-    ) {
-      best = lyric;
+    if (time > bestTime + 1e-9) {
       bestTime = time;
     }
   }
-  return best?.text ?? '';
+  if (!Number.isFinite(bestTime)) {
+    return '';
+  }
+  const batch = events.filter(
+    (lyric) => Math.abs(calibrateTargetTimeSec(lyric.targetTimeSec) - bestTime) < 1e-9,
+  );
+  return joinScoreLyricVerseTexts(batch);
 };
 
 const mergeMidisFromXmlAttacks = (

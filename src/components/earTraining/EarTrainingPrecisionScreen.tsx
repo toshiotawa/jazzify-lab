@@ -57,6 +57,7 @@ import {
   collectChordOsmdScoreLyricEvents,
   normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
+  joinScoreLyricVerseTexts,
   resolveActiveScoreLyricTextAtTime,
   type ChordOsmdScoreLyricEvent,
 } from '@/utils/earTrainingChordOsmd';
@@ -78,10 +79,16 @@ import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXm
 import {
   clampPrecisionScoreBandHeightPx,
   loadPrecisionScoreBandHeightPx,
+  loadPrecisionScrollMode,
   PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX,
   PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX,
   savePrecisionScoreBandHeightPx,
+  savePrecisionScrollMode,
 } from '@/utils/earTrainingPrecisionScorePreferences';
+import {
+  resolveOsmdScrollLayout,
+  type EarTrainingOsmdScrollMode,
+} from '@/utils/earTrainingChordOsmdScoreScroll';
 import {
   clampEarTrainingOsmdTimingAdjustmentMs,
   loadEarTrainingOsmdTimingAdjustmentMs,
@@ -190,7 +197,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [lastRank, setLastRank] = useState<PrecisionLessonRank | null>(null);
   const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
   const [activeLyricText, setActiveLyricText] = useState('');
-  const [phraseScoreLyrics, setPhraseScoreLyrics] = useState<readonly ChordOsmdScoreLyricEvent[]>([]);
+  const [scrollMode, setScrollMode] = useState<EarTrainingOsmdScrollMode>(loadPrecisionScrollMode);
   const [seekSliderSec, setSeekSliderSec] = useState(0);
   const [seekPreviewSec, setSeekPreviewSec] = useState(0);
   const [isSeekDragging, setIsSeekDragging] = useState(false);
@@ -198,6 +205,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const notesViewportRef = useRef<HTMLDivElement | null>(null);
   const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
   const maxOsmdMeasureRef = useRef(1);
+  const scrollModeRef = useRef<EarTrainingOsmdScrollMode>(scrollMode);
+  scrollModeRef.current = scrollMode;
+  const scrollLayout = useMemo(() => resolveOsmdScrollLayout(scrollMode), [scrollMode]);
+  const handleScrollModeChange = useCallback((mode: EarTrainingOsmdScrollMode): void => {
+    setScrollMode(mode);
+    savePrecisionScrollMode(mode);
+  }, []);
   const [notesViewportSize, setNotesViewportSize] = useState({ width: 390, height: 400 });
   const [scoreBandHeightPx, setScoreBandHeightPx] = useState(() => {
     const saved = loadPrecisionScoreBandHeightPx();
@@ -714,9 +728,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         measureDurationSec,
         maxOsmdMeasureRef.current,
       );
-      if (nextMeasure !== activeMeasureNumberRef.current) {
+      const measureChanged = nextMeasure !== activeMeasureNumberRef.current;
+      if (measureChanged) {
         activeMeasureNumberRef.current = nextMeasure;
         setActiveMeasureNumber(nextMeasure);
+      }
+      // 追従スクロールは毎フレーム、小節ジャンプは小節が変わったときだけ同期する。
+      if (measureChanged || scrollModeRef.current === 'continuousFollow') {
         osmdScoreRef.current?.syncPlayhead({
           phraseTimelineSec: phraseTimeSec,
           activeMeasureNumber: nextMeasure,
@@ -753,8 +771,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       const batchTime = resolveCalibratedTargetTimeSec(
         phraseScoreLyricsRef.current[batchStartIndex]?.targetTimeSec ?? 0,
       );
-      let pickedText = '';
-      let pickedVerse = Number.POSITIVE_INFINITY;
+      const batchLyrics: ChordOsmdScoreLyricEvent[] = [];
       while (
         nextLyricIndexRef.current < phraseScoreLyricsRef.current.length
         && Math.abs(
@@ -764,12 +781,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         ) < 1e-9
       ) {
         const lyric = phraseScoreLyricsRef.current[nextLyricIndexRef.current];
-        if (lyric && lyric.verseNumber < pickedVerse) {
-          pickedVerse = lyric.verseNumber;
-          pickedText = lyric.text;
+        if (lyric) {
+          batchLyrics.push(lyric);
         }
         nextLyricIndexRef.current += 1;
       }
+      const pickedText = joinScoreLyricVerseTexts(batchLyrics);
       if (pickedText.length > 0) {
         setActiveLyricText(pickedText);
       }
@@ -824,7 +841,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     setLastRank(null);
     setLastGoodRate(null);
     setActiveLyricText('');
-    setPhraseScoreLyrics([]);
     phraseScoreLyricsRef.current = [];
     nextLyricIndexRef.current = 0;
     activeGoodNotesByMidiRef.current.clear();
@@ -869,7 +885,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         stage.beats_per_measure,
       );
       phraseScoreLyricsRef.current = scoreLyrics;
-      setPhraseScoreLyrics(scoreLyrics);
 
       let prepared;
       try {
@@ -1390,9 +1405,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             useImperativePlayhead
             fillParent
             manualScrollEnabled={practiceMode && gameState === 'paused'}
-            enableScoreLyricLayer
-            scoreLyricEvents={phraseScoreLyrics}
-            beatsPerMeasure={stage.beats_per_measure}
+            showScoreLyrics={stage.show_score_lyrics_in_battle === true}
+            scrollLayout={scrollLayout}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
@@ -1401,12 +1415,33 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         )}
       </div>
 
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={notesViewportRef} className="relative min-h-0 flex-1">
+        <div className="absolute inset-0">
+          <PrecisionNotesRenderer
+            width={notesViewportSize.width}
+            height={notesViewportSize.height}
+            minMidi={keyboardRange.minMidi}
+            maxMidi={keyboardRange.maxMidi}
+            pianoHeight={PIANO_HEIGHT}
+            className="absolute inset-0 h-full w-full"
+            onReady={handleRendererReady}
+          />
+
+          {!showLobby && activeLyricText ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+18%)] z-20 flex justify-center px-4">
+              <div className="max-w-[92%] whitespace-pre-line rounded-xl bg-slate-900/45 px-4 py-2 text-center text-base leading-relaxed text-white backdrop-blur-[2px]">
+                {activeLyricText}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
         <div
           role="separator"
           aria-orientation="horizontal"
           aria-label={isEnglishCopy ? 'Resize score area height' : '譜面領域の高さを変更'}
-          className="absolute left-1/2 top-0 z-30 flex h-7 w-11 -translate-x-1/2 -translate-y-1/2 cursor-row-resize items-center justify-center rounded-full border border-white/22 bg-white/18 text-xs font-semibold leading-none text-white/85"
+          className="absolute left-1/2 top-0 z-40 flex h-7 w-11 -translate-x-1/2 -translate-y-1/2 cursor-row-resize items-center justify-center rounded-full border border-white/22 bg-white/18 text-xs font-semibold leading-none text-white/85"
           style={{ touchAction: 'none' }}
           onPointerDown={handleScoreBandResizePointerDown}
           onPointerMove={handleScoreBandResizePointerMove}
@@ -1415,26 +1450,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         >
           ≡
         </div>
-        <PrecisionNotesRenderer
-          width={notesViewportSize.width}
-          height={notesViewportSize.height}
-          minMidi={keyboardRange.minMidi}
-          maxMidi={keyboardRange.maxMidi}
-          pianoHeight={PIANO_HEIGHT}
-          className="absolute inset-0 h-full w-full"
-          onReady={handleRendererReady}
-        />
-
-        {activeLyricText ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-[calc(96px+18%)] z-20 flex justify-center px-4">
-            <div className="max-w-[92%] whitespace-pre-line rounded-xl bg-slate-900/45 px-4 py-2 text-center text-base leading-relaxed text-white backdrop-blur-[2px]">
-              {activeLyricText}
-            </div>
-          </div>
-        ) : null}
+        </div>
 
         {showLobby ? (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-slate-950/75 px-6 text-center">
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-slate-950/75 px-6 text-center">
             <div className="text-lg font-bold">
               {isEnglishCopy ? 'Precision Mode' : '精密モード'}
             </div>
@@ -1608,6 +1627,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         osmdTimingAdjustment={{
           appliedOffsetMs: timingAdjustmentMs,
           onChange: handleTimingAdjustmentChange,
+        }}
+        precisionScrollMode={{
+          mode: scrollMode,
+          onChange: handleScrollModeChange,
         }}
         precisionAutoPlay={
           isAdmin

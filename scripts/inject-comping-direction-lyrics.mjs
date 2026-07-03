@@ -1,6 +1,8 @@
 /**
- * Comping MusicXML: `<direction><words>` 表現テキストを 1 番歌詞として複製する。
- * 元 XML の宣言・DOCTYPE・レイアウトを保持する（DOM serialize は使わない）。
+ * Comping MusicXML: `<direction><words>` 表現テキストを精密モード歌詞レイヤー用 `<lyric>` に複製する。
+ * - 改行は verse 1〜4 に分割（同一 verse 内の改行は使わない）
+ * - 注入済み `<direction>` は除去（words レイアウトとの二重表示を防ぐ）
+ * - 2 段目 staff-distance を歌詞 4 レーン分に拡大
  *
  * Usage:
  *   node scripts/inject-comping-direction-lyrics.mjs [source.musicxml] [target.musicxml]
@@ -16,6 +18,9 @@ const TARGET = resolve(
   process.cwd(),
   process.argv[3] ?? 'public/sozai/Comping/Donna Lee Comping precision_lyrics.musicxml',
 );
+
+/** 2 段譜の段間（tenths）。歌詞 4 レーン + OSMD 余白向け。 */
+const STAFF_DISTANCE_TENTHS = '176';
 
 /** @param {string} text */
 const escapeXmlText = (text) => (
@@ -49,18 +54,33 @@ const wordsTextFromDirection = (directionBlock) => {
   return normalized.length > 0 ? normalized : null;
 };
 
+/** @param {string} text */
+const lyricLinesFromText = (text) => (
+  text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 4)
+);
+
 /** @param {string} noteXml @param {string} text */
 const injectLyricIntoNote = (noteXml, text) => {
   if (noteXml.includes('<lyric')) {
     return noteXml;
   }
-  const escaped = escapeXmlText(text);
-  const spaceAttr = text.includes('\n') ? ' xml:space="preserve"' : '';
-  const block = `<lyric number="1"><syllabic>single</syllabic><text${spaceAttr}>${escaped}</text></lyric>`;
-  if (/<\/staff>/.test(noteXml)) {
-    return noteXml.replace(/(\s*<\/staff>)/, `$1${block}`);
+  const lines = lyricLinesFromText(text);
+  if (lines.length === 0) {
+    return noteXml;
   }
-  return noteXml.replace(/(\s*)<\/note>/, `${block}$1</note>`);
+  const lyricBlocks = lines.map((line, index) => {
+    const verseNumber = index + 1;
+    const escaped = escapeXmlText(line);
+    return `<lyric number="${verseNumber}"><syllabic>single</syllabic><text>${escaped}</text></lyric>`;
+  }).join('');
+  if (/<\/staff>/.test(noteXml)) {
+    return noteXml.replace(/(\s*<\/staff>)/, `$1${lyricBlocks}`);
+  }
+  return noteXml.replace(/(\s*)<\/note>/, `${lyricBlocks}$1</note>`);
 };
 
 /** @param {string} measureBody */
@@ -84,12 +104,22 @@ const injectLyricsFromDirectionsInMeasure = (measureBody) => {
     const injected = injectLyricIntoNote(noteXml, lyricText);
     if (injected !== noteXml) {
       updated = updated.replace(noteXml, injected);
+      updated = updated.replace(dirBlock, '');
     }
   }
   return updated;
 };
 
-const xml = readFileSync(SOURCE, 'utf8');
+/** @param {string} xml */
+const widenInterStaffDistance = (xml) => (
+  xml.replace(
+    /(<staff-layout number="2">\s*<staff-distance>)\d+(<\/staff-distance>)/g,
+    `$1${STAFF_DISTANCE_TENTHS}$2`,
+  )
+);
+
+let xml = readFileSync(SOURCE, 'utf8');
+xml = widenInterStaffDistance(xml);
 const updated = xml.replace(
   /<measure number="(\d+)"[^>]*>([\s\S]*?)<\/measure>/g,
   (full, _numStr, body) => {
@@ -103,4 +133,8 @@ const updated = xml.replace(
 
 writeFileSync(TARGET, updated, 'utf8');
 const measureCount = (updated.match(/<measure number="/g) ?? []).length;
-process.stdout.write(`Wrote ${TARGET} (${measureCount} measures)\n`);
+const lyricCount = (updated.match(/<lyric number="/g) ?? []).length;
+const directionCount = (updated.match(/<direction[\s\S]*?<words/g) ?? []).length;
+process.stdout.write(
+  `Wrote ${TARGET} (${measureCount} measures, ${lyricCount} lyrics, ${directionCount} direction-words remaining)\n`,
+);

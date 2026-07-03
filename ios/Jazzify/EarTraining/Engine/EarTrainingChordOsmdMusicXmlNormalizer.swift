@@ -703,26 +703,36 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return events
     }
 
+    /// Web `joinScoreLyricVerseTexts` と同等。
+    static func joinScoreLyricVerseTexts(_ events: [ChordOsmdScoreLyricEvent]) -> String {
+        events
+            .sorted { $0.verseNumber < $1.verseNumber }
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+    }
+
     /// Web `resolveActiveScoreLyricTextAtTime` と同等。
     static func resolveActiveScoreLyricTextAtTime(
         events: [ChordOsmdScoreLyricEvent],
         phraseTimeSec: Double,
         calibrateTargetTimeSec: (Double) -> Double
     ) -> String {
-        var best: ChordOsmdScoreLyricEvent?
         var bestTime = -Double.infinity
         for lyric in events {
             let time = calibrateTargetTimeSec(lyric.targetTimeSec)
             if time > phraseTimeSec + 1e-9 {
                 break
             }
-            if time > bestTime + 1e-9
-                || (abs(time - bestTime) <= 1e-9 && (best == nil || lyric.verseNumber < best!.verseNumber)) {
-                best = lyric
+            if time > bestTime + 1e-9 {
                 bestTime = time
             }
         }
-        return best?.text ?? ""
+        guard bestTime.isFinite else { return "" }
+        let batch = events.filter {
+            abs(calibrateTargetTimeSec($0.targetTimeSec) - bestTime) < 1e-9
+        }
+        return joinScoreLyricVerseTexts(batch)
     }
 
     /// Web `collectChordOsmdMusicXmlLyrics` と同等。

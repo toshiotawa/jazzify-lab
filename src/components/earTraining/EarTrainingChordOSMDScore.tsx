@@ -11,23 +11,17 @@ import React, {
 import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import {
-  OSMD_BATTLE_PLAYHEAD_PX,
+  OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT,
   clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
+  computeOsmdContinuousFollowScroll,
+  computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
   type OsmdMeasureBounds,
+  type OsmdScrollLayout,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
-import { measureLayoutFromOsmd, computeOsmdLayoutScaleFactor } from '@/utils/earTrainingOsmdMeasureLayout';
-import {
-  applyScoreLyricBetweenStaffDistanceMin,
-  buildNoteXByEventKey,
-  placeScoreLyricBoxes,
-  type PlacedLyricBox,
-} from '@/utils/earTrainingOsmdLyricBoxLayout';
-import { resolveLyricAreaFromOsmd } from '@/utils/earTrainingOsmdStaffVerticalLayout';
-import type { ChordOsmdScoreLyricEvent } from '@/utils/earTrainingChordOsmd';
-import EarTrainingOsmdLyricBoxLayer from '@/components/earTraining/EarTrainingOsmdLyricBoxLayer';
+import { measureLayoutFromOsmd } from '@/utils/earTrainingOsmdMeasureLayout';
 import {
   enableEarTrainingOsmdWordsLayoutRules,
   installEarTrainingOsmdWordsLayout,
@@ -69,10 +63,10 @@ interface EarTrainingChordOSMDScoreProps {
   fillParent?: boolean;
   /** 一時停止中の手動水平スクロール（判定・プレイヘッド位置には影響しない）。 */
   manualScrollEnabled?: boolean;
-  /** 精密モード：譜面歌詞レイヤーを有効化。 */
-  enableScoreLyricLayer?: boolean;
-  scoreLyricEvents?: readonly ChordOsmdScoreLyricEvent[];
-  beatsPerMeasure?: number;
+  /** true のとき OSMD 標準の歌詞を譜面に描画する（false=歌詞を除去してノーツ部テキストのみ）。 */
+  showScoreLyrics?: boolean;
+  /** スクロールのアンカー・1小節フィット・追従モード設定。省略時はリズムバトル既定。 */
+  scrollLayout?: OsmdScrollLayout;
 }
 
 export interface OsmdPlayheadSyncParams {
@@ -162,8 +156,6 @@ const waitNextPaint = (): Promise<void> =>
 const relaxOsmdCompactTightSpacingForBattle = (
   osmd: OpenSheetMusicDisplay,
   musicXmlText?: string | null,
-  enableScoreLyricLayer = false,
-  osmdZoom = 1,
 ): void => {
   const zoomable = osmd as OpenSheetMusicDisplay & {
     EngravingRules?: {
@@ -205,7 +197,6 @@ const relaxOsmdCompactTightSpacingForBattle = (
       }
     }
   }
-  applyScoreLyricBetweenStaffDistanceMin(rules, musicXmlText, osmdZoom, enableScoreLyricLayer);
 };
 
 const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandle, EarTrainingChordOSMDScoreProps>(
@@ -225,9 +216,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   useImperativePlayhead = false,
   fillParent = false,
   manualScrollEnabled = false,
-  enableScoreLyricLayer = false,
-  scoreLyricEvents = [],
-  beatsPerMeasure = 4,
+  showScoreLyrics = false,
+  scrollLayout = OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT,
 }, ref) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreContentRef = useRef<HTMLDivElement | null>(null);
@@ -251,39 +241,38 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const twoFingerTouchStartCenterXRef = useRef(0);
   const twoFingerTouchStartOffsetPxRef = useRef(0);
   const cssScaleRef = useRef(1);
+  const effectiveScaleRef = useRef(1);
+  const maxMeasureNumberRef = useRef(1);
   const userZoomRef = useRef(loadEarTrainingOsmdUserZoom());
   const layoutRef = useRef<OsmdLayout>(EMPTY_LAYOUT);
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
   const pendingPlayheadSyncRef = useRef<OsmdPlayheadSyncParams | null>(null);
-  const [placedLyricBoxes, setPlacedLyricBoxes] = useState<readonly PlacedLyricBox[]>([]);
 
-  const updateScoreLyricLayout = useCallback((
-    osmd: OpenSheetMusicDisplay,
-    surfaceEl: HTMLElement | null,
-    nextLayout: OsmdLayout,
-  ): void => {
-    if (!enableScoreLyricLayer || scoreLyricEvents.length === 0 || !musicXmlText) {
-      setPlacedLyricBoxes([]);
-      return;
+  const activeMeasureBounds = layout.measureBoundsByNumber[Math.max(1, Math.floor(activeMeasureNumber))]
+    ?? layout.measureBoundsByNumber[1];
+  const baseScale = cssScale * userZoom;
+  const effectiveScale = computeOsmdEffectiveScaleForMeasure({
+    cssScale: baseScale,
+    bounds: activeMeasureBounds,
+    viewportWidth: viewportRef.current?.clientWidth ?? 0,
+    fitActiveMeasureWidth: scrollLayout.fitActiveMeasureWidth,
+  });
+
+  const maxMeasureNumber = useMemo(() => {
+    let max = 1;
+    for (const key in layout.measureBoundsByNumber) {
+      const n = Number(key);
+      if (n > max) {
+        max = n;
+      }
     }
-    const lyricArea = resolveLyricAreaFromOsmd(osmd, surfaceEl);
-    if (!lyricArea) {
-      setPlacedLyricBoxes([]);
-      return;
-    }
-    const { scaleFactor } = computeOsmdLayoutScaleFactor(osmd, surfaceEl);
-    const noteXByEventKey = buildNoteXByEventKey(osmd, scoreLyricEvents, musicXmlText, scaleFactor);
-    setPlacedLyricBoxes(placeScoreLyricBoxes({
-      events: scoreLyricEvents,
-      lyricArea,
-      measureBoundsByNumber: nextLayout.measureBoundsByNumber,
-      beatsPerMeasure,
-      noteXByEventKey,
-    }));
-  }, [beatsPerMeasure, enableScoreLyricLayer, musicXmlText, scoreLyricEvents]);
+    return max;
+  }, [layout]);
 
   cssScaleRef.current = cssScale;
   userZoomRef.current = userZoom;
+  effectiveScaleRef.current = effectiveScale;
+  maxMeasureNumberRef.current = maxMeasureNumber;
   layoutRef.current = layout;
 
   const applyScoreTransform = useCallback((baseOffsetPx: number, manualOffsetPx: number): void => {
@@ -291,9 +280,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     if (!scoreContent) {
       return;
     }
-    const effectiveScale = cssScaleRef.current * userZoomRef.current;
     const totalOffsetPx = baseOffsetPx + manualOffsetPx;
-    scoreContent.style.transform = `translate3d(${-totalOffsetPx}px, -50%, 0) scale(${effectiveScale})`;
+    scoreContent.style.transform = `translate3d(${-totalOffsetPx}px, -50%, 0) scale(${effectiveScaleRef.current})`;
   }, []);
 
   const applyHighlightLeftWithManual = useCallback((baseLeftPx: number, manualOffsetPx: number): void => {
@@ -318,12 +306,11 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     if (!viewport) {
       return;
     }
-    const effectiveScale = cssScaleRef.current * userZoomRef.current;
     const clampedOffsetPx = clampOsmdManualScrollOffset({
       baseOffsetPx: scrollOffsetPxRef.current,
       manualOffsetPx,
       scoreWidth: layoutRef.current.scoreWidth,
-      effectiveScale,
+      effectiveScale: effectiveScaleRef.current,
       viewportWidth: viewport.clientWidth,
     });
     manualScrollOffsetPxRef.current = clampedOffsetPx;
@@ -337,12 +324,38 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     if (!highlight || !playhead || !scrollActive || hidden || !musicXmlText) {
       return;
     }
-    const effectiveScale = cssScale * userZoom;
+
+    if (scrollLayout.scrollMode === 'continuousFollow') {
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+      const follow = computeOsmdContinuousFollowScroll({
+        phraseTimelineSec: params.phraseTimelineSec,
+        measureDurationSec,
+        countInDurationSec,
+        maxMeasureNumber: maxMeasureNumberRef.current,
+        measureBoundsByNumber: layoutRef.current.measureBoundsByNumber,
+        playheadPx: scrollLayout.playheadPx,
+        effectiveScale: effectiveScaleRef.current,
+        scoreWidth: layoutRef.current.scoreWidth,
+        viewportWidth: viewport.clientWidth,
+      });
+      scrollOffsetPxRef.current = follow.scrollOffsetPx;
+      applyScoreTransform(follow.scrollOffsetPx, 0);
+      const lineX = follow.playheadFixed
+        ? scrollLayout.playheadPx
+        : follow.xPos * effectiveScaleRef.current - follow.scrollOffsetPx;
+      playhead.style.transition = 'none';
+      playhead.style.left = `${lineX}px`;
+      return;
+    }
+
     const measureHighlightNow = computeOsmdActiveMeasureHighlight({
       activeMeasureNumber: params.activeMeasureNumber,
-      measureBoundsByNumber: layout.measureBoundsByNumber,
-      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
-      effectiveScale,
+      measureBoundsByNumber: layoutRef.current.measureBoundsByNumber,
+      playheadPx: scrollLayout.playheadPx,
+      effectiveScale: effectiveScaleRef.current,
       scrollOffsetPx: scrollOffsetPxRef.current,
     });
     if (!measureHighlightNow.visible) {
@@ -360,7 +373,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       activeMeasureNumber: params.activeMeasureNumber,
       animating: params.animating,
     });
-  }, [countInDurationSec, cssScale, hidden, layout.measureBoundsByNumber, measureDurationSec, musicXmlText, scrollActive, userZoom]);
+  }, [applyScoreTransform, countInDurationSec, hidden, measureDurationSec, musicXmlText, scrollActive, scrollLayout]);
 
   useImperativeHandle(ref, () => ({
     syncPlayhead: (params: OsmdPlayheadSyncParams): void => {
@@ -444,8 +457,13 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   }, [applyManualScrollOffset, manualScrollEnabled]);
 
   const osmdDisplayMusicXml = useMemo(
-    () => (musicXmlText ? stripLyricsFromMusicXml(musicXmlText) : null),
-    [musicXmlText],
+    () => {
+      if (!musicXmlText) {
+        return null;
+      }
+      return showScoreLyrics ? musicXmlText : stripLyricsFromMusicXml(musicXmlText);
+    },
+    [musicXmlText, showScoreLyrics],
   );
 
   useEffect(() => {
@@ -501,22 +519,19 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     const viewportWidth = viewportEl.clientWidth;
     const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
     setLayout(nextLayout);
-    updateScoreLyricLayout(osmd, surfaceEl, nextLayout);
-  }, [applyScoreTransform, musicXmlText, updateScoreLyricLayout]);
+  }, [applyScoreTransform, musicXmlText]);
 
   const renderScore = useCallback(async () => {
     const score = scoreRef.current;
     const scoreContent = scoreContentRef.current;
     if (!score || !scoreContent || !musicXmlText || !osmdDisplayMusicXml) {
       setLayout(EMPTY_LAYOUT);
-      setPlacedLyricBoxes([]);
       return;
     }
 
     setIsRendering(true);
     setRenderError(null);
     setScrollOffsetPx(0);
-    setPlacedLyricBoxes([]);
     scrollOffsetPxRef.current = 0;
     manualScrollOffsetPxRef.current = 0;
     measureHighlightBaseLeftPxRef.current = 0;
@@ -554,12 +569,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       const shortScoreViewport = viewportHeight > 0 && viewportHeight <= 320;
       const osmdZoom =
         maxStaff >= 2 && (mobileLandscapeOsmdShrink || shortScoreViewport) ? 2 / 3 : 1;
-      relaxOsmdCompactTightSpacingForBattle(
-        osmd,
-        musicXmlText,
-        enableScoreLyricLayer,
-        osmdZoom * userZoomRef.current,
-      );
+      relaxOsmdCompactTightSpacingForBattle(osmd, musicXmlText);
       (osmd as OpenSheetMusicDisplayZoomable).zoom = osmdZoom;
       installEarTrainingOsmdWordsLayout(osmd);
       scoreContent.style.transform = 'translate3d(0, -50%, 0) scale(1)';
@@ -590,21 +600,17 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       const viewportWidth = viewportRef.current?.clientWidth ?? 0;
       const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
       setLayout(nextLayout);
-      updateScoreLyricLayout(osmd, surfaceEl, nextLayout);
     } catch {
       setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
       setLayout(EMPTY_LAYOUT);
-      setPlacedLyricBoxes([]);
     } finally {
       setIsRendering(false);
     }
   }, [
-    enableScoreLyricLayer,
     isEnglishCopy,
     musicXmlText,
     mobileLandscapeOsmdShrink,
     osmdDisplayMusicXml,
-    updateScoreLyricLayout,
   ]);
 
   useEffect(() => {
@@ -678,30 +684,35 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     if (!viewport || !score) {
       return;
     }
-    const effectiveScale = cssScale * userZoom;
     resetManualScroll();
-    if (!scrollActive) {
-      scrollOffsetPxRef.current = 0;
-      applyScoreTransform(0, 0);
-      setScrollOffsetPx(0);
+    // 追従スクロールはフレーム毎に syncPlayhead が transform を駆動するため、小節ジャンプは行わない。
+    if (scrollLayout.scrollMode === 'continuousFollow') {
+      const pending = pendingPlayheadSyncRef.current;
+      if (pending && useImperativePlayhead) {
+        applyPlayheadFromParams(pending);
+      }
       return;
     }
     const { offsetPx } = computeOsmdMeasureJumpScrollOffset({
       activeMeasureNumber,
       measureBoundsByNumber: layout.measureBoundsByNumber,
       measureCentersByNumber: layout.measureCentersByNumber,
-      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      playheadPx: scrollLayout.playheadPx,
       effectiveScale,
       scoreWidth: layout.scoreWidth,
       viewportWidth: viewport.clientWidth,
+      anchorToMeasureLeft: scrollLayout.anchorToMeasureLeft,
     });
     scrollOffsetPxRef.current = offsetPx;
     applyScoreTransform(offsetPx, 0);
     setScrollOffsetPx(offsetPx);
+    if (!scrollActive) {
+      return;
+    }
     const measureHighlightNow = computeOsmdActiveMeasureHighlight({
       activeMeasureNumber,
       measureBoundsByNumber: layout.measureBoundsByNumber,
-      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      playheadPx: scrollLayout.playheadPx,
       effectiveScale,
       scrollOffsetPx: offsetPx,
     });
@@ -717,26 +728,26 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     applyHighlightLeftWithManual,
     applyPlayheadFromParams,
     applyScoreTransform,
-    cssScale,
+    effectiveScale,
     layout,
     resetManualScroll,
     scrollActive,
+    scrollLayout,
     useImperativePlayhead,
-    userZoom,
   ]);
 
   const statusText = renderError ?? scoreErrorText;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
-  const effectiveScale = cssScale * userZoom;
+  const isFollowMode = scrollLayout.scrollMode === 'continuousFollow';
   const measureHighlight = useMemo(
     () => computeOsmdActiveMeasureHighlight({
       activeMeasureNumber,
       measureBoundsByNumber: layout.measureBoundsByNumber,
-      playheadPx: OSMD_BATTLE_PLAYHEAD_PX,
+      playheadPx: scrollLayout.playheadPx,
       effectiveScale,
       scrollOffsetPx,
     }),
-    [activeMeasureNumber, effectiveScale, layout.measureBoundsByNumber, scrollOffsetPx],
+    [activeMeasureNumber, effectiveScale, layout.measureBoundsByNumber, scrollLayout.playheadPx, scrollOffsetPx],
   );
 
   useEffect(() => {
@@ -851,16 +862,18 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         <div
           ref={measureHighlightRef}
           className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden"
-          style={{
-            left: `${measureHighlight.leftPx}px`,
-            width: `${measureHighlight.widthPx}px`,
-          }}
+          style={isFollowMode
+            ? { left: 0, width: '100%' }
+            : {
+              left: `${measureHighlight.leftPx}px`,
+              width: `${measureHighlight.widthPx}px`,
+            }}
           aria-hidden
         >
           <div
             ref={measurePlayheadRef}
             className="pointer-events-none absolute bottom-0 top-0 w-0.5 bg-red-500/95"
-            style={{ left: 0 }}
+            style={{ left: isFollowMode ? `${scrollLayout.playheadPx}px` : 0 }}
           />
         </div>
       )}
@@ -875,9 +888,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
             '[&_canvas]:!bg-transparent [&_svg]:!bg-transparent',
           )}
         />
-        {enableScoreLyricLayer && placedLyricBoxes.length > 0 ? (
-          <EarTrainingOsmdLyricBoxLayer placedBoxes={placedLyricBoxes} />
-        ) : null}
       </div>
       {(isRendering || statusText) && (
         <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">

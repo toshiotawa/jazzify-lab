@@ -15,8 +15,10 @@ import {
   createChordOsmdRemainingCounts,
   earTrainingOsmdUsesScoreTargets,
   findFirstIncompleteChordOsmdTarget,
+  joinScoreLyricVerseTexts,
   normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
+  resolveActiveScoreLyricTextAtTime,
   resolveEarTrainingOsmdTargetsFromScore,
 } from '@/utils/earTrainingChordOsmd';
 
@@ -448,6 +450,27 @@ Line2</text></lyric></note>
       { targetTimeSec: 0, measureNumber: 1, text: 'Line1\nLine2' },
       { targetTimeSec: 0.5, measureNumber: 1, text: 'Top\nBottom' },
     ]);
+  });
+});
+
+describe('joinScoreLyricVerseTexts', () => {
+  it('verse 番号順に改行結合する', () => {
+    expect(joinScoreLyricVerseTexts([
+      { verseNumber: 3, text: 'Voicing' },
+      { verseNumber: 1, text: 'Ab6' },
+      { verseNumber: 2, text: 'Ab Major Pentatonic' },
+    ])).toBe('Ab6\nAb Major Pentatonic\nVoicing');
+  });
+});
+
+describe('resolveActiveScoreLyricTextAtTime', () => {
+  it('同一時刻の全 verse を改行結合する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration>
+<lyric number="1"><text>line1</text></lyric><lyric number="2"><text>line2</text></lyric></note>`);
+    const events = collectChordOsmdScoreLyricEvents(xml, 120, 4);
+    expect(resolveActiveScoreLyricTextAtTime(events, 0, (t) => t)).toBe('line1\nline2');
+    expect(resolveActiveScoreLyricTextAtTime(events, -1, (t) => t)).toBe('');
   });
 });
 

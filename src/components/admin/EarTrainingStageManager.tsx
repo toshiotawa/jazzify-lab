@@ -71,6 +71,7 @@ const defaultStageForm: StageForm = {
   chord_voicing_self_paced: false,
   show_keyboard_hints_in_battle: false,
   practice_transpose: false,
+  show_score_lyrics_in_battle: false,
 };
 
 const defaultPhraseForm: PhraseForm = {
@@ -174,6 +175,7 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
     osmd_targets_from_score: stage.osmd_targets_from_score,
   }),
   practice_transpose: stage.practice_transpose ?? false,
+  show_score_lyrics_in_battle: stage.show_score_lyrics_in_battle ?? false,
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -747,6 +749,20 @@ const EarTrainingStageManager: React.FC = () => {
                     }))}
                   />
                   練習モードで移調 UI を有効化（±6半音）
+                </label>
+              )}
+              {(stageForm.mode === 'chord_osmd' || stageForm.mode === 'chord_precision') && (
+                <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm"
+                    checked={Boolean(stageForm.show_score_lyrics_in_battle)}
+                    onChange={event => setStageForm(prev => ({
+                      ...prev,
+                      show_score_lyrics_in_battle: event.target.checked,
+                    }))}
+                  />
+                  譜面上に歌詞を表示（OSMD標準歌詞・既定OFFでノーツ部テキストのみ）
                 </label>
               )}
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />

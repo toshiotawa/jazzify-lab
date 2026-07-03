@@ -15,7 +15,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published private(set) var precisionNotes: [EarTrainingPrecisionNote] = []
     @Published private(set) var keyboardRange = EarTrainingPrecisionKeyboardRange(minMidi: 60, maxMidi: 83)
     private(set) var runtimeStates: [String: EarTrainingPrecisionJudge.NoteRuntimeState] = [:]
-    @Published private(set) var phraseScoreLyricsForOsmd: [ChordOsmdScoreLyricEvent] = []
     @Published private(set) var activeLyricText: String = ""
     @Published private(set) var seekSliderSec: Double = 0
     @Published private(set) var phraseDurationSec: Double = 1
@@ -230,7 +229,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
                 beatsPerMeasure: stage.beatsPerMeasure
             )
         } ?? []
-        phraseScoreLyricsForOsmd = phraseScoreLyricEvents
         nextLyricIndex = 0
         activeLyricText = ""
 
@@ -292,7 +290,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         }
         let offset = practiceTransposeEnabled && practiceMode ? practiceTransposeOffset : 0
         let transposed = EarTrainingMusicXmlTransposer.applyPracticeTransposeToMusicXml(base, offset: offset)
-        musicXMLText = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(transposed)
+        // 歌詞ON（stage.resolvedShowScoreLyricsInBattle）のときは OSMD 標準歌詞を残す。既定は除去してノーツ部テキストのみ。
+        musicXMLText = stage.resolvedShowScoreLyricsInBattle
+            ? transposed
+            : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(transposed)
         if practiceTransposeEnabled {
             practiceOriginalKeyFifths = EarTrainingMusicXmlTransposer.readKeyFifths(fromMusicXml: base)
             practiceOriginalKeyName = EarTrainingMusicXmlTransposer.preferredKeyName(fifths: practiceOriginalKeyFifths)
@@ -427,20 +428,17 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             if batchTime > phraseTimeSec {
                 break
             }
-            var pickedText = ""
-            var pickedVerse = Int.max
+            var batchLyrics: [ChordOsmdScoreLyricEvent] = []
             while nextLyricIndex < phraseScoreLyricEvents.count {
                 let lyric = phraseScoreLyricEvents[nextLyricIndex]
                 let time = resolveCalibratedTargetTimeSec(lyric.targetTimeSec)
                 if abs(time - batchTime) > 1e-9 {
                     break
                 }
-                if lyric.verseNumber < pickedVerse {
-                    pickedVerse = lyric.verseNumber
-                    pickedText = lyric.text
-                }
+                batchLyrics.append(lyric)
                 nextLyricIndex += 1
             }
+            let pickedText = EarTrainingChordOsmdMusicXmlNormalizer.joinScoreLyricVerseTexts(batchLyrics)
             if !pickedText.isEmpty {
                 activeLyricText = pickedText
             }
