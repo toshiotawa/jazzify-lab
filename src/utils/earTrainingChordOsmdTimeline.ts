@@ -7,6 +7,9 @@ import {
 
 export const CHORD_OSMD_PHRASE_END_PADDING_SEC = 0.08;
 
+/** 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する */
+export const OSMD_PARRY_PRECISE_RING_ON_SUCCESS = true as const;
+
 const normalizeAudioUrl = (url: string | null | undefined): string => (
   url?.trim() ?? ''
 );

@@ -63,4 +63,8 @@ final class EarTrainingChordOSMDBattleRhythmTargetsTests: XCTestCase {
         XCTAssertEqual(drafts[0].label, "C7")
         XCTAssertEqual(drafts[1].label, "D/F#")
     }
+
+    func testParryPreciseRingOnSuccessRegardlessOfTimingOffset() {
+        XCTAssertTrue(EarTrainingChordOSMDBattleController.parryPreciseRingOnSuccess)
+    }
 }

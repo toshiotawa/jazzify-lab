@@ -18,6 +18,8 @@ import {
   computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
+  computeOsmdWindowFitScale,
+  computeOsmdWindowJumpScrollOffset,
   type OsmdMeasureBounds,
   type OsmdScrollLayout,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
@@ -250,14 +252,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
 
   const activeMeasureBounds = layout.measureBoundsByNumber[Math.max(1, Math.floor(activeMeasureNumber))]
     ?? layout.measureBoundsByNumber[1];
-  const baseScale = cssScale * userZoom;
-  const effectiveScale = computeOsmdEffectiveScaleForMeasure({
-    cssScale: baseScale,
-    bounds: activeMeasureBounds,
-    viewportWidth: viewportRef.current?.clientWidth ?? 0,
-    fitActiveMeasureWidth: scrollLayout.fitActiveMeasureWidth,
-  });
-
   const maxMeasureNumber = useMemo(() => {
     let max = 1;
     for (const key in layout.measureBoundsByNumber) {
@@ -268,6 +262,23 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     }
     return max;
   }, [layout]);
+  const viewportWidthPx = viewportRef.current?.clientWidth ?? 0;
+  const cssScaleForLayout = fillParent ? cssScale * userZoom : cssScale;
+  const effectiveScale = scrollLayout.fitWindow
+    ? computeOsmdWindowFitScale({
+      cssScale: cssScaleForLayout,
+      measureBoundsByNumber: layout.measureBoundsByNumber,
+      maxMeasureNumber,
+      viewportWidth: viewportWidthPx,
+      minVisibleMeasures: scrollLayout.fitWindow.minVisibleMeasures,
+      stepMeasures: scrollLayout.fitWindow.stepMeasures,
+    })
+    : computeOsmdEffectiveScaleForMeasure({
+      cssScale: cssScaleForLayout,
+      bounds: activeMeasureBounds,
+      viewportWidth: viewportWidthPx,
+      fitActiveMeasureWidth: scrollLayout.fitActiveMeasureWidth,
+    });
 
   cssScaleRef.current = cssScale;
   userZoomRef.current = userZoom;
@@ -693,16 +704,26 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       }
       return;
     }
-    const { offsetPx } = computeOsmdMeasureJumpScrollOffset({
-      activeMeasureNumber,
-      measureBoundsByNumber: layout.measureBoundsByNumber,
-      measureCentersByNumber: layout.measureCentersByNumber,
-      playheadPx: scrollLayout.playheadPx,
-      effectiveScale,
-      scoreWidth: layout.scoreWidth,
-      viewportWidth: viewport.clientWidth,
-      anchorToMeasureLeft: scrollLayout.anchorToMeasureLeft,
-    });
+    const { offsetPx } = scrollLayout.fitWindow
+      ? computeOsmdWindowJumpScrollOffset({
+        activeMeasureNumber,
+        measureBoundsByNumber: layout.measureBoundsByNumber,
+        measureCentersByNumber: layout.measureCentersByNumber,
+        effectiveScale,
+        scoreWidth: layout.scoreWidth,
+        viewportWidth: viewport.clientWidth,
+        stepMeasures: scrollLayout.fitWindow.stepMeasures,
+      })
+      : computeOsmdMeasureJumpScrollOffset({
+        activeMeasureNumber,
+        measureBoundsByNumber: layout.measureBoundsByNumber,
+        measureCentersByNumber: layout.measureCentersByNumber,
+        playheadPx: scrollLayout.playheadPx,
+        effectiveScale,
+        scoreWidth: layout.scoreWidth,
+        viewportWidth: viewport.clientWidth,
+        anchorToMeasureLeft: scrollLayout.anchorToMeasureLeft,
+      });
     scrollOffsetPxRef.current = offsetPx;
     applyScoreTransform(offsetPx, 0);
     setScrollOffsetPx(offsetPx);
@@ -781,7 +802,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     useImperativePlayhead,
   ]);
 
-  const zoomControls = !hidden && musicXmlText ? (
+  const zoomControls = fillParent && !hidden && musicXmlText ? (
     <div
       className={cn(
         'pointer-events-auto flex flex-col items-center gap-1 rounded-md border border-white/15 bg-slate-900/70 py-1 px-1 text-xs font-semibold text-white shadow-sm',
@@ -847,7 +868,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         'ear-training-osmd-score overflow-hidden',
         fillParent
           ? 'absolute inset-0 h-full w-full'
-          : 'pointer-events-none absolute left-1/2 top-[42%] h-[min(280px,42vh)] w-[min(860px,86vw)] -translate-x-1/2 -translate-y-1/2',
+          : 'pointer-events-none absolute left-1/2 top-[42%] h-[min(280px,42vh)] w-[96vw] max-w-[96vw] -translate-x-1/2 -translate-y-1/2',
         !fillParent && scoreZClassName,
         fillParent && 'z-0 bg-transparent',
         hidden && 'invisible',
@@ -906,12 +927,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     );
   }
 
-  return (
-    <>
-      {scoreViewport}
-      {zoomControls}
-    </>
-  );
+  return scoreViewport;
 }));
 
 export default EarTrainingChordOSMDScore;

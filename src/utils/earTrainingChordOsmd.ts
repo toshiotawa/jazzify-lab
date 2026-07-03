@@ -34,15 +34,16 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
   return true;
 };
 
-/** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 250ms） */
-export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.25;
+/** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 300ms）。超過でミス確定。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.3;
 import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTimingAdjustment';
 
 /** @deprecated ユーザー timingAdjustment のデフォルト (+40ms) と同等。新規コードは timingAdjustment を使用 */
 export const CHORD_OSMD_JUDGMENT_OFFSET_SEC = OSMD_TIMING_ADJUSTMENT_MS_DEFAULT / 1000;
 /** カウントイン中に最初のターゲットのハンマーも投げきれるよう、リードを短めにする */
 export const CHORD_OSMD_HAMMER_LEAD_SEC = 2.4;
-export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.2;
+/** ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出 */
+export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.25;
 
 const SAME_TARGET_EPSILON_SEC = 0.0005;
 const SAME_TARGET_BEAT_EPSILON = 0.0005;
@@ -661,6 +662,15 @@ const allLyricVersesFromCluster = (
   return Array.from(byVerse.entries()).map(([verseNumber, text]) => ({ verseNumber, text }));
 };
 
+const noteHasLyricElements = (noteEl: Element): boolean => {
+  for (let child = noteEl.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.localName === 'lyric') {
+      return true;
+    }
+  }
+  return false;
+};
+
 /**
  * MusicXML の 1 番歌詞のみ、音符クラスタ先頭から次の変化まで同じ文面としてイベント化。
  */
@@ -780,6 +790,18 @@ export const forEachChordOsmdNoteCluster = (
       }
 
       if (getDirectChild(noteEl, 'rest')) {
+        if (noteHasLyricElements(noteEl)) {
+          const divisions = Math.max(1, timing.divisions);
+          const quartersFromMeasureStart = currentTime / divisions;
+          const beatStartInMeasure = quartersFromMeasureStart + 1;
+          onCluster({
+            measureNumber,
+            beatStartInMeasure,
+            clusterNotes: [noteEl],
+            timing,
+            durationDivisions: duration,
+          });
+        }
         currentTime += duration;
         ci += 1;
         continue;

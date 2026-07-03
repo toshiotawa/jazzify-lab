@@ -20,16 +20,9 @@ enum EarTrainingBattleStaffBandLayout {
     }
 
     /// `EarTrainingChordOSMDGameView.scoreOverlay` の outer 高さに合わせる。
-    static func osmdStaffBottomY(
-        sceneSize: CGSize,
-        scoreSizeStep: Int,
-        containerScaleTable: [Double]
-    ) -> CGFloat {
+    static func osmdStaffBottomY(sceneSize: CGSize) -> CGFloat {
         let baseHeight = min(sceneSize.height * 0.48, 280)
-        let tableIndex = min(max(scoreSizeStep + 2, 0), containerScaleTable.count - 1)
-        let containerScale = containerScaleTable[tableIndex]
-        let scaledHeight = baseHeight * containerScale
-        let outerHeight = min(sceneSize.height * 0.68, max(sceneSize.height * 0.26, scaledHeight))
+        let outerHeight = min(sceneSize.height * 0.68, max(sceneSize.height * 0.26, baseHeight))
         let centerY = sceneSize.height * 0.42
         return centerY + outerHeight / 2 + bandMargin
     }

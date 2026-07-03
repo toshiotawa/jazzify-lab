@@ -115,4 +115,25 @@ final class EarTrainingChordOsmdScoreLyricEventsTests: XCTestCase {
         )
         XCTAssertEqual(resolved, "Next\nBottom")
     }
+
+    func testCollectScoreLyricEventsParsesLyricsOnRestNotes() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise version="3.1"><part id="P1">
+        <measure number="1">
+        <attributes><divisions>2</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+        <note><rest/><duration>8</duration><voice>1</voice><type>quarter</type>
+        <lyric number="1"><text>Bbm7</text></lyric><lyric number="2"><text>Broken Chord</text></lyric></note>
+        </measure>
+        </part></score-partwise>
+        """
+        let events = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdScoreLyricEvents(xml, bpm: 120, beatsPerMeasure: 4)
+        XCTAssertTrue(events.contains(where: { $0.text == "Broken Chord" }))
+        let resolved = EarTrainingChordOsmdMusicXmlNormalizer.resolveActiveScoreLyricTextAtTime(
+            events: events,
+            phraseTimeSec: 0,
+            calibrateTargetTimeSec: { $0 }
+        )
+        XCTAssertEqual(resolved, "Bbm7\nBroken Chord")
+    }
 }

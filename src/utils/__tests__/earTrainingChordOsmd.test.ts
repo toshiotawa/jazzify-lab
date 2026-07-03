@@ -578,6 +578,20 @@ describe('collectChordOsmdScoreLyricEvents', () => {
     const events = collectChordOsmdScoreLyricEvents(xml, 120, 4);
     expect(resolveActiveScoreLyricTextAtTime(events, 0.5, (t) => t)).toBe('Next\nBottom');
   });
+
+  it('休符ノートに付いた歌詞も収集する（Donna Lee Broken Chord）', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1">
+<measure number="1">
+<attributes><divisions>2</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+<note><rest/><duration>8</duration><voice>1</voice><type>quarter</type>
+<lyric number="1"><text>Bbm7</text></lyric><lyric number="2"><text>Broken Chord</text></lyric></note>
+</measure>
+</part></score-partwise>`;
+    const events = collectChordOsmdScoreLyricEvents(xml, 120, 4);
+    expect(events.some((event) => event.text === 'Broken Chord')).toBe(true);
+    expect(resolveActiveScoreLyricTextAtTime(events, 0, (t) => t)).toBe('Bbm7\nBroken Chord');
+  });
 });
 
 describe('readBetweenStaffDistanceStaffHeightsFromMusicXml', () => {

@@ -542,6 +542,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
     private static func html(for layout: EarTrainingOsmdScrollLayout) -> String {
         let scrollModeLiteral = layout.scrollMode == .continuousFollow ? "continuousFollow" : "measureJump"
+        let fitWindowEnabled = layout.fitWindow != nil
+        let fitWindowMinVisible = layout.fitWindow?.minVisibleMeasures
+            ?? EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS
+        let fitWindowStep = layout.fitWindow?.stepMeasures
+            ?? EarTrainingOsmdScoreScroll.windowStepMeasures
         return htmlTemplate
             .replacingOccurrences(of: "__PLAYHEAD_PX__", with: String(format: "%.10g", Double(layout.playheadPx)))
             .replacingOccurrences(of: "__ANCHOR_TO_MEASURE_LEFT__", with: layout.anchorToMeasureLeft ? "true" : "false")
@@ -550,6 +555,17 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             .replacingOccurrences(
                 of: "__MIN_FIT_SCALE__",
                 with: String(format: "%.10g", Double(EarTrainingOsmdScoreScroll.precisionMinFitScale))
+            )
+            .replacingOccurrences(of: "__FIT_WINDOW_ENABLED__", with: fitWindowEnabled ? "true" : "false")
+            .replacingOccurrences(of: "__FIT_WINDOW_MIN_VISIBLE__", with: String(fitWindowMinVisible))
+            .replacingOccurrences(of: "__FIT_WINDOW_STEP__", with: String(fitWindowStep))
+            .replacingOccurrences(
+                of: "__WINDOW_DENSE_FALLBACK_SCALE__",
+                with: String(format: "%.10g", Double(EarTrainingOsmdScoreScroll.windowDenseFallbackScale))
+            )
+            .replacingOccurrences(
+                of: "__WINDOW_DENSE_FALLBACK_MEASURES__",
+                with: String(EarTrainingOsmdScoreScroll.windowDenseFallbackMeasures)
             )
     }
 
@@ -643,6 +659,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let ANCHOR_TO_MEASURE_LEFT = __ANCHOR_TO_MEASURE_LEFT__;
           let FIT_ACTIVE_MEASURE_WIDTH = __FIT_ACTIVE_MEASURE_WIDTH__;
           const MIN_FIT_SCALE = __MIN_FIT_SCALE__;
+          const FIT_WINDOW_ENABLED = __FIT_WINDOW_ENABLED__;
+          const FIT_WINDOW_MIN_VISIBLE = __FIT_WINDOW_MIN_VISIBLE__;
+          const FIT_WINDOW_STEP = __FIT_WINDOW_STEP__;
+          const WINDOW_DENSE_FALLBACK_SCALE = __WINDOW_DENSE_FALLBACK_SCALE__;
+          const WINDOW_DENSE_FALLBACK_MEASURES = __WINDOW_DENSE_FALLBACK_MEASURES__;
           let scrollMode = '__SCROLL_MODE__';
           let osmd = null;
           let measureCentersByNumber = {};
@@ -1153,7 +1174,60 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               || viewport.clientWidth / 2;
           }
 
+          function computeWindowStartMeasureNumber(measureNumber) {
+            const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            const step = Math.max(1, Math.floor(FIT_WINDOW_STEP || 2));
+            return Math.floor((mn - 1) / step) * step + 1;
+          }
+
+          function computeWindowMeasureSpanWidth(windowStart, visibleMeasures) {
+            const safeVisible = Math.max(1, Math.floor(visibleMeasures));
+            const windowEnd = Math.min(maxMeasureNumber, windowStart + safeVisible - 1);
+            const startBounds = measureBoundsByNumber[windowStart];
+            const endBounds = measureBoundsByNumber[windowEnd];
+            if (!startBounds || !endBounds) {
+              return null;
+            }
+            const width = endBounds.right - startBounds.left;
+            if (!Number.isFinite(width) || width <= 0) {
+              return null;
+            }
+            return width;
+          }
+
+          function computeWindowFitMultiplier(visibleMeasures) {
+            const viewportWidth = viewport.clientWidth || 0;
+            if (cssScale <= 0 || viewportWidth <= 0 || maxMeasureNumber <= 0) {
+              return 1;
+            }
+            const step = Math.max(1, Math.floor(FIT_WINDOW_STEP || 2));
+            let maxWindowWidth = 0;
+            for (let windowStart = 1; windowStart <= maxMeasureNumber; windowStart += step) {
+              const spanWidth = computeWindowMeasureSpanWidth(windowStart, visibleMeasures);
+              if (spanWidth !== null && spanWidth > maxWindowWidth) {
+                maxWindowWidth = spanWidth;
+              }
+            }
+            if (maxWindowWidth <= 0) {
+              return 1;
+            }
+            const fitScale = viewportWidth / (maxWindowWidth * cssScale);
+            return Math.min(1, Math.max(MIN_FIT_SCALE, fitScale));
+          }
+
+          function computeWindowFitScale() {
+            const safeMinVisible = Math.max(2, Math.floor(FIT_WINDOW_MIN_VISIBLE || 4));
+            let multiplier = computeWindowFitMultiplier(safeMinVisible);
+            if (multiplier < WINDOW_DENSE_FALLBACK_SCALE && safeMinVisible > WINDOW_DENSE_FALLBACK_MEASURES) {
+              multiplier = computeWindowFitMultiplier(WINDOW_DENSE_FALLBACK_MEASURES);
+            }
+            return cssScale * multiplier;
+          }
+
           function computeEffectiveScale(measureNumber) {
+            if (FIT_WINDOW_ENABLED) {
+              return computeWindowFitScale();
+            }
             if (!FIT_ACTIVE_MEASURE_WIDTH) {
               return cssScale;
             }
@@ -1201,11 +1275,24 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function computeScrollOffset(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            refreshEffectiveScale(mn);
+            const viewportWidth = viewport.clientWidth || 0;
+            const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
+            if (FIT_WINDOW_ENABLED) {
+              const windowStart = computeWindowStartMeasureNumber(mn);
+              if (windowStart === 1) {
+                return 0;
+              }
+              const bounds = measureBoundsByNumber[windowStart] || measureBoundsByNumber[1];
+              const xPos = bounds && Number.isFinite(bounds.left)
+                ? bounds.left
+                : (measureCentersByNumber[windowStart]
+                  || measureCentersByNumber[1]
+                  || viewportWidth / 2);
+              return Math.max(0, Math.min(maxOffset, xPos * effectiveScale));
+            }
             const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
             const xPos = resolveScrollAnchorX(bounds, mn);
-            const viewportWidth = viewport.clientWidth || 0;
-            refreshEffectiveScale(mn);
-            const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
             return Math.max(0, Math.min(maxOffset, xPos * effectiveScale - PLAYHEAD_PX));
           }
 

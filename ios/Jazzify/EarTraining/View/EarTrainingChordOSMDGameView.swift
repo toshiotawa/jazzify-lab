@@ -187,13 +187,7 @@ private struct EarTrainingChordOSMDContent: View {
     let locale: AppLocale
     let fixedLandscapeSize: CGSize?
 
-    /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
-    @State private var scoreSizeStep: Int = EarTrainingOsmdScorePreferences.loadScoreSizeStep()
-
     @State private var hudHorizontalPadding: CGFloat = 16
-
-    /// 譜面コンテナに対する相対スケール（コンテナサイズ と GPU レイヤでの表示を両方変更）。
-    private static let containerScaleTable: [Double] = [0.80, 0.90, 1.00, 1.15, 1.30]
 
     var body: some View {
         Group {
@@ -221,9 +215,6 @@ private struct EarTrainingChordOSMDContent: View {
         .ignoresSafeArea()
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
-        }
-        .onChange(of: scoreSizeStep) { newValue in
-            EarTrainingOsmdScorePreferences.saveScoreSizeStep(newValue)
         }
         .sheet(isPresented: $controller.isSettingsOpen) {
             let isTutorialSettings = controller.tutorialHooks != nil
@@ -273,11 +264,7 @@ private struct EarTrainingChordOSMDContent: View {
     }
 
     private func landscapeContent(size: CGSize) -> some View {
-        let staffBottomY = EarTrainingBattleStaffBandLayout.osmdStaffBottomY(
-            sceneSize: size,
-            scoreSizeStep: scoreSizeStep,
-            containerScaleTable: Self.containerScaleTable
-        )
+        let staffBottomY = EarTrainingBattleStaffBandLayout.osmdStaffBottomY(sceneSize: size)
         return ZStack {
             feedbackBackground
 
@@ -304,8 +291,6 @@ private struct EarTrainingChordOSMDContent: View {
             }
 
             scoreOverlay(size: size)
-
-            scoreZoomTrailingOverlay(screenSize: size)
 
             VStack(spacing: 0) {
                 Spacer()
@@ -336,17 +321,9 @@ private struct EarTrainingChordOSMDContent: View {
 
     @ViewBuilder
     private func scoreOverlay(size: CGSize) -> some View {
-        let baseWidth = min(size.width * 0.66, 720)
+        let outerWidth = size.width * 0.95
         let baseHeight = min(size.height * 0.48, 280)
-
-        let tableIndex = min(max(scoreSizeStep + 2, 0), Self.containerScaleTable.count - 1)
-        let containerScale = Self.containerScaleTable[tableIndex]
-
-        let scaledWidth = baseWidth * containerScale
-        let scaledHeight = baseHeight * containerScale
-
-        let outerWidth = min(size.width * 0.95, max(size.width * 0.36, scaledWidth))
-        let outerHeight = min(size.height * 0.68, max(size.height * 0.26, scaledHeight))
+        let outerHeight = min(size.height * 0.68, max(size.height * 0.26, baseHeight))
 
         // OSMD コンテナ高さに収めるためのベースズーム。WebView 側でレンダー後に高さを測り、
         // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
@@ -368,7 +345,8 @@ private struct EarTrainingChordOSMDContent: View {
                         measureDurationSec: controller.effectiveMeasureDurationSec,
                         musicXMLText: musicXMLText,
                         renderKey: controller.phraseRunId,
-                        zoom: osmdZoom
+                        zoom: osmdZoom,
+                        scrollLayout: .battleDefault
                     )
                 } else {
                     VStack(spacing: 10) {
@@ -392,82 +370,12 @@ private struct EarTrainingChordOSMDContent: View {
                     .padding(.horizontal, 18)
                 }
             }
-            .frame(width: baseWidth, height: baseHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .scaleEffect(containerScale)
             .frame(width: outerWidth, height: outerHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .clipped()
             .allowsHitTesting(false)
         }
         .position(x: size.width / 2, y: size.height * 0.42)
-    }
-
-    /// 虫眼鏡は画面右端に固定（譜面コンテナのズーム／サイズに追従しない）。
-    @ViewBuilder
-    private func scoreZoomTrailingOverlay(screenSize size: CGSize) -> some View {
-        let shrinkDisabled = scoreSizeStep <= -2
-        let enlargeDisabled = scoreSizeStep >= 2
-        let inset = Self.resolveHudHorizontalPadding()
-        let chipHalfWidth: CGFloat = 18
-
-        VStack(spacing: 6) {
-            scoreZoomChipButton(
-                systemName: "plus.magnifyingglass",
-                accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
-                disabled: enlargeDisabled,
-                action: {
-                    guard scoreSizeStep < 2 else { return }
-                    scoreSizeStep += 1
-                }
-            )
-
-            scoreZoomChipButton(
-                systemName: "minus.magnifyingglass",
-                accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
-                disabled: shrinkDisabled,
-                action: {
-                    guard scoreSizeStep > -2 else { return }
-                    scoreSizeStep -= 1
-                }
-            )
-        }
-        .padding(.vertical, 8)
-        .padding(.leading, 8)
-        .padding(.trailing, 10)
-        .background(Color.black.opacity(0.45))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-        )
-        .allowsHitTesting(controller.musicXMLText != nil)
-        .opacity(controller.musicXMLText == nil ? 0 : 1)
-        .position(
-            x: size.width - inset - 12 - chipHalfWidth,
-            y: size.height * 0.42
-        )
-    }
-
-    @ViewBuilder
-    private func scoreZoomChipButton(
-        systemName: String,
-        accessibilityLabel label: String,
-        disabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(Color.white.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .opacity(disabled ? 0.28 : 1)
-        .disabled(disabled)
-        .accessibilityLabel(label)
     }
 
     private static func resolveHudHorizontalPadding() -> CGFloat {
@@ -568,29 +476,5 @@ private struct EarTrainingChordOSMDSceneContainer<Driver: EarTrainingBattleScene
             scene = nil
             driver = nil
         }
-    }
-}
-
-enum EarTrainingOsmdScorePreferences {
-    private static let scoreSizeStepKey = "earTraining.osmd.scoreSizeStep"
-
-    static let minStep = -2
-    static let maxStep = 2
-    static let defaultStep = 1
-
-    static func clampScoreSizeStep(_ value: Int) -> Int {
-        Swift.min(maxStep, Swift.max(minStep, value))
-    }
-
-    static func loadScoreSizeStep() -> Int {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: scoreSizeStepKey) != nil else {
-            return defaultStep
-        }
-        return clampScoreSizeStep(defaults.integer(forKey: scoreSizeStepKey))
-    }
-
-    static func saveScoreSizeStep(_ value: Int) {
-        UserDefaults.standard.set(clampScoreSizeStep(value), forKey: scoreSizeStepKey)
     }
 }

@@ -69,6 +69,7 @@ import {
 import {
   computeChordOsmdActiveMeasureNumber,
   computeChordOsmdPhraseLoopEndSec,
+  OSMD_PARRY_PRECISE_RING_ON_SUCCESS,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
@@ -152,8 +153,6 @@ const INPUT_COOLDOWN_MS = 20;
 const OSMD_VOICING_HINT_STRONG_SEC = 0.03;
 /** OSMD 鍵盤ヒント: |Δ|≤70ms で中間（alpha 0.55） */
 const OSMD_VOICING_HINT_MEDIUM_SEC = 0.07;
-/** OSMD 正解報酬: |Δ|≤100ms で追加パリィリング */
-const CHORD_OSMD_PRECISE_WINDOW_SEC = 0.1;
 /** 正解連打時の statusText 更新間隔（React 再レンダリング抑制） */
 const STATUS_TEXT_THROTTLE_MS = 400;
 const NO_DAMAGE_CONFIG = {
@@ -1507,7 +1506,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const completeTarget = useCallback((
     target: ChordOsmdRhythmTarget,
     state: RuntimeTargetState,
-    timingOffsetSec: number,
   ) => {
     state.completed = true;
     syncPracticeVoicingHints();
@@ -1524,7 +1522,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       label: target.label,
       damage,
       relatedEffectId: state.hammerEffectId,
-      precise: timingOffsetSec <= resolveEffectiveTimingWindowSec(CHORD_OSMD_PRECISE_WINDOW_SEC),
+      precise: OSMD_PARRY_PRECISE_RING_ON_SUCCESS,
     });
     registerBattleEffectImpact(effectId, () => {
       applyEnemyDamage(damage, lastRankRef.current);
@@ -1535,7 +1533,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     copy,
     registerBattleEffectImpact,
     syncPracticeVoicingHints,
-    resolveEffectiveTimingWindowSec,
     triggerBattleEffect,
   ]);
 
@@ -1573,7 +1570,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       state.remainingCounts = nextRemaining;
       syncSelfPacedMeasureAndHints();
       if (chordOsmdTargetIsComplete(nextRemaining)) {
-        completeTarget(firstTarget, state, 0);
+        completeTarget(firstTarget, state);
         if (areAllChordOsmdTargetsCompleted(targetsRef.current, isTargetCompleted)) {
           finishCurrentPhraseRef.current(phraseRunIdRef.current);
         }
@@ -1604,7 +1601,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         syncPracticeVoicingHints();
       }
       if (chordOsmdTargetIsComplete(nextRemaining)) {
-        completeTarget(target, state, Math.abs(phraseT - judged));
+        completeTarget(target, state);
       }
       return;
     }

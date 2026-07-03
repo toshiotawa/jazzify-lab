@@ -5,13 +5,28 @@ enum EarTrainingOsmdScrollMode: String, CaseIterable, Equatable {
     case continuousFollow
 }
 
+struct EarTrainingOsmdFitWindowConfig: Equatable {
+    var minVisibleMeasures: Int
+    var stepMeasures: Int
+}
+
 struct EarTrainingOsmdScrollLayout: Equatable {
-    var playheadPx: CGFloat = EarTrainingOsmdScoreScroll.battlePlayheadPx
-    var anchorToMeasureLeft: Bool = false
+    var playheadPx: CGFloat = 0
+    var anchorToMeasureLeft: Bool = true
     var fitActiveMeasureWidth: Bool = false
     var scrollMode: EarTrainingOsmdScrollMode = .measureJump
+    var fitWindow: EarTrainingOsmdFitWindowConfig?
 
-    static let battleDefault = EarTrainingOsmdScrollLayout()
+    static let battleDefault = EarTrainingOsmdScrollLayout(
+        playheadPx: 0,
+        anchorToMeasureLeft: true,
+        fitActiveMeasureWidth: false,
+        scrollMode: .measureJump,
+        fitWindow: EarTrainingOsmdFitWindowConfig(
+            minVisibleMeasures: EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS,
+            stepMeasures: EarTrainingOsmdScoreScroll.windowStepMeasures
+        )
+    )
     static let precision = EarTrainingOsmdScrollLayout(
         playheadPx: 0,
         anchorToMeasureLeft: true,
@@ -31,6 +46,11 @@ enum EarTrainingOsmdScoreScroll {
     static let battlePlayheadPx: CGFloat = 120
     static let precisionFollowPlayheadPx: CGFloat = 36
     static let precisionMinFitScale: CGFloat = 0.35
+    static let windowMinVisibleMeasuresWeb = 4
+    static let windowMinVisibleMeasuresIOS = 3
+    static let windowStepMeasures = 2
+    static let windowDenseFallbackScale: CGFloat = 0.5
+    static let windowDenseFallbackMeasures = 2
 
     enum ContinuousFollowPhase: Equatable {
         case countIn

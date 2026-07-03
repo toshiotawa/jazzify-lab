@@ -30,7 +30,7 @@ export interface EarTrainingBattleEffectCommand {
   originPoint?: EarTrainingBattleEffectOriginPoint;
   relatedEffectId?: number;
   travelDurationSec?: number;
-  /** OSMD: 正解成立時の入力が ±100ms 以内だったとき true */
+  /** OSMD: 正解パリィ成立時にオレンジ精密リングを表示するとき true */
   precise?: boolean;
 }
 

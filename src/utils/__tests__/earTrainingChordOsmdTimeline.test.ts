@@ -6,6 +6,7 @@ import {
   computeOsmdActiveMeasureFromTimeline,
   computeOsmdMeasurePlayheadState,
   countChordOsmdHammersDueFromIndex,
+  OSMD_PARRY_PRECISE_RING_ON_SUCCESS,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
@@ -129,5 +130,11 @@ describe('computeOsmdMeasurePlayheadState', () => {
     const state = computeOsmdMeasurePlayheadState(2.39, 100, 4, 60, 24, targets);
     expect(state.measureNumber).toBe(1);
     expect(state.progressInMeasure).toBeCloseTo(0.995833, 4);
+  });
+});
+
+describe('OSMD_PARRY_PRECISE_RING_ON_SUCCESS', () => {
+  it('正解パリィ時は timing offset に関わらず precise リングを表示する', () => {
+    expect(OSMD_PARRY_PRECISE_RING_ON_SUCCESS).toBe(true);
   });
 });

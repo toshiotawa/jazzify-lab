@@ -7,14 +7,15 @@ import os.log
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
 final class EarTrainingChordOSMDBattleController: ObservableObject {
-    /// ターゲット時刻を中心に前後これだけ秒（±250ms）
-    private static let judgmentWindowSec: Double = 0.25
-    /// 正解報酬: |Δ|≤100ms で追加パリィリング
-    private static let preciseWindowSec: Double = 0.1
+    /// ターゲット時刻を中心に前後これだけ秒（±300ms）。超過でミス確定。
+    private static let judgmentWindowSec: Double = 0.3
+    /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
+    static let parryPreciseRingOnSuccess = true
     private static let osmdVoicingHintStrongSec: Double = 0.03
     private static let osmdVoicingHintMediumSec: Double = 0.07
     private static let hammerLeadSec: Double = 2.4
-    private static let hammerImpactOffsetSec: Double = 0.2
+    /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
+    private static let hammerImpactOffsetSec: Double = 0.25
     private static let effectClearPaddingMs: Double = 420
     /// 正解連打時の statusText 更新間隔（SwiftUI 再描画抑制）
     private static let statusTextThrottleSec: Double = 0.4
@@ -407,8 +408,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         if targets[matchedIndex].isComplete {
-            let timingOffsetSec = abs(phraseTime - resolveCalibratedTargetTimeSec(targets[matchedIndex].targetTimeSec))
-            completeTarget(at: matchedIndex, timingOffsetSec: timingOffsetSec)
+            completeTarget(at: matchedIndex)
         }
         refreshPracticeVoicingHints()
     }
@@ -1009,7 +1009,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
-    private func completeTarget(at index: Int, timingOffsetSec: Double) {
+    private func completeTarget(at index: Int) {
         guard targets.indices.contains(index) else { return }
         guard targets[index].completed == false, targets[index].failed == false else { return }
         targets[index].completed = true
@@ -1027,7 +1027,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             damage: damage,
             phraseNoteCount: nil,
             relatedEffectId: reflectRelatedId,
-            precise: timingOffsetSec <= resolveEffectiveTimingWindowSec(Self.preciseWindowSec)
+            precise: Self.parryPreciseRingOnSuccess
         )
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
             self?.applyEnemyDamage(damage)
