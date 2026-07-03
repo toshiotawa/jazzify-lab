@@ -1,7 +1,7 @@
 import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
-  CHORD_OSMD_JUDGMENT_WINDOW_SEC,
+  CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
 
@@ -36,7 +36,7 @@ export const computeChordOsmdPhraseLoopEndSec = (
 ): number => {
   const lastTarget = targets[targets.length - 1];
   const lastTargetEnd = (lastTarget?.targetTimeSec ?? 0)
-    + CHORD_OSMD_JUDGMENT_WINDOW_SEC
+    + CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC
     + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
   const safeLoop = Number.isFinite(phraseLoopDurationSec) && phraseLoopDurationSec > 0
     ? phraseLoopDurationSec

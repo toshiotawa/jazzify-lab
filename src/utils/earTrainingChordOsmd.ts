@@ -34,8 +34,12 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
   return true;
 };
 
-/** OSMD リズム耳コピ：ターゲット時刻を中心に ± この秒数（前後 250ms）。超過でミス確定。 */
-export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = 0.25;
+/** OSMD リズム耳コピ：ターゲットより早い入力の受付幅（250ms）。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC = 0.25;
+/** OSMD リズム耳コピ：ターゲットより遅い入力の受付幅・遅れミス確定（300ms）。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC = 0.3;
+/** @deprecated `CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC` を使用 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC;
 import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTimingAdjustment';
 
 /** @deprecated ユーザー timingAdjustment のデフォルト (+40ms) と同等。新規コードは timingAdjustment を使用 */
@@ -43,7 +47,23 @@ export const CHORD_OSMD_JUDGMENT_OFFSET_SEC = OSMD_TIMING_ADJUSTMENT_MS_DEFAULT 
 /** カウントイン中に最初のターゲットのハンマーも投げきれるよう、リードを短めにする */
 export const CHORD_OSMD_HAMMER_LEAD_SEC = 2.4;
 /** ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出 */
-export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.25;
+export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.3;
+
+export const isPhraseTimeInChordOsmdJudgmentWindow = (
+  phraseTimeSec: number,
+  judgedTargetTimeSec: number,
+  earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+): boolean => {
+  const delta = phraseTimeSec - judgedTargetTimeSec;
+  return delta >= -earlySec && delta <= lateSec;
+};
+
+export const hasChordOsmdJudgmentWindowExpired = (
+  phraseTimeSec: number,
+  judgedTargetTimeSec: number,
+  lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+): boolean => phraseTimeSec > judgedTargetTimeSec + lateSec;
 
 const SAME_TARGET_EPSILON_SEC = 0.0005;
 const SAME_TARGET_BEAT_EPSILON = 0.0005;

@@ -80,7 +80,10 @@ import {
   findFirstIncompleteChordOsmdTarget,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
-  CHORD_OSMD_JUDGMENT_WINDOW_SEC,
+  CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  hasChordOsmdJudgmentWindowExpired,
+  isPhraseTimeInChordOsmdJudgmentWindow,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
   consumeChordOsmdMidi,
@@ -524,17 +527,19 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       pianoOverlayRef.current?.clearVoicingHints();
       return;
     }
-    const w = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_SEC);
+    const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
+    const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
     const tierByMidi = new Map<number, 0 | 1 | 2>();
     for (const target of targetsRef.current) {
       const state = runtimeByTargetIdRef.current.get(target.id);
       if (!state || state.completed || state.failed) {
         continue;
       }
-      const dt = Math.abs(phraseT - resolveCalibratedTargetTimeSec(target.targetTimeSec));
-      if (dt > w) {
+      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
+      if (!isPhraseTimeInChordOsmdJudgmentWindow(phraseT, judged, earlyW, lateW)) {
         continue;
       }
+      const dt = Math.abs(phraseT - judged);
       const tier: 0 | 1 | 2 = dt <= resolveEffectiveTimingWindowSec(OSMD_VOICING_HINT_STRONG_SEC)
         ? 0
         : dt <= resolveEffectiveTimingWindowSec(OSMD_VOICING_HINT_MEDIUM_SEC)
@@ -980,7 +985,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const phraseTargets = targetsRef.current;
     while (nextMissTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextMissTargetIndexRef.current];
-      if (phraseTimeSec <= resolveCalibratedTargetTimeSec(target.targetTimeSec) + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_SEC)) {
+      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
+      const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
+      if (!hasChordOsmdJudgmentWindowExpired(phraseTimeSec, judged, lateW)) {
         break;
       }
       failTargetIfNeeded(target.id);
@@ -1326,7 +1333,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         countInBeats: beats,
         bpm: resolveEffectivePracticeBpm(),
         beatGain: settings.masterVolume * settings.musicVolume,
-        inputWindowLeadSec: resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_SEC),
+        inputWindowLeadSec: resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC),
         onPhraseStarted,
         onEnded,
       });
@@ -1582,14 +1589,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (phraseT == null || !Number.isFinite(phraseT)) {
       return;
     }
-    const w = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_SEC);
+    const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
+    const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
     for (const target of targetsRef.current) {
       const state = runtimeByTargetIdRef.current.get(target.id);
       if (!state || state.completed || state.failed) {
         continue;
       }
       const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
-      if (Math.abs(phraseT - judged) > w) {
+      if (!isPhraseTimeInChordOsmdJudgmentWindow(phraseT, judged, earlyW, lateW)) {
         continue;
       }
       const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);

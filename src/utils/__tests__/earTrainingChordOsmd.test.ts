@@ -15,6 +15,8 @@ import {
   createChordOsmdRemainingCounts,
   earTrainingOsmdUsesScoreTargets,
   findFirstIncompleteChordOsmdTarget,
+  hasChordOsmdJudgmentWindowExpired,
+  isPhraseTimeInChordOsmdJudgmentWindow,
   joinScoreLyricVerseTexts,
   normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
@@ -875,5 +877,19 @@ describe('areAllChordOsmdTargetsCompleted', () => {
     expect(areAllChordOsmdTargetsCompleted(targets, id => completed.has(id))).toBe(false);
     completed.add('b');
     expect(areAllChordOsmdTargetsCompleted(targets, id => completed.has(id))).toBe(true);
+  });
+});
+
+describe('chord osmd asymmetric judgment window', () => {
+  it('早め250ms・遅れ300msの非対称窓で入力を受け付ける', () => {
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.3, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.301, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.25, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.251, 0)).toBe(false);
+  });
+
+  it('遅れミスはターゲット+300ms超過で確定', () => {
+    expect(hasChordOsmdJudgmentWindowExpired(0.3, 0)).toBe(false);
+    expect(hasChordOsmdJudgmentWindowExpired(0.301, 0)).toBe(true);
   });
 });

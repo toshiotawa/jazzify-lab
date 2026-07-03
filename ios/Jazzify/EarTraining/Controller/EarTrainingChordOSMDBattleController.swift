@@ -7,15 +7,17 @@ import os.log
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
 final class EarTrainingChordOSMDBattleController: ObservableObject {
-    /// ターゲット時刻を中心に前後これだけ秒（±250ms）。超過でミス確定。
-    private static let judgmentWindowSec: Double = 0.25
+    /// ターゲットより早い入力の受付幅（250ms）。
+    private static let judgmentWindowEarlySec: Double = 0.25
+    /// ターゲットより遅い入力の受付幅・遅れミス確定（300ms）。
+    private static let judgmentWindowLateSec: Double = 0.3
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
     private static let osmdVoicingHintStrongSec: Double = 0.03
     private static let osmdVoicingHintMediumSec: Double = 0.07
     private static let hammerLeadSec: Double = 2.4
     /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
-    private static let hammerImpactOffsetSec: Double = 0.25
+    private static let hammerImpactOffsetSec: Double = 0.3
     private static let effectClearPaddingMs: Double = 420
     /// 正解連打時の statusText 更新間隔（SwiftUI 再描画抑制）
     private static let statusTextThrottleSec: Double = 0.4
@@ -391,13 +393,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         handleAudioTimeUpdate(currentTime: phraseTime)
         compactActiveTargets()
 
-        let judgmentWindow = resolveEffectiveTimingWindowSec(Self.judgmentWindowSec)
+        let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
+        let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
         var matchedIndex: Int?
         for index in targets.indices {
             guard targets[index].completed == false, targets[index].failed == false else { continue }
             let judged = resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
             let delta = phraseTime - judged
-            guard delta >= -judgmentWindow, delta <= judgmentWindow else { continue }
+            guard delta >= -judgmentWindowEarly, delta <= judgmentWindowLate else { continue }
             if targets[index].consume(midi: midi) {
                 matchedIndex = index
                 break
@@ -847,7 +850,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         guard gameState == .playingPhrase else { return }
         let phrase = phrases[phraseIndex]
         let lastTargetEnd = resolveCalibratedTargetTimeSec(targets.last?.targetTimeSec ?? 0)
-            + resolveEffectiveTimingWindowSec(Self.judgmentWindowSec) + Self.hammerImpactOffsetSec
+            + resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec) + Self.hammerImpactOffsetSec
         let scaledLoopDuration = EarTrainingPracticeSpeed.scalePracticePhraseLoopEndSec(
             phrase.loopDurationSec,
             speedPercent: effectivePracticeSpeedPercent()
@@ -887,16 +890,19 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         } else {
             phraseTime = gameState == .countIn ? audio.phraseJudgmentTimelineSecNow() : max(0, audio.phraseJudgmentTimelineSecNow())
         }
-        let w = resolveEffectiveTimingWindowSec(Self.judgmentWindowSec)
+        let earlyW = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
+        let lateW = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
         var tierByMidi: [Int: Int] = [:]
         for target in targets {
             if target.completed || target.failed {
                 continue
             }
-            let dt = abs(phraseTime - resolveCalibratedTargetTimeSec(target.targetTimeSec))
-            if dt > w {
+            let judged = resolveCalibratedTargetTimeSec(target.targetTimeSec)
+            let delta = phraseTime - judged
+            if delta < -earlyW || delta > lateW {
                 continue
             }
+            let dt = abs(delta)
             let tier: Int
             if dt <= resolveEffectiveTimingWindowSec(Self.osmdVoicingHintStrongSec) {
                 tier = 0
@@ -956,10 +962,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func openJudgmentWindows(at time: Double) {
-        let judgmentWindow = resolveEffectiveTimingWindowSec(Self.judgmentWindowSec)
+        let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
         while nextActiveTargetIndex < targets.count {
             let target = targets[nextActiveTargetIndex]
-            guard time >= resolveCalibratedTargetTimeSec(target.targetTimeSec) - judgmentWindow else { break }
+            guard time >= resolveCalibratedTargetTimeSec(target.targetTimeSec) - judgmentWindowEarly else { break }
             activeTargetIndices.append(nextActiveTargetIndex)
             nextActiveTargetIndex += 1
         }
@@ -990,11 +996,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func failExpiredTargets(at time: Double) {
-        let judgmentWindow = resolveEffectiveTimingWindowSec(Self.judgmentWindowSec)
+        let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
         var changed = false
         while nextMissTargetIndex < targets.count {
             let target = targets[nextMissTargetIndex]
-            guard time > resolveCalibratedTargetTimeSec(target.targetTimeSec) + judgmentWindow else { break }
+            guard time > resolveCalibratedTargetTimeSec(target.targetTimeSec) + judgmentWindowLate else { break }
             if targets[nextMissTargetIndex].completed == false, targets[nextMissTargetIndex].failed == false {
                 targets[nextMissTargetIndex].failed = true
                 changed = true
@@ -1183,7 +1189,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func compactActiveTargets(currentTime: Double? = nil) {
-        let judgmentWindow = resolveEffectiveTimingWindowSec(Self.judgmentWindowSec)
+        let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
         var writeIndex = 0
         for index in activeTargetIndices {
             guard targets.indices.contains(index) else { continue }
@@ -1191,7 +1197,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             if target.completed || target.failed {
                 continue
             }
-            if let currentTime, currentTime > resolveCalibratedTargetTimeSec(target.targetTimeSec) + judgmentWindow {
+            if let currentTime, currentTime > resolveCalibratedTargetTimeSec(target.targetTimeSec) + judgmentWindowLate {
                 continue
             }
             activeTargetIndices[writeIndex] = index

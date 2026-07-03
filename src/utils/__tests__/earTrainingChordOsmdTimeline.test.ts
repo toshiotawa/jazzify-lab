@@ -12,7 +12,7 @@ import {
 import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_HAMMER_LEAD_SEC,
-  CHORD_OSMD_JUDGMENT_WINDOW_SEC,
+  CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
 } from '@/utils/earTrainingChordOsmd';
 
 const CBLUES_CI = 'https://jazzify-cdn.com/sozai/Cblues_24bars_100BPM_count-in.mp3';
@@ -65,7 +65,7 @@ describe('countChordOsmdHammersDueFromIndex', () => {
 describe('computeChordOsmdPhraseLoopEndSec', () => {
   it('ループ長と最終ターゲット終端の大きい方にパディングを足す', () => {
     const targets = [{ targetTimeSec: 57.6 }];
-    const lastEnd = 57.6 + CHORD_OSMD_JUDGMENT_WINDOW_SEC + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
+    const lastEnd = 57.6 + CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
     expect(computeChordOsmdPhraseLoopEndSec(60, targets)).toBeCloseTo(Math.max(60, lastEnd) + 0.08, 5);
   });
 });
