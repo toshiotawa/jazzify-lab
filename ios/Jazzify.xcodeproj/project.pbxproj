@@ -207,6 +207,7 @@
 		F2PRECC001ENG0202 /* EarTrainingPrecisionNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */; };
 		F2PRECC001ENG0302 /* EarTrainingPrecisionJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */; };
 		F2PRECC001ENG0402 /* EarTrainingPrecisionMidi.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0401 /* EarTrainingPrecisionMidi.swift */; };
+		F2PRECC001ENG0502 /* EarTrainingPrecisionAutoPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0501 /* EarTrainingPrecisionAutoPlay.swift */; };
 		F2PRECC001CON0502 /* EarTrainingPrecisionBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001CON0501 /* EarTrainingPrecisionBattleController.swift */; };
 		F2PRECC001VIE0602 /* EarTrainingPrecisionGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001VIE0601 /* EarTrainingPrecisionGameView.swift */; };
 		F2PRECC001VIE0702 /* PrecisionNotesCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001VIE0701 /* PrecisionNotesCanvasView.swift */; };
@@ -432,6 +433,7 @@
 		F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionNotes.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionJudge.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0401 /* EarTrainingPrecisionMidi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionMidi.swift; sourceTree = "<group>"; };
+		F2PRECC001ENG0501 /* EarTrainingPrecisionAutoPlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionAutoPlay.swift; sourceTree = "<group>"; };
 		F2PRECC001CON0501 /* EarTrainingPrecisionBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionBattleController.swift; sourceTree = "<group>"; };
 		F2PRECC001VIE0601 /* EarTrainingPrecisionGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionGameView.swift; sourceTree = "<group>"; };
 		F2PRECC001VIE0701 /* PrecisionNotesCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrecisionNotesCanvasView.swift; sourceTree = "<group>"; };
@@ -651,6 +653,7 @@
 				F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */,
 				F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */,
 				F2PRECC001ENG0401 /* EarTrainingPrecisionMidi.swift */,
+				F2PRECC001ENG0501 /* EarTrainingPrecisionAutoPlay.swift */,
 				3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */,
 				KBDSC001E2606031400000001 /* EarTrainingKeyboardScroll.swift */,
 			);
@@ -1277,6 +1280,7 @@
 				F2PRECC001VIE0602 /* EarTrainingPrecisionGameView.swift in Sources */,
 				F2PRECC001CON0502 /* EarTrainingPrecisionBattleController.swift in Sources */,
 				F2PRECC001ENG0402 /* EarTrainingPrecisionMidi.swift in Sources */,
+				F2PRECC001ENG0502 /* EarTrainingPrecisionAutoPlay.swift in Sources */,
 				F2PRECC001ENG0302 /* EarTrainingPrecisionJudge.swift in Sources */,
 				F2PRECC001ENG0202 /* EarTrainingPrecisionNotes.swift in Sources */,
 				F2PRECC001ENG0102 /* EarTrainingSmfBinary.swift in Sources */,
