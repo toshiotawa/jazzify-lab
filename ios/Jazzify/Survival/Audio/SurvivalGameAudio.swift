@@ -35,6 +35,9 @@ private enum PeakLimiterParameter {
 final class SurvivalGameAudio {
     static let shared = SurvivalGameAudio()
 
+    /// 画面キャプチャ遷移後の AVAudioSession 再構成完了。EarTrainingAudio 等の共有セッション利用側が追随する。
+    static let didReconfigureForCaptureNotification = Notification.Name("SurvivalGameAudio.didReconfigureForCapture")
+
     /// SE 種別 (WEB 版 `FantasySoundManager` の代表ケース)
     enum SoundEffect {
         case myAttack
@@ -636,8 +639,14 @@ final class SurvivalGameAudio {
         DispatchQueue.main.asyncAfter(deadline: .now() + kCaptureReconfigureDelay, execute: work)
     }
 
-    /// キャプチャ遷移後: セッション再適用 → エンジン stop/start → BGM 復帰。
+    /// キャプチャ遷移後: セッション再適用 → エンジン stop/start → BGM 復帰 → 完了通知。
     private func reconfigureAfterScreenCaptureTransition() {
+        // 共有 AVAudioSession は Ear Training 等でも使うため、常に再構成してから通知する。
+        configureAudioSession(force: true)
+        defer {
+            NotificationCenter.default.post(name: Self.didReconfigureForCaptureNotification, object: self)
+        }
+
         guard !isStopping else { return }
         guard isEngineStarted || currentBgmUrl != nil || isPianoPrepared else { return }
 
@@ -651,7 +660,6 @@ final class SurvivalGameAudio {
         }
         isEngineStarted = false
 
-        configureAudioSession(force: true)
         startEngineIfNeeded()
 
         if wasBgmPlaying || currentBgmUrl != nil {

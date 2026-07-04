@@ -258,12 +258,6 @@ enum EarTrainingPrecisionNotes {
         return max(0.05, quarters * beatDurationSec)
     }
 
-    private static func durationSecFromDivisions(durationDivisions: Double, divisions: Int, bpm: Int) -> Double {
-        let beatDurationSec = 60.0 / Double(max(1, bpm))
-        let quarters = durationDivisions / Double(max(1, divisions))
-        return max(0.05, quarters * beatDurationSec)
-    }
-
     private static func resolvePrecisionNoteTimingSec(
         measureNumber: Int,
         beatStartInMeasure: Double,

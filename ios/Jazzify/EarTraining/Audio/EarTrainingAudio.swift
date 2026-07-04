@@ -93,9 +93,6 @@ final class EarTrainingAudio: NSObject {
     private static let fireSeBaseGain: Float = 0.45
     /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
     private static let masterHeadroomGain: Float = 0.7
-    /// 画面キャプチャ遷移後、オーディオ経路が落ち着くまで待つ秒数（SurvivalGameAudio と同一）。
-    private static let captureReconfigureDelay: TimeInterval = 0.15
-    /// Apple AUPeakLimiter の AudioUnit パラメータ ID（AudioUnit/AUParameters.h）。
     private enum PeakLimiterParameter {
         static let attackTime: AudioUnitParameterID = 0
         static let decayTime: AudioUnitParameterID = 1
@@ -130,8 +127,7 @@ final class EarTrainingAudio: NSObject {
 
     private var engineConfigObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
-    private var captureObserver: NSObjectProtocol?
-    private var captureReconfigureWorkItem: DispatchWorkItem?
+    private var survivalCaptureObserver: NSObjectProtocol?
 
     /// `schedulePreparedPhraseWithCountIn` でフレーズ `scheduleFile` した頭のホスト時刻。
     /// 非ゼロの間は `playerTime.sampleTime` ではなくアンカー差分から `currentTimeSec` を出す。
@@ -154,10 +150,9 @@ final class EarTrainingAudio: NSObject {
         if let foregroundObserver {
             NotificationCenter.default.removeObserver(foregroundObserver)
         }
-        if let captureObserver {
-            NotificationCenter.default.removeObserver(captureObserver)
+        if let survivalCaptureObserver {
+            NotificationCenter.default.removeObserver(survivalCaptureObserver)
         }
-        captureReconfigureWorkItem?.cancel()
         stopTimeTicker()
         if engine.isRunning {
             engine.stop()
@@ -734,6 +729,7 @@ final class EarTrainingAudio: NSObject {
     private func startPhraseEngineIfNeeded() {
         guard !engine.isRunning else { return }
         do {
+            engine.prepare()
             try engine.start()
             isPhraseEngineRunning = true
             phraseMixer.outputVolume = phraseVolume
@@ -761,25 +757,16 @@ final class EarTrainingAudio: NSObject {
         ) { [weak self] _ in
             self?.resumePhraseEngineAfterForeground()
         }
-        captureObserver = center.addObserver(
-            forName: UIScreen.capturedDidChangeNotification,
+        survivalCaptureObserver = center.addObserver(
+            forName: SurvivalGameAudio.didReconfigureForCaptureNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleScreenCaptureChange()
-        }
-    }
-
-    /// 画面録画 ON/OFF 時にフレーズエンジンを clean restart する（共有セッションは SurvivalGameAudio が再構成）。
-    private func handleScreenCaptureChange() {
-        captureReconfigureWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in
             self?.reconfigureAfterScreenCaptureTransition()
         }
-        captureReconfigureWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.captureReconfigureDelay, execute: work)
     }
 
+    /// 画面録画 ON/OFF 後、SurvivalGameAudio の共有セッション再構成完了を受けてフレーズエンジンを clean restart する。
     private func reconfigureAfterScreenCaptureTransition() {
         guard isPhraseEngineRunning || isDrumLoopActive || phrasePlayer.isPlaying else { return }
 
@@ -790,9 +777,26 @@ final class EarTrainingAudio: NSObject {
         }
         isPhraseEngineRunning = false
 
+        reconnectGraphAfterCaptureTransition()
         startPhraseEngineIfNeeded()
         if resumeDrum {
             startDrumLoop()
+        }
+    }
+
+    /// 画面キャプチャ遷移後にキャッシュ済み format 接続を強制再適用する。
+    private func reconnectGraphAfterCaptureTransition() {
+        if let phraseFormat = lastPhraseFormat {
+            lastPhraseFormat = nil
+            ensureGraph(for: phraseFormat)
+        }
+        if let drumFormat = lastDrumFormat {
+            lastDrumFormat = nil
+            ensureDrumGraph(for: drumFormat)
+        }
+        if let fireSeFormat = lastFireSeFormat {
+            lastFireSeFormat = nil
+            ensureFireSeGraph(for: fireSeFormat)
         }
     }
 
