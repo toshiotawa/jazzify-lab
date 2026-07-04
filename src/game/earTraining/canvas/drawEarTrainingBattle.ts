@@ -843,8 +843,9 @@ const drawEffectVisual = (
 ): void => {
   if (now < visual.startedAt) return;
   const t = getEffectProgress(visual, now);
-  const x = lerp(visual.fromX, visual.toX, easeCubicIn(t));
-  const y = lerp(visual.fromY, visual.toY, easeCubicIn(t));
+  const positionEase = visual.kind === 'hammer' ? easeLinear : easeCubicIn;
+  const x = lerp(visual.fromX, visual.toX, positionEase(t));
+  const y = lerp(visual.fromY, visual.toY, positionEase(t));
   let size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
   let alpha = visual.alpha;
   if (visual.kind === 'thinRing') {
