@@ -1239,6 +1239,84 @@ const scoreTargetId = (measureNumber: number, beatStartInMeasure: number): strin
   `score:${measureNumber}:${beatStartInMeasure.toFixed(4)}`
 );
 
+/** MIDI / 絶対時刻から小節番号を推定（譜面スクロール用） */
+export const chordOsmdMeasureNumberFromTimeSec = (
+  startSec: number,
+  bpm: number,
+  beatsPerMeasure: number,
+): number => {
+  const beatDurationSec = 60 / Math.max(1, bpm);
+  const measureDurationSec = beatDurationSec * Math.max(1, beatsPerMeasure);
+  if (!(measureDurationSec > 0) || !Number.isFinite(startSec)) {
+    return 1;
+  }
+  return Math.max(1, Math.floor(Math.max(0, startSec) / measureDurationSec + SAME_TARGET_EPSILON_SEC) + 1);
+};
+
+export interface ChordOsmdMidiNoteLike {
+  midi: number;
+  startSec: number;
+}
+
+/**
+ * MIDI 由来ノーツを同一 startSec クラスタにまとめ、OSMD リズムターゲットにする。
+ * `midi_url` があるフレーズでは MusicXML 譜面より優先する。
+ */
+export const buildChordOsmdRhythmTargetsFromMidiNotes = (
+  notes: readonly ChordOsmdMidiNoteLike[],
+  bpm: number,
+  beatsPerMeasure: number,
+  measureLabels?: ReadonlyMap<number, string>,
+): ChordOsmdRhythmTarget[] => {
+  if (notes.length === 0) {
+    return [];
+  }
+
+  const sorted = notes
+    .filter(note => Number.isFinite(note.midi) && Number.isFinite(note.startSec))
+    .slice()
+    .sort((a, b) => {
+      if (Math.abs(a.startSec - b.startSec) > SAME_TARGET_EPSILON_SEC) {
+        return a.startSec - b.startSec;
+      }
+      return a.midi - b.midi;
+    });
+
+  if (sorted.length === 0) {
+    return [];
+  }
+
+  const clusters: Array<{ startSec: number; counts: Map<number, number> }> = [];
+  for (const note of sorted) {
+    const midi = Math.round(note.midi);
+    const last = clusters[clusters.length - 1];
+    if (last && Math.abs(last.startSec - note.startSec) <= SAME_TARGET_EPSILON_SEC) {
+      last.counts.set(midi, (last.counts.get(midi) ?? 0) + 1);
+      continue;
+    }
+    clusters.push({
+      startSec: note.startSec,
+      counts: new Map([[midi, 1]]),
+    });
+  }
+
+  return clusters.map((cluster, orderIndex) => {
+    const measureNumber = chordOsmdMeasureNumberFromTimeSec(
+      cluster.startSec,
+      bpm,
+      beatsPerMeasure,
+    );
+    return {
+      id: `midi:${cluster.startSec.toFixed(4)}`,
+      label: measureLabels?.get(measureNumber) ?? '—',
+      orderIndex,
+      targetTimeSec: cluster.startSec,
+      measureNumber,
+      midiCounts: midiCountArray(cluster.counts),
+    };
+  });
+};
+
 const buildChordOsmdRhythmTargetsFromScore = (
   phrase: EarTrainingPhrase,
   bpm: number,
@@ -1302,9 +1380,23 @@ export const buildChordOsmdRhythmTargets = (
   attacks?: readonly ChordOsmdMusicXmlAttack[] | null,
   fromScore = false,
   transposeOffset = 0,
+  midiNotes?: readonly ChordOsmdMidiNoteLike[] | null,
 ): ChordOsmdRhythmTarget[] => {
   if (!phrase) {
     return [];
+  }
+
+  if (midiNotes && midiNotes.length > 0) {
+    const measureLabels = buildPlayableMeasureLabels(phrase.chords ?? [], transposeOffset);
+    const fromMidi = buildChordOsmdRhythmTargetsFromMidiNotes(
+      midiNotes,
+      bpm,
+      beatsPerMeasure,
+      measureLabels,
+    );
+    if (fromMidi.length > 0) {
+      return fromMidi;
+    }
   }
 
   if (fromScore && attacks && attacks.length > 0) {

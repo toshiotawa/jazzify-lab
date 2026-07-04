@@ -17,6 +17,7 @@ import {
   computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
+  computeOsmdReachEndJumpScrollOffset,
   computeOsmdWindowFitScale,
   computeOsmdWindowJumpScrollOffset,
   type OsmdMeasureBounds,
@@ -248,6 +249,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const layoutRef = useRef<OsmdLayout>(EMPTY_LAYOUT);
   const [mobileLandscapeOsmdShrink, setMobileLandscapeOsmdShrink] = useState(false);
   const pendingPlayheadSyncRef = useRef<OsmdPlayheadSyncParams | null>(null);
+  const precisionWindowStartRef = useRef(1);
 
   const activeMeasureBounds = layout.measureBoundsByNumber[Math.max(1, Math.floor(activeMeasureNumber))]
     ?? layout.measureBoundsByNumber[1];
@@ -270,7 +272,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       maxMeasureNumber,
       viewportWidth: viewportWidthPx,
       minVisibleMeasures: scrollLayout.fitWindow.minVisibleMeasures,
-      stepMeasures: scrollLayout.fitWindow.stepMeasures,
     })
     : computeOsmdEffectiveScaleForMeasure({
       cssScale: cssScaleForLayout,
@@ -490,7 +491,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
     const viewportHeight = viewportEl.clientHeight;
     const aggressiveShrink = maxStaff >= 2;
-    const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.72 : 0.94));
+    const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.78 : 0.98));
     const { el: surfaceEl, height: measuredBeforeScale } = readSurface();
     const nextCssScale =
       measuredBeforeScale > targetHeight && measuredBeforeScale > 0
@@ -571,7 +572,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       };
 
       const aggressiveShrink = maxStaff >= 2;
-      const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.72 : 0.94));
+      const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.78 : 0.98));
       const { el: surfaceEl, height: measuredBeforeScale } = readSurface();
       const nextCssScale =
         measuredBeforeScale > targetHeight && measuredBeforeScale > 0
@@ -655,6 +656,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   }, []);
 
   useEffect(() => {
+    precisionWindowStartRef.current = 1;
     void renderScore();
     return () => {
       osmdRef.current?.clear();
@@ -669,17 +671,33 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       return;
     }
     resetManualScroll();
-    const { offsetPx } = scrollLayout.fitWindow
-      ? computeOsmdWindowJumpScrollOffset({
+    let offsetPx = 0;
+    if (scrollLayout.fitWindow) {
+      ({ offsetPx } = computeOsmdWindowJumpScrollOffset({
         activeMeasureNumber,
         measureBoundsByNumber: layout.measureBoundsByNumber,
         measureCentersByNumber: layout.measureCentersByNumber,
         effectiveScale,
         scoreWidth: layout.scoreWidth,
         viewportWidth: viewport.clientWidth,
-        stepMeasures: scrollLayout.fitWindow.stepMeasures,
-      })
-      : computeOsmdMeasureJumpScrollOffset({
+        visibleMeasures: scrollLayout.fitWindow.minVisibleMeasures,
+      }));
+    } else if (scrollLayout.fitActiveMeasureWidth) {
+      const reachEnd = computeOsmdReachEndJumpScrollOffset({
+        activeMeasureNumber,
+        previousWindowStart: precisionWindowStartRef.current,
+        measureBoundsByNumber: layout.measureBoundsByNumber,
+        measureCentersByNumber: layout.measureCentersByNumber,
+        cssScale: cssScaleForLayout,
+        playheadPx: scrollLayout.playheadPx,
+        scoreWidth: layout.scoreWidth,
+        viewportWidth: viewport.clientWidth,
+        maxMeasureNumber,
+      });
+      precisionWindowStartRef.current = reachEnd.windowStartMeasure;
+      offsetPx = reachEnd.offsetPx;
+    } else {
+      ({ offsetPx } = computeOsmdMeasureJumpScrollOffset({
         activeMeasureNumber,
         measureBoundsByNumber: layout.measureBoundsByNumber,
         measureCentersByNumber: layout.measureCentersByNumber,
@@ -688,7 +706,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         scoreWidth: layout.scoreWidth,
         viewportWidth: viewport.clientWidth,
         anchorToMeasureLeft: scrollLayout.anchorToMeasureLeft,
-      });
+      }));
+    }
     scrollOffsetPxRef.current = offsetPx;
     applyScoreTransform(offsetPx, 0);
     setScrollOffsetPx(offsetPx);
@@ -720,6 +739,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     scrollActive,
     scrollLayout,
     useImperativePlayhead,
+    cssScaleForLayout,
+    maxMeasureNumber,
   ]);
 
   const statusText = renderError ?? scoreErrorText;
@@ -832,7 +853,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         'ear-training-osmd-score overflow-hidden',
         fillParent
           ? 'absolute inset-0 h-full w-full'
-          : 'pointer-events-none absolute left-1/2 top-[42%] h-[min(280px,42vh)] w-[96vw] max-w-[96vw] -translate-x-1/2 -translate-y-1/2',
+          : 'pointer-events-none absolute left-1/2 top-[36%] h-[min(360px,52vh)] w-[98vw] max-w-[98vw] -translate-x-1/2 -translate-y-1/2',
         !fillParent && scoreZClassName,
         fillParent && 'z-0 bg-transparent',
         hidden && 'invisible',

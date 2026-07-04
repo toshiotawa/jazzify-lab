@@ -289,7 +289,7 @@ private struct EarTrainingPrecisionGameContent: View {
             EarTrainingChordOsmdMusicXmlNormalizer.detectMaxStaffLayersFromMusicXmlString($0)
         } ?? 1
         let multiStaff = maxStaffFromXml >= 2
-        let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
+        let osmdZoom: Double = isPhone ? (multiStaff ? 0.48 : 0.72) : 0.85
 
         ZStack {
             if let musicXMLText = controller.musicXMLText {
@@ -461,7 +461,7 @@ private struct EarTrainingPrecisionGameContent: View {
 enum EarTrainingPrecisionScorePreferences {
     private static let scoreBandHeightKey = "earTraining.precision.scoreBandHeightPx"
     private static let scoreBandHeightStepKey = "earTraining.precision.scoreBandHeightStep"
-    private static let scoreBandHeightTable: [CGFloat] = [96, 112, 128, 160, 192]
+    private static let scoreBandHeightTable: [CGFloat] = [96, 112, 128, 144, 160, 192, 208]
 
     static let minBandHeight: CGFloat = 96
 
@@ -487,7 +487,7 @@ enum EarTrainingPrecisionScorePreferences {
     }
 
     static func preferredHeight(multiStaff: Bool) -> CGFloat {
-        multiStaff ? 192 : 128
+        multiStaff ? 208 : 144
     }
 
     static func initialHeight() -> CGFloat {

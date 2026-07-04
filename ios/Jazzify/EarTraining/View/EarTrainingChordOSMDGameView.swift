@@ -321,9 +321,11 @@ private struct EarTrainingChordOSMDContent: View {
 
     @ViewBuilder
     private func scoreOverlay(size: CGSize) -> some View {
-        let outerWidth = size.width * 0.95
-        let baseHeight = min(size.height * 0.48, 280)
-        let outerHeight = min(size.height * 0.68, max(size.height * 0.26, baseHeight))
+        let leftInset = hudHorizontalPadding
+        let outerWidth = (size.width - leftInset) * 0.98
+        let centerY = size.height * 0.36
+        let baseHeight = min(size.height * 0.55, 360)
+        let outerHeight = min(size.height * 0.72, max(size.height * 0.26, baseHeight))
 
         // OSMD コンテナ高さに収めるためのベースズーム。WebView 側でレンダー後に高さを測り、
         // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
@@ -334,7 +336,7 @@ private struct EarTrainingChordOSMDContent: View {
         } ?? 1
         let maxStaffLayersForZoom = max(controller.musicXMLMaxStaffLayers, maxStaffFromXml)
         let multiStaff = maxStaffLayersForZoom >= 2
-        let osmdZoom: Double = isPhone ? (multiStaff ? 0.4 : 0.6) : 0.85
+        let osmdZoom: Double = isPhone ? (multiStaff ? 0.48 : 0.72) : 0.85
 
         ZStack {
             ZStack {
@@ -375,7 +377,7 @@ private struct EarTrainingChordOSMDContent: View {
             .clipped()
             .allowsHitTesting(false)
         }
-        .position(x: size.width / 2, y: size.height * 0.42)
+        .position(x: leftInset + outerWidth / 2, y: centerY)
     }
 
     private static func resolveHudHorizontalPadding() -> CGFloat {

@@ -22,8 +22,8 @@ describe('earTrainingBattleLayout staff band', () => {
 
   it('computes OSMD reserved bottom from center ratio and height cap', () => {
     const height = 800;
-    const bandHeight = Math.min(280, height * 0.42);
-    const expected = height * 0.42 + bandHeight / 2 + STAFF_RESERVED_MARGIN_PX;
+    const bandHeight = Math.min(360, height * 0.52);
+    const expected = height * 0.36 + bandHeight / 2 + STAFF_RESERVED_MARGIN_PX;
     expect(resolveStaffReservedBottomY(height, 1024, EAR_TRAINING_OSMD_STAFF_BAND)).toBe(expected);
   });
 

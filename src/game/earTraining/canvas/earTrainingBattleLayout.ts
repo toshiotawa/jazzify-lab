@@ -5,10 +5,10 @@ export const PIANO_OVERLAY_HEIGHT = 88;
 export const HUD_HEIGHT = 150;
 export const PHRASE_INTRO_FADE_MS = 2600;
 export const PHRASE_INTRO_EMPHASIS_FADE_MS = 3900;
-export const FLOOR_CLEARANCE_FROM_PIANO = 100;
-export const CHARACTER_DISPLAY_SIZE = 116;
-export const CHARACTER_SHADOW_WIDTH = 104;
-export const CHARACTER_SHADOW_HEIGHT = 22;
+export const FLOOR_CLEARANCE_FROM_PIANO = 56;
+export const CHARACTER_DISPLAY_SIZE = 96;
+export const CHARACTER_SHADOW_WIDTH = 86;
+export const CHARACTER_SHADOW_HEIGHT = 18;
 export const PLAYER_QUOTE_PAD_X = 10;
 export const PLAYER_QUOTE_PAD_Y = 6;
 export const PLAYER_QUOTE_CORNER_RADIUS = 8;
@@ -21,9 +21,9 @@ export const DEMO_BUBBLE_ORIGIN_Y = 0.72;
 
 /** OSMD 譜面 overlay と揃える */
 export const EAR_TRAINING_OSMD_STAFF_BAND: EarTrainingStaffBandConfig = {
-  centerRatio: 0.42,
-  heightRatio: 0.42,
-  heightMaxPx: 280,
+  centerRatio: 0.36,
+  heightRatio: 0.52,
+  heightMaxPx: 360,
 };
 
 export const createEarTrainingChordVoicingStaffBand = (
@@ -174,7 +174,7 @@ export const getEnemyAttackGaugePosition = (width: number, height: number): { x:
   const floorY = getFloorY(height);
   return {
     x: width * 0.77,
-    y: Math.max(HUD_HEIGHT + 12, floorY - 166),
+    y: Math.max(HUD_HEIGHT + 12, floorY - 128),
   };
 };
 

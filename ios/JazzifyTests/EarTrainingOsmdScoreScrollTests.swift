@@ -145,17 +145,62 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         XCTAssertEqual(highlight.widthPx, 120)
     }
 
+    func testWindowStartMeasureNumber_usesLastVisibleMeasureStride() {
+        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 3, visibleMeasures: 4), 1)
+        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 4, visibleMeasures: 4), 4)
+        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 2, visibleMeasures: 3), 1)
+        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 3, visibleMeasures: 3), 3)
+    }
+
+    func testPrecisionMeasureJumpScrollOffset_keepsOffsetUntilLastVisibleMeasure() {
+        let uniformBounds: [Int: EarTrainingOsmdScoreScroll.MeasureBounds] = [
+            1: .init(left: 0, right: 100),
+            2: .init(left: 100, right: 200),
+            3: .init(left: 200, right: 300),
+            4: .init(left: 300, right: 400),
+        ]
+        let uniformCenters: [Int: CGFloat] = [1: 50, 2: 150, 3: 250, 4: 350]
+
+        let m2 = EarTrainingOsmdScoreScroll.precisionMeasureJumpScrollOffset(
+            activeMeasureNumber: 2,
+            previousWindowStart: 1,
+            measureBoundsByNumber: uniformBounds,
+            measureCentersByNumber: uniformCenters,
+            cssScale: 1,
+            scoreWidth: 500,
+            viewportWidth: 400,
+            maxMeasureNumber: 4
+        )
+        XCTAssertEqual(m2.offsetPx, 0)
+        XCTAssertEqual(m2.windowStartMeasure, 1)
+
+        let m4 = EarTrainingOsmdScoreScroll.precisionMeasureJumpScrollOffset(
+            activeMeasureNumber: 4,
+            previousWindowStart: m2.windowStartMeasure,
+            measureBoundsByNumber: uniformBounds,
+            measureCentersByNumber: uniformCenters,
+            cssScale: 1,
+            scoreWidth: 800,
+            viewportWidth: 400,
+            maxMeasureNumber: 4
+        )
+        XCTAssertEqual(m4.windowStartMeasure, 4)
+        XCTAssertEqual(m4.offsetPx, 300)
+    }
+
     func testPrecisionMeasureJumpScrollOffset_alignsMeasureLeftToContainerEdge() {
         let scroll = EarTrainingOsmdScoreScroll.precisionMeasureJumpScrollOffset(
             activeMeasureNumber: 1,
+            previousWindowStart: 1,
             measureBoundsByNumber: bounds,
             measureCentersByNumber: centers,
             cssScale: 1,
             scoreWidth: 500,
-            viewportWidth: 400
+            viewportWidth: 400,
+            maxMeasureNumber: 4
         )
         XCTAssertEqual(scroll.xPos, 10)
-        XCTAssertEqual(scroll.offsetPx, 10)
+        XCTAssertEqual(scroll.offsetPx, 0)
 
         let highlight = EarTrainingOsmdScoreScroll.activeMeasureHighlight(
             EarTrainingOsmdScoreScroll.ActiveMeasureHighlightInput(
@@ -166,7 +211,7 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
                 scrollOffsetPx: scroll.offsetPx
             )
         )
-        XCTAssertEqual(highlight.leftPx, 0)
+        XCTAssertEqual(highlight.leftPx, 10)
     }
 
     func testPrecisionMeasureJumpScrollOffset_fitsWideMeasureIntoViewport() {
@@ -175,11 +220,13 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         ]
         let scroll = EarTrainingOsmdScoreScroll.precisionMeasureJumpScrollOffset(
             activeMeasureNumber: 1,
+            previousWindowStart: 1,
             measureBoundsByNumber: wideBounds,
             measureCentersByNumber: [1: 250],
             cssScale: 1,
             scoreWidth: 800,
-            viewportWidth: 400
+            viewportWidth: 400,
+            maxMeasureNumber: 1
         )
         let expectedScale = EarTrainingOsmdScoreScroll.effectiveScaleForMeasure(
             cssScale: 1,

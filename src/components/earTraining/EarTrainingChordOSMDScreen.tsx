@@ -30,11 +30,15 @@ import {
 } from '@/utils/MidiController';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
+  fetchEarTrainingMidi,
+  getCachedEarTrainingMidi,
   getCachedEarTrainingMusicXml,
   prefetchEarTrainingLobbyAssetsFromStage,
   prefetchEarTrainingMusicXml,
+  storeEarTrainingMidi,
   storeEarTrainingMusicXml,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
+import { buildPrecisionNotesFromMidi } from '@/utils/earTrainingPrecisionMidi';
 import {
   preloadBattleCountInClick,
   preloadBattleGmPiano,
@@ -285,6 +289,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const gameStateRef = useRef<EarTrainingGameState>('idle');
   const phraseIndexRef = useRef(0);
   const phraseRunIdRef = useRef(0);
+  const baseMidiDataRef = useRef<Uint8Array | null>(null);
+  const [midiLoadToken, setMidiLoadToken] = useState(0);
   const enemyHpRef = useRef(stage.enemy_hp);
   const playerHpRef = useRef(stage.player_hp);
   const targetsRef = useRef<ChordOsmdRhythmTarget[]>([]);
@@ -749,13 +755,61 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
   }, [isEnglishCopy, practiceTransposeEnabled]);
 
+  const loadMidiData = useCallback(async (
+    phrase: EarTrainingPhrase,
+    runId: number,
+  ): Promise<Uint8Array | null> => {
+    const rawUrl = phrase.midi_url?.trim();
+    if (!rawUrl) {
+      baseMidiDataRef.current = null;
+      setMidiLoadToken(token => token + 1);
+      return null;
+    }
+    const cached = getCachedEarTrainingMidi(rawUrl);
+    if (cached) {
+      baseMidiDataRef.current = cached;
+      setMidiLoadToken(token => token + 1);
+      return cached;
+    }
+    try {
+      const data = await fetchEarTrainingMidi(rawUrl);
+      if (phraseRunIdRef.current !== runId) {
+        return null;
+      }
+      if (!data) {
+        baseMidiDataRef.current = null;
+        setMidiLoadToken(token => token + 1);
+        return null;
+      }
+      storeEarTrainingMidi(rawUrl, data);
+      baseMidiDataRef.current = data;
+      setMidiLoadToken(token => token + 1);
+      return data;
+    } catch {
+      baseMidiDataRef.current = null;
+      setMidiLoadToken(token => token + 1);
+      return null;
+    }
+  }, []);
+
+  const resolveMidiNotesForTargets = useCallback((transposeOffset: number) => {
+    const data = baseMidiDataRef.current;
+    if (!data) {
+      return null;
+    }
+    const { notes } = buildPrecisionNotesFromMidi(data, stage.bpm, transposeOffset);
+    return notes.map(note => ({ midi: note.midi, startSec: note.startSec }));
+  }, [stage.bpm]);
+
   useEffect(() => {
     if (gameState !== 'idle' || phrases.length === 0) {
       return undefined;
     }
-    void loadMusicXml(phrases[0], phraseRunIdRef.current);
+    const runId = phraseRunIdRef.current;
+    void loadMusicXml(phrases[0], runId);
+    void loadMidiData(phrases[0], runId);
     return undefined;
-  }, [gameState, loadMusicXml, phrases]);
+  }, [gameState, loadMidiData, loadMusicXml, phrases]);
 
   useEffect(() => {
     const firstPhrase = phrases[0];
@@ -770,6 +824,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         chordOsmdXmlAttacks,
         earTrainingOsmdUsesScoreTargets(stage),
         transposeOffset,
+        resolveMidiNotesForTargets(transposeOffset),
       );
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
@@ -778,10 +833,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [
     chordOsmdXmlAttacks,
     gameState,
+    midiLoadToken,
     phrases,
     practiceMode,
     practiceTransposeEnabled,
     practiceTransposeOffset,
+    resolveMidiNotesForTargets,
     stage,
     stage.bpm,
     stage.beats_per_measure,
@@ -1167,7 +1224,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     );
 
     void (async () => {
-      const xmlText = await loadMusicXml(phrase, runId);
+      const [xmlText] = await Promise.all([
+        loadMusicXml(phrase, runId),
+        loadMidiData(phrase, runId),
+      ]);
       if (phraseRunIdRef.current !== runId) {
         return;
       }
@@ -1183,6 +1243,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         attacks,
         earTrainingOsmdUsesScoreTargets(stage),
         transposeOffset,
+        resolveMidiNotesForTargets(transposeOffset),
       );
       if (phraseTargets.length === 0) {
         finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');
@@ -1346,15 +1407,19 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     finishCurrentPhrase,
     finishGameOver,
     isEnglishCopy,
+    loadMidiData,
     loadMusicXml,
     osmdSelfPaced,
     phrases,
+    practiceTransposeEnabled,
     resetPhraseRuntime,
+    resolveMidiNotesForTargets,
     settings.masterVolume,
     settings.musicVolume,
     resolveEffectivePracticeBpm,
     resolveEffectiveTimingWindowSec,
     stage.beats_per_measure,
+    stage.bpm,
     stage.count_in_beats,
     stage.loop_measures,
     practiceSpeedPercent,

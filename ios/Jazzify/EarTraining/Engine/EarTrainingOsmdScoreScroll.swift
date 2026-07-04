@@ -2,7 +2,6 @@ import CoreGraphics
 
 struct EarTrainingOsmdFitWindowConfig: Equatable {
     var minVisibleMeasures: Int
-    var stepMeasures: Int
 }
 
 struct EarTrainingOsmdScrollLayout: Equatable {
@@ -16,8 +15,7 @@ struct EarTrainingOsmdScrollLayout: Equatable {
         anchorToMeasureLeft: true,
         fitActiveMeasureWidth: false,
         fitWindow: EarTrainingOsmdFitWindowConfig(
-            minVisibleMeasures: EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS,
-            stepMeasures: EarTrainingOsmdScoreScroll.windowStepMeasures
+            minVisibleMeasures: EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS
         )
     )
     static let precision = EarTrainingOsmdScrollLayout(
@@ -33,7 +31,6 @@ enum EarTrainingOsmdScoreScroll {
     static let precisionMinFitScale: CGFloat = 0.35
     static let windowMinVisibleMeasuresWeb = 4
     static let windowMinVisibleMeasuresIOS = 3
-    static let windowStepMeasures = 2
     static let windowDenseFallbackScale: CGFloat = 0.5
     static let windowDenseFallbackMeasures = 2
 
@@ -67,6 +64,24 @@ enum EarTrainingOsmdScoreScroll {
         let xPos: CGFloat
     }
 
+    struct ReachEndJumpScrollInput: Equatable {
+        let activeMeasureNumber: Int
+        let previousWindowStart: Int
+        let measureBoundsByNumber: [Int: MeasureBounds]
+        let measureCentersByNumber: [Int: CGFloat]
+        let cssScale: CGFloat
+        let playheadPx: CGFloat
+        let scoreWidth: CGFloat
+        let viewportWidth: CGFloat
+        let maxMeasureNumber: Int
+    }
+
+    struct ReachEndJumpScrollResult: Equatable {
+        let offsetPx: CGFloat
+        let xPos: CGFloat
+        let windowStartMeasure: Int
+    }
+
     struct ActiveMeasureHighlightInput: Equatable {
         let activeMeasureNumber: Int
         let measureBoundsByNumber: [Int: MeasureBounds]
@@ -79,6 +94,16 @@ enum EarTrainingOsmdScoreScroll {
         let leftPx: CGFloat
         let widthPx: CGFloat
         let visible: Bool
+    }
+
+    static func windowStartMeasureNumber(
+        activeMeasureNumber: Int,
+        visibleMeasures: Int = windowMinVisibleMeasuresWeb
+    ) -> Int {
+        let measureNumber = max(1, activeMeasureNumber)
+        let safeVisible = max(2, visibleMeasures)
+        let stride = safeVisible - 1
+        return 1 + (measureNumber - 1) / stride * stride
     }
 
     static func resolveScrollAnchorX(
@@ -125,6 +150,78 @@ enum EarTrainingOsmdScoreScroll {
         return cssScale * clampedFit
     }
 
+    static func visibleMeasureCountFromWindowStart(
+        windowStartMeasure: Int,
+        measureBoundsByNumber: [Int: MeasureBounds],
+        effectiveScale: CGFloat,
+        viewportWidth: CGFloat,
+        maxMeasureNumber: Int
+    ) -> Int {
+        let windowStart = max(1, windowStartMeasure)
+        guard let startBounds = measureBoundsByNumber[windowStart],
+              viewportWidth > 0,
+              effectiveScale > 0 else {
+            return 1
+        }
+        let originX = startBounds.left * effectiveScale
+        var count = 0
+        for measureNumber in windowStart...maxMeasureNumber {
+            guard let bounds = measureBoundsByNumber[measureNumber] else {
+                break
+            }
+            let rightPx = bounds.right * effectiveScale - originX
+            if count > 0, rightPx > viewportWidth {
+                break
+            }
+            count += 1
+        }
+        return max(1, count)
+    }
+
+    static func reachEndJumpScrollOffset(_ input: ReachEndJumpScrollInput) -> ReachEndJumpScrollResult {
+        let activeMeasure = max(1, input.activeMeasureNumber)
+        let activeBounds = input.measureBoundsByNumber[activeMeasure] ?? input.measureBoundsByNumber[1]
+        let effectiveScale = effectiveScaleForMeasure(
+            cssScale: input.cssScale,
+            bounds: activeBounds,
+            viewportWidth: input.viewportWidth,
+            fitActiveMeasureWidth: true
+        )
+
+        var windowStart = max(1, input.previousWindowStart)
+        if activeMeasure < windowStart {
+            windowStart = activeMeasure
+        }
+
+        let visibleCount = visibleMeasureCountFromWindowStart(
+            windowStartMeasure: windowStart,
+            measureBoundsByNumber: input.measureBoundsByNumber,
+            effectiveScale: effectiveScale,
+            viewportWidth: input.viewportWidth,
+            maxMeasureNumber: input.maxMeasureNumber
+        )
+        let lastVisible = windowStart + visibleCount - 1
+
+        if activeMeasure >= lastVisible, activeMeasure > windowStart {
+            windowStart = activeMeasure
+        }
+
+        let anchorBounds = input.measureBoundsByNumber[windowStart] ?? input.measureBoundsByNumber[1]
+        let xPos = anchorBounds?.left
+            ?? input.measureCentersByNumber[windowStart]
+            ?? input.measureCentersByNumber[1]
+            ?? input.viewportWidth / 2
+
+        if windowStart == 1 {
+            return ReachEndJumpScrollResult(offsetPx: 0, xPos: xPos, windowStartMeasure: windowStart)
+        }
+
+        let maxOffset = max(0, input.scoreWidth * effectiveScale - input.viewportWidth)
+        let rawOffset = xPos * effectiveScale - input.playheadPx
+        let offsetPx = min(max(rawOffset, 0), maxOffset)
+        return ReachEndJumpScrollResult(offsetPx: offsetPx, xPos: xPos, windowStartMeasure: windowStart)
+    }
+
     static func countInPlayheadProgress(
         phraseTimelineSec: Double,
         countInDurationSec: Double
@@ -156,30 +253,25 @@ enum EarTrainingOsmdScoreScroll {
 
     static func precisionMeasureJumpScrollOffset(
         activeMeasureNumber: Int,
+        previousWindowStart: Int,
         measureBoundsByNumber: [Int: MeasureBounds],
         measureCentersByNumber: [Int: CGFloat],
         cssScale: CGFloat,
         scoreWidth: CGFloat,
-        viewportWidth: CGFloat
-    ) -> MeasureJumpScrollResult {
-        let measureNumber = max(1, activeMeasureNumber)
-        let bounds = measureBoundsByNumber[measureNumber] ?? measureBoundsByNumber[1]
-        let effectiveScale = effectiveScaleForMeasure(
-            cssScale: cssScale,
-            bounds: bounds,
-            viewportWidth: viewportWidth,
-            fitActiveMeasureWidth: true
-        )
-        return measureJumpScrollOffset(
-            MeasureJumpScrollInput(
+        viewportWidth: CGFloat,
+        maxMeasureNumber: Int
+    ) -> ReachEndJumpScrollResult {
+        reachEndJumpScrollOffset(
+            ReachEndJumpScrollInput(
                 activeMeasureNumber: activeMeasureNumber,
+                previousWindowStart: previousWindowStart,
                 measureBoundsByNumber: measureBoundsByNumber,
                 measureCentersByNumber: measureCentersByNumber,
+                cssScale: cssScale,
                 playheadPx: EarTrainingOsmdScrollLayout.precision.playheadPx,
-                effectiveScale: effectiveScale,
                 scoreWidth: scoreWidth,
                 viewportWidth: viewportWidth,
-                anchorToMeasureLeft: true
+                maxMeasureNumber: maxMeasureNumber
             )
         )
     }

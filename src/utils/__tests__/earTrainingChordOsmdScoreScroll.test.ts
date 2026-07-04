@@ -2,13 +2,13 @@ import {
   OSMD_BATTLE_PLAYHEAD_PX,
   OSMD_SCROLL_LAYOUT_PRECISION,
   OSMD_WINDOW_MIN_VISIBLE_MEASURES_WEB,
-  OSMD_WINDOW_STEP_MEASURES,
   clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
   computeOsmdCountInPlayheadProgress,
   computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
+  computeOsmdReachEndJumpScrollOffset,
   computeOsmdWindowFitScale,
   computeOsmdWindowJumpScrollOffset,
   computeOsmdWindowStartMeasureNumber,
@@ -29,12 +29,21 @@ const centers = {
 };
 
 describe('computeOsmdWindowStartMeasureNumber', () => {
-  it('2 小節単位で窓開始小節を返す', () => {
-    expect(computeOsmdWindowStartMeasureNumber(1)).toBe(1);
-    expect(computeOsmdWindowStartMeasureNumber(2)).toBe(1);
-    expect(computeOsmdWindowStartMeasureNumber(3)).toBe(3);
-    expect(computeOsmdWindowStartMeasureNumber(4)).toBe(3);
-    expect(computeOsmdWindowStartMeasureNumber(5)).toBe(5);
+  it('4 小節窓では最終表示小節到達時に窓開始小節を返す', () => {
+    expect(computeOsmdWindowStartMeasureNumber(1, 4)).toBe(1);
+    expect(computeOsmdWindowStartMeasureNumber(2, 4)).toBe(1);
+    expect(computeOsmdWindowStartMeasureNumber(3, 4)).toBe(1);
+    expect(computeOsmdWindowStartMeasureNumber(4, 4)).toBe(4);
+    expect(computeOsmdWindowStartMeasureNumber(5, 4)).toBe(4);
+    expect(computeOsmdWindowStartMeasureNumber(7, 4)).toBe(7);
+  });
+
+  it('3 小節窓（iOS）では小節 3 到達で窓開始 3', () => {
+    expect(computeOsmdWindowStartMeasureNumber(1, 3)).toBe(1);
+    expect(computeOsmdWindowStartMeasureNumber(2, 3)).toBe(1);
+    expect(computeOsmdWindowStartMeasureNumber(3, 3)).toBe(3);
+    expect(computeOsmdWindowStartMeasureNumber(4, 3)).toBe(3);
+    expect(computeOsmdWindowStartMeasureNumber(5, 3)).toBe(5);
   });
 });
 
@@ -56,7 +65,6 @@ describe('computeOsmdWindowFitScale', () => {
       maxMeasureNumber: 6,
       viewportWidth: 200,
       minVisibleMeasures: OSMD_WINDOW_MIN_VISIBLE_MEASURES_WEB,
-      stepMeasures: OSMD_WINDOW_STEP_MEASURES,
     })).toBe(0.5);
   });
 
@@ -74,45 +82,36 @@ describe('computeOsmdWindowFitScale', () => {
       maxMeasureNumber: 4,
       viewportWidth: 200,
       minVisibleMeasures: 4,
-      stepMeasures: 2,
     })).toBeCloseTo(0.667, 3);
   });
 });
 
 describe('computeOsmdWindowJumpScrollOffset', () => {
-  it('窓 1（小節 1-2）はオフセット 0', () => {
+  it('窓 1（小節 1-3）はオフセット 0', () => {
     expect(computeOsmdWindowJumpScrollOffset({
-      activeMeasureNumber: 2,
+      activeMeasureNumber: 3,
       measureBoundsByNumber: bounds,
       measureCentersByNumber: centers,
       effectiveScale: 1,
-      scoreWidth: 500,
+      scoreWidth: 700,
       viewportWidth: 400,
     })).toEqual({ offsetPx: 0, xPos: 10 });
   });
 
-  it('小節 3 到達で窓開始 3 の左端へジャンプする', () => {
+  it('小節 4 到達で窓開始 4 の左端へジャンプする', () => {
     const result = computeOsmdWindowJumpScrollOffset({
-      activeMeasureNumber: 3,
+      activeMeasureNumber: 4,
       measureBoundsByNumber: bounds,
       measureCentersByNumber: centers,
       effectiveScale: 1,
       scoreWidth: 700,
       viewportWidth: 400,
     });
-    expect(result.xPos).toBe(220);
-    expect(result.offsetPx).toBe(220);
+    expect(result.xPos).toBe(400);
+    expect(result.offsetPx).toBe(300);
   });
 
-  it('小節 4 も同じ窓（開始 3）のオフセット', () => {
-    const m3 = computeOsmdWindowJumpScrollOffset({
-      activeMeasureNumber: 3,
-      measureBoundsByNumber: bounds,
-      measureCentersByNumber: centers,
-      effectiveScale: 1,
-      scoreWidth: 700,
-      viewportWidth: 400,
-    });
+  it('小節 5 も同じ窓（開始 4）のオフセット', () => {
     const m4 = computeOsmdWindowJumpScrollOffset({
       activeMeasureNumber: 4,
       measureBoundsByNumber: bounds,
@@ -121,7 +120,15 @@ describe('computeOsmdWindowJumpScrollOffset', () => {
       scoreWidth: 700,
       viewportWidth: 400,
     });
-    expect(m4.offsetPx).toBe(m3.offsetPx);
+    const m5 = computeOsmdWindowJumpScrollOffset({
+      activeMeasureNumber: 5,
+      measureBoundsByNumber: bounds,
+      measureCentersByNumber: centers,
+      effectiveScale: 1,
+      scoreWidth: 700,
+      viewportWidth: 400,
+    });
+    expect(m5.offsetPx).toBe(m4.offsetPx);
   });
 });
 
@@ -439,6 +446,72 @@ describe('computeOsmdEffectiveScaleForMeasure', () => {
       fitActiveMeasureWidth: true,
       minFitScale: 0.35,
     })).toBeCloseTo(0.35, 5);
+  });
+});
+
+describe('computeOsmdReachEndJumpScrollOffset', () => {
+  const uniformBounds = {
+    1: { left: 0, right: 100 },
+    2: { left: 100, right: 200 },
+    3: { left: 200, right: 300 },
+    4: { left: 300, right: 400 },
+  };
+
+  it('窓内ではオフセット 0 を維持する', () => {
+    const m2 = computeOsmdReachEndJumpScrollOffset({
+      activeMeasureNumber: 2,
+      previousWindowStart: 1,
+      measureBoundsByNumber: uniformBounds,
+      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
+      cssScale: 1,
+      playheadPx: 0,
+      scoreWidth: 500,
+      viewportWidth: 400,
+      maxMeasureNumber: 4,
+    });
+    expect(m2.offsetPx).toBe(0);
+    expect(m2.windowStartMeasure).toBe(1);
+
+    const m3 = computeOsmdReachEndJumpScrollOffset({
+      activeMeasureNumber: 3,
+      previousWindowStart: m2.windowStartMeasure,
+      measureBoundsByNumber: uniformBounds,
+      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
+      cssScale: 1,
+      playheadPx: 0,
+      scoreWidth: 500,
+      viewportWidth: 400,
+      maxMeasureNumber: 4,
+    });
+    expect(m3.offsetPx).toBe(0);
+    expect(m3.windowStartMeasure).toBe(1);
+  });
+
+  it('最終表示小節到達で窓を進める', () => {
+    const m3 = computeOsmdReachEndJumpScrollOffset({
+      activeMeasureNumber: 3,
+      previousWindowStart: 1,
+      measureBoundsByNumber: uniformBounds,
+      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
+      cssScale: 1,
+      playheadPx: 0,
+      scoreWidth: 500,
+      viewportWidth: 400,
+      maxMeasureNumber: 4,
+    });
+    const m4 = computeOsmdReachEndJumpScrollOffset({
+      activeMeasureNumber: 4,
+      previousWindowStart: m3.windowStartMeasure,
+      measureBoundsByNumber: uniformBounds,
+      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
+      cssScale: 1,
+      playheadPx: 0,
+      scoreWidth: 800,
+      viewportWidth: 400,
+      maxMeasureNumber: 4,
+    });
+    expect(m4.windowStartMeasure).toBe(4);
+    expect(m4.offsetPx).toBe(300);
   });
 });
 

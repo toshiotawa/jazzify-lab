@@ -22,9 +22,17 @@ import {
 } from '@/utils/earTrainingQuotePayload';
 import { computeQuoteBubbleMaxOuterWidth } from '@/game/earTraining/computeQuoteBubbleMaxOuterWidth';
 import {
+  CHARACTER_DISPLAY_SIZE,
+  CHARACTER_SHADOW_HEIGHT,
+  CHARACTER_SHADOW_WIDTH,
   computeQuoteBubbleRootOffsetFromPlacement,
   computeQuoteBubbleSidePlacement,
   getDemoBubblePosition,
+  getEnemyAttackGaugePosition,
+  getFloorY,
+  getPianoHeight,
+  HUD_HEIGHT,
+  PIANO_OVERLAY_HEIGHT,
   resolveStaffReservedBottomY,
   SIDE_BUBBLE_TAIL_LENGTH_PX,
 } from '@/game/earTraining/canvas/earTrainingBattleLayout';
@@ -34,14 +42,8 @@ import {
   wrapTutorialQuoteSegmentsToLines,
 } from '@/game/earTraining/tutorialQuoteSegmentsLayout';
 
-const PIANO_OVERLAY_HEIGHT = 88;
-const HUD_HEIGHT = 150;
 const PHRASE_INTRO_FADE_MS = 2600;
 const PHRASE_INTRO_EMPHASIS_FADE_MS = 3900;
-const FLOOR_CLEARANCE_FROM_PIANO = 100;
-const CHARACTER_DISPLAY_SIZE = 116;
-const CHARACTER_SHADOW_WIDTH = 104;
-const CHARACTER_SHADOW_HEIGHT = 22;
 const PLAYER_QUOTE_PAD_X = 10;
 const PLAYER_QUOTE_PAD_Y = 6;
 const PLAYER_QUOTE_CORNER_RADIUS = 8;
@@ -253,10 +255,6 @@ const clampPercent = (value: number, max: number): number => {
   }
   return Phaser.Math.Clamp(value / max, 0, 1);
 };
-
-const getPianoHeight = (): number => PIANO_OVERLAY_HEIGHT;
-
-const getFloorY = (height: number): number => Math.max(260, height - getPianoHeight() - FLOOR_CLEARANCE_FROM_PIANO);
 
 const colorForHp = (percent: number, high: number, middle: number, low: number): number => {
   if (percent > 0.5) {
@@ -1606,7 +1604,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     const floorY = getFloorY(height);
-    this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, floorY - 166));
+    const attackGaugePos = getEnemyAttackGaugePosition(width, height);
+    this.drawEnemyAttackGauge(attackGaugePos.x, attackGaugePos.y);
     if (snapshot.demoLoopActive) {
       const demoPos = getDemoBubblePosition(width, height, this.staffReservedBottomY);
       this.drawDemoBubble(demoPos.x, demoPos.y);

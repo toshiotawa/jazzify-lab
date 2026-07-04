@@ -1,7 +1,7 @@
 export const PRECISION_SCORE_BAND_HEIGHT_STORAGE_KEY = 'earTraining.precision.scoreBandHeightPx';
 
-export const PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX = 128;
-export const PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX = 192;
+export const PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX = 144;
+export const PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX = 208;
 export const PRECISION_SCORE_BAND_MIN_HEIGHT_PX = 96;
 
 export const clampPrecisionScoreBandHeightPx = (
