@@ -155,6 +155,27 @@ describe('buildChordOsmdRhythmTargets', () => {
     expect(targets.every(target => target.label === 'C/G')).toBe(true);
   });
 
+  it('fromScore=true のとき MIDI より MusicXML アタックを優先する（両手同時発音）', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions><staves>2</staves></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><staff>1</staff></note>
+<backup><duration>1</duration></backup>
+<note><pitch><step>E</step><octave>3</octave></pitch><duration>1</duration><staff>2</staff></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    const midiNotes = [{ midi: 52, startSec: 0 }];
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([]),
+      120,
+      4,
+      attacks,
+      true,
+      0,
+      midiNotes,
+    );
+
+    expect(targets).toHaveLength(2);
+    expect(targets.map(target => target.midiCounts[0]?.midi).sort((a, b) => a - b)).toEqual([52, 60]);
+  });
+
   it('fromScore=true の和音アタックは1ターゲットにまとめ、全構成音が必要', () => {
     const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
 <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>

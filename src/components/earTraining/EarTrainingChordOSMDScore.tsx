@@ -264,15 +264,15 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     return max;
   }, [layout]);
   const viewportWidthPx = viewportRef.current?.clientWidth ?? 0;
-  const cssScaleForLayout = fillParent ? cssScale * userZoom : cssScale;
+  const cssScaleForLayout = cssScale * userZoom;
   const effectiveScale = scrollLayout.fitWindow
     ? computeOsmdWindowFitScale({
-      cssScale: cssScaleForLayout,
+      cssScale,
       measureBoundsByNumber: layout.measureBoundsByNumber,
       maxMeasureNumber,
       viewportWidth: viewportWidthPx,
       minVisibleMeasures: scrollLayout.fitWindow.minVisibleMeasures,
-    })
+    }) * userZoom
     : computeOsmdEffectiveScaleForMeasure({
       cssScale: cssScaleForLayout,
       bounds: activeMeasureBounds,
@@ -741,6 +741,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     useImperativePlayhead,
     cssScaleForLayout,
     maxMeasureNumber,
+    userZoom,
   ]);
 
   const statusText = renderError ?? scoreErrorText;
@@ -787,13 +788,13 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     useImperativePlayhead,
   ]);
 
-  const zoomControls = fillParent && !hidden && musicXmlText ? (
+  const zoomControls = !hidden && musicXmlText ? (
     <div
       className={cn(
         'pointer-events-auto flex flex-col items-center gap-1 rounded-md border border-white/15 bg-slate-900/70 py-1 px-1 text-xs font-semibold text-white shadow-sm',
         fillParent
           ? 'absolute right-2 top-2 z-20'
-          : 'fixed right-[max(12px,env(safe-area-inset-right))] top-[42%] z-20 -translate-y-1/2',
+          : 'fixed right-[max(12px,env(safe-area-inset-right))] top-[36%] z-20 -translate-y-1/2',
       )}
     >
       <button
@@ -910,7 +911,12 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     );
   }
 
-  return scoreViewport;
+  return (
+    <>
+      {scoreViewport}
+      {zoomControls}
+    </>
+  );
 }));
 
 export default EarTrainingChordOSMDScore;

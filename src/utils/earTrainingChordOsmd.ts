@@ -1386,6 +1386,16 @@ export const buildChordOsmdRhythmTargets = (
     return [];
   }
 
+  if (fromScore && attacks && attacks.length > 0) {
+    return buildChordOsmdRhythmTargetsFromScore(
+      phrase,
+      bpm,
+      beatsPerMeasure,
+      attacks,
+      transposeOffset,
+    );
+  }
+
   if (midiNotes && midiNotes.length > 0) {
     const measureLabels = buildPlayableMeasureLabels(phrase.chords ?? [], transposeOffset);
     const fromMidi = buildChordOsmdRhythmTargetsFromMidiNotes(
@@ -1397,16 +1407,6 @@ export const buildChordOsmdRhythmTargets = (
     if (fromMidi.length > 0) {
       return fromMidi;
     }
-  }
-
-  if (fromScore && attacks && attacks.length > 0) {
-    return buildChordOsmdRhythmTargetsFromScore(
-      phrase,
-      bpm,
-      beatsPerMeasure,
-      attacks,
-      transposeOffset,
-    );
   }
 
   const chords = phrase.chords ?? [];

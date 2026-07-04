@@ -188,6 +188,10 @@ private struct EarTrainingChordOSMDContent: View {
     let fixedLandscapeSize: CGSize?
 
     @State private var hudHorizontalPadding: CGFloat = 16
+    /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
+    @State private var scoreSizeStep: Int = 0
+
+    private static let containerScaleTable: [Double] = [0.80, 0.90, 1.00, 1.15, 1.30]
 
     var body: some View {
         Group {
@@ -327,6 +331,11 @@ private struct EarTrainingChordOSMDContent: View {
         let baseHeight = min(size.height * 0.55, 360)
         let outerHeight = min(size.height * 0.72, max(size.height * 0.26, baseHeight))
 
+        let tableIndex = min(max(scoreSizeStep + 2, 0), Self.containerScaleTable.count - 1)
+        let containerScale = Self.containerScaleTable[tableIndex]
+        let shrinkDisabled = scoreSizeStep <= -2
+        let enlargeDisabled = scoreSizeStep >= 2
+
         // OSMD コンテナ高さに収めるためのベースズーム。WebView 側でレンダー後に高さを測り、
         // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
         // 2段譜以上では iPhone のみ明示的に小さく開始（iPad は変更なし）。
@@ -372,12 +381,76 @@ private struct EarTrainingChordOSMDContent: View {
                     .padding(.horizontal, 18)
                 }
             }
-            .frame(width: outerWidth, height: outerHeight)
+            .frame(width: outerWidth, height: outerHeight, alignment: .leading)
+            .scaleEffect(containerScale, anchor: .leading)
+            .frame(width: outerWidth, height: outerHeight, alignment: .leading)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .clipped()
             .allowsHitTesting(false)
+
+            scoreZoomControlsOuter(
+                enlargeDisabled: enlargeDisabled,
+                shrinkDisabled: shrinkDisabled,
+                outerWidth: outerWidth,
+                outerHeight: outerHeight
+            )
         }
         .position(x: leftInset + outerWidth / 2, y: centerY)
+    }
+
+    @ViewBuilder
+    private func scoreZoomControlsOuter(
+        enlargeDisabled: Bool,
+        shrinkDisabled: Bool,
+        outerWidth: CGFloat,
+        outerHeight: CGFloat
+    ) -> some View {
+        HStack(spacing: 6) {
+            scoreZoomChipButton(
+                systemName: "minus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を縮小" : "Shrink score",
+                disabled: shrinkDisabled,
+                action: {
+                    guard scoreSizeStep > -2 else { return }
+                    scoreSizeStep -= 1
+                }
+            )
+
+            scoreZoomChipButton(
+                systemName: "plus.magnifyingglass",
+                accessibilityLabel: locale == .ja ? "譜面を拡大" : "Enlarge score",
+                disabled: enlargeDisabled,
+                action: {
+                    guard scoreSizeStep < 2 else { return }
+                    scoreSizeStep += 1
+                }
+            )
+        }
+        .padding(.trailing, 6)
+        .padding(.bottom, 6)
+        .frame(width: outerWidth, height: outerHeight, alignment: .bottomTrailing)
+    }
+
+    @ViewBuilder
+    private func scoreZoomChipButton(
+        systemName: String,
+        accessibilityLabel label: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(Color.white.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .opacity(disabled ? 0.28 : 1)
+        .disabled(disabled)
+        .accessibilityLabel(label)
     }
 
     private static func resolveHudHorizontalPadding() -> CGFloat {
