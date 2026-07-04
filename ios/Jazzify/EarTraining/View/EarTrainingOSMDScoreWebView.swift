@@ -290,7 +290,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
             guard !isTornDown else { return }
             htmlReady = true
-            lastScrollMode = nil
             lastCountInDurationSec = nil
             lastMaxOsmdMeasure = nil
             sendScrollConfigIfNeeded()
