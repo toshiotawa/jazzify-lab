@@ -146,6 +146,7 @@ struct EarTrainingTutorialContentStage: Decodable, Sendable {
     let quiz_required_correct_count: Int?
     let show_keyboard_hints_in_battle: Bool?
     let osmd_targets_from_score: Bool?
+    let is_swing: Bool?
 }
 
 struct EarTrainingTutorialContentPhrase: Decodable, Sendable {

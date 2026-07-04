@@ -599,16 +599,29 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return nil
     }
 
+    private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
+
+    private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
+        let beatWhole = floor(beatIndex + 1e-6)
+        let fraction = beatIndex - beatWhole
+        if abs(fraction - 0.5) < 1e-6 {
+            return beatWhole + chordOsmdSwingLongEighthRatio
+        }
+        return beatIndex
+    }
+
     private static func chordOsmdLyricTargetTimeSec(
         measureNumber: Int,
         beatStartInMeasure: Double,
         bpm: Double,
-        beatsPerMeasure: Int
+        beatsPerMeasure: Int,
+        isSwing: Bool = false
     ) -> Double {
         let beatDurationSec = 60 / max(1.0, bpm)
         let bpmSafe = max(1, beatsPerMeasure)
         let measureIndex = max(0, measureNumber - 1)
-        let beatIndex = max(0.0, beatStartInMeasure - 1)
+        let rawBeatIndex = max(0.0, beatStartInMeasure - 1)
+        let beatIndex = isSwing ? applyChordOsmdSwingToBeatIndex(rawBeatIndex) : rawBeatIndex
         return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
     }
 
@@ -618,6 +631,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         beatStartInMeasure: Double,
         bpm: Double,
         beatsPerMeasure: Int,
+        isSwing: Bool,
         lastTextByVerse: inout [Int: String],
         events: inout [ChordOsmdScoreLyricEvent]
     ) {
@@ -662,7 +676,8 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             measureNumber: measureNumber,
             beatStartInMeasure: beatStartInMeasure,
             bpm: bpm,
-            beatsPerMeasure: beatsPerMeasure
+            beatsPerMeasure: beatsPerMeasure,
+            isSwing: isSwing
         )
         for (verseNumber, text) in nextState where !text.isEmpty {
             events.append(
@@ -682,7 +697,8 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     static func collectChordOsmdScoreLyricEvents(
         _ xmlText: String,
         bpm: Double,
-        beatsPerMeasure: Int
+        beatsPerMeasure: Int,
+        isSwing: Bool = false
     ) -> [ChordOsmdScoreLyricEvent] {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
         let measures = measuresInPartsFirst(from: root)
@@ -735,6 +751,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                                 beatStartInMeasure: beatStartInMeasure,
                                 bpm: bpm,
                                 beatsPerMeasure: beatsPerMeasure,
+                                isSwing: isSwing,
                                 lastTextByVerse: &lastTextByVerse,
                                 events: &events
                             )
@@ -782,6 +799,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         beatStartInMeasure: beatStartInMeasure,
                         bpm: bpm,
                         beatsPerMeasure: beatsPerMeasure,
+                        isSwing: isSwing,
                         lastTextByVerse: &lastTextByVerse,
                         events: &events
                     )
@@ -841,11 +859,17 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     static func collectChordOsmdMusicXmlLyrics(
         _ xmlText: String,
         bpm: Double,
-        beatsPerMeasure: Int
+        beatsPerMeasure: Int,
+        isSwing: Bool = false
     ) -> [ChordOsmdLyricEvent] {
         var lyrics: [ChordOsmdLyricEvent] = []
         var lastText: String?
-        for event in collectChordOsmdScoreLyricEvents(xmlText, bpm: bpm, beatsPerMeasure: beatsPerMeasure) {
+        for event in collectChordOsmdScoreLyricEvents(
+            xmlText,
+            bpm: bpm,
+            beatsPerMeasure: beatsPerMeasure,
+            isSwing: isSwing
+        ) {
             if event.verseNumber != 1 || event.text == lastText {
                 continue
             }

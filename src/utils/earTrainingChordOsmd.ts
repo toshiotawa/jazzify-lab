@@ -698,10 +698,11 @@ export const collectChordOsmdMusicXmlLyrics = (
   musicXmlText: string,
   bpm: number,
   beatsPerMeasure: number,
+  isSwing = false,
 ): ChordOsmdLyricEvent[] => {
   const lyrics: ChordOsmdLyricEvent[] = [];
   let lastText: string | null = null;
-  for (const event of collectChordOsmdScoreLyricEvents(musicXmlText, bpm, beatsPerMeasure)) {
+  for (const event of collectChordOsmdScoreLyricEvents(musicXmlText, bpm, beatsPerMeasure, isSwing)) {
     if (event.verseNumber !== 1 || event.text === lastText) {
       continue;
     }
@@ -715,16 +716,30 @@ export const collectChordOsmdMusicXmlLyrics = (
   return lyrics;
 };
 
+/** スウィング8分: 表拍 = 2/3, 裏拍 = 1/3 */
+export const CHORD_OSMD_SWING_LONG_EIGHTH_RATIO = 2 / 3;
+
+const applyChordOsmdSwingToBeatIndex = (beatIndex: number): number => {
+  const beatWhole = Math.floor(beatIndex + 1e-6);
+  const fraction = beatIndex - beatWhole;
+  if (Math.abs(fraction - 0.5) < 1e-6) {
+    return beatWhole + CHORD_OSMD_SWING_LONG_EIGHTH_RATIO;
+  }
+  return beatIndex;
+};
+
 const chordOsmdLyricTargetTimeSec = (
   measureNumber: number,
   beatStartInMeasure: number,
   bpm: number,
   beatsPerMeasure: number,
+  isSwing = false,
 ): number => {
   const beatDurationSec = 60 / Math.max(1, bpm);
   const bpmSafe = Math.max(1, beatsPerMeasure);
   const measureIndex = Math.max(0, Math.trunc(measureNumber) - 1);
-  const beatIndex = Math.max(0, beatStartInMeasure - 1);
+  const rawBeatIndex = Math.max(0, beatStartInMeasure - 1);
+  const beatIndex = isSwing ? applyChordOsmdSwingToBeatIndex(rawBeatIndex) : rawBeatIndex;
   return (measureIndex * bpmSafe + beatIndex) * beatDurationSec;
 };
 
@@ -948,6 +963,7 @@ export const collectChordOsmdScoreLyricEvents = (
   musicXmlText: string,
   bpm: number,
   beatsPerMeasure: number,
+  isSwing = false,
 ): ChordOsmdScoreLyricEvent[] => {
   const events: ChordOsmdScoreLyricEvent[] = [];
   const lastTextByVerse = new Map<number, string>();
@@ -998,6 +1014,7 @@ export const collectChordOsmdScoreLyricEvents = (
       beatStartInMeasure,
       bpm,
       beatsPerMeasure,
+      isSwing,
     );
     for (const [verseNumber, text] of nextState) {
       if (text.length > 0) {
@@ -1323,6 +1340,7 @@ const buildChordOsmdRhythmTargetsFromScore = (
   beatsPerMeasure: number,
   attacks: readonly ChordOsmdMusicXmlAttack[],
   transposeOffset = 0,
+  isSwing = false,
 ): ChordOsmdRhythmTarget[] => {
   const chords = phrase.chords ?? [];
   const playableMeasures = buildPlayableMeasures(chords);
@@ -1344,8 +1362,8 @@ const buildChordOsmdRhythmTargetsFromScore = (
       return playableMeasures.has(attack.measureNumber);
     })
     .sort((a, b) => {
-      const timeA = chordOsmdLyricTargetTimeSec(a.measureNumber, a.beatStartInMeasure, bpm, beatsPerMeasure);
-      const timeB = chordOsmdLyricTargetTimeSec(b.measureNumber, b.beatStartInMeasure, bpm, beatsPerMeasure);
+      const timeA = chordOsmdLyricTargetTimeSec(a.measureNumber, a.beatStartInMeasure, bpm, beatsPerMeasure, isSwing);
+      const timeB = chordOsmdLyricTargetTimeSec(b.measureNumber, b.beatStartInMeasure, bpm, beatsPerMeasure, isSwing);
       if (Math.abs(timeA - timeB) > SAME_TARGET_EPSILON_SEC) {
         return timeA - timeB;
       }
@@ -1361,6 +1379,7 @@ const buildChordOsmdRhythmTargetsFromScore = (
       attack.beatStartInMeasure,
       bpm,
       beatsPerMeasure,
+      isSwing,
     );
     return {
       id: `${scoreTargetId(attack.measureNumber, attack.beatStartInMeasure)}:${orderIndex}`,
@@ -1381,6 +1400,7 @@ export const buildChordOsmdRhythmTargets = (
   fromScore = false,
   transposeOffset = 0,
   midiNotes?: readonly ChordOsmdMidiNoteLike[] | null,
+  isSwing = false,
 ): ChordOsmdRhythmTarget[] => {
   if (!phrase) {
     return [];
@@ -1393,6 +1413,7 @@ export const buildChordOsmdRhythmTargets = (
       beatsPerMeasure,
       attacks,
       transposeOffset,
+      isSwing,
     );
   }
 

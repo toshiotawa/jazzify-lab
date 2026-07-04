@@ -585,7 +585,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             beatsPerMeasure: stage.beatsPerMeasure,
             attacks: xmlAttacks,
             fromScore: stage.resolvedOsmdTargetsFromScore,
-            transposeOffset: effectivePracticeTransposeOffset()
+            transposeOffset: effectivePracticeTransposeOffset(),
+            isSwing: stage.resolvedIsSwing
         )
         guard !preparedTargets.isEmpty else {
             finishGameOver(message: isEnglishCopy ? "No chord timings are registered." : "判定用コードタイミングが登録されていません")
@@ -735,7 +736,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             let lyricEvents = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
                 prepared.xml,
                 bpm: Double(stage.bpm),
-                beatsPerMeasure: stage.beatsPerMeasure
+                beatsPerMeasure: stage.beatsPerMeasure,
+                isSwing: stage.resolvedIsSwing
             )
             let boxed = MusicXmlPrepared(
                 baseRhythmXml: prepared.xml,
@@ -770,7 +772,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             : EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlLyrics(
                 rhythmXml,
                 bpm: Double(stage.bpm),
-                beatsPerMeasure: stage.beatsPerMeasure
+                beatsPerMeasure: stage.beatsPerMeasure,
+                isSwing: stage.resolvedIsSwing
             )
         let originalFifths = EarTrainingMusicXmlTransposer.readKeyFifths(fromMusicXml: cached.baseRhythmXml)
         practiceOriginalKeyFifths = originalFifths
@@ -1431,13 +1434,26 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         measureNumber: Int,
         beatStartInMeasure: Double,
         bpm: Int,
-        beatsPerMeasure: Int
+        beatsPerMeasure: Int,
+        isSwing: Bool = false
     ) -> Double {
         let beatDurationSec = 60.0 / Double(max(1, bpm))
         let bpmSafe = max(1, beatsPerMeasure)
         let measureIndex = max(0, measureNumber - 1)
-        let beatIndex = max(0.0, beatStartInMeasure - 1)
+        let rawBeatIndex = max(0.0, beatStartInMeasure - 1)
+        let beatIndex = isSwing ? applyChordOsmdSwingToBeatIndex(rawBeatIndex) : rawBeatIndex
         return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
+    }
+
+    private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
+
+    private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
+        let beatWhole = floor(beatIndex + 1e-6)
+        let fraction = beatIndex - beatWhole
+        if abs(fraction - 0.5) < 1e-6 {
+            return beatWhole + chordOsmdSwingLongEighthRatio
+        }
+        return beatIndex
     }
 
     /// Web `buildChordOsmdRhythmTargetsFromScore` と同等。
@@ -1446,7 +1462,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         bpm: Int,
         beatsPerMeasure: Int,
         attacks: [ChordOsmdMusicXmlAttack],
-        transposeOffset: Int = 0
+        transposeOffset: Int = 0,
+        isSwing: Bool = false
     ) -> [(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, midiCounts: [Int: Int])] {
         var measureLabels: [Int: String] = [:]
         var playableMeasures = Set<Int>()
@@ -1481,13 +1498,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                     measureNumber: lhs.measureNumber,
                     beatStartInMeasure: lhs.beatStartInMeasure,
                     bpm: bpm,
-                    beatsPerMeasure: beatsPerMeasure
+                    beatsPerMeasure: beatsPerMeasure,
+                    isSwing: isSwing
                 )
                 let rhsTime = chordOsmdAttackTargetTimeSec(
                     measureNumber: rhs.measureNumber,
                     beatStartInMeasure: rhs.beatStartInMeasure,
                     bpm: bpm,
-                    beatsPerMeasure: beatsPerMeasure
+                    beatsPerMeasure: beatsPerMeasure,
+                    isSwing: isSwing
                 )
                 if abs(lhsTime - rhsTime) > 0.0005 { return lhsTime < rhsTime }
                 if lhs.measureNumber != rhs.measureNumber { return lhs.measureNumber < rhs.measureNumber }
@@ -1503,7 +1522,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 measureNumber: attack.measureNumber,
                 beatStartInMeasure: attack.beatStartInMeasure,
                 bpm: bpm,
-                beatsPerMeasure: beatsPerMeasure
+                beatsPerMeasure: beatsPerMeasure,
+                isSwing: isSwing
             )
             let beatKey = Int((attack.beatStartInMeasure * 10_000).rounded())
             let lo = UInt64(max(0, attack.measureNumber)) << 32 | UInt64(bitPattern: Int64(beatKey))
@@ -1525,7 +1545,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         beatsPerMeasure: Int,
         attacks: [ChordOsmdMusicXmlAttack],
         fromScore: Bool = false,
-        transposeOffset: Int = 0
+        transposeOffset: Int = 0,
+        isSwing: Bool = false
     ) -> [RhythmTarget] {
         if fromScore, !attacks.isEmpty {
             let drafts = Self.buildRhythmTargetsFromScore(
@@ -1533,7 +1554,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 bpm: bpm,
                 beatsPerMeasure: beatsPerMeasure,
                 attacks: attacks,
-                transposeOffset: transposeOffset
+                transposeOffset: transposeOffset,
+                isSwing: isSwing
             )
             return drafts.map {
                 RhythmTarget(

@@ -35,6 +35,21 @@ const MINIMAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
+const SWING_EIGHTH_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure number="1">
+      <attributes>
+        <divisions>2</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <key><fifths>0</fifths></key>
+      </attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>eighth</type></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>eighth</type></note>
+    </measure>
+  </part>
+</score-partwise>`;
+
 describe('earTrainingPrecisionNotes', () => {
   it('1音1ノーツを生成する', () => {
     const { notes } = buildPrecisionNotesFromMusicXml(MINIMAL_XML, 120, 4);
@@ -42,6 +57,16 @@ describe('earTrainingPrecisionNotes', () => {
     expect(notes[0]?.midi).toBe(60);
     expect(notes[1]?.midi).toBe(64);
     expect(notes[2]?.midi).toBe(67);
+  });
+
+  it('isSwing=true のとき裏拍8分の開始時刻をスイング位置にずらす', () => {
+    const { notes: evenNotes } = buildPrecisionNotesFromMusicXml(SWING_EIGHTH_XML, 120, 4, 0, false);
+    const { notes: swingNotes } = buildPrecisionNotesFromMusicXml(SWING_EIGHTH_XML, 120, 4, 0, true);
+    expect(evenNotes).toHaveLength(2);
+    expect(swingNotes).toHaveLength(2);
+    expect(swingNotes[0]?.startSec).toBeCloseTo(evenNotes[0]?.startSec ?? 0, 5);
+    expect(swingNotes[1]?.startSec ?? 0).toBeGreaterThan(evenNotes[1]?.startSec ?? 0);
+    expect(swingNotes[1]?.startSec).toBeCloseTo((60 / 120) * (2 / 3), 5);
   });
 
   it('2オクターブ以内なら24半音幅に拡張する', () => {

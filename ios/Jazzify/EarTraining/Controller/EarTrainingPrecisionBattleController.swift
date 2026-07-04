@@ -316,7 +316,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             builtNotes = EarTrainingPrecisionNotes.buildFromMusicXml(
                 musicXmlText: xml,
                 bpm: stage.bpm,
-                beatsPerMeasure: stage.beatsPerMeasure
+                beatsPerMeasure: stage.beatsPerMeasure,
+                isSwing: stage.resolvedIsSwing
             ).notes
         }
 

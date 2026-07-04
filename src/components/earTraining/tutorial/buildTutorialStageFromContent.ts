@@ -151,6 +151,7 @@ const baseStageFields = (
   | 'quiz_required_correct_count'
   | 'show_keyboard_hints_in_battle'
   | 'osmd_targets_from_score'
+  | 'is_swing'
   | 'chord_voicing_composite_phrase'
 > => ({
   slug: s.slug,
@@ -186,6 +187,7 @@ const baseStageFields = (
   quiz_required_correct_count: s.quiz_required_correct_count,
   show_keyboard_hints_in_battle: s.show_keyboard_hints_in_battle,
   osmd_targets_from_score: s.osmd_targets_from_score ?? (s.mode === 'chord_osmd' ? true : undefined),
+  is_swing: s.is_swing,
   chord_voicing_composite_phrase: s.chord_voicing_composite_phrase,
 });
 

@@ -6,6 +6,8 @@ import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import {
   areAllChordOsmdTargetsCompleted,
   buildChordOsmdRhythmTargets,
+  CHORD_OSMD_SWING_LONG_EIGHTH_RATIO,
+  chordOsmdBeatToTargetTimeSec,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
   collectChordOsmdMusicXmlAttacks,
@@ -894,6 +896,22 @@ describe('bluesy licks bundled MusicXML', () => {
     const normalized = normalizeChordOsmdMusicXml(raw);
     const attacks = collectChordOsmdMusicXmlAttacks(normalized);
     expect(attacks.some(attack => attack.midis.includes(71))).toBe(true);
+  });
+});
+
+describe('chordOsmdBeatToTargetTimeSec swing', () => {
+  it('裏拍8分（拍内0.5）を2/3拍位置にずらす', () => {
+    const even = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);
+    const swing = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true);
+    expect(even).toBeCloseTo(0.25, 5);
+    expect(swing).toBeCloseTo((60 / 120) * CHORD_OSMD_SWING_LONG_EIGHTH_RATIO, 5);
+    expect(swing).toBeGreaterThan(even);
+  });
+
+  it('表拍はスイングでも変わらない', () => {
+    const even = chordOsmdBeatToTargetTimeSec(1, 1, 120, 4, false);
+    const swing = chordOsmdBeatToTargetTimeSec(1, 1, 120, 4, true);
+    expect(swing).toBeCloseTo(even, 5);
   });
 });
 

@@ -825,6 +825,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         earTrainingOsmdUsesScoreTargets(stage),
         transposeOffset,
         resolveMidiNotesForTargets(transposeOffset),
+        stage.is_swing === true,
       );
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
@@ -1244,6 +1245,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         earTrainingOsmdUsesScoreTargets(stage),
         transposeOffset,
         resolveMidiNotesForTargets(transposeOffset),
+        stage.is_swing === true,
       );
       if (phraseTargets.length === 0) {
         finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');
@@ -1328,7 +1330,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         practiceModeRef.current ? practiceSpeedPercentRef.current : 100,
       );
       const phraseLyrics = xmlText
-        ? collectChordOsmdMusicXmlLyrics(xmlText, stage.bpm, stage.beats_per_measure)
+        ? collectChordOsmdMusicXmlLyrics(xmlText, stage.bpm, stage.beats_per_measure, stage.is_swing === true)
         : [];
       phraseLyricsRef.current = phraseLyrics;
       if (tutorial) {

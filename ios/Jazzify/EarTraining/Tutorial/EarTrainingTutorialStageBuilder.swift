@@ -172,6 +172,7 @@ enum EarTrainingTutorialStageBuilder {
             quizRequiredCorrectCount: stage.quiz_required_correct_count,
             showKeyboardHintsInBattle: (stage.show_keyboard_hints_in_battle == true) || keyboardHintsScriptDefault,
             osmdTargetsFromScore: stage.osmd_targets_from_score,
+            isSwing: stage.is_swing,
             chordQuizItems: quizItems,
             chordVoicingCompositePhrase: stage.chord_voicing_composite_phrase,
             compositePhraseBootstrap: compositePhraseBootstrap,

@@ -71,6 +71,49 @@ const durationSecFromDivisions = (
   return Math.max(0.05, quarters * beatDurationSec);
 };
 
+const resolvePrecisionNoteTimingSec = (
+  measureNumber: number,
+  beatStartInMeasure: number,
+  durationDivisions: number,
+  divisions: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  isSwing: boolean,
+): { startSec: number; durationSec: number } => {
+  if (!isSwing) {
+    const startSec = chordOsmdBeatToTargetTimeSec(
+      measureNumber,
+      beatStartInMeasure,
+      bpm,
+      beatsPerMeasure,
+    );
+    return {
+      startSec,
+      durationSec: durationSecFromDivisions(durationDivisions, divisions, bpm),
+    };
+  }
+  const quarters = durationDivisions / Math.max(1, divisions);
+  const endBeatStartInMeasure = beatStartInMeasure + quarters;
+  const startSec = chordOsmdBeatToTargetTimeSec(
+    measureNumber,
+    beatStartInMeasure,
+    bpm,
+    beatsPerMeasure,
+    true,
+  );
+  const endSec = chordOsmdBeatToTargetTimeSec(
+    measureNumber,
+    endBeatStartInMeasure,
+    bpm,
+    beatsPerMeasure,
+    true,
+  );
+  return {
+    startSec,
+    durationSec: Math.max(0.05, endSec - startSec),
+  };
+};
+
 /**
  * ショートノーツ上限音価（四分音符比）。
  * 2/3拍（スイング長8分 = 3連符2分子）以下をショート。
@@ -246,6 +289,7 @@ export const buildPrecisionNotesFromMusicXml = (
   bpm: number,
   beatsPerMeasure: number,
   transposeOffset = 0,
+  isSwing = false,
 ): PrecisionNoteBuildResult => {
   const notes: PrecisionNote[] = [];
   forEachChordOsmdNoteCluster(musicXmlText, ({
@@ -255,16 +299,14 @@ export const buildPrecisionNotesFromMusicXml = (
     timing,
     durationDivisions,
   }) => {
-    const startSec = chordOsmdBeatToTargetTimeSec(
+    const { startSec, durationSec } = resolvePrecisionNoteTimingSec(
       measureNumber,
       beatStartInMeasure,
-      bpm,
-      beatsPerMeasure,
-    );
-    const durationSec = durationSecFromDivisions(
       durationDivisions,
       timing.divisions,
       bpm,
+      beatsPerMeasure,
+      isSwing,
     );
     let indexInCluster = 0;
     for (const noteEl of clusterNotes) {

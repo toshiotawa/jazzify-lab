@@ -843,6 +843,8 @@ export interface EarTrainingStage {
   practice_transpose?: boolean;
   /** chord_precision/chord_osmd: 譜面上に OSMD 標準歌詞を描画する（false=ノーツ部テキストのみ）。既定 false */
   show_score_lyrics_in_battle?: boolean;
+  /** chord_osmd/chord_precision: MusicXML イーブン記譜をスイング（2:1）タイミングでノーツ/ハンマー生成 */
+  is_swing?: boolean;
   created_at?: string;
   updated_at?: string;
   phrases?: EarTrainingPhrase[];

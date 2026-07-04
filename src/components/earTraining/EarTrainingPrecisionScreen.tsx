@@ -427,6 +427,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         xmlText,
         stage.bpm,
         stage.beats_per_measure,
+        transposeOffset,
+        stage.is_swing === true,
       ).notes;
     }
     const calibratedNotes = calibratePrecisionNotes(builtNotes, {
@@ -869,6 +871,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         xmlText,
         resolveEffectivePracticeBpm(),
         stage.beats_per_measure,
+        stage.is_swing === true,
       );
       phraseScoreLyricsRef.current = scoreLyrics;
 

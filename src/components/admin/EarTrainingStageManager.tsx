@@ -72,6 +72,7 @@ const defaultStageForm: StageForm = {
   show_keyboard_hints_in_battle: false,
   practice_transpose: false,
   show_score_lyrics_in_battle: false,
+  is_swing: false,
 };
 
 const defaultPhraseForm: PhraseForm = {
@@ -176,6 +177,7 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
   }),
   practice_transpose: stage.practice_transpose ?? false,
   show_score_lyrics_in_battle: stage.show_score_lyrics_in_battle ?? false,
+  is_swing: stage.is_swing ?? false,
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -763,6 +765,20 @@ const EarTrainingStageManager: React.FC = () => {
                     }))}
                   />
                   譜面上に歌詞を表示（OSMD標準歌詞・既定OFFでノーツ部テキストのみ）
+                </label>
+              )}
+              {(stageForm.mode === 'chord_osmd' || stageForm.mode === 'chord_precision') && (
+                <label className="col-span-full flex items-center gap-2 text-sm md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm"
+                    checked={Boolean(stageForm.is_swing)}
+                    onChange={event => setStageForm(prev => ({
+                      ...prev,
+                      is_swing: event.target.checked,
+                    }))}
+                  />
+                  スイング（2:1）でノーツ/ハンマー生成（イーブン記譜をスイングタイミングに変換）
                 </label>
               )}
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />

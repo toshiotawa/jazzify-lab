@@ -179,21 +179,22 @@ enum EarTrainingPrecisionNotes {
         musicXmlText: String,
         bpm: Int,
         beatsPerMeasure: Int,
-        transposeOffset: Int = 0
+        transposeOffset: Int = 0,
+        isSwing: Bool = false
     ) -> EarTrainingPrecisionNoteBuildResult {
         var notes: [EarTrainingPrecisionNote] = []
         forEachNoteCluster(musicXmlText: musicXmlText) { context in
-            let startSec = chordOsmdBeatToTargetTimeSec(
+            let timing = resolvePrecisionNoteTimingSec(
                 measureNumber: context.measureNumber,
                 beatStartInMeasure: context.beatStartInMeasure,
-                bpm: bpm,
-                beatsPerMeasure: beatsPerMeasure
-            )
-            let durationSec = durationSecFromDivisions(
                 durationDivisions: context.durationDivisions,
                 divisions: context.divisions,
-                bpm: bpm
+                bpm: bpm,
+                beatsPerMeasure: beatsPerMeasure,
+                isSwing: isSwing
             )
+            let startSec = timing.startSec
+            let durationSec = timing.durationSec
             var indexInCluster = 0
             for noteElement in context.clusterNotes {
                 if EarTrainingPrecisionMusicXmlClusterWalker.hasTieStop(on: noteElement) {
@@ -257,16 +258,75 @@ enum EarTrainingPrecisionNotes {
         return max(0.05, quarters * beatDurationSec)
     }
 
+    private static func durationSecFromDivisions(durationDivisions: Double, divisions: Int, bpm: Int) -> Double {
+        let beatDurationSec = 60.0 / Double(max(1, bpm))
+        let quarters = durationDivisions / Double(max(1, divisions))
+        return max(0.05, quarters * beatDurationSec)
+    }
+
+    private static func resolvePrecisionNoteTimingSec(
+        measureNumber: Int,
+        beatStartInMeasure: Double,
+        durationDivisions: Double,
+        divisions: Int,
+        bpm: Int,
+        beatsPerMeasure: Int,
+        isSwing: Bool
+    ) -> (startSec: Double, durationSec: Double) {
+        if !isSwing {
+            let startSec = chordOsmdBeatToTargetTimeSec(
+                measureNumber: measureNumber,
+                beatStartInMeasure: beatStartInMeasure,
+                bpm: bpm,
+                beatsPerMeasure: beatsPerMeasure
+            )
+            return (
+                startSec,
+                durationSecFromDivisions(durationDivisions: durationDivisions, divisions: divisions, bpm: bpm)
+            )
+        }
+        let quarters = durationDivisions / Double(max(1, divisions))
+        let endBeatStartInMeasure = beatStartInMeasure + quarters
+        let startSec = chordOsmdBeatToTargetTimeSec(
+            measureNumber: measureNumber,
+            beatStartInMeasure: beatStartInMeasure,
+            bpm: bpm,
+            beatsPerMeasure: beatsPerMeasure,
+            isSwing: true
+        )
+        let endSec = chordOsmdBeatToTargetTimeSec(
+            measureNumber: measureNumber,
+            beatStartInMeasure: endBeatStartInMeasure,
+            bpm: bpm,
+            beatsPerMeasure: beatsPerMeasure,
+            isSwing: true
+        )
+        return (startSec, max(0.05, endSec - startSec))
+    }
+
+    private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
+
+    private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
+        let beatWhole = floor(beatIndex + 1e-6)
+        let fraction = beatIndex - beatWhole
+        if abs(fraction - 0.5) < 1e-6 {
+            return beatWhole + chordOsmdSwingLongEighthRatio
+        }
+        return beatIndex
+    }
+
     static func chordOsmdBeatToTargetTimeSec(
         measureNumber: Int,
         beatStartInMeasure: Double,
         bpm: Int,
-        beatsPerMeasure: Int
+        beatsPerMeasure: Int,
+        isSwing: Bool = false
     ) -> Double {
         let beatDurationSec = 60.0 / Double(max(1, bpm))
         let bpmSafe = max(1, beatsPerMeasure)
         let measureIndex = max(0, measureNumber - 1)
-        let beatIndex = max(0.0, beatStartInMeasure - 1)
+        let rawBeatIndex = max(0.0, beatStartInMeasure - 1)
+        let beatIndex = isSwing ? applyChordOsmdSwingToBeatIndex(rawBeatIndex) : rawBeatIndex
         return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
     }
 

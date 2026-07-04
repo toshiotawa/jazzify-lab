@@ -110,6 +110,8 @@ export interface EarTrainingTutorialContentStage {
   show_keyboard_hints_in_battle?: boolean;
   /** 省略時は chord_osmd で true（MusicXML 譜面から判定ターゲット生成） */
   osmd_targets_from_score?: boolean;
+  /** chord_osmd/chord_precision: MusicXML イーブン記譜をスイング（2:1）タイミングでノーツ/ハンマー生成 */
+  is_swing?: boolean;
   chord_voicing_composite_phrase?: boolean;
 }
 
