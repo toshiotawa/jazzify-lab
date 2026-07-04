@@ -1363,7 +1363,7 @@ const buildChordOsmdRhythmTargetsFromScore = (
       beatsPerMeasure,
     );
     return {
-      id: scoreTargetId(attack.measureNumber, attack.beatStartInMeasure),
+      id: `${scoreTargetId(attack.measureNumber, attack.beatStartInMeasure)}:${orderIndex}`,
       label: measureLabels.get(attack.measureNumber) ?? '—',
       orderIndex,
       targetTimeSec,

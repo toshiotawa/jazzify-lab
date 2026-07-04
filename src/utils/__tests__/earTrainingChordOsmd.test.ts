@@ -174,6 +174,47 @@ describe('buildChordOsmdRhythmTargets', () => {
 
     expect(targets).toHaveLength(2);
     expect(targets.map(target => target.midiCounts[0]?.midi).sort((a, b) => a - b)).toEqual([52, 60]);
+    expect(new Set(targets.map(target => target.id)).size).toBe(2);
+  });
+
+  it('fromScore=true の同一拍 RH/LH 別アタックは id が衝突せず runtime Map で両方保持できる', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>8</divisions><staves>2</staves></attributes>
+<note><pitch><step>A</step><alter>-1</alter><octave>4</octave></pitch><duration>8</duration><voice>1</voice><staff>1</staff></note>
+<note><chord/><pitch><step>D</step><alter>-1</alter><octave>5</octave></pitch><duration>8</duration><voice>1</voice><staff>1</staff></note>
+<note><chord/><pitch><step>F</step><octave>5</octave></pitch><duration>8</duration><voice>1</voice><staff>1</staff></note>
+<backup><duration>8</duration></backup>
+<note><pitch><step>B</step><alter>-1</alter><octave>3</octave></pitch><duration>8</duration><voice>2</voice><staff>2</staff></note>
+<note><chord/><pitch><step>E</step><alter>-1</alter><octave>4</octave></pitch><duration>8</duration><voice>2</voice><staff>2</staff></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    const targets = buildChordOsmdRhythmTargets(
+      {
+        id: 'phrase-score-only',
+        stage_id: 'stage-1',
+        order_index: 0,
+        audio_url: '/phrase.mp3',
+        loop_duration_sec: 8,
+        audio_duration_sec: 8,
+        note_count: 0,
+      },
+      240,
+      4,
+      attacks,
+      true,
+    );
+
+    expect(targets).toHaveLength(2);
+    expect(new Set(targets.map(target => target.id)).size).toBe(2);
+    expect(targets[0].targetTimeSec).toBeCloseTo(targets[1].targetTimeSec);
+    expect(targets[0].midiCounts.map(item => item.midi).sort((a, b) => a - b)).toEqual([68, 73, 77]);
+    expect(targets[1].midiCounts.map(item => item.midi).sort((a, b) => a - b)).toEqual([58, 63]);
+
+    const runtime = new Map<string, ReturnType<typeof createChordOsmdRemainingCounts>>();
+    for (const target of targets) {
+      runtime.set(target.id, createChordOsmdRemainingCounts(target));
+    }
+    expect(runtime.size).toBe(2);
+    expect(runtime.get(targets[0].id)?.get(68)).toBe(1);
+    expect(runtime.get(targets[1].id)?.get(58)).toBe(1);
   });
 
   it('fromScore=true の和音アタックは1ターゲットにまとめ、全構成音が必要', () => {
