@@ -43,6 +43,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
     private let enemyId: String
     private let enemyName: String
     private let audio: EarTrainingAudio
+    private let supabase = SupabaseService.shared
     private let onExitCallback: () -> Void
     private weak var scene: EarTrainingBattleSceneHandle?
 
@@ -478,12 +479,21 @@ final class EarTrainingAdlibBattleController: ObservableObject {
         statusText = copy.stageClear
         triggerFeedback(.clear)
         publishSnapshot()
-        guard !practiceMode, lessonContext != nil, !progressSaveStarted else { return }
+        guard !practiceMode, let lessonContext, !progressSaveStarted else { return }
         progressSaveStarted = true
         lessonProgressStatus = .saving
         publishSnapshot()
-        // レッスン進捗は Web と同様に B 固定で保存（呼び出し元が担当する場合は省略可）
-        lessonProgressStatus = .saved
+        do {
+            _ = try await supabase.recordEarTrainingLessonProgress(
+                lessonId: lessonContext.lessonId,
+                lessonSongId: lessonContext.lessonSongId,
+                rank: "B",
+                clearConditions: lessonContext.clearConditions
+            )
+            lessonProgressStatus = .saved
+        } catch {
+            lessonProgressStatus = .saving
+        }
         publishSnapshot()
     }
 

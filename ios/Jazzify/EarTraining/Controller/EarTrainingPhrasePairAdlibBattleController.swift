@@ -40,6 +40,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     let copy: EarTrainingGameCopy
 
     private let audio: EarTrainingAudio
+    private let supabase = SupabaseService.shared
     private let onExitCallback: () -> Void
     private weak var scene: EarTrainingBattleSceneHandle?
 
@@ -468,11 +469,21 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         statusText = copy.stageClear
         triggerFeedback(.clear)
         publishSnapshot()
-        guard !practiceMode, lessonContext != nil, !progressSaveStarted else { return }
+        guard !practiceMode, let lessonContext, !progressSaveStarted else { return }
         progressSaveStarted = true
         lessonProgressStatus = .saving
         publishSnapshot()
-        lessonProgressStatus = .saved
+        do {
+            _ = try await supabase.recordEarTrainingLessonProgress(
+                lessonId: lessonContext.lessonId,
+                lessonSongId: lessonContext.lessonSongId,
+                rank: "B",
+                clearConditions: lessonContext.clearConditions
+            )
+            lessonProgressStatus = .saved
+        } catch {
+            lessonProgressStatus = .saving
+        }
         publishSnapshot()
     }
 
